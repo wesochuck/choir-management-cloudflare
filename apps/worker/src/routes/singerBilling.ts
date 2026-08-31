@@ -9,7 +9,6 @@ import {
   readOrganizationMemberProfile,
   updateOrganizationMemberProfile,
 } from "../organization/profiles";
-import { linkedOrganizationProfileId } from "../tenancy/linkedOrganizationProfile";
 import {
   createDuesCheckoutSession,
   listSeasons,
@@ -22,7 +21,7 @@ import type { Hono } from "hono";
 
 import type { WorkerHonoEnvironment } from "./helpers";
 
-import { authorizeCalendarRoute } from "./helpers";
+import { authorizeCalendarRoute, resolveEffectiveMemberProfileId } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/singer/profile", async (context) => {
@@ -33,11 +32,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         authorization.status,
       );
     }
-    const profileId = await linkedOrganizationProfileId(
-      context.env.CONTROL_DB,
-      authorization.organizationId,
-      authorization.userId,
-    );
+    const { profileId } = await resolveEffectiveMemberProfileId(context, authorization);
     if (!profileId) {
       return context.json(
         {
@@ -53,8 +48,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         readOrganizationMemberProfile(context.env, authorization.organizationId, profileId),
         listOrganizationProfileEmails(context.env.CONTROL_DB, authorization.organizationId),
       ]);
-      const email = emails.get(profileId);
-      if (!email) throw new Error("The linked Profile email is missing.");
+      const email = emails.get(profileId) ?? "";
       return context.json({
         displayName: profile.displayName,
         email,
@@ -86,11 +80,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         authorization.status,
       );
     }
-    const profileId = await linkedOrganizationProfileId(
-      context.env.CONTROL_DB,
-      authorization.organizationId,
-      authorization.userId,
-    );
+    const { profileId } = await resolveEffectiveMemberProfileId(context, authorization);
     if (!profileId) {
       return context.json(
         {
@@ -150,11 +140,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     }
-    const profileId = await linkedOrganizationProfileId(
-      context.env.CONTROL_DB,
-      authorization.organizationId,
-      authorization.userId,
-    );
+    const { profileId } = await resolveEffectiveMemberProfileId(context, authorization);
     if (!profileId) {
       return context.json(
         {
@@ -216,11 +202,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     }
-    const profileId = await linkedOrganizationProfileId(
-      context.env.CONTROL_DB,
-      authorization.organizationId,
-      authorization.userId,
-    );
+    const { profileId } = await resolveEffectiveMemberProfileId(context, authorization);
     if (!profileId) {
       return context.json(
         {
@@ -242,8 +224,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         }),
         listOrganizationProfileEmails(context.env.CONTROL_DB, authorization.organizationId),
       ]);
-      const email = emails.get(profileId);
-      if (!email) throw new Error("The linked Profile email is missing.");
+      const email = emails.get(profileId) ?? "";
       return context.json({
         displayName: profile.displayName,
         email,

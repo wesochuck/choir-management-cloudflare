@@ -200,20 +200,113 @@
   .platform-organization-domains {
     flex: 1 1 100%;
     margin-top: var(--spacing-sm);
-    border-top: 1px solid var(--color-border);
-    padding-top: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    overflow: hidden;
   }
 
-  .platform-organization-domains summary {
-    color: var(--color-primary);
+  .platform-organization-domains__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
     cursor: pointer;
+    user-select: none;
+    list-style: none;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease;
+  }
+
+  .platform-organization-domains__summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .platform-organization-domains__summary:hover {
+    background: color-mix(in srgb, var(--color-surface-raised) 70%, var(--color-surface));
+  }
+
+  .platform-organization-domains__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xs) var(--spacing-sm);
+    min-width: 0;
+  }
+
+  .platform-organization-domains__label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .platform-organization-domains__status-text {
     font-size: var(--font-size-md);
-    font-weight: var(--font-weight-bold);
+    color: var(--color-text-muted);
+  }
+
+  .platform-organization-domains__empty {
+    font-size: var(--font-size-md);
+    color: var(--color-text-muted);
+    font-style: italic;
+  }
+
+  .platform-organization-domains__preview {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    min-width: 0;
+  }
+
+  .platform-organization-domains__hostname {
+    font-size: var(--font-size-md);
+    color: var(--color-text);
+    font-family: var(--font-family-mono, monospace);
+    overflow-wrap: anywhere;
+  }
+
+  .platform-organization-domains__more-count {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  .platform-organization-domains__toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-3xs);
+    flex-shrink: 0;
+    padding: var(--spacing-3xs) var(--spacing-xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .platform-organization-domains__chevron {
+    transition: transform 0.2s ease;
+  }
+
+  .platform-organization-domains[open] .platform-organization-domains__chevron {
+    transform: rotate(180deg);
   }
 
   .platform-organization-domains__content {
-    max-width: 52rem;
-    margin-top: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    border-top: 1px solid var(--color-border);
+    background: color-mix(in srgb, var(--color-surface-raised) 30%, var(--color-surface));
+  }
+
+  .platform-organization-domains__error-retry {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
   }
 
   .platform-domain-list {
@@ -706,24 +799,22 @@
     grid-column: 2;
     min-width: 0;
     margin: 0;
-    border: 0;
-    padding: 0;
   }
 
-  .signed-in-main.signed-in-main--platform .platform-organization-domains summary {
+  .signed-in-main.signed-in-main--platform .platform-organization-domains__summary {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     min-height: 2.35rem;
-    padding: var(--spacing-xs) 0;
-    color: var(--color-primary);
+    padding: var(--spacing-xs) var(--spacing-sm);
   }
 
   .signed-in-main.signed-in-main--platform .platform-organization-domains__content {
     display: grid;
     gap: var(--spacing-sm);
     max-width: none;
-    margin: var(--spacing-2xs) 0 0;
-    padding-top: var(--spacing-sm);
+    margin: 0;
+    padding: var(--spacing-sm);
     border-top: 1px solid var(--color-border);
   }
 

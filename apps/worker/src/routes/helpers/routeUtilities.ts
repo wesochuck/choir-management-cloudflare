@@ -11,11 +11,12 @@ import { z } from "zod";
 
 import type { createAuth } from "../../auth/config";
 import { isCanonicalAuthHost, isProductBaseHost } from "../../auth/config";
+import { verifyImpersonationCookie } from "../../auth/impersonation";
 import {
   assertEmailProviderRecipientAvailable,
   EmailRecipientSuppressedError,
 } from "../../communications/emailFeedback";
-import type { Env } from "../../env";
+import { type Env, validateStartupConfig } from "../../env";
 import { ResourceRepositoryError } from "../../organization/organizationResources";
 import { setOrganizationProfilePhoto } from "../../organization/profiles";
 import type { readPrivateOrganizationFile } from "../../storage/privateFiles";
@@ -467,6 +468,44 @@ async function profilePhotoTargetAllowed(
       authorization.userId,
     )) === profileId
   );
+}
+
+export async function resolveEffectiveMemberProfileId(
+  context: Context<WorkerHonoEnvironment>,
+  authorization: Extract<CalendarAuthorization, { readonly ok: true }>,
+): Promise<{
+  readonly adminUserId: string | null;
+  readonly isImpersonating: boolean;
+  readonly profileId: string | null;
+}> {
+  if (authorization.role === "administrator" || authorization.role === "owner") {
+    validateStartupConfig(context.env);
+    const cookieHeader = context.req.raw.headers.get("cookie") ?? undefined;
+    const impersonation = await verifyImpersonationCookie(
+      context.env.SIGNED_LINK_SECRET,
+      authorization.organizationId,
+      authorization.userId,
+      cookieHeader,
+    );
+    if (impersonation.active && impersonation.impersonatedProfileId) {
+      return {
+        adminUserId: authorization.userId,
+        isImpersonating: true,
+        profileId: impersonation.impersonatedProfileId,
+      };
+    }
+  }
+
+  const profileId = await linkedOrganizationProfileId(
+    context.env.CONTROL_DB,
+    authorization.organizationId,
+    authorization.userId,
+  );
+  return {
+    adminUserId: null,
+    isImpersonating: false,
+    profileId,
+  };
 }
 
 export async function updateProfilePhotoRoute(

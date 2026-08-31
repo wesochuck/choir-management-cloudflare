@@ -66,15 +66,14 @@ export async function createCalendarFeedUrls(
     readonly actorUserId: string;
     readonly canonicalOrigin: string;
     readonly organizationId: string;
+    readonly profileId?: string | null;
     readonly requestId: string;
   },
   now = new Date(),
 ): Promise<CalendarFeedUrls | null> {
-  const profileId = await linkedOrganizationProfileId(
-    env.CONTROL_DB,
-    input.organizationId,
-    input.actorUserId,
-  );
+  const profileId =
+    input.profileId ??
+    (await linkedOrganizationProfileId(env.CONTROL_DB, input.organizationId, input.actorUserId));
   if (!profileId) {
     return null;
   }

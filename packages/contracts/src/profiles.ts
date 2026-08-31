@@ -56,7 +56,7 @@ export const memberProfileUpdateRequestSchema = z.object({
 });
 
 export const memberProfileSchema = memberProfileUpdateRequestSchema.extend({
-  email: emailAddressSchema,
+  email: z.union([z.literal(""), emailAddressSchema]),
   globalStatus: z.enum(["Active", "Idle", "Inactive"]),
   id: z.uuid(),
   photoFileId: z.uuid().nullable().default(null),
@@ -106,3 +106,28 @@ export const organizationVenueDeleteResponseSchema = z.object({
   status: z.literal("deleted"),
   venueId: z.uuid(),
 });
+
+export const organizationImpersonationStartRequestSchema = z.object({
+  profileId: z.uuid(),
+});
+
+export const organizationImpersonatedProfileSchema = z.object({
+  displayName: z.string().min(1).max(200),
+  id: z.uuid(),
+  voicePart: z.string().max(100).default(""),
+});
+
+export const organizationImpersonationStatusResponseSchema = z.object({
+  active: z.boolean(),
+  expiresAt: z.iso.datetime().optional(),
+  impersonatedProfile: organizationImpersonatedProfileSchema.optional(),
+  requestId: requestIdSchema,
+});
+
+export type OrganizationImpersonationStartRequest = z.infer<
+  typeof organizationImpersonationStartRequestSchema
+>;
+export type OrganizationImpersonatedProfile = z.infer<typeof organizationImpersonatedProfileSchema>;
+export type OrganizationImpersonationStatusResponse = z.infer<
+  typeof organizationImpersonationStatusResponseSchema
+>;

@@ -1,13 +1,12 @@
 import { type ProblemDetails } from "@choir/contracts";
 import { z } from "zod";
 import { readSingerSeating, SeatingRepositoryError } from "../organization/organizationSeating";
-import { linkedOrganizationProfileId } from "../tenancy/linkedOrganizationProfile";
 
 import type { Hono } from "hono";
 
 import type { WorkerHonoEnvironment } from "./helpers";
 
-import { authorizeCalendarRoute } from "./helpers";
+import { authorizeCalendarRoute, resolveEffectiveMemberProfileId } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/singer/events/:eventId/seating", async (context) => {
@@ -29,11 +28,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     }
-    const profileId = await linkedOrganizationProfileId(
-      context.env.CONTROL_DB,
-      authorization.organizationId,
-      authorization.userId,
-    );
+    const { profileId } = await resolveEffectiveMemberProfileId(context, authorization);
     if (!profileId) {
       return context.json(
         {
@@ -89,11 +84,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     }
-    const profileId = await linkedOrganizationProfileId(
-      context.env.CONTROL_DB,
-      authorization.organizationId,
-      authorization.userId,
-    );
+    const { profileId } = await resolveEffectiveMemberProfileId(context, authorization);
     if (!profileId) {
       return context.json(
         {

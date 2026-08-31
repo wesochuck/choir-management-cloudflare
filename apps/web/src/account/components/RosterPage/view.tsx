@@ -10,6 +10,7 @@ import { RosterConfiguration } from "../../RosterConfiguration";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { startOrganizationImpersonation } from "../../../api";
 import type { RosterPageModel } from "./hooks";
 
 type RosterSection = "roster" | "settings" | "automation";
@@ -437,17 +438,51 @@ export function RosterPageView({
                   header: "Actions",
                   id: "actions",
                   mobileLabel: "Manage",
-                  render: (candidate) => (
-                    <button
-                      className="text-button"
-                      onClick={() => {
-                        openEdit(candidate);
-                      }}
-                      type="button"
-                    >
-                      Edit
-                    </button>
-                  ),
+                  render: (candidate) => {
+                    const isCandidateAdmin = roster.memberships.some(
+                      (membership) =>
+                        membership.profileId === candidate.id &&
+                        (membership.role === "administrator" || membership.role === "owner"),
+                    );
+                    return (
+                      <div className="table-actions-cell">
+                        <button
+                          className="text-button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openEdit(candidate);
+                          }}
+                          type="button"
+                        >
+                          Edit
+                        </button>
+                        {!isCandidateAdmin ? (
+                          <button
+                            className="text-button text-button--secondary"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void (async () => {
+                                try {
+                                  await startOrganizationImpersonation(candidate.id);
+                                  window.location.href = "/dashboard";
+                                } catch (err: unknown) {
+                                  setError(
+                                    err instanceof Error
+                                      ? err.message
+                                      : "Could not begin impersonation.",
+                                  );
+                                }
+                              })();
+                            }}
+                            title={`Impersonate ${candidate.displayName}`}
+                            type="button"
+                          >
+                            Impersonate
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  },
                 },
               ]}
               emptyMessage={query ? "No profiles match your search" : "No profiles yet"}
@@ -889,6 +924,33 @@ export function RosterPageView({
                 Receive RSVP decline notices
               </label>
               <div className="dialog__actions">
+                {editingId &&
+                roster.status === "ready" &&
+                !roster.memberships.some(
+                  (membership) =>
+                    membership.profileId === editingId &&
+                    (membership.role === "administrator" || membership.role === "owner"),
+                ) ? (
+                  <button
+                    className="button button--secondary"
+                    disabled={busy}
+                    onClick={() => {
+                      void (async () => {
+                        try {
+                          await startOrganizationImpersonation(editingId);
+                          window.location.href = "/dashboard";
+                        } catch (err: unknown) {
+                          setError(
+                            err instanceof Error ? err.message : "Could not begin impersonation.",
+                          );
+                        }
+                      })();
+                    }}
+                    type="button"
+                  >
+                    Impersonate
+                  </button>
+                ) : null}
                 <DialogClose asChild>
                   <button className="button button--secondary" type="button">
                     Cancel

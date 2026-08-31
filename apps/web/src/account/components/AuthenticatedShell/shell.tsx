@@ -1,4 +1,8 @@
-import type { CurrentAuthSession, ModuleState } from "@choir/contracts";
+import type {
+  CurrentAuthSession,
+  ModuleState,
+  OrganizationImpersonationStatusResponse,
+} from "@choir/contracts";
 import { Sheet } from "@choir/ui";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -6,10 +10,12 @@ import {
   getHealth,
   getOrganizationAuthStatus,
   getOrganizationBranding,
+  getOrganizationImpersonationStatus,
   getOrganizationModuleState,
   getOrganizationRosterConfiguration,
   getPlatformMfaStatus,
   getSetupStatus,
+  stopOrganizationImpersonation,
 } from "../../../api";
 import { signOut } from "../../../auth/api";
 import { FloatingSaveBarProvider } from "../../FloatingSaveBar";
@@ -81,6 +87,31 @@ export function AuthenticatedShell({
     readonly logoFileId: string | null;
     readonly organizationName: string;
   } | null>(null);
+  const [impersonation, setImpersonation] =
+    useState<OrganizationImpersonationStatusResponse | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getOrganizationImpersonationStatus(controller.signal)
+      .then((status) => {
+        setImpersonation(status.active ? status : null);
+      })
+      .catch(() => {
+        setImpersonation(null);
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [route.pathname]);
+
+  const handleExitImpersonation = async () => {
+    try {
+      await stopOrganizationImpersonation();
+    } finally {
+      setImpersonation(null);
+      navigate("/admin/roster");
+    }
+  };
 
   useEffect(() => {
     applyTheme(themePreference);
@@ -343,6 +374,30 @@ export function AuthenticatedShell({
           </button>
         </div>
       </header>
+      {impersonation?.active ? (
+        <aside aria-label="Impersonation status" className="impersonation-banner" role="status">
+          <div className="impersonation-banner__info">
+            <span aria-hidden="true" className="impersonation-banner__icon">
+              👁️
+            </span>
+            <span>
+              Viewing as <strong>{impersonation.impersonatedProfile?.displayName}</strong>
+              {impersonation.impersonatedProfile?.voicePart
+                ? ` (${impersonation.impersonatedProfile.voicePart})`
+                : ""}
+            </span>
+          </div>
+          <button
+            className="button button--secondary button--small impersonation-banner__exit-btn"
+            onClick={() => {
+              void handleExitImpersonation();
+            }}
+            type="button"
+          >
+            Exit Impersonation
+          </button>
+        </aside>
+      ) : null}
       <div className="signed-in-body">
         {sidebarPinned ? (
           <aside className="signed-in-sidebar">

@@ -173,6 +173,16 @@ an easy, explicit elevation for the current scope, remains visibly identified as
 and attributes every change to the Platform Administrator. _Avoid_: User impersonation, exceptional
 support access
 
+## Member Impersonation
+
+The administrative capability allowing an Organization Administrator or Organization Owner to
+temporarily assume the member portal perspective of an Organization Profile on the roster. It grants
+full member self-service parity for troubleshooting and assistance, is time-bounded with a
+persistent exit banner, attributes every mutation in audit and event history to both the
+administrator and the member, and sends member notification copies to the acting administrator.
+Administrators may not impersonate other Administrators or Owners. _Avoid_: Platform user
+impersonation, silent administrative takeover
+
 ## Organization Audit History
 
 The Organization-visible record of administrative changes, including actions performed through

@@ -11,6 +11,8 @@ import {
   organizationProfileFolderNumbersResponseSchema,
   organizationProfilePerformanceHistoryResponseSchema,
   organizationProfileStatusHistoryResponseSchema,
+  organizationImpersonationStatusResponseSchema,
+  type OrganizationImpersonationStatusResponse,
   type MemberProfile,
   type MemberProfileUpdateRequest,
   type OrganizationDirectoryProfile,
@@ -184,4 +186,30 @@ export async function deleteOrganizationProfilePhoto(profileId: string): Promise
   await request(`/api/organization/profiles/${encodeURIComponent(profileId)}/photo`, {
     method: "DELETE",
   });
+}
+
+export async function getOrganizationImpersonationStatus(
+  signal?: AbortSignal,
+): Promise<OrganizationImpersonationStatusResponse> {
+  const response = await request("/api/organization/impersonation/status", {
+    signal: signal ?? null,
+  });
+  return organizationImpersonationStatusResponseSchema.parse(await response.json());
+}
+
+export async function startOrganizationImpersonation(
+  profileId: string,
+): Promise<OrganizationImpersonationStatusResponse> {
+  const response = await request("/api/organization/impersonation", {
+    body: JSON.stringify({ profileId }),
+    method: "POST",
+  });
+  return organizationImpersonationStatusResponseSchema.parse(await response.json());
+}
+
+export async function stopOrganizationImpersonation(): Promise<OrganizationImpersonationStatusResponse> {
+  const response = await request("/api/organization/impersonation/stop", {
+    method: "POST",
+  });
+  return organizationImpersonationStatusResponseSchema.parse(await response.json());
 }

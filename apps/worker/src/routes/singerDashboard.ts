@@ -1,7 +1,6 @@
 import { type ProblemDetails } from "@choir/contracts";
 import { singerEventSchema } from "@choir/contracts";
 import { listMemberSchedule } from "../calendar/organizationCalendar";
-import { linkedOrganizationProfileId } from "../tenancy/linkedOrganizationProfile";
 import { readOrganizationMemberDashboard } from "../organization/organizationMemberDashboard";
 import { generatePublicPlayerToken } from "../organization/organizationPlayerLinks";
 import { z } from "zod";
@@ -10,7 +9,7 @@ import type { Hono } from "hono";
 
 import type { WorkerHonoEnvironment } from "./helpers";
 
-import { authorizeCalendarRoute } from "./helpers";
+import { authorizeCalendarRoute, resolveEffectiveMemberProfileId } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/singer/practice-links/:eventId", async (context) => {
@@ -33,11 +32,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const profileId = await linkedOrganizationProfileId(
-        context.env.CONTROL_DB,
-        authorization.organizationId,
-        authorization.userId,
-      );
+      const { profileId } = await resolveEffectiveMemberProfileId(context, authorization);
       if (!profileId) {
         return context.json(
           {
@@ -95,11 +90,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         authorization.status,
       );
     }
-    const profileId = await linkedOrganizationProfileId(
-      context.env.CONTROL_DB,
-      authorization.organizationId,
-      authorization.userId,
-    );
+    const { profileId } = await resolveEffectiveMemberProfileId(context, authorization);
     try {
       return context.json({
         ...(await readOrganizationMemberDashboard(
