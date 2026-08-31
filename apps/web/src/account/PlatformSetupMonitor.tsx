@@ -212,8 +212,8 @@ export function PlatformSetupMonitor() {
             })}
           </div>
           <p className="field-help">
-            Background job failures recorded: {String(state.data.jobDeadLetterCount ?? 0)}. This
-            monitor reports platform-level signals; Organization data remains scoped to its own
+            Background job failures requiring review: {String(state.data.jobDeadLetterCount ?? 0)}.
+            This monitor reports platform-level signals; Organization data remains scoped to its own
             hostname.
           </p>
         </>

@@ -12,6 +12,7 @@ export const setupStatusSchema = z.object({
   organizationId: organizationIdSchema,
   organizationName: z.string().min(1).max(120),
   logoFileId: z.uuid().nullable().optional(),
+  physicalAddress: z.string().max(2_000).nullable().optional(),
   completedSteps: z.array(z.string()),
   currentStep: z.string().nullable(),
   allModulesConfigured: z.boolean(),

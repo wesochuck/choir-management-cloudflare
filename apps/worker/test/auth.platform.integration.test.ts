@@ -9,6 +9,7 @@ import {
   platformOrganizationContextResponseSchema,
   platformOrganizationPublicDomainsResponseSchema,
   platformOrganizationsResponseSchema,
+  platformSetupStatusResponseSchema,
   publicDomainResponseSchema,
 } from "@choir/contracts";
 import { introspectWorkflow, runInDurableObject } from "cloudflare:test";
@@ -1179,5 +1180,71 @@ describe("Platform Administrator MFA", () => {
       await afterListResponse.json(),
     );
     expect(afterListBody.domains).toHaveLength(0);
+  });
+
+  it("reports background jobs status based on open unhandled dead letters", async () => {
+    await seedInvitedUser();
+    const sessionCookie = await signInInvitedUser();
+    await grantPlatformAdministratorForCurrentSession();
+
+    const deadLetterId = "choir-management-jobs-dlq-local:setup-status-test";
+    const now = new Date().toISOString();
+
+    // Insert an open dead letter
+    await testEnv.CONTROL_DB.prepare(
+      `INSERT INTO job_dead_letters
+        (id, queue_name, message_id, message_valid, observed_attempt,
+         organization_id, job_id, job_kind, idempotency_key,
+         first_seen_at, last_seen_at, observation_count)
+       VALUES (?, ?, 'setup-status-test', 1, 3, NULL, 'test-job-id', 'organization_export', 'test-key', ?, ?, 1)`,
+    )
+      .bind(deadLetterId, testEnv.JOBS_DLQ_NAME, now, now)
+      .run();
+
+    // Setup status should report 1 job requiring review and status "attention"
+    const statusWithOpenJob = await fetchWorker(
+      authRequest("/api/platform/setup-status", { headers: { cookie: sessionCookie } }),
+    );
+    expect(statusWithOpenJob.status).toBe(200);
+    const bodyWithOpenJob = platformSetupStatusResponseSchema.parse(await statusWithOpenJob.json());
+    expect(bodyWithOpenJob.jobDeadLetterCount).toBe(1);
+    const backgroundJobsCheckOpen = bodyWithOpenJob.checks.find(
+      (check) => check.id === "background_jobs",
+    );
+    expect(backgroundJobsCheckOpen).toEqual({
+      detail: "1 background job requires review.",
+      id: "background_jobs",
+      label: "Background jobs",
+      status: "attention",
+    });
+
+    // Dismiss the dead letter
+    const dismissResponse = await fetchWorker(
+      authRequest(`/api/platform/job-dead-letters/${encodeURIComponent(deadLetterId)}/dismiss`, {
+        body: JSON.stringify({ reason: "Dismissed by operator in test" }),
+        headers: { "content-type": "application/json", cookie: sessionCookie },
+        method: "POST",
+      }),
+    );
+    expect(dismissResponse.status).toBe(200);
+
+    // Setup status should now report 0 jobs requiring review and status "ok"
+    const statusAfterDismiss = await fetchWorker(
+      authRequest("/api/platform/setup-status", { headers: { cookie: sessionCookie } }),
+    );
+    expect(statusAfterDismiss.status).toBe(200);
+    const bodyAfterDismiss = platformSetupStatusResponseSchema.parse(
+      await statusAfterDismiss.json(),
+    );
+    expect(bodyAfterDismiss.jobDeadLetterCount).toBe(0);
+    const backgroundJobsCheckDismissed = bodyAfterDismiss.checks.find(
+      (check) => check.id === "background_jobs",
+    );
+    expect(backgroundJobsCheckDismissed).toEqual({
+      detail: "No failed background jobs are waiting for review.",
+      id: "background_jobs",
+      label: "Background jobs",
+      status: "ok",
+    });
   });
 });

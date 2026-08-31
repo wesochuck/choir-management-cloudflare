@@ -28,6 +28,12 @@ The IANA timezone configured by an Organization for interpreting event dates, RS
 calendar behavior across member and administrative surfaces. _Avoid_: Device timezone for domain
 behavior
 
+## Organization Physical Address
+
+The valid physical postal mailing address or registered PO box of the Organization, maintained under
+Organization identity and displayed in commercial and transactional email footers for CAN-SPAM and
+postal compliance. _Avoid_: Sender email address, personal residential address of the administrator
+
 ## Organization Scale Envelope
 
 The supported planning target for a single Organization: up to 500 roster profiles, 5,000 music

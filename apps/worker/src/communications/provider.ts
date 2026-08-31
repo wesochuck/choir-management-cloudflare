@@ -20,6 +20,7 @@ const deliverySchema = z.object({
   organizationId: z.string().min(1).max(128).optional(),
   organizationLogoUrl: z.string().max(4_096).nullable().optional(),
   organizationName: z.string().max(120).optional(),
+  physicalAddress: z.string().max(2_000).nullable().optional(),
   recipientName: z.string().min(1).max(200),
   replyTo: z.email().max(320).optional(),
   sendingDomain: z.string().min(1).max(253).optional(),
@@ -198,6 +199,23 @@ function stripMarkdownEmphasis(value: string): string {
     .replace(/_([^_]+)_/g, "$1");
 }
 
+function formatAddressFooter(physicalAddress?: string | null): { html: string; text: string } {
+  const trimmed = physicalAddress?.trim();
+  if (!trimmed) return { html: "", text: "" };
+  return {
+    html: `<p style="margin:0 0 8px;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;">${escapeEmailHtml(trimmed).replace(/\n/g, "<br/>")}</p>`,
+    text: `\n\n${trimmed}`,
+  };
+}
+
+function formatUnsubscribeFooter(unsubscribeUrl: string | null): { html: string; text: string } {
+  if (!unsubscribeUrl) return { html: "", text: "" };
+  return {
+    html: `<p style="margin:0 0 8px;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;"><a href="${escapeEmailHtml(unsubscribeUrl)}" style="color:#4d5962;text-decoration:underline;">Unsubscribe from Organization email</a></p>`,
+    text: `\n\nUnsubscribe from Organization email: ${unsubscribeUrl}`,
+  };
+}
+
 function emailContents(
   subject: string,
   contentMarkdown: string,
@@ -205,29 +223,26 @@ function emailContents(
   branding?: {
     readonly organizationLogoUrl?: string | null | undefined;
     readonly organizationName?: string | null | undefined;
+    readonly physicalAddress?: string | null | undefined;
   },
 ) {
-  const unsubscribeText = unsubscribeUrl
-    ? `\n\nUnsubscribe from Organization email: ${unsubscribeUrl}`
-    : "";
+  const unsubscribe = formatUnsubscribeFooter(unsubscribeUrl);
+  const address = formatAddressFooter(branding?.physicalAddress);
   const renderedBody = renderCommunicationMarkdown(contentMarkdown);
   const plainBody = renderCommunicationText(contentMarkdown);
   const preheader = plainBody.split("\n").find((line) => line.trim()) ?? subject;
   const trimmedOrgName = branding?.organizationName?.trim();
   const orgName = trimmedOrgName && trimmedOrgName.length > 0 ? trimmedOrgName : "Choir Management";
-  const unsubscribeHtml = unsubscribeUrl
-    ? `<p style="margin:0 0 8px;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;"><a href="${escapeEmailHtml(unsubscribeUrl)}" style="color:#4d5962;text-decoration:underline;">Unsubscribe from Organization email</a></p>`
-    : "";
   return {
     htmlContent: renderEmailDocument({
       bodyHtml: renderedBody,
-      footerHtml: `${unsubscribeHtml}<p style="margin:0;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;">Sent using ${escapeEmailHtml(orgName)}.</p>`,
+      footerHtml: `${unsubscribe.html}${address.html}<p style="margin:0;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;">Sent using ${escapeEmailHtml(orgName)}.</p>`,
       heading: subject,
       organizationLogoUrl: branding?.organizationLogoUrl,
       organizationName: branding?.organizationName,
       preheader,
     }),
-    textContent: `${plainBody}${unsubscribeText}`,
+    textContent: `${plainBody}${unsubscribe.text}${address.text}`,
   };
 }
 
@@ -333,6 +348,7 @@ async function deliverOrganizationEmail(
     {
       organizationLogoUrl: delivery.organizationLogoUrl,
       organizationName: delivery.organizationName,
+      physicalAddress: delivery.physicalAddress,
     },
   );
   let result: Awaited<ReturnType<SendEmail["send"]>>;

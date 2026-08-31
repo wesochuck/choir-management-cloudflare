@@ -71,6 +71,29 @@ describe("Organization communication provider", () => {
     expect(sent?.html).toContain(">Rehearsal</h1>");
   });
 
+  it("renders Organization physical address in email HTML and text footers for CAN-SPAM compliance", async () => {
+    const email = platformEmailBinding();
+    const addressDelivery = {
+      ...delivery,
+      physicalAddress: "123 Harmony Way\nSuite 400\nSeattle, WA 98101",
+    };
+    const result = await deliverOrganizationCommunication(
+      {
+        EXTERNAL_EFFECTS_MODE: "sandbox",
+        PLATFORM_EMAIL: email,
+        PLATFORM_EMAIL_ALLOWED_RECIPIENTS: "singer@example.test",
+        PLATFORM_EMAIL_FROM: "communications@mail.staging.example.com",
+        PLATFORM_EMAIL_MODE: "sandbox",
+      },
+      addressDelivery,
+    );
+
+    expect(result.status).toBe("sent");
+    const sent = email.send.mock.calls[0]?.[0];
+    expect(sent?.text).toContain("123 Harmony Way\nSuite 400\nSeattle, WA 98101");
+    expect(sent?.html).toContain("123 Harmony Way<br/>Suite 400<br/>Seattle, WA 98101");
+  });
+
   it("suppresses a sandbox email recipient that is not allowlisted without calling the binding", async () => {
     const email = platformEmailBinding();
     const result = await deliverOrganizationCommunication(

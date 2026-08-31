@@ -523,17 +523,19 @@ export async function readOrganizationBrandingConfig(
 ): Promise<{
   readonly logoFileId: string | null;
   readonly organizationName: string;
+  readonly physicalAddress: string | null;
 }> {
   try {
     const response = await readOrganizationStore(env, organizationId, "/internal/branding");
-    if (!response.ok) return { logoFileId: null, organizationName: "" };
+    if (!response.ok) return { logoFileId: null, organizationName: "", physicalAddress: null };
     const parsed = organizationBrandingSchema.safeParse(await response.json());
-    if (!parsed.success) return { logoFileId: null, organizationName: "" };
+    if (!parsed.success) return { logoFileId: null, organizationName: "", physicalAddress: null };
     return {
       logoFileId: parsed.data.logoFileId,
       organizationName: parsed.data.organizationName,
+      physicalAddress: parsed.data.physicalAddress,
     };
   } catch {
-    return { logoFileId: null, organizationName: "" };
+    return { logoFileId: null, organizationName: "", physicalAddress: null };
   }
 }

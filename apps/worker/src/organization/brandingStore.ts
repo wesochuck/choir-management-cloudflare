@@ -6,6 +6,7 @@ interface MetadataRow {
   readonly logoFileId: string | null;
   readonly organizationId: string;
   readonly organizationName: string;
+  readonly physicalAddress: string | null;
 }
 
 export function readBrandingFromStore(
@@ -15,7 +16,7 @@ export function readBrandingFromStore(
   const row = storage.sql
     .exec<MetadataRow>(
       `SELECT organization_id AS organizationId, name AS organizationName,
-        logo_file_id AS logoFileId
+        logo_file_id AS logoFileId, physical_address AS physicalAddress
        FROM organization_metadata LIMIT 1`,
     )
     .toArray()
@@ -27,12 +28,14 @@ export function readBrandingFromStore(
     logoFileId: row.logoFileId,
     organizationId: row.organizationId,
     organizationName: row.organizationName,
+    physicalAddress: row.physicalAddress ? row.physicalAddress.trim() : null,
   };
   return Response.json(result);
 }
 
 const updateBrandingSchema = z.object({
-  logoFileId: z.uuid().nullable(),
+  logoFileId: z.uuid().nullable().optional(),
+  physicalAddress: z.string().max(2_000).nullable().optional(),
 });
 
 export async function updateBrandingInStore(
@@ -49,11 +52,28 @@ export async function updateBrandingInStore(
     );
   }
   const now = new Date().toISOString();
-  storage.sql.exec(
-    "UPDATE organization_metadata SET logo_file_id = ?, updated_at = ? WHERE organization_id = ?",
-    parsed.data.logoFileId,
-    now,
-    organizationId,
-  );
+  if ("logoFileId" in parsed.data && "physicalAddress" in parsed.data) {
+    storage.sql.exec(
+      "UPDATE organization_metadata SET logo_file_id = ?, physical_address = ?, updated_at = ? WHERE organization_id = ?",
+      parsed.data.logoFileId ?? null,
+      parsed.data.physicalAddress ? parsed.data.physicalAddress.trim() : "",
+      now,
+      organizationId,
+    );
+  } else if ("logoFileId" in parsed.data) {
+    storage.sql.exec(
+      "UPDATE organization_metadata SET logo_file_id = ?, updated_at = ? WHERE organization_id = ?",
+      parsed.data.logoFileId ?? null,
+      now,
+      organizationId,
+    );
+  } else if ("physicalAddress" in parsed.data) {
+    storage.sql.exec(
+      "UPDATE organization_metadata SET physical_address = ?, updated_at = ? WHERE organization_id = ?",
+      parsed.data.physicalAddress ? parsed.data.physicalAddress.trim() : "",
+      now,
+      organizationId,
+    );
+  }
   return readBrandingFromStore(storage, organizationId);
 }

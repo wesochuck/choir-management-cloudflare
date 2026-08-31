@@ -3,7 +3,12 @@ import { invokeOrganizationRpc, organizationStoreStub } from "../../organization
 import { issueSignedLink } from "../../security/signedLinks";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
-import { paymentNotificationJobSchema, readOrganizationEmailSenderConfig } from "./shared";
+import {
+  deliveryOrigin,
+  paymentNotificationJobSchema,
+  readOrganizationBrandingConfig,
+  readOrganizationEmailSenderConfig,
+} from "./shared";
 import type { z } from "zod";
 
 async function renderPaymentNotificationContent(
@@ -59,7 +64,12 @@ export async function deliverPaymentNotificationJob(
     job.organizationId,
     notification.data,
   );
-  const senderConfig = await readOrganizationEmailSenderConfig(env, job.organizationId);
+  const [senderConfig, branding] = await Promise.all([
+    readOrganizationEmailSenderConfig(env, job.organizationId),
+    readOrganizationBrandingConfig(env, job.organizationId),
+  ]);
+  const origin = await deliveryOrigin(env, job.organizationId, { unsubscribeUrl: null });
+  const logoUrl = branding.logoFileId ? `${origin}/api/public/logo` : null;
   const result = await deliverOrganizationCommunication(env, {
     channel: "email",
     contentMarkdown,
@@ -68,6 +78,9 @@ export async function deliverPaymentNotificationJob(
     fromName: senderConfig.fromName ?? undefined,
     messageId: notification.data.id,
     organizationId: job.organizationId,
+    organizationLogoUrl: logoUrl,
+    organizationName: branding.organizationName || undefined,
+    physicalAddress: branding.physicalAddress,
     recipientName: notification.data.recipientName,
     replyTo: senderConfig.replyTo ?? undefined,
     sendingDomain: senderConfig.sendingDomain ?? undefined,

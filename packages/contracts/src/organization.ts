@@ -152,6 +152,7 @@ export const publicPerformanceSchema = z.object({
 
 export const organizationBrandingRequestSchema = z.object({
   logoFileId: z.uuid().nullable().default(null),
+  physicalAddress: z.string().max(2_000).nullable().default(null),
 });
 
 export const organizationBrandingSchema = organizationBrandingRequestSchema.extend({

@@ -76,7 +76,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           "SELECT COUNT(*) AS count FROM organizations",
         ).first<PlatformCountRow>(),
         context.env.CONTROL_DB.prepare(
-          "SELECT COUNT(*) AS count FROM job_dead_letters",
+          `SELECT COUNT(*) AS count
+           FROM job_dead_letters
+           LEFT JOIN job_dead_letter_actions a ON a.dead_letter_id = job_dead_letters.id
+           WHERE a.status IS NULL OR a.status != 'dismissed'`,
         ).first<PlatformCountRow>(),
         context.env.CONTROL_DB.prepare(
           `SELECT id AS runId, target_version AS targetVersion, status,
@@ -148,7 +151,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
             ? "Queue failure count could not be read."
             : jobDeadLetterCount === 0
               ? "No failed background jobs are waiting for review."
-              : `${String(jobDeadLetterCount)} background job${jobDeadLetterCount === 1 ? "" : "s"} require review.`,
+              : `${String(jobDeadLetterCount)} background job${jobDeadLetterCount === 1 ? " requires" : "s require"} review.`,
         id: "background_jobs",
         label: "Background jobs",
         status:

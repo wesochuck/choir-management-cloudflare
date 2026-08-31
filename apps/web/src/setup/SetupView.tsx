@@ -49,6 +49,7 @@ export function SetupView() {
   const [orgName, setOrgName] = useState("");
   const [orgSlug, setOrgSlug] = useState("");
   const [logoFileId, setLogoFileId] = useState<string | null>(null);
+  const [physicalAddress, setPhysicalAddress] = useState("");
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [modules, setModules] = useState<Record<string, boolean>>(() =>
@@ -74,6 +75,9 @@ export function SetupView() {
         setOrgName(setup.organizationName);
         if (setup.logoFileId) {
           setLogoFileId(setup.logoFileId);
+        }
+        if (setup.physicalAddress) {
+          setPhysicalAddress(setup.physicalAddress);
         }
         if (setup.launched) {
           setCompleted(true);
@@ -109,6 +113,7 @@ export function SetupView() {
         stepData.name = orgName;
         stepData.slug = orgSlug;
         stepData.logoFileId = logoFileId;
+        stepData.physicalAddress = physicalAddress.trim() ? physicalAddress.trim() : null;
       } else if (currentStep === "modules") {
         Object.assign(stepData, modules);
       } else if (currentStep === "theme") {
@@ -343,6 +348,23 @@ export function SetupView() {
                     </div>
                   </div>
                 </div>
+              </div>
+              <div className="field">
+                <label htmlFor="setup-org-address">Physical postal address (optional)</label>
+                <textarea
+                  id="setup-org-address"
+                  maxLength={2000}
+                  onChange={(e) => {
+                    setPhysicalAddress(e.target.value);
+                  }}
+                  placeholder="e.g. 123 Main St, Suite 400&#10;Seattle, WA 98101"
+                  rows={3}
+                  value={physicalAddress}
+                />
+                <p className="field-hint">
+                  Your official mailing address or PO box. Displayed in outbound email footers for
+                  CAN-SPAM and postal compliance.
+                </p>
               </div>
             </div>
           </>

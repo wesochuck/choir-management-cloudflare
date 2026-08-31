@@ -6,6 +6,8 @@ import { issueSignedLink } from "../../security/signedLinks";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
 import {
+  deliveryOrigin,
+  readOrganizationBrandingConfig,
   readOrganizationEmailSenderConfig,
   renderTicketLinks,
   ticketNotificationJobSchema,
@@ -99,7 +101,12 @@ export async function deliverTicketNotificationJob(
     resourceId: notification.data.purchaseId,
     version: 1,
   });
-  const senderConfig = await readOrganizationEmailSenderConfig(env, job.organizationId);
+  const [senderConfig, branding] = await Promise.all([
+    readOrganizationEmailSenderConfig(env, job.organizationId),
+    readOrganizationBrandingConfig(env, job.organizationId),
+  ]);
+  const origin = await deliveryOrigin(env, job.organizationId, { unsubscribeUrl: null });
+  const logoUrl = branding.logoFileId ? `${origin}/api/public/logo` : null;
   const result = await deliverOrganizationCommunication(env, {
     channel: "email",
     contentMarkdown:
@@ -109,6 +116,9 @@ export async function deliverTicketNotificationJob(
     fromName: senderConfig.fromName ?? undefined,
     messageId: notification.data.id,
     organizationId: job.organizationId,
+    organizationLogoUrl: logoUrl,
+    organizationName: branding.organizationName || undefined,
+    physicalAddress: branding.physicalAddress,
     recipientName: notification.data.buyerName,
     replyTo: senderConfig.replyTo ?? undefined,
     sendingDomain: senderConfig.sendingDomain ?? undefined,

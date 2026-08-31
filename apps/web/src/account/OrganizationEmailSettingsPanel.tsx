@@ -285,6 +285,13 @@ export function OrganizationEmailSettingsPanel() {
   return (
     <fieldset className="surface-card organization-settings-panel">
       <legend id="email-settings-title">Email & Sender Settings</legend>
+      <div className="section-heading section-heading--compact">
+        <p className="section-description">
+          Configure sender information for outbound emails. The Organization's physical postal
+          address configured in Organization Branding &amp; Identity is automatically included in
+          email footers to satisfy CAN-SPAM and postal compliance.
+        </p>
+      </div>
 
       {loading ? <p role="status">Loading email settings…</p> : null}
 

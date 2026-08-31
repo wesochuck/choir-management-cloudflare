@@ -73,6 +73,7 @@ export async function deliverCommunicationJob(
       organizationId: job.organizationId,
       organizationLogoUrl: logoUrl,
       organizationName: orgName,
+      physicalAddress: branding.physicalAddress,
       recipientName: delivery.recipientName,
       replyTo: senderConfig.replyTo ?? undefined,
       sendingDomain: senderConfig.sendingDomain ?? undefined,

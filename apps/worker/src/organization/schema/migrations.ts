@@ -1295,6 +1295,12 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE organization_metadata ADD COLUMN music_default_page_size INTEGER NOT NULL DEFAULT 100",
     ],
   },
+  {
+    version: 77,
+    statements: [
+      "ALTER TABLE organization_metadata ADD COLUMN physical_address TEXT NOT NULL DEFAULT ''",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

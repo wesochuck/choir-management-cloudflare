@@ -18,6 +18,7 @@ interface IdentityRow {
   readonly logoFileId: string | null;
   readonly organizationId: string;
   readonly organizationName: string;
+  readonly physicalAddress: string | null;
 }
 
 const saveProgressOperationSchema = z.object({
@@ -55,7 +56,8 @@ function identity(storage: DurableObjectStorage): IdentityRow | undefined {
   return storage.sql
     .exec<IdentityRow>(
       `SELECT organization_id AS organizationId, name AS organizationName,
-        lifecycle_state AS lifecycleState, logo_file_id AS logoFileId
+        lifecycle_state AS lifecycleState, logo_file_id AS logoFileId,
+        physical_address AS physicalAddress
        FROM organization_metadata LIMIT 1`,
     )
     .toArray()
@@ -119,6 +121,7 @@ export function getSetupStateFromStore(
       logoFileId: org.logoFileId ?? null,
       organizationId,
       organizationName: org.organizationName,
+      physicalAddress: org.physicalAddress ? org.physicalAddress.trim() : null,
     });
   }
   const organizationName = row.organizationName.trim() || org.organizationName;
@@ -133,6 +136,7 @@ export function getSetupStateFromStore(
     logoFileId: org.logoFileId ?? null,
     organizationId: row.organizationId,
     organizationName,
+    physicalAddress: org.physicalAddress ? org.physicalAddress.trim() : null,
   });
 }
 
@@ -205,6 +209,18 @@ function saveProgressUpdate(
       operation.organizationId,
     );
   }
+  if (operation.data && "physicalAddress" in operation.data) {
+    const physicalAddress =
+      typeof operation.data.physicalAddress === "string"
+        ? operation.data.physicalAddress.trim()
+        : "";
+    storage.sql.exec(
+      "UPDATE organization_metadata SET physical_address = ?, updated_at = ? WHERE organization_id = ?",
+      physicalAddress,
+      now,
+      operation.organizationId,
+    );
+  }
 }
 
 function saveProgressInsert(
@@ -237,6 +253,18 @@ function saveProgressInsert(
     storage.sql.exec(
       "UPDATE organization_metadata SET logo_file_id = ?, updated_at = ? WHERE organization_id = ?",
       logoFileId,
+      now,
+      operation.organizationId,
+    );
+  }
+  if (operation.data && "physicalAddress" in operation.data) {
+    const physicalAddress =
+      typeof operation.data.physicalAddress === "string"
+        ? operation.data.physicalAddress.trim()
+        : "";
+    storage.sql.exec(
+      "UPDATE organization_metadata SET physical_address = ?, updated_at = ? WHERE organization_id = ?",
+      physicalAddress,
       now,
       operation.organizationId,
     );

@@ -152,6 +152,7 @@ async function handleTestEmailDelivery(
     fromName,
     messageId: crypto.randomUUID(),
     organizationId,
+    physicalAddress: branding.physicalAddress,
     recipientName: "Test recipient",
     replyTo: senderConfig.replyTo ?? undefined,
     sendingDomain: senderConfig.sendingDomain ?? undefined,

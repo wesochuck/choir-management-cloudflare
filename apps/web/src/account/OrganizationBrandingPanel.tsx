@@ -12,6 +12,7 @@ const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+
 
 export function OrganizationBrandingPanel() {
   const [branding, setBranding] = useState<OrganizationBranding | null>(null);
+  const [physicalAddress, setPhysicalAddress] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +24,7 @@ export function OrganizationBrandingPanel() {
     getOrganizationBranding(controller.signal)
       .then((data) => {
         setBranding(data);
+        setPhysicalAddress(data.physicalAddress ?? "");
         setLoading(false);
       })
       .catch((loadError: unknown) => {
@@ -62,8 +64,12 @@ export function OrganizationBrandingPanel() {
 
     try {
       const uploadResult = await uploadPrivateOrganizationFile(file, file.name);
-      const updated = await updateOrganizationBranding({ logoFileId: uploadResult.id });
+      const updated = await updateOrganizationBranding({
+        logoFileId: uploadResult.id,
+        physicalAddress: physicalAddress.trim() ? physicalAddress.trim() : null,
+      });
       setBranding(updated);
+      setPhysicalAddress(updated.physicalAddress ?? "");
       setSuccess("Organization logo updated successfully.");
     } catch (saveError: unknown) {
       setError(
@@ -83,14 +89,42 @@ export function OrganizationBrandingPanel() {
     setBusy(true);
 
     try {
-      const updated = await updateOrganizationBranding({ logoFileId: null });
+      const updated = await updateOrganizationBranding({
+        logoFileId: null,
+        physicalAddress: physicalAddress.trim() ? physicalAddress.trim() : null,
+      });
       setBranding(updated);
+      setPhysicalAddress(updated.physicalAddress ?? "");
       setSuccess("Organization logo removed successfully.");
     } catch (removeError: unknown) {
       setError(
         removeError instanceof AuthApiError
           ? removeError.message
           : "Failed to remove organization logo.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveAddress() {
+    setError(null);
+    setSuccess(null);
+    setBusy(true);
+
+    try {
+      const updated = await updateOrganizationBranding({
+        logoFileId: branding?.logoFileId ?? null,
+        physicalAddress: physicalAddress.trim() ? physicalAddress.trim() : null,
+      });
+      setBranding(updated);
+      setPhysicalAddress(updated.physicalAddress ?? "");
+      setSuccess("Organization address updated successfully.");
+    } catch (saveError: unknown) {
+      setError(
+        saveError instanceof AuthApiError
+          ? saveError.message
+          : "Failed to save organization address.",
       );
     } finally {
       setBusy(false);
@@ -108,11 +142,11 @@ export function OrganizationBrandingPanel() {
 
   return (
     <fieldset className="surface-card organization-settings-panel">
-      <legend id="branding-settings-title">Organization Branding</legend>
+      <legend id="branding-settings-title">Organization Branding & Identity</legend>
       <div className="section-heading section-heading--compact">
         <p className="section-description">
-          Upload your Organization logo. It appears in the application navigation header and email
-          templates, and serves as the default logo across communications.
+          Manage your Organization logo and official physical postal address. These represent the
+          Organization across member interfaces and outbound communication footers.
         </p>
       </div>
 
@@ -219,6 +253,39 @@ export function OrganizationBrandingPanel() {
               <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted, #687078)" }}>
                 Supported formats: PNG, JPEG, WebP, SVG (max 5MB).
               </span>
+            </div>
+          </div>
+
+          <div
+            className="field"
+            style={{ borderTop: "1px solid var(--color-border, #dedde5)", paddingTop: "1rem" }}
+          >
+            <label htmlFor="org-physical-address">Physical Postal Address</label>
+            <textarea
+              id="org-physical-address"
+              maxLength={2000}
+              onChange={(e) => {
+                setPhysicalAddress(e.target.value);
+              }}
+              placeholder="e.g. 123 Main St, Suite 400&#10;Seattle, WA 98101"
+              rows={3}
+              value={physicalAddress}
+            />
+            <p className="field-hint">
+              The official physical mailing address or PO box of the Organization. Displayed in
+              outbound email footers for CAN-SPAM and postal compliance.
+            </p>
+            <div style={{ marginTop: "0.75rem" }}>
+              <button
+                className="button button--secondary button--sm"
+                disabled={busy}
+                onClick={() => {
+                  void handleSaveAddress();
+                }}
+                type="button"
+              >
+                {busy ? "Saving…" : "Save Address"}
+              </button>
             </div>
           </div>
         </div>
