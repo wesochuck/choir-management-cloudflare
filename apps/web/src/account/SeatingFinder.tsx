@@ -67,15 +67,7 @@ export function SeatingFinder({ enabled }: { readonly enabled: boolean }) {
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
 
   return (
-    <section
-      className="account-section account-section--seating"
-      aria-labelledby="seating-finder-title"
-    >
-      <p className="eyebrow">Your place</p>
-      <h2 id="seating-finder-title">Seating finder</h2>
-      <p className="section-description">
-        Charts are shown from the director’s perspective, with the back row first.
-      </p>
+    <section className="account-section account-section--seating" aria-label="Seating finder">
       {error ? (
         <p className="notice notice--warning" role="status">
           {error}

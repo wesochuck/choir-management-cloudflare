@@ -407,13 +407,7 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
   }
 
   return (
-    <section
-      className="account-section account-section--my-schedule"
-      aria-labelledby="my-schedule-title"
-    >
-      <div className="section-heading section-heading--compact">
-        <h2 id="my-schedule-title">My schedule</h2>
-      </div>
+    <section className="account-section account-section--my-schedule" aria-label="My schedule">
       <div className="my-schedule__controls">
         <label className="checkbox-row" htmlFor="my-schedule-show-past">
           <input

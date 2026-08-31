@@ -551,11 +551,7 @@ function MemberProfileEditor({
   }
 
   return (
-    <section className="account-section" aria-labelledby="member-profile-title">
-      <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Membership identity</p>
-        <h2 id="member-profile-title">My Organization Profile</h2>
-      </div>
+    <section className="account-section" aria-label="My Organization Profile">
       {!enabled || state.status === "loading" ? <p>Loading your Profile…</p> : null}
       {enabled && state.status === "missing" ? (
         <p className="empty-state">

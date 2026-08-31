@@ -287,15 +287,12 @@ export function LearningTrackPlayer({ enabled }: { readonly enabled: boolean }) 
   if (!enabled) return null;
   const title = eventTitle ? `Practice player · ${eventTitle}` : "Practice player";
   return (
-    <section className="account-section practice-player" aria-labelledby="practice-player-title">
-      <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Practice</p>
-        <h2 id="practice-player-title">{title}</h2>
-        <p className="section-description">
-          Play learning tracks one at a time, switch {partLabel.toLowerCase()} tracks, and rehearse
-          without opening a separate audio tab.
+    <section className="account-section practice-player" aria-label={title}>
+      {eventTitle ? (
+        <p className="notice notice--info" role="status">
+          Showing practice tracks for <strong>{eventTitle}</strong>.
         </p>
-      </div>
+      ) : null}
       {error ? (
         <p className="notice notice--error" role="alert">
           {error}

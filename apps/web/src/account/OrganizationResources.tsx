@@ -379,9 +379,6 @@ export function OrganizationResources({
   return (
     <fieldset className="surface-card organization-settings-panel organization-resources">
       <legend>Resources</legend>
-      <div className="section-heading section-heading--compact">
-        <p className="section-description">Shared files and trusted links for this Organization.</p>
-      </div>
       {error && !dialogOpen ? (
         <p className="notice notice--error" role="alert">
           {error}

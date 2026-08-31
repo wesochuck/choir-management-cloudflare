@@ -475,15 +475,12 @@ function DashboardDialogs({
         title={bulletinDialogTitle(selectedBulletin)}
       >
         {selectedBulletin ? (
-          <>
-            <p className="eyebrow">Bulletin</p>
-            <div
-              className="communication-markdown-content"
-              dangerouslySetInnerHTML={{
-                __html: renderCommunicationMarkdownPreview(selectedBulletin.contentMarkdown),
-              }}
-            />
-          </>
+          <div
+            className="communication-markdown-content"
+            dangerouslySetInnerHTML={{
+              __html: renderCommunicationMarkdownPreview(selectedBulletin.contentMarkdown),
+            }}
+          />
         ) : null}
       </Dialog>
     </>
@@ -558,7 +555,6 @@ function MemberDashboardAccessState({
       aria-labelledby="member-dashboard-access-title"
       className="surface-card empty-page member-dashboard__access-state"
     >
-      <p className="eyebrow">Member workspace</p>
       <h2 id="member-dashboard-access-title">{content.heading}</h2>
       <p>{content.message}</p>
       <button
