@@ -757,7 +757,7 @@ test("completes OTP sign-in and manages Organizations and sessions", async ({ pa
   await page.goto("/profile");
   await expect(page.getByRole("heading", { name: "My Profile" })).toBeVisible();
   const memberProfileForm = page.locator(".member-profile-form");
-  await expect(page.getByRole("heading", { name: "My Organization Profile" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "My Organization Profile" })).toBeVisible();
   await memberProfileForm.getByLabel("New sign-in email").fill("updated.browser@example.test");
   await memberProfileForm.getByRole("button", { name: "Change email" }).click();
   await expect(memberProfileForm.getByRole("status")).toContainText("confirmation link");

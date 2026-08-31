@@ -8,7 +8,7 @@ import type {
 import { DataTable, useConfirmation, type DataTableColumn } from "@choir/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { AuthApiError } from "../auth/api";
+import { AuthApiError } from "../api";
 import {
   useBulkUpdateRsvpMutation,
   useEventAttendanceQuery,
@@ -209,11 +209,17 @@ export function RsvpManagerPage({
 
   const rows = useMemo(() => attendanceQuery.data ?? [], [attendanceQuery.data]);
   const history = useMemo(() => historyQueryData.data ?? [], [historyQueryData.data]);
-  const rowsLoading = attendanceQuery.isLoading || historyQueryData.isLoading;
+  const rowsLoading = attendanceQuery.isLoading;
+  const historyLoading = historyQueryData.isLoading;
   const rowsError = attendanceQuery.error
     ? attendanceQuery.error instanceof AuthApiError
       ? attendanceQuery.error.message
       : "The RSVP roster could not be loaded."
+    : null;
+  const historyError = historyQueryData.error
+    ? historyQueryData.error instanceof AuthApiError
+      ? historyQueryData.error.message
+      : "The RSVP history could not be loaded."
     : null;
 
   const selectedEvent =
@@ -757,50 +763,69 @@ export function RsvpManagerPage({
               Actual RSVP changes are shown here separately from Profile Status History.
             </p>
           </div>
-          <div className="rsvp-manager__controls rsvp-manager__history-controls">
-            <label className="field">
-              <span>Search history</span>
-              <input
-                onChange={(event) => {
-                  setHistoryQuery(event.target.value);
+          {historyError ? (
+            <div className="notice notice--error" role="alert">
+              <p>{historyError}</p>
+              <button
+                className="button button--secondary button--sm"
+                onClick={() => {
+                  void historyQueryData.refetch();
                 }}
-                placeholder="Name, reason, or source"
-                type="search"
-                value={historyQuery}
-              />
-            </label>
-            <label className="field">
-              <span>Filter new RSVP</span>
-              <select
-                onChange={(event) => {
-                  const nextFilter = event.target.value;
-                  if (isHistoryFilter(nextFilter)) setHistoryFilter(nextFilter);
-                }}
-                value={historyFilter}
+                type="button"
               >
-                <option value="All">All statuses</option>
-                <option value="Yes">Attending</option>
-                <option value="No">Declined</option>
-                <option value="Pending">No response</option>
-              </select>
-            </label>
-          </div>
-          <div className="rsvp-manager__table-heading">
-            <span aria-live="polite">{`${String(filteredHistory.length)} shown`}</span>
-          </div>
-          <DataTable
-            columns={rsvpHistoryColumns}
-            emptyMessage={
-              history.length === 0
-                ? "No RSVP changes recorded for this event yet."
-                : "No history entries match these filters."
-            }
-            initialSort={{ columnId: "occurredAt", direction: "desc" }}
-            keySelector={(entry) =>
-              `${entry.occurredAt}-${entry.profileId}-${entry.previousRsvp}-${entry.newRsvp}-${entry.reason}`
-            }
-            rows={filteredHistory}
-          />
+                Retry
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="rsvp-manager__controls rsvp-manager__history-controls">
+                <label className="field">
+                  <span>Search history</span>
+                  <input
+                    onChange={(event) => {
+                      setHistoryQuery(event.target.value);
+                    }}
+                    placeholder="Name, reason, or source"
+                    type="search"
+                    value={historyQuery}
+                  />
+                </label>
+                <label className="field">
+                  <span>Filter new RSVP</span>
+                  <select
+                    onChange={(event) => {
+                      const nextFilter = event.target.value;
+                      if (isHistoryFilter(nextFilter)) setHistoryFilter(nextFilter);
+                    }}
+                    value={historyFilter}
+                  >
+                    <option value="All">All statuses</option>
+                    <option value="Yes">Attending</option>
+                    <option value="No">Declined</option>
+                    <option value="Pending">No response</option>
+                  </select>
+                </label>
+              </div>
+              <div className="rsvp-manager__table-heading">
+                <span aria-live="polite">
+                  {historyLoading ? "Loading…" : `${String(filteredHistory.length)} shown`}
+                </span>
+              </div>
+              <DataTable
+                columns={rsvpHistoryColumns}
+                emptyMessage={
+                  history.length === 0
+                    ? "No RSVP changes recorded for this event yet."
+                    : "No history entries match these filters."
+                }
+                initialSort={{ columnId: "occurredAt", direction: "desc" }}
+                keySelector={(entry) =>
+                  `${entry.occurredAt}-${entry.profileId}-${entry.previousRsvp}-${entry.newRsvp}-${entry.reason}`
+                }
+                rows={filteredHistory}
+              />
+            </>
+          )}
         </section>
       </>
       {confirmationDialog}

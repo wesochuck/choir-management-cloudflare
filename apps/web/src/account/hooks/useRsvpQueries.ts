@@ -16,7 +16,8 @@ import {
   listOrganizationEvents,
   listOrganizationProfiles,
   setOrganizationEventRsvp,
-} from "../../auth/api";
+} from "../../api";
+import { queryKeys } from "../../api/queryKeys";
 
 export interface RsvpBootstrapData {
   readonly events: readonly OrganizationEvent[];
@@ -35,7 +36,7 @@ export function useRsvpBootstrapQuery(enabled: boolean) {
       ]);
       return { events, profiles, roster };
     },
-    queryKey: ["organization", "rsvp", "bootstrap"],
+    queryKey: queryKeys.organization.rsvpBootstrap,
     staleTime: 60 * 1000,
   });
 }
@@ -46,7 +47,7 @@ export function useEventAttendanceQuery(eventId: string, enabled: boolean) {
     queryFn: async ({ signal }) => {
       return listOrganizationEventAttendance(eventId, signal);
     },
-    queryKey: ["organization", "events", eventId, "attendance"],
+    queryKey: queryKeys.organization.attendance(eventId),
     staleTime: 10 * 1000,
   });
 }
@@ -58,7 +59,7 @@ export function useEventRsvpHistoryQuery(eventId: string, enabled: boolean) {
       const history = await getOrganizationEventRsvpHistory(eventId, signal);
       return history.entries;
     },
-    queryKey: ["organization", "events", eventId, "history"],
+    queryKey: queryKeys.organization.rsvpHistory(eventId),
     staleTime: 10 * 1000,
   });
 }
@@ -78,12 +79,27 @@ export function useSetRsvpMutation(eventId: string) {
         variables.notes ?? "",
       );
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      queryClient.setQueryData<readonly OrganizationAttendanceRow[]>(
+        queryKeys.organization.attendance(eventId),
+        (old) => {
+          if (!old) return old;
+          return old.map((row) =>
+            row.profileId === variables.profileId
+              ? {
+                  ...row,
+                  rsvp: data.rsvp,
+                  updatedAt: data.updatedAt,
+                }
+              : row,
+          );
+        },
+      );
       void queryClient.invalidateQueries({
-        queryKey: ["organization", "events", eventId, "attendance"],
+        queryKey: queryKeys.organization.attendance(eventId),
       });
       void queryClient.invalidateQueries({
-        queryKey: ["organization", "events", eventId, "history"],
+        queryKey: queryKeys.organization.rsvpHistory(eventId),
       });
     },
   });
@@ -95,12 +111,20 @@ export function useBulkUpdateRsvpMutation(eventId: string) {
     mutationFn: async (variables: { updates: readonly OrganizationRsvpRequest[] }) => {
       return bulkUpdateOrganizationEventRsvp(eventId, variables.updates);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      queryClient.setQueryData<readonly OrganizationAttendanceRow[]>(
+        queryKeys.organization.attendance(eventId),
+        (old) => {
+          if (!old) return data;
+          const updatedByProfile = new Map(data.map((row) => [row.profileId, row]));
+          return old.map((row) => updatedByProfile.get(row.profileId) ?? row);
+        },
+      );
       void queryClient.invalidateQueries({
-        queryKey: ["organization", "events", eventId, "attendance"],
+        queryKey: queryKeys.organization.attendance(eventId),
       });
       void queryClient.invalidateQueries({
-        queryKey: ["organization", "events", eventId, "history"],
+        queryKey: queryKeys.organization.rsvpHistory(eventId),
       });
     },
   });

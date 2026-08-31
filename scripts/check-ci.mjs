@@ -25,6 +25,12 @@ const steps = [
     args: ["scripts/check-durable-object-boundaries.mjs"],
   },
   { job: "static", label: "Check formatting", command: "npm", args: ["run", "format:check"] },
+  {
+    job: "static",
+    label: "Check Content Security Policy headers",
+    command: "node",
+    args: ["scripts/check-csp.mjs"],
+  },
   { job: "static", label: "Lint", command: "npm", args: ["run", "lint"] },
   {
     job: "static",
