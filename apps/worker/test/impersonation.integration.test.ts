@@ -155,6 +155,29 @@ describe("Organization member impersonation", () => {
     expect(stopResponse.status).toBe(200);
     const stopCookie = stopResponse.headers.get("set-cookie") ?? "";
     expect(stopCookie).toContain("Max-Age=0");
+
+    // Verify audit logs were written
+    const auditLogs = await database
+      .prepare(
+        `SELECT action, actor_user_id, organization_id, target_id FROM platform_audit_events
+         WHERE organization_id = 'organization-alpha' AND action LIKE 'organization.impersonation.%'
+         ORDER BY occurred_at ASC`,
+      )
+      .all<{ action: string; actor_user_id: string; organization_id: string; target_id: string }>();
+
+    expect(auditLogs.results).toHaveLength(2);
+    expect(auditLogs.results[0]).toMatchObject({
+      action: "organization.impersonation.started",
+      actor_user_id: "admin-user-id",
+      organization_id: "organization-alpha",
+      target_id: memberProfile.id,
+    });
+    expect(auditLogs.results[1]).toMatchObject({
+      action: "organization.impersonation.stopped",
+      actor_user_id: "admin-user-id",
+      organization_id: "organization-alpha",
+      target_id: memberProfile.id,
+    });
   });
 
   it("prevents an admin from impersonating another Administrator or Owner", async () => {

@@ -8,16 +8,14 @@ import type {
 import { DataTable, useConfirmation, type DataTableColumn } from "@choir/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { AuthApiError } from "../auth/api";
 import {
-  AuthApiError,
-  bulkUpdateOrganizationEventRsvp,
-  getOrganizationEventRsvpHistory,
-  getOrganizationRosterConfiguration,
-  listOrganizationEventAttendance,
-  listOrganizationEvents,
-  listOrganizationProfiles,
-  setOrganizationEventRsvp,
-} from "../auth/api";
+  useBulkUpdateRsvpMutation,
+  useEventAttendanceQuery,
+  useEventRsvpHistoryQuery,
+  useRsvpBootstrapQuery,
+  useSetRsvpMutation,
+} from "./hooks/useRsvpQueries";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
@@ -161,11 +159,6 @@ export function RsvpManagerPage({
 }) {
   const { partLabel } = useOrganizationTerminology();
   const [eventId, setEventId] = useState(initialEventId ?? "");
-  const [state, setState] = useState<RsvpState>({ status: "loading" });
-  const [rows, setRows] = useState<readonly OrganizationAttendanceRow[]>([]);
-  const [history, setHistory] = useState<readonly OrganizationEventRsvpHistoryEntry[]>([]);
-  const [rowsLoading, setRowsLoading] = useState(false);
-  const [rowsError, setRowsError] = useState<string | null>(null);
   const [filter, setFilter] = useState<RsvpFilter>("active");
   const [assignmentFilter, setAssignmentFilter] = useState<RsvpAssignmentFilter | null>(null);
   const [view, setView] = useState<RsvpView>("roster");
@@ -178,68 +171,50 @@ export function RsvpManagerPage({
   const [bulkBusy, setBulkBusy] = useState(false);
   const { confirm, confirmationDialog } = useConfirmation();
 
-  useEffect(() => {
-    if (!enabled) return;
-    const controller = new AbortController();
-    Promise.all([
-      listOrganizationEvents(controller.signal),
-      listOrganizationProfiles(controller.signal),
-      getOrganizationRosterConfiguration(controller.signal),
-    ])
-      .then(([events, profiles, roster]) => {
-        setState({ events, profiles, roster, status: "ready" });
-        setEventId((current) => {
-          if (current && events.some((event) => event.id === current)) return current;
-          if (initialEventId && events.some((event) => event.id === initialEventId)) {
-            return initialEventId;
-          }
-          return nearestUpcomingPerformance(events);
-        });
-      })
-      .catch((loadError: unknown) => {
-        if (!(loadError instanceof DOMException && loadError.name === "AbortError")) {
-          setState({ status: "error" });
-        }
-      });
-    return () => {
-      controller.abort();
-    };
-  }, [enabled, initialEventId]);
+  const bootstrapQuery = useRsvpBootstrapQuery(enabled);
 
   useEffect(() => {
-    if (!enabled || state.status !== "ready" || !eventId) return;
-    const controller = new AbortController();
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- mark the selected roster as loading before the request starts.
-    setRowsLoading(true);
-    setRowsError(null);
-    setHistory([]);
-    Promise.all([
-      listOrganizationEventAttendance(eventId, controller.signal),
-      getOrganizationEventRsvpHistory(eventId, controller.signal),
-    ])
-      .then(([loaded, loadedHistory]) => {
-        if (!controller.signal.aborted) {
-          setRows(loaded);
-          setHistory(loadedHistory.entries);
-        }
-      })
-      .catch((loadError: unknown) => {
-        if (!controller.signal.aborted) {
-          setRows([]);
-          setRowsError(
-            loadError instanceof AuthApiError
-              ? loadError.message
-              : "The RSVP roster could not be loaded.",
-          );
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setRowsLoading(false);
-      });
-    return () => {
-      controller.abort();
-    };
-  }, [enabled, eventId, state.status]);
+    if (!bootstrapQuery.data) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync default selected event ID when bootstrap data loads
+    setEventId((current) => {
+      if (current && bootstrapQuery.data.events.some((event) => event.id === current))
+        return current;
+      if (
+        initialEventId &&
+        bootstrapQuery.data.events.some((event) => event.id === initialEventId)
+      ) {
+        return initialEventId;
+      }
+      return nearestUpcomingPerformance(bootstrapQuery.data.events);
+    });
+  }, [bootstrapQuery.data, initialEventId]);
+
+  const attendanceQuery = useEventAttendanceQuery(eventId, enabled && bootstrapQuery.isSuccess);
+  const historyQueryData = useEventRsvpHistoryQuery(eventId, enabled && bootstrapQuery.isSuccess);
+  const setRsvpMutation = useSetRsvpMutation(eventId);
+  const bulkRsvpMutation = useBulkUpdateRsvpMutation(eventId);
+
+  const state: RsvpState = useMemo(() => {
+    if (bootstrapQuery.isError) return { status: "error" };
+    if (bootstrapQuery.data) {
+      return {
+        events: bootstrapQuery.data.events,
+        profiles: bootstrapQuery.data.profiles,
+        roster: bootstrapQuery.data.roster,
+        status: "ready",
+      };
+    }
+    return { status: "loading" };
+  }, [bootstrapQuery.data, bootstrapQuery.isError]);
+
+  const rows = useMemo(() => attendanceQuery.data ?? [], [attendanceQuery.data]);
+  const history = useMemo(() => historyQueryData.data ?? [], [historyQueryData.data]);
+  const rowsLoading = attendanceQuery.isLoading || historyQueryData.isLoading;
+  const rowsError = attendanceQuery.error
+    ? attendanceQuery.error instanceof AuthApiError
+      ? attendanceQuery.error.message
+      : "The RSVP roster could not be loaded."
+    : null;
 
   const selectedEvent =
     state.status === "ready"
@@ -388,32 +363,24 @@ export function RsvpManagerPage({
     if (!confirmed) return;
     setBulkBusy(true);
     setFeedback(null);
-    setRowsError(null);
     try {
-      const updatedRows = await bulkUpdateOrganizationEventRsvp(
-        eventId,
-        targets.map(({ profileId }) => ({ profileId, rsvp: next, rsvpNote: "" })),
-      );
+      const updatedRows = await bulkRsvpMutation.mutateAsync({
+        updates: targets.map(({ profileId }) => ({ profileId, rsvp: next, rsvpNote: "" })),
+      });
       const previousRsvpByProfile: Readonly<Record<string, "No" | "Pending" | "Yes">> =
         Object.fromEntries(targets.map(({ profileId, rsvp }) => [profileId, rsvp]));
       const changedCount = updatedRows.filter((row) => {
         const previous = previousRsvpByProfile[row.profileId];
         return previous !== undefined && previous !== row.rsvp;
       }).length;
-      setRows(updatedRows);
       setSelectedProfileIds([]);
       setFeedback(
         changedCount === 0
           ? "The selected RSVP responses were already up to date."
           : `RSVP updated for ${String(changedCount)} Profile${changedCount === 1 ? "" : "s"}.`,
       );
-      try {
-        setHistory((await getOrganizationEventRsvpHistory(eventId)).entries);
-      } catch {
-        setRowsError("RSVP updated, but the event history could not be refreshed.");
-      }
     } catch (bulkError: unknown) {
-      setRowsError(
+      setFeedback(
         bulkError instanceof AuthApiError
           ? bulkError.message
           : "The bulk RSVP change could not be applied.",
@@ -428,20 +395,11 @@ export function RsvpManagerPage({
     if (!current?.voicePart.trim() || savingId) return;
     setSavingId(profileId);
     setFeedback(null);
-    setRows((existing) =>
-      existing.map((row) => (row.profileId === profileId ? { ...row, rsvp: next } : row)),
-    );
     try {
-      await setOrganizationEventRsvp(eventId, profileId, next);
+      await setRsvpMutation.mutateAsync({ profileId, rsvp: next });
       setFeedback("RSVP updated.");
-      try {
-        setHistory((await getOrganizationEventRsvpHistory(eventId)).entries);
-      } catch {
-        setRowsError("RSVP updated, but the event history could not be refreshed.");
-      }
     } catch (saveError: unknown) {
-      setRows((existing) => existing.map((row) => (row.profileId === profileId ? current : row)));
-      setRowsError(
+      setFeedback(
         saveError instanceof AuthApiError ? saveError.message : "The RSVP could not be updated.",
       );
     } finally {
@@ -597,7 +555,6 @@ export function RsvpManagerPage({
                 <select
                   onChange={(event) => {
                     setEventId(event.target.value);
-                    setRows([]);
                     setFeedback(null);
                     setAssignmentFilter(null);
                     setView("roster");

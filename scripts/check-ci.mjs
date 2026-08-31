@@ -3,9 +3,8 @@ import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 
 const manifestName = "release-manifest.json";
 
-// Mirrors the job order and steps in .github/workflows/ci.yml so a local run
-// predicts what CI will do before the push. The browser E2E job is not run
-// here because it needs Playwright browsers installed; see the note below.
+// Enforces the local release qualification checks before promotion.
+// The browser E2E job is not run here because it needs Playwright browsers installed; see the note below.
 const steps = [
   {
     job: "static",
@@ -27,6 +26,12 @@ const steps = [
   },
   { job: "static", label: "Check formatting", command: "npm", args: ["run", "format:check"] },
   { job: "static", label: "Lint", command: "npm", args: ["run", "lint"] },
+  {
+    job: "static",
+    label: "Check unused dependencies and exports (Knip)",
+    command: "npm",
+    args: ["run", "knip"],
+  },
   { job: "static", label: "Check spacing tokens", command: "npm", args: ["run", "check:spacing"] },
   { job: "contracts", label: "Typecheck", command: "npm", args: ["run", "typecheck"] },
   {

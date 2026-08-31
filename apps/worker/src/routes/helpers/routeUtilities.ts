@@ -485,6 +485,7 @@ export async function resolveEffectiveMemberProfileId(
       context.env.SIGNED_LINK_SECRET,
       authorization.organizationId,
       authorization.userId,
+      authorization.sessionId,
       cookieHeader,
     );
     if (impersonation.active && impersonation.impersonatedProfileId) {

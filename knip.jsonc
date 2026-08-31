@@ -1,14 +1,48 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema-jsonc.json",
-  "entry": [
-    "playwright.config.ts",
-    "vitest.config.ts",
-    "vitest.integration.config.ts",
-    "apps/web/vite.config.ts",
-    "scripts/check-lockfile.mjs",
-    "scripts/check-durable-object-boundaries.mjs",
-    "scripts/run-e2e-servers.mjs",
-    "scripts/capture-baseline-screenshots.mjs",
-  ],
-  "ignoreDependencies": ["cloudflare", "opencode-goal-plugin"],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "playwright.config.ts",
+        "vitest.config.ts",
+        "vitest.integration.config.ts",
+        "scripts/*.mjs",
+      ],
+      "ignoreDependencies": ["cloudflare", "opencode-goal-plugin"],
+    },
+    "apps/web": {
+      "entry": ["src/main.tsx", "vite.config.ts", "e2e/**/*.ts"],
+      "project": ["src/**/*.{ts,tsx}", "e2e/**/*.ts"],
+      "ignoreDependencies": ["tailwindcss"],
+    },
+    "apps/worker": {
+      "entry": ["src/index.ts", "test/**/*.ts"],
+      "project": ["src/**/*.ts", "test/**/*.ts"],
+    },
+    "packages/contracts": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": true,
+    },
+    "packages/domain": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": true,
+    },
+    "packages/testkit": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": true,
+    },
+    "packages/ui": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "includeEntryExports": true,
+    },
+  },
+  "rules": {
+    "exports": "warn",
+    "types": "warn",
+    "duplicates": "warn",
+  },
 }

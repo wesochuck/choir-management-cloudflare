@@ -27,6 +27,7 @@ export async function createImpersonationToken(
   organizationId: string,
   profileId: string,
   adminUserId: string,
+  adminSessionId: string,
   now = new Date(),
 ): Promise<{ readonly expiresAt: string; readonly token: string }> {
   const nowSeconds = Math.floor(now.getTime() / 1000);
@@ -38,6 +39,7 @@ export async function createImpersonationToken(
     organizationId,
     purpose: "impersonation",
     resourceId: adminUserId,
+    revocation: adminSessionId,
     subjectId: profileId,
     version: 1,
   });
@@ -51,11 +53,12 @@ export async function verifyImpersonationCookie(
   secret: string,
   organizationId: string,
   adminUserId: string,
+  adminSessionId: string | undefined,
   cookieHeader: string | undefined,
   now = new Date(),
 ): Promise<ImpersonationContext> {
   const token = readImpersonationCookie(cookieHeader);
-  if (!token) {
+  if (!token || !adminSessionId) {
     return {
       active: false,
       adminUserId: null,
@@ -68,7 +71,19 @@ export async function verifyImpersonationCookie(
     expectedPurpose: "impersonation",
     now,
   });
-  if (envelope?.resourceId !== adminUserId || !envelope.subjectId) {
+  if (!envelope) {
+    return {
+      active: false,
+      adminUserId: null,
+      expiresAt: null,
+      impersonatedProfileId: null,
+    };
+  }
+  if (
+    envelope.resourceId !== adminUserId ||
+    envelope.revocation !== adminSessionId ||
+    !envelope.subjectId
+  ) {
     return {
       active: false,
       adminUserId: null,

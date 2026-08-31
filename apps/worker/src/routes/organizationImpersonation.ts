@@ -38,6 +38,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       context.env.SIGNED_LINK_SECRET,
       authorization.organizationId,
       authorization.userId,
+      authorization.sessionId,
       context.req.raw.headers.get("cookie") ?? undefined,
     );
     if (!verified.active || !verified.impersonatedProfileId) {
@@ -76,6 +77,16 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       return context.json(
         { ...authorization, requestId: context.get("requestId") },
         authorization.status,
+      );
+    }
+    if (!authorization.sessionId) {
+      return context.json(
+        {
+          code: "unauthorized",
+          message: "An active authenticated session is required to begin impersonation.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        401,
       );
     }
     const body = organizationImpersonationStartRequestSchema.safeParse(
@@ -136,7 +147,24 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       authorization.organizationId,
       body.data.profileId,
       authorization.userId,
+      authorization.sessionId,
     );
+
+    await context.env.CONTROL_DB.prepare(
+      `INSERT INTO platform_audit_events
+        (id, actor_user_id, organization_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+       VALUES (?, ?, ?, 'organization.impersonation.started', 'organization_member_profile', ?, ?, ?, ?)`,
+    )
+      .bind(
+        crypto.randomUUID(),
+        authorization.userId,
+        authorization.organizationId,
+        body.data.profileId,
+        context.get("requestId"),
+        JSON.stringify({ expiresAt, profileId: body.data.profileId }),
+        new Date().toISOString(),
+      )
+      .run();
 
     const requestUrl = new URL(context.req.url);
     const secure = isSecureRequest(requestUrl, config.APP_ENV);
@@ -158,7 +186,38 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     );
   });
 
-  router.post("/api/organization/impersonation/stop", (context) => {
+  router.post("/api/organization/impersonation/stop", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, false);
+    if (authorization.ok && authorization.sessionId) {
+      const verified = await verifyImpersonationCookie(
+        context.env.SIGNED_LINK_SECRET,
+        authorization.organizationId,
+        authorization.userId,
+        authorization.sessionId,
+        context.req.raw.headers.get("cookie") ?? undefined,
+      );
+      if (verified.active && verified.impersonatedProfileId) {
+        await context.env.CONTROL_DB.prepare(
+          `INSERT INTO platform_audit_events
+            (id, actor_user_id, organization_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+           VALUES (?, ?, ?, 'organization.impersonation.stopped', 'organization_member_profile', ?, ?, ?, ?)`,
+        )
+          .bind(
+            crypto.randomUUID(),
+            authorization.userId,
+            authorization.organizationId,
+            verified.impersonatedProfileId,
+            context.get("requestId"),
+            JSON.stringify({
+              profileId: verified.impersonatedProfileId,
+              stoppedAt: new Date().toISOString(),
+            }),
+            new Date().toISOString(),
+          )
+          .run();
+      }
+    }
+
     const config = validateStartupConfig(context.env);
     const requestUrl = new URL(context.req.url);
     const secure = isSecureRequest(requestUrl, config.APP_ENV);

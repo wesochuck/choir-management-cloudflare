@@ -3,73 +3,11 @@ import { requestId } from "hono/request-id";
 import type { ProblemDetails } from "@choir/contracts";
 import type { WorkerHonoEnvironment } from "./routes/helpers";
 import { boundJsonRequestBody, MAX_JSON_BODY_BYTES } from "./routes/helpers";
-import { registerRoutes as registerPublicRoutes } from "./routes/public";
-import { registerRoutes as registerPlatformSetupRoutes } from "./routes/platformSetup";
-import { registerRoutes as registerPublicCommerceRoutes } from "./routes/publicCommerce";
-import { registerRoutes as registerPublicDonationsRoutes } from "./routes/publicDonations";
-import { registerRoutes as registerPublicTicketsRoutes } from "./routes/publicTickets";
-import { registerRoutes as registerPublicRsvpPollsRoutes } from "./routes/publicRsvpPolls";
-import { registerRoutes as registerPublicEngagementRoutes } from "./routes/publicEngagement";
-import { registerRoutes as registerCalendarRoutes } from "./routes/calendar";
-import { registerRoutes as registerSingerRoutes } from "./routes/singer";
-import { registerRoutes as registerOrganizationFilesRoutes } from "./routes/organizationFiles";
-import { registerRoutes as registerOrganizationProfilesRoutes } from "./routes/organizationProfiles";
-import { registerRoutes as registerAuthRoutes } from "./routes/auth";
-import { registerRoutes as registerOrganizationProfileRecordsRoutes } from "./routes/organizationProfileRecords";
-import { registerRoutes as registerOrganizationMusicFolderReportRoutes } from "./routes/organizationMusicFolderReports";
-import { registerRoutes as registerOrganizationExportRoutes } from "./routes/organizationExport";
-import { registerRoutes as registerOrganizationProfileMutationsRoutes } from "./routes/organizationProfileMutations";
-import { registerRoutes as registerSingerBillingRoutes } from "./routes/singerBilling";
-import { registerRoutes as registerOrganizationProfilePhotosRoutes } from "./routes/organizationProfilePhotos";
-import { registerRoutes as registerOrganizationProfileDeliveriesRoutes } from "./routes/organizationProfileDeliveries";
-import { registerRoutes as registerSingerDirectoryRoutes } from "./routes/singerDirectory";
-import { registerRoutes as registerOrganizationWebsiteRoutes } from "./routes/organizationWebsite";
-import { registerRoutes as registerOrganizationTicketingRoutes } from "./routes/organizationTicketing";
-import { registerRoutes as registerOrganizationDonationsRoutes } from "./routes/organizationDonations";
-import { registerRoutes as registerOrganizationCommerceSettingsRoutes } from "./routes/organizationCommerceSettings";
-import { registerRoutes as registerOrganizationPatronsRoutes } from "./routes/organizationPatrons";
-import { registerRoutes as registerOrganizationSeasonsRoutes } from "./routes/organizationSeasons";
-import { registerRoutes as registerOrganizationDonationRefundsRoutes } from "./routes/organizationDonationRefunds";
-import { registerRoutes as registerOrganizationTicketingOrdersRoutes } from "./routes/organizationTicketingOrders";
-import { registerRoutes as registerOrganizationResourcesRoutes } from "./routes/organizationResources";
-import { registerRoutes as registerOrganizationCommunicationsRoutes } from "./routes/organizationCommunications";
-import { registerRoutes as registerOrganizationMusicCatalogRoutes } from "./routes/organizationMusicCatalog";
-import { registerRoutes as registerSingerMusicRoutes } from "./routes/singerMusic";
-import { registerRoutes as registerOrganizationMusicMutationsRoutes } from "./routes/organizationMusicMutations";
-import { registerRoutes as registerSingerEventsRoutes } from "./routes/singerEvents";
-import { registerRoutes as registerOrganizationEventsRoutes } from "./routes/organizationEvents";
-import { registerRoutes as registerOrganizationPaymentSettingsRoutes } from "./routes/organizationPaymentSettings";
-import { registerRoutes as registerOrganizationCalendarSettingsRoutes } from "./routes/organizationCalendarSettings";
-import { registerRoutes as registerOrganizationRosterSettingsRoutes } from "./routes/organizationRosterSettings";
-import { registerRoutes as registerOrganizationSeatingRoutes } from "./routes/organizationSeating";
-import { registerRoutes as registerOrganizationEventSeatingRoutes } from "./routes/organizationEventSeating";
-import { registerRoutes as registerSingerSeatingRoutes } from "./routes/singerSeating";
-import { registerRoutes as registerOrganizationEventCatalogRoutes } from "./routes/organizationEventCatalog";
-import { registerRoutes as registerOrganizationDashboardRoutes } from "./routes/organizationDashboard";
-import { registerRoutes as registerOrganizationEventManagementRoutes } from "./routes/organizationEventManagement";
-import { registerRoutes as registerOrganizationTokensRoutes } from "./routes/organizationTokens";
-import { registerRoutes as registerOrganizationAuditionsRoutes } from "./routes/organizationAuditions";
-import { registerRoutes as registerOrganizationAuditionLifecycleRoutes } from "./routes/organizationAuditionLifecycle";
-import { registerRoutes as registerOrganizationRsvpExportsRoutes } from "./routes/organizationRsvpExports";
-import { registerRoutes as registerOrganizationPollsRoutes } from "./routes/organizationPolls";
-import { registerRoutes as registerOrganizationEventAttendanceRoutes } from "./routes/organizationEventAttendance";
-import { registerRoutes as registerOrganizationInvitationsRoutes } from "./routes/organizationInvitations";
-import { registerRoutes as registerOrganizationAccessRoutes } from "./routes/organizationAccess";
-import { registerRoutes as registerOrganizationDomainsRoutes } from "./routes/organizationDomains";
-import { registerRoutes as registerOrganizationEmailSettingsRoutes } from "./routes/organizationEmailSettings";
-import { registerRoutes as registerOrganizationBrandingRoutes } from "./routes/organizationBranding";
-import { registerRoutes as registerPlatformAdministrationRoutes } from "./routes/platformAdministration";
-import { registerRoutes as registerPlatformEmailSuppressionRoutes } from "./routes/platformEmailSuppressions";
-import { registerRoutes as registerPlatformEmailFeedbackRoutes } from "./routes/platformEmailFeedback";
-import { registerRoutes as registerPlatformOperationsRoutes } from "./routes/platformOperations";
-import { registerRoutes as registerSingerDashboardRoutes } from "./routes/singerDashboard";
-import { registerRoutes as registerSetupRoutes } from "./routes/setup";
-import { registerRoutes as registerOrganizationModulesRoutes } from "./routes/organizationModules";
-import { registerRoutes as registerSetupRecoveryRoutes } from "./routes/setupRecovery";
-import { registerRoutes as registerPlatformMaintenanceRoutes } from "./routes/platformMaintenance";
-import { registerRoutes as registerPaymentsRoutes } from "./routes/payments";
-import { registerRoutes as registerMemberEmailChangeRoutes } from "./routes/memberEmailChange";
-import { registerRoutes as registerOrganizationImpersonationRoutes } from "./routes/organizationImpersonation";
+import { registerOrganizationGroupRoutes } from "./routes/groups/organizationRoutes";
+import { registerPlatformGroupRoutes } from "./routes/groups/platformRoutes";
+import { registerPublicGroupRoutes } from "./routes/groups/publicRoutes";
+import { registerSetupGroupRoutes } from "./routes/groups/setupRoutes";
+import { registerSingerGroupRoutes } from "./routes/groups/singerRoutes";
 
 export const router = new Hono<WorkerHonoEnvironment>();
 
@@ -139,11 +77,12 @@ router.use("*", async (context, next) => {
   }
   await next();
 });
+
 function resolveCorsOrigin(
   requestOrigin: string | undefined,
   requestUrl: URL,
   baseDomain: string,
-): string {
+): string | null {
   const candidate = requestOrigin ?? requestUrl.origin;
   try {
     const originUrl = new URL(candidate);
@@ -151,7 +90,7 @@ function resolveCorsOrigin(
       if (originUrl.hostname === "localhost" || originUrl.hostname.endsWith(".localhost")) {
         return candidate;
       }
-      return "*";
+      return null;
     }
     if (originUrl.hostname === baseDomain || originUrl.hostname.endsWith(`.${baseDomain}`)) {
       return candidate;
@@ -159,24 +98,32 @@ function resolveCorsOrigin(
   } catch {
     // Fall back on invalid origin URLs
   }
-  return baseDomain === "localhost" ? "*" : `https://${baseDomain}`;
+  return null;
+}
+
+function setCorsHeaders(headers: Headers, allowOrigin: string | null): void {
+  if (!allowOrigin) return;
+  headers.set("access-control-allow-origin", allowOrigin);
+  headers.set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
+  headers.set("access-control-allow-headers", "Content-Type, Authorization");
+  headers.set("access-control-allow-credentials", "true");
+  headers.set("access-control-max-age", "86400");
 }
 
 router.use("*", async (context, next) => {
   if (context.req.method === "OPTIONS") {
     const requestUrl = new URL(context.req.url);
-    context.res.headers.set(
-      "access-control-allow-origin",
-      resolveCorsOrigin(context.req.header("origin"), requestUrl, context.env.PRODUCT_BASE_DOMAIN),
+    const allowOrigin = resolveCorsOrigin(
+      context.req.header("origin"),
+      requestUrl,
+      context.env.PRODUCT_BASE_DOMAIN,
     );
-    context.res.headers.set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
-    context.res.headers.set("access-control-allow-headers", "Content-Type, Authorization");
-    context.res.headers.set("access-control-allow-credentials", "true");
-    context.res.headers.set("access-control-max-age", "86400");
+    setCorsHeaders(context.res.headers, allowOrigin);
     return context.body(null, 204);
   }
   await next();
 });
+
 router.use("*", async (context, next) => {
   await next();
   const requestUrl = new URL(context.req.url);
@@ -202,15 +149,14 @@ router.use("*", async (context, next) => {
       ? "no-referrer"
       : "strict-origin-when-cross-origin",
   );
-  context.res.headers.set(
-    "access-control-allow-origin",
-    resolveCorsOrigin(context.req.header("origin"), requestUrl, context.env.PRODUCT_BASE_DOMAIN),
+  const allowOrigin = resolveCorsOrigin(
+    context.req.header("origin"),
+    requestUrl,
+    context.env.PRODUCT_BASE_DOMAIN,
   );
-  context.res.headers.set("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
-  context.res.headers.set("access-control-allow-headers", "Content-Type, Authorization");
-  context.res.headers.set("access-control-allow-credentials", "true");
-  context.res.headers.set("access-control-max-age", "86400");
+  setCorsHeaders(context.res.headers, allowOrigin);
 });
+
 router.use("*", async (context, next) => {
   if (!(await boundJsonRequestBody(context))) {
     return context.json(
@@ -225,73 +171,11 @@ router.use("*", async (context, next) => {
   await next();
 });
 
-registerPublicRoutes(router);
-registerPlatformSetupRoutes(router);
-registerPublicCommerceRoutes(router);
-registerPublicDonationsRoutes(router);
-registerPublicTicketsRoutes(router);
-registerPublicRsvpPollsRoutes(router);
-registerPublicEngagementRoutes(router);
-registerCalendarRoutes(router);
-registerSingerRoutes(router);
-registerOrganizationFilesRoutes(router);
-registerOrganizationProfilesRoutes(router);
-registerAuthRoutes(router);
-registerOrganizationProfileRecordsRoutes(router);
-registerOrganizationMusicFolderReportRoutes(router);
-registerOrganizationExportRoutes(router);
-registerOrganizationProfileMutationsRoutes(router);
-registerSingerBillingRoutes(router);
-registerOrganizationProfilePhotosRoutes(router);
-registerOrganizationProfileDeliveriesRoutes(router);
-registerSingerDirectoryRoutes(router);
-registerOrganizationWebsiteRoutes(router);
-registerOrganizationTicketingRoutes(router);
-registerOrganizationDonationsRoutes(router);
-registerOrganizationCommerceSettingsRoutes(router);
-registerOrganizationPatronsRoutes(router);
-registerOrganizationSeasonsRoutes(router);
-registerOrganizationDonationRefundsRoutes(router);
-registerOrganizationTicketingOrdersRoutes(router);
-registerOrganizationResourcesRoutes(router);
-registerOrganizationCommunicationsRoutes(router);
-registerOrganizationMusicCatalogRoutes(router);
-registerSingerMusicRoutes(router);
-registerOrganizationMusicMutationsRoutes(router);
-registerSingerEventsRoutes(router);
-registerOrganizationEventsRoutes(router);
-registerOrganizationPaymentSettingsRoutes(router);
-registerOrganizationCalendarSettingsRoutes(router);
-registerOrganizationRosterSettingsRoutes(router);
-registerOrganizationSeatingRoutes(router);
-registerOrganizationEventSeatingRoutes(router);
-registerSingerSeatingRoutes(router);
-registerOrganizationEventCatalogRoutes(router);
-registerOrganizationDashboardRoutes(router);
-registerOrganizationEventManagementRoutes(router);
-registerOrganizationTokensRoutes(router);
-registerOrganizationAuditionsRoutes(router);
-registerOrganizationAuditionLifecycleRoutes(router);
-registerOrganizationRsvpExportsRoutes(router);
-registerOrganizationPollsRoutes(router);
-registerOrganizationEventAttendanceRoutes(router);
-registerOrganizationInvitationsRoutes(router);
-registerOrganizationAccessRoutes(router);
-registerOrganizationDomainsRoutes(router);
-registerOrganizationEmailSettingsRoutes(router);
-registerOrganizationBrandingRoutes(router);
-registerPlatformAdministrationRoutes(router);
-registerPlatformEmailSuppressionRoutes(router);
-registerPlatformEmailFeedbackRoutes(router);
-registerPlatformOperationsRoutes(router);
-registerSingerDashboardRoutes(router);
-registerSetupRoutes(router);
-registerOrganizationModulesRoutes(router);
-registerSetupRecoveryRoutes(router);
-registerPlatformMaintenanceRoutes(router);
-registerPaymentsRoutes(router);
-registerMemberEmailChangeRoutes(router);
-registerOrganizationImpersonationRoutes(router);
+registerPublicGroupRoutes(router);
+registerSingerGroupRoutes(router);
+registerOrganizationGroupRoutes(router);
+registerPlatformGroupRoutes(router);
+registerSetupGroupRoutes(router);
 
 router.notFound((context) => {
   const problem: ProblemDetails = {

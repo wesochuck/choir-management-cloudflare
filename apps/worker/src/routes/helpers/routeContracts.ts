@@ -262,6 +262,7 @@ export type CalendarAuthorization =
       readonly organizationId: string;
       readonly role: "administrator" | "member" | "owner";
       readonly email: string;
+      readonly sessionId?: string | undefined;
       readonly userId: string;
     }
   | {
@@ -392,6 +393,7 @@ export async function authorizeCalendarRoute(
     ok: true,
     organizationId,
     role: authorization.value.role,
+    sessionId: session?.session.id,
     userId: authorization.value.userId,
   };
 }

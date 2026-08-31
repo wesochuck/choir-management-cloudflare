@@ -11,6 +11,7 @@ const TEST_SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789a
 const TEST_ORG_ID = "11111111-1111-4111-8111-111111111111";
 const TEST_PROFILE_ID = "22222222-2222-4222-8222-222222222222";
 const TEST_ADMIN_USER_ID = "33333333-3333-4333-8333-333333333333";
+const TEST_ADMIN_SESSION_ID = "session-44444444-4444-4444-8444-444444444444";
 
 describe("impersonation helper", () => {
   it("issues and verifies a valid impersonation token cookie", async () => {
@@ -20,6 +21,7 @@ describe("impersonation helper", () => {
       TEST_ORG_ID,
       TEST_PROFILE_ID,
       TEST_ADMIN_USER_ID,
+      TEST_ADMIN_SESSION_ID,
       now,
     );
 
@@ -33,6 +35,7 @@ describe("impersonation helper", () => {
       TEST_SECRET,
       TEST_ORG_ID,
       TEST_ADMIN_USER_ID,
+      TEST_ADMIN_SESSION_ID,
       cookieHeader,
       now,
     );
@@ -43,13 +46,14 @@ describe("impersonation helper", () => {
     expect(verified.expiresAt).toBe(expiresAt);
   });
 
-  it("rejects an expired token or mismatched user/org", async () => {
+  it("rejects an expired token or mismatched user/org/session", async () => {
     const now = new Date("2026-08-30T12:00:00Z");
     const { token } = await createImpersonationToken(
       TEST_SECRET,
       TEST_ORG_ID,
       TEST_PROFILE_ID,
       TEST_ADMIN_USER_ID,
+      TEST_ADMIN_SESSION_ID,
       now,
     );
 
@@ -60,6 +64,7 @@ describe("impersonation helper", () => {
       TEST_SECRET,
       TEST_ORG_ID,
       TEST_ADMIN_USER_ID,
+      TEST_ADMIN_SESSION_ID,
       cookieHeader,
       new Date("2026-08-30T13:01:00Z"),
     );
@@ -70,6 +75,7 @@ describe("impersonation helper", () => {
       TEST_SECRET,
       "99999999-9999-4999-8999-999999999999",
       TEST_ADMIN_USER_ID,
+      TEST_ADMIN_SESSION_ID,
       cookieHeader,
       now,
     );
@@ -80,10 +86,22 @@ describe("impersonation helper", () => {
       TEST_SECRET,
       TEST_ORG_ID,
       "other-user",
+      TEST_ADMIN_SESSION_ID,
       cookieHeader,
       now,
     );
     expect(wrongUser.active).toBe(false);
+
+    // Wrong admin session
+    const wrongSession = await verifyImpersonationCookie(
+      TEST_SECRET,
+      TEST_ORG_ID,
+      TEST_ADMIN_USER_ID,
+      "other-session-id",
+      cookieHeader,
+      now,
+    );
+    expect(wrongSession.active).toBe(false);
   });
 
   it("formats set and clear cookie headers correctly", () => {

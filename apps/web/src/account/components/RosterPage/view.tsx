@@ -445,9 +445,9 @@ export function RosterPageView({
                         (membership.role === "administrator" || membership.role === "owner"),
                     );
                     return (
-                      <div className="table-actions-cell">
+                      <div className="table-actions">
                         <button
-                          className="text-button"
+                          className="button button--secondary button--small"
                           onClick={(event) => {
                             event.stopPropagation();
                             openEdit(candidate);
@@ -458,7 +458,7 @@ export function RosterPageView({
                         </button>
                         {!isCandidateAdmin ? (
                           <button
-                            className="text-button text-button--secondary"
+                            className="button button--secondary button--small"
                             onClick={(event) => {
                               event.stopPropagation();
                               void (async () => {

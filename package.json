@@ -19,7 +19,7 @@
     "audit": "npm audit --audit-level=high",
     "bootstrap:staging-platform-admin": "node scripts/bootstrap-staging-platform-admin.mjs",
     "build": "npm run build --workspaces --if-present",
-    "check": "npm run audit && npm run format:check && npm run lint && npm run check:spacing && npm run typecheck && npm test && npm run build && npm run test:integration:prepared",
+    "check": "npm run audit && npm run format:check && npm run lint && npm run knip && npm run check:spacing && npm run typecheck && npm test && npm run build && npm run test:integration:prepared",
     "check:ci": "node scripts/check-ci.mjs",
     "check:parity:implementation": "node scripts/audit-parity-implementation.mjs",
     "check:contracts:exports": "node scripts/check-contract-exports.mjs",
