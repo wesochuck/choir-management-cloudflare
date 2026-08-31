@@ -15,6 +15,7 @@ const startupConfigSchema = z.object({
   EMAIL_EVENTS_DLQ_NAME: z.string().min(1).max(128),
   EMAIL_EVENTS_QUEUE_NAME: z.string().min(1).max(128),
   JOBS_DLQ_NAME: z.string().min(1).max(128),
+  JOBS_QUEUE_NAME: z.string().min(1).max(128),
   PLATFORM_EMAIL_FROM: z.email(),
   PLATFORM_EMAIL_MODE: z.enum(["capture", "disabled", "sandbox"]),
   PRODUCT_BASE_DOMAIN: z.string().min(1).max(253),
@@ -30,7 +31,7 @@ export interface Env {
   readonly BREVO_API_KEY?: string | undefined;
   readonly BREVO_SMS_ALLOWED_RECIPIENTS?: string | undefined;
   readonly BREVO_SMS_SENDER?: string | undefined;
-  readonly BUILD_VERSION: "staging" | "unreleased" | "development";
+  readonly BUILD_VERSION: string;
   readonly CLOUDFLARE_API_TOKEN?: string | undefined;
   readonly CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID?: string | undefined;
   readonly CONTROL_DB: D1Database;
@@ -42,6 +43,7 @@ export interface Env {
   readonly FLEET_SCHEMA_WORKFLOW: Workflow<FleetSchemaParams>;
   readonly JOBS_QUEUE: Queue;
   readonly JOBS_DLQ_NAME: string;
+  readonly JOBS_QUEUE_NAME: string;
   readonly ORGANIZATION_FILES: R2Bucket;
   readonly ORGANIZATION_STORE: DurableObjectNamespace<OrganizationStore>;
   readonly PLATFORM_EMAIL?: SendEmail | undefined;
@@ -71,6 +73,7 @@ export function validateStartupConfig(env: Env): StartupConfig {
     EMAIL_EVENTS_DLQ_NAME: env.EMAIL_EVENTS_DLQ_NAME,
     EMAIL_EVENTS_QUEUE_NAME: env.EMAIL_EVENTS_QUEUE_NAME,
     JOBS_DLQ_NAME: env.JOBS_DLQ_NAME,
+    JOBS_QUEUE_NAME: env.JOBS_QUEUE_NAME,
     PLATFORM_EMAIL_FROM: env.PLATFORM_EMAIL_FROM,
     PLATFORM_EMAIL_MODE: env.PLATFORM_EMAIL_MODE,
     PRODUCT_BASE_DOMAIN: env.PRODUCT_BASE_DOMAIN,

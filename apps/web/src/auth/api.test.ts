@@ -239,7 +239,7 @@ describe("platform queue dead-letter API", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const { setMyEventRsvp } = await import("./api/singer");
+    const { setMyEventRsvp } = await import("../api/singer");
     await expect(
       setMyEventRsvp("00000000-0000-4000-8000-000000000001", "No", "Out of town"),
     ).resolves.toEqual(rsvpBody);

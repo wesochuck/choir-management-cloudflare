@@ -562,10 +562,8 @@ describe("Platform Administrator MFA", () => {
         "/api/setup/recover-admin",
         {
           body: JSON.stringify({
+            displayName: "Recovered Administrator",
             email: "recovered.admin@example.test",
-            name: "Recovered Administrator",
-            password: "not-persisted-password",
-            passwordConfirm: "not-persisted-password",
           }),
           headers: { cookie: sessionCookie },
           method: "POST",

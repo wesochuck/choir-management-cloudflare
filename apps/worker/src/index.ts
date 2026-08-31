@@ -40,11 +40,22 @@ const worker = {
       await processEmailProviderDeadLetterBatch(batch, env);
       return;
     }
+    if (batch.queue === env.JOBS_QUEUE_NAME) {
+      await processDeliveryBatch(batch, env);
+      return;
+    }
     if (batch.queue === env.JOBS_DLQ_NAME) {
       await processDeadLetterBatch(batch, env);
       return;
     }
-    await processDeliveryBatch(batch, env);
+    console.error(
+      JSON.stringify({
+        event: "unknown_queue_batch",
+        messagesCount: batch.messages.length,
+        queue: batch.queue,
+      }),
+    );
+    throw new Error(`Unhandled queue: ${batch.queue}`);
   },
   scheduled(event: ScheduledController, env: Env, executionContext: ExecutionContext): void {
     executionContext.waitUntil(

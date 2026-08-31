@@ -186,10 +186,9 @@ export const platformMfaVerificationSchema = z.discriminatedUnion("method", [
 ]);
 
 const administratorRecoveryRequestSchema = z.object({
+  displayName: z.string().trim().min(1).max(200).optional(),
   email: z.email(),
   name: z.string().trim().min(1).max(200).optional(),
-  password: z.string().max(128).optional(),
-  passwordConfirm: z.string().max(128).optional(),
 });
 
 interface AdministratorRecoveryRequest {
@@ -225,23 +224,13 @@ async function readAdministratorRecoveryRequest(
       400,
     );
   }
-  if (
-    parsed.data.password !== undefined &&
-    parsed.data.passwordConfirm !== undefined &&
-    parsed.data.password !== parsed.data.passwordConfirm
-  ) {
-    return context.json(
-      {
-        code: "validation_failed",
-        message: "Passwords do not match. Passwords are not stored by administrator recovery.",
-        requestId: context.get("requestId"),
-      } satisfies ProblemDetails,
-      400,
-    );
-  }
   const email = parsed.data.email.toLowerCase();
   return {
-    displayName: parsed.data.name?.trim() ?? email.split("@", 1)[0] ?? "Administrator",
+    displayName:
+      parsed.data.displayName?.trim() ??
+      parsed.data.name?.trim() ??
+      email.split("@", 1)[0] ??
+      "Administrator",
     email,
   };
 }
