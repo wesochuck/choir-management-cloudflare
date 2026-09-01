@@ -9,7 +9,7 @@ import { RosterAutomationSettings } from "../../RosterAutomationSettings";
 import { RosterConfiguration } from "../../RosterConfiguration";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
-import { RosterConfigurationDraftProvider } from "../../RosterConfigurationDraftContext";
+import { RosterConfigurationDraftProvider } from "../../RosterConfigurationDraftProvider";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { startOrganizationImpersonation } from "../../../api";
 import type { RosterPageModel } from "./hooks";

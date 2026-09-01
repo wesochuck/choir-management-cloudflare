@@ -6,7 +6,9 @@ import type { RouteState } from "./types";
 export function useRoute(): [RouteState, (href: string) => void] {
   const [route, setRoute] = useState<RouteState>(readRoute);
   const routeRef = useRef(route);
-  routeRef.current = route;
+  useEffect(() => {
+    routeRef.current = route;
+  });
 
   useEffect(() => {
     const onPopState = () => {

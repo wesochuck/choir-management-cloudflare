@@ -10,7 +10,14 @@ function isArraysEqual(a: readonly unknown[], b: readonly unknown[]): boolean {
   return true;
 }
 
-function isObjectsEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isObjectsEqual(
+  a: Readonly<Record<string, unknown>>,
+  b: Readonly<Record<string, unknown>>,
+): boolean {
   const keysA = Object.keys(a);
   const keysB = Object.keys(b);
   if (keysA.length !== keysB.length) return false;
@@ -22,7 +29,7 @@ function isObjectsEqual(a: Record<string, unknown>, b: Record<string, unknown>):
   return true;
 }
 
-function defaultEquals<T>(a: T, b: T): boolean {
+function defaultEquals(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
   if (typeof a !== "object" || a === null || typeof b !== "object" || b === null) {
     return false;
@@ -30,14 +37,21 @@ function defaultEquals<T>(a: T, b: T): boolean {
   if (Array.isArray(a) && Array.isArray(b)) {
     return isArraysEqual(a, b);
   }
-  if (Array.isArray(a) !== Array.isArray(b)) {
+  if (Array.isArray(a) || Array.isArray(b)) {
     return false;
   }
-  return isObjectsEqual(a as Record<string, unknown>, b as Record<string, unknown>);
+  if (isRecord(a) && isRecord(b)) {
+    return isObjectsEqual(a, b);
+  }
+  return false;
 }
 
 function defaultNormalize<T>(value: T): T {
   return value;
+}
+
+function isFunctionUpdater<T>(value: T | ((prev: T) => T)): value is (prev: T) => T {
+  return typeof value === "function";
 }
 
 export function usePersistedDraft<T, TRequest = T>({
@@ -58,6 +72,7 @@ export function usePersistedDraft<T, TRequest = T>({
     (value: T | null): TRequest | null => {
       if (value === null) return null;
       if (toRequest) return toRequest(value);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- identity conversion when TRequest defaults to T
       return value as unknown as TRequest;
     },
     [toRequest],
@@ -65,6 +80,7 @@ export function usePersistedDraft<T, TRequest = T>({
 
   const [persisted, setPersisted] = useState<T | null>(initialValue);
   const [draft, setDraftState] = useState<TRequest | null>(() => toDraftRequest(initialValue));
+  const [prevInitial, setPrevInitial] = useState<T | null>(initialValue);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
@@ -76,7 +92,6 @@ export function usePersistedDraft<T, TRequest = T>({
   const saveFnRef = useRef(saveFn);
   const onSaveSuccessRef = useRef(onSaveSuccess);
   const onSaveErrorRef = useRef(onSaveError);
-  const initialValueRef = useRef(initialValue);
 
   useEffect(() => {
     saveFnRef.current = saveFn;
@@ -95,25 +110,19 @@ export function usePersistedDraft<T, TRequest = T>({
     return !equals(normDraft, normPersisted);
   }, [draft, equals, normalize, persisted, toDraftRequest]);
 
-  // Handle external baseline query updates (TanStack Query refetches)
-  useEffect(() => {
-    if (initialValue === initialValueRef.current) return;
-    initialValueRef.current = initialValue;
-
+  // Adjust state during render when initialValue prop / query response updates
+  if (initialValue !== prevInitial) {
+    setPrevInitial(initialValue);
     setPersisted(initialValue);
     if (persisted === null || !dirty) {
       setDraftState(toDraftRequest(initialValue));
-      draftRevisionRef.current += 1;
     }
-  }, [dirty, initialValue, persisted, toDraftRequest]);
+  }
 
   const setDraft = useCallback((updater: TRequest | ((prev: TRequest) => TRequest)): void => {
     setDraftState((current) => {
       if (current === null) return null;
-      const next =
-        typeof updater === "function"
-          ? (updater as (prev: TRequest) => TRequest)(current)
-          : updater;
+      const next = isFunctionUpdater(updater) ? updater(current) : updater;
       draftRevisionRef.current += 1;
       return next;
     });

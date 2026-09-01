@@ -1,5 +1,5 @@
+/* eslint-disable @typescript-eslint/no-empty-function, @typescript-eslint/no-unused-vars */
 export function setupTestDom(): void {
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- checking node vs browser environment
   if (typeof globalThis.document !== "undefined") return;
 
   (globalThis as Record<string, unknown>).IS_REACT_ACT_ENVIRONMENT = true;

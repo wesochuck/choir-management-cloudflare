@@ -107,16 +107,12 @@ export function SettingsForm({
       setSlotError(`Enter a valid start and end time in ${timezone}.`);
       return;
     }
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            slots: [...current.slots, { endsAt, id: crypto.randomUUID(), startsAt }].toSorted(
-              (a, b) => a.startsAt.localeCompare(b.startsAt),
-            ),
-          }
-        : current,
-    );
+    setDraft((current) => ({
+      ...current,
+      slots: [...current.slots, { endsAt, id: crypto.randomUUID(), startsAt }].toSorted((a, b) =>
+        a.startsAt.localeCompare(b.startsAt),
+      ),
+    }));
     setSlotStart(DEFAULT_SLOT_START);
     setSlotEnd(DEFAULT_SLOT_END);
   }
@@ -151,19 +147,15 @@ export function SettingsForm({
         startsAt: new Date(cursor).toISOString(),
       });
     }
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            slots: [...current.slots, ...slots]
-              .filter(
-                (slot, index, values) =>
-                  values.findIndex((candidate) => candidate.startsAt === slot.startsAt) === index,
-              )
-              .toSorted((left, right) => left.startsAt.localeCompare(right.startsAt)),
-          }
-        : current,
-    );
+    setDraft((current) => ({
+      ...current,
+      slots: [...current.slots, ...slots]
+        .filter(
+          (slot, index, values) =>
+            values.findIndex((candidate) => candidate.startsAt === slot.startsAt) === index,
+        )
+        .toSorted((left, right) => left.startsAt.localeCompare(right.startsAt)),
+    }));
   }
 
   function addRehearsalSession() {
@@ -177,23 +169,19 @@ export function SettingsForm({
       setRehearsalError("Choose an Organization venue before adding this rehearsal day.");
       return;
     }
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            rehearsalSchedule: [
-              ...current.rehearsalSchedule,
-              {
-                dayOfWeek: rehearsalDay,
-                endTime: rehearsalEnd,
-                locationName: "",
-                startTime: rehearsalStart,
-                venueId: venue.id,
-              },
-            ],
-          }
-        : current,
-    );
+    setDraft((current) => ({
+      ...current,
+      rehearsalSchedule: [
+        ...current.rehearsalSchedule,
+        {
+          dayOfWeek: rehearsalDay,
+          endTime: rehearsalEnd,
+          locationName: "",
+          startTime: rehearsalStart,
+          venueId: venue.id,
+        },
+      ],
+    }));
   }
 
   function openNewVenueDialog() {
@@ -229,28 +217,20 @@ export function SettingsForm({
   function addRecipient() {
     const email = recipientEmail.trim().toLowerCase();
     if (!email || !email.includes("@") || !draft || draft.adminNotifyUsers.includes(email)) return;
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            adminNotifyUsers: [...current.adminNotifyUsers, email],
-          }
-        : current,
-    );
+    setDraft((current) => ({
+      ...current,
+      adminNotifyUsers: [...current.adminNotifyUsers, email],
+    }));
     setRecipientEmail("");
   }
 
   function toggleAdministrator(recipient: AdministratorRecipient, checked: boolean) {
-    setDraft((current) =>
-      current
-        ? {
-            ...current,
-            adminNotifyUsers: checked
-              ? [...new Set([...current.adminNotifyUsers, recipient.email])]
-              : current.adminNotifyUsers.filter((email) => email !== recipient.email),
-          }
-        : current,
-    );
+    setDraft((current) => ({
+      ...current,
+      adminNotifyUsers: checked
+        ? [...new Set([...current.adminNotifyUsers, recipient.email])]
+        : current.adminNotifyUsers.filter((email) => email !== recipient.email),
+    }));
   }
 
   if (!draft) return null;

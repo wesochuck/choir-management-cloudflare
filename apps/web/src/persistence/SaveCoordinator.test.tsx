@@ -48,7 +48,7 @@ describe("SaveCoordinator", () => {
       save: save1,
     };
 
-    await act(async () => {
+    act(() => {
       root.render(
         <SaveCoordinatorProvider>
           <Observer />
@@ -76,7 +76,7 @@ describe("SaveCoordinator", () => {
     expect(discard1).toHaveBeenCalled();
 
     // Unmount
-    await act(async () => {
+    act(() => {
       root.unmount();
     });
     container.remove();
@@ -126,7 +126,7 @@ describe("SaveCoordinator", () => {
       save: saveFail,
     };
 
-    await act(async () => {
+    act(() => {
       root.render(
         <SaveCoordinatorProvider>
           <Observer />
@@ -147,31 +147,31 @@ describe("SaveCoordinator", () => {
     expect(saveSuccess).toHaveBeenCalled();
     expect(saveFail).toHaveBeenCalled();
 
-    await act(async () => {
+    act(() => {
       root.unmount();
     });
     container.remove();
   });
 
-  it("logs duplicate registration detection on colliding resourceKey", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  it("logs duplicate registration detection on colliding resourceKey", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
     function DoubleChild() {
       useSaveRegistration({
         busy: false,
         dirty: true,
-        discard: () => {},
+        discard: vi.fn(),
         id: "child-a",
         resourceKey: "colliding-key",
-        save: async () => true,
+        save: () => Promise.resolve(true),
       });
       useSaveRegistration({
         busy: false,
         dirty: true,
-        discard: () => {},
+        discard: vi.fn(),
         id: "child-b",
         resourceKey: "colliding-key",
-        save: async () => true,
+        save: () => Promise.resolve(true),
       });
       return null;
     }
@@ -180,7 +180,7 @@ describe("SaveCoordinator", () => {
     document.body.appendChild(container);
     const root = createRoot(container);
 
-    await act(async () => {
+    act(() => {
       root.render(
         <SaveCoordinatorProvider>
           <DoubleChild />
@@ -192,7 +192,7 @@ describe("SaveCoordinator", () => {
       expect.stringContaining("Duplicate draft registration detected"),
     );
 
-    await act(async () => {
+    act(() => {
       root.unmount();
     });
     container.remove();

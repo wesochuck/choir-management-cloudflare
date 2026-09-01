@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 import { updateOrganizationProfile } from "../auth/api";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
-import { useRosterConfigurationDraft } from "./RosterConfigurationDraftContext";
+import { useRosterConfigurationDraft } from "./rosterConfigurationDraftContext";
 
 interface Props {
   readonly enabled: boolean;
@@ -164,9 +164,10 @@ export function RosterConfiguration({ enabled }: Props) {
                 value={configuration.performerLabel}
                 onChange={(event) => {
                   const performerLabelValue = event.target.value;
-                  setConfiguration((current) =>
-                    current ? { ...current, performerLabel: performerLabelValue } : current,
-                  );
+                  setConfiguration((current) => ({
+                    ...current,
+                    performerLabel: performerLabelValue,
+                  }));
                 }}
               />
               <span className="field-help">
@@ -194,20 +195,17 @@ export function RosterConfiguration({ enabled }: Props) {
                         onChange={(event) => {
                           const previousCode = section.code;
                           const code = event.target.value;
-                          setConfiguration(
-                            (current) =>
-                              current && {
-                                ...current,
-                                sections: current.sections.map((item, itemIndex) =>
-                                  itemIndex === index ? { ...item, code } : item,
-                                ),
-                                voiceParts: current.voiceParts.map((item) =>
-                                  item.sectionCode === previousCode
-                                    ? { ...item, sectionCode: code }
-                                    : item,
-                                ),
-                              },
-                          );
+                          setConfiguration((current) => ({
+                            ...current,
+                            sections: current.sections.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, code } : item,
+                            ),
+                            voiceParts: current.voiceParts.map((item) =>
+                              item.sectionCode === previousCode
+                                ? { ...item, sectionCode: code }
+                                : item,
+                            ),
+                          }));
                         }}
                       />
                     </label>
@@ -220,15 +218,12 @@ export function RosterConfiguration({ enabled }: Props) {
                         value={section.name}
                         onChange={(event) => {
                           const name = event.target.value;
-                          setConfiguration(
-                            (current) =>
-                              current && {
-                                ...current,
-                                sections: current.sections.map((item, itemIndex) =>
-                                  itemIndex === index ? { ...item, name } : item,
-                                ),
-                              },
-                          );
+                          setConfiguration((current) => ({
+                            ...current,
+                            sections: current.sections.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, name } : item,
+                            ),
+                          }));
                         }}
                       />
                     </label>
@@ -240,15 +235,12 @@ export function RosterConfiguration({ enabled }: Props) {
                         value={section.color}
                         onChange={(event) => {
                           const color = event.target.value;
-                          setConfiguration(
-                            (current) =>
-                              current && {
-                                ...current,
-                                sections: current.sections.map((item, itemIndex) =>
-                                  itemIndex === index ? { ...item, color } : item,
-                                ),
-                              },
-                          );
+                          setConfiguration((current) => ({
+                            ...current,
+                            sections: current.sections.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, color } : item,
+                            ),
+                          }));
                         }}
                       />
                     </label>
@@ -258,15 +250,12 @@ export function RosterConfiguration({ enabled }: Props) {
                         type="checkbox"
                         onChange={(event) => {
                           const trackOnly = event.target.checked;
-                          setConfiguration(
-                            (current) =>
-                              current && {
-                                ...current,
-                                sections: current.sections.map((item, itemIndex) =>
-                                  itemIndex === index ? { ...item, trackOnly } : item,
-                                ),
-                              },
-                          );
+                          setConfiguration((current) => ({
+                            ...current,
+                            sections: current.sections.map((item, itemIndex) =>
+                              itemIndex === index ? { ...item, trackOnly } : item,
+                            ),
+                          }));
                         }}
                       />
                       Track only
@@ -277,15 +266,10 @@ export function RosterConfiguration({ enabled }: Props) {
                       title={referenced ? `Remove its ${partTerm} assignments first.` : undefined}
                       type="button"
                       onClick={() => {
-                        setConfiguration(
-                          (current) =>
-                            current && {
-                              ...current,
-                              sections: current.sections.filter(
-                                (_, itemIndex) => itemIndex !== index,
-                              ),
-                            },
-                        );
+                        setConfiguration((current) => ({
+                          ...current,
+                          sections: current.sections.filter((_, itemIndex) => itemIndex !== index),
+                        }));
                       }}
                     >
                       Remove
@@ -299,7 +283,6 @@ export function RosterConfiguration({ enabled }: Props) {
               type="button"
               onClick={() => {
                 setConfiguration((current) => {
-                  if (!current) return current;
                   const code = nextUniqueLabel(
                     "NEW",
                     new Set(current.sections.map((section) => section.code)),
@@ -350,15 +333,12 @@ export function RosterConfiguration({ enabled }: Props) {
                           value={voicePart.label}
                           onChange={(event) => {
                             const label = event.target.value;
-                            setConfiguration(
-                              (current) =>
-                                current && {
-                                  ...current,
-                                  voiceParts: current.voiceParts.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, label } : item,
-                                  ),
-                                },
-                            );
+                            setConfiguration((current) => ({
+                              ...current,
+                              voiceParts: current.voiceParts.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, label } : item,
+                              ),
+                            }));
                           }}
                         />
                       </label>
@@ -371,15 +351,12 @@ export function RosterConfiguration({ enabled }: Props) {
                           value={voicePart.fullName}
                           onChange={(event) => {
                             const fullName = event.target.value;
-                            setConfiguration(
-                              (current) =>
-                                current && {
-                                  ...current,
-                                  voiceParts: current.voiceParts.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, fullName } : item,
-                                  ),
-                                },
-                            );
+                            setConfiguration((current) => ({
+                              ...current,
+                              voiceParts: current.voiceParts.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, fullName } : item,
+                              ),
+                            }));
                           }}
                         />
                       </label>
@@ -390,15 +367,12 @@ export function RosterConfiguration({ enabled }: Props) {
                           value={voicePart.sectionCode}
                           onChange={(event) => {
                             const sectionCode = event.target.value;
-                            setConfiguration(
-                              (current) =>
-                                current && {
-                                  ...current,
-                                  voiceParts: current.voiceParts.map((item, itemIndex) =>
-                                    itemIndex === index ? { ...item, sectionCode } : item,
-                                  ),
-                                },
-                            );
+                            setConfiguration((current) => ({
+                              ...current,
+                              voiceParts: current.voiceParts.map((item, itemIndex) =>
+                                itemIndex === index ? { ...item, sectionCode } : item,
+                              ),
+                            }));
                           }}
                         >
                           {configuration.sections.map(({ code, name }) => (
@@ -424,15 +398,12 @@ export function RosterConfiguration({ enabled }: Props) {
                             openReassignment(voicePart.label);
                             return;
                           }
-                          setConfiguration(
-                            (current) =>
-                              current && {
-                                ...current,
-                                voiceParts: current.voiceParts.filter(
-                                  (_, itemIndex) => itemIndex !== index,
-                                ),
-                              },
-                          );
+                          setConfiguration((current) => ({
+                            ...current,
+                            voiceParts: current.voiceParts.filter(
+                              (_, itemIndex) => itemIndex !== index,
+                            ),
+                          }));
                         }}
                       >
                         {assigned ? "Manage assignments" : `Remove ${partTerm}`}
@@ -449,7 +420,6 @@ export function RosterConfiguration({ enabled }: Props) {
                 const firstSection = configuration.sections[0];
                 if (!firstSection) return;
                 setConfiguration((current) => {
-                  if (!current) return current;
                   const label = nextUniqueLabel(
                     "NEW",
                     new Set(current.voiceParts.map((voicePart) => voicePart.label)),

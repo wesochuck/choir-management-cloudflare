@@ -29,7 +29,7 @@ describe("UnsavedChangesGuard", () => {
     document.body.appendChild(container);
     const root = createRoot(container);
 
-    await act(async () => {
+    act(() => {
       root.render(
         <SaveCoordinatorProvider>
           <GuardChild />
@@ -46,7 +46,7 @@ describe("UnsavedChangesGuard", () => {
     expect(allowed).toBe(true);
     expect(action).toHaveBeenCalled();
 
-    await act(async () => {
+    act(() => {
       root.unmount();
     });
     container.remove();

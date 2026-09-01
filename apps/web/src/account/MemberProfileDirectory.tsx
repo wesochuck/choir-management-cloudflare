@@ -571,7 +571,7 @@ function MemberProfileEditor({
     }
   }
 
-  const effectiveMessage = draftError ? draftError : message;
+  const effectiveMessage = draftError ?? message;
 
   return (
     <section className="account-section" aria-label="My Organization Profile">

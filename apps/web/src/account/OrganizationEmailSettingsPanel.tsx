@@ -178,9 +178,9 @@ export function OrganizationEmailSettingsPanel() {
     initialValue: initialSettings,
     normalize: (val) => ({
       ...val,
-      customDomain: val.customDomain?.trim() || null,
-      fromName: val.fromName?.trim() || null,
-      replyToEmail: val.replyToEmail?.trim() || null,
+      customDomain: val.customDomain?.trim() ? val.customDomain.trim() : null,
+      fromName: val.fromName?.trim() ? val.fromName.trim() : null,
+      replyToEmail: val.replyToEmail?.trim() ? val.replyToEmail.trim() : null,
     }),
     onSaveSuccess: () => {
       setSuccess("Email settings saved successfully.");
@@ -188,9 +188,9 @@ export function OrganizationEmailSettingsPanel() {
     resourceKey: "organization-email-settings",
     save: (draftVal) =>
       updateOrganizationEmailSettings({
-        customDomain: draftVal.customDomain?.trim() || null,
-        fromName: draftVal.fromName?.trim() || null,
-        replyToEmail: draftVal.replyToEmail?.trim() || null,
+        customDomain: draftVal.customDomain?.trim() ? draftVal.customDomain.trim() : null,
+        fromName: draftVal.fromName?.trim() ? draftVal.fromName.trim() : null,
+        replyToEmail: draftVal.replyToEmail?.trim() ? draftVal.replyToEmail.trim() : null,
       }),
   });
 

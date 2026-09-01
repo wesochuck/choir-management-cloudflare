@@ -5,7 +5,7 @@ import type {
 import { useEffect, useMemo, useState } from "react";
 
 import { previewOrganizationRosterAutomation } from "../auth/api";
-import { useRosterConfigurationDraft } from "./RosterConfigurationDraftContext";
+import { useRosterConfigurationDraft } from "./rosterConfigurationDraftContext";
 
 interface Props {
   readonly enabled: boolean;
@@ -53,18 +53,18 @@ export function RosterAutomationSettings({ enabled }: Props) {
   const error = contextError ?? draftReturn.error;
   const setConfiguration = draftReturn.setDraft;
 
-  useEffect(() => {
-    if (!selectedProfileId && profiles.length > 0) {
-      const candidate = profiles.find((profile) => profile.voicePart.trim() !== "")?.id ?? null;
-      setSelectedProfileId(candidate);
-    }
-  }, [profiles, selectedProfileId]);
+  const candidateProfileId = useMemo(
+    () =>
+      profiles.find((profile) => profile.voicePart.trim() !== "")?.id ?? profiles[0]?.id ?? null,
+    [profiles],
+  );
+  const effectiveProfileId = selectedProfileId ?? candidateProfileId;
 
   useEffect(() => {
     if (!configuration || !enabled) return;
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      void previewOrganizationRosterAutomation(configuration, selectedProfileId)
+      void previewOrganizationRosterAutomation(configuration, effectiveProfileId)
         .then((nextPreview) => {
           if (!cancelled) setPreview(nextPreview);
         })
@@ -76,7 +76,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [configuration, enabled, selectedProfileId]);
+  }, [configuration, effectiveProfileId, enabled]);
 
   const selectedProfile = useMemo(() => preview?.selectedProfile ?? null, [preview]);
 
@@ -259,7 +259,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
                 onChange={(event) => {
                   setSelectedProfileId(event.target.value || null);
                 }}
-                value={selectedProfileId ?? ""}
+                value={effectiveProfileId ?? ""}
               >
                 <option value="">Choose a Profile</option>
                 {profiles

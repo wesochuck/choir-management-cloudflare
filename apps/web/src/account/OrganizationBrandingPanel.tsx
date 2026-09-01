@@ -11,10 +11,105 @@ import { usePersistedDraft } from "../persistence";
 const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
 
+function getInitials(name: string | undefined): string {
+  if (!name) return "CM";
+  return name
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function LogoPreview({
+  initials,
+  logoFileId,
+}: {
+  readonly initials: string;
+  readonly logoFileId: string | null | undefined;
+}) {
+  return (
+    <div
+      className="branding-preview-box"
+      style={{
+        alignItems: "center",
+        backgroundColor: "var(--color-surface-elevated, #f9f9fb)",
+        border: "1px solid var(--color-border, #dedde5)",
+        borderRadius: "8px",
+        display: "flex",
+        height: "96px",
+        justifyContent: "center",
+        overflow: "hidden",
+        padding: "8px",
+        width: "96px",
+      }}
+    >
+      {logoFileId ? (
+        <img
+          alt="Organization logo preview"
+          src={`/api/organization/files/${encodeURIComponent(logoFileId)}`}
+          style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+        />
+      ) : (
+        <span
+          style={{
+            alignItems: "center",
+            backgroundColor: "var(--color-accent, #1b4d3e)",
+            borderRadius: "6px",
+            color: "#ffffff",
+            display: "flex",
+            fontSize: "1.25rem",
+            fontWeight: 700,
+            height: "48px",
+            justifyContent: "center",
+            width: "48px",
+          }}
+        >
+          {initials}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function PhysicalAddressSection({
+  addressDraft,
+  setAddressDraft,
+}: {
+  readonly addressDraft: string | null;
+  readonly setAddressDraft: (val: string) => void;
+}) {
+  return (
+    <div
+      className="field"
+      style={{ borderTop: "1px solid var(--color-border, #dedde5)", paddingTop: "1rem" }}
+    >
+      <label htmlFor="org-physical-address">Physical Postal Address</label>
+      <textarea
+        id="org-physical-address"
+        maxLength={2000}
+        onChange={(e) => {
+          setAddressDraft(e.target.value);
+        }}
+        placeholder="e.g. 123 Main St, Suite 400&#10;Seattle, WA 98101"
+        rows={3}
+        value={addressDraft ?? ""}
+      />
+      <p className="field-hint">
+        The official physical mailing address or PO box of the Organization. Displayed in outbound
+        email footers for CAN-SPAM and postal compliance.
+      </p>
+    </div>
+  );
+}
+
 export function OrganizationBrandingPanel() {
   const [branding, setBranding] = useState<OrganizationBranding | null>(null);
   const brandingRef = useRef<OrganizationBranding | null>(null);
-  brandingRef.current = branding;
+
+  useEffect(() => {
+    brandingRef.current = branding;
+  });
 
   const [loading, setLoading] = useState(true);
   const [logoBusy, setLogoBusy] = useState(false);
@@ -89,7 +184,6 @@ export function OrganizationBrandingPanel() {
 
     try {
       const uploadResult = await uploadPrivateOrganizationFile(file, file.name);
-      // Decouple from uncommitted address draft by persisting only already-saved address
       const persistedPhysicalAddress =
         savedAddress !== null ? savedAddress.trim() || null : (branding?.physicalAddress ?? null);
       const updated = await updateOrganizationBranding({
@@ -137,15 +231,7 @@ export function OrganizationBrandingPanel() {
 
   const busy = logoBusy || addressSaving;
   const effectiveError = error ?? addressError;
-
-  const initials = branding?.organizationName
-    ? branding.organizationName
-        .split(/\s+/)
-        .map((part) => part[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : "CM";
+  const initials = getInitials(branding?.organizationName);
 
   return (
     <fieldset className="surface-card organization-settings-panel">
@@ -175,114 +261,56 @@ export function OrganizationBrandingPanel() {
         <div className="form-stack settings-form">
           <div
             className="branding-preview-row"
-            style={{ display: "flex", alignItems: "center", gap: "1.5rem", margin: "1rem 0" }}
+            style={{ alignItems: "center", display: "flex", gap: "1.5rem", margin: "1rem 0" }}
           >
-            <div
-              className="branding-preview-box"
-              style={{
-                width: "96px",
-                height: "96px",
-                borderRadius: "8px",
-                border: "1px solid var(--color-border, #dedde5)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "var(--color-surface-elevated, #f9f9fb)",
-                overflow: "hidden",
-                padding: "8px",
-              }}
-            >
-              {branding?.logoFileId ? (
-                <img
-                  src={`/api/organization/files/${encodeURIComponent(branding.logoFileId)}`}
-                  alt="Organization logo preview"
-                  style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
-                />
-              ) : (
-                <span
-                  style={{
-                    backgroundColor: "var(--color-accent, #1b4d3e)",
-                    color: "#ffffff",
-                    fontWeight: 700,
-                    fontSize: "1.25rem",
-                    borderRadius: "6px",
-                    width: "48px",
-                    height: "48px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {initials}
-                </span>
-              )}
-            </div>
+            <LogoPreview initials={initials} logoFileId={branding?.logoFileId} />
 
             <div
               className="branding-actions"
               style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}
             >
               <input
-                ref={fileInputRef}
-                type="file"
                 accept={ALLOWED_MIME_TYPES.join(",")}
+                disabled={busy}
+                id="org-logo-upload-input"
                 onChange={(event) => {
                   void handleFileChange(event);
                 }}
-                disabled={busy}
+                ref={fileInputRef}
                 style={{ display: "none" }}
-                id="org-logo-upload-input"
+                type="file"
               />
-              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
                 <button
-                  type="button"
                   className="button button--secondary button--sm"
                   disabled={busy}
                   onClick={() => {
                     fileInputRef.current?.click();
                   }}
+                  type="button"
                 >
                   {busy ? "Uploading…" : branding?.logoFileId ? "Change logo" : "Upload logo"}
                 </button>
                 {branding?.logoFileId ? (
                   <button
-                    type="button"
                     className="button button--secondary button--sm"
                     disabled={busy}
                     onClick={() => {
                       void handleRemoveLogo();
                     }}
+                    type="button"
                   >
                     Remove logo
                   </button>
                 ) : null}
               </div>
-              <span style={{ fontSize: "0.85rem", color: "var(--color-text-muted, #687078)" }}>
+              <span style={{ color: "var(--color-text-muted, #687078)", fontSize: "0.85rem" }}>
                 Supported formats: PNG, JPEG, WebP, SVG (max 5MB).
               </span>
             </div>
           </div>
 
-          <div
-            className="field"
-            style={{ borderTop: "1px solid var(--color-border, #dedde5)", paddingTop: "1rem" }}
-          >
-            <label htmlFor="org-physical-address">Physical Postal Address</label>
-            <textarea
-              id="org-physical-address"
-              maxLength={2000}
-              onChange={(e) => {
-                setAddressDraft(e.target.value);
-              }}
-              placeholder="e.g. 123 Main St, Suite 400&#10;Seattle, WA 98101"
-              rows={3}
-              value={addressDraft ?? ""}
-            />
-            <p className="field-hint">
-              The official physical mailing address or PO box of the Organization. Displayed in
-              outbound email footers for CAN-SPAM and postal compliance.
-            </p>
-          </div>
+          <PhysicalAddressSection addressDraft={addressDraft} setAddressDraft={setAddressDraft} />
         </div>
       )}
     </fieldset>

@@ -361,6 +361,119 @@ function OrganizationExportPanel() {
   );
 }
 
+function TransactionFeeSettingsSection({
+  feeError,
+  feeSuccess,
+  fixedFeeDraft,
+  setFixedFeeDraft,
+  setTransactionFeeSettings,
+  settingsLoaded,
+  transactionFeeSettings,
+}: {
+  readonly feeError: string | null;
+  readonly feeSuccess: string | null;
+  readonly fixedFeeDraft: string;
+  readonly setFixedFeeDraft: (val: string) => void;
+  readonly setTransactionFeeSettings: (
+    updater: TransactionFeeSettings | ((current: TransactionFeeSettings) => TransactionFeeSettings),
+  ) => void;
+  readonly settingsLoaded: boolean;
+  readonly transactionFeeSettings: TransactionFeeSettings | null;
+}) {
+  const currentFeeSettings: TransactionFeeSettings = transactionFeeSettings ?? {
+    fixedCents: 30,
+    passFeeToDonor: false,
+    percentage: 2.9,
+  };
+  const exampleFeeCents = transactionProcessingFeeCents(1_000, currentFeeSettings);
+  const examplePayerTotalCents = 1_000 + (currentFeeSettings.passFeeToDonor ? exampleFeeCents : 0);
+
+  return (
+    <fieldset className="surface-card organization-settings-panel">
+      <legend id="transaction-fee-settings-title">Transaction processing fees</legend>
+      <div className="section-heading section-heading--compact">
+        <p className="section-description">
+          Tickets, ticket bundles, and dues use this fee. You can optionally pass the same fee
+          through to donation checkout.
+        </p>
+      </div>
+      {feeError ? (
+        <p className="notice notice--error" role="alert">
+          {feeError}
+        </p>
+      ) : null}
+      {feeSuccess ? (
+        <p className="notice notice--success" role="status">
+          {feeSuccess}
+        </p>
+      ) : null}
+      {settingsLoaded && transactionFeeSettings ? (
+        <div className="form-stack settings-form">
+          <div className="settings-grid">
+            <label className="field" htmlFor="transaction-fee-percentage">
+              Percentage (%)
+              <input
+                id="transaction-fee-percentage"
+                min="0"
+                onChange={(event) => {
+                  setTransactionFeeSettings((current) => ({
+                    ...current,
+                    percentage: Number(event.target.value) || 0,
+                  }));
+                }}
+                step="0.01"
+                type="number"
+                value={transactionFeeSettings.percentage}
+              />
+            </label>
+            <label className="field" htmlFor="transaction-fee-fixed">
+              Fixed fee (USD)
+              <input
+                id="transaction-fee-fixed"
+                inputMode="decimal"
+                onBlur={() => {
+                  const cents = currencyCentsFromDraft(fixedFeeDraft);
+                  setFixedFeeDraft(currencyDraftFromCents(cents));
+                  setTransactionFeeSettings((current) => ({
+                    ...current,
+                    fixedCents: cents,
+                  }));
+                }}
+                onChange={(event) => {
+                  setFixedFeeDraft(event.target.value);
+                }}
+                step="0.01"
+                type="text"
+                value={fixedFeeDraft}
+              />
+            </label>
+          </div>
+          <label className="checkbox-row">
+            <input
+              checked={transactionFeeSettings.passFeeToDonor}
+              onChange={(event) => {
+                setTransactionFeeSettings((current) => ({
+                  ...current,
+                  passFeeToDonor: event.target.checked,
+                }));
+              }}
+              type="checkbox"
+            />
+            Pass the processing fee through to donors
+          </label>
+          <p className="notice notice--info">
+            On a $10.00 charge, the processing fee is {money(exampleFeeCents)} (
+            {money(Math.round(1_000 * (transactionFeeSettings.percentage / 100)))} variable +{" "}
+            {money(transactionFeeSettings.fixedCents)} fixed), for a total of{" "}
+            {money(examplePayerTotalCents)} paid by the donor when pass-through is enabled;
+            otherwise the Organization covers the fee.
+          </p>
+        </div>
+      ) : null}
+    </fieldset>
+  );
+}
+
 export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -427,13 +540,6 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
     };
   }, [enabled, settingsLoadAttempt]);
 
-  const currentFeeSettings: TransactionFeeSettings = transactionFeeSettings ?? {
-    fixedCents: 30,
-    passFeeToDonor: false,
-    percentage: 2.9,
-  };
-  const exampleFeeCents = transactionProcessingFeeCents(1_000, currentFeeSettings);
-  const examplePayerTotalCents = 1_000 + (currentFeeSettings.passFeeToDonor ? exampleFeeCents : 0);
   const effectiveError = error ?? timezoneError;
 
   if (!enabled) {
@@ -446,88 +552,15 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
     <div className="settings-stack">
       <OrganizationBrandingPanel />
       <OrganizationPaymentSettingsPanel />
-      <fieldset className="surface-card organization-settings-panel">
-        <legend id="transaction-fee-settings-title">Transaction processing fees</legend>
-        <div className="section-heading section-heading--compact">
-          <p className="section-description">
-            Tickets, ticket bundles, and dues use this fee. You can optionally pass the same fee
-            through to donation checkout.
-          </p>
-        </div>
-        {feeError ? (
-          <p className="notice notice--error" role="alert">
-            {feeError}
-          </p>
-        ) : null}
-        {feeSuccess ? (
-          <p className="notice notice--success" role="status">
-            {feeSuccess}
-          </p>
-        ) : null}
-        {settingsLoaded && transactionFeeSettings ? (
-          <div className="form-stack settings-form">
-            <div className="settings-grid">
-              <label className="field" htmlFor="transaction-fee-percentage">
-                Percentage (%)
-                <input
-                  id="transaction-fee-percentage"
-                  min="0"
-                  onChange={(event) => {
-                    setTransactionFeeSettings((current) => ({
-                      ...(current ?? currentFeeSettings),
-                      percentage: Number(event.target.value) || 0,
-                    }));
-                  }}
-                  step="0.01"
-                  type="number"
-                  value={transactionFeeSettings.percentage}
-                />
-              </label>
-              <label className="field" htmlFor="transaction-fee-fixed">
-                Fixed fee (USD)
-                <input
-                  id="transaction-fee-fixed"
-                  inputMode="decimal"
-                  onChange={(event) => {
-                    setFixedFeeDraft(event.target.value);
-                  }}
-                  onBlur={() => {
-                    const cents = currencyCentsFromDraft(fixedFeeDraft);
-                    setFixedFeeDraft(currencyDraftFromCents(cents));
-                    setTransactionFeeSettings((current) => ({
-                      ...(current ?? currentFeeSettings),
-                      fixedCents: cents,
-                    }));
-                  }}
-                  step="0.01"
-                  type="text"
-                  value={fixedFeeDraft}
-                />
-              </label>
-            </div>
-            <label className="checkbox-row">
-              <input
-                checked={transactionFeeSettings.passFeeToDonor}
-                onChange={(event) => {
-                  setTransactionFeeSettings((current) => ({
-                    ...(current ?? currentFeeSettings),
-                    passFeeToDonor: event.target.checked,
-                  }));
-                }}
-                type="checkbox"
-              />
-              Pass the processing fee through to donors
-            </label>
-            <p className="notice notice--info">
-              On a $10.00 charge, the processing fee is {money(exampleFeeCents)} (
-              {money(Math.round(1_000 * (transactionFeeSettings.percentage / 100)))} variable +{" "}
-              {money(transactionFeeSettings.fixedCents)} fixed), for a total of{" "}
-              {money(examplePayerTotalCents)} paid by the donor when pass-through is enabled;
-              otherwise the Organization covers the fee.
-            </p>
-          </div>
-        ) : null}
-      </fieldset>
+      <TransactionFeeSettingsSection
+        feeError={feeError}
+        feeSuccess={feeSuccess}
+        fixedFeeDraft={fixedFeeDraft}
+        setFixedFeeDraft={setFixedFeeDraft}
+        setTransactionFeeSettings={setTransactionFeeSettings}
+        settingsLoaded={settingsLoaded}
+        transactionFeeSettings={transactionFeeSettings}
+      />
       <fieldset className="surface-card organization-settings-panel">
         <legend id="calendar-settings-title">Calendar settings</legend>
         {loading ? <p role="status">Loading calendar settings…</p> : null}
