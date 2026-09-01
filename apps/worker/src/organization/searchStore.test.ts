@@ -27,7 +27,6 @@ function createMockStorage(organizationId: string): SearchStoreStorage {
           rows = [
             {
               displayName: "Jane Doe",
-              email: "jane@example.com",
               globalStatus: "Active",
               id: "prof-1",
               voicePart: "Alto 1",
@@ -36,11 +35,11 @@ function createMockStorage(organizationId: string): SearchStoreStorage {
         } else if (query.includes("FROM events")) {
           rows = [
             {
-              eventDate: "2026-10-15",
               id: "event-1",
-              kind: "rehearsal",
-              locationName: "Sanctuary",
+              location: "Sanctuary",
+              startsAt: "2026-10-15T19:00:00Z",
               title: "Fall Rehearsal",
+              type: "Rehearsal",
             },
           ];
         } else if (query.includes("FROM music_pieces")) {
@@ -50,6 +49,14 @@ function createMockStorage(organizationId: string): SearchStoreStorage {
               composer: "Traditional",
               id: "piece-1",
               title: "Sing We Now of Christmas",
+            },
+          ];
+        } else if (query.includes("FROM polls")) {
+          rows = [
+            {
+              expiresAt: "2026-11-01T00:00:00Z",
+              id: "poll-1",
+              title: "Holiday Party Date",
             },
           ];
         }
@@ -87,7 +94,7 @@ describe("searchOrganizationEntitiesFromStore", () => {
     expect(parsed).toEqual({ results: [] });
   });
 
-  it("queries and maps profiles, events, and music results", async () => {
+  it("queries and maps profiles, events, music, and polls results", async () => {
     const mockStorage = createMockStorage("org-1");
 
     const response = searchOrganizationEntitiesFromStore(mockStorage, {
@@ -97,12 +104,30 @@ describe("searchOrganizationEntitiesFromStore", () => {
 
     expect(response.status).toBe(200);
     const parsed = storeSearchResponseSchema.parse(await response.json());
-    expect(parsed.results).toHaveLength(3);
+    expect(parsed.results).toHaveLength(4);
     expect(parsed.results[0]?.category).toBe("roster");
     expect(parsed.results[0]?.title).toBe("Jane Doe");
+    expect(parsed.results[0]?.subtitle).toBe("Alto 1");
     expect(parsed.results[1]?.category).toBe("events");
     expect(parsed.results[1]?.title).toBe("Fall Rehearsal");
+    expect(parsed.results[1]?.subtitle).toBe("Rehearsal • 2026-10-15 • Sanctuary");
     expect(parsed.results[2]?.category).toBe("music");
     expect(parsed.results[2]?.title).toBe("Sing We Now of Christmas");
+    expect(parsed.results[3]?.category).toBe("polls");
+    expect(parsed.results[3]?.title).toBe("Holiday Party Date");
+  });
+
+  it("supports querying with profileIds", async () => {
+    const mockStorage = createMockStorage("org-1");
+
+    const response = searchOrganizationEntitiesFromStore(mockStorage, {
+      organizationId: "org-1",
+      profileIds: ["prof-1"],
+      query: "jane",
+    });
+
+    expect(response.status).toBe(200);
+    const parsed = storeSearchResponseSchema.parse(await response.json());
+    expect(parsed.results[0]?.title).toBe("Jane Doe");
   });
 });

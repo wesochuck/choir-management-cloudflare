@@ -4,7 +4,6 @@ import type { SqlStorageValue } from "@cloudflare/workers-types";
 interface ProfileRow {
   readonly [column: string]: SqlStorageValue;
   readonly displayName: string;
-  readonly email: string | null;
   readonly globalStatus: string | null;
   readonly id: string;
   readonly voicePart: string | null;
@@ -12,11 +11,11 @@ interface ProfileRow {
 
 interface EventRow {
   readonly [column: string]: SqlStorageValue;
-  readonly eventDate: string;
   readonly id: string;
-  readonly kind: string;
-  readonly locationName: string | null;
+  readonly location: string | null;
+  readonly startsAt: string;
   readonly title: string;
+  readonly type: string;
 }
 
 interface MusicRow {
@@ -54,35 +53,56 @@ export interface SearchStoreOptions {
   readonly category?: SearchCategory | undefined;
   readonly limit?: number | undefined;
   readonly organizationId: string | null;
+  readonly profileIds?: readonly string[] | undefined;
   readonly query: string;
 }
 
 function searchRosterProfiles(
   storage: SearchStoreStorage,
   likePattern: string,
+  profileIds: readonly string[],
   limit: number,
 ): readonly SearchResultItem[] {
   try {
-    const rows = storage.sql
-      .exec<ProfileRow>(
-        `SELECT id, display_name AS displayName, voice_part AS voicePart, email, global_status AS globalStatus
-         FROM profiles
-         WHERE display_name LIKE ? OR email LIKE ? OR voice_part LIKE ?
-         ORDER BY display_name ASC
-         LIMIT ?`,
-        likePattern,
-        likePattern,
-        likePattern,
-        limit,
-      )
-      .toArray();
+    let rows: ProfileRow[] = [];
+    if (profileIds.length > 0) {
+      const placeholders = profileIds.map(() => "?").join(", ");
+      rows = storage.sql
+        .exec<ProfileRow>(
+          `SELECT id, display_name AS displayName, voice_part AS voicePart, global_status AS globalStatus
+           FROM profiles
+           WHERE display_name LIKE ? OR voice_part LIKE ? OR phone LIKE ? OR id IN (${placeholders})
+           ORDER BY display_name ASC
+           LIMIT ?`,
+          likePattern,
+          likePattern,
+          likePattern,
+          ...profileIds,
+          limit,
+        )
+        .toArray();
+    } else {
+      rows = storage.sql
+        .exec<ProfileRow>(
+          `SELECT id, display_name AS displayName, voice_part AS voicePart, global_status AS globalStatus
+           FROM profiles
+           WHERE display_name LIKE ? OR voice_part LIKE ? OR phone LIKE ?
+           ORDER BY display_name ASC
+           LIMIT ?`,
+          likePattern,
+          likePattern,
+          likePattern,
+          limit,
+        )
+        .toArray();
+    }
 
     return rows.map((p) => ({
       badge: p.globalStatus ?? "Active",
       category: "roster",
       href: `/admin/roster?profileId=${p.id}`,
       id: `roster-${p.id}`,
-      subtitle: [p.voicePart, p.email].filter(Boolean).join(" • "),
+      subtitle: p.voicePart ?? undefined,
       title: p.displayName,
     }));
   } catch {
@@ -98,25 +118,30 @@ function searchEvents(
   try {
     const rows = storage.sql
       .exec<EventRow>(
-        `SELECT id, title, kind, event_date AS eventDate, location_name AS locationName
+        `SELECT id, title, type, starts_at AS startsAt, location
          FROM events
-         WHERE title LIKE ? OR location_name LIKE ?
-         ORDER BY event_date DESC
+         WHERE is_archived = 0 AND (title LIKE ? OR location LIKE ? OR type LIKE ?)
+         ORDER BY starts_at DESC
          LIMIT ?`,
+        likePattern,
         likePattern,
         likePattern,
         limit,
       )
       .toArray();
 
-    return rows.map((e) => ({
-      badge: e.kind,
-      category: "events",
-      href: `/admin/events?eventId=${e.id}`,
-      id: `event-${e.id}`,
-      subtitle: [e.kind, e.eventDate, e.locationName].filter(Boolean).join(" • "),
-      title: e.title,
-    }));
+    return rows.map((e) => {
+      const datePart = e.startsAt ? e.startsAt.slice(0, 10) : "";
+      const subtitleParts = [e.type, datePart, e.location].filter(Boolean);
+      return {
+        badge: e.type,
+        category: "events",
+        href: `/admin/events?eventId=${e.id}`,
+        id: `event-${e.id}`,
+        subtitle: subtitleParts.length > 0 ? subtitleParts.join(" • ") : undefined,
+        title: e.title,
+      };
+    });
   } catch {
     return [];
   }
@@ -174,7 +199,7 @@ function searchPolls(
       .exec<PollRow>(
         `SELECT id, title, expires_at AS expiresAt
          FROM polls
-         WHERE title LIKE ?
+         WHERE archived_at = '' AND title LIKE ?
          ORDER BY created_at DESC
          LIMIT ?`,
         likePattern,
@@ -182,14 +207,17 @@ function searchPolls(
       )
       .toArray();
 
-    return rows.map((pol) => ({
-      badge: "Poll",
-      category: "polls",
-      href: `/admin/communications/polls?pollId=${pol.id}`,
-      id: `poll-${pol.id}`,
-      subtitle: pol.expiresAt ? `Expires: ${pol.expiresAt}` : undefined,
-      title: pol.title,
-    }));
+    return rows.map((pol) => {
+      const datePart = pol.expiresAt ? pol.expiresAt.slice(0, 10) : "";
+      return {
+        badge: "Poll",
+        category: "polls",
+        href: `/admin/communications/polls?pollId=${pol.id}`,
+        id: `poll-${pol.id}`,
+        subtitle: datePart ? `Expires: ${datePart}` : undefined,
+        title: pol.title,
+      };
+    });
   } catch {
     return [];
   }
@@ -211,7 +239,8 @@ export function searchOrganizationEntitiesFromStore(
   }
 
   const cleanQuery = options.query.trim();
-  if (!cleanQuery) {
+  const profileIds = options.profileIds ?? [];
+  if (!cleanQuery && profileIds.length === 0) {
     return Response.json({ results: [] });
   }
 
@@ -222,7 +251,7 @@ export function searchOrganizationEntitiesFromStore(
   const shouldSearch = (cat: SearchCategory) => !options.category || options.category === cat;
 
   if (shouldSearch("roster")) {
-    results.push(...searchRosterProfiles(storage, likePattern, limit));
+    results.push(...searchRosterProfiles(storage, likePattern, profileIds, limit));
   }
   if (shouldSearch("events")) {
     results.push(...searchEvents(storage, likePattern, limit));

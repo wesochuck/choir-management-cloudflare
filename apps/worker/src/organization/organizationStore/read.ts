@@ -524,10 +524,18 @@ export function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Res
       const categoryParsed = searchCategorySchema
         .optional()
         .safeParse(url.searchParams.get("category") ?? undefined);
+      const profileIdsParam = url.searchParams.get("profileIds");
+      const profileIds = profileIdsParam
+        ? profileIdsParam
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined;
       return searchOrganizationEntitiesFromStore(storage, {
         category: categoryParsed.success ? categoryParsed.data : undefined,
         limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
         organizationId,
+        profileIds,
         query: url.searchParams.get("q") ?? "",
       });
     }
