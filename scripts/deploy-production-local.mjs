@@ -158,18 +158,24 @@ export async function deployVersion(versionId, message, options = {}) {
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      runner([
-        "versions",
-        "deploy",
-        `${versionId}@100%`,
-        "--yes",
-        "--config",
-        workerConfig,
-        "--env",
-        "production",
-        "--message",
-        message,
-      ]);
+      const output = runner(
+        [
+          "versions",
+          "deploy",
+          `${versionId}@100%`,
+          "--yes",
+          "--config",
+          workerConfig,
+          "--env",
+          "production",
+          "--message",
+          message,
+        ],
+        { capture: true },
+      );
+      if (output && typeof output === "string" && output.trim().length > 0) {
+        console.log(output.trim());
+      }
       return;
     } catch (error) {
       const messageText = error instanceof Error ? error.message : String(error);
