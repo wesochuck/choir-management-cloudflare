@@ -150,19 +150,41 @@ function productionStatus() {
   );
 }
 
-function deployVersion(versionId, message) {
-  wrangler([
-    "versions",
-    "deploy",
-    `${versionId}@100%`,
-    "--yes",
-    "--config",
-    workerConfig,
-    "--env",
-    "production",
-    "--message",
-    message,
-  ]);
+export async function deployVersion(versionId, message, options = {}) {
+  const attempts = options.attempts ?? 6;
+  const retryDelayMs = options.retryDelayMs ?? 2000;
+  const runner = options.runner ?? wrangler;
+  const sleeper = options.sleeper ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      runner([
+        "versions",
+        "deploy",
+        `${versionId}@100%`,
+        "--yes",
+        "--config",
+        workerConfig,
+        "--env",
+        "production",
+        "--message",
+        message,
+      ]);
+      return;
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : String(error);
+      const isVersionNotFound =
+        messageText.includes("100146") || messageText.includes("could not be found");
+      if (isVersionNotFound && attempt < attempts) {
+        console.warn(
+          `Worker version ${versionId} is not yet visible on Cloudflare (attempt ${attempt}/${attempts}); retrying in ${retryDelayMs}ms...`,
+        );
+        await sleeper(retryDelayMs);
+        continue;
+      }
+      throw error;
+    }
+  }
 }
 
 async function recordProvenance(record) {
@@ -251,7 +273,7 @@ export async function deployProduction() {
     uploadedId = uploadedVersionId(await readFile(uploadOutputPath, "utf8"));
 
     console.log(`Promoting Worker version ${uploadedId} to 100% of production traffic...`);
-    deployVersion(uploadedId, `Production release ${commitSha}`);
+    await deployVersion(uploadedId, `Production release ${commitSha}`);
     trafficShifted = true;
 
     console.log("Qualifying the exact deployed production build...");
@@ -288,7 +310,7 @@ export async function deployProduction() {
         "Production qualification failed; restoring the captured previous Worker version...",
       );
       try {
-        deployVersion(previousVersionId, `Automatic local rollback from ${commitSha}`);
+        await deployVersion(previousVersionId, `Automatic local rollback from ${commitSha}`);
       } catch (rollbackError) {
         throw new AggregateError(
           [error, rollbackError],
