@@ -268,6 +268,7 @@ export const organizationRpcOperationMap: OrganizationRpcOperationMap = {
       "/internal/scheduling/rsvp-follow-up-job",
       "/internal/setup/state",
       "/internal/setup/modules",
+      "/internal/search",
     ),
     ...postOperations(
       "/internal/export/create",

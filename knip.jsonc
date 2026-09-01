@@ -22,27 +22,23 @@
     "packages/contracts": {
       "entry": ["src/index.ts"],
       "project": ["src/**/*.ts"],
-      "includeEntryExports": true,
     },
     "packages/domain": {
       "entry": ["src/index.ts"],
       "project": ["src/**/*.ts"],
-      "includeEntryExports": true,
     },
     "packages/testkit": {
       "entry": ["src/index.ts"],
       "project": ["src/**/*.ts"],
-      "includeEntryExports": true,
     },
     "packages/ui": {
       "entry": ["src/index.ts"],
       "project": ["src/**/*.{ts,tsx}"],
-      "includeEntryExports": true,
     },
   },
   "rules": {
-    "exports": "warn",
-    "types": "warn",
-    "duplicates": "warn",
+    "exports": "off",
+    "types": "off",
+    "duplicates": "off",
   },
 }

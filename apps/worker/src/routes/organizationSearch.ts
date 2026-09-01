@@ -5,7 +5,7 @@ import {
 } from "@choir/contracts";
 import type { Hono } from "hono";
 
-import { organizationStoreStub } from "../organization/rpc/client";
+import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 import type { WorkerHonoEnvironment } from "./helpers";
 
@@ -35,7 +35,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       if (category) url.searchParams.set("category", category);
       if (limit) url.searchParams.set("limit", String(limit));
 
-      const response = await stub.fetch(new Request(url.toString(), { method: "GET" }));
+      const response = await invokeOrganizationRpc(stub, url.toString());
       if (!response.ok) {
         return context.json(
           {
