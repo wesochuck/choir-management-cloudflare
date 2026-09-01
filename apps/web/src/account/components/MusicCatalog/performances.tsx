@@ -7,7 +7,7 @@ import { calculateRsvpDeadline, zonedLocalDateTimeToUtc } from "@choir/domain";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { AuthApiError, createOrganizationEvent, updateOrganizationEvent } from "../../../auth/api";
 
-import { audioTimeText } from "./utils";
+import { audioTimeText, resolvePreferredPracticeTrack } from "./utils";
 
 import {
   validateAudioFile,
@@ -353,14 +353,15 @@ export function MusicInlineAudioPlayer({
   );
 }
 
-export function MusicTableTuttiPlayer({ piece }: { readonly piece: OrganizationMusicPiece }) {
-  const fileId = piece.trackFileIds.tutti;
+export function MusicTableTrackPlayer({ piece }: { readonly piece: OrganizationMusicPiece }) {
+  const track = resolvePreferredPracticeTrack(piece);
   const [expanded, setExpanded] = useState(false);
 
-  if (!fileId) return <span>—</span>;
+  if (!track) return <span>—</span>;
   if (!expanded) {
     return (
       <button
+        aria-label={`Play ${track.label.toLowerCase()} learning track for ${piece.title}`}
         className="button button--secondary button--small"
         type="button"
         onClick={(event) => {
@@ -380,7 +381,7 @@ export function MusicTableTuttiPlayer({ piece }: { readonly piece: OrganizationM
         event.stopPropagation();
       }}
     >
-      <MusicInlineAudioPlayer label="Tutti" src={`/api/organization/files/${fileId}`} />
+      <MusicInlineAudioPlayer label={track.label} src={`/api/organization/files/${track.fileId}`} />
       <button
         aria-label={`Close player for ${piece.title}`}
         className="text-button"
@@ -395,6 +396,8 @@ export function MusicTableTuttiPlayer({ piece }: { readonly piece: OrganizationM
     </div>
   );
 }
+
+export const MusicTableTuttiPlayer = MusicTableTrackPlayer;
 
 export function MusicTuttiTrackDropzone({
   disabled,

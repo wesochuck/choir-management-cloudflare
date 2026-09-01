@@ -174,6 +174,55 @@ export function composerText(piece: OrganizationMusicPiece): string {
   return piece.composer || piece.arranger || "—";
 }
 
+export interface PreferredPracticeTrack {
+  readonly fileId: string;
+  readonly key: string;
+  readonly label: string;
+}
+
+export function resolvePreferredPracticeTrack(
+  piece: OrganizationMusicPiece,
+): PreferredPracticeTrack | null {
+  const entries = Object.entries(piece.trackFileIds).filter(
+    (entry): entry is [string, string] =>
+      typeof entry[1] === "string" && entry[1].trim().length > 0,
+  );
+  if (entries.length === 0) return null;
+
+  const tuttiEntry = entries.find(([key]) => key.trim().toLowerCase() === "tutti");
+  if (tuttiEntry) {
+    return {
+      fileId: tuttiEntry[1],
+      key: tuttiEntry[0],
+      label: "Tutti",
+    };
+  }
+
+  const everyoneEntry = entries.find(([key]) => key.trim().toLowerCase() === "everyone");
+  if (everyoneEntry) {
+    return {
+      fileId: everyoneEntry[1],
+      key: everyoneEntry[0],
+      label: "Everyone",
+    };
+  }
+
+  const sortedEntries = [...entries].toSorted(([leftKey], [rightKey]) =>
+    leftKey.localeCompare(rightKey),
+  );
+  const firstEntry = sortedEntries[0];
+  if (!firstEntry) return null;
+  const [firstKey, firstFileId] = firstEntry;
+  const formattedLabel =
+    firstKey.length > 0 ? firstKey.charAt(0).toUpperCase() + firstKey.slice(1) : "Practice track";
+
+  return {
+    fileId: firstFileId,
+    key: firstKey,
+    label: formattedLabel,
+  };
+}
+
 export function trackCount(
   piece: OrganizationMusicPiece,
   pieces: readonly OrganizationMusicPiece[],

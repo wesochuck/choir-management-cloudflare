@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import type { OrganizationMusicPiece } from "@choir/contracts";
 
-import { normalizeDurationInput, parseDuration, summarizeMusicCredits } from "./utils";
+import {
+  normalizeDurationInput,
+  parseDuration,
+  resolvePreferredPracticeTrack,
+  summarizeMusicCredits,
+} from "./utils";
 
 function piece(id: string, composer: string, arranger: string): OrganizationMusicPiece {
   return {
@@ -54,5 +59,83 @@ describe("summarizeMusicCredits", () => {
       { arrangerPieces: 0, composerPieces: 1, name: "jane doe", totalPieces: 1 },
       { arrangerPieces: 2, composerPieces: 2, name: "Jane Doe", totalPieces: 3 },
     ]);
+  });
+});
+
+describe("resolvePreferredPracticeTrack", () => {
+  it("returns null when no practice tracks are uploaded or all ids are blank", () => {
+    expect(resolvePreferredPracticeTrack(piece("p1", "", ""))).toBeNull();
+    expect(
+      resolvePreferredPracticeTrack({
+        ...piece("p2", "", ""),
+        trackFileIds: { tutti: "   ", soprano: "" },
+      }),
+    ).toBeNull();
+  });
+
+  it("prefers tutti track if present", () => {
+    expect(
+      resolvePreferredPracticeTrack({
+        ...piece("p1", "", ""),
+        trackFileIds: {
+          alto: "file-alto",
+          everyone: "file-everyone",
+          soprano: "file-soprano",
+          tutti: "file-tutti",
+        },
+      }),
+    ).toEqual({
+      fileId: "file-tutti",
+      key: "tutti",
+      label: "Tutti",
+    });
+  });
+
+  it("handles case-insensitive Tutti key", () => {
+    expect(
+      resolvePreferredPracticeTrack({
+        ...piece("p1", "", ""),
+        trackFileIds: {
+          Soprano: "file-soprano",
+          Tutti: "file-tutti-capital",
+        },
+      }),
+    ).toEqual({
+      fileId: "file-tutti-capital",
+      key: "Tutti",
+      label: "Tutti",
+    });
+  });
+
+  it("prefers everyone track if tutti is not present", () => {
+    expect(
+      resolvePreferredPracticeTrack({
+        ...piece("p1", "", ""),
+        trackFileIds: {
+          alto: "file-alto",
+          everyone: "file-everyone",
+          soprano: "file-soprano",
+        },
+      }),
+    ).toEqual({
+      fileId: "file-everyone",
+      key: "everyone",
+      label: "Everyone",
+    });
+  });
+
+  it("falls back to any playable uploaded track when neither tutti nor everyone exists", () => {
+    expect(
+      resolvePreferredPracticeTrack({
+        ...piece("p1", "", ""),
+        trackFileIds: {
+          tenor: "file-tenor",
+        },
+      }),
+    ).toEqual({
+      fileId: "file-tenor",
+      key: "tenor",
+      label: "Tenor",
+    });
   });
 });

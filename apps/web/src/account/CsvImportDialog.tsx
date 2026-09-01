@@ -1,4 +1,5 @@
 import { Dialog, DialogClose } from "@choir/ui";
+import { useState, type DragEvent } from "react";
 
 interface CsvImportDialogProps {
   readonly busy: boolean;
@@ -42,6 +43,12 @@ export interface CsvImportMappingOption {
   readonly value: string;
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${String(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 // eslint-disable-next-line complexity -- the shared dialog owns optional preview and confirmation states.
 export function CsvImportDialog({
   busy,
@@ -65,6 +72,7 @@ export function CsvImportDialog({
   requiredExcludedColumns = [],
   title,
 }: CsvImportDialogProps) {
+  const [dragging, setDragging] = useState(false);
   const hasIgnoredColumns = columnMappings.some(({ targetHeader }) => targetHeader === null);
   const ignoredHeaders = columnMappings
     .filter(({ targetHeader }) => targetHeader === null)
@@ -89,21 +97,77 @@ export function CsvImportDialog({
             {error}
           </p>
         ) : null}
-        <label className="field">
-          Choose CSV file
-          <input
-            accept=".csv,text/csv"
-            aria-label={title}
-            onChange={(event) => {
-              onFileChange(event.target.files?.item(0) ?? null);
+        {file ? (
+          <div className="csv-import-file-card" role="status">
+            <div className="csv-import-file-card__info">
+              <span aria-hidden="true" className="csv-import-file-card__icon">
+                📄
+              </span>
+              <div className="csv-import-file-card__details">
+                <strong className="csv-import-file-card__name">{file.name}</strong>
+                <span className="csv-import-file-card__size">{formatFileSize(file.size)}</span>
+              </div>
+            </div>
+            <button
+              className="button button--secondary button--small"
+              disabled={busy}
+              onClick={() => {
+                onFileChange(null);
+              }}
+              type="button"
+            >
+              Change file
+            </button>
+          </div>
+        ) : (
+          <label
+            className={`csv-import-dropzone${dragging ? " is-dragging" : ""}`}
+            onDragEnter={(event) => {
+              if (busy) return;
+              event.preventDefault();
+              setDragging(true);
             }}
-            type="file"
-          />
-        </label>
+            onDragLeave={() => {
+              if (busy) return;
+              setDragging(false);
+            }}
+            onDragOver={(event) => {
+              if (busy) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "copy";
+              setDragging(true);
+            }}
+            onDrop={(event: DragEvent<HTMLLabelElement>) => {
+              event.preventDefault();
+              setDragging(false);
+              if (busy) return;
+              const dropped = event.dataTransfer.files.item(0);
+              if (dropped) {
+                onFileChange(dropped);
+              }
+            }}
+          >
+            <div className="csv-import-dropzone__content">
+              <span className="button button--secondary button--control-height">Choose file</span>
+              <span className="csv-import-dropzone__hint">or drag and drop .csv here</span>
+            </div>
+            <input
+              accept=".csv,text/csv"
+              aria-label="Choose CSV file"
+              className="sr-only"
+              disabled={busy}
+              onChange={(event) => {
+                onFileChange(event.target.files?.item(0) ?? null);
+                event.target.value = "";
+              }}
+              type="file"
+            />
+          </label>
+        )}
         {helpText ? <p className="field-help">{helpText}</p> : null}
         {hasMappingControls ? (
           <fieldset className="csv-import-mappings">
-            <legend>Map CSV columns</legend>
+            <legend>Map columns</legend>
             <p>
               Choose the destination for each CSV column. Use <strong>Ignore</strong> for data you
               do not want to import.
@@ -234,7 +298,7 @@ export function CsvImportDialog({
               ? busy
                 ? "Importing…"
                 : "Proceed with import"
-              : "Import CSV"}
+              : "Import"}
           </button>
         </div>
       </div>

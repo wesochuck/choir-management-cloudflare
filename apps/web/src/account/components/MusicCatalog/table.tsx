@@ -6,7 +6,7 @@ import { buildMusicPublisherSearchUrl } from "../../musicPublisherSearch";
 import { GenreChips } from "./shared";
 import { composerText, durationText, genreKey } from "./utils";
 
-import { MusicTableTuttiPlayer } from "./performances";
+import { MusicTableTrackPlayer } from "./performances";
 
 export function MusicCatalogTable({
   defaultPageSize = 100,
@@ -221,7 +221,7 @@ export function MusicCatalogTable({
           {
             header: "Play",
             id: "play",
-            render: (piece) => <MusicTableTuttiPlayer piece={piece} />,
+            render: (piece) => <MusicTableTrackPlayer piece={piece} />,
           },
           {
             header: "Copies",

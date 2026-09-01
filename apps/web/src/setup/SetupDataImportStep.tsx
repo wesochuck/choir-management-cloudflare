@@ -124,15 +124,15 @@ function SetupDataImportDialog({
       confirmed={state.confirmed}
       description={
         kind === "roster"
-          ? "Add Profiles from the established roster CSV format."
-          : "Import up to 500 top-level works atomically. Existing catalog entries are retained."
+          ? "Upload a CSV to add profiles to your roster."
+          : "Upload a CSV to import up to 500 works. Existing entries are preserved."
       }
       error={state.error}
       file={state.file}
       helpText={
         kind === "roster"
-          ? "Profiles are created without login access. CSV email addresses are counted as invitation candidates; send Membership invitations separately when ready."
-          : "Existing catalog entries are retained. Practice tracks and publisher links can be added after import."
+          ? "Profiles are created without login access. CSV email addresses will be counted as invitation candidates."
+          : "Practice tracks and publisher links can be added after import."
       }
       invalid={Boolean(state.inspection?.fatalError)}
       mappingOptions={mapOptions(kind, partLabel)}
@@ -142,7 +142,7 @@ function SetupDataImportDialog({
       onImport={onImport}
       onMapColumn={onColumnMap}
       open
-      title={kind === "roster" ? "Import roster CSV" : "Import Music Library CSV"}
+      title={kind === "roster" ? "Import roster" : "Import music catalog"}
     />
   );
 }

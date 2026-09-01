@@ -972,10 +972,10 @@ export function RosterPageView({
           header: rosterImportHeaders[mapping.sourceIndex] ?? "",
         }))}
         confirmed={rosterImportConfirmed}
-        description="Add Profiles from the established roster CSV format."
+        description="Upload a CSV to add profiles to this roster."
         error={error}
         file={importFile}
-        helpText="Profiles are created without login access. CSV email addresses are counted as invitation candidates; send Membership invitations separately when ready."
+        helpText="Profiles are created without login access. CSV email addresses will be counted as invitation candidates."
         invalid={Boolean(rosterImportInspection?.fatalError)}
         mappingOptions={rosterCsvColumnOptions.map((value) => ({
           label: value === "Voice Part" ? partLabel : value,
@@ -990,7 +990,7 @@ export function RosterPageView({
         }}
         onMapColumn={handleRosterColumnMap}
         open={importDialogOpen}
-        title="Import roster CSV"
+        title="Import roster"
       />
     </RosterConfigurationDraftProvider>
   );

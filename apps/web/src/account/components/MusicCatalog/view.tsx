@@ -672,7 +672,7 @@ export function MusicCatalogView({
               header: musicImportHeaders[mapping.sourceIndex] ?? "",
             }))}
             confirmed={musicImportConfirmed}
-            description="Import up to 500 top-level works atomically. Existing catalog entries are retained."
+            description="Import up to 500 works. Existing catalog entries are preserved."
             error={error}
             file={importFile}
             invalid={Boolean(musicImportInspection?.fatalError)}
@@ -689,7 +689,7 @@ export function MusicCatalogView({
             }}
             onMapColumn={handleMusicColumnMap}
             open={importDialogOpen}
-            title="Import music CSV"
+            title="Import music catalog"
           />
         </div>
       )}

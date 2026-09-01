@@ -126,11 +126,39 @@
     line-height: var(--line-height-snug);
   }
 
-  .signed-in-main input[type="file"] {
+  .signed-in-main input[type="file"],
+  .dialog--responsive input[type="file"] {
     width: auto;
     height: var(--control-height);
     min-height: var(--control-height);
     padding: var(--spacing-3xs) var(--spacing-xs);
+    border: none;
+    background: transparent;
+    color: var(--color-text);
+  }
+
+  .signed-in-main input[type="file"]::file-selector-button,
+  .dialog--responsive input[type="file"]::file-selector-button {
+    height: calc(var(--control-height) - 0.5rem);
+    margin-right: var(--spacing-sm);
+    padding: 0 var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease;
+  }
+
+  .signed-in-main input[type="file"]::file-selector-button:hover,
+  .dialog--responsive input[type="file"]::file-selector-button:hover {
+    background: var(--color-surface-raised);
+    border-color: var(--color-accent);
   }
 
   .signed-in-main input[type="checkbox"],
