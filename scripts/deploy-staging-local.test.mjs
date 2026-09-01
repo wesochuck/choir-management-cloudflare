@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   activeVersionId,
   assertEmailFeedbackSubscription,
   assertEmailSendingEnabled,
   assertReleaseCheckout,
+  deployVersion,
   sanitizeExternalOutput,
   uploadedVersionId,
 } from "./deploy-staging-local.mjs";
@@ -82,5 +83,70 @@ describe("local staging deployment safeguards", () => {
     expect(sanitizeExternalOutput("user@example.com token=abc123")).toBe(
       "[redacted-email] token=[redacted]",
     );
+  });
+
+  it("retries deployVersion when encountering version propagation delay (error 100146)", async () => {
+    let callCount = 0;
+    const runner = vi.fn(() => {
+      callCount += 1;
+      if (callCount < 3) {
+        throw new Error(
+          "The requested Worker version could not be found, please check the ID being passed and try again. [code: 100146]",
+        );
+      }
+      return "";
+    });
+    const sleeper = vi.fn(async () => Promise.resolve());
+
+    await deployVersion("version-123", "deploy message", {
+      attempts: 4,
+      retryDelayMs: 50,
+      runner,
+      sleeper,
+    });
+
+    expect(runner).toHaveBeenCalledTimes(3);
+    expect(sleeper).toHaveBeenCalledTimes(2);
+    expect(sleeper).toHaveBeenCalledWith(50);
+  });
+
+  it("throws when deployVersion retries are exhausted", async () => {
+    const runner = vi.fn(() => {
+      throw new Error(
+        "The requested Worker version could not be found, please check the ID being passed and try again. [code: 100146]",
+      );
+    });
+    const sleeper = vi.fn(async () => Promise.resolve());
+
+    await expect(
+      deployVersion("version-123", "deploy message", {
+        attempts: 3,
+        retryDelayMs: 10,
+        runner,
+        sleeper,
+      }),
+    ).rejects.toThrow(/100146/u);
+
+    expect(runner).toHaveBeenCalledTimes(3);
+    expect(sleeper).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails immediately on non-propagation errors without retrying", async () => {
+    const runner = vi.fn(() => {
+      throw new Error("Authentication error [code: 10000]");
+    });
+    const sleeper = vi.fn(async () => Promise.resolve());
+
+    await expect(
+      deployVersion("version-123", "deploy message", {
+        attempts: 3,
+        retryDelayMs: 10,
+        runner,
+        sleeper,
+      }),
+    ).rejects.toThrow(/10000/u);
+
+    expect(runner).toHaveBeenCalledTimes(1);
+    expect(sleeper).not.toHaveBeenCalled();
   });
 });
