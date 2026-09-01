@@ -90,6 +90,11 @@ export function RosterAutomationSettings({ enabled }: Props) {
           {error}
         </p>
       ) : null}
+      {draftReturn.lastSavedAt && !draftReturn.dirty ? (
+        <p className="notice notice--success" role="status">
+          Roster automation settings saved.
+        </p>
+      ) : null}
       {configuration ? (
         <>
           <div className="roster-automation__cards">

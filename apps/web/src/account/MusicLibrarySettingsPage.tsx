@@ -16,18 +16,29 @@ import { genreKey, uniqueGenreLabels } from "./components/MusicCatalog/utils";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 
 interface MusicCatalogSettingsProps {
+  readonly busy?: boolean | undefined;
   readonly defaultPageSize: number;
   readonly onDefaultPageSizeChange: (value: number) => void;
+  readonly onSave?: (() => void) | undefined;
   readonly onTemplateChange: (value: string) => void;
+  readonly savedDefaultPageSize?: number | undefined;
+  readonly savedTemplate?: string | undefined;
   readonly template: string;
 }
 
 function MusicCatalogSettingsSection({
+  busy = false,
   defaultPageSize,
   onDefaultPageSizeChange,
+  onSave,
   onTemplateChange,
+  savedDefaultPageSize,
+  savedTemplate,
   template,
 }: MusicCatalogSettingsProps) {
+  const dirty =
+    (savedDefaultPageSize !== undefined && defaultPageSize !== savedDefaultPageSize) ||
+    (savedTemplate !== undefined && template.trim() !== savedTemplate.trim());
   return (
     <fieldset className="music-publisher-settings">
       <legend>Catalog table &amp; lookup settings</legend>
@@ -65,20 +76,35 @@ function MusicCatalogSettingsSection({
             Leave blank to hide. Use <code>{"{catalogId}"}</code> where the catalog number belongs.
           </small>
         </label>
+        <button
+          className="button button--secondary"
+          disabled={busy || !dirty}
+          onClick={onSave}
+          type="button"
+        >
+          Save catalog settings
+        </button>
       </div>
     </fieldset>
   );
 }
 
 interface MusicPracticeSettingsProps {
+  readonly busy?: boolean | undefined;
   readonly lifetimeDays: number;
   readonly onLifetimeChange: (value: number) => void;
+  readonly onSave?: (() => void) | undefined;
+  readonly savedLifetimeDays?: number | undefined;
 }
 
 function MusicPracticeSettingsSection({
+  busy = false,
   lifetimeDays,
   onLifetimeChange,
+  onSave,
+  savedLifetimeDays,
 }: MusicPracticeSettingsProps) {
+  const dirty = savedLifetimeDays !== undefined && lifetimeDays !== savedLifetimeDays;
   return (
     <fieldset className="music-practice-settings">
       <legend>Public practice-player links</legend>
@@ -86,6 +112,7 @@ function MusicPracticeSettingsSection({
         <label className="field">
           Link lifetime (days)
           <input
+            aria-label="Link lifetime (days)"
             min="1"
             max="3650"
             type="number"
@@ -95,6 +122,14 @@ function MusicPracticeSettingsSection({
             }}
           />
         </label>
+        <button
+          className="button button--secondary"
+          disabled={busy || !dirty}
+          onClick={onSave}
+          type="button"
+        >
+          Save practice settings
+        </button>
       </div>
     </fieldset>
   );
@@ -272,6 +307,8 @@ export function MusicLibrarySettingsPage({
     error: draftError,
     persisted: savedSettings,
     replaceDraft,
+    save,
+    saving,
     updateField,
   } = usePersistedDraft<OrganizationMusicLibrarySettings>({
     initialValue: initialSettings,
@@ -462,26 +499,37 @@ export function MusicLibrarySettingsPage({
             }}
           />
           <MusicCatalogSettingsSection
+            busy={saving}
             defaultPageSize={settings.defaultPageSize}
             onDefaultPageSizeChange={(value) => {
               updateField("defaultPageSize", value);
               setError(null);
               setSuccess(null);
             }}
+            onSave={() => {
+              void save();
+            }}
             onTemplateChange={(value) => {
               updateField("publisherSearchTemplate", value);
               setError(null);
               setSuccess(null);
             }}
+            savedDefaultPageSize={savedSettings?.defaultPageSize}
+            savedTemplate={savedSettings?.publisherSearchTemplate}
             template={settings.publisherSearchTemplate}
           />
           <MusicPracticeSettingsSection
+            busy={saving}
             lifetimeDays={settings.practicePlayerLinkLifetimeDays}
             onLifetimeChange={(value) => {
               updateField("practicePlayerLinkLifetimeDays", value);
               setError(null);
               setSuccess(null);
             }}
+            onSave={() => {
+              void save();
+            }}
+            savedLifetimeDays={savedSettings?.practicePlayerLinkLifetimeDays}
           />
         </>
       ) : null}

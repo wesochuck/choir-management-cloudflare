@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useConfirmation } from "@choir/ui";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { SaveCoordinatorContext } from "./SaveCoordinatorContext";
+import { registerGlobalLeaveHandler, SaveCoordinatorContext } from "./SaveCoordinatorContext";
 import type { LeaveOptions, SaveCoordinatorContextValue, SaveRegistration } from "./types";
 
 export {
@@ -128,7 +128,7 @@ export function SaveCoordinatorProvider({ children }: { readonly children: React
               ? "You have unsaved changes. Discard changes and sign out?"
               : "You have unsaved changes. Discard changes and leave this page?",
         destructive: true,
-        title: "Unsaved changes",
+        title: "Leave with unsaved changes?",
       });
 
       if (!confirmed) {
@@ -143,6 +143,11 @@ export function SaveCoordinatorProvider({ children }: { readonly children: React
     },
     [confirm, discardAll, isDirty],
   );
+
+  // Register global leave handler bridge
+  useEffect(() => {
+    return registerGlobalLeaveHandler(requestLeave);
+  }, [requestLeave]);
 
   // Intercept window unload / tab close
   useEffect(() => {
