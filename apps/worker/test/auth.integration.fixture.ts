@@ -5,6 +5,7 @@ import {
   reset,
   waitOnExecutionContext,
 } from "cloudflare:test";
+import { TEST_CLIENT_IP } from "@choir/testkit";
 import { expect, inject } from "vitest";
 import { z } from "zod";
 
@@ -61,6 +62,9 @@ export const enrollmentResponseSchema = z.object({
 export function authRequest(path: string, init?: RequestInit, origin = BASE_AUTH_ORIGIN): Request {
   const headers = new Headers(init?.headers);
   headers.set("origin", origin);
+  if (!headers.has("cf-connecting-ip")) {
+    headers.set("cf-connecting-ip", TEST_CLIENT_IP);
+  }
   if (init?.body) {
     headers.set("content-type", "application/json");
   }

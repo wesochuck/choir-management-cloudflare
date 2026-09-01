@@ -535,9 +535,7 @@ describe("host-derived Organization authorization", () => {
     expect(crossOrganizationResponse.status).toBe(409);
 
     const authOnPublicDomain = await fetchWorker(
-      new Request(`http://${domain.hostname}/api/auth/get-session`, {
-        headers: { origin: `http://${domain.hostname}` },
-      }),
+      authRequest("/api/auth/get-session", undefined, `http://${domain.hostname}`),
     );
     expect(authOnPublicDomain.status).toBe(404);
     const organizationRouteOnPublicDomain = await fetchWorker(

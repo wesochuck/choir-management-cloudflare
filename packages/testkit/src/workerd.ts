@@ -26,6 +26,13 @@ export interface OrganizationProvisionOptions {
   readonly role?: "admin" | "member" | "owner" | undefined;
 }
 
+/**
+ * Cloudflare supplies CF-Connecting-IP in production.
+ * Integration requests provide a TEST-NET address (RFC 5737) so auth rate limiting
+ * behaves like the deployed Worker.
+ */
+export const TEST_CLIENT_IP = "203.0.113.10";
+
 export function organizationRequest(
   host: string,
   path: string,
@@ -34,6 +41,9 @@ export function organizationRequest(
 ): Request {
   const headers = new Headers(init?.headers);
   headers.set("origin", `http://${host}`);
+  if (!headers.has("cf-connecting-ip")) {
+    headers.set("cf-connecting-ip", TEST_CLIENT_IP);
+  }
   if (cookie) headers.set("cookie", cookie);
   return new Request(`http://${host}${path}`, { ...init, headers });
 }

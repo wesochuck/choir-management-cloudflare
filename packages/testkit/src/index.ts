@@ -23,6 +23,7 @@ export {
   readEmailOneTimeCode,
   seedAuthUser,
   signInWithOtp,
+  TEST_CLIENT_IP,
   writeJson,
   type OrganizationProvisionOptions,
 } from "./workerd";

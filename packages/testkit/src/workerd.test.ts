@@ -4,11 +4,12 @@ import {
   organizationRequest,
   readEmailOneTimeCode,
   signInWithOtp,
+  TEST_CLIENT_IP,
   type TestWorkerFetcher,
 } from "./workerd";
 
 describe("Workerd integration harness", () => {
-  it("builds same-origin requests with origin and optional cookie headers", () => {
+  it("builds same-origin requests with origin, optional cookie, and default client IP", () => {
     const request = organizationRequest("alpha.localhost", "/api/health", "session=abc", {
       method: "POST",
     });
@@ -16,8 +17,22 @@ describe("Workerd integration harness", () => {
     expect(request.method).toBe("POST");
     expect(request.headers.get("origin")).toBe("http://alpha.localhost");
     expect(request.headers.get("cookie")).toBe("session=abc");
+    expect(request.headers.get("cf-connecting-ip")).toBe(TEST_CLIENT_IP);
     const anonymous = organizationRequest("alpha.localhost", "/api/health");
     expect(anonymous.headers.get("cookie")).toBeNull();
+    expect(anonymous.headers.get("cf-connecting-ip")).toBe(TEST_CLIENT_IP);
+  });
+
+  it("preserves explicit caller-supplied cf-connecting-ip overrides and custom headers", () => {
+    const request = organizationRequest("alpha.localhost", "/api/auth/sign-in", undefined, {
+      headers: {
+        "cf-connecting-ip": "203.0.113.50",
+        "x-custom-test-header": "test-value",
+      },
+    });
+    expect(request.headers.get("cf-connecting-ip")).toBe("203.0.113.50");
+    expect(request.headers.get("x-custom-test-header")).toBe("test-value");
+    expect(request.headers.get("origin")).toBe("http://alpha.localhost");
   });
 
   it("extracts the sign-in one-time code only for the matching recipient", () => {

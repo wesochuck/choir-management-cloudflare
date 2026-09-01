@@ -25,7 +25,7 @@ afterEach(async () => teardownAuthIntegration());
 describe("Better Auth Worker integration", () => {
   it("does not expose authentication on a non-product hostname", async () => {
     const response = await fetchWorker(
-      new Request("https://public.example.test/api/auth/get-session"),
+      authRequest("/api/auth/get-session", undefined, "https://public.example.test"),
     );
 
     expect(response.status).toBe(404);

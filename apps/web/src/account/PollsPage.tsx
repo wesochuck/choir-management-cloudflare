@@ -261,12 +261,7 @@ function PollResultsDialog({
                       Respondents ({String(opt.respondents.length)})
                     </div>
                     {opt.respondents.length === 0 ? (
-                      <p
-                        className="notice notice--muted"
-                        style={{ margin: 0, padding: "0.25rem 0" }}
-                      >
-                        No respondents selected this option.
-                      </p>
+                      <p className="poll-respondents-empty">No respondents selected this option.</p>
                     ) : (
                       <ul className="poll-respondents-list">
                         {opt.respondents.map((resp) => (
@@ -277,11 +272,7 @@ function PollResultsDialog({
                                 <span className="poll-respondent-voice-part">{resp.voicePart}</span>
                               ) : null}
                             </div>
-                            <time
-                              className="text-muted"
-                              style={{ fontSize: "0.75rem", flexShrink: 0 }}
-                              title={resp.respondedAt}
-                            >
+                            <time className="poll-respondent-time" title={resp.respondedAt}>
                               {formatSubmissionDate(resp.respondedAt)}
                             </time>
                           </li>
