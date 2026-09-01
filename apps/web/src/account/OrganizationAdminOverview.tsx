@@ -6,6 +6,7 @@ import type {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { getOrganizationDashboardSummary, listOrganizationAuditions } from "../auth/api";
+import { QuickSearchTrigger } from "./components/CommandPalette";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
@@ -466,11 +467,13 @@ export function OrganizationAdminOverview({
   displayName,
   modules,
   navigate,
+  onOpenCommandPalette,
 }: {
   readonly context: OrganizationAuthStatusResponse | null;
   readonly displayName: string;
   readonly modules: readonly ModuleState[];
   readonly navigate: (href: string) => void;
+  readonly onOpenCommandPalette?: (() => void) | undefined;
 }) {
   const { performerLabel, performerLabelPlural } = useOrganizationTerminology();
   const [summary, setSummary] = useState<SummaryState>({ status: "loading" });
@@ -544,6 +547,14 @@ export function OrganizationAdminOverview({
         performerLabelPlural={performerLabelPlural}
         recentBounceCount={recentBounceCount}
         upcomingEventCount={upcomingEventCount}
+      />
+
+      <QuickSearchTrigger
+        onClick={() => {
+          onOpenCommandPalette?.();
+        }}
+        placeholder="Search products, pages, and features..."
+        variant="hero"
       />
 
       {summaryError ? (

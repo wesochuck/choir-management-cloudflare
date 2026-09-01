@@ -18,3 +18,4 @@ export * from "./exports";
 export * from "./player";
 export * from "./memberDashboard";
 export * from "./musicFolderReports";
+export * from "./search";

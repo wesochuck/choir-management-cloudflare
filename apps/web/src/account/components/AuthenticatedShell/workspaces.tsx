@@ -22,12 +22,14 @@ function OverviewPage({
   displayName,
   modules,
   navigate,
+  onOpenCommandPalette,
   workspace,
 }: {
   readonly context: OrganizationAuthStatusResponse | null;
   readonly displayName?: string;
   readonly modules?: readonly ModuleState[];
   readonly navigate: (href: string) => void;
+  readonly onOpenCommandPalette?: (() => void) | undefined;
   readonly workspace: Workspace;
 }) {
   const platform = workspace === "platform";
@@ -38,6 +40,7 @@ function OverviewPage({
         displayName={displayName ?? "Admin"}
         modules={modules ?? []}
         navigate={navigate}
+        onOpenCommandPalette={onOpenCommandPalette}
       />
     );
   }
@@ -165,15 +168,17 @@ function OrganizationWorkspacePage({
   access,
   displayName,
   navigate,
+  onOpenCommandPalette,
   route,
 }: {
   readonly access: AccessState;
   readonly displayName: string;
   readonly navigate: (href: string) => void;
+  readonly onOpenCommandPalette?: (() => void) | undefined;
   readonly route: RouteState;
 }) {
   if (access.status === "none") {
-    return <AccessDeniedPage workspace="Organization Admin" />;
+    return <AccessDeniedPage workspace="Organization" />;
   }
   if (access.status === "ready" && access.context.role === "member") {
     return <AccessDeniedPage workspace="Organization Admin" />;
@@ -200,6 +205,7 @@ function OrganizationWorkspacePage({
         displayName={displayName}
         modules={access.status === "ready" ? access.modules : []}
         navigate={navigate}
+        onOpenCommandPalette={onOpenCommandPalette}
         workspace="organization"
       />
     )
@@ -239,6 +245,7 @@ export function WorkspacePage({
   currentSession,
   memberEnabled,
   navigate,
+  onOpenCommandPalette,
   onSignedOut,
   platformAvailable,
   route,
@@ -248,6 +255,7 @@ export function WorkspacePage({
   readonly currentSession: NonNullable<CurrentAuthSession>;
   readonly memberEnabled: boolean;
   readonly navigate: (href: string) => void;
+  readonly onOpenCommandPalette?: (() => void) | undefined;
   readonly onSignedOut: () => void;
   readonly platformAvailable: boolean;
   readonly route: RouteState;
@@ -270,6 +278,7 @@ export function WorkspacePage({
         access={access}
         displayName={sessionDisplayName(currentSession)}
         navigate={navigate}
+        onOpenCommandPalette={onOpenCommandPalette}
         route={route}
       />
     );

@@ -1,3 +1,4 @@
+import { searchCategorySchema } from "@choir/contracts";
 import {
   listOrganizationEventsFromStore,
   readOrganizationDashboardSummaryFromStore,
@@ -92,6 +93,7 @@ import {
 } from "../seasonStore";
 import { readStripeConnectStatusFromStore } from "../stripeConnectStore";
 import { readOrganizationReconciliationReport } from "../reconciliationStore";
+import { searchOrganizationEntitiesFromStore } from "../searchStore";
 
 import {
   getProfileIdentity,
@@ -518,6 +520,17 @@ export function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Res
         eventId: url.searchParams.get("eventId"),
         organizationId,
       });
+    case "/internal/search": {
+      const categoryParsed = searchCategorySchema
+        .optional()
+        .safeParse(url.searchParams.get("category") ?? undefined);
+      return searchOrganizationEntitiesFromStore(storage, {
+        category: categoryParsed.success ? categoryParsed.data : undefined,
+        limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
+        organizationId,
+        query: url.searchParams.get("q") ?? "",
+      });
+    }
     case "/internal/seating/singer":
       return readSingerSeatingFromStore(storage, {
         chartId: url.searchParams.get("chartId"),

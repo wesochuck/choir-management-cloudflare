@@ -40,6 +40,7 @@ import { AppLink, Navigation, ThemeIcon } from "./navigation";
 import type { AccessState, ThemePreference, Workspace } from "./types";
 
 import { WorkspacePageLoading, WorkspacePage } from "./workspaces";
+import { CommandPaletteModal, QuickSearchTrigger } from "../CommandPalette";
 import {
   availableWorkspaces,
   organizationDisplayName,
@@ -78,6 +79,7 @@ export function AuthenticatedShell({
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace>(() =>
     workspaceForPath(readRoute().pathname),
   );
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [themePreference, setThemePreference] = useState<ThemePreference>(readThemePreference);
   const [access, setAccess] = useState<AccessState>({ status: "loading" });
   const [platformAvailable, setPlatformAvailable] = useState(false);
@@ -245,6 +247,20 @@ export function AuthenticatedShell({
 
   const workspaceOptions = availableWorkspaces(canManage, platformAvailable);
 
+  useEffect(() => {
+    if (!canManage && !platformAvailable) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [canManage, platformAvailable]);
+
   function switchWorkspace(next: Workspace) {
     void requestGlobalLeave({
       action: () => {
@@ -338,6 +354,15 @@ export function AuthenticatedShell({
             </AppLink>
           </div>
           <div className="signed-in-header__actions">
+            {canManage || platformAvailable ? (
+              <QuickSearchTrigger
+                className="header-quick-search-trigger"
+                onClick={() => {
+                  setCommandPaletteOpen(true);
+                }}
+                variant="header"
+              />
+            ) : null}
             <label className="workspace-switcher">
               <span className="sr-only">Workspace</span>
               <select
@@ -445,6 +470,14 @@ export function AuthenticatedShell({
                 <span className="eyebrow">{workspaceLabel(selectedWorkspace)}</span>
                 <strong>{organizationName}</strong>
               </div>
+              {selectedWorkspace === "organization" ? (
+                <QuickSearchTrigger
+                  onClick={() => {
+                    setCommandPaletteOpen(true);
+                  }}
+                  variant="sidebar"
+                />
+              ) : null}
               <Navigation groups={navGroups} navigate={navigate} pathname={route.pathname} />
             </aside>
           ) : null}
@@ -489,6 +522,9 @@ export function AuthenticatedShell({
                   currentSession={currentSession}
                   memberEnabled={memberEnabled}
                   navigate={navigate}
+                  onOpenCommandPalette={() => {
+                    setCommandPaletteOpen(true);
+                  }}
                   onSignedOut={onSignedOut}
                   platformAvailable={platformAvailable}
                   route={route}
@@ -528,6 +564,15 @@ export function AuthenticatedShell({
               </button>
             ) : null}
           </div>
+          {selectedWorkspace === "organization" ? (
+            <QuickSearchTrigger
+              onClick={() => {
+                setMobileNavOpen(false);
+                setCommandPaletteOpen(true);
+              }}
+              variant="sidebar"
+            />
+          ) : null}
           <Navigation
             groups={navGroups}
             navigate={(href) => {
@@ -537,6 +582,25 @@ export function AuthenticatedShell({
             pathname={route.pathname}
           />
         </Sheet>
+        {canManage || platformAvailable ? (
+          <CommandPaletteModal
+            isOwner={
+              access.status === "ready" && (access.context.role === "owner" || platformAvailable)
+            }
+            modules={modules.filter((m) => m.enabled).map((m) => m.id)}
+            onClose={() => {
+              setCommandPaletteOpen(false);
+            }}
+            onNavigate={(path) => {
+              setCommandPaletteOpen(false);
+              navigate(path);
+            }}
+            onToggleTheme={() => {
+              setThemePreference((current) => (current === "dark" ? "light" : "dark"));
+            }}
+            open={commandPaletteOpen}
+          />
+        ) : null}
       </div>
     </SaveCoordinatorProvider>
   );

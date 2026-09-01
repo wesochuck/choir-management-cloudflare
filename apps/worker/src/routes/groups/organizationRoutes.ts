@@ -39,6 +39,7 @@ import { registerRoutes as registerOrganizationProfilesRoutes } from "../organiz
 import { registerRoutes as registerOrganizationResourcesRoutes } from "../organizationResources";
 import { registerRoutes as registerOrganizationRosterSettingsRoutes } from "../organizationRosterSettings";
 import { registerRoutes as registerOrganizationRsvpExportsRoutes } from "../organizationRsvpExports";
+import { registerRoutes as registerOrganizationSearchRoutes } from "../organizationSearch";
 import { registerRoutes as registerOrganizationSeasonsRoutes } from "../organizationSeasons";
 import { registerRoutes as registerOrganizationSeatingRoutes } from "../organizationSeating";
 import { registerRoutes as registerOrganizationTicketingRoutes } from "../organizationTicketing";
@@ -85,6 +86,7 @@ export function registerOrganizationGroupRoutes(router: Hono<WorkerHonoEnvironme
   registerOrganizationResourcesRoutes(router);
   registerOrganizationRosterSettingsRoutes(router);
   registerOrganizationRsvpExportsRoutes(router);
+  registerOrganizationSearchRoutes(router);
   registerOrganizationSeasonsRoutes(router);
   registerOrganizationSeatingRoutes(router);
   registerOrganizationTicketingRoutes(router);

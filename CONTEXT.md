@@ -936,3 +936,11 @@ one hub. Type-safe merging lives in `src/lib/userPreferences.ts`, and `useAuth()
 `updatePreferences(partialPreferences)` for writes. Feature views should load preferences with
 sensible local defaults and trigger seamless persistence on change, without showing verbose
 "preference saved" banners.
+
+## Admin Command Palette
+
+The central search and navigation overlay accessible via `Cmd/Ctrl + K` or persistent quick-search
+controls in the Organization Admin workspace. It enables administrators and owners to jump directly
+to administrative pages, feature configuration sub-tabs, roster profiles, events, music pieces, and
+quick actions within the active Organization Scope. _Avoid_: Global search across Organizations,
+Member command palette
