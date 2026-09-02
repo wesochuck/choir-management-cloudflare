@@ -117,6 +117,34 @@ function readPieceForSetListItem(
   return { ...primary, trackFileIds: JSON.stringify(trackFileIds) };
 }
 
+function toPlaylistItem(
+  item: SetListItem,
+  pieceMap: Map<string, PieceRow>,
+): {
+  readonly arranger?: string | undefined;
+  readonly composer?: string | undefined;
+  readonly durationSeconds?: number | undefined;
+  readonly isFeaturedNumber?: boolean | undefined;
+  readonly notes?: string | undefined;
+  readonly pieceId?: string | undefined;
+  readonly title: string;
+  readonly trackFileIds: Record<string, string>;
+} {
+  const piece = item.pieceId ? pieceMap.get(item.pieceId) : undefined;
+  const rawComposer = typeof piece?.composer === "string" ? piece.composer : item.composer;
+  return {
+    arranger: typeof piece?.arranger === "string" ? piece.arranger : undefined,
+    composer: typeof rawComposer === "string" ? rawComposer : undefined,
+    durationSeconds: typeof piece?.durationSeconds === "number" ? piece.durationSeconds : undefined,
+    isFeaturedNumber:
+      typeof item.isFeaturedNumber === "boolean" ? item.isFeaturedNumber : undefined,
+    notes: typeof item.notes === "string" ? item.notes : undefined,
+    pieceId: typeof item.pieceId === "string" ? item.pieceId : undefined,
+    title: piece?.title ?? item.title,
+    trackFileIds: piece ? parseTrackFileIds(piece.trackFileIds) : {},
+  };
+}
+
 export function readPlayerDetailsFromStore(
   storage: DurableObjectStorage,
   _organizationId: string | null,
@@ -168,19 +196,7 @@ export function readPlayerDetailsFromStore(
       }
     }
   }
-  const items = setList.map((item) => {
-    const piece = item.pieceId ? pieceMap.get(item.pieceId) : undefined;
-    return {
-      arranger: piece?.arranger,
-      composer: piece?.composer ?? item.composer,
-      durationSeconds: piece?.durationSeconds,
-      isFeaturedNumber: item.isFeaturedNumber,
-      notes: item.notes,
-      pieceId: item.pieceId,
-      title: piece?.title ?? item.title,
-      trackFileIds: piece ? parseTrackFileIds(piece.trackFileIds) : {},
-    };
-  });
+  const items = setList.map((item) => toPlaylistItem(item, pieceMap));
   return Response.json({
     eventArtworkFileId: eventRow.publicGraphicFileId ?? null,
     eventId: eventRow.id,
@@ -226,19 +242,7 @@ export function readPlayerPlaylistFromStore(
     const piece = readPieceForSetListItem(storage, pieceId);
     if (piece) pieceMap.set(pieceId, piece);
   }
-  const items = setList.map((item) => {
-    const piece = item.pieceId ? pieceMap.get(item.pieceId) : undefined;
-    return {
-      arranger: piece?.arranger,
-      composer: piece?.composer ?? item.composer,
-      durationSeconds: piece?.durationSeconds,
-      isFeaturedNumber: item.isFeaturedNumber,
-      notes: item.notes,
-      pieceId: item.pieceId,
-      title: piece?.title ?? item.title,
-      trackFileIds: piece ? parseTrackFileIds(piece.trackFileIds) : {},
-    };
-  });
+  const items = setList.map((item) => toPlaylistItem(item, pieceMap));
   return Response.json({
     eventArtworkFileId: eventRow.publicGraphicFileId ?? null,
     eventId: eventRow.id,

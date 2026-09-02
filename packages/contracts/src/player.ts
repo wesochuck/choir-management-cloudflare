@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { musicTrackFileIdsSchema } from "./music";
 export const playerPlaylistItemSchema = z.object({
-  arranger: z.string().optional(),
-  composer: z.string().optional(),
-  durationSeconds: z.number().int().nonnegative().optional(),
-  isFeaturedNumber: z.boolean().optional(),
-  notes: z.string().optional(),
-  pieceId: z.uuid().optional(),
+  arranger: z.string().nullable().optional(),
+  composer: z.string().nullable().optional(),
+  durationSeconds: z.number().int().nonnegative().nullable().optional(),
+  isFeaturedNumber: z.boolean().nullable().optional(),
+  notes: z.string().nullable().optional(),
+  pieceId: z.uuid().nullable().optional(),
   title: z.string().min(1).max(300),
   trackFileIds: musicTrackFileIdsSchema,
 });

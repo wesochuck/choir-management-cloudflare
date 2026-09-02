@@ -469,7 +469,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       .object({
         eventArtworkFileId: z.uuid().nullable().optional(),
         eventId: z.uuid(),
-        eventStartsAt: z.iso.datetime(),
+        eventStartsAt: z.string().min(1),
         eventTitle: z.string().min(1).max(500),
         items: z.array(z.record(z.string(), z.unknown())).max(500),
         performerLabel: z.string().trim().min(1).max(50).default("Performer"),

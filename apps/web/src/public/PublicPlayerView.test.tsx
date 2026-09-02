@@ -241,6 +241,30 @@ describe("PublicPlayerView Components", () => {
       expect(html).toContain("Tutti fallback");
       expect(html).toContain('href="/api/public/player/media/file-soprano?token=test-token"');
     });
+    it("renders items with null or missing fields cleanly", () => {
+      const itemWithNulls: PlayerPlaylistItem = {
+        arranger: null,
+        composer: null,
+        durationSeconds: null,
+        isFeaturedNumber: null,
+        notes: null,
+        pieceId: null,
+        title: "Simple Chant",
+        trackFileIds: { tutti: "file-chant" },
+      };
+      const html = renderToString(
+        <PlayerSetList
+          activeTrackKey="tutti"
+          currentIndex={0}
+          items={[itemWithNulls]}
+          onSelectItem={vi.fn()}
+          playableItems={[itemWithNulls]}
+          token="test-token"
+        />,
+      );
+      expect(html).toContain("Simple Chant");
+      expect(html).toContain("Now Playing");
+    });
   });
 
   describe("PlayerRehearsalOptions", () => {

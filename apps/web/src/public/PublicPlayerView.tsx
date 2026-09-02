@@ -11,24 +11,24 @@ declare global {
 }
 
 export interface PlayerPlaylistItem {
-  readonly arranger?: string;
-  readonly composer?: string;
-  readonly durationSeconds?: number;
-  readonly isFeaturedNumber?: boolean;
-  readonly notes?: string;
-  readonly pieceId?: string;
+  readonly arranger?: string | null | undefined;
+  readonly composer?: string | null | undefined;
+  readonly durationSeconds?: number | null | undefined;
+  readonly isFeaturedNumber?: boolean | null | undefined;
+  readonly notes?: string | null | undefined;
+  readonly pieceId?: string | null | undefined;
   readonly title: string;
   readonly trackFileIds: Record<string, string>;
 }
 
 export interface PlayerDetails {
-  readonly eventArtworkFileId?: string | null;
+  readonly eventArtworkFileId?: string | null | undefined;
   readonly eventId: string;
   readonly eventTitle: string;
   readonly eventStartsAt: string;
   readonly items: PlayerPlaylistItem[];
-  readonly performerLabel?: string;
-  readonly profileName?: string;
+  readonly performerLabel?: string | undefined;
+  readonly profileName?: string | undefined;
 }
 
 interface ResolvedTrack {
@@ -52,17 +52,33 @@ function isStringRecord(value: unknown): value is Record<string, string> {
   return isRecord(value) && Object.values(value).every((entry) => typeof entry === "string");
 }
 
+function isNullableString(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === "string";
+}
+
+function isNullableNumber(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === "number";
+}
+
+function isNullableBoolean(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === "boolean";
+}
+
 function isPlayerPlaylistItem(value: unknown): value is PlayerPlaylistItem {
-  if (!isRecord(value) || typeof value.title !== "string" || !isStringRecord(value.trackFileIds)) {
+  if (!isRecord(value) || typeof value.title !== "string") {
+    return false;
+  }
+  const trackFileIds = value.trackFileIds ?? {};
+  if (!isStringRecord(trackFileIds)) {
     return false;
   }
   return (
-    (value.arranger === undefined || typeof value.arranger === "string") &&
-    (value.composer === undefined || typeof value.composer === "string") &&
-    (value.durationSeconds === undefined || typeof value.durationSeconds === "number") &&
-    (value.isFeaturedNumber === undefined || typeof value.isFeaturedNumber === "boolean") &&
-    (value.notes === undefined || typeof value.notes === "string") &&
-    (value.pieceId === undefined || typeof value.pieceId === "string")
+    isNullableString(value.arranger) &&
+    isNullableString(value.composer) &&
+    isNullableNumber(value.durationSeconds) &&
+    isNullableBoolean(value.isFeaturedNumber) &&
+    isNullableString(value.notes) &&
+    isNullableString(value.pieceId)
   );
 }
 
@@ -77,8 +93,12 @@ function isPlayerDetails(value: unknown): value is PlayerDetails {
     typeof value.eventStartsAt === "string" &&
     Array.isArray(value.items) &&
     value.items.every(isPlayerPlaylistItem) &&
-    (value.performerLabel === undefined || typeof value.performerLabel === "string") &&
-    (value.profileName === undefined || typeof value.profileName === "string")
+    (value.performerLabel === undefined ||
+      value.performerLabel === null ||
+      typeof value.performerLabel === "string") &&
+    (value.profileName === undefined ||
+      value.profileName === null ||
+      typeof value.profileName === "string")
   );
 }
 
@@ -86,7 +106,27 @@ async function fetchPlayerDetails(token: string): Promise<PlayerDetails> {
   try {
     const data = await getPublicPlayerDetails(token);
     if (!isPlayerDetails(data)) throw new Error("invalid_response");
-    return data;
+    return {
+      eventArtworkFileId:
+        typeof data.eventArtworkFileId === "string" ? data.eventArtworkFileId : null,
+      eventId: data.eventId,
+      eventTitle: data.eventTitle,
+      eventStartsAt: data.eventStartsAt,
+      items: data.items.map((item) => ({
+        arranger: typeof item.arranger === "string" ? item.arranger : undefined,
+        composer: typeof item.composer === "string" ? item.composer : undefined,
+        durationSeconds:
+          typeof item.durationSeconds === "number" ? item.durationSeconds : undefined,
+        isFeaturedNumber:
+          typeof item.isFeaturedNumber === "boolean" ? item.isFeaturedNumber : undefined,
+        notes: typeof item.notes === "string" ? item.notes : undefined,
+        pieceId: typeof item.pieceId === "string" ? item.pieceId : undefined,
+        title: item.title,
+        trackFileIds: isStringRecord(item.trackFileIds) ? item.trackFileIds : {},
+      })),
+      performerLabel: typeof data.performerLabel === "string" ? data.performerLabel : "Performer",
+      profileName: typeof data.profileName === "string" ? data.profileName : undefined,
+    };
   } catch {
     throw new Error("not_found");
   }
@@ -112,7 +152,18 @@ async function fetchPublicPlayerPlaylist(token: string): Promise<PlayerDetails> 
       eventId: event.id,
       eventTitle: event.title,
       eventStartsAt: event.date,
-      items: data.pieces,
+      items: data.pieces.map((item) => ({
+        arranger: typeof item.arranger === "string" ? item.arranger : undefined,
+        composer: typeof item.composer === "string" ? item.composer : undefined,
+        durationSeconds:
+          typeof item.durationSeconds === "number" ? item.durationSeconds : undefined,
+        isFeaturedNumber:
+          typeof item.isFeaturedNumber === "boolean" ? item.isFeaturedNumber : undefined,
+        notes: typeof item.notes === "string" ? item.notes : undefined,
+        pieceId: typeof item.pieceId === "string" ? item.pieceId : undefined,
+        title: item.title,
+        trackFileIds: isStringRecord(item.trackFileIds) ? item.trackFileIds : {},
+      })),
       performerLabel: typeof data.performerLabel === "string" ? data.performerLabel : "Performer",
     };
   } catch {
@@ -122,6 +173,7 @@ async function fetchPublicPlayerPlaylist(token: string): Promise<PlayerDetails> 
 
 function formatDate(iso: string): string {
   const date = new Date(iso);
+  if (isNaN(date.getTime())) return iso;
   return date.toLocaleDateString(undefined, {
     day: "numeric",
     month: "long",
