@@ -143,6 +143,8 @@ test("renders practice player with artwork, track navigation, and set list", asy
     await expect(setList.getByText("2 tracks")).toBeVisible();
     await expect(setList.getByText("Hallelujah Chorus")).toBeVisible();
     await expect(setList.getByText("Ave Verum")).toBeVisible();
+    const desktopOptions = page.locator(".public-player__desktop-options");
+    await expect(desktopOptions.getByLabel("Volume")).toBeVisible();
   }
 });
 
@@ -174,6 +176,6 @@ test("opens and interacts with rehearsal settings drawer", async ({ page }) => {
   await expect(sheet).toBeVisible();
   await expect(sheet.getByRole("heading", { name: "Rehearsal Settings" })).toBeVisible();
   await expect(sheet.getByLabel("Start track at")).toBeVisible();
-  await expect(sheet.getByLabel("Volume")).toBeVisible();
+  await expect(sheet.getByLabel("Volume")).not.toBeVisible();
   await expect(sheet.getByLabel("Gap between tracks")).toBeVisible();
 });

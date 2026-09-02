@@ -145,6 +145,18 @@ function toPlaylistItem(
   };
 }
 
+function readOrganizationName(storage: DurableObjectStorage): string | undefined {
+  try {
+    const row = storage.sql
+      .exec<{ name: string }>("SELECT name FROM organization_metadata LIMIT 1")
+      .toArray()
+      .at(0);
+    return row?.name ? row.name.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function readPlayerDetailsFromStore(
   storage: DurableObjectStorage,
   _organizationId: string | null,
@@ -203,6 +215,7 @@ export function readPlayerDetailsFromStore(
     eventTitle: eventRow.title,
     eventStartsAt: eventRow.startsAt,
     items,
+    organizationName: readOrganizationName(storage),
     performerLabel: readPerformerLabel(storage),
     profileId,
     profileName: profileRow.displayName,
@@ -249,6 +262,7 @@ export function readPlayerPlaylistFromStore(
     eventStartsAt: eventRow.startsAt,
     eventTitle: eventRow.title,
     items,
+    organizationName: readOrganizationName(storage),
     performerLabel: readPerformerLabel(storage),
   });
 }

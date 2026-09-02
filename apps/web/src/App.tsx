@@ -16,7 +16,7 @@ import { AuthenticatedShell } from "./account/components/AuthenticatedShell/shel
 import { AcceptInvitationView } from "./auth/AcceptInvitationView";
 import { ForgotPasswordView } from "./auth/ForgotPasswordView";
 import { EmailChangeConfirmationView } from "./auth/EmailChangeConfirmationView";
-import { getCurrentSession } from "./auth/api";
+import { getCurrentSession, getPublishedOrganizationProjection } from "./auth/api";
 import { ResetPasswordView } from "./auth/ResetPasswordView";
 import { SignInView } from "./auth/SignInView";
 import { PublicUnsubscribeView } from "./public/PublicUnsubscribeView";
@@ -279,6 +279,9 @@ function renderPublicOrProductRoute(pathname: string, productShell: ReactNode, s
 export function App() {
   const [serviceState, setServiceState] = useState<ServiceState>("checking");
   const [sessionState, setSessionState] = useState<SessionState>({ status: "checking" });
+  const [organizationName, setOrganizationName] = useState<string | null>(null);
+  const [logoFileId, setLogoFileId] = useState<string | null>(null);
+  const [projectionVersion, setProjectionVersion] = useState<number>(1);
   const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
   const [resetLocation] = useState(() => readPasswordResetLocation(pathname));
 
@@ -309,7 +312,20 @@ export function App() {
       }
     }
 
-    void Promise.all([checkService(), checkSession()]);
+    async function checkProjection() {
+      try {
+        const projection = await getPublishedOrganizationProjection(abortController.signal);
+        if (projection?.payload.organizationName) {
+          setOrganizationName(projection.payload.organizationName);
+          setLogoFileId(projection.payload.settings.logoFileId ?? null);
+          setProjectionVersion(projection.version);
+        }
+      } catch {
+        // Fall back gracefully to default branding if projection is not published or unavailable.
+      }
+    }
+
+    void Promise.all([checkService(), checkSession(), checkProjection()]);
     return () => {
       abortController.abort();
     };
@@ -343,14 +359,32 @@ export function App() {
     finishInvitationSignIn,
   );
 
+  const displayName = organizationName ?? "Choir Management";
+  const initials = organizationName
+    ? organizationName
+        .split(/\s+/)
+        .map((part) => part[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "CM";
+
   const productShell = (
     <div className="app-shell">
       <header className="site-header">
-        <a className="brand" href="/" aria-label="Choir Management home">
-          <span className="brand-mark" aria-hidden="true">
-            CM
-          </span>
-          <span>Choir Management</span>
+        <a className="brand" href="/" aria-label={`${displayName} home`}>
+          {logoFileId ? (
+            <img
+              src={`/api/public/media/${String(projectionVersion)}/${encodeURIComponent(logoFileId)}`}
+              alt=""
+              className="brand-logo"
+            />
+          ) : (
+            <span className="brand-mark" aria-hidden="true">
+              {initials}
+            </span>
+          )}
+          <span>{displayName}</span>
         </a>
         <div className="header-actions">
           {serviceState === "offline" ? (
@@ -370,7 +404,9 @@ export function App() {
       {content}
 
       <footer>
-        <p>© {new Date().getFullYear()} Choir Management. All rights reserved.</p>
+        <p>
+          © {new Date().getFullYear()} {displayName}. All rights reserved.
+        </p>
       </footer>
     </div>
   );

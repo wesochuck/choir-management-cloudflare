@@ -61,7 +61,6 @@ describe("PublicPlayerView Components", () => {
       expect(html).toContain("Autumn Choral Festival");
       expect(html).toContain("Welcome, ");
       expect(html).toContain("Alice");
-      expect(html).toContain("Practice player");
     });
 
     it("omits greeting when profileName is not provided", () => {
@@ -289,6 +288,25 @@ describe("PublicPlayerView Components", () => {
       expect(html).toContain("Gap between tracks");
       expect(html).toContain("Download Current Track");
       expect(html).toContain('href="/api/public/player/media/file-soprano?token=test-token"');
+    });
+
+    it("hides volume slider when showVolume is false for mobile practice player", () => {
+      const html = renderToString(
+        <PlayerRehearsalOptions
+          countdown={null}
+          currentTrackFileId="file-soprano"
+          gapSeconds={5}
+          onChangeGapSeconds={vi.fn()}
+          onChangeStartAt={vi.fn()}
+          showVolume={false}
+          startAt={10}
+          token="test-token"
+        />,
+      );
+      expect(html).toContain("Start track at");
+      expect(html).not.toContain("Volume");
+      expect(html).toContain("Gap between tracks");
+      expect(html).toContain("Download Current Track");
     });
   });
 });

@@ -27,6 +27,7 @@ export interface PlayerDetails {
   readonly eventTitle: string;
   readonly eventStartsAt: string;
   readonly items: PlayerPlaylistItem[];
+  readonly organizationName?: string | undefined;
   readonly performerLabel?: string | undefined;
   readonly profileName?: string | undefined;
 }
@@ -85,20 +86,15 @@ function isPlayerPlaylistItem(value: unknown): value is PlayerPlaylistItem {
 function isPlayerDetails(value: unknown): value is PlayerDetails {
   return (
     isRecord(value) &&
-    (value.eventArtworkFileId === undefined ||
-      value.eventArtworkFileId === null ||
-      typeof value.eventArtworkFileId === "string") &&
+    isNullableString(value.eventArtworkFileId) &&
     typeof value.eventId === "string" &&
     typeof value.eventTitle === "string" &&
     typeof value.eventStartsAt === "string" &&
     Array.isArray(value.items) &&
     value.items.every(isPlayerPlaylistItem) &&
-    (value.performerLabel === undefined ||
-      value.performerLabel === null ||
-      typeof value.performerLabel === "string") &&
-    (value.profileName === undefined ||
-      value.profileName === null ||
-      typeof value.profileName === "string")
+    isNullableString(value.organizationName) &&
+    isNullableString(value.performerLabel) &&
+    isNullableString(value.profileName)
   );
 }
 
@@ -124,6 +120,8 @@ async function fetchPlayerDetails(token: string): Promise<PlayerDetails> {
         title: item.title,
         trackFileIds: isStringRecord(item.trackFileIds) ? item.trackFileIds : {},
       })),
+      organizationName:
+        typeof data.organizationName === "string" ? data.organizationName : undefined,
       performerLabel: typeof data.performerLabel === "string" ? data.performerLabel : "Performer",
       profileName: typeof data.profileName === "string" ? data.profileName : undefined,
     };
@@ -164,6 +162,8 @@ async function fetchPublicPlayerPlaylist(token: string): Promise<PlayerDetails> 
         title: item.title,
         trackFileIds: isStringRecord(item.trackFileIds) ? item.trackFileIds : {},
       })),
+      organizationName:
+        typeof data.organizationName === "string" ? data.organizationName : undefined,
       performerLabel: typeof data.performerLabel === "string" ? data.performerLabel : "Performer",
     };
   } catch {
@@ -190,12 +190,14 @@ function formatTime(seconds: number): string {
 }
 
 function formatTrackKey(key: string): string {
-  return key === "tutti" ? "Tutti" : key.toUpperCase();
+  if (key === "tutti") return "Tutti";
+  return key.toUpperCase();
 }
 
 function availableTrackKeys(items: readonly PlayerPlaylistItem[]): string[] {
   const keys = new Set(items.flatMap((item) => Object.keys(item.trackFileIds)));
   return [...keys].sort((left, right) => {
+    if (left === right) return 0;
     if (left === "tutti") return -1;
     if (right === "tutti") return 1;
     return left.localeCompare(right);
@@ -225,7 +227,6 @@ function playerMediaUrl(fileId: string, token: string): string {
 export function PlayerHeader({ details }: { readonly details: PlayerDetails }) {
   return (
     <header className="public-player__header">
-      <p className="eyebrow">Practice player</p>
       <h1 id="player-title">{details.eventTitle}</h1>
       <p>{formatDate(details.eventStartsAt)}</p>
       {details.profileName ? <p>Welcome, {details.profileName}.</p> : null}
@@ -590,21 +591,23 @@ export function PlayerRehearsalOptions({
   onChangeVolume,
   onToggleGuide,
   showGuide,
+  showVolume = true,
   startAt,
   token,
-  volume,
+  volume = 100,
 }: {
   readonly countdown: number | null;
   readonly currentTrackFileId?: string;
   readonly gapSeconds: number;
   readonly onChangeGapSeconds: (gap: number) => void;
   readonly onChangeStartAt: (start: string) => void;
-  readonly onChangeVolume: (volume: number) => void;
+  readonly onChangeVolume?: (volume: number) => void;
   readonly onToggleGuide?: () => void;
   readonly showGuide?: boolean;
+  readonly showVolume?: boolean;
   readonly startAt: number;
   readonly token?: string;
-  readonly volume: number;
+  readonly volume?: number;
 }) {
   return (
     <div className="public-player__options-container">
@@ -626,22 +629,24 @@ export function PlayerRehearsalOptions({
           </span>
           <small>Skips the beginning of this track every time you play it.</small>
         </label>
-        <label className="public-player__option">
-          <span className="public-player__option-heading">
-            <span>Volume</span>
-            <small>{String(volume)}%</small>
-          </span>
-          <input
-            aria-label="Volume"
-            max={100}
-            min={0}
-            onChange={(event) => {
-              onChangeVolume(Number(event.target.value));
-            }}
-            type="range"
-            value={volume}
-          />
-        </label>
+        {showVolume && onChangeVolume ? (
+          <label className="public-player__option">
+            <span className="public-player__option-heading">
+              <span>Volume</span>
+              <small>{String(volume)}%</small>
+            </span>
+            <input
+              aria-label="Volume"
+              max={100}
+              min={0}
+              onChange={(event) => {
+                onChangeVolume(Number(event.target.value));
+              }}
+              type="range"
+              value={volume}
+            />
+          </label>
+        ) : null}
         <label className="public-player__option">
           <span>Gap between tracks</span>
           <select
@@ -689,7 +694,7 @@ export function PlayerRehearsalOptions({
         </button>
       ) : null}
 
-      {showGuide !== false ? (
+      {showGuide ? (
         <div className="public-player__guide">
           <div>
             <strong>Start track at</strong>
@@ -1328,10 +1333,9 @@ export function PublicPracticePlayer({
             gapSeconds={gapSeconds}
             onChangeGapSeconds={setGapSeconds}
             onChangeStartAt={updateStartAt}
-            onChangeVolume={setVolume}
+            showVolume={false}
             startAt={startAt}
             token={token}
-            volume={volume}
           />
         </div>
       </Sheet>
