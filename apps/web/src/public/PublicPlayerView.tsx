@@ -825,7 +825,7 @@ export function PublicPracticePlayer({
     : null;
 
   useEffect(() => {
-    if ("audioSession" in navigator && navigator.audioSession) {
+    if ("audioSession" in navigator) {
       try {
         navigator.audioSession.type = "playback";
       } catch {
