@@ -1,11 +1,13 @@
 import type {
   OrganizationEvent,
   OrganizationMusicPiece,
+  OrganizationRosterConfiguration,
   OrganizationVenue,
 } from "@choir/contracts";
 import { calculateRsvpDeadline, zonedLocalDateTimeToUtc } from "@choir/domain";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { AuthApiError, createOrganizationEvent, updateOrganizationEvent } from "../../../auth/api";
+import { MusicTableTuttiDropTarget } from "./MusicTableTuttiDropTarget";
 
 import { audioTimeText, resolvePreferredPracticeTrack } from "./utils";
 
@@ -353,11 +355,35 @@ export function MusicInlineAudioPlayer({
   );
 }
 
-export function MusicTableTrackPlayer({ piece }: { readonly piece: OrganizationMusicPiece }) {
+export { MusicTableTuttiDropTarget } from "./MusicTableTuttiDropTarget";
+
+export function MusicTableTrackPlayer({
+  configuration,
+  onError,
+  onSaved,
+  piece,
+}: {
+  readonly configuration?: OrganizationRosterConfiguration | null | undefined;
+  readonly onError?: ((error: string) => void) | undefined;
+  readonly onSaved?: ((piece: OrganizationMusicPiece, message: string) => void) | undefined;
+  readonly piece: OrganizationMusicPiece;
+}) {
   const track = resolvePreferredPracticeTrack(piece);
   const [expanded, setExpanded] = useState(false);
 
-  if (!track) return <span>—</span>;
+  if (!track) {
+    if (onSaved) {
+      return (
+        <MusicTableTuttiDropTarget
+          configuration={configuration}
+          onError={onError}
+          onSaved={onSaved}
+          piece={piece}
+        />
+      );
+    }
+    return <span>—</span>;
+  }
   if (!expanded) {
     return (
       <button

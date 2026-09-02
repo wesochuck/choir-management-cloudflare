@@ -686,6 +686,80 @@
     font-size: var(--font-size-lg);
   }
 
+  .music-table-tutti-dropzone {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 4.5rem;
+    min-height: 2.4rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px dashed color-mix(in srgb, var(--color-border) 80%, transparent);
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    opacity: 0.4;
+    transition:
+      opacity 150ms ease,
+      border-color 150ms ease,
+      background-color 150ms ease,
+      color 150ms ease,
+      transform 150ms ease,
+      box-shadow 150ms ease;
+    user-select: none;
+  }
+
+  .music-table-tutti-dropzone:hover,
+  .music-table-tutti-dropzone:focus-within {
+    opacity: 0.9;
+    border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
+    background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+    color: var(--color-accent);
+  }
+
+  .music-table-tutti-dropzone.is-dragging {
+    opacity: 1;
+    border: 1.5px dashed var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+    color: var(--color-accent);
+    transform: scale(1.04);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--color-accent) 30%, transparent);
+  }
+
+  .music-table-tutti-dropzone.is-uploading {
+    opacity: 0.85;
+    border-style: solid;
+    border-color: var(--color-border);
+    cursor: wait;
+  }
+
+  .music-table-tutti-dropzone__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .music-table-tutti-dropzone__loading {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .music-table-tutti-dropzone__spinner {
+    width: 0.875rem;
+    height: 0.875rem;
+    border: 2px solid color-mix(in srgb, var(--color-accent) 35%, transparent);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: music-table-spin 0.6s linear infinite;
+  }
+
+  @keyframes music-table-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
   /* Piece form and CSV import */
 
   .music-piece-form .field-hint {

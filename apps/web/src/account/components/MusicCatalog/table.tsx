@@ -12,25 +12,31 @@ export function MusicCatalogTable({
   defaultPageSize = 100,
   genreFilterMode,
   showUncategorized,
+  onError,
+  onPieceSaved,
   onDeselectMany,
   onEdit,
   onSelectMany,
   onToggleSelection,
   pieces,
   publisherSearchTemplate,
+  rosterConfiguration,
   search,
   selectedIds,
   selectedGenres,
 }: {
-  readonly defaultPageSize?: number;
+  readonly defaultPageSize?: number | undefined;
   readonly genreFilterMode: "and" | "or";
   readonly showUncategorized: boolean;
+  readonly onError?: ((error: string) => void) | undefined;
+  readonly onPieceSaved?: ((piece: OrganizationMusicPiece, message: string) => void) | undefined;
   readonly onDeselectMany: (pieceIds: readonly string[]) => void;
   readonly onEdit: (piece: OrganizationMusicPiece) => void;
   readonly onSelectMany: (pieceIds: readonly string[]) => void;
   readonly onToggleSelection: (pieceId: string) => void;
   readonly pieces: readonly OrganizationMusicPiece[];
   readonly publisherSearchTemplate: string;
+  readonly rosterConfiguration?: OrganizationRosterConfiguration | null | undefined;
   readonly search: string;
   readonly selectedIds: readonly string[];
   readonly selectedGenres: readonly string[];
@@ -221,7 +227,14 @@ export function MusicCatalogTable({
           {
             header: "Play",
             id: "play",
-            render: (piece) => <MusicTableTrackPlayer piece={piece} />,
+            render: (piece) => (
+              <MusicTableTrackPlayer
+                configuration={rosterConfiguration}
+                onError={onError}
+                onSaved={onPieceSaved}
+                piece={piece}
+              />
+            ),
           },
           {
             header: "Copies",

@@ -136,10 +136,11 @@ export function MusicAudioTracks({
 
   return (
     <fieldset className="music-audio-tracks">
-      <legend>Learning tracks</legend>
+      <legend>Learning tracks{piece.title ? `: ${piece.title}` : ""}</legend>
       <p className="field-help">
-        Attach a full mix, section, or {partLabel.toLowerCase()} track. Organization members can
-        play or download these files after signing in.
+        Attach a full mix, section, or {partLabel.toLowerCase()} track
+        {piece.title ? ` for “${piece.title}”` : ""}. Organization members can play or download
+        these files after signing in.
       </p>
       {error ? (
         <p className="notice notice--error" role="alert">

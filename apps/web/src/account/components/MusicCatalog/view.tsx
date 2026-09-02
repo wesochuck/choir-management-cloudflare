@@ -288,12 +288,20 @@ export function MusicCatalogView({
               defaultPageSize={defaultPageSize}
               genreFilterMode={genreFilterMode}
               showUncategorized={showUncategorized}
+              onError={setError}
+              onPieceSaved={(saved, successMessage) => {
+                setPieces((current) =>
+                  current.map((candidate) => (candidate.id === saved.id ? saved : candidate)),
+                );
+                setMessage(successMessage);
+              }}
               onEdit={selectPiece}
               onDeselectMany={deselectManyPieces}
               onSelectMany={selectManyPieces}
               onToggleSelection={togglePieceSelection}
               pieces={pieces}
               publisherSearchTemplate={publisherSearchTemplate}
+              rosterConfiguration={roster}
               search={search}
               selectedIds={selectedPieceIds}
               selectedGenres={selectedGenres}
@@ -304,7 +312,13 @@ export function MusicCatalogView({
             onClose={closeDialog}
             open={dialogOpen}
             title={
-              editingId ? "Edit music piece" : piece.parentId ? "Add movement" : "Add music piece"
+              editingId
+                ? piece.title.trim()
+                  ? `Edit music piece: ${piece.title.trim()}`
+                  : "Edit music piece"
+                : piece.parentId
+                  ? "Add movement"
+                  : "Add music piece"
             }
           >
             {error && dialogOpen ? (

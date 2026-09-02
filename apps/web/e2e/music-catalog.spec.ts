@@ -1,9 +1,10 @@
-import type { OrganizationEvent } from "@choir/contracts";
+import type { OrganizationEvent, OrganizationMusicPiece } from "@choir/contracts";
 import {
   organizationEventRequestSchema,
   organizationMusicGenreDeleteRequestSchema,
   organizationMusicGenreRenameRequestSchema,
   organizationMusicLibrarySettingsRequestSchema,
+  organizationMusicPieceRequestSchema,
 } from "@choir/contracts";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
@@ -87,12 +88,100 @@ function mockEvent(
   };
 }
 
+async function handleMusicDynamicRoute(
+  route: Route,
+  url: URL,
+  pieces: readonly OrganizationMusicPiece[],
+  setPieces: (pieces: readonly OrganizationMusicPiece[]) => void,
+): Promise<boolean> {
+  if (url.pathname === "/api/organization/music/credits/rename") {
+    const body: unknown = route.request().postDataJSON();
+    if (!isCreditRenameRequest(body)) {
+      await fulfill(route, { code: "validation_failed", requestId }, 400);
+      return true;
+    }
+    expect(body).toEqual({ currentName: "Jane Doe", newName: "Jane Q. Doe" });
+    const nextPieces = pieces.map((item) => ({
+      ...item,
+      arranger: item.arranger === body.currentName ? body.newName : item.arranger,
+      composer: item.composer === body.currentName ? body.newName : item.composer,
+    }));
+    setPieces(nextPieces);
+    await fulfill(route, { pieces: nextPieces, requestId });
+    return true;
+  }
+  if (url.pathname.startsWith("/api/organization/music/") && route.request().method() === "PUT") {
+    const id = url.pathname.split("/").pop() ?? "";
+    const parsed = organizationMusicPieceRequestSchema.safeParse(route.request().postDataJSON());
+    if (parsed.success) {
+      const nextPieces = pieces.map((p) => {
+        if (p.id !== id) return p;
+        return {
+          ...p,
+          ...parsed.data,
+          updatedAt: "2026-08-17T00:00:00.000Z",
+        };
+      });
+      setPieces(nextPieces);
+      const updated = nextPieces.find((p) => p.id === id);
+      if (updated) {
+        await fulfill(route, { ...updated, requestId });
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+async function handleEventDynamicRoute(
+  route: Route,
+  url: URL,
+  events: readonly OrganizationEvent[],
+  setEvents: (events: readonly OrganizationEvent[]) => void,
+): Promise<boolean> {
+  if (url.pathname === "/api/organization/events" && route.request().method() === "POST") {
+    const parsed = organizationEventRequestSchema.safeParse(route.request().postDataJSON());
+    if (parsed.success) {
+      const newEvent = mockEvent(
+        crypto.randomUUID(),
+        parsed.data.title,
+        parsed.data.startsAt,
+        parsed.data.setList,
+      );
+      setEvents([...events, newEvent]);
+      await fulfill(route, newEvent);
+      return true;
+    }
+  }
+  if (url.pathname.startsWith("/api/organization/events/") && route.request().method() === "PUT") {
+    const id = url.pathname.split("/").pop() ?? "";
+    const parsed = organizationEventRequestSchema.safeParse(route.request().postDataJSON());
+    if (parsed.success) {
+      const nextEvents = events.map((e): OrganizationEvent => {
+        if (e.id !== id) return e;
+        return {
+          ...e,
+          ...parsed.data,
+          updatedAt: "2026-08-17T00:00:00.000Z",
+        };
+      });
+      setEvents(nextEvents);
+      const updated = nextEvents.find((e) => e.id === id);
+      if (updated) {
+        await fulfill(route, updated);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 async function installRoutes(page: Page): Promise<void> {
-  let pieces = [
+  let pieces: readonly OrganizationMusicPiece[] = [
     piece("11111111-1111-4111-8111-111111111111", "First Work", "Jane Doe", "J. Smith"),
     piece("22222222-2222-4222-8222-222222222222", "Second Work", "Jane Doe", "Jane Doe"),
   ];
-  let events: OrganizationEvent[] = [
+  let events: readonly OrganizationEvent[] = [
     mockEvent(
       "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
       "Spring Gala 2026",
@@ -102,56 +191,31 @@ async function installRoutes(page: Page): Promise<void> {
 
   await page.route("**/api/**", async (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname === "/api/organization/music/credits/rename") {
-      const body: unknown = route.request().postDataJSON();
-      if (!isCreditRenameRequest(body)) {
-        await fulfill(route, { code: "validation_failed", requestId }, 400);
-        return;
-      }
-      expect(body).toEqual({ currentName: "Jane Doe", newName: "Jane Q. Doe" });
-      pieces = pieces.map((item) => ({
-        ...item,
-        arranger: item.arranger === body.currentName ? body.newName : item.arranger,
-        composer: item.composer === body.currentName ? body.newName : item.composer,
-      }));
-      await fulfill(route, { pieces, requestId });
+    if (
+      await handleMusicDynamicRoute(route, url, pieces, (next) => {
+        pieces = next;
+      })
+    ) {
       return;
     }
-    if (url.pathname === "/api/organization/events" && route.request().method() === "POST") {
-      const parsed = organizationEventRequestSchema.safeParse(route.request().postDataJSON());
-      if (parsed.success) {
-        const newEvent = mockEvent(
-          crypto.randomUUID(),
-          parsed.data.title,
-          parsed.data.startsAt,
-          parsed.data.setList,
-        );
-        events = [...events, newEvent];
-        await fulfill(route, newEvent);
-        return;
-      }
-    }
     if (
-      url.pathname.startsWith("/api/organization/events/") &&
-      route.request().method() === "PUT"
+      await handleEventDynamicRoute(route, url, events, (next) => {
+        events = next;
+      })
     ) {
-      const id = url.pathname.split("/").pop() ?? "";
-      const parsed = organizationEventRequestSchema.safeParse(route.request().postDataJSON());
-      if (parsed.success) {
-        events = events.map((e): OrganizationEvent => {
-          if (e.id !== id) return e;
-          return {
-            ...e,
-            ...parsed.data,
-            updatedAt: "2026-08-17T00:00:00.000Z",
-          };
-        });
-        const updated = events.find((e) => e.id === id);
-        if (updated) {
-          await fulfill(route, updated);
-          return;
-        }
-      }
+      return;
+    }
+    if (url.pathname.startsWith("/api/organization/files/") && route.request().method() === "PUT") {
+      const fileId = url.pathname.split("/").pop() ?? "11111111-1111-4111-8111-111111111111";
+      await fulfill(route, {
+        contentType: "audio/mpeg",
+        fileName: "mock-audio.mp3",
+        id: fileId,
+        requestId,
+        sizeBytes: 1024,
+        uploadedAt: "2026-08-17T00:00:00.000Z",
+      });
+      return;
     }
     const responses: Record<string, unknown> = {
       "/api/account/organizations": {
@@ -587,4 +651,39 @@ test("keeps the piece editor action buttons on a single row", async ({ page }) =
     ]);
     expect(tops).toHaveLength(1);
   }
+});
+
+test("displays the piece title when editing and on practice tracks tab", async ({ page }) => {
+  await installRoutes(page);
+  await page.goto("/admin/library");
+
+  await page.getByRole("button", { name: "Edit music piece: First Work" }).click();
+  const dialog = page.getByRole("dialog", { name: "Edit music piece: First Work" });
+  await expect(dialog).toBeVisible();
+
+  await dialog.getByRole("tab", { name: /Practice tracks/ }).click();
+  await expect(dialog.getByRole("group", { name: "Learning tracks: First Work" })).toBeVisible();
+  await expect(
+    dialog.getByText("Attach a full mix, section, or part track for “First Work”"),
+  ).toBeVisible();
+});
+
+test("allows uploading a Tutti practice track directly from the catalog table row", async ({
+  page,
+}) => {
+  await installRoutes(page);
+  await page.goto("/admin/library");
+
+  const fileInput = page.getByLabel("Upload Tutti practice track for First Work").first();
+  await expect(fileInput).toBeAttached();
+
+  await fileInput.setInputFiles({
+    buffer: Buffer.from("fake-audio-content"),
+    mimeType: "audio/mpeg",
+    name: "tutti-track.mp3",
+  });
+
+  await expect(
+    page.getByRole("button", { name: "Play tutti learning track for First Work" }).first(),
+  ).toBeVisible();
 });
