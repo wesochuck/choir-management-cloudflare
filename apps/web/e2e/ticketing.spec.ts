@@ -77,8 +77,8 @@ const bundleId = "6ab6bf88-c618-4bcd-b452-3aadebd28aa6";
 const purchaseId = "8de2c455-72c5-4117-92a0-b2bc77b05706";
 const newBundleId = "25fd0bbd-2438-458b-877b-5e5032e31cde";
 const secondPerformanceId = "0dc9043e-09b7-41f1-bcde-7f26c3f03dc1";
-const futureDate = "2027-06-15T19:30:00.000Z";
-const saleEndDate = "2027-06-01T00:00:00.000Z";
+const futureDate = "2099-06-15T19:30:00.000Z";
+const saleEndDate = "2099-06-01T00:00:00.000Z";
 const successToken = "ticket-receipt-token-for-e2e-test";
 const scanToken = "ticket-scan-token-for-e2e-test";
 
@@ -735,7 +735,7 @@ test.describe("admin ticket management", () => {
     await page.getByLabel("Bundle title").fill("VIP Pass");
     await page.getByLabel("Price (USD)").fill("30.00");
     await page.getByLabel("Capacity (blank is unlimited)").fill("50");
-    await page.getByLabel("Sale ends").fill("2027-06-01T00:00");
+    await page.getByLabel("Sale ends").fill("2099-06-01T00:00");
     await page.getByLabel("Active for public sale").check();
     await page.getByRole("checkbox", { name: "Spring Concert" }).check();
     await page.getByRole("button", { name: "Save bundle" }).click();
