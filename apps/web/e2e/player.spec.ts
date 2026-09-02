@@ -43,12 +43,13 @@ test("shows not found when player token is invalid or expired", async ({ page })
   ).toBeVisible();
 });
 
-test("renders practice player with track navigation, rehearsal options, and set list", async ({
+test("renders practice player with artwork, track navigation, and set list", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.route("**/api/public/player-details", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
+        eventArtworkFileId: "file-art-1",
         eventId: "event-123",
         eventStartsAt: "2026-08-20T19:00:00.000Z",
         eventTitle: "Summer Showcase",
@@ -63,6 +64,8 @@ test("renders practice player with track navigation, rehearsal options, and set 
               alto: "file-alto-1",
               soprano: "file-sop-1",
               soprano1: "file-sop1-1",
+              soprano2: "file-sop2-1",
+              soprano3: "file-sop3-1",
               tenor: "file-tenor-1",
               tutti: "file-tutti-1",
             },
@@ -91,6 +94,10 @@ test("renders practice player with track navigation, rehearsal options, and set 
   await expect(page.getByRole("heading", { name: "Summer Showcase" })).toBeVisible();
   await expect(page.getByText("Welcome, Jane Doe.")).toBeVisible();
 
+  // Artwork
+  const artwork = page.getByAltText("Summer Showcase artwork");
+  await expect(artwork).toBeVisible();
+
   // Track selection nav
   const trackNav = page.getByRole("navigation", { name: "Track selection" });
   await expect(trackNav).toBeVisible();
@@ -100,29 +107,17 @@ test("renders practice player with track navigation, rehearsal options, and set 
   );
 
   // Now playing section
-  const nowPlaying = page.locator(".public-player__now-playing");
+  const nowPlaying = page.locator(".public-player__now-playing-card");
   await expect(nowPlaying).toBeVisible();
   await expect(nowPlaying.getByRole("heading", { name: "Hallelujah Chorus" })).toBeVisible();
   await expect(nowPlaying.getByRole("button", { name: "Play" })).toBeVisible();
   await expect(nowPlaying.getByRole("button", { name: "Previous track" })).toBeDisabled();
   await expect(nowPlaying.getByRole("button", { name: "Next track" })).toBeEnabled();
 
-  // Rehearsal options & control guide
-  await expect(nowPlaying.getByLabel("Start track at")).toBeVisible();
-  await expect(nowPlaying.getByLabel("Volume")).toBeVisible();
-  await expect(nowPlaying.getByLabel("Gap between tracks")).toBeVisible();
-
-  const guideToggle = nowPlaying.getByRole("button", { name: "Hide control guide" });
-  await expect(guideToggle).toBeVisible();
-  await guideToggle.click();
-  await expect(nowPlaying.getByRole("button", { name: "Show control guide" })).toBeVisible();
-
-  // Set list
-  const setList = page.locator(".public-player__set-list");
-  await expect(setList).toBeVisible();
-  await expect(setList.getByText("2 tracks")).toBeVisible();
-  await expect(setList.getByText("Hallelujah Chorus")).toBeVisible();
-  await expect(setList.getByText("Ave Verum")).toBeVisible();
+  // Secondary controls
+  await expect(nowPlaying.getByRole("button", { name: "No repeat" })).toBeVisible();
+  await expect(nowPlaying.getByRole("button", { name: /Set list \(2 tracks\)/i })).toBeVisible();
+  await expect(nowPlaying.getByRole("button", { name: "Rehearsal settings" })).toBeVisible();
 
   // Selecting individual voice part from dropdown
   const voiceSelect = trackNav.getByLabel("Add individual part");
@@ -132,4 +127,53 @@ test("renders practice player with track navigation, rehearsal options, and set 
     "aria-pressed",
     "true",
   );
+
+  // Set list verification (responsive)
+  const isMobile = testInfo.project.name.includes("mobile");
+  if (isMobile) {
+    const setListBtn = page.getByRole("button", { name: /Set list \(2 tracks\)/i });
+    await setListBtn.click({ force: true });
+    const sheet = page.locator(".sheet");
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByText("Hallelujah Chorus")).toBeVisible();
+    await expect(sheet.getByText("Ave Verum")).toBeVisible();
+  } else {
+    const setList = page.locator(".public-player__desktop-panel .public-player__set-list");
+    await expect(setList).toBeVisible();
+    await expect(setList.getByText("2 tracks")).toBeVisible();
+    await expect(setList.getByText("Hallelujah Chorus")).toBeVisible();
+    await expect(setList.getByText("Ave Verum")).toBeVisible();
+  }
+});
+
+test("opens and interacts with rehearsal settings drawer", async ({ page }) => {
+  await page.route("**/api/public/player-details", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        eventId: "event-123",
+        eventStartsAt: "2026-08-20T19:00:00.000Z",
+        eventTitle: "Summer Showcase",
+        items: [
+          {
+            title: "Hallelujah Chorus",
+            trackFileIds: { tutti: "file-tutti-1" },
+          },
+        ],
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/player?token=valid-player-token");
+  const settingsBtn = page.getByRole("button", { name: "Rehearsal settings" });
+  await settingsBtn.click();
+
+  const sheet = page.locator(".sheet");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByRole("heading", { name: "Rehearsal Settings" })).toBeVisible();
+  await expect(sheet.getByLabel("Start track at")).toBeVisible();
+  await expect(sheet.getByLabel("Volume")).toBeVisible();
+  await expect(sheet.getByLabel("Gap between tracks")).toBeVisible();
 });

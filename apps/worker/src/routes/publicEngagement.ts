@@ -9,7 +9,11 @@ import { z } from "zod";
 import { validateStartupConfig } from "../env";
 import { unsubscribeOrganizationProfile } from "../organization/organizationCommunications";
 import { verifySignedLinkScope } from "../security/signedLinks";
-import { privateFileIdSchema, readPrivateOrganizationFile } from "../storage/privateFiles";
+import {
+  PrivateFileStorageError,
+  privateFileIdSchema,
+  readPrivateOrganizationFile,
+} from "../storage/privateFiles";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
 import {
   resolvePlayerDetails,
@@ -25,7 +29,42 @@ import type { Hono } from "hono";
 
 import type { WorkerHonoEnvironment } from "./helpers";
 
-import { isErrorResponse, submitPublicAuditionInquiry } from "./helpers";
+import {
+  isErrorResponse,
+  privateFileDownloadResponse,
+  submitPublicAuditionInquiry,
+} from "./helpers";
+
+function isFileInPlayerScope(playerDetails: unknown, targetFileId: string): boolean {
+  const mediaScope = z
+    .object({
+      eventArtworkFileId: z.uuid().nullable().optional(),
+      items: z.array(
+        z.object({
+          trackFileIds: z.record(z.string(), z.string()),
+        }),
+      ),
+    })
+    .safeParse(playerDetails);
+  if (!mediaScope.success) return false;
+  if (mediaScope.data.eventArtworkFileId && targetFileId === mediaScope.data.eventArtworkFileId) {
+    return true;
+  }
+  return mediaScope.data.items.some(({ trackFileIds }) =>
+    Object.values(trackFileIds).includes(targetFileId),
+  );
+}
+
+function rangeNotSatisfiableResponse(error: PrivateFileStorageError): Response {
+  const totalSize = typeof error.sizeBytes === "number" ? String(error.sizeBytes) : "*";
+  return new Response(null, {
+    headers: {
+      "accept-ranges": "bytes",
+      "content-range": `bytes */${totalSize}`,
+    },
+    status: 416,
+  });
+}
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.post("/api/public/player-details", async (context) => {
@@ -135,21 +174,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       envelope.purpose === "player_public"
         ? await resolvePublicPlayerPlaylist(context.env, resolved.value.organizationId, token)
         : await resolvePlayerDetails(context.env, resolved.value.organizationId, token);
-    const mediaScope = z
-      .object({
-        items: z.array(
-          z.object({
-            trackFileIds: z.record(z.string(), z.string()),
-          }),
-        ),
-      })
-      .safeParse(playerDetails);
-    if (
-      !mediaScope.success ||
-      !mediaScope.data.items.some(({ trackFileIds }) =>
-        Object.values(trackFileIds).includes(fileId.data),
-      )
-    ) {
+    if (!isFileInPlayerScope(playerDetails, fileId.data)) {
       return context.json(
         {
           code: "file_not_found",
@@ -159,11 +184,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         404,
       );
     }
+    const rangeHeader = context.req.header("range") ?? null;
     try {
       const file = await readPrivateOrganizationFile(
         context.env,
         resolved.value.organizationId,
         fileId.data,
+        rangeHeader,
       );
       if (!file) {
         return context.json(
@@ -175,14 +202,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           404,
         );
       }
-      return new Response(file.object.body, {
-        headers: {
-          "cache-control": "private, max-age=3600",
-          "content-type": file.metadata.contentType,
-          "content-length": String(file.metadata.sizeBytes),
-        },
-      });
-    } catch {
+      return privateFileDownloadResponse(file);
+    } catch (error: unknown) {
+      if (error instanceof PrivateFileStorageError && error.kind === "range_not_satisfiable") {
+        return rangeNotSatisfiableResponse(error);
+      }
       return context.json(
         {
           code: "file_not_found",
@@ -443,6 +467,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
     const playlist = z
       .object({
+        eventArtworkFileId: z.uuid().nullable().optional(),
         eventId: z.uuid(),
         eventStartsAt: z.iso.datetime(),
         eventTitle: z.string().min(1).max(500),
@@ -463,6 +488,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     return context.json({
       allPieces: playlist.data.items,
       event: {
+        artworkFileId: playlist.data.eventArtworkFileId ?? null,
         date: playlist.data.eventStartsAt,
         id: playlist.data.eventId,
         title: playlist.data.eventTitle,

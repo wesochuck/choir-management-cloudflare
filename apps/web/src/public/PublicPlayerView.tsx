@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Sheet } from "@choir/ui";
 import { getPublicPlayerDetails, getPublicPlayerPlaylist } from "../api";
 
-interface PlayerPlaylistItem {
+declare global {
+  interface Navigator {
+    readonly audioSession?: {
+      type: string;
+    };
+  }
+}
+
+export interface PlayerPlaylistItem {
   readonly arranger?: string;
   readonly composer?: string;
   readonly durationSeconds?: number;
@@ -12,7 +21,8 @@ interface PlayerPlaylistItem {
   readonly trackFileIds: Record<string, string>;
 }
 
-interface PlayerDetails {
+export interface PlayerDetails {
+  readonly eventArtworkFileId?: string | null;
   readonly eventId: string;
   readonly eventTitle: string;
   readonly eventStartsAt: string;
@@ -59,6 +69,9 @@ function isPlayerPlaylistItem(value: unknown): value is PlayerPlaylistItem {
 function isPlayerDetails(value: unknown): value is PlayerDetails {
   return (
     isRecord(value) &&
+    (value.eventArtworkFileId === undefined ||
+      value.eventArtworkFileId === null ||
+      typeof value.eventArtworkFileId === "string") &&
     typeof value.eventId === "string" &&
     typeof value.eventTitle === "string" &&
     typeof value.eventStartsAt === "string" &&
@@ -95,6 +108,7 @@ async function fetchPublicPlayerPlaylist(token: string): Promise<PlayerDetails> 
       throw new Error("invalid_response");
     }
     return {
+      eventArtworkFileId: typeof event.artworkFileId === "string" ? event.artworkFileId : null,
       eventId: event.id,
       eventTitle: event.title,
       eventStartsAt: event.date,
@@ -156,7 +170,96 @@ function playerMediaUrl(fileId: string, token: string): string {
   return `/api/public/player/media/${encodeURIComponent(fileId)}?token=${encodeURIComponent(token)}`;
 }
 
-function TrackSelectionNav({
+export function PlayerHeader({ details }: { readonly details: PlayerDetails }) {
+  return (
+    <header className="public-player__header">
+      <p className="eyebrow">Practice player</p>
+      <h1 id="player-title">{details.eventTitle}</h1>
+      <p>{formatDate(details.eventStartsAt)}</p>
+      {details.profileName ? <p>Welcome, {details.profileName}.</p> : null}
+    </header>
+  );
+}
+
+export function PlayerArtwork({
+  artworkUrl,
+  eventTitle,
+}: {
+  readonly artworkUrl: string | null;
+  readonly eventTitle: string;
+}) {
+  const [failedArtworkUrl, setFailedArtworkUrl] = useState<string | null>(null);
+  const isImageValid = Boolean(artworkUrl && failedArtworkUrl !== artworkUrl);
+
+  return (
+    <div className="public-player__artwork-container">
+      {isImageValid && artworkUrl ? (
+        <img
+          alt={`${eventTitle} artwork`}
+          className="public-player__artwork"
+          onError={() => {
+            setFailedArtworkUrl(artworkUrl);
+          }}
+          src={artworkUrl}
+        />
+      ) : (
+        <div
+          aria-hidden="true"
+          className="public-player__artwork public-player__artwork--placeholder"
+        >
+          <svg
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.5"
+            viewBox="0 0 24 24"
+          >
+            <path d="M9 18V5l12-2v13" />
+            <circle cx="6" cy="18" r="3" />
+            <circle cx="18" cy="16" r="3" />
+          </svg>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function PlayerTrackMetadata({
+  activeTrackKey,
+  currentTrack,
+  item,
+}: {
+  readonly activeTrackKey: string;
+  readonly currentTrack: ResolvedTrack;
+  readonly item: PlayerPlaylistItem;
+}) {
+  return (
+    <div className="public-player__metadata">
+      <div className="public-player__metadata-header">
+        <h2 id="public-player-now-playing">{item.title}</h2>
+        <span className="public-player__track-badge">{formatTrackKey(currentTrack.key)}</span>
+      </div>
+      {item.composer || item.arranger ? (
+        <p className="public-player__artist">
+          {item.composer ?? ""}
+          {item.composer && item.arranger
+            ? ` / arr. ${item.arranger}`
+            : item.arranger
+              ? `arr. ${item.arranger}`
+              : ""}
+        </p>
+      ) : null}
+      {currentTrack.fallback ? (
+        <p className="notice notice--info public-player__fallback-status" role="status">
+          Playing Tutti — {formatTrackKey(activeTrackKey)} track unavailable
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+export function PlayerPartSelector({
   activeTrackKey,
   onSelectTrackKey,
   trackKeys,
@@ -167,9 +270,14 @@ function TrackSelectionNav({
   readonly trackKeys: readonly string[];
   readonly voicePartKeys: readonly string[];
 }) {
+  const showDropdown = voicePartKeys.length > 2;
+  const visiblePills = showDropdown
+    ? trackKeys
+    : [...trackKeys, ...voicePartKeys.filter((key) => !trackKeys.includes(key))];
+
   return (
-    <nav aria-label="Track selection" className="public-player__track-pills">
-      {trackKeys.map((key) => (
+    <nav aria-label="Track selection" className="public-player__part-selector">
+      {visiblePills.map((key) => (
         <button
           aria-pressed={activeTrackKey === key}
           className={activeTrackKey === key ? "is-active" : undefined}
@@ -182,7 +290,7 @@ function TrackSelectionNav({
           {formatTrackKey(key)}
         </button>
       ))}
-      {voicePartKeys.length > 0 ? (
+      {showDropdown ? (
         <label className="public-player__voice-part-select">
           <span className="sr-only">Add individual part</span>
           <select
@@ -205,7 +313,7 @@ function TrackSelectionNav({
   );
 }
 
-function PlayerProgressBar({
+export function PlayerProgress({
   currentTime,
   duration,
   onSeek,
@@ -220,6 +328,10 @@ function PlayerProgressBar({
     <div className="public-player__progress">
       <input
         aria-label={`Seek ${title}`}
+        aria-valuemax={Math.round(duration)}
+        aria-valuemin={0}
+        aria-valuenow={Math.round(currentTime)}
+        aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
         max={duration || 1}
         min={0}
         onChange={(event) => {
@@ -229,7 +341,7 @@ function PlayerProgressBar({
         type="range"
         value={Math.min(currentTime, duration || 0)}
       />
-      <div>
+      <div className="public-player__progress-times">
         <span>{formatTime(currentTime)}</span>
         <span>{formatTime(duration)}</span>
       </div>
@@ -237,12 +349,11 @@ function PlayerProgressBar({
   );
 }
 
-function PlayerTransportControls({
+export function PlayerTransport({
   currentIndex,
   loopMode,
   onNext,
   onPrevious,
-  onToggleLoop,
   onTogglePlay,
   playableCount,
   playing,
@@ -251,7 +362,6 @@ function PlayerTransportControls({
   readonly loopMode: "all" | "none" | "one";
   readonly onNext: () => void;
   readonly onPrevious: () => void;
-  readonly onToggleLoop: () => void;
   readonly onTogglePlay: () => void;
   readonly playableCount: number;
   readonly playing: boolean;
@@ -260,43 +370,168 @@ function PlayerTransportControls({
     <div className="public-player__transport">
       <button
         aria-label="Previous track"
-        className="button button--secondary button--small"
-        disabled={currentIndex <= 0}
+        className="button button--secondary public-player__transport-btn"
+        disabled={currentIndex <= 0 && loopMode !== "all"}
         onClick={onPrevious}
         type="button"
       >
-        Previous
+        <svg
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+        >
+          <polygon points="19 20 9 12 19 4 19 20" />
+          <line x1="5" x2="5" y1="19" y2="5" />
+        </svg>
+        <span className="sr-only">Previous track</span>
       </button>
       <button
+        aria-label={playing ? "Pause" : "Play"}
         className="button button--primary public-player__play"
         onClick={onTogglePlay}
         type="button"
       >
-        {playing ? "Pause" : "Play"}
+        {playing ? (
+          <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
+            <rect height="16" rx="1" width="4" x="6" y="4" />
+            <rect height="16" rx="1" width="4" x="14" y="4" />
+          </svg>
+        ) : (
+          <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
+            <polygon points="5 3 19 12 5 21 5 3" />
+          </svg>
+        )}
+        <span>{playing ? "Pause" : "Play"}</span>
       </button>
       <button
         aria-label="Next track"
-        className="button button--secondary button--small"
+        className="button button--secondary public-player__transport-btn"
         disabled={currentIndex >= playableCount - 1 && loopMode !== "all"}
         onClick={onNext}
         type="button"
       >
-        Next
-      </button>
-      <button
-        aria-pressed={loopMode !== "none"}
-        className="public-player__repeat"
-        onClick={onToggleLoop}
-        type="button"
-      >
-        {loopMode === "none" ? "No repeat" : loopMode === "all" ? "Repeat all" : "Repeat one"}
+        <svg
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+        >
+          <polygon points="5 4 15 12 5 20 5 4" />
+          <line x1="19" x2="19" y1="5" y2="19" />
+        </svg>
+        <span className="sr-only">Next track</span>
       </button>
     </div>
   );
 }
 
-function PlayerRehearsalOptions({
+export function PlayerSecondaryControls({
+  loopMode,
+  onOpenQueue,
+  onOpenSettings,
+  onToggleLoop,
+  queueButtonRef,
+  queueCount,
+  settingsButtonRef,
+}: {
+  readonly loopMode: "all" | "none" | "one";
+  readonly onOpenQueue: () => void;
+  readonly onOpenSettings: () => void;
+  readonly onToggleLoop: () => void;
+  readonly queueButtonRef?: React.RefObject<HTMLButtonElement | null>;
+  readonly queueCount: number;
+  readonly settingsButtonRef?: React.RefObject<HTMLButtonElement | null>;
+}) {
+  const repeatLabel =
+    loopMode === "none" ? "No repeat" : loopMode === "all" ? "Repeat all" : "Repeat one";
+
+  return (
+    <div className="public-player__secondary-controls">
+      <button
+        aria-label={repeatLabel}
+        aria-pressed={loopMode !== "none"}
+        className="public-player__repeat"
+        onClick={onToggleLoop}
+        type="button"
+      >
+        <svg
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+        >
+          <polyline points="17 1 21 5 17 9" />
+          <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+          <polyline points="7 23 3 19 7 15" />
+          <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+        </svg>
+        <span>{repeatLabel}</span>
+      </button>
+
+      <button
+        aria-label={`Set list (${String(queueCount)} tracks)`}
+        className="public-player__secondary-btn"
+        onClick={onOpenQueue}
+        ref={queueButtonRef}
+        type="button"
+      >
+        <svg
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+        >
+          <line x1="8" x2="21" y1="6" y2="6" />
+          <line x1="8" x2="21" y1="12" y2="12" />
+          <line x1="8" x2="21" y1="18" y2="18" />
+          <line x1="3" x2="3.01" y1="6" y2="6" />
+          <line x1="3" x2="3.01" y1="12" y2="12" />
+          <line x1="3" x2="3.01" y1="18" y2="18" />
+        </svg>
+        <span>Set List ({String(queueCount)})</span>
+      </button>
+
+      <button
+        aria-label="Rehearsal settings"
+        className="public-player__secondary-btn"
+        onClick={onOpenSettings}
+        ref={settingsButtonRef}
+        type="button"
+      >
+        <svg
+          aria-hidden="true"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2"
+          viewBox="0 0 24 24"
+        >
+          <circle cx="12" cy="12" r="3" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+        <span>Settings</span>
+      </button>
+    </div>
+  );
+}
+
+export function PlayerRehearsalOptions({
   countdown,
+  currentTrackFileId,
   gapSeconds,
   onChangeGapSeconds,
   onChangeStartAt,
@@ -304,20 +539,23 @@ function PlayerRehearsalOptions({
   onToggleGuide,
   showGuide,
   startAt,
+  token,
   volume,
 }: {
   readonly countdown: number | null;
+  readonly currentTrackFileId?: string;
   readonly gapSeconds: number;
   readonly onChangeGapSeconds: (gap: number) => void;
   readonly onChangeStartAt: (start: string) => void;
   readonly onChangeVolume: (volume: number) => void;
-  readonly onToggleGuide: () => void;
-  readonly showGuide: boolean;
+  readonly onToggleGuide?: () => void;
+  readonly showGuide?: boolean;
   readonly startAt: number;
+  readonly token?: string;
   readonly volume: number;
 }) {
   return (
-    <>
+    <div className="public-player__options-container">
       <div className="public-player__options">
         <label className="public-player__option">
           <span>Start track at</span>
@@ -355,6 +593,7 @@ function PlayerRehearsalOptions({
         <label className="public-player__option">
           <span>Gap between tracks</span>
           <select
+            aria-label="Gap between tracks"
             onChange={(event) => {
               onChangeGapSeconds(Number(event.target.value));
             }}
@@ -365,22 +604,40 @@ function PlayerRehearsalOptions({
             <option value={5}>5 seconds</option>
             <option value={10}>10 seconds</option>
           </select>
+          <small>Adds silence before the next track starts.</small>
         </label>
+
+        {currentTrackFileId && token ? (
+          <div className="public-player__download-action">
+            <a
+              className="button button--secondary public-player__full-width-btn"
+              download
+              href={playerMediaUrl(currentTrackFileId, token)}
+            >
+              Download Current Track
+            </a>
+          </div>
+        ) : null}
       </div>
+
       {countdown !== null ? (
         <p className="notice notice--info" role="status">
           Next track starts in {countdown} seconds.
         </p>
       ) : null}
-      <button
-        aria-expanded={showGuide}
-        className="public-player__guide-toggle"
-        onClick={onToggleGuide}
-        type="button"
-      >
-        {showGuide ? "Hide control guide" : "Show control guide"}
-      </button>
-      {showGuide ? (
+
+      {onToggleGuide !== undefined ? (
+        <button
+          aria-expanded={showGuide}
+          className="public-player__guide-toggle"
+          onClick={onToggleGuide}
+          type="button"
+        >
+          {showGuide ? "Hide control guide" : "Show control guide"}
+        </button>
+      ) : null}
+
+      {showGuide !== false ? (
         <div className="public-player__guide">
           <div>
             <strong>Start track at</strong>
@@ -396,11 +653,11 @@ function PlayerRehearsalOptions({
           </div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
 
-function PlayerSetList({
+export function PlayerSetList({
   activeTrackKey,
   currentIndex,
   items,
@@ -427,11 +684,11 @@ function PlayerSetList({
         Choose a track to start practicing. Part and section tracks fall back to Tutti when a
         specific recording is not available.
       </p>
-      <ol>
+      <ol className="public-player__queue-list">
         {items.map((item, index) => {
           const track = resolveTrack(item, activeTrackKey);
           const itemIndex = playableItems.indexOf(item);
-          const active = itemIndex === currentIndex;
+          const active = itemIndex === currentIndex && currentIndex !== -1;
           return (
             <li
               className={active ? "is-active" : undefined}
@@ -445,25 +702,33 @@ function PlayerSetList({
                 }}
                 type="button"
               >
-                <span>
+                <span className="public-player__set-list-item-main">
                   <strong>{item.title}</strong>
                   {item.composer ? <small>{item.composer}</small> : null}
                 </span>
-                {track ? (
-                  <span className="public-player__item-track">
-                    {track.fallback ? "Tutti" : formatTrackKey(track.key)}
-                  </span>
-                ) : (
-                  <span className="public-player__item-track">Unavailable</span>
-                )}
+                <span className="public-player__set-list-item-status">
+                  {active ? (
+                    <span className="public-player__now-playing-pill">Now Playing</span>
+                  ) : null}
+                  {track ? (
+                    <span className="public-player__item-track">
+                      {track.fallback ? "Tutti fallback" : formatTrackKey(track.key)}
+                    </span>
+                  ) : (
+                    <span className="public-player__item-track public-player__item-track--unavailable">
+                      Unavailable
+                    </span>
+                  )}
+                </span>
               </button>
               {track ? (
                 <a
-                  className="button button--secondary button--small"
+                  aria-label={`Download ${item.title}`}
+                  className="button button--secondary button--small public-player__download-btn"
                   download
                   href={playerMediaUrl(track.fileId, token)}
                 >
-                  Download file
+                  Download
                 </a>
               ) : null}
             </li>
@@ -474,7 +739,33 @@ function PlayerSetList({
   );
 }
 
-function PublicPracticePlayer({
+function updateMediaSessionPosition(
+  currentTime: number,
+  duration: number,
+  audio: HTMLAudioElement | null,
+): void {
+  if (
+    "mediaSession" in navigator &&
+    typeof navigator.mediaSession.setPositionState === "function" &&
+    Number.isFinite(duration) &&
+    duration > 0 &&
+    Number.isFinite(currentTime) &&
+    currentTime >= 0 &&
+    currentTime <= duration
+  ) {
+    try {
+      navigator.mediaSession.setPositionState({
+        duration,
+        playbackRate: audio?.playbackRate ?? 1,
+        position: currentTime,
+      });
+    } catch {
+      // Gracefully ignore position sync errors
+    }
+  }
+}
+
+export function PublicPracticePlayer({
   details,
   token,
 }: {
@@ -484,6 +775,9 @@ function PublicPracticePlayer({
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoplayRef = useRef(false);
   const gapTimerRef = useRef<number | null>(null);
+  const queueButtonRef = useRef<HTMLButtonElement | null>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
+
   const [selectedTrackKey, setSelectedTrackKey] = useState("tutti");
   const [selectedItemIndex, setSelectedItemIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -495,6 +789,8 @@ function PublicPracticePlayer({
   const [loopMode, setLoopMode] = useState<"all" | "none" | "one">("none");
   const [countdown, setCountdown] = useState<number | null>(null);
   const [showGuide, setShowGuide] = useState(true);
+  const [queueOpen, setQueueOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const allTrackKeys = useMemo(() => availableTrackKeys(details.items), [details.items]);
   const voicePartKeys = useMemo(
@@ -524,6 +820,19 @@ function PublicPracticePlayer({
   const currentTrack = currentItem ? resolveTrack(currentItem, activeTrackKey) : null;
   const currentIndex = currentItem ? playableItems.indexOf(currentItem) : -1;
   const source = currentTrack ? playerMediaUrl(currentTrack.fileId, token) : "";
+  const eventArtworkUrl = details.eventArtworkFileId
+    ? playerMediaUrl(details.eventArtworkFileId, token)
+    : null;
+
+  useEffect(() => {
+    if ("audioSession" in navigator && navigator.audioSession) {
+      try {
+        navigator.audioSession.type = "playback";
+      } catch {
+        // Non-blocking fallback
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -583,8 +892,16 @@ function PublicPracticePlayer({
     }
   }
 
+  function previousTrack(): void {
+    if (currentIndex > 0) {
+      selectItem(currentIndex - 1, false);
+    } else if (loopMode === "all" && playableItems.length > 0) {
+      selectItem(playableItems.length - 1, false);
+    }
+  }
+
   function startNextTrack(): void {
-    if (gapSeconds === 0) {
+    if (gapSeconds === 0 || document.visibilityState === "hidden") {
       nextTrack();
       return;
     }
@@ -638,10 +955,133 @@ function PublicPracticePlayer({
     }
   }
 
+  function handleSeek(nextTime: number): void {
+    const bounded = Math.max(0, Math.min(nextTime, duration || 0));
+    setCurrentTime(bounded);
+    if (audioRef.current) {
+      audioRef.current.currentTime = bounded;
+    }
+    updateMediaSessionPosition(bounded, duration, audioRef.current);
+  }
+
+  function seekRelative(deltaSeconds: number): void {
+    const nextTime = Math.max(0, Math.min(currentTime + deltaSeconds, duration || 0));
+    handleSeek(nextTime);
+  }
+
+  // Media Session Updates
+  useEffect(() => {
+    if (!currentItem || !("mediaSession" in navigator)) return;
+    try {
+      const artwork = eventArtworkUrl
+        ? [{ sizes: "512x512", src: eventArtworkUrl, type: "image/jpeg" }]
+        : [];
+      navigator.mediaSession.metadata = new MediaMetadata({
+        album: details.eventTitle,
+        artist: currentItem.composer ?? currentItem.arranger ?? details.performerLabel ?? "",
+        artwork,
+        title: currentItem.title,
+      });
+    } catch {
+      // Non-blocking MediaSession error
+    }
+  }, [currentItem, details.eventTitle, details.performerLabel, eventArtworkUrl]);
+
+  useEffect(() => {
+    if ("mediaSession" in navigator) {
+      navigator.mediaSession.playbackState = playing ? "playing" : "paused";
+    }
+  }, [playing]);
+
+  const playRef = useRef(playCurrent);
+  const togglePlayRef = useRef(togglePlay);
+  const nextTrackRef = useRef(nextTrack);
+  const prevTrackRef = useRef(previousTrack);
+  const seekRelativeRef = useRef(seekRelative);
+  const handleSeekRef = useRef(handleSeek);
+
+  useEffect(() => {
+    playRef.current = playCurrent;
+    togglePlayRef.current = togglePlay;
+    nextTrackRef.current = nextTrack;
+    prevTrackRef.current = previousTrack;
+    seekRelativeRef.current = seekRelative;
+    handleSeekRef.current = handleSeek;
+  });
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+
+    const actionMap: [MediaSessionAction, (details: MediaSessionActionDetails) => void][] = [
+      [
+        "play",
+        () => {
+          playRef.current();
+        },
+      ],
+      [
+        "pause",
+        () => {
+          togglePlayRef.current();
+        },
+      ],
+      [
+        "previoustrack",
+        () => {
+          prevTrackRef.current();
+        },
+      ],
+      [
+        "nexttrack",
+        () => {
+          nextTrackRef.current();
+        },
+      ],
+      [
+        "seekbackward",
+        (actDetails) => {
+          seekRelativeRef.current(-(actDetails.seekOffset ?? 10));
+        },
+      ],
+      [
+        "seekforward",
+        (actDetails) => {
+          seekRelativeRef.current(actDetails.seekOffset ?? 10);
+        },
+      ],
+      [
+        "seekto",
+        (actDetails) => {
+          if (typeof actDetails.seekTime === "number") {
+            handleSeekRef.current(actDetails.seekTime);
+          }
+        },
+      ],
+    ];
+
+    for (const [action, handler] of actionMap) {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch {
+        // Ignore unsupported action types
+      }
+    }
+
+    return () => {
+      for (const [action] of actionMap) {
+        try {
+          navigator.mediaSession.setActionHandler(action, null);
+        } catch {
+          // Ignore errors during cleanup
+        }
+      }
+    };
+  }, []);
+
   if (!currentItem || !currentTrack) {
     return (
-      <>
-        <TrackSelectionNav
+      <div className="public-player__container">
+        <PlayerPartSelector
           activeTrackKey={activeTrackKey}
           onSelectTrackKey={selectTrackKey}
           trackKeys={trackKeys}
@@ -650,119 +1090,200 @@ function PublicPracticePlayer({
         <p className="public-player__empty" role="status">
           No practice tracks are available for this set list yet.
         </p>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
-      <TrackSelectionNav
-        activeTrackKey={activeTrackKey}
-        onSelectTrackKey={selectTrackKey}
-        trackKeys={trackKeys}
-        voicePartKeys={voicePartKeys}
-      />
+    <div className="public-player__layout-grid">
+      {/* Hidden Persistent Audio Element */}
+      <audio
+        aria-label={`${currentItem.title} ${formatTrackKey(currentTrack.key)} track`}
+        className="public-player__audio"
+        onEnded={handleEnded}
+        onLoadedMetadata={(event) => {
+          const nextDuration = Number.isFinite(event.currentTarget.duration)
+            ? event.currentTarget.duration
+            : 0;
+          const initialTime = Math.min(startAt, nextDuration);
+          setDuration(nextDuration);
+          setCurrentTime(initialTime);
+          event.currentTarget.currentTime = initialTime;
+          updateMediaSessionPosition(initialTime, nextDuration, event.currentTarget);
+          if (autoplayRef.current || playing) {
+            autoplayRef.current = false;
+            playCurrent();
+          }
+        }}
+        onPause={() => {
+          setPlaying(false);
+        }}
+        onPlay={() => {
+          setPlaying(true);
+        }}
+        onTimeUpdate={(event) => {
+          const time = event.currentTarget.currentTime;
+          setCurrentTime(time);
+          updateMediaSessionPosition(time, duration, event.currentTarget);
+        }}
+        preload="metadata"
+        ref={audioRef}
+        src={source}
+      >
+        <track kind="captions" />
+      </audio>
 
-      <section aria-labelledby="public-player-now-playing" className="public-player__now-playing">
-        <div className="public-player__track-heading">
-          <div>
-            <p className="eyebrow">Now playing</p>
-            <h2 id="public-player-now-playing">{currentItem.title}</h2>
+      {/* Main Player Column */}
+      <div className="public-player__main-column">
+        <section
+          aria-labelledby="public-player-now-playing"
+          className="public-player__now-playing-card"
+        >
+          {/* Part selection */}
+          <PlayerPartSelector
+            activeTrackKey={activeTrackKey}
+            onSelectTrackKey={selectTrackKey}
+            trackKeys={trackKeys}
+            voicePartKeys={voicePartKeys}
+          />
+
+          {/* Event artwork */}
+          <PlayerArtwork artworkUrl={eventArtworkUrl} eventTitle={details.eventTitle} />
+
+          {/* Now playing metadata & Tutti fallback status */}
+          <PlayerTrackMetadata
+            activeTrackKey={activeTrackKey}
+            currentTrack={currentTrack}
+            item={currentItem}
+          />
+
+          {/* Progress bar */}
+          <PlayerProgress
+            currentTime={currentTime}
+            duration={duration}
+            onSeek={handleSeek}
+            title={currentItem.title}
+          />
+
+          {/* Transport controls */}
+          <PlayerTransport
+            currentIndex={currentIndex}
+            loopMode={loopMode}
+            onNext={nextTrack}
+            onPrevious={previousTrack}
+            onTogglePlay={togglePlay}
+            playableCount={playableItems.length}
+            playing={playing}
+          />
+
+          {/* Secondary controls */}
+          <PlayerSecondaryControls
+            loopMode={loopMode}
+            onOpenQueue={() => {
+              setQueueOpen(true);
+            }}
+            onOpenSettings={() => {
+              setSettingsOpen(true);
+            }}
+            onToggleLoop={() => {
+              setLoopMode((mode) => (mode === "none" ? "all" : mode === "all" ? "one" : "none"));
+            }}
+            queueButtonRef={queueButtonRef}
+            queueCount={playableItems.length}
+            settingsButtonRef={settingsButtonRef}
+          />
+        </section>
+      </div>
+
+      {/* Desktop side panel: Set list */}
+      <div className="public-player__desktop-panel">
+        <PlayerSetList
+          activeTrackKey={activeTrackKey}
+          currentIndex={currentIndex}
+          items={details.items}
+          onSelectItem={(itemIndex) => {
+            selectItem(itemIndex);
+          }}
+          playableItems={playableItems}
+          token={token}
+        />
+        <div className="public-player__desktop-options">
+          <PlayerRehearsalOptions
+            countdown={countdown}
+            currentTrackFileId={currentTrack.fileId}
+            gapSeconds={gapSeconds}
+            onChangeGapSeconds={setGapSeconds}
+            onChangeStartAt={updateStartAt}
+            onChangeVolume={setVolume}
+            onToggleGuide={() => {
+              setShowGuide((current) => !current);
+            }}
+            showGuide={showGuide}
+            startAt={startAt}
+            token={token}
+            volume={volume}
+          />
+        </div>
+      </div>
+
+      {/* Mobile Drawer: Set List */}
+      <Sheet
+        onClose={() => {
+          setQueueOpen(false);
+        }}
+        open={queueOpen}
+        restoreFocusRef={queueButtonRef}
+        title="Set List"
+      >
+        <div className="public-player__sheet-container">
+          <div className="public-player__sheet-header">
+            <p className="public-player__sheet-title">Set List</p>
             <p>
-              {currentTrack.fallback
-                ? `Tutti fallback${currentItem.composer ? ` · ${currentItem.composer}` : ""}`
-                : `${formatTrackKey(currentTrack.key)}${currentItem.composer ? ` · ${currentItem.composer}` : ""}`}
+              {details.eventTitle} · {playableItems.length} tracks
             </p>
           </div>
-          <span className="public-player__track-badge">
-            {formatTrackKey(currentTrack.key).toUpperCase()}
-          </span>
+          <PlayerSetList
+            activeTrackKey={activeTrackKey}
+            currentIndex={currentIndex}
+            items={details.items}
+            onSelectItem={(itemIndex) => {
+              selectItem(itemIndex);
+              setQueueOpen(false);
+            }}
+            playableItems={playableItems}
+            token={token}
+          />
         </div>
+      </Sheet>
 
-        <audio
-          aria-label={`${currentItem.title} ${formatTrackKey(currentTrack.key)} track`}
-          className="public-player__audio"
-          onEnded={handleEnded}
-          onLoadedMetadata={(event) => {
-            const nextDuration = Number.isFinite(event.currentTarget.duration)
-              ? event.currentTarget.duration
-              : 0;
-            const initialTime = Math.min(startAt, nextDuration);
-            setDuration(nextDuration);
-            setCurrentTime(initialTime);
-            event.currentTarget.currentTime = initialTime;
-            if (autoplayRef.current || playing) {
-              autoplayRef.current = false;
-              playCurrent();
-            }
-          }}
-          onPause={() => {
-            setPlaying(false);
-          }}
-          onPlay={() => {
-            setPlaying(true);
-          }}
-          onTimeUpdate={(event) => {
-            setCurrentTime(event.currentTarget.currentTime);
-          }}
-          preload="metadata"
-          ref={audioRef}
-          src={source}
-        >
-          <track kind="captions" />
-        </audio>
-
-        <PlayerProgressBar
-          currentTime={currentTime}
-          duration={duration}
-          onSeek={(nextTime) => {
-            setCurrentTime(nextTime);
-            if (audioRef.current) audioRef.current.currentTime = nextTime;
-          }}
-          title={currentItem.title}
-        />
-
-        <PlayerTransportControls
-          currentIndex={currentIndex}
-          loopMode={loopMode}
-          onNext={nextTrack}
-          onPrevious={() => {
-            selectItem(currentIndex - 1, false);
-          }}
-          onToggleLoop={() => {
-            setLoopMode((mode) => (mode === "none" ? "all" : mode === "all" ? "one" : "none"));
-          }}
-          onTogglePlay={togglePlay}
-          playableCount={playableItems.length}
-          playing={playing}
-        />
-
-        <PlayerRehearsalOptions
-          countdown={countdown}
-          gapSeconds={gapSeconds}
-          onChangeGapSeconds={setGapSeconds}
-          onChangeStartAt={updateStartAt}
-          onChangeVolume={setVolume}
-          onToggleGuide={() => {
-            setShowGuide((current) => !current);
-          }}
-          showGuide={showGuide}
-          startAt={startAt}
-          volume={volume}
-        />
-      </section>
-
-      <PlayerSetList
-        activeTrackKey={activeTrackKey}
-        currentIndex={currentIndex}
-        items={details.items}
-        onSelectItem={(itemIndex) => {
-          selectItem(itemIndex);
+      {/* Mobile Drawer: Settings */}
+      <Sheet
+        onClose={() => {
+          setSettingsOpen(false);
         }}
-        playableItems={playableItems}
-        token={token}
-      />
-    </>
+        open={settingsOpen}
+        restoreFocusRef={settingsButtonRef}
+        title="Rehearsal Settings"
+      >
+        <div className="public-player__sheet-container">
+          <div className="public-player__sheet-header">
+            <p className="public-player__sheet-title">Rehearsal Settings</p>
+            <p>Adjust playback options for practice</p>
+          </div>
+          <PlayerRehearsalOptions
+            countdown={countdown}
+            currentTrackFileId={currentTrack.fileId}
+            gapSeconds={gapSeconds}
+            onChangeGapSeconds={setGapSeconds}
+            onChangeStartAt={updateStartAt}
+            onChangeVolume={setVolume}
+            startAt={startAt}
+            token={token}
+            volume={volume}
+          />
+        </div>
+      </Sheet>
+    </div>
   );
 }
 
@@ -790,7 +1311,7 @@ export function PublicPlayerView() {
   if (pageStatus.type === "no_token") {
     return (
       <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="player-title">
+        <section aria-labelledby="player-title" className="auth-card">
           <h1 id="player-title">Player Link Required</h1>
           <p className="notice notice--info" role="status">
             Please use the practice-player link from your Organization.
@@ -806,7 +1327,7 @@ export function PublicPlayerView() {
   if (pageStatus.type === "loading") {
     return (
       <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="player-title">
+        <section aria-labelledby="player-title" className="auth-card">
           <h1 id="player-title">Loading practice player…</h1>
         </section>
       </main>
@@ -816,7 +1337,7 @@ export function PublicPlayerView() {
   if (pageStatus.type === "not_found") {
     return (
       <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="player-title">
+        <section aria-labelledby="player-title" className="auth-card">
           <h1 id="player-title">Link Not Found</h1>
           <p className="notice notice--error" role="alert">
             This practice-player link is invalid or expired. Ask an Organization manager for a new
@@ -835,13 +1356,8 @@ export function PublicPlayerView() {
 
   return (
     <main className="public-player-layout">
-      <section className="public-player" aria-labelledby="player-title">
-        <header className="public-player__header">
-          <p className="eyebrow">Practice player</p>
-          <h1 id="player-title">{details.eventTitle}</h1>
-          <p>{formatDate(details.eventStartsAt)}</p>
-          {details.profileName ? <p>Welcome, {details.profileName}.</p> : null}
-        </header>
+      <section aria-labelledby="player-title" className="public-player">
+        <PlayerHeader details={details} />
         <PublicPracticePlayer details={details} token={token ?? ""} />
       </section>
     </main>

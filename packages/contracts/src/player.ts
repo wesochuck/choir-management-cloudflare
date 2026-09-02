@@ -14,10 +14,12 @@ export const playerPlaylistItemSchema = z.object({
 export type PlayerPlaylistItem = z.infer<typeof playerPlaylistItemSchema>;
 
 export const publicPlayerDetailsResponseSchema = z.object({
+  eventArtworkFileId: z.uuid().nullable().optional(),
   eventId: z.uuid(),
   eventTitle: z.string(),
   eventStartsAt: z.string(),
   items: z.array(playerPlaylistItemSchema),
+  performerLabel: z.string().optional(),
   profileId: z.string(),
   profileName: z.string(),
 });

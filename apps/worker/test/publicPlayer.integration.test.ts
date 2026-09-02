@@ -13,6 +13,7 @@ const ALPHA_EVENT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const BRAVO_EVENT = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const ALPHA_PIECE = "p0000000-0000-4000-8000-000000000001";
 const ALPHA_PIECE_FILE = "f0000000-0000-4000-8000-000000000001";
+const ALPHA_ARTWORK_FILE = "f0000000-0000-4000-8000-000000000008";
 const ALPHA_OUT_OF_SCOPE_FILE = "f0000000-0000-4000-8000-000000000003";
 const BRAVO_PIECE = "p0000000-0000-4000-8000-000000000002";
 
@@ -37,6 +38,7 @@ const provision = async (
   pieceId: string,
   fileId: string,
   profileSuffix: string,
+  artworkFileId: string | null = null,
 ) => {
   await provisionOrganization(database, stores, {
     id,
@@ -71,12 +73,13 @@ const provision = async (
       `INSERT INTO events
          (id, title, type, starts_at, duration_minutes, call_time, location, venue_id,
           parent_performance_id, details, set_list_json, set_list_approved,
-          is_archived, created_at, updated_at)
-        VALUES (?, ?, 'Performance', ?, 90, '', '', NULL, NULL, '', ?, 1, 0, ?, ?)`,
+          is_archived, public_graphic_file_id, created_at, updated_at)
+        VALUES (?, ?, 'Performance', ?, 90, '', '', NULL, NULL, '', ?, 1, 0, ?, ?, ?)`,
       eventId,
       `${slug} Concert`,
       new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000).toISOString(),
       setListJson,
+      artworkFileId,
       now,
       now,
     );
@@ -136,6 +139,7 @@ beforeEach(async () => {
     ALPHA_PIECE,
     ALPHA_PIECE_FILE,
     "A",
+    ALPHA_ARTWORK_FILE,
   );
   await provision(
     "organization-bravo",
@@ -145,6 +149,7 @@ beforeEach(async () => {
     BRAVO_PIECE,
     "f0000000-0000-4000-8000-000000000002",
     "B",
+    null,
   );
 });
 
@@ -165,6 +170,7 @@ describe("public player signed flow", () => {
     expect(response.status).toBe(200);
     const body: unknown = await response.json();
     expect(body).toMatchObject({
+      eventArtworkFileId: ALPHA_ARTWORK_FILE,
       eventId: ALPHA_EVENT,
       eventTitle: "alpha Concert",
       profileId: ALPHA_PROFILE,
@@ -209,7 +215,7 @@ describe("public player signed flow", () => {
     );
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      event: { id: ALPHA_EVENT, title: "alpha Concert" },
+      event: { artworkFileId: ALPHA_ARTWORK_FILE, id: ALPHA_EVENT, title: "alpha Concert" },
       setList: expect.arrayContaining([expect.objectContaining({ title: "Alleluia" })]),
     });
     const crossTenantResponse = await exports.default.fetch(
@@ -390,6 +396,8 @@ describe("public player signed flow", () => {
       api("alpha.localhost", `/api/public/player/media/${ALPHA_PIECE_FILE}?token=${token}`),
     );
     expect(allowedResponse.status).toBe(200);
+    expect(allowedResponse.headers.get("accept-ranges")).toBe("bytes");
+    expect(allowedResponse.headers.get("content-length")).toBe(String(body.byteLength));
     expect(new Uint8Array(await allowedResponse.arrayBuffer())).toEqual(
       new TextEncoder().encode("practice-track"),
     );
@@ -398,5 +406,72 @@ describe("public player signed flow", () => {
       api("alpha.localhost", `/api/public/player/media/${ALPHA_OUT_OF_SCOPE_FILE}?token=${token}`),
     );
     expect(blockedResponse.status).toBe(404);
+  });
+
+  it("serves event artwork through the player media endpoint", async () => {
+    const artworkBody = new TextEncoder().encode("artwork-image-data").buffer;
+    await uploadPrivateOrganizationFile(
+      { ORGANIZATION_FILES: organizationFiles, ORGANIZATION_STORE: stores },
+      {
+        actorUserId: "bootstrap",
+        body: artworkBody,
+        contentType: "image/jpeg",
+        fileId: ALPHA_ARTWORK_FILE,
+        fileName: "cover.jpg",
+        organizationId: "organization-alpha",
+        requestId: crypto.randomUUID(),
+        sizeBytes: artworkBody.byteLength,
+      },
+    );
+
+    const token = await issuePlayerToken("organization-alpha", ALPHA_EVENT, ALPHA_PROFILE);
+    const response = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/player/media/${ALPHA_ARTWORK_FILE}?token=${token}`),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("image/jpeg");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(
+      new TextEncoder().encode("artwork-image-data"),
+    );
+  });
+
+  it("handles HTTP byte range requests for player media", async () => {
+    const body = new TextEncoder().encode("practice-track").buffer; // 14 bytes
+    await uploadPrivateOrganizationFile(
+      { ORGANIZATION_FILES: organizationFiles, ORGANIZATION_STORE: stores },
+      {
+        actorUserId: "bootstrap",
+        body,
+        contentType: "audio/mpeg",
+        fileId: ALPHA_PIECE_FILE,
+        fileName: "practice-track.mp3",
+        organizationId: "organization-alpha",
+        requestId: crypto.randomUUID(),
+        sizeBytes: body.byteLength,
+      },
+    );
+
+    const token = await issuePublicPlayerToken("organization-alpha", ALPHA_EVENT);
+
+    // Partial range request
+    const partialResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/player/media/${ALPHA_PIECE_FILE}?token=${token}`, {
+        headers: { range: "bytes=0-7" },
+      }),
+    );
+    expect(partialResponse.status).toBe(206);
+    expect(partialResponse.headers.get("accept-ranges")).toBe("bytes");
+    expect(partialResponse.headers.get("content-range")).toBe("bytes 0-7/14");
+    expect(partialResponse.headers.get("content-length")).toBe("8");
+    expect(new TextDecoder().decode(await partialResponse.arrayBuffer())).toBe("practice");
+
+    // Unsatisfiable range request
+    const unsatisfiableResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/player/media/${ALPHA_PIECE_FILE}?token=${token}`, {
+        headers: { range: "bytes=999999-" },
+      }),
+    );
+    expect(unsatisfiableResponse.status).toBe(416);
+    expect(unsatisfiableResponse.headers.get("content-range")).toBe("bytes */14");
   });
 });

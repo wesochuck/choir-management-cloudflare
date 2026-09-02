@@ -129,11 +129,13 @@ export function readPlayerDetailsFromStore(
   const eventRow = storage.sql
     .exec<{
       id: string;
+      publicGraphicFileId: string | null;
       setListJson: string;
       startsAt: string;
       title: string;
     }>(
-      `SELECT id, set_list_json AS setListJson, starts_at AS startsAt, title
+      `SELECT id, set_list_json AS setListJson, starts_at AS startsAt, title,
+         public_graphic_file_id AS publicGraphicFileId
        FROM events WHERE id = ? AND is_archived = 0 AND is_canceled = 0
          AND set_list_approved = 1 LIMIT 1`,
       eventId,
@@ -180,6 +182,7 @@ export function readPlayerDetailsFromStore(
     };
   });
   return Response.json({
+    eventArtworkFileId: eventRow.publicGraphicFileId ?? null,
     eventId: eventRow.id,
     eventTitle: eventRow.title,
     eventStartsAt: eventRow.startsAt,
@@ -199,11 +202,13 @@ export function readPlayerPlaylistFromStore(
   const eventRow = storage.sql
     .exec<{
       id: string;
+      publicGraphicFileId: string | null;
       setListJson: string;
       startsAt: string;
       title: string;
     }>(
-      `SELECT id, set_list_json AS setListJson, starts_at AS startsAt, title
+      `SELECT id, set_list_json AS setListJson, starts_at AS startsAt, title,
+         public_graphic_file_id AS publicGraphicFileId
        FROM events WHERE id = ? AND is_archived = 0 AND is_canceled = 0
          AND set_list_approved = 1 LIMIT 1`,
       eventId,
@@ -235,6 +240,7 @@ export function readPlayerPlaylistFromStore(
     };
   });
   return Response.json({
+    eventArtworkFileId: eventRow.publicGraphicFileId ?? null,
     eventId: eventRow.id,
     eventStartsAt: eventRow.startsAt,
     eventTitle: eventRow.title,
