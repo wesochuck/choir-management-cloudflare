@@ -1344,7 +1344,10 @@ export function PublicPracticePlayer({
 }
 
 export function PublicPlayerView() {
-  const location = useMemo(() => new URLSearchParams(window.location.search), []);
+  const location = useMemo(
+    () => new URLSearchParams(typeof window !== "undefined" ? window.location.search : ""),
+    [],
+  );
   const token = location.get("token");
   const isSetListPlayer = location.get("mode") === "set-list";
   const [pageStatus, setPageStatus] = useState<PageStatus>({
@@ -1352,7 +1355,6 @@ export function PublicPlayerView() {
   });
 
   useEffect(() => {
-    window.history.replaceState(null, "", "/player");
     if (!token) return;
     const load = isSetListPlayer ? fetchPublicPlayerPlaylist(token) : fetchPlayerDetails(token);
     void load

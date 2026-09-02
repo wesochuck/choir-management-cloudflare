@@ -1,5 +1,5 @@
 import { renderToString } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   PlayerArtwork,
@@ -11,6 +11,7 @@ import {
   PlayerSetList,
   PlayerTrackMetadata,
   PlayerTransport,
+  PublicPlayerView,
   type PlayerDetails,
   type PlayerPlaylistItem,
 } from "./PublicPlayerView";
@@ -307,6 +308,30 @@ describe("PublicPlayerView Components", () => {
       expect(html).not.toContain("Volume");
       expect(html).toContain("Gap between tracks");
       expect(html).toContain("Download Current Track");
+    });
+  });
+
+  describe("PublicPlayerView", () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("renders required link notice when no token query parameter is present", () => {
+      const html = renderToString(<PublicPlayerView />);
+      expect(html).toContain("Player Link Required");
+      expect(html).toContain("Please use the practice-player link from your Organization.");
+    });
+
+    it("does not clear query parameters or call replaceState on mount", () => {
+      const replaceStateSpy = vi.fn();
+      vi.stubGlobal("window", {
+        history: { replaceState: replaceStateSpy },
+        location: { search: "?token=sample-token-123" },
+      });
+
+      const html = renderToString(<PublicPlayerView />);
+      expect(html).toContain("Loading practice player…");
+      expect(replaceStateSpy).not.toHaveBeenCalled();
     });
   });
 });

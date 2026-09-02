@@ -5,6 +5,7 @@ import {
   assertEmailFeedbackSubscription,
   assertEmailSendingEnabled,
   assertReleaseCheckout,
+  deployTriggers,
   deployVersion,
   sanitizeExternalOutput,
   uploadedVersionId,
@@ -148,5 +149,49 @@ describe("local staging deployment safeguards", () => {
 
     expect(runner).toHaveBeenCalledTimes(1);
     expect(sleeper).not.toHaveBeenCalled();
+  });
+
+  it("retries deployTriggers when encountering transient Cloudflare trigger errors (code 10013)", async () => {
+    let callCount = 0;
+    const runner = vi.fn(() => {
+      callCount += 1;
+      if (callCount < 3) {
+        throw new Error(
+          "Trigger configuration for 'choir-management-cloudflare-staging' was only partially updated: Queue consumers: A request to the Cloudflare API failed. [code: 10013]",
+        );
+      }
+      return "Deployed triggers";
+    });
+    const sleeper = vi.fn(async () => Promise.resolve());
+
+    await deployTriggers("staging", {
+      attempts: 4,
+      retryDelayMs: 50,
+      runner,
+      sleeper,
+    });
+
+    expect(runner).toHaveBeenCalledTimes(3);
+    expect(sleeper).toHaveBeenCalledTimes(2);
+    expect(sleeper).toHaveBeenCalledWith(50);
+  });
+
+  it("throws when deployTriggers retries are exhausted", async () => {
+    const runner = vi.fn(() => {
+      throw new Error("A request to the Cloudflare API failed. [code: 10013]");
+    });
+    const sleeper = vi.fn(async () => Promise.resolve());
+
+    await expect(
+      deployTriggers("staging", {
+        attempts: 3,
+        retryDelayMs: 10,
+        runner,
+        sleeper,
+      }),
+    ).rejects.toThrow(/10013/u);
+
+    expect(runner).toHaveBeenCalledTimes(3);
+    expect(sleeper).toHaveBeenCalledTimes(2);
   });
 });

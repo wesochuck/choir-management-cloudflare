@@ -193,6 +193,40 @@ export async function deployVersion(versionId, message, options = {}) {
   }
 }
 
+export async function deployTriggers(envName, options = {}) {
+  const attempts = options.attempts ?? 4;
+  const retryDelayMs = options.retryDelayMs ?? 2000;
+  const runner = options.runner ?? wrangler;
+  const sleeper = options.sleeper ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const output = runner(["triggers", "deploy", "--config", workerConfig, "--env", envName], {
+        capture: true,
+      });
+      if (output && typeof output === "string" && output.trim().length > 0) {
+        console.log(output.trim());
+      }
+      return;
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : String(error);
+      const isRetriableTriggerError =
+        messageText.includes("10013") ||
+        messageText.includes("only partially updated") ||
+        messageText.includes("rate limit") ||
+        messageText.includes("429");
+      if (isRetriableTriggerError && attempt < attempts) {
+        console.warn(
+          `Trigger deployment for '${envName}' encountered transient Cloudflare error (attempt ${attempt}/${attempts}); retrying in ${retryDelayMs}ms...`,
+        );
+        await sleeper(retryDelayMs);
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
 async function recordProvenance(record) {
   const directory = resolve(".wrangler", "releases");
   await mkdir(directory, { recursive: true });
@@ -251,7 +285,7 @@ export async function deployProduction() {
       "production",
       "--remote",
     ]);
-    wrangler(["triggers", "deploy", "--config", workerConfig, "--env", "production"]);
+    await deployTriggers("production");
 
     console.log("Uploading the verified artifact as an inactive Worker version...");
     const uploadOutputPath = join(releaseRoot, "version-upload.json");
