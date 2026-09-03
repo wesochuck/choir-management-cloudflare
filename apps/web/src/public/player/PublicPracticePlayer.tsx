@@ -18,6 +18,7 @@ import {
   updateMediaSessionPosition,
 } from "./format";
 import type { PlayerDetails } from "./types";
+import { useAudioSession, type AudioSessionHandlers } from "./useAudioSession";
 
 export function PublicPracticePlayer({
   details,
@@ -248,74 +249,28 @@ export function PublicPracticePlayer({
     handleSeekRef.current = handleSeek;
   });
 
-  useEffect(() => {
-    if (!("mediaSession" in navigator)) return;
+  const audioSessionHandlersRef = useRef<AudioSessionHandlers>({
+    onNextTrack: () => {
+      nextTrackRef.current();
+    },
+    onPause: () => {
+      togglePlayRef.current();
+    },
+    onPlay: () => {
+      playRef.current();
+    },
+    onPreviousTrack: () => {
+      prevTrackRef.current();
+    },
+    onSeekRelative: (offsetSeconds) => {
+      seekRelativeRef.current(offsetSeconds);
+    },
+    onSeekTo: (timeSeconds) => {
+      handleSeekRef.current(timeSeconds);
+    },
+  });
 
-    const actionMap: [MediaSessionAction, (details: MediaSessionActionDetails) => void][] = [
-      [
-        "play",
-        () => {
-          playRef.current();
-        },
-      ],
-      [
-        "pause",
-        () => {
-          togglePlayRef.current();
-        },
-      ],
-      [
-        "previoustrack",
-        () => {
-          prevTrackRef.current();
-        },
-      ],
-      [
-        "nexttrack",
-        () => {
-          nextTrackRef.current();
-        },
-      ],
-      [
-        "seekbackward",
-        (actDetails) => {
-          seekRelativeRef.current(-(actDetails.seekOffset ?? 10));
-        },
-      ],
-      [
-        "seekforward",
-        (actDetails) => {
-          seekRelativeRef.current(actDetails.seekOffset ?? 10);
-        },
-      ],
-      [
-        "seekto",
-        (actDetails) => {
-          if (typeof actDetails.seekTime === "number") {
-            handleSeekRef.current(actDetails.seekTime);
-          }
-        },
-      ],
-    ];
-
-    for (const [action, handler] of actionMap) {
-      try {
-        navigator.mediaSession.setActionHandler(action, handler);
-      } catch {
-        // Ignore unsupported action types
-      }
-    }
-
-    return () => {
-      for (const [action] of actionMap) {
-        try {
-          navigator.mediaSession.setActionHandler(action, null);
-        } catch {
-          // Ignore errors during cleanup
-        }
-      }
-    };
-  }, []);
+  useAudioSession(audioSessionHandlersRef);
 
   if (!currentItem || !currentTrack) {
     return (

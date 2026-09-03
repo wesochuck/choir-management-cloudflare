@@ -168,6 +168,11 @@ Before finishing a material or release-bound change, report:
 - A custom-domain HTTP 403 may be reported as degraded only when direct Worker probes pass. A
   healthy previous version throughout the qualification window may be reported as propagation delay.
   Real Worker failures remain hard failures and trigger rollback.
+- Deduplicate deployment retries: retry transient failures at exactly one layer — either at the
+  outermost orchestrator OR at the inner transport, never both. When orchestrating qualification or
+  deployment steps, configure inner helpers with a single attempt (e.g. `{ outerMaxAttempts: N }`
+  setting inner `STAGING_QUALIFY_ATTEMPTS: "1"`) so outer retry limits strictly bound total attempts
+  and prevent cascading timeout blowups.
 - Do not modify hosted resources, domains, data, or provider configuration without authenticated
   environment context and explicit in-scope authorization.
 - Production requires a separate explicit user decision, updated goal contract, independently

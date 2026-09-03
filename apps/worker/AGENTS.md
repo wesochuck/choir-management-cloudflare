@@ -36,6 +36,14 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
   explicit size limits.
 - Enforce cross-field and referential rules at the shared contract and Organization store layers,
   with UI validation as an affordance rather than an integrity boundary.
+- SQL tests must execute against real SQLite schema migrations (via Node `DatabaseSync` or
+  `@cloudflare/vitest-pool-workers` `runInDurableObject`); mocking `storage.sql.exec` by
+  string-matching queries and returning synthetic columns is strictly prohibited (WS1).
+- Search splits identity and profile data: email lives in D1 (`user`/`member`), while operational
+  profiles live in the Organization Durable Object (`profiles`); the layers communicate via bounded
+  `profileIds` and must enforce cross-tenant isolation (WS1).
+- SQL queries must not broadly swallow errors with empty catch blocks; unexpected SQL syntax or
+  schema mismatches must fail fast (WS1).
 
 ## Queues, Workflows, and Providers
 

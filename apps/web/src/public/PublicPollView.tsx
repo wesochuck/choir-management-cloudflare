@@ -168,7 +168,6 @@ export function PublicPollView() {
   }));
 
   useEffect(() => {
-    window.history.replaceState(null, "", "/poll");
     if (!token) return;
     fetchPollDetails(token)
       .then((details) => {

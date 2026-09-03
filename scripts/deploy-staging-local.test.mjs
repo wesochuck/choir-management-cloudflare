@@ -7,6 +7,7 @@ import {
   assertReleaseCheckout,
   deployTriggers,
   deployVersion,
+  qualifyDeployment,
   sanitizeExternalOutput,
   uploadedVersionId,
 } from "./deploy-staging-local.mjs";
@@ -193,5 +194,82 @@ describe("local staging deployment safeguards", () => {
 
     expect(runner).toHaveBeenCalledTimes(3);
     expect(sleeper).toHaveBeenCalledTimes(2);
+  });
+
+  describe("qualifyDeployment retry deduplication", () => {
+    it("runs qualification with inner attempts when no outer retries are specified", async () => {
+      const recordedRuns = [];
+      const runner = vi.fn((cmd, args, options) => {
+        recordedRuns.push({ args, cmd, env: options?.env });
+      });
+
+      await qualifyDeployment("commit-abc", {
+        attempts: 20,
+        retryDelayMs: 1000,
+        runner,
+      });
+
+      expect(runner).toHaveBeenCalledTimes(2);
+      expect(recordedRuns[0].args).toEqual(["run", "qualify:staging"]);
+      expect(recordedRuns[0].env?.STAGING_QUALIFY_ATTEMPTS).toBe("20");
+      expect(recordedRuns[1].args).toEqual([
+        "run",
+        "qualify:staging:evidence",
+        "--",
+        "--anonymous",
+      ]);
+    });
+
+    it("deduplicates retries by setting inner attempts to 1 when outerMaxAttempts is active", async () => {
+      const recordedRuns = [];
+      const runner = vi.fn((cmd, args, options) => {
+        recordedRuns.push({ args, cmd, env: options?.env });
+        if (args[1] === "qualify:staging") {
+          throw new Error("Staging qualification endpoint timeout");
+        }
+      });
+      const sleeper = vi.fn(async () => Promise.resolve());
+
+      await expect(
+        qualifyDeployment("commit-abc", {
+          attempts: 36,
+          outerMaxAttempts: 3,
+          retryDelayMs: 25,
+          runner,
+          sleeper,
+        }),
+      ).rejects.toThrow(/timeout/u);
+
+      // Total attempts on failure must exactly equal outerMaxAttempts, NOT outerMaxAttempts * 36
+      expect(runner).toHaveBeenCalledTimes(3);
+      expect(sleeper).toHaveBeenCalledTimes(2);
+      for (const runCall of recordedRuns) {
+        expect(runCall.env?.STAGING_QUALIFY_ATTEMPTS).toBe("1");
+      }
+    });
+
+    it("succeeds on intermediate outer retry without continuing remaining attempts", async () => {
+      let callCount = 0;
+      const runner = vi.fn((_cmd, args) => {
+        if (args[1] === "qualify:staging") {
+          callCount += 1;
+          if (callCount === 1) {
+            throw new Error("Transient network failure");
+          }
+        }
+      });
+      const sleeper = vi.fn(async () => Promise.resolve());
+
+      await qualifyDeployment("commit-abc", {
+        outerMaxAttempts: 4,
+        retryDelayMs: 20,
+        runner,
+        sleeper,
+      });
+
+      // Failed once, succeeded on 2nd attempt; ran qualify:staging:evidence once on success
+      expect(callCount).toBe(2);
+      expect(sleeper).toHaveBeenCalledTimes(1);
+    });
   });
 });

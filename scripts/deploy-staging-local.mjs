@@ -227,6 +227,46 @@ export async function deployTriggers(envName, options = {}) {
   }
 }
 
+export async function qualifyDeployment(commitSha, options = {}) {
+  const outerAttempts = options.outerMaxAttempts ?? 1;
+  const attempts = options.attempts ?? 36;
+  const retryDelayMs = options.retryDelayMs ?? 5000;
+  const runner = options.runner ?? run;
+  const sleeper = options.sleeper ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+
+  // Deduplicate retries: if the outer orchestrator controls retry attempts,
+  // inner qualification scripts must not loop internally (pass 1 attempt).
+  const effectiveInnerAttempts = outerAttempts > 1 ? 1 : attempts;
+
+  for (let attempt = 1; attempt <= outerAttempts; attempt += 1) {
+    try {
+      runner("npm", ["run", "qualify:staging"], {
+        env: {
+          ...process.env,
+          STAGING_EXPECTED_VERSION: commitSha,
+          STAGING_QUALIFY_ATTEMPTS: String(effectiveInnerAttempts),
+          STAGING_QUALIFY_RETRY_MS: String(retryDelayMs),
+          STAGING_WORKER_URL: options.stagingWorkerUrl ?? stagingWorkerUrl,
+          ...(options.env ?? {}),
+        },
+      });
+      runner("npm", ["run", "qualify:staging:evidence", "--", "--anonymous"], {
+        env: {
+          ...process.env,
+          ...(options.env ?? {}),
+        },
+      });
+      return;
+    } catch (error) {
+      if (attempt < outerAttempts) {
+        await sleeper(retryDelayMs);
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+
 async function recordProvenance(record) {
   const directory = resolve(".wrangler", "releases");
   await mkdir(directory, { recursive: true });
@@ -317,15 +357,7 @@ export async function deployStaging() {
     trafficShifted = true;
 
     console.log("Qualifying the exact deployed build...");
-    run("npm", ["run", "qualify:staging"], {
-      env: {
-        STAGING_EXPECTED_VERSION: commitSha,
-        STAGING_QUALIFY_ATTEMPTS: "36",
-        STAGING_QUALIFY_RETRY_MS: "5000",
-        STAGING_WORKER_URL: stagingWorkerUrl,
-      },
-    });
-    run("npm", ["run", "qualify:staging:evidence", "--", "--anonymous"]);
+    await qualifyDeployment(commitSha);
 
     const finalStatus = stagingStatus();
     if (activeVersionId(finalStatus) !== uploadedId) {

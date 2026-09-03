@@ -20,6 +20,20 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
 - Shared query keys belong in one typed registry.
 - For camera features, wait for `loadedmetadata` and successful `video.play()` before enabling
   capture. Stop media tracks when closing or unmounting.
+- Signed-link public views (`/player`, `/rsvp`, `/poll`, `/auditions`, `/unsubscribe`) must never
+  strip or clear the `token` query parameter from `window.location` (via `history.replaceState` or
+  URL mutation) on mount or during normal view transitions. Stripping the token destroys page
+  reload, mobile background tab restoration, and bookmarking. Test all public views with explicit
+  assertions that `replaceState` is not called and URL parameters remain intact.
+- Public views and components consuming signed-link or API payloads must handle null, undefined, and
+  omitted fields defensively against contract schemas, using type guards verified against complete
+  null/undefined matrices.
+- MediaSession integrations must adhere strictly to the W3C `MediaSessionAction` specification
+  (`play`, `pause`, `previoustrack`, `nexttrack`, `seekbackward`, `seekforward`, `seekto`). Do not
+  register deprecated or vendor-specific actions without typed guards. In E2E tests involving media
+  playback, mock `HTMLMediaElement.prototype.play` / `pause` via `page.addInitScript` to dispatch
+  `loadedmetadata`, `canplay`, and `play` events deterministically in headless browsers without
+  requiring hardware audio devices.
 
 ## Components and Accessibility
 

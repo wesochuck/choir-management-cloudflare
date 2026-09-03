@@ -294,8 +294,14 @@ test("preserves all selected audiences and automatically computes reach preview"
   const donors = recipientPanel.getByRole("checkbox", { name: "Donors" });
 
   await expect(recipientPanel.getByRole("checkbox", { name: "Members" })).toBeChecked();
+  const reachResponse = page.waitForResponse(
+    (res) =>
+      res.url().includes("/api/organization/communications/reach-preview") &&
+      res.request().postData()?.includes("Donors") === true,
+  );
   await ticketBuyers.click();
   await donors.click();
+  await reachResponse;
 
   // Automatic reach calculation
   await expect(recipientPanel.getByRole("status")).toContainText("2 people can receive this email");
@@ -303,11 +309,11 @@ test("preserves all selected audiences and automatically computes reach preview"
   await expect(ticketBuyers).toBeChecked();
   await expect(donors).toBeChecked();
 
-  expect(previewBodies.length).toBeGreaterThanOrEqual(1);
-  const lastPreview = previewBodies[previewBodies.length - 1];
-  expect(lastPreview).toMatchObject({
-    audience: { targetAudiences: ["Members", "Ticket Buyers", "Donors"] },
-  });
+  await expect
+    .poll(() => previewBodies[previewBodies.length - 1])
+    .toMatchObject({
+      audience: { targetAudiences: ["Members", "Ticket Buyers", "Donors"] },
+    });
 });
 
 test("starts each toolbar list item on a new line", async ({ page }) => {

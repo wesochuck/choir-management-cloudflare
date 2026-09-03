@@ -1,3 +1,4 @@
+import { publicPlayerDetailsResponseSchema } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import { organizationRequest, provisionOrganization, seedAuthUser } from "@choir/testkit";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
@@ -11,11 +12,12 @@ const ALPHA_PROFILE = "11111111-1111-4111-8111-111111111111";
 const BRAVO_PROFILE = "22222222-2222-4222-8222-222222222222";
 const ALPHA_EVENT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const BRAVO_EVENT = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
-const ALPHA_PIECE = "p0000000-0000-4000-8000-000000000001";
+const ALPHA_PIECE = "e0000000-0000-4000-8000-000000000001";
 const ALPHA_PIECE_FILE = "f0000000-0000-4000-8000-000000000001";
 const ALPHA_ARTWORK_FILE = "f0000000-0000-4000-8000-000000000008";
 const ALPHA_OUT_OF_SCOPE_FILE = "f0000000-0000-4000-8000-000000000003";
-const BRAVO_PIECE = "p0000000-0000-4000-8000-000000000002";
+const BRAVO_PIECE = "e0000000-0000-4000-8000-000000000002";
+const BRAVO_NULL_PIECE = "e0000000-0000-4000-8000-000000000009";
 
 function requireBinding<T>(binding: T | undefined, name: string): T {
   if (binding === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
@@ -39,6 +41,7 @@ const provision = async (
   fileId: string,
   profileSuffix: string,
   artworkFileId: string | null = null,
+  nullPieceId?: string,
 ) => {
   await provisionOrganization(database, stores, {
     id,
@@ -56,7 +59,12 @@ const provision = async (
       now,
       now,
     );
-    const setListJson = JSON.stringify([
+    const setListItems: {
+      composer?: string | undefined;
+      isFeaturedNumber: boolean;
+      pieceId?: string;
+      title: string;
+    }[] = [
       {
         composer: "Mozart",
         isFeaturedNumber: true,
@@ -68,7 +76,24 @@ const provision = async (
         isFeaturedNumber: false,
         title: "Jesu, Joy",
       },
-    ]);
+    ];
+    if (nullPieceId) {
+      setListItems.push({
+        isFeaturedNumber: false,
+        pieceId: nullPieceId,
+        title: "Chant Kyrie",
+      });
+      state.storage.sql.exec(
+        `INSERT INTO music_pieces
+           (id, title, composer, arranger, duration_seconds, notes, section_buckets_json,
+            genres_json, track_file_ids_json, created_at, updated_at)
+          VALUES (?, 'Chant Kyrie', '', '', NULL, '', '[]', '[]', '{}', ?, ?)`,
+        nullPieceId,
+        now,
+        now,
+      );
+    }
+    const setListJson = JSON.stringify(setListItems);
     state.storage.sql.exec(
       `INSERT INTO events
          (id, title, type, starts_at, duration_minutes, call_time, location, venue_id,
@@ -124,6 +149,7 @@ async function issuePublicPlayerToken(organizationId: string, eventId: string): 
     organizationId,
     purpose: "player_public",
     resourceId: eventId,
+    subjectId: "public",
     version: 1,
   });
 }
@@ -150,6 +176,7 @@ beforeEach(async () => {
     "f0000000-0000-4000-8000-000000000002",
     "B",
     null,
+    BRAVO_NULL_PIECE,
   );
 });
 
@@ -206,6 +233,27 @@ describe("public player signed flow", () => {
         },
       ],
     });
+  });
+
+  it("resolves player details with null and omitted fields without invalid_response", async () => {
+    const token = await issuePlayerToken("organization-bravo", BRAVO_EVENT, BRAVO_PROFILE);
+    const response = await exports.default.fetch(
+      api("bravo.localhost", "/api/public/player-details", {
+        body: JSON.stringify({ token }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(response.status).toBe(200);
+    const body: unknown = await response.json();
+    const parsed = publicPlayerDetailsResponseSchema.parse(body);
+    expect(parsed.eventArtworkFileId).toBeNull();
+    expect(parsed.items.length).toBeGreaterThanOrEqual(3);
+    const nullPiece = parsed.items.find((item) => item.title === "Chant Kyrie");
+    expect(nullPiece).toBeDefined();
+    expect(nullPiece?.composer).toBeUndefined();
+    expect(nullPiece?.arranger).toBeUndefined();
+    expect(nullPiece?.durationSeconds).toBeUndefined();
   });
 
   it("keeps the public playlist path signed and tenant-bound", async () => {

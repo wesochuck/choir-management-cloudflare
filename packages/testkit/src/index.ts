@@ -27,3 +27,15 @@ export {
   writeJson,
   type OrganizationProvisionOptions,
 } from "./workerd";
+
+export {
+  futureDate,
+  futureDateString,
+  futureIsoDate,
+  pastDate,
+  pastDateString,
+  pastIsoDate,
+  relativeDate,
+  relativeIsoDate,
+  type DateOffsetOptions,
+} from "./dates";

@@ -16,5 +16,13 @@ These instructions inherit the repository root `AGENTS.md` and apply under `pack
 - Reusable `@choir/ui` `Dialog` owns dirty change tracking and confirmation prompts; all close paths
   (escape, backdrop click, header close icon, and `DialogClose` buttons) must route through
   `requestClose()` to prevent accidental data loss.
+- Non-historic test fixtures with future deadlines, start times, or expiration dates must use
+  relative date factories from `@choir/testkit` (`futureIsoDate`, `futureDateString`,
+  `relativeDate`, `pastIsoDate`) rather than hardcoded calendar strings. Hardcoded dates inevitably
+  expire and break test suites on predictable timers. Only fixed historical snapshots or seeds may
+  use static dates.
+- Contract schemas with nullable or optional properties must be verified against complete null,
+  undefined, and omitted field matrices in unit tests to guarantee bidirectional compatibility
+  between SQLite persistence, worker serialization, and client guards.
 - Preserve public package exports unless the task explicitly includes a coordinated API change and
   all consumers are updated atomically.

@@ -9,3 +9,4 @@ export * from "./components/PlayerProgress";
 export * from "./components/PlayerRehearsalOptions";
 export * from "./components/PlayerSetList";
 export * from "./PublicPracticePlayer";
+export * from "./useAudioSession";

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { futureDateString, futureIsoDate, pastIsoDate } from "@choir/testkit";
 
 const requestId = "1f2e3d4c-5b6a-4789-8901-234567890abc";
 
@@ -6,7 +7,7 @@ const sessionResponse = {
   session: {
     activeOrganizationId: null,
     createdAt: "2026-07-20T20:00:00.000Z",
-    expiresAt: "2026-07-27T20:00:00.000Z",
+    expiresAt: futureIsoDate({ days: 7 }),
     id: "session-ticketing-admin",
     ipAddress: "192.0.2.30",
     token: "ticketing-admin-session-token",
@@ -62,7 +63,7 @@ const sessionsListResponse = [
   {
     activeOrganizationId: null,
     createdAt: "2026-07-20T20:00:00.000Z",
-    expiresAt: "2026-07-27T20:00:00.000Z",
+    expiresAt: futureIsoDate({ days: 7 }),
     id: "session-ticketing-admin",
     ipAddress: "192.0.2.30",
     token: "ticketing-admin-session-token",
@@ -77,8 +78,9 @@ const bundleId = "6ab6bf88-c618-4bcd-b452-3aadebd28aa6";
 const purchaseId = "8de2c455-72c5-4117-92a0-b2bc77b05706";
 const newBundleId = "25fd0bbd-2438-458b-877b-5e5032e31cde";
 const secondPerformanceId = "0dc9043e-09b7-41f1-bcde-7f26c3f03dc1";
-const futureDate = "2099-06-15T19:30:00.000Z";
-const saleEndDate = "2099-06-01T00:00:00.000Z";
+const futureDate = futureIsoDate({ days: 300 });
+const saleEndDate = futureIsoDate({ days: 280 });
+const saleEndInputValue = `${futureDateString({ days: 280 })}T00:00`;
 const successToken = "ticket-receipt-token-for-e2e-test";
 const scanToken = "ticket-scan-token-for-e2e-test";
 
@@ -112,7 +114,7 @@ const ticketingProjection = {
         isTicketingEnabled: false,
         location: "",
         publicDetails: "",
-        startsAt: "2026-08-01T14:00:00.000Z",
+        startsAt: pastIsoDate({ days: 30 }),
         ticketCapacity: null,
         title: "Past Rehearsal",
         venueName: "",
@@ -735,7 +737,7 @@ test.describe("admin ticket management", () => {
     await page.getByLabel("Bundle title").fill("VIP Pass");
     await page.getByLabel("Price (USD)").fill("30.00");
     await page.getByLabel("Capacity (blank is unlimited)").fill("50");
-    await page.getByLabel("Sale ends").fill("2099-06-01T00:00");
+    await page.getByLabel("Sale ends").fill(saleEndInputValue);
     await page.getByLabel("Active for public sale").check();
     await page.getByRole("checkbox", { name: "Spring Concert" }).check();
     await page.getByRole("button", { name: "Save bundle" }).click();

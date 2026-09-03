@@ -249,7 +249,6 @@ export function PublicRsvpView() {
   }));
 
   useEffect(() => {
-    window.history.replaceState(null, "", "/rsvp");
     if (!token) return;
     fetchRsvpDetails(token)
       .then((details) => {

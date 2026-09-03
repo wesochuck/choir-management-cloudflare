@@ -63,51 +63,44 @@ function searchRosterProfiles(
   profileIds: readonly string[],
   limit: number,
 ): readonly SearchResultItem[] {
-  try {
-    let rows: ProfileRow[] = [];
-    if (profileIds.length > 0) {
-      const placeholders = profileIds.map(() => "?").join(", ");
-      rows = storage.sql
-        .exec<ProfileRow>(
-          `SELECT id, display_name AS displayName, voice_part AS voicePart, global_status AS globalStatus
-           FROM profiles
-           WHERE display_name LIKE ? OR voice_part LIKE ? OR phone LIKE ? OR id IN (${placeholders})
-           ORDER BY display_name ASC
-           LIMIT ?`,
-          likePattern,
-          likePattern,
-          likePattern,
-          ...profileIds,
-          limit,
-        )
-        .toArray();
-    } else {
-      rows = storage.sql
-        .exec<ProfileRow>(
-          `SELECT id, display_name AS displayName, voice_part AS voicePart, global_status AS globalStatus
-           FROM profiles
-           WHERE display_name LIKE ? OR voice_part LIKE ? OR phone LIKE ?
-           ORDER BY display_name ASC
-           LIMIT ?`,
-          likePattern,
-          likePattern,
-          likePattern,
-          limit,
-        )
-        .toArray();
-    }
+  const rows: ProfileRow[] =
+    profileIds.length > 0
+      ? storage.sql
+          .exec<ProfileRow>(
+            `SELECT id, display_name AS displayName, voice_part AS voicePart, global_status AS globalStatus
+             FROM profiles
+             WHERE display_name LIKE ? OR voice_part LIKE ? OR phone LIKE ? OR id IN (${profileIds.map(() => "?").join(", ")})
+             ORDER BY display_name ASC
+             LIMIT ?`,
+            likePattern,
+            likePattern,
+            likePattern,
+            ...profileIds,
+            limit,
+          )
+          .toArray()
+      : storage.sql
+          .exec<ProfileRow>(
+            `SELECT id, display_name AS displayName, voice_part AS voicePart, global_status AS globalStatus
+             FROM profiles
+             WHERE display_name LIKE ? OR voice_part LIKE ? OR phone LIKE ?
+             ORDER BY display_name ASC
+             LIMIT ?`,
+            likePattern,
+            likePattern,
+            likePattern,
+            limit,
+          )
+          .toArray();
 
-    return rows.map((p) => ({
-      badge: p.globalStatus ?? "Active",
-      category: "roster",
-      href: `/admin/roster?profileId=${p.id}`,
-      id: `roster-${p.id}`,
-      subtitle: p.voicePart ?? undefined,
-      title: p.displayName,
-    }));
-  } catch {
-    return [];
-  }
+  return rows.map((p) => ({
+    badge: p.globalStatus ?? "Active",
+    category: "roster",
+    href: `/admin/roster?profileId=${p.id}`,
+    id: `roster-${p.id}`,
+    subtitle: p.voicePart ?? undefined,
+    title: p.displayName,
+  }));
 }
 
 function searchEvents(
@@ -115,36 +108,32 @@ function searchEvents(
   likePattern: string,
   limit: number,
 ): readonly SearchResultItem[] {
-  try {
-    const rows = storage.sql
-      .exec<EventRow>(
-        `SELECT id, title, type, starts_at AS startsAt, location
-         FROM events
-         WHERE is_archived = 0 AND (title LIKE ? OR location LIKE ? OR type LIKE ?)
-         ORDER BY starts_at DESC
-         LIMIT ?`,
-        likePattern,
-        likePattern,
-        likePattern,
-        limit,
-      )
-      .toArray();
+  const rows = storage.sql
+    .exec<EventRow>(
+      `SELECT id, title, type, starts_at AS startsAt, location
+       FROM events
+       WHERE is_archived = 0 AND (title LIKE ? OR location LIKE ? OR type LIKE ?)
+       ORDER BY starts_at DESC
+       LIMIT ?`,
+      likePattern,
+      likePattern,
+      likePattern,
+      limit,
+    )
+    .toArray();
 
-    return rows.map((e) => {
-      const datePart = e.startsAt ? e.startsAt.slice(0, 10) : "";
-      const subtitleParts = [e.type, datePart, e.location].filter(Boolean);
-      return {
-        badge: e.type,
-        category: "events",
-        href: `/admin/events?eventId=${e.id}`,
-        id: `event-${e.id}`,
-        subtitle: subtitleParts.length > 0 ? subtitleParts.join(" • ") : undefined,
-        title: e.title,
-      };
-    });
-  } catch {
-    return [];
-  }
+  return rows.map((e) => {
+    const datePart = e.startsAt ? e.startsAt.slice(0, 10) : "";
+    const subtitleParts = [e.type, datePart, e.location].filter(Boolean);
+    return {
+      badge: e.type,
+      category: "events",
+      href: `/admin/events?eventId=${e.id}`,
+      id: `event-${e.id}`,
+      subtitle: subtitleParts.length > 0 ? subtitleParts.join(" • ") : undefined,
+      title: e.title,
+    };
+  });
 }
 
 function searchMusicPieces(
@@ -152,41 +141,37 @@ function searchMusicPieces(
   likePattern: string,
   limit: number,
 ): readonly SearchResultItem[] {
-  try {
-    const rows = storage.sql
-      .exec<MusicRow>(
-        `SELECT id, title, composer, arranger
-         FROM music_pieces
-         WHERE title LIKE ? OR composer LIKE ? OR arranger LIKE ?
-         ORDER BY title ASC
-         LIMIT ?`,
-        likePattern,
-        likePattern,
-        likePattern,
-        limit,
-      )
-      .toArray();
+  const rows = storage.sql
+    .exec<MusicRow>(
+      `SELECT id, title, composer, arranger
+       FROM music_pieces
+       WHERE title LIKE ? OR composer LIKE ? OR arranger LIKE ?
+       ORDER BY title ASC
+       LIMIT ?`,
+      likePattern,
+      likePattern,
+      likePattern,
+      limit,
+    )
+    .toArray();
 
-    return rows.map((m) => {
-      const details = [
-        m.composer ? `Composer: ${m.composer}` : "",
-        m.arranger ? `Arr: ${m.arranger}` : "",
-      ]
-        .filter(Boolean)
-        .join(" • ");
+  return rows.map((m) => {
+    const details = [
+      m.composer ? `Composer: ${m.composer}` : "",
+      m.arranger ? `Arr: ${m.arranger}` : "",
+    ]
+      .filter(Boolean)
+      .join(" • ");
 
-      return {
-        badge: "Music",
-        category: "music",
-        href: `/admin/music?pieceId=${m.id}`,
-        id: `music-${m.id}`,
-        subtitle: details || undefined,
-        title: m.title,
-      };
-    });
-  } catch {
-    return [];
-  }
+    return {
+      badge: "Music",
+      category: "music",
+      href: `/admin/music?pieceId=${m.id}`,
+      id: `music-${m.id}`,
+      subtitle: details || undefined,
+      title: m.title,
+    };
+  });
 }
 
 function searchPolls(
@@ -194,33 +179,29 @@ function searchPolls(
   likePattern: string,
   limit: number,
 ): readonly SearchResultItem[] {
-  try {
-    const rows = storage.sql
-      .exec<PollRow>(
-        `SELECT id, title, expires_at AS expiresAt
-         FROM polls
-         WHERE archived_at = '' AND title LIKE ?
-         ORDER BY created_at DESC
-         LIMIT ?`,
-        likePattern,
-        limit,
-      )
-      .toArray();
+  const rows = storage.sql
+    .exec<PollRow>(
+      `SELECT id, title, expires_at AS expiresAt
+       FROM polls
+       WHERE archived_at = '' AND title LIKE ?
+       ORDER BY created_at DESC
+       LIMIT ?`,
+      likePattern,
+      limit,
+    )
+    .toArray();
 
-    return rows.map((pol) => {
-      const datePart = pol.expiresAt ? pol.expiresAt.slice(0, 10) : "";
-      return {
-        badge: "Poll",
-        category: "polls",
-        href: `/admin/communications/polls?pollId=${pol.id}`,
-        id: `poll-${pol.id}`,
-        subtitle: datePart ? `Expires: ${datePart}` : undefined,
-        title: pol.title,
-      };
-    });
-  } catch {
-    return [];
-  }
+  return rows.map((pol) => {
+    const datePart = pol.expiresAt ? pol.expiresAt.slice(0, 10) : "";
+    return {
+      badge: "Poll",
+      category: "polls",
+      href: `/admin/communications/polls?pollId=${pol.id}`,
+      id: `poll-${pol.id}`,
+      subtitle: datePart ? `Expires: ${datePart}` : undefined,
+      title: pol.title,
+    };
+  });
 }
 
 export function searchOrganizationEntitiesFromStore(

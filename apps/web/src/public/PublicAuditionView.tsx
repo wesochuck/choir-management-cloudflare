@@ -599,8 +599,6 @@ export function PublicAuditionView() {
   });
 
   useEffect(() => {
-    const currentPath = window.location.pathname === "/join" ? "/join" : "/auditions";
-    window.history.replaceState(null, "", currentPath);
     if (!token) {
       fetchAuditionSettings()
         .then((settings) => {

@@ -26,15 +26,15 @@ const setListItemSchema = z.object({
 
 type SetListItem = z.infer<typeof setListItemSchema>;
 
-interface PieceRow {
+export interface PieceRow {
   readonly [column: string]: SqlStorageValue;
-  readonly arranger: string;
-  readonly composer: string;
-  readonly durationSeconds: number;
+  readonly arranger: string | null;
+  readonly composer: string | null;
+  readonly durationSeconds: number | null;
   readonly id: string;
   readonly parentId: string | null;
   readonly title: string;
-  readonly trackFileIds: string;
+  readonly trackFileIds: string | null;
 }
 
 function parseSetListJson(value: string): SetListItem[] {
@@ -54,7 +54,8 @@ function parseSetListJson(value: string): SetListItem[] {
   }
 }
 
-function parseTrackFileIds(value: string): Record<string, string> {
+function parseTrackFileIds(value: string | null | undefined): Record<string, string> {
+  if (typeof value !== "string" || !value.trim()) return {};
   try {
     const parsed: unknown = JSON.parse(value);
     if (typeof parsed !== "object" || parsed === null) return {};
@@ -117,7 +118,13 @@ function readPieceForSetListItem(
   return { ...primary, trackFileIds: JSON.stringify(trackFileIds) };
 }
 
-function toPlaylistItem(
+function cleanOptionalString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+export function toPlaylistItem(
   item: SetListItem,
   pieceMap: Map<string, PieceRow>,
 ): {
@@ -131,15 +138,15 @@ function toPlaylistItem(
   readonly trackFileIds: Record<string, string>;
 } {
   const piece = item.pieceId ? pieceMap.get(item.pieceId) : undefined;
-  const rawComposer = typeof piece?.composer === "string" ? piece.composer : item.composer;
+  const rawComposer = piece?.composer ?? item.composer;
   return {
-    arranger: typeof piece?.arranger === "string" ? piece.arranger : undefined,
-    composer: typeof rawComposer === "string" ? rawComposer : undefined,
+    arranger: cleanOptionalString(piece?.arranger),
+    composer: cleanOptionalString(rawComposer),
     durationSeconds: typeof piece?.durationSeconds === "number" ? piece.durationSeconds : undefined,
     isFeaturedNumber:
       typeof item.isFeaturedNumber === "boolean" ? item.isFeaturedNumber : undefined,
-    notes: typeof item.notes === "string" ? item.notes : undefined,
-    pieceId: typeof item.pieceId === "string" ? item.pieceId : undefined,
+    notes: cleanOptionalString(item.notes),
+    pieceId: cleanOptionalString(item.pieceId),
     title: piece?.title ?? item.title,
     trackFileIds: piece ? parseTrackFileIds(piece.trackFileIds) : {},
   };

@@ -7,6 +7,7 @@ import {
   type OrganizationProfile,
   type OrganizationRosterConfiguration,
 } from "@choir/contracts";
+import { futureDateString, futureIsoDate } from "@choir/testkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToString } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -27,12 +28,12 @@ const mockEvents: readonly OrganizationEvent[] = [
     callTime: "18:30",
     createdAt: "2026-08-01T00:00:00Z",
     details: "Winter Concert",
-    endsAt: "2099-12-15T21:00:00Z",
+    endsAt: futureIsoDate({ days: 90, hours: 2 }),
     id: eventId1,
     location: "Main Hall",
-    rsvpDeadlineDate: "2099-12-10",
+    rsvpDeadlineDate: futureDateString({ days: 85 }),
     rsvpDeadlinePassed: false,
-    startsAt: "2099-12-15T19:00:00Z",
+    startsAt: futureIsoDate({ days: 90 }),
     title: "Winter Concert",
     type: "Performance",
     updatedAt: "2026-08-01T00:00:00Z",

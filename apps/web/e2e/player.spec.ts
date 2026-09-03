@@ -1,8 +1,28 @@
 import { expect, test } from "@playwright/test";
+import { futureIsoDate } from "@choir/testkit";
 
 const requestId = "12121212-1212-4121-8121-121212121212";
 
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(HTMLMediaElement.prototype, "duration", {
+      configurable: true,
+      get() {
+        return 180;
+      },
+    });
+    HTMLMediaElement.prototype.play = function () {
+      this.dispatchEvent(new Event("loadedmetadata"));
+      this.dispatchEvent(new Event("canplay"));
+      this.dispatchEvent(new Event("play"));
+      this.dispatchEvent(new Event("playing"));
+      return Promise.resolve();
+    };
+    HTMLMediaElement.prototype.pause = function () {
+      this.dispatchEvent(new Event("pause"));
+    };
+  });
+
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
@@ -61,7 +81,7 @@ test("renders practice player with artwork, track navigation, and set list", asy
       body: JSON.stringify({
         eventArtworkFileId: "file-art-1",
         eventId: "event-123",
-        eventStartsAt: "2026-08-20T19:00:00.000Z",
+        eventStartsAt: futureIsoDate({ days: 60 }),
         eventTitle: "Summer Showcase",
         items: [
           {
@@ -112,6 +132,11 @@ test("renders practice player with artwork, track navigation, and set list", asy
   const nowPlaying = page.locator(".public-player__now-playing-card");
   await expect(nowPlaying).toBeVisible();
   await expect(nowPlaying.getByRole("heading", { name: "Hallelujah Chorus" })).toBeVisible();
+  const playBtn = nowPlaying.getByRole("button", { name: "Play" });
+  await expect(playBtn).toBeVisible();
+  await playBtn.click();
+  await expect(nowPlaying.getByRole("button", { name: "Pause" })).toBeVisible();
+  await nowPlaying.getByRole("button", { name: "Pause" }).click();
   await expect(nowPlaying.getByRole("button", { name: "Play" })).toBeVisible();
   await expect(nowPlaying.getByRole("button", { name: "Previous track" })).toBeDisabled();
   await expect(nowPlaying.getByRole("button", { name: "Next track" })).toBeEnabled();
@@ -162,7 +187,7 @@ test("opens and interacts with rehearsal settings drawer", async ({ page }) => {
     await route.fulfill({
       body: JSON.stringify({
         eventId: "event-123",
-        eventStartsAt: "2026-08-20T19:00:00.000Z",
+        eventStartsAt: futureIsoDate({ days: 60 }),
         eventTitle: "Summer Showcase",
         items: [
           {

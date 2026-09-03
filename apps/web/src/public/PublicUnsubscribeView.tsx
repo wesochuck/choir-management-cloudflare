@@ -8,7 +8,6 @@ export function PublicUnsubscribeView({ token }: { readonly token: string | null
   const [state, setState] = useState<UnsubscribeState>(token ? "processing" : "invalid");
 
   useEffect(() => {
-    window.history.replaceState(null, "", "/unsubscribe");
     if (!token) return;
     const currentToken = token;
     unsubscribeOrganizationEmail(currentToken)
