@@ -19,6 +19,16 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/auth/get-session", async (route) => {
     await route.fulfill({ body: "null", contentType: "application/json", status: 200 });
   });
+  await page.route("**/api/public/player/media/**", async (route) => {
+    await route.fulfill({
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        "base64",
+      ),
+      contentType: "image/png",
+      status: 200,
+    });
+  });
 });
 
 test("shows player link required when no token is provided", async ({ page }) => {
@@ -98,14 +108,6 @@ test("renders practice player with artwork, track navigation, and set list", asy
   const artwork = page.getByAltText("Summer Showcase artwork");
   await expect(artwork).toBeVisible();
 
-  // Track selection nav
-  const trackNav = page.getByRole("navigation", { name: "Track selection" });
-  await expect(trackNav).toBeVisible();
-  await expect(trackNav.getByRole("button", { name: "Tutti" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-
   // Now playing section
   const nowPlaying = page.locator(".public-player__now-playing-card");
   await expect(nowPlaying).toBeVisible();
@@ -114,19 +116,26 @@ test("renders practice player with artwork, track navigation, and set list", asy
   await expect(nowPlaying.getByRole("button", { name: "Previous track" })).toBeDisabled();
   await expect(nowPlaying.getByRole("button", { name: "Next track" })).toBeEnabled();
 
+  // Voice part selector trigger defaults to Choir Mix (Tutti)
+  const voicePartTrigger = nowPlaying.getByRole("button", { name: /Voice Part/i });
+  await expect(voicePartTrigger).toBeVisible();
+  await expect(voicePartTrigger).toContainText("Choir Mix");
+
   // Secondary controls
   await expect(nowPlaying.getByRole("button", { name: "No repeat" })).toBeVisible();
   await expect(nowPlaying.getByRole("button", { name: /Set list \(2 tracks\)/i })).toBeVisible();
   await expect(nowPlaying.getByRole("button", { name: "Rehearsal settings" })).toBeVisible();
 
-  // Selecting individual voice part from dropdown
-  const voiceSelect = trackNav.getByLabel("Add individual part");
-  await expect(voiceSelect).toBeVisible();
-  await voiceSelect.selectOption("soprano1");
-  await expect(trackNav.getByRole("button", { name: "SOPRANO1" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  // Selecting individual voice part from modal sheet
+  await voicePartTrigger.click();
+  const voicePartSheet = page.getByRole("dialog", { name: "Choose Voice Part" });
+  await expect(voicePartSheet).toBeVisible();
+  const soprano1Option = voicePartSheet.getByRole("radio", { name: "Soprano 1" });
+  await expect(soprano1Option).toBeVisible();
+  await soprano1Option.click();
+  await expect(voicePartSheet).not.toBeVisible();
+  await expect(voicePartTrigger).toContainText("Soprano 1");
+  await expect(nowPlaying.locator(".public-player__track-badge")).toHaveText("SOPRANO1");
 
   // Set list verification (responsive)
   const isMobile = testInfo.project.name.includes("mobile");
