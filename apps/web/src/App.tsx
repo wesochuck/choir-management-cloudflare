@@ -17,6 +17,7 @@ import { AcceptInvitationView } from "./auth/AcceptInvitationView";
 import { ForgotPasswordView } from "./auth/ForgotPasswordView";
 import { EmailChangeConfirmationView } from "./auth/EmailChangeConfirmationView";
 import { getCurrentSession, getPublishedOrganizationProjection } from "./auth/api";
+import { determinePostSignInPath, isAuthenticatedRoute } from "./auth/postSignIn";
 import { ResetPasswordView } from "./auth/ResetPasswordView";
 import { SignInView } from "./auth/SignInView";
 import { PublicUnsubscribeView } from "./public/PublicUnsubscribeView";
@@ -110,14 +111,47 @@ function AccountLoading() {
 }
 
 function AlreadySignedIn({ session }: { readonly session: NonNullable<CurrentAuthSession> }) {
+  const [targetHref, setTargetHref] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void determinePostSignInPath({
+      currentPathname: window.location.pathname,
+      search: window.location.search,
+      signal: controller.signal,
+    })
+      .then((path) => {
+        if (!controller.signal.aborted) {
+          setTargetHref(path);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setTargetHref("/dashboard");
+        }
+      });
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
+  const href = targetHref ?? "/dashboard";
+  const isAdmin = targetHref === "/admin" || targetHref?.startsWith("/admin/") === true;
+  const targetLabel =
+    targetHref === null
+      ? "Open your workspace"
+      : isAdmin
+        ? "Open admin dashboard"
+        : "Open your workspace";
+
   return (
     <main className="auth-layout">
       <section className="auth-card" aria-labelledby="already-signed-in-title">
         <p className="eyebrow">Account recognized</p>
         <h1 id="already-signed-in-title">You are already signed in.</h1>
         <p className="auth-card__intro">Continue as {session.user.email}.</p>
-        <a className="button button--primary" href="/dashboard">
-          Open your workspace
+        <a className="button button--primary" href={href}>
+          {targetLabel}
         </a>
       </section>
     </main>
@@ -150,31 +184,6 @@ function passwordRecoveryRoute(pathname: string, resetLocation: PasswordResetLoc
     return <ResetPasswordView error={resetLocation.error} token={resetLocation.token} />;
   }
   return null;
-}
-
-const authenticatedExactRoutes: ReadonlySet<string> = new Set([
-  "/setup",
-  "/dashboard",
-  "/schedule",
-  "/profile",
-  "/directory",
-  "/dues",
-  "/practice",
-  "/member/resources",
-  "/calendar",
-  "/account",
-  "/admin",
-  "/platform",
-]);
-
-function isAuthenticatedRoute(pathname: string): boolean {
-  return (
-    authenticatedExactRoutes.has(pathname) ||
-    pathname.startsWith("/seating/") ||
-    pathname.startsWith("/account/") ||
-    pathname.startsWith("/admin/") ||
-    pathname.startsWith("/platform/")
-  );
 }
 
 function selectContent(
@@ -338,7 +347,25 @@ export function App() {
   }, [pathname]);
 
   function finishSignIn() {
-    window.location.assign("/dashboard");
+    setSessionState({ status: "checking" });
+    void (async () => {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => {
+        controller.abort();
+      }, 8000);
+      try {
+        const nextPath = await determinePostSignInPath({
+          currentPathname: pathname,
+          search: window.location.search,
+          signal: controller.signal,
+        });
+        window.location.assign(nextPath);
+      } catch {
+        window.location.assign("/dashboard");
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    })();
   }
 
   function finishSignOut() {
