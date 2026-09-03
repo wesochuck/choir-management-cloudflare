@@ -127,6 +127,7 @@ export const platformGroups: readonly NavigationGroup[] = [
       { href: "/platform/organizations", label: "Organizations" },
       { href: "/platform/dead-letters", label: "Queue dead letters" },
       { href: "/platform/email-suppressions", label: "Email suppressions" },
+      { href: "/platform/design-system", label: "Design system" },
     ],
   },
 ];
@@ -279,6 +280,7 @@ export function pageTitle(pathname: string): string {
     ["/platform/organizations", "Organizations"],
     ["/platform/dead-letters", "Queue dead letters"],
     ["/platform/email-suppressions", "Email suppressions"],
+    ["/platform/design-system", "Design system"],
     ["/platform/access", "Scoped Organization access"],
     ["/platform", "Platform overview"],
     ["/profile", "My Profile"],

@@ -1,0 +1,184 @@
+/* === Platform design system showcase ===
+ * Layout-only helpers for the interactive /platform/design-system reference.
+ * Showcased elements reuse production classes and tokens; these rules only
+ * arrange swatches, specimens, and demo stacks.
+ */
+@layer components {
+  .design-system {
+    display: grid;
+    gap: var(--spacing-lg);
+  }
+
+  .design-system__anchor-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-2xs) var(--spacing-sm);
+  }
+
+  .design-system__anchor-nav a {
+    padding: var(--spacing-2xs) var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    text-decoration: none;
+  }
+
+  .design-system__anchor-nav a:hover {
+    border-color: var(--color-accent);
+  }
+
+  .design-system__section {
+    display: grid;
+    gap: var(--spacing-md);
+  }
+
+  .design-system__section h3 {
+    margin: var(--spacing-sm) 0 0;
+  }
+
+  .design-system__swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    gap: var(--spacing-sm);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .design-system__swatch {
+    display: grid;
+    gap: var(--spacing-3xs);
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .design-system__swatch strong {
+    font-size: var(--font-size-md);
+  }
+
+  .design-system__swatch code {
+    overflow-wrap: anywhere;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  .design-system__swatch-chip {
+    min-height: 2.5rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    cursor: pointer;
+  }
+
+  .design-system__copied {
+    color: var(--color-success);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .design-system__type-list {
+    display: grid;
+    gap: var(--spacing-sm);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .design-system__type-list p {
+    margin: 0;
+    color: var(--color-text);
+  }
+
+  .design-system__type-list code {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  .design-system__token-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--spacing-md);
+  }
+
+  .design-system__radius-chip {
+    display: block;
+    min-height: 2.5rem;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+  }
+
+  .design-system__shadow-chip {
+    display: block;
+    min-height: 2.5rem;
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+  }
+
+  .design-system__spacing-list {
+    display: grid;
+    gap: var(--spacing-xs);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .design-system__spacing-list li {
+    display: grid;
+    gap: var(--spacing-3xs);
+  }
+
+  .design-system__spacing-bar {
+    display: block;
+    height: 0.75rem;
+    border-radius: var(--radius-sm);
+    background: var(--color-accent);
+  }
+
+  .design-system__spacing-list code {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  .design-system__inline-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--spacing-sm);
+    align-items: start;
+  }
+
+  .design-system__choices {
+    display: grid;
+    gap: var(--spacing-xs);
+    margin: 0;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+  }
+
+  .design-system__choices legend {
+    padding-inline: var(--spacing-2xs);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .design-system__choices label {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+  }
+
+  @media (max-width: 64rem) {
+    .design-system__token-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .design-system__inline-row {
+      grid-template-columns: 1fr;
+    }
+  }
+}

@@ -6,7 +6,7 @@ import {
 import { OrganizationAdminOverview } from "../../OrganizationAdminOverview";
 
 import { AppLink } from "./navigation";
-import { PlatformAccess, PlatformSetupMonitor } from "./lazyComponents";
+import { PlatformAccess, PlatformDesignSystem, PlatformSetupMonitor } from "./lazyComponents";
 
 import { routeHasModule, routeModule, workspaceLabel } from "./utils";
 import {
@@ -65,6 +65,11 @@ function OverviewPage({
           href: "/platform/email-suppressions",
           label: "Email suppressions",
           text: "Review application-wide provider blocks.",
+        },
+        {
+          href: "/platform/design-system",
+          label: "Design system",
+          text: "Browse live tokens, buttons, notices, forms, and primitives.",
         },
       ]
     : [
@@ -236,6 +241,9 @@ function PlatformWorkspacePage({
   }
   if (pathname === "/platform/email-suppressions") {
     return <PlatformAccess view="email-suppressions" />;
+  }
+  if (pathname === "/platform/design-system") {
+    return <PlatformDesignSystem />;
   }
   return <PlatformAccess view="security" />;
 }

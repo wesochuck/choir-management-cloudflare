@@ -108,6 +108,12 @@ export const PlatformSetupMonitor = lazy(() =>
   })),
 );
 
+export const PlatformDesignSystem = lazy(() =>
+  import("../PlatformOperations/DesignSystemView").then(({ DesignSystemView: component }) => ({
+    default: component,
+  })),
+);
+
 export const PollsPage = lazy(() =>
   import("../../PollsPage").then(({ PollsPage: component }) => ({ default: component })),
 );

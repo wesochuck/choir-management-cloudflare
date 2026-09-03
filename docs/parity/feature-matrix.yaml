@@ -511,6 +511,22 @@
           ],
       },
       {
+        "id": "route.platform.design-system",
+        "path": "/platform/design-system",
+        "owner": "apps/web",
+        "milestone": 6,
+        "status": "implemented",
+        "baselineEvidence": "No equivalent legacy design-system reference surface existed.",
+        "targetEvidence":
+          [
+            "apps/web/src/account/components/PlatformOperations/DesignSystemView.tsx",
+            "apps/web/src/account/components/PlatformOperations/DesignSystemView.test.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/workspaces.tsx",
+            "apps/web/src/account/components/AuthenticatedShell/utils.ts",
+            "apps/web/src/styles/components/platform-design-system.css",
+          ],
+      },
+      {
         "id": "route.member.dashboard",
         "path": "/dashboard",
         "owner": "apps/web",

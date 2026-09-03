@@ -134,6 +134,7 @@ const expectedBrowserRoutes = [
   "/platform",
   "/platform/access",
   "/platform/dead-letters",
+  "/platform/design-system",
   "/platform/email-suppressions",
   "/platform/organizations",
   "/platform/security",
