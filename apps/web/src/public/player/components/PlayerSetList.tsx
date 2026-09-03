@@ -25,8 +25,8 @@ export function PlayerSetList({
         </div>
       </div>
       <p className="public-player__set-list-help">
-        Choose a track to start practicing. Part and section tracks fall back to Tutti when a
-        specific recording is not available.
+        Choose a track to start practicing. Part and section tracks fall back to an available
+        recording when a specific track is not available.
       </p>
       <ol className="public-player__queue-list">
         {items.map((item, index) => {
@@ -56,7 +56,9 @@ export function PlayerSetList({
                   ) : null}
                   {track ? (
                     <span className="public-player__item-track">
-                      {track.fallback ? "Tutti fallback" : formatTrackKey(track.key)}
+                      {track.fallback
+                        ? `${formatTrackKey(track.key)} fallback`
+                        : formatTrackKey(track.key)}
                     </span>
                   ) : (
                     <span className="public-player__item-track public-player__item-track--unavailable">

@@ -132,6 +132,18 @@ describe("PublicPlayerView Components", () => {
       expect(html).toContain("track unavailable");
       expect(html).toContain('role="status"');
     });
+
+    it("renders dynamic fallback notification when falling back to another voice track", () => {
+      const html = renderToString(
+        <PlayerTrackMetadata
+          activeTrackKey="soprano"
+          currentTrack={{ fallback: true, fileId: "file-tenor", key: "tenor" }}
+          item={{ title: "Angels we have heard on high", trackFileIds: { tenor: "file-tenor" } }}
+        />,
+      );
+      expect(html).toContain("Playing TENOR — SOPRANO track unavailable");
+      expect(html).toContain('role="status"');
+    });
   });
 
   describe("PlayerPartSelector", () => {
@@ -274,6 +286,26 @@ describe("PublicPlayerView Components", () => {
       expect(html).toContain("Jesu, Joy");
       expect(html).toContain("Tutti fallback");
       expect(html).toContain('href="/api/public/player/media/file-soprano?token=test-token"');
+    });
+
+    it("renders dynamic fallback track label in set list item", () => {
+      const itemWithTenorOnly: PlayerPlaylistItem = {
+        title: "Angels we have heard on high",
+        trackFileIds: { tenor: "file-tenor" },
+      };
+      const html = renderToString(
+        <PlayerSetList
+          activeTrackKey="S"
+          currentIndex={0}
+          items={[itemWithTenorOnly]}
+          onSelectItem={vi.fn()}
+          playableItems={[itemWithTenorOnly]}
+          token="test-token"
+        />,
+      );
+      expect(html).toContain("Angels we have heard on high");
+      expect(html).toContain("TENOR fallback");
+      expect(html).not.toContain("Unavailable");
     });
     it("renders items with null or missing fields cleanly", () => {
       const itemWithNulls: PlayerPlaylistItem = {

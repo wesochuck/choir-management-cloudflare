@@ -92,11 +92,18 @@ export function PlayerTransport({
             <rect height="16" rx="1.5" width="4.5" x="14.5" y="4" />
           </svg>
         ) : (
-          <svg aria-hidden="true" fill="currentColor" height="24" viewBox="0 0 24 24" width="24">
+          <svg
+            aria-hidden="true"
+            className="public-player__play-icon--play"
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 24 24"
+            width="24"
+          >
             <polygon points="5 3 19 12 5 21 5 3" />
           </svg>
         )}
-        <span>{playing ? "Pause" : "Play"}</span>
+        <span className="sr-only">{playing ? "Pause" : "Play"}</span>
       </button>
       <button
         aria-label="Next track"

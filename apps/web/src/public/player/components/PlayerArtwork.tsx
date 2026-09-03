@@ -74,7 +74,7 @@ export function PlayerTrackMetadata({
       ) : null}
       {currentTrack.fallback ? (
         <p className="notice notice--info public-player__fallback-status" role="status">
-          Playing Tutti — {formatTrackKey(activeTrackKey)} track unavailable
+          {`Playing ${formatTrackKey(currentTrack.key)} — ${formatTrackKey(activeTrackKey)} track unavailable`}
         </p>
       ) : null}
     </div>
