@@ -17,7 +17,7 @@ import { authorizeOrganizationMember } from "../../tenancy/authorizeOrganization
 import { organizationExportKey } from "../../organization/exportStore";
 import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 
-import { resolveCanonicalOrganizationId } from "./routeUtilities";
+import { resolveCanonicalOrganizationId } from "./tenancyHelpers";
 
 export function setupFailureStatus(status: number): ContentfulStatusCode {
   switch (status) {

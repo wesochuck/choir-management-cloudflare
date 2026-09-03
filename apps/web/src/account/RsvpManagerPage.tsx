@@ -1,14 +1,24 @@
-import type {
-  OrganizationAttendanceRow,
-  OrganizationEvent,
-  OrganizationEventRsvpHistoryEntry,
-  OrganizationProfile,
-  OrganizationRosterConfiguration,
-} from "@choir/contracts";
+import type { OrganizationAttendanceRow } from "@choir/contracts";
 import { DataTable, useConfirmation, type DataTableColumn } from "@choir/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AuthApiError } from "../api";
+import {
+  RsvpHistoryTable,
+  RsvpManagerFilters,
+  isHistoryFilter,
+  lastName,
+  nearestUpcomingPerformance,
+  reportableSections,
+  reportableVoiceParts,
+  statusText,
+  type HistoryFilter,
+  type RsvpAssignmentFilter,
+  type RsvpCounts,
+  type RsvpFilter,
+  type RsvpState,
+  type RsvpView,
+} from "./components/RsvpManager";
 import {
   useBulkUpdateRsvpMutation,
   useEventAttendanceQuery,
@@ -18,136 +28,6 @@ import {
 } from "./hooks/useRsvpQueries";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
-
-type RsvpState =
-  | { readonly status: "error" }
-  | { readonly status: "loading" }
-  | {
-      readonly events: readonly OrganizationEvent[];
-      readonly profiles: readonly OrganizationProfile[];
-      readonly roster: OrganizationRosterConfiguration;
-      readonly status: "ready";
-    };
-
-type RsvpFilter = "active" | "Yes" | "No" | "Pending";
-type RsvpView = "roster" | "history";
-type HistoryFilter = "All" | "Yes" | "No" | "Pending";
-type RsvpAssignmentFilter =
-  | { readonly kind: "section"; readonly value: string }
-  | { readonly kind: "voicePart"; readonly value: string };
-
-function isHistoryFilter(value: string): value is HistoryFilter {
-  return value === "All" || value === "Yes" || value === "No" || value === "Pending";
-}
-
-function displayEventDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function lastName(value: string): string {
-  const parts = value.trim().split(/\s+/);
-  return parts.length > 1 ? (parts.at(-1) ?? value) : value;
-}
-
-function nearestUpcomingPerformance(events: readonly OrganizationEvent[]): string {
-  const now = Date.now();
-  return (
-    [...events]
-      .filter((event) => event.type === "Performance" && new Date(event.startsAt).getTime() >= now)
-      .sort((left, right) => left.startsAt.localeCompare(right.startsAt))[0]?.id ?? ""
-  );
-}
-
-function statusText(status: "Yes" | "No" | "Pending"): string {
-  if (status === "Yes") return "Attending";
-  if (status === "No") return "Declined";
-  return "No response";
-}
-
-function historySource(entry: OrganizationEventRsvpHistoryEntry): string {
-  return entry.automatic ? "Automation" : "Manual update";
-}
-
-function formatHistoryDate(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function historyStatusBadge(status: "Yes" | "No" | "Pending") {
-  return (
-    <span className={`rsvp-status-badge rsvp-status-badge--${status}`}>{statusText(status)}</span>
-  );
-}
-
-const rsvpHistoryColumns: readonly DataTableColumn<OrganizationEventRsvpHistoryEntry>[] = [
-  {
-    header: "Performer",
-    id: "profile",
-    render: (entry) => <strong>{entry.displayName}</strong>,
-    sortValue: (entry) => lastName(entry.displayName),
-  },
-  {
-    header: "Previous RSVP",
-    id: "previousRsvp",
-    render: (entry) => historyStatusBadge(entry.previousRsvp),
-    sortValue: (entry) => entry.previousRsvp,
-  },
-  {
-    header: "New RSVP",
-    id: "newRsvp",
-    render: (entry) => historyStatusBadge(entry.newRsvp),
-    sortValue: (entry) => entry.newRsvp,
-  },
-  {
-    header: "Reason",
-    id: "reason",
-    render: (entry) => entry.reason,
-    sortValue: (entry) => entry.reason,
-  },
-  {
-    header: "Source",
-    id: "source",
-    render: (entry) => historySource(entry),
-    sortValue: (entry) => historySource(entry),
-  },
-  {
-    header: "Changed",
-    id: "occurredAt",
-    render: (entry) => formatHistoryDate(entry.occurredAt),
-    sortValue: (entry) => entry.occurredAt,
-  },
-];
-
-function reportableSections(roster: OrganizationRosterConfiguration) {
-  return roster.sections.filter(({ trackOnly }) => !trackOnly);
-}
-
-function reportableVoiceParts(roster: OrganizationRosterConfiguration) {
-  const trackOnlySections = new Set(
-    roster.sections.filter(({ trackOnly }) => trackOnly).map(({ code }) => code),
-  );
-  return roster.voiceParts.filter(({ sectionCode }) => !trackOnlySections.has(sectionCode));
-}
-
-function RsvpDeadlineNotice({ event }: { readonly event: OrganizationEvent | null }) {
-  if (event?.type !== "Performance" || !event.rsvpDeadlineDate) return null;
-  return (
-    <p
-      className={`rsvp-manager__deadline-notice ${
-        event.rsvpDeadlinePassed ? "notice notice--warning" : "notice notice--info"
-      }`}
-    >
-      {event.rsvpDeadlinePassed
-        ? `Member self-service RSVP is closed. The deadline was ${event.rsvpDeadlineDate}. Administrators can still override responses.`
-        : `Member RSVP deadline: ${event.rsvpDeadlineDate} through 11:59 p.m.`}
-    </p>
-  );
-}
 
 // eslint-disable-next-line complexity -- the RSVP manager coordinates filters, per-row updates, and bulk selection in one screen state.
 export function RsvpManagerPage({
@@ -237,7 +117,7 @@ export function RsvpManagerPage({
     () => rows.filter((row) => profileById.get(row.profileId)?.globalStatus === "Active"),
     [profileById, rows],
   );
-  const counts = useMemo(
+  const counts: RsvpCounts = useMemo(
     () => ({
       active: activeRows.length,
       attending: activeRows.filter((row) => row.rsvp === "Yes").length,
@@ -306,7 +186,7 @@ export function RsvpManagerPage({
         entry.newRsvp,
         entry.reason,
         entry.actorType,
-        historySource(entry),
+        entry.automatic ? "Automation" : "Manual update",
       ]
         .join(" ")
         .toLocaleLowerCase();
@@ -548,130 +428,31 @@ export function RsvpManagerPage({
           {feedback}
         </p>
       ) : null}
-      <fieldset className="surface-card roster-balance rsvp-manager__balance">
-        <legend id="rsvp-balance-title">{partLabel} RSVP balance</legend>
-        <div className="roster-balance__header">
-          <div>
-            <p className="field-help">
-              Select a section or {partLabel.toLowerCase()} to filter the roster below.
-            </p>
-            <div className="rsvp-manager__performance-row">
-              <label className="field rsvp-manager__performance">
-                <span>Performance</span>
-                <select
-                  onChange={(event) => {
-                    setEventId(event.target.value);
-                    setFeedback(null);
-                    setAssignmentFilter(null);
-                    setView("roster");
-                    setHistoryFilter("All");
-                    setHistoryQuery("");
-                    setSelectedProfileIds([]);
-                  }}
-                  value={eventId}
-                >
-                  <option value="">Choose performance</option>
-                  {state.events
-                    .filter((event) => event.type === "Performance")
-                    .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
-                    .map((event) => (
-                      <option key={event.id} value={event.id}>
-                        {event.title} · {displayEventDate(event.startsAt)}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <RsvpDeadlineNotice event={selectedEvent} />
-            </div>
-          </div>
-          <div className="rsvp-manager__summary-actions">
-            <span className="status-pill">Total: {counts.active} active</span>
-            {eventId ? (
-              <a
-                className="button button--secondary button--sm"
-                href={`/api/organization/events/${encodeURIComponent(eventId)}/rsvp-export.csv?sort=lastName`}
-              >
-                Export CSV
-              </a>
-            ) : null}
-          </div>
-        </div>
-        <div className="rsvp-status-filters" role="tablist" aria-label="RSVP views">
-          {(
-            [
-              ["active", `All active (${String(counts.active)})`],
-              ["Yes", `Attending (${String(counts.attending)})`],
-              ["No", `Declined (${String(counts.declined)})`],
-              ["Pending", `No response (${String(counts.pending)})`],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              aria-selected={view === "roster" && filter === value}
-              className={view === "roster" && filter === value ? "is-active" : undefined}
-              key={value}
-              onClick={() => {
-                setFilter(value);
-                setView("roster");
-              }}
-              role="tab"
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
-          <button
-            aria-selected={view === "history"}
-            className={view === "history" ? "is-active" : undefined}
-            onClick={() => {
-              setView("history");
-            }}
-            role="tab"
-            type="button"
-          >
-            History
-          </button>
-        </div>
-        <div className="roster-balance__sections">
-          {reportableSections(state.roster).map((section) => {
-            const selected =
-              assignmentFilter?.kind === "section" && assignmentFilter.value === section.code;
-            return (
-              <button
-                aria-pressed={selected}
-                className={`roster-balance__section${selected ? " roster-balance__section--selected" : ""}`}
-                key={section.code}
-                onClick={() => {
-                  toggleAssignmentFilter({ kind: "section", value: section.code });
-                }}
-                type="button"
-              >
-                <span>{section.name}</span>
-                <strong>{sectionCounts.get(section.code) ?? 0}</strong>
-              </button>
-            );
-          })}
-        </div>
-        <div className="roster-balance__parts">
-          {reportableVoiceParts(state.roster).map((voicePart) => {
-            const selected =
-              assignmentFilter?.kind === "voicePart" && assignmentFilter.value === voicePart.label;
-            return (
-              <button
-                aria-pressed={selected}
-                className={`roster-balance__part${selected ? " roster-balance__part--selected" : ""}`}
-                key={voicePart.label}
-                onClick={() => {
-                  toggleAssignmentFilter({ kind: "voicePart", value: voicePart.label });
-                }}
-                type="button"
-              >
-                <span>{voicePart.label}</span>
-                <strong>{voicePartCounts.get(voicePart.label) ?? 0}</strong>
-              </button>
-            );
-          })}
-        </div>
-      </fieldset>
+      <RsvpManagerFilters
+        assignmentFilter={assignmentFilter}
+        counts={counts}
+        eventId={eventId}
+        events={state.events}
+        filter={filter}
+        onEventChange={(nextEventId) => {
+          setEventId(nextEventId);
+          setFeedback(null);
+          setAssignmentFilter(null);
+          setView("roster");
+          setHistoryFilter("All");
+          setHistoryQuery("");
+          setSelectedProfileIds([]);
+        }}
+        partLabel={partLabel}
+        roster={state.roster}
+        sectionCounts={sectionCounts}
+        selectedEvent={selectedEvent}
+        setFilter={setFilter}
+        setView={setView}
+        toggleAssignmentFilter={toggleAssignmentFilter}
+        view={view}
+        voicePartCounts={voicePartCounts}
+      />
 
       <>
         <fieldset className="surface-card rsvp-manager__roster" hidden={view !== "roster"}>
@@ -751,82 +532,22 @@ export function RsvpManagerPage({
             />
           )}
         </fieldset>
-        <section
-          className="surface-card rsvp-manager__history"
-          aria-labelledby="rsvp-history-title"
-          hidden={view !== "history"}
-        >
-          <div className="section-heading section-heading--compact">
-            <p className="eyebrow">Audit trail</p>
-            <h2 id="rsvp-history-title">Event RSVP History</h2>
-            <p className="section-description">
-              Actual RSVP changes are shown here separately from Profile Status History.
-            </p>
-          </div>
-          {historyError ? (
-            <div className="notice notice--error" role="alert">
-              <p>{historyError}</p>
-              <button
-                className="button button--secondary button--sm"
-                onClick={() => {
-                  void historyQueryData.refetch();
-                }}
-                type="button"
-              >
-                Retry
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="rsvp-manager__controls rsvp-manager__history-controls">
-                <label className="field">
-                  <span>Search history</span>
-                  <input
-                    onChange={(event) => {
-                      setHistoryQuery(event.target.value);
-                    }}
-                    placeholder="Name, reason, or source"
-                    type="search"
-                    value={historyQuery}
-                  />
-                </label>
-                <label className="field">
-                  <span>Filter new RSVP</span>
-                  <select
-                    onChange={(event) => {
-                      const nextFilter = event.target.value;
-                      if (isHistoryFilter(nextFilter)) setHistoryFilter(nextFilter);
-                    }}
-                    value={historyFilter}
-                  >
-                    <option value="All">All statuses</option>
-                    <option value="Yes">Attending</option>
-                    <option value="No">Declined</option>
-                    <option value="Pending">No response</option>
-                  </select>
-                </label>
-              </div>
-              <div className="rsvp-manager__table-heading">
-                <span aria-live="polite">
-                  {historyLoading ? "Loading…" : `${String(filteredHistory.length)} shown`}
-                </span>
-              </div>
-              <DataTable
-                columns={rsvpHistoryColumns}
-                emptyMessage={
-                  history.length === 0
-                    ? "No RSVP changes recorded for this event yet."
-                    : "No history entries match these filters."
-                }
-                initialSort={{ columnId: "occurredAt", direction: "desc" }}
-                keySelector={(entry) =>
-                  `${entry.occurredAt}-${entry.profileId}-${entry.previousRsvp}-${entry.newRsvp}-${entry.reason}`
-                }
-                rows={filteredHistory}
-              />
-            </>
-          )}
-        </section>
+        <RsvpHistoryTable
+          filteredHistory={filteredHistory}
+          historyError={historyError}
+          historyFilter={historyFilter}
+          historyLoading={historyLoading}
+          historyQuery={historyQuery}
+          onRetry={() => {
+            void historyQueryData.refetch();
+          }}
+          setHistoryFilter={(nextFilter) => {
+            if (isHistoryFilter(nextFilter)) setHistoryFilter(nextFilter);
+          }}
+          setHistoryQuery={setHistoryQuery}
+          totalHistoryCount={history.length}
+          view={view}
+        />
       </>
       {confirmationDialog}
     </div>

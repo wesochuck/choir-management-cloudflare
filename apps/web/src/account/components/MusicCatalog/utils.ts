@@ -223,16 +223,19 @@ export function resolvePreferredPracticeTrack(
   };
 }
 
+export function pieceTrackCount(piece: OrganizationMusicPiece): number {
+  return Object.values(piece.trackFileIds).filter(
+    (fileId) => typeof fileId === "string" && fileId.trim().length > 0,
+  ).length;
+}
+
 export function trackCount(
   piece: OrganizationMusicPiece,
   pieces: readonly OrganizationMusicPiece[],
 ): number {
-  const directTracks = Object.values(piece.trackFileIds).filter(Boolean).length;
+  const directTracks = pieceTrackCount(piece);
   const movementTracks = pieces
     .filter(({ parentId }) => parentId === piece.id)
-    .reduce(
-      (total, movement) => total + Object.values(movement.trackFileIds).filter(Boolean).length,
-      0,
-    );
+    .reduce((total, movement) => total + pieceTrackCount(movement), 0);
   return directTracks + movementTracks;
 }

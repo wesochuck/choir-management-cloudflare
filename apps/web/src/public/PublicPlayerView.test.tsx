@@ -11,10 +11,10 @@ import {
   PlayerSetList,
   PlayerTrackMetadata,
   PlayerTransport,
-  PublicPlayerView,
   type PlayerDetails,
   type PlayerPlaylistItem,
-} from "./PublicPlayerView";
+} from "./player";
+import { PublicPlayerView } from "./PublicPlayerView";
 import { formatVoicePartName, sortVoiceParts } from "./playerVoiceParts";
 
 const firstItem: PlayerPlaylistItem = {

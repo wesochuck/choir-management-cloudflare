@@ -5,8 +5,10 @@ import type { OrganizationMusicPiece } from "@choir/contracts";
 import {
   normalizeDurationInput,
   parseDuration,
+  pieceTrackCount,
   resolvePreferredPracticeTrack,
   summarizeMusicCredits,
+  trackCount,
 } from "./utils";
 
 function piece(id: string, composer: string, arranger: string): OrganizationMusicPiece {
@@ -137,5 +139,48 @@ describe("resolvePreferredPracticeTrack", () => {
       key: "tenor",
       label: "Tenor",
     });
+  });
+});
+
+describe("pieceTrackCount & trackCount", () => {
+  it("counts direct practice tracks ignoring empty or whitespace strings", () => {
+    expect(pieceTrackCount(piece("p1", "", ""))).toBe(0);
+    expect(
+      pieceTrackCount({
+        ...piece("p2", "", ""),
+        trackFileIds: { tutti: "  ", soprano: "" },
+      }),
+    ).toBe(0);
+    expect(
+      pieceTrackCount({
+        ...piece("p3", "", ""),
+        trackFileIds: { tutti: "file-1", soprano: "file-2", alto: "" },
+      }),
+    ).toBe(2);
+  });
+
+  it("calculates total tracks including movement tracks for a parent piece", () => {
+    const parent = {
+      ...piece("parent", "", ""),
+      trackFileIds: { tutti: "file-parent-tutti" },
+    };
+    const movementOne = {
+      ...piece("m1", "", ""),
+      parentId: "parent",
+      trackFileIds: { soprano: "file-m1-soprano", alto: "file-m1-alto" },
+    };
+    const movementTwo = {
+      ...piece("m2", "", ""),
+      parentId: "parent",
+      trackFileIds: {},
+    };
+    const standalone = piece("standalone", "", "");
+
+    const allPieces = [parent, movementOne, movementTwo, standalone];
+
+    expect(trackCount(parent, allPieces)).toBe(3);
+    expect(trackCount(movementOne, allPieces)).toBe(2);
+    expect(trackCount(movementTwo, allPieces)).toBe(0);
+    expect(trackCount(standalone, allPieces)).toBe(0);
   });
 });

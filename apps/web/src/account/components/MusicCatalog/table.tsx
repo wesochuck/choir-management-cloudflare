@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { buildMusicPublisherSearchUrl } from "../../musicPublisherSearch";
 
 import { GenreChips } from "./shared";
-import { composerText, durationText, genreKey } from "./utils";
+import { composerText, durationText, genreKey, pieceTrackCount } from "./utils";
 
 import { MusicTableTrackPlayer } from "./performances";
 
@@ -235,6 +235,7 @@ export function MusicCatalogTable({
                 piece={piece}
               />
             ),
+            sortValue: (piece) => pieceTrackCount(piece),
           },
           {
             header: "Copies",

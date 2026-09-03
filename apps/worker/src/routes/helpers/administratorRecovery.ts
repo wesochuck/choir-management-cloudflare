@@ -14,7 +14,7 @@ import { getSetupStatus } from "../../organization/organizationSetup";
 import { createOrganizationProfile, deleteOrganizationProfile } from "../../organization/profiles";
 import { readJsonObject } from "./routeContracts";
 import type { WorkerHonoEnvironment } from "./routeContracts";
-import { resolveCanonicalOrganizationId } from "./routeUtilities";
+import { resolveCanonicalOrganizationId } from "./tenancyHelpers";
 
 const administratorRecoveryRequestSchema = z.object({
   displayName: z.string().trim().min(1).max(200).optional(),

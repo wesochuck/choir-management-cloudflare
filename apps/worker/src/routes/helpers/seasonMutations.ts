@@ -5,10 +5,29 @@ import {
 } from "@choir/contracts";
 import { type Context } from "hono";
 
-import { createSeason, updateSeason } from "../../organization/organizationSeasons";
+import { createSeason, updateSeason, SeasonError } from "../../organization/organizationSeasons";
 import { authorizeCalendarRoute } from "./routeContracts";
 import type { WorkerHonoEnvironment } from "./routeContracts";
-import { seasonMutationFailure } from "./routeUtilities";
+
+export function seasonMutationFailure(
+  error: unknown,
+  requestIdValue: string,
+  fallback: string,
+): { readonly problem: ProblemDetails; readonly status: 400 | 404 | 409 | 503 } {
+  const status =
+    error instanceof SeasonError &&
+    (error.status === 400 || error.status === 404 || error.status === 409)
+      ? error.status
+      : 503;
+  return {
+    problem: {
+      code: error instanceof SeasonError ? error.code : "season_unavailable",
+      message: error instanceof SeasonError ? error.message : fallback,
+      requestId: requestIdValue,
+    },
+    status,
+  };
+}
 
 export async function saveSeasonRoute(
   context: Context<WorkerHonoEnvironment>,
