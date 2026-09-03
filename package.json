@@ -64,7 +64,7 @@
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.20.1",
-    "@cloudflare/workers-types": "5.20260820.1",
+    "@cloudflare/workers-types": "5.20260831.1",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.61.1",
     "@types/node": "26.1.1",
@@ -78,7 +78,7 @@
     "typescript": "6.0.2",
     "typescript-eslint": "8.65.0",
     "vitest": "4.1.10",
-    "wrangler": "4.125.0",
+    "wrangler": "4.128.0",
     "yaml": "2.9.0"
   },
   "overrides": {
