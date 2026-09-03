@@ -669,21 +669,23 @@
   }
 
   .music-table-track-player {
-    display: grid;
-    grid-template-columns: minmax(12rem, 1fr) auto;
-    min-width: 16rem;
+    display: inline-flex;
     align-items: center;
-    gap: var(--spacing-2xs);
+    justify-content: flex-start;
   }
 
-  .music-table-track-player .music-audio-track__player {
-    min-width: 0;
+  .music-table-track-player__button {
+    width: 5.25rem;
+    min-width: 5.25rem;
+    justify-content: center;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
   }
 
-  .music-table-track-player > .text-button {
-    min-width: 1.75rem;
-    padding: var(--spacing-3xs) var(--spacing-2xs);
-    font-size: var(--font-size-lg);
+  .music-table-track-player__button.is-playing {
+    border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    color: var(--color-accent);
   }
 
   .music-table-tutti-dropzone {

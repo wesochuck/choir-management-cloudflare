@@ -369,8 +369,10 @@ export function App() {
         .toUpperCase()
     : "CM";
 
+  const isPlayerRoute = pathname === "/player";
+
   const productShell = (
-    <div className="app-shell">
+    <div className={`app-shell ${isPlayerRoute ? "app-shell--player" : ""}`}>
       <header className="site-header">
         <a className="brand" href="/" aria-label={`${displayName} home`}>
           {logoFileId ? (
@@ -393,11 +395,13 @@ export function App() {
               Service unavailable
             </span>
           ) : null}
-          <nav aria-label="Account">
-            <a href={sessionState.status === "authenticated" ? "/account" : "/login"}>
-              {sessionState.status === "authenticated" ? "Account" : "Sign in"}
-            </a>
-          </nav>
+          {!isPlayerRoute ? (
+            <nav aria-label="Account">
+              <a href={sessionState.status === "authenticated" ? "/account" : "/login"}>
+                {sessionState.status === "authenticated" ? "Account" : "Sign in"}
+              </a>
+            </nav>
+          ) : null}
         </div>
       </header>
 

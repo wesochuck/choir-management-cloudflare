@@ -67,6 +67,13 @@ describe("MusicTableTuttiDropTarget & MusicTableTrackPlayer", () => {
 
     expect(html).toContain("Play");
     expect(html).toContain("button--secondary");
+    expect(html).toContain("music-table-track-player__button");
+    expect(html).toContain('<audio aria-label="Tutti learning track for Test Anthem"');
+    expect(html).toContain('src="/api/organization/files/file-tutti-123"');
+    // Ensure no time scrubber range input or expand/close widget is in the table list view
+    expect(html).not.toContain('type="range"');
+    expect(html).not.toContain("music-audio-track__scrubber");
+    expect(html).not.toContain("Close player");
     expect(html).not.toContain("music-table-tutti-dropzone");
   });
 

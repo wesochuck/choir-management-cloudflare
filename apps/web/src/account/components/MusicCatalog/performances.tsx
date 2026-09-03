@@ -369,7 +369,20 @@ export function MusicTableTrackPlayer({
   readonly piece: OrganizationMusicPiece;
 }) {
   const track = resolvePreferredPracticeTrack(piece);
-  const [expanded, setExpanded] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+    setCurrentTime(0);
+    setDuration(0);
+    setIsPlaying(false);
+  }, [track?.fileId]);
 
   if (!track) {
     if (onSaved) {
@@ -384,21 +397,43 @@ export function MusicTableTrackPlayer({
     }
     return <span>—</span>;
   }
-  if (!expanded) {
-    return (
-      <button
-        aria-label={`Play ${track.label.toLowerCase()} learning track for ${piece.title}`}
-        className="button button--secondary button--small"
-        type="button"
-        onClick={(event) => {
-          event.stopPropagation();
-          setExpanded(true);
-        }}
-      >
-        <span aria-hidden="true">▶</span> Play
-      </button>
-    );
+
+  function togglePlayback(event: React.MouseEvent<HTMLButtonElement>): void {
+    event.stopPropagation();
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      document.querySelectorAll("audio").forEach((otherAudio) => {
+        if (otherAudio !== audio && !otherAudio.paused) {
+          otherAudio.pause();
+        }
+      });
+      void audio.play().catch(() => {
+        setIsPlaying(false);
+      });
+    } else {
+      audio.pause();
+    }
   }
+
+  const src = `/api/organization/files/${track.fileId}`;
+  const labelText = isPlaying
+    ? audioTimeText(currentTime)
+    : currentTime > 0
+      ? audioTimeText(currentTime)
+      : "Play";
+
+  const actionAria = isPlaying
+    ? `Pause ${track.label.toLowerCase()} learning track for ${piece.title}`
+    : currentTime > 0
+      ? `Resume ${track.label.toLowerCase()} learning track for ${piece.title}`
+      : `Play ${track.label.toLowerCase()} learning track for ${piece.title}`;
+
+  const buttonTitle = isPlaying
+    ? `Pause (${audioTimeText(currentTime)} / ${audioTimeText(duration)})`
+    : currentTime > 0
+      ? `Resume (${audioTimeText(currentTime)} / ${audioTimeText(duration)})`
+      : `Play ${track.label}`;
 
   return (
     <div
@@ -407,17 +442,41 @@ export function MusicTableTrackPlayer({
         event.stopPropagation();
       }}
     >
-      <MusicInlineAudioPlayer label={track.label} src={`/api/organization/files/${track.fileId}`} />
-      <button
-        aria-label={`Close player for ${piece.title}`}
-        className="text-button"
-        title="Close player"
-        type="button"
-        onClick={() => {
-          setExpanded(false);
+      <audio
+        aria-label={`${track.label} learning track for ${piece.title}`}
+        className="music-audio-track__audio"
+        preload="metadata"
+        ref={audioRef}
+        src={src}
+        onEnded={() => {
+          setIsPlaying(false);
+          setCurrentTime(0);
+        }}
+        onLoadedMetadata={(event) => {
+          setDuration(
+            Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0,
+          );
+        }}
+        onPause={() => {
+          setIsPlaying(false);
+        }}
+        onPlay={() => {
+          setIsPlaying(true);
+        }}
+        onTimeUpdate={(event) => {
+          setCurrentTime(event.currentTarget.currentTime);
         }}
       >
-        ×
+        <track kind="captions" />
+      </audio>
+      <button
+        aria-label={actionAria}
+        className={`button button--secondary button--small music-table-track-player__button${isPlaying ? " is-playing" : ""}`}
+        title={buttonTitle}
+        type="button"
+        onClick={togglePlayback}
+      >
+        <span aria-hidden="true">{isPlaying ? "❚❚" : "▶"}</span> {labelText}
       </button>
     </div>
   );

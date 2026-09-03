@@ -15,6 +15,7 @@ import {
   type PlayerDetails,
   type PlayerPlaylistItem,
 } from "./PublicPlayerView";
+import { formatVoicePartName, sortVoiceParts } from "./playerVoiceParts";
 
 const firstItem: PlayerPlaylistItem = {
   arranger: "Arranger One",
@@ -134,21 +135,54 @@ describe("PublicPlayerView Components", () => {
   });
 
   describe("PlayerPartSelector", () => {
-    it("renders segmented section buttons and split part dropdown when >2 split parts exist", () => {
+    it("renders trigger button with Voice Part label and formatted active track", () => {
       const html = renderToString(
         <PlayerPartSelector
-          activeTrackKey="soprano"
+          activeTrackKey="tenor1"
           onSelectTrackKey={vi.fn()}
-          trackKeys={["tutti", "alto", "soprano", "tenor"]}
-          voicePartKeys={["soprano1", "soprano2", "soprano3"]}
+          trackKeys={["tutti", "alto", "soprano", "tenor1", "tenor2", "bass"]}
         />,
       );
-      expect(html).toContain('aria-pressed="true"');
-      expect(html).toContain("SOPRANO");
-      expect(html).toContain("Tutti");
-      expect(html).toContain("<select");
-      expect(html).toContain("Add part…");
-      expect(html).toContain("SOPRANO1");
+      expect(html).toContain('aria-haspopup="dialog"');
+      expect(html).toContain('aria-expanded="false"');
+      expect(html).toContain("Voice Part");
+      expect(html).toContain("Tenor 1");
+    });
+
+    it("renders bottom sheet dialog with radio options when open", () => {
+      const html = renderToString(
+        <PlayerPartSelector
+          activeTrackKey="tenor1"
+          defaultOpen={true}
+          onSelectTrackKey={vi.fn()}
+          trackKeys={["tutti", "alto", "soprano", "tenor1", "tenor2", "bass"]}
+        />,
+      );
+      expect(html).toContain('role="dialog"');
+      expect(html).toContain('aria-modal="true"');
+      expect(html).toContain("Choose Voice Part");
+      expect(html).toContain('role="radiogroup"');
+      expect(html).toContain('aria-checked="true"');
+      expect(html).toContain("Soprano");
+      expect(html).toContain("Alto");
+      expect(html).toContain("Tenor 1");
+      expect(html).toContain("Tenor 2");
+      expect(html).toContain("Bass");
+      expect(html).toContain("Choir Mix");
+    });
+
+    it("correctly formats voice part names with human-friendly labels", () => {
+      expect(formatVoicePartName("tutti")).toBe("Choir Mix");
+      expect(formatVoicePartName("tenor1")).toBe("Tenor 1");
+      expect(formatVoicePartName("soprano2")).toBe("Soprano 2");
+      expect(formatVoicePartName("bass")).toBe("Bass");
+      expect(formatVoicePartName("alto")).toBe("Alto");
+    });
+
+    it("sorts voice parts in natural choral order with Choir Mix at the end", () => {
+      const parts = ["tutti", "bass", "tenor1", "soprano", "alto", "tenor2"];
+      const sorted = sortVoiceParts(parts);
+      expect(sorted).toEqual(["soprano", "alto", "tenor1", "tenor2", "bass", "tutti"]);
     });
   });
 

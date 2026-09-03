@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Sheet } from "@choir/ui";
 import { getPublicPlayerDetails, getPublicPlayerPlaylist } from "../api";
+import { formatVoicePartName, sortVoiceParts } from "./playerVoiceParts";
 
 declare global {
   interface Navigator {
@@ -204,10 +205,6 @@ function availableTrackKeys(items: readonly PlayerPlaylistItem[]): string[] {
   });
 }
 
-function isIndividualVoicePart(key: string): boolean {
-  return /^[a-z]+\d+$/i.test(key);
-}
-
 function resolveTrack(item: PlayerPlaylistItem, requestedKey: string): ResolvedTrack | null {
   const requestedFileId = item.trackFileIds[requestedKey];
   if (requestedFileId) {
@@ -314,55 +311,193 @@ export function PlayerTrackMetadata({
 
 export function PlayerPartSelector({
   activeTrackKey,
+  defaultOpen = false,
   onSelectTrackKey,
   trackKeys,
   voicePartKeys,
 }: {
   readonly activeTrackKey: string;
+  readonly defaultOpen?: boolean;
   readonly onSelectTrackKey: (key: string) => void;
   readonly trackKeys: readonly string[];
-  readonly voicePartKeys: readonly string[];
+  readonly voicePartKeys?: readonly string[] | undefined;
 }) {
-  const showDropdown = voicePartKeys.length > 2;
-  const visiblePills = showDropdown
-    ? trackKeys
-    : [...trackKeys, ...voicePartKeys.filter((key) => !trackKeys.includes(key))];
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const selectedOptionRef = useRef<HTMLButtonElement | null>(null);
+
+  const allKeys = useMemo(() => {
+    const combined = new Set([...trackKeys, ...(voicePartKeys ?? [])]);
+    return sortVoiceParts([...combined]);
+  }, [trackKeys, voicePartKeys]);
+
+  useEffect(() => {
+    if (isOpen) {
+      selectedOptionRef.current?.focus();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const handleClose = () => {
+    setIsOpen(false);
+    triggerRef.current?.focus();
+  };
 
   return (
-    <nav aria-label="Track selection" className="public-player__part-selector">
-      {visiblePills.map((key) => (
-        <button
-          aria-pressed={activeTrackKey === key}
-          className={activeTrackKey === key ? "is-active" : undefined}
-          key={key}
-          onClick={() => {
-            onSelectTrackKey(key);
-          }}
-          type="button"
-        >
-          {formatTrackKey(key)}
-        </button>
-      ))}
-      {showDropdown ? (
-        <label className="public-player__voice-part-select">
-          <span className="sr-only">Add individual part</span>
-          <select
-            aria-label="Add individual part"
-            onChange={(event) => {
-              if (event.target.value) onSelectTrackKey(event.target.value);
-            }}
-            value={voicePartKeys.includes(activeTrackKey) ? activeTrackKey : ""}
+    <div className="public-player__part-selector-container">
+      <button
+        aria-controls="voice-part-sheet"
+        aria-expanded={isOpen}
+        aria-haspopup="dialog"
+        className="public-player__part-trigger"
+        onClick={() => {
+          setIsOpen((prev) => !prev);
+        }}
+        ref={triggerRef}
+        type="button"
+      >
+        <span className="public-player__part-trigger-lead">
+          <svg
+            aria-hidden="true"
+            className="public-player__part-trigger-icon"
+            fill="none"
+            height="18"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            width="18"
           >
-            <option value="">Add part…</option>
-            {voicePartKeys.map((key) => (
-              <option key={key} value={key}>
-                {formatTrackKey(key)}
-              </option>
-            ))}
-          </select>
-        </label>
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          <span className="public-player__part-trigger-label">Voice Part</span>
+        </span>
+        <span className="public-player__part-trigger-value">
+          <span>{formatVoicePartName(activeTrackKey)}</span>
+          <svg
+            aria-hidden="true"
+            className={`public-player__part-trigger-chevron ${isOpen ? "is-open" : ""}`}
+            fill="none"
+            height="16"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
+            width="16"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </span>
+      </button>
+
+      {isOpen ? (
+        <div
+          aria-labelledby="choose-voice-part-title"
+          aria-modal="true"
+          className="public-player__part-sheet-backdrop"
+          id="voice-part-sheet"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) {
+              handleClose();
+            }
+          }}
+          role="dialog"
+        >
+          <div className="public-player__part-sheet">
+            <div aria-hidden="true" className="public-player__part-sheet-handle" />
+            <div className="public-player__part-sheet-header">
+              <h3 id="choose-voice-part-title">Choose Voice Part</h3>
+              <button
+                aria-label="Close voice part selector"
+                className="public-player__part-sheet-close"
+                onClick={handleClose}
+                type="button"
+              >
+                <svg
+                  aria-hidden="true"
+                  fill="none"
+                  height="18"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                  width="18"
+                >
+                  <line x1="18" x2="6" y1="6" y2="18" />
+                  <line x1="6" x2="18" y1="6" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div
+              aria-labelledby="choose-voice-part-title"
+              className="public-player__part-options"
+              role="radiogroup"
+            >
+              {allKeys.map((key) => {
+                const isSelected = activeTrackKey === key;
+                return (
+                  <button
+                    aria-checked={isSelected}
+                    className={`public-player__part-option ${isSelected ? "is-selected" : ""}`}
+                    key={key}
+                    onClick={() => {
+                      onSelectTrackKey(key);
+                      setIsOpen(false);
+                      triggerRef.current?.focus();
+                    }}
+                    ref={isSelected ? selectedOptionRef : undefined}
+                    role="radio"
+                    type="button"
+                  >
+                    <span aria-hidden="true" className="public-player__part-option-radio">
+                      {isSelected ? (
+                        <span className="public-player__part-option-radio-dot" />
+                      ) : null}
+                    </span>
+                    <span className="public-player__part-option-label">
+                      {formatVoicePartName(key)}
+                    </span>
+                    {isSelected ? (
+                      <svg
+                        aria-hidden="true"
+                        className="public-player__part-option-check"
+                        fill="none"
+                        height="18"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2.5"
+                        viewBox="0 0 24 24"
+                        width="18"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       ) : null}
-    </nav>
+    </div>
   );
 }
 
@@ -431,11 +566,13 @@ export function PlayerTransport({
         <svg
           aria-hidden="true"
           fill="none"
+          height="24"
           stroke="currentColor"
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth="2"
           viewBox="0 0 24 24"
+          width="24"
         >
           <polygon points="19 20 9 12 19 4 19 20" />
           <line x1="5" x2="5" y1="19" y2="5" />
@@ -449,12 +586,12 @@ export function PlayerTransport({
         type="button"
       >
         {playing ? (
-          <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
-            <rect height="16" rx="1" width="4" x="6" y="4" />
-            <rect height="16" rx="1" width="4" x="14" y="4" />
+          <svg aria-hidden="true" fill="currentColor" height="24" viewBox="0 0 24 24" width="24">
+            <rect height="16" rx="1.5" width="4.5" x="5" y="4" />
+            <rect height="16" rx="1.5" width="4.5" x="14.5" y="4" />
           </svg>
         ) : (
-          <svg aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
+          <svg aria-hidden="true" fill="currentColor" height="24" viewBox="0 0 24 24" width="24">
             <polygon points="5 3 19 12 5 21 5 3" />
           </svg>
         )}
@@ -470,11 +607,13 @@ export function PlayerTransport({
         <svg
           aria-hidden="true"
           fill="none"
+          height="24"
           stroke="currentColor"
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth="2"
           viewBox="0 0 24 24"
+          width="24"
         >
           <polygon points="5 4 15 12 5 20 5 4" />
           <line x1="19" x2="19" y1="5" y2="19" />
@@ -850,24 +989,9 @@ export function PublicPracticePlayer({
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const allTrackKeys = useMemo(() => availableTrackKeys(details.items), [details.items]);
-  const voicePartKeys = useMemo(
-    () => allTrackKeys.filter((key) => isIndividualVoicePart(key)),
-    [allTrackKeys],
-  );
-  const sectionTrackKeys = useMemo(() => {
-    const sections = allTrackKeys.filter((key) => !isIndividualVoicePart(key));
-    return sections.length > 0 ? sections : allTrackKeys.slice(0, 1);
-  }, [allTrackKeys]);
   const activeTrackKey = allTrackKeys.includes(selectedTrackKey)
     ? selectedTrackKey
     : (allTrackKeys[0] ?? "tutti");
-  const trackKeys = useMemo(
-    () =>
-      voicePartKeys.includes(activeTrackKey)
-        ? [...sectionTrackKeys, activeTrackKey]
-        : sectionTrackKeys,
-    [activeTrackKey, sectionTrackKeys, voicePartKeys],
-  );
   const playableItems = useMemo(
     () => details.items.filter((item) => resolveTrack(item, activeTrackKey) !== null),
     [activeTrackKey, details.items],
@@ -1141,8 +1265,7 @@ export function PublicPracticePlayer({
         <PlayerPartSelector
           activeTrackKey={activeTrackKey}
           onSelectTrackKey={selectTrackKey}
-          trackKeys={trackKeys}
-          voicePartKeys={voicePartKeys}
+          trackKeys={allTrackKeys}
         />
         <p className="public-player__empty" role="status">
           No practice tracks are available for this set list yet.
@@ -1196,14 +1319,6 @@ export function PublicPracticePlayer({
           aria-labelledby="public-player-now-playing"
           className="public-player__now-playing-card"
         >
-          {/* Part selection */}
-          <PlayerPartSelector
-            activeTrackKey={activeTrackKey}
-            onSelectTrackKey={selectTrackKey}
-            trackKeys={trackKeys}
-            voicePartKeys={voicePartKeys}
-          />
-
           {/* Event artwork */}
           <PlayerArtwork artworkUrl={eventArtworkUrl} eventTitle={details.eventTitle} />
 
@@ -1233,7 +1348,14 @@ export function PublicPracticePlayer({
             playing={playing}
           />
 
-          {/* Secondary controls */}
+          {/* Voice Part selection */}
+          <PlayerPartSelector
+            activeTrackKey={activeTrackKey}
+            onSelectTrackKey={selectTrackKey}
+            trackKeys={allTrackKeys}
+          />
+
+          {/* Secondary controls: Repeat, Set List, Settings */}
           <PlayerSecondaryControls
             loopMode={loopMode}
             onOpenQueue={() => {
