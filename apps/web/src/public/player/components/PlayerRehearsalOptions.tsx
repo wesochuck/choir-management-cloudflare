@@ -1,4 +1,4 @@
-import { playerMediaUrl } from "../format";
+import type { PracticeTrackSource } from "../source";
 
 export function PlayerRehearsalOptions({
   countdown,
@@ -10,8 +10,8 @@ export function PlayerRehearsalOptions({
   onToggleGuide,
   showGuide,
   showVolume = true,
+  source,
   startAt,
-  token,
   volume = 100,
 }: {
   readonly countdown: number | null;
@@ -23,8 +23,8 @@ export function PlayerRehearsalOptions({
   readonly onToggleGuide?: () => void;
   readonly showGuide?: boolean;
   readonly showVolume?: boolean;
+  readonly source: PracticeTrackSource;
   readonly startAt: number;
-  readonly token?: string;
   readonly volume?: number;
 }) {
   return (
@@ -82,12 +82,12 @@ export function PlayerRehearsalOptions({
           <small>Adds silence before the next track starts.</small>
         </label>
 
-        {currentTrackFileId && token ? (
+        {currentTrackFileId ? (
           <div className="public-player__download-action">
             <a
               className="button button--secondary public-player__full-width-btn"
               download
-              href={playerMediaUrl(currentTrackFileId, token)}
+              href={source.mediaUrl(currentTrackFileId)}
             >
               Download Current Track
             </a>

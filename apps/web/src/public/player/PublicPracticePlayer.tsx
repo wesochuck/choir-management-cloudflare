@@ -13,19 +13,19 @@ import { PlayerSetList } from "./components/PlayerSetList";
 import {
   availableTrackKeys,
   formatTrackKey,
-  playerMediaUrl,
   resolveTrack,
   updateMediaSessionPosition,
 } from "./format";
+import type { PracticeTrackSource } from "./source";
 import type { PlayerDetails } from "./types";
 import { useAudioSession, type AudioSessionHandlers } from "./useAudioSession";
 
 export function PublicPracticePlayer({
   details,
-  token,
+  source,
 }: {
   readonly details: PlayerDetails;
-  readonly token: string;
+  readonly source: PracticeTrackSource;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const autoplayRef = useRef(false);
@@ -59,9 +59,9 @@ export function PublicPracticePlayer({
   const currentItem = playableItems[safeSelectedItemIndex] ?? null;
   const currentTrack = currentItem ? resolveTrack(currentItem, activeTrackKey) : null;
   const currentIndex = currentItem ? playableItems.indexOf(currentItem) : -1;
-  const source = currentTrack ? playerMediaUrl(currentTrack.fileId, token) : "";
+  const audioSrc = currentTrack ? source.mediaUrl(currentTrack.fileId) : "";
   const eventArtworkUrl = details.eventArtworkFileId
-    ? playerMediaUrl(details.eventArtworkFileId, token)
+    ? source.artworkUrl(details.eventArtworkFileId)
     : null;
 
   useEffect(() => {
@@ -81,7 +81,7 @@ export function PublicPracticePlayer({
     audio.load();
     setCurrentTime(0);
     setDuration(0);
-  }, [source]);
+  }, [audioSrc]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume / 100;
@@ -321,7 +321,7 @@ export function PublicPracticePlayer({
         }}
         preload="metadata"
         ref={audioRef}
-        src={source}
+        src={audioSrc}
       >
         <track kind="captions" />
       </audio>
@@ -397,7 +397,7 @@ export function PublicPracticePlayer({
             selectItem(itemIndex);
           }}
           playableItems={playableItems}
-          token={token}
+          source={source}
         />
         <div className="public-player__desktop-options">
           <PlayerRehearsalOptions
@@ -411,8 +411,8 @@ export function PublicPracticePlayer({
               setShowGuide((current) => !current);
             }}
             showGuide={showGuide}
+            source={source}
             startAt={startAt}
-            token={token}
             volume={volume}
           />
         </div>
@@ -443,7 +443,7 @@ export function PublicPracticePlayer({
               setQueueOpen(false);
             }}
             playableItems={playableItems}
-            token={token}
+            source={source}
           />
         </div>
       </Sheet>
@@ -469,8 +469,8 @@ export function PublicPracticePlayer({
             onChangeGapSeconds={setGapSeconds}
             onChangeStartAt={updateStartAt}
             showVolume={false}
+            source={source}
             startAt={startAt}
-            token={token}
           />
         </div>
       </Sheet>

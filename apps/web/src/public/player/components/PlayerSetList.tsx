@@ -1,4 +1,5 @@
-import { formatTrackKey, playerMediaUrl, resolveTrack } from "../format";
+import { formatTrackKey, resolveTrack } from "../format";
+import type { PracticeTrackSource } from "../source";
 import type { PlayerPlaylistItem } from "../types";
 
 export function PlayerSetList({
@@ -7,14 +8,14 @@ export function PlayerSetList({
   items,
   onSelectItem,
   playableItems,
-  token,
+  source,
 }: {
   readonly activeTrackKey: string;
   readonly currentIndex: number;
   readonly items: readonly PlayerPlaylistItem[];
   readonly onSelectItem: (itemIndex: number) => void;
   readonly playableItems: readonly PlayerPlaylistItem[];
-  readonly token: string;
+  readonly source: PracticeTrackSource;
 }) {
   return (
     <section aria-labelledby="public-player-set-list" className="public-player__set-list">
@@ -72,7 +73,7 @@ export function PlayerSetList({
                   aria-label={`Download ${item.title}`}
                   className="button button--secondary button--small public-player__download-btn"
                   download
-                  href={playerMediaUrl(track.fileId, token)}
+                  href={source.mediaUrl(track.fileId)}
                 >
                   Download
                 </a>

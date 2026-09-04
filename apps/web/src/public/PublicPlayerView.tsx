@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   PlayerHeader,
   PublicPracticePlayer,
+  createTokenTrackSource,
   fetchPlayerDetails,
   fetchPublicPlayerPlaylist,
   type PageStatus,
@@ -78,12 +79,13 @@ export function PublicPlayerView() {
 
   if (pageStatus.type !== "ready") return null;
   const details = pageStatus.details;
+  const source = createTokenTrackSource(token ?? "");
 
   return (
     <main className="public-player-layout">
       <section aria-labelledby="player-title" className="public-player">
         <PlayerHeader details={details} />
-        <PublicPracticePlayer details={details} token={token ?? ""} />
+        <PublicPracticePlayer details={details} source={source} />
       </section>
     </main>
   );

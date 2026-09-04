@@ -11,6 +11,7 @@ import {
   PlayerSetList,
   PlayerTrackMetadata,
   PlayerTransport,
+  createTokenTrackSource,
   type PlayerDetails,
   type PlayerPlaylistItem,
 } from "./player";
@@ -278,7 +279,7 @@ describe("PublicPlayerView Components", () => {
           items={mockItems}
           onSelectItem={vi.fn()}
           playableItems={mockItems}
-          token="test-token"
+          source={createTokenTrackSource("test-token")}
         />,
       );
       expect(html).toContain("Alleluia");
@@ -300,7 +301,7 @@ describe("PublicPlayerView Components", () => {
           items={[itemWithTenorOnly]}
           onSelectItem={vi.fn()}
           playableItems={[itemWithTenorOnly]}
-          token="test-token"
+          source={createTokenTrackSource("test-token")}
         />,
       );
       expect(html).toContain("Angels we have heard on high");
@@ -325,7 +326,7 @@ describe("PublicPlayerView Components", () => {
           items={[itemWithNulls]}
           onSelectItem={vi.fn()}
           playableItems={[itemWithNulls]}
-          token="test-token"
+          source={createTokenTrackSource("test-token")}
         />,
       );
       expect(html).toContain("Simple Chant");
@@ -344,7 +345,7 @@ describe("PublicPlayerView Components", () => {
           onChangeStartAt={vi.fn()}
           onChangeVolume={vi.fn()}
           startAt={10}
-          token="test-token"
+          source={createTokenTrackSource("test-token")}
           volume={85}
         />,
       );
@@ -367,7 +368,7 @@ describe("PublicPlayerView Components", () => {
           onChangeStartAt={vi.fn()}
           showVolume={false}
           startAt={10}
-          token="test-token"
+          source={createTokenTrackSource("test-token")}
         />,
       );
       expect(html).toContain("Start track at");
