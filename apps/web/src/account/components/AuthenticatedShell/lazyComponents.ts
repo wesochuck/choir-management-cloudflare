@@ -42,8 +42,8 @@ export const EventsPage = lazy(() =>
   import("../EventsPage/page").then(({ EventsPage: component }) => ({ default: component })),
 );
 
-export const LearningTrackPlayer = lazy(() =>
-  import("../../LearningTrackPlayer").then(({ LearningTrackPlayer: component }) => ({
+export const MemberPracticeView = lazy(() =>
+  import("../../MemberPracticeView").then(({ MemberPracticeView: component }) => ({
     default: component,
   })),
 );

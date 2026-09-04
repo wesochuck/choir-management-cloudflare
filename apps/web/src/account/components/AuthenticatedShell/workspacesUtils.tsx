@@ -10,8 +10,8 @@ import {
   DashboardView,
   DonationsManager,
   EventsPage,
-  LearningTrackPlayer,
   MemberDuesPage,
+  MemberPracticeView,
   MemberProfileDirectory,
   ModuleSettingsView,
   MusicCatalog,
@@ -224,7 +224,7 @@ export function renderMemberPage(
   const pages: Record<string, ReactNode> = {
     "/directory": <MemberProfileDirectory enabled={enabled} view="directory" />,
     "/member/resources": <OrganizationResources enabled={enabled} manager={false} />,
-    "/practice": <LearningTrackPlayer enabled={enabled} />,
+    "/practice": <MemberPracticeView enabled={enabled} />,
     "/profile": <MemberProfileDirectory enabled={enabled} view="profile" />,
     "/dues": <MemberDuesPage enabled={enabled} />,
     "/schedule": <MySchedule enabled={enabled} />,

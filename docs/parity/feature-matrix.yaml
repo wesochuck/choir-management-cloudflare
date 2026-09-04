@@ -399,7 +399,7 @@
         "targetEvidence":
           [
             "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
-            "apps/web/src/account/LearningTrackPlayer.tsx",
+            "apps/web/src/account/MemberPracticeView.tsx",
           ],
       },
       {
@@ -2973,7 +2973,7 @@
             "packages/contracts/src/index.ts",
             "apps/worker/src/router.ts",
             "apps/worker/test/music.integration.test.ts",
-            "apps/web/src/account/LearningTrackPlayer.tsx",
+            "apps/web/src/account/MemberPracticeView.tsx",
             "apps/web/src/offline/mediaStore.ts",
             "apps/web/src/offline/mediaStore.test.ts",
           ],
@@ -3246,7 +3246,7 @@
             "apps/web/src/account/durationAutoFill.test.ts",
             "apps/web/src/account/musicPublisherSearch.ts",
             "apps/web/src/account/musicPublisherSearch.test.ts",
-            "apps/web/src/account/LearningTrackPlayer.tsx",
+            "apps/web/src/account/MemberPracticeView.tsx",
             "apps/web/src/offline/mediaStore.ts",
             "apps/web/src/offline/mediaStore.test.ts",
           ],
