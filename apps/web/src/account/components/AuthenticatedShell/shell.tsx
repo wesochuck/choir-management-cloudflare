@@ -18,6 +18,7 @@ import {
   stopOrganizationImpersonation,
 } from "../../../api";
 import { signOut } from "../../../auth/api";
+import { purgeOfflineAudioForSource } from "../../../offline/mediaStore";
 import { requestGlobalLeave, SaveBar, SaveCoordinatorProvider } from "../../../persistence";
 import { OrganizationTerminologyProvider } from "../../organizationTerminology";
 
@@ -165,9 +166,14 @@ export function AuthenticatedShell({
       .then(([context, modules, organizationName, hasPlatformAccess, baseHostname]) => {
         setBaseHostname(baseHostname);
         setPlatformAvailable(hasPlatformAccess);
-        setAccess(
-          context ? { context, modules, organizationName, status: "ready" } : { status: "none" },
-        );
+        if (!context) {
+          setAccess({ status: "none" });
+          void purgeOfflineAudioForSource(window.location.host, "session").catch(() => {
+            // Best-effort: access state must resolve even if cache cleanup fails.
+          });
+          return;
+        }
+        setAccess({ context, modules, organizationName, status: "ready" });
       })
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === "AbortError"))
