@@ -8,10 +8,6 @@ import {
   parseOrganizationRpcCall,
 } from "../src/organization/rpc/types";
 
-const stores = env.ORGANIZATION_STORE;
-
-if (!stores) throw new Error("The ORGANIZATION_STORE integration-test binding is missing.");
-
 afterEach(async () => {
   await reset();
 });

@@ -5,9 +5,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import { reconciliationReportSchema } from "../src/organization/reconciliationStore";
 
-function requireStores(): NonNullable<typeof env.ORGANIZATION_STORE> {
-  if (!env.ORGANIZATION_STORE) throw new Error("The ORGANIZATION_STORE binding is missing.");
-  return env.ORGANIZATION_STORE;
+function requireBinding<T>(binding: T | undefined, name: string): T {
+  if (binding === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
+  return binding;
 }
 
 afterEach(async () => {
@@ -17,7 +17,7 @@ afterEach(async () => {
 describe("Organization reconciliation report", () => {
   it("reports expired-paid tickets, inconsistent attempts, orphan exports, and terminal jobs", async () => {
     const organizationId = "reconciliation-report";
-    const stores = requireStores();
+    const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
     const stub = stores.get(stores.idFromName(organizationId));
     const provisionResponse = await stub.fetch("https://organization.internal/internal/provision", {
       body: JSON.stringify({

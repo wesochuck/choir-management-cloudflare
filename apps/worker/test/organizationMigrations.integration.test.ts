@@ -7,9 +7,12 @@ import { applyOrganizationMigration } from "../src/organization/migrations";
 import { refreshUnmodifiedPaymentMessageTemplates } from "../src/organization/paymentMessageTemplates";
 import { refreshUnmodifiedSystemCommunicationTemplates } from "../src/organization/schema/templates";
 
-const stores = env.ORGANIZATION_STORE;
+function requireBinding<T>(binding: T | undefined, name: string): T {
+  if (binding === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
+  return binding;
+}
 
-if (!stores) throw new Error("The ORGANIZATION_STORE integration-test binding is missing.");
+const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
 
 afterEach(async () => {
   await reset();

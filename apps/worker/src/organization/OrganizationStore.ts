@@ -38,6 +38,11 @@ function isAlarmWakePath(pathname: string): boolean {
   );
 }
 
+function requireBinding<T>(binding: T | undefined, name: string): T {
+  if (binding === undefined) throw new Error(`The ${name} binding is not configured.`);
+  return binding;
+}
+
 function clearUnsuccessfulEventReminderMarkers(storage: DurableObjectStorage): void {
   storage.sql.exec(
     `UPDATE events
@@ -265,8 +270,7 @@ export class OrganizationStore extends DurableObject {
       if (url.pathname === "/internal/scheduling/event-reminder-result") {
         return recordEventReminderResult(this.ctx.storage, await request.json().catch(() => null));
       }
-      const jobsQueue = this.env.JOBS_QUEUE;
-      if (!jobsQueue) throw new Error("The JOBS_QUEUE binding is not configured.");
+      const jobsQueue = requireBinding(this.env.JOBS_QUEUE, "JOBS_QUEUE");
       const response = await dispatchPostRequest(
         this.ctx.storage,
         jobsQueue,
@@ -289,10 +293,10 @@ export class OrganizationStore extends DurableObject {
 
   override async alarm(): Promise<void> {
     try {
-      const jobsQueue = this.env.JOBS_QUEUE;
-      if (jobsQueue) {
-        await runOrganizationAlarm(this.ctx.storage, jobsQueue);
-      }
+      await runOrganizationAlarm(
+        this.ctx.storage,
+        requireBinding(this.env.JOBS_QUEUE, "JOBS_QUEUE"),
+      );
     } finally {
       clearUnsuccessfulEventReminderMarkers(this.ctx.storage);
     }

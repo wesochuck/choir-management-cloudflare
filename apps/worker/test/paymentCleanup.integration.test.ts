@@ -4,13 +4,13 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 
-function requireOrganizationStore(): NonNullable<typeof env.ORGANIZATION_STORE> {
-  if (!env.ORGANIZATION_STORE) throw new Error("The ORGANIZATION_STORE binding is missing.");
-  return env.ORGANIZATION_STORE;
+function requireBinding<T>(binding: T | undefined, name: string): T {
+  if (binding === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
+  return binding;
 }
 
 async function provisionCleanupOrganization(): Promise<DurableObjectStub<OrganizationStore>> {
-  const stores = requireOrganizationStore();
+  const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
   const organizationId = "payment-cleanup";
   const stub = stores.get(stores.idFromName(organizationId));
   const response = await stub.fetch("https://organization.internal/internal/provision", {
