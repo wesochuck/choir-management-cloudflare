@@ -38,5 +38,6 @@ export type PageStatus =
   | { readonly type: "loading" }
   | { readonly type: "no_token" }
   | { readonly type: "not_found" }
+  | { readonly type: "offline" }
   | { readonly type: "ready"; readonly details: PlayerDetails }
   | { readonly type: "error" };

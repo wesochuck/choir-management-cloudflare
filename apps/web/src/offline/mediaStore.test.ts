@@ -152,3 +152,60 @@ describe("planOfflineEvictions", () => {
     expect(planOfflineEvictions([{ key: "a", savedAt: 1, sizeBytes: 100 }], 100, null)).toEqual([]);
   });
 });
+
+describe("cached player metadata", () => {
+  it("persists and retrieves player metadata without affecting audio records", async () => {
+    installIndexedDatabase();
+    const { getCachedPlayerMetadata, saveCachedPlayerMetadata } = await import("./mediaStore");
+    await saveCachedPlayerMetadata("scope-1", "test-key", { title: "Song" });
+    const retrieved = await getCachedPlayerMetadata("scope-1", "test-key");
+    expect(retrieved).toEqual({ title: "Song" });
+
+    // Ensure audio listing ignores metadata records
+    const audioIds = await listOfflineAudioIds("scope-1");
+    expect(audioIds.size).toBe(0);
+  });
+
+  it("handles empty scope, empty key, or missing records gracefully", async () => {
+    installIndexedDatabase();
+    const { getCachedPlayerMetadata, saveCachedPlayerMetadata } = await import("./mediaStore");
+    expect(await getCachedPlayerMetadata("", "key")).toBeNull();
+    expect(await getCachedPlayerMetadata("scope", "")).toBeNull();
+    expect(await getCachedPlayerMetadata("scope", "non-existent")).toBeNull();
+
+    await saveCachedPlayerMetadata("", "key", { title: "Song" });
+    await saveCachedPlayerMetadata("scope", "", { title: "Song" });
+    expect(await getCachedPlayerMetadata("scope", "")).toBeNull();
+  });
+
+  it("evicts expired metadata when maxAgeMs is exceeded", async () => {
+    installIndexedDatabase();
+    const { getCachedPlayerMetadata, saveCachedPlayerMetadata } = await import("./mediaStore");
+    await saveCachedPlayerMetadata("scope-ttl", "key-1", { title: "Old Song" });
+
+    // Pass maxAgeMs of 0 ms to simulate expiration
+    const expired = await getCachedPlayerMetadata("scope-ttl", "key-1", 0);
+    expect(expired).toBeNull();
+
+    // Verify it was evicted from storage
+    const afterEvict = await getCachedPlayerMetadata("scope-ttl", "key-1");
+    expect(afterEvict).toBeNull();
+  });
+
+  it("purges metadata scoped to an organization without touching other scopes or audio", async () => {
+    installIndexedDatabase();
+    const { getCachedPlayerMetadata, purgeCachedPlayerMetadata, saveCachedPlayerMetadata } =
+      await import("./mediaStore");
+
+    await saveCachedPlayerMetadata("org-a.localhost", "token-1", { title: "A1" });
+    await saveCachedPlayerMetadata("org-a.localhost", "token-2", { title: "A2" });
+    await saveCachedPlayerMetadata("org-b.localhost", "token-3", { title: "B1" });
+
+    const purged = await purgeCachedPlayerMetadata("org-a.localhost");
+    expect(purged).toBe(2);
+
+    expect(await getCachedPlayerMetadata("org-a.localhost", "token-1")).toBeNull();
+    expect(await getCachedPlayerMetadata("org-a.localhost", "token-2")).toBeNull();
+    expect(await getCachedPlayerMetadata("org-b.localhost", "token-3")).toEqual({ title: "B1" });
+  });
+});

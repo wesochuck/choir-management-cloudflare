@@ -264,3 +264,72 @@ export async function purgeOfflineAudioForSource(
   }
   return doomed.length;
 }
+
+const DEFAULT_METADATA_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days retention
+
+export async function saveCachedPlayerMetadata(
+  scope: string,
+  key: string,
+  details: unknown,
+): Promise<void> {
+  if (!scope || !key) return;
+  const database = await openDatabase();
+  await requestResult(
+    database
+      .transaction(storeName, "readwrite")
+      .objectStore(storeName)
+      .put({
+        details,
+        key: `metadata:${scope}:${key}`,
+        savedAt: Date.now(),
+        scope,
+      }),
+  );
+}
+
+export async function getCachedPlayerMetadata(
+  scope: string,
+  key: string,
+  maxAgeMs = DEFAULT_METADATA_TTL_MS,
+): Promise<unknown> {
+  if (!scope || !key) return null;
+  const database = await openDatabase();
+  const storageKey = `metadata:${scope}:${key}`;
+  const result: unknown = await requestResult(
+    database.transaction(storeName, "readonly").objectStore(storeName).get(storageKey),
+  );
+  if (typeof result === "object" && result !== null && "details" in result) {
+    if ("savedAt" in result && typeof result.savedAt === "number") {
+      if (Date.now() - result.savedAt >= maxAgeMs) {
+        // Expired metadata: lazily evict from IndexedDB
+        void deleteOfflineRecord(database, storageKey).catch(() => undefined);
+        return null;
+      }
+    }
+    return result.details;
+  }
+  return null;
+}
+
+function isObjectWithKey(value: unknown): value is { readonly key: string } {
+  if (typeof value !== "object" || value === null) return false;
+  return "key" in value && typeof value.key === "string";
+}
+
+export async function purgeCachedPlayerMetadata(scope: string): Promise<number> {
+  if (!scope) return 0;
+  const database = await openDatabase();
+  const prefix = `metadata:${scope}:`;
+  const result: unknown = await requestResult(
+    database.transaction(storeName, "readonly").objectStore(storeName).getAll(),
+  );
+  if (!Array.isArray(result)) return 0;
+  let purged = 0;
+  for (const item of result) {
+    if (isObjectWithKey(item) && item.key.startsWith(prefix)) {
+      await deleteOfflineRecord(database, item.key);
+      purged += 1;
+    }
+  }
+  return purged;
+}

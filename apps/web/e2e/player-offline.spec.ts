@@ -56,6 +56,33 @@ test.beforeEach(async ({ page }) => {
     }
     await route.fulfill({ body: audioBytes, contentType: "audio/mpeg", status: 200 });
   });
+  await page.route("**/api/public/player/playlist*", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        event: {
+          artworkFileId: "file-art-1",
+          date: futureIsoDate({ days: 30 }),
+          id: "event-set-list",
+          title: "Winter Concert Set List",
+        },
+        pieces: [
+          {
+            composer: "Vivaldi",
+            durationSeconds: 180,
+            pieceId: "piece-set-1",
+            title: "Gloria in Excelsis",
+            trackFileIds: {
+              soprano: "file-soprano-1",
+              tutti: "file-tutti-1",
+            },
+          },
+        ],
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
   await page.route("**/api/public/player-details", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
@@ -86,6 +113,7 @@ test.beforeEach(async ({ page }) => {
 test("caches the open event offline and explains uncached parts", async ({ page }) => {
   await page.goto("/player?token=offline-test-token");
   await expect(page.getByRole("heading", { name: "Offline Rehearsal" })).toBeVisible();
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
 
   // Transparent auto-cache stores the default part while online.
   const cachedPill = page.locator(".public-player__desktop-panel .public-player__offline-pill");
@@ -115,4 +143,47 @@ test("caches the open event offline and explains uncached parts", async ({ page 
     .click();
   await expect(voicePartTrigger).toContainText("Choir Mix");
   await expect(page.getByText("saved offline. Reconnect", { exact: false })).not.toBeVisible();
+
+  // Reloading the page while offline serves the cached shell and enables offline playback.
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Offline Rehearsal" })).toBeVisible();
+  const reloadedNowPlaying = page.locator(".public-player__now-playing-card");
+  await reloadedNowPlaying.getByRole("button", { name: "Play" }).click();
+  await expect(reloadedNowPlaying.getByRole("button", { name: "Pause" })).toBeVisible();
+});
+
+test("explains offline state when visiting an un-cached player link while offline", async ({
+  page,
+}) => {
+  await page.goto("/player?token=offline-test-token");
+  await expect(page.getByRole("heading", { name: "Offline Rehearsal" })).toBeVisible();
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+
+  await page.context().setOffline(true);
+  await page.goto("/player?token=uncached-token-123");
+  await expect(page.getByRole("heading", { name: "You Are Offline" })).toBeVisible();
+  await expect(
+    page.getByText("This practice player has not been cached on this device yet", {
+      exact: false,
+    }),
+  ).toBeVisible();
+});
+
+test("supports offline reload and playback for set-list player mode", async ({ page }) => {
+  await page.goto("/player?mode=set-list&token=set-list-token");
+  await expect(page.getByRole("heading", { name: "Winter Concert Set List" })).toBeVisible();
+  await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+
+  // Transparent auto-cache stores default track while online.
+  const cachedPill = page.locator(".public-player__desktop-panel .public-player__offline-pill");
+  await expect(cachedPill.first()).toBeAttached();
+
+  // Reloading the set-list page while offline serves the cached shell and enables offline playback.
+  await page.context().setOffline(true);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Winter Concert Set List" })).toBeVisible();
+
+  const reloadedNowPlaying = page.locator(".public-player__now-playing-card");
+  await reloadedNowPlaying.getByRole("button", { name: "Play" }).click();
+  await expect(reloadedNowPlaying.getByRole("button", { name: "Pause" })).toBeVisible();
 });

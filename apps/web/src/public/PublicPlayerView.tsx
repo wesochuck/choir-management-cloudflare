@@ -12,6 +12,13 @@ import { useRosterPart } from "./player/useRosterPart";
 
 export type { PlayerDetails, PlayerPlaylistItem } from "./player";
 
+function classifyOffline(error: unknown): boolean {
+  return (
+    (typeof navigator !== "undefined" && !navigator.onLine) ||
+    (error instanceof Error && error.message === "offline")
+  );
+}
+
 export function PublicPlayerView() {
   const location = useMemo(
     () => new URLSearchParams(typeof window !== "undefined" ? window.location.search : ""),
@@ -23,18 +30,50 @@ export function PublicPlayerView() {
     type: token ? "loading" : "no_token",
   });
   const rosterPart = useRosterPart();
+  const currentToken = token;
+
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    if (!token) return;
-    const load = isSetListPlayer ? fetchPublicPlayerPlaylist(token) : fetchPlayerDetails(token);
-    void load
-      .then((details) => {
-        setPageStatus({ details, type: "ready" });
-      })
-      .catch(() => {
-        setPageStatus({ type: "not_found" });
-      });
-  }, [isSetListPlayer, token]);
+    if (!currentToken) return;
+    let cancelled = false;
+
+    const runFetch = () => {
+      const fetchPromise = isSetListPlayer
+        ? fetchPublicPlayerPlaylist(currentToken)
+        : fetchPlayerDetails(currentToken);
+
+      fetchPromise
+        .then((details) => {
+          if (!cancelled) {
+            setPageStatus({ details, type: "ready" });
+          }
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            setPageStatus({
+              type: classifyOffline(error) ? "offline" : "not_found",
+            });
+          }
+        });
+    };
+
+    runFetch();
+
+    const handleOnline = () => {
+      setPageStatus({ type: "loading" });
+      runFetch();
+    };
+
+    // We only listen for "online" here so when connection is restored, we auto-retry.
+    // If the browser transitions offline while already "ready", we intentionally do not tear down
+    // the UI so playback of already-cached audio can continue uninterrupted without network.
+    window.addEventListener("online", handleOnline);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [currentToken, isSetListPlayer, retryCount]);
 
   const source = useMemo(() => createTokenTrackSource(token ?? ""), [token]);
 
@@ -59,6 +98,30 @@ export function PublicPlayerView() {
       <main className="auth-layout">
         <section aria-labelledby="player-title" className="auth-card">
           <h1 id="player-title">Loading practice player…</h1>
+        </section>
+      </main>
+    );
+  }
+
+  if (pageStatus.type === "offline") {
+    return (
+      <main className="auth-layout">
+        <section aria-labelledby="player-title" className="auth-card">
+          <h1 id="player-title">You Are Offline</h1>
+          <p className="notice notice--info" role="status">
+            This practice player has not been cached on this device yet. Connect to the internet to
+            download it for offline rehearsal.
+          </p>
+          <button
+            type="button"
+            className="button button--primary"
+            onClick={() => {
+              setPageStatus({ type: "loading" });
+              setRetryCount((count) => count + 1);
+            }}
+          >
+            Try again
+          </button>
         </section>
       </main>
     );

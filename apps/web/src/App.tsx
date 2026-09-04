@@ -20,7 +20,7 @@ import { getCurrentSession, getPublishedOrganizationProjection } from "./auth/ap
 import { determinePostSignInPath, isAuthenticatedRoute } from "./auth/postSignIn";
 import { ResetPasswordView } from "./auth/ResetPasswordView";
 import { SignInView } from "./auth/SignInView";
-import { purgeOfflineAudioForSource } from "./offline/mediaStore";
+import { purgeCachedPlayerMetadata, purgeOfflineAudioForSource } from "./offline/mediaStore";
 import { PublicUnsubscribeView } from "./public/PublicUnsubscribeView";
 import { PublicPollView } from "./public/PublicPollView";
 import { PublicRsvpView } from "./public/PublicRsvpView";
@@ -368,13 +368,14 @@ export function App() {
 
   function finishSignOut() {
     setSessionState({ status: "anonymous" });
-    // Purge session Offline Copies before leaving: navigation would otherwise cut cleanup short
-    // on shared devices. Sign-out proceeds even if cleanup fails.
-    void purgeOfflineAudioForSource(window.location.host, "session")
-      .catch(() => undefined)
-      .finally(() => {
-        window.location.assign("/");
-      });
+    // Purge session Offline Copies and cached player metadata before leaving: navigation
+    // would otherwise cut cleanup short on shared devices. Sign-out proceeds even if cleanup fails.
+    void Promise.allSettled([
+      purgeOfflineAudioForSource(window.location.host, "session"),
+      purgeCachedPlayerMetadata(window.location.host),
+    ]).finally(() => {
+      window.location.assign("/");
+    });
   }
 
   function finishInvitationSignIn() {

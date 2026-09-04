@@ -18,7 +18,7 @@ import {
   stopOrganizationImpersonation,
 } from "../../../api";
 import { signOut } from "../../../auth/api";
-import { purgeOfflineAudioForSource } from "../../../offline/mediaStore";
+import { purgeCachedPlayerMetadata, purgeOfflineAudioForSource } from "../../../offline/mediaStore";
 import { requestGlobalLeave, SaveBar, SaveCoordinatorProvider } from "../../../persistence";
 import { OrganizationTerminologyProvider } from "../../organizationTerminology";
 
@@ -168,7 +168,10 @@ export function AuthenticatedShell({
         setPlatformAvailable(hasPlatformAccess);
         if (!context) {
           setAccess({ status: "none" });
-          void purgeOfflineAudioForSource(window.location.host, "session").catch(() => {
+          void Promise.allSettled([
+            purgeOfflineAudioForSource(window.location.host, "session"),
+            purgeCachedPlayerMetadata(window.location.host),
+          ]).catch(() => {
             // Best-effort: access state must resolve even if cache cleanup fails.
           });
           return;
