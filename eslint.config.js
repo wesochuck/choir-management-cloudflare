@@ -50,6 +50,11 @@ export default tseslint.config(
           selector: "TSAnyKeyword",
           message: "Use unknown and narrow it instead of using any.",
         },
+        {
+          selector: 'JSXAttribute[name.name="className"][value.value=/eyebrow/i]',
+          message:
+            "Eyebrows are removed from the design system. Use h1/h2 with page-heading__description or section-heading copy directly.",
+        },
       ],
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
     },

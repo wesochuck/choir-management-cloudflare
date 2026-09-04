@@ -31,6 +31,12 @@ const steps = [
     command: "node",
     args: ["scripts/check-csp.mjs"],
   },
+  {
+    job: "static",
+    label: "Check no eyebrows in design system",
+    command: "node",
+    args: ["scripts/check-no-eyebrows.mjs"],
+  },
   { job: "static", label: "Lint", command: "npm", args: ["run", "lint"] },
   {
     job: "static",

@@ -349,7 +349,6 @@ export function LearningTrackPlayer({ enabled }: { readonly enabled: boolean }) 
             <div className="practice-player__now-playing">
               <div className="practice-player__track-heading">
                 <div>
-                  <p className="eyebrow">Now playing</p>
                   <h3>{currentTrack.piece.title}</h3>
                   <p>
                     {trackLabel(currentTrack.key)}

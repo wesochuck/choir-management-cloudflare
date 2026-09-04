@@ -27,7 +27,7 @@
     margin: 0;
   }
 
-  .platform-setup-monitor__heading p:not(.eyebrow) {
+  .platform-setup-monitor__heading p {
     max-width: 56rem;
     margin-top: var(--spacing-2xs);
     color: var(--color-text-muted);

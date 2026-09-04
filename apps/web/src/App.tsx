@@ -58,7 +58,6 @@ function HomeView({ signedIn }: { readonly signedIn: boolean }) {
     <main>
       <section className="hero" aria-labelledby="hero-title">
         <div className="hero__copy">
-          <p className="eyebrow">Choir Management</p>
           <h1 id="hero-title">One calm place to keep your choir moving together.</h1>
           <p className="hero__lede">
             A simple, secure platform for rehearsals, performances, roster coordination, and public
@@ -77,7 +76,6 @@ function HomeView({ signedIn }: { readonly signedIn: boolean }) {
 
       <section className="foundation" id="features" aria-labelledby="features-title">
         <div className="section-heading">
-          <p className="eyebrow">Overview</p>
           <h2 id="features-title">Designed for choral ensembles.</h2>
           <p>
             Keep your singers, music, rehearsals, and performances organized in one dedicated
@@ -147,7 +145,6 @@ function AlreadySignedIn({ session }: { readonly session: NonNullable<CurrentAut
   return (
     <main className="auth-layout">
       <section className="auth-card" aria-labelledby="already-signed-in-title">
-        <p className="eyebrow">Account recognized</p>
         <h1 id="already-signed-in-title">You are already signed in.</h1>
         <p className="auth-card__intro">Continue as {session.user.email}.</p>
         <a className="button button--primary" href={href}>

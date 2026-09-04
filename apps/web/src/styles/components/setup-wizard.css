@@ -6,7 +6,7 @@
   /* The setup wizard is intentionally outside the signed-in application shell,
    so give it the same compact operational scale and keep its heading in normal
    document flow. The generic account heading uses a horizontal flex layout,
-   which made the eyebrow and oversized title compete for the same row. */
+   which made the label and oversized title compete for the same row. */
   .setup-wizard {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -22,10 +22,6 @@
     justify-items: start;
     gap: var(--spacing-2xs);
     padding-bottom: var(--spacing-lg);
-  }
-
-  .setup-wizard .account-heading .eyebrow {
-    margin: 0;
   }
 
   .setup-wizard .account-heading h1 {

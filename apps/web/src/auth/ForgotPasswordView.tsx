@@ -31,7 +31,6 @@ export function ForgotPasswordView() {
   return (
     <main className="auth-layout">
       <section className="auth-card" aria-labelledby="forgot-password-title">
-        <p className="eyebrow">Account recovery</p>
         <h1 id="forgot-password-title">Reset your password.</h1>
         <p className="auth-card__intro">
           Enter the email address for your invited account. If it is eligible, we will send a

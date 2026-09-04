@@ -262,7 +262,6 @@ function TicketReceipt({ token }: { readonly token: string }) {
   if (!purchase) return <p className="notice notice--info">Loading ticket receipt…</p>;
   return (
     <section className="public-section public-section--narrow">
-      <p className="eyebrow">Order complete</p>
       <h1>
         {purchase.status === "pending" ? "Ticket order processing" : "Your tickets are confirmed"}
       </h1>
@@ -687,7 +686,7 @@ function TicketsContent({
           {bundles.map((bundle) => (
             <article className="public-performance-card" key={bundle.id}>
               <div>
-                <p className="eyebrow">Multi-performance pass</p>
+                <p>Multi-performance pass</p>
                 <h2>{bundle.title}</h2>
                 <p>{money(bundle.priceCents)} per pass</p>
                 <a className="button button--primary" href={`/tickets/bundles/${bundle.id}`}>
@@ -699,7 +698,7 @@ function TicketsContent({
           {events.map((event) => (
             <article className="public-performance-card" key={event.id}>
               <div>
-                <p className="eyebrow">{publicDate(event.startsAt, projection.payload.timezone)}</p>
+                <p>{publicDate(event.startsAt, projection.payload.timezone)}</p>
                 <h2>{event.title}</h2>
                 <p>From {money(event.advancePriceCents)}</p>
                 <a className="button button--primary" href={`/tickets/${event.id}`}>

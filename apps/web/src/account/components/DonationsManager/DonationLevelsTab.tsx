@@ -23,9 +23,6 @@ export function DonationLevelsTab({
     <fieldset className="surface-card donation-levels-card">
       <legend>Donor levels</legend>
       <div className="section-heading section-heading--compact donation-levels-heading">
-        <div>
-          <p className="eyebrow">Recognition tiers</p>
-        </div>
         <button className="button button--primary" onClick={newLevel} type="button">
           Add level
         </button>

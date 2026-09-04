@@ -39,7 +39,6 @@ export function PublicDonationSuccessView() {
   if (error) {
     return (
       <section className="public-section public-section--narrow">
-        <p className="eyebrow">Donation receipt</p>
         <h1>Receipt unavailable</h1>
         <p className="notice notice--error">This donation receipt link is no longer available.</p>
         <a className="button button--secondary" href="/">
@@ -51,7 +50,6 @@ export function PublicDonationSuccessView() {
 
   return (
     <section className="public-section public-section--narrow">
-      <p className="eyebrow">Donation receipt</p>
       <h1>{donation?.status === "paid" ? "Thank you for your gift!" : "Donation status"}</h1>
       {!donation ? <p role="status">Loading your receipt…</p> : null}
       {donation ? (

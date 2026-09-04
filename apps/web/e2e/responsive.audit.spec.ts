@@ -545,7 +545,7 @@ async function assertOrganizationSettingsLayout(
     await expect(group.locator("legend")).toHaveText(name);
     await expect(group.locator("h2")).toHaveCount(0);
   }
-  await expect(page.locator(".organization-settings-panel .eyebrow")).toHaveCount(0);
+  await expect(page.locator(".eyebrow")).toHaveCount(0);
 }
 
 async function assertModuleSettingsLayout(page: Page, path: string, width: number): Promise<void> {

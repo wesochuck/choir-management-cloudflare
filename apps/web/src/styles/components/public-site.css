@@ -78,15 +78,6 @@
     padding-block: 5rem 6rem;
   }
 
-  .eyebrow {
-    margin: 0 0 var(--spacing-sm);
-    color: var(--color-accent);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-black);
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-  }
-
   h1,
   h2,
   h3,

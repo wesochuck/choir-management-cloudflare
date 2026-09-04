@@ -165,12 +165,6 @@
     padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-sm);
   }
 
-  .sidebar-context .eyebrow {
-    color: var(--color-text-muted);
-    font-size: var(--font-size-2xs);
-    letter-spacing: 0.09em;
-  }
-
   .sidebar-context strong {
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-semibold);
@@ -255,11 +249,6 @@
     font-weight: var(--font-weight-bold);
   }
 
-  .page-heading .eyebrow {
-    margin-bottom: var(--spacing-3xs);
-    font-size: var(--font-size-2xs);
-  }
-
   .page-heading__description {
     max-width: 48rem;
     margin: var(--spacing-3xs) 0 0;
@@ -276,9 +265,10 @@
     background: var(--color-surface);
   }
 
-  .workspace-hero .eyebrow {
-    margin-bottom: var(--spacing-3xs);
-    font-size: var(--font-size-2xs);
+  .workspace-hero__label {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
   }
 
   .workspace-hero h1 {

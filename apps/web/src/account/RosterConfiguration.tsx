@@ -131,7 +131,6 @@ export function RosterConfiguration({ enabled }: Props) {
     >
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Organization setup</p>
           <h2 id="roster-configuration-title">Sections and {partLabelPlural.toLowerCase()}</h2>
         </div>
       </div>

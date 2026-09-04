@@ -95,7 +95,7 @@ function OverviewPage({
     <>
       {!platform ? (
         <div className="workspace-hero">
-          <p className="eyebrow">{workspaceLabel(workspace)}</p>
+          <p className="workspace-hero__label">{workspaceLabel(workspace)}</p>
           <h1>At a glance</h1>
           <p>Everything you need for the next rehearsal, performance, and practice session.</p>
         </div>
@@ -103,7 +103,6 @@ function OverviewPage({
       {platform ? <PlatformSetupMonitor /> : null}
       <section className="overview-section" aria-labelledby="quick-actions-title">
         <div className="section-heading section-heading--compact">
-          <p className="eyebrow">Quick actions</p>
           <h2 id="quick-actions-title">Start with what matters</h2>
         </div>
         <div className="workspace-card-grid">
@@ -133,7 +132,6 @@ function OverviewPage({
 function AccessDeniedPage({ workspace }: { readonly workspace: string }) {
   return (
     <section className="surface-card empty-page" aria-labelledby="access-denied-title">
-      <p className="eyebrow">Restricted workspace</p>
       <h1 id="access-denied-title">You do not have access to this {workspace} workspace.</h1>
       <p>
         Choose a workspace from the switcher to continue with the permissions available to your
@@ -146,7 +144,6 @@ function AccessDeniedPage({ workspace }: { readonly workspace: string }) {
 function NotFoundPage({ navigate }: { readonly navigate: (href: string) => void }) {
   return (
     <section className="surface-card empty-page" aria-labelledby="not-found-title">
-      <p className="eyebrow">Page not found</p>
       <h1 id="not-found-title">That workspace page does not exist.</h1>
       <button
         className="button button--primary"

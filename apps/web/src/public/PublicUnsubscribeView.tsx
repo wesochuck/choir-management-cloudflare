@@ -22,7 +22,6 @@ export function PublicUnsubscribeView({ token }: { readonly token: string | null
   return (
     <main className="auth-layout">
       <section className="auth-card" aria-labelledby="unsubscribe-title">
-        <p className="eyebrow">Email preferences</p>
         <h1 id="unsubscribe-title">Unsubscribe from Organization email</h1>
         {state === "processing" ? (
           <p className="notice notice--info" role="status">

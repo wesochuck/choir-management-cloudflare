@@ -51,7 +51,6 @@ export function ResetPasswordView({ error, token }: ResetPasswordViewProps) {
   return (
     <main className="auth-layout">
       <section className="auth-card" aria-labelledby="reset-password-title">
-        <p className="eyebrow">Account recovery</p>
         <h1 id="reset-password-title">Choose a new password.</h1>
 
         {!canReset ? (

@@ -28,7 +28,6 @@ export function DonationPageSettingsTab({
       <fieldset className="surface-card form-stack donation-page-settings">
         <legend>Donation page settings</legend>
         <div>
-          <p className="eyebrow">Public portal</p>
           <p>Customize the headline and explanation shown to donors before checkout.</p>
         </div>
         <label className="field">

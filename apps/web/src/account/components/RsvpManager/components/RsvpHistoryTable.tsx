@@ -35,7 +35,6 @@ export function RsvpHistoryTable({
       hidden={view !== "history"}
     >
       <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Audit trail</p>
         <h2 id="rsvp-history-title">Event RSVP History</h2>
         <p className="section-description">
           Actual RSVP changes are shown here separately from Profile Status History.

@@ -164,11 +164,10 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
   return (
     <main className="auth-layout">
       <section className="auth-card" aria-labelledby="sign-in-title">
-        <p className="eyebrow">Invitation-only access</p>
         <h1 id="sign-in-title">Sign in to Choir Management.</h1>
         <p className="auth-card__intro">
-          Use the email address connected to your Organization Membership. Email code is the primary
-          sign-in method.
+          This site is invitation-only. Use the email address connected to your Organization
+          Membership. Email code is the primary sign-in method.
         </p>
 
         {step === "credentials" ? (

@@ -48,7 +48,7 @@
     line-height: var(--line-height-tight);
   }
 
-  .public-player__header p:not(.eyebrow) {
+  .public-player__header p {
     margin-top: 2px;
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
@@ -59,7 +59,7 @@
       font-size: clamp(1.5rem, 5vw, 2.25rem);
     }
 
-    .public-player__header p:not(.eyebrow) {
+    .public-player__header p {
       margin-top: var(--spacing-3xs);
       font-size: var(--font-size-sm);
     }

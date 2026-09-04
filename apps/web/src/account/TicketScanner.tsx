@@ -33,7 +33,6 @@ function ScanResult({ result }: { readonly result: TicketScanResult }) {
   if (result.valid) {
     return (
       <section className="ticket-scan-result ticket-scan-result--valid" aria-live="polite">
-        <p className="eyebrow">Valid ticket</p>
         <p>
           Valid: {result.buyerName}, {result.quantity} ticket
           {result.quantity === 1 ? "" : "s"}.
@@ -61,8 +60,7 @@ function ScanResult({ result }: { readonly result: TicketScanResult }) {
 
   return (
     <section className="ticket-scan-result ticket-scan-result--invalid" aria-live="polite">
-      <p className="eyebrow">Invalid ticket</p>
-      <h3>{invalidReasonText(result.reason)}</h3>
+      <h3>Invalid ticket — {invalidReasonText(result.reason)}</h3>
     </section>
   );
 }
@@ -311,7 +309,6 @@ export function TicketScanner({ events }: { readonly events: readonly Organizati
     <section className="ticket-scanner" aria-labelledby="ticket-scanner-heading">
       <div className="section-heading section-heading--compact">
         <div>
-          <p className="eyebrow">Door validation</p>
           <h3 id="ticket-scanner-heading">Scan tickets</h3>
         </div>
       </div>

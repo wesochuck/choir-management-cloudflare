@@ -985,7 +985,6 @@ test.describe("admin ticket management", () => {
     await page.goto("/admin/tickets/scan");
 
     await expect(page.getByRole("heading", { name: "Scan tickets" })).toBeVisible();
-    await expect(page.getByText("Door validation")).toBeVisible();
 
     await page.getByRole("combobox", { name: "Performance" }).selectOption(eventId);
     await page.getByLabel("Ticket credential").fill(scanToken);

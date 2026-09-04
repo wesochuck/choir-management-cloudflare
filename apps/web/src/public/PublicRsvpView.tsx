@@ -197,7 +197,6 @@ function RsvpForm({
 function RsvpEventBody({ details }: { readonly details: RsvpDetails }) {
   return (
     <>
-      <p className="eyebrow">RSVP</p>
       <h1 id="rsvp-title">{details.event.title}</h1>
       <p className="text-sm text-muted-foreground">
         {details.event.type} &middot; {formatDate(details.event.startsAt)} at{" "}
@@ -321,7 +320,6 @@ export function PublicRsvpView() {
     return (
       <main className="auth-layout">
         <section className="auth-card" aria-labelledby="rsvp-title">
-          <p className="eyebrow">RSVP</p>
           <h1 id="rsvp-title">RSVP Submitted</h1>
           <p className="notice notice--success" role="status">
             Thank you, {pageStatus.details.profileName}. Your response has been recorded as{" "}

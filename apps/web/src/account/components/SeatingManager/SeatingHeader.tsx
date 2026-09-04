@@ -29,7 +29,6 @@ export function SeatingHeader({
   return (
     <div className="seating-page-heading no-print">
       <div>
-        <p className="eyebrow">Seating</p>
         <h1>Performance seating</h1>
         <p>
           {activeEvent?.title ?? "Performance"} ·{" "}

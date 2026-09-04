@@ -71,9 +71,7 @@ function PerformanceCards({
             />
           ) : null}
           <div>
-            <p className="eyebrow">
-              {displayDate(performance.startsAt, projection.payload.timezone)}
-            </p>
+            <p>{displayDate(performance.startsAt, projection.payload.timezone)}</p>
             <h3>{performance.title}</h3>
             {performance.venueName || performance.location ? (
               <p className="public-performance-location">
@@ -186,7 +184,6 @@ function OrganizationHome({
         }
       >
         <div>
-          <p className="eyebrow">{projection.payload.organizationName}</p>
           <h1>{settings.heroHeadline}</h1>
           <p>{settings.heroSubtitle}</p>
         </div>

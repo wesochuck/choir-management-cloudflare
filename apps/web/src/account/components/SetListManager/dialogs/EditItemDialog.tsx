@@ -67,7 +67,6 @@ export function EditItemDialog({
             className={`set-list-linked-piece${linkedMusicPiece ? "" : " set-list-linked-piece--missing"}`}
           >
             <div>
-              <p className="eyebrow">Music library piece</p>
               <strong>{linkedMusicPiece?.title ?? editingItem.title}</strong>
               <p className="field-help">
                 {linkedMusicPiece

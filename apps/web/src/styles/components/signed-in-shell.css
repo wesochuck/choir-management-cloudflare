@@ -211,14 +211,15 @@
     border-bottom: 1px solid var(--color-border);
   }
 
-  .sidebar-context .eyebrow {
-    margin-bottom: 0;
-    font-size: var(--font-size-2xs);
-  }
-
   .sidebar-context strong {
     overflow-wrap: anywhere;
     font-size: var(--font-size-base);
+  }
+
+  .sidebar-context__label,
+  .sidebar-drawer__label {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
   }
 
   /* Workspace navigation */

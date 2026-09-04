@@ -132,7 +132,7 @@
     font-size: var(--font-size-body);
   }
 
-  .provider-status-card__connect p:not(.eyebrow):not(.field-help):not(.notice) {
+  .provider-status-card__connect p:not(.field-help):not(.notice) {
     max-width: 68rem;
     margin: 0 0 var(--spacing-sm);
     color: var(--color-text-muted);

@@ -229,7 +229,6 @@ export function DesignSystemView() {
   return (
     <div className="design-system">
       <div className="page-heading">
-        <p className="eyebrow">Platform · Design system</p>
         <h1>Design system</h1>
         <p className="page-heading__description">
           Live reference for the tokens, buttons, notices, forms, repository-owned primitives, and
@@ -631,11 +630,10 @@ export function DesignSystemView() {
 
       <section aria-labelledby="ds-patterns" className="surface-card design-system__section">
         <DesignSystemSectionHeading
-          description="Workspace composition uses eyebrows, section headings, cards, and empty states."
+          description="Workspace composition uses section headings, cards, and empty states."
           id="ds-patterns"
           title="Patterns"
         />
-        <p className="eyebrow">Eyebrow · Section label</p>
         <div className="workspace-card-grid">
           <div className="workspace-card">
             <strong>Start with what matters</strong>

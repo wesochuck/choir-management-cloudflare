@@ -143,7 +143,6 @@ export function PlatformSetupMonitor() {
     >
       <div className="section-heading section-heading--compact platform-setup-monitor__heading">
         <div>
-          <p className="eyebrow">Platform setup</p>
           <h2 id="platform-setup-title">Configuration & health</h2>
           <p>
             Safe checks for runtime configuration, the control plane, background work, and the

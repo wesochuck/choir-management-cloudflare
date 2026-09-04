@@ -283,14 +283,6 @@
     font-weight: var(--font-weight-semibold);
   }
 
-  .donation-levels-heading .eyebrow {
-    margin: 0;
-  }
-
-  .donation-levels-heading .eyebrow {
-    margin-bottom: var(--spacing-3xs);
-  }
-
   .donation-level-table-scroll {
     margin-top: var(--spacing-3xs);
   }

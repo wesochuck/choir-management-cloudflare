@@ -502,11 +502,9 @@ function AuditionDetailView({
 function PublicAuditionStatusCard({
   onRetry,
   pageStatus,
-  retrySettings,
 }: {
   readonly onRetry: () => void;
   readonly pageStatus: PageStatus;
-  readonly retrySettings: PublicAuditionSettings;
 }) {
   if (pageStatus.type === "loading") {
     return (
@@ -538,7 +536,6 @@ function PublicAuditionStatusCard({
     return (
       <main className="auth-layout">
         <section className="auth-card" aria-labelledby="audition-title">
-          <p className="eyebrow">Intake</p>
           <h1 id="audition-title">Inquiries are currently closed</h1>
           <p className="notice">{pageStatus.message}</p>
           <a className="button button--secondary" href="/">
@@ -554,7 +551,6 @@ function PublicAuditionStatusCard({
     return (
       <main className="auth-layout">
         <section className="auth-card" aria-labelledby="audition-title">
-          <p className="eyebrow">{isOpenInquiry ? "Join Us" : "Audition"}</p>
           <h1 id="audition-title">Inquiry Received</h1>
           <p className="notice notice--success" role="status">
             {pageStatus.confirmationMessage ||
@@ -574,9 +570,6 @@ function PublicAuditionStatusCard({
     return (
       <main className="auth-layout">
         <section className="auth-card" aria-labelledby="audition-title">
-          <p className="eyebrow">
-            {retrySettings.mode === "open_inquiry" ? "Join Us" : "Audition"}
-          </p>
           <h1 id="audition-title">Submission Error</h1>
           <p className="notice notice--error" role="alert">
             {pageStatus.message}
@@ -696,7 +689,6 @@ export function PublicAuditionView() {
           setPageStatus({ settings: formSettings, type: "ready_form" });
         }}
         pageStatus={pageStatus}
-        retrySettings={formSettings}
       />
     );
   }
@@ -705,7 +697,6 @@ export function PublicAuditionView() {
     return (
       <main className="auth-layout">
         <section className="auth-card" aria-labelledby="audition-title">
-          <p className="eyebrow">Audition</p>
           <h1 id="audition-title">Your Audition</h1>
           <p>
             Welcome, <strong>{pageStatus.details.name}</strong>.
@@ -722,7 +713,6 @@ export function PublicAuditionView() {
   return (
     <main className="auth-layout">
       <section className="auth-card public-audition-card" aria-labelledby="audition-title">
-        <p className="eyebrow">{isOpenInquiry ? "Join Us" : "Audition"}</p>
         <h1 id="audition-title">{isOpenInquiry ? "Join Inquiry" : "Audition Inquiry"}</h1>
         <p className="auth-card__intro">
           {isOpenInquiry

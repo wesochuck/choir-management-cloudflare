@@ -291,8 +291,7 @@ export function SetupDataImportStep() {
     <>
       <div className="setup-data-import__heading">
         <div>
-          <p className="eyebrow">Optional</p>
-          <h2 id="setup-step-heading">Import existing data</h2>
+          <h2 id="setup-step-heading">Import existing data (optional)</h2>
         </div>
         <span className="status-pill">{String(completedImports)} of 2 imported</span>
       </div>

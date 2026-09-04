@@ -68,6 +68,8 @@ provider instructions against current authoritative documentation before changin
   precompute `Map` or `Set` lookups.
 - Do not weaken a quality, size, security, isolation, accessibility, parity, or migration gate
   merely to make it pass.
+- Do not introduce eyebrow kickers into the web design system. Headings carry their own context;
+  `npm run check:no-eyebrows` enforces this.
 
 ## 5. Worktree and Git Safety
 

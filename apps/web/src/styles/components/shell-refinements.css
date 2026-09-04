@@ -24,12 +24,6 @@
     font-weight: var(--font-weight-medium);
   }
 
-  .signed-in-shell .eyebrow {
-    font-size: var(--font-size-2xs);
-    font-weight: var(--font-weight-medium);
-    letter-spacing: 0.07em;
-  }
-
   .signed-in-header__brand > a {
     font-weight: var(--font-weight-medium);
   }

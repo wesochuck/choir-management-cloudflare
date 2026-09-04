@@ -241,10 +241,6 @@
     font-size: var(--font-size-body);
   }
 
-  .profile-dues-history__heading .eyebrow {
-    margin-bottom: var(--spacing-3xs);
-  }
-
   .profile-dues-history__empty {
     margin: 0;
     padding: var(--spacing-sm);
@@ -317,10 +313,6 @@
   .profile-folder-numbers__heading h3 {
     margin: 0;
     font-size: var(--font-size-body);
-  }
-
-  .profile-folder-numbers__heading .eyebrow {
-    margin-bottom: var(--spacing-3xs);
   }
 
   .profile-folder-numbers__empty {

@@ -76,7 +76,6 @@ export function AccountSecurity() {
   return (
     <section className="account-section account-section--security" aria-labelledby="password-title">
       <div className="section-heading section-heading--compact">
-        <p className="eyebrow">Sign-in options</p>
         <h2 id="password-title">Account password</h2>
       </div>
       {securityState.status === "error" ? (

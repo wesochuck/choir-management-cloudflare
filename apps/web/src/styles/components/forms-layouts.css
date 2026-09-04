@@ -150,7 +150,7 @@
     margin: 0;
   }
 
-  .ticketing-page-header p:not(.eyebrow) {
+  .ticketing-page-header p {
     margin-top: var(--spacing-2xs);
     color: var(--color-text-muted);
   }
@@ -210,7 +210,7 @@
     margin: 0;
   }
 
-  .ticketing-tab-panel > div > p:not(.eyebrow) {
+  .ticketing-tab-panel > div > p {
     margin: var(--spacing-2xs) 0 0;
     color: var(--color-text-muted);
   }

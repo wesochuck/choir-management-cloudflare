@@ -67,6 +67,9 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
   manifest, and `tokens.css` owns aliases, control geometry, and dark-theme overrides.
 - Prefer Tailwind utilities for new UI and retain BEM classes for existing components. Preserve the
   import and cascade order in `theme.css`.
+- Do not use eyebrows (small uppercase kicker labels above headings). Use the `h1`/`h2` with
+  `page-heading__description` or section-heading copy directly. `npm run check:no-eyebrows` and the
+  global `.eyebrow` E2E assertion enforce this.
 - Redefine tokens for dark mode instead of adding raw component-level dark-mode overrides.
 - Use the existing `--font-size-*`, `--line-height-*`, `--font-weight-*`, `--radius-*`, and
   `--shadow-*` scales. Adjust the nearest shared token when a scale step is genuinely wrong rather

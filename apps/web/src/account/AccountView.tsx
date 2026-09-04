@@ -134,7 +134,6 @@ export function AccountView({
     <main className="account-layout">
       <div className="account-heading">
         <div>
-          <p className="eyebrow">Your account</p>
           <h1>Welcome, {currentSession.user.name || currentSession.user.email}.</h1>
           <p>{currentSession.user.email}</p>
         </div>
@@ -210,7 +209,6 @@ export function AccountView({
           {section === "organizations" ? (
             <section className="account-section" aria-labelledby="organizations-title">
               <div className="section-heading section-heading--compact">
-                <p className="eyebrow">Memberships</p>
                 <h2 id="organizations-title">Your Organizations</h2>
               </div>
               {resources.organizations.length === 0 ? (
@@ -251,7 +249,6 @@ export function AccountView({
           {section === "sessions" ? (
             <section className="account-section" aria-labelledby="sessions-title">
               <div className="section-heading section-heading--compact">
-                <p className="eyebrow">Security</p>
                 <h2 id="sessions-title">Active sessions</h2>
               </div>
               <p className="section-description">

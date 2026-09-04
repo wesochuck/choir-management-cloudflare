@@ -124,7 +124,6 @@ export function AcceptInvitationView({ invitationId }: { readonly invitationId: 
     return (
       <main className="auth-layout">
         <section className="auth-card" aria-labelledby="invitation-unavailable-title">
-          <p className="eyebrow">Invitation unavailable</p>
           <h1 id="invitation-unavailable-title">This invitation cannot be opened.</h1>
           <p className="notice notice--error" role="alert">
             It may have expired, been replaced, or belong to another signed-in email.
@@ -141,7 +140,6 @@ export function AcceptInvitationView({ invitationId }: { readonly invitationId: 
     return (
       <main className="auth-layout">
         <section className="auth-card" aria-labelledby="invitation-accepted-title">
-          <p className="eyebrow">Invitation {accepted ? "accepted" : "declined"}</p>
           <h1 id="invitation-accepted-title">
             {accepted ? `You joined ${state.organizationName}.` : "Invitation declined."}
           </h1>
@@ -161,7 +159,6 @@ export function AcceptInvitationView({ invitationId }: { readonly invitationId: 
   return (
     <main className="auth-layout">
       <section className="auth-card" aria-labelledby="invitation-title">
-        <p className="eyebrow">Organization invitation</p>
         <h1 id="invitation-title">Join {state.invitation.organizationName}.</h1>
         <dl className="invitation-details">
           <div>

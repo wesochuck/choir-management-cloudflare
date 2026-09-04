@@ -294,10 +294,6 @@
     min-width: 0;
   }
 
-  .set-list-linked-piece .eyebrow {
-    margin: 0 0 var(--spacing-3xs);
-  }
-
   .set-list-linked-piece strong {
     display: block;
     overflow-wrap: anywhere;

@@ -467,7 +467,7 @@ export function AuthenticatedShell({
                 </button>
               </div>
               <div className="sidebar-context">
-                <span className="eyebrow">{workspaceLabel(selectedWorkspace)}</span>
+                <span className="sidebar-context__label">{workspaceLabel(selectedWorkspace)}</span>
                 <strong>{organizationName}</strong>
               </div>
               {selectedWorkspace === "organization" ? (
@@ -545,7 +545,7 @@ export function AuthenticatedShell({
         >
           <div className="sheet__header sidebar-drawer__header">
             <div className="sidebar-drawer__context">
-              <span className="eyebrow">Workspace</span>
+              <span className="sidebar-drawer__label">Workspace</span>
               <strong>{workspaceLabel(selectedWorkspace)}</strong>
             </div>
             {!sidebarPinned ? (

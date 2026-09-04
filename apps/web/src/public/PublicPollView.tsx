@@ -240,7 +240,6 @@ export function PublicPollView() {
     return (
       <main className="auth-layout">
         <section className="auth-card" aria-labelledby="poll-title">
-          <p className="eyebrow">Poll</p>
           <h1 id="poll-title">Vote Submitted</h1>
           <p className="notice notice--success" role="status">
             Thank you, {pageStatus.details.profileName}. Your vote has been recorded.
@@ -269,7 +268,6 @@ export function PublicPollView() {
   return (
     <main className="auth-layout">
       <section className="auth-card" aria-labelledby="poll-title">
-        <p className="eyebrow">Poll</p>
         <h1 id="poll-title">{pageStatus.details.title}</h1>
         {pageStatus.details.description && (
           <p className="whitespace-pre-wrap text-sm">{pageStatus.details.description}</p>

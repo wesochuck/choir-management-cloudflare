@@ -33,7 +33,6 @@ export function EmailChangeConfirmationView({ token }: { readonly token: string 
   return (
     <main className="auth-layout">
       <section className="auth-card" aria-labelledby="confirm-email-change-title">
-        <p className="eyebrow">Account security</p>
         <h1 id="confirm-email-change-title">Confirm your email address</h1>
         {state === "processing" ? (
           <p className="notice notice--info" role="status">

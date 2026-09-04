@@ -386,7 +386,6 @@ export function ProfilePhotoEditor({
           <div className="profile-photo-camera__panel">
             <div className="profile-photo-camera__header">
               <div>
-                <p className="eyebrow">Profile photo</p>
                 <h2 id={`profile-photo-camera-title-${profile.id}`}>Take a photo</h2>
               </div>
               <button

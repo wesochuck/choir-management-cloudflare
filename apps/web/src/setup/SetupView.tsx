@@ -188,7 +188,6 @@ export function SetupView() {
   return (
     <main className="account-layout setup-wizard">
       <div className="account-heading">
-        <p className="eyebrow">Setup wizard</p>
         <h1>Welcome to your Organization</h1>
       </div>
 

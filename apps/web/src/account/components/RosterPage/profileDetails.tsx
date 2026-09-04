@@ -68,7 +68,6 @@ export function ProfileFolderNumbers({
     <div className="profile-folder-numbers">
       <div className="profile-folder-numbers__heading">
         <div>
-          <p className="eyebrow">Music folders</p>
           <h3>Folder numbers by event</h3>
         </div>
         <span className="field-help">Folder details are stored separately for each event.</span>
@@ -202,7 +201,6 @@ export function ProfileDues({
     <div className="profile-dues-history">
       <div className="profile-dues-history__heading">
         <div>
-          <p className="eyebrow">Membership</p>
           <h3>Dues by season</h3>
         </div>
         <span className="field-help">
