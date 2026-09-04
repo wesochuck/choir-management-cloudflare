@@ -34,6 +34,8 @@ export function PublicPlayerView() {
       });
   }, [isSetListPlayer, token]);
 
+  const source = useMemo(() => createTokenTrackSource(token ?? ""), [token]);
+
   if (pageStatus.type === "no_token") {
     return (
       <main className="auth-layout">
@@ -79,7 +81,6 @@ export function PublicPlayerView() {
 
   if (pageStatus.type !== "ready") return null;
   const details = pageStatus.details;
-  const source = createTokenTrackSource(token ?? "");
 
   return (
     <main className="public-player-layout">

@@ -19,6 +19,34 @@ import {
 import type { PracticeTrackSource } from "./source";
 import type { PlayerDetails } from "./types";
 import { useAudioSession, type AudioSessionHandlers } from "./useAudioSession";
+import { useAutoCacheOfflineCopies, useOfflineAudioUrl } from "./usePlayerOffline";
+import { useOfflineCopies } from "../../offline/useOfflineCopies";
+
+function OfflineStatusNotices({
+  blockedFileId,
+  currentFileId,
+  saveError,
+}: {
+  readonly blockedFileId: string | null;
+  readonly currentFileId: string | undefined;
+  readonly saveError: boolean;
+}) {
+  const showOfflineBlocked = blockedFileId !== null && blockedFileId === currentFileId;
+  return (
+    <>
+      {showOfflineBlocked ? (
+        <p className="notice notice--warning" role="status">
+          This track isn&apos;t saved offline. Reconnect to download it.
+        </p>
+      ) : null}
+      {saveError ? (
+        <p className="notice notice--error" role="alert">
+          This track couldn&apos;t be saved offline. Try again while online.
+        </p>
+      ) : null}
+    </>
+  );
+}
 
 export function PublicPracticePlayer({
   details,
@@ -46,6 +74,19 @@ export function PublicPracticePlayer({
   const [showGuide, setShowGuide] = useState(true);
   const [queueOpen, setQueueOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [blockedFileId, setBlockedFileId] = useState<string | null>(null);
+  const [pendingOfflineIds, setPendingOfflineIds] = useState<ReadonlySet<string>>(new Set());
+  const [saveError, setSaveError] = useState(false);
+
+  const scope = typeof window === "undefined" ? "" : window.location.host;
+  const {
+    ensureOfflineCopies,
+    offlineIds,
+    online,
+    removeOfflineCopy,
+    resolveOfflineUrl,
+    saveOfflineCopy,
+  } = useOfflineCopies({ scope, source });
 
   const allTrackKeys = useMemo(() => availableTrackKeys(details.items), [details.items]);
   const activeTrackKey = allTrackKeys.includes(selectedTrackKey)
@@ -59,10 +100,13 @@ export function PublicPracticePlayer({
   const currentItem = playableItems[safeSelectedItemIndex] ?? null;
   const currentTrack = currentItem ? resolveTrack(currentItem, activeTrackKey) : null;
   const currentIndex = currentItem ? playableItems.indexOf(currentItem) : -1;
-  const audioSrc = currentTrack ? source.mediaUrl(currentTrack.fileId) : "";
+  const offlineUrl = useOfflineAudioUrl(resolveOfflineUrl, currentTrack?.fileId);
+  const audioSrc = offlineUrl ?? (currentTrack ? source.mediaUrl(currentTrack.fileId) : "");
   const eventArtworkUrl = details.eventArtworkFileId
     ? source.artworkUrl(details.eventArtworkFileId)
     : null;
+
+  useAutoCacheOfflineCopies(scope, details.items, activeTrackKey, ensureOfflineCopies);
 
   useEffect(() => {
     if ("audioSession" in navigator) {
@@ -122,6 +166,34 @@ export function PublicPracticePlayer({
     setSelectedTrackKey(key);
     setSelectedItemIndex(0);
     setCountdown(null);
+  }
+
+  function handleSaveOfflineCopy(fileId: string): void {
+    setPendingOfflineIds((current) => new Set(current).add(fileId));
+    setSaveError(false);
+    void saveOfflineCopy(fileId)
+      .catch(() => {
+        setSaveError(true);
+      })
+      .finally(() => {
+        setPendingOfflineIds((current) => {
+          const next = new Set(current);
+          next.delete(fileId);
+          return next;
+        });
+      });
+  }
+
+  function handleRemoveOfflineCopy(fileId: string): void {
+    void removeOfflineCopy(fileId).catch(() => {
+      // Removal is best-effort; the pill clears on the next successful refresh.
+    });
+  }
+
+  function handleAudioError(): void {
+    if (typeof navigator !== "undefined" && !navigator.onLine && currentTrack) {
+      setBlockedFileId(currentTrack.fileId);
+    }
   }
 
   function nextTrack(): void {
@@ -294,6 +366,7 @@ export function PublicPracticePlayer({
         aria-label={`${currentItem.title} ${formatTrackKey(currentTrack.key)} track`}
         className="public-player__audio"
         onEnded={handleEnded}
+        onError={handleAudioError}
         onLoadedMetadata={(event) => {
           const nextDuration = Number.isFinite(event.currentTarget.duration)
             ? event.currentTarget.duration
@@ -340,6 +413,11 @@ export function PublicPracticePlayer({
             activeTrackKey={activeTrackKey}
             currentTrack={currentTrack}
             item={currentItem}
+          />
+          <OfflineStatusNotices
+            blockedFileId={blockedFileId}
+            currentFileId={currentTrack.fileId}
+            saveError={saveError}
           />
 
           {/* Progress bar */}
@@ -393,9 +471,14 @@ export function PublicPracticePlayer({
           activeTrackKey={activeTrackKey}
           currentIndex={currentIndex}
           items={details.items}
+          offlineIds={offlineIds}
+          onRemoveOfflineCopy={handleRemoveOfflineCopy}
+          onSaveOfflineCopy={handleSaveOfflineCopy}
           onSelectItem={(itemIndex) => {
             selectItem(itemIndex);
           }}
+          online={online}
+          pendingOfflineIds={pendingOfflineIds}
           playableItems={playableItems}
           source={source}
         />
@@ -438,10 +521,15 @@ export function PublicPracticePlayer({
             activeTrackKey={activeTrackKey}
             currentIndex={currentIndex}
             items={details.items}
+            offlineIds={offlineIds}
+            onRemoveOfflineCopy={handleRemoveOfflineCopy}
+            onSaveOfflineCopy={handleSaveOfflineCopy}
             onSelectItem={(itemIndex) => {
               selectItem(itemIndex);
               setQueueOpen(false);
             }}
+            online={online}
+            pendingOfflineIds={pendingOfflineIds}
             playableItems={playableItems}
             source={source}
           />

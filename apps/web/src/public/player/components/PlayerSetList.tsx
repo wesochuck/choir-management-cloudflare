@@ -6,14 +6,24 @@ export function PlayerSetList({
   activeTrackKey,
   currentIndex,
   items,
+  offlineIds,
+  onRemoveOfflineCopy,
+  onSaveOfflineCopy,
   onSelectItem,
+  online,
+  pendingOfflineIds,
   playableItems,
   source,
 }: {
   readonly activeTrackKey: string;
   readonly currentIndex: number;
   readonly items: readonly PlayerPlaylistItem[];
+  readonly offlineIds: ReadonlySet<string>;
+  readonly onRemoveOfflineCopy: (fileId: string) => void;
+  readonly onSaveOfflineCopy: (fileId: string) => void;
   readonly onSelectItem: (itemIndex: number) => void;
+  readonly online: boolean;
+  readonly pendingOfflineIds: ReadonlySet<string>;
   readonly playableItems: readonly PlayerPlaylistItem[];
   readonly source: PracticeTrackSource;
 }) {
@@ -77,6 +87,36 @@ export function PlayerSetList({
                 >
                   Download
                 </a>
+              ) : null}
+              {track ? (
+                offlineIds.has(track.fileId) ? (
+                  <span className="public-player__offline-row">
+                    <span className="public-player__offline-pill">Saved offline</span>
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        onRemoveOfflineCopy(track.fileId);
+                      }}
+                      type="button"
+                    >
+                      Remove
+                    </button>
+                  </span>
+                ) : pendingOfflineIds.has(track.fileId) ? (
+                  <span className="public-player__offline-pill" role="status">
+                    Saving…
+                  </span>
+                ) : online ? (
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      onSaveOfflineCopy(track.fileId);
+                    }}
+                    type="button"
+                  >
+                    Save offline
+                  </button>
+                ) : null
               ) : null}
             </li>
           );

@@ -1,4 +1,4 @@
-type OfflineAudioSource = "session" | "token";
+export type OfflineAudioSource = "session" | "token";
 
 interface OfflineAudioRecord {
   readonly blob: Blob;
@@ -240,6 +240,25 @@ export async function purgeOfflineAudioForOrganization(
   const database = await openDatabase();
   const records = await readScopeRecords(database, scope);
   const doomed = records.filter((record) => record.organizationId === organizationId);
+  for (const record of doomed) {
+    await deleteOfflineRecord(database, recordKey(record.scope, record.fileId));
+  }
+  return doomed.length;
+}
+
+/**
+ * Deletes every Offline Copy in `scope` recorded from `source`, regardless of organization.
+ * Sign-out and observed membership loss purge the session source (in the member app one host
+ * serves one Organization, so this is organization-precise in practice); token-source copies
+ * are link-holder data independent of any session and are left untouched. Returns the count.
+ */
+export async function purgeOfflineAudioForSource(
+  scope: string,
+  source: OfflineAudioSource,
+): Promise<number> {
+  const database = await openDatabase();
+  const records = await readScopeRecords(database, scope);
+  const doomed = records.filter((record) => record.source === source);
   for (const record of doomed) {
     await deleteOfflineRecord(database, recordKey(record.scope, record.fileId));
   }

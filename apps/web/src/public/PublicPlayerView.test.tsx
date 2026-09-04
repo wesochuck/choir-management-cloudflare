@@ -277,7 +277,12 @@ describe("PublicPlayerView Components", () => {
           activeTrackKey="soprano"
           currentIndex={0}
           items={mockItems}
+          offlineIds={new Set()}
+          onRemoveOfflineCopy={vi.fn()}
+          onSaveOfflineCopy={vi.fn()}
           onSelectItem={vi.fn()}
+          online
+          pendingOfflineIds={new Set()}
           playableItems={mockItems}
           source={createTokenTrackSource("test-token")}
         />,
@@ -299,7 +304,12 @@ describe("PublicPlayerView Components", () => {
           activeTrackKey="S"
           currentIndex={0}
           items={[itemWithTenorOnly]}
+          offlineIds={new Set()}
+          onRemoveOfflineCopy={vi.fn()}
+          onSaveOfflineCopy={vi.fn()}
           onSelectItem={vi.fn()}
+          online
+          pendingOfflineIds={new Set()}
           playableItems={[itemWithTenorOnly]}
           source={createTokenTrackSource("test-token")}
         />,
@@ -324,13 +334,73 @@ describe("PublicPlayerView Components", () => {
           activeTrackKey="tutti"
           currentIndex={0}
           items={[itemWithNulls]}
+          offlineIds={new Set()}
+          onRemoveOfflineCopy={vi.fn()}
+          onSaveOfflineCopy={vi.fn()}
           onSelectItem={vi.fn()}
+          online
+          pendingOfflineIds={new Set()}
           playableItems={[itemWithNulls]}
           source={createTokenTrackSource("test-token")}
         />,
       );
       expect(html).toContain("Simple Chant");
       expect(html).toContain("Now Playing");
+    });
+    it("shows saved-offline status with removal for cached tracks", () => {
+      const html = renderToString(
+        <PlayerSetList
+          activeTrackKey="soprano"
+          currentIndex={0}
+          items={mockItems}
+          offlineIds={new Set(["file-soprano"])}
+          onRemoveOfflineCopy={vi.fn()}
+          onSaveOfflineCopy={vi.fn()}
+          onSelectItem={vi.fn()}
+          online
+          pendingOfflineIds={new Set()}
+          playableItems={mockItems}
+          source={createTokenTrackSource("test-token")}
+        />,
+      );
+      expect(html).toContain("Saved offline");
+      expect(html).toContain("Remove");
+    });
+    it("shows a saving state while a copy is in flight", () => {
+      const html = renderToString(
+        <PlayerSetList
+          activeTrackKey="soprano"
+          currentIndex={0}
+          items={mockItems}
+          offlineIds={new Set()}
+          onRemoveOfflineCopy={vi.fn()}
+          onSaveOfflineCopy={vi.fn()}
+          onSelectItem={vi.fn()}
+          online
+          pendingOfflineIds={new Set(["file-soprano"])}
+          playableItems={mockItems}
+          source={createTokenTrackSource("test-token")}
+        />,
+      );
+      expect(html).toContain("Saving…");
+    });
+    it("hides the manual save action while offline", () => {
+      const html = renderToString(
+        <PlayerSetList
+          activeTrackKey="soprano"
+          currentIndex={0}
+          items={mockItems}
+          offlineIds={new Set()}
+          onRemoveOfflineCopy={vi.fn()}
+          onSaveOfflineCopy={vi.fn()}
+          onSelectItem={vi.fn()}
+          online={false}
+          pendingOfflineIds={new Set()}
+          playableItems={mockItems}
+          source={createTokenTrackSource("test-token")}
+        />,
+      );
+      expect(html).not.toContain("Save offline");
     });
   });
 
