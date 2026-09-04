@@ -597,6 +597,12 @@ Rotation immediately revokes the prior link and starts a fresh lifetime for the 
 also re-checks event eligibility: a canceled or archived event, or an event whose approved Set List
 was unpublished, shows an unavailable state instead of serving practice audio.
 
+## Offline Copy
+
+A practice-audio file held on a singer's device for playing without a network connection. It is a
+convenience copy equivalent to a downloaded MP3: it remains playable once held and is refreshed
+whenever the player is online. _Avoid_: Download, Cached track
+
 ## Set List
 
 A curated sequence of music pieces and intermissions scheduled to be performed or rehearsed at a
