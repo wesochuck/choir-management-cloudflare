@@ -1,9 +1,26 @@
+type OfflineAudioSource = "session" | "token";
+
 interface OfflineAudioRecord {
   readonly blob: Blob;
   readonly fileId: string;
+  readonly organizationId: string | null;
   readonly savedAt: number;
   readonly scope: string;
+  readonly source: OfflineAudioSource | null;
 }
+
+export interface SaveOfflineAudioDetails {
+  readonly organizationId?: string;
+  readonly source?: OfflineAudioSource;
+}
+
+export interface OfflineStorageEntry {
+  readonly key: string;
+  readonly savedAt: number;
+  readonly sizeBytes: number;
+}
+
+export const OFFLINE_AUDIO_CAP_BYTES = 300 * 1024 * 1024;
 
 const databaseName = "choir-private-media";
 const storeName = "audio";
@@ -49,30 +66,109 @@ function releaseUrl(key: string): void {
   activeUrls.delete(key);
 }
 
-function offlineRecord(value: unknown): OfflineAudioRecord | null {
-  if (typeof value !== "object" || value === null) return null;
+function recordBlob(value: object): Blob | null {
   if (!("blob" in value) || !(value.blob instanceof Blob)) return null;
-  if (!("fileId" in value) || typeof value.fileId !== "string") return null;
-  if (!("savedAt" in value) || typeof value.savedAt !== "number") return null;
-  if (!("scope" in value) || typeof value.scope !== "string") return null;
-  return { blob: value.blob, fileId: value.fileId, savedAt: value.savedAt, scope: value.scope };
+  return value.blob;
 }
 
-export async function listOfflineAudioIds(scope: string): Promise<ReadonlySet<string>> {
-  const database = await openDatabase();
+function recordFileId(value: object): string | null {
+  if (!("fileId" in value) || typeof value.fileId !== "string") return null;
+  return value.fileId;
+}
+
+function recordSavedAt(value: object): number | null {
+  if (!("savedAt" in value) || typeof value.savedAt !== "number") return null;
+  return value.savedAt;
+}
+
+function recordScope(value: object): string | null {
+  if (!("scope" in value) || typeof value.scope !== "string") return null;
+  return value.scope;
+}
+
+function optionalOrganizationId(value: object): string | null {
+  if (!("organizationId" in value) || typeof value.organizationId !== "string") return null;
+  return value.organizationId;
+}
+
+function offlineSource(value: object): OfflineAudioSource | null {
+  if (!("source" in value)) return null;
+  if (value.source !== "session" && value.source !== "token") return null;
+  return value.source;
+}
+
+function offlineRecord(value: unknown): OfflineAudioRecord | null {
+  if (typeof value !== "object" || value === null) return null;
+  const blob = recordBlob(value);
+  const fileId = recordFileId(value);
+  const savedAt = recordSavedAt(value);
+  const scope = recordScope(value);
+  if (!blob || !fileId || savedAt === null || !scope) return null;
+  return {
+    blob,
+    fileId,
+    organizationId: optionalOrganizationId(value),
+    savedAt,
+    scope,
+    source: offlineSource(value),
+  };
+}
+
+async function readScopeRecords(
+  database: IDBDatabase,
+  scope: string,
+): Promise<readonly OfflineAudioRecord[]> {
   const result: unknown = await requestResult(
     database.transaction(storeName, "readonly").objectStore(storeName).getAll(),
   );
   const records = Array.isArray(result)
     ? result.flatMap((value) => offlineRecord(value) ?? [])
     : [];
-  return new Set(records.filter((record) => record.scope === scope).map(({ fileId }) => fileId));
+  return records.filter((record) => record.scope === scope);
+}
+
+/**
+ * Oldest-first eviction plan that brings `records` under `maxBytes`. Re-saving a copy (including
+ * background refreshes) renews its recency, so long-held but regularly refreshed event audio is
+ * evicted last. `exceptKey` is never evicted, so a fresh save always survives its own enforcement.
+ */
+export function planOfflineEvictions(
+  records: readonly OfflineStorageEntry[],
+  maxBytes: number,
+  exceptKey: string | null,
+): readonly string[] {
+  let totalBytes = records.reduce((total, record) => total + record.sizeBytes, 0);
+  if (totalBytes <= maxBytes) return [];
+  const plan: string[] = [];
+  const victims = records
+    .filter((record) => record.key !== exceptKey)
+    .toSorted((left, right) => left.savedAt - right.savedAt);
+  for (const victim of victims) {
+    if (totalBytes <= maxBytes) break;
+    plan.push(victim.key);
+    totalBytes -= victim.sizeBytes;
+  }
+  return plan;
+}
+
+async function deleteOfflineRecord(database: IDBDatabase, key: string): Promise<void> {
+  await requestResult(
+    database.transaction(storeName, "readwrite").objectStore(storeName).delete(key),
+  );
+  releaseUrl(key);
+}
+
+export async function listOfflineAudioIds(scope: string): Promise<ReadonlySet<string>> {
+  const database = await openDatabase();
+  const records = await readScopeRecords(database, scope);
+  return new Set(records.map(({ fileId }) => fileId));
 }
 
 export async function saveOfflineAudio(
   scope: string,
   fileId: string,
   sourceUrl: string,
+  details: SaveOfflineAudioDetails = {},
 ): Promise<void> {
   const response = await fetch(sourceUrl, { credentials: "same-origin" });
   if (!response.ok) throw new Error("The learning track could not be downloaded.");
@@ -86,9 +182,30 @@ export async function saveOfflineAudio(
     database
       .transaction(storeName, "readwrite")
       .objectStore(storeName)
-      .put({ blob, fileId, key, savedAt: Date.now(), scope }),
+      .put({
+        blob,
+        fileId,
+        key,
+        organizationId: details.organizationId ?? null,
+        savedAt: Date.now(),
+        scope,
+        source: details.source ?? null,
+      }),
   );
   releaseUrl(key);
+  const records = await readScopeRecords(database, scope);
+  const victims = planOfflineEvictions(
+    records.map((record) => ({
+      key: recordKey(record.scope, record.fileId),
+      savedAt: record.savedAt,
+      sizeBytes: record.blob.size,
+    })),
+    OFFLINE_AUDIO_CAP_BYTES,
+    key,
+  );
+  for (const victim of victims) {
+    await deleteOfflineRecord(database, victim);
+  }
 }
 
 export async function offlineAudioUrl(scope: string, fileId: string): Promise<string | null> {
@@ -107,10 +224,24 @@ export async function offlineAudioUrl(scope: string, fileId: string): Promise<st
 }
 
 export async function removeOfflineAudio(scope: string, fileId: string): Promise<void> {
-  const key = recordKey(scope, fileId);
   const database = await openDatabase();
-  await requestResult(
-    database.transaction(storeName, "readwrite").objectStore(storeName).delete(key),
-  );
-  releaseUrl(key);
+  await deleteOfflineRecord(database, recordKey(scope, fileId));
+}
+
+/**
+ * Deletes every Offline Copy in `scope` recorded for `organizationId`. Copies recorded before
+ * organization tracking (or for other organizations) are left untouched. Returns the purge count.
+ * Runs on sign-out and observed membership loss — never on switching the active organization.
+ */
+export async function purgeOfflineAudioForOrganization(
+  scope: string,
+  organizationId: string,
+): Promise<number> {
+  const database = await openDatabase();
+  const records = await readScopeRecords(database, scope);
+  const doomed = records.filter((record) => record.organizationId === organizationId);
+  for (const record of doomed) {
+    await deleteOfflineRecord(database, recordKey(record.scope, record.fileId));
+  }
+  return doomed.length;
 }
