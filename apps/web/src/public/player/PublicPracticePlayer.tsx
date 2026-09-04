@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { Sheet } from "@choir/ui";
 
 import { PlayerArtwork, PlayerTrackMetadata } from "./components/PlayerArtwork";
@@ -109,7 +109,7 @@ export function PublicPracticePlayer({
   const currentItem = playableItems[safeSelectedItemIndex] ?? null;
   const currentTrack = currentItem ? resolveTrack(currentItem, activeTrackKey) : null;
   const currentIndex = currentItem ? playableItems.indexOf(currentItem) : -1;
-  const offlineUrl = useOfflineAudioUrl(resolveOfflineUrl, currentTrack?.fileId);
+  const offlineUrl = useOfflineAudioUrl(resolveOfflineUrl, currentTrack?.fileId, offlineIds);
   const audioSrc = offlineUrl ?? (currentTrack ? source.mediaUrl(currentTrack.fileId) : "");
   const eventArtworkUrl = details.eventArtworkFileId
     ? source.artworkUrl(details.eventArtworkFileId)
@@ -199,10 +199,20 @@ export function PublicPracticePlayer({
     });
   }
 
-  function handleAudioError(): void {
-    if (typeof navigator !== "undefined" && !navigator.onLine && currentTrack) {
-      setBlockedFileId(currentTrack.fileId);
+  function handleAudioError(event: SyntheticEvent<HTMLAudioElement>): void {
+    if (typeof navigator === "undefined" || navigator.onLine || !currentTrack) return;
+    // Ignore stale failures from a previous track: only the current source may raise the notice.
+    const expected = offlineUrl ?? source.mediaUrl(currentTrack.fileId);
+    const failed = event.currentTarget.currentSrc;
+    if (failed) {
+      try {
+        const base = window.location.href;
+        if (new URL(failed, base).href !== new URL(expected, base).href) return;
+      } catch {
+        // Unparseable URLs fall through to the offline notice below.
+      }
     }
+    setBlockedFileId(currentTrack.fileId);
   }
 
   function nextTrack(): void {

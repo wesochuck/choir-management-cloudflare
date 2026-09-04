@@ -5,11 +5,14 @@ import type { PlayerPlaylistItem } from "./types";
 
 /**
  * Resolves the cached URL for one track, keyed by file so track switches never flash a stale
- * copy. State updates happen only in async continuations, never synchronously in the effect.
+ * copy. Re-resolves when the known offline set grows, so a copy that lands just after the first
+ * lookup (transparent auto-cache in flight) is picked up instead of streaming forever. State
+ * updates happen only in async continuations, never synchronously in the effect.
  */
 export function useOfflineAudioUrl(
   resolveOfflineUrl: (fileId: string) => Promise<string | null>,
   fileId: string | undefined,
+  offlineIds: ReadonlySet<string>,
 ): string | null {
   const [urls, setUrls] = useState<Readonly<Record<string, string>>>({});
 
@@ -23,7 +26,7 @@ export function useOfflineAudioUrl(
     return () => {
       cancelled = true;
     };
-  }, [fileId, resolveOfflineUrl, urls]);
+  }, [fileId, offlineIds, resolveOfflineUrl, urls]);
 
   return fileId ? (urls[fileId] ?? null) : null;
 }
