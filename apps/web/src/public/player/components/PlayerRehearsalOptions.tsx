@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 import type { PracticeTrackSource } from "../source";
 
 export function PlayerRehearsalOptions({
@@ -55,11 +57,13 @@ export function PlayerRehearsalOptions({
             </span>
             <input
               aria-label="Volume"
+              className="public-player__volume-slider"
               max={100}
               min={0}
               onChange={(event) => {
                 onChangeVolume(Number(event.target.value));
               }}
+              style={{ "--range-progress": `${String(volume)}%` } as CSSProperties}
               type="range"
               value={volume}
             />

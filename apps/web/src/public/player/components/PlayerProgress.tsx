@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import type { CSSProperties, RefObject } from "react";
 
 import { formatTime } from "../format";
 
@@ -13,6 +13,10 @@ export function PlayerProgress({
   readonly onSeek: (nextTime: number) => void;
   readonly title: string;
 }) {
+  const safeDuration = duration > 0 ? duration : 0;
+  const progressPercent =
+    safeDuration > 0 ? (Math.min(currentTime, safeDuration) / safeDuration) * 100 : 0;
+
   return (
     <div className="public-player__progress">
       <input
@@ -21,12 +25,14 @@ export function PlayerProgress({
         aria-valuemin={0}
         aria-valuenow={Math.round(currentTime)}
         aria-valuetext={`${formatTime(currentTime)} of ${formatTime(duration)}`}
+        className="public-player__scrubber"
         max={duration || 1}
         min={0}
         onChange={(event) => {
           onSeek(Number(event.target.value));
         }}
         step={0.1}
+        style={{ "--range-progress": `${String(progressPercent)}%` } as CSSProperties}
         type="range"
         value={Math.min(currentTime, duration || 0)}
       />

@@ -34,6 +34,24 @@
     }
   }
 
+  .practice-player {
+    display: grid;
+    gap: var(--spacing-md);
+    width: 100%;
+  }
+
+  @media (min-width: 48rem) {
+    .practice-player {
+      gap: var(--spacing-lg);
+    }
+  }
+
+  .practice-player__filters {
+    display: grid;
+    gap: var(--spacing-xs);
+    width: 100%;
+  }
+
   .public-player__header {
     padding-inline: var(--spacing-3xs);
   }
@@ -459,10 +477,96 @@
 
   .public-player__progress input[type="range"],
   .public-player__option input[type="range"] {
+    appearance: none;
+    -webkit-appearance: none;
     width: 100%;
-    min-height: 2.25rem;
+    height: 1.5rem;
+    min-height: 1.5rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
     accent-color: var(--color-accent);
+    box-shadow: none;
     cursor: pointer;
+  }
+
+  .public-player__progress input[type="range"]::-webkit-slider-runnable-track,
+  .public-player__option input[type="range"]::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 0.3rem;
+    border-radius: 999px;
+    background: linear-gradient(
+      to right,
+      var(--color-accent) 0%,
+      var(--color-accent) var(--range-progress, 0%),
+      color-mix(in srgb, var(--color-text) 24%, transparent) var(--range-progress, 0%),
+      color-mix(in srgb, var(--color-text) 24%, transparent) 100%
+    );
+  }
+
+  .public-player__progress input[type="range"]::-webkit-slider-thumb,
+  .public-player__option input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 0.85rem;
+    height: 0.85rem;
+    margin-top: -0.275rem;
+    border: 2px solid var(--color-surface);
+    border-radius: 50%;
+    background: var(--color-accent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 70%, var(--color-text));
+    cursor: pointer;
+    transition: transform 0.1s ease;
+  }
+
+  .public-player__progress input[type="range"]::-webkit-slider-thumb:hover,
+  .public-player__option input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+  }
+
+  .public-player__progress input[type="range"]::-moz-range-track,
+  .public-player__option input[type="range"]::-moz-range-track {
+    width: 100%;
+    height: 0.3rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-text) 24%, transparent);
+  }
+
+  .public-player__progress input[type="range"]::-moz-range-progress,
+  .public-player__option input[type="range"]::-moz-range-progress {
+    height: 0.3rem;
+    border-radius: 999px;
+    background: var(--color-accent);
+  }
+
+  .public-player__progress input[type="range"]::-moz-range-thumb,
+  .public-player__option input[type="range"]::-moz-range-thumb {
+    width: 0.85rem;
+    height: 0.85rem;
+    border: 2px solid var(--color-surface);
+    border-radius: 50%;
+    background: var(--color-accent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 70%, var(--color-text));
+    cursor: pointer;
+  }
+
+  .public-player__progress input[type="range"]:focus-visible,
+  .public-player__option input[type="range"]:focus-visible {
+    outline: none;
+  }
+
+  .public-player__progress input[type="range"]:focus-visible::-webkit-slider-thumb,
+  .public-player__option input[type="range"]:focus-visible::-webkit-slider-thumb {
+    outline: 0.2rem solid var(--color-accent);
+    outline-offset: 0.18rem;
+  }
+
+  .public-player__progress input[type="range"]:focus-visible::-moz-range-thumb,
+  .public-player__option input[type="range"]:focus-visible::-moz-range-thumb {
+    outline: 0.2rem solid var(--color-accent);
+    outline-offset: 0.18rem;
   }
 
   .public-player__progress-times {
