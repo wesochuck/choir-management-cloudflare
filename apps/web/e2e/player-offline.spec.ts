@@ -113,5 +113,6 @@ test("caches the open event offline and explains uncached parts", async ({ page 
       name: "Choir Mix",
     })
     .click();
+  await expect(voicePartTrigger).toContainText("Choir Mix");
   await expect(page.getByText("saved offline. Reconnect", { exact: false })).not.toBeVisible();
 });

@@ -26,13 +26,15 @@ import { useOfflineCopies } from "../../offline/useOfflineCopies";
 function OfflineStatusNotices({
   blockedFileId,
   currentFileId,
+  online,
   saveError,
 }: {
   readonly blockedFileId: string | null;
   readonly currentFileId: string | undefined;
+  readonly online: boolean;
   readonly saveError: boolean;
 }) {
-  const showOfflineBlocked = blockedFileId !== null && blockedFileId === currentFileId;
+  const showOfflineBlocked = !online && blockedFileId !== null && blockedFileId === currentFileId;
   return (
     <>
       {showOfflineBlocked ? (
@@ -167,6 +169,7 @@ export function PublicPracticePlayer({
     setSelectedItemIndex(index);
     setPlaying(autoplay);
     setCountdown(null);
+    setBlockedFileId(null);
   }
 
   function selectTrackKey(key: string): void {
@@ -175,6 +178,7 @@ export function PublicPracticePlayer({
     setSelectedTrackKey(key);
     setSelectedItemIndex(0);
     setCountdown(null);
+    setBlockedFileId(null);
   }
 
   function handleSaveOfflineCopy(fileId: string): void {
@@ -201,8 +205,10 @@ export function PublicPracticePlayer({
 
   function handleAudioError(event: SyntheticEvent<HTMLAudioElement>): void {
     if (typeof navigator === "undefined" || navigator.onLine || !currentTrack) return;
+    // Cached tracks are already saved locally and must never trigger an offline-missing notice.
+    if (offlineUrl || offlineIds.has(currentTrack.fileId)) return;
     // Ignore stale failures from a previous track: only the current source may raise the notice.
-    const expected = offlineUrl ?? source.mediaUrl(currentTrack.fileId);
+    const expected = source.mediaUrl(currentTrack.fileId);
     const failed = event.currentTarget.currentSrc;
     if (failed) {
       try {
@@ -436,6 +442,7 @@ export function PublicPracticePlayer({
           <OfflineStatusNotices
             blockedFileId={blockedFileId}
             currentFileId={currentTrack.fileId}
+            online={online}
             saveError={saveError}
           />
 
