@@ -14,6 +14,7 @@ import {
   availableTrackKeys,
   formatTrackKey,
   resolveTrack,
+  resolveTrackKey,
   updateMediaSessionPosition,
 } from "./format";
 import type { PracticeTrackSource } from "./source";
@@ -50,9 +51,11 @@ function OfflineStatusNotices({
 
 export function PublicPracticePlayer({
   details,
+  initialTrackKey,
   source,
 }: {
   readonly details: PlayerDetails;
+  readonly initialTrackKey?: string | undefined;
   readonly source: PracticeTrackSource;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -61,7 +64,6 @@ export function PublicPracticePlayer({
   const queueButtonRef = useRef<HTMLButtonElement | null>(null);
   const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  const [selectedTrackKey, setSelectedTrackKey] = useState("tutti");
   const [selectedItemIndex, setSelectedItemIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -89,9 +91,16 @@ export function PublicPracticePlayer({
   } = useOfflineCopies({ scope, source });
 
   const allTrackKeys = useMemo(() => availableTrackKeys(details.items), [details.items]);
-  const activeTrackKey = allTrackKeys.includes(selectedTrackKey)
-    ? selectedTrackKey
-    : (allTrackKeys[0] ?? "tutti");
+  const [selectedTrackKey, setSelectedTrackKey] = useState(() => {
+    if (initialTrackKey) {
+      return resolveTrackKey(allTrackKeys, initialTrackKey) ?? initialTrackKey;
+    }
+    return allTrackKeys[0] ?? "tutti";
+  });
+  const activeTrackKey =
+    allTrackKeys.includes(selectedTrackKey) || initialTrackKey
+      ? selectedTrackKey
+      : (allTrackKeys[0] ?? "tutti");
   const playableItems = useMemo(
     () => details.items.filter((item) => resolveTrack(item, activeTrackKey) !== null),
     [activeTrackKey, details.items],

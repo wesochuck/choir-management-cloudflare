@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { availableTrackKeys, formatDate, formatTime, formatTrackKey, resolveTrack } from "./format";
+import {
+  availableTrackKeys,
+  formatDate,
+  formatTime,
+  formatTrackKey,
+  resolveTrack,
+  resolveTrackKey,
+} from "./format";
 import type { PlayerPlaylistItem } from "./types";
 
 describe("format utilities", () => {
@@ -266,5 +273,28 @@ describe("resolveTrack fallback hierarchy", () => {
       },
     };
     expect(resolveTrack(item, "S")).toBeNull();
+  });
+
+  describe("resolveTrackKey", () => {
+    const keys = ["alto", "t2", "tenor", "tutti"];
+
+    it("prefers the exact key", () => {
+      expect(resolveTrackKey(keys, "t2")).toBe("t2");
+    });
+
+    it("matches roster spellings case-insensitively", () => {
+      expect(resolveTrackKey(keys, "T2")).toBe("t2");
+      expect(resolveTrackKey(keys, "ALTO")).toBe("alto");
+    });
+
+    it("returns null for section-level spellings so playback fallback decides", () => {
+      // "Tenor 2" matches no key exactly; per-item resolution still finds the tenor section.
+      expect(resolveTrackKey(keys, "Tenor 2")).toBeNull();
+    });
+
+    it("returns null when nothing matches", () => {
+      expect(resolveTrackKey(keys, "bass")).toBeNull();
+      expect(resolveTrackKey([], "t2")).toBeNull();
+    });
   });
 });

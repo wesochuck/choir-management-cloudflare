@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { getMemberProfile } from "../api";
 import {
   PlayerHeader,
   PublicPracticePlayer,
@@ -21,6 +22,7 @@ export function PublicPlayerView() {
   const [pageStatus, setPageStatus] = useState<PageStatus>({
     type: token ? "loading" : "no_token",
   });
+  const [rosterPart, setRosterPart] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -35,6 +37,24 @@ export function PublicPlayerView() {
   }, [isSetListPlayer, token]);
 
   const source = useMemo(() => createTokenTrackSource(token ?? ""), [token]);
+
+  useEffect(() => {
+    // Best-effort: seed the part selection from the roster when a session exists. Anonymous
+    // visits keep the default part; the request simply fails without a session.
+    const controller = new AbortController();
+    void getMemberProfile(controller.signal)
+      .then((profile) => {
+        if (!controller.signal.aborted && profile.voicePart.trim()) {
+          setRosterPart(profile.voicePart);
+        }
+      })
+      .catch(() => {
+        // No session — the player keeps its default part selection.
+      });
+    return () => {
+      controller.abort();
+    };
+  }, []);
 
   if (pageStatus.type === "no_token") {
     return (
@@ -86,7 +106,11 @@ export function PublicPlayerView() {
     <main className="public-player-layout">
       <section aria-labelledby="player-title" className="public-player">
         <PlayerHeader details={details} />
-        <PublicPracticePlayer details={details} source={source} />
+        <PublicPracticePlayer
+          details={details}
+          initialTrackKey={rosterPart ?? undefined}
+          source={source}
+        />
       </section>
     </main>
   );

@@ -22,3 +22,15 @@ export function createTokenTrackSource(token: string): PracticeTrackSource {
     },
   };
 }
+
+export function createSessionTrackSource(): PracticeTrackSource {
+  return {
+    artworkUrl(fileId: string): string {
+      return `/api/organization/files/${encodeURIComponent(fileId)}`;
+    },
+    kind: "session",
+    mediaUrl(fileId: string): string {
+      return `/api/organization/files/${encodeURIComponent(fileId)}`;
+    },
+  };
+}

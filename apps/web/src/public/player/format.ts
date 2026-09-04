@@ -34,6 +34,17 @@ export function availableTrackKeys(items: readonly PlayerPlaylistItem[]): string
   });
 }
 
+/**
+ * Matches a requested part (for example a roster voice part such as "T2") against the track
+ * keys actually present, using the same normalization as track resolution. Returns null when
+ * nothing matches so callers fall back to their default key.
+ */
+export function resolveTrackKey(trackKeys: readonly string[], requestedKey: string): string | null {
+  if (trackKeys.includes(requestedKey)) return requestedKey;
+  const requestedNorm = normalizeKey(requestedKey);
+  return trackKeys.find((key) => normalizeKey(key) === requestedNorm) ?? null;
+}
+
 function normalizeKey(key: string): string {
   return key
     .trim()

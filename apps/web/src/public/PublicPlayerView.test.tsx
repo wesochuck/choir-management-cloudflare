@@ -11,6 +11,7 @@ import {
   PlayerSetList,
   PlayerTrackMetadata,
   PlayerTransport,
+  PublicPracticePlayer,
   createTokenTrackSource,
   type PlayerDetails,
   type PlayerPlaylistItem,
@@ -445,6 +446,42 @@ describe("PublicPlayerView Components", () => {
       expect(html).not.toContain("Volume");
       expect(html).toContain("Gap between tracks");
       expect(html).toContain("Download Current Track");
+    });
+  });
+
+  describe("PublicPracticePlayer initial track key", () => {
+    it("selects the roster-seeded part without fallback when the key matches", () => {
+      const html = renderToString(
+        <PublicPracticePlayer
+          details={mockDetails}
+          initialTrackKey="TENOR"
+          source={createTokenTrackSource("test-token")}
+        />,
+      );
+      expect(html).toContain('src="/api/public/player/media/file-tenor?token=test-token"');
+      expect(html).not.toContain("TENOR fallback");
+    });
+
+    it("keeps an unmatched seed so per-item resolution finds the section", () => {
+      const html = renderToString(
+        <PublicPracticePlayer
+          details={mockDetails}
+          initialTrackKey="T2"
+          source={createTokenTrackSource("test-token")}
+        />,
+      );
+      expect(html).toContain('src="/api/public/player/media/file-tenor?token=test-token"');
+      expect(html).toContain("TENOR fallback");
+    });
+
+    it("defaults to tutti without a seed", () => {
+      const html = renderToString(
+        <PublicPracticePlayer
+          details={mockDetails}
+          source={createTokenTrackSource("test-token")}
+        />,
+      );
+      expect(html).toContain('src="/api/public/player/media/file-tutti?token=test-token"');
     });
   });
 
