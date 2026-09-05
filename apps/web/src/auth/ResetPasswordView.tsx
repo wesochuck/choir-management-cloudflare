@@ -18,6 +18,7 @@ export function ResetPasswordView({ error, token }: ResetPasswordViewProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [succeeded, setSucceeded] = useState(false);
   const canReset = error === null && validResetToken(token);
 
@@ -83,13 +84,27 @@ export function ResetPasswordView({ error, token }: ResetPasswordViewProps) {
               Use 12 to 128 characters. This single-use link expires after 30 minutes.
             </p>
             {errorMessage ? (
-              <p className="notice notice--error" role="alert">
+              <p className="notice notice--error" id="reset-password-error" role="alert">
                 {errorMessage}
               </p>
             ) : null}
             <div className="field">
-              <label htmlFor="reset-password">New password</label>
+              <div className="flex items-center justify-between">
+                <label htmlFor="reset-password">New password</label>
+                <button
+                  aria-label={showPassword ? "Hide passwords" : "Show passwords"}
+                  className="text-button text-sm"
+                  onClick={() => {
+                    setShowPassword((prev) => !prev);
+                  }}
+                  type="button"
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </div>
               <input
+                aria-describedby={errorMessage ? "reset-password-error" : undefined}
+                aria-invalid={Boolean(errorMessage)}
                 autoComplete="new-password"
                 id="reset-password"
                 maxLength={128}
@@ -99,13 +114,15 @@ export function ResetPasswordView({ error, token }: ResetPasswordViewProps) {
                   setPassword(event.target.value);
                 }}
                 required
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
               />
             </div>
             <div className="field">
               <label htmlFor="reset-password-confirmation">Confirm new password</label>
               <input
+                aria-describedby={errorMessage ? "reset-password-error" : undefined}
+                aria-invalid={Boolean(errorMessage)}
                 autoComplete="new-password"
                 id="reset-password-confirmation"
                 maxLength={128}
@@ -115,7 +132,7 @@ export function ResetPasswordView({ error, token }: ResetPasswordViewProps) {
                   setConfirmPassword(event.target.value);
                 }}
                 required
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={confirmPassword}
               />
             </div>

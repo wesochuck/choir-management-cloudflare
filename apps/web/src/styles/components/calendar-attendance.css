@@ -92,7 +92,7 @@
     min-height: 2.5rem;
     padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
@@ -117,7 +117,7 @@
     height: 0.45rem;
     margin-top: var(--spacing-md);
     overflow: hidden;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: color-mix(in srgb, var(--color-border) 70%, transparent);
   }
 

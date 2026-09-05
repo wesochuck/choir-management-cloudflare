@@ -1,5 +1,5 @@
 import type { Season } from "@choir/contracts";
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 
 export function DeleteSeasonDialog({
   confirmSeason,
@@ -34,15 +34,13 @@ export function DeleteSeasonDialog({
           : "Delete this season?"}
       </p>
       <div className="dialog__actions">
+        <DialogClose asChild>
+          <button className="button button--secondary" disabled={seasonBusy} type="button">
+            Cancel
+          </button>
+        </DialogClose>
         <button
-          className="button button--secondary"
-          disabled={seasonBusy}
-          onClick={onClose}
-          type="button"
-        >
-          Cancel
-        </button>
-        <button
+          aria-busy={seasonBusy}
           className="button button--danger"
           disabled={seasonBusy}
           onClick={() => void removeSeason()}

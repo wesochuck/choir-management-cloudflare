@@ -3,7 +3,7 @@ import type {
   OrganizationAttendanceStatus,
   OrganizationEvent,
 } from "@choir/contracts";
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 import { useMemo, useState } from "react";
 
 import {
@@ -119,15 +119,13 @@ function UnexpectedAttendanceDialog({
           Performance.
         </p>
         <div className="dialog__actions">
+          <DialogClose asChild>
+            <button className="button button--secondary" disabled={busy} type="button">
+              Cancel
+            </button>
+          </DialogClose>
           <button
-            className="button button--secondary"
-            disabled={busy}
-            onClick={onClose}
-            type="button"
-          >
-            Cancel
-          </button>
-          <button
+            aria-busy={busy}
             className="button button--primary"
             disabled={busy}
             onClick={onConfirm}

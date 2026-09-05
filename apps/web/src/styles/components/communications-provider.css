@@ -258,7 +258,7 @@
     min-height: 1.25rem;
     place-items: center;
     padding-inline: var(--spacing-3xs);
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: var(--color-info-surface);
     color: var(--color-text);
     font-size: var(--font-size-xs);
@@ -654,7 +654,7 @@
   .filter-chip {
     padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-pill, 9999px);
+    border-radius: var(--radius-full);
     background: var(--color-surface);
     color: var(--color-text-muted);
     cursor: pointer;

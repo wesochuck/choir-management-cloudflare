@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DialogClose } from "@choir/ui";
 import type {
   AuditionStatus,
   OrganizationAudition,
@@ -182,10 +183,17 @@ export function EditAuditionForm({
         />
       </label>
       <div className="form-actions">
-        <button className="button button--secondary" onClick={onCancel} type="button">
-          Cancel
-        </button>
-        <button className="button button--primary" disabled={busy} type="submit">
+        <DialogClose asChild>
+          <button
+            className="button button--secondary"
+            disabled={busy}
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
+        </DialogClose>
+        <button aria-busy={busy} className="button button--primary" disabled={busy} type="submit">
           {busy ? "Saving…" : "Save"}
         </button>
       </div>
@@ -326,10 +334,17 @@ export function CreateAuditionForm({
         />
       </label>
       <div className="form-actions">
-        <button className="button button--secondary" onClick={onCancel} type="button">
-          Cancel
-        </button>
-        <button className="button button--primary" disabled={busy} type="submit">
+        <DialogClose asChild>
+          <button
+            className="button button--secondary"
+            disabled={busy}
+            onClick={onCancel}
+            type="button"
+          >
+            Cancel
+          </button>
+        </DialogClose>
+        <button aria-busy={busy} className="button button--primary" disabled={busy} type="submit">
           {busy ? "Creating…" : "Create audition"}
         </button>
       </div>

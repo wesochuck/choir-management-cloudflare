@@ -87,5 +87,6 @@ describe("MusicTableTuttiDropTarget & MusicTableTrackPlayer", () => {
       'title="Drop audio file or click to upload Tutti track for O Magnum Mysterium"',
     );
     expect(html).toContain("<svg");
+    expect(html).toContain('aria-hidden="true"');
   });
 });

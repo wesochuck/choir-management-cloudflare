@@ -7,7 +7,7 @@ import {
 } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
-import { useConfirmation } from "@choir/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger, useConfirmation } from "@choir/ui";
 
 import {
   getOrganizationRosterConfiguration,
@@ -118,57 +118,78 @@ export function ReportsView({ enabled }: { readonly enabled: boolean }) {
   }
   return (
     <section className="reports-view" aria-label="Reports and insights">
-      <nav className="ticketing-tabs reports-tabs" aria-label="Report types" role="tablist">
-        {TAB_LABELS.map((item) => (
-          <button
-            aria-controls={`report-${item.id}-panel`}
-            aria-selected={tab === item.id}
-            className={tab === item.id ? "is-active" : undefined}
-            id={`report-${item.id}-tab`}
-            key={item.id}
-            onClick={() => {
-              selectReportTab(item.id);
-            }}
-            role="tab"
-            type="button"
-          >
-            {item.label}
-          </button>
-        ))}
-      </nav>
-      <section
-        aria-labelledby={`report-${tab}-tab`}
-        className="panel reports-panel"
-        id={`report-${tab}-panel`}
-        role="tabpanel"
-      >
-        {tab === "attendance" ? (
+      <Tabs onValueChange={selectReportTab} value={tab}>
+        <TabsList aria-label="Report types" as="nav" className="ticketing-tabs reports-tabs">
+          {TAB_LABELS.map((item) => (
+            <TabsTrigger
+              aria-controls={`report-${item.id}-panel`}
+              id={`report-${item.id}-tab`}
+              key={item.id}
+              value={item.id}
+            >
+              {item.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent
+          aria-labelledby="report-attendance-tab"
+          className="panel reports-panel"
+          id="report-attendance-panel"
+          value="attendance"
+        >
           <AttendanceReport
             events={events}
             onChange={setSelectedPerformanceId}
             performerLabel={performerLabel}
             selectedId={selectedPerformanceId}
           />
-        ) : null}
-        {tab === "rsvp" ? (
+        </TabsContent>
+        <TabsContent
+          aria-labelledby="report-rsvp-tab"
+          className="panel reports-panel"
+          id="report-rsvp-panel"
+          value="rsvp"
+        >
           <RsvpReport
             events={events}
             onChange={setSelectedPerformanceId}
             performerLabel={performerLabel}
             selectedId={selectedPerformanceId}
           />
-        ) : null}
-        {tab === "repertoire" ? <RepertoireReport pieces={pieces} /> : null}
-        {tab === "roster" ? (
+        </TabsContent>
+        <TabsContent
+          aria-labelledby="report-repertoire-tab"
+          className="panel reports-panel"
+          id="report-repertoire-panel"
+          value="repertoire"
+        >
+          <RepertoireReport pieces={pieces} />
+        </TabsContent>
+        <TabsContent
+          aria-labelledby="report-roster-tab"
+          className="panel reports-panel"
+          id="report-roster-panel"
+          value="roster"
+        >
           <RosterReport performerLabel={performerLabel} profiles={profiles} />
-        ) : null}
-        {tab === "donations-tickets" ? (
+        </TabsContent>
+        <TabsContent
+          aria-labelledby="report-donations-tickets-tab"
+          className="panel reports-panel"
+          id="report-donations-tickets-panel"
+          value="donations-tickets"
+        >
           <CommerceReport donations={donations} state={commerceState} ticketOrders={ticketOrders} />
-        ) : null}
-        {tab === "music-folders" ? (
+        </TabsContent>
+        <TabsContent
+          aria-labelledby="report-music-folders-tab"
+          className="panel reports-panel"
+          id="report-music-folders-panel"
+          value="music-folders"
+        >
           <MusicFolderReport enabled={enabled} onUnsavedChange={setMusicFolderUnsaved} />
-        ) : null}
-      </section>
+        </TabsContent>
+      </Tabs>
       {confirmationDialog}
     </section>
   );

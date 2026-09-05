@@ -189,7 +189,7 @@
   .formation-order-item--drop-after::after {
     position: absolute;
     z-index: 2;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: var(--color-primary);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
     content: "";
@@ -259,7 +259,7 @@
     place-items: center;
     padding: 0;
     border: 1px solid transparent;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     color: var(--color-danger-text);
     background: transparent;
     cursor: pointer;
@@ -613,7 +613,7 @@
     min-width: min(22rem, 65%);
     padding: var(--spacing-2xs) var(--spacing-md);
     border: 1px solid color-mix(in srgb, var(--color-accent) 50%, var(--color-border));
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-black);
@@ -667,7 +667,7 @@
     min-height: 1.65rem;
     padding: 0;
     border: 1px solid var(--color-border);
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     color: var(--color-text-muted);
     background: var(--color-surface);
     cursor: pointer;
@@ -738,7 +738,7 @@
     place-items: center;
     padding: 0;
     border: 1px solid transparent;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     color: var(--color-danger-text);
     background: color-mix(in srgb, var(--color-danger-text) 10%, var(--color-surface));
     font-size: var(--font-size-base);
@@ -964,7 +964,7 @@
     min-height: 1.4rem;
     padding: 0;
     border: 0;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     color: var(--color-text-muted);
     background: transparent;
     cursor: pointer;

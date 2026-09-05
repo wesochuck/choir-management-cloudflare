@@ -55,13 +55,15 @@ export function BulkRehearsalDialog({
         }}
       >
         {error ? (
-          <p className="notice notice--error" role="alert">
+          <p className="notice notice--error" id="bulk-rehearsal-error" role="alert">
             {error}
           </p>
         ) : null}
         <label className="field">
           Target performance
           <select
+            aria-describedby={error ? "bulk-rehearsal-error" : undefined}
+            aria-invalid={Boolean(error)}
             required
             value={performanceId}
             onChange={(event) => {
@@ -136,10 +138,15 @@ export function BulkRehearsalDialog({
           </select>
         </label>
         <div className="dialog__actions">
-          <button className="button button--secondary" onClick={onClose} type="button">
+          <button
+            className="button button--secondary"
+            disabled={busy}
+            onClick={onClose}
+            type="button"
+          >
             Cancel
           </button>
-          <button className="button button--primary" disabled={busy} type="submit">
+          <button aria-busy={busy} className="button button--primary" disabled={busy} type="submit">
             {busy ? "Generating…" : "Generate rehearsals"}
           </button>
         </div>

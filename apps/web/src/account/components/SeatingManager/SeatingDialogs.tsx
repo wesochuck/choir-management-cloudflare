@@ -72,7 +72,6 @@ function ChartDialog({
         <label className="field">
           Chart name
           <input
-            autoFocus
             maxLength={200}
             onChange={(event) => {
               setChartName(event.target.value);
@@ -290,7 +289,6 @@ function AddProfileDialog({
         <label className="field">
           Display name
           <input
-            autoFocus
             maxLength={200}
             onChange={(event) => {
               setProfileForm((current) => ({ ...current, displayName: event.target.value }));
@@ -392,7 +390,6 @@ function ProfileLookupDialog({
         <label className="field">
           Search Profiles
           <input
-            autoFocus
             onChange={(event) => {
               setLookupQuery(event.target.value);
             }}

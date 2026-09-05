@@ -10,6 +10,29 @@ interface SheetProps {
 }
 
 export function Sheet({ children, onClose, open, restoreFocusRef, title }: SheetProps) {
+  const content = (
+    <>
+      <DialogPrimitive.Overlay className="dialog__overlay" />
+      <DialogPrimitive.Content
+        aria-modal="true"
+        className="sheet"
+        onCloseAutoFocus={(event) => {
+          if (!restoreFocusRef?.current) return;
+          event.preventDefault();
+          restoreFocusRef.current.focus();
+        }}
+      >
+        <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
+        <DialogPrimitive.Close asChild>
+          <button className="sheet__close" type="button" aria-label="Close navigation">
+            &times;
+          </button>
+        </DialogPrimitive.Close>
+        {children}
+      </DialogPrimitive.Content>
+    </>
+  );
+
   return (
     <DialogPrimitive.Root
       onOpenChange={(nextOpen) => {
@@ -17,25 +40,13 @@ export function Sheet({ children, onClose, open, restoreFocusRef, title }: Sheet
       }}
       open={open}
     >
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="dialog__overlay" />
-        <DialogPrimitive.Content
-          className="sheet"
-          onCloseAutoFocus={(event) => {
-            if (!restoreFocusRef?.current) return;
-            event.preventDefault();
-            restoreFocusRef.current.focus();
-          }}
-        >
-          <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
-          <DialogPrimitive.Close asChild>
-            <button className="sheet__close" type="button" aria-label="Close navigation">
-              &times;
-            </button>
-          </DialogPrimitive.Close>
-          {children}
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
+      {typeof document === "undefined" ? (
+        open ? (
+          content
+        ) : null
+      ) : (
+        <DialogPrimitive.Portal>{content}</DialogPrimitive.Portal>
+      )}
     </DialogPrimitive.Root>
   );
 }

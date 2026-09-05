@@ -6,6 +6,7 @@ import { money, seasonDateLabel, type SeasonState } from "./types";
 export function SeasonsTab({
   busy,
   onActivate,
+  onAddSeason,
   onDelete,
   onEdit,
   seasonState,
@@ -13,6 +14,7 @@ export function SeasonsTab({
 }: {
   readonly busy: boolean;
   readonly onActivate: (season: Season) => void;
+  readonly onAddSeason?: () => void;
   readonly onDelete: (season: Season) => void;
   readonly onEdit: (season: Season) => void;
   readonly seasonState: SeasonState;
@@ -21,7 +23,18 @@ export function SeasonsTab({
   if (seasonState.status === "loading") return <p>Loading seasons…</p>;
   if (seasonState.status === "error")
     return <p className="notice notice--error">Seasons could not be loaded.</p>;
-  if (seasonState.seasons.length === 0) return <p>No seasons yet. Add one to get started.</p>;
+  if (seasonState.seasons.length === 0) {
+    return (
+      <div className="empty-state">
+        <p>No seasons created yet.</p>
+        {onAddSeason ? (
+          <button className="button button--primary" onClick={onAddSeason} type="button">
+            Create your first season
+          </button>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <DataTable
       columns={[

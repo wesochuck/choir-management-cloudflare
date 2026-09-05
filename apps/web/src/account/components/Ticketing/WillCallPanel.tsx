@@ -127,10 +127,14 @@ export function WillCallPanel({
           <p className="notice notice--error">Ticket orders could not be loaded.</p>
         ) : null}
         {state.status === "ready" && performanceOrders.length === 0 ? (
-          <p className="empty-state">No ticket orders yet.</p>
+          <div className="empty-state">
+            <p>No ticket orders yet.</p>
+          </div>
         ) : null}
         {state.status === "ready" && performanceOrders.length > 0 && visibleOrders.length === 0 ? (
-          <p className="empty-state">No ticket buyers match this search.</p>
+          <div className="empty-state">
+            <p>No ticket buyers match this search.</p>
+          </div>
         ) : null}
         {visibleOrders.length > 0 ? (
           <DataTable

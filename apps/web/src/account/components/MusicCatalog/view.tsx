@@ -1,5 +1,5 @@
 import { type CsvColumnMapping, musicCsvColumnOptions } from "@choir/domain";
-import { Dialog } from "@choir/ui";
+import { Dialog, Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
 import { MusicGenreFilter, MusicGenrePicker } from "./shared";
 import { normalizeDurationInput, uniqueLabels } from "./utils";
 import { MusicCatalogTable, SectionBuckets } from "./table";
@@ -350,60 +350,44 @@ export function MusicCatalogView({
                   <option key={name} value={name} />
                 ))}
               </datalist>
-              <div className="music-piece-tabs" role="tablist" aria-label="Music piece editor">
-                <button
-                  aria-controls="music-piece-details"
-                  aria-selected={editorTab === "details"}
-                  className={editorTab === "details" ? "is-active" : undefined}
-                  id="music-piece-details-tab"
-                  onClick={() => {
-                    setEditorTab("details");
-                  }}
-                  role="tab"
-                  type="button"
-                >
-                  Piece details
-                </button>
-                <button
-                  aria-controls="music-piece-tracks"
-                  aria-selected={editorTab === "tracks"}
-                  className={editorTab === "tracks" ? "is-active" : undefined}
-                  disabled={!selectedPiece}
-                  id="music-piece-tracks-tab"
-                  onClick={() => {
-                    setEditorTab("tracks");
-                  }}
-                  role="tab"
-                  type="button"
-                >
-                  Practice tracks
-                  {selectedPiece && Object.values(selectedPiece.trackFileIds).some(Boolean)
-                    ? ` (${String(Object.values(selectedPiece.trackFileIds).filter(Boolean).length)})`
-                    : ""}
-                </button>
-                <button
-                  aria-controls="music-piece-performances"
-                  aria-selected={editorTab === "performances"}
-                  className={editorTab === "performances" ? "is-active" : undefined}
-                  disabled={!selectedPiece}
-                  id="music-piece-performances-tab"
-                  onClick={() => {
-                    setEditorTab("performances");
-                  }}
-                  role="tab"
-                  type="button"
-                >
-                  Linked performances
-                  {selectedPiece
-                    ? ` (${String(events.filter((event) => event.type === "Performance" && performanceContainsPiece(event, pieceIdsForPerformance(selectedPiece, pieces))).length)})`
-                    : ""}
-                </button>
-              </div>
-              {editorTab === "details" ? (
-                <div
+              <Tabs onValueChange={setEditorTab} value={editorTab}>
+                <div className="music-piece-tabs">
+                  <TabsList aria-label="Music piece editor">
+                    <TabsTrigger
+                      aria-controls="music-piece-details"
+                      id="music-piece-details-tab"
+                      value="details"
+                    >
+                      Piece details
+                    </TabsTrigger>
+                    <TabsTrigger
+                      aria-controls="music-piece-tracks"
+                      disabled={!selectedPiece}
+                      id="music-piece-tracks-tab"
+                      value="tracks"
+                    >
+                      Practice tracks
+                      {selectedPiece && Object.values(selectedPiece.trackFileIds).some(Boolean)
+                        ? ` (${String(Object.values(selectedPiece.trackFileIds).filter(Boolean).length)})`
+                        : ""}
+                    </TabsTrigger>
+                    <TabsTrigger
+                      aria-controls="music-piece-performances"
+                      disabled={!selectedPiece}
+                      id="music-piece-performances-tab"
+                      value="performances"
+                    >
+                      Linked performances
+                      {selectedPiece
+                        ? ` (${String(events.filter((event) => event.type === "Performance" && performanceContainsPiece(event, pieceIdsForPerformance(selectedPiece, pieces))).length)})`
+                        : ""}
+                    </TabsTrigger>
+                  </TabsList>
+                </div>
+                <TabsContent
                   aria-labelledby="music-piece-details-tab"
                   id="music-piece-details"
-                  role="tabpanel"
+                  value="details"
                 >
                   <div className="music-fields-grid">
                     <label className="field music-field--wide">
@@ -571,14 +555,13 @@ export function MusicCatalogView({
                       setPiece((current) => ({ ...current, sectionBuckets }));
                     }}
                   />
-                </div>
-              ) : editorTab === "tracks" ? (
-                selectedPiece ? (
-                  <div
-                    aria-labelledby="music-piece-tracks-tab"
-                    id="music-piece-tracks"
-                    role="tabpanel"
-                  >
+                </TabsContent>
+                <TabsContent
+                  aria-labelledby="music-piece-tracks-tab"
+                  id="music-piece-tracks"
+                  value="tracks"
+                >
+                  {selectedPiece ? (
                     <MusicAudioTracks
                       configuration={roster}
                       key={selectedPiece.id}
@@ -594,28 +577,29 @@ export function MusicCatalogView({
                         setMessage(successMessage);
                       }}
                     />
-                  </div>
-                ) : (
-                  <p className="notice">Save the piece first, then add practice tracks.</p>
-                )
-              ) : selectedPiece ? (
-                <div
+                  ) : (
+                    <p className="notice">Save the piece first, then add practice tracks.</p>
+                  )}
+                </TabsContent>
+                <TabsContent
                   aria-labelledby="music-piece-performances-tab"
                   id="music-piece-performances"
-                  role="tabpanel"
+                  value="performances"
                 >
-                  <MusicPiecePerformances
-                    allEvents={events}
-                    allPieces={pieces}
-                    onEventChanged={handlePerformanceChanged}
-                    piece={selectedPiece}
-                    timezone={timezone}
-                    venues={venues}
-                  />
-                </div>
-              ) : (
-                <p className="notice">Save the piece first, then link performances.</p>
-              )}
+                  {selectedPiece ? (
+                    <MusicPiecePerformances
+                      allEvents={events}
+                      allPieces={pieces}
+                      onEventChanged={handlePerformanceChanged}
+                      piece={selectedPiece}
+                      timezone={timezone}
+                      venues={venues}
+                    />
+                  ) : (
+                    <p className="notice">Save the piece first, then link performances.</p>
+                  )}
+                </TabsContent>
+              </Tabs>
               {editingId ? (
                 <p className="field-help">
                   Learning tracks linked: {String(Object.keys(piece.trackFileIds).length)} ·

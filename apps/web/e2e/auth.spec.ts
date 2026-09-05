@@ -2118,7 +2118,9 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     "href",
     "/api/organization/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/rsvp-export.csv?sort=lastName",
   );
-  const historyTab = rsvpPage.getByRole("tab", { name: "History", exact: true });
+  const historyTab = rsvpPage
+    .getByRole("tab", { name: "History", exact: true })
+    .or(rsvpPage.getByRole("button", { name: "History", exact: true }));
   await historyTab.click({ force: true });
   const historySection = rsvpPage.locator(".rsvp-manager__history");
   await expect(historySection.getByRole("heading", { name: "Event RSVP History" })).toHaveCount(1);

@@ -68,6 +68,11 @@ export function PlayerRehearsalOptions({
               value={volume}
             />
           </label>
+        ) : !showVolume ? (
+          <p className="public-player__option-note text-xs text-muted-foreground">
+            Audio playback level is controlled using your device&apos;s physical buttons on mobile
+            browsers.
+          </p>
         ) : null}
         <label className="public-player__option">
           <span>Gap between tracks</span>

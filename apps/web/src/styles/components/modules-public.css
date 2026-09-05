@@ -82,7 +82,7 @@
     flex: 0 0 auto;
     padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: color-mix(in srgb, var(--color-text-muted) 16%, var(--color-surface));
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
@@ -96,6 +96,10 @@
     border-radius: var(--radius-control);
     color: var(--color-text-muted);
     line-height: var(--line-height-relaxed);
+  }
+
+  .empty-state .button-row {
+    margin-top: var(--spacing-md);
   }
 
   .section-heading {
@@ -293,6 +297,7 @@
   .public-section > h2,
   .public-section-heading h2 {
     margin-top: 0;
+    font-size: var(--font-size-section);
   }
 
   .public-section-heading {

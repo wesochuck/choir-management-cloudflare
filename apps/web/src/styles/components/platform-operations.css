@@ -120,7 +120,7 @@
     min-width: 6.5rem;
     justify-content: center;
     padding: var(--spacing-3xs) var(--spacing-xs);
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-bold);
   }

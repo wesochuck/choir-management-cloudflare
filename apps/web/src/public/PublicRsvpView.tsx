@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
 import { getPublicRsvpDetails, submitPublicQuickRsvp } from "../api";
 
 interface EventDetails {
@@ -14,7 +14,7 @@ interface EventDetails {
   readonly venueName: string;
 }
 
-interface RsvpDetails {
+export interface RsvpDetails {
   readonly canSubmit: boolean;
   readonly event: EventDetails;
   readonly profileId: string;
@@ -88,10 +88,12 @@ function RsvpClosedNotice({ details }: { readonly details: RsvpDetails }) {
 }
 
 function RsvpDeclineNoteField({
+  hasError,
   noteRequired,
   rsvpNote,
   onChange,
 }: {
+  readonly hasError: boolean;
   readonly noteRequired: boolean;
   readonly rsvpNote: string;
   readonly onChange: (note: string) => void;
@@ -102,6 +104,8 @@ function RsvpDeclineNoteField({
         Decline note{noteRequired ? " (required for rehearsals)" : " (optional)"}
       </label>
       <textarea
+        aria-describedby={hasError ? "decline-note-error" : undefined}
+        aria-invalid={hasError}
         aria-required={noteRequired}
         className="w-full rounded border p-3 text-sm"
         id="public-rsvp-note"
@@ -118,77 +122,147 @@ function RsvpDeclineNoteField({
         rows={3}
         value={rsvpNote}
       />
+      {hasError ? (
+        <p className="field-help field-help--error" id="decline-note-error" role="alert">
+          A note explaining your absence is required when declining a rehearsal.
+        </p>
+      ) : null}
     </div>
   );
 }
 
-function RsvpForm({
-  details,
-  busy,
-  onSubmit,
+function getInitialRsvp(status: string): "Yes" | "No" | null {
+  if (status === "Yes") return "Yes";
+  if (status === "No") return "No";
+  return null;
+}
+
+function getRsvpSubmitLabel(busy: boolean, currentRsvp: string): string {
+  if (busy) return "Submitting...";
+  if (currentRsvp !== "Pending") return "Update RSVP";
+  return "Submit RSVP";
+}
+
+function AttendanceButtons({
+  onSelect,
+  rsvp,
 }: {
-  readonly busy: boolean;
-  readonly details: RsvpDetails;
-  readonly onSubmit: (rsvpValue: "Yes" | "No" | "Pending", rsvpNote: string) => void;
+  readonly onSelect: (value: "Yes" | "No") => void;
+  readonly rsvp: "Yes" | "No" | null;
 }) {
-  const initialRsvp = details.rsvp === "Yes" ? "Yes" : details.rsvp === "No" ? "No" : "Yes";
-  const [rsvp, setRsvp] = useState<"Yes" | "No" | "Pending">(initialRsvp);
-  const [rsvpNote, setRsvpNote] = useState(details.rsvpNote);
-  const noteRequired = details.event.type === "Rehearsal" && rsvp === "No";
-
-  if (!details.canSubmit) {
-    return <RsvpClosedNotice details={details} />;
-  }
-
   const isAttending = rsvp === "Yes";
   const isDeclining = rsvp === "No";
+  const yesRef = useRef<HTMLButtonElement>(null);
+  const noRef = useRef<HTMLButtonElement>(null);
+
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      event.preventDefault();
+      onSelect("No");
+      noRef.current?.focus();
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      event.preventDefault();
+      onSelect("Yes");
+      yesRef.current?.focus();
+    }
+  };
 
   return (
-    <div className="mt-4 space-y-3">
-      <div className="flex gap-2">
+    <fieldset className="space-y-3 border-0 p-0 m-0">
+      <legend className="sr-only">Attendance response</legend>
+      <div
+        aria-label="Attendance response"
+        className="flex gap-2"
+        onKeyDown={handleKeyDown}
+        role="radiogroup"
+      >
         <button
+          aria-checked={isAttending}
           className={`flex-1 rounded border px-4 py-3 text-center font-medium transition-colors ${
             isAttending ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
           }`}
           onClick={() => {
-            setRsvp("Yes");
+            onSelect("Yes");
           }}
+          ref={yesRef}
+          role="radio"
+          tabIndex={isDeclining ? -1 : 0}
           type="button"
         >
           I'll be there
         </button>
         <button
+          aria-checked={isDeclining}
           className={`flex-1 rounded border px-4 py-3 text-center font-medium transition-colors ${
             isDeclining
               ? "border-destructive bg-destructive text-destructive-foreground"
               : "hover:bg-muted"
           }`}
           onClick={() => {
-            setRsvp("No");
+            onSelect("No");
           }}
+          ref={noRef}
+          role="radio"
+          tabIndex={isDeclining ? 0 : -1}
           type="button"
         >
           Can't make it
         </button>
       </div>
+    </fieldset>
+  );
+}
 
-      {isDeclining && (
+export function RsvpForm({
+  details,
+  busy,
+  onSubmit,
+}: {
+  readonly busy: boolean;
+  readonly details: RsvpDetails;
+  readonly onSubmit: (rsvpValue: "Yes" | "No", rsvpNote: string) => void;
+}) {
+  const [rsvp, setRsvp] = useState<"Yes" | "No" | null>(() => getInitialRsvp(details.rsvp));
+  const [rsvpNote, setRsvpNote] = useState(details.rsvpNote);
+  const noteRequired = details.event.type === "Rehearsal" && rsvp === "No";
+  const noteMissing = noteRequired && !rsvpNote.trim();
+  const isDisabled = busy || rsvp === null || noteMissing;
+
+  if (!details.canSubmit) {
+    return <RsvpClosedNotice details={details} />;
+  }
+
+  return (
+    <div className="mt-4 space-y-3">
+      <AttendanceButtons onSelect={setRsvp} rsvp={rsvp} />
+
+      {rsvp === "No" && (
         <RsvpDeclineNoteField
+          hasError={noteMissing}
           noteRequired={noteRequired}
           onChange={setRsvpNote}
           rsvpNote={rsvpNote}
         />
       )}
 
+      {rsvp === null ? (
+        <p className="field-help" id="rsvp-selection-hint">
+          Please select whether you will be attending before submitting.
+        </p>
+      ) : null}
+
       <button
-        className={`button button--primary w-full ${busy ? "button--disabled" : ""}`}
-        disabled={busy || (noteRequired && !rsvpNote.trim())}
+        aria-describedby={rsvp === null ? "rsvp-selection-hint" : undefined}
+        className={`button button--primary w-full ${isDisabled ? "button--disabled" : ""}`}
+        disabled={isDisabled}
         onClick={() => {
-          onSubmit(rsvp, rsvpNote);
+          if (rsvp !== null) {
+            onSubmit(rsvp, rsvpNote);
+          }
         }}
         type="button"
       >
-        {busy ? "Submitting..." : details.rsvp !== "Pending" ? "Update RSVP" : "Submit RSVP"}
+        {getRsvpSubmitLabel(busy, details.rsvp)}
       </button>
     </div>
   );
@@ -258,7 +332,7 @@ export function PublicRsvpView() {
       });
   }, [token]);
 
-  function handleSubmit(rsvpValue: "Yes" | "No" | "Pending", rsvpNote: string) {
+  function handleSubmit(rsvpValue: "Yes" | "No", rsvpNote: string) {
     if (!token || (pageStatus.type !== "ready" && pageStatus.type !== "submit_error")) {
       return;
     }
@@ -274,10 +348,22 @@ export function PublicRsvpView() {
       });
   }
 
+  function handleRetry() {
+    if (!token) return;
+    setPageStatus({ type: "loading" });
+    fetchRsvpDetails(token)
+      .then((details) => {
+        setPageStatus({ type: "ready", details });
+      })
+      .catch(() => {
+        setPageStatus({ type: "not_found" });
+      });
+  }
+
   if (pageStatus.type === "no_token") {
     return (
       <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="rsvp-title">
+        <section aria-labelledby="rsvp-title" className="auth-card">
           <h1 id="rsvp-title">RSVP Link Required</h1>
           <p className="notice notice--info" role="status">
             Please use the link from your invitation email to access this page.
@@ -293,8 +379,11 @@ export function PublicRsvpView() {
   if (pageStatus.type === "loading") {
     return (
       <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="rsvp-title">
+        <section aria-labelledby="rsvp-title" className="auth-card">
           <h1 id="rsvp-title">Loading RSVP...</h1>
+          <p className="notice notice--info" role="status">
+            Loading RSVP details…
+          </p>
         </section>
       </main>
     );
@@ -303,14 +392,19 @@ export function PublicRsvpView() {
   if (pageStatus.type === "not_found") {
     return (
       <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="rsvp-title">
+        <section aria-labelledby="rsvp-title" className="auth-card">
           <h1 id="rsvp-title">Link Not Found</h1>
           <p className="notice notice--error" role="alert">
             This RSVP link is invalid or expired. Contact an Organization manager for a new link.
           </p>
-          <a className="button button--secondary" href="/">
-            Return to the Organization site
-          </a>
+          <div className="mt-4 flex flex-col gap-2">
+            <button className="button button--primary" onClick={handleRetry} type="button">
+              Retry
+            </button>
+            <a className="button button--secondary" href="/">
+              Return to the Organization site
+            </a>
+          </div>
         </section>
       </main>
     );

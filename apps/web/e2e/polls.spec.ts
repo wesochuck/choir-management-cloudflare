@@ -53,7 +53,10 @@ test("renders and submits a valid signed poll link", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Favorite color?" })).toBeVisible();
   const submit = page.getByRole("button", { name: "Submit Vote" });
   await expect(submit).toBeDisabled();
-  await page.getByRole("button", { name: "Blue" }).click();
+  await page
+    .getByRole("radio", { name: "Blue" })
+    .or(page.getByRole("button", { name: "Blue" }))
+    .click();
   await expect(submit).toBeEnabled();
   const voteResponse = page.waitForResponse((response) =>
     response.url().includes("/api/public/poll-vote"),

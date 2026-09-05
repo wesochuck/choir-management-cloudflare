@@ -40,14 +40,15 @@ export function SeasonDialog({
         }}
       >
         {error ? (
-          <p className="notice notice--error" role="alert">
+          <p className="notice notice--error" id="season-form-error" role="alert">
             {error}
           </p>
         ) : null}
         <div className="field">
           <label htmlFor="season-name">Name</label>
           <input
-            autoFocus
+            aria-describedby={error ? "season-form-error" : undefined}
+            aria-invalid={Boolean(error)}
             id="season-name"
             maxLength={200}
             onChange={(event) => {
@@ -103,7 +104,12 @@ export function SeasonDialog({
               Cancel
             </button>
           </DialogClose>
-          <button className="button button--primary" disabled={seasonBusy} type="submit">
+          <button
+            aria-busy={seasonBusy}
+            className="button button--primary"
+            disabled={seasonBusy}
+            type="submit"
+          >
             {seasonBusy ? "Saving…" : editingSeason ? "Save changes" : "Create season"}
           </button>
         </div>

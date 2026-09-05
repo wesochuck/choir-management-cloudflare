@@ -1,3 +1,4 @@
+import { Tabs, TabsContent } from "@choir/ui";
 import { AppLink } from "../AuthenticatedShell/navigation";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 import { FormationEditor } from "./shared";
@@ -53,7 +54,7 @@ export function SeatingManagerView({
       <div className="empty-state">
         <h2>Create an event first</h2>
         <p>Seating charts belong to active Performance events.</p>
-        <div className="button-row" style={{ marginTop: "1rem" }}>
+        <div className="button-row">
           <AppLink
             className="button button--primary"
             href="/admin/events?action=create&type=Performance&returnTo=/admin/seating"
@@ -98,14 +99,14 @@ export function SeatingManagerView({
         totalSeats={totalSeats}
       />
 
-      <SeatingTabs formationTab={formationTab} setFormationTab={setFormationTab} />
+      <Tabs onValueChange={setFormationTab} value={formationTab}>
+        <SeatingTabs />
 
-      {formationTab === "formations" ? (
-        <div
+        <TabsContent
           aria-labelledby="seating-formations-tab"
           className="seating-tab-panel"
           id="seating-formations-panel"
-          role="tabpanel"
+          value="formations"
         >
           <FormationEditor
             initial={resources.seating}
@@ -115,10 +116,16 @@ export function SeatingManagerView({
             }}
             roster={resources.roster}
           />
-        </div>
-      ) : (
-        <SeatingChartPanel model={model} />
-      )}
+        </TabsContent>
+        <TabsContent
+          aria-labelledby="seating-chart-tab"
+          className="seating-tab-panel"
+          id="seating-chart-panel"
+          value="chart"
+        >
+          <SeatingChartPanel model={model} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

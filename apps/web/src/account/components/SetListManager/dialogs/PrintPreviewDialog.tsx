@@ -1,5 +1,5 @@
 import type { OrganizationEvent } from "@choir/contracts";
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 
 import type { SetListManagerModel } from "../hooks";
 import { SetListPreview } from "../shared";
@@ -28,9 +28,11 @@ export function PrintPreviewDialog({
       <div className="set-list-preview-dialog">
         <SetListPreview event={event} items={items} music={music} showNotes={showNotes} />
         <div className="dialog__actions">
-          <button className="button button--secondary" onClick={onClose} type="button">
-            Close
-          </button>
+          <DialogClose asChild>
+            <button className="button button--secondary" type="button">
+              Close
+            </button>
+          </DialogClose>
           <button
             className="button button--secondary"
             onClick={() => {

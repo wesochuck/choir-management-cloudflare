@@ -5,7 +5,7 @@ import type {
   SeatingFormation,
 } from "@choir/contracts";
 import { useDraggable } from "@dnd-kit/core";
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 import { useState, type DragEvent } from "react";
 import { updateOrganizationSeatingConfiguration } from "../../../auth/api";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
@@ -26,9 +26,11 @@ export function ConfirmDialog({
       <div className="form-stack">
         <p>{state.message}</p>
         <div className="form-actions">
-          <button className="button button--secondary" onClick={onClose} type="button">
-            Cancel
-          </button>
+          <DialogClose asChild>
+            <button className="button button--secondary" type="button">
+              Cancel
+            </button>
+          </DialogClose>
           <button
             className="button button--danger"
             onClick={() => {

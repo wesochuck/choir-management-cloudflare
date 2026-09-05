@@ -28,7 +28,14 @@ export function DonationLevelsTab({
         </button>
       </div>
       <p>Suggested amounts and benefits appear on the public donation page.</p>
-      {settingsState.settings.levels.length === 0 ? <p>No donor levels configured yet.</p> : null}
+      {settingsState.settings.levels.length === 0 ? (
+        <div className="empty-state">
+          <p>No donor levels configured yet.</p>
+          <button className="button button--primary" onClick={newLevel} type="button">
+            Create your first level
+          </button>
+        </div>
+      ) : null}
       {settingsState.settings.levels.length > 0 ? (
         <div className="table-scroll donation-level-table-scroll">
           <table className="data-table donation-level-table table--actions">

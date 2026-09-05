@@ -33,7 +33,9 @@ export function BundleOrdersPanel({
         <p className="notice notice--error">Bundle orders could not be loaded.</p>
       ) : null}
       {state.status === "ready" && bundleOrders.length === 0 ? (
-        <p className="empty-state">No bundle orders yet.</p>
+        <div className="empty-state">
+          <p>No bundle orders received yet.</p>
+        </div>
       ) : null}
       {bundleOrders.length > 0 ? (
         <div className="table-scroll">

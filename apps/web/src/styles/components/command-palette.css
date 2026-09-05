@@ -31,9 +31,9 @@
 }
 
 [data-theme="dark"] .command-palette-modal {
-  background-color: #12161f;
-  border-color: #272f3d;
-  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 70%);
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-xl);
 }
 
 @keyframes command-palette-fade-in {
@@ -67,7 +67,7 @@
 }
 
 [data-theme="dark"] .command-palette-header {
-  border-bottom-color: #272f3d;
+  border-bottom-color: var(--color-border);
 }
 
 .command-palette-search-icon {
@@ -113,9 +113,9 @@
 }
 
 [data-theme="dark"] .command-palette-kbd {
-  background-color: #1e2430;
-  border-color: #2e3848;
-  color: #94a3b8;
+  background-color: var(--color-surface-raised);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
 }
 
 .command-palette-spinner {
@@ -198,7 +198,7 @@
 
 [data-theme="dark"] .command-palette-item.is-selected,
 [data-theme="dark"] .command-palette-item:hover {
-  background-color: #1e2638;
+  background-color: var(--color-surface-raised);
 }
 
 .command-palette-item-icon {
@@ -248,9 +248,9 @@
 }
 
 [data-theme="dark"] .command-palette-item-badge {
-  background-color: #161c26;
-  border-color: #272f3d;
-  color: #94a3b8;
+  background-color: var(--color-surface-raised);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
 }
 
 .command-palette-item-arrow {
@@ -292,7 +292,7 @@
 }
 
 [data-theme="dark"] .command-palette-tip-item:hover {
-  background-color: #1a202c;
+  background-color: var(--color-surface-raised);
 }
 
 .command-palette-tip-prefix {
@@ -345,8 +345,8 @@
 }
 
 [data-theme="dark"] .command-palette-footer {
-  background-color: #0d1117;
-  border-top-color: #272f3d;
+  background-color: var(--color-surface-raised);
+  border-top-color: var(--color-border);
 }
 
 .command-palette-footer-shortcuts {
@@ -390,14 +390,14 @@
 }
 
 [data-theme="dark"] .quick-search-sidebar-button {
-  background-color: #161c26;
-  border-color: #272f3d;
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
 }
 
 [data-theme="dark"] .quick-search-sidebar-button:hover {
-  background-color: #1e2638;
-  border-color: #3b82f6;
-  color: #f1f5f9;
+  background-color: var(--color-surface-raised);
+  border-color: var(--color-accent);
+  color: var(--color-text);
 }
 
 .quick-search-sidebar-icon {
@@ -422,8 +422,8 @@
 }
 
 [data-theme="dark"] .quick-search-kbd {
-  background-color: #12161f;
-  border-color: #2e3848;
+  background-color: var(--color-surface-raised);
+  border-color: var(--color-border);
 }
 
 /* === Overview Hero Quick Search Trigger === */
@@ -469,15 +469,15 @@
 }
 
 [data-theme="dark"] .quick-search-hero-button {
-  background-color: #141923;
-  border-color: #272f3d;
-  box-shadow: 0 4px 12px -2px rgb(0 0 0 / 40%);
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-sm);
 }
 
 [data-theme="dark"] .quick-search-hero-button:hover {
-  border-color: #3b82f6;
-  box-shadow: 0 4px 16px -2px rgb(59 130 246 / 20%);
-  color: #f8fafc;
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text);
 }
 
 .quick-search-hero-icon {
@@ -518,10 +518,10 @@
 }
 
 [data-theme="dark"] .quick-search-header-button {
-  border-color: #272f3d;
+  border-color: var(--color-border);
 }
 
 [data-theme="dark"] .quick-search-header-button:hover {
-  background-color: #1e2638;
-  color: #f1f5f9;
+  background-color: var(--color-surface-raised);
+  color: var(--color-text);
 }

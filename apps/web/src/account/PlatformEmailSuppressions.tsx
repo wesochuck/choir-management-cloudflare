@@ -1,5 +1,5 @@
 import type { PlatformEmailSuppression } from "@choir/contracts";
-import { DataTable, Dialog } from "@choir/ui";
+import { DataTable, Dialog, DialogClose } from "@choir/ui";
 import { useEffect, useState } from "react";
 
 import {
@@ -39,6 +39,7 @@ function formatDate(value: string): string {
   }).format(new Date(value));
 }
 
+// eslint-disable-next-line complexity -- PlatformEmailSuppressions coordinates filtering, release dialog, and local release dialog.
 export function PlatformEmailSuppressions() {
   const [draftQuery, setDraftQuery] = useState("");
   const [draftStatus, setDraftStatus] = useState<FilterStatus>("active");
@@ -431,7 +432,7 @@ export function PlatformEmailSuppressions() {
           }}
         >
           {releaseError ? (
-            <p className="notice notice--error" role="alert">
+            <p className="notice notice--error" id="platform-release-error" role="alert">
               {releaseError}
             </p>
           ) : null}
@@ -440,7 +441,7 @@ export function PlatformEmailSuppressions() {
               ? `Release the application block for ${releaseTarget.email}?`
               : "Release this application block?"}
           </p>
-          <p className="notice notice--warning">
+          <p className="notice notice--warning" role="status">
             This clears only the application-wide block. Cloudflare may still reject delivery while
             its provider-managed suppression remains. A new bounce or complaint will re-suppress the
             address.
@@ -448,7 +449,8 @@ export function PlatformEmailSuppressions() {
           <label className="field" htmlFor="platform-suppression-release-reason">
             <span>Reason for release</span>
             <textarea
-              autoFocus
+              aria-describedby={releaseError ? "platform-release-error" : undefined}
+              aria-invalid={Boolean(releaseError)}
               id="platform-suppression-release-reason"
               maxLength={500}
               minLength={3}
@@ -461,10 +463,17 @@ export function PlatformEmailSuppressions() {
             />
           </label>
           <div className="dialog__actions">
-            <button className="button button--secondary" onClick={closeReleaseDialog} type="button">
-              Cancel
-            </button>
-            <button className="button button--primary" disabled={releasing} type="submit">
+            <DialogClose asChild>
+              <button className="button button--secondary" disabled={releasing} type="button">
+                Cancel
+              </button>
+            </DialogClose>
+            <button
+              aria-busy={releasing}
+              className="button button--primary"
+              disabled={releasing}
+              type="submit"
+            >
               {releasing ? "Releasing…" : "Release suppression"}
             </button>
           </div>
@@ -484,7 +493,7 @@ export function PlatformEmailSuppressions() {
           }}
         >
           {localReleaseError ? (
-            <p className="notice notice--error" role="alert">
+            <p className="notice notice--error" id="platform-local-release-error" role="alert">
               {localReleaseError}
             </p>
           ) : null}
@@ -493,14 +502,15 @@ export function PlatformEmailSuppressions() {
               ? `Release the local provider block for ${localReleaseTarget.row.email} in ${localReleaseTarget.local.organizationName}?`
               : "Release this local provider block?"}
           </p>
-          <p className="notice notice--warning">
+          <p className="notice notice--warning" role="status">
             Confirm the mailbox or account issue is resolved first. The global application block,
             explicit user or manager opt-out, and Cloudflare-managed suppression remain separate.
           </p>
           <label className="field" htmlFor="platform-local-suppression-release-reason">
             <span>Reason for local release</span>
             <textarea
-              autoFocus
+              aria-describedby={localReleaseError ? "platform-local-release-error" : undefined}
+              aria-invalid={Boolean(localReleaseError)}
               id="platform-local-suppression-release-reason"
               maxLength={500}
               minLength={3}
@@ -513,14 +523,17 @@ export function PlatformEmailSuppressions() {
             />
           </label>
           <div className="dialog__actions">
+            <DialogClose asChild>
+              <button className="button button--secondary" disabled={localReleasing} type="button">
+                Cancel
+              </button>
+            </DialogClose>
             <button
-              className="button button--secondary"
-              onClick={closeLocalReleaseDialog}
-              type="button"
+              aria-busy={localReleasing}
+              className="button button--primary"
+              disabled={localReleasing}
+              type="submit"
             >
-              Cancel
-            </button>
-            <button className="button button--primary" disabled={localReleasing} type="submit">
               {localReleasing ? "Releasing…" : "Release local block"}
             </button>
           </div>

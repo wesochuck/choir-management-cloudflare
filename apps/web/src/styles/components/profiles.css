@@ -17,7 +17,7 @@
     align-items: center;
     background: var(--color-surface-muted);
     border: 1px solid var(--color-border);
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     display: flex;
     font-size: var(--font-size-2xl);
     font-weight: var(--font-weight-bold);

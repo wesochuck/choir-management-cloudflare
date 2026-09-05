@@ -116,7 +116,7 @@ export function EventEditorDialog({
         }}
       >
         {error ? (
-          <p className="notice notice--error" role="alert">
+          <p className="notice notice--error" id="event-editor-error" role="alert">
             {error}
           </p>
         ) : null}
@@ -124,7 +124,8 @@ export function EventEditorDialog({
           <div className="field form-grid__wide">
             <label htmlFor="events-page-title">Title</label>
             <input
-              autoFocus
+              aria-describedby={error ? "event-editor-error" : undefined}
+              aria-invalid={Boolean(error)}
               id="events-page-title"
               maxLength={500}
               onChange={(change) => {
@@ -403,6 +404,8 @@ export function EventEditorDialog({
               </span>
               <input
                 accept="image/*"
+                aria-describedby={graphicError ? "event-graphic-error" : undefined}
+                aria-invalid={Boolean(graphicError)}
                 className="sr-only"
                 id="events-page-graphic"
                 onChange={(change) => {
@@ -413,7 +416,7 @@ export function EventEditorDialog({
               />
             </label>
             {graphicError ? (
-              <p className="notice notice--error" role="alert">
+              <p className="notice notice--error" id="event-graphic-error" role="alert">
                 {graphicError}
               </p>
             ) : null}
@@ -573,15 +576,17 @@ export function ArchiveEventDialog({
       title="Archive event?"
     >
       {error ? (
-        <p className="notice notice--error" role="alert">
+        <p className="notice notice--error" id="archive-event-error" role="alert">
           {error}
         </p>
       ) : null}
       <p>{archiveCandidate ? `Archive ${archiveCandidate.title}?` : "Archive this event?"}</p>
       <div className="dialog__actions">
-        <button className="button button--secondary" onClick={onClose} type="button">
-          Cancel
-        </button>
+        <DialogClose asChild>
+          <button className="button button--secondary" disabled={busy} type="button">
+            Cancel
+          </button>
+        </DialogClose>
         <button className="button button--danger" disabled={busy} onClick={onArchive} type="button">
           {busy ? "Archiving…" : "Archive event"}
         </button>
@@ -611,7 +616,7 @@ export function CancelEventDialog({
       title="Cancel event?"
     >
       {error ? (
-        <p className="notice notice--error" role="alert">
+        <p className="notice notice--error" id="cancel-event-error" role="alert">
           {error}
         </p>
       ) : null}
@@ -621,9 +626,11 @@ export function CancelEventDialog({
           : "Cancel this event?"}
       </p>
       <div className="dialog__actions">
-        <button className="button button--secondary" onClick={onClose} type="button">
-          Keep event
-        </button>
+        <DialogClose asChild>
+          <button className="button button--secondary" disabled={busy} type="button">
+            Keep event
+          </button>
+        </DialogClose>
         <button className="button button--danger" disabled={busy} onClick={onCancel} type="button">
           {busy ? "Canceling…" : "Cancel event"}
         </button>

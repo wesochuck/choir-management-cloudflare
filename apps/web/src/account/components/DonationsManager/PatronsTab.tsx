@@ -4,7 +4,13 @@ export function PatronsTab({ patronState }: { readonly patronState: PatronState 
   if (patronState.status === "loading") return <p>Loading patrons…</p>;
   if (patronState.status === "error")
     return <p className="notice notice--error">Patrons could not be loaded.</p>;
-  if (patronState.patrons.length === 0) return <p>No patrons yet.</p>;
+  if (patronState.patrons.length === 0) {
+    return (
+      <div className="empty-state">
+        <p>No patrons recorded yet.</p>
+      </div>
+    );
+  }
   return (
     <div className="table-scroll">
       <table>

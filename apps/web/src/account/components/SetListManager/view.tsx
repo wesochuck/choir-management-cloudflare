@@ -308,7 +308,7 @@ export function SetListManagerView({
         <div className="empty-state">
           <h2>Create an event first</h2>
           <p>Set lists belong to active Performance events.</p>
-          <div className="button-row" style={{ marginTop: "1rem" }}>
+          <div className="button-row">
             <AppLink
               className="button button--primary"
               href="/admin/events?action=create&type=Performance&returnTo=/admin/setlists"

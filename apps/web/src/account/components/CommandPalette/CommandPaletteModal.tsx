@@ -155,9 +155,6 @@ export function CommandPaletteModal({
         } else {
           refreshRecents();
           setQuery("");
-          setTimeout(() => {
-            inputRef.current?.focus();
-          }, 50);
         }
       }}
       open={open}
@@ -172,12 +169,17 @@ export function CommandPaletteModal({
             e.preventDefault();
             onClose();
           }}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            inputRef.current?.focus();
+          }}
         >
           <DialogPrimitive.Title className="sr-only">Admin Command Palette</DialogPrimitive.Title>
 
           <div className="command-palette-header">
             <span aria-hidden="true" className="command-palette-search-icon">
               <svg
+                aria-hidden="true"
                 fill="none"
                 height="18"
                 stroke="currentColor"
@@ -190,6 +192,11 @@ export function CommandPaletteModal({
               </svg>
             </span>
             <input
+              aria-activedescendant={
+                flatSelectableItems.length > 0 && selectedIndex >= 0
+                  ? `cmd-option-${String(selectedIndex)}`
+                  : undefined
+              }
               aria-autocomplete="list"
               aria-controls={searchId}
               aria-expanded="true"
@@ -248,6 +255,7 @@ export function CommandPaletteModal({
                           aria-selected={isSelected}
                           className={`command-palette-item ${isSelected ? "is-selected" : ""}`}
                           data-selected={isSelected ? "true" : "false"}
+                          id={`cmd-option-${String(currentIndex)}`}
                           key={`recent-${item.id}`}
                           onClick={() => {
                             handleSelectItem(item);
@@ -259,6 +267,7 @@ export function CommandPaletteModal({
                         >
                           <span aria-hidden="true" className="command-palette-item-icon">
                             <svg
+                              aria-hidden="true"
                               fill="none"
                               height="16"
                               stroke="currentColor"
@@ -324,6 +333,7 @@ export function CommandPaletteModal({
                         aria-selected={isSelected}
                         className={`command-palette-item ${isSelected ? "is-selected" : ""}`}
                         data-selected={isSelected ? "true" : "false"}
+                        id={`cmd-option-${String(currentIndex)}`}
                         key={item.id}
                         onClick={() => {
                           handleSelectItem(item);
@@ -336,6 +346,7 @@ export function CommandPaletteModal({
                         <span aria-hidden="true" className="command-palette-item-icon">
                           {item.category === "actions" ? (
                             <svg
+                              aria-hidden="true"
                               fill="none"
                               height="16"
                               stroke="currentColor"
@@ -347,6 +358,7 @@ export function CommandPaletteModal({
                             </svg>
                           ) : item.category === "roster" ? (
                             <svg
+                              aria-hidden="true"
                               fill="none"
                               height="16"
                               stroke="currentColor"
@@ -359,6 +371,7 @@ export function CommandPaletteModal({
                             </svg>
                           ) : item.category === "events" ? (
                             <svg
+                              aria-hidden="true"
                               fill="none"
                               height="16"
                               stroke="currentColor"
@@ -373,6 +386,7 @@ export function CommandPaletteModal({
                             </svg>
                           ) : item.category === "music" ? (
                             <svg
+                              aria-hidden="true"
                               fill="none"
                               height="16"
                               stroke="currentColor"
@@ -386,6 +400,7 @@ export function CommandPaletteModal({
                             </svg>
                           ) : item.category === "settings" ? (
                             <svg
+                              aria-hidden="true"
                               fill="none"
                               height="16"
                               stroke="currentColor"
@@ -398,6 +413,7 @@ export function CommandPaletteModal({
                             </svg>
                           ) : (
                             <svg
+                              aria-hidden="true"
                               fill="none"
                               height="16"
                               stroke="currentColor"

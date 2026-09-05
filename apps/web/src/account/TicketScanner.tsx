@@ -355,7 +355,9 @@ export function TicketScanner({ events }: { readonly events: readonly Organizati
         </div>
       </div>
       {events.length === 0 ? (
-        <p className="notice notice--warning">Create a ticketed performance before scanning.</p>
+        <p className="notice notice--warning" role="status">
+          Create a ticketed performance before scanning.
+        </p>
       ) : null}
       {cameraError ? (
         <p className="notice notice--error" role="alert">
@@ -439,6 +441,7 @@ export function TicketScanner({ events }: { readonly events: readonly Organizati
                 />
               </label>
               <button
+                aria-busy={validating}
                 className="button button--primary"
                 disabled={validating || !manualToken.trim()}
                 type="submit"

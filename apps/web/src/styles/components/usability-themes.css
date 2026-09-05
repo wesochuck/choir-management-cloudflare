@@ -112,8 +112,8 @@
   }
 
   .signed-in-shell .button--small {
-    min-height: 2.3rem;
-    padding-block: var(--spacing-xs);
+    min-height: var(--control-height-sm);
+    padding-block: var(--spacing-2xs);
   }
 
   .theme-switcher {

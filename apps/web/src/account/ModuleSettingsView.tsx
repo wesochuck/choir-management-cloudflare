@@ -163,9 +163,7 @@ export function ModuleSettingsView() {
                     <div>
                       <strong>{mod.label ?? mod.id}</strong>
                       {mod.description ? (
-                        <span className="field-help" style={{ display: "block" }}>
-                          {mod.description}
-                        </span>
+                        <span className="field-help">{mod.description}</span>
                       ) : null}
                     </div>
                   </label>

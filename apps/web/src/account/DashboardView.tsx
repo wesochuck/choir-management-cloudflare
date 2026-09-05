@@ -48,7 +48,7 @@ function DashboardEventHighlights({ event }: { readonly event: DashboardEvent })
   return (
     <>
       {event.attendanceWarning?.status === "warning" ? (
-        <p className="notice notice--warning">
+        <p className="notice notice--warning" role="status">
           You have missed {String(event.attendanceWarning.missedRehearsals)} of{" "}
           {String(event.attendanceWarning.totalRehearsals)} linked rehearsals for this performance.
         </p>
@@ -298,7 +298,9 @@ function DashboardWidgets({
       {dashboard.activeSeasonState === "unavailable" ? (
         <fieldset className="member-dashboard__widget">
           <legend className="member-dashboard__widget-legend">Season dues</legend>
-          <p className="notice notice--warning">Season dues are temporarily unavailable.</p>
+          <p className="notice notice--warning" role="status">
+            Season dues are temporarily unavailable.
+          </p>
         </fieldset>
       ) : dashboard.activeSeason ? (
         <fieldset className="member-dashboard__widget">
@@ -317,7 +319,9 @@ function DashboardWidgets({
       {dashboard.pollsState === "unavailable" ? (
         <fieldset className="member-dashboard__widget">
           <legend className="member-dashboard__widget-legend">Polls</legend>
-          <p className="notice notice--warning">Polls are temporarily unavailable.</p>
+          <p className="notice notice--warning" role="status">
+            Polls are temporarily unavailable.
+          </p>
         </fieldset>
       ) : dashboard.polls.length > 0 ? (
         <fieldset className="member-dashboard__widget">
@@ -334,7 +338,9 @@ function DashboardWidgets({
       <fieldset className="member-dashboard__widget">
         <legend className="member-dashboard__widget-legend">Bulletins</legend>
         {dashboard.bulletinsState === "unavailable" ? (
-          <p className="notice notice--warning">Updates are temporarily unavailable.</p>
+          <p className="notice notice--warning" role="status">
+            Updates are temporarily unavailable.
+          </p>
         ) : dashboard.bulletins.length === 0 ? (
           <p className="empty-state">No recent updates.</p>
         ) : (
@@ -358,7 +364,9 @@ function DashboardWidgets({
       <fieldset className="member-dashboard__widget">
         <legend className="member-dashboard__widget-legend">Resources</legend>
         {dashboard.resourcesState === "unavailable" ? (
-          <p className="notice notice--warning">Resources are temporarily unavailable.</p>
+          <p className="notice notice--warning" role="status">
+            Resources are temporarily unavailable.
+          </p>
         ) : dashboard.resources.length === 0 ? (
           <p className="empty-state">No resources available.</p>
         ) : (

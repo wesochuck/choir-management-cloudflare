@@ -98,6 +98,9 @@ export function PublicPlayerView() {
       <main className="auth-layout">
         <section aria-labelledby="player-title" className="auth-card">
           <h1 id="player-title">Loading practice player…</h1>
+          <p className="notice notice--info" role="status">
+            Loading player playlist…
+          </p>
         </section>
       </main>
     );
@@ -136,9 +139,21 @@ export function PublicPlayerView() {
             This practice-player link is invalid or expired. Ask an Organization manager for a new
             link.
           </p>
-          <a className="button button--secondary" href="/">
-            Return to the Organization site
-          </a>
+          <div className="mt-4 flex flex-col gap-2">
+            <button
+              className="button button--primary"
+              onClick={() => {
+                setPageStatus({ type: "loading" });
+                setRetryCount((count) => count + 1);
+              }}
+              type="button"
+            >
+              Try again
+            </button>
+            <a className="button button--secondary" href="/">
+              Return to the Organization site
+            </a>
+          </div>
         </section>
       </main>
     );

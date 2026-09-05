@@ -4,7 +4,7 @@ import {
   type OrganizationPollSummary,
 } from "@choir/contracts";
 import { defaultPollExpirationAt } from "@choir/domain";
-import { DataTable, Dialog } from "@choir/ui";
+import { DataTable, Dialog, DialogClose } from "@choir/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type SyntheticEvent } from "react";
 
@@ -300,6 +300,7 @@ function PollEditDialog({
   description,
   editingPollHasResponses,
   editingPollId,
+  error,
   expiresAt,
   onClose,
   onDescriptionChange,
@@ -315,6 +316,7 @@ function PollEditDialog({
   readonly description: string;
   readonly editingPollHasResponses: boolean;
   readonly editingPollId: string | null;
+  readonly error?: string | null;
   readonly expiresAt: string;
   readonly onClose: () => void;
   readonly onDescriptionChange: (val: string) => void;
@@ -330,13 +332,16 @@ function PollEditDialog({
   return (
     <Dialog
       description="Ask a focused question with two or more response options."
-      onClose={() => {
-        if (!saving) onClose();
-      }}
+      onClose={onClose}
       open={open}
       title={editingPollId ? "Edit poll" : "Create poll"}
     >
       <form className="stack-form" onSubmit={onSave}>
+        {error ? (
+          <p className="notice notice--error" id="poll-dialog-error" role="alert">
+            {error}
+          </p>
+        ) : null}
         {editingPollHasResponses ? (
           <p className="notice notice--info">
             This poll has received responses. Option structure is locked to protect response
@@ -346,6 +351,8 @@ function PollEditDialog({
         <label>
           Title
           <input
+            aria-describedby={error ? "poll-dialog-error" : undefined}
+            aria-invalid={Boolean(error)}
             onChange={(event) => {
               onTitleChange(event.target.value);
             }}
@@ -356,6 +363,8 @@ function PollEditDialog({
         <label>
           Description
           <textarea
+            aria-describedby={error ? "poll-dialog-error" : undefined}
+            aria-invalid={Boolean(error)}
             onChange={(event) => {
               onDescriptionChange(event.target.value);
             }}
@@ -365,6 +374,8 @@ function PollEditDialog({
         <label>
           Expiration date and time
           <input
+            aria-describedby={error ? "poll-dialog-error" : undefined}
+            aria-invalid={Boolean(error)}
             onChange={(event) => {
               onExpiresAtChange(event.target.value);
             }}
@@ -380,6 +391,8 @@ function PollEditDialog({
             <label key={index}>
               Option {String(index + 1)}
               <input
+                aria-describedby={error ? "poll-dialog-error" : undefined}
+                aria-invalid={Boolean(error)}
                 disabled={editingPollHasResponses}
                 onChange={(event) => {
                   onOptionsChange(
@@ -395,10 +408,17 @@ function PollEditDialog({
           ))}
         </fieldset>
         <div className="dialog__actions">
-          <button className="button button--secondary" onClick={onClose} type="button">
-            Cancel
-          </button>
-          <button className="button button--primary" disabled={saving} type="submit">
+          <DialogClose asChild>
+            <button className="button button--secondary" disabled={saving} type="button">
+              Cancel
+            </button>
+          </DialogClose>
+          <button
+            aria-busy={saving}
+            className="button button--primary"
+            disabled={saving}
+            type="submit"
+          >
             {saving ? "Saving…" : editingPollId ? "Save changes" : "Create poll"}
           </button>
         </div>
@@ -428,6 +448,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
       : { polls, status: "ready" };
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogError, setDialogError] = useState<string | null>(null);
   const [formData, setFormData] = useState<PollFormData>(defaultInitialPollFormData);
   const [loadingPollId, setLoadingPollId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -454,12 +475,14 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
       options: ["Yes", "No"],
       title: "",
     });
+    setDialogError(null);
     setMessage(null);
     setDialogOpen(true);
   }
 
   async function openEditDialog(poll: Poll): Promise<void> {
     setLoadingPollId(poll.id);
+    setDialogError(null);
     setMessage(null);
     try {
       const details = await getOrganizationPoll(poll.id);
@@ -504,6 +527,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
   async function savePoll(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
+    setDialogError(null);
     setMessage(null);
     const request = organizationPollRequestSchema.safeParse({
       archivedAt: formData.archivedAt || undefined,
@@ -521,7 +545,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     });
     if (!request.success) {
       setSaving(false);
-      setMessage("Add a title, expiration date, and at least two poll options.");
+      setDialogError("Add a title, expiration date, and at least two poll options.");
       return;
     }
     try {
@@ -533,10 +557,11 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
       }
       await queryClient.invalidateQueries({ queryKey: queryKeys.organization.polls(showArchived) });
       setFormData(defaultInitialPollFormData);
+      setDialogError(null);
       setDialogOpen(false);
       setMessage(editing ? "Poll updated." : "Poll created.");
     } catch {
-      setMessage(
+      setDialogError(
         formData.editingPollId
           ? "The poll could not be updated. Try again."
           : "The poll could not be created. Try again.",
@@ -726,6 +751,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
         description={formData.description}
         editingPollHasResponses={formData.editingPollHasResponses}
         editingPollId={formData.editingPollId}
+        error={dialogError}
         expiresAt={formData.expiresAt}
         onClose={() => {
           setDialogOpen(false);

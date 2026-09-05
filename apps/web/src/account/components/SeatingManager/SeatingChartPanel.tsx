@@ -114,12 +114,7 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
   const isGridView = charts.length > 0 && viewMode === "grid";
 
   return (
-    <div
-      aria-labelledby="seating-chart-tab"
-      className="seating-tab-panel"
-      id="seating-chart-panel"
-      role="tabpanel"
-    >
+    <div className="seating-chart-content">
       <SeatingToolbar
         applyChart={applyChart}
         autoSuggest={autoSuggest}

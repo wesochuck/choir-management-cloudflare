@@ -8,16 +8,19 @@ import { defineConfig, type Plugin } from "vite";
 
 function serviceWorkerPrecachePlugin(): Plugin {
   let resolvedOutDir = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "dist");
+  let resolvedPublicDir = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "public");
 
   return {
     name: "service-worker-precache",
     apply: "build",
     configResolved(config) {
       resolvedOutDir = path.resolve(config.root, config.build.outDir);
+      resolvedPublicDir = path.resolve(config.root, config.publicDir || "public");
     },
     async closeBundle() {
       const assetsDir = path.join(resolvedOutDir, "assets");
       const swPath = path.join(resolvedOutDir, "sw.js");
+      const swSourcePath = path.join(resolvedPublicDir, "sw.js");
 
       const assetFiles = await fs.readdir(assetsDir);
       const precacheAssets = [
@@ -51,7 +54,7 @@ function serviceWorkerPrecachePlugin(): Plugin {
       const buildHash = crypto.createHash("sha256").update(hashInput).digest("hex").slice(0, 10);
       const cacheName = `choir-shell-${buildHash}`;
 
-      let swContent = await fs.readFile(swPath, "utf-8");
+      let swContent = await fs.readFile(swSourcePath, "utf-8");
 
       if (!swContent.includes('/* __SHELL_CACHE_NAME__ */ "choir-shell-v1"')) {
         throw new Error(

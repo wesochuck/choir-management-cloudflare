@@ -443,7 +443,7 @@
     min-height: 1.6rem;
     padding: var(--spacing-3xs) var(--spacing-xs);
     border: 1px solid color-mix(in srgb, var(--genre-chip-color) 45%, var(--color-border));
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: color-mix(in srgb, var(--genre-chip-color) 14%, var(--color-surface));
     color: var(--genre-chip-color);
     font-size: var(--font-size-sm);
@@ -472,7 +472,7 @@
     min-width: 1.15rem;
     margin-left: var(--spacing-2xs);
     padding: var(--spacing-3xs) var(--spacing-2xs);
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: color-mix(in srgb, currentColor 16%, transparent);
     text-align: center;
     font-size: var(--font-size-xs);
@@ -887,7 +887,7 @@
   }
 
   .csv-import-file-card__icon {
-    font-size: 1.5rem;
+    font-size: var(--font-size-2xl);
     line-height: 1;
   }
 

@@ -5,6 +5,12 @@
 @layer components {
   /* Keep the aside aligned with the first card in a split layout. */
 
+  .field-help {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
   .form-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

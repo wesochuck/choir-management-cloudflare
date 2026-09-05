@@ -76,7 +76,12 @@ export function DiscountCodesPanel({
         </p>
       ) : null}
       {!discountCodesLoading && !discountCodesLoadError && discountCodes.length === 0 ? (
-        <p className="empty-state">No discount codes yet.</p>
+        <div className="empty-state">
+          <p>No discount codes yet.</p>
+          <button className="button button--primary" onClick={openNewDiscountCode} type="button">
+            Create your first discount code
+          </button>
+        </div>
       ) : null}
       {discountCodes.length > 0 ? (
         <DiscountCodeTable

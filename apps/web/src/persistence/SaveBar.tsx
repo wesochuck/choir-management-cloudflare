@@ -1,11 +1,34 @@
+import { useState } from "react";
 import { useOptionalSaveCoordinator } from "./SaveCoordinator";
 
 export function SaveBar() {
   const coordinator = useOptionalSaveCoordinator();
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const isDirty = coordinator?.isDirty ?? false;
+  const isSaving = coordinator?.isSaving ?? false;
+
+  if (!isDirty && !isSaving && saveError) {
+    setSaveError(null);
+  }
+
   if (!coordinator) return null;
 
-  const { discardAll, isDirty, isSaving, saveAll } = coordinator;
+  const { discardAll, saveAll } = coordinator;
   if (!isDirty && !isSaving) return null;
+
+  const handleSave = async () => {
+    setSaveError(null);
+    const result = await saveAll();
+    if (!result.success && result.errors.length > 0) {
+      setSaveError(result.errors.join(". "));
+    }
+  };
+
+  const handleDiscard = () => {
+    setSaveError(null);
+    discardAll();
+  };
 
   return (
     <div
@@ -14,12 +37,18 @@ export function SaveBar() {
       className="floating-save-bar"
       role="region"
     >
-      <span>{isSaving ? "Saving changes…" : "You have unsaved changes"}</span>
+      {saveError ? (
+        <p className="notice notice--error" role="alert">
+          {saveError}
+        </p>
+      ) : (
+        <span>{isSaving ? "Saving changes…" : "You have unsaved changes"}</span>
+      )}
       <div className="floating-save-bar__actions">
         <button
           className="button button--secondary button--small"
           disabled={isSaving}
-          onClick={discardAll}
+          onClick={handleDiscard}
           type="button"
         >
           Discard
@@ -28,11 +57,11 @@ export function SaveBar() {
           className="button button--primary button--small"
           disabled={isSaving}
           onClick={() => {
-            void saveAll();
+            void handleSave();
           }}
           type="button"
         >
-          {isSaving ? "Saving…" : "Save changes"}
+          {isSaving ? "Saving…" : saveError ? "Retry save" : "Save changes"}
         </button>
       </div>
     </div>

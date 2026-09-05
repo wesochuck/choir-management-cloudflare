@@ -225,14 +225,15 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
           }}
         >
           {error ? (
-            <p className="notice notice--error" role="alert">
+            <p className="notice notice--error" id="venue-form-error" role="alert">
               {error}
             </p>
           ) : null}
           <div className="field">
             <label htmlFor="venue-page-name">Name</label>
             <input
-              autoFocus
+              aria-describedby={error ? "venue-form-error" : undefined}
+              aria-invalid={Boolean(error)}
               id="venue-page-name"
               maxLength={500}
               onChange={(event) => {
@@ -256,11 +257,16 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
           </div>
           <div className="dialog__actions">
             <DialogClose asChild>
-              <button className="button button--secondary" type="button">
+              <button className="button button--secondary" disabled={busy} type="button">
                 Cancel
               </button>
             </DialogClose>
-            <button className="button button--primary" disabled={busy} type="submit">
+            <button
+              aria-busy={busy}
+              className="button button--primary"
+              disabled={busy}
+              type="submit"
+            >
               {busy ? "Saving…" : editingVenue ? "Save changes" : "Create venue"}
             </button>
           </div>

@@ -14,6 +14,7 @@
     /* Shared form geometry. Keep this on the root because dialog portals render
      * outside the signed-in shell and still need the same control dimensions. */
     --control-height: 2.5rem;
+    --control-height-sm: 2rem;
     --border: var(--color-border);
     --card: var(--color-surface);
     --muted-foreground: var(--color-text-muted);

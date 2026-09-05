@@ -139,10 +139,10 @@
 
   .dialog__body a,
   .communication-markdown-content a {
-    color: var(--color-primary, #d56d4a);
+    color: var(--color-primary);
     text-decoration: underline;
     text-underline-offset: 0.2rem;
-    font-weight: var(--font-weight-medium, 500);
+    font-weight: var(--font-weight-medium);
     cursor: pointer;
     transition:
       color 0.15s ease,
@@ -151,7 +151,7 @@
 
   .dialog__body a:hover,
   .communication-markdown-content a:hover {
-    color: var(--color-primary-hover, #e07a57);
+    color: var(--color-primary-strong);
     text-decoration: underline;
     opacity: 0.9;
   }
@@ -260,6 +260,12 @@
     color: var(--color-text);
     font-size: var(--font-size-base);
     font-weight: var(--font-weight-extrabold);
+  }
+
+  .floating-save-bar .notice {
+    margin: 0;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    font-size: var(--font-size-sm);
   }
 
   .floating-save-bar__actions {

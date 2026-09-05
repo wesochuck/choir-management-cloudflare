@@ -26,21 +26,37 @@ import { useOfflineCopies } from "../../offline/useOfflineCopies";
 function OfflineStatusNotices({
   blockedFileId,
   currentFileId,
+  onRetryPlayback,
   online,
   saveError,
 }: {
   readonly blockedFileId: string | null;
   readonly currentFileId: string | undefined;
+  readonly onRetryPlayback: () => void;
   readonly online: boolean;
   readonly saveError: boolean;
 }) {
   const showOfflineBlocked = !online && blockedFileId !== null && blockedFileId === currentFileId;
+  const showOnlinePlaybackError =
+    online && blockedFileId !== null && blockedFileId === currentFileId;
   return (
     <>
       {showOfflineBlocked ? (
         <p className="notice notice--warning" role="status">
           This track isn&apos;t saved offline. Reconnect to download it.
         </p>
+      ) : null}
+      {showOnlinePlaybackError ? (
+        <div className="notice notice--error" role="alert">
+          <p>This track could not be played. Check your connection or audio source.</p>
+          <button
+            className="button button--secondary button--small mt-2"
+            onClick={onRetryPlayback}
+            type="button"
+          >
+            Retry audio
+          </button>
+        </div>
       ) : null}
       {saveError ? (
         <p className="notice notice--error" role="alert">
@@ -204,7 +220,7 @@ export function PublicPracticePlayer({
   }
 
   function handleAudioError(event: SyntheticEvent<HTMLAudioElement>): void {
-    if (typeof navigator === "undefined" || navigator.onLine || !currentTrack) return;
+    if (!currentTrack) return;
     // Cached tracks are already saved locally and must never trigger an offline-missing notice.
     if (offlineUrl || offlineIds.has(currentTrack.fileId)) return;
     // Ignore stale failures from a previous track: only the current source may raise the notice.
@@ -215,31 +231,41 @@ export function PublicPracticePlayer({
         const base = window.location.href;
         if (new URL(failed, base).href !== new URL(expected, base).href) return;
       } catch {
-        // Unparseable URLs fall through to the offline notice below.
+        // Unparseable URLs fall through to the notice below.
       }
     }
     setBlockedFileId(currentTrack.fileId);
   }
 
-  function nextTrack(): void {
+  function handleRetryPlayback(): void {
+    setBlockedFileId(null);
+    if (audioRef.current) {
+      audioRef.current.load();
+      void audioRef.current.play().catch(() => {
+        // Handled by onError if playback still fails
+      });
+    }
+  }
+
+  function nextTrack(autoPlay = playing): void {
     if (currentIndex < playableItems.length - 1) {
-      selectItem(currentIndex + 1);
+      selectItem(currentIndex + 1, autoPlay);
     } else if (loopMode === "all" && playableItems.length > 0) {
-      selectItem(0);
+      selectItem(0, autoPlay);
     }
   }
 
   function previousTrack(): void {
     if (currentIndex > 0) {
-      selectItem(currentIndex - 1, false);
+      selectItem(currentIndex - 1, playing);
     } else if (loopMode === "all" && playableItems.length > 0) {
-      selectItem(playableItems.length - 1, false);
+      selectItem(playableItems.length - 1, playing);
     }
   }
 
   function startNextTrack(): void {
     if (gapSeconds === 0 || document.visibilityState === "hidden") {
-      nextTrack();
+      nextTrack(true);
       return;
     }
     setPlaying(false);
@@ -251,7 +277,7 @@ export function PublicPracticePlayer({
         if (gapTimerRef.current !== null) window.clearInterval(gapTimerRef.current);
         gapTimerRef.current = null;
         setCountdown(null);
-        nextTrack();
+        nextTrack(true);
       } else {
         setCountdown(remaining);
       }
@@ -442,6 +468,7 @@ export function PublicPracticePlayer({
           <OfflineStatusNotices
             blockedFileId={blockedFileId}
             currentFileId={currentTrack.fileId}
+            onRetryPlayback={handleRetryPlayback}
             online={online}
             saveError={saveError}
           />

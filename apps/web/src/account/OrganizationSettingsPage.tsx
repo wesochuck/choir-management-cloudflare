@@ -208,7 +208,7 @@ function OrganizationPaymentSettingsPanel() {
             </p>
           ) : null}
           {!settings.globalPaymentsEnabled ? (
-            <p className="notice notice--warning">
+            <p className="notice notice--warning" role="status">
               Online payments are paused by the platform emergency switch or environment settings.
               You can prepare this page, but checkouts will remain unavailable until the platform
               enables them.

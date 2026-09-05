@@ -7,6 +7,6 @@ export default defineConfig({
       provider: "v8",
     },
     exclude: ["**/node_modules/**", "**/dist/**", "**/*.integration.test.ts"],
-    include: ["packages/**/*.test.ts", "apps/**/*.test.{ts,tsx}", "scripts/**/*.test.mjs"],
+    include: ["packages/**/*.test.{ts,tsx}", "apps/**/*.test.{ts,tsx}", "scripts/**/*.test.mjs"],
   },
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   requestSignInCode,
@@ -53,6 +53,7 @@ function secondFactorFieldSettings(method: PasswordSecondFactor): SecondFactorFi
   };
 }
 
+// eslint-disable-next-line complexity -- SignInView coordinates multi-step authentication (credentials, code, password, and two-factor MFA).
 export function SignInView({ onSignedIn }: SignInViewProps) {
   const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -63,10 +64,23 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
   const [secondFactor, setSecondFactor] = useState("");
   const [secondFactorMethod, setSecondFactorMethod] = useState<PasswordSecondFactor>("totp");
   const [step, setStep] = useState<SignInStep>("credentials");
+  const [resendCountdown, setResendCountdown] = useState(0);
+  const [resendStatus, setResendStatus] = useState<string | null>(null);
   const secondFactorField = secondFactorFieldSettings(secondFactorMethod);
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [resendCountdown]);
 
   function selectMethod(nextMethod: SignInMethod) {
     setErrorMessage(null);
+    setResendStatus(null);
     setMethod(nextMethod);
     setOtp("");
     setPassword("");
@@ -82,14 +96,32 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
     }
 
     setErrorMessage(null);
+    setResendStatus(null);
     setIsSubmitting(true);
     try {
       await requestSignInCode(normalizedEmail);
       setEmail(normalizedEmail);
       setOtp("");
+      setResendCountdown(30);
       setStep("code");
     } catch {
       setErrorMessage("A sign-in code could not be requested. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function resendCode() {
+    if (resendCountdown > 0 || isSubmitting) return;
+    setErrorMessage(null);
+    setResendStatus(null);
+    setIsSubmitting(true);
+    try {
+      await requestSignInCode(email);
+      setResendCountdown(30);
+      setResendStatus("A new 6-digit code has been dispatched to your email.");
+    } catch {
+      setErrorMessage("A new code could not be requested. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -196,7 +228,7 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
         ) : null}
 
         {errorMessage ? (
-          <p className="notice notice--error" role="alert">
+          <p className="notice notice--error" id="sign-in-error" role="alert">
             {errorMessage}
           </p>
         ) : null}
@@ -212,6 +244,8 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
             <div className="field">
               <label htmlFor="sign-in-email">Email address</label>
               <input
+                aria-describedby={errorMessage ? "sign-in-error" : undefined}
+                aria-invalid={Boolean(errorMessage)}
                 autoComplete="email"
                 id="sign-in-email"
                 inputMode="email"
@@ -241,6 +275,8 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
             <div className="field">
               <label htmlFor="password-sign-in-email">Email address</label>
               <input
+                aria-describedby={errorMessage ? "sign-in-error" : undefined}
+                aria-invalid={Boolean(errorMessage)}
                 autoComplete="email"
                 id="password-sign-in-email"
                 inputMode="email"
@@ -256,6 +292,8 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
             <div className="field">
               <label htmlFor="sign-in-password">Password</label>
               <input
+                aria-describedby={errorMessage ? "sign-in-error" : undefined}
+                aria-invalid={Boolean(errorMessage)}
                 autoComplete="current-password"
                 id="sign-in-password"
                 maxLength={128}
@@ -291,6 +329,8 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
             <div className="field">
               <label htmlFor="sign-in-code">6-digit sign-in code</label>
               <input
+                aria-describedby={errorMessage ? "sign-in-error" : undefined}
+                aria-invalid={Boolean(errorMessage)}
                 autoComplete="one-time-code"
                 id="sign-in-code"
                 inputMode="numeric"
@@ -307,12 +347,18 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
             <button className="button button--primary" disabled={isSubmitting} type="submit">
               {isSubmitting ? "Signing in…" : "Sign in"}
             </button>
+            {resendStatus ? (
+              <p className="notice notice--info" role="status">
+                {resendStatus}
+              </p>
+            ) : null}
             <div className="form-actions">
               <button
                 className="text-button"
                 disabled={isSubmitting}
                 onClick={() => {
                   setErrorMessage(null);
+                  setResendStatus(null);
                   setStep("credentials");
                 }}
                 type="button"
@@ -321,14 +367,15 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
               </button>
               <button
                 className="text-button"
-                disabled={isSubmitting}
+                disabled={isSubmitting || resendCountdown > 0}
                 onClick={() => {
-                  setErrorMessage(null);
-                  setStep("credentials");
+                  void resendCode();
                 }}
                 type="button"
               >
-                Request a new code
+                {resendCountdown > 0
+                  ? `Request new code (${String(resendCountdown)}s)`
+                  : "Request a new code"}
               </button>
             </div>
           </form>
@@ -363,6 +410,8 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
             <div className="field">
               <label htmlFor="password-second-factor">{secondFactorField.label}</label>
               <input
+                aria-describedby={errorMessage ? "sign-in-error" : undefined}
+                aria-invalid={Boolean(errorMessage)}
                 autoComplete="one-time-code"
                 id="password-second-factor"
                 inputMode={secondFactorField.inputMode}

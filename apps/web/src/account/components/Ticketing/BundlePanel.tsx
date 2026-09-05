@@ -173,7 +173,14 @@ export function BundlePanel({
         </form>
       </Dialog>
       <div>
-        {bundles.length === 0 ? <p>No bundles yet.</p> : null}
+        {bundles.length === 0 ? (
+          <div className="empty-state">
+            <p>No bundles yet.</p>
+            <button className="button button--primary" onClick={openNewBundle} type="button">
+              Create your first bundle
+            </button>
+          </div>
+        ) : null}
         {bundles.map((bundle) => (
           <fieldset className="compact-card" key={bundle.id}>
             <legend>{bundle.title}</legend>

@@ -9,7 +9,7 @@ import type {
   OrganizationVenue,
 } from "@choir/contracts";
 import { auditionStatusSchema } from "@choir/contracts";
-import { useConfirmation } from "@choir/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger, useConfirmation } from "@choir/ui";
 import {
   convertOrganizationAudition,
   createOrganizationAudition,
@@ -301,41 +301,36 @@ export function AuditionManager({ enabled }: Props) {
           {actionError}
         </p>
       ) : null}
-      <div className="audition-tabs" role="tablist" aria-label="Audition sections">
-        <button
-          aria-controls="audition-inquiries-panel"
-          aria-selected={activeTab === "inquiries"}
-          className={activeTab === "inquiries" ? "is-active" : undefined}
-          id="audition-inquiries-tab"
-          onClick={() => {
-            void requestSettingsTab("inquiries");
-          }}
-          role="tab"
-          type="button"
-        >
-          Inquiries
-        </button>
-        <button
-          aria-controls="audition-settings-panel"
-          aria-selected={activeTab === "settings"}
-          className={activeTab === "settings" ? "is-active" : undefined}
-          id="audition-settings-tab"
-          onClick={() => {
-            void requestSettingsTab("settings");
-          }}
-          role="tab"
-          type="button"
-        >
-          Settings
-        </button>
-      </div>
-      {confirmationDialog}
-      {activeTab === "settings" ? (
-        <div
+      <Tabs
+        onValueChange={(val) => {
+          void requestSettingsTab(val);
+        }}
+        value={activeTab}
+      >
+        <div className="audition-tabs">
+          <TabsList aria-label="Audition sections">
+            <TabsTrigger
+              aria-controls="audition-inquiries-panel"
+              id="audition-inquiries-tab"
+              value="inquiries"
+            >
+              Inquiries
+            </TabsTrigger>
+            <TabsTrigger
+              aria-controls="audition-settings-panel"
+              id="audition-settings-tab"
+              value="settings"
+            >
+              Settings
+            </TabsTrigger>
+          </TabsList>
+        </div>
+        {confirmationDialog}
+        <TabsContent
           aria-labelledby="audition-settings-tab"
           className="audition-tab-panel"
           id="audition-settings-panel"
-          role="tabpanel"
+          value="settings"
         >
           <h2>Audition settings</h2>
           <p className="section-description">
@@ -367,9 +362,12 @@ export function AuditionManager({ enabled }: Props) {
               Loading audition settings…
             </p>
           )}
-        </div>
-      ) : (
-        <div aria-labelledby="audition-inquiries-tab" id="audition-inquiries-panel" role="tabpanel">
+        </TabsContent>
+        <TabsContent
+          aria-labelledby="audition-inquiries-tab"
+          id="audition-inquiries-panel"
+          value="inquiries"
+        >
           <QRCodeShareCard
             asFieldset
             description={
@@ -439,8 +437,8 @@ export function AuditionManager({ enabled }: Props) {
               }}
             />
           )}
-        </div>
-      )}
+        </TabsContent>
+      </Tabs>
 
       <AuditionDialogs
         confirm={confirm}

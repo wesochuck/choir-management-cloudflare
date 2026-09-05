@@ -4,7 +4,7 @@ import type {
   OrganizationAuditionCreateRequest,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
-import { Dialog, DropdownMenu } from "@choir/ui";
+import { Dialog, DialogClose, DropdownMenu } from "@choir/ui";
 
 import {
   STATUS_LABELS,
@@ -342,9 +342,11 @@ export function AuditionDialogs({
             </label>
           ) : null}
           <div className="form-actions">
-            <button className="button button--secondary" onClick={onCancelSchedule} type="button">
-              Cancel
-            </button>
+            <DialogClose asChild>
+              <button className="button button--secondary" type="button">
+                Cancel
+              </button>
+            </DialogClose>
             <button className="button button--primary" type="submit">
               Confirm schedule
             </button>
@@ -367,9 +369,11 @@ export function AuditionDialogs({
                 : `Delete the audition request for ${confirm.audition.name}?`}
             </p>
             <div className="form-actions">
-              <button className="button button--secondary" onClick={onCancelConfirm} type="button">
-                Cancel
-              </button>
+              <DialogClose asChild>
+                <button className="button button--secondary" type="button">
+                  Cancel
+                </button>
+              </DialogClose>
               <button
                 className="button button--danger"
                 onClick={() => void executeConfirm()}

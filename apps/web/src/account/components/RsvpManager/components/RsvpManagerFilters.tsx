@@ -83,7 +83,7 @@ export function RsvpManagerFilters({
           ) : null}
         </div>
       </div>
-      <div className="rsvp-status-filters" role="tablist" aria-label="RSVP views">
+      <div aria-label="RSVP filters and views" className="rsvp-status-filters" role="group">
         {(
           [
             ["active", `All active (${String(counts.active)})`],
@@ -93,26 +93,24 @@ export function RsvpManagerFilters({
           ] as const
         ).map(([value, label]) => (
           <button
-            aria-selected={view === "roster" && filter === value}
+            aria-pressed={view === "roster" && filter === value}
             className={view === "roster" && filter === value ? "is-active" : undefined}
             key={value}
             onClick={() => {
               setFilter(value);
               setView("roster");
             }}
-            role="tab"
             type="button"
           >
             {label}
           </button>
         ))}
         <button
-          aria-selected={view === "history"}
+          aria-pressed={view === "history"}
           className={view === "history" ? "is-active" : undefined}
           onClick={() => {
             setView("history");
           }}
-          role="tab"
           type="button"
         >
           History

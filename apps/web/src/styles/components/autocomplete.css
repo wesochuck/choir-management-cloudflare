@@ -51,8 +51,8 @@
 
   .autocomplete__badge {
     padding: var(--spacing-3xs) var(--spacing-xs);
-    border-radius: 999px;
-    font-size: 0.7rem;
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
     font-weight: var(--font-weight-bold);
     background: color-mix(in srgb, currentColor 16%, transparent);
   }

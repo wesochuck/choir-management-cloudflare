@@ -1,9 +1,15 @@
 import type { PublicPollDetailsResponse } from "@choir/contracts";
-import { useEffect, useState } from "react";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { getPublicPollDetails, submitPublicPollVote } from "../api";
 
-type PollDetails = PublicPollDetailsResponse;
+export type PollDetails = PublicPollDetailsResponse;
 
 type PageStatus =
   | { type: "loading" }
@@ -40,7 +46,128 @@ function formatExpiry(iso: string): string {
   });
 }
 
-function PollForm({
+function getNextRadioIndex(key: string, baseIndex: number, length: number): number | null {
+  if (length === 0) return null;
+  switch (key) {
+    case "ArrowDown":
+    case "ArrowRight":
+      return baseIndex >= 0 ? (baseIndex + 1) % length : 0;
+    case "ArrowUp":
+    case "ArrowLeft":
+      return baseIndex >= 0 ? (baseIndex - 1 + length) % length : length - 1;
+    case "Home":
+      return 0;
+    case "End":
+      return length - 1;
+    default:
+      return null;
+  }
+}
+
+function PollOptionItem({
+  details,
+  hasSelection,
+  index,
+  isSelected,
+  onToggle,
+  option,
+}: {
+  readonly details: PollDetails;
+  readonly hasSelection: boolean;
+  readonly index: number;
+  readonly isSelected: boolean;
+  readonly onToggle: (optionId: string) => void;
+  readonly option: PollDetails["options"][number];
+}) {
+  const tabIndex = details.multipleChoice
+    ? 0
+    : isSelected || (!hasSelection && index === 0)
+      ? 0
+      : -1;
+
+  return (
+    <button
+      aria-checked={isSelected}
+      className={`w-full rounded border px-4 py-3 text-left font-medium transition-colors ${
+        isSelected ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
+      }`}
+      onClick={() => {
+        onToggle(option.id);
+      }}
+      role={details.multipleChoice ? "checkbox" : "radio"}
+      tabIndex={tabIndex}
+      type="button"
+    >
+      {details.multipleChoice && (
+        <span className="mr-2 inline-block h-4 w-4 rounded-sm border border-current">
+          {isSelected && (
+            <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 16 16">
+              <path
+                d="M3 8l3 3 7-7"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+              />
+            </svg>
+          )}
+        </span>
+      )}
+      {!details.multipleChoice && (
+        <span
+          className={`mr-2 inline-block h-4 w-4 rounded-full border ${
+            isSelected ? "border-current" : ""
+          }`}
+        >
+          {isSelected && <span className="block h-full w-full rounded-full bg-current" />}
+        </span>
+      )}
+      {option.label}
+    </button>
+  );
+}
+
+function ClosedPollView({
+  details,
+  hasExistingVote,
+}: {
+  readonly details: PollDetails;
+  readonly hasExistingVote: boolean;
+}) {
+  return (
+    <div className="mt-4 space-y-3">
+      <p className="notice notice--warning" role="status">
+        This poll is no longer accepting responses.
+      </p>
+      {hasExistingVote && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Your recorded vote:</p>
+          {details.options
+            .filter((opt) => details.responseOptionIds.includes(opt.id))
+            .map((option) => (
+              <div
+                className="w-full rounded border border-primary bg-primary/10 p-3 text-left font-medium"
+                key={option.id}
+              >
+                ✓ {option.label}
+              </div>
+            ))}
+        </div>
+      )}
+      <a className="button button--secondary w-full" href="/">
+        Return to the Organization site
+      </a>
+    </div>
+  );
+}
+
+function getSubmitButtonLabel(busy: boolean, hasExistingVote: boolean): string {
+  if (busy) return "Submitting...";
+  if (hasExistingVote) return "Update Vote";
+  return "Submit Vote";
+}
+
+export function PollForm({
   details,
   busy,
   onSubmit,
@@ -64,33 +191,53 @@ function PollForm({
 
   const hasExistingVote = details.responseOptionIds.length > 0;
 
-  if (!details.canSubmit) {
+  const optionsContainerRef = useRef<HTMLDivElement>(null);
+  const sortedOptions = useMemo(
+    () => details.options.slice().sort((a, b) => a.sortOrder - b.sortOrder),
+    [details.options],
+  );
+
+  const handleRadioKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (details.multipleChoice) return;
+    const radios =
+      optionsContainerRef.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+    if (!radios || radios.length === 0) return;
+
+    const activeEl = document.activeElement;
+    const focusedIndex =
+      activeEl instanceof HTMLButtonElement ? Array.from(radios).indexOf(activeEl) : -1;
+    const selectedIndex = sortedOptions.findIndex((opt) => selected.includes(opt.id));
+    const baseIndex = focusedIndex >= 0 ? focusedIndex : selectedIndex;
+
+    const targetIndex = getNextRadioIndex(event.key, baseIndex, sortedOptions.length);
+    if (targetIndex === null) return;
+
+    event.preventDefault();
+    const targetOption = sortedOptions[targetIndex];
+    if (targetOption) {
+      setSelected([targetOption.id]);
+      radios[targetIndex]?.focus();
+    }
+  };
+
+  if (details.options.length === 0) {
     return (
       <div className="mt-4 space-y-3">
-        <p className="notice notice--warning" role="status">
-          This poll is no longer accepting responses.
+        <p className="notice notice--info" role="status">
+          No options are available for this poll.
         </p>
-        {hasExistingVote && (
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Your recorded vote:</p>
-            {details.options
-              .filter((opt) => details.responseOptionIds.includes(opt.id))
-              .map((option) => (
-                <div
-                  className="w-full rounded border border-primary bg-primary/10 p-3 text-left font-medium"
-                  key={option.id}
-                >
-                  ✓ {option.label}
-                </div>
-              ))}
-          </div>
-        )}
         <a className="button button--secondary w-full" href="/">
           Return to the Organization site
         </a>
       </div>
     );
   }
+
+  if (!details.canSubmit) {
+    return <ClosedPollView details={details} hasExistingVote={hasExistingVote} />;
+  }
+
+  const isSubmitDisabled = busy || selected.length === 0;
 
   return (
     <div className="mt-4 space-y-3">
@@ -100,60 +247,49 @@ function PollForm({
           {details.expiresAt ? formatExpiry(details.expiresAt) : "the poll closes"}.
         </p>
       )}
-      {details.options
-        .slice()
-        .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map((option) => {
-          const isSelected = selected.includes(option.id);
-          return (
-            <button
-              className={`w-full rounded border px-4 py-3 text-left font-medium transition-colors ${
-                isSelected ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"
-              }`}
+      <fieldset className="border-0 p-0 m-0">
+        <legend className="sr-only">
+          {details.multipleChoice
+            ? "Poll options (select one or more)"
+            : "Poll options (select one)"}
+        </legend>
+        <div
+          aria-label={details.multipleChoice ? undefined : "Poll options"}
+          className="space-y-2"
+          onKeyDown={details.multipleChoice ? undefined : handleRadioKeyDown}
+          ref={optionsContainerRef}
+          role={details.multipleChoice ? undefined : "radiogroup"}
+        >
+          {sortedOptions.map((option, index) => (
+            <PollOptionItem
+              details={details}
+              hasSelection={selected.length > 0}
+              index={index}
+              isSelected={selected.includes(option.id)}
               key={option.id}
-              onClick={() => {
-                toggleOption(option.id);
-              }}
-              type="button"
-            >
-              {details.multipleChoice && (
-                <span className="mr-2 inline-block h-4 w-4 rounded-sm border border-current">
-                  {isSelected && (
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 16 16">
-                      <path
-                        d="M3 8l3 3 7-7"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                      />
-                    </svg>
-                  )}
-                </span>
-              )}
-              {!details.multipleChoice && (
-                <span
-                  className={`mr-2 inline-block h-4 w-4 rounded-full border ${
-                    isSelected ? "border-current" : ""
-                  }`}
-                >
-                  {isSelected && <span className="block h-full w-full rounded-full bg-current" />}
-                </span>
-              )}
-              {option.label}
-            </button>
-          );
-        })}
+              onToggle={toggleOption}
+              option={option}
+            />
+          ))}
+        </div>
+      </fieldset>
+
+      {selected.length === 0 && (
+        <p className="field-help" id="poll-submit-hint">
+          Select at least one option to submit your vote.
+        </p>
+      )}
 
       <button
-        className={`button button--primary w-full ${busy || selected.length === 0 ? "button--disabled" : ""}`}
-        disabled={busy || selected.length === 0}
+        aria-describedby={selected.length === 0 ? "poll-submit-hint" : undefined}
+        className={`button button--primary w-full ${isSubmitDisabled ? "button--disabled" : ""}`}
+        disabled={isSubmitDisabled}
         onClick={() => {
           onSubmit(selected);
         }}
         type="button"
       >
-        {busy ? "Submitting..." : hasExistingVote ? "Update Vote" : "Submit Vote"}
+        {getSubmitButtonLabel(busy, hasExistingVote)}
       </button>
     </div>
   );
@@ -194,10 +330,22 @@ export function PublicPollView() {
       });
   }
 
+  function handleRetry() {
+    if (!token) return;
+    setPageStatus({ type: "loading" });
+    fetchPollDetails(token)
+      .then((details) => {
+        setPageStatus({ type: "ready", details });
+      })
+      .catch(() => {
+        setPageStatus({ type: "not_found" });
+      });
+  }
+
   if (pageStatus.type === "no_token") {
     return (
       <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="poll-title">
+        <section aria-labelledby="poll-title" className="auth-card">
           <h1 id="poll-title">Poll Link Required</h1>
           <p className="notice notice--info" role="status">
             Please use the link from your email to access this poll.
@@ -213,8 +361,11 @@ export function PublicPollView() {
   if (pageStatus.type === "loading") {
     return (
       <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="poll-title">
+        <section aria-labelledby="poll-title" className="auth-card">
           <h1 id="poll-title">Loading Poll...</h1>
+          <p className="notice notice--info" role="status">
+            Loading poll options…
+          </p>
         </section>
       </main>
     );
@@ -223,14 +374,19 @@ export function PublicPollView() {
   if (pageStatus.type === "not_found") {
     return (
       <main className="auth-layout">
-        <section className="auth-card" aria-labelledby="poll-title">
+        <section aria-labelledby="poll-title" className="auth-card">
           <h1 id="poll-title">Link Not Found</h1>
           <p className="notice notice--error" role="alert">
             This poll link is invalid or expired. Contact an Organization manager for a new link.
           </p>
-          <a className="button button--secondary" href="/">
-            Return to the Organization site
-          </a>
+          <div className="mt-4 flex flex-col gap-2">
+            <button className="button button--primary" onClick={handleRetry} type="button">
+              Retry
+            </button>
+            <a className="button button--secondary" href="/">
+              Return to the Organization site
+            </a>
+          </div>
         </section>
       </main>
     );

@@ -116,7 +116,7 @@
     flex: none;
     padding: var(--spacing-3xs) var(--spacing-xs);
     border: 1px solid color-mix(in srgb, var(--color-accent) 65%, var(--color-border));
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     color: var(--color-accent);
     font-size: var(--font-size-xs);
     font-weight: var(--font-weight-black);
@@ -135,7 +135,7 @@
     right: 0;
     left: 0;
     height: 0.2rem;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: var(--color-accent);
     box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--color-accent) 18%, transparent);
     content: "";

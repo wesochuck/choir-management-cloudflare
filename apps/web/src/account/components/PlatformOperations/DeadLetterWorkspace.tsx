@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
 
 import { EmailProviderFeedbackDirectory } from "./EmailProviderFeedbackDirectory";
 import { QueueDeadLetterDirectory } from "./QueueDeadLetterDirectory";
@@ -7,52 +8,37 @@ import type { PlatformDeadLetterTab } from "./shared";
 export function PlatformDeadLetterWorkspace() {
   const [tab, setTab] = useState<PlatformDeadLetterTab>("queue");
   return (
-    <>
-      <nav aria-label="Dead-letter sections" className="ticketing-tabs" role="tablist">
-        <button
+    <Tabs onValueChange={setTab} value={tab}>
+      <TabsList aria-label="Dead-letter sections" as="nav" className="ticketing-tabs">
+        <TabsTrigger
           aria-controls="platform-email-provider-events-panel"
-          aria-selected={tab === "email-provider"}
-          className={tab === "email-provider" ? "is-active" : undefined}
           id="platform-email-provider-events-tab"
-          onClick={() => {
-            setTab("email-provider");
-          }}
-          role="tab"
-          type="button"
+          value="email-provider"
         >
           Email provider events
-        </button>
-        <button
+        </TabsTrigger>
+        <TabsTrigger
           aria-controls="platform-queue-dead-letters-panel"
-          aria-selected={tab === "queue"}
-          className={tab === "queue" ? "is-active" : undefined}
           id="platform-queue-dead-letters-tab"
-          onClick={() => {
-            setTab("queue");
-          }}
-          role="tab"
-          type="button"
+          value="queue"
         >
           Queue DLQ
-        </button>
-      </nav>
-      {tab === "email-provider" ? (
-        <div
-          aria-labelledby="platform-email-provider-events-tab"
-          id="platform-email-provider-events-panel"
-          role="tabpanel"
-        >
-          <EmailProviderFeedbackDirectory />
-        </div>
-      ) : (
-        <div
-          aria-labelledby="platform-queue-dead-letters-tab"
-          id="platform-queue-dead-letters-panel"
-          role="tabpanel"
-        >
-          <QueueDeadLetterDirectory />
-        </div>
-      )}
-    </>
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent
+        aria-labelledby="platform-email-provider-events-tab"
+        id="platform-email-provider-events-panel"
+        value="email-provider"
+      >
+        <EmailProviderFeedbackDirectory />
+      </TabsContent>
+      <TabsContent
+        aria-labelledby="platform-queue-dead-letters-tab"
+        id="platform-queue-dead-letters-panel"
+        value="queue"
+      >
+        <QueueDeadLetterDirectory />
+      </TabsContent>
+    </Tabs>
   );
 }

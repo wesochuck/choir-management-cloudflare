@@ -3,7 +3,7 @@ import type {
   DonationSettings,
   ManualDonationCreateRequest,
 } from "@choir/contracts";
-import { useConfirmation } from "@choir/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger, useConfirmation } from "@choir/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -156,71 +156,47 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
         </p>
       ) : null}
 
-      <nav
-        aria-label="Donation sections"
-        className="ticketing-tabs donation-manager-tabs"
-        role="tablist"
-      >
-        <button
-          aria-controls="donation-history-panel"
-          aria-selected={tab === "history"}
-          className={tab === "history" ? "is-active" : undefined}
-          id="donation-history-tab"
-          onClick={() => {
-            setTab("history");
-          }}
-          role="tab"
-          type="button"
+      <Tabs onValueChange={setTab} value={tab}>
+        <TabsList
+          aria-label="Donation sections"
+          as="nav"
+          className="ticketing-tabs donation-manager-tabs"
         >
-          Donation History
-        </button>
-        <button
-          aria-controls="donation-levels-panel"
-          aria-selected={tab === "levels"}
-          className={tab === "levels" ? "is-active" : undefined}
-          id="donation-levels-tab"
-          onClick={() => {
-            setTab("levels");
-          }}
-          role="tab"
-          type="button"
-        >
-          Donor levels
-        </button>
-        <button
-          aria-controls="donation-portal-panel"
-          aria-selected={tab === "portal"}
-          className={tab === "portal" ? "is-active" : undefined}
-          id="donation-portal-tab"
-          onClick={() => {
-            setTab("portal");
-          }}
-          role="tab"
-          type="button"
-        >
-          Public portal
-        </button>
-        <button
-          aria-controls="donation-page-settings-panel"
-          aria-selected={tab === "pageSettings"}
-          className={tab === "pageSettings" ? "is-active" : undefined}
-          id="donation-page-settings-tab"
-          onClick={() => {
-            setTab("pageSettings");
-          }}
-          role="tab"
-          type="button"
-        >
-          Page settings
-        </button>
-      </nav>
+          <TabsTrigger
+            aria-controls="donation-history-panel"
+            id="donation-history-tab"
+            value="history"
+          >
+            Donation History
+          </TabsTrigger>
+          <TabsTrigger
+            aria-controls="donation-levels-panel"
+            id="donation-levels-tab"
+            value="levels"
+          >
+            Donor levels
+          </TabsTrigger>
+          <TabsTrigger
+            aria-controls="donation-portal-panel"
+            id="donation-portal-tab"
+            value="portal"
+          >
+            Public portal
+          </TabsTrigger>
+          <TabsTrigger
+            aria-controls="donation-page-settings-panel"
+            id="donation-page-settings-tab"
+            value="pageSettings"
+          >
+            Page settings
+          </TabsTrigger>
+        </TabsList>
 
-      <div
-        aria-labelledby={`donation-${tab === "pageSettings" ? "page-settings" : tab}-tab`}
-        id={`donation-${tab === "pageSettings" ? "page-settings" : tab}-panel`}
-        role="tabpanel"
-      >
-        {tab === "history" ? (
+        <TabsContent
+          aria-labelledby="donation-history-tab"
+          id="donation-history-panel"
+          value="history"
+        >
           <DonationHistoryTab
             busy={busy}
             donationState={donationState}
@@ -234,7 +210,12 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
             timezone={timezone}
             updateThankYou={handleUpdateThankYou}
           />
-        ) : tab === "levels" ? (
+        </TabsContent>
+        <TabsContent
+          aria-labelledby="donation-levels-tab"
+          id="donation-levels-panel"
+          value="levels"
+        >
           <DonationLevelsTab
             busy={busy}
             deleteLevel={deleteLevel}
@@ -242,9 +223,19 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
             newLevel={openNewLevel}
             settingsState={settingsState}
           />
-        ) : tab === "portal" ? (
+        </TabsContent>
+        <TabsContent
+          aria-labelledby="donation-portal-tab"
+          id="donation-portal-panel"
+          value="portal"
+        >
           <DonationPortalTab settingsState={settingsState} />
-        ) : (
+        </TabsContent>
+        <TabsContent
+          aria-labelledby="donation-page-settings-tab"
+          id="donation-page-settings-panel"
+          value="pageSettings"
+        >
           <DonationPageSettingsTab
             busy={busy}
             portalButtonText={portalButtonText}
@@ -254,8 +245,8 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
             setPortalDescription={setPortalDescription}
             settingsState={settingsState}
           />
-        )}
-      </div>
+        </TabsContent>
+      </Tabs>
 
       <DonationLevelDialog
         busy={busy}

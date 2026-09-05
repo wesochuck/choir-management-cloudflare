@@ -1,4 +1,5 @@
 import type { Season } from "@choir/contracts";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -238,58 +239,50 @@ export function SeasonsManager({
             {message}
           </p>
         ) : null}
-        <div className="seasons-manager-controls">
-          <nav
-            aria-label="Seasons and dues views"
-            className="ticketing-tabs seasons-manager-tabs"
-            role="tablist"
+        <Tabs onValueChange={setTab} value={tab}>
+          <div className="seasons-manager-controls">
+            <TabsList
+              aria-label="Seasons and dues views"
+              as="nav"
+              className="ticketing-tabs seasons-manager-tabs"
+            >
+              <TabsTrigger aria-controls="dues-records-panel" id="dues-records-tab" value="dues">
+                Dues records
+              </TabsTrigger>
+              <TabsTrigger
+                aria-controls="season-settings-panel"
+                id="season-settings-tab"
+                value="settings"
+              >
+                Seasons
+              </TabsTrigger>
+            </TabsList>
+            {tab === "settings" ? (
+              <button
+                className="button button--primary"
+                onClick={() => {
+                  openSeasonDialog();
+                }}
+                type="button"
+              >
+                Add season
+              </button>
+            ) : null}
+          </div>
+          <TabsContent
+            aria-labelledby="season-settings-tab"
+            id="season-settings-panel"
+            value="settings"
           >
-            <button
-              aria-controls="dues-records-panel"
-              aria-selected={tab === "dues"}
-              className={tab === "dues" ? "is-active" : undefined}
-              id="dues-records-tab"
-              onClick={() => {
-                setTab("dues");
-              }}
-              role="tab"
-              type="button"
-            >
-              Dues records
-            </button>
-            <button
-              aria-controls="season-settings-panel"
-              aria-selected={tab === "settings"}
-              className={tab === "settings" ? "is-active" : undefined}
-              id="season-settings-tab"
-              onClick={() => {
-                setTab("settings");
-              }}
-              role="tab"
-              type="button"
-            >
-              Seasons
-            </button>
-          </nav>
-          {tab === "settings" ? (
-            <button
-              className="button button--primary"
-              onClick={() => {
-                openSeasonDialog();
-              }}
-              type="button"
-            >
-              Add season
-            </button>
-          ) : null}
-        </div>
-        {tab === "settings" ? (
-          <div aria-labelledby="season-settings-tab" id="season-settings-panel" role="tabpanel">
             <p className="seasons-manager-description seasons-manager-description--settings">
               Create seasons, set dues amounts, and choose which season is active.
             </p>
             <SeasonsTab
+              busy={seasonBusy}
               onActivate={(season) => void activateSeason(season)}
+              onAddSeason={() => {
+                openSeasonDialog();
+              }}
               onDelete={(season) => {
                 setError(null);
                 setMessage(null);
@@ -297,12 +290,10 @@ export function SeasonsManager({
               }}
               onEdit={openSeasonDialog}
               seasonState={seasonState}
-              busy={seasonBusy}
               timezone={timezone}
             />
-          </div>
-        ) : (
-          <div aria-labelledby="dues-records-tab" id="dues-records-panel" role="tabpanel">
+          </TabsContent>
+          <TabsContent aria-labelledby="dues-records-tab" id="dues-records-panel" value="dues">
             <DuesTab
               busy={refundBusy}
               duesState={duesState}
@@ -315,8 +306,8 @@ export function SeasonsManager({
               seasonState={seasonState}
               setRefundId={setRefundId}
             />
-          </div>
-        )}
+          </TabsContent>
+        </Tabs>
       </section>
 
       <SeasonDialog

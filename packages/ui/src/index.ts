@@ -16,6 +16,7 @@ export { Dialog, DialogClose } from "./Dialog";
 export { DropdownMenu } from "./DropdownMenu";
 export { Autocomplete, type AutocompleteOption } from "./Autocomplete";
 export { Sheet } from "./Sheet";
+export { Tabs, TabsContent, TabsList, TabsTrigger } from "./Tabs";
 export { useConfirmation } from "./useConfirmation";
 
 export const UI_PACKAGE_STATUS = "foundation-ready" as const;

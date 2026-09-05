@@ -230,101 +230,103 @@ export function DataTable<T>({
   const showPagination = pagination !== undefined && pageCount > 1;
 
   return (
-    <div className="table-scroll">
-      <table className="data-table">
-        <thead>
-          <tr>
-            {columns.map((column) => {
-              const active = sort?.columnId === column.id;
-              const actionColumn = isActionColumn(column);
+    <div className="data-table-container">
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr>
+              {columns.map((column) => {
+                const active = sort?.columnId === column.id;
+                const actionColumn = isActionColumn(column);
+                return (
+                  <th
+                    aria-sort={
+                      active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"
+                    }
+                    className={actionColumn ? "data-table__cell--actions" : undefined}
+                    key={column.id}
+                  >
+                    {column.sortValue ? (
+                      <button
+                        aria-label={`Sort by ${column.header}`}
+                        className="data-table__sort-button"
+                        onClick={() => {
+                          toggleSort(column);
+                        }}
+                        type="button"
+                      >
+                        {column.header}
+                        <span aria-hidden="true">
+                          {active ? (sort.direction === "asc" ? " ↑" : " ↓") : " ↕"}
+                        </span>
+                      </button>
+                    ) : (
+                      (column.headerContent ?? column.header)
+                    )}
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {visibleRows.map((row, localIndex) => {
+              const index = startIndex + localIndex;
+              const rowId = keySelector(row);
+              const isExpanded = renderExpandedRow !== undefined && expandedRowId === rowId;
+              const customRowProps = getRowProps?.(row, {
+                index,
+                presentation: "table",
+                rows: sortedRows,
+              });
+              const rowClassName =
+                [onRowClick ? "data-table__row--interactive" : null, customRowProps?.className]
+                  .filter(Boolean)
+                  .join(" ") || undefined;
+              const rowEventProps =
+                dataTableElementRowEventProps<HTMLTableRowElement>(customRowProps);
               return (
-                <th
-                  aria-sort={
-                    active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"
-                  }
-                  className={actionColumn ? "data-table__cell--actions" : undefined}
-                  key={column.id}
-                >
-                  {column.sortValue ? (
-                    <button
-                      aria-label={`Sort by ${column.header}`}
-                      className="data-table__sort-button"
-                      onClick={() => {
-                        toggleSort(column);
-                      }}
-                      type="button"
-                    >
-                      {column.header}
-                      <span aria-hidden="true">
-                        {active ? (sort.direction === "asc" ? " ↑" : " ↓") : " ↕"}
-                      </span>
-                    </button>
-                  ) : (
-                    (column.headerContent ?? column.header)
-                  )}
-                </th>
+                <Fragment key={rowId}>
+                  <tr
+                    className={rowClassName}
+                    draggable={customRowProps?.draggable}
+                    onClick={(event) => {
+                      if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget))
+                        return;
+                      onRowClick(row);
+                    }}
+                    onKeyDown={(event) => {
+                      if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget))
+                        return;
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      onRowClick(row);
+                    }}
+                    {...rowEventProps}
+                    tabIndex={onRowClick ? 0 : undefined}
+                    aria-label={onRowClick ? (rowLabel?.(row) ?? "Open row") : undefined}
+                  >
+                    {columns.map((column) => (
+                      <td
+                        className={isActionColumn(column) ? "data-table__cell--actions" : undefined}
+                        key={column.id}
+                      >
+                        {column.render(row, { presentation: "table" })}
+                      </td>
+                    ))}
+                  </tr>
+                  {isExpanded ? (
+                    <tr className="data-table__expanded-row">
+                      <td className="data-table__expanded-cell" colSpan={columns.length}>
+                        {renderExpandedRow(row, "table")}
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               );
             })}
-          </tr>
-        </thead>
-        <tbody>
-          {visibleRows.map((row, localIndex) => {
-            const index = startIndex + localIndex;
-            const rowId = keySelector(row);
-            const isExpanded = renderExpandedRow !== undefined && expandedRowId === rowId;
-            const customRowProps = getRowProps?.(row, {
-              index,
-              presentation: "table",
-              rows: sortedRows,
-            });
-            const rowClassName =
-              [onRowClick ? "data-table__row--interactive" : null, customRowProps?.className]
-                .filter(Boolean)
-                .join(" ") || undefined;
-            const rowEventProps =
-              dataTableElementRowEventProps<HTMLTableRowElement>(customRowProps);
-            return (
-              <Fragment key={rowId}>
-                <tr
-                  className={rowClassName}
-                  draggable={customRowProps?.draggable}
-                  onClick={(event) => {
-                    if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget))
-                      return;
-                    onRowClick(row);
-                  }}
-                  onKeyDown={(event) => {
-                    if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget))
-                      return;
-                    if (event.key !== "Enter" && event.key !== " ") return;
-                    event.preventDefault();
-                    onRowClick(row);
-                  }}
-                  {...rowEventProps}
-                  tabIndex={onRowClick ? 0 : undefined}
-                  aria-label={onRowClick ? (rowLabel?.(row) ?? "Open row") : undefined}
-                >
-                  {columns.map((column) => (
-                    <td
-                      className={isActionColumn(column) ? "data-table__cell--actions" : undefined}
-                      key={column.id}
-                    >
-                      {column.render(row, { presentation: "table" })}
-                    </td>
-                  ))}
-                </tr>
-                {isExpanded ? (
-                  <tr className="data-table__expanded-row">
-                    <td className="data-table__expanded-cell" colSpan={columns.length}>
-                      {renderExpandedRow(row, "table")}
-                    </td>
-                  </tr>
-                ) : null}
-              </Fragment>
-            );
-          })}
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
       <div className="data-table-cards">
         {visibleRows.map((row, localIndex) => {
           const index = startIndex + localIndex;

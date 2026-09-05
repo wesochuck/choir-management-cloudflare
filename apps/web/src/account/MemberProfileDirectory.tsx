@@ -1,5 +1,5 @@
 import type { MemberProfile, OrganizationDirectoryProfile } from "@choir/contracts";
-import { useConfirmation } from "@choir/ui";
+import { Dialog, DialogClose, useConfirmation } from "@choir/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -47,7 +47,6 @@ export function ProfilePhotoEditor({
   const [message, setMessage] = useState<string | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [selectedCameraId, setSelectedCameraId] = useState("");
-  const cameraCloseRef = useRef<HTMLButtonElement>(null);
   const cameraTriggerRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingPreviewRef = useRef<string | null>(null);
@@ -170,15 +169,6 @@ export function ProfilePhotoEditor({
   }, [cameraError, cameraLoading, cameraOpen]);
 
   useEffect(() => stopCamera, [stopCamera]);
-
-  useEffect(() => {
-    if (!cameraOpen) return;
-    const trigger = cameraTriggerRef.current;
-    cameraCloseRef.current?.focus();
-    return () => {
-      trigger?.focus();
-    };
-  }, [cameraOpen]);
 
   useEffect(() => {
     return () => {
@@ -373,93 +363,76 @@ export function ProfilePhotoEditor({
         <p className="field-help">JPEG, PNG, or WebP; up to 5 MB.</p>
         {message ? <p role="status">{message}</p> : null}
       </div>
-      {cameraOpen ? (
-        <div
-          aria-labelledby={`profile-photo-camera-title-${profile.id}`}
-          aria-modal="true"
-          className="profile-photo-camera"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") closeCamera();
-          }}
-          role="dialog"
-        >
-          <div className="profile-photo-camera__panel">
-            <div className="profile-photo-camera__header">
-              <div>
-                <h2 id={`profile-photo-camera-title-${profile.id}`}>Take a photo</h2>
-              </div>
+      <Dialog
+        description="Take a photo with your device camera to use as your profile photo."
+        onClose={closeCamera}
+        open={cameraOpen}
+        title="Take a photo"
+      >
+        <div className="stack-form">
+          {cameraError ? (
+            <div className="notice notice--error" role="alert">
+              <p>{cameraError}</p>
               <button
-                aria-label="Close camera"
-                className="dialog__close"
-                onClick={closeCamera}
-                ref={cameraCloseRef}
+                className="button button--secondary button--small"
+                onClick={() => {
+                  fileInputRef.current?.click();
+                  closeCamera();
+                }}
                 type="button"
               >
-                ×
+                Choose a photo file
               </button>
             </div>
-            {cameraError ? (
-              <div className="notice notice--error" role="alert">
-                <p>{cameraError}</p>
-                <button
-                  className="button button--secondary button--small"
-                  onClick={() => {
-                    fileInputRef.current?.click();
-                    closeCamera();
-                  }}
-                  type="button"
-                >
-                  Choose a photo file
-                </button>
-              </div>
-            ) : (
-              <>
-                <video
-                  aria-label="Camera preview"
-                  autoPlay
-                  className="profile-photo-camera__preview"
-                  muted
-                  playsInline
-                  ref={videoRef}
-                />
-                {cameraLoading ? <p className="notice notice--info">Opening the camera…</p> : null}
-              </>
-            )}
-            {cameraDevices.length > 1 && !cameraError && !cameraLoading ? (
-              <label className="field">
-                Camera
-                <select
-                  value={selectedCameraId}
-                  onChange={(event) => {
-                    setSelectedCameraId(event.target.value);
-                  }}
-                >
-                  {cameraDevices.map((device, index) => (
-                    <option key={device.deviceId} value={device.deviceId}>
-                      {device.label || `Camera ${String(index + 1)}`}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ) : null}
-            <div className="dialog__actions">
+          ) : (
+            <>
+              <video
+                aria-label="Camera preview"
+                autoPlay
+                className="profile-photo-camera__preview"
+                muted
+                playsInline
+                ref={videoRef}
+              />
+              {cameraLoading ? <p className="notice notice--info">Opening the camera…</p> : null}
+            </>
+          )}
+          {cameraDevices.length > 1 && !cameraError && !cameraLoading ? (
+            <label className="field">
+              Camera
+              <select
+                value={selectedCameraId}
+                onChange={(event) => {
+                  setSelectedCameraId(event.target.value);
+                }}
+              >
+                {cameraDevices.map((device, index) => (
+                  <option key={device.deviceId} value={device.deviceId}>
+                    {device.label || `Camera ${String(index + 1)}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <div className="dialog__actions">
+            <DialogClose asChild>
               <button className="button button--secondary" onClick={closeCamera} type="button">
                 Cancel
               </button>
-              {!cameraError && !cameraLoading ? (
-                <button
-                  className="button button--primary"
-                  disabled={!cameraReady}
-                  onClick={() => void capturePhoto()}
-                  type="button"
-                >
-                  Capture photo
-                </button>
-              ) : null}
-            </div>
+            </DialogClose>
+            {!cameraError && !cameraLoading ? (
+              <button
+                className="button button--primary"
+                disabled={!cameraReady}
+                onClick={() => void capturePhoto()}
+                type="button"
+              >
+                Capture photo
+              </button>
+            ) : null}
           </div>
         </div>
-      ) : null}
+      </Dialog>
       {confirmationDialog}
     </>
   );

@@ -1,37 +1,20 @@
-export interface SeatingTabsProps {
-  readonly formationTab: "chart" | "formations";
-  readonly setFormationTab: (tab: "chart" | "formations") => void;
-}
+import { TabsList, TabsTrigger } from "@choir/ui";
 
-export function SeatingTabs({ formationTab, setFormationTab }: SeatingTabsProps) {
+export function SeatingTabs() {
   return (
-    <div aria-label="Seating tools" className="seating-tabs no-print" role="tablist">
-      <button
-        aria-controls="seating-chart-panel"
-        aria-selected={formationTab === "chart"}
-        className={formationTab === "chart" ? "is-active" : ""}
-        id="seating-chart-tab"
-        onClick={() => {
-          setFormationTab("chart");
-        }}
-        role="tab"
-        type="button"
-      >
-        Chart
-      </button>
-      <button
-        aria-controls="seating-formations-panel"
-        aria-selected={formationTab === "formations"}
-        className={formationTab === "formations" ? "is-active" : ""}
-        id="seating-formations-tab"
-        onClick={() => {
-          setFormationTab("formations");
-        }}
-        role="tab"
-        type="button"
-      >
-        Formations
-      </button>
+    <div className="no-print">
+      <TabsList aria-label="Seating tools" className="seating-tabs">
+        <TabsTrigger aria-controls="seating-chart-panel" id="seating-chart-tab" value="chart">
+          Chart
+        </TabsTrigger>
+        <TabsTrigger
+          aria-controls="seating-formations-panel"
+          id="seating-formations-tab"
+          value="formations"
+        >
+          Formations
+        </TabsTrigger>
+      </TabsList>
     </div>
   );
 }

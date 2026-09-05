@@ -88,15 +88,21 @@ export function DuesTab({
           </label>
         </div>
       </div>
-      {duesState.dues.length === 0 ? <p>No dues records yet.</p> : null}
+      {duesState.dues.length === 0 ? (
+        <div className="empty-state">
+          <p>No dues records created yet.</p>
+        </div>
+      ) : null}
       {duesState.dues.length > 0 && filteredDues.length === 0 ? (
-        <p>
-          {hasSearchQuery
-            ? seasonFilterId
-              ? "No dues records match the selected season and search."
-              : "No dues records match your search."
-            : "No dues records for the selected season."}
-        </p>
+        <div className="empty-state">
+          <p>
+            {hasSearchQuery
+              ? seasonFilterId
+                ? "No dues records match the selected season and search."
+                : "No dues records match your search."
+              : "No dues records for the selected season."}
+          </p>
+        </div>
       ) : null}
       {filteredDues.length > 0 ? (
         <DataTable

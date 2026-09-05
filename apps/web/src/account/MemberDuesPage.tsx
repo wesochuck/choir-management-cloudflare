@@ -96,7 +96,11 @@ export function MemberDuesPage({ enabled }: { readonly enabled: boolean }) {
   }
 
   if (!enabled) {
-    return <p className="notice notice--warning">Your member workspace is not available yet.</p>;
+    return (
+      <p className="notice notice--warning" role="status">
+        Your member workspace is not available yet.
+      </p>
+    );
   }
   if (state.status === "loading") return <p className="notice">Loading season dues…</p>;
   if (state.status === "error") {

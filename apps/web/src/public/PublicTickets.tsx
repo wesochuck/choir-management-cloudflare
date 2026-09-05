@@ -194,6 +194,12 @@ function TicketDiscountControls({ state }: { readonly state: TicketDiscountState
       <label htmlFor="ticket-discount-code">Discount code (optional)</label>
       <div className="form-actions">
         <input
+          aria-describedby={
+            state.quoteError
+              ? "ticket-discount-code-error ticket-discount-code-help"
+              : "ticket-discount-code-help"
+          }
+          aria-invalid={Boolean(state.quoteError)}
           id="ticket-discount-code"
           maxLength={64}
           onChange={(event) => {
@@ -224,7 +230,7 @@ function TicketDiscountControls({ state }: { readonly state: TicketDiscountState
             : "One code may be applied to this purchase."}
       </p>
       {state.quoteError ? (
-        <p className="field-help field-help--error" role="alert">
+        <p className="field-help field-help--error" id="ticket-discount-code-error" role="alert">
           {state.quoteError}
         </p>
       ) : null}
@@ -402,13 +408,14 @@ function TicketPurchaseForm({
       {event.doorsOpenTime ? <p>Doors open at {event.doorsOpenTime}.</p> : null}
       <form className="panel form-stack" onSubmit={(formEvent) => void submit(formEvent)}>
         {error ? (
-          <p className="notice notice--error" role="alert">
+          <p className="notice notice--error" id="single-ticket-order-error" role="alert">
             {error}
           </p>
         ) : null}
         <label className="field">
           Name for will call
           <input
+            aria-describedby={error ? "single-ticket-order-error" : undefined}
             required
             maxLength={200}
             value={buyerName}
@@ -420,6 +427,7 @@ function TicketPurchaseForm({
         <label className="field">
           Email
           <input
+            aria-describedby={error ? "single-ticket-order-error" : undefined}
             required
             type="email"
             value={buyerEmail}
@@ -431,6 +439,8 @@ function TicketPurchaseForm({
         <label className="field">
           Confirm email
           <input
+            aria-describedby={error ? "single-ticket-order-error" : undefined}
+            aria-invalid={Boolean(error?.toLowerCase().includes("email"))}
             required
             type="email"
             value={confirmEmail}
@@ -448,7 +458,9 @@ function TicketPurchaseForm({
             type="number"
             value={quantity}
             onChange={(e) => {
-              setQuantity(Number(e.target.value));
+              const raw = Number(e.target.value);
+              const clamped = Number.isFinite(raw) ? Math.min(Math.max(1, Math.trunc(raw)), 10) : 1;
+              setQuantity(clamped);
             }}
           />
         </label>
@@ -552,13 +564,14 @@ function TicketBundlePurchaseForm({
       </ul>
       <form className="panel form-stack" onSubmit={(event) => void submit(event)}>
         {error ? (
-          <p className="notice notice--error" role="alert">
+          <p className="notice notice--error" id="multi-ticket-order-error" role="alert">
             {error}
           </p>
         ) : null}
         <label className="field">
           Name for will call
           <input
+            aria-describedby={error ? "multi-ticket-order-error" : undefined}
             required
             maxLength={200}
             value={buyerName}
@@ -570,6 +583,7 @@ function TicketBundlePurchaseForm({
         <label className="field">
           Email
           <input
+            aria-describedby={error ? "multi-ticket-order-error" : undefined}
             required
             type="email"
             value={buyerEmail}
@@ -581,6 +595,8 @@ function TicketBundlePurchaseForm({
         <label className="field">
           Confirm email
           <input
+            aria-describedby={error ? "multi-ticket-order-error" : undefined}
+            aria-invalid={Boolean(error?.toLowerCase().includes("email"))}
             required
             type="email"
             value={confirmEmail}
@@ -598,7 +614,9 @@ function TicketBundlePurchaseForm({
             type="number"
             value={quantity}
             onChange={(event) => {
-              setQuantity(Number(event.target.value));
+              const raw = Number(event.target.value);
+              const clamped = Number.isFinite(raw) ? Math.min(Math.max(1, Math.trunc(raw)), 10) : 1;
+              setQuantity(clamped);
             }}
           />
         </label>

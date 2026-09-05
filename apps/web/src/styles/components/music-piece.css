@@ -197,7 +197,7 @@
     max-width: 100%;
     padding: var(--spacing-2xs) var(--spacing-xs);
     border: 1px solid color-mix(in srgb, var(--color-accent) 55%, var(--color-border));
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: color-mix(in srgb, var(--color-accent) 12%, transparent);
     color: var(--color-text);
     font-size: var(--font-size-md);
@@ -394,7 +394,7 @@
 
   .music-audio-track__scrubber::-webkit-slider-runnable-track {
     height: 0.3rem;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: color-mix(in srgb, var(--color-text) 24%, transparent);
   }
 
@@ -412,13 +412,13 @@
 
   .music-audio-track__scrubber::-moz-range-track {
     height: 0.3rem;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: color-mix(in srgb, var(--color-text) 24%, transparent);
   }
 
   .music-audio-track__scrubber::-moz-range-progress {
     height: 0.3rem;
-    border-radius: 999px;
+    border-radius: var(--radius-full);
     background: var(--color-accent);
   }
 

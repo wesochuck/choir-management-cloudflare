@@ -37,6 +37,7 @@ function money(cents: number): string {
   );
 }
 
+// eslint-disable-next-line complexity -- PublicDonationView coordinates donation levels, custom amount, tribute options, fees, and checkout.
 export function PublicDonationView() {
   const [settings, setSettings] = useState<DonationSettings>(DEFAULT_SETTINGS);
   const [transactionFeeSettings, setTransactionFeeSettings] = useState<TransactionFeeSettings>(
@@ -57,6 +58,7 @@ export function PublicDonationView() {
   const [marketingConsent, setMarketingConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [checkoutRequestId] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
@@ -74,10 +76,13 @@ export function PublicDonationView() {
           setAmountCents(first.amountCents);
         } else {
           setSelectedLevelId("custom");
+          setUseCustom(true);
+          setAmountCents(0);
+          setCustomAmount("");
         }
       })
       .catch(() => {
-        // Defaults keep the public form available while settings are unavailable.
+        setLoadError("Donation options could not be loaded. Please try again later.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setSettingsLoading(false);
@@ -142,9 +147,14 @@ export function PublicDonationView() {
       <h1>{settings.buttonText}</h1>
       <p>{settings.description}</p>
       {settingsLoading ? <p className="notice notice--info">Loading donation options…</p> : null}
+      {loadError ? (
+        <p className="notice notice--error" role="alert">
+          {loadError}
+        </p>
+      ) : null}
       <form className="panel form-stack" onSubmit={(formEvent) => void submit(formEvent)}>
         {error ? (
-          <p className="notice notice--error" role="alert">
+          <p className="notice notice--error" id="donation-form-error" role="alert">
             {error}
           </p>
         ) : null}
@@ -184,6 +194,9 @@ export function PublicDonationView() {
             <label className="field">
               Custom amount
               <input
+                aria-describedby={error ? "donation-form-error" : undefined}
+                aria-invalid={Boolean(error && amountCents < 100)}
+                inputMode="decimal"
                 maxLength={10}
                 min="0"
                 placeholder="0.00"
@@ -295,6 +308,7 @@ export function PublicDonationView() {
           <label className="field">
             Name
             <input
+              aria-describedby={error ? "donation-form-error" : undefined}
               required
               maxLength={200}
               value={buyerName}
@@ -306,6 +320,7 @@ export function PublicDonationView() {
           <label className="field">
             Email
             <input
+              aria-describedby={error ? "donation-form-error" : undefined}
               required
               type="email"
               value={buyerEmail}
@@ -317,6 +332,8 @@ export function PublicDonationView() {
           <label className="field">
             Confirm email
             <input
+              aria-describedby={error ? "donation-form-error" : undefined}
+              aria-invalid={Boolean(error?.toLowerCase().includes("email"))}
               required
               type="email"
               value={confirmEmail}

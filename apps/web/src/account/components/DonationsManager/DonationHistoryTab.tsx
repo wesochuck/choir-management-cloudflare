@@ -281,9 +281,15 @@ export function DonationHistoryTab({
             </select>
           </label>
         </div>
-        {donations.length === 0 ? <p>No donations yet.</p> : null}
+        {donations.length === 0 ? (
+          <div className="empty-state">
+            <p>No donations recorded yet.</p>
+          </div>
+        ) : null}
         {donations.length > 0 && filteredDonations.length === 0 ? (
-          <p className="empty-state">No donations match these filters.</p>
+          <div className="empty-state">
+            <p>No donations match these filters.</p>
+          </div>
         ) : null}
         {filteredDonations.length > 0 ? (
           <div className="table-scroll">
