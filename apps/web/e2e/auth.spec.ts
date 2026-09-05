@@ -2239,6 +2239,9 @@ test("signs in as the recipient and accepts an Organization invitation", async (
       status: 200,
     });
   });
+  await page.route("**/api/public/projection", async (route) => {
+    await route.fulfill({ status: 404 });
+  });
 
   await page.goto(`/accept-invitation?id=${invitationId}`);
   await expect(page.getByRole("heading", { name: "Sign in to Choir Management." })).toBeVisible();
@@ -2306,6 +2309,9 @@ test("requires confirmation before declining an Organization invitation", async 
       status: 200,
     });
   });
+  await page.route("**/api/public/projection", async (route) => {
+    await route.fulfill({ status: 404 });
+  });
 
   await page.goto(`/accept-invitation?id=${invitationId}`);
   await expect(page.getByRole("heading", { name: "Join Organization Alpha." })).toBeVisible();
@@ -2339,6 +2345,9 @@ test("offers password MFA sign-in and completes non-enumerating account recovery
   });
   await page.route("**/api/auth/get-session", async (route) => {
     await route.fulfill({ body: "null", contentType: "application/json", status: 200 });
+  });
+  await page.route("**/api/public/projection", async (route) => {
+    await route.fulfill({ status: 404 });
   });
   await page.route("**/api/auth/sign-in/email", async (route) => {
     const body: unknown = route.request().postDataJSON();
