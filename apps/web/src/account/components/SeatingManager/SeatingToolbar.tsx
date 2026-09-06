@@ -73,8 +73,8 @@ export function SeatingToolbar({
   viewMode,
 }: SeatingToolbarProps) {
   return (
-    <>
-      <div className="seating-toolbar no-print">
+    <div className="seating-toolbar-card no-print">
+      <div className="seating-toolbar">
         <label className="field field--compact">
           Performance
           <select
@@ -191,7 +191,7 @@ export function SeatingToolbar({
         </div>
       </div>
 
-      <div className="seating-toolbar seating-toolbar--secondary no-print">
+      <div className="seating-toolbar--secondary">
         <div className="seating-toolbar__actions seating-toolbar__display-options">
           <label className="checkbox-row checkbox-row--compact">
             <input
@@ -340,6 +340,6 @@ export function SeatingToolbar({
           ) : null}
         </div>
       </div>
-    </>
+    </div>
   );
 }

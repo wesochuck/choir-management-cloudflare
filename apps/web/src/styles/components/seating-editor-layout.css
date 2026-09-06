@@ -362,15 +362,28 @@
     min-width: 0;
   }
 
+  .seating-chart-content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    min-width: 0;
+  }
+
+  .seating-toolbar-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-raised);
+  }
+
   .seating-toolbar {
     display: grid;
     grid-template-columns: minmax(10rem, 1fr) minmax(12rem, 1.15fr) minmax(16rem, 1.45fr) auto;
     align-items: end;
     gap: var(--spacing-xs);
-    padding: var(--spacing-sm);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-control);
-    background: var(--color-surface-raised);
   }
 
   .seating-chart-control {
@@ -429,7 +442,8 @@
     align-items: center;
     flex-wrap: wrap;
     gap: var(--spacing-sm);
-    padding-block: var(--spacing-xs);
+    padding-top: var(--spacing-xs);
+    border-top: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
   }
 
   .seating-toolbar__display-options,
@@ -870,7 +884,7 @@
     gap: var(--spacing-sm);
     padding: var(--spacing-sm);
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-card);
     background: var(--color-info-surface);
   }
 

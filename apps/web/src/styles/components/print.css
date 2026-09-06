@@ -23,6 +23,7 @@
     .seating-tray,
     .seating-page-heading__actions,
     .seating-tabs,
+    .seating-toolbar-card,
     .seating-toolbar {
       display: none !important;
     }
