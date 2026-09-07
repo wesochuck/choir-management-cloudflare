@@ -317,6 +317,10 @@
     padding-block: var(--spacing-3xs);
   }
 
+  .seating-page-heading > div:first-child {
+    min-width: 0;
+  }
+
   .seating-page-heading h1 {
     margin: var(--spacing-3xs) 0 0;
   }

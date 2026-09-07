@@ -34,6 +34,10 @@
     border-bottom: 1px solid var(--border);
   }
 
+  .data-table td {
+    overflow-wrap: anywhere;
+  }
+
   .data-table th.data-table__cell--actions,
   .data-table td.data-table__cell--actions {
     text-align: right;
@@ -280,6 +284,7 @@
       align-items: center;
       padding: var(--spacing-2xs) 0;
       border-bottom: 1px solid var(--border);
+      gap: var(--spacing-sm);
     }
 
     .data-table-card__field:last-child {
@@ -292,11 +297,16 @@
       color: var(--muted-foreground);
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      flex-shrink: 0;
+      white-space: nowrap;
     }
 
     .data-table-card__value {
       font-size: var(--font-size-base);
       text-align: right;
+      min-width: 0;
+      overflow-wrap: anywhere;
+      word-break: normal;
     }
 
     .data-table-card__field--actions {
@@ -308,6 +318,22 @@
       flex-wrap: wrap;
       justify-content: flex-end;
       gap: var(--spacing-xs);
+    }
+
+    @media (max-width: 26rem) {
+      .data-table-card__field {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--spacing-3xs);
+      }
+
+      .data-table-card__value {
+        text-align: left;
+      }
+
+      .data-table-card__field--actions .data-table-card__value {
+        justify-content: flex-start;
+      }
     }
 
     .music-bulk-edit-field {

@@ -247,6 +247,54 @@ const responsiveManagerResponses: Record<string, unknown> = {
     requestId,
   },
   "/api/organization/donations": { donations: [], requestId },
+  "/api/organization/contacts": {
+    contacts: [
+      {
+        createdAt: "2026-08-01T00:00:00.000Z",
+        displayName: "Dr. Alexander Montgomery-Wellington III",
+        email: "alexander.montgomery-wellington.the.third@very-long-subdomain.choir-example.test",
+        firstName: "Alexander",
+        id: "11111111-1111-4111-8111-111111111111",
+        lastName: "Montgomery-Wellington",
+        normalizedEmail:
+          "alexander.montgomery-wellington.the.third@very-long-subdomain.choir-example.test",
+        phone: "+1 (555) 234-5678 ext. 9012",
+        profileId: null,
+        source: "Annual Gala Benefit Donor Card",
+        updatedAt: "2026-08-02T00:00:00.000Z",
+      },
+    ],
+    hasMore: false,
+    memberships: [],
+    nextCursor: null,
+    preferences: [
+      {
+        channel: "email",
+        contactId: "11111111-1111-4111-8111-111111111111",
+        observedAt: "2026-08-01T00:00:00.000Z",
+        source: null,
+        status: "subscribed",
+      },
+    ],
+    requestId,
+    totalCount: 1,
+  },
+  "/api/organization/contact-lists": {
+    lists: [
+      {
+        createdAt: "2026-08-01T00:00:00.000Z",
+        description: "General Audience & Supporters",
+        id: "22222222-2222-4222-8222-222222222222",
+        name: "General Supporters",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+      },
+    ],
+    requestId,
+  },
+  "/api/organization/profiles": {
+    profiles: [],
+    requestId,
+  },
   "/api/organization/email-settings": {
     requestId,
     settings: {
@@ -657,6 +705,7 @@ test("signed-in pages never overflow horizontally at any breakpoint", async ({ p
     { path: "/admin/settings", label: "organization settings" },
     { path: "/admin/settings/modules", label: "module settings" },
     { path: "/admin/website", label: "public website" },
+    { path: "/admin/contacts", label: "contacts" },
   ];
 
   for (const { path, label } of pages) {
@@ -986,4 +1035,95 @@ test("member schedule uses Yes and No buttons for RSVP choices", async ({ page }
     "Declined",
   );
   await expect(scheduleRehearsal.locator(".schedule-rsvp__note")).toContainText("Travel conflict");
+});
+
+test("layout wrapping audit: catches text overflow, wrapped controls, and artificial description constraints", async ({
+  page,
+}) => {
+  await page.route("**/api/**", async (route) => {
+    if (await handleShellRoute(route)) return;
+    if (await handleDataRoute(route)) return;
+    await fulfillJson(route, { requestId });
+  });
+
+  const auditWidths = [1440, 1024, 768, 390];
+
+  for (const width of auditWidths) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/admin/contacts");
+    await expect(page.locator(".signed-in-header")).toBeVisible();
+
+    // 1. Page description must not have an artificial 48rem restriction
+    const description = page.locator(".page-heading__description");
+    await expect(description).toBeVisible();
+    const descInfo = await description.evaluate((el) => {
+      const computed = getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      const parentRect = el.parentElement?.getBoundingClientRect();
+      return {
+        maxWidth: computed.maxWidth,
+        parentWidth: parentRect?.width ?? 0,
+        width: rect.width,
+      };
+    });
+    expect(descInfo.maxWidth).toBe("none");
+    if (width >= 1024) {
+      // At desktop viewports, description spans the full available heading container width
+      expect(descInfo.width).toBeGreaterThanOrEqual(descInfo.parentWidth - 2);
+    }
+
+    // 2. Short controls (buttons, tabs, badges) must preserve text on a single line
+    const controls = await page.evaluate(() => {
+      const buttons = [...document.querySelectorAll(".button, .text-button")];
+      const tabs = [...document.querySelectorAll('[role="tab"], .ticketing-tabs button')];
+      const badges = [...document.querySelectorAll(".badge, .status-pill")];
+      const visible = [...buttons, ...tabs, ...badges].filter((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      return visible.map((el) => {
+        const style = getComputedStyle(el);
+        return {
+          className: el.className,
+          tag: el.tagName.toLowerCase(),
+          text: el.textContent.trim(),
+          whiteSpace: style.whiteSpace,
+        };
+      });
+    });
+    for (const ctrl of controls) {
+      expect(
+        ctrl.whiteSpace,
+        `Control <${ctrl.tag} class="${ctrl.className}"> "${ctrl.text}" should have white-space: nowrap`,
+      ).toBe("nowrap");
+    }
+
+    // 3. User data in cards or tables must not overflow its container or the viewport
+    const containerOverflow = await page.evaluate(() => {
+      const viewport = window.innerWidth;
+      const elements = [
+        ...document.querySelectorAll(".data-table-card, .data-table, .page-heading"),
+      ];
+      return elements.map((container) => {
+        const containerRect = container.getBoundingClientRect();
+        const overflowChild = [...container.querySelectorAll("*")].find((child) => {
+          const r = child.getBoundingClientRect();
+          return r.right > Math.min(containerRect.right, viewport) + 1.5;
+        });
+        return {
+          hasOverflow: Boolean(overflowChild),
+          overflowChild: overflowChild
+            ? `${overflowChild.tagName.toLowerCase()}.${overflowChild.className}`
+            : null,
+          tag: container.tagName.toLowerCase(),
+        };
+      });
+    });
+    for (const item of containerOverflow) {
+      expect(
+        item.hasOverflow,
+        `Container <${item.tag}> has overflowing child: ${item.overflowChild ?? "none"}`,
+      ).toBe(false);
+    }
+  }
 });

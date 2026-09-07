@@ -126,6 +126,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    white-space: nowrap;
     min-height: 3rem;
     padding: var(--spacing-sm) var(--spacing-md);
     border: 1px solid transparent;

@@ -242,6 +242,11 @@
     margin-bottom: var(--spacing-lg);
   }
 
+  .page-heading > div {
+    width: 100%;
+    min-width: 0;
+  }
+
   .page-heading h1,
   .signed-in-main .account-heading h1,
   .signed-in-main .auth-card h1 {
@@ -250,7 +255,7 @@
   }
 
   .page-heading__description {
-    max-width: 48rem;
+    max-width: none;
     margin: var(--spacing-3xs) 0 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-base);
@@ -430,8 +435,24 @@
   }
 
   .signed-in-main .status-pill,
-  .signed-in-main .badge {
+  .signed-in-main .badge,
+  .status-pill,
+  .badge,
+  .rsvp-status-badge,
+  .table-filter-badge {
     font-size: var(--font-size-xs);
+    white-space: nowrap;
+  }
+
+  [role="tab"],
+  .ticketing-tabs button,
+  .music-library-tabs a,
+  .seating-tabs button,
+  .music-piece-tabs button,
+  .roster-profile-tabs button,
+  .communication-tabs button,
+  .audition-tabs button {
+    white-space: nowrap;
   }
 
   .dialog--responsive {
