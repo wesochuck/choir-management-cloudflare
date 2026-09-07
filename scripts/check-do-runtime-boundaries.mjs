@@ -18,13 +18,6 @@ const schedulerRelative = "organization/scheduler.ts";
 
 const exceptions = [
   {
-    debtId: "DO-IO-001",
-    expectedCount: 1,
-    path: "organization/organizationEmailSettingsStore.ts",
-    reason: "Legacy DoH email-domain verification; move Worker-side separately.",
-    rule: "external-fetch",
-  },
-  {
     debtId: "DO-CONCURRENCY-INIT",
     expectedCount: 1,
     path: "organization/OrganizationStore.ts",

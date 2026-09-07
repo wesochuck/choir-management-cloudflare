@@ -51,7 +51,6 @@ import {
 import {
   readOrganizationEmailSettingsFromStore,
   updateOrganizationEmailSettingsInStore,
-  verifyOrganizationEmailDomainInStore,
 } from "../organizationEmailSettingsStore";
 import {
   listSeatingChartsFromStore,
@@ -341,12 +340,6 @@ export async function dispatchCommunicationPostRequest(
     const orgId = url.searchParams.get("organizationId");
     if (!orgId) return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
     return updateOrganizationEmailSettingsInStore(storage, orgId, request);
-  }
-  if (pathname === "/internal/email-settings/verify") {
-    const url = new URL(request.url);
-    const orgId = url.searchParams.get("organizationId");
-    if (!orgId) return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
-    return verifyOrganizationEmailDomainInStore(storage, orgId);
   }
   return null;
 }

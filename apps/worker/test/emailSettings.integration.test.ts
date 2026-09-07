@@ -136,6 +136,107 @@ describe("Organization Email Settings & Custom Sending Domain", () => {
     expect(verifyData.dnsRecords.length).toBe(4);
   });
 
+  it("replaces stale D1 rows when the custom domain changes", async () => {
+    const host = "emailtest1.localhost";
+    const cookie = await signIn(host);
+
+    await write(
+      host,
+      "/api/organization/email-settings",
+      cookie,
+      { customDomain: "old.emailtest1.org" },
+      "PUT",
+    );
+    await write(
+      host,
+      "/api/organization/email-settings",
+      cookie,
+      { customDomain: "new.emailtest1.org" },
+      "PUT",
+    );
+
+    const stale = await database
+      .prepare("SELECT * FROM organization_email_domains WHERE domain = ?")
+      .bind("old.emailtest1.org")
+      .first();
+    expect(stale).toBeNull();
+    const current = await database
+      .prepare("SELECT * FROM organization_email_domains WHERE domain = ?")
+      .bind("new.emailtest1.org")
+      .first<{ domain: string; organization_id: string; status: string }>();
+    expect(current?.organization_id).toBe("org-email-test-1");
+    expect(current?.status).toBe("pending");
+  });
+
+  it("refuses to reassign a domain owned by another organization", async () => {
+    await provision("org-email-test-2", "emailtest2");
+    const hostOne = "emailtest1.localhost";
+    const hostTwo = "emailtest2.localhost";
+    const cookieOne = await signIn(hostOne);
+    // The session cookie is organization-independent; the same member
+    // administers both test organizations, so reuse it for the second host.
+    const cookieTwo = cookieOne;
+
+    const first = await write(
+      hostOne,
+      "/api/organization/email-settings",
+      cookieOne,
+      { customDomain: "shared.emailtest.org" },
+      "PUT",
+    );
+    expect(first.status).toBe(200);
+
+    const second = await write(
+      hostTwo,
+      "/api/organization/email-settings",
+      cookieTwo,
+      { customDomain: "shared.emailtest.org" },
+      "PUT",
+    );
+    expect(second.status).toBe(409);
+    const body: unknown = await second.json();
+    const code =
+      typeof body === "object" && body !== null && "code" in body
+        ? Object.getOwnPropertyDescriptor(body, "code")?.value
+        : undefined;
+    expect(code).toBe("custom_domain_in_use");
+
+    const owner = await database
+      .prepare("SELECT organization_id FROM organization_email_domains WHERE domain = ?")
+      .bind("shared.emailtest.org")
+      .first<{ readonly organization_id: string }>();
+    expect(owner?.organization_id).toBe("org-email-test-1");
+  });
+
+  it("verifies conclusively without changing D1 on resolver success and keeps schema contract", async () => {
+    const host = "emailtest1.localhost";
+    const cookie = await signIn(host);
+    await write(
+      host,
+      "/api/organization/email-settings",
+      cookie,
+      { customDomain: "mail.emailtest1.org" },
+      "PUT",
+    );
+    const verifyResponse = await write(
+      host,
+      "/api/organization/email-settings/verify",
+      cookie,
+      {},
+      "POST",
+    );
+    expect(verifyResponse.status).toBe(200);
+    const verifyData = organizationEmailDomainVerifyResponseSchema.parse(
+      await verifyResponse.json(),
+    );
+    expect(verifyData.status).toBe("pending");
+    const d1Row = await database
+      .prepare("SELECT status FROM organization_email_domains WHERE domain = ?")
+      .bind("mail.emailtest1.org")
+      .first<{ readonly status: string }>();
+    expect(d1Row?.status).toBe("pending");
+  });
+
   it("removes custom domain cleanly and updates D1", async () => {
     const host = "emailtest1.localhost";
     const cookie = await signIn(host);

@@ -20,6 +20,11 @@ import {
   type UpdateContactInput,
   type UpdateContactListInput,
 } from "./contactStore";
+import type { OrganizationEmailDomainDnsRecord } from "@choir/contracts";
+import {
+  commitEmailDomainVerificationInStore,
+  prepareEmailDomainVerificationInStore,
+} from "./organizationEmailSettingsStore";
 import {
   cancelContactImportInStore,
   confirmContactImportInStore,
@@ -352,6 +357,22 @@ export class OrganizationStore extends DurableObject {
       input.organizationId,
       input.importId,
     );
+  }
+
+  // Email-domain DNS verification: strongly typed Durable Object RPC methods.
+  // The DO owns configuration and verification state; DNS resolution runs
+  // Worker-side. Call via `stub.methodName(...)`; no internal fetch routing.
+  prepareEmailDomainVerification(input: { readonly organizationId: string }) {
+    return prepareEmailDomainVerificationInStore(this.ctx.storage, input.organizationId);
+  }
+
+  commitEmailDomainVerification(input: {
+    readonly checkedAt: string;
+    readonly configurationId: string;
+    readonly dnsRecords: readonly OrganizationEmailDomainDnsRecord[];
+    readonly organizationId: string;
+  }) {
+    return commitEmailDomainVerificationInStore(this.ctx.storage, input);
   }
 
   private async dispatchRpcCall(call: OrganizationRpcCall): Promise<OrganizationRpcResult> {
