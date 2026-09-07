@@ -252,7 +252,12 @@ test("records a manual donation from the history tab", async ({ page }) => {
   await dialog.getByLabel(/Payment method/).selectOption({ label: "Cash" });
   await dialog.getByLabel(/Check # \/ Reference note/).fill("Hat proceeds");
 
+  const manualRequestPromise = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" && request.url().includes("/api/organization/donations/manual"),
+  );
   await dialog.getByRole("button", { name: "Record donation" }).click();
+  await manualRequestPromise;
 
   expect(manualPayload).toMatchObject({
     amountCents: 7500,
@@ -325,7 +330,13 @@ test("toggles thank-you letter status", async ({ page }) => {
   const danaRow = page.getByRole("row", { name: /Dana Donor/ });
   await expect(danaRow.getByText("Pending")).toBeVisible();
 
+  const thankYouRequestPromise = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" &&
+      request.url().includes("/api/organization/donations/thank-you"),
+  );
   await danaRow.getByRole("button", { name: "Mark sent" }).click();
+  await thankYouRequestPromise;
 
   expect(thankYouPayload).toEqual({ donationId: stripeDonationId, thankYouSent: true });
   await expect(page.getByRole("status")).toHaveText("Thank-you letter marked as sent.");
@@ -572,7 +583,12 @@ test("keyboard selection works and a degraded directory stays silent", async ({ 
   await expect(dialog).toBeVisible();
 
   await dialog.getByLabel("Amount (USD)").fill("25");
+  const manualRequestPromise = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" && request.url().includes("/api/organization/donations/manual"),
+  );
   await dialog.getByRole("button", { name: "Record donation" }).click();
+  await manualRequestPromise;
 
   expect(manualPayload).toMatchObject({
     amountCents: 2500,
