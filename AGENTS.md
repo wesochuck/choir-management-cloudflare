@@ -70,6 +70,14 @@ provider instructions against current authoritative documentation before changin
   merely to make it pass.
 - Do not introduce eyebrow kickers into the web design system. Headings carry their own context;
   `npm run check:no-eyebrows` enforces this.
+- Keep the Organization Durable Object runtime boundary hibernation-friendly. Runtime code reachable
+  from `OrganizationStore.ts` must not perform external `fetch()`, create long-lived timers, open
+  outbound sockets/WebSockets, call providers, or send queue work except for the scheduler's
+  approved bounded queue handoff and the named temporary `DO-IO-001` DoH exception. Do not use
+  `waitUntil()` in a Durable Object; it does not extend DO lifetime. OrganizationStore WebSockets
+  are outside the current architecture. Alarm ownership stays in `scheduler.ts`; store code requests
+  scheduler work through the shared alarm helpers. `npm run check:do-runtime` enforces these
+  boundaries.
 
 ## 5. Worktree and Git Safety
 

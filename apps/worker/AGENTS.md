@@ -44,6 +44,10 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
   `profileIds` and must enforce cross-tenant isolation (WS1).
 - SQL queries must not broadly swallow errors with empty catch blocks; unexpected SQL syntax or
   schema mismatches must fail fast (WS1).
+- Reads must not arm or advance Organization alarms. Writes that expose scheduler/outbox work use
+  the shared wake helper; a wake may move an alarm earlier but never postpone an earlier alarm.
+  `runOrganizationAlarm()` owns cadence/retry/continuation rescheduling and the single bounded
+  DO-to-`JOBS_QUEUE` handoff. Provider I/O stays Worker/queue-side.
 
 ## Queues, Workflows, and Providers
 

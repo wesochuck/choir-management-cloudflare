@@ -9,6 +9,7 @@ import {
 } from "./ticketingStore/notifications";
 import { deleteTicketBundle, upsertTicketBundle } from "./ticketingStore/bundles";
 import { createFakeCheckout, quoteTicketCheckout } from "./ticketingStore/checkout";
+import { wakeOrganizationAlarm } from "./scheduler";
 import {
   attachStripeSession,
   completeStripeTicketPurchase,
@@ -44,6 +45,20 @@ function dispatchStripeTicketOperation(
   }
 }
 
+function ticketPurchaseStatus(
+  storage: DurableObjectStorage,
+  checkoutRequestId: string,
+): string | null {
+  const row = storage.sql
+    .exec<{ readonly status: string }>(
+      "SELECT status FROM ticket_purchases WHERE checkout_request_id = ? LIMIT 1",
+      checkoutRequestId,
+    )
+    .toArray()
+    .at(0);
+  return row?.status ?? null;
+}
+
 // eslint-disable-next-line complexity -- dispatches the typed ticket/payment operations.
 export async function manageTicketingInStore(
   storage: DurableObjectStorage,
@@ -62,12 +77,24 @@ export async function manageTicketingInStore(
   switch (operation.data.action) {
     case "create_fake_checkout": {
       const response = createFakeCheckout(storage, operation.data, organization);
-      if (response.ok) await storage.setAlarm(Date.now() + 1);
+      // Only a newly created paid checkout enqueues scheduler work. Idempotent
+      // replays (200) and failures must not arm the alarm.
+      if (response.ok && response.status === 201) {
+        await wakeOrganizationAlarm(storage);
+      }
       return response;
     }
     case "create_stripe_pending": {
       const response = createFakeCheckout(storage, operation.data, organization);
-      if (response.ok) await storage.setAlarm(Date.now() + 1);
+      // Pending Stripe checkouts enqueue no outbox row. Wake only when the
+      // new checkout is paid (for example a free total), never for pending or
+      // idempotent replays.
+      if (response.ok && response.status === 201) {
+        const status = ticketPurchaseStatus(storage, operation.data.checkout.checkoutRequestId);
+        if (status !== null && status !== "pending") {
+          await wakeOrganizationAlarm(storage);
+        }
+      }
       return response;
     }
     case "quote_ticket_checkout":
@@ -92,7 +119,7 @@ export async function manageTicketingInStore(
       return recordTicketNotificationResult(storage, operation.data);
     case "resend_ticket_confirmation": {
       const response = resendTicketConfirmation(storage, operation.data);
-      if (response.ok) await storage.setAlarm(Date.now() + 1);
+      if (response.ok) await wakeOrganizationAlarm(storage);
       return response;
     }
   }

@@ -90,6 +90,10 @@ export async function ensureOrganizationAlarm(
  * invocation forward so newly queued delivery work does not wait for that
  * cadence. The scheduler state itself is still initialized here so this is
  * also safe if an earlier alarm was never armed.
+ *
+ * A wake request may move an existing alarm earlier, never later. An alarm
+ * that is already sooner than the requested wake is left unchanged so
+ * repeated wakes are stable and do not slide the alarm into the future.
  */
 export async function wakeOrganizationAlarm(
   storage: DurableObjectStorage,
@@ -102,7 +106,11 @@ export async function wakeOrganizationAlarm(
     nextDueAt,
     now.toISOString(),
   );
-  await storage.setAlarm(now.getTime() + ALARM_WAKE_DELAY_MS);
+  const requestedWake = now.getTime() + ALARM_WAKE_DELAY_MS;
+  const existingAlarm = await storage.getAlarm();
+  if (existingAlarm === null || requestedWake < existingAlarm) {
+    await storage.setAlarm(requestedWake);
+  }
 }
 
 interface ReminderCandidateRow {

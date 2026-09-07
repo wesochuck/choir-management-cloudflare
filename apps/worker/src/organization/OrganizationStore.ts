@@ -57,13 +57,14 @@ const eventReminderResultSchema = z.object({
 });
 
 function isAlarmWakePath(pathname: string): boolean {
+  // Ticketing wake is owned by ticketingStore via wakeOrganizationAlarm; keeping
+  // it here would deliberately wake the same operation twice.
   return (
     pathname === "/internal/audition/create" ||
     pathname === "/internal/audition/update" ||
     pathname === "/internal/donations/manage" ||
     pathname === "/internal/export/create" ||
-    pathname === "/internal/seasons/manage" ||
-    pathname === "/internal/ticketing/manage"
+    pathname === "/internal/seasons/manage"
   );
 }
 

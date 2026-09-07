@@ -25,6 +25,7 @@
     "check:no-eyebrows": "node scripts/check-no-eyebrows.mjs",
     "check:parity:implementation": "node scripts/audit-parity-implementation.mjs",
     "check:contracts:exports": "node scripts/check-contract-exports.mjs",
+    "check:do-runtime": "node scripts/check-do-runtime-boundaries.mjs",
     "check:parity": "node scripts/check-parity-matrix.mjs",
     "check:spacing": "node scripts/check-spacing.mjs",
     "deploy:production": "node scripts/deploy-production-local.mjs",

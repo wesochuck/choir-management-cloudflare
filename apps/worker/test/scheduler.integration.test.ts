@@ -3,6 +3,7 @@ import { reset, runDurableObjectAlarm, runInDurableObject } from "cloudflare:tes
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
+import { wakeOrganizationAlarm } from "../src/organization/scheduler";
 
 interface OutboxState {
   readonly enqueuedAt: string | null;
@@ -484,6 +485,7 @@ describe("Organization scheduler", () => {
         setupAt,
         setupAt,
       );
+      return undefined;
     });
     const requests = [
       {
@@ -596,6 +598,7 @@ describe("Organization scheduler", () => {
         now,
         now,
       );
+      return undefined;
     });
 
     const response = await stub.fetch(
@@ -791,5 +794,282 @@ describe("Organization scheduler", () => {
     expect(
       (await readAllOutboxJobs(stub)).filter((job) => job.kind === "rsvp_follow_up"),
     ).toHaveLength(1);
+  });
+
+  it("pure read does not change alarm", async () => {
+    const stub = await provisionScheduler();
+    const seedAlarm = Date.now() + 60_000;
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      return state.storage.setAlarm(seedAlarm).then(() => undefined);
+    });
+    const before = await runInDurableObject<OrganizationStore, number | null>(
+      stub,
+      (_instance, state) => state.storage.getAlarm(),
+    );
+    expect(before).toBe(seedAlarm);
+    const response = await stub.fetch(
+      "https://organization.internal/internal/branding?organizationId=organization-scheduler",
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ organizationId: expect.any(String) });
+    await expect(
+      runInDurableObject<OrganizationStore, number | null>(stub, (_instance, state) =>
+        state.storage.getAlarm(),
+      ),
+    ).resolves.toBe(seedAlarm);
+  });
+
+  it("wake moves a later alarm earlier", async () => {
+    const stub = await provisionScheduler();
+    const now = new Date();
+    const distant = now.getTime() + 60 * 60 * 1_000;
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      return state.storage.setAlarm(distant).then(() => undefined);
+    });
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) =>
+      wakeOrganizationAlarm(state.storage, now).then(() => undefined),
+    );
+    const alarm = await runInDurableObject<OrganizationStore, number | null>(
+      stub,
+      (_instance, state) => state.storage.getAlarm(),
+    );
+    expect(alarm).not.toBeNull();
+    if (alarm === null) throw new Error("The wake alarm was not armed.");
+    expect(alarm).toBeGreaterThanOrEqual(now.getTime());
+    expect(alarm).toBeLessThanOrEqual(now.getTime() + 5_000);
+  });
+
+  it("wake never postpones an earlier alarm", async () => {
+    const stub = await provisionScheduler();
+    const now = new Date();
+    const earlier = now.getTime() + 200;
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      return state.storage.setAlarm(earlier).then(() => undefined);
+    });
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) =>
+      wakeOrganizationAlarm(state.storage, now).then(() => undefined),
+    );
+    await expect(
+      runInDurableObject<OrganizationStore, number | null>(stub, (_instance, state) =>
+        state.storage.getAlarm(),
+      ),
+    ).resolves.toBe(earlier);
+  });
+
+  it("repeated wake is stable", async () => {
+    const stub = await provisionScheduler();
+    const firstNow = new Date();
+    const distant = firstNow.getTime() + 60 * 60 * 1_000;
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      return state.storage.setAlarm(distant).then(() => undefined);
+    });
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) =>
+      wakeOrganizationAlarm(state.storage, firstNow).then(() => undefined),
+    );
+    const firstAlarm = await runInDurableObject<OrganizationStore, number | null>(
+      stub,
+      (_instance, state) => state.storage.getAlarm(),
+    );
+    expect(firstAlarm).not.toBeNull();
+    const secondNow = new Date(firstNow.getTime() + 500);
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) =>
+      wakeOrganizationAlarm(state.storage, secondNow).then(() => undefined),
+    );
+    await expect(
+      runInDurableObject<OrganizationStore, number | null>(stub, (_instance, state) =>
+        state.storage.getAlarm(),
+      ),
+    ).resolves.toBe(firstAlarm);
+  });
+
+  it("alarm reschedules after no work", async () => {
+    const stub = await provisionScheduler();
+    const nextDueAt = await runInDurableObject<OrganizationStore, string>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<Record<string, SqlStorageValue> & { nextDueAt: string }>(
+            "SELECT next_due_at AS nextDueAt FROM scheduler_state WHERE singleton = 1",
+          )
+          .one().nextDueAt,
+    );
+    expect(new Date(nextDueAt).getTime()).toBeGreaterThan(Date.now());
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+    const jobs = await readAllOutboxJobs(stub);
+    expect(jobs.filter((job) => job.enqueuedAt !== null)).toHaveLength(0);
+    const alarm = await runInDurableObject<OrganizationStore, number | null>(
+      stub,
+      (_instance, state) => state.storage.getAlarm(),
+    );
+    expect(alarm).not.toBeNull();
+    if (alarm === null) throw new Error("The rescheduled alarm was not armed.");
+    expect(Math.abs(alarm - new Date(nextDueAt).getTime())).toBeLessThanOrEqual(5_000);
+  });
+
+  it("full batch continuation schedules prompt alarm", async () => {
+    const stub = await provisionScheduler();
+    const now = Date.now();
+    const overdueAt = new Date(now - 1_000).toISOString();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1",
+        overdueAt,
+        overdueAt,
+      );
+      for (let index = 0; index < 10; index += 1) {
+        const jobId = `11111111-1111-4111-8111-0000000000${index.toString().padStart(2, "0")}`;
+        state.storage.sql.exec(
+          `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+           VALUES (?, 'ticket_notification', ?, ?, ?)`,
+          jobId,
+          `ticket-notification:continuation-${index.toString()}`,
+          overdueAt,
+          overdueAt,
+        );
+      }
+      return state.storage.setAlarm(now + 60_000).then(() => undefined);
+    });
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+    const jobs = await readAllOutboxJobs(stub);
+    expect(jobs.filter((job) => job.enqueuedAt !== null)).toHaveLength(10);
+    const alarm = await runInDurableObject<OrganizationStore, number | null>(
+      stub,
+      (_instance, state) => state.storage.getAlarm(),
+    );
+    expect(alarm).not.toBeNull();
+    if (alarm === null) throw new Error("The continuation alarm was not armed.");
+    expect(alarm).toBeGreaterThanOrEqual(Date.now() - 5_000);
+    expect(alarm).toBeLessThanOrEqual(Date.now() + 5_000);
+  });
+
+  it("ticketing paid checkout wakes while pending checkout does not", async () => {
+    const stub = await provisionScheduler();
+    const now = Date.now();
+    const eventId = "22222222-2222-4222-8222-222222222222";
+    const setupAt = new Date(now - 1_000).toISOString();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO events
+          (id, title, type, starts_at, is_archived, is_canceled,
+           is_ticketing_enabled, advance_price_cents, day_of_price_cents,
+           created_at, updated_at)
+         VALUES (?, 'Wake Performance', 'Performance', ?, 0, 0, 1, 1000, 1500, ?, ?)`,
+        eventId,
+        new Date(now + 7 * 24 * 60 * 60 * 1_000).toISOString(),
+        setupAt,
+        setupAt,
+      );
+      return state.storage.deleteAlarm().then(() => undefined);
+    });
+
+    const paidResponse = await stub.fetch(
+      "https://organization.internal/internal/ticketing/manage",
+      {
+        body: JSON.stringify({
+          action: "create_fake_checkout",
+          checkout: {
+            buyerEmail: "wake@example.test",
+            buyerName: "Wake Buyer",
+            checkoutRequestId: "33333333-3333-4333-8333-333333333333",
+            eventId,
+            marketingOptIn: false,
+            quantity: 1,
+          },
+          organizationId: "organization-scheduler",
+          providerSessionId: "fake_session_wake_paid",
+          purchaseId: "44444444-4444-4444-8444-444444444444",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(paidResponse.status).toBe(201);
+    const paidAlarm = await runInDurableObject<OrganizationStore, number | null>(
+      stub,
+      (_instance, state) => state.storage.getAlarm(),
+    );
+    expect(paidAlarm).not.toBeNull();
+    if (paidAlarm === null) throw new Error("The paid checkout did not wake the scheduler.");
+    expect(paidAlarm).toBeGreaterThanOrEqual(now);
+    expect(paidAlarm).toBeLessThanOrEqual(Date.now() + 5_000);
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      return state.storage.deleteAlarm().then(() => undefined);
+    });
+    const pendingResponse = await stub.fetch(
+      "https://organization.internal/internal/ticketing/manage",
+      {
+        body: JSON.stringify({
+          action: "create_stripe_pending",
+          checkout: {
+            buyerEmail: "pending@example.test",
+            buyerName: "Pending Buyer",
+            checkoutRequestId: "55555555-5555-4555-8555-555555555555",
+            eventId,
+            marketingOptIn: false,
+            quantity: 1,
+          },
+          organizationId: "organization-scheduler",
+          providerSessionId: "stripe_session_wake_pending",
+          purchaseId: "66666666-6666-4666-8666-666666666666",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(pendingResponse.status).toBe(201);
+    await expect(
+      runInDurableObject<OrganizationStore, number | null>(stub, (_instance, state) =>
+        state.storage.getAlarm(),
+      ),
+    ).resolves.toBeNull();
+  });
+
+  it("communication send wakes the scheduler", async () => {
+    const stub = await provisionScheduler();
+    const requestedAt = Date.now();
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      return state.storage.deleteAlarm().then(() => undefined);
+    });
+    const profileId = "77777777-7777-4777-8777-777777777777";
+    const response = await stub.fetch(
+      "https://organization.internal/internal/communications/manage",
+      {
+        body: JSON.stringify({
+          action: "send",
+          actorUserId: "member-user",
+          jobId: "88888888-8888-4888-8888-888888888888",
+          message: {
+            audience: {},
+            channel: "Email",
+            contentMarkdown: "Hello from the wake test.",
+            subject: "Wake test",
+          },
+          messageId: "99999999-9999-4999-8999-999999999999",
+          organizationId: "organization-scheduler",
+          requestId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          recipients: [
+            {
+              email: "wake-recipient@example.test",
+              name: "Wake Recipient",
+              phone: "",
+              profileId,
+              unsubscribeUrl: null,
+            },
+          ],
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(response.ok).toBe(true);
+    const alarm = await runInDurableObject<OrganizationStore, number | null>(
+      stub,
+      (_instance, state) => state.storage.getAlarm(),
+    );
+    expect(alarm).not.toBeNull();
+    if (alarm === null) throw new Error("The communication send did not wake the scheduler.");
+    expect(alarm).toBeGreaterThanOrEqual(requestedAt);
+    expect(alarm).toBeLessThanOrEqual(Date.now() + 5_000);
   });
 });

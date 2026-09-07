@@ -24,6 +24,12 @@ const steps = [
     command: "node",
     args: ["scripts/check-durable-object-boundaries.mjs"],
   },
+  {
+    job: "static",
+    label: "Check DO runtime boundaries",
+    command: "npm",
+    args: ["run", "check:do-runtime"],
+  },
   { job: "static", label: "Check formatting", command: "npm", args: ["run", "format:check"] },
   {
     job: "static",

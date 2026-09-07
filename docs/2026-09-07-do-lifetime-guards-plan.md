@@ -1,7 +1,10 @@
 # DO Runtime Boundary Guards Implementation Plan
 
-- **Status:** Proposed — not implemented. This document is implementation guidance only; do not
-  build the changes until explicitly authorized.
+- **Status:** Implemented 2026-09-07. Guard (`scripts/check-do-runtime-boundaries.mjs`,
+  `npm run check:do-runtime`) scans the transitive runtime import graph rooted at
+  `OrganizationStore.ts`; `wakeOrganizationAlarm()` is monotonic-earlier; ticketing and
+  communication store wakes use the shared helper; `DO-IO-001` remains the sole external-fetch
+  exception. See Commit C notes in §4.
 - **Date:** 2026-09-07
 - **Revised:** 2026-09-07
 - **Scope:** Prevent Durable Object runtime-boundary regressions, keep the Organization Durable
@@ -21,11 +24,12 @@ retain stubs.
 
 The repository currently mixes two execution contexts under `apps/worker/src/organization/`:
 
-1. **Durable Object runtime code:** `OrganizationStore.ts`, `scheduler.ts`, migrations, store modules,
-   and any local runtime dependency reachable from `OrganizationStore.ts`.
+1. **Durable Object runtime code:** `OrganizationStore.ts`, `scheduler.ts`, migrations, store
+   modules, and any local runtime dependency reachable from `OrganizationStore.ts`.
 2. **Worker-side orchestrators / RPC callers:** files such as `organizationTicketing.ts`,
    `organizationDonations.ts`, `organizationSeasons.ts`, `organizationCommunications.ts`, and
-   `profiles.ts`. These run outside the DO and may legitimately call providers and the DO RPC client.
+   `profiles.ts`. These run outside the DO and may legitimately call providers and the DO RPC
+   client.
 
 Do not infer those contexts from filenames. A future helper such as
 `organization/domainVerification.ts` is DO-side if a value import from the OrganizationStore runtime
@@ -63,8 +67,8 @@ Before implementing or changing these guards, verify that current Cloudflare beh
 Known current exceptions / cleanup targets:
 
 - **DO-IO-001:** `organizationEmailSettingsStore.ts` performs a DNS-over-HTTPS `fetch()` to
-  `https://cloudflare-dns.com/dns-query` with a bounded timeout. Keep exactly this one external-fetch
-  exception until DNS verification is moved Worker-side.
+  `https://cloudflare-dns.com/dns-query` with a bounded timeout. Keep exactly this one
+  external-fetch exception until DNS verification is moved Worker-side.
 - `runOrganizationAlarm()` owns the intentional `queue.sendBatch()` handoff from durable outbox rows
   to the jobs queue. This is an approved architectural exception, not temporary debt.
 - `ticketingStore.ts` and `communicationStore/messages.ts` contain direct `storage.setAlarm(...)`
@@ -187,18 +191,18 @@ centralization commit; they are not part of the final target state.
 
 #### Runtime-boundary rules
 
-| Rule | Prohibit / constrain | Final allowlist |
-| --- | --- | --- |
-| R1 | Global external `fetch(...)` calls in the DO graph. Do not treat the `OrganizationStore.fetch` method declaration as a call. | Exactly `DO-IO-001`, expected count 1. |
-| R2 | `setTimeout(...)` and `setInterval(...)` in the DO graph. | None. |
-| R3 | Outbound socket/WebSocket capability: imports from `cloudflare:sockets` and outbound `new WebSocket(...)`. | None. |
-| R4 | OrganizationStore WebSocket APIs such as `acceptWebSocket(...)` and `setWebSocketAutoResponse(...)`. | None; unsupported architecture. |
-| R5 | `waitUntil(...)` in the DO graph. | None; misleading/no lifetime benefit in a DO. |
-| R6 | `blockConcurrencyWhile(...)`. | Exactly the existing constructor migration/initialization use in `OrganizationStore.ts`. |
-| R7 | Direct `setAlarm(...)` / `deleteAlarm(...)` outside `scheduler.ts`. | None after alarm centralization. |
-| R8 | Queue `send(...)` / `sendBatch(...)` from the DO graph. | The existing scheduler queue handoff only; require the approved scheduler file and expected occurrence count so a second send fails. |
-| R9 | Provider runtime dependencies in the DO graph. | None. |
-| R10 | Direct use of provider credentials/bindings from DO-side code (for example `PLATFORM_EMAIL`, `BREVO_API_KEY`, `STRIPE_SECRET_KEY`, `CLOUDFLARE_API_TOKEN`). | None. |
+| Rule | Prohibit / constrain                                                                                                                                        | Final allowlist                                                                                                                      |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| R1   | Global external `fetch(...)` calls in the DO graph. Do not treat the `OrganizationStore.fetch` method declaration as a call.                                | Exactly `DO-IO-001`, expected count 1.                                                                                               |
+| R2   | `setTimeout(...)` and `setInterval(...)` in the DO graph.                                                                                                   | None.                                                                                                                                |
+| R3   | Outbound socket/WebSocket capability: imports from `cloudflare:sockets` and outbound `new WebSocket(...)`.                                                  | None.                                                                                                                                |
+| R4   | OrganizationStore WebSocket APIs such as `acceptWebSocket(...)` and `setWebSocketAutoResponse(...)`.                                                        | None; unsupported architecture.                                                                                                      |
+| R5   | `waitUntil(...)` in the DO graph.                                                                                                                           | None; misleading/no lifetime benefit in a DO.                                                                                        |
+| R6   | `blockConcurrencyWhile(...)`.                                                                                                                               | Exactly the existing constructor migration/initialization use in `OrganizationStore.ts`.                                             |
+| R7   | Direct `setAlarm(...)` / `deleteAlarm(...)` outside `scheduler.ts`.                                                                                         | None after alarm centralization.                                                                                                     |
+| R8   | Queue `send(...)` / `sendBatch(...)` from the DO graph.                                                                                                     | The existing scheduler queue handoff only; require the approved scheduler file and expected occurrence count so a second send fails. |
+| R9   | Provider runtime dependencies in the DO graph.                                                                                                              | None.                                                                                                                                |
+| R10  | Direct use of provider credentials/bindings from DO-side code (for example `PLATFORM_EMAIL`, `BREVO_API_KEY`, `STRIPE_SECRET_KEY`, `CLOUDFLARE_API_TOKEN`). | None.                                                                                                                                |
 
 For R9, fail if the runtime graph reaches known provider modules or imports known provider SDKs.
 Start with the repository's actual provider boundaries, including Stripe/payment provider code,
@@ -289,10 +293,10 @@ The existing architecture is intentionally:
 4. mark rows enqueued;
 5. reschedule the alarm.
 
-The queue send is awaited network/external I/O and therefore extends that alarm event, but extracting
-it requires a materially different dispatcher architecture. The bounded scheduler queue handoff is
-an explicit approved exception. The guard exists to prevent **additional** queue/provider effects
-from spreading through DO store code.
+The queue send is awaited network/external I/O and therefore extends that alarm event, but
+extracting it requires a materially different dispatcher architecture. The bounded scheduler queue
+handoff is an explicit approved exception. The guard exists to prevent **additional** queue/provider
+effects from spreading through DO store code.
 
 ### 3.4 Wire the static/release gate
 
@@ -351,8 +355,8 @@ Root `AGENTS.md` §4, append:
 > - Keep the Organization Durable Object runtime boundary hibernation-friendly. Runtime code
 >   reachable from `OrganizationStore.ts` must not perform external `fetch()`, create long-lived
 >   timers, open outbound sockets/WebSockets, call providers, or send queue work except for the
->   scheduler's approved bounded queue handoff and the named temporary `DO-IO-001` DoH exception.
->   Do not use `waitUntil()` in a Durable Object; it does not extend DO lifetime. OrganizationStore
+>   scheduler's approved bounded queue handoff and the named temporary `DO-IO-001` DoH exception. Do
+>   not use `waitUntil()` in a Durable Object; it does not extend DO lifetime. OrganizationStore
 >   WebSockets are outside the current architecture. Alarm ownership stays in `scheduler.ts`; store
 >   code requests scheduler work through the shared alarm helpers. `npm run check:do-runtime`
 >   enforces these boundaries.
@@ -441,8 +445,8 @@ The implementation is complete only when all of the following are true:
 
 - A runtime dependency introduced several local imports below `OrganizationStore.ts` is still in
   scope of the checker automatically.
-- A new DO-side external `fetch`, timer, outbound socket/WebSocket, `waitUntil`, provider dependency,
-  direct non-scheduler alarm call, or extra queue send fails the static/release gate.
+- A new DO-side external `fetch`, timer, outbound socket/WebSocket, `waitUntil`, provider
+  dependency, direct non-scheduler alarm call, or extra queue send fails the static/release gate.
 - The checker cannot be bypassed by adding a magic comment.
 - Allowlist entries are count-checked and fail when stale.
 - `ticketingStore.ts` and `communicationStore/messages.ts` no longer call `setAlarm()` directly.
@@ -456,8 +460,8 @@ The implementation is complete only when all of the following are true:
 
 - **Graph false positives:** mitigate by following runtime imports only and ignoring `import type`.
   Fail unresolved relative runtime imports explicitly instead of silently changing scope.
-- **Regex/token false positives:** use comment-stripped source for call checks, path/specifier checks
-  for provider boundaries, and built-in scanner fixtures for every important rule.
+- **Regex/token false positives:** use comment-stripped source for call checks, path/specifier
+  checks for provider boundaries, and built-in scanner fixtures for every important rule.
 - **Allowlist drift:** explicit expected counts make stale or expanded exceptions fail closed.
 - **Alarm behavior regression:** changing wake ownership is material Worker behavior. Protect the
   "move earlier, never later" invariant and replay behavior with real-DO integration tests.

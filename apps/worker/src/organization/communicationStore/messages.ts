@@ -21,6 +21,7 @@ import type {
 } from "./contracts";
 import { MAX_COMMUNICATION_DELIVERIES, type TemplateRow } from "./contracts";
 import { audit, readMessage } from "./shared";
+import { wakeOrganizationAlarm } from "../scheduler";
 
 function deliveryRows(
   message: z.infer<typeof communicationSendRequestSchema>,
@@ -171,7 +172,7 @@ export async function sendMessage(
     if (!message) throw new Error("The deduplicated communication message could not be read.");
     return Response.json(message);
   }
-  await storage.setAlarm(Date.now() + 1);
+  await wakeOrganizationAlarm(storage);
   return Response.json(readMessage(storage, operation.messageId));
 }
 
@@ -468,7 +469,7 @@ export async function retryMessage(
       now,
     );
   });
-  await storage.setAlarm(Date.now() + 1);
+  await wakeOrganizationAlarm(storage);
   return Response.json({ messageId: operation.messageId, retried: failed });
 }
 
