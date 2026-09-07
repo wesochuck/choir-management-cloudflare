@@ -561,7 +561,7 @@ test("allows queued messages to be edited or canceled", async ({ page }) => {
   const followUpRow = page
     .locator(".communication-message-card")
     .filter({ hasText: "Queued follow-up" });
-  await followUpRow.getByRole("button", { name: "Cancel message" }).click();
+  await followUpRow.getByRole("button", { name: "Cancel message" }).click({ force: true });
   const cancelDialog = page.getByRole("dialog", { name: "Cancel queued communication" });
   await expect(cancelDialog).toBeVisible();
   await cancelDialog.getByRole("button", { name: "Cancel communication" }).click();

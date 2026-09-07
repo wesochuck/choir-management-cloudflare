@@ -3,9 +3,9 @@
 - **Status:** Proposed — not implemented. This document is implementation guidance only; do not
   build the changes until explicitly authorized.
 - **Date:** 2026-09-07
-- **Scope:** Close `DO-IO-001` by moving DNS-over-HTTPS verification out of `OrganizationStore`, make
-  email-domain verification exact and stale-safe, and keep the D1 domain registry consistent with
-  the Organization Durable Object without changing the public verification response contract.
+- **Scope:** Close `DO-IO-001` by moving DNS-over-HTTPS verification out of `OrganizationStore`,
+  make email-domain verification exact and stale-safe, and keep the D1 domain registry consistent
+  with the Organization Durable Object without changing the public verification response contract.
 - **Related plan:** `docs/2026-09-07-do-lifetime-guards-plan.md`.
 - **Decisions locked:** Worker-side code owns DNS network I/O. The Organization Durable Object owns
   durable email-domain configuration and verification state. New DO operations use strongly typed
@@ -33,9 +33,9 @@ This creates both an architectural issue and correctness gaps.
 
 ### 1.1 Architectural issue: external DNS I/O runs inside the DO
 
-The DoH `fetch()` is the named `DO-IO-001` exception in the DO runtime-boundary plan. It keeps the DO
-activation busy while the DNS request is outstanding and makes a network provider concern reachable
-from the OrganizationStore runtime graph.
+The DoH `fetch()` is the named `DO-IO-001` exception in the DO runtime-boundary plan. It keeps the
+DO activation busy while the DNS request is outstanding and makes a network provider concern
+reachable from the OrganizationStore runtime graph.
 
 The desired ownership is:
 
@@ -152,8 +152,8 @@ For each expected record:
 - **`invalid`:** the expected owner/type has a conclusive answer set, but the required value is not
   present.
 
-Do not invent an `unknown`/`error` record state in the public contract. Resolver failures are handled
-at the attempt level and are not committed.
+Do not invent an `unknown`/`error` record state in the public contract. Resolver failures are
+handled at the attempt level and are not committed.
 
 ### 3.2 Attempt-level resolver failure
 
@@ -376,7 +376,8 @@ Refactor `POST /api/organization/email-settings/verify` in
 7. if commit returns stale-configuration 409, return a conflict/retry response; do **not** silently
    start a second DNS lookup in the same request;
 8. synchronize D1 from the committed DO result;
-9. return the existing `organizationEmailDomainVerifyResponseSchema` shape with the route request ID.
+9. return the existing `organizationEmailDomainVerifyResponseSchema` shape with the route request
+   ID.
 
 Do not automatically retry the entire prepare -> DNS -> commit sequence. A stale result means the
 configuration changed and the user should initiate a verification of the new configuration. Resolver
@@ -419,8 +420,8 @@ Organization when the configured domain changes or is removed.
 
 `organization_email_domains.domain` is globally unique. Before changing an Organization to a new
 custom domain, inspect whether D1 already assigns that normalized domain to a different
-Organization. If so, fail closed with a 409-style domain-in-use error rather than silently reassigning
-that row.
+Organization. If so, fail closed with a 409-style domain-in-use error rather than silently
+reassigning that row.
 
 The implementation must also handle the race where two Organizations attempt to claim the same
 previously-unclaimed domain concurrently. Treat a unique-constraint conflict as domain-in-use and do
@@ -436,18 +437,18 @@ recoverable state on this conflict. Preferred implementation sequence for a **ne
    prior domain settings using the captured pre-mutation settings, then verify the restoration;
 5. if restoration fails, surface/log a high-severity consistency error instead of hiding it.
 
-If implementation inspection shows `organization_email_domains` is not used as an ownership
-registry anywhere and is purely disposable derived cache, document that finding in the change and
-simplify this sequence accordingly. Do not assume that without enumerating current consumers first.
+If implementation inspection shows `organization_email_domains` is not used as an ownership registry
+anywhere and is purely disposable derived cache, document that finding in the change and simplify
+this sequence accordingly. Do not assume that without enumerating current consumers first.
 
 ### 4.6 Keep required-DNS generation separate from resolver extraction
 
 This plan changes **where/how DNS is checked**, not what DNS configuration the product requires.
 
-Before enabling exact record comparison in staging, inspect `generateRequiredDnsRecords()` and verify
-that its SPF/DKIM/MX/DMARC values are the intended current values for the actual email-sending
-architecture. Exact checking will correctly reject a placeholder or obsolete value if the app's
-required-record generator is wrong.
+Before enabling exact record comparison in staging, inspect `generateRequiredDnsRecords()` and
+verify that its SPF/DKIM/MX/DMARC values are the intended current values for the actual
+email-sending architecture. Exact checking will correctly reject a placeholder or obsolete value if
+the app's required-record generator is wrong.
 
 If those values need correction:
 
@@ -464,8 +465,7 @@ After the Worker-side path is staged and qualified:
 - delete/replace `verifyOrganizationEmailDomainInStore()` so no network resolver remains DO-side;
 - remove the legacy `/internal/email-settings/verify` dispatch path;
 - remove any imports made unnecessary by that path;
-- remove the `DO-IO-001` external-fetch exception from
-  `scripts/check-do-runtime-boundaries.mjs`;
+- remove the `DO-IO-001` external-fetch exception from `scripts/check-do-runtime-boundaries.mjs`;
 - change the runtime-boundary guard's final expectation to **zero global external `fetch()` calls**
   in the OrganizationStore runtime graph.
 
