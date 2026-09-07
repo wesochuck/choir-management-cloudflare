@@ -2,6 +2,7 @@ import type {
   CommunicationAudienceRequest,
   CommunicationChannel,
   CommunicationTemplate,
+  ContactList,
   OrganizationEvent,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
@@ -27,6 +28,7 @@ interface MessageComposerProps {
   readonly audienceOptions: readonly CommunicationAudienceTarget[];
   readonly busy: boolean;
   readonly channel: CommunicationChannel;
+  readonly contactLists: readonly ContactList[];
   readonly contentMarkdown: string;
   readonly contextIssues: readonly CommunicationContextIssue[];
   readonly events: readonly OrganizationEvent[];
@@ -360,6 +362,7 @@ export function MessageComposer({
   audienceOptions,
   busy,
   channel,
+  contactLists,
   contentMarkdown,
   contextIssues,
   events,
@@ -457,6 +460,7 @@ export function MessageComposer({
         audience={audience}
         audienceOptions={audienceOptions}
         channel={channel}
+        contactLists={contactLists}
         events={events}
         expanded={recipientsExpanded}
         onChannelChange={onChannelChange}

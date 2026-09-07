@@ -45,6 +45,7 @@ import {
   readCommunicationJobFromStore,
   readCommunicationSummaryFromStore,
   resolveCommunicationAudienceFromStore,
+  unsubscribeCommunicationContactInStore,
   unsubscribeCommunicationProfileInStore,
 } from "../communicationStore";
 import {
@@ -331,6 +332,9 @@ export async function dispatchCommunicationPostRequest(
   }
   if (pathname === "/internal/communications/unsubscribe") {
     return unsubscribeCommunicationProfileInStore(storage, request);
+  }
+  if (pathname === "/internal/communications/contact-unsubscribe") {
+    return unsubscribeCommunicationContactInStore(storage, request);
   }
   if (pathname === "/internal/email-settings/manage") {
     const url = new URL(request.url);

@@ -1301,6 +1301,143 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE organization_metadata ADD COLUMN physical_address TEXT NOT NULL DEFAULT ''",
     ],
   },
+  {
+    version: 78,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS contacts (
+        id TEXT PRIMARY KEY,
+        first_name TEXT,
+        last_name TEXT,
+        display_name TEXT,
+        email TEXT,
+        normalized_email TEXT,
+        phone TEXT,
+        normalized_phone TEXT,
+        profile_id TEXT,
+        source TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_contacts_normalized_email
+        ON contacts(normalized_email) WHERE normalized_email IS NOT NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_contacts_normalized_phone
+        ON contacts(normalized_phone)`,
+      `CREATE INDEX IF NOT EXISTS idx_contacts_profile_id
+        ON contacts(profile_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_contacts_display_name
+        ON contacts(display_name COLLATE NOCASE, id)`,
+      `CREATE TABLE IF NOT EXISTS contact_communication_preferences (
+        contact_id TEXT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+        channel TEXT NOT NULL CHECK (channel IN ('email', 'sms')),
+        status TEXT NOT NULL CHECK (status IN ('unknown', 'subscribed', 'unsubscribed')),
+        source TEXT,
+        observed_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (contact_id, channel)
+      ) STRICT`,
+      `CREATE TABLE IF NOT EXISTS contact_lists (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX IF NOT EXISTS idx_contact_lists_name
+        ON contact_lists(name COLLATE NOCASE, id)`,
+      `CREATE TABLE IF NOT EXISTS contact_list_memberships (
+        contact_id TEXT NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+        list_id TEXT NOT NULL REFERENCES contact_lists(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (contact_id, list_id)
+      ) STRICT`,
+      `CREATE INDEX IF NOT EXISTS idx_contact_list_memberships_list
+        ON contact_list_memberships(list_id, contact_id)`,
+    ],
+  },
+  {
+    version: 79,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS contact_imports (
+        id TEXT PRIMARY KEY,
+        status TEXT NOT NULL CHECK (status IN ('staged', 'confirmed', 'processing', 'completed', 'failed', 'cancelled')),
+        file_name TEXT NOT NULL DEFAULT '',
+        byte_count INTEGER NOT NULL DEFAULT 0 CHECK (byte_count >= 0),
+        headers_json TEXT NOT NULL DEFAULT '[]',
+        mapping_json TEXT NOT NULL DEFAULT '[]',
+        list_ids_json TEXT NOT NULL DEFAULT '[]',
+        idempotency_key TEXT NOT NULL UNIQUE,
+        actor_user_id TEXT NOT NULL DEFAULT '',
+        request_id TEXT NOT NULL DEFAULT '',
+        row_count INTEGER NOT NULL DEFAULT 0 CHECK (row_count >= 0),
+        processed_rows INTEGER NOT NULL DEFAULT 0 CHECK (processed_rows >= 0),
+        contacts_created INTEGER NOT NULL DEFAULT 0 CHECK (contacts_created >= 0),
+        contacts_updated INTEGER NOT NULL DEFAULT 0 CHECK (contacts_updated >= 0),
+        existing_matches INTEGER NOT NULL DEFAULT 0 CHECK (existing_matches >= 0),
+        in_file_duplicates INTEGER NOT NULL DEFAULT 0 CHECK (in_file_duplicates >= 0),
+        invalid_rows INTEGER NOT NULL DEFAULT 0 CHECK (invalid_rows >= 0),
+        suppressed_preserved INTEGER NOT NULL DEFAULT 0 CHECK (suppressed_preserved >= 0),
+        memberships_added INTEGER NOT NULL DEFAULT 0 CHECK (memberships_added >= 0),
+        error_code TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        confirmed_at TEXT,
+        completed_at TEXT
+      ) STRICT`,
+      `CREATE TABLE IF NOT EXISTS contact_import_rows (
+        import_id TEXT NOT NULL REFERENCES contact_imports(id) ON DELETE CASCADE,
+        row_index INTEGER NOT NULL CHECK (row_index >= 0),
+        row_number INTEGER NOT NULL CHECK (row_number >= 0),
+        cells_json TEXT NOT NULL DEFAULT '[]',
+        status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'done', 'error', 'skipped')),
+        error TEXT NOT NULL DEFAULT '',
+        contact_id TEXT,
+        dedupe_key TEXT,
+        PRIMARY KEY (import_id, row_index)
+      ) STRICT`,
+      `CREATE INDEX IF NOT EXISTS idx_contact_import_rows_pending
+        ON contact_import_rows(import_id, status, row_index)`,
+    ],
+  },
+  {
+    version: 80,
+    statements: [
+      // Expand/contract recipient identity: nullable JSON subject column keeps
+      // every pre-subject delivery row readable (NULL adapts to the legacy
+      // profile subject carried by profile_id). Rollback drops the column;
+      // the profile_id carrier remains the source of truth for old rows.
+      "ALTER TABLE communication_deliveries ADD COLUMN recipient_subject_json TEXT",
+    ],
+  },
+  {
+    version: 81,
+    statements: [
+      // Phase 8 commerce → Contact identity: nullable contact_id links paid
+      // ticket purchases and donations to a Contact without touching the
+      // buyer name/email snapshot columns, which remain transaction history.
+      // Rollback drops the columns; snapshots stay intact so commerce reads
+      // keep working. Contact deletion nulls these links explicitly in
+      // deleteContactInStore because SQLite foreign_keys enforcement is off;
+      // the REFERENCES clause documents intent for tooling.
+      "ALTER TABLE ticket_purchases ADD COLUMN contact_id TEXT REFERENCES contacts(id) ON DELETE SET NULL",
+      "ALTER TABLE donations ADD COLUMN contact_id TEXT REFERENCES contacts(id) ON DELETE SET NULL",
+      `CREATE INDEX IF NOT EXISTS idx_ticket_purchases_contact_id
+        ON ticket_purchases(contact_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_donations_contact_id
+        ON donations(contact_id)`,
+    ],
+  },
+  {
+    version: 82,
+    statements: [
+      // Phase 10 unified Contact detail view: the per-contact activity lookup
+      // counts linked commerce rows (already indexed) and reads the most
+      // recent sent email delivery addressed to the Contact's ID carrier.
+      // Rollback drops the index; the detail query keeps working as a
+      // bounded scan because every filter stays Organization-scoped.
+      `CREATE INDEX IF NOT EXISTS idx_communication_deliveries_profile
+        ON communication_deliveries(profile_id, channel, status)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

@@ -5,12 +5,16 @@ import {
 
 import {
   messageColumns,
+  type CommunicationAudienceStorage,
   type ConfigurationRow,
   type IdentityRow,
   type MessageRow,
 } from "./contracts";
 
-export function identityMatches(storage: DurableObjectStorage, organizationId: string): boolean {
+export function identityMatches(
+  storage: CommunicationAudienceStorage,
+  organizationId: string,
+): boolean {
   return (
     storage.sql
       .exec<IdentityRow>(
@@ -124,7 +128,7 @@ export function audit(
 }
 
 export function allowedVoiceParts(
-  storage: DurableObjectStorage,
+  storage: CommunicationAudienceStorage,
   requested: readonly string[],
 ): Set<string> | null {
   if (requested.length === 0) return null;
@@ -151,7 +155,7 @@ export function allowedVoiceParts(
   return result;
 }
 
-export function trackOnlyVoiceParts(storage: DurableObjectStorage): Set<string> {
+export function trackOnlyVoiceParts(storage: CommunicationAudienceStorage): Set<string> {
   const row = storage.sql
     .exec<ConfigurationRow>(
       "SELECT roster_configuration_json AS rosterConfigurationJson FROM organization_metadata LIMIT 1",

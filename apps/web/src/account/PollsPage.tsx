@@ -578,6 +578,11 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     try {
       const draft = await saveOrganizationCommunicationDraft({
         audience: {
+          contactEmailStatus: null,
+          contactIds: [],
+          contactListIds: [],
+          contactSmsStatus: null,
+          contactSource: null,
           eventId: null,
           globalStatuses: ["Active", "Idle"],
           profileIds: [],

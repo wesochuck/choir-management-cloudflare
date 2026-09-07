@@ -72,6 +72,7 @@ export const organizationGroups: readonly NavigationGroup[] = [
     label: "People",
     items: [
       { href: "/admin/roster", label: "Roster", module: "roster" },
+      { href: "/admin/contacts", label: "Contacts" },
       { href: "/admin/settings/invitations", label: "Membership invitations", module: "roster" },
       { href: "/directory", label: "Directory", module: "directory" },
       { href: "/admin/auditions", label: "Auditions & Inquiries", module: "auditions" },
@@ -190,6 +191,10 @@ const staticPageDescriptions: readonly [string, string][] = [
     "Build a message in three steps: choose the audience, write with Markdown and placeholders, then review it before queueing delivery.",
   ],
   [
+    "/admin/contacts",
+    "Manage marketing and community contacts, contact lists, and communication preferences separately from the Organization roster.",
+  ],
+  [
     "/admin/website",
     "Edit a private draft, then publish an immutable edge-cached version for Organization visitors.",
   ],
@@ -268,6 +273,7 @@ export function pageTitle(pathname: string): string {
     ["/admin/setlists", "Set lists"],
     ["/admin/resources", "Resources"],
     ["/admin/communications", "Communications"],
+    ["/admin/contacts", "Contacts"],
     ["/admin/polls", "Polls"],
     ["/admin/tickets/scan", "Ticket scanner"],
     ["/admin/tickets", "Ticketing"],

@@ -4,6 +4,17 @@ export const queryKeys = {
     all: ["organization"] as const,
     attendance: (eventId: string) => ["organization", "events", eventId, "attendance"] as const,
     calendarSettings: ["organization", "calendar-settings"] as const,
+    contactDetail: (contactId: string) => ["organization", "contacts", contactId] as const,
+    contactImport: (importId: string) => ["organization", "contact-imports", importId] as const,
+    contactImports: ["organization", "contact-imports"] as const,
+    contactLists: ["organization", "contact-lists"] as const,
+    contactProfiles: ["organization", "contacts", "profiles"] as const,
+    contacts: (filters: {
+      readonly listId?: string | undefined;
+      readonly query?: string | undefined;
+      readonly source?: string | undefined;
+      readonly status?: string | undefined;
+    }) => ["organization", "contacts", "list", filters] as const,
     directory: ["organization", "directory"] as const,
     donationSettings: ["organization", "donation-settings"] as const,
     donations: ["organization", "donations"] as const,

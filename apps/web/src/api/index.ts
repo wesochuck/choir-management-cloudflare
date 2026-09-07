@@ -16,6 +16,8 @@ export * from "./singer";
 export * from "./files";
 export * from "./resources";
 export * from "./auditions";
+export * from "./contacts";
+export * from "./contactImports";
 export * from "./player";
 export * from "./polls";
 export * from "./queryKeys";

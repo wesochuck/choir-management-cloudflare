@@ -32,6 +32,12 @@ export const CommunicationCenter = lazy(() =>
   })),
 );
 
+export const ContactsPage = lazy(() =>
+  import("../../ContactsPage").then(({ ContactsPage: component }) => ({
+    default: component,
+  })),
+);
+
 export const DonationsManager = lazy(() =>
   import("../../DonationsManager").then(({ DonationsManager: component }) => ({
     default: component,

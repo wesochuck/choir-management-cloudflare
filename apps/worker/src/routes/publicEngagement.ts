@@ -7,7 +7,11 @@ import {
 } from "@choir/contracts";
 import { z } from "zod";
 import { validateStartupConfig } from "../env";
-import { unsubscribeOrganizationProfile } from "../organization/organizationCommunications";
+import {
+  parseUnsubscribeSubject,
+  unsubscribeOrganizationContact,
+  unsubscribeOrganizationProfile,
+} from "../organization/organizationCommunications";
 import { verifySignedLinkScope } from "../security/signedLinks";
 import {
   PrivateFileStorageError,
@@ -406,8 +410,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       expectedOrganizationId: resolved.value.organizationId,
       expectedPurpose: "unsubscribe",
     });
-    const profileId = z.uuid().safeParse(envelope?.subjectId);
-    if (envelope?.revocation !== "email-v1" || !profileId.success)
+    if (envelope?.revocation !== "email-v1") {
       return context.json(
         {
           code: "invalid_unsubscribe_link",
@@ -416,13 +419,40 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         } satisfies ProblemDetails,
         400,
       );
-    try {
-      await unsubscribeOrganizationProfile(
-        context.env,
-        resolved.value.organizationId,
-        profileId.data,
-        requestIdValue,
+    }
+    const subject = parseUnsubscribeSubject(envelope);
+    const subjectId =
+      subject?.kind === "profile"
+        ? z.uuid().safeParse(subject.profileId)
+        : subject?.kind === "contact"
+          ? z.uuid().safeParse(subject.contactId)
+          : null;
+    if (!subject || !subjectId?.success) {
+      return context.json(
+        {
+          code: "invalid_unsubscribe_link",
+          message: "This unsubscribe link is invalid or expired.",
+          requestId: requestIdValue,
+        } satisfies ProblemDetails,
+        400,
       );
+    }
+    try {
+      if (subject.kind === "contact") {
+        await unsubscribeOrganizationContact(
+          context.env,
+          resolved.value.organizationId,
+          subjectId.data,
+          requestIdValue,
+        );
+      } else {
+        await unsubscribeOrganizationProfile(
+          context.env,
+          resolved.value.organizationId,
+          subjectId.data,
+          requestIdValue,
+        );
+      }
       return context.json({ requestId: requestIdValue, success: true as const });
     } catch {
       return context.json(

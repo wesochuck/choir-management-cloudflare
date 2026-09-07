@@ -1,4 +1,4 @@
-export type CommunicationAudienceTarget = "Members" | "Ticket Buyers" | "Donors";
+export type CommunicationAudienceTarget = "Members" | "Contacts" | "Ticket Buyers" | "Donors";
 export type CommunicationChannel = "Both" | "Email" | "SMS";
 
 export type CommunicationPlaceholderContext =
@@ -35,7 +35,12 @@ export interface CommunicationAudienceLike {
 export function isCommunicationAudienceTarget(
   target: string,
 ): target is CommunicationAudienceTarget {
-  return target === "Members" || target === "Ticket Buyers" || target === "Donors";
+  return (
+    target === "Members" ||
+    target === "Contacts" ||
+    target === "Ticket Buyers" ||
+    target === "Donors"
+  );
 }
 
 export interface CommunicationContextIssue {
@@ -80,7 +85,7 @@ export const communicationPlaceholderDefinitions: readonly CommunicationPlacehol
     tag: "{organizationName}",
   },
   {
-    audience: ["Members", "Ticket Buyers"],
+    audience: ["Members", "Ticket Buyers", "Contacts"],
     category: "Event",
     contexts: ["standard", "attendance", "ticket"],
     description: "The title of the selected event.",
@@ -98,7 +103,7 @@ export const communicationPlaceholderDefinitions: readonly CommunicationPlacehol
     tag: "{eventType}",
   },
   {
-    audience: ["Members", "Ticket Buyers"],
+    audience: ["Members", "Ticket Buyers", "Contacts"],
     category: "Event",
     contexts: ["standard", "attendance", "ticket"],
     description: "The selected event's date and time.",
@@ -107,7 +112,7 @@ export const communicationPlaceholderDefinitions: readonly CommunicationPlacehol
     tag: "{eventDate}",
   },
   {
-    audience: ["Members"],
+    audience: ["Members", "Contacts"],
     category: "Event",
     contexts: ["standard", "attendance"],
     description: "The venue or location entered for the event.",
@@ -125,7 +130,7 @@ export const communicationPlaceholderDefinitions: readonly CommunicationPlacehol
     tag: "{eventCallTime}",
   },
   {
-    audience: ["Members"],
+    audience: ["Members", "Contacts"],
     category: "Event",
     contexts: ["standard", "attendance"],
     description: "The event's administrative details.",

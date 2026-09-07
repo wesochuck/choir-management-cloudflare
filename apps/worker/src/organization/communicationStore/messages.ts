@@ -1,4 +1,8 @@
-import type { communicationSendRequestSchema } from "@choir/contracts";
+import type {
+  communicationSendRequestSchema,
+  CommunicationRecipientSubject,
+} from "@choir/contracts";
+import { communicationRecipientSubjectFromLegacy } from "@choir/contracts";
 import { communicationTemplateSchema } from "@choir/contracts";
 import { communicationReach } from "@choir/domain";
 import type { z } from "zod";
@@ -26,6 +30,8 @@ function deliveryRows(
 ) {
   const seen = new Set<string>();
   return recipients.flatMap((recipient) => {
+    const subject: CommunicationRecipientSubject =
+      recipient.subject ?? communicationRecipientSubjectFromLegacy(recipient.profileId);
     const values: { channel: "email" | "sms"; destination: string }[] = [];
     if (message.channel !== "SMS" && recipient.email) {
       values.push({ channel: "email", destination: recipient.email });
@@ -34,7 +40,7 @@ function deliveryRows(
       values.push({ channel: "sms", destination: recipient.phone });
     }
     return values.flatMap((value) => {
-      const key = `${recipient.profileId}:${value.channel}:${value.destination.trim().toLowerCase()}`;
+      const key = `${subject.kind}:${recipient.profileId}:${value.channel}:${value.destination.trim().toLowerCase()}`;
       if (seen.has(key)) return [];
       seen.add(key);
       return [
@@ -44,6 +50,7 @@ function deliveryRows(
           messageId,
           now,
           recipient,
+          subject,
         },
       ];
     });
@@ -116,8 +123,8 @@ export async function sendMessage(
       storage.sql.exec(
         `INSERT INTO communication_deliveries
           (id, message_id, profile_id, recipient_name, channel, destination, status,
-           created_at, updated_at, unsubscribe_url)
-         VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
+           created_at, updated_at, unsubscribe_url, recipient_subject_json)
+         VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?, ?)`,
         delivery.id,
         delivery.messageId,
         delivery.recipient.profileId,
@@ -127,6 +134,7 @@ export async function sendMessage(
         delivery.now,
         delivery.now,
         delivery.channel === "email" ? delivery.recipient.unsubscribeUrl : null,
+        JSON.stringify(delivery.subject),
       );
     }
     storage.sql.exec(

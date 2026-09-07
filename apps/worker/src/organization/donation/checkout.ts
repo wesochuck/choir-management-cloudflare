@@ -2,6 +2,7 @@ import { transactionProcessingFeeCents } from "@choir/domain";
 import type { z } from "zod";
 
 import { transactionFeeSettingsFromStore } from "../transactionFeeSettingsStore";
+import { resolveOrCreateContactForCommerce } from "../commerceContacts";
 import { findOrCreatePatron, upsertPatronAfterDonation } from "./patrons";
 import {
   donationByCheckoutRequest,
@@ -39,6 +40,19 @@ export function createDonationCheckout(
     operation.checkout.buyerEmail,
     now,
   );
+  // Phase 8 commerce → Contact linkage: paid donations resolve a Contact
+  // before the insert transaction so contact creation never nests inside it.
+  // Pending rows link at Stripe completion; snapshots stay untouched.
+  const donationContactId = pending
+    ? null
+    : resolveOrCreateContactForCommerce(storage, {
+        buyerEmail: operation.checkout.buyerEmail,
+        buyerName: operation.checkout.buyerName,
+        existingContactId: null,
+        marketingOptIn: operation.checkout.marketingConsent,
+        occurredAt: now,
+        source: "donation",
+      });
   storage.transactionSync(() => {
     storage.sql.exec(
       `INSERT INTO donations
@@ -48,8 +62,8 @@ export function createDonationCheckout(
          anonymous, marketing_consent,
          buyer_name, buyer_email, patron_id,
          provider_session_id, provider_payment_id,
-         created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         created_at, updated_at, contact_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       operation.donationId,
       operation.checkout.checkoutRequestId,
       pending ? "pending" : "paid",
@@ -67,6 +81,7 @@ export function createDonationCheckout(
       pending ? "" : `fake_payment_${operation.donationId}`,
       now,
       now,
+      donationContactId,
     );
     storage.sql.exec(
       `INSERT INTO payment_attempts

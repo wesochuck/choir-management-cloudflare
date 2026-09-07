@@ -1,6 +1,35 @@
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 
+import {
+  addContactsToListInStore,
+  createContactInStore,
+  createContactListInStore,
+  deleteContactInStore,
+  deleteContactListInStore,
+  getContactFromStore,
+  listContactListsFromStore,
+  listContactsFromStore,
+  removeContactsFromListInStore,
+  updateContactInStore,
+  updateContactListInStore,
+  type BulkMembershipInput,
+  type CreateContactInput,
+  type CreateContactListInput,
+  type ListContactsInput,
+  type UpdateContactInput,
+  type UpdateContactListInput,
+} from "./contactStore";
+import {
+  cancelContactImportInStore,
+  confirmContactImportInStore,
+  createContactImportInStore,
+  getContactImportFromStore,
+  previewContactImportFromStore,
+  processContactImportBatchInStore,
+  readContactImportErrorCsvFromStore,
+  updateContactImportMappingInStore,
+} from "./contactImportStore";
 import { migrateOrganization } from "./migrations";
 import { runOrganizationAlarm, wakeOrganizationAlarm } from "./scheduler";
 import { dispatchPostRequest } from "./organizationStore/post";
@@ -172,6 +201,156 @@ export class OrganizationStore extends DurableObject {
 
   async operationsRpc(call: OrganizationRpcCall<"operations">): Promise<OrganizationRpcResult> {
     return this.dispatchRpcCall(call);
+  }
+
+  // Phase 2 marketing contacts: strongly typed Durable Object RPC methods.
+  // Call via `stub.methodName(...)`; no internal fetch routing.
+  listContacts(input: ListContactsInput) {
+    return listContactsFromStore(this.ctx.storage, input);
+  }
+
+  getContact(input: { readonly contactId: string; readonly organizationId: string | null }) {
+    return getContactFromStore(this.ctx.storage, input.organizationId, input.contactId);
+  }
+
+  createContact(input: CreateContactInput) {
+    return createContactInStore(this.ctx.storage, input);
+  }
+
+  updateContact(input: UpdateContactInput) {
+    return updateContactInStore(this.ctx.storage, input);
+  }
+
+  deleteContact(input: {
+    readonly actorUserId: string;
+    readonly contactId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  }) {
+    return deleteContactInStore(this.ctx.storage, input);
+  }
+
+  listContactLists(input: { readonly organizationId: string | null }) {
+    return listContactListsFromStore(this.ctx.storage, input.organizationId);
+  }
+
+  createContactList(input: CreateContactListInput) {
+    return createContactListInStore(this.ctx.storage, input);
+  }
+
+  updateContactList(input: UpdateContactListInput) {
+    return updateContactListInStore(this.ctx.storage, input);
+  }
+
+  deleteContactList(input: {
+    readonly actorUserId: string;
+    readonly listId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  }) {
+    return deleteContactListInStore(this.ctx.storage, input);
+  }
+
+  addContactsToList(input: BulkMembershipInput) {
+    return addContactsToListInStore(this.ctx.storage, input);
+  }
+
+  removeContactsFromList(input: BulkMembershipInput) {
+    return removeContactsFromListInStore(this.ctx.storage, input);
+  }
+
+  // Phase 5 staged CSV contact imports: strongly typed Durable Object RPC
+  // methods. Call via `stub.methodName(...)`; no internal fetch routing.
+  // Only confirmation enqueues async work (via the scheduler outbox + alarm);
+  // upload/mapping/preview/cancel never mutate contacts.
+  createContactImport(input: {
+    readonly actorUserId: string;
+    readonly byteCount: number;
+    readonly fileName: string;
+    readonly headers: readonly string[];
+    readonly importId: string;
+    readonly malformedRows?:
+      | readonly {
+          readonly cells: readonly string[];
+          readonly error: string;
+          readonly rowNumber: number;
+        }[]
+      | undefined;
+    readonly organizationId: string;
+    readonly requestId: string;
+    readonly rows:
+      | readonly (readonly string[])[]
+      | readonly {
+          readonly cells: readonly string[];
+          readonly rowNumber?: number;
+        }[];
+  }) {
+    return createContactImportInStore(this.ctx.storage, input);
+  }
+
+  getContactImport(input: { readonly importId: string; readonly organizationId: string | null }) {
+    return getContactImportFromStore(this.ctx.storage, input.organizationId, input.importId);
+  }
+
+  updateContactImportMapping(input: {
+    readonly actorUserId: string;
+    readonly importId: string;
+    readonly listIds: readonly string[];
+    readonly mapping: readonly string[];
+    readonly organizationId: string;
+    readonly requestId: string;
+  }) {
+    return updateContactImportMappingInStore(this.ctx.storage, input);
+  }
+
+  previewContactImport(input: {
+    readonly importId: string;
+    readonly organizationId: string | null;
+  }) {
+    return previewContactImportFromStore(this.ctx.storage, input.organizationId, input.importId);
+  }
+
+  async confirmContactImport(input: {
+    readonly actorUserId: string;
+    readonly importId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  }) {
+    const result = confirmContactImportInStore(this.ctx.storage, input);
+    // Wake the scheduler promptly so the queued import does not wait for the
+    // hourly cadence; the alarm drains the outbox through the queue consumer.
+    await wakeOrganizationAlarm(this.ctx.storage);
+    return result;
+  }
+
+  cancelContactImport(input: {
+    readonly actorUserId: string;
+    readonly importId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  }) {
+    return cancelContactImportInStore(this.ctx.storage, input);
+  }
+
+  processContactImportBatch(input: {
+    readonly actorUserId: string;
+    readonly batchSize?: number | undefined;
+    readonly importId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  }) {
+    return processContactImportBatchInStore(this.ctx.storage, input);
+  }
+
+  contactImportErrorCsv(input: {
+    readonly importId: string;
+    readonly organizationId: string | null;
+  }) {
+    return readContactImportErrorCsvFromStore(
+      this.ctx.storage,
+      input.organizationId,
+      input.importId,
+    );
   }
 
   private async dispatchRpcCall(call: OrganizationRpcCall): Promise<OrganizationRpcResult> {

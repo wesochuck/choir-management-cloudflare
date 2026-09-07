@@ -6,6 +6,7 @@ import type {
   CommunicationReach,
   CommunicationScheduledMessage,
   CommunicationTemplate,
+  ContactList,
   OrganizationEmailSettings,
   OrganizationEvent,
   OrganizationProviderStatusResponse,
@@ -62,6 +63,7 @@ export interface CommunicationCenterControllerModel {
   readonly cancelQueuedMessage: (messageId: string) => Promise<void>;
   readonly channel: CommunicationChannel;
   readonly confirmationDialog: React.ReactNode;
+  readonly contactLists: readonly ContactList[];
   readonly contentMarkdown: string;
   readonly contextIssues: readonly CommunicationContextIssue[];
   readonly deleteDraft: (messageId: string) => Promise<void>;

@@ -12,6 +12,7 @@ import {
   terminalResponseSchema,
 } from "./deliveries/shared";
 import { deliverCommunicationJob } from "./deliveries/communication";
+import { deliverContactImportJob } from "./deliveries/contactImport";
 import {
   deliverScheduledEventCommunication,
   deliverAttendanceReportJob,
@@ -23,9 +24,15 @@ import { deliverOrganizationExportJob } from "./deliveries/export";
 import { cleanupStaleCheckout } from "./deliveries/cleanup";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { mutateOrganizationStore } from "../organization/rpc/repository";
+
+// eslint-disable-next-line complexity -- dispatches the bounded delivery-kind union without changing its routing semantics.
 async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
   if (job.kind === "communication_delivery") {
     await deliverCommunicationJob(env, job);
+    return;
+  }
+  if (job.kind === "contact_import") {
+    await deliverContactImportJob(env, job);
     return;
   }
   if (job.kind === "ticket_notification") {

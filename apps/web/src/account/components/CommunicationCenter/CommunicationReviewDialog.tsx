@@ -1,6 +1,7 @@
 import type {
   CommunicationAudienceRequest,
   CommunicationChannel,
+  ContactList,
   OrganizationEvent,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
@@ -10,12 +11,18 @@ import {
   renderCommunicationMarkdownPreview,
 } from "../../communicationMarkdown";
 import type { CommunicationReachState } from "./types";
-import { memberFiltersSummary, reachSummaryText, recipientTypeSummary } from "./utils";
+import {
+  contactFiltersSummary,
+  memberFiltersSummary,
+  reachSummaryText,
+  recipientTypeSummary,
+} from "./utils";
 
 interface CommunicationReviewDialogProps {
   readonly audience: CommunicationAudienceRequest;
   readonly busy: boolean;
   readonly channel: CommunicationChannel;
+  readonly contactLists: readonly ContactList[];
   readonly contentMarkdown: string;
   readonly error: string | null;
   readonly onClose: () => void;
@@ -31,6 +38,7 @@ export function CommunicationReviewDialog({
   audience,
   busy,
   channel,
+  contactLists,
   contentMarkdown,
   error,
   onClose,
@@ -45,6 +53,10 @@ export function CommunicationReviewDialog({
   const memberSummary = audience.targetAudiences.includes("Members")
     ? memberFiltersSummary(audience, rosterConfiguration)
     : "";
+  const contactSummary = audience.targetAudiences.includes("Contacts")
+    ? contactFiltersSummary(audience, new Map(contactLists.map((list) => [list.id, list.name])))
+    : "";
+  const filterSummary = [memberSummary, contactSummary].filter(Boolean).join(" · ");
 
   const totalCount = reachState.data?.total ?? 0;
   const previewValues = communicationPreviewValues(selectedEvent);
@@ -70,7 +82,7 @@ export function CommunicationReviewDialog({
             <dt>Recipients</dt>
             <dd>
               <strong>{recipientSummary}</strong>
-              {memberSummary ? ` · ${memberSummary}` : ""}
+              {filterSummary ? ` · ${filterSummary}` : ""}
               {selectedEvent ? ` · ${selectedEvent.title}` : ""}
             </dd>
           </div>

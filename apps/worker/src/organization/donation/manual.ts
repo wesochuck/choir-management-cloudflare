@@ -1,5 +1,6 @@
 import type { z } from "zod";
 
+import { resolveOrCreateContactForCommerce } from "../commerceContacts";
 import { findOrCreatePatron, upsertPatronAfterDonation } from "./patrons";
 import { donationById, donationResult } from "./queries";
 import type { createManualDonationOperationSchema } from "./types";
@@ -13,6 +14,17 @@ export function createManualDonation(
   const now = new Date().toISOString();
   const thankYouSentAt = donation.thankYouSent ? now : null;
   const buyerEmail = donation.buyerEmail.trim().toLowerCase();
+
+  // Phase 8: manual donations are recorded paid, so they link a Contact up
+  // front. A missing email yields null (no bogus contact) and stores NULL.
+  const manualContactId = resolveOrCreateContactForCommerce(storage, {
+    buyerEmail,
+    buyerName: donation.buyerName,
+    existingContactId: null,
+    marketingOptIn: donation.marketingConsent,
+    occurredAt: now,
+    source: "donation",
+  });
 
   storage.transactionSync(() => {
     let patronId: string | null = null;
@@ -29,8 +41,8 @@ export function createManualDonation(
         tribute_type, tribute_name, tribute_notify_email,
         anonymous, marketing_consent, buyer_name, buyer_email,
         patron_id, provider_session_id, provider_payment_id,
-        created_at, updated_at
-      ) VALUES (?, ?, 'paid', ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?)`,
+        created_at, updated_at, contact_id
+      ) VALUES (?, ?, 'paid', ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)`,
       operation.donationId,
       checkoutRequestId,
       donation.amountCents,
@@ -48,6 +60,7 @@ export function createManualDonation(
       providerSessionId,
       occurredAt,
       now,
+      manualContactId,
     );
     storage.sql.exec(
       `INSERT INTO audit_events

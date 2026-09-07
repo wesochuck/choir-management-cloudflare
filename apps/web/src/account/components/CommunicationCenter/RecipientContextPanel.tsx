@@ -1,12 +1,14 @@
 import type {
   CommunicationAudienceRequest,
   CommunicationChannel,
+  ContactList,
   OrganizationEvent,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import type { CommunicationAudienceTarget, CommunicationReachState } from "./types";
 import {
   channelFromValue,
+  contactFiltersSummary,
   eventLabel,
   memberFiltersSummary,
   reachSummaryText,
@@ -18,6 +20,7 @@ interface RecipientContextPanelProps {
   readonly audience: CommunicationAudienceRequest;
   readonly audienceOptions: readonly CommunicationAudienceTarget[];
   readonly channel: CommunicationChannel;
+  readonly contactLists: readonly ContactList[];
   readonly events: readonly OrganizationEvent[];
   readonly expanded: boolean;
   readonly onChannelChange: (channel: CommunicationChannel) => void;
@@ -117,7 +120,7 @@ function MemberFiltersDetails({
 
 interface CollapsedSummaryProps {
   readonly channel: CommunicationChannel;
-  readonly memberSummary: string;
+  readonly filterSummary: string;
   readonly onToggleExpanded: (expanded: boolean) => void;
   readonly reachState: CommunicationReachState;
   readonly recipientSummary: string;
@@ -126,7 +129,7 @@ interface CollapsedSummaryProps {
 
 function CollapsedRecipientSummary({
   channel,
-  memberSummary,
+  filterSummary,
   onToggleExpanded,
   reachState,
   recipientSummary,
@@ -144,7 +147,7 @@ function CollapsedRecipientSummary({
           <span className="summary-label">To</span>
           <span className="summary-value">
             <strong>{recipientSummary}</strong>
-            {memberSummary ? ` · ${memberSummary}` : ""}
+            {filterSummary ? ` · ${filterSummary}` : ""}
             {selectedEvent ? ` · ${selectedEvent.title}` : ""}
           </span>
         </div>
@@ -174,6 +177,7 @@ export function RecipientContextPanel({
   audience,
   audienceOptions,
   channel,
+  contactLists,
   events,
   expanded,
   onChannelChange,
@@ -184,6 +188,7 @@ export function RecipientContextPanel({
   selectedEvent,
 }: RecipientContextPanelProps) {
   const isMembersSelected = audience.targetAudiences.includes("Members");
+  const isContactsSelected = audience.targetAudiences.includes("Contacts");
   const isTicketBuyersSelected = audience.targetAudiences.includes("Ticket Buyers");
   const isMixedAudience = audience.targetAudiences.length > 1;
 
@@ -214,6 +219,9 @@ export function RecipientContextPanel({
   const recipientSummary = recipientTypeSummary(audience);
   const memberSummary = isMembersSelected
     ? memberFiltersSummary(audience, rosterConfiguration)
+    : "";
+  const contactSummary = isContactsSelected
+    ? contactFiltersSummary(audience, new Map(contactLists.map((list) => [list.id, list.name])))
     : "";
 
   return (
@@ -318,6 +326,44 @@ export function RecipientContextPanel({
                 rosterConfiguration={rosterConfiguration}
               />
             ) : null}
+
+            {/* Contacts: List targeting (all eligible when none selected) */}
+            {isContactsSelected ? (
+              <fieldset className="field">
+                <legend className="field-label">Contact lists</legend>
+                {contactLists.length === 0 ? (
+                  <p className="field-hint" role="note">
+                    No contact lists yet. The message will reach all eligible contacts.
+                  </p>
+                ) : (
+                  <div className="checkbox-grid">
+                    {contactLists.map((list) => (
+                      <label className="checkbox-row" key={list.id}>
+                        <input
+                          checked={audience.contactListIds.includes(list.id)}
+                          onChange={(event) => {
+                            const checked = event.target.checked;
+                            onUpdateAudience((current) => ({
+                              ...current,
+                              contactListIds: checked
+                                ? [...new Set([...current.contactListIds, list.id])]
+                                : current.contactListIds.filter((id) => id !== list.id),
+                            }));
+                          }}
+                          type="checkbox"
+                        />
+                        {list.name}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <p className="field-hint">
+                  {audience.contactListIds.length === 0
+                    ? "All eligible contacts are included. Select lists to narrow the audience."
+                    : "Only contacts in the selected lists are included. A contact in several selected lists still receives one copy."}
+                </p>
+              </fieldset>
+            ) : null}
           </div>
 
           {/* Automatic Reach Summary */}
@@ -338,7 +384,7 @@ export function RecipientContextPanel({
       ) : (
         <CollapsedRecipientSummary
           channel={channel}
-          memberSummary={memberSummary}
+          filterSummary={[memberSummary, contactSummary].filter(Boolean).join(" · ")}
           onToggleExpanded={onToggleExpanded}
           reachState={reachState}
           recipientSummary={recipientSummary}

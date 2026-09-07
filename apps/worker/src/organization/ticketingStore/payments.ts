@@ -8,6 +8,7 @@ import type {
   stripeTicketRefundedOperationSchema,
 } from "./contracts";
 import { purchaseSelect, type TicketPurchaseRow } from "./contracts";
+import { linkPaidTicketPurchaseContact } from "../commerceContacts";
 import { queueTicketConfirmation } from "./notifications";
 import { purchaseResult } from "./readModel";
 
@@ -203,6 +204,9 @@ export function completeStripeTicketPurchase(
     .exec<TicketPurchaseRow>(`${purchaseSelect} WHERE id = ? LIMIT 1`, row.id)
     .toArray()
     .at(0);
+  // Phase 8: a purchase that just became paid (or an older paid row meeting a
+  // duplicate webhook) links its Contact after the fulfillment transaction.
+  if (updated?.status === "paid") linkPaidTicketPurchaseContact(storage, updated.id);
   return updated
     ? Response.json(purchaseResult(updated))
     : Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });

@@ -12,6 +12,11 @@ function audience(
   eventId: string | null = null,
 ): CommunicationAudienceRequest {
   return {
+    contactEmailStatus: null,
+    contactIds: [],
+    contactListIds: [],
+    contactSmsStatus: null,
+    contactSource: null,
     eventId,
     globalStatuses: ["Active"],
     profileIds: [],

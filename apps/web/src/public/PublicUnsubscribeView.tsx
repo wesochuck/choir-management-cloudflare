@@ -4,12 +4,14 @@ import { unsubscribeOrganizationEmail } from "../auth/api";
 
 type UnsubscribeState = "invalid" | "processing" | "success" | "error";
 
-export function PublicUnsubscribeView({ token }: { readonly token: string | null }) {
-  const [state, setState] = useState<UnsubscribeState>(token ? "processing" : "invalid");
+export function PublicUnsubscribeView({ token }: { readonly token: string | null | undefined }) {
+  // Never strip or clear the `token` query parameter (no replaceState):
+  // reloads, background-tab restores, and bookmarks must keep working.
+  const currentToken = typeof token === "string" && token.length > 0 ? token : null;
+  const [state, setState] = useState<UnsubscribeState>(currentToken ? "processing" : "invalid");
 
   useEffect(() => {
-    if (!token) return;
-    const currentToken = token;
+    if (!currentToken) return;
     unsubscribeOrganizationEmail(currentToken)
       .then(() => {
         setState("success");
@@ -17,7 +19,7 @@ export function PublicUnsubscribeView({ token }: { readonly token: string | null
       .catch(() => {
         setState("error");
       });
-  }, [token]);
+  }, [currentToken]);
 
   return (
     <main className="auth-layout">

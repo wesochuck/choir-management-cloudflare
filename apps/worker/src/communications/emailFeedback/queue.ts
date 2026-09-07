@@ -195,12 +195,16 @@ async function processEventRow(
     if (!response.ok) throw new Error("The organization rejected the provider email event.");
     const feedback = z
       .object({
+        contactId: z.uuid().nullable().optional(),
         profileId: z.uuid().nullable(),
         providerSuppressed: z.boolean(),
         recorded: z.literal(true),
       })
       .safeParse(await response.json().catch(() => null));
     if (!feedback.success) throw new Error("The organization provider feedback was invalid.");
+    // Contact suppressions live in the Organization's contact preferences
+    // (written by the DO above); the D1 profile-suppression ledger stays
+    // profile-only so contact IDs are never stored as profile IDs.
     if (feedback.data.providerSuppressed && feedback.data.profileId) {
       const suppressionReason =
         event.eventType === "complained"

@@ -40,6 +40,7 @@ export function CommunicationCenterView({
     cancelQueuedMessage,
     channel,
     confirmationDialog,
+    contactLists,
     contentMarkdown,
     contextIssues,
     deleteDraft,
@@ -190,6 +191,7 @@ export function CommunicationCenterView({
                 audienceOptions={audienceOptions}
                 busy={busy}
                 channel={channel}
+                contactLists={contactLists}
                 contentMarkdown={contentMarkdown}
                 contextIssues={contextIssues}
                 events={events}
@@ -245,6 +247,7 @@ export function CommunicationCenterView({
         audience={audience}
         busy={busy}
         channel={channel}
+        contactLists={contactLists}
         contentMarkdown={contentMarkdown}
         error={error}
         onClose={() => {

@@ -7,6 +7,7 @@ import {
   AttendanceManager,
   AuditionManager,
   CommunicationCenter,
+  ContactsPage,
   DashboardView,
   DonationsManager,
   EventsPage,
@@ -98,6 +99,7 @@ export function renderOrganizationPage(
     "/admin/attendance": <AttendanceManager enabled={focusedEnabled} />,
     "/admin/auditions": <AuditionManager enabled={focusedEnabled} />,
     "/admin/communications": <CommunicationCenter enabled={focusedEnabled} />,
+    "/admin/contacts": <ContactsPage enabled={focusedEnabled} />,
     "/admin/donations": <DonationsManager enabled={focusedEnabled} />,
     "/admin/patrons": <DonationsManager enabled={focusedEnabled} />,
     "/admin/library": (

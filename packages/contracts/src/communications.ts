@@ -44,7 +44,72 @@ export const communicationFailureCategorySchema = z.enum([
   "unknown",
 ]);
 
+export const communicationAudienceTargetSchema = z.enum([
+  "Members",
+  "Contacts",
+  "Ticket Buyers",
+  "Donors",
+]);
+
+export type CommunicationAudienceTarget = z.infer<typeof communicationAudienceTargetSchema>;
+
+/**
+ * Phase 6 recipient identity (expand/contract).
+ *
+ * Historical communication rows predate this subject and carry only a single
+ * identifier in the delivery `profile_id` carrier column. New sends populate
+ * both the carrier (for rollback-compatible reads) and this typed subject.
+ * `communicationRecipientSubjectFromLegacy` adapts old rows. Phase 9 resolves
+ * Ticket Buyer and Donor audiences through Contacts and never mints
+ * `ticket_purchase`/`donation` subjects for new sends; those kinds remain
+ * parseable so historical deliveries stay readable.
+ */
+export const communicationRecipientSubjectSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("profile"), profileId: z.uuid() }),
+  z.object({ kind: z.literal("contact"), contactId: z.uuid() }),
+  z.object({ kind: z.literal("ticket_purchase"), purchaseId: z.uuid() }),
+  z.object({ kind: z.literal("donation"), donationId: z.uuid() }),
+]);
+
+export type CommunicationRecipientSubject = z.infer<typeof communicationRecipientSubjectSchema>;
+
+/** Adapts a pre-subject delivery carrier ID to the legacy profile subject. */
+export function communicationRecipientSubjectFromLegacy(profileId: string): {
+  readonly kind: "profile";
+  readonly profileId: string;
+} {
+  return { kind: "profile", profileId };
+}
+
+/** Returns the underlying identifier carried by a recipient subject. */
+export function communicationRecipientSubjectId(subject: CommunicationRecipientSubject): string {
+  switch (subject.kind) {
+    case "profile":
+      return subject.profileId;
+    case "contact":
+      return subject.contactId;
+    case "ticket_purchase":
+      return subject.purchaseId;
+    case "donation":
+      return subject.donationId;
+  }
+}
+
+/** Maximum Contact IDs accepted by one communication audience request. */
+export const COMMUNICATION_AUDIENCE_CONTACT_IDS_MAX = 500;
+
+/** Maximum Contact Lists accepted by one communication audience request. */
+export const COMMUNICATION_AUDIENCE_CONTACT_LISTS_MAX = 50;
+
+const communicationContactEmailStatusSchema = z.enum(["unknown", "subscribed", "unsubscribed"]);
+const communicationContactSmsStatusSchema = z.enum(["unknown", "subscribed", "unsubscribed"]);
+
 export const communicationAudienceRequestSchema = z.object({
+  contactEmailStatus: communicationContactEmailStatusSchema.nullable().default(null),
+  contactIds: z.array(z.uuid()).max(COMMUNICATION_AUDIENCE_CONTACT_IDS_MAX).default([]),
+  contactListIds: z.array(z.uuid()).max(COMMUNICATION_AUDIENCE_CONTACT_LISTS_MAX).default([]),
+  contactSmsStatus: communicationContactSmsStatusSchema.nullable().default(null),
+  contactSource: z.string().trim().max(200).nullable().default(null),
   eventId: z.uuid().nullable().default(null),
   globalStatuses: z
     .array(z.enum(["Active", "Idle", "Inactive"]))
@@ -52,11 +117,7 @@ export const communicationAudienceRequestSchema = z.object({
     .default(["Active"]),
   profileIds: z.array(z.uuid()).max(500).default([]),
   rsvp: z.enum(["All", "Yes", "No", "Pending"]).default("All"),
-  targetAudiences: z
-    .array(z.enum(["Members", "Ticket Buyers", "Donors"]))
-    .min(1)
-    .max(3)
-    .default(["Members"]),
+  targetAudiences: z.array(communicationAudienceTargetSchema).min(1).max(4).default(["Members"]),
   voiceParts: z.array(z.string().trim().min(1).max(80)).max(100).default([]),
 });
 

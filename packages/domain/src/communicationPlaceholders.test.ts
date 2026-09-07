@@ -55,13 +55,17 @@ describe("communicationPlaceholders domain logic", () => {
       );
     });
 
-    it("allows shared event fields for Members, Ticket Buyers, and mixed Members + Ticket Buyers", () => {
+    it("allows shared event fields for Members, Ticket Buyers, Contacts, and mixed audiences", () => {
       const eventTitleDef = getDef("{eventTitle}");
       const eventDateDef = getDef("{eventDate}");
 
       expect(isPlaceholderCompatibleWithAudience(eventTitleDef, ["Members"])).toBe(true);
       expect(isPlaceholderCompatibleWithAudience(eventTitleDef, ["Ticket Buyers"])).toBe(true);
+      expect(isPlaceholderCompatibleWithAudience(eventTitleDef, ["Contacts"])).toBe(true);
       expect(isPlaceholderCompatibleWithAudience(eventTitleDef, ["Members", "Ticket Buyers"])).toBe(
+        true,
+      );
+      expect(isPlaceholderCompatibleWithAudience(eventTitleDef, ["Contacts", "Members"])).toBe(
         true,
       );
       expect(isPlaceholderCompatibleWithAudience(eventTitleDef, ["Donors"])).toBe(false);
@@ -70,6 +74,7 @@ describe("communicationPlaceholders domain logic", () => {
       expect(isPlaceholderCompatibleWithAudience(eventDateDef, ["Members", "Ticket Buyers"])).toBe(
         true,
       );
+      expect(isPlaceholderCompatibleWithAudience(eventDateDef, ["Contacts"])).toBe(true);
     });
 
     it("allows ticket fields only for Ticket Buyers", () => {

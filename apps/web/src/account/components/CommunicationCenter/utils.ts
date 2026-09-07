@@ -16,6 +16,11 @@ import type {
 } from "./types";
 
 export const defaultAudience: CommunicationAudienceRequest = {
+  contactEmailStatus: null,
+  contactIds: [],
+  contactListIds: [],
+  contactSmsStatus: null,
+  contactSource: null,
   eventId: null,
   globalStatuses: ["Active"],
   profileIds: [],
@@ -26,6 +31,7 @@ export const defaultAudience: CommunicationAudienceRequest = {
 
 export const audienceOptions: readonly CommunicationAudienceTarget[] = [
   "Members",
+  "Contacts",
   "Ticket Buyers",
   "Donors",
 ];
@@ -172,6 +178,30 @@ export function memberFiltersSummary(
     parts.push(`RSVP: ${audience.rsvp}`);
   }
 
+  return parts.join(" · ");
+}
+
+export function contactFiltersSummary(
+  audience: CommunicationAudienceRequest,
+  listNames: ReadonlyMap<string, string>,
+): string {
+  const parts: string[] = [];
+  if (audience.contactListIds.length === 0 && audience.contactIds.length === 0) {
+    parts.push("All eligible contacts");
+  } else {
+    if (audience.contactListIds.length > 0) {
+      const names = audience.contactListIds.map((id) => listNames.get(id) ?? "Selected list");
+      parts.push(names.join(" + "));
+    }
+    if (audience.contactIds.length > 0) {
+      parts.push(
+        `${String(audience.contactIds.length)} selected contact${audience.contactIds.length === 1 ? "" : "s"}`,
+      );
+    }
+  }
+  if (audience.contactSource) parts.push(`Source: ${audience.contactSource}`);
+  if (audience.contactEmailStatus) parts.push(`Email: ${audience.contactEmailStatus}`);
+  if (audience.contactSmsStatus) parts.push(`SMS: ${audience.contactSmsStatus}`);
   return parts.join(" · ");
 }
 

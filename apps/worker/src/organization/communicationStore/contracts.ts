@@ -1,12 +1,28 @@
 import {
   communicationAudienceRequestSchema,
   communicationDraftRequestSchema,
+  communicationRecipientSubjectSchema,
   communicationSendRequestSchema,
   communicationTemplateRequestSchema,
 } from "@choir/contracts";
+import type { SqlStorageValue } from "@cloudflare/workers-types";
 import { z } from "zod";
 
 export const MAX_COMMUNICATION_DELIVERIES = 1_000;
+
+/**
+ * Narrow storage surface for audience resolution (mirrors ContactStoreStorage).
+ * Real Durable Object storage satisfies this structurally; tests implement it
+ * against real migrated SQLite without type assertions.
+ */
+export interface CommunicationAudienceStorage {
+  readonly sql: {
+    exec<T extends Record<string, SqlStorageValue> = Record<string, SqlStorageValue>>(
+      query: string,
+      ...bindings: readonly unknown[]
+    ): { toArray(): T[] };
+  };
+}
 
 const contextSchema = z.object({
   actorUserId: z.string().min(1).max(128),
@@ -21,11 +37,22 @@ export const recipientSchema = z.object({
   name: z.string().min(1).max(200),
   phone: z.string().max(40),
   profileId: z.uuid(),
+  /**
+   * Typed recipient subject (Phase 6 expand). Optional so pre-subject queued
+   * payloads and historical fixtures still parse; absent subjects adapt to
+   * `{ kind: "profile", profileId }` via the `profileId` carrier.
+   */
+  subject: communicationRecipientSubjectSchema.optional(),
   unsubscribeUrl: z.url().max(4_096).nullable(),
 });
 export const unsubscribeOperationSchema = z.object({
   organizationId: z.string().min(1).max(128),
   profileId: z.uuid(),
+  requestId: z.uuid(),
+});
+export const unsubscribeContactOperationSchema = z.object({
+  contactId: z.uuid(),
+  organizationId: z.string().min(1).max(128),
   requestId: z.uuid(),
 });
 export const saveOperationSchema = contextSchema.extend({
@@ -175,6 +202,8 @@ export interface DeliveryRow {
   readonly providerStatus:
     "accepted" | "bounced" | "complained" | "deferred" | "delivered" | "failed" | "rejected" | null;
   readonly recipientName: string;
+  /** Nullable JSON-encoded CommunicationRecipientSubject; NULL = legacy profile. */
+  readonly recipientSubjectJson?: string | null;
   readonly status: "failed" | "processing" | "queued" | "sent" | "suppressed";
   readonly unsubscribeUrl: string | null;
   readonly updatedAt: string;

@@ -182,6 +182,7 @@ export const organizationRpcOperationMap: OrganizationRpcOperationMap = {
       "/internal/communications/audience",
       "/internal/communications/manage",
       "/internal/communications/unsubscribe",
+      "/internal/communications/contact-unsubscribe",
       "/internal/email/provider-event",
       "/internal/email/provider-suppression-release",
       "/internal/email-settings/manage",

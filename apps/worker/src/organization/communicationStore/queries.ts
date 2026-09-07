@@ -1,5 +1,7 @@
 import {
   communicationDeliverySummarySchema,
+  communicationRecipientSubjectFromLegacy,
+  communicationRecipientSubjectSchema,
   communicationScheduledMessageSchema,
   communicationTemplateSchema,
 } from "@choir/contracts";
@@ -8,6 +10,7 @@ import { z } from "zod";
 
 import {
   messageColumns,
+  unsubscribeContactOperationSchema,
   unsubscribeOperationSchema,
   type DeliveryRow,
   type MessageRow,
@@ -439,6 +442,86 @@ export async function unsubscribeCommunicationProfileInStore(
   return Response.json({ success: true });
 }
 
+/**
+ * Phase 7 contact-aware unsubscribe.
+ *
+ * Never touches `profiles` or `communication_suppressions` (those rows are
+ * keyed by profile ID; writing a contact ID there would be the fake-ID
+ * bolt-on the plan forbids). The contact's own email preference row is the
+ * suppression record: `unsubscribed` blocks every future marketing email in
+ * audience resolution and in the pre-delivery suppression recheck,
+ * regardless of list membership. Lists, commerce history, and linked
+ * profiles are left untouched.
+ */
+export async function unsubscribeCommunicationContactInStore(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = unsubscribeContactOperationSchema.safeParse(
+    await request.json().catch(() => null),
+  );
+  if (!parsed.success)
+    return Response.json({ code: "invalid_unsubscribe_request" }, { status: 400 });
+  const operation = parsed.data;
+  if (!identityMatches(storage, operation.organizationId))
+    return Response.json({ code: "unsubscribe_not_found" }, { status: 404 });
+  const contact = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
+      "SELECT id FROM contacts WHERE id = ? LIMIT 1",
+      operation.contactId,
+    )
+    .toArray()
+    .at(0);
+  if (!contact) return Response.json({ code: "unsubscribe_not_found" }, { status: 404 });
+  const now = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `INSERT INTO contact_communication_preferences
+        (contact_id, channel, status, source, observed_at, updated_at)
+       VALUES (?, 'email', 'unsubscribed', 'user_unsubscribe', ?, ?)
+       ON CONFLICT(contact_id, channel) DO UPDATE SET
+         status = 'unsubscribed',
+         source = CASE
+           WHEN contact_communication_preferences.source IS NULL
+             OR contact_communication_preferences.source = ''
+           THEN 'user_unsubscribe'
+           ELSE contact_communication_preferences.source
+         END,
+         observed_at = CASE WHEN contact_communication_preferences.status != 'unsubscribed'
+           THEN excluded.observed_at ELSE contact_communication_preferences.observed_at END,
+         updated_at = excluded.updated_at`,
+      operation.contactId,
+      now,
+      now,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events (id, actor_type, actor_id, action, target_type, target_id,
+        request_id, change_summary, occurred_at)
+       VALUES (?, 'public_link', ?, 'organization.communication.contact.unsubscribed',
+        'contact', ?, ?, ?, ?)`,
+      `communication-contact-unsubscribe:${operation.requestId}`,
+      operation.contactId,
+      operation.contactId,
+      operation.requestId,
+      JSON.stringify({ channel: "email" }),
+      now,
+    );
+  });
+  return Response.json({ success: true });
+}
+
+function parseDeliverySubject(value: unknown, profileId: string) {
+  if (typeof value === "string" && value !== "") {
+    try {
+      const parsed = communicationRecipientSubjectSchema.safeParse(JSON.parse(value));
+      if (parsed.success) return parsed.data;
+    } catch {
+      // Fall through to the legacy adapter below.
+    }
+  }
+  return communicationRecipientSubjectFromLegacy(profileId);
+}
+
 export function readCommunicationSummaryFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,
@@ -512,15 +595,28 @@ export function readCommunicationJobFromStore(
       `UPDATE communication_deliveries
        SET status = 'suppressed', failure_detail = '', updated_at = ?
        WHERE message_id = ? AND channel = 'email' AND status = 'queued'
-         AND EXISTS (
-           SELECT 1 FROM profiles p
-           WHERE p.id = communication_deliveries.profile_id
-             AND (
-               p.do_not_email = 1 OR EXISTS (
-                 SELECT 1 FROM communication_suppressions s
-                 WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
+         AND (
+           EXISTS (
+             SELECT 1 FROM profiles p
+             WHERE p.id = communication_deliveries.profile_id
+               AND (
+                 p.do_not_email = 1 OR EXISTS (
+                   SELECT 1 FROM communication_suppressions s
+                   WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
+                 )
                )
-             )
+           )
+           OR EXISTS (
+             SELECT 1 FROM contact_communication_preferences pref
+             WHERE pref.contact_id = communication_deliveries.profile_id
+               AND pref.channel = 'email' AND pref.status = 'unsubscribed'
+           )
+           OR EXISTS (
+             SELECT 1 FROM contacts c
+             JOIN communication_suppressions s ON s.profile_id = c.profile_id
+             WHERE c.id = communication_deliveries.profile_id
+               AND s.channel = 'email' AND s.active = 1
+           )
          )`,
       now,
       messageId,
@@ -529,11 +625,18 @@ export function readCommunicationJobFromStore(
       .exec<
         Pick<
           DeliveryRow,
-          "channel" | "destination" | "id" | "profileId" | "recipientName" | "unsubscribeUrl"
+          | "channel"
+          | "destination"
+          | "id"
+          | "profileId"
+          | "recipientName"
+          | "recipientSubjectJson"
+          | "unsubscribeUrl"
         >
       >(
         `SELECT id, message_id AS messageId, profile_id AS profileId, recipient_name AS recipientName,
-          channel, destination, unsubscribe_url AS unsubscribeUrl
+          channel, destination, unsubscribe_url AS unsubscribeUrl,
+          recipient_subject_json AS recipientSubjectJson
          FROM communication_deliveries WHERE message_id = ? AND status = 'queued'
          ORDER BY id LIMIT 1000`,
         messageId,
@@ -545,14 +648,25 @@ export function readCommunicationJobFromStore(
       now,
       messageId,
     );
-    return queued.map(({ channel, destination, id, profileId, recipientName, unsubscribeUrl }) => ({
-      channel,
-      destination,
-      id,
-      profileId,
-      recipientName,
-      unsubscribeUrl,
-    }));
+    return queued.map(
+      ({
+        channel,
+        destination,
+        id,
+        profileId,
+        recipientName,
+        recipientSubjectJson,
+        unsubscribeUrl,
+      }) => ({
+        channel,
+        destination,
+        id,
+        profileId,
+        recipientName,
+        subject: parseDeliverySubject(recipientSubjectJson, profileId),
+        unsubscribeUrl,
+      }),
+    );
   });
   const eventId = message.audience.eventId;
   const context = eventCommunicationContext(storage, eventId);

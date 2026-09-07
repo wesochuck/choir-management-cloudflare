@@ -1,3 +1,4 @@
+import { communicationRecipientSubjectSchema } from "@choir/contracts";
 import { z } from "zod";
 
 const providerStatusSchema = z.enum([
@@ -52,6 +53,7 @@ const providerRouteRowSchema = z.object({
 
 interface SourceRecord {
   readonly [column: string]: SqlStorageValue;
+  readonly contactId: string | null;
   readonly profileId: string | null;
   readonly providerStatus: ProviderStatus | null;
 }
@@ -144,7 +146,8 @@ function shouldReplaceProviderStatus(
 function sourceRecordQuery(sourceKind: z.infer<typeof sourceKindSchema>): string {
   switch (sourceKind) {
     case "communication_delivery":
-      return `SELECT profile_id AS profileId, provider_status AS providerStatus
+      return `SELECT profile_id AS profileId, provider_status AS providerStatus,
+          recipient_subject_json AS recipientSubjectJson
         FROM communication_deliveries
         WHERE id = ? AND lower(destination) = lower(?)
           AND (provider_message_id = ? OR provider_message_id IS NULL) LIMIT 1`;
@@ -166,13 +169,54 @@ function sourceRecordQuery(sourceKind: z.infer<typeof sourceKindSchema>): string
   }
 }
 
+interface RawSourceRecord {
+  readonly [column: string]: SqlStorageValue;
+  readonly profileId: string | null;
+  readonly providerStatus: ProviderStatus | null;
+  readonly recipientSubjectJson?: string | null;
+}
+
+function resolveRecipientIdentity(
+  storage: DurableObjectStorage,
+  raw: RawSourceRecord,
+): { readonly contactId: string | null; readonly profileId: string | null } {
+  const carrier = raw.profileId;
+  const subjectJson = raw.recipientSubjectJson;
+  if (typeof subjectJson === "string" && subjectJson !== "") {
+    try {
+      const parsed = communicationRecipientSubjectSchema.safeParse(JSON.parse(subjectJson));
+      if (parsed.success) {
+        if (parsed.data.kind === "contact")
+          return { contactId: parsed.data.contactId, profileId: null };
+        if (parsed.data.kind === "profile")
+          return { contactId: null, profileId: parsed.data.profileId };
+        // Commerce kinds (ticket_purchase/donation) resolve through Contacts
+        // in Phase 8/9; never treat their transaction IDs as profile IDs.
+        return { contactId: null, profileId: null };
+      }
+    } catch {
+      // Fall through to the legacy carrier lookup below.
+    }
+  }
+  if (carrier === null) return { contactId: null, profileId: null };
+  // Legacy pre-subject rows carry only the profile ID. Contact deliveries
+  // minted since Phase 6 always store a subject; a NULL subject whose carrier
+  // matches a contact row is treated as that contact (never as a profile).
+  const contact = storage.sql
+    .exec<{ readonly id: string }>("SELECT id FROM contacts WHERE id = ? LIMIT 1", carrier)
+    .toArray()
+    .at(0);
+  if (contact) return { contactId: contact.id, profileId: null };
+  return { contactId: null, profileId: carrier };
+}
+
 function updateSourceRecord(
   storage: DurableObjectStorage,
   input: z.infer<typeof providerFeedbackSchema>,
   status: ProviderStatus,
 ): SourceRecord | null {
-  const record = storage.sql
-    .exec<SourceRecord>(
+  const raw = storage.sql
+    .exec<RawSourceRecord>(
       sourceRecordQuery(input.sourceKind),
       input.sourceId,
       input.recipient,
@@ -180,7 +224,13 @@ function updateSourceRecord(
     )
     .toArray()
     .at(0);
-  if (!record) return null;
+  if (!raw) return null;
+  const identity = resolveRecipientIdentity(storage, raw);
+  const record: SourceRecord = {
+    contactId: identity.contactId,
+    profileId: identity.profileId,
+    providerStatus: raw.providerStatus,
+  };
   const table =
     input.sourceKind === "communication_delivery"
       ? "communication_deliveries"
@@ -189,7 +239,7 @@ function updateSourceRecord(
         : input.sourceKind === "audition_notification"
           ? "audition_notifications"
           : "payment_notifications";
-  if (!shouldReplaceProviderStatus(record.providerStatus, status)) return record;
+  if (!shouldReplaceProviderStatus(raw.providerStatus, status)) return record;
   storage.sql.exec(
     `UPDATE ${table}
      SET provider_message_id = ?, provider_status = ?, provider_event_id = ?, provider_event_at = ?,
@@ -249,6 +299,67 @@ function applyProfileSuppression(
   );
 }
 
+/**
+ * Phase 7 contact provider suppression.
+ *
+ * A hard bounce or spam complaint for a contact delivery marks the contact's
+ * email preference `unsubscribed` (the only blocking status the preference
+ * table supports) with a provider source and records the provider reason in
+ * an audit-safe event. Lists, commerce history, and linked profiles are
+ * untouched. Idempotent: replaying the same provider event re-applies the
+ * same terminal preference state.
+ */
+function applyContactSuppression(
+  storage: DurableObjectStorage,
+  contactId: string,
+  input: z.infer<typeof providerFeedbackSchema>,
+): void {
+  const contact = storage.sql
+    .exec<{ readonly id: string }>("SELECT id FROM contacts WHERE id = ? LIMIT 1", contactId)
+    .toArray()
+    .at(0);
+  if (!contact) return;
+  const providerSource =
+    input.providerStatus === "complained" ? "provider_complaint" : "provider_bounce";
+  storage.sql.exec(
+    `INSERT INTO contact_communication_preferences
+      (contact_id, channel, status, source, observed_at, updated_at)
+     VALUES (?, 'email', 'unsubscribed', ?, ?, ?)
+     ON CONFLICT(contact_id, channel) DO UPDATE SET
+       status = 'unsubscribed',
+       source = CASE
+         WHEN contact_communication_preferences.source IS NULL
+           OR contact_communication_preferences.source = ''
+         THEN excluded.source
+         ELSE contact_communication_preferences.source
+       END,
+       observed_at = CASE WHEN contact_communication_preferences.status != 'unsubscribed'
+         THEN excluded.observed_at ELSE contact_communication_preferences.observed_at END,
+       updated_at = excluded.updated_at`,
+    contact.id,
+    providerSource,
+    input.eventTimestamp,
+    input.eventTimestamp,
+  );
+  storage.sql.exec(
+    `INSERT OR IGNORE INTO audit_events
+      (id, actor_type, actor_id, action, target_type, target_id,
+       request_id, change_summary, occurred_at)
+     VALUES (?, 'provider', ?, ?, 'contact', ?, ?, ?, ?)`,
+    `email-provider-contact:${input.eventId}:${contact.id}`,
+    input.providerMessageId,
+    `organization.contact.email_provider_${input.providerStatus}`,
+    contact.id,
+    input.eventId,
+    JSON.stringify({
+      providerReason: input.providerReason,
+      providerStatus: input.providerStatus,
+      source: providerSource,
+    }),
+    input.eventTimestamp,
+  );
+}
+
 export async function recordProviderEmailFeedback(
   storage: DurableObjectStorage,
   request: Request,
@@ -264,7 +375,12 @@ export async function recordProviderEmailFeedback(
     return updateSourceRecord(storage, input, input.providerStatus);
   });
   if (!record) return Response.json({ code: "provider_email_source_not_found" }, { status: 404 });
-  if (input.shouldSuppress && record.profileId) {
+  if (input.shouldSuppress && record.contactId) {
+    const contactId = record.contactId;
+    storage.transactionSync(() => {
+      applyContactSuppression(storage, contactId, input);
+    });
+  } else if (input.shouldSuppress && record.profileId) {
     const profileId = record.profileId;
     storage.transactionSync(() => {
       applyProfileSuppression(storage, profileId, input);
@@ -289,8 +405,10 @@ export async function recordProviderEmailFeedback(
     input.eventTimestamp,
   );
   return Response.json({
+    contactId: record.contactId,
     profileId: record.profileId,
-    providerSuppressed: Boolean(input.shouldSuppress && record.profileId),
+    providerSuppressed:
+      input.shouldSuppress && (record.profileId !== null || record.contactId !== null),
     recorded: true,
   });
 }

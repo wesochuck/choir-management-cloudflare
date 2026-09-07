@@ -22,6 +22,7 @@ export {
   readCommunicationJobFromStore,
   readCommunicationSummaryFromStore,
   readCommunicationTemplateFromStore,
+  unsubscribeCommunicationContactInStore,
   unsubscribeCommunicationProfileInStore,
 } from "./communicationStore/queries";
 

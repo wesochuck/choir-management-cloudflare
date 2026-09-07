@@ -5,6 +5,7 @@ import type {
   CommunicationMessage,
   CommunicationScheduledMessage,
   CommunicationTemplate,
+  ContactList,
   OrganizationEmailSettings,
   OrganizationEvent,
   OrganizationProviderStatusResponse,
@@ -32,6 +33,7 @@ import {
   sendOrganizationCommunication,
   sendOrganizationCommunicationTestEmail,
 } from "../../../auth/api";
+import { listOrganizationContactLists } from "../../../api";
 import type {
   CommunicationCenterControllerModel,
   CommunicationReachState,
@@ -79,6 +81,7 @@ export function useCommunicationCenterController({
   >([]);
   const [templates, setTemplates] = useState<readonly CommunicationTemplate[]>([]);
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
+  const [contactLists, setContactLists] = useState<readonly ContactList[]>([]);
   const [providerStatus, setProviderStatus] = useState<OrganizationProviderStatusResponse | null>(
     null,
   );
@@ -165,6 +168,7 @@ export function useCommunicationCenterController({
       getOrganizationProviderStatus(controller.signal),
       getOrganizationEmailSettings(controller.signal),
       getOrganizationRosterConfiguration(controller.signal),
+      listOrganizationContactLists(controller.signal).catch(() => []),
     ])
       .then(
         ([
@@ -175,6 +179,7 @@ export function useCommunicationCenterController({
           loadedStatus,
           loadedEmailSettings,
           loadedRosterConfig,
+          loadedContactLists,
         ]) => {
           setMessages(loadedMessages);
           setScheduledMessages(loadedScheduled);
@@ -183,6 +188,7 @@ export function useCommunicationCenterController({
           setProviderStatus(loadedStatus);
           setEmailSettings(loadedEmailSettings);
           setRosterConfiguration(loadedRosterConfig);
+          setContactLists(loadedContactLists);
 
           if (initialNav.draftId) {
             const draft = loadedMessages.find(
@@ -525,6 +531,7 @@ export function useCommunicationCenterController({
     cancelQueuedMessage: cancelQueuedAction,
     channel,
     confirmationDialog,
+    contactLists,
     contentMarkdown,
     contextIssues,
     deleteDraft: deleteDraftAction,

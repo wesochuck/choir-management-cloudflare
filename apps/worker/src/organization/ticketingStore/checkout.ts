@@ -21,6 +21,7 @@ import {
   type TicketPurchaseRow,
 } from "./contracts";
 import { transactionFeeSettingsFromStore } from "../transactionFeeSettingsStore";
+import { resolveOrCreateContactForCommerce } from "../commerceContacts";
 import {
   bundleEventIds,
   purchaseResult,
@@ -356,6 +357,19 @@ export function createFakeCheckout(
       : `fake_payment_${operation.purchaseId}`;
   const status = pending ? "pending" : "paid";
   const occurredAt = now.toISOString();
+  // Phase 8 commerce → Contact linkage: paid purchases resolve a Contact
+  // before the insert transaction so contact creation never nests inside it.
+  // Snapshots stay untouched; pending rows link at Stripe fulfillment.
+  const purchaseContactId = pending
+    ? null
+    : resolveOrCreateContactForCommerce(storage, {
+        buyerEmail: operation.checkout.buyerEmail,
+        buyerName: operation.checkout.buyerName,
+        existingContactId: null,
+        marketingOptIn: operation.checkout.marketingOptIn,
+        occurredAt,
+        source: "ticket_purchase",
+      });
   const confirmationId = crypto.randomUUID();
   const confirmationJobId = crypto.randomUUID();
   const notificationTemplate = readTicketMessageTemplate(
@@ -405,8 +419,8 @@ export function createFakeCheckout(
          status, marketing_opt_in, created_at, updated_at, fulfilled_at,
          discount_code_id, discount_code, discount_type, discount_value,
          original_unit_price_cents, original_subtotal_cents, discount_amount_cents,
-         discounted_subtotal_cents)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'usd', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         discounted_subtotal_cents, contact_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'usd', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         operation.purchaseId,
         operation.checkout.checkoutRequestId,
         primaryEvent.id,
@@ -437,6 +451,7 @@ export function createFakeCheckout(
         quote.originalSubtotalCents,
         quote.discountAmountCents,
         quote.discountedSubtotalCents,
+        purchaseContactId,
       );
       storage.sql.exec(
         `INSERT INTO payment_attempts

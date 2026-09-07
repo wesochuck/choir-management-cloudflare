@@ -2,6 +2,7 @@ import type { z } from "zod";
 
 import { queuePaymentNotificationInStore } from "../paymentNotificationStore";
 import { renderPaymentMessageTemplate } from "../paymentMessageTemplates";
+import { linkPaidDonationContact } from "../commerceContacts";
 import { upsertPatronAfterDonation } from "./patrons";
 import { donationById, donationByStripeOperation, donationResult, identity } from "./queries";
 import type {
@@ -143,8 +144,11 @@ export function completeStripeDonation(
     );
   });
   const updated = donationById(storage, row.id);
+  // Phase 8: a donation that just became paid links its Contact after the
+  // completion transaction; duplicate webhooks on paid rows converge safely.
   if (updated && (row.status === "pending" || row.status === "expired"))
     queueDonationConfirmation(storage, updated);
+  if (updated?.status === "paid") linkPaidDonationContact(storage, updated.id);
   return updated
     ? Response.json(donationResult(updated))
     : Response.json({ code: "donation_not_found" }, { status: 404 });

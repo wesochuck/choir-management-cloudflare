@@ -326,6 +326,32 @@ export async function requeueJob(
           parsed.data.jobId,
         );
       }
+    } else if (parsed.data.kind === "contact_import") {
+      const importId = sourceIdFromJobKey(parsed.data.idempotencyKey, "contact-import:");
+      if (!importId || importId !== parsed.data.jobId) {
+        sourceState.ready = false;
+      } else {
+        const source = storage.sql
+          .exec<{ readonly status: string }>(
+            "SELECT status FROM contact_imports WHERE id = ? LIMIT 1",
+            importId,
+          )
+          .toArray()
+          .at(0);
+        sourceState.ready =
+          source !== undefined && ["confirmed", "processing", "failed"].includes(source.status);
+        if (sourceState.ready) {
+          // Resume from persisted row states: done/error/skipped rows keep
+          // their outcomes and only pending rows are reprocessed.
+          storage.sql.exec(
+            `UPDATE contact_imports
+             SET status = 'confirmed', error_code = '', updated_at = ?, completed_at = NULL
+             WHERE id = ?`,
+            now,
+            importId,
+          );
+        }
+      }
     }
 
     if (sourceState.ready) {
