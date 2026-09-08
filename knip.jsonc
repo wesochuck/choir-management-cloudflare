@@ -5,6 +5,7 @@
       "entry": [
         "playwright.config.ts",
         "vitest.config.ts",
+        "vitest.ui.config.ts",
         "vitest.integration.config.ts",
         "scripts/*.mjs",
       ],

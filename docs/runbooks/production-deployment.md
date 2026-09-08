@@ -16,8 +16,10 @@ Before creating production resources or deploying code:
 
 1. All 206 parity entries in `docs/parity/feature-matrix.yaml` must be `status: verified`.
 2. Staging qualification suites (`npm run qualify:staging:all`) must pass with 100% success.
-3. The local release gate (`npm run check:ci` and `npm run test:e2e`) must pass on a clean `main`
-   branch matching `origin/main`.
+3. The full release qualification (`npm run check:release`, which runs the browser-free
+   `npm run check:ci` gate plus the Playwright Chromium E2E suite) must pass on a clean `main`
+   branch matching `origin/main`. `npm run check:ci` alone is the browser-free subset and is not
+   sufficient for production promotion.
 4. Production domains (`musicsite.org`, `*.musicsite.org`, and Cloudflare Email Sending domains)
    must be registered in the production Cloudflare account.
 
@@ -118,7 +120,7 @@ Promote the exact staging-qualified commit SHA and lockfile hash:
 
 1. Build the immutable release artifact locally:
    ```bash
-   npm run check:ci
+   npm run check:release
    ```
 2. Upload the inactive Worker version to production:
    ```bash

@@ -73,7 +73,7 @@ test("shows not found when player token is invalid or expired", async ({ page })
   ).toBeVisible();
 });
 
-test("renders practice player with artwork, track navigation, and set list", async ({
+test("renders practice player with artwork, track navigation, and set list @webkit-smoke", async ({
   page,
 }, testInfo) => {
   await page.route("**/api/public/player-details", async (route) => {

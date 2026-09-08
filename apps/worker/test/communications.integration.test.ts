@@ -11,44 +11,33 @@ import {
   communicationUnsubscribeResponseSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
+import { organizationRequest, readEmailOneTimeCode, signInWithOtp } from "@choir/testkit";
 import {
-  organizationRequest,
-  provisionOrganization,
-  readEmailOneTimeCode,
-  seedAuthUser,
-  signInWithOtp,
-} from "@choir/testkit";
-import {
-  applyD1Migrations,
   createExecutionContext,
   createMessageBatch,
   getQueueResult,
-  reset,
   runDurableObjectAlarm,
   runInDurableObject,
 } from "cloudflare:test";
-import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import {
-  clearCapturedPlatformEmailsForTest,
-  readCapturedPlatformEmailsForTest,
-} from "../src/auth/platformEmail";
+import { readCapturedPlatformEmailsForTest } from "../src/auth/platformEmail";
 import { processDeliveryBatch } from "../src/jobs/consumer";
 import type { DeliveryJob } from "../src/jobs/contracts";
 import { backfillCommerceContactLinks } from "../src/organization/commerceContacts";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import { invokeOrganizationRpc, organizationStoreStub } from "../src/organization/rpc/client";
 import { issueSignedLink } from "../src/security/signedLinks";
+import {
+  requireIntegrationBinding,
+  setupOrganizationIntegration,
+  teardownOrganizationIntegration,
+} from "./organization.integration.fixture";
 
-function binding<T>(value: T | undefined, name: string): T {
-  if (value === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
-  return value;
-}
-
-const database = binding(env.CONTROL_DB, "CONTROL_DB");
-const stores = binding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
-const organizationFiles = binding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
+const database = requireIntegrationBinding(env.CONTROL_DB, "CONTROL_DB");
+const stores = requireIntegrationBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
+const organizationFiles = requireIntegrationBinding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
 const managerEmail = "communications.manager@example.test";
 
 const api = organizationRequest;
@@ -71,9 +60,6 @@ const write = async (
   );
 };
 
-const provision = (id: string, slug: string, role: "admin" | "member") =>
-  provisionOrganization(database, stores, { id, slug, userId: "communications-manager", role });
-
 const signIn = () =>
   signInWithOtp(exports.default, "alpha.localhost", managerEmail, (email) =>
     readEmailOneTimeCode(readCapturedPlatformEmailsForTest(), email),
@@ -86,14 +72,18 @@ async function createProfile(cookie: string, body: Record<string, unknown>) {
 }
 
 beforeEach(async () => {
-  await applyD1Migrations(database, [...inject("controlMigrations")]);
-  clearCapturedPlatformEmailsForTest();
-  await seedAuthUser(database, "communications-manager", managerEmail, "Communications Manager");
-  await provision("organization-alpha", "alpha", "admin");
-  await provision("organization-bravo", "bravo", "member");
+  await setupOrganizationIntegration(database, stores, {
+    displayName: "Communications Manager",
+    email: managerEmail,
+    organizations: [
+      { id: "organization-alpha", role: "admin", slug: "alpha" },
+      { id: "organization-bravo", role: "member", slug: "bravo" },
+    ],
+    userId: "communications-manager",
+  });
 });
 
-afterEach(async () => reset());
+afterEach(async () => teardownOrganizationIntegration());
 
 describe("Organization communications", () => {
   it("resolves opted-in donors and ticket buyers and lists automated sends", async () => {

@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { mockAnonymousSession, mockHealth } from "./support/testWorld";
 
-test("renders the accessible foundation at desktop and mobile widths", async ({ page }) => {
+test("renders the accessible foundation at desktop and mobile widths @webkit-smoke", async ({
+  page,
+}) => {
   await mockHealth(page);
   await mockAnonymousSession(page);
   await page.route("**/api/public/projection", async (route) => {

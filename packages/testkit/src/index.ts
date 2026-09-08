@@ -26,6 +26,8 @@ export {
   TEST_CLIENT_IP,
   writeJson,
   type OrganizationProvisionOptions,
+  type OrganizationStoreNamespace,
+  type TestWorkerFetcher,
 } from "./workerd";
 
 export {

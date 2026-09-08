@@ -23,46 +23,36 @@ import {
 import { env, exports } from "cloudflare:workers";
 import {
   organizationRequest,
-  provisionOrganization,
   readEmailOneTimeCode,
-  seedAuthUser,
   signInWithOtp,
   writeJson,
 } from "@choir/testkit";
 import {
-  applyD1Migrations,
   createExecutionContext,
   createMessageBatch,
   getQueueResult,
-  reset,
   runInDurableObject,
 } from "cloudflare:test";
-import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  clearCapturedPlatformEmailsForTest,
-  readCapturedPlatformEmailsForTest,
-} from "../src/auth/platformEmail";
+import { readCapturedPlatformEmailsForTest } from "../src/auth/platformEmail";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import { processDeliveryBatch } from "../src/jobs/consumer";
 import { organizationExportSnapshotSchema } from "../src/jobs/deliveries/shared";
 import { organizationExportKey } from "../src/organization/exportStore";
+import {
+  requireIntegrationBinding,
+  setupOrganizationIntegration,
+  teardownOrganizationIntegration,
+} from "./organization.integration.fixture";
 
 const USER_EMAIL = "calendar.manager@example.test";
 
-function requireBinding<T>(binding: T | undefined, name: string): T {
-  if (binding === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
-  return binding;
-}
-
-const database = requireBinding(env.CONTROL_DB, "CONTROL_DB");
-const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
-const organizationFiles = requireBinding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
+const database = requireIntegrationBinding(env.CONTROL_DB, "CONTROL_DB");
+const stores = requireIntegrationBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
+const organizationFiles = requireIntegrationBinding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
 
 const api = organizationRequest;
-
-const provision = (id: string, name: string, slug: string) =>
-  provisionOrganization(database, stores, { id, slug, userId: "calendar-manager", name });
 
 const signIn = () =>
   signInWithOtp(exports.default, "alpha.localhost", USER_EMAIL, (email) =>
@@ -73,15 +63,19 @@ const post = (host: string, path: string, cookie: string, body: unknown) =>
   writeJson(exports.default, host, path, cookie, body);
 
 beforeEach(async () => {
-  await applyD1Migrations(database, [...inject("controlMigrations")]);
-  clearCapturedPlatformEmailsForTest();
-  await seedAuthUser(database, "calendar-manager", USER_EMAIL, "Calendar Manager");
-  await provision("organization-alpha", "Organization Alpha", "alpha");
-  await provision("organization-bravo", "Organization Bravo", "bravo");
+  await setupOrganizationIntegration(database, stores, {
+    displayName: "Calendar Manager",
+    email: USER_EMAIL,
+    organizations: [
+      { id: "organization-alpha", name: "Organization Alpha", slug: "alpha" },
+      { id: "organization-bravo", name: "Organization Bravo", slug: "bravo" },
+    ],
+    userId: "calendar-manager",
+  });
 });
 
 afterEach(async () => {
-  await reset();
+  await teardownOrganizationIntegration();
 });
 
 describe("Organization calendar management", () => {

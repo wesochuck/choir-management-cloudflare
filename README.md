@@ -63,8 +63,9 @@ npm audit --audit-level=high
 
 Playwright E2E tests are intentionally opt-in and local-only. Install Chromium with
 `npx playwright install chromium` and run `npm run test:e2e` only when browser coverage is
-warranted. Browser tests are not part of CI or deployment qualification; Workerd integration tests
-and exact deployed-version API checks are the release gates.
+warranted. `npm run check:ci` is the browser-free gate; `npm run check:release` is the full release
+qualification (check:ci plus the Chromium E2E suite) required before production promotion. Workerd
+integration tests and exact deployed-version API checks remain the deployment qualification gates.
 
 `npm run test:integration` starts workerd on loopback and may require an execution environment that
 allows local ports. Regenerate Worker binding declarations after changing `wrangler.jsonc`:

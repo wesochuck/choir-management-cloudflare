@@ -232,7 +232,7 @@
         "targetEvidence":
           [
             "apps/web/src/auth/SignInView.tsx",
-            "apps/web/e2e/auth.spec.ts",
+            "apps/web/e2e/auth.session.spec.ts",
             "apps/worker/test/auth.integration.test.ts",
           ],
       },
@@ -262,7 +262,7 @@
           [
             "apps/web/src/App.tsx",
             "apps/web/src/auth/EmailChangeConfirmationView.tsx",
-            "apps/web/e2e/auth.spec.ts",
+            "apps/web/e2e/auth.session.spec.ts",
             "scripts/qualify-staging-signed-email-change.mjs",
             "docs/goal/qualification-evidence-2026-08-11.md",
           ],
@@ -493,7 +493,7 @@
             "apps/web/src/account/components/AuthenticatedShell/utils.ts",
             "apps/web/src/account/PlatformAccess.tsx",
             "apps/web/src/account/PlatformOperations.tsx",
-            "apps/web/e2e/auth.spec.ts",
+            "apps/web/e2e/auth.platform.spec.ts",
           ],
       },
       {
@@ -556,7 +556,7 @@
             "apps/web/src/account/MemberProfileDirectory.tsx",
             "apps/worker/src/router.ts",
             "apps/worker/test/memberProfiles.integration.test.ts",
-            "apps/web/e2e/auth.spec.ts",
+            "apps/web/e2e/auth.session.spec.ts",
           ],
       },
       {
@@ -571,7 +571,7 @@
             "apps/web/src/account/MemberProfileDirectory.tsx",
             "apps/worker/src/organization/profiles.ts",
             "apps/worker/test/memberProfiles.integration.test.ts",
-            "apps/web/e2e/auth.spec.ts",
+            "apps/web/e2e/auth.session.spec.ts",
           ],
       },
       {
@@ -585,7 +585,7 @@
           [
             "apps/web/src/account/SeatingFinder.tsx",
             "apps/worker/src/router.ts",
-            "apps/web/e2e/auth.spec.ts",
+            "apps/web/e2e/auth.seating.spec.ts",
           ],
       },
       {
@@ -681,7 +681,7 @@
             "apps/worker/src/organization/organizationSeating.ts",
             "apps/worker/src/organization/seatingStore.ts",
             "apps/worker/test/seating.integration.test.ts",
-            "apps/web/e2e/auth.spec.ts",
+            "apps/web/e2e/auth.seating.spec.ts",
           ],
       },
       {
@@ -2176,7 +2176,7 @@
             "apps/worker/src/auth/emailChange.ts",
             "apps/worker/test/memberProfiles.integration.test.ts",
             "apps/web/src/auth/EmailChangeConfirmationView.tsx",
-            "apps/web/e2e/auth.spec.ts",
+            "apps/web/e2e/auth.session.spec.ts",
           ],
       },
       {
@@ -2798,7 +2798,7 @@
             "apps/web/src/account/components/EventsPage/page.tsx",
             "apps/web/src/account/RosterConfiguration.tsx",
             "apps/web/src/account/MemberProfileDirectory.tsx",
-            "apps/web/e2e/auth.spec.ts",
+            "apps/web/e2e/auth.admin-navigation.spec.ts",
             "scripts/qualify-staging-roster.mjs",
             "scripts/qualify-staging-roster.test.mjs",
             "docs/goal/READINESS.md",
@@ -2877,7 +2877,10 @@
         "baselineEvidence":
           "src/views/admin/events/useEventCloneWorkflow.ts; test/eventService.test.ts",
         "targetEvidence":
-          ["apps/web/src/account/components/EventsPage/page.tsx", "apps/web/e2e/auth.spec.ts"],
+          [
+            "apps/web/src/account/components/EventsPage/page.tsx",
+            "apps/web/e2e/auth.admin-navigation.spec.ts",
+          ],
       },
       {
         "id": "workflow.rsvp-attendance",
@@ -3365,7 +3368,7 @@
             "packages/ui/src/index.ts",
             "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/styles/theme.css",
-            "apps/web/e2e/auth.spec.ts",
+            "apps/web/e2e/auth.admin-navigation.spec.ts",
           ],
       },
       {
@@ -3415,7 +3418,7 @@
             "apps/web/src/styles/theme.css",
             "packages/domain/src/seatingLayout.test.ts",
             "apps/worker/test/seating.integration.test.ts",
-            "apps/web/e2e/auth.spec.ts",
+            "apps/web/e2e/auth.seating.spec.ts",
           ],
       },
       {

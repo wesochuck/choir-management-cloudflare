@@ -27,6 +27,10 @@ traffic back to the captured Worker Version. The temporary artifact is removed a
 non-sensitive local provenance record is written under `.wrangler/releases/`, which is ignored by
 Git.
 
+`npm run check:ci` is the browser-free subset of qualification. `npm run check:release` is the full
+standalone release qualification command (check:ci plus the Playwright Chromium E2E suite); run it
+before any promotion that does not go through the staging deploy command below.
+
 Routes, queue consumers, schedules, and Workflow triggers are not Worker-versioned. Automatic code
 rollback cannot revert those settings. Keep trigger changes backward compatible and follow
 `docs/runbooks/rollback.md` if a trigger change is the source of an incident.
