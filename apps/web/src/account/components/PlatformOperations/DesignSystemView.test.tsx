@@ -9,9 +9,9 @@ import {
   DESIGN_SYSTEM_SHADOWS,
   DESIGN_SYSTEM_SPACING,
   DESIGN_SYSTEM_TYPE_SCALE,
-  DesignSystemView,
   filterAutocompleteOptions,
-} from "./DesignSystemView";
+} from "./designSystemData";
+import { DesignSystemView } from "./DesignSystemView";
 
 describe("DesignSystemView", () => {
   it("renders every showcase section with anchor navigation", () => {
