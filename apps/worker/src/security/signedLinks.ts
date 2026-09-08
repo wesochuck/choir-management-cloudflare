@@ -68,6 +68,9 @@ function decodeBase64Url(value: string): Uint8Array | null {
     for (let index = 0; index < binary.length; index += 1) {
       bytes[index] = binary.charCodeAt(index);
     }
+    if (encodeBase64Url(bytes) !== value) {
+      return null;
+    }
     return bytes;
   } catch {
     return null;

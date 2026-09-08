@@ -50,9 +50,15 @@ describe("signed links", () => {
     const token = await issueSignedLink(secret, envelope);
     const tampered = `${token.slice(0, -1)}${token.endsWith("a") ? "b" : "a"}`;
 
+    const [payload = "", signature = ""] = token.split(".");
+    const tamperedPayload = `${payload.startsWith("e") ? "f" : "e"}${payload.slice(1)}.${signature}`;
+    const tamperedSignatureHead = `${payload}.${signature.startsWith("A") ? "B" : "A"}${signature.slice(1)}`;
+
     await expect(verifySignedLink(secret, "not-a-token", validOptions)).resolves.toBeNull();
     await expect(verifySignedLink(secret, "x".repeat(4097), validOptions)).resolves.toBeNull();
     await expect(verifySignedLink(secret, tampered, validOptions)).resolves.toBeNull();
+    await expect(verifySignedLink(secret, tamperedPayload, validOptions)).resolves.toBeNull();
+    await expect(verifySignedLink(secret, tamperedSignatureHead, validOptions)).resolves.toBeNull();
     await expect(verifySignedLink(secret, token.slice(0, -10), validOptions)).resolves.toBeNull();
     await expect(
       verifySignedLink(secret, token, { ...validOptions, now: new Date(999_000) }),
