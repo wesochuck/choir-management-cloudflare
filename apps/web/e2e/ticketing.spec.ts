@@ -461,6 +461,9 @@ test.describe("public ticket pages", () => {
     await page.route("**/api/public/projection", async (route) => {
       await route.fulfill({ status: 404 });
     });
+    await page.route("**/api/public/commerce-projection", async (route) => {
+      await route.fulfill({ status: 404 });
+    });
 
     await page.goto("/tickets");
 

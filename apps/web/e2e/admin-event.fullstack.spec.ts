@@ -16,8 +16,6 @@ import {
   uniqueFullstackName,
 } from "./fixtures/fullstack";
 
-const FULLSTACK_EVENTS_EMAIL = "fullstack.events@example.test";
-
 const problemSchema = z.object({
   code: z.string().min(1),
   message: z.string().min(1),
@@ -33,9 +31,10 @@ function futureLocalDateTime(): string {
 test("creates an event that survives a reload against the real store", async ({
   page,
   request,
-}) => {
-  await bootstrapFullstack(request, FULLSTACK_EVENTS_EMAIL);
-  await signInWithFullstackOtp(page, request, FULLSTACK_EVENTS_EMAIL);
+}, testInfo) => {
+  const eventsEmail = `fullstack.events-create-${testInfo.project.name}@example.test`;
+  await bootstrapFullstack(request, eventsEmail);
+  await signInWithFullstackOtp(page, request, eventsEmail);
 
   const title = uniqueFullstackName("Fullstack Rehearsal");
   await page.goto(`${FULLSTACK_APP_ORIGIN}/admin/events`);
@@ -72,9 +71,10 @@ test("creates an event that survives a reload against the real store", async ({
 test("rejects an invalid event payload with a typed validation failure", async ({
   page,
   request,
-}) => {
-  await bootstrapFullstack(request, FULLSTACK_EVENTS_EMAIL);
-  await signInWithFullstackOtp(page, request, FULLSTACK_EVENTS_EMAIL);
+}, testInfo) => {
+  const eventsEmail = `fullstack.events-invalid-${testInfo.project.name}@example.test`;
+  await bootstrapFullstack(request, eventsEmail);
+  await signInWithFullstackOtp(page, request, eventsEmail);
 
   // Contract-drift proof: the create schema still guards the boundary. An
   // empty object must stay a 400 `validation_failed`, never a 201 with

@@ -463,7 +463,12 @@ export function EventsPage({
               >
                 Bulk add rehearsals
               </button>
-              <button className="button button--primary" onClick={openCreate} type="button">
+              <button
+                className="button button--primary"
+                disabled={state.status !== "ready"}
+                onClick={openCreate}
+                type="button"
+              >
                 Single event
               </button>
             </div>

@@ -17,8 +17,6 @@ import {
   uniqueFullstackName,
 } from "./fixtures/fullstack";
 
-const FULLSTACK_DONATIONS_EMAIL = "fullstack.donations@example.test";
-
 const problemSchema = z.object({
   code: z.string().min(1),
   message: z.string().min(1),
@@ -28,9 +26,10 @@ const problemSchema = z.object({
 test("records an offline donation that survives a reload @webkit-smoke", async ({
   page,
   request,
-}) => {
-  await bootstrapFullstack(request, FULLSTACK_DONATIONS_EMAIL);
-  await signInWithFullstackOtp(page, request, FULLSTACK_DONATIONS_EMAIL);
+}, testInfo) => {
+  const donationsEmail = `fullstack.donations-create-${testInfo.project.name}@example.test`;
+  await bootstrapFullstack(request, donationsEmail);
+  await signInWithFullstackOtp(page, request, donationsEmail);
 
   const donorName = uniqueFullstackName("Fullstack Donor");
   await page.goto(`${FULLSTACK_APP_ORIGIN}/admin/donations`);
@@ -66,8 +65,12 @@ test("records an offline donation that survives a reload @webkit-smoke", async (
   await expect(page.getByRole("tabpanel", { name: /history/i }).getByText(donorName)).toBeVisible();
 });
 
-test("rejects invalid manual-donation payloads with typed failures", async ({ page, request }) => {
-  await bootstrapFullstack(request);
+test("rejects invalid manual-donation payloads with typed failures", async ({
+  page,
+  request,
+}, testInfo) => {
+  const donationsEmail = `fullstack.donations-invalid-${testInfo.project.name}@example.test`;
+  await bootstrapFullstack(request, donationsEmail);
 
   // Anonymous callers cannot reach the mutation at all.
   const anonymous = await request.post(
@@ -78,7 +81,7 @@ test("rejects invalid manual-donation payloads with typed failures", async ({ pa
 
   // Contract-drift proof: an authenticated empty payload must stay a 400
   // `validation_failed`, never a donation with invented defaults.
-  await signInWithFullstackOtp(page, request, FULLSTACK_DONATIONS_EMAIL);
+  await signInWithFullstackOtp(page, request, donationsEmail);
   const invalid = await page.request.post(
     `${FULLSTACK_APP_ORIGIN}/api/organization/donations/manual`,
     {
