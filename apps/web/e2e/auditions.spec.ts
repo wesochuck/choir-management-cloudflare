@@ -621,6 +621,14 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
   const navigationDialog = page.getByRole("dialog");
   await expect(navigationDialog).toContainText("Leave with unsaved changes?");
   await navigationDialog.getByRole("button", { name: "Cancel" }).click();
+  // Dirty-cancel from the drawer keeps the route and leaves usable navigation:
+  // the drawer stays open (modal, so background is inert) until dismissed.
+  const workspaceDrawer = page.getByRole("dialog", { name: "Workspace navigation" });
+  if (await workspaceDrawer.isVisible()) {
+    await expect(workspaceDrawer).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(workspaceDrawer).toHaveCount(0);
+  }
   await expect(page.getByRole("heading", { name: "Audition settings" })).toBeVisible();
   await page.getByRole("tab", { name: "Inquiries" }).click();
   const tabDialog = page.getByRole("dialog");

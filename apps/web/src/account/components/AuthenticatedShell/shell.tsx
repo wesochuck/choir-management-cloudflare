@@ -5,6 +5,7 @@ import type {
 } from "@choir/contracts";
 import { Sheet } from "@choir/ui";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import type { UIEvent } from "react";
 import {
   AuthApiError,
   getHealth,
@@ -36,7 +37,17 @@ import {
   workspaceLabel,
 } from "./utils";
 import { useRoute } from "./hooks";
-import { AppLink, Navigation, ThemeIcon } from "./navigation";
+import { AppLink, Navigation, SidebarWorkspaceHeading, ThemeIcon } from "./navigation";
+import {
+  NARROW_SIDEBAR_QUERY,
+  NavScrollStore,
+  isElementVisible,
+  readNarrowViewport,
+  revealActiveIfOutside,
+  shouldCloseDrawerAfterNavigate,
+  shouldCloseStaleDrawer,
+  shouldShowDrawerPin,
+} from "./sidebarTransitions";
 
 import type { AccessState, ThemePreference, Workspace } from "./types";
 
@@ -74,9 +85,17 @@ export function AuthenticatedShell({
   const [route, navigate] = useRoute();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarPinned, setSidebarPinned] = useState(readSidebarPinned);
+  const [isNarrowViewport, setIsNarrowViewport] = useState(readNarrowViewport);
   const mobileNavTriggerRef = useRef<HTMLButtonElement | null>(null);
   const sidebarCollapseRef = useRef<HTMLButtonElement | null>(null);
   const focusPinnedSidebarRef = useRef(false);
+  const focusMobileTriggerRef = useRef(false);
+  const paletteOpenerRef = useRef<HTMLElement | null>(null);
+  const paletteWasOpenRef = useRef(false);
+  const [navScrollStore] = useState(() => new NavScrollStore());
+  const sidebarScrollRef = useRef<HTMLDivElement | null>(null);
+  const drawerScrollRef = useRef<HTMLDivElement | null>(null);
+  const previousNarrowRef = useRef(isNarrowViewport);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace>(() =>
     workspaceForPath(readRoute().pathname),
   );
@@ -112,7 +131,7 @@ export function AuthenticatedShell({
       await stopOrganizationImpersonation();
     } finally {
       setImpersonation(null);
-      navigate("/admin/roster");
+      void navigate("/admin/roster");
     }
   };
 
@@ -143,6 +162,84 @@ export function AuthenticatedShell({
       sidebarCollapseRef.current?.focus();
     });
   }, [mobileNavOpen]);
+
+  // Phase 2 gap 1: collapsing the pinned sidebar hides it and focuses the
+  // visible navigation trigger instead of leaving focus in the removed tree.
+  useEffect(() => {
+    if (sidebarPinned || !focusMobileTriggerRef.current) return;
+    focusMobileTriggerRef.current = false;
+    window.requestAnimationFrame(() => {
+      mobileNavTriggerRef.current?.focus();
+    });
+  }, [sidebarPinned]);
+
+  // Phase 2 gaps 3-4: track the narrow breakpoint without ever overwriting
+  // the saved desktop pin preference. Viewport changes only affect drawer
+  // visibility and focus placement.
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia(NARROW_SIDEBAR_QUERY);
+    const onChange = (event: MediaQueryListEvent) => {
+      setIsNarrowViewport(event.matches);
+    };
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", onChange);
+      return () => {
+        media.removeEventListener("change", onChange);
+      };
+    }
+    return () => undefined;
+  }, []);
+
+  // Phase 2 gap 4: widening past 48rem with a stale drawer over a restored
+  // pinned layout closes the modal layer. Focus moves only when its element
+  // is no longer visible; ordinary layout changes never steal focus.
+  useEffect(() => {
+    const wasNarrow = previousNarrowRef.current;
+    previousNarrowRef.current = isNarrowViewport;
+    if (wasNarrow === isNarrowViewport) return;
+    if (wasNarrow && !isNarrowViewport) {
+      if (
+        shouldCloseStaleDrawer({
+          isNarrow: isNarrowViewport,
+          mobileOpen: mobileNavOpen,
+          sidebarPinned,
+          wasNarrow,
+        })
+      ) {
+        focusPinnedSidebarRef.current = true;
+        setMobileNavOpen(false);
+        return;
+      }
+      const focused = document.activeElement;
+      const active = focused instanceof HTMLElement ? focused : null;
+      if (active && !isElementVisible(active)) {
+        window.requestAnimationFrame(() => {
+          if (sidebarPinned && isElementVisible(sidebarCollapseRef.current)) {
+            sidebarCollapseRef.current?.focus();
+          } else if (isElementVisible(mobileNavTriggerRef.current)) {
+            mobileNavTriggerRef.current?.focus();
+          }
+        });
+      }
+      return;
+    }
+    const focused = document.activeElement;
+    const active = focused instanceof HTMLElement ? focused : null;
+    if (active && sidebarScrollRef.current?.contains(active)) {
+      window.requestAnimationFrame(() => {
+        mobileNavTriggerRef.current?.focus();
+      });
+      return;
+    }
+    if (active && !isElementVisible(active)) {
+      window.requestAnimationFrame(() => {
+        if (isElementVisible(mobileNavTriggerRef.current)) {
+          mobileNavTriggerRef.current?.focus();
+        }
+      });
+    }
+  }, [isNarrowViewport, mobileNavOpen, sidebarPinned]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -261,6 +358,10 @@ export function AuthenticatedShell({
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
+        if (!commandPaletteOpen) {
+          const focused = document.activeElement;
+          paletteOpenerRef.current = focused instanceof HTMLElement ? focused : null;
+        }
         setCommandPaletteOpen((prev) => !prev);
       }
     };
@@ -268,7 +369,59 @@ export function AuthenticatedShell({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [canManage, platformAvailable]);
+  }, [canManage, commandPaletteOpen, platformAvailable]);
+
+  // Phase 2 gap 5: closing the palette restores focus to the element that
+  // opened it when still visible, including the drawer-to-palette handoff
+  // where the drawer trigger is gone and the visible nav trigger is next.
+  useEffect(() => {
+    const wasOpen = paletteWasOpenRef.current;
+    paletteWasOpenRef.current = commandPaletteOpen;
+    if (wasOpen && !commandPaletteOpen) {
+      const opener = paletteOpenerRef.current;
+      paletteOpenerRef.current = null;
+      window.requestAnimationFrame(() => {
+        if (isElementVisible(opener)) {
+          opener?.focus();
+          return;
+        }
+        if (isElementVisible(mobileNavTriggerRef.current)) {
+          mobileNavTriggerRef.current?.focus();
+          return;
+        }
+        if (isElementVisible(sidebarCollapseRef.current)) {
+          sidebarCollapseRef.current?.focus();
+        }
+      });
+    }
+  }, [commandPaletteOpen]);
+
+  // Phase 2 gap 6: transient per-workspace scroll memory. Positions live only
+  // in memory, never in storage or backend, and survive sidebar/drawer
+  // transitions plus reopen within the same workspace.
+  useEffect(() => {
+    const saved = navScrollStore.read(selectedWorkspace);
+    if (saved === undefined) return;
+    window.requestAnimationFrame(() => {
+      if (sidebarScrollRef.current) {
+        sidebarScrollRef.current.scrollTop = saved;
+      }
+      if (drawerScrollRef.current) {
+        drawerScrollRef.current.scrollTop = saved;
+      }
+    });
+  }, [selectedWorkspace, sidebarPinned, mobileNavOpen, isNarrowViewport, navScrollStore]);
+
+  // Phase 2 gap 6: after a route or workspace change, reveal the active item
+  // only when it is outside the visible navigation area. Never moves focus.
+  useEffect(() => {
+    window.requestAnimationFrame(() => {
+      revealActiveIfOutside(sidebarScrollRef.current);
+      if (mobileNavOpen) {
+        revealActiveIfOutside(drawerScrollRef.current);
+      }
+    });
+  }, [route.pathname, selectedWorkspace, mobileNavOpen, sidebarPinned, isNarrowViewport]);
 
   function switchWorkspace(next: Workspace) {
     void requestGlobalLeave({
@@ -279,7 +432,7 @@ export function AuthenticatedShell({
         } catch {
           // Restricted storage should not prevent switching workspaces.
         }
-        navigate(workspaceHome(next));
+        void navigate(workspaceHome(next));
         setMobileNavOpen(false);
       },
       reason: "workspace-switch",
@@ -287,6 +440,7 @@ export function AuthenticatedShell({
   }
 
   function collapseWorkspaceNavigation() {
+    focusMobileTriggerRef.current = true;
     setSidebarPinned(false);
     setMobileNavOpen(false);
   }
@@ -300,6 +454,53 @@ export function AuthenticatedShell({
     focusPinnedSidebarRef.current = true;
     setSidebarPinned(true);
     setMobileNavOpen(false);
+  }
+
+  // Phase 2 gap 2: drawer destinations close only after the unsaved-change
+  // guard accepts navigation. Cancellation keeps the route and usable nav.
+  // Modified clicks never reach here; AppLink preserves native new-tab.
+  function handleDrawerNavigate(href: string) {
+    void navigate(href).then((allowed) => {
+      if (shouldCloseDrawerAfterNavigate(allowed)) {
+        setMobileNavOpen(false);
+      }
+    });
+  }
+
+  function capturePaletteOpener() {
+    const focused = document.activeElement;
+    paletteOpenerRef.current = focused instanceof HTMLElement ? focused : null;
+  }
+
+  function openPaletteFromHeader() {
+    capturePaletteOpener();
+    setCommandPaletteOpen(true);
+  }
+
+  function openPaletteFromSidebar() {
+    capturePaletteOpener();
+    setCommandPaletteOpen(true);
+  }
+
+  function openPaletteFromDrawer() {
+    capturePaletteOpener();
+    setMobileNavOpen(false);
+    setCommandPaletteOpen(true);
+  }
+
+  function closePalette() {
+    setCommandPaletteOpen(false);
+  }
+
+  function handleVoidNavigate(href: string): void {
+    void navigate(href);
+  }
+
+  function handleNavScroll(workspace: Workspace) {
+    const store = navScrollStore;
+    return (event: UIEvent<HTMLDivElement>) => {
+      store.write(workspace, event.currentTarget.scrollTop);
+    };
   }
 
   const navGroups = workspaceNavigation(
@@ -336,7 +537,7 @@ export function AuthenticatedShell({
             >
               <span aria-hidden="true">☰</span>
             </button>
-            <AppLink href={selectedWorkspaceHome} onNavigate={navigate}>
+            <AppLink href={selectedWorkspaceHome} onNavigate={handleVoidNavigate}>
               {branding?.logoFileId ? (
                 <img
                   src={`/api/organization/files/${encodeURIComponent(branding.logoFileId)}`}
@@ -366,9 +567,7 @@ export function AuthenticatedShell({
             {canManage || platformAvailable ? (
               <QuickSearchTrigger
                 className="header-quick-search-trigger"
-                onClick={() => {
-                  setCommandPaletteOpen(true);
-                }}
+                onClick={openPaletteFromHeader}
                 variant="header"
               />
             ) : null}
@@ -447,47 +646,54 @@ export function AuthenticatedShell({
         <div className="signed-in-body">
           {sidebarPinned ? (
             <aside className="signed-in-sidebar">
-              <div className="sidebar-toolbar" role="group" aria-label="Navigation controls">
-                <button
-                  aria-label="Collapse workspace navigation"
-                  className="sidebar-toolbar__button"
-                  onClick={collapseWorkspaceNavigation}
-                  ref={sidebarCollapseRef}
-                  title="Collapse workspace navigation"
-                  type="button"
-                >
-                  <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                    <path d="m14 6-6 6 6 6" />
-                  </svg>
-                  <span className="sr-only">Collapse workspace navigation</span>
-                </button>
-                <button
-                  aria-label="Unpin workspace navigation"
-                  aria-pressed={sidebarPinned}
-                  className="sidebar-toolbar__button sidebar-toolbar__button--pin"
-                  onClick={unpinWorkspaceNavigation}
-                  title="Unpin workspace navigation"
-                  type="button"
-                >
-                  <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                    <path d="M8 4h8v5l3 3H5l3-3V4M12 12v8" />
-                  </svg>
-                  <span className="sr-only">Unpin workspace navigation</span>
-                </button>
-              </div>
-              <div className="sidebar-context">
-                <span className="sidebar-context__label">{workspaceLabel(selectedWorkspace)}</span>
-                <strong>{organizationName}</strong>
+              <div className="sidebar-header">
+                <SidebarWorkspaceHeading
+                  organizationName={organizationName}
+                  workspaceName={workspaceLabel(selectedWorkspace)}
+                />
+                <div className="sidebar-toolbar" role="group" aria-label="Navigation controls">
+                  <button
+                    aria-label="Collapse navigation"
+                    className="sidebar-toolbar__button"
+                    onClick={collapseWorkspaceNavigation}
+                    ref={sidebarCollapseRef}
+                    title="Collapse navigation"
+                    type="button"
+                  >
+                    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                      <path d="m14 6-6 6 6 6" />
+                    </svg>
+                    <span className="sr-only">Collapse navigation</span>
+                  </button>
+                  <button
+                    aria-label="Unpin sidebar"
+                    aria-pressed={sidebarPinned}
+                    className="sidebar-toolbar__button sidebar-toolbar__button--pin"
+                    onClick={unpinWorkspaceNavigation}
+                    title="Unpin sidebar"
+                    type="button"
+                  >
+                    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                      <path d="M8 4h8v5l3 3H5l3-3V4M12 12v8" />
+                    </svg>
+                    <span className="sr-only">Unpin sidebar</span>
+                  </button>
+                </div>
               </div>
               {selectedWorkspace === "organization" ? (
-                <QuickSearchTrigger
-                  onClick={() => {
-                    setCommandPaletteOpen(true);
-                  }}
-                  variant="sidebar"
-                />
+                <QuickSearchTrigger onClick={openPaletteFromSidebar} variant="sidebar" />
               ) : null}
-              <Navigation groups={navGroups} navigate={navigate} pathname={route.pathname} />
+              <div
+                className="sidebar-nav-scroll"
+                onScroll={handleNavScroll(selectedWorkspace)}
+                ref={sidebarScrollRef}
+              >
+                <Navigation
+                  groups={navGroups}
+                  navigate={handleVoidNavigate}
+                  pathname={route.pathname}
+                />
+              </div>
             </aside>
           ) : null}
           <main
@@ -530,10 +736,8 @@ export function AuthenticatedShell({
                   access={access}
                   currentSession={currentSession}
                   memberEnabled={memberEnabled}
-                  navigate={navigate}
-                  onOpenCommandPalette={() => {
-                    setCommandPaletteOpen(true);
-                  }}
+                  navigate={handleVoidNavigate}
+                  onOpenCommandPalette={openPaletteFromHeader}
                   onSignedOut={onSignedOut}
                   platformAvailable={platformAvailable}
                   route={route}
@@ -553,43 +757,40 @@ export function AuthenticatedShell({
           title="Workspace navigation"
         >
           <div className="sheet__header sidebar-drawer__header">
-            <div className="sidebar-drawer__context">
-              <span className="sidebar-drawer__label">Workspace</span>
-              <strong>{workspaceLabel(selectedWorkspace)}</strong>
-            </div>
-            {!sidebarPinned ? (
+            <SidebarWorkspaceHeading
+              organizationName={organizationName}
+              workspaceName={workspaceLabel(selectedWorkspace)}
+            />
+            {shouldShowDrawerPin(sidebarPinned, isNarrowViewport) ? (
               <button
-                aria-label="Pin navigation open"
+                aria-label="Keep sidebar open"
                 aria-pressed="false"
                 className="sidebar-drawer__pin"
                 onClick={pinWorkspaceNavigation}
-                title="Pin navigation open"
+                title="Keep sidebar open"
                 type="button"
               >
                 <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
                   <path d="M8 4h8v5l3 3H5l3-3V4M12 12v8" />
                 </svg>
-                <span className="sr-only">Pin navigation open</span>
+                <span className="sr-only">Keep sidebar open</span>
               </button>
             ) : null}
           </div>
           {selectedWorkspace === "organization" ? (
-            <QuickSearchTrigger
-              onClick={() => {
-                setMobileNavOpen(false);
-                setCommandPaletteOpen(true);
-              }}
-              variant="sidebar"
-            />
+            <QuickSearchTrigger onClick={openPaletteFromDrawer} variant="sidebar" />
           ) : null}
-          <Navigation
-            groups={navGroups}
-            navigate={(href) => {
-              navigate(href);
-              setMobileNavOpen(false);
-            }}
-            pathname={route.pathname}
-          />
+          <div
+            className="sidebar-nav-scroll"
+            onScroll={handleNavScroll(selectedWorkspace)}
+            ref={drawerScrollRef}
+          >
+            <Navigation
+              groups={navGroups}
+              navigate={handleDrawerNavigate}
+              pathname={route.pathname}
+            />
+          </div>
         </Sheet>
         {canManage || platformAvailable ? (
           <CommandPaletteModal
@@ -597,12 +798,10 @@ export function AuthenticatedShell({
               access.status === "ready" && (access.context.role === "owner" || platformAvailable)
             }
             modules={modules.filter((m) => m.enabled).map((m) => m.id)}
-            onClose={() => {
-              setCommandPaletteOpen(false);
-            }}
+            onClose={closePalette}
             onNavigate={(path) => {
-              setCommandPaletteOpen(false);
-              navigate(path);
+              closePalette();
+              void navigate(path);
             }}
             onToggleTheme={() => {
               setThemePreference((current) => (current === "dark" ? "light" : "dark"));

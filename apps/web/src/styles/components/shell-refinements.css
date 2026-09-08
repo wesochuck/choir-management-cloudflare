@@ -40,10 +40,6 @@
     box-sizing: border-box;
   }
 
-  .sidebar-context strong {
-    font-weight: var(--font-weight-medium);
-  }
-
   .workspace-nav__label {
     font-weight: var(--font-weight-medium);
     letter-spacing: 0.07em;

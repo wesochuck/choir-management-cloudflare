@@ -525,3 +525,22 @@
   background-color: var(--color-surface-raised);
   color: var(--color-text);
 }
+
+/* Phase 2: respect reduced motion; avoid double animations when the palette
+ * hands off from the navigation drawer. */
+@media (prefers-reduced-motion: reduce) {
+  .command-palette-overlay,
+  .command-palette-modal,
+  .command-palette-item,
+  .command-palette-item-arrow,
+  .quick-search-sidebar-button,
+  .quick-search-header-button,
+  .quick-search-hero-button {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .spinner-dot {
+    animation: none !important;
+  }
+}

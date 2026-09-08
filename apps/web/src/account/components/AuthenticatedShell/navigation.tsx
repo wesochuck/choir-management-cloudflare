@@ -51,6 +51,21 @@ export function AppLink({
   );
 }
 
+export function SidebarWorkspaceHeading({
+  organizationName,
+  workspaceName,
+}: {
+  readonly organizationName: string;
+  readonly workspaceName: string;
+}) {
+  return (
+    <div className="sidebar-context">
+      <h2 className="sidebar-context__title">{workspaceName}</h2>
+      <p className="sidebar-context__org">{organizationName}</p>
+    </div>
+  );
+}
+
 export function Navigation({
   groups,
   navigate,
@@ -87,7 +102,6 @@ export function Navigation({
                   key={item.href}
                   onNavigate={navigate}
                 >
-                  <span aria-hidden="true" className="workspace-nav__dot" />
                   <span>{item.label}</span>
                   {isCurrent ? <span className="sr-only"> (current)</span> : null}
                 </AppLink>

@@ -105,19 +105,35 @@
   .signed-in-sidebar {
     position: sticky;
     top: var(--signed-in-header-height);
+    display: flex;
+    flex-direction: column;
     align-self: start;
     height: calc(100vh - var(--signed-in-header-height));
-    overflow-y: auto;
+    overflow: hidden;
     padding: var(--spacing-xl) var(--spacing-md);
     border-right: 1px solid var(--color-border);
     background: color-mix(in srgb, var(--color-surface) 74%, transparent);
   }
 
+  /* Compact header area: workspace heading shares one row with the pin and
+   * collapse controls, and the heading wraps instead of overlapping them. */
+  .sidebar-header {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .sidebar-header > .sidebar-context {
+    min-width: 0;
+    flex: 1;
+  }
+
   .sidebar-toolbar {
     display: flex;
+    flex: 0 0 auto;
     justify-content: flex-end;
-    gap: var(--spacing-2xs);
-    margin: -var(--spacing-xs) 0 var(--spacing-xs);
+    gap: var(--spacing-3xs);
   }
 
   .sidebar-toolbar__button {
@@ -126,18 +142,35 @@
     height: 2.25rem;
     flex: 0 0 auto;
     place-items: center;
-    border: 1px solid var(--color-border);
-    border-radius: 50%;
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
     background: transparent;
     color: var(--color-text-muted);
     cursor: pointer;
   }
 
-  .sidebar-toolbar__button:hover,
-  .sidebar-toolbar__button:focus-visible {
-    border-color: var(--color-accent);
-    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+  .sidebar-toolbar__button:hover {
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
     color: var(--color-text);
+  }
+
+  .sidebar-toolbar__button:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    color: var(--color-text);
+  }
+
+  /* Visibly active pin treatment while the sidebar is pinned. */
+  .sidebar-toolbar__button--pin[aria-pressed="true"] {
+    border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
+    color: var(--color-accent);
+  }
+
+  .sidebar-toolbar__button--pin[aria-pressed="true"]:hover {
+    background: color-mix(in srgb, var(--color-accent) 24%, var(--color-surface));
+    color: var(--color-accent);
   }
 
   .sidebar-toolbar__button svg,
@@ -160,18 +193,24 @@
     flex: 0 0 auto;
     place-items: center;
     padding: 0;
-    border: 1px solid var(--color-border);
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--color-accent) 8%, var(--color-surface));
-    color: var(--color-text);
+    border: 1px solid transparent;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--color-text-muted);
     cursor: pointer;
     line-height: 0;
   }
 
-  .sidebar-drawer__pin:hover,
+  .sidebar-drawer__pin:hover {
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    color: var(--color-text);
+  }
+
   .sidebar-drawer__pin:focus-visible {
-    border-color: var(--color-accent);
-    background: color-mix(in srgb, var(--color-accent) 15%, var(--color-surface));
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    color: var(--color-text);
   }
 
   .sheet__header.sidebar-drawer__header {
@@ -196,30 +235,64 @@
     right: 3.75rem;
   }
 
-  .sidebar-drawer__context {
-    display: grid;
-    min-width: 0;
-    flex: 1;
-    gap: var(--spacing-2xs);
-  }
-
+  /* Shared workspace heading: the workspace label is the heading and the
+   * Organization name is secondary context. Long names wrap anywhere so
+   * they never overlap the adjacent controls. */
   .sidebar-context {
     display: grid;
-    gap: var(--spacing-2xs);
-    margin: 0 0 var(--spacing-xl);
-    padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-md);
-    border-bottom: 1px solid var(--color-border);
+    min-width: 0;
+    gap: 0;
+    margin: 0;
+    padding: 0;
   }
 
-  .sidebar-context strong {
+  .sidebar-context__title {
+    margin: 0;
     overflow-wrap: anywhere;
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--line-height-tight);
   }
 
-  .sidebar-context__label,
-  .sidebar-drawer__label {
+  .sidebar-context__org {
+    margin: var(--spacing-3xs) 0 0;
+    overflow-wrap: anywhere;
     color: var(--color-text-muted);
-    font-size: var(--font-size-xs);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-snug);
+  }
+
+  .sheet__header.sidebar-drawer__header > .sidebar-context {
+    min-width: 0;
+    flex: 1;
+  }
+
+  /* Shrinkable navigation list region: header and search stay stationary
+   * while long destination lists scroll inside the bounded sidebar/drawer. */
+  .sidebar-nav-scroll {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    margin-top: var(--spacing-sm);
+    padding-bottom: var(--spacing-sm);
+  }
+
+  .sheet:has(> .sheet__header.sidebar-drawer__header) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sheet:has(> .sheet__header.sidebar-drawer__header) > .sidebar-nav-scroll {
+    margin-top: var(--spacing-sm);
+  }
+
+  @media (pointer: coarse) {
+    .sidebar-toolbar__button,
+    .sidebar-drawer__pin {
+      width: calc(var(--control-height) + var(--spacing-2xs));
+      height: calc(var(--control-height) + var(--spacing-2xs));
+    }
   }
 
   /* Workspace navigation */
@@ -243,10 +316,10 @@
     display: flex;
     align-items: center;
     gap: var(--spacing-sm);
-    min-height: 2.5rem;
+    min-height: var(--control-height);
     padding: var(--spacing-xs) var(--spacing-sm);
     border-radius: var(--radius-control);
-    color: var(--color-text-muted);
+    color: var(--color-text);
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-bold);
     text-decoration: none;
@@ -258,17 +331,10 @@
     color: var(--color-text);
   }
 
-  .workspace-nav__items a[href="/dashboard"],
-  .workspace-nav__items a[href="/admin"] {
-    color: var(--color-text);
-  }
-
-  .workspace-nav__dot {
-    width: 0.38rem;
-    height: 0.38rem;
-    flex: 0 0 auto;
-    border-radius: 50%;
-    background: var(--color-border);
+  @media (pointer: coarse) {
+    .workspace-nav__items a {
+      min-height: calc(var(--control-height) + var(--spacing-2xs));
+    }
   }
 
   /* Impersonation Banner */
@@ -307,5 +373,33 @@
     flex-shrink: 0;
     font-weight: var(--font-weight-bold);
     background: var(--color-surface);
+  }
+
+  /* Phase 2: narrow viewports use drawer navigation only. The pin control
+   * stays hidden even if rendered, and the saved desktop preference is
+   * never overwritten by viewport changes. */
+  @media (max-width: 48rem) {
+    .sidebar-drawer__pin {
+      display: none;
+    }
+  }
+
+  /* Phase 2: respect reduced motion; sidebar and drawer must not double
+   * animate or force background jumps during transitions. */
+  @media (prefers-reduced-motion: reduce) {
+    .signed-in-sidebar,
+    .sheet,
+    .sidebar-nav-scroll {
+      scroll-behavior: auto;
+    }
+
+    .signed-in-sidebar,
+    .sheet,
+    .sidebar-nav-scroll,
+    .sidebar-toolbar__button,
+    .sidebar-drawer__pin {
+      animation: none;
+      transition: none;
+    }
   }
 }

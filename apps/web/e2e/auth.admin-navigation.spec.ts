@@ -284,7 +284,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await page.setViewportSize({ height: 734, width: 844 });
   await page.goto("/admin/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/roster");
   const collapseNavigation = page.getByRole("button", {
-    name: "Collapse workspace navigation",
+    name: "Collapse navigation",
   });
   await expect(collapseNavigation).toBeVisible();
   await expect(page.locator(".signed-in-header")).toHaveCSS("height", "60px");
@@ -300,33 +300,43 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await openNavigation.click();
   const navigationDrawer = page.getByRole("dialog", { name: "Workspace navigation" });
   await expect(navigationDrawer).toBeVisible();
-  const pinNavigation = navigationDrawer.getByRole("button", { name: "Pin navigation open" });
+  const pinNavigation = navigationDrawer.getByRole("button", { name: "Keep sidebar open" });
   const closeNavigation = navigationDrawer.getByRole("button", { name: "Close navigation" });
   await expect(pinNavigation).toHaveClass(/sidebar-drawer__pin/);
-  await expect(pinNavigation).toHaveCSS("width", "36px");
+  // Coarse pointers use larger touch targets (46px); fine pointers use 36px.
+  await expect(pinNavigation).toHaveCSS("width", /^(36|46)px$/);
   await expect(closeNavigation).toHaveCSS("width", "36px");
   await expect(closeNavigation).toHaveCSS("height", "36px");
   await expect(pinNavigation.locator("svg")).toHaveCSS("overflow", "visible");
   await expect(pinNavigation.locator("path")).toHaveAttribute("d", "M8 4h8v5l3 3H5l3-3V4M12 12v8");
 
-  await page.setViewportSize({ height: 734, width: 390 });
-  const pinBox = await pinNavigation.boundingBox();
-  const closeBox = await closeNavigation.boundingBox();
-  const drawerBox = await navigationDrawer.boundingBox();
-  expect(pinBox).not.toBeNull();
-  expect(closeBox).not.toBeNull();
-  expect(drawerBox).not.toBeNull();
-  if (!pinBox || !closeBox || !drawerBox) {
+  const desktopPinBox = await pinNavigation.boundingBox();
+  const desktopCloseBox = await closeNavigation.boundingBox();
+  const desktopDrawerBox = await navigationDrawer.boundingBox();
+  expect(desktopPinBox).not.toBeNull();
+  expect(desktopCloseBox).not.toBeNull();
+  expect(desktopDrawerBox).not.toBeNull();
+  if (!desktopPinBox || !desktopCloseBox || !desktopDrawerBox) {
     throw new Error("Workspace navigation controls should have visible geometry");
   }
-  expect(Math.abs(pinBox.y - closeBox.y)).toBeLessThanOrEqual(1);
-  expect(closeBox.x - (pinBox.x + pinBox.width)).toBeGreaterThanOrEqual(7);
-  expect(closeBox.x - (pinBox.x + pinBox.width)).toBeLessThanOrEqual(9);
-  expect(pinBox.x).toBeGreaterThanOrEqual(drawerBox.x);
-  expect(closeBox.x + closeBox.width).toBeLessThanOrEqual(drawerBox.x + drawerBox.width);
+  expect(Math.abs(desktopPinBox.y - desktopCloseBox.y)).toBeLessThanOrEqual(1);
+  expect(desktopCloseBox.x - (desktopPinBox.x + desktopPinBox.width)).toBeGreaterThanOrEqual(7);
+  expect(desktopCloseBox.x - (desktopPinBox.x + desktopPinBox.width)).toBeLessThanOrEqual(9);
+  expect(desktopPinBox.x).toBeGreaterThanOrEqual(desktopDrawerBox.x);
+  expect(desktopCloseBox.x + desktopCloseBox.width).toBeLessThanOrEqual(
+    desktopDrawerBox.x + desktopDrawerBox.width,
+  );
 
-  await pinNavigation.click();
+  await page.setViewportSize({ height: 734, width: 390 });
+  // Narrow viewports use drawer-only navigation: the pin control is hidden
+  // while the drawer and its close button stay usable.
+  await expect(pinNavigation).toHaveCount(0);
+  await expect(closeNavigation).toBeVisible();
+  await expect(navigationDrawer).toBeVisible();
+
   await page.setViewportSize({ height: 734, width: 844 });
+  await expect(pinNavigation).toBeVisible();
+  await pinNavigation.click();
   await expect(navigationDrawer).toHaveCount(0);
   await expect(collapseNavigation).toBeVisible();
   await page.reload();
