@@ -52,6 +52,6 @@ export default defineConfig({
   webServer: {
     command: "node scripts/run-e2e-servers.mjs",
     port: 4173,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !process.env.CI && !isReleaseQualification,
   },
 });
