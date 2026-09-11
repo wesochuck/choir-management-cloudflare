@@ -23,14 +23,17 @@ Mandatory instructions for AI coding agents working in this repository.
 Within repository evidence, apply this order:
 
 1. Current security, tenancy, architecture, and environment decisions in this file,
-   `docs/goal/GOAL.md`, and accepted ADRs 0003–0015.
+   `docs/goal/GOAL.md`, and applicable accepted, non-superseded architectural decision records under
+   `docs/adr/`.
 2. Current executable contracts, code, tests, migrations, and parity gates.
 3. For unresolved behavioral-parity questions only, legacy commit
    `6874d43a3c3698ae53218a44d17649bc454ca9ac` in the read-only sibling Parity Bridge.
 4. `CONTEXT.md` for product language and historical plans for supporting intent.
 
 An explicit current decision may intentionally supersede legacy behavior. Record that outcome in the
-parity ledger or an ADR instead of reproducing unsafe or obsolete behavior.
+parity ledger or an ADR instead of reproducing unsafe or obsolete behavior. An executable
+implementation cannot silently override an explicit current architectural decision, nor should
+historical documents override current code.
 
 ## 3. Scoped Instructions
 
@@ -71,13 +74,14 @@ provider instructions against current authoritative documentation before changin
 - Do not introduce eyebrow kickers into the web design system. Headings carry their own context;
   `npm run check:no-eyebrows` enforces this.
 - Keep the Organization Durable Object runtime boundary hibernation-friendly. Runtime code reachable
-  from `OrganizationStore.ts` must not perform external `fetch()`, create long-lived timers, open
-  outbound sockets/WebSockets, call providers, or send queue work except for the scheduler's
-  approved bounded queue handoff and the named temporary `DO-IO-001` DoH exception. Do not use
-  `waitUntil()` in a Durable Object; it does not extend DO lifetime. OrganizationStore WebSockets
-  are outside the current architecture. Alarm ownership stays in `scheduler.ts`; store code requests
-  scheduler work through the shared alarm helpers. `npm run check:do-runtime` enforces these
-  boundaries.
+  from `OrganizationStore.ts` must not perform external fetches, provider I/O, outbound sockets,
+  long-lived timers, or other operations prohibited by `npm run check:do-runtime`. The executable
+  checker is authoritative for narrowly approved exceptions (constructor initialization and
+  migration barriers via `blockConcurrencyWhile`, and bounded scheduler handoff to `JOBS_QUEUE`). Do
+  not use `waitUntil()` in a Durable Object; it does not extend DO lifetime. OrganizationStore
+  WebSockets are outside the current architecture. Alarm ownership stays in `scheduler.ts`; store
+  code requests scheduler work through the shared alarm helpers. `npm run check:do-runtime` enforces
+  these boundaries.
 
 ## 5. Worktree and Git Safety
 
@@ -86,8 +90,8 @@ provider instructions against current authoritative documentation before changin
 - Preserve unrelated modifications and untracked files. Never discard, rewrite, stage, or commit
   unrelated work merely to obtain a clean tree.
 - Group a change with its regression tests and required parity evidence in one cohesive commit.
-- Always stage `package-lock.json` with a `package.json` change. The pre-commit hook and CI enforce
-  lockfile synchronization.
+- Always stage `package-lock.json` with a `package.json` change. The pre-commit hook and local
+  verification gate enforce lockfile synchronization.
 - Do not use destructive Git or filesystem commands unless the user explicitly requests the exact
   operation and target.
 
@@ -106,6 +110,19 @@ Classify work by its actual risk:
 
 When uncertain, treat the change as material.
 
+Three clearly differentiated verification levels govern local work:
+
+1. **Development iteration:** Run focused unit/UI tests, contract checks, and relevant static checks
+   (`npm run lint`, `npm run typecheck`, or focused vitest runs) while modifying code.
+2. **Browser-free comprehensive check:** Run `npm run check:ci`. This is the canonical browser-free
+   local verification gate. It runs dependency audits, lockfile verification, DO runtime checks,
+   formatting, lint, Knip, contracts, parity checks, unit tests, artifact packaging verification,
+   and workerd integration tests without launching browser processes.
+3. **Complete release qualification:** Run `npm run check:release`. This is the canonical
+   pre-promotion release gate required before pushing `main` or promoting to staging. It runs
+   `npm run check:ci`, followed by the full Chromium desktop and mobile E2E suites with
+   `RELEASE_QUALIFICATION=1`, which rejects committed `.only` tests and captures failure artifacts.
+
 Required root scripts must remain available:
 
 ```bash
@@ -122,13 +139,14 @@ npm audit --audit-level=high
 Additional rules:
 
 - Use standard project commands directly; do not require a machine-specific wrapper.
-- In CI, use `npm ci`, not `npm install`, after the lockfile exists.
+- In automated scripts or test environments, use `npm ci`, not `npm install`, after the lockfile
+  exists.
 - Run focused checks while iterating.
 - After any route or parity-ledger change, run both `npm run check:parity` and
   `npm run check:parity:implementation`.
 - Build the deployable artifact before `npm run test:integration:prepared`.
-- Before pushing `main`, run `npm run check:ci`. If browser-visible behavior changed, ensure
-  Chromium is installed and then run `npm run test:e2e`.
+- Before pushing `main` or promoting to staging, run `npm run check:release`. Do not manually
+  reproduce release qualification with separate ad-hoc commands.
 - Treat bundle-size and build-output warnings as actionable. Preserve route-level code splitting and
   inspect generated output.
 
@@ -168,8 +186,8 @@ Before finishing a material or release-bound change, report:
   containing commit, lockfile, Worker bundle, and web asset hashes, and retain the prior Worker
   Version for rollback. Follow `docs/runbooks/staging-deployment.md`.
 - GitHub Actions is disabled for this repository. Release checks run locally through
-  `npm run check:ci` and `npm run test:e2e`; repository workflows must not be added without explicit
-  user approval. Do not use direct `wrangler deploy` for promotion.
+  `npm run check:release`; repository workflows must not be added without explicit user approval. Do
+  not use direct `wrangler deploy` for promotion.
 - Promote with `wrangler versions upload` followed by `wrangler versions deploy`. Apply
   non-versioned routes, schedules, queue consumers, and Workflow triggers explicitly and keep them
   backward compatible with the previously deployed Worker Version.
@@ -202,33 +220,22 @@ Continue autonomously through safe, in-scope implementation and verification. Pa
 
 ### Interactive handoff rule
 
-Never tell the user to enter a code into a terminal, browser, panel, or prompt unless that exact
-surface has been verified to be visibly open and usable by the user in the current turn. A
-background command session, queued panel tab, tool session, or inferred browser tab is not a
-user-facing surface. If visibility cannot be verified, either ask for the required value directly in
-chat only when that is safe and explicitly permitted, or provide a complete command for the user to
-run in their own terminal. Do not claim that a prompt or page was opened merely because a tool
-reported that it was queued or created. Before requesting user interaction, report the exact
-surface, URL or command, and how the user can confirm that it is visible; otherwise continue with
-non-interactive work or pause at the authorization boundary.
+Never ask or direct the user to enter credentials, codes, or commands into a surface unless that
+exact surface has been verified to be visibly open and usable by the user in the current turn. Agent
+terminals, background execution tasks, queued tool sessions, or inferred browser tabs are agent-only
+and are not user-facing surfaces.
 
-Apply this as a strict preflight, not as a best-effort suggestion:
+Mandatory preflight rules:
 
-- Treat every terminal launched through Codex tooling as agent-only and non-interactive for the
-  user, even when a tool offers to open, queue, or display that terminal. Never start an
-  authentication command there and then ask the user to type into it. Give the user the complete
-  command to run in their own terminal instead.
-- First identify the user-facing surface by evidence from the current turn. A tool session ID,
-  `browser.tabs.new` result, background `exec` process, or queued app action is agent-side evidence
-  only; it does not prove that the user can see or control anything.
-- Do not say “a prompt is open,” “enter the code,” or “click the new tab” until the visible surface,
-  exact location, and required control have been verified. If the surface cannot be verified, say so
-  plainly and give the user a self-contained command or navigation path they can run themselves.
-- After the user reports completing the action, verify the resulting non-secret postcondition before
-  proceeding. Treat “entered,” “done,” or a tool completion message as a report to check, not as
-  proof that authentication or deployment succeeded.
 - Never ask the user to paste one-time codes, recovery codes, passwords, cookies, tokens, or other
   secrets into chat. Keep those values in the verified provider or user-owned terminal surface.
+- Treat every terminal launched by coding tools as agent-only and non-interactive for the user.
+  Never start an interactive authentication command there and ask the user to type into it; provide
+  the complete command for the user to run in their own terminal instead.
+- Do not claim a prompt, browser page, or panel is open unless verified by current-turn evidence. If
+  surface visibility cannot be verified, provide a self-contained command or direct navigation path.
+- After the user reports completing an action, verify the resulting non-secret postcondition before
+  proceeding. Treat a report or completion notice as a signal to verify, not proof of success.
 
 Update `docs/goal/READINESS.md` only when a blocker affects active milestone completion or must
 survive a handoff. For a temporary question or local-only interruption, report the blocker without

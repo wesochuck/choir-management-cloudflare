@@ -41,28 +41,40 @@ describe("PublicAuditionView", () => {
     vi.unstubAllGlobals();
   });
 
-  it("does not clear query parameters or call replaceState on mount with token", () => {
-    const replaceStateSpy = vi.fn();
+  it("preserves token query parameters on mount", () => {
+    const location = { pathname: "/auditions", search: "?token=sample-audition-token-123" };
+    const replaceStateSpy = vi.fn((_data: unknown, _unused: string, url?: string | URL | null) => {
+      if (typeof url === "string") {
+        const parsed = new URL(url, "https://example.com");
+        location.search = parsed.search;
+      }
+    });
     vi.stubGlobal("window", {
       history: { replaceState: replaceStateSpy },
-      location: { pathname: "/auditions", search: "?token=sample-audition-token-123" },
+      location,
     });
 
     const html = renderToString(<PublicAuditionView />);
     expect(html).toContain("Loading");
-    expect(replaceStateSpy).not.toHaveBeenCalled();
+    expect(location.search).toBe("?token=sample-audition-token-123");
   });
 
-  it("does not call replaceState on mount when browsing without token", () => {
-    const replaceStateSpy = vi.fn();
+  it("preserves URL state on mount when browsing without token", () => {
+    const location = { pathname: "/auditions", search: "" };
+    const replaceStateSpy = vi.fn((_data: unknown, _unused: string, url?: string | URL | null) => {
+      if (typeof url === "string") {
+        const parsed = new URL(url, "https://example.com");
+        location.search = parsed.search;
+      }
+    });
     vi.stubGlobal("window", {
       history: { replaceState: replaceStateSpy },
-      location: { pathname: "/auditions", search: "" },
+      location,
     });
 
     const html = renderToString(<PublicAuditionView />);
     expect(html).toContain("Loading");
-    expect(replaceStateSpy).not.toHaveBeenCalled();
+    expect(location.search).toBe("");
   });
 });
 

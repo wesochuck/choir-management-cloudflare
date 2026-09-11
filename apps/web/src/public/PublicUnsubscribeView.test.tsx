@@ -16,29 +16,41 @@ describe("PublicUnsubscribeView", () => {
     ["undefined", undefined],
     ["empty string", ""],
   ])("renders invalid notice for %s token without touching the URL", (_label, token) => {
-    const replaceStateSpy = vi.fn();
+    const location = { search: "" };
+    const replaceStateSpy = vi.fn((_data: unknown, _unused: string, url?: string | URL | null) => {
+      if (typeof url === "string") {
+        const parsed = new URL(url, "https://example.com");
+        location.search = parsed.search;
+      }
+    });
     vi.stubGlobal("window", {
       history: { replaceState: replaceStateSpy },
-      location: { search: "" },
+      location,
     });
 
     const html = renderToString(<PublicUnsubscribeView token={token} />);
     expect(html).toContain("Unsubscribe from Organization email");
     expect(html).toContain(INVALID_COPY);
     // The token query parameter must stay intact for reloads, background-tab
-    // restores, and bookmarks: never strip it via replaceState.
-    expect(replaceStateSpy).not.toHaveBeenCalled();
+    // restores, and bookmarks.
+    expect(location.search).toBe("");
   });
 
-  it("does not clear query parameters or call replaceState on mount with token", () => {
-    const replaceStateSpy = vi.fn();
+  it("preserves token query parameters on mount with token", () => {
+    const location = { search: "?token=sample-unsub-token-123" };
+    const replaceStateSpy = vi.fn((_data: unknown, _unused: string, url?: string | URL | null) => {
+      if (typeof url === "string") {
+        const parsed = new URL(url, "https://example.com");
+        location.search = parsed.search;
+      }
+    });
     vi.stubGlobal("window", {
       history: { replaceState: replaceStateSpy },
-      location: { search: "?token=sample-unsub-token-123" },
+      location,
     });
 
     const html = renderToString(<PublicUnsubscribeView token="sample-unsub-token-123" />);
     expect(html).toContain("Updating your email preference…");
-    expect(replaceStateSpy).not.toHaveBeenCalled();
+    expect(location.search).toBe("?token=sample-unsub-token-123");
   });
 });

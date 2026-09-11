@@ -46,26 +46,34 @@ describe("PublicPollView", () => {
   });
 
   it("renders actionable notice when no token is present", () => {
+    const location = { search: "" };
     vi.stubGlobal("window", {
       history: { replaceState: vi.fn() },
-      location: { search: "" },
+      location,
     });
 
     const html = renderToString(<PublicPollView />);
     expect(html).toContain("Poll Link Required");
     expect(html).toContain("Please use the link from your email to access this poll.");
+    expect(location.search).toBe("");
   });
 
-  it("does not clear query parameters or call replaceState on mount", () => {
-    const replaceStateSpy = vi.fn();
+  it("preserves token query parameter on mount", () => {
+    const location = { search: "?token=sample-poll-token-123" };
+    const replaceStateSpy = vi.fn((_data: unknown, _unused: string, url?: string | URL | null) => {
+      if (typeof url === "string") {
+        const parsed = new URL(url, "https://example.com");
+        location.search = parsed.search;
+      }
+    });
     vi.stubGlobal("window", {
       history: { replaceState: replaceStateSpy },
-      location: { search: "?token=sample-poll-token-123" },
+      location,
     });
 
     const html = renderToString(<PublicPollView />);
     expect(html).toContain("Loading Poll...");
-    expect(replaceStateSpy).not.toHaveBeenCalled();
+    expect(location.search).toBe("?token=sample-poll-token-123");
   });
 });
 

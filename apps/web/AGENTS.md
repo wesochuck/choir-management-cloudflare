@@ -20,20 +20,27 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
 - Shared query keys belong in one typed registry.
 - For camera features, wait for `loadedmetadata` and successful `video.play()` before enabling
   capture. Stop media tracks when closing or unmounting.
-- Signed-link public views (`/player`, `/rsvp`, `/poll`, `/auditions`, `/unsubscribe`) must never
-  strip or clear the `token` query parameter from `window.location` (via `history.replaceState` or
-  URL mutation) on mount or during normal view transitions. Stripping the token destroys page
-  reload, mobile background tab restoration, and bookmarking. Test all public views with explicit
-  assertions that `replaceState` is not called and URL parameters remain intact.
+- Signed-link public views (`/player`, `/rsvp`, `/poll`, `/auditions`, `/unsubscribe`) require that
+  signed-link tokens survive reloads, bookmarking, mobile background tab restoration, and normal
+  client navigation. URL manipulation must never remove, alter, or accidentally expose the required
+  signed-link token. Tests should assert that the token remains present and intact across relevant
+  transitions; `history.replaceState` or other History APIs are acceptable only if they preserve the
+  security and lifecycle contract of the token.
 - Public views and components consuming signed-link or API payloads must handle null, undefined, and
-  omitted fields defensively against contract schemas, using type guards verified against complete
-  null/undefined matrices.
-- MediaSession integrations must adhere strictly to the W3C `MediaSessionAction` specification
-  (`play`, `pause`, `previoustrack`, `nexttrack`, `seekbackward`, `seekforward`, `seekto`). Do not
-  register deprecated or vendor-specific actions without typed guards. In E2E tests involving media
-  playback, mock `HTMLMediaElement.prototype.play` / `pause` via `page.addInitScript` to dispatch
-  `loadedmetadata`, `canplay`, and `play` events deterministically in headless browsers without
-  requiring hardware audio devices.
+  omitted fields defensively against contract schemas, using type guards verified against meaningful
+  states.
+- The web application supports an intentional subset of the W3C MediaSession action set (`play`,
+  `pause`, `previoustrack`, `nexttrack`, `seekbackward`, `seekforward`, `seekto`). Unsupported
+  actions must be handled safely, browser capability checks must remain typed, and undocumented or
+  vendor-specific actions must not be used casually.
+- Distinguish between simulated media tests and real media-path tests:
+  - **Simulated media tests:** Mock `HTMLMediaElement.prototype.play` / `pause` via
+    `page.addInitScript` to dispatch `loadedmetadata`, `canplay`, and `play` events
+    deterministically for UI button behavior, state transitions, MediaSession handlers, and UI
+    synchronization in headless browsers without hardware audio devices.
+  - **Real media-path tests:** Required when verifying actual media loading, codec/browser
+    compatibility, network behavior, and playback failures. A mocked `play()` must not be considered
+    proof that real media playback works.
 
 ## Components and Accessibility
 
@@ -91,5 +98,5 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
 - Run focused component or browser tests for changed flows.
 - Check light and dark themes, responsive layouts, focus states, keyboard interactions, and relevant
   print views after visual-system changes.
-- If a push touches browser-visible behavior, run the full browser E2E suite after
-  `npm run check:ci`.
+- Before pushing `main` or promoting to staging, run the canonical release qualification gate:
+  `npm run check:release`.

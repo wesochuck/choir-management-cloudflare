@@ -5,7 +5,7 @@ import { unsubscribeOrganizationEmail } from "../auth/api";
 type UnsubscribeState = "invalid" | "processing" | "success" | "error";
 
 export function PublicUnsubscribeView({ token }: { readonly token: string | null | undefined }) {
-  // Never strip or clear the `token` query parameter (no replaceState):
+  // Never strip or clear the `token` query parameter:
   // reloads, background-tab restores, and bookmarks must keep working.
   const currentToken = typeof token === "string" && token.length > 0 ? token : null;
   const [state, setState] = useState<UnsubscribeState>(currentToken ? "processing" : "invalid");

@@ -21,8 +21,10 @@ These instructions inherit the repository root `AGENTS.md` and apply under `pack
   `relativeDate`, `pastIsoDate`) rather than hardcoded calendar strings. Hardcoded dates inevitably
   expire and break test suites on predictable timers. Only fixed historical snapshots or seeds may
   use static dates.
-- Contract schemas with nullable or optional properties must be verified against complete null,
-  undefined, and omitted field matrices in unit tests to guarantee bidirectional compatibility
-  between SQLite persistence, worker serialization, and client guards.
+- Test each nullable or optional property in its meaningful states: present value, explicit `null`
+  where allowed, explicit `undefined` where relevant to the runtime boundary, and omitted. Add
+  cross-field combinations where field relationships affect validation or serialization, ensuring
+  bidirectional compatibility between SQLite persistence, worker serialization, and client guards
+  without requiring unnecessary Cartesian-product test explosions.
 - Preserve public package exports unless the task explicitly includes a coordinated API change and
   all consumers are updated atomically.

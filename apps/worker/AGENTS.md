@@ -7,10 +7,18 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
 - D1 owns global identity, Better Auth state, Organization registry, memberships, invitations,
   domains, Platform Administrator grants, and integration-routing metadata only.
 - One SQLite-backed Durable Object owns each Organization's operational records and scheduler state.
-- Verify Organization Membership or scoped Platform Administrator elevation before invoking
-  operational methods.
-- Platform Administrator access is Organization-at-a-time, never impersonated, visibly elevated for
-  edits, time-bounded, and attributed to the actual actor.
+- Route authorization falls into two distinct categories:
+  - **Authenticated routes:** Verify Organization Membership or scoped Platform Administrator
+    elevation before invoking operational methods. Platform Administrator access is
+    Organization-at-a-time, never impersonated, visibly elevated for edits, time-bounded, and
+    attributed to the actual actor.
+  - **Approved public signed-link routes:** Validate Organization binding, token purpose, subject,
+    resource, expiration, revocation where supported, and hostname/tenant resolution. These approved
+    flows (e.g. public RSVP, poll responses, audition submissions, practice player, and email
+    unsubscribe) may invoke Organization Durable Object operations without creating a normal
+    authenticated session.
+- Tenant isolation is non-negotiable: a valid signed token from Organization A must never authorize
+  access to Organization B.
 - Audit events are append-only through application APIs and include safe actor, Organization,
   action, target, request, timestamp, and change-summary fields.
 - Add adversarial isolation coverage where relevant: host or Organization-ID alteration,
@@ -29,8 +37,10 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
   Cloudflare Workers RPC methods on the class (`stub.methodName(...)`) rather than internal HTTP
   `fetch()` dispatch.
 - Organization alarms transactionally create stable jobs and advance the next alarm.
-- Public traffic reads versioned Published Projections from R2 or edge cache; bursts must not
-  serialize through the Organization object.
+- Cacheable public published content should use versioned projections or edge caching; bursts must
+  not serialize through the Organization object. Signed-link operations that require authoritative
+  current Organization state may access the Organization Durable Object through the approved RPC
+  boundary.
 - Private R2 downloads require authorization. Public assets use immutable versioned URLs.
 - Validate every untrusted HTTP, queue, webhook, provider, import, and export boundary with Zod and
   explicit size limits.
