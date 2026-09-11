@@ -277,21 +277,29 @@ async function recordProvenance(record) {
   );
 }
 
-export async function deployStaging() {
-  if (!process.argv.includes("--yes")) {
+export function runReleaseGate(options = {}) {
+  const runner = options.runner ?? run;
+  runner("npx", ["playwright", "install", "chromium"]);
+  runner("npm", ["run", "check:release"]);
+}
+
+export async function deployStaging(options = {}) {
+  const argv = options.argv ?? process.argv;
+  if (!argv.includes("--yes")) {
     throw new Error(
       "Staging deployment requires explicit confirmation: npm run deploy:staging -- --yes",
     );
   }
 
   console.log("Verifying clean, current main checkout...");
-  const commitSha = verifyCheckout();
+  const checkoutVerifier = options.verifyCheckout ?? verifyCheckout;
+  const commitSha = checkoutVerifier();
 
   console.log("Running the complete local release gate...");
-  run("npm", ["run", "check:ci"]);
-  run("npx", ["playwright", "install", "chromium"]);
-  run("npm", ["run", "test:e2e"]);
-  if (verifyCheckout() !== commitSha) throw new Error("The release commit changed during checks.");
+  const releaseGateRunner = options.runReleaseGate ?? runReleaseGate;
+  releaseGateRunner({ runner: options.runner ?? run });
+  if (checkoutVerifier() !== commitSha)
+    throw new Error("The release commit changed during checks.");
 
   const releaseRoot = await mkdtemp(join(tmpdir(), "choir-staging-release-"));
   let previousVersionId;

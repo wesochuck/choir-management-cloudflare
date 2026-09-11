@@ -5,9 +5,11 @@ import {
   assertEmailFeedbackSubscription,
   assertEmailSendingEnabled,
   assertReleaseCheckout,
+  deployStaging,
   deployTriggers,
   deployVersion,
   qualifyDeployment,
+  runReleaseGate,
   sanitizeExternalOutput,
   uploadedVersionId,
 } from "./deploy-staging-local.mjs";
@@ -270,6 +272,64 @@ describe("local staging deployment safeguards", () => {
       // Failed once, succeeded on 2nd attempt; ran qualify:staging:evidence once on success
       expect(callCount).toBe(2);
       expect(sleeper).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("canonical release gate invocation", () => {
+    it("installs Chromium and invokes npm run check:release", () => {
+      const calls = [];
+      const runner = vi.fn((command, args) => {
+        calls.push({ args, command });
+        return "";
+      });
+
+      runReleaseGate({ runner });
+
+      expect(runner).toHaveBeenCalledTimes(2);
+      expect(calls[0]).toEqual({
+        command: "npx",
+        args: ["playwright", "install", "chromium"],
+      });
+      expect(calls[1]).toEqual({
+        command: "npm",
+        args: ["run", "check:release"],
+      });
+    });
+
+    it("does not independently invoke check:ci or test:e2e", () => {
+      const calls = [];
+      const runner = vi.fn((command, args) => {
+        calls.push({ args, command });
+        return "";
+      });
+
+      runReleaseGate({ runner });
+
+      const invokedArgs = calls.flatMap((c) => c.args);
+      expect(invokedArgs).not.toContain("check:ci");
+      expect(invokedArgs).not.toContain("test:e2e");
+    });
+
+    it("deployStaging invokes the canonical release gate", async () => {
+      const releaseGateSpy = vi.fn();
+      let callCount = 0;
+      const verifyCheckoutSpy = vi.fn(() => {
+        callCount += 1;
+        // Return a different commit SHA on the second verification call so deployStaging
+        // exits immediately after the release gate without building a release artifact.
+        return callCount === 1 ? "c".repeat(40) : "d".repeat(40);
+      });
+
+      await expect(
+        deployStaging({
+          argv: ["--yes"],
+          verifyCheckout: verifyCheckoutSpy,
+          runReleaseGate: releaseGateSpy,
+        }),
+      ).rejects.toThrow(/release commit changed during checks/u);
+
+      expect(verifyCheckoutSpy).toHaveBeenCalledTimes(2);
+      expect(releaseGateSpy).toHaveBeenCalledTimes(1);
     });
   });
 });
