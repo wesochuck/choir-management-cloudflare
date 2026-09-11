@@ -16,6 +16,7 @@ const signedLinkPurposeSchema = z.enum([
   "private_download",
   "player",
   "player_public",
+  "roster_invite",
   "rsvp",
   "ticket_scan",
   "ticket_receipt",

@@ -1438,6 +1438,23 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
         ON communication_deliveries(profile_id, channel, status)`,
     ],
   },
+  {
+    version: 83,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS prepared_roster_invite_enrollments (
+        enrollment_id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL UNIQUE,
+        user_id TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        voice_part TEXT NOT NULL,
+        phone TEXT,
+        show_in_directory INTEGER NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('prepared', 'committed', 'canceled')),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

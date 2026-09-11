@@ -67,4 +67,28 @@ describe("signed links", () => {
       verifySignedLink(secret, token, { ...validOptions, now: new Date(2_000_000) }),
     ).resolves.toBeNull();
   });
+
+  it("issues and verifies roster_invite links correctly", async () => {
+    const inviteEnvelope: SignedLinkEnvelope = {
+      algorithm: "HS256",
+      expiresAt: 2_000,
+      issuedAt: 1_000,
+      nonce: "random-nonce-at-least-16-chars",
+      organizationId: "organization-alpha",
+      purpose: "roster_invite",
+      resourceId: "roster-invite-link-123",
+      revocation: "v1",
+      version: 1,
+    };
+    const token = await issueSignedLink(secret, inviteEnvelope);
+    await expect(
+      verifySignedLink(secret, token, {
+        expectedOrganizationId: "organization-alpha",
+        expectedPurpose: "roster_invite",
+        expectedResourceId: "roster-invite-link-123",
+        expectedRevocation: "v1",
+        now: new Date(1_500_000),
+      }),
+    ).resolves.toEqual(inviteEnvelope);
+  });
 });

@@ -22,6 +22,7 @@ export const defaultAuthenticatedExactRoutes: ReadonlySet<string> = new Set([
   "/account",
   "/admin",
   "/platform",
+  "/join-roster",
 ]);
 
 export function isKnownAuthenticatedRoute(pathname: string): boolean {

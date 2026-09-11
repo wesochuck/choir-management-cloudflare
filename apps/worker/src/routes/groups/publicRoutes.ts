@@ -8,6 +8,7 @@ import { registerRoutes as registerPublicDonationsRoutes } from "../publicDonati
 import { registerRoutes as registerPublicEngagementRoutes } from "../publicEngagement";
 import { registerRoutes as registerPublicRsvpPollsRoutes } from "../publicRsvpPolls";
 import { registerRoutes as registerPublicTicketsRoutes } from "../publicTickets";
+import { registerRoutes as registerRosterInviteEnrollmentRoutes } from "../rosterInviteEnrollment";
 import { registerRoutes as registerPaymentsRoutes } from "../payments";
 
 export function registerPublicGroupRoutes(router: Hono<WorkerHonoEnvironment>): void {
@@ -20,5 +21,6 @@ export function registerPublicGroupRoutes(router: Hono<WorkerHonoEnvironment>): 
   registerPublicTicketsRoutes(router);
   registerPublicRsvpPollsRoutes(router);
   registerPublicEngagementRoutes(router);
+  registerRosterInviteEnrollmentRoutes(router);
   registerPaymentsRoutes(router);
 }

@@ -14,6 +14,7 @@ const appQueryClient = new QueryClient({
 });
 import { AuthenticatedShell } from "./account/components/AuthenticatedShell/shell";
 import { AcceptInvitationView } from "./auth/AcceptInvitationView";
+import { JoinRosterView } from "./auth/JoinRosterView";
 import { ForgotPasswordView } from "./auth/ForgotPasswordView";
 import { EmailChangeConfirmationView } from "./auth/EmailChangeConfirmationView";
 import { getCurrentSession, getPublishedOrganizationProjection } from "./auth/api";
@@ -262,6 +263,9 @@ function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocati
   }
   if (pathname === "/auditions" || pathname === "/join") {
     return <PublicAuditionView />;
+  }
+  if (pathname === "/join-roster") {
+    return <JoinRosterView />;
   }
   return null;
 }

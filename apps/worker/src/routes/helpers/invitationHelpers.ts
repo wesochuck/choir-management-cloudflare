@@ -90,6 +90,33 @@ export async function recordInvitationAudit(
     .run();
 }
 
+export async function ensurePendingIdentity(database: D1Database, email: string): Promise<string> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const existing = await database
+    .prepare("SELECT id FROM user WHERE LOWER(email) = ? LIMIT 1")
+    .bind(normalizedEmail)
+    .first<{ id: string }>();
+  if (existing) {
+    return existing.id;
+  }
+  const id = crypto.randomUUID();
+  const now = Date.now();
+  const defaultName = email.split("@", 1)[0] ?? "Invited member";
+  await database
+    .prepare(
+      `INSERT OR IGNORE INTO user
+        (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
+       VALUES (?, ?, ?, 0, ?, ?, 0)`,
+    )
+    .bind(id, defaultName, normalizedEmail, now, now)
+    .run();
+  const inserted = await database
+    .prepare("SELECT id FROM user WHERE LOWER(email) = ? LIMIT 1")
+    .bind(normalizedEmail)
+    .first<{ id: string }>();
+  return inserted?.id ?? id;
+}
+
 export async function ensurePendingInvitationIdentity(
   database: D1Database,
   auth: ReturnType<typeof createAuth>,
@@ -97,17 +124,8 @@ export async function ensurePendingInvitationIdentity(
   invitationId: string,
   email: string,
 ): Promise<void> {
-  const now = Date.now();
-  const defaultName = email.split("@", 1)[0] ?? "Invited member";
   try {
-    await database
-      .prepare(
-        `INSERT OR IGNORE INTO user
-          (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
-         VALUES (?, ?, ?, 0, ?, ?, 0)`,
-      )
-      .bind(crypto.randomUUID(), defaultName, email, now, now)
-      .run();
+    await ensurePendingIdentity(database, email);
   } catch {
     await auth.api.cancelInvitation({ body: { invitationId }, headers }).catch(() => undefined);
     throw new Error("Pending invitation identity creation failed.");

@@ -26,6 +26,15 @@ import {
   prepareEmailDomainVerificationInStore,
 } from "./organizationEmailSettingsStore";
 import {
+  cancelPreparedRosterInviteEnrollmentInStore,
+  commitRosterInviteEnrollmentInStore,
+  getRosterInviteEnrollmentResultInStore,
+  getRosterInviteOptionsInStore,
+  prepareRosterInviteEnrollmentInStore,
+  type CommitRosterInviteEnrollmentInput,
+  type PrepareRosterInviteEnrollmentInput,
+} from "./rosterInviteEnrollmentStore";
+import {
   cancelContactImportInStore,
   confirmContactImportInStore,
   createContactImportInStore,
@@ -357,6 +366,37 @@ export class OrganizationStore extends DurableObject {
       input.organizationId,
       input.importId,
     );
+  }
+
+  // Organization roster invite enrollment: strongly typed Durable Object RPC methods.
+  // Call via `stub.methodName(...)`; no internal fetch routing.
+  getRosterInviteOptions(input: {
+    readonly organizationId: string;
+    readonly userId?: string | null;
+  }) {
+    return getRosterInviteOptionsInStore(this.ctx.storage, input);
+  }
+
+  prepareRosterInviteEnrollment(input: PrepareRosterInviteEnrollmentInput) {
+    return prepareRosterInviteEnrollmentInStore(this.ctx.storage, input);
+  }
+
+  commitRosterInviteEnrollment(input: CommitRosterInviteEnrollmentInput) {
+    return commitRosterInviteEnrollmentInStore(this.ctx.storage, input);
+  }
+
+  cancelPreparedRosterInviteEnrollment(input: {
+    readonly enrollmentId: string;
+    readonly organizationId: string;
+  }) {
+    return cancelPreparedRosterInviteEnrollmentInStore(this.ctx.storage, input);
+  }
+
+  getRosterInviteEnrollmentResult(input: {
+    readonly enrollmentId: string;
+    readonly organizationId: string;
+  }) {
+    return getRosterInviteEnrollmentResultInStore(this.ctx.storage, input);
   }
 
   // Email-domain DNS verification: strongly typed Durable Object RPC methods.

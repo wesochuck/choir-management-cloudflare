@@ -26,6 +26,7 @@ import { registerRoutes as registerOrganizationExportRoutes } from "../organizat
 import { registerRoutes as registerOrganizationFilesRoutes } from "../organizationFiles";
 import { registerRoutes as registerOrganizationImpersonationRoutes } from "../organizationImpersonation";
 import { registerRoutes as registerOrganizationInvitationsRoutes } from "../organizationInvitations";
+import { registerRoutes as registerOrganizationRosterInviteLinksRoutes } from "../organizationRosterInviteLinks";
 import { registerRoutes as registerOrganizationModulesRoutes } from "../organizationModules";
 import { registerRoutes as registerOrganizationMusicCatalogRoutes } from "../organizationMusicCatalog";
 import { registerRoutes as registerOrganizationMusicFolderReportRoutes } from "../organizationMusicFolderReports";
@@ -75,6 +76,7 @@ export function registerOrganizationGroupRoutes(router: Hono<WorkerHonoEnvironme
   registerOrganizationFilesRoutes(router);
   registerOrganizationImpersonationRoutes(router);
   registerOrganizationInvitationsRoutes(router);
+  registerOrganizationRosterInviteLinksRoutes(router);
   registerOrganizationModulesRoutes(router);
   registerOrganizationMusicCatalogRoutes(router);
   registerOrganizationMusicFolderReportRoutes(router);

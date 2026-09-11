@@ -11,6 +11,7 @@ import {
 import { PerformanceHistory, VoicePartBalance } from "./shared";
 import { formatProfileTransitionDate, parseRosterStatusFilter, statusLabel } from "./utils";
 import { ProfileDues, ProfileFolderNumbers, ProfileMessages } from "./profileDetails";
+import { RosterInviteLinksDialog } from "./RosterInviteLinksDialog";
 import { CsvImportDialog } from "../../CsvImportDialog";
 import { ProfilePhotoEditor } from "../../MemberProfileDirectory";
 import { RosterAutomationSettings } from "../../RosterAutomationSettings";
@@ -34,6 +35,7 @@ export function RosterPageView({
 }) {
   const { partLabel } = useOrganizationTerminology();
   const [activeTab, setActiveTab] = useState<RosterSection>(initialSection);
+  const [inviteLinksDialogOpen, setInviteLinksDialogOpen] = useState(false);
   const {
     busy,
     bulkBusy,
@@ -200,13 +202,24 @@ export function RosterPageView({
               >
                 Import CSV
               </button>
+              <button
+                className="button button--secondary"
+                onClick={() => {
+                  setError(null);
+                  setSuccess(null);
+                  setInviteLinksDialogOpen(true);
+                }}
+                type="button"
+              >
+                Invite by link
+              </button>
               <button className="button button--primary" onClick={openCreate} type="button">
                 Add Profile
               </button>
             </div>
           </div>
 
-          {error && !dialogOpen && !importDialogOpen ? (
+          {error && !dialogOpen && !importDialogOpen && !inviteLinksDialogOpen ? (
             <p className="notice notice--error" role="alert">
               {error}
             </p>
@@ -968,6 +981,12 @@ export function RosterPageView({
         onMapColumn={handleRosterColumnMap}
         open={importDialogOpen}
         title="Import roster"
+      />
+      <RosterInviteLinksDialog
+        onClose={() => {
+          setInviteLinksDialogOpen(false);
+        }}
+        open={inviteLinksDialogOpen}
       />
     </RosterConfigurationDraftProvider>
   );

@@ -25,6 +25,7 @@ export const queryKeys = {
     pollResults: (pollId: string) => ["organization", "polls", pollId, "results"] as const,
     polls: (archived = false) => ["organization", "polls", { archived }] as const,
     resources: ["organization", "resources"] as const,
+    rosterInviteLinks: ["organization", "roster-invite-links"] as const,
     rsvpBootstrap: ["organization", "rsvp", "bootstrap"] as const,
     rsvpHistory: (eventId: string) => ["organization", "events", eventId, "history"] as const,
     setupStatus: ["setup", "status"] as const,
