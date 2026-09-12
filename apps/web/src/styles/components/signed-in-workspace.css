@@ -423,11 +423,13 @@
     margin: 0;
   }
 
-  .signed-in-main .rsvp-manager__deadline-notice,
+  .signed-in-main .rsvp-manager__performance-row .rsvp-manager__deadline-notice,
+  .signed-in-main .rsvp-manager__deadline-notice.notice,
+  .rsvp-manager__performance-row .rsvp-manager__deadline-notice,
   .rsvp-manager__deadline-notice {
     display: inline-flex;
     align-items: center;
-    min-height: 2.45rem;
+    min-height: var(--control-height, 2.5rem);
     box-sizing: border-box;
     margin: 0;
     padding: var(--spacing-2xs) var(--spacing-sm);
