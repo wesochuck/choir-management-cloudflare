@@ -74,8 +74,9 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
 
 ## Authentication and Provider Boundaries
 
-- There is no public registration. Email one-time code is the primary sign-in method; users may set
-  passwords; Platform Administrators require MFA and recovery codes.
+- There is no public registration. Passkeys are the preferred everyday authentication method; email
+  one-time code is the universal fallback/recovery path; passwords remain optional; Platform
+  Administrators require MFA and recovery codes.
 - Custom public domains never host authenticated administration, member, account-management, or
   Platform Administrator routes.
 - Stripe uses Organization-owned connected accounts and direct charges. The platform takes no

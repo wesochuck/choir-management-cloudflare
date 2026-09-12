@@ -609,7 +609,7 @@ export function OrganizationAdminOverview({
         ))}
       </div>
 
-      {context?.mfaRequired && !context.mfaVerifiedUntil ? (
+      {context?.mfaRequired && !context.mfaSatisfied ? (
         <OrganizationMfaPrompt message="Organization MFA is required before operational data can be opened." />
       ) : null}
     </div>

@@ -1,5 +1,7 @@
 import { betterAuth } from "better-auth";
+import { createAuthMiddleware } from "better-auth/api";
 import { emailOTP, organization, twoFactor } from "better-auth/plugins";
+import { passkey } from "@better-auth/passkey";
 
 import type { Env } from "../env";
 import {
@@ -9,6 +11,7 @@ import {
 } from "./emailTemplates";
 import { sendPlatformEmail } from "./platformEmail";
 import { readOrganizationEmailSenderConfig } from "../jobs/deliveries/shared";
+import { resolveRpId } from "./passkeyConfig";
 
 export interface AuthRequestContext {
   readonly env: Env;
@@ -72,9 +75,29 @@ function canonicalOrganizationOrigin(env: Env, slug: string): string {
   return `${protocol}://${hostname}`;
 }
 
+function parsePasskeyReturnedSession(
+  returned: unknown,
+): { readonly id: string; readonly userId: string } | null {
+  if (
+    typeof returned === "object" &&
+    returned !== null &&
+    "session" in returned &&
+    typeof returned.session === "object" &&
+    returned.session !== null &&
+    "id" in returned.session &&
+    typeof returned.session.id === "string" &&
+    "userId" in returned.session &&
+    typeof returned.session.userId === "string"
+  ) {
+    return { id: returned.session.id, userId: returned.session.userId };
+  }
+  return null;
+}
+
 export function createAuth(context: AuthRequestContext) {
   const { env, requestUrl, waitUntil } = context;
   const origin = requestUrl.origin;
+  const rpID = resolveRpId(env.PRODUCT_BASE_DOMAIN, requestUrl);
 
   return betterAuth({
     advanced: {
@@ -110,6 +133,26 @@ export function createAuth(context: AuthRequestContext) {
           text: content.text,
         });
       },
+    },
+    hooks: {
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path === "/passkey/verify-authentication") {
+          const session = parsePasskeyReturnedSession(ctx.context.returned);
+          if (session) {
+            const now = Date.now();
+            await env.CONTROL_DB.prepare(
+              `INSERT INTO session_auth_assurance (session_id, user_id, method, verified_at)
+               VALUES (?, ?, 'passkey', ?)
+               ON CONFLICT(session_id) DO UPDATE SET
+                 user_id = excluded.user_id,
+                 method = excluded.method,
+                 verified_at = excluded.verified_at`,
+            )
+              .bind(session.id, session.userId, now)
+              .run();
+          }
+        }
+      }),
     },
     plugins: [
       emailOTP({
@@ -169,6 +212,22 @@ export function createAuth(context: AuthRequestContext) {
             text: content.text,
           });
         },
+      }),
+      passkey({
+        authentication: {
+          afterVerification: ({ verification }) => {
+            if (!verification.authenticationInfo.userVerified) {
+              throw new Error("WebAuthn user verification is required.");
+            }
+          },
+        },
+        authenticatorSelection: {
+          residentKey: "preferred",
+          userVerification: "required",
+        },
+        origin,
+        rpID,
+        rpName: "Choir Management",
       }),
       twoFactor({
         accountLockout: {

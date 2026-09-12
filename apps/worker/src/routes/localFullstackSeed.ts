@@ -152,7 +152,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         )
         .bind(userId, email),
       database.prepare(`DELETE FROM user WHERE id = ? OR email = ?`).bind(userId, email),
-      database.prepare(`DELETE FROM verification WHERE identifier LIKE ?`).bind(`%${email}%`),
+      database.prepare(`DELETE FROM verification WHERE instr(identifier, ?) > 0`).bind(email),
       // rateLimit rows are ephemeral per-IP/per-path counters, not tenant data.
       // Clearing them keeps OTP sends repeatable across consecutive spec runs
       // from the same loopback address (emailOTP allows 3 sends / 60s).

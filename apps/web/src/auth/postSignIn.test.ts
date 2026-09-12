@@ -17,6 +17,8 @@ function mockAuthStatus(
     }
     return Promise.resolve({
       mfaRequired: false,
+      mfaSatisfied: true,
+      mfaSatisfiedBy: null,
       mfaVerifiedUntil: null,
       organizationId: "org-123",
       requestId: "req-123",

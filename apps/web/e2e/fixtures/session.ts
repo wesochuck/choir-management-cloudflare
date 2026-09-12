@@ -26,6 +26,13 @@ export interface SessionShellOptions {
 export interface SessionShell {
   readonly accountRequestId: string;
   readonly accountSessions: MutableState<readonly AuthSession[]>;
+  readonly userPasskeys: MutableState<
+    {
+      id: string;
+      name?: string | null;
+      createdAt: string | Date | number;
+    }[]
+  >;
   isSignedIn(): boolean;
   setSignedIn(value: boolean): void;
   readonly session: AuthSession;
@@ -47,6 +54,13 @@ export async function installSessionShell(
   let signedIn = options.initiallySignedIn ?? true;
   let passwordSet = false;
   const accountSessions = createMutableState<readonly AuthSession[]>([session]);
+  const userPasskeys = createMutableState<
+    {
+      id: string;
+      name?: string | null;
+      createdAt: string | Date | number;
+    }[]
+  >([]);
 
   await page.route("**/api/health", async (route) => {
     await fulfillJson(route, buildHealthResponse());
@@ -79,6 +93,58 @@ export async function installSessionShell(
   await page.route("**/api/auth/sign-out", async (route) => {
     signedIn = false;
     await fulfillJson(route, { success: true });
+  });
+  await page.route("**/api/auth/passkey/list-user-passkeys", async (route) => {
+    await fulfillJson(route, userPasskeys.get());
+  });
+  await page.route("**/api/auth/passkey/delete-passkey", async (route) => {
+    const body: unknown = route.request().postDataJSON();
+    const id =
+      typeof body === "object" && body !== null && "id" in body && typeof body.id === "string"
+        ? body.id
+        : "";
+    userPasskeys.set(userPasskeys.get().filter((p) => p.id !== id));
+    await fulfillJson(route, { success: true });
+  });
+  await page.route("**/api/auth/passkey/update-passkey", async (route) => {
+    const body: unknown = route.request().postDataJSON();
+    const id =
+      typeof body === "object" && body !== null && "id" in body && typeof body.id === "string"
+        ? body.id
+        : "";
+    const name =
+      typeof body === "object" && body !== null && "name" in body && typeof body.name === "string"
+        ? body.name
+        : "";
+    userPasskeys.set(userPasskeys.get().map((p) => (p.id === id ? { ...p, name } : p)));
+    await fulfillJson(route, { passkey: { id, name } });
+  });
+  await page.route("**/api/auth/passkey/generate-authenticate-options", async (route) => {
+    await fulfillJson(route, {
+      challenge: "mock-challenge-auth-12345",
+      rpId: "localhost",
+      userVerification: "preferred",
+    });
+  });
+  await page.route("**/api/auth/passkey/verify-authentication", async (route) => {
+    signedIn = true;
+    await fulfillJson(route, { session, user });
+  });
+  await page.route("**/api/auth/passkey/generate-register-options", async (route) => {
+    await fulfillJson(route, {
+      challenge: "mock-challenge-reg-12345",
+      rp: { id: "localhost", name: "Choir Management" },
+      user: { id: user.id, name: user.email },
+    });
+  });
+  await page.route("**/api/auth/passkey/verify-registration", async (route) => {
+    const newPasskey = {
+      createdAt: new Date().toISOString(),
+      id: "passkey-new-" + Math.random().toString(36).slice(2, 8),
+      name: "New Passkey",
+    };
+    userPasskeys.set([...userPasskeys.get(), newPasskey]);
+    await fulfillJson(route, newPasskey);
   });
   await page.route("**/api/account/security", async (route) => {
     await fulfillJson(route, buildAccountSecurityResponse(passwordSet, accountRequestId));
@@ -126,6 +192,7 @@ export async function installSessionShell(
       signedIn = value;
     },
     user,
+    userPasskeys,
   };
 }
 

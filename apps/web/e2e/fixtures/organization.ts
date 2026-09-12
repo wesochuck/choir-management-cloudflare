@@ -104,7 +104,34 @@ export async function installOrganizationShell(
 ): Promise<OrganizationShell> {
   const organizationId = options.organizationId ?? organizationAlphaId;
   const role = options.role ?? "administrator";
-  const authStatus = createMutableState(buildAuthStatus({ organizationId, role }));
+  const rawAuthStatus = createMutableState(buildAuthStatus({ organizationId, role }));
+  const authStatus: MutableState<OrganizationAuthStatusResponse> = {
+    get: () => rawAuthStatus.get(),
+    set: (next) => {
+      rawAuthStatus.set(next);
+    },
+    update: (patch) => {
+      const current = rawAuthStatus.get();
+      const mfaRequired = patch.mfaRequired ?? current.mfaRequired;
+      const mfaVerifiedUntil = patch.mfaVerifiedUntil ?? current.mfaVerifiedUntil;
+      const mfaSatisfiedBy =
+        patch.mfaSatisfiedBy !== undefined
+          ? patch.mfaSatisfiedBy
+          : patch.mfaSatisfied === false
+            ? null
+            : (current.mfaSatisfiedBy ?? (mfaVerifiedUntil ? "totp" : null));
+      const mfaSatisfied =
+        patch.mfaSatisfied ??
+        (!mfaRequired || mfaSatisfiedBy === "passkey" || Boolean(mfaVerifiedUntil));
+      rawAuthStatus.update({
+        ...patch,
+        mfaRequired,
+        mfaSatisfied,
+        mfaSatisfiedBy,
+        mfaVerifiedUntil,
+      });
+    },
+  };
   const moduleState = createMutableState<readonly { enabled: boolean; id: string }[]>(
     (options.modules ?? ["events", "people", "programs"]).map((id) => ({ enabled: true, id })),
   );

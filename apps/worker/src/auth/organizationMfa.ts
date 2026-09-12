@@ -1,4 +1,5 @@
 import { failure, success, type DomainResult } from "@choir/domain";
+import type { OrganizationMfaSatisfiedBy } from "@choir/contracts";
 
 export type OrganizationMfaMethod = "recovery_code" | "totp";
 
@@ -12,10 +13,15 @@ interface OrganizationMfaEligibilityRow {
 
 interface OrganizationMfaStatusRow extends OrganizationMfaEligibilityRow {
   readonly assertionExpiresAt: number | null;
+  readonly assertionMethod: string | null;
+  readonly sessionAssuranceMethod: string | null;
+  readonly sessionExpiresAt: number | null;
 }
 
 export interface OrganizationMfaStatus {
   readonly mfaRequired: boolean;
+  readonly mfaSatisfied: boolean;
+  readonly mfaSatisfiedBy: OrganizationMfaSatisfiedBy;
   readonly mfaVerifiedUntil: number | null;
   readonly twoFactorEnabled: boolean;
   readonly twoFactorVerified: boolean;
@@ -35,7 +41,10 @@ export async function getOrganizationMfaStatus(
       `SELECT o.mfa_required AS mfaRequired,
         u.twoFactorEnabled AS twoFactorEnabled,
         tf.verified AS twoFactorVerified,
-        oma.expires_at AS assertionExpiresAt
+        oma.expires_at AS assertionExpiresAt,
+        oma.method AS assertionMethod,
+        saa.method AS sessionAssuranceMethod,
+        s.expiresAt AS sessionExpiresAt
        FROM member m
        JOIN organizations o ON o.id = m.organizationId
        JOIN user u ON u.id = m.userId
@@ -44,20 +53,44 @@ export async function getOrganizationMfaStatus(
          ON oma.organization_id = m.organizationId
          AND oma.user_id = m.userId
          AND oma.session_id = ?
+       LEFT JOIN session_auth_assurance saa
+         ON saa.session_id = ?
+         AND saa.user_id = m.userId
+       LEFT JOIN session s
+         ON s.id = ?
+         AND s.userId = m.userId
        WHERE m.organizationId = ? AND m.userId = ?
        LIMIT 1`,
     )
-    .bind(input.sessionId, input.organizationId, input.userId)
+    .bind(input.sessionId, input.sessionId, input.sessionId, input.organizationId, input.userId)
     .first<OrganizationMfaStatusRow>();
   if (!row) {
     return failure("forbidden", "An active Organization Membership is required.");
   }
+
+  const nowTime = now.getTime();
+  let mfaSatisfiedBy: OrganizationMfaSatisfiedBy = null;
+  let mfaVerifiedUntil: number | null = null;
+
+  if (row.sessionAssuranceMethod === "passkey") {
+    mfaSatisfiedBy = "passkey";
+    if (row.sessionExpiresAt) {
+      mfaVerifiedUntil =
+        row.sessionExpiresAt < 10_000_000_000 ? row.sessionExpiresAt * 1000 : row.sessionExpiresAt;
+    }
+  } else if (row.assertionExpiresAt && row.assertionExpiresAt > nowTime) {
+    mfaSatisfiedBy = row.assertionMethod === "recovery_code" ? "recovery_code" : "totp";
+    mfaVerifiedUntil = row.assertionExpiresAt;
+  }
+
+  const mfaRequired = row.mfaRequired === 1;
+  const mfaSatisfied = !mfaRequired || mfaSatisfiedBy !== null;
+
   return success({
-    mfaRequired: row.mfaRequired === 1,
-    mfaVerifiedUntil:
-      row.assertionExpiresAt && row.assertionExpiresAt > now.getTime()
-        ? row.assertionExpiresAt
-        : null,
+    mfaRequired,
+    mfaSatisfied,
+    mfaSatisfiedBy,
+    mfaVerifiedUntil,
     twoFactorEnabled: row.twoFactorEnabled === 1,
     twoFactorVerified: row.twoFactorVerified === 1,
   });

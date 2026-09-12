@@ -327,7 +327,9 @@ export function AuthenticatedShell({
   const canManage = access.status === "ready" && access.context.role !== "member";
   const organizationEnabled =
     access.status === "ready" &&
-    (!access.context.mfaRequired || Boolean(access.context.mfaVerifiedUntil));
+    (!access.context.mfaRequired ||
+      access.context.mfaSatisfied ||
+      Boolean(access.context.mfaVerifiedUntil));
   const memberEnabled = organizationEnabled;
   const modules = useMemo(() => (access.status === "ready" ? access.modules : []), [access]);
   const visibleOrganizationGroups = useMemo(

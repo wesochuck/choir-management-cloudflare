@@ -160,7 +160,7 @@ function MembershipProfileLinks({ context }: { readonly context: OrganizationAut
   const [message, setMessage] = useState<string | null>(null);
   const [selectedProfiles, setSelectedProfiles] = useState<Record<string, string>>({});
   const [state, setState] = useState<MembershipLinkState>({ status: "loading" });
-  const mfaBlocked = context.mfaRequired && !context.mfaVerifiedUntil;
+  const mfaBlocked = context.mfaRequired && !context.mfaSatisfied;
 
   useEffect(() => {
     if (context.role === "member" || mfaBlocked) return;
@@ -380,7 +380,7 @@ export function OrganizationInvitations({
   const [role, setRole] = useState<"administrator" | "member" | "owner">("member");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [truncated, setTruncated] = useState(false);
-  const mfaBlocked = context.mfaRequired && !context.mfaVerifiedUntil;
+  const mfaBlocked = context.mfaRequired && !context.mfaSatisfied;
 
   useEffect(() => {
     if (context.role === "member" || mfaBlocked) {

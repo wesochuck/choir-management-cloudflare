@@ -119,7 +119,7 @@ function OverviewPage({
           ))}
         </div>
       </section>
-      {context?.mfaRequired && !context.mfaVerifiedUntil ? (
+      {context?.mfaRequired && !context.mfaSatisfied ? (
         <p className="notice notice--warning">
           Organization MFA is required before operational data can be opened. Visit Organization
           security to verify access.
@@ -187,7 +187,9 @@ function OrganizationWorkspacePage({
   }
   const enabled =
     access.status === "ready" &&
-    (!access.context.mfaRequired || Boolean(access.context.mfaVerifiedUntil));
+    (!access.context.mfaRequired ||
+      access.context.mfaSatisfied ||
+      Boolean(access.context.mfaVerifiedUntil));
   const manager = access.status === "ready" && access.context.role !== "member";
   const requiredModule = routeModule(route.pathname);
   if (

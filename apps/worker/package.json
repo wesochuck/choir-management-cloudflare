@@ -8,6 +8,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@better-auth/passkey": "1.6.23",
     "@choir/contracts": "0.1.0",
     "@choir/domain": "0.1.0",
     "better-auth": "1.6.23",

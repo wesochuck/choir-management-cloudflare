@@ -171,6 +171,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
     return context.json({
       mfaRequired: status.value.mfaRequired,
+      mfaSatisfied: status.value.mfaSatisfied,
+      mfaSatisfiedBy: status.value.mfaSatisfiedBy,
       mfaVerifiedUntil: status.value.mfaVerifiedUntil
         ? new Date(status.value.mfaVerifiedUntil).toISOString()
         : null,

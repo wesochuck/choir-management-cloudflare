@@ -6,6 +6,7 @@ import {
   signInWithPassword,
   verifyPasswordSignInSecondFactor,
 } from "./api";
+import { isConditionalMediationSupported, signInWithPasskey } from "./passkeyClient";
 
 interface SignInViewProps {
   readonly onSignedIn: () => void;
@@ -53,13 +54,15 @@ function secondFactorFieldSettings(method: PasswordSecondFactor): SecondFactorFi
   };
 }
 
-// eslint-disable-next-line complexity -- SignInView coordinates multi-step authentication (credentials, code, password, and two-factor MFA).
+// eslint-disable-next-line complexity -- SignInView coordinates multi-step authentication (passkeys, credentials, code, password, and two-factor MFA).
 export function SignInView({ onSignedIn }: SignInViewProps) {
   const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [method, setMethod] = useState<SignInMethod>("email_code");
   const [otp, setOtp] = useState("");
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
+  const [passkeyNotice, setPasskeyNotice] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [secondFactor, setSecondFactor] = useState("");
   const [secondFactorMethod, setSecondFactorMethod] = useState<PasswordSecondFactor>("totp");
@@ -78,14 +81,64 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
     };
   }, [resendCountdown]);
 
+  useEffect(() => {
+    let active = true;
+    void isConditionalMediationSupported().then((supported) => {
+      if (supported && active && step === "credentials") {
+        void signInWithPasskey({ autoFill: true }).then((result) => {
+          if (result.success && active) {
+            onSignedIn();
+          }
+        });
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [onSignedIn, step]);
+
   function selectMethod(nextMethod: SignInMethod) {
     setErrorMessage(null);
+    setPasskeyNotice(null);
     setResendStatus(null);
     setMethod(nextMethod);
     setOtp("");
     setPassword("");
     setSecondFactor("");
     setStep("credentials");
+  }
+
+  async function handlePasskeySignIn() {
+    setErrorMessage(null);
+    setPasskeyNotice(null);
+    setPasskeyBusy(true);
+    try {
+      const result = await signInWithPasskey();
+      if (result.success) {
+        onSignedIn();
+        return;
+      }
+      if (result.canceled) {
+        return;
+      }
+      if (result.error) {
+        const lower = result.error.toLowerCase();
+        if (
+          lower.includes("not found") ||
+          lower.includes("no passkey") ||
+          lower.includes("unrecognized") ||
+          lower.includes("no credentials")
+        ) {
+          setPasskeyNotice(
+            "No passkey was found for this device. Sign in with an email code below.",
+          );
+        } else {
+          setErrorMessage(result.error);
+        }
+      }
+    } finally {
+      setPasskeyBusy(false);
+    }
   }
 
   async function sendCode() {
@@ -198,9 +251,30 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
       <section className="auth-card" aria-labelledby="sign-in-title">
         <h1 id="sign-in-title">Sign in to Choir Management.</h1>
         <p className="auth-card__intro">
-          This site is invitation-only. Use the email address connected to your Organization
-          Membership. Email code is the primary sign-in method.
+          This site is invitation-only. Passkey is the preferred sign-in method. You can also sign
+          in with an email code, or use an optional password.
         </p>
+
+        {step === "credentials" ? (
+          <div className="auth-hero-action">
+            <button
+              className="button button--primary auth-passkey-button"
+              disabled={isSubmitting || passkeyBusy}
+              onClick={() => {
+                void handlePasskeySignIn();
+              }}
+              type="button"
+            >
+              {passkeyBusy ? "Verifying passkey…" : "Sign in with a passkey"}
+            </button>
+          </div>
+        ) : null}
+
+        {step === "credentials" ? (
+          <div className="auth-divider" role="separator" aria-label="Alternative sign-in options">
+            <span>or sign in with email</span>
+          </div>
+        ) : null}
 
         {step === "credentials" ? (
           <div className="auth-methods" aria-label="Sign-in method" role="group">
@@ -227,6 +301,12 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
           </div>
         ) : null}
 
+        {passkeyNotice ? (
+          <p className="notice notice--info" role="status">
+            {passkeyNotice}
+          </p>
+        ) : null}
+
         {errorMessage ? (
           <p className="notice notice--error" id="sign-in-error" role="alert">
             {errorMessage}
@@ -246,7 +326,7 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
               <input
                 aria-describedby={errorMessage ? "sign-in-error" : undefined}
                 aria-invalid={Boolean(errorMessage)}
-                autoComplete="email"
+                autoComplete="username webauthn"
                 id="sign-in-email"
                 inputMode="email"
                 name="email"

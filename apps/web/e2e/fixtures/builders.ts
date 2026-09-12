@@ -180,9 +180,25 @@ export function buildAccountSecurityResponse(passwordSet: boolean, requestId: st
 export function buildAuthStatus(
   overrides: Partial<OrganizationAuthStatusResponse> = {},
 ): OrganizationAuthStatusResponse {
+  const mfaRequired = overrides.mfaRequired ?? false;
+  const mfaVerifiedUntil = overrides.mfaVerifiedUntil ?? null;
+  const mfaSatisfiedBy =
+    overrides.mfaSatisfiedBy !== undefined
+      ? overrides.mfaSatisfiedBy
+      : !mfaRequired
+        ? null
+        : mfaVerifiedUntil
+          ? "totp"
+          : null;
+  const mfaSatisfied =
+    overrides.mfaSatisfied ??
+    (!mfaRequired || mfaSatisfiedBy === "passkey" || Boolean(mfaVerifiedUntil));
+
   const status: OrganizationAuthStatusResponse = {
-    mfaRequired: false,
-    mfaVerifiedUntil: null,
+    mfaRequired,
+    mfaSatisfied,
+    mfaSatisfiedBy,
+    mfaVerifiedUntil,
     organizationId: organizationAlphaId,
     requestId: "55555555-5555-4555-8555-555555555555",
     role: "administrator",

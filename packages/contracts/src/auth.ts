@@ -113,15 +113,52 @@ export const organizationMfaVerificationRequestSchema = z.discriminatedUnion("me
   z.object({ code: z.string().min(8).max(128), method: z.literal("recovery_code") }),
 ]);
 
-export const organizationAuthStatusResponseSchema = z.object({
-  mfaRequired: z.boolean(),
-  mfaVerifiedUntil: z.iso.datetime().nullable(),
-  organizationId: organizationIdSchema,
-  requestId: requestIdSchema,
-  role: z.enum(["owner", "administrator", "member"]),
-  twoFactorEnabled: z.boolean(),
-  twoFactorVerified: z.boolean(),
-});
+export const organizationMfaSatisfiedBySchema = z
+  .enum(["passkey", "totp", "recovery_code"])
+  .nullable();
+export type OrganizationMfaSatisfiedBy = z.infer<typeof organizationMfaSatisfiedBySchema>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export const organizationAuthStatusResponseSchema = z.preprocess(
+  (val) => {
+    if (isRecord(val)) {
+      const mfaRequired = Boolean(val.mfaRequired);
+      const mfaVerifiedUntil = val.mfaVerifiedUntil;
+      const mfaSatisfied =
+        val.mfaSatisfied !== undefined
+          ? val.mfaSatisfied
+          : !mfaRequired || Boolean(mfaVerifiedUntil);
+      const mfaSatisfiedBy =
+        val.mfaSatisfiedBy !== undefined
+          ? val.mfaSatisfiedBy
+          : mfaSatisfied
+            ? mfaVerifiedUntil
+              ? "totp"
+              : null
+            : null;
+      return {
+        ...val,
+        mfaSatisfied,
+        mfaSatisfiedBy,
+      };
+    }
+    return val;
+  },
+  z.object({
+    mfaRequired: z.boolean(),
+    mfaSatisfied: z.boolean(),
+    mfaSatisfiedBy: organizationMfaSatisfiedBySchema,
+    mfaVerifiedUntil: z.iso.datetime().nullable(),
+    organizationId: organizationIdSchema,
+    requestId: requestIdSchema,
+    role: z.enum(["owner", "administrator", "member"]),
+    twoFactorEnabled: z.boolean(),
+    twoFactorVerified: z.boolean(),
+  }),
+);
 
 export const organizationMfaPolicyResponseSchema = z.object({
   mfaRequired: z.boolean(),

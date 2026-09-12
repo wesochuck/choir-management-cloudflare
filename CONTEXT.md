@@ -159,10 +159,11 @@ _Avoid_: Authenticated application domain
 
 ## Portal Sign-In
 
-The invitation-only authentication flow for identities with Organization access. A one-time code
-sent to the identity's verified email address is the primary method; a person may optionally
-establish and use their own conventional password as an alternative. _Avoid_: Public sign-up,
-administrator-assigned password
+The invitation-only authentication flow for identities with Organization access. A passkey is the
+preferred everyday sign-in method; a one-time code sent to the identity's verified email address is
+the universal account fallback and recovery path; a person may optionally establish and use their
+own conventional password as an alternative. _Avoid_: Public sign-up, administrator-assigned
+password
 
 ## Platform Administrator
 

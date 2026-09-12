@@ -121,7 +121,7 @@ function OrganizationPolicy(props: PolicyProps) {
     control = (
       <button
         className="button button--secondary"
-        disabled={props.busy || !props.context.mfaVerifiedUntil}
+        disabled={props.busy || !props.context.mfaSatisfied}
         onClick={props.onConfirmDisable}
         type="button"
       >
@@ -133,7 +133,7 @@ function OrganizationPolicy(props: PolicyProps) {
     <fieldset className="organization-policy">
       <legend>Organization MFA policy</legend>
       {control}
-      {props.context.mfaRequired && !props.context.mfaVerifiedUntil ? (
+      {props.context.mfaRequired && !props.context.mfaSatisfied ? (
         <p className="section-description">
           Verify Organization MFA before changing an active policy.
         </p>
@@ -363,6 +363,29 @@ function VerificationPanel(props: VerificationPanelProps) {
   );
 }
 
+function OrganizationSecurityStatus({
+  context,
+}: {
+  readonly context: OrganizationAuthStatusResponse;
+}) {
+  return (
+    <div className="organization-security-status">
+      <span className="status-pill">
+        {context.mfaRequired ? "MFA required" : "MFA not required"}
+      </span>
+      {context.mfaSatisfiedBy === "passkey" ? (
+        <p className="notice notice--success" role="status">
+          Verified with passkey for this browser session.
+        </p>
+      ) : context.mfaVerifiedUntil ? (
+        <p className="notice notice--success" role="status">
+          Verified until {displayDate(context.mfaVerifiedUntil)}.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function OrganizationAccess({
   section = "security",
 }: {
@@ -560,7 +583,7 @@ export function OrganizationAccess({
 
   const { context } = accessState;
   const enrollmentComplete = context.twoFactorEnabled && context.twoFactorVerified;
-  const needsVerification = context.mfaRequired && !context.mfaVerifiedUntil;
+  const needsVerification = context.mfaRequired && !context.mfaSatisfied;
 
   if (section === "invitations") {
     return <OrganizationInvitations context={context} />;
@@ -573,16 +596,7 @@ export function OrganizationAccess({
     >
       <OrganizationFeedback actionError={actionError} successMessage={successMessage} />
 
-      <div className="organization-security-status">
-        <span className="status-pill">
-          {context.mfaRequired ? "MFA required" : "MFA not required"}
-        </span>
-        {context.mfaVerifiedUntil ? (
-          <p className="notice notice--success" role="status">
-            Verified until {displayDate(context.mfaVerifiedUntil)}.
-          </p>
-        ) : null}
-      </div>
+      <OrganizationSecurityStatus context={context} />
 
       <OrganizationPolicy
         busy={busy}
