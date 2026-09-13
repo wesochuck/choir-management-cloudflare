@@ -1,6 +1,6 @@
 import { failure, success, type DomainResult } from "@choir/domain";
 
-export type PlatformMfaMethod = "recovery_code" | "totp";
+export type PlatformMfaMethod = "passkey" | "recovery_code" | "totp";
 
 interface PlatformAdministratorRow {
   readonly assertionExpiresAt: number | null;
@@ -62,6 +62,7 @@ function isEnrollmentComplete(row: PlatformAdministratorRow): boolean {
 export interface PlatformAdministratorMfaStatus {
   readonly activePlatformAdministrator: boolean;
   readonly enrollmentComplete: boolean;
+  readonly hasPasskey: boolean;
   readonly twoFactorEnabled: boolean;
 }
 
@@ -69,11 +70,18 @@ export async function getPlatformAdministratorMfaStatus(
   database: D1Database,
   userId: string,
 ): Promise<PlatformAdministratorMfaStatus> {
-  const row = await findPlatformAdministrator(database, userId);
+  const [row, passkeyRow] = await Promise.all([
+    findPlatformAdministrator(database, userId),
+    database
+      .prepare("SELECT COUNT(*) AS count FROM passkey WHERE userId = ?")
+      .bind(userId)
+      .first<{ count: number }>(),
+  ]);
   const activePlatformAdministrator = row !== null && row.revokedAt === null;
   return {
     activePlatformAdministrator,
     enrollmentComplete: activePlatformAdministrator && isEnrollmentComplete(row),
+    hasPasskey: (passkeyRow?.count ?? 0) > 0,
     twoFactorEnabled:
       activePlatformAdministrator && row.twoFactorEnabled === 1 && row.twoFactorVerified === 1,
   };

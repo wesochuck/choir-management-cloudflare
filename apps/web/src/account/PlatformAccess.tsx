@@ -11,6 +11,7 @@ import {
   verifyPlatformMfa,
   verifyAccountTotpEnrollment,
 } from "../auth/api";
+import { signInWithPasskey } from "../auth/passkeyClient";
 import { PlatformEmailSuppressions } from "./PlatformEmailSuppressions";
 import { PlatformOperations } from "./PlatformOperations";
 
@@ -19,7 +20,7 @@ type AccessState =
   | { readonly status: "hidden" }
   | { readonly status: "loading" }
   | { readonly status: "needs_enrollment"; readonly twoFactorEnabled: boolean }
-  | { readonly status: "needs_verification" }
+  | { readonly hasPasskey: boolean; readonly status: "needs_verification" }
   | { readonly context: PlatformContextResponse; readonly status: "ready" };
 
 interface EnrollmentSecrets {
@@ -221,9 +222,9 @@ function EnrollmentPanel(props: EnrollmentPanelProps) {
 interface VerificationPanelProps {
   readonly busy: boolean;
   readonly code: string;
-  readonly method: "recovery_code" | "totp";
+  readonly method: "passkey" | "recovery_code" | "totp";
   readonly onCodeChange: (code: string) => void;
-  readonly onMethodChange: (method: "recovery_code" | "totp") => void;
+  readonly onMethodChange: (method: "passkey" | "recovery_code" | "totp") => void;
   readonly onVerify: () => void;
 }
 
@@ -243,31 +244,48 @@ function VerificationPanel(props: VerificationPanelProps) {
         <select
           id="platform-verification-method"
           onChange={(event) => {
-            props.onMethodChange(event.target.value === "recovery_code" ? "recovery_code" : "totp");
+            const val = event.target.value;
+            props.onMethodChange(
+              val === "passkey" ? "passkey" : val === "recovery_code" ? "recovery_code" : "totp",
+            );
           }}
           value={props.method}
         >
+          <option value="passkey">Passkey</option>
           <option value="totp">Authenticator code</option>
           <option value="recovery_code">Recovery code</option>
         </select>
       </div>
-      <div className="field">
-        <label htmlFor="platform-verification-code">
-          {props.method === "totp" ? "6-digit code" : "Recovery code"}
-        </label>
-        <input
-          autoComplete="one-time-code"
-          id="platform-verification-code"
-          inputMode={props.method === "totp" ? "numeric" : "text"}
-          maxLength={128}
-          onChange={(event) => {
-            props.onCodeChange(event.target.value);
-          }}
-          value={props.code}
-        />
-      </div>
+      {props.method === "passkey" ? (
+        <p className="field-hint">
+          Use your passkey to verify your identity with biometric authentication (fingerprint, face)
+          or your device security key.
+        </p>
+      ) : (
+        <div className="field">
+          <label htmlFor="platform-verification-code">
+            {props.method === "totp" ? "6-digit code" : "Recovery code"}
+          </label>
+          <input
+            autoComplete="one-time-code"
+            id="platform-verification-code"
+            inputMode={props.method === "totp" ? "numeric" : "text"}
+            maxLength={128}
+            onChange={(event) => {
+              props.onCodeChange(event.target.value);
+            }}
+            value={props.code}
+          />
+        </div>
+      )}
       <button className="button button--primary" disabled={props.busy} type="submit">
-        {props.busy ? "Verifying…" : "Verify Platform access"}
+        {props.busy
+          ? props.method === "passkey"
+            ? "Verifying with passkey…"
+            : "Verifying…"
+          : props.method === "passkey"
+            ? "Verify with passkey"
+            : "Verify Platform access"}
       </button>
     </form>
   );
@@ -291,7 +309,7 @@ async function readAccessState(signal?: AbortSignal): Promise<AccessState> {
     return { context: await getPlatformContext(), status: "ready" };
   } catch (error: unknown) {
     if (error instanceof AuthApiError && error.status === 401) {
-      return { status: "needs_verification" };
+      return { hasPasskey: status.hasPasskey, status: "needs_verification" };
     }
     throw error;
   }
@@ -330,13 +348,18 @@ export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
   const [enrollmentPassword, setEnrollmentPassword] = useState("");
   const [enrollmentSecrets, setEnrollmentSecrets] = useState<EnrollmentSecrets | null>(null);
   const [verificationCode, setVerificationCode] = useState("");
-  const [verificationMethod, setVerificationMethod] = useState<"recovery_code" | "totp">("totp");
+  const [verificationMethod, setVerificationMethod] = useState<
+    "passkey" | "recovery_code" | "totp"
+  >("totp");
 
   useEffect(() => {
     const abortController = new AbortController();
     readAccessState(abortController.signal)
       .then((state) => {
         setAccessState(state);
+        if (state.status === "needs_verification" && state.hasPasskey) {
+          setVerificationMethod("passkey");
+        }
       })
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
@@ -350,7 +373,11 @@ export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
 
   async function refreshAccess() {
     try {
-      setAccessState(await readAccessState());
+      const state = await readAccessState();
+      setAccessState(state);
+      if (state.status === "needs_verification" && state.hasPasskey) {
+        setVerificationMethod("passkey");
+      }
     } catch {
       setAccessState({ status: "error" });
     }
@@ -427,6 +454,27 @@ export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
   }
 
   async function verifyAccess() {
+    if (verificationMethod === "passkey") {
+      setActionError(null);
+      setBusy(true);
+      try {
+        const passkeyResult = await signInWithPasskey();
+        if (!passkeyResult.success) {
+          if (!passkeyResult.canceled) {
+            setActionError(passkeyResult.error ?? "Passkey verification failed.");
+          }
+          return;
+        }
+        await verifyPlatformMfa("passkey");
+        await refreshAccess();
+      } catch {
+        setActionError("Platform Administrator verification failed. Please try again.");
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     const code = verificationCode.trim();
     const valid = verificationMethod === "totp" ? /^\d{6}$/.test(code) : code.length >= 8;
     if (!valid) {

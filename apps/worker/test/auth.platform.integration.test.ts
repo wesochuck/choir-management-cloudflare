@@ -162,6 +162,73 @@ describe("Platform Administrator MFA", () => {
     );
     await expect(recoveryAuthorized.json()).resolves.toMatchObject({ mfaMethod: "recovery_code" });
 
+    // Passkey verification tests
+    await testEnv.CONTROL_DB.prepare("DELETE FROM platform_mfa_assertions").run();
+    const sessionRecord = await testEnv.CONTROL_DB.prepare(
+      "SELECT id FROM session WHERE userId = ? LIMIT 1",
+    )
+      .bind("user-invited-member")
+      .first<{ id: string }>();
+    if (!sessionRecord) throw new Error("Missing session record.");
+
+    // 1. Unverified session (no passkey assurance) fails passkey verification
+    const unverifiedPasskeyResponse = await fetchWorker(
+      authRequest("/api/platform/mfa/verify", {
+        body: JSON.stringify({ method: "passkey" }),
+        headers: { cookie: sessionCookie },
+        method: "POST",
+      }),
+    );
+    expect(unverifiedPasskeyResponse.status).toBe(401);
+
+    // 2. Fresh passkey assurance succeeds and issues 1-hour platform elevation with method 'passkey'
+    const now = Date.now();
+    await testEnv.CONTROL_DB.prepare(
+      `INSERT INTO session_auth_assurance (session_id, user_id, method, verified_at)
+       VALUES (?, ?, 'passkey', ?)`,
+    )
+      .bind(sessionRecord.id, "user-invited-member", now)
+      .run();
+
+    const passkeyResponse = await fetchWorker(
+      authRequest("/api/platform/mfa/verify", {
+        body: JSON.stringify({ method: "passkey" }),
+        headers: { cookie: sessionCookie },
+        method: "POST",
+      }),
+    );
+    expect(passkeyResponse.status).toBe(200);
+    const passkeyAuthorized = await fetchWorker(
+      authRequest("/api/platform/context", { headers: { cookie: sessionCookie } }),
+    );
+    await expect(passkeyAuthorized.json()).resolves.toMatchObject({ mfaMethod: "passkey" });
+
+    // 3. Stale passkey assurance (> 5 minutes) fails
+    await testEnv.CONTROL_DB.prepare("DELETE FROM platform_mfa_assertions").run();
+    await testEnv.CONTROL_DB.prepare(
+      "UPDATE session_auth_assurance SET verified_at = ? WHERE session_id = ?",
+    )
+      .bind(now - 10 * 60 * 1000, sessionRecord.id)
+      .run();
+
+    const stalePasskeyResponse = await fetchWorker(
+      authRequest("/api/platform/mfa/verify", {
+        body: JSON.stringify({ method: "passkey" }),
+        headers: { cookie: sessionCookie },
+        method: "POST",
+      }),
+    );
+    expect(stalePasskeyResponse.status).toBe(401);
+
+    // Re-verify with recovery code for subsequent tests
+    await fetchWorker(
+      authRequest("/api/platform/mfa/verify", {
+        body: JSON.stringify({ code: enrollment.backupCodes[0], method: "recovery_code" }),
+        headers: { cookie: sessionCookie },
+        method: "POST",
+      }),
+    );
+
     await testEnv.CONTROL_DB.prepare(
       "UPDATE platform_administrators SET revoked_at = ? WHERE user_id = ?",
     )

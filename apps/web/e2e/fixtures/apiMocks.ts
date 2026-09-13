@@ -541,6 +541,7 @@ export interface PlatformAdminMocksOptions {
   readonly mfaStatus?: {
     activePlatformAdministrator?: boolean;
     enrollmentComplete?: boolean;
+    hasPasskey?: boolean;
     twoFactorEnabled?: boolean;
   };
   /**
@@ -553,9 +554,8 @@ export interface PlatformAdminMocksOptions {
 
 /**
  * Platform administration surface for /platform/* specs: MFA enrollment/verification gates,
- * scoped edit elevations, organization provisioning, dead letters, and fleet schema prep.
- * Account/session/org-host shell routes stay in the spec because the MFA and edit-access
- * journeys need different auth-status shapes (404 vs 403).
+ * read-only/edit elevations, provisioning, queue dead letters, email suppressions, and domain
+ * management.
  */
 export async function installPlatformAdminMocks(
   page: Page,
@@ -579,6 +579,7 @@ export async function installPlatformAdminMocks(
       buildPlatformMfaStatusResponse({
         activePlatformAdministrator: options.mfaStatus?.activePlatformAdministrator ?? true,
         enrollmentComplete: enrollmentComplete || options.mfaStatus?.enrollmentComplete === true,
+        hasPasskey: options.mfaStatus?.hasPasskey ?? false,
         twoFactorEnabled: twoFactorEnabled || options.mfaStatus?.twoFactorEnabled === true,
       }),
     );

@@ -150,3 +150,87 @@ test("enables and ends scoped Platform Administrator edit access", async ({ page
   await expect(platformSection.getByText("Read-only Platform access")).toBeVisible();
   guard.assertNoUnexpectedRequests();
 });
+
+test("verifies Platform Administrator access using passkey", async ({ page }) => {
+  const guard = await installStrictGuard(page);
+  const session = await installSessionShell(page, {});
+  await installPlatformAdminMocks(page, {
+    gatePlatformContext: true,
+    mfaStatus: {
+      activePlatformAdministrator: true,
+      enrollmentComplete: true,
+      hasPasskey: true,
+      twoFactorEnabled: true,
+    },
+    userId: session.user.id,
+  });
+  await installPlatformSpecShell(
+    page,
+    session,
+    {
+      code: "not_found",
+      message: "No canonical Organization hostname is active.",
+      status: 404,
+    },
+    "44444444-4444-4444-8444-444444444444",
+  );
+
+  await page.route("**/api/auth/passkey/generate-authenticate-options", async (route) => {
+    await fulfillJson(route, {
+      challenge: "mock-challenge",
+      rpId: "localhost",
+      timeout: 60000,
+      userVerification: "required",
+    });
+  });
+  await page.route("**/api/auth/passkey/verify-authentication", async (route) => {
+    await fulfillJson(route, {
+      session: session.session,
+      user: session.user,
+    });
+  });
+
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "credentials", {
+      configurable: true,
+      value: {
+        create: () => Promise.reject(new Error("Not implemented in mock")),
+        get: () =>
+          Promise.resolve({
+            authenticatorAttachment: "platform",
+            getClientExtensionResults: () => ({}),
+            id: "mock-passkey-cred-id",
+            rawId: new Uint8Array([1, 2, 3, 4]).buffer,
+            response: {
+              authenticatorData: new Uint8Array([1, 2, 3, 4]).buffer,
+              clientDataJSON: new Uint8Array([1, 2, 3, 4]).buffer,
+              signature: new Uint8Array([1, 2, 3, 4]).buffer,
+            },
+            type: "public-key",
+          }),
+        preventSilentAccess: () => Promise.resolve(),
+      },
+    });
+  });
+
+  await page.goto("/platform/security");
+  const platformSection = page.getByRole("region", { name: "Platform Administrator access" });
+  await expect(
+    platformSection.getByRole("heading", { name: "Verify Platform Administrator access" }),
+  ).toBeVisible();
+
+  // Verification method defaults to "passkey" when hasPasskey is true
+  const methodSelect = platformSection.getByLabel("Verification method");
+  await expect(methodSelect).toBeVisible();
+  await expect(methodSelect).toHaveValue("passkey");
+
+  // Code input should not be visible for passkey
+  await expect(platformSection.getByLabel("6-digit code")).toHaveCount(0);
+  await expect(platformSection.getByRole("button", { name: "Verify with passkey" })).toBeVisible();
+
+  // Clicking "Verify with passkey" completes the verification and shows ready status
+  await platformSection.getByRole("button", { name: "Verify with passkey" }).click();
+  await expect(platformSection.getByRole("status")).toContainText("Platform access is ready");
+
+  guard.assertNoUnexpectedRequests();
+});

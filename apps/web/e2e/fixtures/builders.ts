@@ -235,6 +235,7 @@ export function buildPlatformMfaStatusResponse(
   overrides: {
     activePlatformAdministrator?: boolean;
     enrollmentComplete?: boolean;
+    hasPasskey?: boolean;
     twoFactorEnabled?: boolean;
   } = {},
 ) {
@@ -242,6 +243,7 @@ export function buildPlatformMfaStatusResponse(
     {
       activePlatformAdministrator: overrides.activePlatformAdministrator ?? false,
       enrollmentComplete: overrides.enrollmentComplete ?? false,
+      hasPasskey: overrides.hasPasskey ?? false,
       requestId: "22222222-2222-4222-8222-222222222222",
       twoFactorEnabled: overrides.twoFactorEnabled ?? false,
     },
@@ -782,10 +784,11 @@ export function buildPlatformMfaEnrollmentResponse(backupCodes: readonly string[
 export function buildPlatformContextResponse(
   scope: { kind: "product_base" } | { kind: "organization"; organizationId: string },
   userId: string,
+  mfaMethod: "passkey" | "recovery_code" | "totp" = "totp",
 ) {
   return validated(
     {
-      mfaMethod: "totp",
+      mfaMethod,
       mfaVerifiedUntil: "2026-07-20T20:15:00.000Z",
       requestId: "33333333-3333-4333-8333-333333333333",
       scope,

@@ -400,6 +400,7 @@ export type PlatformElevationRevocationResponse = z.infer<
 export const platformMfaStatusResponseSchema = z.object({
   activePlatformAdministrator: z.boolean(),
   enrollmentComplete: z.boolean(),
+  hasPasskey: z.boolean().default(false),
   requestId: requestIdSchema,
   twoFactorEnabled: z.boolean(),
 });
@@ -415,7 +416,7 @@ export const platformRecoveryCodesResponseSchema = z.object({
 });
 
 export const platformContextResponseSchema = z.object({
-  mfaMethod: z.enum(["recovery_code", "totp"]),
+  mfaMethod: z.enum(["passkey", "recovery_code", "totp"]),
   mfaVerifiedUntil: z.iso.datetime(),
   requestId: requestIdSchema,
   scope: z.discriminatedUnion("kind", [

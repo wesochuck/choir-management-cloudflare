@@ -117,11 +117,11 @@ export async function confirmPlatformMfaEnrollment(): Promise<void> {
 }
 
 export async function verifyPlatformMfa(
-  method: "recovery_code" | "totp",
-  code: string,
+  method: "passkey" | "recovery_code" | "totp",
+  code?: string,
 ): Promise<void> {
   await request("/api/platform/mfa/verify", {
-    body: JSON.stringify({ code, method }),
+    body: JSON.stringify(method === "passkey" ? { method } : { code, method }),
     method: "POST",
   });
 }
