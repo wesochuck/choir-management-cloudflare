@@ -3,8 +3,9 @@ import type {
   OrganizationRosterConfiguration,
   OrganizationRsvp,
 } from "@choir/contracts";
-import { useMemo, useState } from "react";
+import { type CSSProperties, useMemo, useState } from "react";
 import { AuthApiError, setOrganizationEventRsvp } from "../../../auth/api";
+import { buildRosterBalanceLayout } from "../../rosterBalanceLayout";
 
 import {
   attendanceLabel,
@@ -32,6 +33,19 @@ export function VoicePartBalance({
   readonly profiles: readonly OrganizationProfile[];
   readonly selectedFilters: readonly string[];
 }) {
+  const layout = useMemo(() => {
+    const reportableSecs = reportableSections(configuration);
+    const reportableParts = reportableVoiceParts(configuration);
+    return buildRosterBalanceLayout(reportableSecs, reportableParts);
+  }, [configuration]);
+
+  const balanceGridStyle: (CSSProperties & { "--roster-balance-columns"?: number }) | undefined =
+    layout.valid && layout.columnCount > 0
+      ? {
+          "--roster-balance-columns": layout.columnCount,
+        }
+      : undefined;
+
   const counts = useMemo(() => {
     const sectionsForReporting = reportableSections(configuration);
     const voicePartsForReporting = reportableVoiceParts(configuration);
@@ -79,45 +93,59 @@ export function VoicePartBalance({
           ) : null}
         </div>
       </div>
-      <div className="roster-balance__sections">
-        {reportableSections(configuration).map((section) => {
-          const filter = sectionFilterKey(section.code);
-          const selected = selectedFilters.includes(filter);
-          return (
-            <button
-              aria-pressed={selected}
-              className={`roster-balance__section${selected ? " roster-balance__section--selected" : ""}`}
-              key={section.code}
-              onClick={() => {
-                onToggle(filter);
-              }}
-              type="button"
-            >
-              <span>{section.name}</span>
-              <strong>{counts.sections.get(section.code) ?? 0}</strong>
-            </button>
-          );
-        })}
-      </div>
-      <div className="roster-balance__parts">
-        {reportableVoiceParts(configuration).map((voicePart) => {
-          const filter = voicePartFilterKey(voicePart.label);
-          const selected = selectedFilters.includes(filter);
-          return (
-            <button
-              aria-pressed={selected}
-              className={`roster-balance__part${selected ? " roster-balance__part--selected" : ""}`}
-              key={voicePart.label}
-              onClick={() => {
-                onToggle(filter);
-              }}
-              type="button"
-            >
-              <span>{voicePart.label}</span>
-              <strong>{counts.voiceParts.get(voicePart.label) ?? 0}</strong>
-            </button>
-          );
-        })}
+      <div
+        className={`roster-balance__assignment-layout${layout.valid ? "" : " roster-balance__assignment-layout--fallback"}`}
+        style={balanceGridStyle}
+      >
+        <div className="roster-balance__sections">
+          {layout.sections.map((sectionGroup) => {
+            const section = sectionGroup.section;
+            const filter = sectionFilterKey(section.code);
+            const selected = selectedFilters.includes(filter);
+            const sectionGridStyle:
+              (CSSProperties & { "--roster-balance-section-span"?: number }) | undefined =
+              layout.valid
+                ? {
+                    "--roster-balance-section-span": sectionGroup.span,
+                  }
+                : undefined;
+            return (
+              <button
+                aria-pressed={selected}
+                className={`roster-balance__section${selected ? " roster-balance__section--selected" : ""}`}
+                key={section.code}
+                onClick={() => {
+                  onToggle(filter);
+                }}
+                style={sectionGridStyle}
+                type="button"
+              >
+                <span>{section.name}</span>
+                <strong>{counts.sections.get(section.code) ?? 0}</strong>
+              </button>
+            );
+          })}
+        </div>
+        <div className="roster-balance__parts">
+          {layout.orderedParts.map((voicePart) => {
+            const filter = voicePartFilterKey(voicePart.label);
+            const selected = selectedFilters.includes(filter);
+            return (
+              <button
+                aria-pressed={selected}
+                className={`roster-balance__part${selected ? " roster-balance__part--selected" : ""}`}
+                key={voicePart.label}
+                onClick={() => {
+                  onToggle(filter);
+                }}
+                type="button"
+              >
+                <span>{voicePart.label}</span>
+                <strong>{counts.voiceParts.get(voicePart.label) ?? 0}</strong>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

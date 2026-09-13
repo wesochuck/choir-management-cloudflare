@@ -1,5 +1,7 @@
 import type { OrganizationEvent, OrganizationRosterConfiguration } from "@choir/contracts";
+import { type CSSProperties, useMemo } from "react";
 
+import { buildRosterBalanceLayout } from "../../../rosterBalanceLayout";
 import { reportableSections, reportableVoiceParts } from "../historyUtils";
 import { displayEventDate } from "../rsvpFormat";
 import type { RsvpAssignmentFilter, RsvpCounts, RsvpFilter, RsvpView } from "../types";
@@ -40,6 +42,19 @@ export function RsvpManagerFilters({
   view,
   voicePartCounts,
 }: RsvpManagerFiltersProps) {
+  const layout = useMemo(() => {
+    const reportableSecs = reportableSections(roster);
+    const reportableParts = reportableVoiceParts(roster);
+    return buildRosterBalanceLayout(reportableSecs, reportableParts);
+  }, [roster]);
+
+  const balanceGridStyle: (CSSProperties & { "--roster-balance-columns"?: number }) | undefined =
+    layout.valid && layout.columnCount > 0
+      ? {
+          "--roster-balance-columns": layout.columnCount,
+        }
+      : undefined;
+
   return (
     <fieldset className="surface-card roster-balance rsvp-manager__balance">
       <legend id="rsvp-balance-title">{partLabel} RSVP balance</legend>
@@ -116,45 +131,59 @@ export function RsvpManagerFilters({
           History
         </button>
       </div>
-      <div className="roster-balance__sections">
-        {reportableSections(roster).map((section) => {
-          const selected =
-            assignmentFilter?.kind === "section" && assignmentFilter.value === section.code;
-          return (
-            <button
-              aria-pressed={selected}
-              className={`roster-balance__section${selected ? " roster-balance__section--selected" : ""}`}
-              key={section.code}
-              onClick={() => {
-                toggleAssignmentFilter({ kind: "section", value: section.code });
-              }}
-              type="button"
-            >
-              <span>{section.name}</span>
-              <strong>{sectionCounts.get(section.code) ?? 0}</strong>
-            </button>
-          );
-        })}
-      </div>
-      <div className="roster-balance__parts">
-        {reportableVoiceParts(roster).map((voicePart) => {
-          const selected =
-            assignmentFilter?.kind === "voicePart" && assignmentFilter.value === voicePart.label;
-          return (
-            <button
-              aria-pressed={selected}
-              className={`roster-balance__part${selected ? " roster-balance__part--selected" : ""}`}
-              key={voicePart.label}
-              onClick={() => {
-                toggleAssignmentFilter({ kind: "voicePart", value: voicePart.label });
-              }}
-              type="button"
-            >
-              <span>{voicePart.label}</span>
-              <strong>{voicePartCounts.get(voicePart.label) ?? 0}</strong>
-            </button>
-          );
-        })}
+      <div
+        className={`roster-balance__assignment-layout${layout.valid ? "" : " roster-balance__assignment-layout--fallback"}`}
+        style={balanceGridStyle}
+      >
+        <div className="roster-balance__sections">
+          {layout.sections.map((sectionGroup) => {
+            const section = sectionGroup.section;
+            const selected =
+              assignmentFilter?.kind === "section" && assignmentFilter.value === section.code;
+            const sectionGridStyle:
+              (CSSProperties & { "--roster-balance-section-span"?: number }) | undefined =
+              layout.valid
+                ? {
+                    "--roster-balance-section-span": sectionGroup.span,
+                  }
+                : undefined;
+            return (
+              <button
+                aria-pressed={selected}
+                className={`roster-balance__section${selected ? " roster-balance__section--selected" : ""}`}
+                key={section.code}
+                onClick={() => {
+                  toggleAssignmentFilter({ kind: "section", value: section.code });
+                }}
+                style={sectionGridStyle}
+                type="button"
+              >
+                <span>{section.name}</span>
+                <strong>{sectionCounts.get(section.code) ?? 0}</strong>
+              </button>
+            );
+          })}
+        </div>
+        <div className="roster-balance__parts">
+          {layout.orderedParts.map((voicePart) => {
+            const selected =
+              assignmentFilter?.kind === "voicePart" && assignmentFilter.value === voicePart.label;
+            return (
+              <button
+                aria-pressed={selected}
+                className={`roster-balance__part${selected ? " roster-balance__part--selected" : ""}`}
+                key={voicePart.label}
+                onClick={() => {
+                  toggleAssignmentFilter({ kind: "voicePart", value: voicePart.label });
+                }}
+                type="button"
+              >
+                <span>{voicePart.label}</span>
+                <strong>{voicePartCounts.get(voicePart.label) ?? 0}</strong>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </fieldset>
   );

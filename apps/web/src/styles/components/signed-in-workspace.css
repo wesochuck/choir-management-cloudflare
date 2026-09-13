@@ -253,19 +253,36 @@
     color: var(--color-text);
   }
 
+  .roster-balance__assignment-layout {
+    display: flex;
+    flex-direction: column;
+  }
+
   .roster-balance__sections,
   .roster-balance__parts {
     display: grid;
+    grid-template-columns: repeat(var(--roster-balance-columns, 4), minmax(0, 1fr));
     gap: var(--spacing-sm);
   }
 
-  .roster-balance__sections {
+  .roster-balance__parts {
+    margin-top: var(--spacing-sm);
+  }
+
+  .roster-balance__section {
+    grid-column: span var(--roster-balance-section-span, 1);
+  }
+
+  .roster-balance__assignment-layout--fallback .roster-balance__sections {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
-  .roster-balance__parts {
+  .roster-balance__assignment-layout--fallback .roster-balance__section {
+    grid-column: auto;
+  }
+
+  .roster-balance__assignment-layout--fallback .roster-balance__parts {
     grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
-    margin-top: var(--spacing-sm);
   }
 
   .roster-balance__section,
@@ -885,6 +902,14 @@
 
     .roster-balance__sections {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .roster-balance__section {
+      grid-column: auto;
+    }
+
+    .roster-balance__parts {
+      grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
     }
 
     .roster-filter-row {
