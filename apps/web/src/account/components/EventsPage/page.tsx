@@ -95,7 +95,7 @@ export function EventsPage({
     ])
       .then(([events, venues, settings, rosterConfiguration]) => {
         setState({
-          events,
+          events: events.toSorted((left, right) => left.startsAt.localeCompare(right.startsAt)),
           rsvpFollowUpEnabled: rosterConfiguration.rsvpFollowUpEnabled,
           rsvpFollowUpLeadHours: rosterConfiguration.rsvpFollowUpLeadHours,
           rsvpExpiryEnabled: rosterConfiguration.rsvpExpiryEnabled,
@@ -117,20 +117,22 @@ export function EventsPage({
   const filteredEvents = useMemo(() => {
     if (state.status !== "ready") return [];
     const normalized = query.trim().toLocaleLowerCase();
-    return state.events.filter((candidate) => {
-      const matchesTab =
-        eventTab === "all" ||
-        (eventTab === "performances" && candidate.type === "Performance") ||
-        (eventTab === "rehearsals" && candidate.type === "Rehearsal");
-      const matchesPast = showPastEvents || new Date(candidate.startsAt).getTime() >= currentTime;
-      const matchesQuery =
-        !normalized ||
-        [candidate.title, candidate.type, candidate.location]
-          .join(" ")
-          .toLocaleLowerCase()
-          .includes(normalized);
-      return matchesTab && matchesPast && matchesQuery;
-    });
+    return state.events
+      .filter((candidate) => {
+        const matchesTab =
+          eventTab === "all" ||
+          (eventTab === "performances" && candidate.type === "Performance") ||
+          (eventTab === "rehearsals" && candidate.type === "Rehearsal");
+        const matchesPast = showPastEvents || new Date(candidate.startsAt).getTime() >= currentTime;
+        const matchesQuery =
+          !normalized ||
+          [candidate.title, candidate.type, candidate.location]
+            .join(" ")
+            .toLocaleLowerCase()
+            .includes(normalized);
+        return matchesTab && matchesPast && matchesQuery;
+      })
+      .toSorted((left, right) => left.startsAt.localeCompare(right.startsAt));
   }, [currentTime, eventTab, query, showPastEvents, state]);
 
   function closeDialog() {
