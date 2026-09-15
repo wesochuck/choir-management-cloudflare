@@ -530,6 +530,7 @@ export function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Res
         : undefined;
       return searchOrganizationEntitiesFromStore(storage, {
         category: categoryParsed.success ? categoryParsed.data : undefined,
+        includeHidden: url.searchParams.get("includeHidden") === "true",
         limit: url.searchParams.get("limit") ? Number(url.searchParams.get("limit")) : undefined,
         organizationId,
         profileIds,

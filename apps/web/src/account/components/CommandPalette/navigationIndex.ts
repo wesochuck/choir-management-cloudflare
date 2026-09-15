@@ -29,7 +29,7 @@ export const staticNavigationItems: readonly CommandPaletteAction[] = [
   {
     badge: "Page",
     category: "navigation",
-    href: "/admin/music",
+    href: "/admin/library",
     id: "nav-music",
     subtitle: "Sheet music catalog, arrangements, and reference audio",
     title: "Music Library",
@@ -37,7 +37,7 @@ export const staticNavigationItems: readonly CommandPaletteAction[] = [
   {
     badge: "Page",
     category: "navigation",
-    href: "/admin/music/folders",
+    href: "/admin/reports?tab=music-folders",
     id: "nav-music-folders",
     subtitle: "Track physical folder return status across performances",
     title: "Music Folder Reports",
@@ -61,7 +61,7 @@ export const staticNavigationItems: readonly CommandPaletteAction[] = [
   {
     badge: "Page",
     category: "navigation",
-    href: "/admin/communications/polls",
+    href: "/admin/polls",
     id: "nav-polls",
     subtitle: "Volunteer signups, availability polls, and results",
     title: "Engagement Polls",
@@ -69,7 +69,7 @@ export const staticNavigationItems: readonly CommandPaletteAction[] = [
   {
     badge: "Page",
     category: "navigation",
-    href: "/admin/communications/templates",
+    href: "/admin/communications?section=templates",
     id: "nav-comm-templates",
     subtitle: "Reusable email layouts and message placeholders",
     title: "Message Templates",
@@ -77,7 +77,7 @@ export const staticNavigationItems: readonly CommandPaletteAction[] = [
   {
     badge: "Page",
     category: "navigation",
-    href: "/admin/invitations",
+    href: "/admin/settings/invitations",
     id: "nav-invitations",
     subtitle: "Invite singers, directors, and administrators to the portal",
     title: "Organization Invitations",
@@ -94,7 +94,7 @@ export const staticNavigationItems: readonly CommandPaletteAction[] = [
   {
     badge: "Module",
     category: "navigation",
-    href: "/admin/ticketing",
+    href: "/admin/tickets",
     id: "nav-ticketing",
     requiredModule: "ticketing",
     subtitle: "Ticket tiers, orders, will-call door lists, and discounts",
@@ -181,7 +181,7 @@ export const staticNavigationItems: readonly CommandPaletteAction[] = [
   {
     badge: "Settings",
     category: "settings",
-    href: "/admin/music?tab=settings",
+    href: "/admin/library/settings",
     id: "set-music-genres",
     subtitle: "Music genres registry and external publisher lookup URL template",
     title: "Music Library Settings & Genres",

@@ -63,11 +63,12 @@ export const emptyProfile: OrganizationProfileRequest = {
   isSectionLeader: false,
   notes: "",
   phone: "",
-  receiveAdminNotifications: true,
+  receiveAdminNotifications: false,
   receiveAttendanceReports: true,
   receiveFinancialAlerts: false,
   receiveRsvpDeclineNotices: false,
   showInDirectory: true,
+  hidden: false,
   statusIsManual: false,
   voicePart: "",
 };

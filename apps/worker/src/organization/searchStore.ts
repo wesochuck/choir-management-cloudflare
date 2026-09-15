@@ -5,6 +5,7 @@ interface ProfileRow {
   readonly [column: string]: SqlStorageValue;
   readonly displayName: string;
   readonly globalStatus: string | null;
+  readonly hidden: number;
   readonly id: string;
   readonly voicePart: string | null;
 }
@@ -51,6 +52,7 @@ export interface SearchStoreStorage {
 
 export interface SearchStoreOptions {
   readonly category?: SearchCategory | undefined;
+  readonly includeHidden?: boolean | undefined;
   readonly limit?: number | undefined;
   readonly organizationId: string | null;
   readonly profileIds?: readonly string[] | undefined;
@@ -62,14 +64,17 @@ function searchRosterProfiles(
   likePattern: string,
   profileIds: readonly string[],
   limit: number,
+  includeHidden = false,
 ): readonly SearchResultItem[] {
+  const hiddenFilter = includeHidden ? "" : "AND hidden = 0";
   const rows: ProfileRow[] =
     profileIds.length > 0
       ? storage.sql
           .exec<ProfileRow>(
-            `SELECT id, display_name AS displayName, voice_part AS voicePart, global_status AS globalStatus
+            `SELECT id, display_name AS displayName, voice_part AS voicePart, global_status AS globalStatus, hidden
              FROM profiles
-             WHERE display_name LIKE ? OR voice_part LIKE ? OR phone LIKE ? OR id IN (${profileIds.map(() => "?").join(", ")})
+             WHERE (display_name LIKE ? OR voice_part LIKE ? OR phone LIKE ? OR id IN (${profileIds.map(() => "?").join(", ")}))
+               ${hiddenFilter}
              ORDER BY display_name ASC
              LIMIT ?`,
             likePattern,
@@ -81,9 +86,10 @@ function searchRosterProfiles(
           .toArray()
       : storage.sql
           .exec<ProfileRow>(
-            `SELECT id, display_name AS displayName, voice_part AS voicePart, global_status AS globalStatus
+            `SELECT id, display_name AS displayName, voice_part AS voicePart, global_status AS globalStatus, hidden
              FROM profiles
-             WHERE display_name LIKE ? OR voice_part LIKE ? OR phone LIKE ?
+             WHERE (display_name LIKE ? OR voice_part LIKE ? OR phone LIKE ?)
+               ${hiddenFilter}
              ORDER BY display_name ASC
              LIMIT ?`,
             likePattern,
@@ -93,14 +99,18 @@ function searchRosterProfiles(
           )
           .toArray();
 
-  return rows.map((p) => ({
-    badge: p.globalStatus ?? "Active",
-    category: "roster",
-    href: `/admin/roster?profileId=${p.id}`,
-    id: `roster-${p.id}`,
-    subtitle: p.voicePart ?? undefined,
-    title: p.displayName,
-  }));
+  return rows.map((p) => {
+    const status = p.globalStatus ?? "Active";
+    const badge = p.hidden === 1 ? `Hidden · ${status}` : status;
+    return {
+      badge,
+      category: "roster",
+      href: `/admin/roster?profileId=${p.id}`,
+      id: `roster-${p.id}`,
+      subtitle: p.voicePart ?? undefined,
+      title: p.displayName,
+    };
+  });
 }
 
 function searchEvents(
@@ -166,7 +176,7 @@ function searchMusicPieces(
     return {
       badge: "Music",
       category: "music",
-      href: `/admin/music?pieceId=${m.id}`,
+      href: `/admin/library?pieceId=${m.id}`,
       id: `music-${m.id}`,
       subtitle: details || undefined,
       title: m.title,
@@ -196,7 +206,7 @@ function searchPolls(
     return {
       badge: "Poll",
       category: "polls",
-      href: `/admin/communications/polls?pollId=${pol.id}`,
+      href: `/admin/polls?pollId=${pol.id}`,
       id: `poll-${pol.id}`,
       subtitle: datePart ? `Expires: ${datePart}` : undefined,
       title: pol.title,
@@ -232,7 +242,15 @@ export function searchOrganizationEntitiesFromStore(
   const shouldSearch = (cat: SearchCategory) => !options.category || options.category === cat;
 
   if (shouldSearch("roster")) {
-    results.push(...searchRosterProfiles(storage, likePattern, profileIds, limit));
+    results.push(
+      ...searchRosterProfiles(
+        storage,
+        likePattern,
+        profileIds,
+        limit,
+        options.includeHidden ?? false,
+      ),
+    );
   }
   if (shouldSearch("events")) {
     results.push(...searchEvents(storage, likePattern, limit));

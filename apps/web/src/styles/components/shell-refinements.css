@@ -155,10 +155,12 @@
   .signed-in-main input[type="radio"] {
     appearance: auto;
     -webkit-appearance: auto;
-    width: auto;
-    height: auto;
-    min-width: 0;
-    min-height: 0;
+    box-sizing: border-box;
+    width: 1rem;
+    height: 1rem;
+    min-width: 1rem;
+    min-height: 1rem;
+    flex: 0 0 1rem;
     margin: 0 var(--spacing-xs) 0 0;
     padding: 0;
     accent-color: auto;
@@ -178,7 +180,7 @@
   .signed-in-main .checkbox-row input,
   .signed-in-main .checkbox-label input {
     margin-right: 0;
-    flex: 0 0 auto;
+    flex: 0 0 1rem;
   }
 
   /* Keep native checkboxes from collapsing when labels share a row. */
@@ -254,13 +256,17 @@
   }
 
   .dialog--responsive input[type="checkbox"],
-  .dialog--responsive input[type="radio"] {
+  .dialog--responsive input[type="radio"],
+  .dialog input[type="checkbox"],
+  .dialog input[type="radio"] {
     appearance: auto;
     -webkit-appearance: auto;
-    width: auto;
-    height: auto;
-    min-width: 0;
-    min-height: 0;
+    box-sizing: border-box;
+    width: 1rem;
+    height: 1rem;
+    min-width: 1rem;
+    min-height: 1rem;
+    flex: 0 0 1rem;
     margin: 0 var(--spacing-xs) 0 0;
     padding: 0;
     accent-color: auto;
@@ -269,11 +275,48 @@
 
   .dialog--responsive .checkbox-row,
   .dialog--responsive .checkbox-label,
-  .dialog--responsive .checkbox-field {
+  .dialog--responsive .checkbox-field,
+  .dialog .checkbox-row,
+  .dialog .checkbox-label,
+  .dialog .checkbox-field {
     display: flex;
     gap: var(--spacing-xs);
     min-height: 1.5rem;
     align-items: center;
+  }
+
+  .dialog--responsive .checkbox-row input,
+  .dialog--responsive .checkbox-label input,
+  .dialog--responsive .checkbox-field input,
+  .dialog .checkbox-row input,
+  .dialog .checkbox-label input,
+  .dialog .checkbox-field input {
+    margin-right: 0;
+    flex: 0 0 1rem;
+  }
+
+  .dialog--responsive label:has(> input[type="checkbox"]),
+  .dialog--responsive label:has(> input[type="radio"]),
+  .dialog label:has(> input[type="checkbox"]),
+  .dialog label:has(> input[type="radio"]) {
+    display: inline-flex;
+    min-width: 0;
+    min-height: 1.75rem;
+    align-items: center;
+    gap: var(--spacing-xs);
+    white-space: normal;
+  }
+
+  .dialog--responsive label:has(> input[type="checkbox"]) > input,
+  .dialog--responsive label:has(> input[type="radio"]) > input,
+  .dialog label:has(> input[type="checkbox"]) > input,
+  .dialog label:has(> input[type="radio"]) > input {
+    width: 1rem;
+    height: 1rem;
+    min-width: 1rem;
+    min-height: 1rem;
+    flex: 0 0 1rem;
+    margin: 0;
   }
 
   /* === Dialog === */

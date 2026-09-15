@@ -27,8 +27,14 @@ import { reportEvents, TAB_LABELS } from "./components/Reports/reportHelpers";
 import { MusicFolderReport } from "./components/MusicFolderReport/view";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 
-export function ReportsView({ enabled }: { readonly enabled: boolean }) {
-  const [tab, setTab] = useState<ReportTab>("attendance");
+export function ReportsView({
+  enabled,
+  initialTab = "attendance",
+}: {
+  readonly enabled: boolean;
+  readonly initialTab?: ReportTab | undefined;
+}) {
+  const [tab, setTab] = useState<ReportTab>(initialTab);
   const [state, setState] = useState<LoadState>(enabled ? "loading" : "ready");
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [profiles, setProfiles] = useState<readonly OrganizationProfile[]>([]);

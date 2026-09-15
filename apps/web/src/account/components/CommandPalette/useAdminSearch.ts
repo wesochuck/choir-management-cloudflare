@@ -55,6 +55,7 @@ export function useAdminSearch({
   const [query, setQuery] = useState("");
   const [serverResults, setServerResults] = useState<readonly SearchResultItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [includeHidden, setIncludeHidden] = useState(false);
   const [recents, setRecents] = useState<readonly RecentItem[]>(() => getRecentSearches(hostname));
 
   const parsed = useMemo(() => parseQuery(query), [query]);
@@ -124,6 +125,7 @@ export function useAdminSearch({
       searchOrganization(
         {
           category: parsed.scopedCategory ?? undefined,
+          includeHidden,
           limit: 15,
           query: parsed.cleanTerm,
         },
@@ -147,7 +149,7 @@ export function useAdminSearch({
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [parsed.cleanTerm, parsed.scopedCategory]);
+  }, [includeHidden, parsed.cleanTerm, parsed.scopedCategory]);
 
   const combinedResults = useMemo((): readonly SearchResultItem[] => {
     if (!parsed.cleanTerm && !parsed.scopedCategory) return [];
@@ -156,12 +158,14 @@ export function useAdminSearch({
 
   return {
     clearRecents: handleClearRecents,
+    includeHidden,
     isSearching,
     parsedQuery: parsed,
     query,
     recents,
     refreshRecents,
     results: combinedResults,
+    setIncludeHidden,
     setQuery,
   };
 }

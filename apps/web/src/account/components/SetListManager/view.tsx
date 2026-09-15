@@ -1,12 +1,9 @@
-import {
-  calculateSetListDuration,
-  formatSetListDuration,
-  moveSetListItem,
-  normalizeSetListDuration,
-} from "@choir/domain";
+import { formatSetListDuration, moveSetListItem } from "@choir/domain";
 import { Fragment, useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import {
   displayEvent,
+  effectiveSetListItemComposer,
+  effectiveSetListItemDuration,
   effectiveSetListItemNotes,
   normalizeItems,
   setListHasLearningTrack,
@@ -149,6 +146,7 @@ export function SetListManagerView({
     showNotes,
     setSelectedEventId,
     songsDuration,
+    totalDuration,
     updateDraftItems,
   } = model;
   if (!enabled) return null;
@@ -508,7 +506,7 @@ export function SetListManagerView({
               <strong>Items</strong> {String(items.length)}
             </span>
             <span className="set-list-summary__total">
-              <strong>Total</strong> {formatSetListDuration(calculateSetListDuration(items))}
+              <strong>Total</strong> {formatSetListDuration(totalDuration)}
             </span>
           </div>
 
@@ -661,7 +659,10 @@ export function SetListManagerView({
                         </div>
                         <div className="set-list-item-summary">
                           <span>
-                            {[item.composer, normalizeSetListDuration(item.duration)]
+                            {[
+                              effectiveSetListItemComposer(item, resources.music),
+                              effectiveSetListItemDuration(item, resources.music),
+                            ]
                               .filter(Boolean)
                               .join(" · ") || (itemNotes ? "Notes added" : "No additional details")}
                           </span>

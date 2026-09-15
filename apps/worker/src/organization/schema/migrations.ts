@@ -1455,6 +1455,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       ) STRICT`,
     ],
   },
+  {
+    version: 84,
+    statements: [
+      "ALTER TABLE profiles ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1))",
+      `CREATE INDEX IF NOT EXISTS idx_profiles_hidden ON profiles(hidden)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

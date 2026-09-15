@@ -106,6 +106,7 @@ describe("resolveDraggingProfile", () => {
     receiveFinancialAlerts: false,
     receiveRsvpDeclineNotices: false,
     showInDirectory: true,
+    hidden: false,
     statusChangedAt: "1970-01-01T00:00:00.000Z",
     statusChangeReason: "Initial status",
     statusIsManual: false,

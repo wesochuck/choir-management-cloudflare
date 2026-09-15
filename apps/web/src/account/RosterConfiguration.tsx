@@ -33,6 +33,7 @@ function profileRequestFrom(profile: OrganizationProfile) {
     receiveFinancialAlerts: profile.receiveFinancialAlerts,
     receiveRsvpDeclineNotices: profile.receiveRsvpDeclineNotices,
     showInDirectory: profile.showInDirectory,
+    hidden: profile.hidden,
     statusIsManual: profile.statusIsManual,
     voicePart: profile.voicePart,
   };

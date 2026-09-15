@@ -38,13 +38,25 @@ export function MusicAudioTracks({
   const [draggedKey, setDraggedKey] = useState<string | null>(null);
   const [addedVoicePartLabels, setAddedVoicePartLabels] = useState<readonly string[]>([]);
 
-  async function saveMapping(key: string, fileId: string | null): Promise<void> {
+  async function saveMapping(
+    key: string,
+    fileId: string | null,
+    detectedDurationSeconds?: number | null,
+  ): Promise<void> {
     const previousFileId = piece.trackFileIds[key];
     const mapping = fileId
       ? { ...piece.trackFileIds, [key]: fileId }
       : Object.fromEntries(Object.entries(piece.trackFileIds).filter(([label]) => label !== key));
+    const nextDurationSeconds =
+      piece.durationSeconds ??
+      (detectedDurationSeconds &&
+      Number.isFinite(detectedDurationSeconds) &&
+      detectedDurationSeconds > 0
+        ? Math.round(detectedDurationSeconds)
+        : null);
     const saved = await updateOrganizationMusicPiece(piece.id, {
       ...requestFrom(piece),
+      durationSeconds: nextDurationSeconds,
       trackFileIds: mapping,
     });
     let message = fileId ? `${key} learning track attached.` : `${key} learning track removed.`;
@@ -75,7 +87,7 @@ export function MusicAudioTracks({
       );
       try {
         const durationSeconds = await extractAudioDuration(file);
-        await saveMapping(key, uploaded.id);
+        await saveMapping(key, uploaded.id, durationSeconds);
         onTrackDurationDetected(key, durationSeconds);
       } catch (caught: unknown) {
         await deletePrivateOrganizationFile(uploaded.id).catch(() => undefined);

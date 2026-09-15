@@ -69,6 +69,7 @@ async function fetchInternalSearchResults(
   category: SearchCategory | undefined,
   limit: number,
   profileIds: readonly string[],
+  includeHidden = false,
 ): Promise<readonly SearchResultItem[] | null> {
   const stub = organizationStoreStub(env, organizationId);
   const url = new URL("https://organization.internal/internal/search");
@@ -76,6 +77,7 @@ async function fetchInternalSearchResults(
   url.searchParams.set("q", query);
   if (category) url.searchParams.set("category", category);
   if (limit) url.searchParams.set("limit", String(limit));
+  if (includeHidden) url.searchParams.set("includeHidden", "true");
   if (profileIds.length > 0) {
     url.searchParams.set("profileIds", profileIds.join(","));
   }
@@ -103,6 +105,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     const category = categoryParsed.success ? categoryParsed.data : undefined;
     const limitParam = context.req.query("limit");
     const limit = limitParam ? Number(limitParam) : 20;
+    const includeHidden = context.req.query("includeHidden") === "true";
 
     try {
       const emailProfileIds =
@@ -122,6 +125,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         category,
         limit,
         emailProfileIds,
+        includeHidden,
       );
 
       if (rawResults === null) {

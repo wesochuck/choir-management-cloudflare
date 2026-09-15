@@ -92,8 +92,10 @@ export function RosterPageView({
     setQuery,
     setRoster,
     setRosterImportConfirmed,
+    setShowHidden,
     setStatusFilter,
     setSuccess,
+    showHidden,
     statusFilter,
     success,
     toggleProfileSelection,
@@ -113,7 +115,7 @@ export function RosterPageView({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset page on filter change
     setRosterPage(1);
-  }, [filteredProfiles.length, query, selectedVoiceFilters, statusFilter]);
+  }, [filteredProfiles.length, query, selectedVoiceFilters, showHidden, statusFilter]);
 
   const visibleProfileIds = filteredProfiles.map((candidate) => candidate.id);
   const selectedVisibleCount = visibleProfileIds.filter((profileId) =>
@@ -241,7 +243,7 @@ export function RosterPageView({
                 configuration={roster.configuration}
                 onToggle={toggleVoiceFilter}
                 partLabel={partLabel}
-                profiles={roster.profiles}
+                profiles={showHidden ? roster.profiles : roster.profiles.filter((p) => !p.hidden)}
                 selectedFilters={selectedVoiceFilters}
               />
               <div className="roster-filter-row">
@@ -271,7 +273,20 @@ export function RosterPageView({
                     <option value="Inactive">Inactive</option>
                   </select>
                 </label>
-                {query || selectedVoiceFilters.length > 0 || statusFilter !== "all" ? (
+                <label className="checkbox-row roster-filter-row__hidden">
+                  <input
+                    checked={showHidden}
+                    onChange={(event) => {
+                      setShowHidden(event.target.checked);
+                    }}
+                    type="checkbox"
+                  />
+                  Show hidden profiles
+                </label>
+                {query ||
+                selectedVoiceFilters.length > 0 ||
+                statusFilter !== "all" ||
+                showHidden ? (
                   <button
                     className="button button--secondary"
                     onClick={clearRosterFilters}
@@ -348,6 +363,26 @@ export function RosterPageView({
                     >
                       Hide from directory
                     </button>
+                    <button
+                      className="button button--secondary"
+                      disabled={bulkBusy}
+                      onClick={() => {
+                        void bulkUpdateProfiles({ kind: "hidden", value: true });
+                      }}
+                      type="button"
+                    >
+                      Hide selected
+                    </button>
+                    <button
+                      className="button button--secondary"
+                      disabled={bulkBusy}
+                      onClick={() => {
+                        void bulkUpdateProfiles({ kind: "hidden", value: false });
+                      }}
+                      type="button"
+                    >
+                      Unhide selected
+                    </button>
                   </div>
                 </div>
               ) : null}
@@ -406,9 +441,15 @@ export function RosterPageView({
                     header: "Status",
                     id: "status",
                     render: (candidate) => (
-                      <span className="status-pill">{statusLabel(candidate.globalStatus)}</span>
+                      <span className="status-pill-group">
+                        <span className="status-pill">{statusLabel(candidate.globalStatus)}</span>
+                        {candidate.hidden ? (
+                          <span className="status-pill status-pill--hidden">Hidden</span>
+                        ) : null}
+                      </span>
                     ),
-                    sortValue: (candidate) => statusLabel(candidate.globalStatus),
+                    sortValue: (candidate) =>
+                      `${candidate.hidden ? "1" : "0"}-${statusLabel(candidate.globalStatus)}`,
                   },
                   {
                     header: "Email",
@@ -912,6 +953,19 @@ export function RosterPageView({
                     type="checkbox"
                   />
                   Receive RSVP decline notices
+                </label>
+                <label className="checkbox-row">
+                  <input
+                    checked={profile.hidden}
+                    onChange={(event) => {
+                      setProfile((current) => ({
+                        ...current,
+                        hidden: event.target.checked,
+                      }));
+                    }}
+                    type="checkbox"
+                  />
+                  Hide profile (hide from default roster view and search results)
                 </label>
                 <div className="dialog__actions">
                   {editingId &&

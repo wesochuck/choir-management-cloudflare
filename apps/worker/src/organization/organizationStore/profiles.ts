@@ -66,7 +66,7 @@ export function listProfiles(
          last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason,
          provider_email_suppressed AS providerEmailSuppressed,
          status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
-         status_change_reason AS statusChangeReason,
+         status_change_reason AS statusChangeReason, hidden,
          created_at AS createdAt, updated_at AS updatedAt
        FROM profiles ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT 500`,
     )
@@ -101,7 +101,7 @@ function readProfile(storage: DurableObjectStorage, profileId: string) {
          last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason,
          provider_email_suppressed AS providerEmailSuppressed,
          status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
-         status_change_reason AS statusChangeReason,
+         status_change_reason AS statusChangeReason, hidden,
          created_at AS createdAt, updated_at AS updatedAt
        FROM profiles WHERE id = ? LIMIT 1`,
       profileId,
@@ -166,7 +166,7 @@ export function listDirectoryProfiles(
       `SELECT id, display_name AS displayName, phone, voice_part AS voicePart,
          photo_file_id AS photoFileId
        FROM profiles
-       WHERE global_status != 'Inactive' AND show_in_directory = 1
+       WHERE global_status != 'Inactive' AND show_in_directory = 1 AND hidden = 0
        ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT 500`,
     )
     .toArray();
@@ -205,6 +205,10 @@ function performerLabel(storage: DurableObjectStorage): string {
   }
 }
 
+function toSqlBit(value: boolean): number {
+  return value ? 1 : 0;
+}
+
 export async function createProfile(
   storage: DurableObjectStorage,
   request: Request,
@@ -230,8 +234,8 @@ export async function createProfile(
         (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
          do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
          receive_admin_notifications, receive_financial_alerts, is_section_leader,
-         status_is_manual, status_changed_at, status_change_reason, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       parsed.data.profileId,
       profile.displayName,
       profile.phone,
@@ -250,6 +254,7 @@ export async function createProfile(
       "Initial status",
       occurredAt,
       occurredAt,
+      profile.hidden ? 1 : 0,
     );
     storage.sql.exec(
       `INSERT INTO audit_events
@@ -298,8 +303,8 @@ export async function importProfiles(
           (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
            do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
            receive_admin_notifications, receive_financial_alerts, is_section_leader,
-           status_is_manual, status_changed_at, status_change_reason, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         profileId,
         profile.displayName,
         profile.phone,
@@ -318,6 +323,7 @@ export async function importProfiles(
         "Initial status",
         occurredAt,
         occurredAt,
+        profile.hidden ? 1 : 0,
       );
       storage.sql.exec(
         `INSERT INTO audit_events
@@ -392,20 +398,21 @@ export async function updateProfile(
       `UPDATE profiles SET display_name = ?, phone = ?, voice_part = ?, global_status = ?, status_is_manual = ?,
          notes = ?, show_in_directory = ?, do_not_email = ?, receive_attendance_reports = ?,
          receive_rsvp_decline_notices = ?, receive_admin_notifications = ?,
-         receive_financial_alerts = ?, is_section_leader = ?, updated_at = ? WHERE id = ?`,
+         receive_financial_alerts = ?, is_section_leader = ?, hidden = ?, updated_at = ? WHERE id = ?`,
       profile.displayName,
       profile.phone,
       profile.voicePart,
       profile.globalStatus,
-      profile.statusIsManual ? 1 : 0,
+      toSqlBit(profile.statusIsManual),
       profile.notes,
-      profile.showInDirectory ? 1 : 0,
-      profile.doNotEmail ? 1 : 0,
-      profile.receiveAttendanceReports ? 1 : 0,
-      profile.receiveRsvpDeclineNotices ? 1 : 0,
-      profile.receiveAdminNotifications ? 1 : 0,
-      profile.receiveFinancialAlerts ? 1 : 0,
-      profile.isSectionLeader ? 1 : 0,
+      toSqlBit(profile.showInDirectory),
+      toSqlBit(profile.doNotEmail),
+      toSqlBit(profile.receiveAttendanceReports),
+      toSqlBit(profile.receiveRsvpDeclineNotices),
+      toSqlBit(profile.receiveAdminNotifications),
+      toSqlBit(profile.receiveFinancialAlerts),
+      toSqlBit(profile.isSectionLeader),
+      toSqlBit(profile.hidden),
       occurredAt,
       parsed.data.profileId,
     );

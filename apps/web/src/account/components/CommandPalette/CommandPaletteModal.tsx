@@ -49,12 +49,14 @@ export function CommandPaletteModal({
 
   const {
     clearRecents,
+    includeHidden,
     isSearching,
     parsedQuery,
     query,
     recents,
     refreshRecents,
     results,
+    setIncludeHidden,
     setQuery,
   } = useAdminSearch({
     hostname,
@@ -454,6 +456,16 @@ export function CommandPaletteModal({
           </div>
 
           <div className="command-palette-footer">
+            <label className="command-palette-hidden-toggle">
+              <input
+                checked={includeHidden}
+                onChange={(e) => {
+                  setIncludeHidden(e.target.checked);
+                }}
+                type="checkbox"
+              />
+              <span>Show hidden profiles</span>
+            </label>
             <div className="command-palette-footer-shortcuts">
               <span className="command-palette-shortcut">
                 <kbd className="command-palette-kbd">↑</kbd>

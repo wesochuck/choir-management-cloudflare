@@ -283,7 +283,8 @@ export function readEventRsvpExportFromStore(
       `SELECT p.display_name AS displayName, p.voice_part AS voicePart,
          p.is_section_leader AS isSectionLeader, COALESCE(r.rsvp, 'Pending') AS rsvp
        FROM profiles p
-       LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?`,
+       LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
+       WHERE p.hidden = 0`,
       eventId.data,
     )
     .toArray()

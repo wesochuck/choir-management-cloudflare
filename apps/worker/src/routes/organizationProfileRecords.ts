@@ -175,14 +175,16 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         readOrganizationRosterConfiguration(context.env, authorization.organizationId),
       ]);
       const csv = renderRosterCsv(
-        profiles.map((profile) => ({
-          displayName: profile.displayName,
-          email: emails.get(profile.id) ?? "",
-          globalStatus: profile.globalStatus,
-          isSectionLeader: profile.isSectionLeader,
-          phone: profile.phone,
-          voicePart: profile.voicePart,
-        })),
+        profiles
+          .filter((profile) => !profile.hidden)
+          .map((profile) => ({
+            displayName: profile.displayName,
+            email: emails.get(profile.id) ?? "",
+            globalStatus: profile.globalStatus,
+            isSectionLeader: profile.isSectionLeader,
+            phone: profile.phone,
+            voicePart: profile.voicePart,
+          })),
         rosterConfiguration.performerLabel,
       );
       return context.body(csv, 200, {

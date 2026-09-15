@@ -14,6 +14,7 @@ export async function searchOrganization(
   url.searchParams.set("q", params.query);
   if (params.category) url.searchParams.set("category", params.category);
   if (params.limit) url.searchParams.set("limit", String(params.limit));
+  if (params.includeHidden) url.searchParams.set("includeHidden", "true");
 
   const path = `${url.pathname}${url.search}`;
   const response = await request(path, { signal: signal ?? null });

@@ -40,6 +40,7 @@ import { useOrganizationTerminology } from "../../organizationTerminologyContext
 
 export type RosterBulkAction =
   | { readonly kind: "directory"; readonly value: boolean }
+  | { readonly kind: "hidden"; readonly value: boolean }
   | { readonly kind: "status"; readonly value: OrganizationProfile["globalStatus"] };
 
 export function useRosterPageController({
@@ -89,6 +90,7 @@ export function useRosterPageController({
   const [roster, setRoster] = useState<RosterState>({ status: "loading" });
   const [selectedVoiceFilters, setSelectedVoiceFilters] = useState<readonly string[]>([]);
   const [selectedProfileIds, setSelectedProfileIds] = useState<readonly string[]>([]);
+  const [showHidden, setShowHidden] = useState(false);
   const [statusFilter, setStatusFilter] = useState<RosterStatusFilter>("all");
   const [bulkBusy, setBulkBusy] = useState(false);
   const emailByProfileId = useMemo(() => {
@@ -245,6 +247,7 @@ export function useRosterPageController({
     if (roster.status !== "ready") return [];
     const normalized = query.trim().toLocaleLowerCase();
     return roster.profiles.filter((candidate) => {
+      if (!showHidden && candidate.hidden) return false;
       const matchesQuery =
         !normalized ||
         [
@@ -263,7 +266,7 @@ export function useRosterPageController({
         profileMatchesVoiceFilters(candidate, roster.configuration, selectedVoiceFilters)
       );
     });
-  }, [emailByProfileId, query, roster, selectedVoiceFilters, statusFilter]);
+  }, [emailByProfileId, query, roster, selectedVoiceFilters, showHidden, statusFilter]);
 
   function toggleVoiceFilter(filter: string): void {
     setSelectedVoiceFilters((current) =>
@@ -276,6 +279,7 @@ export function useRosterPageController({
   function clearRosterFilters(): void {
     setQuery("");
     setSelectedVoiceFilters([]);
+    setShowHidden(false);
     setStatusFilter("all");
   }
 
@@ -312,7 +316,9 @@ export function useRosterPageController({
           ...profileRequestFrom(candidate),
           ...(action.kind === "status"
             ? { globalStatus: action.value, statusIsManual: true }
-            : { showInDirectory: action.value }),
+            : action.kind === "hidden"
+              ? { hidden: action.value }
+              : { showInDirectory: action.value }),
         };
         return updateOrganizationProfile(candidate.id, nextProfile);
       }),
@@ -633,8 +639,10 @@ export function useRosterPageController({
     setQuery,
     setRoster,
     setRosterImportConfirmed,
+    setShowHidden,
     setStatusFilter,
     setSuccess,
+    showHidden,
     statusFilter,
     success,
     toggleProfileSelection,

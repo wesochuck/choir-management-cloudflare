@@ -143,6 +143,7 @@ export interface OrganizationProfileRow {
   readonly displayName: string;
   readonly doNotEmail: number;
   readonly globalStatus: "Active" | "Idle" | "Inactive";
+  readonly hidden: number;
   readonly id: string;
   readonly isSectionLeader: number;
   readonly lastBounceAt: string;
@@ -169,6 +170,7 @@ export function profileResult(row: OrganizationProfileRow, onBreakInactiveAt: st
     displayName: row.displayName,
     doNotEmail: row.doNotEmail === 1,
     globalStatus: row.globalStatus,
+    hidden: row.hidden === 1,
     id: row.id,
     onBreakInactiveAt,
     isSectionLeader: row.isSectionLeader === 1,

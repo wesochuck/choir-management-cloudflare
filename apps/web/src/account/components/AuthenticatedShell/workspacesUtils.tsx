@@ -1,5 +1,6 @@
 import type { CurrentAuthSession } from "@choir/contracts";
 import type { ReactNode } from "react";
+import type { ReportTab } from "../Reports/shared";
 
 import {
   AccountSecurity,
@@ -70,6 +71,60 @@ function eventsPagePropsFromSearch(search: string) {
   };
 }
 
+const VALID_REPORT_TABS: ReadonlySet<string> = new Set<ReportTab>([
+  "attendance",
+  "rsvp",
+  "repertoire",
+  "roster",
+  "donations-tickets",
+  "music-folders",
+]);
+
+function isReportTab(value: string): value is ReportTab {
+  return VALID_REPORT_TABS.has(value);
+}
+
+function reportTabFromSearch(search: string): ReportTab {
+  const tab = new URLSearchParams(search).get("tab") ?? "";
+  return isReportTab(tab) ? tab : "attendance";
+}
+
+function rosterSectionFromSearch(search: string): "settings" | "automation" | "roster" {
+  const section = new URLSearchParams(search).get("section");
+  return section === "settings" || section === "automation" ? section : "roster";
+}
+
+function renderMusicPage({
+  focusedEnabled,
+  musicCatalogView,
+  musicPieceId,
+  navigate,
+  pathname,
+  returnToSetList,
+  search,
+}: {
+  readonly focusedEnabled: boolean;
+  readonly musicCatalogView: "catalog" | "credits";
+  readonly musicPieceId: string | null;
+  readonly navigate: (href: string) => void;
+  readonly pathname: string;
+  readonly returnToSetList: boolean;
+  readonly search: string;
+}): ReactNode {
+  if (pathname.endsWith("/settings") || new URLSearchParams(search).get("tab") === "settings") {
+    return <MusicLibrarySettings enabled={focusedEnabled} navigate={navigate} />;
+  }
+  return (
+    <MusicCatalog
+      enabled={focusedEnabled}
+      initialPieceId={musicPieceId}
+      navigate={navigate}
+      returnTo={returnToSetList ? "/admin/setlists" : null}
+      view={musicCatalogView}
+    />
+  );
+}
+
 export function renderOrganizationPage(
   routeState: RouteState,
   enabled: boolean,
@@ -81,16 +136,13 @@ export function renderOrganizationPage(
   const { pathname } = routeState;
   const routeParams = new URLSearchParams(routeState.search);
   const rosterProfileId = routeParams.get("profileId");
-  const requestedRosterSection = routeParams.get("section");
+  const rosterSection = rosterSectionFromSearch(routeState.search);
   const returnToSetList = routeParams.get("returnTo") === "/admin/setlists";
-  const rosterSection =
-    requestedRosterSection === "settings" || requestedRosterSection === "automation"
-      ? requestedRosterSection
-      : "roster";
   const musicPieceId = routeParams.get("pieceId");
   const musicCatalogView = routeParams.get("view") === "credits" ? "credits" : "catalog";
   const rsvpEventId = routeParams.get("eventId");
   const eventsProps = eventsPagePropsFromSearch(routeState.search);
+  const reportTab = reportTabFromSearch(routeState.search);
   const route =
     pathname.startsWith("/admin/events/") && pathname.endsWith("/roster")
       ? "event-roster"
@@ -102,20 +154,32 @@ export function renderOrganizationPage(
     "/admin/contacts": <ContactsPage enabled={focusedEnabled} />,
     "/admin/donations": <DonationsManager enabled={focusedEnabled} />,
     "/admin/patrons": <DonationsManager enabled={focusedEnabled} />,
-    "/admin/library": (
-      <MusicCatalog
-        enabled={focusedEnabled}
-        initialPieceId={musicPieceId}
-        navigate={navigate}
-        returnTo={returnToSetList ? "/admin/setlists" : null}
-        view={musicCatalogView}
-      />
-    ),
+    "/admin/library": renderMusicPage({
+      focusedEnabled,
+      musicCatalogView,
+      musicPieceId,
+      navigate,
+      pathname,
+      returnToSetList,
+      search: routeState.search,
+    }),
     "/admin/library/settings": (
       <MusicLibrarySettings enabled={focusedEnabled} navigate={navigate} />
     ),
+    "/admin/music": renderMusicPage({
+      focusedEnabled,
+      musicCatalogView,
+      musicPieceId,
+      navigate,
+      pathname,
+      returnToSetList,
+      search: routeState.search,
+    }),
+    "/admin/music/settings": <MusicLibrarySettings enabled={focusedEnabled} navigate={navigate} />,
+    "/admin/music/folders": <ReportsView enabled={focusedEnabled} initialTab="music-folders" />,
     "/admin/polls": <PollsPage enabled={focusedEnabled} />,
-    "/admin/reports": <ReportsView enabled={focusedEnabled} />,
+    "/admin/communications/polls": <PollsPage enabled={focusedEnabled} />,
+    "/admin/reports": <ReportsView enabled={focusedEnabled} initialTab={reportTab} />,
     "/admin/resources": <OrganizationResources enabled={enabled} manager={manager} />,
     "/admin/seasons": (
       <SeasonsManager
@@ -131,6 +195,7 @@ export function renderOrganizationPage(
       <SetListManager enabled={focusedEnabled} initialEventId={rsvpEventId} navigate={navigate} />
     ),
     "/admin/tickets": <TicketingManager enabled={focusedEnabled} />,
+    "/admin/ticketing": <TicketingManager enabled={focusedEnabled} />,
     "/admin/tickets/scan": <TicketingManager enabled={focusedEnabled} scanOnly />,
     "/admin/venues": <VenuesPage enabled={focusedEnabled} />,
     "/admin/website": <PublicWebsiteManager enabled={focusedEnabled} />,
@@ -154,6 +219,7 @@ export function renderOrganizationPage(
     ),
     "/admin/rsvp": <RsvpManagerPage enabled={focusedEnabled} eventId={rsvpEventId} />,
     "/admin/settings": <OrganizationSettingsPage enabled={focusedEnabled} />,
+    "/admin/invitations": <OrganizationAccess section="invitations" />,
     "/admin/settings/invitations": <OrganizationAccess section="invitations" />,
     "/admin/settings/modules": <ModuleSettingsView />,
     "/admin/settings/security": <OrganizationAccess section="security" />,

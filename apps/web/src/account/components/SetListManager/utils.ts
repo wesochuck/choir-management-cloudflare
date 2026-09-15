@@ -91,7 +91,8 @@ export function setListItemForEdit(
         ? (trimmedOrUndefined(linkedMusicPiece?.composer) ?? trimmedOrUndefined(item.composer))
         : undefined,
     duration: linkedMusicPiece
-      ? durationFromSeconds(linkedMusicPiece.durationSeconds)
+      ? (durationFromSeconds(linkedMusicPiece.durationSeconds) ??
+        normalizeSetListDuration(item.duration))
       : normalizeSetListDuration(item.duration),
     notes: trimmedOrUndefined(item.notes),
   };
@@ -113,6 +114,40 @@ export function effectiveSetListItemNotes(
 
 export function durationFromSeconds(seconds: number | null): string | undefined {
   return seconds && seconds > 0 ? formatSetListDuration(seconds) : undefined;
+}
+
+/** Duration formatted for display/summary: item's own normalized duration wins,
+ * otherwise fall back to duration of the linked music piece if present. */
+export function effectiveSetListItemDuration(
+  item: SetListItem,
+  music: readonly OrganizationMusicPiece[],
+): string | undefined {
+  const itemDuration = normalizeSetListDuration(item.duration);
+  if (itemDuration) return itemDuration;
+  const linkedPiece = musicPieceForSetListItem(item, music);
+  return linkedPiece ? durationFromSeconds(linkedPiece.durationSeconds) : undefined;
+}
+
+/** Effective duration in seconds for an item, parsing its effective duration string. */
+export function effectiveSetListItemDurationSeconds(
+  item: SetListItem,
+  music: readonly OrganizationMusicPiece[],
+): number {
+  const duration = effectiveSetListItemDuration(item, music);
+  return duration ? (parseSetListDuration(duration) ?? 0) : 0;
+}
+
+/** Effective composer for an item: item's own composer wins, otherwise fall
+ * back to the composer of the linked music piece if present. */
+export function effectiveSetListItemComposer(
+  item: SetListItem,
+  music: readonly OrganizationMusicPiece[],
+): string | undefined {
+  if (itemType(item) !== "song") return undefined;
+  return (
+    trimmedOrUndefined(item.composer) ??
+    trimmedOrUndefined(musicPieceForSetListItem(item, music)?.composer)
+  );
 }
 
 export function normalizeItems(items: readonly SetListItem[]): SetListItem[] {

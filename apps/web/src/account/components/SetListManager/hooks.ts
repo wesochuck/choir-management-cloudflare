@@ -2,6 +2,7 @@ import type { OrganizationMusicPiece } from "@choir/contracts";
 import { hasSetListPiece, normalizeSetListDuration, parseSetListDuration } from "@choir/domain";
 import {
   durationFromSeconds,
+  effectiveSetListItemDurationSeconds,
   emptyResources,
   eventRequestFrom,
   moveItemToIndex,
@@ -101,16 +102,11 @@ export function useSetListManagerController({
   const selectedEventIdForAutosave = selectedEvent?.id ?? null;
   const songsDuration = items
     .filter((item) => item.type !== "intermission")
-    .reduce(
-      (total, item) => total + (item.duration ? (parseSetListDuration(item.duration) ?? 0) : 0),
-      0,
-    );
+    .reduce((total, item) => total + effectiveSetListItemDurationSeconds(item, resources.music), 0);
   const intermissionsDuration = items
     .filter((item) => item.type === "intermission")
-    .reduce(
-      (total, item) => total + (item.duration ? (parseSetListDuration(item.duration) ?? 0) : 0),
-      0,
-    );
+    .reduce((total, item) => total + effectiveSetListItemDurationSeconds(item, resources.music), 0);
+  const totalDuration = songsDuration + intermissionsDuration;
   const filteredMusic = useMemo(() => {
     const query = musicQuery.trim().toLocaleLowerCase();
     if (!query) return resources.music;
@@ -429,6 +425,7 @@ export function useSetListManagerController({
     setShowNotes,
     showNotes,
     songsDuration,
+    totalDuration,
     updateDraftItems,
   };
 }

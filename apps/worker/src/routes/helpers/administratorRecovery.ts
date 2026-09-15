@@ -221,7 +221,10 @@ async function createAdministratorRecoveryProfile(
     const profile = await createOrganizationProfile(context.env, {
       actorUserId,
       organizationId,
-      profile: organizationProfileRequestSchema.parse({ displayName: request.displayName }),
+      profile: organizationProfileRequestSchema.parse({
+        displayName: request.displayName,
+        receiveAdminNotifications: true,
+      }),
       requestId: context.get("requestId"),
     });
     profileId = profile.id;

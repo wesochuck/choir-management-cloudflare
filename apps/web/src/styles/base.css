@@ -49,6 +49,20 @@
     font: inherit;
   }
 
+  /* Checkboxes and radios must maintain a consistent size and never collapse in flex or grid layouts */
+  :where(input[type="checkbox"], input[type="radio"]) {
+    appearance: auto;
+    -webkit-appearance: auto;
+    box-sizing: border-box;
+    width: 1rem;
+    height: 1rem;
+    min-width: 1rem;
+    min-height: 1rem;
+    flex-shrink: 0;
+    padding: 0;
+    vertical-align: middle;
+  }
+
   /* Tailwind's preflight intentionally makes form controls transparent. Give
    * every visible control a shared surface, border, and placeholder treatment;
    * component-specific form rules can still refine the sizing afterward. */

@@ -77,11 +77,12 @@ function seedTestData(db: DatabaseSync): void {
   // Seed profiles
   const insertProfile = db.prepare(
     `INSERT INTO profiles
-       (id, display_name, phone, voice_part, global_status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (id, display_name, phone, voice_part, global_status, hidden, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
-  insertProfile.run("prof-jane", "Jane Doe", "555-0199", "Alto 1", "Active", now, now);
-  insertProfile.run("prof-john", "John Smith", "555-0144", "Tenor 2", "Idle", now, now);
+  insertProfile.run("prof-jane", "Jane Doe", "555-0199", "Alto 1", "Active", 0, now, now);
+  insertProfile.run("prof-john", "John Smith", "555-0144", "Tenor 2", "Idle", 0, now, now);
+  insertProfile.run("prof-hidden", "Hidden Singer", "555-0188", "Bass 1", "Active", 1, now, now);
 
   // Seed events (one active, one archived)
   const insertEvent = db.prepare(
@@ -265,6 +266,7 @@ describe("searchOrganizationEntitiesFromStore with real SQLite", () => {
       const parsed = storeSearchResponseSchema.parse(await response.json());
       expect(parsed.results).toHaveLength(1);
       expect(parsed.results[0]?.id).toBe("music-piece-1");
+      expect(parsed.results[0]?.href).toBe("/admin/library?pieceId=piece-1");
       expect(parsed.results[0]?.subtitle).toBe("Composer: Traditional • Arr: Shaw");
     }
   });
@@ -282,6 +284,7 @@ describe("searchOrganizationEntitiesFromStore with real SQLite", () => {
     const activeParsed = storeSearchResponseSchema.parse(await activeResponse.json());
     expect(activeParsed.results).toHaveLength(1);
     expect(activeParsed.results[0]?.id).toBe("poll-poll-active");
+    expect(activeParsed.results[0]?.href).toBe("/admin/polls?pollId=poll-active");
 
     const archivedResponse = searchOrganizationEntitiesFromStore(storage, {
       category: "polls",
@@ -318,6 +321,30 @@ describe("searchOrganizationEntitiesFromStore with real SQLite", () => {
     expect(parsedHigh.results.length).toBeLessThanOrEqual(50);
   });
 
+  it("omits hidden profiles by default and returns them when includeHidden is true", async () => {
+    const { db, storage } = createRealSqliteStorage("org-1");
+    seedTestData(db);
+
+    const defaultResponse = searchOrganizationEntitiesFromStore(storage, {
+      category: "roster",
+      organizationId: "org-1",
+      query: "Hidden",
+    });
+    const defaultParsed = storeSearchResponseSchema.parse(await defaultResponse.json());
+    expect(defaultParsed.results).toHaveLength(0);
+
+    const includedResponse = searchOrganizationEntitiesFromStore(storage, {
+      category: "roster",
+      includeHidden: true,
+      organizationId: "org-1",
+      query: "Hidden",
+    });
+    const includedParsed = storeSearchResponseSchema.parse(await includedResponse.json());
+    expect(includedParsed.results).toHaveLength(1);
+    expect(includedParsed.results[0]?.id).toBe("roster-prof-hidden");
+    expect(includedParsed.results[0]?.badge).toBe("Hidden · Active");
+  });
+
   it("verifies static schema columns against real migration DDL", () => {
     const { db } = createRealSqliteStorage("org-verify");
 
@@ -326,7 +353,7 @@ describe("searchOrganizationEntitiesFromStore with real SQLite", () => {
       music_pieces: ["id", "title", "composer", "arranger"],
       organization_metadata: ["organization_id"],
       polls: ["id", "title", "expires_at", "archived_at", "created_at"],
-      profiles: ["id", "display_name", "voice_part", "global_status", "phone"],
+      profiles: ["id", "display_name", "voice_part", "global_status", "phone", "hidden"],
     };
 
     for (const [table, columns] of Object.entries(expectedColumnsByTable)) {

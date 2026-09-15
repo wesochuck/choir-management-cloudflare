@@ -273,6 +273,7 @@ export function buildOrganizationProfile(
     receiveFinancialAlerts: false,
     receiveRsvpDeclineNotices: false,
     showInDirectory: true,
+    hidden: false,
     statusChangedAt: "2026-07-20T20:00:00.000Z",
     statusChangeReason: "Initial status",
     statusIsManual: false,

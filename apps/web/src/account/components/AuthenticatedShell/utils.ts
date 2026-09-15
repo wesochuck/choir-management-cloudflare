@@ -238,14 +238,14 @@ const staticPageDescriptions: readonly [string, string][] = [
 ];
 
 export function pageDescription(pathname: string, search = ""): string | null {
-  if (pathname === "/admin/library") {
+  if (pathname === "/admin/library" || pathname === "/admin/music") {
     const params = new URLSearchParams(search);
     if (params.get("view") === "credits") {
       return "Review exact catalog credits and correct a composer or arranger name everywhere it is used.";
     }
     return "Manage owned works and movements. Audio tracks are stored securely as Organization files and will appear here when linked through the track workflow.";
   }
-  if (pathname === "/admin/library/settings") {
+  if (pathname === "/admin/library/settings" || pathname === "/admin/music/settings") {
     return "Configure publisher catalog links and the expiry period for public practice-player links.";
   }
   return (
@@ -270,6 +270,9 @@ export function pageTitle(pathname: string): string {
     ["/admin/seating", "Seating"],
     ["/admin/library/settings", "Music library settings"],
     ["/admin/library", "Music library"],
+    ["/admin/music/settings", "Music library settings"],
+    ["/admin/music", "Music library"],
+    ["/admin/communications/polls", "Polls"],
     ["/admin/setlists", "Set lists"],
     ["/admin/resources", "Resources"],
     ["/admin/communications", "Communications"],
@@ -277,6 +280,8 @@ export function pageTitle(pathname: string): string {
     ["/admin/polls", "Polls"],
     ["/admin/tickets/scan", "Ticket scanner"],
     ["/admin/tickets", "Ticketing"],
+    ["/admin/ticketing", "Ticketing"],
+    ["/admin/invitations", "Membership invitations"],
     ["/admin/donations", "Donations & Giving"],
     ["/admin/seasons", "Seasons & dues"],
     ["/admin/reports", "Reports"],
@@ -331,17 +336,17 @@ const moduleRoutePrefixes: readonly (readonly [
   ["donations", ["/admin/donations", "/admin/patrons"]],
   ["dues", ["/admin/seasons", "/dues"]],
   ["events", ["/schedule", "/calendar", "/admin/events"]],
-  ["music_library", ["/admin/library"]],
-  ["polls", ["/admin/polls"]],
+  ["music_library", ["/admin/library", "/admin/music"]],
+  ["polls", ["/admin/polls", "/admin/communications/polls"]],
   ["practice_player", ["/practice"]],
   ["public_website", ["/admin/website"]],
   ["reports", ["/admin/reports"]],
   ["resources", ["/member/resources", "/admin/resources"]],
-  ["roster", ["/profile", "/admin/roster", "/admin/settings/invitations"]],
+  ["roster", ["/profile", "/admin/roster", "/admin/settings/invitations", "/admin/invitations"]],
   ["rsvp", ["/admin/rsvp"]],
   ["seating", ["/seating", "/admin/seating"]],
   ["setlists", ["/admin/setlists"]],
-  ["ticketing", ["/admin/tickets"]],
+  ["ticketing", ["/admin/tickets", "/admin/ticketing"]],
   ["venues", ["/admin/venues"]],
 ];
 

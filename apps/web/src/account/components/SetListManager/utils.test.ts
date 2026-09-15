@@ -6,7 +6,15 @@ import {
 } from "@choir/contracts";
 import { describe, expect, it } from "vitest";
 
-import { effectiveSetListItemNotes, setListDocumentText, setListPreviewRows } from "./utils";
+import {
+  effectiveSetListItemComposer,
+  effectiveSetListItemDuration,
+  effectiveSetListItemDurationSeconds,
+  effectiveSetListItemNotes,
+  setListDocumentText,
+  setListItemForEdit,
+  setListPreviewRows,
+} from "./utils";
 import type { SetListItem } from "./types";
 
 const pieceId = "3f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f";
@@ -16,6 +24,7 @@ function piece(overrides: Partial<OrganizationMusicPiece> = {}): OrganizationMus
   return organizationMusicPieceSchema.parse({
     composer: "Greg Gilpin",
     createdAt: "2026-01-15T12:00:00.000Z",
+    durationSeconds: 195,
     notes: "Key change after the second verse. Acknowledge the accompanist.",
     title: "A Holiday Road of Carols",
     updatedAt: "2026-01-15T12:00:00.000Z",
@@ -130,5 +139,111 @@ describe("setListPreviewRows notes", () => {
       music,
     );
     expect(rows[0]?.notes).toBe("Key change after the second verse. Acknowledge the accompanist.");
+  });
+});
+
+describe("effectiveSetListItemDuration and effectiveSetListItemDurationSeconds", () => {
+  it("prefers the item's own duration over the library piece duration", () => {
+    const item: SetListItem = {
+      duration: "4:15",
+      id: "item-1",
+      pieceId,
+      title: "A Holiday Road of Carols",
+      type: "song",
+    };
+    expect(effectiveSetListItemDuration(item, music)).toBe("4:15");
+    expect(effectiveSetListItemDurationSeconds(item, music)).toBe(255);
+  });
+
+  it("falls back to the linked library piece duration when item duration is absent or blank", () => {
+    const item: SetListItem = {
+      id: "item-1",
+      pieceId,
+      title: "A Holiday Road of Carols",
+      type: "song",
+    };
+    expect(effectiveSetListItemDuration(item, music)).toBe("3:15");
+    expect(effectiveSetListItemDurationSeconds(item, music)).toBe(195);
+  });
+
+  it("uses custom entry duration without a linked piece", () => {
+    const item: SetListItem = {
+      duration: "10 min",
+      id: "item-2",
+      title: "Intermission",
+      type: "intermission",
+    };
+    expect(effectiveSetListItemDuration(item, music)).toBe("10:00");
+    expect(effectiveSetListItemDurationSeconds(item, music)).toBe(600);
+  });
+
+  it("returns undefined and 0 when neither item nor library piece has a duration", () => {
+    const item: SetListItem = {
+      id: "item-3",
+      pieceId: otherPieceId,
+      title: "Unknown Piece",
+      type: "song",
+    };
+    expect(effectiveSetListItemDuration(item, music)).toBeUndefined();
+    expect(effectiveSetListItemDurationSeconds(item, music)).toBe(0);
+  });
+});
+
+describe("effectiveSetListItemComposer", () => {
+  it("prefers item's own composer", () => {
+    const item: SetListItem = {
+      composer: "Custom Composer",
+      id: "item-1",
+      pieceId,
+      title: "A Holiday Road of Carols",
+      type: "song",
+    };
+    expect(effectiveSetListItemComposer(item, music)).toBe("Custom Composer");
+  });
+
+  it("falls back to linked library piece composer", () => {
+    const item: SetListItem = {
+      id: "item-1",
+      pieceId,
+      title: "A Holiday Road of Carols",
+      type: "song",
+    };
+    expect(effectiveSetListItemComposer(item, music)).toBe("Greg Gilpin");
+  });
+
+  it("returns undefined for intermission items", () => {
+    const item: SetListItem = {
+      composer: "Someone",
+      id: "item-2",
+      title: "Intermission",
+      type: "intermission",
+    };
+    expect(effectiveSetListItemComposer(item, music)).toBeUndefined();
+  });
+});
+
+describe("setListItemForEdit", () => {
+  it("falls back to item duration if linked piece duration is null", () => {
+    const musicWithoutDuration = [piece({ durationSeconds: null })];
+    const item: SetListItem = {
+      duration: "2:45",
+      id: "item-1",
+      pieceId,
+      title: "A Holiday Road of Carols",
+      type: "song",
+    };
+    const edited = setListItemForEdit(item, musicWithoutDuration);
+    expect(edited.duration).toBe("2:45");
+  });
+
+  it("uses linked piece duration when present", () => {
+    const item: SetListItem = {
+      id: "item-1",
+      pieceId,
+      title: "A Holiday Road of Carols",
+      type: "song",
+    };
+    const edited = setListItemForEdit(item, music);
+    expect(edited.duration).toBe("3:15");
   });
 });
