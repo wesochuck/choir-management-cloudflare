@@ -169,7 +169,12 @@ export function DiscountCodeForm({
           />{" "}
           Available for redemption
         </label>
-        <div className="form-actions">
+        <div className="dialog__actions">
+          <DialogClose asChild>
+            <button className="button button--secondary" disabled={busy} type="button">
+              Cancel
+            </button>
+          </DialogClose>
           <button
             className="button button--primary"
             disabled={
@@ -181,11 +186,6 @@ export function DiscountCodeForm({
           >
             {busy ? "Saving…" : "Save discount code"}
           </button>
-          <DialogClose asChild>
-            <button className="button button--secondary" disabled={busy} type="button">
-              Cancel
-            </button>
-          </DialogClose>
         </div>
       </form>
     </Dialog>

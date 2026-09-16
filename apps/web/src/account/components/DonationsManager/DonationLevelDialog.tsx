@@ -76,15 +76,15 @@ export function DonationLevelDialog({
             }}
           />
         </label>
-        <div className="form-actions">
-          <button className="button button--primary" disabled={busy} type="submit">
-            {busy ? "Saving…" : "Save level"}
-          </button>
+        <div className="dialog__actions">
           <DialogClose asChild>
             <button className="button button--secondary" disabled={busy} type="button">
               Cancel
             </button>
           </DialogClose>
+          <button className="button button--primary" disabled={busy} type="submit">
+            {busy ? "Saving…" : "Save level"}
+          </button>
         </div>
       </form>
     </Dialog>

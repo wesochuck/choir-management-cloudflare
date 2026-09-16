@@ -12,7 +12,7 @@ export {
 } from "./DataTable";
 export { clampPage, pageCountFor, pageStartIndex, paginateRows } from "./pagination";
 export { ConfirmDialog, type ConfirmationOptions } from "./ConfirmDialog";
-export { Dialog, DialogClose } from "./Dialog";
+export { Dialog, DialogClose, DialogFooter, type DialogProps } from "./Dialog";
 export { DropdownMenu } from "./DropdownMenu";
 export { Autocomplete, type AutocompleteOption } from "./Autocomplete";
 export { Sheet } from "./Sheet";

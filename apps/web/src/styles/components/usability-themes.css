@@ -443,12 +443,4 @@
   .audition-tabs button {
     white-space: nowrap;
   }
-
-  .dialog--responsive {
-    width: min(40rem, calc(100% - 2rem));
-    max-height: min(88vh, 48rem);
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-md);
-    background: var(--color-surface);
-  }
 }

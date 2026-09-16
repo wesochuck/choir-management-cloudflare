@@ -341,7 +341,7 @@ export function AuditionDialogs({
               />
             </label>
           ) : null}
-          <div className="form-actions">
+          <div className="dialog__actions">
             <DialogClose asChild>
               <button className="button button--secondary" type="button">
                 Cancel
@@ -360,6 +360,7 @@ export function AuditionDialogs({
         title={
           confirm?.action === "convert" ? "Convert to Organization Profile?" : "Delete audition?"
         }
+        variant="confirmation"
       >
         {confirm ? (
           <div className="form-stack">
@@ -368,7 +369,7 @@ export function AuditionDialogs({
                 ? `Create an Organization Profile for ${confirm.audition.name} and mark this audition complete?`
                 : `Delete the audition request for ${confirm.audition.name}?`}
             </p>
-            <div className="form-actions">
+            <div className="dialog__actions">
               <DialogClose asChild>
                 <button className="button button--secondary" type="button">
                   Cancel

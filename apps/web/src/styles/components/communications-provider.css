@@ -1091,6 +1091,11 @@
     line-height: var(--line-height-normal);
   }
 
+  .dialog__body .preview-body {
+    max-height: none;
+    overflow-y: visible;
+  }
+
   .preview-footer-note {
     margin-top: var(--spacing-sm);
     font-size: var(--font-size-xs);

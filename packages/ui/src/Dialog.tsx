@@ -3,13 +3,16 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { useConfirmation } from "./useConfirmation";
 
-interface DialogProps {
+export interface DialogProps {
   readonly children: ReactNode;
+  readonly className?: string;
   readonly description?: string;
   readonly dirty?: boolean;
+  readonly footer?: ReactNode;
   readonly onClose: () => void;
   readonly open: boolean;
   readonly title: string;
+  readonly variant?: "default" | "confirmation";
 }
 
 export function DialogClose({
@@ -26,7 +29,27 @@ export function DialogClose({
   );
 }
 
-export function Dialog({ children, description, dirty, onClose, open, title }: DialogProps) {
+export function DialogFooter({
+  children,
+  className,
+}: {
+  readonly children: ReactNode;
+  readonly className?: string;
+}) {
+  return <div className={`dialog__actions ${className ?? ""}`.trim()}>{children}</div>;
+}
+
+export function Dialog({
+  children,
+  className,
+  description,
+  dirty,
+  footer,
+  onClose,
+  open,
+  title,
+  variant = "default",
+}: DialogProps) {
   const [inputDirty, setInputDirty] = useState(false);
   const { confirm, confirmationDialog } = useConfirmation();
 
@@ -64,7 +87,7 @@ export function Dialog({ children, description, dirty, onClose, open, title }: D
         <DialogPrimitive.Portal>
           <DialogPrimitive.Overlay className="dialog__overlay" />
           <DialogPrimitive.Content
-            className="dialog dialog--responsive"
+            className={`dialog dialog--responsive ${variant === "confirmation" ? "dialog--confirmation" : ""} ${className ?? ""}`.trim()}
             onEscapeKeyDown={(event) => {
               event.preventDefault();
               void requestClose();
@@ -89,6 +112,7 @@ export function Dialog({ children, description, dirty, onClose, open, title }: D
               </DialogPrimitive.Close>
             </div>
             <div className="dialog__body">{children}</div>
+            {footer ? <div className="dialog__actions dialog__footer">{footer}</div> : null}
           </DialogPrimitive.Content>
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>

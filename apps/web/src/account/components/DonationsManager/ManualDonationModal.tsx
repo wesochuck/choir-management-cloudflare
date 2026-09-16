@@ -127,7 +127,7 @@ export function ManualDonationModal({
         </p>
       ) : null}
       <form className="form-stack" onSubmit={(event) => void handleSubmit(event)}>
-        <div className="form-row">
+        <div className="form-grid">
           <label className="field">
             Amount (USD)
             <input
@@ -219,7 +219,7 @@ export function ManualDonationModal({
           />
         </label>
 
-        <div className="form-row">
+        <div className="form-grid">
           <label className="field">
             Payment method
             <select
@@ -272,7 +272,7 @@ export function ManualDonationModal({
         </label>
 
         {tributeType === "honor" || tributeType === "memory" ? (
-          <div className="form-row">
+          <div className="form-grid">
             <label className="field">
               Honoree / Memorial name
               <input
@@ -326,7 +326,7 @@ export function ManualDonationModal({
           <span>Thank-you letter or acknowledgment has already been sent</span>
         </label>
 
-        <div className="form-actions">
+        <div className="dialog__actions">
           <button className="button button--primary" disabled={busy} type="submit">
             {busy ? "Recording…" : "Record donation"}
           </button>

@@ -156,7 +156,12 @@ export function BundlePanel({
               </label>
             ))}
           </fieldset>
-          <div className="form-actions">
+          <div className="dialog__actions">
+            <DialogClose asChild>
+              <button className="button button--secondary" disabled={busy} type="button">
+                Cancel
+              </button>
+            </DialogClose>
             <button
               className="button button--primary"
               disabled={busy || bundleEventIds.length === 0}
@@ -164,11 +169,6 @@ export function BundlePanel({
             >
               {busy ? "Saving…" : "Save bundle"}
             </button>
-            <DialogClose asChild>
-              <button className="button button--secondary" disabled={busy} type="button">
-                Cancel
-              </button>
-            </DialogClose>
           </div>
         </form>
       </Dialog>

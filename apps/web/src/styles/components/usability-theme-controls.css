@@ -31,29 +31,6 @@
     outline-offset: 2px;
   }
 
-  .dialog__header {
-    margin-bottom: var(--spacing-sm);
-  }
-
-  .dialog__title {
-    font-family: inherit;
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-bold);
-    letter-spacing: normal;
-  }
-
-  .dialog__close {
-    width: 2rem;
-    height: 2rem;
-    border-radius: var(--radius-sm);
-    color: var(--color-text-muted);
-    font-size: var(--font-size-lg);
-  }
-
-  .dialog__body {
-    font-size: var(--font-size-base);
-  }
-
   @media (max-width: 48rem) {
     .signed-in-main {
       padding: var(--spacing-lg) var(--spacing-md) 3rem;
@@ -115,13 +92,6 @@
     .signed-in-main .surface-card,
     .signed-in-main .compact-card {
       padding: var(--spacing-sm);
-    }
-
-    .dialog--responsive {
-      width: 100%;
-      max-height: 92vh;
-      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-      padding: var(--spacing-md);
     }
 
     .public-link-share {

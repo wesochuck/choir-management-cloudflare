@@ -22,10 +22,16 @@ export function ConfirmDialog({
 }) {
   if (!state) return null;
   return (
-    <Dialog onClose={onClose} open title={state.title} description="This action cannot be undone.">
+    <Dialog
+      description="This action cannot be undone."
+      onClose={onClose}
+      open
+      title={state.title}
+      variant="confirmation"
+    >
       <div className="form-stack">
         <p>{state.message}</p>
-        <div className="form-actions">
+        <div className="dialog__actions">
           <DialogClose asChild>
             <button className="button button--secondary" type="button">
               Cancel

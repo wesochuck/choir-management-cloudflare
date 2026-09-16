@@ -42,12 +42,12 @@ export function ConfirmDialog({
           <div className="dialog__header">
             <div>
               <DialogPrimitive.Title className="dialog__title">{title}</DialogPrimitive.Title>
-              <DialogPrimitive.Description className="dialog__description" id={descriptionId}>
-                {description}
-              </DialogPrimitive.Description>
             </div>
           </div>
           <div className="dialog__body">
+            <DialogPrimitive.Description className="dialog__description" id={descriptionId}>
+              {description}
+            </DialogPrimitive.Description>
             <div className="dialog__actions">
               <button className="button button--secondary" onClick={onCancel} type="button">
                 Cancel

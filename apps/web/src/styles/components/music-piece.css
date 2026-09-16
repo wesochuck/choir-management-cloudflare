@@ -24,6 +24,10 @@
     box-shadow: 0 -0.5rem 0.75rem -0.6rem var(--color-shadow);
   }
 
+  .dialog__actions.music-piece-form__actions {
+    gap: var(--spacing-xs);
+  }
+
   .music-piece-form__actions .button {
     padding-inline: var(--spacing-sm);
     white-space: nowrap;

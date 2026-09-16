@@ -212,7 +212,7 @@ export function AddToSetListDialog({
           </div>
         )}
 
-        <div className="form-actions music-piece-form__actions">
+        <div className="dialog__actions music-piece-form__actions">
           <button className="button button--primary" disabled={busy} type="submit">
             {busy
               ? "Adding to set list…"

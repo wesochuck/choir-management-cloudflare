@@ -220,17 +220,7 @@
     margin-top: var(--spacing-3xs);
   }
 
-  /* Radix portals render outside the shell; keep signed-in dialogs on the same control system. */
-  .dialog--responsive {
-    width: min(40rem, calc(100% - 2rem));
-    max-height: min(88vh, 48rem);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: var(--spacing-md);
-    background: var(--color-surface);
-    color: var(--color-text);
-  }
-
+  /* Keep signed-in dialog inputs on the same control system. */
   .dialog--responsive input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
   .dialog--responsive select,
   .dialog--responsive textarea {
@@ -319,47 +309,6 @@
     margin: 0;
   }
 
-  /* === Dialog === */
-  .dialog {
-    border: none;
-    border-radius: var(--radius-lg);
-    padding: 0;
-    max-width: 32rem;
-    width: calc(100% - 2rem);
-    box-shadow: var(--shadow-xl);
-  }
-
-  .dialog::backdrop {
-    background: rgba(0, 0, 0, 0.4);
-  }
-
-  .dialog__header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--spacing-md);
-  }
-
-  .dialog__title {
-    margin: 0;
-    font-size: var(--font-size-xl);
-    font-weight: var(--font-weight-medium);
-  }
-
-  .dialog__close {
-    background: none;
-    border: none;
-    font-size: var(--font-size-2xl);
-    cursor: pointer;
-    color: var(--muted-foreground);
-    padding: var(--spacing-3xs);
-    line-height: var(--line-height-none);
-  }
-
-  .dialog__body {
-    font-size: var(--font-size-base);
-  }
-
   .summary-card {
     display: grid;
     gap: var(--spacing-3xs);
@@ -383,25 +332,5 @@
 
   .summary-card small {
     color: var(--muted-foreground);
-  }
-
-  .dialog--responsive {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    width: min(42rem, calc(100% - 2rem));
-    max-width: min(42rem, calc(100% - 2rem));
-    max-height: min(90vh, 52rem);
-    overflow: auto;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-xl);
-    padding: var(--spacing-lg);
-    background: var(--color-surface);
-    color: var(--color-text);
-    transform: translate(-50%, -50%);
-  }
-
-  .dialog--responsive::backdrop {
-    background: rgb(3 18 28 / 72%);
   }
 }

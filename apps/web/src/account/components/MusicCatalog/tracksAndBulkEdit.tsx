@@ -287,7 +287,7 @@ export function MusicDeleteControls({
 
   return (
     <>
-      <div className="form-actions music-piece-form__actions">
+      <div className="dialog__actions music-piece-form__actions">
         {editingId && !deleteConfirm ? (
           <button className="button button--danger" type="button" onClick={onRequest}>
             Delete music piece

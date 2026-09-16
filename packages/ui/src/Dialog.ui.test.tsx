@@ -143,4 +143,24 @@ describe("Dialog interaction", () => {
     });
     expect(screen.queryByRole("dialog", { name: "Test dialog" })).not.toBeInTheDocument();
   });
+
+  it("renders custom footer slot when footer prop is provided", () => {
+    const onClose = vi.fn();
+    render(
+      <Dialog
+        footer={
+          <button onClick={onClose} type="button">
+            Footer action
+          </button>
+        }
+        onClose={onClose}
+        open
+        title="Footer test"
+      >
+        <p>Body content</p>
+      </Dialog>,
+    );
+
+    expect(screen.getByRole("button", { name: "Footer action" })).toBeInTheDocument();
+  });
 });

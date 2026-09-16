@@ -1185,9 +1185,7 @@
   .seating-lookup-list,
   .seating-assignment-picker {
     display: grid;
-    max-height: 18rem;
     gap: var(--spacing-2xs);
-    overflow-y: auto;
   }
 
   .seating-assignment-group {

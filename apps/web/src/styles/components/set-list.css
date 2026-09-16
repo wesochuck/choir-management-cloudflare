@@ -38,8 +38,6 @@
   .set-list-preview {
     display: grid;
     gap: var(--spacing-md);
-    max-height: min(52vh, 34rem);
-    overflow-y: auto;
     padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);

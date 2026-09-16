@@ -68,4 +68,23 @@ describe("ConfirmDialog interaction", () => {
     });
     expect(onConfirm).not.toHaveBeenCalled();
   });
+
+  it("renders description inside dialog body with accessible aria-describedby binding", () => {
+    const onCancel = vi.fn();
+    const onConfirm = vi.fn();
+    render(
+      <ConfirmDialog
+        confirmLabel="Continue"
+        description="A detailed explanation that may be unusually long."
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+        open
+        title="Confirm action"
+      />,
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Confirm action" });
+    const descriptionEl = screen.getByText("A detailed explanation that may be unusually long.");
+    expect(dialog).toHaveAttribute("aria-describedby", descriptionEl.id);
+  });
 });

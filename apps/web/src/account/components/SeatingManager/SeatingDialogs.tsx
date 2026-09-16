@@ -1,5 +1,5 @@
 import { clearSeatAssignment, moveAssignment } from "@choir/domain";
-import { Dialog } from "@choir/ui";
+import { Dialog, DialogClose } from "@choir/ui";
 import type {
   OrganizationEvent,
   OrganizationProfile,
@@ -119,16 +119,18 @@ function ChartDialog({
             </p>
           </>
         ) : null}
-        <div className="form-actions">
-          <button
-            className="button button--secondary"
-            onClick={() => {
-              setChartDialog(null);
-            }}
-            type="button"
-          >
-            Cancel
-          </button>
+        <div className="dialog__actions">
+          <DialogClose asChild>
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                setChartDialog(null);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+          </DialogClose>
           <button
             className="button button--primary"
             disabled={chartDialog === "create" && !createLayoutIsValid}
@@ -218,16 +220,18 @@ function CopyChartDialog({
         {!copyBusy && copyPerformanceId && copyCharts.length === 0 ? (
           <p className="empty-state">No charts use this Venue.</p>
         ) : null}
-        <div className="form-actions">
-          <button
-            className="button button--secondary"
-            onClick={() => {
-              setCopyOpen(false);
-            }}
-            type="button"
-          >
-            Cancel
-          </button>
+        <div className="dialog__actions">
+          <DialogClose asChild>
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                setCopyOpen(false);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+          </DialogClose>
           <button
             className="button button--primary"
             disabled={!copyChartId}
@@ -333,16 +337,18 @@ function AddProfileDialog({
             <option value="Inactive">Inactive</option>
           </select>
         </label>
-        <div className="form-actions">
-          <button
-            className="button button--secondary"
-            onClick={() => {
-              setProfileDialog(null);
-            }}
-            type="button"
-          >
-            Cancel
-          </button>
+        <div className="dialog__actions">
+          <DialogClose asChild>
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                setProfileDialog(null);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+          </DialogClose>
           <button className="button button--primary" disabled={profileBusy} type="submit">
             {profileBusy ? "Adding…" : "Add and mark attending"}
           </button>
@@ -519,16 +525,18 @@ function SeatDetailDialog({
             </section>
           ))}
         </div>
-        <div className="form-actions">
-          <button
-            className="button button--secondary"
-            onClick={() => {
-              setSelectedSeat(null);
-            }}
-            type="button"
-          >
-            Cancel
-          </button>
+        <div className="dialog__actions">
+          <DialogClose asChild>
+            <button
+              className="button button--secondary"
+              onClick={() => {
+                setSelectedSeat(null);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+          </DialogClose>
           {assignedProfileId ? (
             <button
               className="button button--secondary"
