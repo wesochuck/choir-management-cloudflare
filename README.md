@@ -1,20 +1,10 @@
 # Choir Management Cloudflare
 
-Standalone, multi-Organization Cloudflare rebuild of the choir management application.
-
-The foundation is live in permanent staging:
-
-- Application: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev>
-- Health: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev/api/health>
-- Readiness: <https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev/api/ready>
-
-This is a staging-only rebuild. Production has not been launched, and the project does not migrate
-PocketBase data.
+Standalone, multi-Organization Cloudflare choir management application.
 
 ## Repository relationship
 
-The immutable behavioral baseline is legacy commit `6874d43a3c3698ae53218a44d17649bc454ca9ac`. Local
-development may inspect the sibling parity worktree, but this repository's install, checks, tests,
+Local development may inspect the sibling parity worktree, but this repository's install, checks, tests,
 builds, CI, and deployments are standalone. The parity worktree is never a runtime or build
 dependency.
 
