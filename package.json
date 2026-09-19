@@ -111,8 +111,5 @@
     "workerd@1.20260730.1": true,
     "fsevents@2.3.2": true,
     "fsevents@2.3.3": true
-  },
-  "dependencies": {
-    "opencode-goal-plugin": "^0.6.5"
   }
 }

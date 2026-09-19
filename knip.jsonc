@@ -9,7 +9,7 @@
         "vitest.integration.config.ts",
         "scripts/*.mjs",
       ],
-      "ignoreDependencies": ["cloudflare", "opencode-goal-plugin"],
+      "ignoreDependencies": ["cloudflare"],
     },
     "apps/web": {
       "entry": ["src/main.tsx", "vite.config.ts", "e2e/**/*.ts"],

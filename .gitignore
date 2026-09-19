@@ -28,6 +28,3 @@ work/
 # Build artifacts
 *.tsbuildinfo
 release-manifest.json
-
-# OpenCode goal-plugin state (workflow checkpoints, lifecycle ledger)
-.opencode/goals/
