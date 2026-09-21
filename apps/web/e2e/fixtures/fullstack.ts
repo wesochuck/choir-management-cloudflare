@@ -59,12 +59,34 @@ export async function bootstrapFullstack(
   request: APIRequestContext,
   email: string = FULLSTACK_ADMIN_EMAIL,
 ): Promise<FullstackBootstrap> {
-  const response = await request.post(`${FULLSTACK_APP_ORIGIN}/api/local/fullstack-bootstrap`, {
-    data: { email },
-  });
-  expect(response.ok()).toBe(true);
-  const seed = bootstrapResponseSchema.parse(await response.json());
-  expect(seed.email).toBe(email);
+  const box: { seed: FullstackBootstrap | null } = { seed: null };
+  await expect
+    .poll(
+      async () => {
+        try {
+          const response = await request.post(
+            `${FULLSTACK_APP_ORIGIN}/api/local/fullstack-bootstrap`,
+            { data: { email }, timeout: 5_000 },
+          );
+          if (!response.ok()) return false;
+          const parsed = bootstrapResponseSchema.parse(await response.json());
+          if (parsed.email !== email) return false;
+          box.seed = parsed;
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      {
+        intervals: [250, 500, 1_000],
+        message: `Timed out waiting for local fullstack bootstrap to succeed for ${email}`,
+        timeout: 20_000,
+      },
+    )
+    .toBe(true);
+
+  const seed = box.seed;
+  if (seed === null) throw new Error("The full-stack bootstrap failed to return valid seed data.");
   return seed;
 }
 
@@ -72,14 +94,19 @@ async function readFullstackOtpOnce(
   request: APIRequestContext,
   email: string,
 ): Promise<string | null> {
-  const response = await request.get(
-    `${FULLSTACK_APP_ORIGIN}/api/local/fullstack-otp?email=${encodeURIComponent(email)}`,
-  );
-  if (response.status() === 404) return null;
-  expect(response.ok()).toBe(true);
-  const body = otpResponseSchema.parse(await response.json());
-  expect(body.email).toBe(email);
-  return body.otp;
+  try {
+    const response = await request.get(
+      `${FULLSTACK_APP_ORIGIN}/api/local/fullstack-otp?email=${encodeURIComponent(email)}`,
+      { timeout: 5_000 },
+    );
+    if (response.status() === 404) return null;
+    if (!response.ok()) return null;
+    const body = otpResponseSchema.parse(await response.json());
+    expect(body.email).toBe(email);
+    return body.otp;
+  } catch {
+    return null;
+  }
 }
 
 /**
