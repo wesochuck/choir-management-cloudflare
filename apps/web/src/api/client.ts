@@ -1,15 +1,30 @@
 import { problemDetailsSchema } from "@choir/contracts";
 import type { z } from "zod";
 
+export interface ProviderErrorDiagnostics {
+  readonly code?: string | undefined;
+  readonly requestId?: string | undefined;
+  readonly requestLogUrl?: string | undefined;
+  readonly safeMessage?: string | undefined;
+  readonly status?: number | undefined;
+}
+
 export class AuthApiError extends Error {
   readonly code: string;
+  readonly providerError: ProviderErrorDiagnostics | undefined;
   readonly status: number;
 
-  constructor(message: string, status: number, code: string) {
+  constructor(
+    message: string,
+    status: number,
+    code: string,
+    providerError?: ProviderErrorDiagnostics,
+  ) {
     super(message);
     this.name = "AuthApiError";
     this.code = code;
     this.status = status;
+    this.providerError = providerError;
   }
 }
 
@@ -20,6 +35,7 @@ export async function responseError(response: Response): Promise<AuthApiError> {
     problem.success ? problem.data.message : "The account service could not complete the request.",
     response.status,
     problem.success ? problem.data.code : "unknown",
+    problem.success ? problem.data.providerError : undefined,
   );
 }
 

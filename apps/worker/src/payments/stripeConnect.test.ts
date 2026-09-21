@@ -1,10 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  createStripeAccountOnboardingLink,
   createStripeCheckoutSession,
+  createStripeConnectedAccount,
   createStripeRefund,
-  stripeConnectSetupUrl,
+  mapStripeAccountReadiness,
+  retrieveStripeConnectedAccount,
   stripeAccountIsReady,
+  stripeConnectSetupUrl,
+  StripeConnectError,
 } from "./stripeConnect";
 
 function requestBody(request: RequestInit | undefined): string {
@@ -34,6 +39,16 @@ describe("Stripe Connect provider contract", () => {
         charges_enabled: false,
         payouts_enabled: true,
         requirements: { currently_due: [] },
+      }),
+    ).toBe(false);
+    expect(
+      stripeAccountIsReady({
+        ready: true,
+      }),
+    ).toBe(true);
+    expect(
+      stripeAccountIsReady({
+        ready: false,
       }),
     ).toBe(false);
   });
@@ -106,28 +121,296 @@ describe("Stripe Connect provider contract", () => {
     }
   });
 
-  it("creates account onboarding links using modernized collection_options", async () => {
+  it("creates connected accounts using Accounts v2 with merchant configuration and Stripe liability", async () => {
+    const mockAccount = {
+      id: "acct_test123",
+      object: "v2.core.account",
+      contact_email: "treasurer@choir.test",
+      dashboard: "full",
+      defaults: {
+        responsibilities: {
+          fees_collector: "stripe",
+          losses_collector: "stripe",
+          requirements_collector: "stripe",
+        },
+      },
+      configuration: {
+        merchant: {
+          capabilities: {
+            card_payments: { status: "inactive" },
+          },
+        },
+      },
+      requirements: {
+        currently_due: ["business_profile.url"],
+        past_due: [],
+        eventually_due: [],
+      },
+    };
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json(mockAccount));
+
+    try {
+      const account = await createStripeConnectedAccount(
+        "sk_test_secret",
+        "org_123",
+        "Example Choir",
+      );
+
+      expect(account.id).toBe("acct_test123");
+      const [url, request] = fetchSpy.mock.calls[0] ?? [];
+      expect(url).toBe("https://api.stripe.com/v2/core/accounts");
+      const headers = new Headers(request?.headers);
+      expect(headers.get("authorization")).toBe("Bearer sk_test_secret");
+      expect(headers.get("stripe-version")).toBe("2026-08-26.dahlia");
+      expect(headers.get("content-type")).toBe("application/json");
+      expect(headers.get("idempotency-key")).toBe("organization-org_123");
+
+      const bodyText = typeof request?.body === "string" ? request.body : "";
+      const body = JSON.parse(bodyText);
+      expect(body).toEqual({
+        configuration: {
+          merchant: {
+            capabilities: {
+              card_payments: { requested: true },
+            },
+          },
+        },
+        dashboard: "full",
+        defaults: {
+          responsibilities: {
+            fees_collector: "stripe",
+            losses_collector: "stripe",
+          },
+        },
+        display_name: "Example Choir",
+        identity: {
+          country: "US",
+        },
+        include: ["configuration.merchant", "defaults", "requirements"],
+        metadata: {
+          organization_id: "org_123",
+        },
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("retrieves connected accounts with merchant, defaults, and requirements includes", async () => {
+    const mockAccount = {
+      id: "acct_test456",
+      object: "v2.core.account",
+      dashboard: "full",
+      defaults: {
+        responsibilities: {
+          fees_collector: "stripe",
+          losses_collector: "stripe",
+          requirements_collector: "stripe",
+        },
+      },
+      configuration: {
+        merchant: {
+          capabilities: {
+            card_payments: { status: "active" },
+          },
+        },
+      },
+      requirements: {
+        currently_due: [],
+        past_due: [],
+        eventually_due: [],
+      },
+    };
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json(mockAccount));
+
+    try {
+      const account = await retrieveStripeConnectedAccount("sk_test_secret", "acct_test456");
+      expect(account.id).toBe("acct_test456");
+
+      const [url, request] = fetchSpy.mock.calls[0] ?? [];
+      const urlString = typeof url === "string" ? url : "";
+      const decodedUrl = decodeURIComponent(urlString);
+      expect(decodedUrl).toContain("https://api.stripe.com/v2/core/accounts/acct_test456?");
+      expect(decodedUrl).toContain("include[0]=configuration.merchant");
+      expect(decodedUrl).toContain("include[1]=defaults");
+      expect(decodedUrl).toContain("include[2]=requirements");
+
+      const headers = new Headers(request?.headers);
+      expect(headers.get("authorization")).toBe("Bearer sk_test_secret");
+      expect(headers.get("stripe-version")).toBe("2026-08-26.dahlia");
+      expect(request?.method).toBe("GET");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("creates account onboarding links using Accounts v2 account_links endpoint", async () => {
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValue(Response.json({ url: "https://connect.stripe.test/onboarding" }));
+      .mockResolvedValue(Response.json({ url: "https://connect.stripe.test/v2/onboarding" }));
     try {
-      const { createStripeAccountOnboardingLink } = await import("./stripeConnect");
       const url = await createStripeAccountOnboardingLink(
         "sk_test_secret",
         "acct_test",
         "https://example.test/return",
         "https://example.test/refresh",
       );
-      expect(url).toBe("https://connect.stripe.test/onboarding");
+      expect(url).toBe("https://connect.stripe.test/v2/onboarding");
       const [requestUrl, request] = fetchSpy.mock.calls[0] ?? [];
-      expect(requestUrl).toBe("https://api.stripe.com/v1/account_links");
-      const body = new URLSearchParams(requestBody(request));
-      expect(body.get("account")).toBe("acct_test");
-      expect(body.get("type")).toBe("account_onboarding");
-      expect(body.get("collection_options[fields]")).toBe("eventually_due");
-      expect(body.get("collect")).toBeNull();
-      expect(body.get("return_url")).toBe("https://example.test/return");
-      expect(body.get("refresh_url")).toBe("https://example.test/refresh");
+      expect(requestUrl).toBe("https://api.stripe.com/v2/core/account_links");
+      const headers = new Headers(request?.headers);
+      expect(headers.get("stripe-version")).toBe("2026-08-26.dahlia");
+      expect(headers.get("content-type")).toBe("application/json");
+
+      const bodyText = typeof request?.body === "string" ? request.body : "";
+      const body = JSON.parse(bodyText);
+      expect(body).toEqual({
+        account: "acct_test",
+        use_case: {
+          account_onboarding: {
+            collection_options: {
+              fields: "eventually_due",
+            },
+            configurations: ["merchant"],
+            refresh_url: "https://example.test/refresh",
+            return_url: "https://example.test/return",
+          },
+          type: "account_onboarding",
+        },
+      });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("maps Accounts v2 readiness correctly and rejects invalid responsibility model", () => {
+    // Valid ready account
+    const readyAccount = {
+      applied_configurations: ["merchant"],
+      configuration: {
+        merchant: {
+          capabilities: {
+            card_payments: { status: "active" as const },
+          },
+        },
+      },
+      dashboard: "full" as const,
+      defaults: {
+        responsibilities: {
+          fees_collector: "stripe" as const,
+          losses_collector: "stripe" as const,
+          requirements_collector: "stripe" as const,
+        },
+      },
+      id: "acct_ready123",
+      livemode: false,
+      metadata: {},
+      object: "v2.core.account" as const,
+      requirements: {
+        currently_due: [],
+        eventually_due: [],
+        past_due: [],
+      },
+    };
+
+    const readyStatus = mapStripeAccountReadiness(readyAccount);
+    expect(readyStatus.ready).toBe(true);
+    expect(readyStatus.status).toBe("ready");
+    expect(readyStatus.chargesEnabled).toBe(true);
+    expect(readyStatus.payoutsEnabled).toBe(true);
+    expect(readyStatus.detailsSubmitted).toBe(true);
+    expect(readyStatus.cardPaymentsStatus).toBe("active");
+    expect(readyStatus.payoutsStatus).toBe("active");
+    expect(readyStatus.configurationValid).toBe(true);
+
+    // Incomplete account with currently due items
+    const incompleteAccount = {
+      ...readyAccount,
+      configuration: {
+        merchant: {
+          capabilities: {
+            card_payments: { status: "inactive" as const },
+          },
+        },
+      },
+      requirements: {
+        currently_due: ["representative.ssn_last_4"],
+        past_due: [],
+        eventually_due: [],
+      },
+    };
+
+    const incompleteStatus = mapStripeAccountReadiness(incompleteAccount);
+    expect(incompleteStatus.ready).toBe(false);
+    expect(incompleteStatus.status).toBe("onboarding");
+    expect(incompleteStatus.chargesEnabled).toBe(false);
+    expect(incompleteStatus.requirementsDue).toEqual(["representative.ssn_last_4"]);
+
+    // Past-due account -> restricted
+    const restrictedAccount = {
+      ...readyAccount,
+      requirements: {
+        currently_due: [],
+        past_due: ["identity_document"],
+        eventually_due: [],
+      },
+    };
+    const restrictedStatus = mapStripeAccountReadiness(restrictedAccount);
+    expect(restrictedStatus.ready).toBe(false);
+    expect(restrictedStatus.status).toBe("restricted");
+
+    // Invalid responsibility model -> not configurationValid, restricted status
+    const invalidLiabilityAccount = {
+      ...readyAccount,
+      defaults: {
+        responsibilities: {
+          fees_collector: "stripe" as const,
+          losses_collector: "application" as const, // Platform liability is forbidden!
+          requirements_collector: "stripe" as const,
+        },
+      },
+    };
+
+    const invalidStatus = mapStripeAccountReadiness(invalidLiabilityAccount);
+    expect(invalidStatus.configurationValid).toBe(false);
+    expect(invalidStatus.ready).toBe(false);
+    expect(invalidStatus.status).toBe("restricted");
+  });
+
+  it("extracts structured error diagnostics from Stripe API error responses", async () => {
+    const errorPayload = {
+      error: {
+        code: "account_invalid",
+        message: "The account cannot receive payments.",
+        request_log_url: "https://dashboard.stripe.com/test/logs/req_test_123",
+      },
+    };
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(errorPayload), {
+        status: 400,
+        headers: {
+          "content-type": "application/json",
+          "request-id": "req_test_123",
+        },
+      }),
+    );
+
+    try {
+      await expect(
+        retrieveStripeConnectedAccount("sk_test_secret", "acct_nonexistent"),
+      ).rejects.toSatisfy((err: unknown) => {
+        expect(err).toBeInstanceOf(StripeConnectError);
+        if (!(err instanceof StripeConnectError)) return false;
+        expect(err.status).toBe(400);
+        expect(err.code).toBe("account_invalid");
+        expect(err.requestId).toBe("req_test_123");
+        expect(err.requestLogUrl).toBe("https://dashboard.stripe.com/test/logs/req_test_123");
+        expect(err.safeMessage).toBe("The account cannot receive payments.");
+        return true;
+      });
     } finally {
       fetchSpy.mockRestore();
     }

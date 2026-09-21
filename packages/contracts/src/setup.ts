@@ -3,6 +3,15 @@ import { organizationIdSchema, requestIdSchema } from "./primitives";
 export const problemDetailsSchema = z.object({
   code: z.string().min(1),
   message: z.string().min(1),
+  providerError: z
+    .object({
+      code: z.string().optional(),
+      requestId: z.string().optional(),
+      requestLogUrl: z.string().optional(),
+      safeMessage: z.string().optional(),
+      status: z.number().int().optional(),
+    })
+    .optional(),
   requestId: requestIdSchema,
 });
 

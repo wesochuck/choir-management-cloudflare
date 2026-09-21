@@ -86,12 +86,15 @@ function StripeConnectAccountDetails({
   return (
     <>
       <p>
-        Each Organization uses its own Stripe connected account. Stripe handles the identity and
-        payout details; this app stores only the account ID and readiness state.
+        Each Organization uses its own Organization Stripe account. Stripe provides Stripe-hosted
+        merchant onboarding and the full Stripe Dashboard. The Organization is the merchant of
+        record, pays Stripe processing fees directly, and bears its own payment and dispute
+        liability; the platform does not assume connected-account negative balances.
       </p>
       <p className="field-help">
         Status: <strong>{connectStatusLabel(stripe.status)}</strong>
         {stripe.accountId ? ` · ${stripe.accountId}` : ""}
+        {stripe.dashboardType ? ` · Full Dashboard` : ""}
       </p>
       {stripe.requirementsDue.length > 0 ? (
         <p className="field-help">
@@ -233,9 +236,19 @@ export function OrganizationStripeConnectSetup() {
           // Fall through to error below.
         }
       }
-      setConnectError(
-        "Stripe onboarding could not be started. Ask a Platform Administrator to verify the Stripe setup.",
-      );
+      if (error instanceof AuthApiError && error.providerError?.code) {
+        const p = error.providerError;
+        const code = p.code ?? "unknown";
+        const message = p.safeMessage ?? error.message;
+        const requestSuffix = typeof p.requestId === "string" ? ` [Request: ${p.requestId}]` : "";
+        setConnectError(
+          `Stripe error (${code}): ${message}${requestSuffix}. Ask a Platform Administrator to verify the Stripe setup.`,
+        );
+      } else {
+        setConnectError(
+          "Stripe onboarding could not be started. Ask a Platform Administrator to verify the Stripe setup.",
+        );
+      }
       setConnectBusy(false);
     }
   }

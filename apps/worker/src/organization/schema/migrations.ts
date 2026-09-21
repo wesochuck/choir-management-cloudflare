@@ -1462,6 +1462,22 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       `CREATE INDEX IF NOT EXISTS idx_profiles_hidden ON profiles(hidden)`,
     ],
   },
+  {
+    version: 85,
+    statements: [
+      // Accounts v2 Connected Account Migration:
+      // Add Accounts v2 capability, responsibility, and sync tracking columns.
+      // Reset any stale or incomplete legacy test accounts so they re-onboard fresh via Accounts v2.
+      `ALTER TABLE stripe_connect_accounts ADD COLUMN card_payments_status TEXT NOT NULL DEFAULT 'inactive'`,
+      `ALTER TABLE stripe_connect_accounts ADD COLUMN payouts_status TEXT NOT NULL DEFAULT 'inactive'`,
+      `ALTER TABLE stripe_connect_accounts ADD COLUMN dashboard_type TEXT NOT NULL DEFAULT 'full'`,
+      `ALTER TABLE stripe_connect_accounts ADD COLUMN fees_collector TEXT NOT NULL DEFAULT 'stripe'`,
+      `ALTER TABLE stripe_connect_accounts ADD COLUMN losses_collector TEXT NOT NULL DEFAULT 'stripe'`,
+      `ALTER TABLE stripe_connect_accounts ADD COLUMN last_synced_at TEXT`,
+      `ALTER TABLE stripe_connect_accounts ADD COLUMN status TEXT NOT NULL DEFAULT 'not_started'`,
+      `DELETE FROM stripe_connect_accounts WHERE details_submitted = 0 OR charges_enabled = 0`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

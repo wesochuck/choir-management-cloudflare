@@ -28,7 +28,24 @@
 ## Stripe
 
 - The Worker fails closed with `stripe_webhook_unavailable` (HTTP 503) when the environment has no
-  `STRIPE_WEBHOOK_SECRET`; do not replace this with an unsigned compatibility path.
+  `STRIPE_WEBHOOK_SECRET` or `STRIPE_V2_EVENT_DESTINATION_SECRET`; do not replace this with an
+  unsigned compatibility path.
+- Accounts v2 connected account management requires `dashboard = "full"`,
+  `fees_collector = "stripe"`, and `losses_collector = "stripe"`. If Stripe returns other values,
+  the account is treated as restricted.
+- Configure Stripe v2 Event Destinations targeting `/api/webhook/stripe/v2` with signing secret in
+  `STRIPE_V2_EVENT_DESTINATION_SECRET`. The endpoint handles thin events (`v2.core.account.*`) by
+  retrieving the authoritative account from `/v2/core/accounts/:id` with
+  `include[]=configuration.merchant&include[]=defaults&include[]=requirements`.
+- Platform Administrators can inspect actionable provider diagnostics (`code`, `requestId`,
+  `requestLogUrl`, `safeMessage`) in setup checklist and provider status views. Common provider
+  codes:
+  - `accounts_v2_access_blocked`: Platform profile requires Accounts v2 enablement in the Stripe
+    Dashboard.
+  - `connect_profile_not_submitted` / `connect_identity_not_verified`: Platform profile information
+    needs submission in Stripe Dashboard.
+  - `account_create_activation_required`: Platform account must finish activation before creating
+    connected accounts.
 - Verify webhook signatures before account lookup.
 - Read and verify the raw request body with the five-minute timestamp tolerance; reject malformed,
   stale, or mismatched signatures without revealing provider details.

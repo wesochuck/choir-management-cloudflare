@@ -58,7 +58,6 @@ describe("Stripe webhook verification", () => {
 
   it("requires the supported event envelope including livemode and valid account", () => {
     for (const type of [
-      "account.updated",
       "checkout.session.completed",
       "checkout.session.async_payment_succeeded",
       "checkout.session.async_payment_failed",
@@ -88,13 +87,13 @@ describe("Stripe webhook verification", () => {
         type: "checkout.session.completed",
       }).success,
     ).toBe(false);
-    // Missing top-level account identifier is accepted (e.g. for account.updated payloads)
+    // Missing top-level account identifier is accepted
     expect(
       stripeEventSchema.safeParse({
-        data: { object: { id: "acct_test123" } },
+        data: { object: { id: "cs_test123" } },
         id: "evt_test",
         livemode: false,
-        type: "account.updated",
+        type: "checkout.session.completed",
       }).success,
     ).toBe(true);
     // Invalid account identifier fails

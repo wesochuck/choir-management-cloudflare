@@ -4,47 +4,52 @@ import type { SqlStorageValue } from "@cloudflare/workers-types";
 const stripeConnectOperationSchema = z.object({
   accountId: z.string().regex(/^acct_[A-Za-z0-9]+$/),
   actorUserId: z.string().min(1).max(128),
-  chargesEnabled: z.boolean(),
-  detailsSubmitted: z.boolean(),
+  cardPaymentsStatus: z.string().min(1).max(64).default("inactive"),
+  chargesEnabled: z.boolean().default(false),
+  dashboardType: z.string().min(1).max(64).default("full"),
+  detailsSubmitted: z.boolean().default(false),
+  feesCollector: z.string().min(1).max(64).default("stripe"),
+  lossesCollector: z.string().min(1).max(64).default("stripe"),
   organizationId: z.string().min(1).max(128),
-  payoutsEnabled: z.boolean(),
+  payoutsEnabled: z.boolean().default(false),
+  payoutsStatus: z.string().min(1).max(64).default("inactive"),
   requestId: z.uuid(),
-  requirementsDue: z.array(z.string().min(1).max(200)).max(100),
+  requirementsDue: z.array(z.string().min(1).max(200)).max(100).default([]),
+  status: z.enum(["not_started", "onboarding", "restricted", "ready"]).default("onboarding"),
 });
 
 interface StripeConnectRow {
   readonly [column: string]: SqlStorageValue;
   readonly accountId: string;
+  readonly cardPaymentsStatus: string | null;
   readonly chargesEnabled: number;
   readonly createdAt: string;
+  readonly dashboardType: string | null;
   readonly detailsSubmitted: number;
+  readonly feesCollector: string | null;
+  readonly lastSyncedAt: string | null;
+  readonly lossesCollector: string | null;
   readonly organizationId: string;
   readonly payoutsEnabled: number;
+  readonly payoutsStatus: string | null;
   readonly requirementsDueJson: string;
+  readonly status: string | null;
   readonly updatedAt: string;
 }
 
-interface StripeConnectStatus {
+export interface StripeConnectStatus {
   readonly accountId: string | null;
+  readonly cardPaymentsStatus: string;
   readonly chargesEnabled: boolean;
+  readonly dashboardType: string;
   readonly detailsSubmitted: boolean;
+  readonly feesCollector: string;
+  readonly lastSyncedAt: string | null;
+  readonly lossesCollector: string;
   readonly payoutsEnabled: boolean;
+  readonly payoutsStatus: string;
   readonly requirementsDue: string[];
   readonly status: "not_started" | "onboarding" | "restricted" | "ready";
-}
-
-function statusFor(row: {
-  readonly accountId: string | null;
-  readonly chargesEnabled: boolean;
-  readonly detailsSubmitted: boolean;
-  readonly payoutsEnabled: boolean;
-  readonly requirementsDue: string[];
-}): StripeConnectStatus["status"] {
-  if (!row.accountId) return "not_started";
-  if (row.chargesEnabled && row.payoutsEnabled && row.requirementsDue.length === 0) {
-    return "ready";
-  }
-  return row.detailsSubmitted ? "restricted" : "onboarding";
 }
 
 function parseRequirements(value: string): string[] {
@@ -58,11 +63,75 @@ function readRow(storage: DurableObjectStorage): StripeConnectRow | undefined {
       `SELECT organization_id AS organizationId, account_id AS accountId,
          details_submitted AS detailsSubmitted, charges_enabled AS chargesEnabled,
          payouts_enabled AS payoutsEnabled, requirements_due_json AS requirementsDueJson,
-         created_at AS createdAt, updated_at AS updatedAt
+         card_payments_status AS cardPaymentsStatus, payouts_status AS payoutsStatus,
+         dashboard_type AS dashboardType, fees_collector AS feesCollector,
+         losses_collector AS lossesCollector, last_synced_at AS lastSyncedAt,
+         status AS status, created_at AS createdAt, updated_at AS updatedAt
        FROM stripe_connect_accounts LIMIT 1`,
     )
     .toArray()
     .at(0);
+}
+
+function computeStoreStatus(
+  row: StripeConnectRow,
+  chargesEnabled: boolean,
+  payoutsEnabled: boolean,
+  requirementsDue: string[],
+): StripeConnectStatus["status"] {
+  if (row.status === "ready" || row.status === "restricted" || row.status === "onboarding") {
+    return row.status;
+  }
+  if (chargesEnabled && payoutsEnabled && requirementsDue.length === 0) {
+    return "ready";
+  }
+  if (row.detailsSubmitted === 1 || row.cardPaymentsStatus === "restricted") {
+    return "restricted";
+  }
+  return "onboarding";
+}
+
+function mapStoreRow(row: StripeConnectRow | undefined): StripeConnectStatus {
+  if (!row?.accountId) {
+    return {
+      accountId: null,
+      cardPaymentsStatus: "inactive",
+      chargesEnabled: false,
+      dashboardType: "full",
+      detailsSubmitted: false,
+      feesCollector: "stripe",
+      lastSyncedAt: null,
+      lossesCollector: "stripe",
+      payoutsEnabled: false,
+      payoutsStatus: "inactive",
+      requirementsDue: [],
+      status: "not_started",
+    };
+  }
+
+  const requirementsDue = parseRequirements(row.requirementsDueJson);
+  const cardPaymentsStatus =
+    row.cardPaymentsStatus ?? (row.chargesEnabled === 1 ? "active" : "inactive");
+  const payoutsStatus = row.payoutsStatus ?? (row.payoutsEnabled === 1 ? "active" : "inactive");
+  const chargesEnabled = cardPaymentsStatus === "active" || row.chargesEnabled === 1;
+  const payoutsEnabled = payoutsStatus === "active" || row.payoutsEnabled === 1;
+  const detailsSubmitted = row.detailsSubmitted === 1;
+  const status = computeStoreStatus(row, chargesEnabled, payoutsEnabled, requirementsDue);
+
+  return {
+    accountId: row.accountId,
+    cardPaymentsStatus,
+    chargesEnabled,
+    dashboardType: row.dashboardType ?? "full",
+    detailsSubmitted,
+    feesCollector: row.feesCollector ?? "stripe",
+    lastSyncedAt: row.lastSyncedAt ?? row.updatedAt,
+    lossesCollector: row.lossesCollector ?? "stripe",
+    payoutsEnabled,
+    payoutsStatus,
+    requirementsDue,
+    status,
+  };
 }
 
 export function readStripeConnectStatusFromStore(
@@ -79,25 +148,8 @@ export function readStripeConnectStatusFromStore(
     return Response.json({ code: "organization_not_found" }, { status: 404 });
   }
   const row = readRow(storage);
-  const accountId = row?.accountId ?? null;
-  const requirementsDue = row ? parseRequirements(row.requirementsDueJson) : [];
-  const detailsSubmitted = row?.detailsSubmitted === 1;
-  const chargesEnabled = row?.chargesEnabled === 1;
-  const payoutsEnabled = row?.payoutsEnabled === 1;
-  return Response.json({
-    accountId,
-    chargesEnabled,
-    detailsSubmitted,
-    payoutsEnabled,
-    requirementsDue,
-    status: statusFor({
-      accountId,
-      chargesEnabled,
-      detailsSubmitted,
-      payoutsEnabled,
-      requirementsDue,
-    }),
-  } satisfies StripeConnectStatus);
+  const status = mapStoreRow(row);
+  return Response.json(status satisfies StripeConnectStatus);
 }
 
 export async function upsertStripeConnectAccountInStore(
@@ -124,14 +176,22 @@ export async function upsertStripeConnectAccountInStore(
     storage.sql.exec(
       `INSERT INTO stripe_connect_accounts
         (organization_id, account_id, details_submitted, charges_enabled, payouts_enabled,
-         requirements_due_json, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         requirements_due_json, card_payments_status, payouts_status, dashboard_type,
+         fees_collector, losses_collector, last_synced_at, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(organization_id) DO UPDATE SET
          account_id = excluded.account_id,
          details_submitted = excluded.details_submitted,
          charges_enabled = excluded.charges_enabled,
          payouts_enabled = excluded.payouts_enabled,
          requirements_due_json = excluded.requirements_due_json,
+         card_payments_status = excluded.card_payments_status,
+         payouts_status = excluded.payouts_status,
+         dashboard_type = excluded.dashboard_type,
+         fees_collector = excluded.fees_collector,
+         losses_collector = excluded.losses_collector,
+         last_synced_at = excluded.last_synced_at,
+         status = excluded.status,
          updated_at = excluded.updated_at`,
       parsed.data.organizationId,
       parsed.data.accountId,
@@ -139,6 +199,13 @@ export async function upsertStripeConnectAccountInStore(
       parsed.data.chargesEnabled ? 1 : 0,
       parsed.data.payoutsEnabled ? 1 : 0,
       JSON.stringify(parsed.data.requirementsDue),
+      parsed.data.cardPaymentsStatus,
+      parsed.data.payoutsStatus,
+      parsed.data.dashboardType,
+      parsed.data.feesCollector,
+      parsed.data.lossesCollector,
+      occurredAt,
+      parsed.data.status,
       previous?.createdAt ?? occurredAt,
       occurredAt,
     );
@@ -152,10 +219,16 @@ export async function upsertStripeConnectAccountInStore(
       parsed.data.accountId,
       parsed.data.requestId,
       JSON.stringify({
+        cardPaymentsStatus: parsed.data.cardPaymentsStatus,
         chargesEnabled: parsed.data.chargesEnabled,
+        dashboardType: parsed.data.dashboardType,
         detailsSubmitted: parsed.data.detailsSubmitted,
+        feesCollector: parsed.data.feesCollector,
+        lossesCollector: parsed.data.lossesCollector,
         payoutsEnabled: parsed.data.payoutsEnabled,
+        payoutsStatus: parsed.data.payoutsStatus,
         requirementsDue: parsed.data.requirementsDue,
+        status: parsed.data.status,
       }),
       occurredAt,
     );

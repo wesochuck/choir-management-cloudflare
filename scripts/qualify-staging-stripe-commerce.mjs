@@ -39,7 +39,7 @@ function requestFailure(status, body) {
 export function stripeCommerceQualificationPlan() {
   return [
     "sign in and verify the fresh Platform Administrator factor in memory",
-    "verify Stripe Connect account readiness and module payment activations on target host",
+    "verify Accounts v2 Stripe Connect readiness, merchant responsibilities, and payment activations",
     "create one ticket-enabled Performance with priced tiers and discount availability",
     "complete one controlled ticket checkout for an allowed recipient",
     "prove the canonical signed ticket receipt remains accessible",
@@ -49,7 +49,7 @@ export function stripeCommerceQualificationPlan() {
     "execute a controlled donation checkout with tribute details and receipt generation",
     "refund the donation order and prove cross-Organization donation isolation holds",
     "inspect active season dues records and qualify the dues refund boundary",
-    "prove the Stripe webhook endpoint rejects invalid signatures fail-closed with HTTP 400",
+    "prove the Stripe v1 and v2 webhook endpoints reject invalid signatures fail-closed with HTTP 400",
     "print only safe IDs, counts, and statuses",
   ];
 }
@@ -76,24 +76,40 @@ export function parseStripeConnectStatus(body) {
   const chargesEnabled = Boolean(stripe.chargesEnabled);
   const payoutsEnabled = Boolean(stripe.payoutsEnabled);
   const detailsSubmitted = Boolean(stripe.detailsSubmitted);
+  const dashboardType = typeof stripe.dashboardType === "string" ? stripe.dashboardType : "full";
+  const feesCollector = typeof stripe.feesCollector === "string" ? stripe.feesCollector : "stripe";
+  const lossesCollector =
+    typeof stripe.lossesCollector === "string" ? stripe.lossesCollector : "stripe";
   const requirementsDue = Array.isArray(stripe.requirementsCurrentlyDue)
     ? stripe.requirementsCurrentlyDue
     : Array.isArray(stripe.requirementsDue)
       ? stripe.requirementsDue
       : [];
 
+  const configurationValid =
+    dashboardType === "full" && feesCollector === "stripe" && lossesCollector === "stripe";
+
   const state = !accountId
     ? "unconnected"
-    : rawStatus === "ready" && chargesEnabled && payoutsEnabled && requirementsDue.length === 0
+    : rawStatus === "ready" &&
+        chargesEnabled &&
+        payoutsEnabled &&
+        requirementsDue.length === 0 &&
+        configurationValid
       ? "ready"
-      : rawStatus === "restricted" || (accountId && !chargesEnabled && detailsSubmitted)
+      : rawStatus === "restricted" ||
+          (accountId && !chargesEnabled && detailsSubmitted) ||
+          !configurationValid
         ? "restricted"
         : "pending_onboarding";
 
   return {
     accountId,
     chargesEnabled,
+    dashboardType,
     detailsSubmitted,
+    feesCollector,
+    lossesCollector,
     payoutsEnabled,
     platformConfigured,
     rawStatus,
@@ -170,7 +186,7 @@ async function verifyStripeAccountReady(cookie) {
   }
   const parsed = parseStripeConnectStatus(result.body);
   console.log(
-    `Stripe Connect Status: ${parsed.rawStatus} -> State: ${parsed.state} (Account: ${parsed.accountId ?? "none"}, Charges: ${String(parsed.chargesEnabled)}, Payouts: ${String(parsed.payoutsEnabled)}, Requirements Due: ${parsed.requirementsDue.length})`,
+    `Stripe Connect Status: ${parsed.rawStatus} -> State: ${parsed.state} (Account: ${parsed.accountId ?? "none"}, Dashboard: ${parsed.dashboardType}, Fees: ${parsed.feesCollector}, Losses: ${parsed.lossesCollector}, Charges: ${String(parsed.chargesEnabled)}, Payouts: ${String(parsed.payoutsEnabled)}, Requirements Due: ${parsed.requirementsDue.length})`,
   );
   return parsed;
 }
@@ -373,12 +389,20 @@ async function qualifyDues(cookie) {
 }
 
 async function qualifyStripeWebhook() {
-  const result = await request(`${organizationHost}/api/webhook/stripe`, "POST", "", {
+  const resultV1 = await request(`${organizationHost}/api/webhook/stripe`, "POST", "", {
     type: "unauthorized_test_payload",
   });
-  if (result.response.status !== 400) {
+  if (resultV1.response.status !== 400) {
     throw new Error(
-      `Stripe webhook unexpectedly returned ${requestFailure(result.response.status, result.body)}; expected 400 invalid_webhook_signature.`,
+      `Stripe v1 webhook unexpectedly returned ${requestFailure(resultV1.response.status, resultV1.body)}; expected 400 invalid_webhook_signature.`,
+    );
+  }
+  const resultV2 = await request(`${organizationHost}/api/webhook/stripe/v2`, "POST", "", {
+    type: "v2.core.account.updated",
+  });
+  if (resultV2.response.status !== 400) {
+    throw new Error(
+      `Stripe v2 webhook unexpectedly returned ${requestFailure(resultV2.response.status, resultV2.body)}; expected 400 invalid_webhook_signature.`,
     );
   }
   return "passed";

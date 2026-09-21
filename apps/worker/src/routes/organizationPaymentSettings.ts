@@ -12,6 +12,7 @@ import { validateStartupConfig } from "../env";
 import {
   createStripeAccountOnboardingLink,
   createStripeConnectedAccount,
+  mapStripeAccountReadiness,
   retrieveStripeConnectedAccount,
   stripeAccountIsReady,
   stripeConnectSetupUrl,
@@ -207,6 +208,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       if (!storeResponse.ok) throw new Error("stripe_connect_store_unavailable");
       if (secretKey && stored.accountId) {
         const account = await retrieveStripeConnectedAccount(secretKey, stored.accountId);
+        const readiness = mapStripeAccountReadiness(account);
         const syncResponse = await invokeOrganizationRpc(
           organizationStoreStub(context.env, authorization.organizationId),
           "https://organization.internal/internal/stripe-connect",
@@ -214,12 +216,18 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
             body: JSON.stringify({
               accountId: account.id,
               actorUserId: authorization.userId,
-              chargesEnabled: account.charges_enabled,
-              detailsSubmitted: account.details_submitted,
+              cardPaymentsStatus: readiness.cardPaymentsStatus,
+              chargesEnabled: readiness.chargesEnabled,
+              dashboardType: readiness.dashboardType,
+              detailsSubmitted: readiness.detailsSubmitted,
+              feesCollector: readiness.feesCollector,
+              lossesCollector: readiness.lossesCollector,
               organizationId: authorization.organizationId,
-              payoutsEnabled: account.payouts_enabled,
+              payoutsEnabled: readiness.payoutsEnabled,
+              payoutsStatus: readiness.payoutsStatus,
               requestId: context.get("requestId"),
-              requirementsDue: account.requirements.currently_due,
+              requirementsDue: readiness.requirementsDue,
+              status: readiness.status,
             }),
             headers: { "content-type": "application/json" },
             method: "POST",
@@ -233,11 +241,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
             accountId: stored.accountId,
             organizationId: authorization.organizationId,
             status:
-              synced.data.status === "ready" &&
-              synced.data.chargesEnabled &&
-              synced.data.payoutsEnabled
-                ? "active"
-                : "pending",
+              synced.data.status === "ready" && readiness.configurationValid ? "active" : "pending",
           });
           return context.json({
             platformConfigured: Boolean(secretKey),
@@ -252,16 +256,24 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         stripe: stored,
       });
     } catch (error: unknown) {
+      const providerError =
+        error instanceof StripeConnectError
+          ? {
+              code: error.code,
+              requestId: error.requestId,
+              requestLogUrl: error.requestLogUrl,
+              safeMessage: error.safeMessage,
+              status: error.status,
+            }
+          : undefined;
       return context.json(
         {
-          code:
-            error instanceof StripeConnectError
-              ? "stripe_connect_unavailable"
-              : "service_unavailable",
+          code: error instanceof StripeConnectError ? error.code : "service_unavailable",
           message:
             error instanceof StripeConnectError
-              ? "Stripe could not verify the Organization connected account."
+              ? error.message
               : "Stripe Connect status could not be retrieved.",
+          providerError,
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         error instanceof StripeConnectError && error.status >= 400 && error.status < 500
@@ -382,6 +394,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         );
       }
       const requestId = context.get("requestId");
+      const readiness = mapStripeAccountReadiness(account);
       const syncResponse = await invokeOrganizationRpc(
         store,
         "https://organization.internal/internal/stripe-connect",
@@ -389,12 +402,18 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           body: JSON.stringify({
             accountId: account.id,
             actorUserId: authorization.userId,
-            chargesEnabled: account.charges_enabled,
-            detailsSubmitted: account.details_submitted,
+            cardPaymentsStatus: readiness.cardPaymentsStatus,
+            chargesEnabled: readiness.chargesEnabled,
+            dashboardType: readiness.dashboardType,
+            detailsSubmitted: readiness.detailsSubmitted,
+            feesCollector: readiness.feesCollector,
+            lossesCollector: readiness.lossesCollector,
             organizationId: authorization.organizationId,
-            payoutsEnabled: account.payouts_enabled,
+            payoutsEnabled: readiness.payoutsEnabled,
+            payoutsStatus: readiness.payoutsStatus,
             requestId,
-            requirementsDue: account.requirements.currently_due,
+            requirementsDue: readiness.requirementsDue,
+            status: readiness.status,
           }),
           headers: { "content-type": "application/json" },
           method: "POST",
@@ -404,9 +423,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       await upsertStripeAccountOrganization(context.env.CONTROL_DB, {
         accountId: account.id,
         organizationId: authorization.organizationId,
-        status: stripeAccountIsReady(account) ? "active" : "pending",
+        status: readiness.status === "ready" && readiness.configurationValid ? "active" : "pending",
       });
-      if (stripeAccountIsReady(account)) {
+      if (readiness.status === "ready") {
         return context.json(
           {
             code: "stripe_connect_already_ready",
@@ -426,21 +445,29 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const response = organizationStripeConnectOnboardingResponseSchema.parse({
         accountId: account.id,
         requestId,
-        status: account.charges_enabled && account.payouts_enabled ? "ready" : "onboarding",
+        status: readiness.status,
         url: onboardingUrl,
       });
       return context.json(response);
     } catch (error: unknown) {
+      const providerError =
+        error instanceof StripeConnectError
+          ? {
+              code: error.code,
+              requestId: error.requestId,
+              requestLogUrl: error.requestLogUrl,
+              safeMessage: error.safeMessage,
+              status: error.status,
+            }
+          : undefined;
       return context.json(
         {
-          code:
-            error instanceof StripeConnectError
-              ? "stripe_connect_unavailable"
-              : "service_unavailable",
+          code: error instanceof StripeConnectError ? error.code : "service_unavailable",
           message:
             error instanceof StripeConnectError
-              ? "Stripe could not start Organization onboarding."
+              ? error.message
               : "Stripe Connect onboarding could not be started.",
+          providerError,
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         error instanceof StripeConnectError && error.status >= 400 && error.status < 500

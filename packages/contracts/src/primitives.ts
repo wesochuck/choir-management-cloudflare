@@ -90,6 +90,24 @@ export const paymentActivationRequestSchema = z.object({
   confirm: z.literal(true),
 });
 
+const stripeConnectStatusSchema = z.object({
+  accountId: z
+    .string()
+    .regex(/^acct_[A-Za-z0-9]+$/)
+    .nullable(),
+  cardPaymentsStatus: z.string().optional(),
+  chargesEnabled: z.boolean(),
+  dashboardType: z.string().optional(),
+  detailsSubmitted: z.boolean(),
+  feesCollector: z.string().optional(),
+  lastSyncedAt: z.string().nullable().optional(),
+  lossesCollector: z.string().optional(),
+  payoutsEnabled: z.boolean(),
+  payoutsStatus: z.string().optional(),
+  requirementsDue: z.array(z.string().min(1).max(200)).max(100),
+  status: z.enum(["not_started", "onboarding", "restricted", "ready"]),
+});
+
 export const organizationPaymentSettingsResponseSchema = z.object({
   activations: paymentActivationSettingsSchema,
   environment: z.enum(["local", "preview", "staging", "production"]),
@@ -103,17 +121,7 @@ export const organizationPaymentSettingsResponseSchema = z.object({
     webhookConfigured: z.boolean(),
   }),
   requestId: requestIdSchema,
-  stripe: z.object({
-    accountId: z
-      .string()
-      .regex(/^acct_[A-Za-z0-9]+$/)
-      .nullable(),
-    chargesEnabled: z.boolean(),
-    detailsSubmitted: z.boolean(),
-    payoutsEnabled: z.boolean(),
-    requirementsDue: z.array(z.string().min(1).max(200)).max(100),
-    status: z.enum(["not_started", "onboarding", "restricted", "ready"]),
-  }),
+  stripe: stripeConnectStatusSchema,
 });
 
 export type PaymentModuleId = z.infer<typeof paymentModuleIdSchema>;
@@ -122,18 +130,6 @@ export type PaymentActivationRequest = z.infer<typeof paymentActivationRequestSc
 export type OrganizationPaymentSettingsResponse = z.infer<
   typeof organizationPaymentSettingsResponseSchema
 >;
-
-const stripeConnectStatusSchema = z.object({
-  accountId: z
-    .string()
-    .regex(/^acct_[A-Za-z0-9]+$/)
-    .nullable(),
-  chargesEnabled: z.boolean(),
-  detailsSubmitted: z.boolean(),
-  payoutsEnabled: z.boolean(),
-  requirementsDue: z.array(z.string().min(1).max(200)).max(100),
-  status: z.enum(["not_started", "onboarding", "restricted", "ready"]),
-});
 
 export const organizationStripeConnectStatusResponseSchema = z.object({
   platformConfigured: z.boolean(),

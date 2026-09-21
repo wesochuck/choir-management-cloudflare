@@ -12,7 +12,7 @@ import {
 describe("staging Stripe sandbox commercial qualification helpers", () => {
   it("describes a complete commercial flow and cleanup plan", () => {
     const plan = stripeCommerceQualificationPlan().join(" ");
-    expect(plan).toContain("Stripe Connect account readiness");
+    expect(plan).toContain("Accounts v2 Stripe Connect readiness");
     expect(plan).toContain("ticket-enabled Performance");
     expect(plan).toContain("canonical signed ticket receipt");
     expect(plan).toContain("ticket-confirmation resend");
@@ -20,7 +20,7 @@ describe("staging Stripe sandbox commercial qualification helpers", () => {
     expect(plan).toContain("refund the ticket order");
     expect(plan).toContain("donation checkout with tribute details");
     expect(plan).toContain("season dues");
-    expect(plan).toContain("Stripe webhook endpoint rejects invalid signatures");
+    expect(plan).toContain("Stripe v1 and v2 webhook endpoints reject invalid signatures");
     expect(plan).toContain("archive the qualification Performance");
   });
 

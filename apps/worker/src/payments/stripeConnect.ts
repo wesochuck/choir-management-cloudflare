@@ -1,13 +1,79 @@
 import { z } from "zod";
 
-const stripeAccountSchema = z.object({
-  charges_enabled: z.boolean().default(false),
-  details_submitted: z.boolean().default(false),
+export const STRIPE_V2_VERSION = "2026-08-26.dahlia";
+
+export const stripeV2AccountSchema = z.object({
+  applied_configurations: z.array(z.string()).default([]),
+  configuration: z
+    .object({
+      merchant: z
+        .object({
+          capabilities: z
+            .object({
+              card_payments: z
+                .object({
+                  status: z.string().default("inactive"),
+                })
+                .default({ status: "inactive" }),
+              stripe_balance: z
+                .object({
+                  payouts: z
+                    .object({
+                      status: z.string().default("inactive"),
+                    })
+                    .default({ status: "inactive" }),
+                })
+                .optional(),
+            })
+            .default({ card_payments: { status: "inactive" } }),
+        })
+        .optional(),
+    })
+    .default({}),
+  dashboard: z.enum(["full", "express", "none"]).default("full"),
+  defaults: z
+    .object({
+      responsibilities: z
+        .object({
+          fees_collector: z.string().default("stripe"),
+          losses_collector: z.string().default("stripe"),
+          requirements_collector: z.string().default("stripe"),
+        })
+        .default({
+          fees_collector: "stripe",
+          losses_collector: "stripe",
+          requirements_collector: "stripe",
+        }),
+    })
+    .default({
+      responsibilities: {
+        fees_collector: "stripe",
+        losses_collector: "stripe",
+        requirements_collector: "stripe",
+      },
+    }),
   id: z.string().regex(/^acct_[A-Za-z0-9]+$/),
-  payouts_enabled: z.boolean().default(false),
+  livemode: z.boolean().default(false),
+  metadata: z.record(z.string(), z.string()).default({}),
+  object: z.literal("v2.core.account"),
   requirements: z
-    .object({ currently_due: z.array(z.string()).default([]) })
-    .default({ currently_due: [] }),
+    .object({
+      currently_due: z.array(z.string()).default([]),
+      eventually_due: z.array(z.string()).default([]),
+      past_due: z.array(z.string()).default([]),
+    })
+    .default({
+      currently_due: [],
+      eventually_due: [],
+      past_due: [],
+    }),
+});
+
+export type StripeV2Account = z.infer<typeof stripeV2AccountSchema>;
+
+const stripeV2AccountLinkSchema = z.object({
+  object: z.literal("v2.core.account_link").optional(),
+  url: z.url(),
 });
 
 const stripeCheckoutSessionSchema = z.object({
@@ -15,15 +81,30 @@ const stripeCheckoutSessionSchema = z.object({
   url: z.url(),
 });
 
-type StripeAccount = z.infer<typeof stripeAccountSchema>;
-
 export class StripeConnectError extends Error {
   readonly status: number;
+  readonly code: string;
+  readonly requestId: string | undefined;
+  readonly requestLogUrl: string | undefined;
+  readonly safeMessage: string;
 
-  constructor(message: string, status = 503) {
+  constructor(
+    message: string,
+    status = 503,
+    options?: {
+      readonly code?: string | undefined;
+      readonly requestId?: string | undefined;
+      readonly requestLogUrl?: string | undefined;
+    },
+  ) {
     super(message);
     this.name = "StripeConnectError";
     this.status = status;
+    this.code =
+      options?.code ?? (status >= 500 ? "stripe_connect_unavailable" : "stripe_connect_error");
+    this.requestId = options?.requestId;
+    this.requestLogUrl = options?.requestLogUrl;
+    this.safeMessage = message;
   }
 }
 
@@ -37,16 +118,141 @@ export class StripeCheckoutError extends Error {
   }
 }
 
-export function stripeAccountIsReady(account: {
-  readonly charges_enabled: boolean;
-  readonly payouts_enabled: boolean;
-  readonly requirements: { readonly currently_due: readonly string[] };
-}): boolean {
+export interface StripeAccountReadiness {
+  readonly cardPaymentsStatus: string;
+  readonly chargesEnabled: boolean;
+  readonly configurationValid: boolean;
+  readonly dashboardType: string;
+  readonly detailsSubmitted: boolean;
+  readonly feesCollector: string;
+  readonly lossesCollector: string;
+  readonly payoutsEnabled: boolean;
+  readonly payoutsStatus: string;
+  readonly ready: boolean;
+  readonly requirementsDue: string[];
+  readonly status: "not_started" | "onboarding" | "restricted" | "ready";
+}
+
+function isResponsibilitiesValid(account: StripeV2Account): boolean {
+  const responsibilities = account.defaults.responsibilities;
+  const reqCollector = responsibilities.requirements_collector;
   return (
-    account.charges_enabled &&
-    account.payouts_enabled &&
-    account.requirements.currently_due.length === 0
+    account.dashboard === "full" &&
+    responsibilities.fees_collector === "stripe" &&
+    responsibilities.losses_collector === "stripe" &&
+    (reqCollector === "stripe" || !reqCollector)
   );
+}
+
+function resolveReadinessStatus(
+  validConfig: boolean,
+  cardPaymentsStatus: string,
+  payoutsStatus: string,
+  hasPastDue: boolean,
+  hasCurrentlyDue: boolean,
+): "not_started" | "onboarding" | "restricted" | "ready" {
+  if (
+    !validConfig ||
+    cardPaymentsStatus === "restricted" ||
+    payoutsStatus === "restricted" ||
+    hasPastDue
+  ) {
+    return "restricted";
+  }
+  if (cardPaymentsStatus === "active" && payoutsStatus === "active" && !hasCurrentlyDue) {
+    return "ready";
+  }
+  return "onboarding";
+}
+
+export function mapStripeAccountReadiness(
+  account: StripeV2Account | null | undefined,
+): StripeAccountReadiness {
+  if (!account?.id) {
+    return {
+      cardPaymentsStatus: "inactive",
+      chargesEnabled: false,
+      configurationValid: true,
+      dashboardType: "full",
+      detailsSubmitted: false,
+      feesCollector: "stripe",
+      lossesCollector: "stripe",
+      payoutsEnabled: false,
+      payoutsStatus: "inactive",
+      ready: false,
+      requirementsDue: [],
+      status: "not_started",
+    };
+  }
+
+  const responsibilities = account.defaults.responsibilities;
+  const configurationValid = isResponsibilitiesValid(account);
+  const cardPaymentsStatus =
+    account.configuration.merchant?.capabilities.card_payments.status ?? "inactive";
+  const payoutsStatus =
+    account.configuration.merchant?.capabilities.stripe_balance?.payouts.status ??
+    (cardPaymentsStatus === "active" ? "active" : "inactive");
+  const currentlyDue = account.requirements.currently_due;
+  const pastDue = account.requirements.past_due;
+
+  const chargesEnabled = cardPaymentsStatus === "active";
+  const payoutsEnabled = payoutsStatus === "active";
+  const detailsSubmitted = cardPaymentsStatus !== "inactive" || currentlyDue.length > 0;
+
+  const status = resolveReadinessStatus(
+    configurationValid,
+    cardPaymentsStatus,
+    payoutsStatus,
+    pastDue.length > 0,
+    currentlyDue.length > 0,
+  );
+
+  return {
+    cardPaymentsStatus,
+    chargesEnabled,
+    configurationValid,
+    dashboardType: account.dashboard,
+    detailsSubmitted,
+    feesCollector: responsibilities.fees_collector,
+    lossesCollector: responsibilities.losses_collector,
+    payoutsEnabled,
+    payoutsStatus,
+    ready: status === "ready",
+    requirementsDue: currentlyDue,
+    status,
+  };
+}
+
+export interface StripeReadinessCandidate {
+  readonly charges_enabled?: boolean;
+  readonly payouts_enabled?: boolean;
+  readonly requirements?: { readonly currently_due?: readonly string[] };
+  readonly chargesEnabled?: boolean;
+  readonly payoutsEnabled?: boolean;
+  readonly requirementsDue?: readonly string[];
+  readonly status?: string;
+  readonly ready?: boolean;
+  readonly object?: string;
+}
+
+function isStripeV2Candidate(candidate: StripeReadinessCandidate): candidate is StripeV2Account {
+  return candidate.object === "v2.core.account";
+}
+
+export function stripeAccountIsReady(account: StripeReadinessCandidate): boolean {
+  if (typeof account.ready === "boolean") {
+    return account.ready;
+  }
+  if (isStripeV2Candidate(account)) {
+    return mapStripeAccountReadiness(account).status === "ready";
+  }
+  if (typeof account.status === "string") {
+    return account.status === "ready";
+  }
+  const charges = Boolean(account.chargesEnabled ?? account.charges_enabled);
+  const payouts = Boolean(account.payoutsEnabled ?? account.payouts_enabled);
+  const due = account.requirementsDue ?? account.requirements?.currently_due ?? [];
+  return charges && payouts && due.length === 0;
 }
 
 export function stripeConnectSetupUrl(origin: string, result: "refresh" | "return"): string {
@@ -72,7 +278,37 @@ function stripeMessage(body: unknown): string {
     : "Stripe Connect could not complete the request.";
 }
 
-async function stripeRequest(
+function parseStripeErrorPayload(
+  response: Response,
+  body: unknown,
+): {
+  readonly code: string | undefined;
+  readonly message: string;
+  readonly requestId: string | undefined;
+  readonly requestLogUrl: string | undefined;
+} {
+  let errorObj: Record<string, unknown> | null = null;
+  if (
+    typeof body === "object" &&
+    body !== null &&
+    "error" in body &&
+    typeof body.error === "object" &&
+    body.error !== null
+  ) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- safe narrowing of error payload
+    errorObj = body.error as Record<string, unknown>;
+  }
+  const code = typeof errorObj?.code === "string" ? errorObj.code : undefined;
+  const message = typeof errorObj?.message === "string" ? errorObj.message : stripeMessage(body);
+  const requestId =
+    response.headers.get("request-id") ??
+    (typeof errorObj?.request_id === "string" ? errorObj.request_id : undefined);
+  const requestLogUrl =
+    typeof errorObj?.request_log_url === "string" ? errorObj.request_log_url : undefined;
+  return { code, message, requestId, requestLogUrl };
+}
+
+export async function stripeV1Request(
   secretKey: string,
   path: string,
   init: {
@@ -94,8 +330,49 @@ async function stripeRequest(
   const response = await fetch(`https://api.stripe.com${path}`, requestInit);
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const ErrorType = init.errorType === "checkout" ? StripeCheckoutError : StripeConnectError;
-    throw new ErrorType(stripeMessage(body), response.status);
+    const { code, message, requestId, requestLogUrl } = parseStripeErrorPayload(response, body);
+    if (init.errorType === "checkout") {
+      throw new StripeCheckoutError(message, response.status);
+    }
+    throw new StripeConnectError(message, response.status, {
+      code,
+      requestId,
+      requestLogUrl,
+    });
+  }
+  return body;
+}
+
+export async function stripeV2Request(
+  secretKey: string,
+  path: string,
+  init: {
+    readonly body?: unknown;
+    readonly method: "GET" | "POST";
+    readonly idempotencyKey?: string;
+  },
+): Promise<unknown> {
+  const headers = new Headers({
+    authorization: `Bearer ${secretKey}`,
+    "stripe-version": STRIPE_V2_VERSION,
+  });
+  if (init.body !== undefined) {
+    headers.set("content-type", "application/json");
+  }
+  if (init.idempotencyKey) headers.set("idempotency-key", init.idempotencyKey);
+  const requestInit: RequestInit = { headers, method: init.method };
+  if (init.body !== undefined) {
+    requestInit.body = JSON.stringify(init.body);
+  }
+  const response = await fetch(`https://api.stripe.com${path}`, requestInit);
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const { code, message, requestId, requestLogUrl } = parseStripeErrorPayload(response, body);
+    throw new StripeConnectError(message, response.status, {
+      code,
+      requestId,
+      requestLogUrl,
+    });
   }
   return body;
 }
@@ -153,11 +430,11 @@ export async function createStripeCheckoutSession(
     body.set(`payment_intent_data[metadata][${key}]`, value);
   }
   return stripeCheckoutSessionSchema.parse(
-    await stripeRequest(secretKey, "/v1/checkout/sessions", {
+    await stripeV1Request(secretKey, "/v1/checkout/sessions", {
       body,
+      errorType: "checkout",
       idempotencyKey: `payment-checkout-${input.metadata.checkout_request_id ?? crypto.randomUUID()}`,
       method: "POST",
-      errorType: "checkout",
       stripeAccount: connectedAccountId,
     }),
   );
@@ -170,7 +447,7 @@ export async function createStripeRefund(
   idempotencyKey: string,
 ): Promise<{ readonly id: string; readonly status: string }> {
   const body = new URLSearchParams({ payment_intent: providerPaymentId });
-  const result: unknown = await stripeRequest(secretKey, "/v1/refunds", {
+  const result: unknown = await stripeV1Request(secretKey, "/v1/refunds", {
     body,
     errorType: "connect",
     idempotencyKey,
@@ -187,32 +464,58 @@ export async function createStripeConnectedAccount(
   secretKey: string,
   organizationId: string,
   organizationName: string,
-): Promise<StripeAccount> {
-  const body = new URLSearchParams({
-    "business_profile[name]": organizationName,
-    "capabilities[card_payments][requested]": "true",
-    "capabilities[transfers][requested]": "true",
-    "metadata[organization_id]": organizationId,
-    type: "express",
+  country = "US",
+): Promise<StripeV2Account> {
+  const body = {
+    configuration: {
+      merchant: {
+        capabilities: {
+          card_payments: {
+            requested: true,
+          },
+        },
+      },
+    },
+    dashboard: "full",
+    defaults: {
+      responsibilities: {
+        fees_collector: "stripe",
+        losses_collector: "stripe",
+      },
+    },
+    display_name: organizationName,
+    identity: {
+      country,
+    },
+    include: ["configuration.merchant", "defaults", "requirements"],
+    metadata: {
+      organization_id: organizationId,
+    },
+  };
+
+  const response = await stripeV2Request(secretKey, "/v2/core/accounts", {
+    body,
+    idempotencyKey: `organization-${organizationId}`,
+    method: "POST",
   });
-  return stripeAccountSchema.parse(
-    await stripeRequest(secretKey, "/v1/accounts", {
-      body,
-      idempotencyKey: `organization-${organizationId}`,
-      method: "POST",
-    }),
-  );
+  return stripeV2AccountSchema.parse(response);
 }
 
 export async function retrieveStripeConnectedAccount(
   secretKey: string,
   accountId: string,
-): Promise<StripeAccount> {
-  return stripeAccountSchema.parse(
-    await stripeRequest(secretKey, `/v1/accounts/${encodeURIComponent(accountId)}`, {
-      method: "GET",
-    }),
+): Promise<StripeV2Account> {
+  const query = new URLSearchParams([
+    ["include[0]", "configuration.merchant"],
+    ["include[1]", "defaults"],
+    ["include[2]", "requirements"],
+  ]);
+  const response = await stripeV2Request(
+    secretKey,
+    `/v2/core/accounts/${encodeURIComponent(accountId)}?${query.toString()}`,
+    { method: "GET" },
   );
+  return stripeV2AccountSchema.parse(response);
 }
 
 export async function createStripeAccountOnboardingLink(
@@ -221,19 +524,28 @@ export async function createStripeAccountOnboardingLink(
   returnUrl: string,
   refreshUrl: string,
 ): Promise<string> {
-  const body = new URLSearchParams({
+  const body = {
     account: accountId,
-    "collection_options[fields]": "eventually_due",
-    refresh_url: refreshUrl,
-    return_url: returnUrl,
-    type: "account_onboarding",
+    use_case: {
+      account_onboarding: {
+        collection_options: {
+          fields: "eventually_due",
+        },
+        configurations: ["merchant"],
+        refresh_url: refreshUrl,
+        return_url: returnUrl,
+      },
+      type: "account_onboarding",
+    },
+  };
+
+  const response = await stripeV2Request(secretKey, "/v2/core/account_links", {
+    body,
+    method: "POST",
   });
-  const response = await stripeRequest(secretKey, "/v1/account_links", { body, method: "POST" });
-  const url = z
-    .url()
-    .safeParse(
-      typeof response === "object" && response !== null && "url" in response ? response.url : null,
-    );
-  if (!url.success) throw new StripeConnectError("Stripe did not return an onboarding link.");
-  return url.data;
+  const parsed = stripeV2AccountLinkSchema.safeParse(response);
+  if (!parsed.success) {
+    throw new StripeConnectError("Stripe did not return a valid onboarding link.");
+  }
+  return parsed.data.url;
 }

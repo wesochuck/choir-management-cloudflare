@@ -31,6 +31,12 @@ export async function readOrganizationStripeStatus(
       payoutsEnabled: z.boolean(),
       requirementsDue: z.array(z.string()),
       status: z.enum(["not_started", "onboarding", "restricted", "ready"]),
+      cardPaymentsStatus: z.string().optional(),
+      dashboardType: z.string().optional(),
+      feesCollector: z.string().optional(),
+      lastSyncedAt: z.string().nullable().optional(),
+      lossesCollector: z.string().optional(),
+      payoutsStatus: z.string().optional(),
     })
     .safeParse(await response.json().catch(() => null));
   if (!response.ok || !status.success) throw new Error("stripe_status_unavailable");

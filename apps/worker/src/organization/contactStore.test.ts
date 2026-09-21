@@ -255,7 +255,7 @@ describe("contact schema migrations with real SQLite", () => {
     createAdapter(db);
     runMigrations(db);
 
-    expect(currentOrganizationSchemaVersion).toBe(84);
+    expect(currentOrganizationSchemaVersion).toBe(85);
     const tables = new Set<string>();
     for (const row of dbAllUnknown(db, "SELECT name FROM sqlite_master WHERE type = 'table'")) {
       if (isNameRow(row)) tables.add(row.name);
@@ -314,7 +314,7 @@ describe("contact schema migrations with real SQLite", () => {
     )) {
       if (isVersionRow(row)) versions.push(row.version);
     }
-    expect(versions.at(-1)).toBe(84);
+    expect(versions.at(-1)).toBe(currentOrganizationSchemaVersion);
   });
 
   it("migrates from the pre-contacts schema while preserving existing rows", () => {

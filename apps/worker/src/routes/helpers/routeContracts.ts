@@ -186,6 +186,7 @@ export function providerSetupChecks(
     | "PLATFORM_EMAIL_MODE"
     | "STRIPE_SECRET_KEY"
     | "STRIPE_WEBHOOK_SECRET"
+    | "STRIPE_V2_EVENT_DESTINATION_SECRET"
   >,
   mode: "disabled" | "fake" | "sandbox",
 ): ProviderSetupChecks {
@@ -195,7 +196,9 @@ export function providerSetupChecks(
     env.PLATFORM_EMAIL_MODE !== "disabled";
   const brevoApiKeyConfigured = Boolean(env.BREVO_API_KEY?.trim());
   const brevoSmsSenderConfigured = Boolean(env.BREVO_SMS_SENDER?.trim());
-  const stripeWebhookReady = Boolean(env.STRIPE_WEBHOOK_SECRET?.trim());
+  const stripeWebhookReady = Boolean(
+    (env.STRIPE_WEBHOOK_SECRET ?? env.STRIPE_V2_EVENT_DESTINATION_SECRET)?.trim(),
+  );
   const stripePlatformReady = Boolean(env.STRIPE_SECRET_KEY?.trim());
 
   const brevo =

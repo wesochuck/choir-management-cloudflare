@@ -57,6 +57,7 @@ export interface Env {
   readonly STRIPE_SECRET_KEY?: string | undefined;
   readonly STRIPE_PAYMENTS_ENABLED?: string | undefined;
   readonly STRIPE_WEBHOOK_SECRET?: string | undefined;
+  readonly STRIPE_V2_EVENT_DESTINATION_SECRET?: string | undefined;
   readonly STATUS_AUTOMATION_FIXTURE_MODE?: string | undefined;
 }
 

@@ -1,7 +1,6 @@
 import { z } from "zod";
 
 const stripeEventTypeSchema = z.enum([
-  "account.updated",
   "charge.dispute.created",
   "charge.dispute.closed",
   "charge.dispute.funds_reinstated",
@@ -25,6 +24,23 @@ export const stripeEventSchema = z.object({
 });
 
 export type StripeEvent = z.infer<typeof stripeEventSchema>;
+
+export const stripeV2EventSchema = z.object({
+  context: z.string().nullable().optional(),
+  id: z.string().trim().min(1).max(256),
+  livemode: z.boolean(),
+  object: z.literal("v2.core.event").default("v2.core.event"),
+  related_object: z
+    .object({
+      id: z.string().regex(/^acct_[A-Za-z0-9]+$/),
+      type: z.string().optional(),
+      url: z.string().optional(),
+    })
+    .optional(),
+  type: z.string().trim().min(1).max(256),
+});
+
+export type StripeV2Event = z.infer<typeof stripeV2EventSchema>;
 
 export function stripeCheckoutSessionIsPaid(object: Readonly<Record<string, unknown>>): boolean {
   return object.payment_status === "paid";
