@@ -50,6 +50,9 @@ export function stripeAccountIsReady(account: {
 }
 
 export function stripeConnectSetupUrl(origin: string, result: "refresh" | "return"): string {
+  if (result === "refresh") {
+    return new URL("/api/organization/stripe-connect/refresh", origin).toString();
+  }
   const url = new URL("/admin/settings/setup-checklist", origin);
   url.searchParams.set("stripe", result);
   url.hash = "provider-status-title";
@@ -147,6 +150,7 @@ export async function createStripeCheckoutSession(
   if (input.customerEmail) body.set("customer_email", input.customerEmail);
   for (const [key, value] of Object.entries(input.metadata)) {
     body.set(`metadata[${key}]`, value);
+    body.set(`payment_intent_data[metadata][${key}]`, value);
   }
   return stripeCheckoutSessionSchema.parse(
     await stripeRequest(secretKey, "/v1/checkout/sessions", {
@@ -219,7 +223,7 @@ export async function createStripeAccountOnboardingLink(
 ): Promise<string> {
   const body = new URLSearchParams({
     account: accountId,
-    collect: "eventually_due",
+    "collection_options[fields]": "eventually_due",
     refresh_url: refreshUrl,
     return_url: returnUrl,
     type: "account_onboarding",

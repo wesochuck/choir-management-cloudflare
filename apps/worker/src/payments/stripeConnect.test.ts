@@ -43,7 +43,7 @@ describe("Stripe Connect provider contract", () => {
       "https://lcc.staging.musicsite.org/admin/settings/setup-checklist?stripe=return#provider-status-title",
     );
     expect(stripeConnectSetupUrl("https://lcc.staging.musicsite.org", "refresh")).toBe(
-      "https://lcc.staging.musicsite.org/admin/settings/setup-checklist?stripe=refresh#provider-status-title",
+      "https://lcc.staging.musicsite.org/api/organization/stripe-connect/refresh",
     );
   });
 
@@ -63,9 +63,11 @@ describe("Stripe Connect provider contract", () => {
           { productName: "Processing fee", quantity: 1, unitAmountCents: 100 },
         ],
         metadata: {
+          bundle_id: "bundle-123",
           checkout_request_id: "checkout-request-1",
           organization_id: "organization-alpha",
           payment_type: "bundle",
+          purchase_id: "purchase-456",
         },
         organizationName: "Example Choir",
         successUrl: "https://choir.example.test/success",
@@ -84,8 +86,48 @@ describe("Stripe Connect provider contract", () => {
       const body = new URLSearchParams(requestBody(request));
       expect(body.get("customer_email")).toBe("singer@example.test");
       expect(body.get("metadata[organization_id]")).toBe("organization-alpha");
+      expect(body.get("metadata[payment_type]")).toBe("bundle");
+      expect(body.get("metadata[checkout_request_id]")).toBe("checkout-request-1");
+      expect(body.get("metadata[bundle_id]")).toBe("bundle-123");
+      expect(body.get("metadata[purchase_id]")).toBe("purchase-456");
+
+      expect(body.get("payment_intent_data[metadata][organization_id]")).toBe("organization-alpha");
+      expect(body.get("payment_intent_data[metadata][payment_type]")).toBe("bundle");
+      expect(body.get("payment_intent_data[metadata][checkout_request_id]")).toBe(
+        "checkout-request-1",
+      );
+      expect(body.get("payment_intent_data[metadata][bundle_id]")).toBe("bundle-123");
+      expect(body.get("payment_intent_data[metadata][purchase_id]")).toBe("purchase-456");
+
       expect(body.get("line_items[0][price_data][unit_amount]")).toBe("1500");
       expect(body.get("line_items[1][price_data][unit_amount]")).toBe("100");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("creates account onboarding links using modernized collection_options", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ url: "https://connect.stripe.test/onboarding" }));
+    try {
+      const { createStripeAccountOnboardingLink } = await import("./stripeConnect");
+      const url = await createStripeAccountOnboardingLink(
+        "sk_test_secret",
+        "acct_test",
+        "https://example.test/return",
+        "https://example.test/refresh",
+      );
+      expect(url).toBe("https://connect.stripe.test/onboarding");
+      const [requestUrl, request] = fetchSpy.mock.calls[0] ?? [];
+      expect(requestUrl).toBe("https://api.stripe.com/v1/account_links");
+      const body = new URLSearchParams(requestBody(request));
+      expect(body.get("account")).toBe("acct_test");
+      expect(body.get("type")).toBe("account_onboarding");
+      expect(body.get("collection_options[fields]")).toBe("eventually_due");
+      expect(body.get("collect")).toBeNull();
+      expect(body.get("return_url")).toBe("https://example.test/return");
+      expect(body.get("refresh_url")).toBe("https://example.test/refresh");
     } finally {
       fetchSpy.mockRestore();
     }

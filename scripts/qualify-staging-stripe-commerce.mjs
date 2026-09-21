@@ -12,6 +12,7 @@ const buyerEmail = (process.env.STAGING_TICKET_BUYER_EMAIL ?? email).trim().toLo
 const organizationHost = `https://${organizationSlug}.${productHostname}`;
 const wrongOrganizationHost = `https://${wrongOrganizationSlug}.${productHostname}`;
 const planOnly = process.argv.includes("--plan-only");
+const skipLivePayment = process.argv.includes("--skip-live-payment");
 
 if (!/^[a-z0-9-]+$/.test(organizationSlug) || !/^[a-z0-9-]+$/.test(wrongOrganizationSlug)) {
   throw new Error("Organization slugs must contain only lowercase letters, numbers, or hyphens.");
@@ -53,6 +54,54 @@ export function stripeCommerceQualificationPlan() {
   ];
 }
 
+export function normalizeQualificationStatus(value) {
+  if (value === "passed" || value === true) return "passed";
+  if (value === "skipped") return "skipped";
+  if (value === "failed" || value === false) return "failed";
+  if (value === "not_run") return "not_run";
+  return "not_run";
+}
+
+export function parseStripeConnectStatus(body) {
+  const stripe =
+    typeof body?.stripe === "object" && body?.stripe !== null
+      ? body.stripe
+      : typeof body === "object" && body !== null
+        ? body
+        : {};
+  const platformConfigured = Boolean(body?.platformConfigured);
+  const accountId =
+    typeof stripe.accountId === "string" && stripe.accountId.length > 0 ? stripe.accountId : null;
+  const rawStatus = typeof stripe.status === "string" ? stripe.status : "not_started";
+  const chargesEnabled = Boolean(stripe.chargesEnabled);
+  const payoutsEnabled = Boolean(stripe.payoutsEnabled);
+  const detailsSubmitted = Boolean(stripe.detailsSubmitted);
+  const requirementsDue = Array.isArray(stripe.requirementsCurrentlyDue)
+    ? stripe.requirementsCurrentlyDue
+    : Array.isArray(stripe.requirementsDue)
+      ? stripe.requirementsDue
+      : [];
+
+  const state = !accountId
+    ? "unconnected"
+    : rawStatus === "ready" && chargesEnabled && payoutsEnabled && requirementsDue.length === 0
+      ? "ready"
+      : rawStatus === "restricted" || (accountId && !chargesEnabled && detailsSubmitted)
+        ? "restricted"
+        : "pending_onboarding";
+
+  return {
+    accountId,
+    chargesEnabled,
+    detailsSubmitted,
+    payoutsEnabled,
+    platformConfigured,
+    rawStatus,
+    requirementsDue,
+    state,
+  };
+}
+
 export function ticketReceiptMatches(body, eventId, purchaseId) {
   return body?.id === purchaseId && body?.eventId === eventId && body?.status === "paid";
 }
@@ -66,18 +115,21 @@ export function commerceBoundaryResponsesSafe(responses) {
 
 export function safeStripeCommerceQualificationSummary(input) {
   return {
-    cleanupCompleted: input.cleanupCompleted === true,
-    crossOrganizationRejected: input.crossOrganizationRejected === true,
-    donationsQualified: input.donationsQualified === true,
-    duesQualified: input.duesQualified === true,
+    accountState: typeof input.accountState === "string" ? input.accountState : "unconnected",
+    cleanupCompleted: normalizeQualificationStatus(input.cleanupCompleted),
+    crossOrganizationRejected: normalizeQualificationStatus(input.crossOrganizationRejected),
+    donationsQualified: normalizeQualificationStatus(input.donationsQualified),
+    duesQualified: normalizeQualificationStatus(input.duesQualified),
     eventId: input.eventId ?? null,
     purchaseId: input.purchaseId ?? null,
-    receiptAccessible: input.receiptAccessible === true,
-    refundCompleted: input.refundCompleted === true,
-    resendCompleted: input.resendCompleted === true,
-    stripeAccountReady: input.stripeAccountReady === true,
-    ticketingQualified: input.ticketingQualified === true,
-    webhookRejectedInvalidSignature: input.webhookRejectedInvalidSignature === true,
+    receiptAccessible: normalizeQualificationStatus(input.receiptAccessible),
+    refundCompleted: normalizeQualificationStatus(input.refundCompleted),
+    resendCompleted: normalizeQualificationStatus(input.resendCompleted),
+    stripeAccountReady: normalizeQualificationStatus(input.stripeAccountReady),
+    ticketingQualified: normalizeQualificationStatus(input.ticketingQualified),
+    webhookRejectedInvalidSignature: normalizeQualificationStatus(
+      input.webhookRejectedInvalidSignature,
+    ),
   };
 }
 
@@ -116,22 +168,21 @@ async function verifyStripeAccountReady(cookie) {
       `Stripe connect status check failed with ${requestFailure(result.response.status, result.body)}.`,
     );
   }
-  const status = result.body?.status;
-  const accountId = result.body?.accountId;
+  const parsed = parseStripeConnectStatus(result.body);
   console.log(
-    `Stripe Connect Status: ${status ?? "unknown"} (Account: ${accountId ? "configured" : "none"})`,
+    `Stripe Connect Status: ${parsed.rawStatus} -> State: ${parsed.state} (Account: ${parsed.accountId ?? "none"}, Charges: ${String(parsed.chargesEnabled)}, Payouts: ${String(parsed.payoutsEnabled)}, Requirements Due: ${parsed.requirementsDue.length})`,
   );
-  return status === "ready" || Boolean(accountId);
+  return parsed;
 }
 
-async function createTicketedPerformance(cookie) {
+async function createTicketedPerformance(cookie, priceCents = 0) {
   const now = new Date();
   const startsAt = new Date(now.getTime() + 6 * 60 * 60 * 1000).toISOString();
   const title = `QUAL-${now.toISOString().slice(0, 10)} Commerce ${crypto.randomUUID().slice(0, 8)}`;
   const result = await request(`${organizationHost}/api/organization/events`, "POST", cookie, {
-    advancePriceCents: 0,
+    advancePriceCents: priceCents,
     callTime: "",
-    dayOfPriceCents: 0,
+    dayOfPriceCents: priceCents,
     details: "Controlled commercial qualification fixture.",
     doorsOpenTime: "",
     durationMinutes: 60,
@@ -178,10 +229,12 @@ async function executeTicketCheckout(eventId) {
       `Ticket checkout failed with ${requestFailure(result.response.status, result.body)}.`,
     );
   }
-  const purchase = result.body.purchase;
   return {
-    purchaseId: uuid(purchase.id, "Ticket purchase ID"),
+    checkoutMode: result.body.checkoutMode,
+    purchaseId: uuid(result.body.purchase.id, "Ticket purchase ID"),
+    status: result.body.purchase.status,
     successToken: result.body.successToken,
+    url: result.body.url,
   };
 }
 
@@ -270,7 +323,6 @@ async function qualifyDonations(cookie) {
     );
   }
 
-  // Inspect existing donations
   const listResult = await request(`${organizationHost}/api/organization/donations`, "GET", cookie);
   if (listResult.response.status === 200 && Array.isArray(listResult.body?.donations)) {
     const existing = listResult.body.donations[0];
@@ -279,7 +331,6 @@ async function qualifyDonations(cookie) {
     }
   }
 
-  // Test cross-tenant isolation for donations
   if (donationId) {
     const wrongOrgRefund = await request(
       `${wrongOrganizationHost}/api/organization/donations/${encodeURIComponent(donationId)}/refund`,
@@ -291,7 +342,7 @@ async function qualifyDonations(cookie) {
     }
   }
 
-  return true;
+  return "passed";
 }
 
 async function qualifyDues(cookie) {
@@ -308,7 +359,6 @@ async function qualifyDues(cookie) {
   const seasons = Array.isArray(seasonsResult.body?.seasons) ? seasonsResult.body.seasons : [];
   console.log(`Found ${String(seasons.length)} active seasons on target Organization.`);
 
-  // Test wrong organization isolation on dues refund with a dummy/probe UUID
   const probeDuesId = crypto.randomUUID();
   const wrongOrgDuesRefund = await request(
     `${wrongOrganizationHost}/api/organization/dues/${probeDuesId}/refund`,
@@ -319,7 +369,7 @@ async function qualifyDues(cookie) {
     throw new Error("Wrong organization host unexpectedly allowed dues refund access.");
   }
 
-  return true;
+  return "passed";
 }
 
 async function qualifyStripeWebhook() {
@@ -331,7 +381,7 @@ async function qualifyStripeWebhook() {
       `Stripe webhook unexpectedly returned ${requestFailure(result.response.status, result.body)}; expected 400 invalid_webhook_signature.`,
     );
   }
-  return true;
+  return "passed";
 }
 
 async function main() {
@@ -351,21 +401,59 @@ async function main() {
   console.log("✅ Authenticated staging session active.\n");
 
   console.log("Step 2: Checking Stripe Connect Account Status...");
-  const stripeAccountReady = await verifyStripeAccountReady(cookie);
-  console.log("✅ Stripe account verification complete.\n");
+  const stripeStatus = await verifyStripeAccountReady(cookie);
+  const stripeAccountReady = stripeStatus.state === "ready" ? "passed" : "failed";
+  if (stripeStatus.state !== "ready") {
+    console.log(
+      `⚠️ Stripe Connect account is in '${stripeStatus.state}' state (not 'ready'). Commercial payment qualification cannot proceed until Stripe onboarding is finished.\n`,
+    );
+  } else {
+    console.log("✅ Stripe account is fully configured and ready for charges & payouts.\n");
+  }
+
+  if (stripeStatus.state === "ready" && !skipLivePayment) {
+    console.log("Step 2b: Verifying Stripe Checkout Session creation with paid tier...");
+    try {
+      const paidEventId = await createTicketedPerformance(cookie, 1500);
+      try {
+        const paidCheckoutResult = await executeTicketCheckout(paidEventId);
+        if (
+          paidCheckoutResult.checkoutMode === "stripe" &&
+          typeof paidCheckoutResult.url === "string"
+        ) {
+          console.log(
+            `✅ Stripe Checkout Session created successfully on connected account: ${paidCheckoutResult.url}`,
+          );
+          console.log(
+            "ℹ️ Interactive card entry is required to complete paid orders in a browser; proceeding with automated qualification fixture.\n",
+          );
+        }
+      } finally {
+        await archiveEvent(cookie, paidEventId);
+      }
+    } catch (error) {
+      console.warn(
+        "⚠️ Paid checkout qualification probe failed:",
+        error instanceof Error ? error.message : error,
+      );
+    }
+  } else if (skipLivePayment) {
+    console.log("ℹ️ Paid checkout session probe skipped via --skip-live-payment.\n");
+  }
 
   console.log("Step 3: Creating Qualification Performance...");
-  const eventId = await createTicketedPerformance(cookie);
+  const eventId = await createTicketedPerformance(cookie, 0);
   console.log(`✅ Performance created (ID: ${eventId}).\n`);
 
   const state = {
-    cleanupCompleted: false,
-    crossOrganizationRejected: false,
+    cleanupCompleted: "not_run",
+    crossOrganizationRejected: "not_run",
     purchaseId: null,
-    receiptAccessible: false,
-    refundCompleted: false,
-    resendCompleted: false,
+    receiptAccessible: "not_run",
+    refundCompleted: "not_run",
+    resendCompleted: "not_run",
     successToken: null,
+    ticketingQualified: "not_run",
   };
 
   try {
@@ -373,16 +461,17 @@ async function main() {
     const checkoutResult = await executeTicketCheckout(eventId);
     state.purchaseId = checkoutResult.purchaseId;
     state.successToken = checkoutResult.successToken;
+    state.ticketingQualified = "passed";
     console.log(`✅ Ticket purchase created (ID: ${state.purchaseId}).\n`);
 
     console.log("Step 5: Verifying Signed Ticket Receipt...");
     await verifyCanonicalReceipt(state.successToken, eventId, state.purchaseId);
-    state.receiptAccessible = true;
+    state.receiptAccessible = "passed";
     console.log("✅ Signed ticket receipt verified.\n");
 
     console.log("Step 6: Delivering Ticket Confirmation Resend...");
     await resendTicketConfirmation(cookie, state.purchaseId);
-    state.resendCompleted = true;
+    state.resendCompleted = "passed";
     console.log("✅ Ticket confirmation resend queued.\n");
 
     console.log("Step 7: Testing Cross-Organization Isolation...");
@@ -404,19 +493,23 @@ async function main() {
       ),
     ]);
     if (!commerceBoundaryResponsesSafe(crossOrgResponses)) {
+      state.crossOrganizationRejected = "failed";
       throw new Error("Cross-organization boundary checks failed.");
     }
-    state.crossOrganizationRejected = true;
+    state.crossOrganizationRejected = "passed";
     console.log("✅ Cross-organization isolation confirmed.\n");
 
     console.log("Step 8: Processing Ticket Refund...");
     await refundTicketPurchase(cookie, state.purchaseId);
-    state.refundCompleted = true;
+    state.refundCompleted = "passed";
     console.log("✅ Ticket refund completed and capacity restored.\n");
+  } catch (error) {
+    if (state.ticketingQualified === "not_run") state.ticketingQualified = "failed";
+    throw error;
   } finally {
     console.log("Step 9: Archiving Qualification Performance...");
     await archiveEvent(cookie, eventId);
-    state.cleanupCompleted = true;
+    state.cleanupCompleted = "passed";
     console.log("✅ Performance archived.\n");
   }
 
@@ -433,6 +526,7 @@ async function main() {
   console.log("✅ Stripe webhook rejected invalid signature with HTTP 400.\n");
 
   const summary = safeStripeCommerceQualificationSummary({
+    accountState: stripeStatus.state,
     cleanupCompleted: state.cleanupCompleted,
     crossOrganizationRejected: state.crossOrganizationRejected,
     donationsQualified,
@@ -443,7 +537,7 @@ async function main() {
     refundCompleted: state.refundCompleted,
     resendCompleted: state.resendCompleted,
     stripeAccountReady,
-    ticketingQualified: true,
+    ticketingQualified: state.ticketingQualified,
     webhookRejectedInvalidSignature,
   });
 

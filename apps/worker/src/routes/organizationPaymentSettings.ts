@@ -271,6 +271,68 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
   });
 
+  router.get("/api/organization/stripe-connect/refresh", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    const requestUrl = new URL(context.req.url);
+    if (!authorization.ok) {
+      const signInUrl = new URL("/sign-in", requestUrl.origin);
+      signInUrl.searchParams.set("returnTo", "/admin/settings/setup-checklist?stripe=refresh");
+      return context.redirect(signInUrl.toString(), 302);
+    }
+    const secretKey = context.env.STRIPE_SECRET_KEY?.trim() ?? "";
+    if (!secretKey) {
+      return context.redirect(
+        new URL(
+          "/admin/settings/setup-checklist?stripe=refresh#provider-status-title",
+          requestUrl.origin,
+        ).toString(),
+        302,
+      );
+    }
+    try {
+      const store = organizationStoreStub(context.env, authorization.organizationId);
+      const statusUrl = new URL("https://organization.internal/internal/stripe-connect");
+      statusUrl.searchParams.set("organizationId", authorization.organizationId);
+      const statusResponse = await invokeOrganizationRpc(store, statusUrl);
+      const status = z
+        .object({
+          accountId: z
+            .string()
+            .regex(/^acct_[A-Za-z0-9]+$/)
+            .nullable(),
+        })
+        .parse(await statusResponse.json());
+      if (!status.accountId) {
+        return context.redirect(
+          new URL(
+            "/admin/settings/setup-checklist?stripe=refresh#provider-status-title",
+            requestUrl.origin,
+          ).toString(),
+          302,
+        );
+      }
+      const account = await retrieveStripeConnectedAccount(secretKey, status.accountId);
+      if (stripeAccountIsReady(account)) {
+        return context.redirect(stripeConnectSetupUrl(requestUrl.origin, "return"), 302);
+      }
+      const onboardingUrl = await createStripeAccountOnboardingLink(
+        secretKey,
+        account.id,
+        stripeConnectSetupUrl(requestUrl.origin, "return"),
+        stripeConnectSetupUrl(requestUrl.origin, "refresh"),
+      );
+      return context.redirect(onboardingUrl, 302);
+    } catch {
+      return context.redirect(
+        new URL(
+          "/admin/settings/setup-checklist?stripe=refresh#provider-status-title",
+          requestUrl.origin,
+        ).toString(),
+        302,
+      );
+    }
+  });
+
   // eslint-disable-next-line complexity -- this endpoint preserves onboarding authorization and provider failures.
   router.post("/api/organization/stripe-connect/onboard", async (context) => {
     const authorization = await authorizeCalendarRoute(context, true);

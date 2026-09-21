@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   commerceBoundaryResponsesSafe,
+  normalizeQualificationStatus,
+  parseStripeConnectStatus,
   safeStripeCommerceQualificationSummary,
   stripeCommerceQualificationPlan,
   ticketReceiptMatches,
@@ -20,6 +22,89 @@ describe("staging Stripe sandbox commercial qualification helpers", () => {
     expect(plan).toContain("season dues");
     expect(plan).toContain("Stripe webhook endpoint rejects invalid signatures");
     expect(plan).toContain("archive the qualification Performance");
+  });
+
+  it("normalizes qualification statuses cleanly", () => {
+    expect(normalizeQualificationStatus("passed")).toBe("passed");
+    expect(normalizeQualificationStatus(true)).toBe("passed");
+    expect(normalizeQualificationStatus("skipped")).toBe("skipped");
+    expect(normalizeQualificationStatus("failed")).toBe("failed");
+    expect(normalizeQualificationStatus(false)).toBe("failed");
+    expect(normalizeQualificationStatus("not_run")).toBe("not_run");
+    expect(normalizeQualificationStatus(undefined)).toBe("not_run");
+  });
+
+  describe("parseStripeConnectStatus", () => {
+    it("identifies unconnected accounts", () => {
+      expect(parseStripeConnectStatus(null).state).toBe("unconnected");
+      expect(parseStripeConnectStatus({}).state).toBe("unconnected");
+      expect(parseStripeConnectStatus({ platformConfigured: false }).state).toBe("unconnected");
+      expect(
+        parseStripeConnectStatus({ stripe: { accountId: null, status: "not_started" } }).state,
+      ).toBe("unconnected");
+    });
+
+    it("identifies pending onboarding accounts", () => {
+      const pending = parseStripeConnectStatus({
+        platformConfigured: true,
+        stripe: {
+          accountId: "acct_12345",
+          chargesEnabled: false,
+          detailsSubmitted: false,
+          payoutsEnabled: false,
+          requirementsDue: ["individual.verification.document"],
+          status: "onboarding",
+        },
+      });
+      expect(pending.state).toBe("pending_onboarding");
+      expect(pending.accountId).toBe("acct_12345");
+      expect(pending.requirementsDue).toHaveLength(1);
+    });
+
+    it("identifies restricted accounts", () => {
+      const restricted = parseStripeConnectStatus({
+        platformConfigured: true,
+        stripe: {
+          accountId: "acct_restricted",
+          chargesEnabled: false,
+          detailsSubmitted: true,
+          payoutsEnabled: true,
+          requirementsDue: [],
+          status: "restricted",
+        },
+      });
+      expect(restricted.state).toBe("restricted");
+    });
+
+    it("requires chargesEnabled, payoutsEnabled, and 0 requirements due for ready state", () => {
+      const notQuiteReady = parseStripeConnectStatus({
+        platformConfigured: true,
+        stripe: {
+          accountId: "acct_almost",
+          chargesEnabled: false,
+          detailsSubmitted: true,
+          payoutsEnabled: true,
+          requirementsDue: [],
+          status: "ready",
+        },
+      });
+      expect(notQuiteReady.state).toBe("restricted");
+
+      const ready = parseStripeConnectStatus({
+        platformConfigured: true,
+        stripe: {
+          accountId: "acct_ready123",
+          chargesEnabled: true,
+          detailsSubmitted: true,
+          payoutsEnabled: true,
+          requirementsCurrentlyDue: [],
+          status: "ready",
+        },
+      });
+      expect(ready.state).toBe("ready");
+      expect(ready.chargesEnabled).toBe(true);
+      expect(ready.payoutsEnabled).toBe(true);
+    });
   });
 
   it("verifies matching ticket receipt payloads", () => {
@@ -54,34 +139,51 @@ describe("staging Stripe sandbox commercial qualification helpers", () => {
     );
   });
 
-  it("formats safe qualification summary without leaking sensitive fields", () => {
+  it("formats safe qualification summary with tri-state status without leaking sensitive fields", () => {
     const summary = safeStripeCommerceQualificationSummary({
-      cleanupCompleted: true,
-      crossOrganizationRejected: true,
-      donationsQualified: true,
-      duesQualified: true,
+      accountState: "ready",
+      cleanupCompleted: "passed",
+      crossOrganizationRejected: "passed",
+      donationsQualified: "passed",
+      duesQualified: "passed",
       eventId: "00000000-0000-4000-8000-000000000001",
       purchaseId: "00000000-0000-4000-8000-000000000002",
-      receiptAccessible: true,
-      refundCompleted: true,
-      resendCompleted: true,
-      stripeAccountReady: true,
-      ticketingQualified: true,
-      webhookRejectedInvalidSignature: true,
+      receiptAccessible: "passed",
+      refundCompleted: "passed",
+      resendCompleted: "passed",
+      stripeAccountReady: "passed",
+      ticketingQualified: "passed",
+      webhookRejectedInvalidSignature: "passed",
     });
     expect(summary).toEqual({
-      cleanupCompleted: true,
-      crossOrganizationRejected: true,
-      donationsQualified: true,
-      duesQualified: true,
+      accountState: "ready",
+      cleanupCompleted: "passed",
+      crossOrganizationRejected: "passed",
+      donationsQualified: "passed",
+      duesQualified: "passed",
       eventId: "00000000-0000-4000-8000-000000000001",
       purchaseId: "00000000-0000-4000-8000-000000000002",
-      receiptAccessible: true,
-      refundCompleted: true,
-      resendCompleted: true,
-      stripeAccountReady: true,
-      ticketingQualified: true,
-      webhookRejectedInvalidSignature: true,
+      receiptAccessible: "passed",
+      refundCompleted: "passed",
+      resendCompleted: "passed",
+      stripeAccountReady: "passed",
+      ticketingQualified: "passed",
+      webhookRejectedInvalidSignature: "passed",
     });
+  });
+
+  it("distinguishes not_run and skipped from failed in qualification summary", () => {
+    const summary = safeStripeCommerceQualificationSummary({
+      accountState: "pending_onboarding",
+      cleanupCompleted: "passed",
+      stripeAccountReady: "failed",
+      ticketingQualified: "skipped",
+      // other fields omitted -> not_run
+    });
+    expect(summary.accountState).toBe("pending_onboarding");
+    expect(summary.stripeAccountReady).toBe("failed");
+    expect(summary.ticketingQualified).toBe("skipped");
+    expect(summary.cleanupCompleted).toBe("passed");
+    expect(summary.refundCompleted).toBe("not_run");
   });
 });

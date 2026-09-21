@@ -41,7 +41,10 @@ import { prepareAttendanceReportJobFromStore } from "../schedulingStore";
 import { recordPaymentDisputeInStore } from "../paymentDisputeStore";
 import { expireStalePaymentsInStore } from "../paymentCleanupStore";
 import { recordPaymentNotificationResultInStore } from "../paymentNotificationStore";
-import { recordProviderRefundRequestedInStore } from "../paymentRefundStore";
+import {
+  reconcileProviderRefundInStore,
+  recordProviderRefundRequestedInStore,
+} from "../paymentRefundStore";
 import { manageSeasonsInStore } from "../seasonStore";
 import { upsertStripeConnectAccountInStore } from "../stripeConnectStore";
 import { ensurePracticePlayerLinkInStore } from "../playerLinkStore";
@@ -111,7 +114,16 @@ export async function dispatchPostRequest(
     return ensurePracticePlayerLinkInStore(storage, request);
   }
   if (pathname === "/internal/payments/manage") {
-    return recordPaymentDisputeInStore(storage, await request.json().catch(() => null));
+    const body: unknown = await request.json().catch(() => null);
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      "action" in body &&
+      body.action === "reconcile_provider_refund"
+    ) {
+      return reconcileProviderRefundInStore(storage, body);
+    }
+    return recordPaymentDisputeInStore(storage, body);
   }
   if (pathname === "/internal/payments/cleanup") {
     return expireStalePaymentsInStore(storage, await request.json().catch(() => null));

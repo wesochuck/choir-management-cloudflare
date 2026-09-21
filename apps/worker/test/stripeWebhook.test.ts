@@ -1,6 +1,11 @@
+import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 
-import { stripeRefundDispatchMatched } from "../src/payments/stripeWebhookHandler";
+import type { Env } from "../src/env";
+import {
+  handleStripeWebhook,
+  stripeRefundDispatchMatched,
+} from "../src/payments/stripeWebhookHandler";
 import {
   stripeChargeRefundIsComplete,
   stripeCheckoutSessionIsPaid,
@@ -51,24 +56,115 @@ describe("Stripe webhook verification", () => {
     ).resolves.toBe(true);
   });
 
-  it("requires the supported event envelope", () => {
+  it("requires the supported event envelope including livemode and valid account", () => {
     for (const type of [
+      "account.updated",
       "checkout.session.completed",
       "checkout.session.async_payment_succeeded",
       "checkout.session.async_payment_failed",
+      "checkout.session.expired",
+      "charge.refunded",
+      "charge.dispute.created",
+      "charge.dispute.closed",
+      "charge.dispute.funds_reinstated",
+      "charge.dispute.funds_withdrawn",
     ]) {
       expect(
         stripeEventSchema.safeParse({
-          account: "acct_test",
+          account: "acct_test123",
           data: { object: {} },
           id: "evt_test",
+          livemode: false,
           type,
         }).success,
       ).toBe(true);
     }
+    // Missing livemode fails
     expect(
-      stripeEventSchema.safeParse({ data: { object: {} }, id: "evt_test", type: "unknown" })
-        .success,
+      stripeEventSchema.safeParse({
+        account: "acct_test123",
+        data: { object: {} },
+        id: "evt_test",
+        type: "checkout.session.completed",
+      }).success,
     ).toBe(false);
+    // Missing account identifier fails
+    expect(
+      stripeEventSchema.safeParse({
+        data: { object: {} },
+        id: "evt_test",
+        livemode: false,
+        type: "checkout.session.completed",
+      }).success,
+    ).toBe(false);
+    // Invalid account identifier fails
+    expect(
+      stripeEventSchema.safeParse({
+        account: "invalid_account",
+        data: { object: {} },
+        id: "evt_test",
+        livemode: false,
+        type: "checkout.session.completed",
+      }).success,
+    ).toBe(false);
+    // Unsupported event type fails
+    expect(
+      stripeEventSchema.safeParse({
+        account: "acct_test123",
+        data: { object: {} },
+        id: "evt_test",
+        livemode: false,
+        type: "unknown.event",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("enforces test mode in staging and live mode in production", async () => {
+    const secret = "whsec_test_secret";
+    const app = new Hono<{ Bindings: Env; Variables: { requestId: string } }>();
+    app.use("*", (c, next) => {
+      c.set("requestId", "11111111-1111-4111-8111-111111111111");
+      return next();
+    });
+    app.post("/api/webhook/stripe", handleStripeWebhook);
+
+    async function sendEvent(appEnv: "staging" | "production", livemode: boolean) {
+      const body = JSON.stringify({
+        account: "acct_test123",
+        data: { object: { id: "cs_test" } },
+        id: "evt_test",
+        livemode,
+        type: "checkout.session.completed",
+      });
+      const timestamp = Math.floor(Date.now() / 1_000);
+      const signature = await stripeSignatureForTest(secret, body, timestamp);
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- test-only mock environment for webhook endpoint
+      const env = {
+        APP_ENV: appEnv,
+        STRIPE_WEBHOOK_SECRET: secret,
+      } as unknown as Env;
+      return app.request(
+        "https://example.test/api/webhook/stripe",
+        {
+          body,
+          headers: {
+            "content-type": "application/json",
+            "stripe-signature": signature,
+          },
+          method: "POST",
+        },
+        env,
+      );
+    }
+
+    // Staging + livemode: true -> rejected
+    const stagingLive = await sendEvent("staging", true);
+    expect(stagingLive.status).toBe(400);
+    expect(await stagingLive.json()).toMatchObject({ code: "livemode_mismatch" });
+
+    // Production + livemode: false -> rejected
+    const prodTest = await sendEvent("production", false);
+    expect(prodTest.status).toBe(400);
+    expect(await prodTest.json()).toMatchObject({ code: "livemode_mismatch" });
   });
 });

@@ -9,3 +9,17 @@ EXTERNAL_EFFECTS_MODE=fake
 # BREVO_API_KEY=replace-with-staging-only-key
 # BREVO_SMS_SENDER=MusicSite
 # BREVO_SMS_ALLOWED_RECIPIENTS=+15551234567
+
+# Stripe platform and connect credentials. Never commit real keys or secrets to source control.
+# For local/staging: use test-mode keys (sk_test_... and whsec_...).
+# For production: use live-mode keys (sk_live_... and whsec_...). The webhook endpoint enforces livemode matching APP_ENV.
+# In the Stripe Dashboard, configure the webhook endpoint (/api/webhook/stripe) to listen to "Connected accounts"
+# (or both direct and connected accounts) for events:
+#   account.updated
+#   checkout.session.completed
+#   charge.refunded
+#   charge.dispute.created
+#   charge.dispute.closed
+# STRIPE_SECRET_KEY=sk_test_...
+# STRIPE_WEBHOOK_SECRET=whsec_...
+# STRIPE_PAYMENTS_ENABLED=true

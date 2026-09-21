@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const stripeEventTypeSchema = z.enum([
+  "account.updated",
   "charge.dispute.created",
   "charge.dispute.closed",
   "charge.dispute.funds_reinstated",
@@ -16,6 +17,7 @@ export const stripeEventSchema = z.object({
   account: z.string().regex(/^acct_[A-Za-z0-9]+$/),
   data: z.object({ object: z.record(z.string(), z.unknown()) }),
   id: z.string().trim().min(1).max(256),
+  livemode: z.boolean(),
   type: stripeEventTypeSchema,
 });
 

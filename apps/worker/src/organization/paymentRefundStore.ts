@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { refundStripeTicketPurchases } from "./ticketingStore/payments";
+import { refundStripeDonation } from "./donation/stripeLifecycle";
+import { refundStripeDues } from "./seasonStore/payments";
 
 const paymentTypeSchema = z.enum(["ticket", "bundle", "donation", "dues"]);
 const refundRequestSchema = z.object({
@@ -8,6 +11,14 @@ const refundRequestSchema = z.object({
   paymentType: paymentTypeSchema,
   requestId: z.uuid(),
   resourceId: z.uuid(),
+});
+
+const reconcileProviderRefundSchema = z.object({
+  action: z.literal("reconcile_provider_refund"),
+  organizationId: z.string().min(1).max(128),
+  providerPaymentId: z.string().min(1).max(256),
+  providerSessionId: z.string().min(1).max(256).optional(),
+  stripeEventId: z.string().min(1).max(256),
 });
 
 interface PaymentRefundTargetRow {
@@ -163,4 +174,139 @@ export function recordProviderRefundRequestedInStore(
     occurredAt,
   );
   return Response.json({ requested: true });
+}
+
+function isStripeRefundAlreadyAudited(
+  storage: DurableObjectStorage,
+  stripeEventId: string,
+): boolean {
+  const existingAudit = storage.sql
+    .exec(
+      "SELECT id FROM audit_events WHERE id IN (?, ?, ?, ?) LIMIT 1",
+      `stripe-refund:ticket:${stripeEventId}`,
+      `stripe-refund:donation:${stripeEventId}`,
+      `stripe-refund:dues:${stripeEventId}`,
+      `stripe-refund:${stripeEventId}`,
+    )
+    .toArray();
+  return existingAudit.length > 0;
+}
+
+function countMatchingRows(storage: DurableObjectStorage, query: string, param: string): number {
+  const rows = storage.sql.exec<{ readonly count: number }>(query, param).toArray();
+  return rows[0]?.count ?? 0;
+}
+
+function findMatchingRefundDomains(
+  storage: DurableObjectStorage,
+  providerPaymentId: string,
+): ("ticket" | "donation" | "dues")[] {
+  const matching: ("ticket" | "donation" | "dues")[] = [];
+
+  const ticketCount =
+    countMatchingRows(
+      storage,
+      "SELECT COUNT(*) AS count FROM ticket_purchases WHERE provider_payment_id = ?",
+      providerPaymentId,
+    ) +
+    countMatchingRows(
+      storage,
+      "SELECT COUNT(*) AS count FROM payment_attempts WHERE provider_payment_id = ? AND payment_type IN ('ticket', 'bundle')",
+      providerPaymentId,
+    );
+  if (ticketCount > 0) matching.push("ticket");
+
+  const donationCount =
+    countMatchingRows(
+      storage,
+      "SELECT COUNT(*) AS count FROM donations WHERE provider_payment_id = ?",
+      providerPaymentId,
+    ) +
+    countMatchingRows(
+      storage,
+      "SELECT COUNT(*) AS count FROM payment_attempts WHERE provider_payment_id = ? AND payment_type = 'donation'",
+      providerPaymentId,
+    );
+  if (donationCount > 0) matching.push("donation");
+
+  const duesCount =
+    countMatchingRows(
+      storage,
+      "SELECT COUNT(*) AS count FROM dues WHERE provider_payment_id = ?",
+      providerPaymentId,
+    ) +
+    countMatchingRows(
+      storage,
+      "SELECT COUNT(*) AS count FROM payment_attempts WHERE provider_payment_id = ? AND payment_type = 'dues'",
+      providerPaymentId,
+    );
+  if (duesCount > 0) matching.push("dues");
+
+  return matching;
+}
+
+function dispatchDomainRefund(
+  storage: DurableObjectStorage,
+  domain: "ticket" | "donation" | "dues",
+  organizationId: string,
+  providerPaymentId: string,
+  stripeEventId: string,
+): Response {
+  if (domain === "ticket") {
+    return refundStripeTicketPurchases(storage, {
+      action: "stripe_ticket_refunded",
+      organizationId,
+      providerPaymentId,
+      stripeEventId,
+    });
+  }
+  if (domain === "donation") {
+    return refundStripeDonation(storage, {
+      action: "stripe_donation_refunded",
+      organizationId,
+      providerPaymentId,
+      stripeEventId,
+    });
+  }
+  return refundStripeDues(storage, {
+    action: "stripe_dues_refunded",
+    organizationId,
+    providerPaymentId,
+    stripeEventId,
+  });
+}
+
+export function reconcileProviderRefundInStore(
+  storage: DurableObjectStorage,
+  input: unknown,
+): Response {
+  const request = reconcileProviderRefundSchema.safeParse(input);
+  if (!request.success) return Response.json({ code: "invalid_refund_request" }, { status: 400 });
+
+  const organizationId = storage.sql
+    .exec<{ readonly organizationId: string }>(
+      "SELECT organization_id AS organizationId FROM organization_metadata LIMIT 1",
+    )
+    .toArray()
+    .at(0)?.organizationId;
+  if (organizationId !== request.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+
+  if (isStripeRefundAlreadyAudited(storage, request.data.stripeEventId)) {
+    return Response.json({ duplicate: true, refunded: 0 });
+  }
+
+  const { providerPaymentId, stripeEventId } = request.data;
+  const matchingDomains = findMatchingRefundDomains(storage, providerPaymentId);
+
+  if (matchingDomains.length > 1) {
+    return Response.json({ code: "ambiguous_payment_refund" }, { status: 409 });
+  }
+  const domain = matchingDomains[0];
+  if (!domain) {
+    return Response.json({ code: "payment_not_found" }, { status: 404 });
+  }
+
+  return dispatchDomainRefund(storage, domain, organizationId, providerPaymentId, stripeEventId);
 }
