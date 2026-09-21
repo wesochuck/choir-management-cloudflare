@@ -14,7 +14,10 @@ const stripeEventTypeSchema = z.enum([
 ]);
 
 export const stripeEventSchema = z.object({
-  account: z.string().regex(/^acct_[A-Za-z0-9]+$/),
+  account: z
+    .string()
+    .regex(/^acct_[A-Za-z0-9]+$/)
+    .optional(),
   data: z.object({ object: z.record(z.string(), z.unknown()) }),
   id: z.string().trim().min(1).max(256),
   livemode: z.boolean(),

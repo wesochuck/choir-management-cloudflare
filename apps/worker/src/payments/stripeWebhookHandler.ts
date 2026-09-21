@@ -434,7 +434,7 @@ async function handleAccountUpdated(
 ): Promise<Response> {
   const object = event.data.object;
   const accountId = objectString(object, "id");
-  if (accountId !== event.account) {
+  if (event.account && accountId !== event.account) {
     return problem(context, "invalid_webhook_event", "Account ID mismatch.", 400);
   }
   const chargesEnabled = object.charges_enabled === true;
@@ -478,7 +478,7 @@ async function handleAccountUpdated(
     );
   }
 
-  const mapped = await resolveOrganizationForStripeAccount(context.env.CONTROL_DB, event.account);
+  const mapped = await resolveOrganizationForStripeAccount(context.env.CONTROL_DB, accountId);
   if (mapped && mapped.status !== "disabled") {
     await upsertStripeAccountOrganization(context.env.CONTROL_DB, {
       accountId,
@@ -499,7 +499,18 @@ async function prepareWebhookContext(
   context: StripeContext,
   event: StripeEvent,
 ): Promise<PreparedWebhook | Response> {
-  const mapped = await resolveOrganizationForStripeAccount(context.env.CONTROL_DB, event.account);
+  const accountId =
+    event.account ??
+    (event.type === "account.updated" ? objectString(event.data.object, "id") : "");
+  if (!accountId) {
+    return problem(
+      context,
+      "invalid_webhook_event",
+      "Webhook event is missing account identification.",
+      400,
+    );
+  }
+  const mapped = await resolveOrganizationForStripeAccount(context.env.CONTROL_DB, accountId);
   if (!mapped || mapped.status === "disabled")
     return problem(
       context,

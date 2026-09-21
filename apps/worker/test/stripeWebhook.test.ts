@@ -88,15 +88,15 @@ describe("Stripe webhook verification", () => {
         type: "checkout.session.completed",
       }).success,
     ).toBe(false);
-    // Missing account identifier fails
+    // Missing top-level account identifier is accepted (e.g. for account.updated payloads)
     expect(
       stripeEventSchema.safeParse({
-        data: { object: {} },
+        data: { object: { id: "acct_test123" } },
         id: "evt_test",
         livemode: false,
-        type: "checkout.session.completed",
+        type: "account.updated",
       }).success,
-    ).toBe(false);
+    ).toBe(true);
     // Invalid account identifier fails
     expect(
       stripeEventSchema.safeParse({
