@@ -20,6 +20,7 @@ import {
   quotePublicTicketCheckout,
 } from "../auth/api";
 import { OrganizationLayout } from "./PublicOrganizationSite";
+import { getEventVenueDetails } from "./venueDetails";
 
 type LoadState =
   | { readonly status: "error" }
@@ -409,7 +410,32 @@ function TicketPurchaseForm({
       <a href="/tickets">← All tickets</a>
       <h1>{event.title}</h1>
       <p>{publicDate(event.startsAt, projection.payload.timezone)}</p>
-      {event.venueName || event.location ? <p>{event.venueName || event.location}</p> : null}
+      {(() => {
+        const venueDetails = getEventVenueDetails(event);
+        if (!venueDetails.displayName && !venueDetails.venueAddress) return null;
+        return (
+          <div className="public-performance-venue">
+            {venueDetails.displayName ? (
+              <p className="public-performance-venue__name">{venueDetails.displayName}</p>
+            ) : null}
+            {venueDetails.venueAddress ? (
+              <p className="public-performance-venue__address">{venueDetails.venueAddress}</p>
+            ) : null}
+            {venueDetails.googleMapsUrl ? (
+              <p>
+                <a
+                  className="public-performance-venue__map-link"
+                  href={venueDetails.googleMapsUrl}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  View on Google Maps
+                </a>
+              </p>
+            ) : null}
+          </div>
+        );
+      })()}
       {event.doorsOpenTime ? <p>Doors open at {event.doorsOpenTime}.</p> : null}
       <form className="panel form-stack" onSubmit={(formEvent) => void submit(formEvent)}>
         {error ? (
@@ -566,11 +592,39 @@ export function TicketBundlePurchaseForm({
       <h1>{bundle.title}</h1>
       <p>One pass includes admission to:</p>
       <ul className="public-bundle-event-list">
-        {includedEvents.map((event) => (
-          <li key={event.id}>
-            {event.title} · {publicDate(event.startsAt, projection.payload.timezone)}
-          </li>
-        ))}
+        {includedEvents.map((event) => {
+          const venueDetails = getEventVenueDetails(event);
+          return (
+            <li key={event.id}>
+              <div>
+                <strong>{event.title}</strong> ·{" "}
+                {publicDate(event.startsAt, projection.payload.timezone)}
+                {venueDetails.displayName || venueDetails.venueAddress ? (
+                  <div className="public-bundle-event-venue">
+                    {venueDetails.displayName ? <span>{venueDetails.displayName}</span> : null}
+                    {venueDetails.displayName && venueDetails.venueAddress ? (
+                      <span> · </span>
+                    ) : null}
+                    {venueDetails.venueAddress ? <span>{venueDetails.venueAddress}</span> : null}
+                    {venueDetails.googleMapsUrl ? (
+                      <>
+                        <span> · </span>
+                        <a
+                          className="public-performance-map-link"
+                          href={venueDetails.googleMapsUrl}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                        >
+                          View on Google Maps
+                        </a>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
       </ul>
       <form className="panel form-stack" onSubmit={(event) => void submit(event)}>
         {error ? (
@@ -729,18 +783,43 @@ export function TicketsContent({
               </div>
             </article>
           ))}
-          {events.map((event) => (
-            <article className="public-performance-card" key={event.id}>
-              <div>
-                <p>{publicDate(event.startsAt, projection.payload.timezone)}</p>
-                <h2>{event.title}</h2>
-                <p>From {money(event.advancePriceCents)}</p>
-                <a className="button button--primary" href={`/tickets/${event.id}`}>
-                  Buy tickets
-                </a>
-              </div>
-            </article>
-          ))}
+          {events.map((event) => {
+            const venueDetails = getEventVenueDetails(event);
+            return (
+              <article className="public-performance-card" key={event.id}>
+                <div>
+                  <p>{publicDate(event.startsAt, projection.payload.timezone)}</p>
+                  <h2>{event.title}</h2>
+                  {venueDetails.displayName || venueDetails.venueAddress ? (
+                    <div className="public-performance-venue">
+                      {venueDetails.displayName ? (
+                        <p className="public-performance-location">{venueDetails.displayName}</p>
+                      ) : null}
+                      {venueDetails.venueAddress ? (
+                        <p className="public-performance-address">{venueDetails.venueAddress}</p>
+                      ) : null}
+                      {venueDetails.googleMapsUrl ? (
+                        <p>
+                          <a
+                            className="public-performance-map-link"
+                            href={venueDetails.googleMapsUrl}
+                            rel="noopener noreferrer"
+                            target="_blank"
+                          >
+                            View on Google Maps
+                          </a>
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <p>From {money(event.advancePriceCents)}</p>
+                  <a className="button button--primary" href={`/tickets/${event.id}`}>
+                    Buy tickets
+                  </a>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </section>

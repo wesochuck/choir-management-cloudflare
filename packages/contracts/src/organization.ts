@@ -147,6 +147,7 @@ export const publicPerformanceSchema = z.object({
   startsAt: z.iso.datetime(),
   ticketCapacity: z.number().int().positive().nullable(),
   title: z.string().min(1).max(500),
+  venueAddress: z.string().max(2_000).default(""),
   venueName: z.string().max(500),
 });
 

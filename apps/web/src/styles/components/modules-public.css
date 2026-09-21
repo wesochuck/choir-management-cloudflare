@@ -347,6 +347,34 @@
     color: var(--color-text-muted);
   }
 
+  .public-performance-venue {
+    margin-block: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .public-performance-venue__name {
+    font-weight: var(--font-weight-medium);
+  }
+
+  .public-performance-venue__address,
+  .public-performance-address {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .public-performance-venue__map-link,
+  .public-performance-map-link {
+    display: inline-block;
+    color: var(--color-primary);
+    font-size: var(--font-size-sm);
+    text-decoration: underline;
+  }
+
+  .public-bundle-event-venue {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    margin-top: var(--spacing-3xs);
+  }
+
   .public-copy {
     white-space: pre-wrap;
   }

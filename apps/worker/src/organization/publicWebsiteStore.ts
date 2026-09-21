@@ -64,6 +64,7 @@ interface PublicEventRow {
   readonly startsAt: string;
   readonly ticketCapacity: number | null;
   readonly title: string;
+  readonly venueAddress: string;
   readonly venueName: string;
 }
 
@@ -183,7 +184,7 @@ export function readPublicCommerceProjectionFromStore(
         e.day_of_price_cents AS dayOfPriceCents, e.doors_open_time AS doorsOpenTime,
         e.is_ticketing_enabled AS isTicketingEnabled, e.ticket_capacity AS ticketCapacity,
         e.public_details AS publicDetails, e.public_graphic_file_id AS graphicFileId,
-        COALESCE(v.name, '') AS venueName
+        COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress
        FROM events e LEFT JOIN venues v ON v.id = e.venue_id
        WHERE e.is_archived = 0 AND e.is_canceled = 0 AND e.type = 'Performance' AND e.is_ticketing_enabled = 1
        ORDER BY e.starts_at DESC, e.id DESC LIMIT 100`,
@@ -304,7 +305,7 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
         e.day_of_price_cents AS dayOfPriceCents, e.doors_open_time AS doorsOpenTime,
         e.is_ticketing_enabled AS isTicketingEnabled, e.ticket_capacity AS ticketCapacity,
         e.public_details AS publicDetails, e.public_graphic_file_id AS graphicFileId,
-        COALESCE(v.name, '') AS venueName
+        COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress
        FROM events e LEFT JOIN venues v ON v.id = e.venue_id
        WHERE e.is_archived = 0 AND e.is_canceled = 0 AND e.type = 'Performance' AND e.publish_on_website = 1
        ORDER BY e.starts_at DESC, e.id DESC LIMIT 100`,
