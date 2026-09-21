@@ -32,6 +32,7 @@ import { WillCallPanel } from "./components/Ticketing/WillCallPanel";
 import {
   DEFAULT_TICKET_CONFIRMATION_SETTINGS,
   EMPTY_DISCOUNT_DRAFT,
+  findClosestEvent,
   WILL_CALL_REFRESH_INTERVAL_MS,
   type DiscountDraft,
   type OrderState,
@@ -115,14 +116,24 @@ export function TicketingManager({
         setState({ status: "error" });
       }
       if (eventsResult.status === "fulfilled") {
-        const ticketedEvents = eventsResult.value.filter(
-          (event) => event.type === "Performance" && event.isTicketingEnabled,
-        );
+        const ticketedEvents = eventsResult.value
+          .filter((event) => event.type === "Performance" && event.isTicketingEnabled)
+          .sort((a, b) => {
+            const diff = new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+            return diff !== 0 ? diff : a.title.localeCompare(b.title);
+          });
         setTicketEvents(ticketedEvents);
-        const firstTicketedEvent = ticketedEvents[0];
-        if (firstTicketedEvent)
+        const queryEventId =
+          typeof window !== "undefined"
+            ? new URLSearchParams(window.location.search).get("eventId")
+            : null;
+        const matchingQueryEvent = queryEventId
+          ? ticketedEvents.find((event) => event.id === queryEventId)
+          : undefined;
+        const closestTicketedEvent = matchingQueryEvent ?? findClosestEvent(ticketedEvents);
+        if (closestTicketedEvent)
           setSelectedPerformanceId((current) =>
-            current === "all" ? firstTicketedEvent.id : current,
+            current === "all" ? closestTicketedEvent.id : current,
           );
       }
       if (bundlesResult.status === "fulfilled") setBundles(bundlesResult.value);

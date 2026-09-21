@@ -4,8 +4,8 @@ Standalone, multi-Organization Cloudflare choir management application.
 
 ## Repository relationship
 
-Local development may inspect the sibling parity worktree, but this repository's install, checks, tests,
-builds, CI, and deployments are standalone. The parity worktree is never a runtime or build
+Local development may inspect the sibling parity worktree, but this repository's install, checks,
+tests, builds, CI, and deployments are standalone. The parity worktree is never a runtime or build
 dependency.
 
 Read these files before feature work:

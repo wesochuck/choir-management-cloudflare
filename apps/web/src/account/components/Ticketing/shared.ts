@@ -53,3 +53,33 @@ export function money(cents: number): string {
 export function buyerLastName(name: string): string {
   return name.trim().split(/\s+/).slice(-1)[0] ?? name;
 }
+
+/**
+ * Finds the event closest in time to relativeTo (defaulting to today's date/time).
+ */
+export function findClosestEvent<T extends { readonly startsAt: string }>(
+  events: readonly T[],
+  relativeTo: Date = new Date(),
+): T | undefined {
+  if (events.length === 0) return undefined;
+  const targetTime = relativeTo.getTime();
+  let closest: T | undefined;
+  let minDiff = Number.POSITIVE_INFINITY;
+
+  for (const event of events) {
+    const time = new Date(event.startsAt).getTime();
+    if (Number.isNaN(time)) continue;
+    const diff = Math.abs(time - targetTime);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closest = event;
+    } else if (diff === minDiff && closest !== undefined) {
+      const closestTime = new Date(closest.startsAt).getTime();
+      if (time >= targetTime && closestTime < targetTime) {
+        closest = event;
+      }
+    }
+  }
+
+  return closest;
+}

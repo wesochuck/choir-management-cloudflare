@@ -284,12 +284,17 @@ function TicketReceipt({ token }: { readonly token: string }) {
       <div className="panel">
         <h2>{purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}</h2>
         {purchase.bundleId ? (
-          <ul>
-            {purchase.includedEvents.map((event) => (
-              <li key={event.id}>
-                {event.title} · {publicDate(event.startsAt, purchase.timezone)}
-              </li>
-            ))}
+          <ul className="public-bundle-event-list">
+            {[...purchase.includedEvents]
+              .sort((a, b) => {
+                const diff = new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+                return diff !== 0 ? diff : a.title.localeCompare(b.title);
+              })
+              .map((event) => (
+                <li key={event.id}>
+                  {event.title} · {publicDate(event.startsAt, purchase.timezone)}
+                </li>
+              ))}
           </ul>
         ) : (
           <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
@@ -495,7 +500,7 @@ function TicketPurchaseForm({
   );
 }
 
-function TicketBundlePurchaseForm({
+export function TicketBundlePurchaseForm({
   bundle,
   feeSettings,
   projection,
@@ -519,9 +524,14 @@ function TicketBundlePurchaseForm({
     unitPriceCents: bundle.priceCents,
   });
   const displayedQuote = discount.displayQuote;
+  const performanceMap = new Map(projection.payload.performances.map((event) => [event.id, event]));
   const includedEvents = bundle.eventIds
-    .map((eventId) => projection.payload.performances.find(({ id }) => id === eventId))
-    .filter((event) => event !== undefined);
+    .map((eventId) => performanceMap.get(eventId))
+    .filter((event) => event !== undefined)
+    .sort((a, b) => {
+      const diff = new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+      return diff !== 0 ? diff : a.title.localeCompare(b.title);
+    });
 
   async function submit(formEvent: SyntheticEvent<HTMLFormElement>) {
     formEvent.preventDefault();
@@ -555,7 +565,7 @@ function TicketBundlePurchaseForm({
       <a href="/tickets">← All tickets</a>
       <h1>{bundle.title}</h1>
       <p>One pass includes admission to:</p>
-      <ul>
+      <ul className="public-bundle-event-list">
         {includedEvents.map((event) => (
           <li key={event.id}>
             {event.title} · {publicDate(event.startsAt, projection.payload.timezone)}
@@ -651,7 +661,7 @@ function TicketBundlePurchaseForm({
   );
 }
 
-function TicketsContent({
+export function TicketsContent({
   feeSettings,
   pathname,
   projection,
@@ -688,12 +698,18 @@ function TicketsContent({
       <p className="notice notice--error">Ticket sales are closed for this performance.</p>
     );
   }
-  const events = projection.payload.performances.filter(
-    (event) => event.isTicketingEnabled && new Date(event.startsAt).getTime() > nowMs,
-  );
-  const bundles = projection.payload.ticketBundles.filter(
-    (bundle) => new Date(bundle.saleEndAt).getTime() > nowMs,
-  );
+  const events = projection.payload.performances
+    .filter((event) => event.isTicketingEnabled && new Date(event.startsAt).getTime() > nowMs)
+    .sort((a, b) => {
+      const diff = new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+      return diff !== 0 ? diff : a.title.localeCompare(b.title);
+    });
+  const bundles = projection.payload.ticketBundles
+    .filter((bundle) => new Date(bundle.saleEndAt).getTime() > nowMs)
+    .sort((a, b) => {
+      const diff = new Date(a.saleEndAt).getTime() - new Date(b.saleEndAt).getTime();
+      return diff !== 0 ? diff : a.title.localeCompare(b.title);
+    });
   return (
     <section className="public-section">
       <h1>Tickets</h1>

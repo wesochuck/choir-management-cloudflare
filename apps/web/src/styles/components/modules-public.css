@@ -300,6 +300,16 @@
     font-size: var(--font-size-section);
   }
 
+  .public-bundle-event-list {
+    list-style-type: disc;
+    padding-left: var(--spacing-xl);
+    margin-block: var(--spacing-sm) var(--spacing-md);
+  }
+
+  .public-bundle-event-list li {
+    margin-bottom: var(--spacing-2xs);
+  }
+
   .public-section-heading {
     justify-content: space-between;
     gap: var(--spacing-md);

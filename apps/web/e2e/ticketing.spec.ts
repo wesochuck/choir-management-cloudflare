@@ -374,6 +374,7 @@ test.describe("public ticket pages", () => {
     await expect(page.getByRole("heading", { name: "Season Pass" })).toBeVisible();
     await expect(page.getByText("Spring Concert")).toBeVisible();
     await expect(page.getByText("One pass includes admission to:")).toBeVisible();
+    await expect(page.locator("ul.public-bundle-event-list")).toBeVisible();
 
     await page.getByLabel("Name for will call").fill("Bundle Buyer");
     await page.getByLabel("Email", { exact: true }).fill("bundle@example.test");
@@ -568,6 +569,57 @@ test.describe("admin ticket management", () => {
       await buyerSortButton.click();
       await expect(orderRows.first().getByText("Jane Buyer", { exact: true })).toBeVisible();
     }
+  });
+
+  test("auto-selects the performance closest to today in will call", async ({ page }) => {
+    const nearEvent = {
+      ...adminEvent,
+      id: "33333333-3333-4333-8333-333333333333",
+      startsAt: futureIsoDate({ days: 2 }),
+      title: "Nearest Concert",
+    };
+    const farEvent = {
+      ...adminEvent,
+      id: "44444444-4444-4444-8444-444444444444",
+      startsAt: futureIsoDate({ days: 90 }),
+      title: "Singing the 70s",
+    };
+
+    await routeHealth(page);
+    await routeAdminAuth(page);
+    await page.route("**/api/public/projection", async (route) => {
+      await route.fulfill({ status: 404 });
+    });
+    await page.route("**/api/organization/tickets/orders", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ orders: [], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/events", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ events: [farEvent, nearEvent], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/tickets/bundles", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ bundles: [], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto("/admin/tickets");
+
+    await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
+    const performanceSelect = page.getByLabel("Select performance");
+    await expect(performanceSelect).toHaveValue(nearEvent.id);
+    await expect(
+      page.locator(".ticket-dashboard__metric--sold").getByText("Nearest Concert", { exact: true }),
+    ).toBeVisible();
   });
 
   test("refunds a paid order via danger confirmation", async ({ page }) => {
