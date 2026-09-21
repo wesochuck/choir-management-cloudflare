@@ -1,8 +1,20 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it, vi } from "vitest";
 import type { PublishedOrganizationProjection, TransactionFeeSettings } from "@choir/contracts";
-import { TicketBundlePurchaseForm, TicketsContent } from "./PublicTickets";
+import {
+  getPublicCommerceProjection,
+  getPublicTransactionFeeSettings,
+  getPublishedOrganizationProjection,
+} from "../auth/api";
+import {
+  PublicTickets,
+  TicketBundlePurchaseForm,
+  TicketDiscountControls,
+  type TicketDiscountState,
+  TicketsContent,
+} from "./PublicTickets";
 import { getEventVenueDetails } from "./venueDetails";
 
 vi.mock("../auth/api", () => ({
@@ -129,6 +141,9 @@ describe("TicketBundlePurchaseForm", () => {
     expect(items[1]).toHaveTextContent("Lullaby of Broadway");
     // Latest concert (June 13, 2027) last
     expect(items[2]).toHaveTextContent("Singing the 70s");
+    expect(
+      screen.getByLabelText("I would like to receive updates about future events and programs"),
+    ).toBeInTheDocument();
   });
 });
 
@@ -398,6 +413,9 @@ describe("TicketsContent", () => {
     );
     expect(mapLink).toHaveAttribute("target", "_blank");
     expect(mapLink).toHaveAttribute("rel", "noopener noreferrer");
+    expect(
+      screen.getByLabelText("I would like to receive updates about future events and programs"),
+    ).toBeInTheDocument();
   });
 
   it("renders venue address and Google Maps links in performance cards on the main tickets page", () => {
@@ -596,5 +614,344 @@ describe("getEventVenueDetails", () => {
     expect(details.displayName).toBe("");
     expect(details.venueAddress).toBe("");
     expect(details.googleMapsUrl).toBeNull();
+  });
+});
+
+describe("TicketDiscountControls", () => {
+  const dummyQuote = {
+    discountAmountCents: 0,
+    discountCode: null,
+    discountType: null,
+    discountValue: null,
+    discountedSubtotalCents: 2000,
+    feeCents: 50,
+    originalSubtotalCents: 2000,
+    originalUnitPriceCents: 2000,
+    quantity: 1,
+    totalCents: 2050,
+  };
+
+  const createMockState = (overrides: Partial<TicketDiscountState> = {}): TicketDiscountState => ({
+    appliedCode: null,
+    applyCode: vi.fn(),
+    clearCode: vi.fn(),
+    codeInput: "",
+    displayQuote: dummyQuote,
+    hasRedeemableCode: true,
+    quoteBusy: false,
+    quoteError: null,
+    setCodeInput: vi.fn(),
+    ...overrides,
+  });
+
+  it("renders nothing when hasRedeemableCode is false", () => {
+    const state = createMockState({ hasRedeemableCode: false });
+    const { container } = render(<TicketDiscountControls state={state} />);
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByRole("button", { name: "Have a discount code?" })).not.toBeInTheDocument();
+  });
+
+  it("renders compact disclosure button and hides input initially when a code is eligible", () => {
+    const state = createMockState({ hasRedeemableCode: true });
+    render(<TicketDiscountControls state={state} />);
+    const button = screen.getByRole("button", { name: "Have a discount code?" });
+    expect(button).toBeInTheDocument();
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(button).toHaveAttribute("aria-controls", "ticket-discount-region");
+    expect(screen.queryByLabelText("Discount code (optional)")).not.toBeInTheDocument();
+  });
+
+  it("expands the labeled input and Apply button on disclosure click, updating aria-expanded", async () => {
+    const user = userEvent.setup();
+    const state = createMockState({ hasRedeemableCode: true });
+    render(<TicketDiscountControls state={state} />);
+
+    const button = screen.getByRole("button", { name: "Have a discount code?" });
+    await user.click(button);
+
+    expect(button).toHaveAttribute("aria-expanded", "true");
+    const input = screen.getByLabelText("Discount code (optional)");
+    expect(input).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Apply code" })).toBeInTheDocument();
+
+    // Clicking again collapses
+    await user.click(button);
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("Discount code (optional)")).not.toBeInTheDocument();
+  });
+
+  it("replaces expanded input with compact applied state with Remove action after successful apply", () => {
+    const state = createMockState({
+      appliedCode: "SUMMER25",
+      displayQuote: {
+        ...dummyQuote,
+        discountAmountCents: 500,
+        discountCode: "SUMMER25",
+        discountedSubtotalCents: 1500,
+        totalCents: 1550,
+      },
+    });
+    render(<TicketDiscountControls state={state} />);
+
+    expect(screen.getByText("SUMMER25 applied")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Discount code (optional)")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Have a discount code?" })).not.toBeInTheDocument();
+  });
+
+  it("stays expanded and displays safe error when code is invalid", () => {
+    const state = createMockState({
+      codeInput: "BADCODE",
+      quoteError: "This code is not valid for this purchase.",
+    });
+    render(<TicketDiscountControls state={state} />);
+
+    expect(screen.getByRole("button", { name: "Have a discount code?" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    const input = screen.getByLabelText("Discount code (optional)");
+    expect(input).toBeInTheDocument();
+    expect(input).toHaveValue("BADCODE");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute(
+      "aria-describedby",
+      "ticket-discount-code-error ticket-discount-code-help",
+    );
+    const errorAlert = screen.getByRole("alert");
+    expect(errorAlert).toHaveTextContent("This code is not valid for this purchase.");
+  });
+
+  it("calls clearCode and returns to compact available state when Remove is clicked", async () => {
+    const user = userEvent.setup();
+    const clearCode = vi.fn();
+    const state = createMockState({
+      appliedCode: "SUMMER25",
+      clearCode,
+      displayQuote: {
+        ...dummyQuote,
+        discountAmountCents: 500,
+        discountCode: "SUMMER25",
+      },
+    });
+    const { rerender } = render(<TicketDiscountControls state={state} />);
+
+    const removeBtn = screen.getByRole("button", { name: "Remove" });
+    await user.click(removeBtn);
+    expect(clearCode).toHaveBeenCalledTimes(1);
+
+    // After clearing code
+    const resetState = createMockState({ appliedCode: null });
+    rerender(<TicketDiscountControls state={resetState} />);
+    const disclosure = screen.getByRole("button", { name: "Have a discount code?" });
+    expect(disclosure).toBeInTheDocument();
+    expect(disclosure).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByLabelText("Discount code (optional)")).not.toBeInTheDocument();
+  });
+
+  it("shows checking status in applied state when quote is busy during quantity change", () => {
+    const state = createMockState({
+      appliedCode: "SUMMER25",
+      displayQuote: {
+        ...dummyQuote,
+        discountAmountCents: 500,
+        discountCode: "SUMMER25",
+      },
+      quoteBusy: true,
+    });
+    render(<TicketDiscountControls state={state} />);
+
+    expect(screen.getByText("SUMMER25 applied")).toBeInTheDocument();
+    expect(screen.getByText("(checking…)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
+  });
+
+  it("supports keyboard interaction and applies code on Enter key press", async () => {
+    const user = userEvent.setup();
+    const applyCode = vi.fn();
+    const state = createMockState({
+      applyCode,
+      codeInput: "WINTER10",
+    });
+    render(<TicketDiscountControls state={state} />);
+
+    const disclosure = screen.getByRole("button", { name: "Have a discount code?" });
+    disclosure.focus();
+    await user.keyboard("{Enter}");
+
+    const input = screen.getByLabelText("Discount code (optional)");
+    expect(input).toBeInTheDocument();
+
+    input.focus();
+    await user.keyboard("{Enter}");
+    expect(applyCode).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PublicTickets shell layout", () => {
+  const sampleProjection: PublishedOrganizationProjection = {
+    generatedAt: "2026-09-20T00:00:00Z",
+    organizationId: "org-1",
+    payload: {
+      mediaFileIds: [],
+      organizationName: "Lancaster Community Chorus",
+      performances: [
+        {
+          advancePriceCents: 1500,
+          dayOfPriceCents: 2000,
+          doorsOpenTime: "14:30",
+          graphicFileId: null,
+          id: "74e47064-75b9-47e9-97e6-c28f5430bee0",
+          isTicketingEnabled: true,
+          location: "Concert Hall",
+          publicDetails: "Spring Concert details",
+          startsAt: "2027-03-07T15:00:00Z",
+          ticketCapacity: 100,
+          title: "Spring Concert",
+          venueAddress: "123 Concert Way",
+          venueName: "Concert Hall",
+        },
+      ],
+      settings: {
+        aboutUsText: "",
+        bodyFont: "system",
+        contactEmail: "info@example.test",
+        enabledNavigation: ["tickets"],
+        headerFont: "system",
+        heroFileId: null,
+        heroHeadline: "LCC",
+        heroSubtitle: "",
+        historyText: "",
+        logoFileId: null,
+        showBrandingHeaderFooter: false,
+      },
+      ticketBundles: [],
+      timezone: "America/New_York",
+    },
+    version: 1,
+  };
+
+  it("renders standalone transaction layout by default with no general site navigation on /tickets", async () => {
+    vi.mocked(getPublishedOrganizationProjection).mockResolvedValue(sampleProjection);
+    vi.mocked(getPublicTransactionFeeSettings).mockResolvedValue(feeSettings);
+
+    render(<PublicTickets pathname="/tickets" />);
+
+    expect(await screen.findByRole("heading", { name: "Tickets" })).toBeInTheDocument();
+    expect(screen.getByText("Lancaster Community Chorus")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Buy tickets" })).toBeInTheDocument();
+
+    // Standalone shell does not show general website navigation or sign in
+    expect(screen.queryByRole("navigation", { name: "Public website" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Performances" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "History" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
+  });
+
+  it("renders standalone transaction layout on a ticket detail route", async () => {
+    vi.mocked(getPublishedOrganizationProjection).mockResolvedValue(sampleProjection);
+    vi.mocked(getPublicTransactionFeeSettings).mockResolvedValue(feeSettings);
+
+    render(<PublicTickets pathname="/tickets/74e47064-75b9-47e9-97e6-c28f5430bee0" />);
+
+    expect(await screen.findByRole("heading", { name: "Spring Concert" })).toBeInTheDocument();
+    expect(screen.getByText("Lancaster Community Chorus")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Complete ticket order" })).toBeInTheDocument();
+
+    // Standalone shell on detail page does not show general navigation
+    expect(screen.queryByRole("navigation", { name: "Public website" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Performances" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "History" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
+  });
+
+  it("renders full organization layout with navigation when showBrandingHeaderFooter is true, marking Tickets as current", async () => {
+    const brandedProjection: PublishedOrganizationProjection = {
+      ...sampleProjection,
+      payload: {
+        ...sampleProjection.payload,
+        settings: {
+          ...sampleProjection.payload.settings,
+          enabledNavigation: ["tickets"],
+          showBrandingHeaderFooter: true,
+        },
+      },
+    };
+    vi.mocked(getPublishedOrganizationProjection).mockResolvedValue(brandedProjection);
+    vi.mocked(getPublicTransactionFeeSettings).mockResolvedValue(feeSettings);
+
+    render(<PublicTickets pathname="/tickets" />);
+
+    expect(await screen.findByRole("heading", { name: "Tickets" })).toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Public website" });
+    expect(nav).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Performances" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "History" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
+
+    const ticketsLink = screen.getByRole("link", { name: "Tickets" });
+    expect(ticketsLink).toHaveAttribute("aria-current", "page");
+    expect(ticketsLink).toHaveClass("is-active");
+  });
+
+  it("marks Tickets link as current on ticket detail route when showBrandingHeaderFooter is true", async () => {
+    const brandedProjection: PublishedOrganizationProjection = {
+      ...sampleProjection,
+      payload: {
+        ...sampleProjection.payload,
+        settings: {
+          ...sampleProjection.payload.settings,
+          enabledNavigation: ["tickets"],
+          showBrandingHeaderFooter: true,
+        },
+      },
+    };
+    vi.mocked(getPublishedOrganizationProjection).mockResolvedValue(brandedProjection);
+    vi.mocked(getPublicTransactionFeeSettings).mockResolvedValue(feeSettings);
+
+    render(<PublicTickets pathname="/tickets/74e47064-75b9-47e9-97e6-c28f5430bee0" />);
+
+    expect(await screen.findByRole("heading", { name: "Spring Concert" })).toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Public website" });
+    expect(nav).toBeInTheDocument();
+
+    const ticketsLink = screen.getByRole("link", { name: "Tickets" });
+    expect(ticketsLink).toHaveAttribute("aria-current", "page");
+    expect(ticketsLink).toHaveClass("is-active");
+  });
+
+  it("falls back to commerce projection when published organization projection is null without requiring published website", async () => {
+    vi.mocked(getPublishedOrganizationProjection).mockResolvedValue(null);
+    vi.mocked(getPublicCommerceProjection).mockResolvedValue(sampleProjection);
+    vi.mocked(getPublicTransactionFeeSettings).mockResolvedValue(feeSettings);
+
+    render(<PublicTickets pathname="/tickets" />);
+
+    expect(await screen.findByRole("heading", { name: "Tickets" })).toBeInTheDocument();
+    expect(screen.getByText("Spring Concert")).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Public website" })).not.toBeInTheDocument();
+  });
+
+  it("enabledNavigation does not independently cause hosted navigation to appear when showBrandingHeaderFooter is false", async () => {
+    const unbrandedWithNavProjection: PublishedOrganizationProjection = {
+      ...sampleProjection,
+      payload: {
+        ...sampleProjection.payload,
+        settings: {
+          ...sampleProjection.payload.settings,
+          enabledNavigation: ["tickets", "donations", "auditions"],
+          showBrandingHeaderFooter: false,
+        },
+      },
+    };
+    vi.mocked(getPublishedOrganizationProjection).mockResolvedValue(unbrandedWithNavProjection);
+    vi.mocked(getPublicTransactionFeeSettings).mockResolvedValue(feeSettings);
+
+    render(<PublicTickets pathname="/tickets" />);
+
+    expect(await screen.findByRole("heading", { name: "Tickets" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Public website" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Performances" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Donate" })).not.toBeInTheDocument();
   });
 });

@@ -298,7 +298,9 @@ async function routePublicBasics(page: Page) {
 }
 
 test.describe("public ticket pages", () => {
-  test("shows available events and bundles", async ({ page }) => {
+  test("shows available events and bundles in standalone transaction shell by default", async ({
+    page,
+  }) => {
     await routePublicBasics(page);
 
     await page.goto("/tickets");
@@ -307,6 +309,73 @@ test.describe("public ticket pages", () => {
     await expect(page.getByText("Spring Concert")).toBeVisible();
     await expect(page.getByText("Season Pass")).toBeVisible();
     await expect(page.getByText("Multi-performance pass")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Ticket Choir" })).toBeVisible();
+
+    // Standalone shell must not show hosted website navigation or sign in
+    await expect(page.getByRole("navigation", { name: "Public website" })).not.toBeVisible();
+    await expect(page.getByRole("link", { name: "Performances" })).not.toBeVisible();
+    await expect(page.getByRole("link", { name: "History" })).not.toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in" })).not.toBeVisible();
+  });
+
+  test("shows hosted website header, footer, and navigation when showBrandingHeaderFooter is enabled", async ({
+    page,
+  }) => {
+    await routeHealth(page);
+    await routeAnonymousSession(page);
+    await page.route("**/api/public/projection", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          ...ticketingProjection,
+          payload: {
+            ...ticketingProjection.payload,
+            settings: {
+              ...ticketingProjection.payload.settings,
+              enabledNavigation: ["tickets"],
+              showBrandingHeaderFooter: true,
+            },
+          },
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto("/tickets");
+
+    await expect(page.getByRole("heading", { name: "Tickets" })).toBeVisible();
+    const nav = page.getByRole("navigation", { name: "Public website" });
+    await expect(nav).toBeVisible();
+    await expect(page.getByRole("link", { name: "Performances" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "History" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+
+    const ticketsLink = nav.getByRole("link", { exact: true, name: "Tickets" });
+    await expect(ticketsLink).toHaveAttribute("aria-current", "page");
+    await expect(ticketsLink).toHaveClass(/is-active/);
+  });
+
+  test("loads standalone ticketing from commerce projection when published website is 404", async ({
+    page,
+  }) => {
+    await routeHealth(page);
+    await routeAnonymousSession(page);
+    await page.route("**/api/public/projection", async (route) => {
+      await route.fulfill({ status: 404 });
+    });
+    await page.route("**/api/public/commerce-projection", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(ticketingProjection),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto("/tickets");
+
+    await expect(page.getByRole("heading", { name: "Tickets" })).toBeVisible();
+    await expect(page.getByText("Spring Concert")).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Public website" })).not.toBeVisible();
   });
 
   test("purchases an event ticket", async ({ page }) => {
@@ -331,7 +400,9 @@ test.describe("public ticket pages", () => {
     await page.getByLabel("Name for will call").fill("Jane Buyer");
     await page.getByLabel("Email", { exact: true }).fill("jane@example.test");
     await page.getByLabel("Confirm email").fill("jane@example.test");
-    await page.getByLabel("Keep me informed about future Organization events").check();
+    await page
+      .getByLabel("I would like to receive updates about future events and programs")
+      .check();
     await page.getByRole("button", { name: "Complete ticket order" }).click();
 
     await page.waitForURL("**/tickets/order/success*");
@@ -422,10 +493,20 @@ test.describe("public ticket pages", () => {
     });
 
     await page.goto("/tickets/" + eventId);
+    const discountDisclosure = page.getByRole("button", { name: "Have a discount code?" });
+    await expect(discountDisclosure).toBeVisible();
+    await expect(discountDisclosure).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByLabel("Discount code (optional)")).not.toBeVisible();
+
+    await discountDisclosure.click();
+    await expect(discountDisclosure).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByLabel("Discount code (optional)")).toBeVisible();
+
     await page.getByLabel("Discount code (optional)").fill(" spring10 ");
     await page.getByRole("button", { name: "Apply code" }).click();
-    await expect(page.getByText("Code SPRING10 applied.")).toBeVisible();
+    await expect(page.getByText("SPRING10 applied")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Remove" })).toBeVisible();
+    await expect(page.getByLabel("Discount code (optional)")).not.toBeVisible();
     await expect(page.getByText("Discount (SPRING10): -$1.50")).toBeVisible();
 
     await page.getByLabel("Name for will call").fill("Discount Buyer");

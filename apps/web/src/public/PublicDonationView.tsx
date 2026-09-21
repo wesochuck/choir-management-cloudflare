@@ -37,6 +37,16 @@ function money(cents: number): string {
   );
 }
 
+const TRIBUTE_OPTIONS: readonly {
+  readonly label: string;
+  readonly value: "none" | "honor" | "memory" | "anonymous";
+}[] = [
+  { label: "No tribute", value: "none" },
+  { label: "In honor of", value: "honor" },
+  { label: "In memory of", value: "memory" },
+  { label: "Anonymous tribute", value: "anonymous" },
+];
+
 // eslint-disable-next-line complexity -- PublicDonationView coordinates donation levels, custom amount, tribute options, fees, and checkout.
 export function PublicDonationView() {
   const [settings, setSettings] = useState<DonationSettings>(DEFAULT_SETTINGS);
@@ -143,7 +153,7 @@ export function PublicDonationView() {
   }
 
   return (
-    <section className="public-section public-section--narrow">
+    <section className="public-section public-donation-section">
       <h1>{settings.buttonText}</h1>
       <p>{settings.description}</p>
       {settingsLoading ? <p className="notice notice--info">Loading donation options…</p> : null}
@@ -152,13 +162,13 @@ export function PublicDonationView() {
           {loadError}
         </p>
       ) : null}
-      <form className="panel form-stack" onSubmit={(formEvent) => void submit(formEvent)}>
+      <form className="panel public-donation-form" onSubmit={(formEvent) => void submit(formEvent)}>
         {error ? (
           <p className="notice notice--error" id="donation-form-error" role="alert">
             {error}
           </p>
         ) : null}
-        <fieldset className="field">
+        <fieldset className="field public-donation-level-fieldset">
           <legend>Select a donation level</legend>
           <div className="donation-level-grid">
             {settings.levels.map((level) => (
@@ -191,7 +201,7 @@ export function PublicDonationView() {
             </button>
           </div>
           {useCustom ? (
-            <label className="field">
+            <label className="field public-donation-custom-field">
               Custom amount
               <input
                 aria-describedby={error ? "donation-form-error" : undefined}
@@ -199,164 +209,175 @@ export function PublicDonationView() {
                 inputMode="decimal"
                 maxLength={10}
                 min="0"
+                onChange={(e) => {
+                  handleCustomChange(e.target.value);
+                }}
                 placeholder="0.00"
                 step="0.01"
                 type="text"
                 value={customAmount}
-                onChange={(e) => {
-                  handleCustomChange(e.target.value);
-                }}
               />
             </label>
           ) : null}
         </fieldset>
-        <fieldset className="field">
-          <legend>Tribute</legend>
-          <label>
-            <input
-              checked={tributeType === "none"}
-              onChange={() => {
-                setTributeType("none");
-              }}
-              type="radio"
-              name="tributeType"
-            />{" "}
-            None
-          </label>
-          <label>
-            <input
-              checked={tributeType === "honor"}
-              onChange={() => {
-                setTributeType("honor");
-              }}
-              type="radio"
-              name="tributeType"
-            />{" "}
-            In Honor Of
-          </label>
-          <label>
-            <input
-              checked={tributeType === "memory"}
-              onChange={() => {
-                setTributeType("memory");
-              }}
-              type="radio"
-              name="tributeType"
-            />{" "}
-            In Memory Of
-          </label>
-          <label>
-            <input
-              checked={tributeType === "anonymous"}
-              onChange={() => {
-                setTributeType("anonymous");
-              }}
-              type="radio"
-              name="tributeType"
-            />{" "}
-            Anonymous
-          </label>
-          {tributeType === "honor" || tributeType === "memory" ? (
-            <>
-              <label className="field">
-                {tributeType === "honor" ? "Honoree name" : "Person to memorialize"}
-                <input
-                  maxLength={500}
-                  required
-                  value={tributeName}
-                  onChange={(e) => {
-                    setTributeName(e.target.value);
-                  }}
-                />
-              </label>
-              <label className="field">
-                Notification email (optional)
-                <input
-                  maxLength={320}
-                  type="email"
-                  value={tributeNotifyEmail}
-                  onChange={(e) => {
-                    setTributeNotifyEmail(e.target.value);
-                  }}
-                />
-              </label>
-            </>
-          ) : null}
-        </fieldset>
-        <label>
-          <input
-            checked={anonymous}
-            type="checkbox"
-            onChange={(e) => {
-              setAnonymous(e.target.checked);
-            }}
-          />{" "}
-          Show my donation as anonymous
-        </label>
-        <label>
-          <input
-            checked={marketingConsent}
-            type="checkbox"
-            onChange={(e) => {
-              setMarketingConsent(e.target.checked);
-            }}
-          />{" "}
-          I would like to receive updates about future events and programs
-        </label>
-        <fieldset className="field">
-          <legend>Your information</legend>
-          <label className="field">
-            Name
-            <input
-              aria-describedby={error ? "donation-form-error" : undefined}
-              required
-              maxLength={200}
-              value={buyerName}
-              onChange={(e) => {
-                setBuyerName(e.target.value);
-              }}
-            />
-          </label>
-          <label className="field">
-            Email
-            <input
-              aria-describedby={error ? "donation-form-error" : undefined}
-              required
-              type="email"
-              value={buyerEmail}
-              onChange={(e) => {
-                setBuyerEmail(e.target.value);
-              }}
-            />
-          </label>
-          <label className="field">
-            Confirm email
-            <input
-              aria-describedby={error ? "donation-form-error" : undefined}
-              aria-invalid={Boolean(error?.toLowerCase().includes("email"))}
-              required
-              type="email"
-              value={confirmEmail}
-              onChange={(e) => {
-                setConfirmEmail(e.target.value);
-              }}
-            />
-          </label>
-        </fieldset>
-        <div>
-          <p>
-            Processing fee:{" "}
-            {transactionFeeSettings.passFeeToDonor
-              ? money(feeCents)
-              : "Covered by the Organization"}
-          </p>
-          <p>
-            <strong>Total: {money(amountCents + feeCents)}</strong>
-          </p>
+
+        <div className="public-donation-body">
+          <div className="public-donation-main">
+            <fieldset className="field public-donation-tribute-fieldset">
+              <legend>Tribute (optional)</legend>
+              <div
+                aria-label="Tribute (optional)"
+                className="donation-tribute-options"
+                role="radiogroup"
+              >
+                {TRIBUTE_OPTIONS.map((option) => (
+                  <label
+                    className={`donation-tribute-option ${tributeType === option.value ? "is-selected" : ""}`}
+                    key={option.value}
+                  >
+                    <input
+                      checked={tributeType === option.value}
+                      name="tributeType"
+                      onChange={() => {
+                        setTributeType(option.value);
+                      }}
+                      type="radio"
+                      value={option.value}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+              {tributeType === "honor" || tributeType === "memory" ? (
+                <div className="public-donation-tribute-fields">
+                  <label className="field">
+                    {tributeType === "honor" ? "Honoree name" : "Person to memorialize"}
+                    <input
+                      maxLength={500}
+                      onChange={(e) => {
+                        setTributeName(e.target.value);
+                      }}
+                      required
+                      value={tributeName}
+                    />
+                  </label>
+                  <label className="field">
+                    Notification email (optional)
+                    <input
+                      maxLength={320}
+                      onChange={(e) => {
+                        setTributeNotifyEmail(e.target.value);
+                      }}
+                      type="email"
+                      value={tributeNotifyEmail}
+                    />
+                  </label>
+                </div>
+              ) : null}
+            </fieldset>
+
+            <fieldset className="field public-donation-info-fieldset">
+              <legend>Your information</legend>
+              <div className="public-donation-contact-grid">
+                <label className="field">
+                  Name
+                  <input
+                    aria-describedby={error ? "donation-form-error" : undefined}
+                    maxLength={200}
+                    onChange={(e) => {
+                      setBuyerName(e.target.value);
+                    }}
+                    required
+                    value={buyerName}
+                  />
+                </label>
+                <label className="field">
+                  Email
+                  <input
+                    aria-describedby={error ? "donation-form-error" : undefined}
+                    onChange={(e) => {
+                      setBuyerEmail(e.target.value);
+                    }}
+                    required
+                    type="email"
+                    value={buyerEmail}
+                  />
+                </label>
+                <label className="field">
+                  Confirm email
+                  <input
+                    aria-describedby={error ? "donation-form-error" : undefined}
+                    aria-invalid={Boolean(error?.toLowerCase().includes("email"))}
+                    onChange={(e) => {
+                      setConfirmEmail(e.target.value);
+                    }}
+                    required
+                    type="email"
+                    value={confirmEmail}
+                  />
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset className="field public-donation-preferences-fieldset">
+              <legend>Preferences</legend>
+              <div className="public-donation-preferences">
+                <label className="public-donation-checkbox-label">
+                  <input
+                    checked={anonymous}
+                    onChange={(e) => {
+                      setAnonymous(e.target.checked);
+                    }}
+                    type="checkbox"
+                  />
+                  <span>Hide my name from public donor recognition</span>
+                </label>
+                <label className="public-donation-checkbox-label">
+                  <input
+                    checked={marketingConsent}
+                    onChange={(e) => {
+                      setMarketingConsent(e.target.checked);
+                    }}
+                    type="checkbox"
+                  />
+                  <span>I would like to receive updates about future events and programs</span>
+                </label>
+              </div>
+            </fieldset>
+          </div>
+
+          <aside aria-label="Donation summary" className="public-donation-summary">
+            <div className="public-donation-summary-card">
+              <h3>Donation summary</h3>
+              <div className="public-donation-summary-rows">
+                <div className="public-donation-summary-row">
+                  <span>Donation</span>
+                  <strong>{money(amountCents)}</strong>
+                </div>
+                <div className="public-donation-summary-row">
+                  <span>Processing fee</span>
+                  <span>
+                    {transactionFeeSettings.passFeeToDonor
+                      ? money(feeCents)
+                      : "Covered by the Organization"}
+                  </span>
+                </div>
+                <hr className="public-donation-summary-divider" />
+                <div className="public-donation-summary-row public-donation-summary-total">
+                  <strong>Total</strong>
+                  <strong>{money(amountCents + feeCents)}</strong>
+                </div>
+              </div>
+              <button
+                className="button button--primary public-donation-submit"
+                disabled={busy}
+                type="submit"
+              >
+                {busy ? "Completing donation…" : "Complete donation"}
+              </button>
+            </div>
+          </aside>
         </div>
-        <button className="button button--primary" disabled={busy} type="submit">
-          {busy ? "Completing donation…" : "Complete donation"}
-        </button>
       </form>
     </section>
   );

@@ -156,6 +156,36 @@ export function OrganizationLayout({
   );
 }
 
+export function PublicTransactionLayout({
+  children,
+  projection,
+}: {
+  readonly children: ReactNode;
+  readonly projection: PublishedOrganizationProjection;
+}) {
+  const { settings } = projection.payload;
+  return (
+    <div className="public-site" style={publicSiteStyle(settings)}>
+      <header className="public-site-header">
+        <a className="public-site-brand" href="/">
+          {settings.logoFileId ? (
+            <img alt="" aria-hidden="true" src={mediaUrl(projection, settings.logoFileId)} />
+          ) : null}
+          <span>{projection.payload.organizationName}</span>
+        </a>
+      </header>
+      <main>{children}</main>
+      <footer className="public-site-footer">
+        <p>
+          © {new Date(projection.generatedAt).getUTCFullYear()}{" "}
+          {projection.payload.organizationName}
+        </p>
+        {settings.contactEmail ? <a href={`mailto:${settings.contactEmail}`}>Contact us</a> : null}
+      </footer>
+    </div>
+  );
+}
+
 function OrganizationHome({
   pathname,
   projection,

@@ -7,7 +7,7 @@ import type {
   TransactionFeeSettings,
 } from "@choir/contracts";
 import { ticketProcessingFeeCents, ticketUnitPriceCents } from "@choir/domain";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 
 import {
   createPublicTicketCheckout,
@@ -19,7 +19,7 @@ import {
   getPublishedOrganizationProjection,
   quotePublicTicketCheckout,
 } from "../auth/api";
-import { OrganizationLayout } from "./PublicOrganizationSite";
+import { OrganizationLayout, PublicTransactionLayout } from "./PublicOrganizationSite";
 import { getEventVenueDetails } from "./venueDetails";
 
 type LoadState =
@@ -66,7 +66,7 @@ interface TicketDiscountTarget {
   readonly eventId?: string;
 }
 
-interface TicketDiscountState {
+export interface TicketDiscountState {
   readonly appliedCode: string | null;
   readonly applyCode: () => void;
   readonly clearCode: () => void;
@@ -188,52 +188,113 @@ function useTicketDiscountQuote({
   };
 }
 
-function TicketDiscountControls({ state }: { readonly state: TicketDiscountState }) {
+export function TicketDiscountControls({ state }: { readonly state: TicketDiscountState }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const toggleRef = useRef<HTMLButtonElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
   if (!state.hasRedeemableCode) return null;
-  return (
-    <div className="field">
-      <label htmlFor="ticket-discount-code">Discount code (optional)</label>
-      <div className="form-actions">
-        <input
-          aria-describedby={
-            state.quoteError
-              ? "ticket-discount-code-error ticket-discount-code-help"
-              : "ticket-discount-code-help"
-          }
-          aria-invalid={Boolean(state.quoteError)}
-          id="ticket-discount-code"
-          maxLength={64}
-          onChange={(event) => {
-            state.setCodeInput(event.target.value);
+
+  if (state.appliedCode && !state.quoteError) {
+    const codeName = state.displayQuote.discountCode ?? state.appliedCode;
+    return (
+      <div className="ticket-discount-controls ticket-discount-applied" role="status">
+        <span>
+          <strong>{codeName} applied</strong>
+          {state.quoteBusy ? " (checking…)" : null}
+        </span>
+        <span aria-hidden="true"> · </span>
+        <button
+          className="text-button ticket-discount-remove"
+          onClick={() => {
+            state.clearCode();
+            setIsExpanded(false);
+            requestAnimationFrame(() => {
+              toggleRef.current?.focus();
+            });
           }}
-          value={state.codeInput}
-        />
-        {state.appliedCode ? (
-          <button className="button button--secondary" onClick={state.clearCode} type="button">
-            Remove
-          </button>
-        ) : (
-          <button
-            className="button button--secondary"
-            disabled={!state.codeInput.trim() || state.quoteBusy}
-            onClick={state.applyCode}
-            type="button"
-          >
-            {state.quoteBusy ? "Checking…" : "Apply code"}
-          </button>
-        )}
+          type="button"
+        >
+          Remove
+        </button>
       </div>
-      <p className="field-help" id="ticket-discount-code-help">
-        {state.quoteBusy
-          ? "Checking this code against the current price…"
-          : state.appliedCode
-            ? `Code ${state.displayQuote.discountCode ?? state.appliedCode} applied.`
-            : "One code may be applied to this purchase."}
-      </p>
-      {state.quoteError ? (
-        <p className="field-help field-help--error" id="ticket-discount-code-error" role="alert">
-          {state.quoteError}
-        </p>
+    );
+  }
+
+  const showEntry = isExpanded || Boolean(state.quoteError);
+
+  return (
+    <div className="ticket-discount-controls">
+      <button
+        aria-controls="ticket-discount-region"
+        aria-expanded={showEntry}
+        className="text-button ticket-discount-toggle"
+        onClick={() => {
+          const next = !showEntry;
+          setIsExpanded(next);
+          if (next) {
+            requestAnimationFrame(() => {
+              inputRef.current?.focus();
+            });
+          }
+        }}
+        ref={toggleRef}
+        type="button"
+      >
+        Have a discount code?
+      </button>
+
+      {showEntry ? (
+        <div className="field ticket-discount-region" id="ticket-discount-region">
+          <label htmlFor="ticket-discount-code">Discount code (optional)</label>
+          <div className="form-actions">
+            <input
+              aria-describedby={
+                state.quoteError
+                  ? "ticket-discount-code-error ticket-discount-code-help"
+                  : "ticket-discount-code-help"
+              }
+              aria-invalid={Boolean(state.quoteError)}
+              id="ticket-discount-code"
+              maxLength={64}
+              onChange={(event) => {
+                state.setCodeInput(event.target.value);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  if (state.codeInput.trim() && !state.quoteBusy) {
+                    state.applyCode();
+                  }
+                }
+              }}
+              ref={inputRef}
+              value={state.codeInput}
+            />
+            <button
+              className="button button--secondary"
+              disabled={!state.codeInput.trim() || state.quoteBusy}
+              onClick={state.applyCode}
+              type="button"
+            >
+              {state.quoteBusy ? "Checking…" : "Apply code"}
+            </button>
+          </div>
+          <p className="field-help" id="ticket-discount-code-help">
+            {state.quoteBusy
+              ? "Checking this code against the current price…"
+              : "One code may be applied to this purchase."}
+          </p>
+          {state.quoteError ? (
+            <p
+              className="field-help field-help--error"
+              id="ticket-discount-code-error"
+              role="alert"
+            >
+              {state.quoteError}
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
@@ -504,7 +565,7 @@ function TicketPurchaseForm({
               setMarketingOptIn(e.target.checked);
             }}
           />{" "}
-          Keep me informed about future Organization events
+          I would like to receive updates about future events and programs
         </label>
         <div>
           <p>Original subtotal: {money(displayedQuote.originalSubtotalCents)}</p>
@@ -693,7 +754,7 @@ export function TicketBundlePurchaseForm({
               setMarketingOptIn(event.target.checked);
             }}
           />{" "}
-          Keep me informed about future Organization events
+          I would like to receive updates about future events and programs
         </label>
         <div>
           <p>Original subtotal: {money(displayedQuote.originalSubtotalCents)}</p>
@@ -858,14 +919,21 @@ export function PublicTickets({ pathname }: { readonly pathname: string }) {
         <p className="notice notice--error">Tickets are unavailable.</p>
       </main>
     );
-  return (
-    <OrganizationLayout projection={state.projection}>
-      <TicketsContent
-        feeSettings={state.feeSettings}
-        nowMs={nowMs}
-        pathname={pathname}
-        projection={state.projection}
-      />
+  const settings = state.projection.payload.settings;
+  const content = (
+    <TicketsContent
+      feeSettings={state.feeSettings}
+      nowMs={nowMs}
+      pathname={pathname}
+      projection={state.projection}
+    />
+  );
+
+  return settings.showBrandingHeaderFooter ? (
+    <OrganizationLayout pathname={pathname} projection={state.projection}>
+      {content}
     </OrganizationLayout>
+  ) : (
+    <PublicTransactionLayout projection={state.projection}>{content}</PublicTransactionLayout>
   );
 }

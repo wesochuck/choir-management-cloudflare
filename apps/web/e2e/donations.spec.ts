@@ -598,3 +598,191 @@ test("keyboard selection works and a degraded directory stays silent", async ({ 
   });
   await expect(page.getByRole("status")).toHaveText("Manual donation recorded.");
 });
+
+test.describe("public donation checkout", () => {
+  const publicDonationSettings = {
+    buttonText: "Support our Music",
+    description: "Your gift sustains our artistic and education programs.",
+    levels: [
+      { amountCents: 2500, benefit: "Friend", id: "level-1", label: "Friend" },
+      { amountCents: 5000, benefit: "Supporter", id: "level-2", label: "Supporter" },
+      { amountCents: 10000, benefit: "Patron", id: "level-3", label: "Patron" },
+      { amountCents: 25000, benefit: "Benefactor", id: "level-4", label: "Benefactor" },
+      { amountCents: 50000, benefit: "Sponsor", id: "level-5", label: "Sponsor" },
+    ],
+    requestId: "a0000000-0000-4000-8000-000000000001",
+  };
+
+  const publicFeeSettings = {
+    fixedCents: 30,
+    passFeeToDonor: true,
+    percentage: 2.9,
+    requestId: "a0000000-0000-4000-8000-000000000002",
+  };
+
+  test("renders balanced desktop layout with normal-sized radios and multi-column body", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    await page.route("**/api/public/donation-settings*", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(publicDonationSettings),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/public/transaction-fee-settings*", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(publicFeeSettings),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto("/donate");
+    await expect(page.getByRole("heading", { name: "Support our Music" })).toBeVisible();
+
+    // Verify 6 donation level options (5 configured + custom) exist
+    const levelButtons = page.locator(".donation-level-option");
+    await expect(levelButtons).toHaveCount(6);
+
+    // Verify desktop level grid has 3 columns
+    const levelGrid = page.locator(".public-donation-form .donation-level-grid");
+    const gridColumns = await levelGrid.evaluate(
+      (el) => window.getComputedStyle(el).gridTemplateColumns.split(" ").length,
+    );
+    expect(gridColumns).toBe(3);
+
+    // Verify tribute radios are NOT oversized
+    const firstRadio = page.locator('.donation-tribute-option input[type="radio"]').first();
+    await expect(firstRadio).toBeVisible();
+    const radioBox = await firstRadio.boundingBox();
+    expect(radioBox).toBeTruthy();
+    if (radioBox) {
+      // Must not be the oversized 52px (3.25rem) box from generic .field input
+      expect(radioBox.width).toBeLessThanOrEqual(24);
+      expect(radioBox.height).toBeLessThanOrEqual(24);
+    }
+
+    // Verify body is two columns on desktop
+    const body = page.locator(".public-donation-body");
+    const bodyColumns = await body.evaluate(
+      (el) => window.getComputedStyle(el).gridTemplateColumns.split(" ").length,
+    );
+    expect(bodyColumns).toBe(2);
+
+    // Verify summary card contains donation, processing fee, total, and complete button
+    const summary = page.locator(".public-donation-summary");
+    await expect(summary.getByText("Donation summary")).toBeVisible();
+    await expect(summary.getByRole("button", { name: "Complete donation" })).toBeVisible();
+  });
+
+  test("reveals conditional tribute fields and submits donation checkout", async ({ page }) => {
+    let checkoutPayload: unknown = null;
+
+    await page.route("**/api/public/donation-settings*", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(publicDonationSettings),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/public/transaction-fee-settings*", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(publicFeeSettings),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/public/donations/checkout*", async (route) => {
+      checkoutPayload = route.request().postDataJSON();
+      await route.fulfill({
+        body: JSON.stringify({ url: "https://checkout.stripe.test/pay" }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto("/donate");
+    await expect(page.getByRole("heading", { name: "Support our Music" })).toBeVisible();
+
+    // Tribute starts with No tribute
+    await expect(page.getByLabel("Honoree name")).not.toBeVisible();
+
+    // Selecting In honor of reveals conditional fields
+    await page.getByLabel("In honor of").click();
+    await expect(page.getByLabel("Honoree name")).toBeVisible();
+    await expect(page.getByLabel("Notification email (optional)")).toBeVisible();
+
+    await page.getByLabel("Honoree name").fill("Maestro Smith");
+    await page.getByLabel("Notification email (optional)").fill("maestro@example.test");
+
+    // Fill donor information
+    await page.getByLabel("Name", { exact: true }).fill("Patron User");
+    await page.getByLabel("Email", { exact: true }).fill("patron@example.test");
+    await page.getByLabel("Confirm email").fill("patron@example.test");
+
+    // Select preferences
+    await page.getByLabel("Hide my name from public donor recognition").check();
+    await page
+      .getByLabel("I would like to receive updates about future events and programs")
+      .check();
+
+    // Complete donation
+    await page.getByRole("button", { name: "Complete donation" }).click();
+
+    expect(checkoutPayload).toMatchObject({
+      amountCents: 2500,
+      anonymous: true,
+      buyerEmail: "patron@example.test",
+      buyerName: "Patron User",
+      marketingConsent: true,
+      tributeName: "Maestro Smith",
+      tributeNotifyEmail: "maestro@example.test",
+      tributeType: "honor",
+    });
+  });
+
+  test("collapses to single column on mobile without horizontal overflow", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+
+    await page.route("**/api/public/donation-settings*", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(publicDonationSettings),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/public/transaction-fee-settings*", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(publicFeeSettings),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto("/donate");
+    await expect(page.getByRole("heading", { name: "Support our Music" })).toBeVisible();
+
+    // Verify no horizontal overflow
+    const hasOverflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    expect(hasOverflow).toBe(false);
+
+    // Verify single-column layout for body
+    const body = page.locator(".public-donation-body");
+    const bodyColumns = await body.evaluate(
+      (el) => window.getComputedStyle(el).gridTemplateColumns.split(" ").length,
+    );
+    expect(bodyColumns).toBe(1);
+
+    // Verify single-column layout for donation levels
+    const levelGrid = page.locator(".public-donation-form .donation-level-grid");
+    const levelColumns = await levelGrid.evaluate(
+      (el) => window.getComputedStyle(el).gridTemplateColumns.split(" ").length,
+    );
+    expect(levelColumns).toBe(1);
+  });
+});
