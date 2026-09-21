@@ -159,6 +159,7 @@ test("renders practice player with artwork, track navigation, and set list @webk
   await expect(soprano1Option).toBeVisible();
   await soprano1Option.click();
   await expect(voicePartSheet).not.toBeVisible();
+  await expect(page.locator(".dialog__overlay")).toHaveCount(0);
   await expect(voicePartTrigger).toContainText("Soprano 1");
   await expect(nowPlaying.locator(".public-player__track-badge")).toHaveText("SOPRANO1");
 
@@ -166,8 +167,8 @@ test("renders practice player with artwork, track navigation, and set list @webk
   const isMobile = testInfo.project.name.includes("mobile");
   if (isMobile) {
     const setListBtn = page.getByRole("button", { name: /Set list \(2 tracks\)/i });
-    await setListBtn.click({ force: true });
-    const sheet = page.locator(".sheet");
+    await setListBtn.click();
+    const sheet = page.getByRole("dialog", { name: "Set List" });
     await expect(sheet).toBeVisible();
     await expect(sheet.getByText("Hallelujah Chorus")).toBeVisible();
     await expect(sheet.getByText("Ave Verum")).toBeVisible();
