@@ -179,17 +179,18 @@ export function OrganizationProviderStatus() {
             </span>
           </div>
           <div className="provider-status-card__rows">
-            <ProviderRow label="Stripe" {...state.data.stripe} />
+            <ProviderRow label="Stripe platform configuration" {...state.data.stripe} />
             <ProviderRow label="Email & SMS" {...state.data.brevo} />
           </div>
         </>
       ) : null}
       <p className="notice notice--info">
         <strong>Platform-managed setup:</strong> Provider credentials and environment settings are
-        managed by a Platform Administrator. Organization admins cannot edit them here. If Stripe or
-        Email &amp; SMS shows “Needs attention” or “Not configured,” contact your Platform
-        Administrator. Organization-specific Stripe Connect onboarding is handled in the setup
-        checklist above.
+        managed by a Platform Administrator. Organization admins cannot edit them here. If Stripe
+        platform configuration or Email &amp; SMS shows “Needs attention” or “Not configured,” the
+        platform environment requires administrator attention. Organization-specific Stripe Connect
+        onboarding and payment activation are handled separately in the setup checklist and payment
+        settings.
       </p>
     </fieldset>
   );

@@ -196,9 +196,7 @@ export function providerSetupChecks(
     env.PLATFORM_EMAIL_MODE !== "disabled";
   const brevoApiKeyConfigured = Boolean(env.BREVO_API_KEY?.trim());
   const brevoSmsSenderConfigured = Boolean(env.BREVO_SMS_SENDER?.trim());
-  const stripeWebhookReady = Boolean(
-    (env.STRIPE_WEBHOOK_SECRET ?? env.STRIPE_V2_EVENT_DESTINATION_SECRET)?.trim(),
-  );
+  const stripeWebhookReady = Boolean(env.STRIPE_WEBHOOK_SECRET?.trim());
   const stripePlatformReady = Boolean(env.STRIPE_SECRET_KEY?.trim());
 
   const brevo =
@@ -247,12 +245,16 @@ export function providerSetupChecks(
         : stripePlatformReady && stripeWebhookReady
           ? {
               detail:
-                "Stripe Connect platform credentials and webhook verification are configured. Organization onboarding is available; each payment type remains paused until its Organization activation checklist is complete.",
-              status: "attention" as const,
+                "Stripe Connect platform credentials and webhook verification are configured. Organization Stripe Connect onboarding is available.",
+              status: "ok" as const,
             }
           : {
               detail:
-                "Add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET for Stripe Connect onboarding and signed webhook verification.",
+                !stripePlatformReady && !stripeWebhookReady
+                  ? "Add STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET for Stripe Connect onboarding and signed webhook verification."
+                  : !stripePlatformReady
+                    ? "Add STRIPE_SECRET_KEY for Stripe Connect onboarding."
+                    : "Add STRIPE_WEBHOOK_SECRET for signed payment webhook verification.",
               status: "error" as const,
             };
 
