@@ -75,7 +75,9 @@ describe("PublicDonations", () => {
     expect(logoImg).toBeInTheDocument();
     expect(logoImg).toHaveAttribute("src", "/api/public/media/1/logo-file-123");
 
-    expect(screen.getByRole("heading", { name: "Donate Now" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Donate Now" })).toBeInTheDocument();
+    });
   });
 
   it("handles image load failure gracefully by falling back to /api/public/logo then removing img on second failure", async () => {
