@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { generateQRCodeDataUrl } from "./qrCode";
 
 export interface QRCodeImageProps {
@@ -36,6 +36,11 @@ export function QRCodeImage({
 
   const requestKey = `${payload}:${String(width)}:${String(margin)}:${errorCorrectionLevel}:${logoUrl ?? ""}`;
 
+  const onErrorRef = useRef(onError);
+  useEffect(() => {
+    onErrorRef.current = onError;
+  }, [onError]);
+
   useEffect(() => {
     let active = true;
 
@@ -54,14 +59,14 @@ export function QRCodeImage({
       .catch((err: unknown) => {
         if (active) {
           setLoadState({ error: true, key: requestKey, url: null });
-          onError?.(err instanceof Error ? err : new Error(String(err)));
+          onErrorRef.current?.(err instanceof Error ? err : new Error(String(err)));
         }
       });
 
     return () => {
       active = false;
     };
-  }, [errorCorrectionLevel, logoUrl, margin, onError, payload, requestKey, width]);
+  }, [errorCorrectionLevel, logoUrl, margin, payload, requestKey, width]);
 
   const hasError = loadState.key === requestKey && loadState.error;
   const dataUrl = loadState.key === requestKey ? loadState.url : null;

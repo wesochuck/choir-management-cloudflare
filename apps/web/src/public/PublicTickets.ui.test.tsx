@@ -1002,7 +1002,7 @@ describe("TicketReceipt", () => {
   };
 
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     vi.mocked(getPublicTicketConfirmationSettings).mockResolvedValue({
       admissionInstructions: "Keep this confirmation available on your phone.",
       pendingMessage: "Order processing message.",
@@ -1058,16 +1058,15 @@ describe("TicketReceipt", () => {
 
     expect(screen.getByRole("heading", { name: "Your tickets are confirmed" })).toBeInTheDocument();
     expect(screen.getByText("Order success message.")).toBeInTheDocument();
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(500);
-    });
-    expect(screen.getByRole("img", { name: /Admission QR code/ })).toBeInTheDocument();
+    vi.useRealTimers();
+    expect(await screen.findByRole("img", { name: /Admission QR code/ })).toBeInTheDocument();
     expect(screen.queryByText("credential.token.123")).not.toBeInTheDocument();
     expect(screen.queryByText("Manual credential")).not.toBeInTheDocument();
     expect(screen.getAllByText("Symphony Hall").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/123 Concert Hall Way/).length).toBeGreaterThanOrEqual(1);
     expect(getPublicTicketPurchase).toHaveBeenCalledTimes(3);
 
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
     });
@@ -1233,10 +1232,8 @@ describe("TicketReceipt", () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
     expect(screen.getByRole("heading", { name: "Your tickets are confirmed" })).toBeInTheDocument();
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(500);
-    });
-    expect(screen.getByRole("img", { name: /Admission QR code/ })).toBeInTheDocument();
+    vi.useRealTimers();
+    expect(await screen.findByRole("img", { name: /Admission QR code/ })).toBeInTheDocument();
     expect(screen.queryByText("recovered.token")).not.toBeInTheDocument();
   });
 
