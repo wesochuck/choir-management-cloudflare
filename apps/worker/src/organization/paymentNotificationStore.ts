@@ -31,6 +31,61 @@ function identity(storage: DurableObjectStorage): string | null {
   );
 }
 
+export interface InsertPaymentNotificationInput {
+  readonly contentMarkdown: string;
+  readonly dedupeKey: string;
+  readonly destination: string;
+  readonly paymentType: "donation" | "dues";
+  readonly recipientName: string;
+  readonly resourceId: string;
+  readonly subject: string;
+}
+
+export function insertPaymentNotificationRecord(
+  storage: DurableObjectStorage,
+  data: InsertPaymentNotificationInput,
+  occurredAt = new Date().toISOString(),
+): { readonly notificationId: string; readonly queued: boolean } {
+  const existing = storage.sql
+    .exec<{ readonly id: string }>(
+      "SELECT id FROM payment_notifications WHERE dedupe_key = ? LIMIT 1",
+      data.dedupeKey,
+    )
+    .toArray()
+    .at(0);
+  if (existing) {
+    return { notificationId: existing.id, queued: false };
+  }
+  const notificationId = crypto.randomUUID();
+  storage.sql.exec(
+    `INSERT OR IGNORE INTO payment_notifications
+      (id, payment_type, resource_id, dedupe_key, destination, recipient_name,
+       subject, content_markdown, status, scheduled_for, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
+    notificationId,
+    data.paymentType,
+    data.resourceId,
+    data.dedupeKey,
+    data.destination.toLowerCase(),
+    data.recipientName,
+    data.subject,
+    data.contentMarkdown,
+    occurredAt,
+    occurredAt,
+    occurredAt,
+  );
+  storage.sql.exec(
+    `INSERT OR IGNORE INTO scheduled_job_outbox
+      (job_id, kind, idempotency_key, due_at, created_at)
+     VALUES (?, 'payment_notification', ?, ?, ?)`,
+    notificationId,
+    `payment-notification:${data.dedupeKey}`,
+    occurredAt,
+    occurredAt,
+  );
+  return { notificationId, queued: true };
+}
+
 export function queuePaymentNotificationInStore(
   storage: DurableObjectStorage,
   input: unknown,
@@ -42,36 +97,14 @@ export function queuePaymentNotificationInStore(
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
   const now = new Date().toISOString();
-  const notificationId = crypto.randomUUID();
+  let result: { readonly notificationId: string; readonly queued: boolean } | undefined;
   storage.transactionSync(() => {
-    storage.sql.exec(
-      `INSERT OR IGNORE INTO payment_notifications
-        (id, payment_type, resource_id, dedupe_key, destination, recipient_name,
-         subject, content_markdown, status, scheduled_for, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
-      notificationId,
-      request.data.paymentType,
-      request.data.resourceId,
-      request.data.dedupeKey,
-      request.data.destination.toLowerCase(),
-      request.data.recipientName,
-      request.data.subject,
-      request.data.contentMarkdown,
-      now,
-      now,
-      now,
-    );
-    storage.sql.exec(
-      `INSERT OR IGNORE INTO scheduled_job_outbox
-        (job_id, kind, idempotency_key, due_at, created_at)
-       VALUES (?, 'payment_notification', ?, ?, ?)`,
-      notificationId,
-      `payment-notification:${request.data.dedupeKey}`,
-      now,
-      now,
-    );
+    result = insertPaymentNotificationRecord(storage, request.data, now);
   });
-  return Response.json({ queued: true, notificationId });
+  return Response.json({
+    notificationId: result?.notificationId ?? "",
+    queued: result?.queued ?? true,
+  });
 }
 
 export function readPaymentNotificationJobFromStore(

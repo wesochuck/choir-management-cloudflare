@@ -1,10 +1,10 @@
 import type { z } from "zod";
 
-import { queuePaymentNotificationInStore } from "../paymentNotificationStore";
+import { insertPaymentNotificationRecord } from "../paymentNotificationStore";
 import { renderPaymentMessageTemplate } from "../paymentMessageTemplates";
-import { linkPaidDonationContact } from "../commerceContacts";
+import { linkPaidDonationContact, resolveOrCreateContactForCommerce } from "../commerceContacts";
 import { upsertPatronAfterDonation } from "./patrons";
-import { donationById, donationByStripeOperation, donationResult, identity } from "./queries";
+import { donationById, donationByStripeOperation, donationResult } from "./queries";
 import type {
   attachStripeSessionOperationSchema,
   stripeDonationCompletedOperationSchema,
@@ -13,11 +13,22 @@ import type {
 } from "./types";
 import { type DonationRow, donationSelect } from "./types";
 
-export function queueDonationConfirmation(
+export function insertDonationConfirmation(
   storage: DurableObjectStorage,
   donation: DonationRow,
-): void {
-  if (donation.status !== "paid") return;
+  occurredAt = new Date().toISOString(),
+): boolean {
+  if (donation.status !== "paid") return false;
+  const dedupeKey = `donation-confirmation:${donation.id}`;
+  const existing = storage.sql
+    .exec<{ readonly id: string }>(
+      "SELECT id FROM payment_notifications WHERE dedupe_key = ? LIMIT 1",
+      dedupeKey,
+    )
+    .toArray()
+    .at(0);
+  if (existing) return false;
+
   const organizationName =
     storage.sql
       .exec<{ readonly name: string }>("SELECT name FROM organization_metadata LIMIT 1")
@@ -33,16 +44,28 @@ export function queueDonationConfirmation(
       paymentStatus: "Paid",
     },
   );
-  queuePaymentNotificationInStore(storage, {
-    action: "queue_payment_notification",
-    contentMarkdown: message.contentMarkdown,
-    dedupeKey: `donation-confirmation:${donation.id}`,
-    destination: donation.buyerEmail,
-    organizationId: identity(storage)?.organizationId ?? "",
-    paymentType: "donation",
-    recipientName: donation.buyerName,
-    resourceId: donation.id,
-    subject: message.subject,
+  const result = insertPaymentNotificationRecord(
+    storage,
+    {
+      contentMarkdown: message.contentMarkdown,
+      dedupeKey,
+      destination: donation.buyerEmail,
+      paymentType: "donation",
+      recipientName: donation.buyerName,
+      resourceId: donation.id,
+      subject: message.subject,
+    },
+    occurredAt,
+  );
+  return result.queued;
+}
+
+export function queueDonationConfirmation(
+  storage: DurableObjectStorage,
+  donation: DonationRow,
+): void {
+  storage.transactionSync(() => {
+    insertDonationConfirmation(storage, donation);
   });
 }
 
@@ -107,27 +130,77 @@ export function completeStripeDonation(
     operation.checkoutRequestId,
   );
   if (!row) return Response.json({ code: "donation_not_found" }, { status: 404 });
-  if (stripeDonationEventWasProcessed(storage, operation.stripeEventId))
-    return Response.json({ ...donationResult(row), duplicate: true });
   const occurredAt = new Date().toISOString();
+
+  if (stripeDonationEventWasProcessed(storage, operation.stripeEventId)) {
+    // Idempotent duplicate reconciliation:
+    // If the event was already processed, repair missing confirmation or contact linkage
+    // without replaying financial fulfillment or double-counting patron aggregates.
+    if (row.status === "paid") {
+      const existingNotification = storage.sql
+        .exec<{ readonly id: string }>(
+          "SELECT id FROM payment_notifications WHERE dedupe_key = ? LIMIT 1",
+          `donation-confirmation:${row.id}`,
+        )
+        .toArray()
+        .at(0);
+      if (!existingNotification) {
+        storage.transactionSync(() => {
+          insertDonationConfirmation(storage, row, occurredAt);
+        });
+      }
+      if (row.contactId === null) {
+        linkPaidDonationContact(storage, row.id);
+      }
+    }
+    const current = donationById(storage, row.id) ?? row;
+    return Response.json({ ...donationResult(current), duplicate: true });
+  }
+
+  const shouldFulfill = row.status === "pending" || row.status === "expired";
+  // Resolve contact ID before transaction to avoid nested transactionSync calls
+  const donationContactId = shouldFulfill
+    ? (row.contactId ??
+      resolveOrCreateContactForCommerce(storage, {
+        buyerEmail: row.buyerEmail,
+        buyerName: row.buyerName,
+        existingContactId: row.contactId,
+        marketingOptIn: row.marketingConsent === 1,
+        occurredAt,
+        source: "donation",
+      }))
+    : row.contactId;
+
   storage.transactionSync(() => {
-    if (row.status === "pending" || row.status === "expired") {
+    if (shouldFulfill) {
       storage.sql.exec(
-        `UPDATE donations SET status = 'paid', provider_payment_id = ?, updated_at = ? WHERE id = ? AND status = 'pending'`,
+        `UPDATE donations
+         SET status = 'paid', provider_payment_id = ?, updated_at = ?,
+             contact_id = COALESCE(contact_id, ?)
+         WHERE id = ? AND status IN ('pending', 'expired')`,
         operation.providerPaymentId,
         occurredAt,
+        donationContactId,
         row.id,
       );
       storage.sql.exec("DELETE FROM donation_expirations WHERE donation_id = ?", row.id);
       storage.sql.exec(
-        `UPDATE payment_attempts SET provider_session_id = ?, provider_payment_id = ?, status = 'paid', updated_at = ? WHERE resource_id = ? AND status IN ('pending', 'expired')`,
+        `UPDATE payment_attempts
+         SET provider_session_id = ?, provider_payment_id = ?, status = 'paid', updated_at = ?
+         WHERE resource_id = ? AND status IN ('pending', 'expired')`,
         operation.providerSessionId,
         operation.providerPaymentId,
         occurredAt,
         row.id,
       );
-      if (row.patronId)
+      if (row.patronId) {
         upsertPatronAfterDonation(storage, row.patronId, row.amountCents, occurredAt);
+      }
+      insertDonationConfirmation(
+        storage,
+        { ...row, contactId: donationContactId, status: "paid" },
+        occurredAt,
+      );
     }
     storage.sql.exec(
       `INSERT INTO audit_events (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at) VALUES (?, 'provider', 'stripe', 'stripe.webhook.processed', 'stripe_event', ?, ?, ?, ?)`,
@@ -138,17 +211,31 @@ export function completeStripeDonation(
         paymentType: "donation",
         providerPaymentId: operation.providerPaymentId,
         providerSessionId: operation.providerSessionId,
-        status: row.status === "pending" || row.status === "expired" ? "paid" : row.status,
+        status: shouldFulfill ? "paid" : row.status,
       }),
       occurredAt,
     );
   });
+
+  if (!shouldFulfill && row.status === "paid") {
+    const existingNotification = storage.sql
+      .exec<{ readonly id: string }>(
+        "SELECT id FROM payment_notifications WHERE dedupe_key = ? LIMIT 1",
+        `donation-confirmation:${row.id}`,
+      )
+      .toArray()
+      .at(0);
+    if (!existingNotification) {
+      storage.transactionSync(() => {
+        insertDonationConfirmation(storage, row, occurredAt);
+      });
+    }
+    if (row.contactId === null) {
+      linkPaidDonationContact(storage, row.id);
+    }
+  }
+
   const updated = donationById(storage, row.id);
-  // Phase 8: a donation that just became paid links its Contact after the
-  // completion transaction; duplicate webhooks on paid rows converge safely.
-  if (updated && (row.status === "pending" || row.status === "expired"))
-    queueDonationConfirmation(storage, updated);
-  if (updated?.status === "paid") linkPaidDonationContact(storage, updated.id);
   return updated
     ? Response.json(donationResult(updated))
     : Response.json({ code: "donation_not_found" }, { status: 404 });

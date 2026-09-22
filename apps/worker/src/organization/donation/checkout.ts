@@ -10,7 +10,7 @@ import {
   donationResult,
   sameCheckoutRequest,
 } from "./queries";
-import { queueDonationConfirmation } from "./stripeLifecycle";
+import { insertDonationConfirmation } from "./stripeLifecycle";
 import type {
   createFakeCheckoutOperationSchema,
   createPendingCheckoutOperationSchema,
@@ -98,7 +98,37 @@ export function createDonationCheckout(
       now,
       now,
     );
-    if (!pending) upsertPatronAfterDonation(storage, patronId, operation.checkout.amountCents, now);
+    if (!pending) {
+      upsertPatronAfterDonation(storage, patronId, operation.checkout.amountCents, now);
+      insertDonationConfirmation(
+        storage,
+        {
+          amountCents: operation.checkout.amountCents,
+          anonymous: operation.checkout.anonymous ? 1 : 0,
+          buyerEmail: operation.checkout.buyerEmail.toLowerCase(),
+          buyerName: operation.checkout.buyerName,
+          contactId: donationContactId,
+          createdAt: now,
+          expiredAt: null,
+          feeCents,
+          id: operation.donationId,
+          marketingConsent: operation.checkout.marketingConsent ? 1 : 0,
+          patronId,
+          paymentMethod: "stripe",
+          paymentReference: "",
+          providerPaymentId: `fake_payment_${operation.donationId}`,
+          providerSessionId: operation.providerSessionId,
+          refundRequested: 0,
+          status: "paid",
+          thankYouSentAt: null,
+          tributeName: operation.checkout.tributeName,
+          tributeNotifyEmail: operation.checkout.tributeNotifyEmail,
+          tributeType: operation.checkout.tributeType,
+          updatedAt: now,
+        },
+        now,
+      );
+    }
     storage.sql.exec(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
@@ -119,7 +149,6 @@ export function createDonationCheckout(
     );
   });
   const created = donationById(storage, operation.donationId);
-  if (created && !pending) queueDonationConfirmation(storage, created);
   return created
     ? Response.json(donationResult(created), { status: 201 })
     : Response.json({ code: "donation_not_created" }, { status: 503 });

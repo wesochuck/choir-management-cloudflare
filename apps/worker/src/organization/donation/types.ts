@@ -89,6 +89,7 @@ export interface DonationRow {
   readonly anonymous: number;
   readonly buyerEmail: string;
   readonly buyerName: string;
+  readonly contactId: string | null;
   readonly createdAt: string;
   readonly expiredAt: string | null;
   readonly feeCents: number;
@@ -132,6 +133,7 @@ export const donationSelect = `SELECT d.id,
   d.buyer_name AS buyerName, d.buyer_email AS buyerEmail,
   d.patron_id AS patronId, d.provider_session_id AS providerSessionId,
   d.provider_payment_id AS providerPaymentId,
+  d.contact_id AS contactId,
   EXISTS (SELECT 1 FROM payment_attempts pa
     WHERE pa.payment_type = 'donation'
       AND pa.resource_id = d.id
