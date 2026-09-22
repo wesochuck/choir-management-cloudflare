@@ -204,7 +204,8 @@ export async function createDuesCheckoutSession(
       "Online dues are not configured for this Organization.",
     );
   }
-  const feeCents = transactionProcessingFeeCents(selectedSeason.duesAmountCents, feeSettings.data);
+  const totalBaseAmountCents = selectedSeason.duesAmountCents * validated.profileIds.length;
+  const totalFeeCents = transactionProcessingFeeCents(totalBaseAmountCents, feeSettings.data);
   const pendingSessionId = `pending_${requestId}`;
   const pendingResponse = await invokeOrganizationRpc(
     organizationStore,
@@ -248,12 +249,12 @@ export async function createDuesCheckoutSession(
           quantity: validated.profileIds.length,
           unitAmountCents: selectedSeason.duesAmountCents,
         },
-        ...(feeCents > 0
+        ...(totalFeeCents > 0
           ? [
               {
                 productName: "Processing fee",
-                quantity: validated.profileIds.length,
-                unitAmountCents: feeCents,
+                quantity: 1,
+                unitAmountCents: totalFeeCents,
               },
             ]
           : []),

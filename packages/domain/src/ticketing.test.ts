@@ -35,9 +35,9 @@ describe("ticketing rules", () => {
     ).toMatchObject({
       discountAmountCents: 600,
       discountedSubtotalCents: 2_400,
-      feeCents: 100,
+      feeCents: 103,
       originalSubtotalCents: 3_000,
-      totalCents: 2_500,
+      totalCents: 2_503,
     });
     expect(
       ticketOrderQuote({
@@ -70,9 +70,23 @@ describe("ticketing rules", () => {
   });
 
   it("calculates the displayed processing fee and bounded remaining capacity", () => {
-    expect(ticketProcessingFeeCents(2_000, 2)).toBe(146);
-    expect(transactionProcessingFeeCents(2_000, { fixedCents: 25, percentage: 5 })).toBe(125);
+    expect(ticketProcessingFeeCents(2_000, 2)).toBe(150);
+    expect(transactionProcessingFeeCents(2_000, { fixedCents: 25, percentage: 5 })).toBe(132);
+    expect(transactionProcessingFeeCents(100)).toBe(34);
+    expect(transactionProcessingFeeCents(2_500)).toBe(106);
+    expect(transactionProcessingFeeCents(5_000)).toBe(180);
     expect(ticketProcessingFeeCents(0, 2)).toBe(0);
+    for (const baseAmountCents of [1, 100, 999, 2_500, 5_000, 10_000]) {
+      const feeCents = transactionProcessingFeeCents(baseAmountCents);
+      const chargeCents = baseAmountCents + feeCents;
+      const providerFeeCents = Math.round(chargeCents * 0.029) + 30;
+      expect(chargeCents - providerFeeCents).toBeGreaterThanOrEqual(baseAmountCents);
+      if (feeCents > 0) {
+        const previousChargeCents = chargeCents - 1;
+        const previousProviderFeeCents = Math.round(previousChargeCents * 0.029) + 30;
+        expect(previousChargeCents - previousProviderFeeCents).toBeLessThan(baseAmountCents);
+      }
+    }
     expect(remainingTicketCapacity(100, 37)).toBe(63);
     expect(remainingTicketCapacity(10, 12)).toBe(0);
     expect(remainingTicketCapacity(null, 12)).toBeNull();

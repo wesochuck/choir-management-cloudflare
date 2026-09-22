@@ -118,9 +118,9 @@ describe("Organization ticket discounts", () => {
       discountAmountCents: 500,
       discountCode: "save10",
       discountedSubtotalCents: 1_500,
-      feeCents: 74,
+      feeCents: 76,
       originalSubtotalCents: 2_000,
-      totalCents: 1_574,
+      totalCents: 1_576,
     });
 
     const checkout = ticketCheckoutResponseSchema.parse(
@@ -137,7 +137,7 @@ describe("Organization ticket discounts", () => {
       ).json(),
     );
     expect(checkout.purchase).toMatchObject({
-      amountPaidCents: 1_574,
+      amountPaidCents: 1_576,
       discountAmountCents: 500,
       discountCode: "save10",
       discountedSubtotalCents: 1_500,
@@ -277,7 +277,7 @@ describe("Organization ticket discounts", () => {
       editable: false,
       originalRevenueCents: 2_000,
       redemptionCount: 1,
-      revenueCents: 1_574,
+      revenueCents: 1_576,
     });
     const immutable = await jsonWrite(
       "alpha.localhost",

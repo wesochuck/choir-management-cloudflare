@@ -68,18 +68,18 @@ export function sameDuesCheckout(
   checkout: z.infer<typeof duesCheckoutRequestSchema>,
   recipientEmail: string | undefined,
   amountCents: number,
-  feeCents: number,
+  totalFeeCents: number,
 ): boolean {
   if (rows.length !== checkout.profileIds.length) return false;
   const expectedProfiles = new Set(checkout.profileIds);
   return (
     new Set(rows.map((row) => row.profileId)).size === expectedProfiles.size &&
+    rows.reduce((sum, row) => sum + row.feeCents, 0) === totalFeeCents &&
     rows.every(
       (row) =>
         row.seasonId === checkout.seasonId &&
         expectedProfiles.has(row.profileId) &&
         row.amountCents === amountCents &&
-        row.feeCents === feeCents &&
         row.payerEmail === (recipientEmail ?? "").toLowerCase(),
     )
   );

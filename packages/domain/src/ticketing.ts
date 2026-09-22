@@ -85,13 +85,53 @@ export function ticketUnitPriceCents(input: TicketPriceInput): number {
   return isShowDay ? input.dayOfPriceCents : input.advancePriceCents;
 }
 
+function providerProcessingFeeCents(
+  chargeAmountCents: number,
+  settings: TransactionFeeSettings,
+): number {
+  return chargeAmountCents > 0
+    ? Math.round(chargeAmountCents * (settings.percentage / 100)) + settings.fixedCents
+    : 0;
+}
+
 export function transactionProcessingFeeCents(
   baseAmountCents: number,
   settings: TransactionFeeSettings = defaultTransactionFeeSettings,
 ): number {
-  return baseAmountCents > 0
-    ? Math.round(baseAmountCents * (settings.percentage / 100)) + settings.fixedCents
-    : 0;
+  if (baseAmountCents <= 0) return 0;
+
+  const rate = settings.percentage / 100;
+  if (rate >= 1) {
+    throw new RangeError("Processing-fee percentage must be less than 100% for fee pass-through.");
+  }
+
+  // Gross up the charge so the configured provider fee is paid by the payer
+  // and the Organization still nets the full base amount. Start from the
+  // algebraic estimate, then adjust in whole cents to match provider rounding.
+  let chargeAmountCents = Math.max(
+    baseAmountCents,
+    Math.floor((baseAmountCents + settings.fixedCents) / (1 - rate)),
+  );
+
+  while (
+    chargeAmountCents - providerProcessingFeeCents(chargeAmountCents, settings) <
+    baseAmountCents
+  ) {
+    chargeAmountCents += 1;
+  }
+
+  while (chargeAmountCents > baseAmountCents) {
+    const previousChargeCents = chargeAmountCents - 1;
+    if (
+      previousChargeCents - providerProcessingFeeCents(previousChargeCents, settings) <
+      baseAmountCents
+    ) {
+      break;
+    }
+    chargeAmountCents = previousChargeCents;
+  }
+
+  return chargeAmountCents - baseAmountCents;
 }
 
 export function ticketProcessingFeeCents(
