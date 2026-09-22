@@ -85,6 +85,104 @@ describe("Organization dues and ticket payment transitions", () => {
             .one(),
       ),
     ).resolves.toEqual({ count: 1, status: "paid" });
+    await expect(
+      runInDurableObject<
+        OrganizationStore,
+        { readonly amountCents: number; readonly feeCents: number; readonly paymentAmountCents: number }
+      >(stub, (_instance, state) => {
+        const dues = state.storage.sql
+          .exec<{ readonly amountCents: number; readonly feeCents: number }>(
+            `SELECT amount_cents AS amountCents, fee_cents AS feeCents
+             FROM dues WHERE season_id = ? AND profile_id = ?`,
+            seasonId,
+            profileId,
+          )
+          .one();
+        const payment = state.storage.sql
+          .exec<{ readonly paymentAmountCents: number }>(
+            `SELECT amount_cents AS paymentAmountCents
+             FROM payment_attempts WHERE payment_type = 'dues' AND checkout_request_id = ?`,
+            checkoutRequestId,
+          )
+          .one();
+        return { ...dues, ...payment };
+      }),
+    ).resolves.toEqual({ amountCents: 3500, feeCents: 135, paymentAmountCents: 3635 });
+  });
+
+  it("grosses up one processing fee across a multi-profile dues checkout", async () => {
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const profileIds = [crypto.randomUUID(), crypto.randomUUID()] as const;
+    const seasonId = crypto.randomUUID();
+    const checkoutRequestId = crypto.randomUUID();
+    const requestId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Dues Member One', ?, ?), (?, 'Dues Member Two', ?, ?)`,
+        profileIds[0],
+        now,
+        now,
+        profileIds[1],
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Family Dues Season', ?, ?, 5000, ?, ?)`,
+        seasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+      );
+    });
+
+    const response = await stub.fetch("https://organization.internal/internal/seasons/manage", {
+      body: JSON.stringify({
+        action: "create_dues_checkout",
+        checkout: { checkoutRequestId, profileIds: [...profileIds], seasonId },
+        organizationId: "organization-alpha",
+        origin: "https://alpha.localhost",
+        recipientEmail: "payer@example.test",
+        requestId,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(response.status).toBe(200);
+
+    await expect(
+      runInDurableObject<
+        OrganizationStore,
+        { readonly paymentAmountCents: number; readonly totalFeeCents: number }
+      >(stub, (_instance, state) => {
+        const fees = state.storage.sql
+          .exec<{ readonly totalFeeCents: number }>(
+            `SELECT SUM(fee_cents) AS totalFeeCents
+             FROM dues WHERE season_id = ? AND profile_id IN (?, ?)`,
+            seasonId,
+            profileIds[0],
+            profileIds[1],
+          )
+          .one();
+        const payment = state.storage.sql
+          .exec<{ readonly paymentAmountCents: number }>(
+            `SELECT amount_cents AS paymentAmountCents
+             FROM payment_attempts WHERE payment_type = 'dues' AND checkout_request_id = ?`,
+            checkoutRequestId,
+          )
+          .one();
+        return { ...fees, ...payment };
+      }),
+    ).resolves.toEqual({
+      // $100.00 grossed up at 2.9% + $0.30 = $3.30, not two separate $1.80 fees.
+      paymentAmountCents: 10330,
+      totalFeeCents: 330,
+    });
   });
 
   it("applies Stripe completion, replay, and refund transitions atomically", async () => {
