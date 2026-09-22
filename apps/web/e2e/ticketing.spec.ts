@@ -674,7 +674,7 @@ test.describe("admin ticket management", () => {
       page.locator(".ticket-dashboard__metric--sold").getByText("Spring Concert", { exact: true }),
     ).toBeVisible();
     await expect(visibleOrders.getByText("$15.74", { exact: true })).toBeVisible();
-    await expect(visibleOrders.getByText("paid (simulation)", { exact: true })).toBeVisible();
+    await expect(visibleOrders.getByText("Paid (simulation)", { exact: true })).toBeVisible();
 
     const orderRows = visibleOrders.locator("tbody tr, .data-table-card");
     await expect(orderRows).toHaveCount(2);
@@ -739,7 +739,7 @@ test.describe("admin ticket management", () => {
   });
 
   test("refunds a paid order via danger confirmation", async ({ page }) => {
-    const refundedOrder = { ...adminOrder, status: "refunded" };
+    let currentOrder = { ...adminOrder };
     let refundCalled = false;
 
     await routeHealth(page);
@@ -749,7 +749,7 @@ test.describe("admin ticket management", () => {
     });
     await page.route("**/api/organization/tickets/orders", async (route) => {
       await route.fulfill({
-        body: JSON.stringify({ orders: [adminOrder], requestId }),
+        body: JSON.stringify({ orders: [currentOrder], requestId }),
         contentType: "application/json",
         status: 200,
       });
@@ -770,8 +770,9 @@ test.describe("admin ticket management", () => {
     });
     await page.route(`**/api/organization/tickets/${purchaseId}/refund`, async (route) => {
       refundCalled = true;
+      currentOrder = { ...currentOrder, status: "refunded" };
       await route.fulfill({
-        body: JSON.stringify(refundedOrder),
+        body: JSON.stringify(currentOrder),
         contentType: "application/json",
         status: 200,
       });
@@ -797,7 +798,7 @@ test.describe("admin ticket management", () => {
     await visibleOrders.getByRole("button", { name: "Confirm refund" }).click({ force: true });
 
     await expect(page.getByText("Ticket order refunded.")).toBeVisible();
-    await expect(visibleOrders.getByText("refunded (simulation)", { exact: true })).toBeVisible();
+    await expect(visibleOrders.getByText("Refunded (simulation)", { exact: true })).toBeVisible();
     expect(refundCalled).toBe(true);
   });
 
