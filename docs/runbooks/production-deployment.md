@@ -82,6 +82,7 @@ npx wrangler secret put BETTER_AUTH_SECRET --env production
 npx wrangler secret put SIGNED_LINK_SECRET --env production
 npx wrangler secret put STRIPE_SECRET_KEY --env production
 npx wrangler secret put STRIPE_WEBHOOK_SECRET --env production
+npx wrangler secret put STRIPE_V2_EVENT_DESTINATION_SECRET --env production
 npx wrangler secret put BREVO_API_KEY --env production
 npx wrangler secret put CLOUDFLARE_API_TOKEN --env production
 ```
