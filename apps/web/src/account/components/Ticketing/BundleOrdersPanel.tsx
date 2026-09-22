@@ -1,11 +1,13 @@
 import type { OrganizationTicketOrder, TicketBundle } from "@choir/contracts";
 import type { Dispatch, SetStateAction } from "react";
-import { money, type OrderState } from "./shared";
+import { canRefundTicketOrder, money, ticketOrderStatusDisplay, type OrderState } from "./shared";
 
 export function BundleOrdersPanel({
   bundleOrders,
   bundles,
   busy,
+  refreshOrders,
+  refreshingOrders,
   refund,
   refundId,
   resendConfirmation,
@@ -15,6 +17,8 @@ export function BundleOrdersPanel({
   readonly bundleOrders: readonly OrganizationTicketOrder[];
   readonly bundles: readonly TicketBundle[];
   readonly busy: boolean;
+  readonly refreshOrders: () => Promise<void>;
+  readonly refreshingOrders: boolean;
   readonly refund: (purchaseId: string) => Promise<void>;
   readonly refundId: string | null;
   readonly resendConfirmation: (purchaseId: string) => Promise<void>;
@@ -28,6 +32,21 @@ export function BundleOrdersPanel({
       id="ticketing-orders-panel"
       role="tabpanel"
     >
+      <div className="ticket-dashboard__section-heading">
+        <div>
+          <p>Review sales and manage bundle fulfillment.</p>
+        </div>
+        <div className="form-actions">
+          <button
+            className="button button--secondary"
+            disabled={busy || refreshingOrders}
+            onClick={() => void refreshOrders()}
+            type="button"
+          >
+            {refreshingOrders ? "Refreshing…" : "Refresh status"}
+          </button>
+        </div>
+      </div>
       {state.status === "loading" ? <p>Loading bundle orders…</p> : null}
       {state.status === "error" ? (
         <p className="notice notice--error">Bundle orders could not be loaded.</p>
@@ -63,7 +82,14 @@ export function BundleOrdersPanel({
                     <td>{bundle?.title ?? order.bundleTitle}</td>
                     <td>{order.quantity}</td>
                     <td>{money(order.amountPaidCents)}</td>
-                    <td>{order.status}</td>
+                    <td>
+                      {(() => {
+                        const statusDisplay = ticketOrderStatusDisplay(order);
+                        return (
+                          <span className={statusDisplay.badgeClass}>{statusDisplay.label}</span>
+                        );
+                      })()}
+                    </td>
                     <td>
                       {refundId === order.id ? (
                         <div className="danger-confirmation">
@@ -99,16 +125,18 @@ export function BundleOrdersPanel({
                           >
                             Resend
                           </button>
-                          <button
-                            className="text-button"
-                            disabled={busy}
-                            onClick={() => {
-                              setRefundId(order.id);
-                            }}
-                            type="button"
-                          >
-                            Refund
-                          </button>
+                          {canRefundTicketOrder(order) ? (
+                            <button
+                              className="text-button"
+                              disabled={busy}
+                              onClick={() => {
+                                setRefundId(order.id);
+                              }}
+                              type="button"
+                            >
+                              Refund
+                            </button>
+                          ) : null}
                         </div>
                       ) : null}
                     </td>

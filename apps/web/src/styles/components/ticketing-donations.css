@@ -584,4 +584,22 @@
   .public-donation-submit {
     width: 100%;
   }
+
+  .status-pill--warning {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 15%, var(--color-surface));
+    color: var(--color-text);
+  }
+
+  .status-pill--success {
+    border-color: var(--color-success, #16a34a);
+    background: color-mix(in srgb, var(--color-success, #16a34a) 12%, var(--color-surface));
+    color: var(--color-text);
+  }
+
+  .status-pill--neutral {
+    border-color: var(--color-border);
+    background: var(--color-surface-muted, var(--color-surface));
+    color: var(--color-text-muted);
+  }
 }

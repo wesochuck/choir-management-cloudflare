@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buyerLastName, findClosestEvent, money } from "./shared";
+import {
+  buyerLastName,
+  canRefundTicketOrder,
+  findClosestEvent,
+  money,
+  ticketOrderStatusDisplay,
+} from "./shared";
 
 describe("findClosestEvent", () => {
   it("returns undefined for an empty list", () => {
@@ -134,5 +140,51 @@ describe("money", () => {
   it("formats cents into currency", () => {
     expect(money(1574)).toBe("$15.74");
     expect(money(0)).toBe("$0.00");
+  });
+});
+
+describe("ticketOrderStatusDisplay and canRefundTicketOrder", () => {
+  const baseOrder = {
+    amountPaidCents: 2500,
+    buyerEmail: "buyer@example.com",
+    buyerName: "Jane Buyer",
+    checkoutMode: "stripe" as const,
+    createdAt: "2026-09-22T12:00:00.000Z",
+    eventId: "evt-1",
+    id: "ord-1",
+    quantity: 2,
+    refundRequested: false,
+    status: "paid" as const,
+  };
+
+  it("displays Paid and permits refund for normal paid order", () => {
+    const display = ticketOrderStatusDisplay(baseOrder);
+    expect(display.label).toBe("Paid");
+    expect(display.badgeClass).toBe("status-pill status-pill--success");
+    expect(canRefundTicketOrder(baseOrder)).toBe(true);
+  });
+
+  it("displays Refund requested with warning styling and suppresses refund when refundRequested is true", () => {
+    const requestedOrder = { ...baseOrder, refundRequested: true };
+    const display = ticketOrderStatusDisplay(requestedOrder);
+    expect(display.label).toBe("Refund requested");
+    expect(display.badgeClass).toBe("status-pill status-pill--warning");
+    expect(canRefundTicketOrder(requestedOrder)).toBe(false);
+  });
+
+  it("displays Refunded and suppresses refund when status is refunded", () => {
+    const refundedOrder = { ...baseOrder, refundRequested: true, status: "refunded" as const };
+    const display = ticketOrderStatusDisplay(refundedOrder);
+    expect(display.label).toBe("Refunded");
+    expect(display.badgeClass).toBe("status-pill status-pill--neutral");
+    expect(canRefundTicketOrder(refundedOrder)).toBe(false);
+  });
+
+  it("preserves simulation indicator in display label", () => {
+    const simOrder = { ...baseOrder, checkoutMode: "fake" as const };
+    expect(ticketOrderStatusDisplay(simOrder).label).toBe("Paid (simulation)");
+
+    const simRequested = { ...baseOrder, checkoutMode: "fake" as const, refundRequested: true };
+    expect(ticketOrderStatusDisplay(simRequested).label).toBe("Refund requested (simulation)");
   });
 });

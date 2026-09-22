@@ -1,13 +1,21 @@
 import type { OrganizationEvent, OrganizationTicketOrder } from "@choir/contracts";
 import { DataTable } from "@choir/ui";
 import type { Dispatch, SetStateAction } from "react";
-import { buyerLastName, money, type OrderState } from "./shared";
+import {
+  buyerLastName,
+  canRefundTicketOrder,
+  money,
+  ticketOrderStatusDisplay,
+  type OrderState,
+} from "./shared";
 
 export function WillCallPanel({
   busy,
   feesCollectedCents,
   lastOrderRefreshAt,
   performanceOrders,
+  refreshOrders,
+  refreshingOrders,
   refund,
   refundId,
   resendConfirmation,
@@ -28,6 +36,8 @@ export function WillCallPanel({
   readonly feesCollectedCents: number;
   readonly lastOrderRefreshAt: Date | null;
   readonly performanceOrders: readonly OrganizationTicketOrder[];
+  readonly refreshOrders: () => Promise<void>;
+  readonly refreshingOrders: boolean;
   readonly refund: (purchaseId: string) => Promise<void>;
   readonly refundId: string | null;
   readonly resendConfirmation: (purchaseId: string) => Promise<void>;
@@ -105,9 +115,19 @@ export function WillCallPanel({
           <div>
             <p>Search ticket buyers, confirm payment status, and process refunds.</p>
           </div>
-          <span className="field-help" role="status">
-            {lastOrderRefreshAt ? "Updates automatically every 5 seconds." : "Loading updates…"}
-          </span>
+          <div className="form-actions">
+            <button
+              className="button button--secondary"
+              disabled={busy || refreshingOrders}
+              onClick={() => void refreshOrders()}
+              type="button"
+            >
+              {refreshingOrders ? "Refreshing…" : "Refresh status"}
+            </button>
+            <span className="field-help" role="status">
+              {lastOrderRefreshAt ? "Updates automatically every 5 seconds." : "Loading updates…"}
+            </span>
+          </div>
         </div>
         <div className="ticket-dashboard__filters ticket-dashboard__filters--search">
           <label className="field">
@@ -172,9 +192,14 @@ export function WillCallPanel({
               {
                 header: "Status",
                 id: "status",
-                render: (order) =>
-                  `${order.status}${order.checkoutMode === "fake" ? " (simulation)" : ""}`,
-                sortValue: (order) => order.status,
+                render: (order) => {
+                  const statusDisplay = ticketOrderStatusDisplay(order);
+                  return <span className={statusDisplay.badgeClass}>{statusDisplay.label}</span>;
+                },
+                sortValue: (order) =>
+                  order.status === "paid" && order.refundRequested
+                    ? "refund_requested"
+                    : order.status,
               },
               {
                 header: "Actions",
@@ -214,16 +239,18 @@ export function WillCallPanel({
                       >
                         Resend
                       </button>
-                      <button
-                        className="text-button"
-                        disabled={busy}
-                        onClick={() => {
-                          setRefundId(order.id);
-                        }}
-                        type="button"
-                      >
-                        Refund
-                      </button>
+                      {canRefundTicketOrder(order) ? (
+                        <button
+                          className="text-button"
+                          disabled={busy}
+                          onClick={() => {
+                            setRefundId(order.id);
+                          }}
+                          type="button"
+                        >
+                          Refund
+                        </button>
+                      ) : null}
                     </div>
                   ) : null,
               },

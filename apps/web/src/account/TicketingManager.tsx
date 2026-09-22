@@ -7,7 +7,7 @@ import type {
   TicketConfirmationSettings,
 } from "@choir/contracts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useCallback, useEffect, useState, type SyntheticEvent } from "react";
 
 import {
   deleteTicketBundle,
@@ -81,6 +81,7 @@ export function TicketingManager({
   const [bundleError, setBundleError] = useState<string | null>(null);
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [deactivateDiscountCodeId, setDeactivateDiscountCodeId] = useState<string | null>(null);
+  const [refreshingOrders, setRefreshingOrders] = useState(false);
 
   function selectTicketingTab(value: TicketingTab): void {
     setActiveTab(value);
@@ -173,21 +174,34 @@ export function TicketingManager({
     };
   }, [activeTab, enabled, scanOnly]);
 
+  const refreshOrders = useCallback(async () => {
+    setRefreshingOrders(true);
+    try {
+      const orders = await listOrganizationTicketOrders();
+      setState({ orders, status: "ready" });
+      setLastOrderRefreshAt(new Date());
+    } catch {
+      // Keep the last successful will-call list visible during a transient refresh failure.
+      setMessage("Status could not be refreshed. The last known status is still shown.");
+    } finally {
+      setRefreshingOrders(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!enabled || scanOnly) return;
     let active = true;
-    const refreshOrders = async () => {
-      try {
-        const orders = await listOrganizationTicketOrders();
-        if (!active) return;
-        setState({ orders, status: "ready" });
-        setLastOrderRefreshAt(new Date());
-      } catch {
-        // Keep the last successful will-call list visible during a transient refresh failure.
-      }
-    };
     const interval = window.setInterval(() => {
-      void refreshOrders();
+      if (!active) return;
+      void listOrganizationTicketOrders()
+        .then((orders) => {
+          if (!active) return;
+          setState({ orders, status: "ready" });
+          setLastOrderRefreshAt(new Date());
+        })
+        .catch(() => {
+          // Keep the last successful will-call list visible during a transient refresh failure.
+        });
     }, WILL_CALL_REFRESH_INTERVAL_MS);
     return () => {
       active = false;
@@ -296,7 +310,15 @@ export function TicketingManager({
           : current,
       );
       setRefundId(null);
-      setMessage("Ticket order refunded.");
+      if (refunded.status === "refunded") {
+        setMessage("Ticket order refunded.");
+      } else if (refunded.refundRequested) {
+        setMessage(
+          "Refund requested. Refresh the order status to confirm when Stripe finishes processing it.",
+        );
+      } else {
+        setMessage("The ticket order refund request was recorded.");
+      }
     } catch {
       setMessage("The ticket order could not be refunded.");
     } finally {
@@ -550,6 +572,8 @@ export function TicketingManager({
             feesCollectedCents={feesCollectedCents}
             lastOrderRefreshAt={lastOrderRefreshAt}
             performanceOrders={performanceOrders}
+            refreshOrders={refreshOrders}
+            refreshingOrders={refreshingOrders}
             refund={refund}
             refundId={refundId}
             resendConfirmation={resendConfirmation}
@@ -607,6 +631,8 @@ export function TicketingManager({
             bundleOrders={bundleOrders}
             bundles={bundles}
             busy={busy}
+            refreshOrders={refreshOrders}
+            refreshingOrders={refreshingOrders}
             refund={refund}
             refundId={refundId}
             resendConfirmation={resendConfirmation}

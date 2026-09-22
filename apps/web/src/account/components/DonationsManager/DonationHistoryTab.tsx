@@ -3,6 +3,8 @@ import { useMemo, useState } from "react";
 
 import {
   EMPTY_DONATIONS,
+  canRefundDonation,
+  donationStatusDisplay,
   donationsCsv,
   money,
   tributeLabel,
@@ -23,59 +25,52 @@ function paymentMethodLabel(method?: string): string {
     case "card_offline":
       return "Card (Offline)";
     case "other":
-      return "Other (Offline)";
-    case "stripe":
+      return "Other";
     default:
       return "Online (Stripe)";
   }
+}
+
+function matchesDonationSearch(donation: (typeof EMPTY_DONATIONS)[number], query: string): boolean {
+  if (!query) return true;
+  return (
+    donation.buyerName.toLocaleLowerCase().includes(query) ||
+    donation.buyerEmail.toLocaleLowerCase().includes(query) ||
+    donation.paymentReference.toLocaleLowerCase().includes(query) ||
+    donation.tributeName.toLocaleLowerCase().includes(query)
+  );
 }
 
 function matchesThankYouFilter(
   thankYouSentAt: string | null | undefined,
   filter: "all" | "pending" | "sent",
 ): boolean {
-  if (filter === "pending") return !thankYouSentAt;
+  if (filter === "all") return true;
   if (filter === "sent") return Boolean(thankYouSentAt);
-  return true;
+  return !thankYouSentAt;
 }
 
 function matchesPaymentSourceFilter(
   paymentMethod: string | undefined,
   filter: "all" | "online" | "manual",
 ): boolean {
-  const isOnline = paymentMethod === "stripe" || !paymentMethod;
-  if (filter === "online") return isOnline;
-  if (filter === "manual") return !isOnline;
-  return true;
-}
-
-function matchesDonationSearch(
-  donation: {
-    readonly anonymous: boolean;
-    readonly buyerEmail: string;
-    readonly buyerName: string;
-    readonly paymentReference?: string;
-    readonly tributeName: string;
-  },
-  normalizedQuery: string,
-): boolean {
-  if (!normalizedQuery) return true;
-  const donorText = [
-    donation.anonymous ? "Anonymous" : donation.buyerName,
-    donation.anonymous ? "" : donation.buyerEmail,
-    donation.paymentReference ?? "",
-    donation.tributeName,
-  ]
-    .join(" ")
-    .toLocaleLowerCase();
-  return donorText.includes(normalizedQuery);
+  if (filter === "all") return true;
+  const isManual =
+    paymentMethod === "check" ||
+    paymentMethod === "cash" ||
+    paymentMethod === "bank_transfer" ||
+    paymentMethod === "card_offline" ||
+    paymentMethod === "other";
+  return filter === "manual" ? isManual : !isManual;
 }
 
 export function DonationHistoryTab({
   busy,
   donationState,
   onOpenManualModal,
+  onRefresh,
   patronState,
+  refreshing,
   refund,
   refundId,
   setRefundId,
@@ -85,7 +80,9 @@ export function DonationHistoryTab({
   readonly busy: boolean;
   readonly donationState: DonationState;
   readonly onOpenManualModal: () => void;
+  readonly onRefresh: () => Promise<void>;
   readonly patronState: PatronState;
+  readonly refreshing: boolean;
   readonly refund: (id: string) => Promise<void>;
   readonly refundId: string | null;
   readonly setRefundId: (id: string | null) => void;
@@ -182,6 +179,14 @@ export function DonationHistoryTab({
             <p>Search donation history, track thank-you letters, and record gifts.</p>
           </div>
           <div className="form-actions">
+            <button
+              className="button button--secondary"
+              disabled={busy || refreshing}
+              onClick={() => void onRefresh()}
+              type="button"
+            >
+              {refreshing ? "Refreshing…" : "Refresh status"}
+            </button>
             <a
               className="button button--secondary"
               download="donations.csv"
@@ -330,7 +335,14 @@ export function DonationHistoryTab({
                       {tributeLabel(donation.tributeType)}
                       {donation.tributeName ? `: ${donation.tributeName}` : ""}
                     </td>
-                    <td>{donation.status}</td>
+                    <td>
+                      {(() => {
+                        const statusDisplay = donationStatusDisplay(donation);
+                        return (
+                          <span className={statusDisplay.badgeClass}>{statusDisplay.label}</span>
+                        );
+                      })()}
+                    </td>
                     <td>
                       <div className="thank-you-status-cell">
                         {donation.thankYouSentAt ? (
@@ -389,16 +401,18 @@ export function DonationHistoryTab({
                           </div>
                         </div>
                       ) : donation.status === "paid" ? (
-                        <button
-                          className="text-button"
-                          disabled={busy}
-                          onClick={() => {
-                            setRefundId(donation.id);
-                          }}
-                          type="button"
-                        >
-                          Refund
-                        </button>
+                        canRefundDonation(donation) ? (
+                          <button
+                            className="text-button"
+                            disabled={busy}
+                            onClick={() => {
+                              setRefundId(donation.id);
+                            }}
+                            type="button"
+                          >
+                            Refund
+                          </button>
+                        ) : null
                       ) : null}
                     </td>
                   </tr>

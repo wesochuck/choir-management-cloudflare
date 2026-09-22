@@ -73,3 +73,42 @@ export function donationsCsv(donations: readonly DonationRecord[]): string {
   }));
   return renderDonationCsv(exportRows);
 }
+
+export function donationStatusDisplay(
+  donation: Pick<DonationRecord, "refundRequested" | "status">,
+): {
+  readonly badgeClass: string;
+  readonly label: string;
+} {
+  if (donation.status === "refunded") {
+    return {
+      badgeClass: "status-pill status-pill--neutral",
+      label: "Refunded",
+    };
+  }
+
+  if (donation.status === "paid" && donation.refundRequested) {
+    return {
+      badgeClass: "status-pill status-pill--warning",
+      label: "Refund requested",
+    };
+  }
+
+  if (donation.status === "paid") {
+    return {
+      badgeClass: "status-pill status-pill--success",
+      label: "Paid",
+    };
+  }
+
+  return {
+    badgeClass: "status-pill",
+    label: donation.status,
+  };
+}
+
+export function canRefundDonation(
+  donation: Pick<DonationRecord, "refundRequested" | "status">,
+): boolean {
+  return donation.status === "paid" && !donation.refundRequested;
+}

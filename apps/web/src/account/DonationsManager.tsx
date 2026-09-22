@@ -91,6 +91,18 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   });
 
   const donorSuggestions = useDonorSuggestions(manualModalOpen, patrons);
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function handleRefreshDonations(): Promise<void> {
+    setRefreshing(true);
+    try {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.organization.donations });
+    } catch {
+      setMessage("Status could not be refreshed. The last known status is still shown.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   async function refund(donationId: string) {
     setBusy(true);
@@ -103,7 +115,15 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           (current ?? []).map((d) => (d.id === refunded.id ? refunded : d)),
       );
       setRefundId(null);
-      setMessage("Donation refunded.");
+      if (refunded.status === "refunded") {
+        setMessage("Donation refunded.");
+      } else if (refunded.refundRequested) {
+        setMessage(
+          "Refund requested. Refresh the donation status to confirm when Stripe finishes processing it.",
+        );
+      } else {
+        setMessage("The donation refund request was recorded.");
+      }
     } catch {
       setMessage("The donation could not be refunded.");
     } finally {
@@ -203,7 +223,9 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
             onOpenManualModal={() => {
               setManualModalOpen(true);
             }}
+            onRefresh={handleRefreshDonations}
             patronState={patronState}
+            refreshing={refreshing}
             refund={refund}
             refundId={refundId}
             setRefundId={setRefundId}

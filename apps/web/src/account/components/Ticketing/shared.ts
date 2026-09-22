@@ -85,3 +85,45 @@ export function findClosestEvent<T extends { readonly startsAt: string }>(
 
   return closest;
 }
+
+export function ticketOrderStatusDisplay(
+  order: Pick<OrganizationTicketOrder, "checkoutMode" | "refundRequested" | "status">,
+): {
+  readonly badgeClass: string;
+  readonly label: string;
+} {
+  const isSimulation = order.checkoutMode === "fake";
+  const simulationSuffix = isSimulation ? " (simulation)" : "";
+
+  if (order.status === "refunded") {
+    return {
+      badgeClass: "status-pill status-pill--neutral",
+      label: `Refunded${simulationSuffix}`,
+    };
+  }
+
+  if (order.status === "paid" && order.refundRequested) {
+    return {
+      badgeClass: "status-pill status-pill--warning",
+      label: `Refund requested${simulationSuffix}`,
+    };
+  }
+
+  if (order.status === "paid") {
+    return {
+      badgeClass: "status-pill status-pill--success",
+      label: `Paid${simulationSuffix}`,
+    };
+  }
+
+  return {
+    badgeClass: "status-pill",
+    label: `${order.status}${simulationSuffix}`,
+  };
+}
+
+export function canRefundTicketOrder(
+  order: Pick<OrganizationTicketOrder, "refundRequested" | "status">,
+): boolean {
+  return order.status === "paid" && !order.refundRequested;
+}
