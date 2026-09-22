@@ -440,6 +440,20 @@ export async function createStripeCheckoutSession(
   );
 }
 
+export async function retrieveStripeCheckoutSession(
+  secretKey: string,
+  connectedAccountId: string,
+  sessionId: string,
+): Promise<{ readonly id: string; readonly url: string }> {
+  return stripeCheckoutSessionSchema.parse(
+    await stripeV1Request(secretKey, `/v1/checkout/sessions/${encodeURIComponent(sessionId)}`, {
+      errorType: "checkout",
+      method: "GET",
+      stripeAccount: connectedAccountId,
+    }),
+  );
+}
+
 export async function createStripeRefund(
   secretKey: string,
   connectedAccountId: string,

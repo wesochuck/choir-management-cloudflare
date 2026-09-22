@@ -243,8 +243,11 @@ export function expireStripeTicketPurchase(
     return Response.json({ ...purchaseResult(row), duplicate: true });
   }
   const occurredAt = new Date().toISOString();
+  const isUnattachedCleanupMismatch =
+    operation.providerSessionId.startsWith("pending_") &&
+    row.providerSessionId !== operation.providerSessionId;
   storage.transactionSync(() => {
-    if (row.status === "pending") {
+    if (row.status === "pending" && !isUnattachedCleanupMismatch) {
       storage.sql.exec(
         `UPDATE ticket_purchases
          SET status = 'expired', provider_session_id = ?, expired_at = ?, updated_at = ?

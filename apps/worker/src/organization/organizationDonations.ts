@@ -12,7 +12,11 @@ import { z } from "zod";
 
 import type { Env } from "../env";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
-import { createStripeCheckoutSession, StripeCheckoutError } from "../payments/stripeConnect";
+import {
+  createStripeCheckoutSession,
+  retrieveStripeCheckoutSession,
+  StripeCheckoutError,
+} from "../payments/stripeConnect";
 import { TicketCheckoutUnavailableError, ticketCheckoutMode } from "../payments/ticketCheckout";
 import { readOrganizationPaymentActivations } from "./organizationPaymentSettings";
 import { PaymentRefundError, requestOrganizationProviderRefund } from "../payments/refundRequest";
@@ -24,6 +28,11 @@ interface ActorContext {
   readonly organizationId: string;
   readonly requestId: string;
 }
+
+const internalDonationRecordSchema = donationRecordSchema.extend({
+  providerPaymentId: z.string().default(""),
+  providerSessionId: z.string().default(""),
+});
 
 export class DonationError extends Error {
   constructor(
@@ -151,12 +160,21 @@ export async function createDonationCheckoutSession(
         "The donation could not be reserved.",
       );
     }
-    const pendingDonation = donationRecordSchema.parse(await pendingResponse.json());
+    const isNewReservation = pendingResponse.status === 201;
+    const pendingDonation = internalDonationRecordSchema.parse(await pendingResponse.json());
+    if (pendingDonation.status === "expired") {
+      throw new DonationError(
+        "donation_checkout_expired",
+        409,
+        "This donation attempt has expired. Please start a new checkout.",
+      );
+    }
+    const issuedAt = Math.floor(new Date(pendingDonation.createdAt).getTime() / 1000);
     const successToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {
       algorithm: "HS256",
-      expiresAt: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60,
-      issuedAt: Math.floor(Date.now() / 1000),
-      nonce: crypto.randomUUID(),
+      expiresAt: issuedAt + 7 * 24 * 60 * 60,
+      issuedAt,
+      nonce: pendingDonation.id,
       organizationId,
       purpose: "donation_receipt",
       resourceId: pendingDonation.id,
@@ -164,6 +182,36 @@ export async function createDonationCheckoutSession(
     });
     const successUrl = new URL("/donate/success", origin);
     successUrl.searchParams.set("token", successToken);
+    if (pendingDonation.status === "paid") {
+      return {
+        checkoutMode,
+        donation: donationRecordSchema.parse(pendingDonation),
+        successToken,
+        url: successUrl.href,
+      };
+    }
+
+    const alreadyAttached =
+      Boolean(pendingDonation.providerSessionId) &&
+      !pendingDonation.providerSessionId.startsWith("pending_");
+    if (alreadyAttached) {
+      try {
+        const existingSession = await retrieveStripeCheckoutSession(
+          secretKey,
+          stripeStatus.data.accountId,
+          pendingDonation.providerSessionId,
+        );
+        return {
+          checkoutMode,
+          donation: donationRecordSchema.parse(pendingDonation),
+          successToken,
+          url: existingSession.url,
+        };
+      } catch {
+        // Fall back to creation or recovery via idempotency key
+      }
+    }
+
     const lineItems = [
       { productName: "Donation", quantity: 1, unitAmountCents: pendingDonation.amountCents },
     ];
@@ -191,13 +239,15 @@ export async function createDonationCheckoutSession(
         successUrl: successUrl.href,
       });
     } catch (error: unknown) {
-      await expirePendingDonationCheckout(
-        env,
-        organizationId,
-        donationId,
-        validated.checkoutRequestId,
-        pendingSessionId,
-      );
+      if (isNewReservation) {
+        await expirePendingDonationCheckout(
+          env,
+          organizationId,
+          pendingDonation.id,
+          validated.checkoutRequestId,
+          pendingSessionId,
+        );
+      }
       if (error instanceof StripeCheckoutError) {
         throw new DonationError(
           "stripe_checkout_unavailable",
@@ -213,19 +263,21 @@ export async function createDonationCheckoutSession(
       "/internal/donations/manage",
       {
         action: "attach_stripe_donation_session",
-        donationId,
+        donationId: pendingDonation.id,
         organizationId,
         providerSessionId: stripeSession.id,
       },
     );
     if (!attachedResponse.ok) {
-      await expirePendingDonationCheckout(
-        env,
-        organizationId,
-        donationId,
-        validated.checkoutRequestId,
-        pendingSessionId,
-      );
+      if (isNewReservation) {
+        await expirePendingDonationCheckout(
+          env,
+          organizationId,
+          pendingDonation.id,
+          validated.checkoutRequestId,
+          pendingSessionId,
+        );
+      }
       throw new DonationError(
         "donation_checkout_attach_failed",
         503,

@@ -168,8 +168,11 @@ export function expireStripeDonation(
     return Response.json({ ...donationResult(row), duplicate: true });
   if (row.status === "expired") return Response.json({ ...donationResult(row), duplicate: true });
   const occurredAt = new Date().toISOString();
+  const isUnattachedCleanupMismatch =
+    operation.providerSessionId.startsWith("pending_") &&
+    row.providerSessionId !== operation.providerSessionId;
   storage.transactionSync(() => {
-    if (row.status === "pending") {
+    if (row.status === "pending" && !isUnattachedCleanupMismatch) {
       storage.sql.exec(
         `INSERT INTO donation_expirations (donation_id, stripe_event_id, expired_at) VALUES (?, ?, ?)`,
         row.id,

@@ -50,6 +50,8 @@ export function donationResult(row: DonationRow) {
     patronId: row.patronId,
     paymentMethod,
     paymentReference: row.paymentReference,
+    providerPaymentId: row.providerPaymentId,
+    providerSessionId: row.providerSessionId,
     refundRequested: row.refundRequested === 1,
     status: row.status,
     thankYouSentAt: row.thankYouSentAt,

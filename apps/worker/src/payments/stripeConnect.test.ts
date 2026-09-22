@@ -6,6 +6,7 @@ import {
   createStripeConnectedAccount,
   createStripeRefund,
   mapStripeAccountReadiness,
+  retrieveStripeCheckoutSession,
   retrieveStripeConnectedAccount,
   stripeAccountIsReady,
   stripeConnectSetupUrl,
@@ -116,6 +117,34 @@ describe("Stripe Connect provider contract", () => {
 
       expect(body.get("line_items[0][price_data][unit_amount]")).toBe("1500");
       expect(body.get("line_items[1][price_data][unit_amount]")).toBe("100");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("retrieves an existing Checkout Session from Stripe", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json({
+        id: "cs_recovered_session",
+        url: "https://checkout.stripe.test/recovered",
+      }),
+    );
+    try {
+      const session = await retrieveStripeCheckoutSession(
+        "sk_test_secret",
+        "acct_test",
+        "cs_recovered_session",
+      );
+      expect(session).toEqual({
+        id: "cs_recovered_session",
+        url: "https://checkout.stripe.test/recovered",
+      });
+      const [url, request] = fetchSpy.mock.calls[0] ?? [];
+      expect(url).toBe("https://api.stripe.com/v1/checkout/sessions/cs_recovered_session");
+      const headers = new Headers(request?.headers);
+      expect(headers.get("authorization")).toBe("Bearer sk_test_secret");
+      expect(headers.get("stripe-account")).toBe("acct_test");
+      expect(request?.method).toBe("GET");
     } finally {
       fetchSpy.mockRestore();
     }

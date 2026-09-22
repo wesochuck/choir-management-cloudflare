@@ -27,7 +27,11 @@ import { z } from "zod";
 
 import type { Env } from "../env";
 import { ticketCheckoutLineItems, ticketCheckoutMode } from "../payments/ticketCheckout";
-import { createStripeCheckoutSession, StripeCheckoutError } from "../payments/stripeConnect";
+import {
+  createStripeCheckoutSession,
+  retrieveStripeCheckoutSession,
+  StripeCheckoutError,
+} from "../payments/stripeConnect";
 import { readOrganizationPaymentActivations } from "./organizationPaymentSettings";
 import { PaymentRefundError, requestOrganizationProviderRefund } from "../payments/refundRequest";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
@@ -165,14 +169,22 @@ export async function createPublicTicketCheckout(
         ticketCheckoutFailureMessage(code, "The ticket order could not be reserved."),
       );
     }
+    const isNewReservation = pendingResponse.status === 201;
     const pendingPurchase = organizationTicketOrderSchema.parse(await pendingResponse.json());
-    const issuedAt = Math.floor(Date.now() / 1000);
+    if (pendingPurchase.status === "expired") {
+      throw new TicketingError(
+        "ticket_checkout_expired",
+        409,
+        "This checkout attempt has expired. Please start a new checkout.",
+      );
+    }
+    const issuedAt = Math.floor(new Date(pendingPurchase.createdAt).getTime() / 1000);
     const eventEndsAt = Math.floor(purchaseEndsAt(pendingPurchase) / 1000) + 24 * 60 * 60;
     const successToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {
       algorithm: "HS256",
       expiresAt: Math.max(issuedAt + 7 * 24 * 60 * 60, eventEndsAt),
       issuedAt,
-      nonce: crypto.randomUUID(),
+      nonce: pendingPurchase.id,
       organizationId,
       purpose: "ticket_receipt",
       resourceId: pendingPurchase.id,
@@ -180,9 +192,9 @@ export async function createPublicTicketCheckout(
     });
     const successUrl = new URL("/tickets/order/success", origin);
     successUrl.searchParams.set("token", successToken);
-    if (pendingPurchase.checkoutMode === "free") {
+    if (pendingPurchase.checkoutMode === "free" || pendingPurchase.status === "paid") {
       return {
-        checkoutMode: "free" as const,
+        checkoutMode: pendingPurchase.checkoutMode === "free" ? ("free" as const) : checkoutMode,
         purchase: publicTicketPurchaseSchema.parse(pendingPurchase),
         successToken,
         url: successUrl.href,
@@ -190,13 +202,15 @@ export async function createPublicTicketCheckout(
     }
     const settings = await readOrganizationPaymentActivations(env, organizationId);
     if (!settings.activations.tickets) {
-      await expirePendingTicketCheckout(
-        env,
-        organizationId,
-        purchaseId,
-        validated.checkoutRequestId,
-        pendingSessionId,
-      );
+      if (isNewReservation) {
+        await expirePendingTicketCheckout(
+          env,
+          organizationId,
+          pendingPurchase.id,
+          validated.checkoutRequestId,
+          pendingSessionId,
+        );
+      }
       throw new TicketingError(
         "payments_not_activated",
         409,
@@ -218,13 +232,15 @@ export async function createPublicTicketCheckout(
       .safeParse(await stripeStatusResponse.json().catch(() => null));
     const secretKey = env.STRIPE_SECRET_KEY?.trim() ?? "";
     if (!stripeStatusResponse.ok || !stripeStatus.success || stripeStatus.data.status !== "ready") {
-      await expirePendingTicketCheckout(
-        env,
-        organizationId,
-        purchaseId,
-        validated.checkoutRequestId,
-        pendingSessionId,
-      );
+      if (isNewReservation) {
+        await expirePendingTicketCheckout(
+          env,
+          organizationId,
+          pendingPurchase.id,
+          validated.checkoutRequestId,
+          pendingSessionId,
+        );
+      }
       throw new TicketingError(
         "stripe_account_not_ready",
         409,
@@ -232,19 +248,43 @@ export async function createPublicTicketCheckout(
       );
     }
     if (!secretKey || !stripeStatus.data.accountId) {
-      await expirePendingTicketCheckout(
-        env,
-        organizationId,
-        purchaseId,
-        validated.checkoutRequestId,
-        pendingSessionId,
-      );
+      if (isNewReservation) {
+        await expirePendingTicketCheckout(
+          env,
+          organizationId,
+          pendingPurchase.id,
+          validated.checkoutRequestId,
+          pendingSessionId,
+        );
+      }
       throw new TicketingError(
         "stripe_not_configured",
         503,
         "Online ticket payments are not configured for this Organization.",
       );
     }
+
+    const alreadyAttached =
+      Boolean(pendingPurchase.providerSessionId) &&
+      !pendingPurchase.providerSessionId.startsWith("pending_");
+    if (alreadyAttached) {
+      try {
+        const existingSession = await retrieveStripeCheckoutSession(
+          secretKey,
+          stripeStatus.data.accountId,
+          pendingPurchase.providerSessionId,
+        );
+        return {
+          checkoutMode,
+          purchase: publicTicketPurchaseSchema.parse(pendingPurchase),
+          successToken,
+          url: existingSession.url,
+        };
+      } catch {
+        // Fall back to creation or recovery via idempotency key
+      }
+    }
+
     const lineItems = ticketCheckoutLineItems({
       discountedSubtotalCents: pendingPurchase.discountedSubtotalCents,
       feeCents: pendingPurchase.feeCents,
@@ -269,13 +309,15 @@ export async function createPublicTicketCheckout(
         successUrl: successUrl.href,
       });
     } catch (error: unknown) {
-      await expirePendingTicketCheckout(
-        env,
-        organizationId,
-        purchaseId,
-        validated.checkoutRequestId,
-        pendingSessionId,
-      );
+      if (isNewReservation) {
+        await expirePendingTicketCheckout(
+          env,
+          organizationId,
+          pendingPurchase.id,
+          validated.checkoutRequestId,
+          pendingSessionId,
+        );
+      }
       if (error instanceof StripeCheckoutError) {
         throw new TicketingError(
           "stripe_checkout_unavailable",
@@ -293,17 +335,19 @@ export async function createPublicTicketCheckout(
         action: "attach_stripe_session",
         organizationId,
         providerSessionId: stripeSession.id,
-        purchaseId,
+        purchaseId: pendingPurchase.id,
       },
     );
     if (!attachedResponse.ok) {
-      await expirePendingTicketCheckout(
-        env,
-        organizationId,
-        purchaseId,
-        validated.checkoutRequestId,
-        pendingSessionId,
-      );
+      if (isNewReservation) {
+        await expirePendingTicketCheckout(
+          env,
+          organizationId,
+          pendingPurchase.id,
+          validated.checkoutRequestId,
+          pendingSessionId,
+        );
+      }
       throw new TicketingError(
         "ticket_checkout_attach_failed",
         503,
