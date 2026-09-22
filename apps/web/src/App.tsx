@@ -29,8 +29,7 @@ import { PublicPlayerView } from "./public/PublicPlayerView";
 import { PublicAuditionView } from "./public/PublicAuditionView";
 import { PublicOrganizationSite } from "./public/PublicOrganizationSite";
 import { PublicTickets } from "./public/PublicTickets";
-import { PublicDonationView } from "./public/PublicDonationView";
-import { PublicDonationSuccessView } from "./public/PublicDonationSuccessView";
+import { PublicDonations } from "./public/PublicDonations";
 import { SetupView } from "./setup/SetupView";
 
 type ServiceState = "checking" | "offline" | "ready";
@@ -268,11 +267,8 @@ function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocati
 }
 
 function renderPublicOrProductRoute(pathname: string, productShell: ReactNode, signedIn: boolean) {
-  if (pathname === "/donate") {
-    return <PublicDonationView />;
-  }
-  if (pathname === "/donate/success") {
-    return <PublicDonationSuccessView />;
+  if (pathname === "/donate" || pathname === "/donate/success") {
+    return <PublicDonations pathname={pathname} />;
   }
   if (pathname === "/tickets" || pathname.startsWith("/tickets/")) {
     return <PublicTickets pathname={pathname} />;

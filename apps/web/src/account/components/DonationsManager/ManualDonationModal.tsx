@@ -1,8 +1,8 @@
 import {
   donationPaymentMethodSchema,
-  donationTributeTypeSchema,
+  donationTributeInputSchema,
   type DonationPaymentMethod,
-  type DonationTributeType,
+  type DonationTributeInput,
   type ManualDonationCreateRequest,
 } from "@choir/contracts";
 import { filterDonorSuggestions, type DonorSuggestion } from "@choir/domain";
@@ -33,7 +33,7 @@ export function ManualDonationModal({
   const [receivedDate, setReceivedDate] = useState(
     () => new Date().toISOString().split("T")[0] ?? "",
   );
-  const [tributeType, setTributeType] = useState<DonationTributeType>("none");
+  const [tributeType, setTributeType] = useState<DonationTributeInput>("none");
   const [tributeName, setTributeName] = useState("");
   const [tributeNotifyEmail, setTributeNotifyEmail] = useState("");
   const [anonymous, setAnonymous] = useState(false);
@@ -259,7 +259,7 @@ export function ManualDonationModal({
           <select
             disabled={busy}
             onChange={(event) => {
-              const parsed = donationTributeTypeSchema.safeParse(event.target.value);
+              const parsed = donationTributeInputSchema.safeParse(event.target.value);
               if (parsed.success) setTributeType(parsed.data);
             }}
             value={tributeType}
@@ -267,7 +267,6 @@ export function ManualDonationModal({
             <option value="none">None</option>
             <option value="honor">In Honor Of</option>
             <option value="memory">In Memory Of</option>
-            <option value="anonymous">Anonymous Tribute</option>
           </select>
         </label>
 

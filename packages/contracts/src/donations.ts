@@ -13,6 +13,7 @@ export const donationPaymentMethodSchema = z.enum([
 ]);
 
 export const donationTributeTypeSchema = z.enum(["honor", "memory", "anonymous", "none"]);
+export const donationTributeInputSchema = z.enum(["honor", "memory", "none"]);
 
 export const donationLevelSchema = z.object({
   amountCents: z.number().int().positive().max(10_000_000),
@@ -92,7 +93,7 @@ export const donationCheckoutRequestSchema = z.object({
   marketingConsent: z.boolean().default(false),
   tributeName: z.string().trim().max(500).default(""),
   tributeNotifyEmail: z.union([z.literal(""), z.email().max(320)]).default(""),
-  tributeType: donationTributeTypeSchema.default("none"),
+  tributeType: donationTributeInputSchema.default("none"),
 });
 
 export const manualDonationCreateRequestSchema = z.object({
@@ -107,7 +108,7 @@ export const manualDonationCreateRequestSchema = z.object({
   thankYouSent: z.boolean().default(false),
   tributeName: z.string().trim().max(500).default(""),
   tributeNotifyEmail: z.union([z.literal(""), z.email().max(320)]).default(""),
-  tributeType: donationTributeTypeSchema.default("none"),
+  tributeType: donationTributeInputSchema.default("none"),
 });
 
 export const donationThankYouUpdateRequestSchema = z.object({
@@ -180,6 +181,7 @@ export const patronRecordsResponseSchema = z.object({
 export type DonationStatus = z.infer<typeof donationStatusSchema>;
 export type DonationPaymentMethod = z.infer<typeof donationPaymentMethodSchema>;
 export type DonationTributeType = z.infer<typeof donationTributeTypeSchema>;
+export type DonationTributeInput = z.infer<typeof donationTributeInputSchema>;
 export type DonationLevel = z.infer<typeof donationLevelSchema>;
 export type DonationSettings = z.infer<typeof donationSettingsSchema>;
 export type TransactionFeeSettings = z.infer<typeof transactionFeeSettingsSchema>;

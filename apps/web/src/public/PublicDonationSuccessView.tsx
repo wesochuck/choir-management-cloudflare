@@ -63,9 +63,10 @@ export function PublicDonationSuccessView() {
             <p>
               Email: <strong>{donation.buyerEmail}</strong>
             </p>
-            {donation.tributeType !== "none" ? (
+            {donation.tributeType === "honor" || donation.tributeType === "memory" ? (
               <p>
-                Tribute: <strong>{donation.tributeType}</strong>
+                Tribute:{" "}
+                <strong>{donation.tributeType === "honor" ? "In honor of" : "In memory of"}</strong>
                 {donation.tributeName ? ` · ${donation.tributeName}` : ""}
               </p>
             ) : null}

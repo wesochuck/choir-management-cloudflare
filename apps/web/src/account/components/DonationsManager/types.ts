@@ -40,7 +40,7 @@ export function tributeLabel(type: string): string {
     case "memory":
       return "In Memory Of";
     case "anonymous":
-      return "Anonymous";
+      return "None";
     default:
       return "None";
   }

@@ -1,4 +1,8 @@
-import type { DonationSettings, TransactionFeeSettings } from "@choir/contracts";
+import type {
+  DonationSettings,
+  DonationTributeInput,
+  TransactionFeeSettings,
+} from "@choir/contracts";
 import { transactionProcessingFeeCents } from "@choir/domain";
 import { useEffect, useState, type SyntheticEvent } from "react";
 
@@ -39,12 +43,11 @@ function money(cents: number): string {
 
 const TRIBUTE_OPTIONS: readonly {
   readonly label: string;
-  readonly value: "none" | "honor" | "memory" | "anonymous";
+  readonly value: DonationTributeInput;
 }[] = [
   { label: "No tribute", value: "none" },
   { label: "In honor of", value: "honor" },
   { label: "In memory of", value: "memory" },
-  { label: "Anonymous tribute", value: "anonymous" },
 ];
 
 // eslint-disable-next-line complexity -- PublicDonationView coordinates donation levels, custom amount, tribute options, fees, and checkout.
@@ -61,7 +64,7 @@ export function PublicDonationView() {
   const [amountCents, setAmountCents] = useState(DEFAULT_SETTINGS.levels[0]?.amountCents ?? 2_500);
   const [customAmount, setCustomAmount] = useState("");
   const [useCustom, setUseCustom] = useState(false);
-  const [tributeType, setTributeType] = useState<"honor" | "memory" | "anonymous" | "none">("none");
+  const [tributeType, setTributeType] = useState<DonationTributeInput>("none");
   const [tributeName, setTributeName] = useState("");
   const [tributeNotifyEmail, setTributeNotifyEmail] = useState("");
   const [anonymous, setAnonymous] = useState(false);

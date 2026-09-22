@@ -2,6 +2,7 @@ import type { PublishedOrganizationProjection } from "@choir/contracts";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 import { getPublishedOrganizationProjection } from "../auth/api";
+import { PublicOrganizationBrand } from "./PublicOrganizationBrand";
 import { publicWebsiteFontStacks } from "./publicWebsiteFonts";
 
 type ProjectionState =
@@ -114,12 +115,10 @@ export function OrganizationLayout({
   return (
     <div className="public-site" style={publicSiteStyle(settings)}>
       <header className="public-site-header">
-        <a className="public-site-brand" href="/">
-          {settings.logoFileId ? (
-            <img alt="" aria-hidden="true" src={mediaUrl(projection, settings.logoFileId)} />
-          ) : null}
-          <span>{projection.payload.organizationName}</span>
-        </a>
+        <PublicOrganizationBrand
+          organizationName={projection.payload.organizationName}
+          publishedLogoUrl={settings.logoFileId ? mediaUrl(projection, settings.logoFileId) : null}
+        />
         <nav aria-label="Public website">
           {navigation.map((item) => {
             const isCurrent =
@@ -167,12 +166,10 @@ export function PublicTransactionLayout({
   return (
     <div className="public-site" style={publicSiteStyle(settings)}>
       <header className="public-site-header">
-        <a className="public-site-brand" href="/">
-          {settings.logoFileId ? (
-            <img alt="" aria-hidden="true" src={mediaUrl(projection, settings.logoFileId)} />
-          ) : null}
-          <span>{projection.payload.organizationName}</span>
-        </a>
+        <PublicOrganizationBrand
+          organizationName={projection.payload.organizationName}
+          publishedLogoUrl={settings.logoFileId ? mediaUrl(projection, settings.logoFileId) : null}
+        />
       </header>
       <main>{children}</main>
       <footer className="public-site-footer">

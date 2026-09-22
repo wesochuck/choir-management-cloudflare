@@ -228,7 +228,7 @@ export function readPublicCommerceProjectionFromStore(
       heroHeadline: `${organization.name} tickets`,
       heroSubtitle: "Purchase tickets and support our organization.",
       historyText: "",
-      logoFileId: null,
+      logoFileId: organization.logoFileId ?? null,
       showBrandingHeaderFooter: false,
     },
     ticketBundles,

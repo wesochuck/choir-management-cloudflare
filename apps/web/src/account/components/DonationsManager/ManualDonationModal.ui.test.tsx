@@ -105,4 +105,21 @@ describe("ManualDonationModal interaction", () => {
     expect(onSave).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("offers only None, In Honor Of, and In Memory Of in tribute select, without Anonymous Tribute", () => {
+    const onClose = vi.fn();
+    const onSave = vi.fn((): Promise<void> => Promise.resolve());
+    renderModal({ onClose, onSave });
+
+    const tributeSelect = screen.getByLabelText("Tribute");
+    const options = Array.from(tributeSelect.querySelectorAll("option")).map((opt) => opt.text);
+    expect(options).toEqual(["None", "In Honor Of", "In Memory Of"]);
+    expect(options).not.toContain("Anonymous Tribute");
+
+    const anonymousCheckbox = screen.getByLabelText(
+      "Mark as anonymous (hide donor name from public recognition)",
+    );
+    expect(anonymousCheckbox).toBeInTheDocument();
+    expect(anonymousCheckbox).not.toBeChecked();
+  });
 });

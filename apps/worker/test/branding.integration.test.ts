@@ -1,4 +1,8 @@
-import { organizationBrandingSchema, privateFileResponseSchema } from "@choir/contracts";
+import {
+  organizationBrandingSchema,
+  privateFileResponseSchema,
+  publishedOrganizationProjectionSchema,
+} from "@choir/contracts";
 import {
   organizationRequest,
   provisionOrganization,
@@ -115,6 +119,20 @@ describe("Organization branding and public logo endpoint", () => {
     expect(publicLogo.headers.get("cache-control")).toContain("public");
     const body = new Uint8Array(await publicLogo.arrayBuffer());
     expect(body).toEqual(samplePng);
+
+    // Commerce projection includes the configured organization logo
+    const commerceProjection = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/commerce-projection"),
+    );
+    expect(commerceProjection.status).toBe(200);
+    const commerceData = publishedOrganizationProjectionSchema.parse(
+      await commerceProjection.json(),
+    );
+    expect(commerceData.payload.settings.logoFileId).toBe(LOGO_FILE_ID);
+
+    // Tenant isolation: bravo does not have a logo and does not leak alpha's logo
+    const bravoPublicLogo = await exports.default.fetch(api("bravo.localhost", "/api/public/logo"));
+    expect(bravoPublicLogo.status).toBe(404);
 
     // Member role cannot update branding (requires admin/owner)
     const forbiddenUpdate = await jsonWrite(

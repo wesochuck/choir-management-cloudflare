@@ -87,7 +87,7 @@ describe("PublicDonationView", () => {
     expect(screen.getAllByText("$75.50").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("allows selecting tribute options by label and renders real radio inputs", async () => {
+  it("allows selecting tribute options by label, renders exactly 3 options, and does not offer anonymous tribute", async () => {
     const user = userEvent.setup();
     render(<PublicDonationView />);
 
@@ -95,27 +95,29 @@ describe("PublicDonationView", () => {
       expect(screen.getByText("Tribute (optional)")).toBeInTheDocument();
     });
 
+    expect(screen.queryByLabelText("Anonymous tribute")).not.toBeInTheDocument();
+
     const noneRadio = screen.getByLabelText("No tribute");
     const honorRadio = screen.getByLabelText("In honor of");
     const memoryRadio = screen.getByLabelText("In memory of");
-    const anonTributeRadio = screen.getByLabelText("Anonymous tribute");
 
     expect(noneRadio).toBeChecked();
     expect(honorRadio).not.toBeChecked();
+    expect(memoryRadio).not.toBeChecked();
 
     await user.click(honorRadio);
     expect(honorRadio).toBeChecked();
     expect(noneRadio).not.toBeChecked();
 
-    await user.click(anonTributeRadio);
-    expect(anonTributeRadio).toBeChecked();
-    expect(honorRadio).not.toBeChecked();
-
     await user.click(memoryRadio);
     expect(memoryRadio).toBeChecked();
+    expect(honorRadio).not.toBeChecked();
+
+    await user.click(noneRadio);
+    expect(noneRadio).toBeChecked();
   });
 
-  it("reveals conditional fields for honor and memory, and hides them for none and anonymous tribute", async () => {
+  it("reveals conditional fields for honor and memory, and hides them for none", async () => {
     const user = userEvent.setup();
     render(<PublicDonationView />);
 
@@ -136,8 +138,8 @@ describe("PublicDonationView", () => {
     expect(screen.getByLabelText("Person to memorialize")).toBeInTheDocument();
     expect(screen.getByLabelText("Notification email (optional)")).toBeInTheDocument();
 
-    // Select Anonymous tribute
-    await user.click(screen.getByLabelText("Anonymous tribute"));
+    // Select No tribute
+    await user.click(screen.getByLabelText("No tribute"));
     expect(screen.queryByLabelText("Honoree name")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Person to memorialize")).not.toBeInTheDocument();
   });
