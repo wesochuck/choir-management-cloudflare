@@ -46,6 +46,12 @@ describe("Organization communications", () => {
     ).toBe("Hello Ada Alto; Spring Concert");
   });
 
+  it("supports buyerName placeholder as recipient name alias", () => {
+    expect(
+      renderCommunicationTemplate("Thank you {buyerName}; order for {{buyerName}}", "Jane Buyer"),
+    ).toBe("Thank you Jane Buyer; order for Jane Buyer");
+  });
+
   it("renders organization logo placeholder with image, fallback text, or plain text for SMS", () => {
     expect(
       renderOrganizationLogoPlaceholder({

@@ -24,6 +24,7 @@ import { transactionFeeSettingsFromStore } from "../transactionFeeSettingsStore"
 import { resolveOrCreateContactForCommerce } from "../commerceContacts";
 import {
   bundleEventIds,
+  enrichPurchaseWithCurrentVenue,
   purchaseResult,
   readTicketEvent,
   redemptionReservationCount,
@@ -324,7 +325,7 @@ export function createFakeCheckout(
   const existing = purchaseByRequest(storage, operation.checkout.checkoutRequestId);
   if (existing) {
     return sameCheckoutRequest(existing, operation.checkout)
-      ? Response.json(purchaseResult(existing))
+      ? Response.json(enrichPurchaseWithCurrentVenue(storage, purchaseResult(existing)))
       : Response.json({ code: "checkout_request_conflict" }, { status: 409 });
   }
   const now = new Date();
@@ -536,7 +537,9 @@ export function createFakeCheckout(
   }
   const created = purchaseByRequest(storage, operation.checkout.checkoutRequestId);
   return created
-    ? Response.json(purchaseResult(created), { status: 201 })
+    ? Response.json(enrichPurchaseWithCurrentVenue(storage, purchaseResult(created)), {
+        status: 201,
+      })
     : Response.json({ code: "ticket_purchase_not_created" }, { status: 503 });
 }
 

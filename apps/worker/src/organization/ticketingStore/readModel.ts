@@ -25,7 +25,14 @@ export function purchaseResult(row: TicketPurchaseRow) {
       const value: unknown = JSON.parse(row.includedEventsJson);
       return z
         .array(
-          z.object({ id: z.uuid(), startsAt: z.iso.datetime(), title: z.string().min(1).max(500) }),
+          z.object({
+            id: z.uuid(),
+            location: z.string().default(""),
+            startsAt: z.iso.datetime(),
+            title: z.string().min(1).max(500),
+            venueAddress: z.string().default(""),
+            venueName: z.string().default(""),
+          }),
         )
         .max(100)
         .parse(value);
@@ -36,7 +43,16 @@ export function purchaseResult(row: TicketPurchaseRow) {
   const includedEvents =
     parsedIncludedEvents.length > 0
       ? parsedIncludedEvents
-      : [{ id: row.eventId, startsAt: row.eventStartsAt, title: row.eventTitle }];
+      : [
+          {
+            id: row.eventId,
+            location: "",
+            startsAt: row.eventStartsAt,
+            title: row.eventTitle,
+            venueAddress: "",
+            venueName: "",
+          },
+        ];
   const hasDiscountSnapshot = row.discountCode.trim().length > 0;
   const originalUnitPriceCents =
     row.originalUnitPriceCents > 0 || row.unitPriceCents === 0
@@ -76,6 +92,7 @@ export function purchaseResult(row: TicketPurchaseRow) {
     feeCents: row.feeCents,
     id: row.id,
     includedEvents,
+    location: "",
     marketingOptIn: row.marketingOptIn === 1,
     originalSubtotalCents,
     originalUnitPriceCents,
@@ -87,6 +104,59 @@ export function purchaseResult(row: TicketPurchaseRow) {
     timezone: row.timezone,
     unitPriceCents: row.unitPriceCents,
     updatedAt: row.updatedAt,
+    venueAddress: "",
+    venueName: "",
+  };
+}
+
+export function enrichPurchaseWithCurrentVenue<T extends ReturnType<typeof purchaseResult>>(
+  storage: DurableObjectStorage,
+  purchase: T,
+): T {
+  const eventIds = [
+    ...new Set(
+      [purchase.eventId, ...purchase.includedEvents.map((event) => event.id)].filter(Boolean),
+    ),
+  ];
+  if (eventIds.length === 0) return purchase;
+
+  const placeholders = eventIds.map(() => "?").join(", ");
+  const rows = storage.sql
+    .exec<{
+      readonly id: string;
+      readonly location: string;
+      readonly venueAddress: string;
+      readonly venueName: string;
+    }>(
+      `SELECT e.id, e.location,
+              COALESCE(v.name, '') AS venueName,
+              COALESCE(v.address, '') AS venueAddress
+       FROM events e
+       LEFT JOIN venues v ON v.id = e.venue_id
+       WHERE e.id IN (${placeholders})`,
+      ...eventIds,
+    )
+    .toArray();
+
+  const venuesById = new Map(rows.map((row) => [row.id, row]));
+  const primaryVenue = venuesById.get(purchase.eventId);
+
+  const includedEvents = purchase.includedEvents.map((event) => {
+    const venue = venuesById.get(event.id);
+    return {
+      ...event,
+      location: venue?.location ?? event.location,
+      venueAddress: venue?.venueAddress ?? event.venueAddress,
+      venueName: venue?.venueName ?? event.venueName,
+    };
+  });
+
+  return {
+    ...purchase,
+    includedEvents,
+    location: primaryVenue?.location ?? purchase.location,
+    venueAddress: primaryVenue?.venueAddress ?? purchase.venueAddress,
+    venueName: primaryVenue?.venueName ?? purchase.venueName,
   };
 }
 

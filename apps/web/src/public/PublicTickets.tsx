@@ -22,6 +22,7 @@ import {
 } from "../auth/api";
 import { OrganizationLayout, PublicTransactionLayout } from "./PublicOrganizationSite";
 import { getEventVenueDetails } from "./venueDetails";
+import { QRCodeImage } from "../shared/QRCodeImage";
 
 type LoadState =
   | { readonly status: "error" }
@@ -39,13 +40,15 @@ const DEFAULT_TRANSACTION_FEE_SETTINGS: TransactionFeeSettings = {
 };
 
 const DEFAULT_TICKET_CONFIRMATION_SETTINGS: TicketConfirmationSettings = {
+  admissionInstructions:
+    "Keep this confirmation available on your phone. Present the QR code at the door if requested.",
   pendingMessage:
     "We could not load the full ticket details yet. Your purchase may still be processing. Please refresh this page in a moment, or contact the box office if this continues.",
   qrCodeInstructions:
-    "Print or screenshot this entire page and bring it with you. We also sent a confirmation email with a link back to this page.",
+    "Present this QR code at the door for entry. You can also use the link in your confirmation email to open this ticket anytime.",
   successMessage: "Your purchase has been successfully processed.",
   willCallInstructions:
-    "A confirmation email has been sent with a link back to this page. Your tickets will be held at Will Call on show day. Please bring a photo ID matching the buyer’s name.",
+    "Keep this confirmation available on your phone. Present the QR code at the door if requested.",
 };
 
 function money(cents: number): string {
@@ -363,6 +366,67 @@ function TicketReceiptPricing({ purchase }: { readonly purchase: PublicTicketRec
   );
 }
 
+function TicketCredentialCard({
+  purchase,
+  settings,
+}: {
+  readonly purchase: PublicTicketReceipt;
+  readonly settings: TicketConfirmationSettings;
+}) {
+  const [qrFailed, setQrFailed] = useState(false);
+  const venue = getEventVenueDetails({
+    location: purchase.location,
+    venueAddress: purchase.venueAddress,
+    venueName: purchase.venueName,
+  });
+
+  return (
+    <article aria-label="Ticket admission credential" className="ticket-credential-card panel">
+      <h3>Your ticket</h3>
+      <div className="ticket-credential-card__qr">
+        <QRCodeImage
+          alt={`Admission QR code for ${purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}`}
+          className="ticket-credential-card__qr-image"
+          errorCorrectionLevel="H"
+          fallbackMessage="The QR code could not be displayed. Use the ticket link or show this page to event staff."
+          margin={2}
+          onError={() => {
+            setQrFailed(true);
+          }}
+          payload={purchase.scanToken ?? ""}
+          width={280}
+        />
+      </div>
+      <p className="ticket-credential-card__instructions">
+        {settings.qrCodeInstructions || "Present this QR code at the door."}
+      </p>
+      <div className="ticket-credential-card__event-details">
+        <h4>{purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}</h4>
+        <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
+        {venue.displayName ? (
+          <p>
+            <strong>{venue.displayName}</strong>
+          </p>
+        ) : null}
+        {venue.venueAddress ? <p>{venue.venueAddress}</p> : null}
+        {venue.googleMapsUrl ? (
+          <p>
+            <a href={venue.googleMapsUrl} rel="noreferrer" target="_blank">
+              View on Google Maps
+            </a>
+          </p>
+        ) : null}
+      </div>
+      {qrFailed && purchase.scanToken ? (
+        <details className="ticket-credential-card__fallback-disclosure">
+          <summary>Manual credential</summary>
+          <code className="ticket-credential">{purchase.scanToken}</code>
+        </details>
+      ) : null}
+    </article>
+  );
+}
+
 function TicketReceiptPanel({
   purchase,
   settings,
@@ -377,37 +441,74 @@ function TicketReceiptPanel({
       })
     : null;
 
+  const venue = getEventVenueDetails({
+    location: purchase.location,
+    venueAddress: purchase.venueAddress,
+    venueName: purchase.venueName,
+  });
+
   return (
-    <div className="panel">
-      <h2>{purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}</h2>
-      {sortedEvents ? (
-        <ul className="public-bundle-event-list">
-          {sortedEvents.map((event) => (
-            <li key={event.id}>
-              {event.title} · {publicDate(event.startsAt, purchase.timezone)}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
-      )}
-      <p>
-        Will call name: <strong>{purchase.buyerName}</strong>
-      </p>
-      <p>
-        Quantity: <strong>{purchase.quantity}</strong>
-      </p>
-      <TicketReceiptPricing purchase={purchase} />
-      {purchase.status === "paid" || purchase.status === "pending" ? (
-        <p>{settings.willCallInstructions}</p>
-      ) : null}
+    <div className="ticket-receipt-container">
       {purchase.status === "paid" && purchase.scanToken ? (
-        <details>
-          <summary>Door credential</summary>
-          <p>{settings.qrCodeInstructions}</p>
-          <code className="ticket-credential">{purchase.scanToken}</code>
-        </details>
+        <TicketCredentialCard purchase={purchase} settings={settings} />
       ) : null}
+      <div className="panel">
+        <h2>{purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}</h2>
+        {sortedEvents ? (
+          <ul className="public-bundle-event-list">
+            {sortedEvents.map((event) => {
+              const eventVenue = getEventVenueDetails({
+                location: event.location,
+                venueAddress: event.venueAddress,
+                venueName: event.venueName,
+              });
+              return (
+                <li className="public-bundle-event-item" key={event.id}>
+                  <div>
+                    <strong>{event.title}</strong> · {publicDate(event.startsAt, purchase.timezone)}
+                  </div>
+                  {eventVenue.displayName ? <div>{eventVenue.displayName}</div> : null}
+                  {eventVenue.venueAddress ? <div>{eventVenue.venueAddress}</div> : null}
+                  {eventVenue.googleMapsUrl ? (
+                    <div>
+                      <a href={eventVenue.googleMapsUrl} rel="noreferrer" target="_blank">
+                        View on Google Maps
+                      </a>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <>
+            <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
+            {venue.displayName ? (
+              <p>
+                <strong>{venue.displayName}</strong>
+              </p>
+            ) : null}
+            {venue.venueAddress ? <p>{venue.venueAddress}</p> : null}
+            {venue.googleMapsUrl ? (
+              <p>
+                <a href={venue.googleMapsUrl} rel="noreferrer" target="_blank">
+                  View on Google Maps
+                </a>
+              </p>
+            ) : null}
+          </>
+        )}
+        <p>
+          Name on order: <strong>{purchase.buyerName}</strong>
+        </p>
+        <p>
+          Quantity: <strong>{purchase.quantity}</strong>
+        </p>
+        <TicketReceiptPricing purchase={purchase} />
+        {purchase.status === "paid" || purchase.status === "pending" ? (
+          <p>{settings.admissionInstructions || settings.willCallInstructions}</p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -683,7 +784,7 @@ function TicketPurchaseForm({
           </p>
         ) : null}
         <label className="field">
-          Name for will call
+          Name on order
           <input
             aria-describedby={error ? "single-ticket-order-error" : undefined}
             required
@@ -872,7 +973,7 @@ export function TicketBundlePurchaseForm({
           </p>
         ) : null}
         <label className="field">
-          Name for will call
+          Name on order
           <input
             aria-describedby={error ? "multi-ticket-order-error" : undefined}
             required

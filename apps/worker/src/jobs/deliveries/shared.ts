@@ -60,7 +60,20 @@ export const ticketNotificationJobSchema = z.object({
   feeCents: z.number().int().nonnegative().default(0),
   id: z.uuid(),
   amountPaidCents: z.number().int().nonnegative(),
+  bundleEvents: z
+    .array(
+      z.object({
+        id: z.string().optional(),
+        location: z.string().default(""),
+        startsAt: z.string(),
+        title: z.string(),
+        venueAddress: z.string().default(""),
+        venueName: z.string().default(""),
+      }),
+    )
+    .default([]),
   bundleTitle: z.string().nullable(),
+  eventLocation: z.string().default(""),
   kind: z.enum(["confirmation", "reminder"]),
   purchaseId: z.uuid(),
   quantity: z.number().int().positive(),
@@ -68,6 +81,8 @@ export const ticketNotificationJobSchema = z.object({
   status: z.enum(["queued", "processing"]),
   subject: z.string().max(300),
   timezone: z.string().min(1).max(100),
+  venueAddress: z.string().default(""),
+  venueName: z.string().default(""),
   ...providerNotificationFields,
 });
 export const paymentNotificationJobSchema = z.object({
@@ -431,7 +446,7 @@ export async function renderTicketLinks(
   const link = `${await deliveryOrigin(env, organizationId, { unsubscribeUrl: null })}/tickets/order/success?token=${encodeURIComponent(token)}`;
   return content.replace(
     ticketLinkPlaceholderReplacementPattern,
-    () => `[View ticket order](${link})`,
+    () => `[View ticket / QR code](${link})`,
   );
 }
 

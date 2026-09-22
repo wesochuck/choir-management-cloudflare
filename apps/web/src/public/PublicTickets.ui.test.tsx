@@ -988,6 +988,7 @@ describe("TicketReceipt", () => {
     feeCents: 100,
     id: "22222222-2222-4222-8222-222222222222",
     includedEvents: [],
+    location: "Main Auditorium",
     originalSubtotalCents: 1900,
     originalUnitPriceCents: 1900,
     quantity: 1,
@@ -996,11 +997,14 @@ describe("TicketReceipt", () => {
     status: "pending",
     timezone: "America/New_York",
     unitPriceCents: 1900,
+    venueAddress: "123 Concert Hall Way, New York, NY 10001",
+    venueName: "Symphony Hall",
   };
 
   beforeEach(() => {
     vi.useFakeTimers();
     vi.mocked(getPublicTicketConfirmationSettings).mockResolvedValue({
+      admissionInstructions: "Keep this confirmation available on your phone.",
       pendingMessage: "Order processing message.",
       qrCodeInstructions: "Show this QR code at the door.",
       successMessage: "Order success message.",
@@ -1054,8 +1058,14 @@ describe("TicketReceipt", () => {
 
     expect(screen.getByRole("heading", { name: "Your tickets are confirmed" })).toBeInTheDocument();
     expect(screen.getByText("Order success message.")).toBeInTheDocument();
-    expect(screen.getByText("Door credential")).toBeInTheDocument();
-    expect(screen.getByText("credential.token.123")).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(screen.getByRole("img", { name: /Admission QR code/ })).toBeInTheDocument();
+    expect(screen.queryByText("credential.token.123")).not.toBeInTheDocument();
+    expect(screen.queryByText("Manual credential")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Symphony Hall").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/123 Concert Hall Way/).length).toBeGreaterThanOrEqual(1);
     expect(getPublicTicketPurchase).toHaveBeenCalledTimes(3);
 
     await act(async () => {
@@ -1094,7 +1104,7 @@ describe("TicketReceipt", () => {
 
     expect(screen.getByRole("heading", { name: "Ticket order refunded" })).toBeInTheDocument();
     expect(screen.getByText("This ticket order has been refunded.")).toBeInTheDocument();
-    expect(screen.queryByText("Door credential")).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /Admission QR code/ })).not.toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
@@ -1134,7 +1144,7 @@ describe("TicketReceipt", () => {
     expect(
       screen.getByText("This ticket order has expired because payment was not completed."),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Door credential")).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /Admission QR code/ })).not.toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
@@ -1223,7 +1233,11 @@ describe("TicketReceipt", () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
     expect(screen.getByRole("heading", { name: "Your tickets are confirmed" })).toBeInTheDocument();
-    expect(screen.getByText("recovered.token")).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500);
+    });
+    expect(screen.getByRole("img", { name: /Admission QR code/ })).toBeInTheDocument();
+    expect(screen.queryByText("recovered.token")).not.toBeInTheDocument();
   });
 
   it("leaves pending receipt visible with manual retry action upon poll timeout", async () => {
@@ -1268,7 +1282,7 @@ describe("TicketReceipt", () => {
     expect(vi.mocked(getPublicTicketPurchase).mock.calls.length).toBeGreaterThan(callsBefore);
   });
 
-  it("does not display Door Credential until paid response includes scanToken", async () => {
+  it("does not display QR code or scan credential until paid response includes scanToken", async () => {
     const pendingReceipt: PublicTicketReceipt = {
       ...baseSampleReceipt,
       scanToken: null,
@@ -1281,6 +1295,52 @@ describe("TicketReceipt", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(screen.queryByText("Door credential")).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /Admission QR code/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("credential.token.123")).not.toBeInTheDocument();
+  });
+
+  it("renders bundle included performances with venue information", async () => {
+    const bundleReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      bundleId: "bundle-1",
+      bundleTitle: "Choral Subscription 2026",
+      includedEvents: [
+        {
+          id: "event-a",
+          location: "Chapel",
+          startsAt: "2026-11-01T19:00:00Z",
+          title: "Concert A",
+          venueAddress: "100 Church St",
+          venueName: "Grace Chapel",
+        },
+        {
+          id: "event-b",
+          location: "Hall",
+          startsAt: "2026-12-05T19:00:00Z",
+          title: "Concert B",
+          venueAddress: "200 State St",
+          venueName: "Cathedral Hall",
+        },
+      ],
+      scanToken: "bundle.scan.token",
+      status: "paid",
+    };
+    vi.mocked(getPublicTicketPurchase).mockResolvedValueOnce(bundleReceipt);
+
+    render(<TicketReceipt token="tok-bundle" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Choral Subscription 2026" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Concert A")).toBeInTheDocument();
+    expect(screen.getByText("Grace Chapel")).toBeInTheDocument();
+    expect(screen.getByText(/100 Church St/)).toBeInTheDocument();
+    expect(screen.getByText("Concert B")).toBeInTheDocument();
+    expect(screen.getByText("Cathedral Hall")).toBeInTheDocument();
+    expect(screen.getByText(/200 State St/)).toBeInTheDocument();
   });
 });

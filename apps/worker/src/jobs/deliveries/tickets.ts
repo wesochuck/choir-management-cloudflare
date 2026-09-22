@@ -1,8 +1,6 @@
 import { renderCommunicationTemplate } from "@choir/domain";
 import { deliverOrganizationCommunication } from "../../communications/provider";
-import { issueOrganizationTicketScanCredential } from "../../organization/organizationTicketing";
 import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
-import { issueSignedLink } from "../../security/signedLinks";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
 import {
@@ -35,27 +33,50 @@ export async function deliverTicketNotificationJob(
   if (!response.ok || !notification.success) {
     throw new Error("The ticket notification job is unavailable.");
   }
+  const bundleEventList =
+    notification.data.bundleEvents.length > 0
+      ? notification.data.bundleEvents
+          .map((event) => {
+            const dateStr = new Intl.DateTimeFormat("en-US", {
+              dateStyle: "full",
+              timeStyle: "short",
+              timeZone: notification.data.timezone,
+            }).format(new Date(event.startsAt));
+            const venueParts = [event.venueName, event.venueAddress || event.location].filter(
+              Boolean,
+            );
+            const venueStr = venueParts.length > 0 ? `\n  ${venueParts.join(", ")}` : "";
+            return `- **${event.title}** — ${dateStr}${venueStr}`;
+          })
+          .join("\n")
+      : "";
   const templateValues = {
+    buyerName: notification.data.buyerName,
     eventDate: new Intl.DateTimeFormat("en-US", {
       dateStyle: "full",
       timeStyle: "short",
       timeZone: notification.data.timezone,
     }).format(new Date(notification.data.eventStartsAt)),
+    eventLocation: notification.data.eventLocation,
     eventTitle: notification.data.eventTitle,
     ticketAmount: new Intl.NumberFormat("en-US", {
       currency: notification.data.currency.toUpperCase(),
       style: "currency",
     }).format(notification.data.amountPaidCents / 100),
+    ticketBundleName: notification.data.bundleTitle ?? "",
     ticketDiscount: money(notification.data.discountAmountCents, notification.data.currency),
     ticketDiscountCode: notification.data.discountCode ?? "",
+    ticketEventList: bundleEventList,
+    TICKET_EVENT_LIST: bundleEventList,
     ticketFee: money(notification.data.feeCents, notification.data.currency),
     ticketOriginalSubtotal: money(
       notification.data.originalSubtotalCents,
       notification.data.currency,
     ),
-    ticketSubtotal: money(notification.data.discountedSubtotalCents, notification.data.currency),
-    ticketBundleName: notification.data.bundleTitle ?? "",
     ticketQuantity: String(notification.data.quantity),
+    ticketSubtotal: money(notification.data.discountedSubtotalCents, notification.data.currency),
+    venueAddress: notification.data.venueAddress,
+    venueName: notification.data.venueName,
   };
   const templatedContent = renderCommunicationTemplate(
     notification.data.contentMarkdown,
@@ -86,21 +107,6 @@ export async function deliverTicketNotificationJob(
         "- **Total:** " + money(notification.data.amountPaidCents, notification.data.currency),
       ].join("\n")
     : "";
-  const credential = await issueOrganizationTicketScanCredential(
-    env,
-    job.organizationId,
-    notification.data.purchaseId,
-  );
-  const scanToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {
-    algorithm: "HS256",
-    expiresAt: credential.expiresAt,
-    issuedAt: credential.issuedAt,
-    nonce: credential.nonce,
-    organizationId: job.organizationId,
-    purpose: "ticket_scan",
-    resourceId: notification.data.purchaseId,
-    version: 1,
-  });
   const [senderConfig, branding] = await Promise.all([
     readOrganizationEmailSenderConfig(env, job.organizationId),
     readOrganizationBrandingConfig(env, job.organizationId),
@@ -109,8 +115,7 @@ export async function deliverTicketNotificationJob(
   const logoUrl = branding.logoFileId ? `${origin}/api/public/logo` : null;
   const result = await deliverOrganizationCommunication(env, {
     channel: "email",
-    contentMarkdown:
-      contentWithTicketLink + discountSummary + "\n\n### Ticket credential\n\n`" + scanToken + "`",
+    contentMarkdown: contentWithTicketLink + discountSummary,
     deliveryId: notification.data.id,
     destination: notification.data.destination,
     fromName: senderConfig.fromName ?? undefined,

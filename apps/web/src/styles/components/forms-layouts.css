@@ -291,6 +291,107 @@
     min-height: 5.5rem;
   }
 
+  .ticket-template-list {
+    display: grid;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+  }
+
+  .ticket-template-card {
+    display: grid;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-subtle);
+  }
+
+  .ticket-template-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+  }
+
+  .ticket-template-card__header h4 {
+    margin: 0;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .ticket-template-card__subject {
+    margin: var(--spacing-3xs) 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-subtle);
+  }
+
+  .ticket-template-card__preview {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    white-space: pre-wrap;
+    line-break: anywhere;
+  }
+
+  .ticket-template-card__preview p {
+    margin: 0;
+  }
+
+  .ticket-template-placeholders {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-subtle);
+  }
+
+  .ticket-template-placeholders h5 {
+    margin: 0 0 var(--spacing-2xs);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .ticket-template-placeholders__hint {
+    margin: 0 0 var(--spacing-xs);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-subtle);
+  }
+
+  .ticket-template-placeholders__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--spacing-2xs);
+    max-height: 12rem;
+    overflow-y: auto;
+  }
+
+  .ticket-placeholder-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: var(--spacing-2xs) var(--spacing-xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xs);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--font-size-xs);
+    text-align: left;
+    cursor: pointer;
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast);
+  }
+
+  .ticket-placeholder-chip:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-border-hover);
+  }
+
+  .ticket-placeholder-chip code {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-primary);
+  }
+
   .ticket-dashboard,
   .ticket-dashboard__will-call {
     display: grid;
@@ -454,6 +555,62 @@
     height: var(--control-height);
     min-height: var(--control-height);
     box-sizing: border-box;
+  }
+
+  /* Ticket Credential Card */
+  .ticket-credential-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+  }
+
+  .ticket-credential-card__qr {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--spacing-md);
+    background: #ffffff;
+    border-radius: var(--radius-sm);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .ticket-credential-card__qr-image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+
+  .ticket-credential-card__instructions {
+    font-weight: var(--font-weight-medium);
+    margin: var(--spacing-xs) 0;
+  }
+
+  .ticket-credential-card__event-details {
+    margin-top: var(--spacing-xs);
+  }
+
+  .ticket-credential-card__event-details h4 {
+    margin: 0 0 var(--spacing-xs) 0;
+  }
+
+  .ticket-credential-card__event-details p {
+    margin: var(--spacing-3xs) 0;
+  }
+
+  .ticket-credential-card__fallback-disclosure {
+    margin-top: var(--spacing-sm);
+    font-size: var(--font-size-sm);
+  }
+
+  .public-bundle-event-item {
+    margin-bottom: var(--spacing-sm);
   }
 
   @media (max-width: 40rem) {

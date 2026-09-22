@@ -244,6 +244,8 @@ describe("Organization ticketing", () => {
         quantity: 2,
         status: "paid",
         unitPriceCents: 2_000,
+        venueAddress: "1 Stage Road",
+        venueName: "Main Hall",
       },
     });
     expect(first.url).toContain("http://tickets.example.test/tickets/order/success?token=");
@@ -359,6 +361,8 @@ describe("Organization ticketing", () => {
     );
     expect(receipt.id).toBe(first.purchase.id);
     expect(receipt.scanToken).toBeTruthy();
+    expect(receipt.venueName).toBe("Main Hall");
+    expect(receipt.venueAddress).toBe("1 Stage Road");
     expect(JSON.stringify(receipt)).not.toContain("buyer@example.test");
     expect(
       (
@@ -540,9 +544,9 @@ describe("Organization ticketing", () => {
     );
     expect(actions).toEqual([
       "ticket.purchase.fulfilled",
+      "ticket.confirmation.queued",
+      "ticket.confirmation.queued",
       "ticket.scan_credential.issued",
-      "ticket.confirmation.queued",
-      "ticket.confirmation.queued",
       "ticket.scan.validated",
       "ticket.scan.replayed",
       "ticket.scan.validated",

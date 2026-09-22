@@ -41,16 +41,47 @@ export const transactionFeeSettingsResponseSchema = transactionFeeSettingsSchema
   requestId: requestIdSchema,
 });
 
-export const ticketConfirmationSettingsSchema = z.object({
+const defaultAdmissionInstructions =
+  "Keep this confirmation available on your phone. Present the QR code at the door if requested.";
+
+const ticketConfirmationSettingsFields = {
+  admissionInstructions: z.string().trim().max(5_000),
   pendingMessage: z.string().trim().max(5_000),
   qrCodeInstructions: z.string().trim().max(5_000),
   successMessage: z.string().trim().max(5_000),
   willCallInstructions: z.string().trim().max(5_000),
-});
+};
 
-export const ticketConfirmationSettingsResponseSchema = ticketConfirmationSettingsSchema.extend({
-  requestId: requestIdSchema,
-});
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeAdmissionInstructions(raw: Record<string, unknown>): Record<string, unknown> {
+  const instructions =
+    typeof raw.admissionInstructions === "string" && raw.admissionInstructions.trim().length > 0
+      ? raw.admissionInstructions.trim()
+      : typeof raw.willCallInstructions === "string" && raw.willCallInstructions.trim().length > 0
+        ? raw.willCallInstructions.trim()
+        : defaultAdmissionInstructions;
+  return {
+    ...raw,
+    admissionInstructions: instructions,
+    willCallInstructions: instructions,
+  };
+}
+
+export const ticketConfirmationSettingsSchema = z.preprocess(
+  (val) => (isRecord(val) ? normalizeAdmissionInstructions(val) : val),
+  z.object(ticketConfirmationSettingsFields),
+);
+
+export const ticketConfirmationSettingsResponseSchema = z.preprocess(
+  (val) => (isRecord(val) ? normalizeAdmissionInstructions(val) : val),
+  z.object({
+    ...ticketConfirmationSettingsFields,
+    requestId: requestIdSchema,
+  }),
+);
 
 export const donationCheckoutRequestSchema = z.object({
   amountCents: z.number().int().positive().max(10_000_000),

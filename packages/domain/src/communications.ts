@@ -77,7 +77,7 @@ export function renderCommunicationTemplate(
   recipientName: string,
   values: Readonly<Record<string, string>> = {},
 ): string {
-  const replacements = { singerName: recipientName, ...values };
+  const replacements = { buyerName: recipientName, singerName: recipientName, ...values };
   return Object.entries(replacements).reduce(
     (message, [key, value]) =>
       message.split(`{{${key}}}`).join(value).split(`{${key}}`).join(value),

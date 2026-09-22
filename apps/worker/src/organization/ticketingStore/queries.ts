@@ -17,6 +17,7 @@ import {
   readTicketEvent,
   redemptionReservationCount,
   ticketEventIsOpen,
+  enrichPurchaseWithCurrentVenue,
 } from "./readModel";
 
 interface DiscountCodeDefinition {
@@ -153,7 +154,7 @@ export function readTicketPurchaseFromStore(
     .toArray()
     .at(0);
   return row
-    ? Response.json(purchaseResult(row))
+    ? Response.json(enrichPurchaseWithCurrentVenue(storage, purchaseResult(row)))
     : Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
 }
 
@@ -223,6 +224,7 @@ export function readTicketNotificationJobFromStore(
       readonly discountAmountCents: number;
       readonly discountCode: string | null;
       readonly discountedSubtotalCents: number;
+      readonly eventLocation: string;
       readonly eventStartsAt: string;
       readonly eventTitle: string;
       readonly feeCents: number;
@@ -234,6 +236,8 @@ export function readTicketNotificationJobFromStore(
       readonly status: string;
       readonly subject: string;
       readonly timezone: string;
+      readonly venueAddress: string;
+      readonly venueName: string;
       readonly providerEventAt: string | null;
       readonly providerMessageId: string | null;
       readonly providerReason: string;
@@ -256,10 +260,14 @@ export function readTicketNotificationJobFromStore(
            FROM ticket_bundle_allocations allocation
            JOIN events bundle_event ON bundle_event.id = allocation.event_id
            WHERE allocation.purchase_id = p.id),
-          p.event_starts_at) AS eventStartsAt
+          p.event_starts_at) AS eventStartsAt,
+        COALESCE(v.name, '') AS venueName,
+        COALESCE(v.address, '') AS venueAddress,
+        COALESCE(e.location, '') AS eventLocation
        FROM ticket_notifications n
        JOIN ticket_purchases p ON p.id = n.purchase_id
-       LEFT JOIN events e ON e.id = n.event_id
+       LEFT JOIN events e ON e.id = COALESCE(n.event_id, p.event_id)
+       LEFT JOIN venues v ON v.id = e.venue_id
        WHERE n.id = ? LIMIT 1`,
       notificationId,
     )
@@ -268,10 +276,29 @@ export function readTicketNotificationJobFromStore(
   if (!row || !["queued", "processing"].includes(row.status)) {
     return Response.json({ code: "ticket_notification_not_found" }, { status: 404 });
   }
+  const bundleEvents = storage.sql
+    .exec<{
+      readonly id: string;
+      readonly location: string;
+      readonly startsAt: string;
+      readonly title: string;
+      readonly venueAddress: string;
+      readonly venueName: string;
+    }>(
+      `SELECT e.id, e.title, e.starts_at AS startsAt, e.location,
+              COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress
+       FROM ticket_bundle_allocations a
+       JOIN events e ON e.id = a.event_id
+       LEFT JOIN venues v ON v.id = e.venue_id
+       WHERE a.purchase_id = ?
+       ORDER BY e.starts_at, e.title`,
+      row.purchaseId,
+    )
+    .toArray();
   storage.sql.exec(
     "UPDATE ticket_notifications SET status = 'processing', updated_at = ? WHERE id = ? AND status = 'queued'",
     new Date().toISOString(),
     row.id,
   );
-  return Response.json(row);
+  return Response.json({ ...row, bundleEvents });
 }

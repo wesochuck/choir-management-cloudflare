@@ -168,12 +168,16 @@ export const publicTicketPurchaseSchema = z.object({
     .array(
       z.object({
         id: z.uuid(),
+        location: z.string().default(""),
         startsAt: z.iso.datetime(),
         title: z.string().min(1).max(500),
+        venueAddress: z.string().default(""),
+        venueName: z.string().default(""),
       }),
     )
     .max(100)
     .default([]),
+  location: z.string().default(""),
   quantity: z.number().int().positive(),
   discountAmountCents: z.number().int().nonnegative().default(0),
   discountCode: z.string().min(1).max(64).nullable().default(null),
@@ -185,6 +189,8 @@ export const publicTicketPurchaseSchema = z.object({
   status: ticketPurchaseStatusSchema,
   timezone: z.string().min(1).max(128),
   unitPriceCents: z.number().int().nonnegative(),
+  venueAddress: z.string().default(""),
+  venueName: z.string().default(""),
 });
 
 export const ticketCheckoutResponseSchema = z.object({

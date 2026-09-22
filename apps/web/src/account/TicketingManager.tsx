@@ -477,7 +477,7 @@ export function TicketingManager({
               ["orders", "Bundle Orders"],
               ["discounts", "Discount Codes"],
               ["share", "Share & QR Codes"],
-              ["confirmation", "Confirmation Page"],
+              ["confirmation", "Confirmations"],
             ] as const
           ).map(([value, label]) => (
             <TabsTrigger

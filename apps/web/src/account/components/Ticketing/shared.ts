@@ -33,13 +33,15 @@ export const EMPTY_DISCOUNT_DRAFT: DiscountDraft = {
 };
 
 export const DEFAULT_TICKET_CONFIRMATION_SETTINGS: TicketConfirmationSettings = {
+  admissionInstructions:
+    "Keep this confirmation available on your phone. Present the QR code at the door if requested.",
   pendingMessage:
     "We could not load the full ticket details yet. Your purchase may still be processing. Please refresh this page in a moment, or contact the box office if this continues.",
   qrCodeInstructions:
     "Print or screenshot this entire page and bring it with you. We also sent a confirmation email with a link back to this page.",
   successMessage: "Your purchase has been successfully processed.",
   willCallInstructions:
-    "A confirmation email has been sent with a link back to this page. Your tickets will be held at Will Call on show day. Please bring a photo ID matching the buyer’s name.",
+    "Keep this confirmation available on your phone. Present the QR code at the door if requested.",
 };
 
 export const WILL_CALL_REFRESH_INTERVAL_MS = 5_000;

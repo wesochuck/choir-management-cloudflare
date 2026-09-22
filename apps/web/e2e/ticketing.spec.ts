@@ -397,7 +397,7 @@ test.describe("public ticket pages", () => {
     await expect(page.getByText("Grand Auditorium")).toBeVisible();
     await expect(page.getByText("Doors open at 19:00.")).toBeVisible();
 
-    await page.getByLabel("Name for will call").fill("Jane Buyer");
+    await page.getByLabel("Name on order").fill("Jane Buyer");
     await page.getByLabel("Email", { exact: true }).fill("jane@example.test");
     await page.getByLabel("Confirm email").fill("jane@example.test");
     await page
@@ -447,7 +447,7 @@ test.describe("public ticket pages", () => {
     await expect(page.getByText("One pass includes admission to:")).toBeVisible();
     await expect(page.locator("ul.public-bundle-event-list")).toBeVisible();
 
-    await page.getByLabel("Name for will call").fill("Bundle Buyer");
+    await page.getByLabel("Name on order").fill("Bundle Buyer");
     await page.getByLabel("Email", { exact: true }).fill("bundle@example.test");
     await page.getByLabel("Confirm email").fill("bundle@example.test");
     await page.getByRole("button", { name: "Complete bundle order" }).click();
@@ -509,7 +509,7 @@ test.describe("public ticket pages", () => {
     await expect(page.getByLabel("Discount code (optional)")).not.toBeVisible();
     await expect(page.getByText("Discount (SPRING10): -$1.50")).toBeVisible();
 
-    await page.getByLabel("Name for will call").fill("Discount Buyer");
+    await page.getByLabel("Name on order").fill("Discount Buyer");
     await page.getByLabel("Email", { exact: true }).fill("discount@example.test");
     await page.getByLabel("Confirm email").fill("discount@example.test");
     await page.getByRole("button", { name: "Complete ticket order" }).click();
@@ -532,9 +532,10 @@ test.describe("public ticket pages", () => {
     await expect(page.getByRole("heading", { name: "Your tickets are confirmed" })).toBeVisible();
     await expect(page.getByText("Staging simulation: no payment card was charged.")).toBeVisible();
     await expect(page.getByText("Jane Buyer")).toBeVisible();
-    await expect(page.getByText("Spring Concert")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Spring Concert", level: 2 })).toBeVisible();
     await expect(page.getByText("$15.74")).toBeVisible();
-    await expect(page.locator("code.ticket-credential")).toContainText(scanToken);
+    await expect(page.getByRole("img", { name: /Admission QR code/ })).toBeVisible();
+    await expect(page.locator("code.ticket-credential")).not.toBeVisible();
   });
 
   test("shows pending receipt and transitions to confirmed after polling", async ({ page }) => {
@@ -567,7 +568,8 @@ test.describe("public ticket pages", () => {
     await expect(page.locator("code.ticket-credential")).not.toBeVisible();
 
     await expect(page.getByRole("heading", { name: "Your tickets are confirmed" })).toBeVisible();
-    await expect(page.locator("code.ticket-credential")).toContainText(scanToken);
+    await expect(page.getByRole("img", { name: /Admission QR code/ })).toBeVisible();
+    await expect(page.locator("code.ticket-credential")).not.toBeVisible();
   });
 
   test("shows unavailable state when projection is missing", async ({ page }) => {

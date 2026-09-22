@@ -1,4 +1,3 @@
-import QRCode from "qrcode";
 import { useEffect, useMemo, useState } from "react";
 
 import { getOrganizationPublicWebsiteSettings } from "../auth/api";
@@ -34,57 +33,7 @@ function getOrganizationLogoUrl(): Promise<string | null> {
   return request;
 }
 
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => {
-      resolve(image);
-    };
-    image.onerror = () => {
-      reject(new Error("Image could not be loaded."));
-    };
-    image.src = src;
-  });
-}
-
-async function overlayOrganizationLogo(qrDataUrl: string, logoUrl: string): Promise<string> {
-  try {
-    const [qrImage, logoImage] = await Promise.all([loadImage(qrDataUrl), loadImage(logoUrl)]);
-    const canvas = document.createElement("canvas");
-    canvas.width = qrImage.width;
-    canvas.height = qrImage.height;
-    const context = canvas.getContext("2d");
-    if (!context) return qrDataUrl;
-
-    context.drawImage(qrImage, 0, 0);
-
-    const logoBoxSize = qrImage.width * 0.2;
-    const logoBackgroundRadius = (logoBoxSize * 1.4) / 2;
-    const centerX = qrImage.width / 2;
-    const centerY = qrImage.height / 2;
-    context.beginPath();
-    context.arc(centerX, centerY, logoBackgroundRadius, 0, Math.PI * 2);
-    context.fillStyle = "#ffffff";
-    context.fill();
-
-    const logoScale = Math.min(
-      logoBoxSize / logoImage.naturalWidth,
-      logoBoxSize / logoImage.naturalHeight,
-    );
-    const logoWidth = logoImage.naturalWidth * logoScale;
-    const logoHeight = logoImage.naturalHeight * logoScale;
-    context.drawImage(
-      logoImage,
-      centerX - logoWidth / 2,
-      centerY - logoHeight / 2,
-      logoWidth,
-      logoHeight,
-    );
-    return canvas.toDataURL("image/png");
-  } catch {
-    return qrDataUrl;
-  }
-}
+import { generateQRCodeDataUrl } from "../shared/qrCode";
 
 export function QRCodeShareCard({
   asFieldset = false,
@@ -116,17 +65,15 @@ export function QRCodeShareCard({
 
   useEffect(() => {
     let active = true;
-    void QRCode.toDataURL(absoluteUrl, {
-      color: { dark: "#0f172a", light: "#ffffff" },
+    generateQRCodeDataUrl({
       errorCorrectionLevel: "H",
+      logoUrl,
       margin: 2,
+      payload: absoluteUrl,
       width: 512,
     })
-      .then(async (dataUrl) => {
-        const compositedDataUrl = logoUrl
-          ? await overlayOrganizationLogo(dataUrl, logoUrl)
-          : dataUrl;
-        if (active) setQrCode({ dataUrl: compositedDataUrl, path: absoluteUrl });
+      .then((dataUrl) => {
+        if (active) setQrCode({ dataUrl, path: absoluteUrl });
       })
       .catch(() => {
         if (active) setQrCode({ error: true, path: absoluteUrl });
