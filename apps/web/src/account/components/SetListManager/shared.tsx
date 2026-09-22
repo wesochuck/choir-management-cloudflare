@@ -13,6 +13,7 @@ import {
   printDateOnly,
   printTimeOnly,
   setListPreviewRows,
+  setListPrintedCredit,
 } from "./utils";
 
 export function SetListPreview({
@@ -58,7 +59,7 @@ export function SetListPreview({
               </li>
             );
           }
-          const credit = composer || arranger;
+          const credit = setListPrintedCredit(arranger, composer);
           return (
             <li className="set-list-preview__song" key={`${title}-${String(index)}`}>
               <div className="set-list-preview__song-line">

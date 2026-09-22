@@ -397,6 +397,19 @@ export function setListPreviewRows(
     };
   });
 }
+export function setListPrintedCredit(
+  arranger: string | null | undefined,
+  composer: string | null | undefined,
+): string {
+  const normalizedArranger = arranger?.trim();
+  if (normalizedArranger) {
+    return `arr. ${normalizedArranger}`;
+  }
+
+  const normalizedComposer = composer?.trim();
+  return normalizedComposer ?? "";
+}
+
 export function setListDocumentText(
   event: OrganizationEvent,
   items: readonly SetListItem[],
@@ -423,7 +436,7 @@ export function setListDocumentText(
       if (kind === "intermission") {
         return [title, ...(showNotes && notes ? indentedNoteLines(notes) : [])];
       }
-      const credit = composer || arranger;
+      const credit = setListPrintedCredit(arranger, composer);
       return [
         `${String(number)}. ${title}${credit ? ` ~ ${credit}` : ""}`,
         ...(performers ? [`   Group — ${performers}`] : []),

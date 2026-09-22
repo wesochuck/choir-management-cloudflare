@@ -17,6 +17,7 @@ import {
   setListItemForEdit,
   setListItemRecordingStatus,
   setListPreviewRows,
+  setListPrintedCredit,
   setListRecordingCoverage,
 } from "./utils";
 import type { SetListItem } from "./types";
@@ -133,6 +134,140 @@ describe("setListDocumentText notes", () => {
     ];
     const text = setListDocumentText(event, multiLine, [], true);
     expect(text).toContain("   Notes: First line.\n   Second line.");
+  });
+});
+
+describe("setListPrintedCredit", () => {
+  it("prefers arranger over composer and adds 'arr. ' prefix when both exist", () => {
+    expect(setListPrintedCredit("Jane Doe", "John Smith")).toBe("arr. Jane Doe");
+  });
+
+  it("shows arranger with 'arr. ' prefix when composer is absent", () => {
+    expect(setListPrintedCredit("Jane Doe", undefined)).toBe("arr. Jane Doe");
+    expect(setListPrintedCredit("Jane Doe", "")).toBe("arr. Jane Doe");
+    expect(setListPrintedCredit("Jane Doe", null)).toBe("arr. Jane Doe");
+  });
+
+  it("shows composer with no prefix when arranger is absent", () => {
+    expect(setListPrintedCredit(undefined, "John Smith")).toBe("John Smith");
+    expect(setListPrintedCredit("", "John Smith")).toBe("John Smith");
+    expect(setListPrintedCredit(null, "John Smith")).toBe("John Smith");
+  });
+
+  it("returns empty string when neither arranger nor composer exists", () => {
+    expect(setListPrintedCredit(undefined, undefined)).toBe("");
+    expect(setListPrintedCredit("", "")).toBe("");
+    expect(setListPrintedCredit(null, null)).toBe("");
+  });
+
+  it("trims surrounding whitespace from arranger and composer", () => {
+    expect(setListPrintedCredit("  Jane Doe  ", "  John Smith  ")).toBe("arr. Jane Doe");
+    expect(setListPrintedCredit("   ", "  John Smith  ")).toBe("John Smith");
+  });
+
+  it("treats whitespace-only values as absent", () => {
+    expect(setListPrintedCredit("   ", "   ")).toBe("");
+  });
+});
+
+describe("setListDocumentText credit precedence", () => {
+  const event: OrganizationEvent = organizationEventSchema.parse({
+    createdAt: "2026-08-01T12:00:00.000Z",
+    id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+    location: "Community Hall",
+    setList: [],
+    startsAt: "2026-12-05T19:30:00.000Z",
+    title: "Winter Concert",
+    type: "Performance",
+    updatedAt: "2026-08-01T12:00:00.000Z",
+  });
+
+  const pieceBoth = piece({
+    arranger: "Peter J. Wilhousky",
+    composer: "Mykola Leontovych",
+    id: "11111111-1111-4111-8111-111111111111",
+    title: "Carol of the Bells",
+  });
+
+  const pieceComposerOnly = piece({
+    arranger: "",
+    composer: "George Frideric Handel",
+    id: "22222222-2222-4222-8222-222222222222",
+    title: "Messiah",
+  });
+
+  const pieceArrangerOnly = piece({
+    arranger: "Moses Hogan",
+    composer: "",
+    id: "33333333-3333-4333-8333-333333333333",
+    title: "Elijah Rock",
+  });
+
+  const pieceNeither = piece({
+    arranger: "",
+    composer: "",
+    id: "44444444-4444-4444-8444-444444444444",
+    title: "Traditional Chants",
+  });
+
+  const catalog = [pieceBoth, pieceComposerOnly, pieceArrangerOnly, pieceNeither];
+
+  it("shows only the arranger with 'arr. ' prefix when both arranger and composer exist", () => {
+    const items: SetListItem[] = [
+      { id: "item-1", pieceId: pieceBoth.id, title: pieceBoth.title, type: "song" },
+    ];
+    const text = setListDocumentText(event, items, catalog);
+    expect(text).toContain("1. Carol of the Bells ~ arr. Peter J. Wilhousky");
+    expect(text).not.toContain("Mykola Leontovych");
+  });
+
+  it("shows only the arranger with 'arr. ' prefix when only arranger exists", () => {
+    const items: SetListItem[] = [
+      { id: "item-1", pieceId: pieceArrangerOnly.id, title: pieceArrangerOnly.title, type: "song" },
+    ];
+    const text = setListDocumentText(event, items, catalog);
+    expect(text).toContain("1. Elijah Rock ~ arr. Moses Hogan");
+  });
+
+  it("shows composer with no prefix when only composer exists", () => {
+    const items: SetListItem[] = [
+      { id: "item-1", pieceId: pieceComposerOnly.id, title: pieceComposerOnly.title, type: "song" },
+    ];
+    const text = setListDocumentText(event, items, catalog);
+    expect(text).toContain("1. Messiah ~ George Frideric Handel");
+  });
+
+  it("shows no separator or credit when neither arranger nor composer exists", () => {
+    const items: SetListItem[] = [
+      { id: "item-1", pieceId: pieceNeither.id, title: pieceNeither.title, type: "song" },
+    ];
+    const text = setListDocumentText(event, items, catalog);
+    expect(text).toContain("1. Traditional Chants");
+    expect(text).not.toContain("~");
+    expect(text).not.toContain("arr.");
+  });
+
+  it("trims surrounding whitespace and ignores whitespace-only credits", () => {
+    const customItemWhitespace: SetListItem = {
+      composer: "   ",
+      id: "item-1",
+      title: "Whitespace Song",
+      type: "song",
+    };
+    const text = setListDocumentText(event, [customItemWhitespace], []);
+    expect(text).toContain("1. Whitespace Song");
+    expect(text).not.toContain("~");
+    expect(text).not.toContain("arr.");
+  });
+
+  it("leaves intermission items without credit formatting", () => {
+    const items: SetListItem[] = [
+      { id: "item-1", pieceId: pieceBoth.id, title: pieceBoth.title, type: "song" },
+      { id: "item-2", title: "Intermission", type: "intermission" },
+    ];
+    const text = setListDocumentText(event, items, catalog);
+    expect(text).toContain("1. Carol of the Bells ~ arr. Peter J. Wilhousky");
+    expect(text).toContain("Intermission");
   });
 });
 
