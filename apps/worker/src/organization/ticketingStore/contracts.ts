@@ -169,6 +169,7 @@ export interface TicketPurchaseRow {
   readonly eventId: string;
   readonly eventStartsAt: string;
   readonly eventTitle: string;
+  readonly expiresAt?: string | null;
   readonly discountAmountCents: number;
   readonly discountCode: string;
   readonly discountCodeId: string | null;
@@ -250,5 +251,6 @@ export const purchaseSelect = `SELECT id, event_id AS eventId, event_title AS ev
   created_at AS createdAt, updated_at AS updatedAt,
   scan_credential_nonce AS scanCredentialNonce,
   scan_credential_issued_at AS scanCredentialIssuedAt,
-  scan_credential_expires_at AS scanCredentialExpiresAt
+  scan_credential_expires_at AS scanCredentialExpiresAt,
+  expires_at AS expiresAt
   FROM ticket_purchases`;

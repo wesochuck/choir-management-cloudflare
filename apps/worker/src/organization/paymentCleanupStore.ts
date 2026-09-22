@@ -26,13 +26,22 @@ export function expireStalePaymentsInStore(
   storage.transactionSync(() => {
     const tickets = storage.sql
       .exec<{ readonly id: string }>(
-        `SELECT id FROM ticket_purchases WHERE status = 'pending' AND created_at < ?`,
+        `SELECT id FROM ticket_purchases
+         WHERE status = 'pending' AND (
+           (expires_at IS NOT NULL AND expires_at != '' AND expires_at < ?)
+           OR created_at < ?
+         )`,
+        now,
         cutoff,
       )
       .toArray();
     storage.sql.exec(
       `UPDATE ticket_purchases SET status = 'expired', expired_at = ?, updated_at = ?
-       WHERE status = 'pending' AND created_at < ?`,
+       WHERE status = 'pending' AND (
+         (expires_at IS NOT NULL AND expires_at != '' AND expires_at < ?)
+         OR created_at < ?
+       )`,
+      now,
       now,
       now,
       cutoff,
@@ -57,11 +66,15 @@ export function expireStalePaymentsInStore(
     const donations = storage.sql
       .exec<{ readonly id: string }>(
         `SELECT id FROM donations
-         WHERE status = 'pending' AND created_at < ?
+         WHERE status = 'pending' AND (
+           (expires_at IS NOT NULL AND expires_at != '' AND expires_at < ?)
+           OR created_at < ?
+         )
            AND NOT EXISTS (
              SELECT 1 FROM donation_expirations expiration
              WHERE expiration.donation_id = donations.id
            )`,
+        now,
         cutoff,
       )
       .toArray();

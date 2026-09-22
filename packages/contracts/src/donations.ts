@@ -94,6 +94,7 @@ export const donationCheckoutRequestSchema = z.object({
   tributeName: z.string().trim().max(500).default(""),
   tributeNotifyEmail: z.union([z.literal(""), z.email().max(320)]).default(""),
   tributeType: donationTributeInputSchema.default("none"),
+  turnstileToken: z.string().optional(),
 });
 
 export const manualDonationCreateRequestSchema = z.object({

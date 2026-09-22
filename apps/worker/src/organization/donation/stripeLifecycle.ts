@@ -175,7 +175,7 @@ export function completeStripeDonation(
     if (shouldFulfill) {
       storage.sql.exec(
         `UPDATE donations
-         SET status = 'paid', provider_payment_id = ?, updated_at = ?,
+         SET status = 'paid', provider_payment_id = ?, updated_at = ?, expires_at = NULL,
              contact_id = COALESCE(contact_id, ?)
          WHERE id = ? AND status IN ('pending', 'expired')`,
         operation.providerPaymentId,

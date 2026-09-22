@@ -19,6 +19,7 @@ import {
   readPublicTicketPurchase,
   TicketingError,
 } from "../organization/organizationTicketing";
+import { preflightCheckoutRequest, preflightTicketQuoteRequest } from "./helpers/checkoutPreflight";
 import { verifySignedLinkScope } from "../security/signedLinks";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
@@ -86,6 +87,17 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     }
+    const preflightError = await preflightCheckoutRequest(
+      context.env,
+      resolved.value.organizationId,
+      "ticket_checkout",
+      checkout.data.checkoutRequestId,
+      checkout.data.buyerEmail,
+      context.req.header("cf-connecting-ip")?.trim() ?? "unknown",
+      checkout.data.turnstileToken,
+      context.get("requestId"),
+    );
+    if (preflightError) return preflightError;
     try {
       await assertEmailProviderRecipientAvailable(context.env.CONTROL_DB, checkout.data.buyerEmail);
       return context.json(
@@ -195,6 +207,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     }
+    const preflightError = await preflightTicketQuoteRequest(
+      context.env,
+      resolved.value.organizationId,
+      context.req.header("cf-connecting-ip")?.trim() ?? "unknown",
+      context.get("requestId"),
+    );
+    if (preflightError) return preflightError;
     try {
       return context.json(
         await quotePublicTicketCheckout(context.env, resolved.value.organizationId, quote.data),

@@ -158,6 +158,7 @@ export const organizationRpcOperationMap: OrganizationRpcOperationMap = {
       "/internal/payment-settings",
       "/internal/payments/manage",
       "/internal/payments/cleanup",
+      "/internal/checkout/rate-limit",
       "/internal/payments/refund-request",
       "/internal/payments/notification-result",
       "/internal/ticket-confirmation-settings",

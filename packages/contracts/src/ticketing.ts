@@ -142,6 +142,7 @@ const ticketBuyerSchema = z.object({
   marketingOptIn: z.boolean().default(false),
   quantity: z.number().int().min(1).max(10),
   discountCode: z.string().trim().max(64).optional(),
+  turnstileToken: z.string().optional(),
 });
 
 export const ticketCheckoutRequestSchema = z.union([

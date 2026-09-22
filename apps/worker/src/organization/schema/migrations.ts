@@ -1484,6 +1484,15 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       `ALTER TABLE events ADD COLUMN set_list_default_transition_seconds INTEGER NOT NULL DEFAULT 0 CHECK (set_list_default_transition_seconds >= 0)`,
     ],
   },
+  {
+    version: 87,
+    statements: [
+      "ALTER TABLE ticket_purchases ADD COLUMN expires_at TEXT",
+      "CREATE INDEX IF NOT EXISTS idx_ticket_purchases_expires_at ON ticket_purchases(expires_at, status)",
+      "ALTER TABLE donations ADD COLUMN expires_at TEXT",
+      "CREATE INDEX IF NOT EXISTS idx_donations_expires_at ON donations(expires_at, status)",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

@@ -54,6 +54,9 @@ export function createDonationCheckout(
         source: "donation",
       });
   storage.transactionSync(() => {
+    const expiresAt = pending
+      ? new Date(new Date(now).getTime() + 30 * 60 * 1_000).toISOString()
+      : null;
     storage.sql.exec(
       `INSERT INTO donations
         (id, checkout_request_id, status, amount_cents,
@@ -62,8 +65,8 @@ export function createDonationCheckout(
          anonymous, marketing_consent,
          buyer_name, buyer_email, patron_id,
          provider_session_id, provider_payment_id,
-         created_at, updated_at, contact_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         created_at, updated_at, contact_id, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       operation.donationId,
       operation.checkout.checkoutRequestId,
       pending ? "pending" : "paid",
@@ -82,6 +85,7 @@ export function createDonationCheckout(
       now,
       now,
       donationContactId,
+      expiresAt,
     );
     storage.sql.exec(
       `INSERT INTO payment_attempts

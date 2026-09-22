@@ -149,7 +149,7 @@ export function completeStripeTicketPurchase(
     if (shouldFulfill) {
       storage.sql.exec(
         `UPDATE ticket_purchases
-         SET status = 'paid', provider_payment_id = ?, fulfilled_at = ?, expired_at = NULL, updated_at = ?
+         SET status = 'paid', provider_payment_id = ?, fulfilled_at = ?, expired_at = NULL, expires_at = NULL, updated_at = ?
          WHERE id = ? AND status IN ('pending', 'expired')`,
         operation.providerPaymentId,
         occurredAt,

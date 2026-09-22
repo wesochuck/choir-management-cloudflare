@@ -40,6 +40,7 @@ import { updatePaymentActivationInStore } from "../paymentSettingsStore";
 import { prepareAttendanceReportJobFromStore } from "../schedulingStore";
 import { recordPaymentDisputeInStore } from "../paymentDisputeStore";
 import { expireStalePaymentsInStore } from "../paymentCleanupStore";
+import { checkPublicCheckoutRateLimit } from "../checkoutRateLimit";
 import { recordPaymentNotificationResultInStore } from "../paymentNotificationStore";
 import {
   reconcileProviderRefundInStore,
@@ -127,6 +128,9 @@ export async function dispatchPostRequest(
   }
   if (pathname === "/internal/payments/cleanup") {
     return expireStalePaymentsInStore(storage, await request.json().catch(() => null));
+  }
+  if (pathname === "/internal/checkout/rate-limit") {
+    return checkPublicCheckoutRateLimit(storage, await request.json().catch(() => null));
   }
   if (pathname === "/internal/payments/refund-request") {
     return recordProviderRefundRequestedInStore(storage, await request.json().catch(() => null));

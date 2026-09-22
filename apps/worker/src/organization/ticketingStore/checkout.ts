@@ -59,17 +59,27 @@ function sameCheckoutRequest(
   );
 }
 
-function committedEventQuantity(storage: DurableObjectStorage, eventId: string): number {
+function committedEventQuantity(
+  storage: DurableObjectStorage,
+  eventId: string,
+  nowIso = new Date().toISOString(),
+): number {
   return storage.sql
     .exec<{ readonly [column: string]: SqlStorageValue; readonly quantity: number }>(
       `SELECT
         (SELECT COALESCE(SUM(quantity), 0) FROM ticket_purchases
-         WHERE event_id = ? AND bundle_id IS NULL AND status IN ('pending', 'paid')) +
+         WHERE event_id = ? AND bundle_id IS NULL AND (
+           status = 'paid' OR (status = 'pending' AND (expires_at IS NULL OR expires_at = '' OR expires_at >= ?))
+         )) +
         (SELECT COALESCE(SUM(a.quantity), 0) FROM ticket_bundle_allocations a
          JOIN ticket_purchases p ON p.id = a.purchase_id
-         WHERE a.event_id = ? AND p.status IN ('pending', 'paid')) AS quantity`,
+         WHERE a.event_id = ? AND (
+           p.status = 'paid' OR (p.status = 'pending' AND (p.expires_at IS NULL OR p.expires_at = '' OR p.expires_at >= ?))
+         )) AS quantity`,
       eventId,
+      nowIso,
       eventId,
+      nowIso,
     )
     .one().quantity;
 }
@@ -403,14 +413,20 @@ export function createFakeCheckout(
         const committedBundles = storage.sql
           .exec<{ readonly [column: string]: SqlStorageValue; readonly quantity: number }>(
             `SELECT COALESCE(SUM(quantity), 0) AS quantity FROM ticket_purchases
-             WHERE bundle_id = ? AND status IN ('pending', 'paid')`,
+             WHERE bundle_id = ? AND (
+               status = 'paid' OR (status = 'pending' AND (expires_at IS NULL OR expires_at = '' OR expires_at >= ?))
+             )`,
             resolution.bundleId,
+            occurredAt,
           )
           .one().quantity;
         if (committedBundles + operation.checkout.quantity > resolution.bundleCapacity) {
           throw new CheckoutCapacityExceededError();
         }
       }
+      const expiresAt = pending
+        ? new Date(new Date(occurredAt).getTime() + 30 * 60 * 1_000).toISOString()
+        : null;
       storage.sql.exec(
         `INSERT INTO ticket_purchases
         (id, checkout_request_id, event_id, event_title, event_starts_at, event_timezone,
@@ -420,8 +436,8 @@ export function createFakeCheckout(
          status, marketing_opt_in, created_at, updated_at, fulfilled_at,
          discount_code_id, discount_code, discount_type, discount_value,
          original_unit_price_cents, original_subtotal_cents, discount_amount_cents,
-         discounted_subtotal_cents, contact_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'usd', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         discounted_subtotal_cents, contact_id, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'usd', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         operation.purchaseId,
         operation.checkout.checkoutRequestId,
         primaryEvent.id,
@@ -453,6 +469,7 @@ export function createFakeCheckout(
         quote.discountAmountCents,
         quote.discountedSubtotalCents,
         purchaseContactId,
+        expiresAt,
       );
       storage.sql.exec(
         `INSERT INTO payment_attempts

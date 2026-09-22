@@ -425,6 +425,7 @@ export async function createStripeCheckoutSession(
     body.set(`line_items[${String(index)}][quantity]`, String(lineItem.quantity));
   });
   if (input.customerEmail) body.set("customer_email", input.customerEmail);
+  body.set("expires_at", String(Math.floor(Date.now() / 1000) + 1800));
   for (const [key, value] of Object.entries(input.metadata)) {
     body.set(`metadata[${key}]`, value);
     body.set(`payment_intent_data[metadata][${key}]`, value);
