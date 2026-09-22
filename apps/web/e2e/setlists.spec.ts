@@ -445,3 +445,212 @@ test("updates between-song transition time, reflects in timing breakdown, end ti
   await expect(page.getByText("Set list saved.", { exact: true })).toBeVisible();
   expect(eventRef.value.setListDefaultTransitionSeconds).toBe(45);
 });
+
+test("shows recording coverage and plays inline audio previews in set list builder", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const playingMedia = new WeakSet<HTMLMediaElement>();
+    Object.defineProperty(HTMLMediaElement.prototype, "duration", {
+      configurable: true,
+      get() {
+        return 180;
+      },
+    });
+    Object.defineProperty(HTMLMediaElement.prototype, "paused", {
+      configurable: true,
+      get(this: HTMLMediaElement) {
+        return !playingMedia.has(this);
+      },
+    });
+    HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+      playingMedia.add(this);
+      this.dispatchEvent(new Event("loadedmetadata"));
+      this.dispatchEvent(new Event("canplay"));
+      this.dispatchEvent(new Event("play"));
+      this.dispatchEvent(new Event("playing"));
+      return Promise.resolve();
+    };
+    HTMLMediaElement.prototype.pause = function (this: HTMLMediaElement) {
+      playingMedia.delete(this);
+      this.dispatchEvent(new Event("pause"));
+    };
+  });
+
+  const piece1Id = "11111111-1111-4111-8111-111111111111";
+  const piece2Id = "22222222-2222-4222-8222-222222222222";
+  const piece3Id = "33333333-3333-4333-8333-333333333333";
+  const trackFileId1 = "44444444-4444-4444-8444-444444444444";
+  const trackFileId2 = "55555555-5555-4555-8555-555555555555";
+
+  const eventRef = {
+    value: {
+      advancePriceCents: 0,
+      callTime: "",
+      dayOfPriceCents: 0,
+      details: "",
+      doorsOpenTime: "",
+      durationMinutes: 10,
+      id: eventId,
+      isTicketingEnabled: false,
+      location: "Main Sanctuary",
+      parentPerformanceId: null,
+      publicDetails: "",
+      publicGraphicFileId: null,
+      publishOnWebsite: false,
+      rsvpDeadlineDate: null,
+      rsvpFollowUpLeadHours: null,
+      rsvpFollowUpMode: "inherit",
+      setList: [
+        { id: "item-1", pieceId: piece1Id, title: "Carol of the Bells", type: "song" },
+        { id: "item-2", title: "Intermission", type: "intermission" },
+        { id: "item-3", pieceId: piece2Id, title: "Silent Night", type: "song" },
+        { id: "item-4", pieceId: piece3Id, title: "O Holy Night", type: "song" },
+      ],
+      setListApproved: true,
+      setListDefaultTransitionSeconds: 0,
+      startsAt: "2026-07-20T20:00:00.000Z",
+      ticketCapacity: null,
+      title: "Holiday Concert",
+      type: "Performance",
+      venueId: null,
+      createdAt: "2026-07-20T20:00:00.000Z",
+      updatedAt: "2026-07-20T20:00:00.000Z",
+    },
+  };
+
+  await page.route("**/api/**", async (route) => {
+    if (await handleShellRoute(route)) return;
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/organization/music") {
+      await fulfillJson(route, {
+        pieces: [
+          {
+            arranger: "",
+            catalogId: "",
+            composer: "Leontovych",
+            copies: null,
+            createdAt: "2026-07-20T20:00:00.000Z",
+            durationSeconds: 180,
+            genres: [],
+            id: piece1Id,
+            lastPerformedAt: null,
+            notes: "",
+            parentId: null,
+            performanceCount: 1,
+            purchaseDate: null,
+            sectionBuckets: [],
+            title: "Carol of the Bells",
+            trackFileIds: { tutti: trackFileId1 },
+            updatedAt: "2026-07-20T20:00:00.000Z",
+          },
+          {
+            arranger: "",
+            catalogId: "",
+            composer: "Gruber",
+            copies: null,
+            createdAt: "2026-07-20T20:00:00.000Z",
+            durationSeconds: 180,
+            genres: [],
+            id: piece2Id,
+            lastPerformedAt: null,
+            notes: "",
+            parentId: null,
+            performanceCount: 1,
+            purchaseDate: null,
+            sectionBuckets: [],
+            title: "Silent Night",
+            trackFileIds: {},
+            updatedAt: "2026-07-20T20:00:00.000Z",
+          },
+          {
+            arranger: "",
+            catalogId: "",
+            composer: "Adam",
+            copies: null,
+            createdAt: "2026-07-20T20:00:00.000Z",
+            durationSeconds: 240,
+            genres: [],
+            id: piece3Id,
+            lastPerformedAt: null,
+            notes: "",
+            parentId: null,
+            performanceCount: 1,
+            purchaseDate: null,
+            sectionBuckets: [],
+            title: "O Holy Night",
+            trackFileIds: { tenor: trackFileId2 },
+            updatedAt: "2026-07-20T20:00:00.000Z",
+          },
+        ],
+        requestId,
+      });
+      return;
+    }
+    if (url.pathname.startsWith("/api/organization/files/")) {
+      await route.fulfill({
+        body: Buffer.from("mock-audio"),
+        contentType: "audio/mpeg",
+        status: 200,
+      });
+      return;
+    }
+    if (await handleDataRoute(route, eventRef)) return;
+    await fulfillJson(route, { requestId });
+  });
+
+  await page.goto("/admin/setlists");
+  await expect(page.getByRole("heading", { name: "Set lists" })).toBeVisible();
+
+  // Summary breakdown displays recordings coverage: 2 of 3 with audio (1 missing), custom excluded from count
+  await expect(page.locator(".set-list-summary")).toContainText("Recordings 2 of 3 (1 missing)");
+
+  // Row 1 (Carol of the Bells) has Tutti recording
+  const item1 = page.locator(".set-list-item").first();
+  await expect(item1).toContainText("Carol of the Bells");
+  await expect(item1).toContainText("Recording: Tutti");
+  const playButton1 = item1.getByRole("button", {
+    name: "Play Tutti recording for Carol of the Bells",
+  });
+  await expect(playButton1).toBeVisible();
+  await expect(item1.getByRole("link", { name: "Open practice" })).toBeVisible();
+
+  // Row 2 (Intermission) is a custom entry - no recording status or playback controls
+  const item2 = page.locator(".set-list-item").nth(1);
+  await expect(item2).toContainText("Custom entry");
+  await expect(item2).not.toContainText("Recording");
+  await expect(item2).not.toContainText("No recording");
+  await expect(item2.getByRole("button", { name: /Play/ })).not.toBeVisible();
+
+  // Row 3 (Silent Night) has no recording
+  const item3 = page.locator(".set-list-item").nth(2);
+  await expect(item3).toContainText("Silent Night");
+  await expect(item3).toContainText("No recording");
+  await expect(item3.getByRole("button", { name: /Play/ })).not.toBeVisible();
+
+  // Row 4 (O Holy Night) has Tenor fallback recording
+  const item4 = page.locator(".set-list-item").nth(3);
+  await expect(item4).toContainText("O Holy Night");
+  await expect(item4).toContainText("Recording: Tenor");
+  const playButton4 = item4.getByRole("button", {
+    name: "Play Tenor recording for O Holy Night",
+  });
+  await expect(playButton4).toBeVisible();
+
+  // Click Play on row 1 - plays inline without navigating away
+  await playButton1.click();
+  await expect(
+    item1.getByRole("button", { name: "Pause Tutti recording for Carol of the Bells" }),
+  ).toBeVisible();
+  expect(page.url()).toContain("/admin/setlists");
+
+  // Click Play on row 4 - plays row 4 and stops row 1
+  await playButton4.click();
+  await expect(
+    item4.getByRole("button", { name: "Pause Tenor recording for O Holy Night" }),
+  ).toBeVisible();
+  await expect(
+    item1.getByRole("button", { name: /(Play|Resume) Tutti recording for Carol of the Bells/ }),
+  ).toBeVisible();
+  await expect(item1.getByRole("button", { name: /Pause Tutti/ })).not.toBeVisible();
+});

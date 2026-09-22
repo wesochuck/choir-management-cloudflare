@@ -249,6 +249,26 @@
     overflow-wrap: anywhere;
   }
 
+  .set-list-recording-status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-3xs);
+    font-size: var(--font-size-sm);
+  }
+
+  .set-list-recording-status--available {
+    color: var(--color-text-muted);
+  }
+
+  .set-list-recording-status--missing {
+    color: var(--color-warning, #d97706);
+  }
+
+  .set-list-recording-status__icon {
+    font-size: 0.75em;
+    line-height: 1;
+  }
+
   .set-list-item-notes {
     margin: var(--spacing-2xs) 0 0;
     color: var(--color-text-muted);
@@ -265,10 +285,27 @@
   .set-list-item-actions {
     min-width: 0;
     gap: var(--spacing-xs);
+    flex-wrap: wrap;
   }
 
   .set-list-item-actions .text-button {
     font-size: var(--font-size-md);
+  }
+
+  .inline-practice-track-player {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .inline-practice-track-player__button {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .inline-practice-track-player__button.is-playing {
+    border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    color: var(--color-accent);
   }
 
   .set-list-item-dialog {

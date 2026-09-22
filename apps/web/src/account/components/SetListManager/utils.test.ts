@@ -11,9 +11,13 @@ import {
   effectiveSetListItemDuration,
   effectiveSetListItemDurationSeconds,
   effectiveSetListItemNotes,
+  musicPiecesForSetListItem,
+  resolveSetListPreferredPracticeTrack,
   setListDocumentText,
   setListItemForEdit,
+  setListItemRecordingStatus,
   setListPreviewRows,
+  setListRecordingCoverage,
 } from "./utils";
 import type { SetListItem } from "./types";
 
@@ -245,5 +249,250 @@ describe("setListItemForEdit", () => {
     };
     const edited = setListItemForEdit(item, music);
     expect(edited.duration).toBe("3:15");
+  });
+});
+
+describe("musicPiecesForSetListItem", () => {
+  it("returns empty array when item has no pieceId", () => {
+    const item: SetListItem = { id: "item-1", title: "Custom Song", type: "song" };
+    expect(musicPiecesForSetListItem(item, music)).toEqual([]);
+  });
+
+  it("returns exact piece and child movements", () => {
+    const parent = piece({ id: pieceId, title: "Messiah" });
+    const child1 = piece({
+      id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+      parentId: pieceId,
+      title: "Comfort Ye",
+    });
+    const child2 = piece({
+      id: "6f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+      parentId: pieceId,
+      title: "Ev'ry Valley",
+    });
+    const item: SetListItem = { id: "item-1", pieceId, title: "Messiah", type: "song" };
+    const pieces = musicPiecesForSetListItem(item, [parent, child1, child2]);
+    expect(pieces.map((p) => p.id)).toEqual([pieceId, child1.id, child2.id]);
+  });
+});
+
+const validFileId1 = "11111111-1111-4111-8111-111111111111";
+const validFileId2 = "22222222-2222-4222-8222-222222222222";
+
+describe("resolveSetListPreferredPracticeTrack", () => {
+  it("exact linked piece with Tutti selects Tutti with fallback: false", () => {
+    const pieceWithTutti = piece({
+      id: pieceId,
+      trackFileIds: {
+        soprano: validFileId2,
+        tutti: validFileId1,
+      },
+    });
+    const item: SetListItem = { id: "item-1", pieceId, title: "Piece", type: "song" };
+    const resolved = resolveSetListPreferredPracticeTrack(item, [pieceWithTutti]);
+    expect(resolved).toEqual({
+      fallback: false,
+      fileId: validFileId1,
+      sourcePieceId: pieceId,
+      sourcePieceTitle: pieceWithTutti.title,
+      trackKey: "tutti",
+      trackLabel: "Tutti",
+    });
+  });
+
+  it("exact linked piece without Tutti but Everyone selects Everyone with fallback: true", () => {
+    const pieceWithEveryone = piece({
+      id: pieceId,
+      trackFileIds: {
+        alto: validFileId2,
+        everyone: validFileId1,
+      },
+    });
+    const item: SetListItem = { id: "item-1", pieceId, title: "Piece", type: "song" };
+    const resolved = resolveSetListPreferredPracticeTrack(item, [pieceWithEveryone]);
+    expect(resolved).toEqual({
+      fallback: true,
+      fileId: validFileId1,
+      sourcePieceId: pieceId,
+      sourcePieceTitle: pieceWithEveryone.title,
+      trackKey: "everyone",
+      trackLabel: "Everyone",
+    });
+  });
+
+  it("exact linked piece with only a voice-part track selects that track and labels it accurately", () => {
+    const pieceWithTenor = piece({
+      id: pieceId,
+      trackFileIds: {
+        tenor: validFileId1,
+      },
+    });
+    const item: SetListItem = { id: "item-1", pieceId, title: "Piece", type: "song" };
+    const resolved = resolveSetListPreferredPracticeTrack(item, [pieceWithTenor]);
+    expect(resolved).toEqual({
+      fallback: true,
+      fileId: validFileId1,
+      sourcePieceId: pieceId,
+      sourcePieceTitle: pieceWithTenor.title,
+      trackKey: "tenor",
+      trackLabel: "Tenor",
+    });
+  });
+
+  it("no tracks returns null (unavailable)", () => {
+    const pieceNoTracks = piece({
+      id: pieceId,
+      trackFileIds: {},
+    });
+    const item: SetListItem = { id: "item-1", pieceId, title: "Piece", type: "song" };
+    expect(resolveSetListPreferredPracticeTrack(item, [pieceNoTracks])).toBeNull();
+  });
+
+  it("parent item with one child recording resolves child recording", () => {
+    const parentPiece = piece({
+      id: pieceId,
+      title: "Gloria",
+      trackFileIds: {},
+    });
+    const childMovement = piece({
+      id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+      parentId: pieceId,
+      title: "Gloria in Excelsis Deo",
+      trackFileIds: { tutti: validFileId1 },
+    });
+    const item: SetListItem = { id: "item-1", pieceId, title: "Gloria", type: "song" };
+    const resolved = resolveSetListPreferredPracticeTrack(item, [parentPiece, childMovement]);
+    expect(resolved).toEqual({
+      fallback: true,
+      fileId: validFileId1,
+      sourcePieceId: childMovement.id,
+      sourcePieceTitle: childMovement.title,
+      trackKey: "tutti",
+      trackLabel: "Tutti",
+    });
+  });
+
+  it("parent item with multiple child recordings returns null (ambiguous state)", () => {
+    const parentPiece = piece({
+      id: pieceId,
+      title: "Gloria",
+      trackFileIds: {},
+    });
+    const child1 = piece({
+      id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+      parentId: pieceId,
+      title: "Movement 1",
+      trackFileIds: { tutti: validFileId1 },
+    });
+    const child2 = piece({
+      id: "6f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+      parentId: pieceId,
+      title: "Movement 2",
+      trackFileIds: { tutti: validFileId2 },
+    });
+    const item: SetListItem = { id: "item-1", pieceId, title: "Gloria", type: "song" };
+    expect(resolveSetListPreferredPracticeTrack(item, [parentPiece, child1, child2])).toBeNull();
+  });
+});
+
+describe("setListItemRecordingStatus", () => {
+  it("returns status: custom for intermission items", () => {
+    const item: SetListItem = { id: "item-1", title: "Intermission", type: "intermission" };
+    expect(setListItemRecordingStatus(item, music)).toEqual({ status: "custom" });
+  });
+
+  it("returns status: missing for song without pieceId or tracks", () => {
+    const itemNoPiece: SetListItem = { id: "item-1", title: "Uncataloged Song", type: "song" };
+    expect(setListItemRecordingStatus(itemNoPiece, music)).toEqual({ status: "missing" });
+
+    const pieceNoTracks = piece({ id: pieceId, trackFileIds: {} });
+    const itemWithPiece: SetListItem = { id: "item-2", pieceId, title: "Song", type: "song" };
+    expect(setListItemRecordingStatus(itemWithPiece, [pieceNoTracks])).toEqual({
+      status: "missing",
+    });
+  });
+
+  it("returns status: available with track details when recording exists", () => {
+    const pieceWithTrack = piece({
+      id: pieceId,
+      trackFileIds: { tutti: validFileId1 },
+    });
+    const item: SetListItem = { id: "item-1", pieceId, title: "Song", type: "song" };
+    const status = setListItemRecordingStatus(item, [pieceWithTrack]);
+    expect(status).toEqual({
+      status: "available",
+      track: {
+        fallback: false,
+        fileId: validFileId1,
+        sourcePieceId: pieceId,
+        sourcePieceTitle: pieceWithTrack.title,
+        trackKey: "tutti",
+        trackLabel: "Tutti",
+      },
+    });
+  });
+
+  it("returns status: multiple when multiple child pieces have recordings", () => {
+    const parentPiece = piece({ id: pieceId, trackFileIds: {} });
+    const child1 = piece({
+      id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+      parentId: pieceId,
+      trackFileIds: { tutti: validFileId1 },
+    });
+    const child2 = piece({
+      id: "6f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+      parentId: pieceId,
+      trackFileIds: { tutti: validFileId2 },
+    });
+    const item: SetListItem = { id: "item-1", pieceId, title: "Gloria", type: "song" };
+    expect(setListItemRecordingStatus(item, [parentPiece, child1, child2])).toEqual({
+      childCount: 2,
+      status: "multiple",
+    });
+  });
+});
+
+describe("setListRecordingCoverage", () => {
+  it("counts song rows only, excludes Custom entries, and returns correct totals", () => {
+    const song1Piece = piece({ id: pieceId, trackFileIds: { tutti: validFileId1 } });
+    const song2Piece = piece({ id: otherPieceId, trackFileIds: {} });
+    const musicList = [song1Piece, song2Piece];
+
+    const items: SetListItem[] = [
+      { id: "1", pieceId, title: "Song with Recording", type: "song" },
+      { id: "2", title: "Intermission", type: "intermission" },
+      { id: "3", pieceId: otherPieceId, title: "Song missing Recording", type: "song" },
+      { id: "4", title: "Announcements", type: "intermission" },
+      { id: "5", title: "Uncataloged Song", type: "song" },
+    ];
+
+    const coverage = setListRecordingCoverage(items, musicList);
+    expect(coverage).toEqual({
+      songCount: 3,
+      songsMissingRecording: 2,
+      songsWithRecording: 1,
+    });
+  });
+
+  it("counts multi-child recordings as available in coverage", () => {
+    const parentPiece = piece({ id: pieceId, trackFileIds: {} });
+    const child1 = piece({
+      id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+      parentId: pieceId,
+      trackFileIds: { tutti: validFileId1 },
+    });
+    const child2 = piece({
+      id: "6f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+      parentId: pieceId,
+      trackFileIds: { tutti: validFileId2 },
+    });
+    const items: SetListItem[] = [{ id: "1", pieceId, title: "Gloria", type: "song" }];
+
+    const coverage = setListRecordingCoverage(items, [parentPiece, child1, child2]);
+    expect(coverage).toEqual({
+      songCount: 1,
+      songsMissingRecording: 0,
+      songsWithRecording: 1,
+    });
   });
 });

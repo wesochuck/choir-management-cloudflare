@@ -10,6 +10,7 @@ import {
   normalizeSetListDuration,
   parseSetListDuration,
 } from "@choir/domain";
+import { resolvePreferredPracticeTrack, type PreferredPracticeTrack } from "../MusicCatalog/utils";
 import type { SetListItem, SetListPreviewRow, SetListPrintRow } from "./types";
 import type { Resources } from "./types";
 
@@ -62,6 +63,154 @@ export function musicPieceForSetListItem(
   music: readonly OrganizationMusicPiece[],
 ): OrganizationMusicPiece | undefined {
   return item.pieceId ? music.find(({ id }) => id === item.pieceId) : undefined;
+}
+
+export function musicPiecesForSetListItem(
+  item: SetListItem,
+  music: readonly OrganizationMusicPiece[],
+): OrganizationMusicPiece[] {
+  if (!item.pieceId) return [];
+  const exact = music.find((piece) => piece.id === item.pieceId);
+  const children = music.filter((piece) => piece.parentId === item.pieceId);
+  return exact ? [exact, ...children] : children;
+}
+
+export interface SetListPreferredPracticeTrack {
+  readonly fallback: boolean;
+  readonly fileId: string;
+  readonly sourcePieceId: string;
+  readonly sourcePieceTitle: string;
+  readonly trackKey: string;
+  readonly trackLabel: string;
+}
+
+export function resolveSetListPreferredPracticeTrack(
+  item: SetListItem,
+  music: readonly OrganizationMusicPiece[],
+): SetListPreferredPracticeTrack | null {
+  if (!item.pieceId) return null;
+
+  const exactPiece = music.find((piece) => piece.id === item.pieceId);
+  if (exactPiece) {
+    const exactTrack = resolvePreferredPracticeTrack(exactPiece);
+    if (exactTrack) {
+      return {
+        fallback: exactTrack.key.trim().toLowerCase() !== "tutti",
+        fileId: exactTrack.fileId,
+        sourcePieceId: exactPiece.id,
+        sourcePieceTitle: exactPiece.title,
+        trackKey: exactTrack.key,
+        trackLabel: exactTrack.label,
+      };
+    }
+  }
+
+  const childPieces = music.filter((piece) => piece.parentId === item.pieceId);
+  const childTracks = childPieces
+    .map((child) => ({
+      child,
+      track: resolvePreferredPracticeTrack(child),
+    }))
+    .filter(
+      (entry): entry is { child: OrganizationMusicPiece; track: PreferredPracticeTrack } =>
+        entry.track !== null,
+    );
+
+  const firstChildTrack = childTracks[0];
+  if (childTracks.length === 1 && firstChildTrack) {
+    const { child, track } = firstChildTrack;
+    return {
+      fallback: true,
+      fileId: track.fileId,
+      sourcePieceId: child.id,
+      sourcePieceTitle: child.title,
+      trackKey: track.key,
+      trackLabel: track.label,
+    };
+  }
+
+  return null;
+}
+
+export type SetListItemRecordingStatus =
+  | { readonly status: "custom" }
+  | { readonly status: "missing" }
+  | {
+      readonly status: "available";
+      readonly track: SetListPreferredPracticeTrack;
+    }
+  | {
+      readonly childCount: number;
+      readonly status: "multiple";
+    };
+
+export function setListItemRecordingStatus(
+  item: SetListItem,
+  music: readonly OrganizationMusicPiece[],
+): SetListItemRecordingStatus {
+  if (itemType(item) !== "song") {
+    return { status: "custom" };
+  }
+  if (!item.pieceId) {
+    return { status: "missing" };
+  }
+
+  const preferredTrack = resolveSetListPreferredPracticeTrack(item, music);
+  if (preferredTrack) {
+    return {
+      status: "available",
+      track: preferredTrack,
+    };
+  }
+
+  const exactPiece = music.find((piece) => piece.id === item.pieceId);
+  const exactTrack = exactPiece ? resolvePreferredPracticeTrack(exactPiece) : null;
+  if (!exactTrack) {
+    const childPieces = music.filter((piece) => piece.parentId === item.pieceId);
+    const childTracksCount = childPieces.filter(
+      (child) => resolvePreferredPracticeTrack(child) !== null,
+    ).length;
+    if (childTracksCount > 1) {
+      return {
+        childCount: childTracksCount,
+        status: "multiple",
+      };
+    }
+  }
+
+  return { status: "missing" };
+}
+
+export interface SetListRecordingCoverage {
+  readonly songCount: number;
+  readonly songsMissingRecording: number;
+  readonly songsWithRecording: number;
+}
+
+export function setListRecordingCoverage(
+  items: readonly SetListItem[],
+  music: readonly OrganizationMusicPiece[],
+): SetListRecordingCoverage {
+  let songCount = 0;
+  let songsWithRecording = 0;
+  let songsMissingRecording = 0;
+
+  for (const item of items) {
+    if (itemType(item) !== "song") continue;
+    songCount += 1;
+    const recordingStatus = setListItemRecordingStatus(item, music);
+    if (recordingStatus.status === "available" || recordingStatus.status === "multiple") {
+      songsWithRecording += 1;
+    } else {
+      songsMissingRecording += 1;
+    }
+  }
+
+  return {
+    songCount,
+    songsMissingRecording,
+    songsWithRecording,
+  };
 }
 
 function trimmedOrUndefined(value: string | null | undefined): string | undefined {
