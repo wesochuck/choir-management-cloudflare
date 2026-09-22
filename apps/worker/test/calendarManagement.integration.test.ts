@@ -1617,4 +1617,72 @@ describe("Organization calendar management", () => {
     });
     expect(rehearsal.status).toBe(400);
   });
+
+  it("persists, round-trips, and defaults setListDefaultTransitionSeconds for performances", async () => {
+    const cookie = await signIn();
+    const created = organizationEventSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/events", cookie, {
+            body: JSON.stringify({
+              rsvpDeadlineDate: "2026-10-01",
+              setListDefaultTransitionSeconds: 30,
+              startsAt: "2026-10-15T19:30:00.000Z",
+              title: "Performance with Transitions",
+              type: "Performance",
+            }),
+            headers: { "content-type": "application/json" },
+            method: "POST",
+          }),
+        )
+      ).json(),
+    );
+    expect(created.setListDefaultTransitionSeconds).toBe(30);
+
+    const listed = organizationEventsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/events", cookie))
+      ).json(),
+    );
+    const found = listed.events.find((e) => e.id === created.id);
+    expect(found?.setListDefaultTransitionSeconds).toBe(30);
+
+    const updated = organizationEventSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/events/${created.id}`, cookie, {
+            body: JSON.stringify({
+              rsvpDeadlineDate: "2026-10-01",
+              setListDefaultTransitionSeconds: 45,
+              startsAt: created.startsAt,
+              title: created.title,
+              type: created.type,
+            }),
+            headers: { "content-type": "application/json" },
+            method: "PUT",
+          }),
+        )
+      ).json(),
+    );
+    expect(updated.setListDefaultTransitionSeconds).toBe(45);
+
+    // Verify omitting setListDefaultTransitionSeconds defaults to 0
+    const omittedCreated = organizationEventSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/events", cookie, {
+            body: JSON.stringify({
+              rsvpDeadlineDate: "2026-10-01",
+              startsAt: "2026-10-20T19:30:00.000Z",
+              title: "Default Transition Performance",
+              type: "Performance",
+            }),
+            headers: { "content-type": "application/json" },
+            method: "POST",
+          }),
+        )
+      ).json(),
+    );
+    expect(omittedCreated.setListDefaultTransitionSeconds).toBe(0);
+  });
 });

@@ -46,6 +46,7 @@ export const organizationEventFieldsSchema = z.object({
   rsvpFollowUpMode: z.enum(["inherit", "enabled", "disabled"]).default("inherit"),
   setList: z.array(organizationSetListItemSchema).max(200).default([]),
   setListApproved: z.boolean().default(false),
+  setListDefaultTransitionSeconds: z.number().int().min(0).max(3_600).default(0),
   startsAt: z.iso.datetime(),
   ticketCapacity: z.number().int().positive().max(100_000).nullable().default(null),
   title: z.string().trim().min(1).max(500),

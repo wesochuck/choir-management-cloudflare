@@ -255,7 +255,7 @@ describe("contact schema migrations with real SQLite", () => {
     createAdapter(db);
     runMigrations(db);
 
-    expect(currentOrganizationSchemaVersion).toBe(85);
+    expect(currentOrganizationSchemaVersion).toBe(86);
     const tables = new Set<string>();
     for (const row of dbAllUnknown(db, "SELECT name FROM sqlite_master WHERE type = 'table'")) {
       if (isNameRow(row)) tables.add(row.name);

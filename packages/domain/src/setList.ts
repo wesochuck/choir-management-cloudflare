@@ -69,3 +69,75 @@ export function moveSetListItem<T>(
   reordered.splice(target, 0, ...reordered.splice(index, 1));
   return reordered;
 }
+
+export interface SetListTimingItem {
+  readonly duration?: string | undefined;
+  readonly durationSeconds?: number | undefined;
+  readonly type?: string | undefined;
+}
+
+export interface SetListTimingBreakdown {
+  readonly defaultTransitionCount: number;
+  readonly defaultTransitionDuration: number;
+  readonly estimatedRuntime: number;
+  readonly intermissionsDuration: number;
+  readonly missingDurationCustomCount: number;
+  readonly songsDuration: number;
+}
+
+export function isSetListSongItem(item: { readonly type?: string | undefined }): boolean {
+  return item.type !== "intermission";
+}
+
+export function calculateSetListTransitionCount(
+  items: readonly { readonly type?: string | undefined }[],
+): number {
+  let transitionCount = 0;
+  for (let index = 0; index < items.length - 1; index += 1) {
+    const current = items[index];
+    const next = items[index + 1];
+    if (current && next && isSetListSongItem(current) && isSetListSongItem(next)) {
+      transitionCount += 1;
+    }
+  }
+  return transitionCount;
+}
+
+export function calculateSetListTiming<T extends SetListTimingItem>(
+  items: readonly T[],
+  defaultTransitionSeconds = 0,
+  resolveDurationSeconds?: (item: T) => number,
+): SetListTimingBreakdown {
+  let songsDuration = 0;
+  let intermissionsDuration = 0;
+  let missingDurationCustomCount = 0;
+
+  for (const item of items) {
+    const seconds = resolveDurationSeconds
+      ? resolveDurationSeconds(item)
+      : (item.durationSeconds ?? parseSetListDuration(item.duration) ?? 0);
+
+    if (isSetListSongItem(item)) {
+      songsDuration += seconds;
+    } else {
+      intermissionsDuration += seconds;
+      if (seconds <= 0) {
+        missingDurationCustomCount += 1;
+      }
+    }
+  }
+
+  const defaultTransitionCount = calculateSetListTransitionCount(items);
+  const safeDefaultSeconds = Math.max(0, Math.floor(defaultTransitionSeconds));
+  const defaultTransitionDuration = defaultTransitionCount * safeDefaultSeconds;
+  const estimatedRuntime = songsDuration + intermissionsDuration + defaultTransitionDuration;
+
+  return {
+    defaultTransitionCount,
+    defaultTransitionDuration,
+    estimatedRuntime,
+    intermissionsDuration,
+    missingDurationCustomCount,
+    songsDuration,
+  };
+}

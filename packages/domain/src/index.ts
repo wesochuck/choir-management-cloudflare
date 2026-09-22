@@ -124,12 +124,17 @@ export {
 } from "./seatingLayout";
 export {
   calculateSetListDuration,
+  calculateSetListTiming,
+  calculateSetListTransitionCount,
   formatSetListDuration,
   hasSetListPiece,
+  isSetListSongItem,
   moveSetListItem,
   normalizeSetListDuration,
   parseSetListDuration,
   type SetListDurationItem,
+  type SetListTimingBreakdown,
+  type SetListTimingItem,
 } from "./setList";
 export {
   communicationFailureCategory,

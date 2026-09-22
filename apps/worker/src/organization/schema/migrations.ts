@@ -1478,6 +1478,12 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       `DELETE FROM stripe_connect_accounts WHERE details_submitted = 0 OR charges_enabled = 0`,
     ],
   },
+  {
+    version: 86,
+    statements: [
+      `ALTER TABLE events ADD COLUMN set_list_default_transition_seconds INTEGER NOT NULL DEFAULT 0 CHECK (set_list_default_transition_seconds >= 0)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

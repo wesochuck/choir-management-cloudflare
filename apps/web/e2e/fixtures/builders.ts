@@ -394,6 +394,7 @@ export function buildOrganizationEvent(
     rsvpSelfServiceOpen: false,
     setList: [{ title: "Finale" }],
     setListApproved: true,
+    setListDefaultTransitionSeconds: 0,
     startsAt: "2027-08-20T23:00:00.000Z",
     ticketCapacity: 100,
     title: "Browser Concert",

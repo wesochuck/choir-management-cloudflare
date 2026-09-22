@@ -3,23 +3,35 @@ import type {
   OrganizationMusicPiece,
   OrganizationProfile,
 } from "@choir/contracts";
+import { calculateSetListTiming, formatSetListDuration } from "@choir/domain";
 import { useState } from "react";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { getLastName } from "../../nameFormatting";
 import type { PerformerCredit, SetListItem } from "./types";
-import { printDateOnly, printTimeOnly, setListPreviewRows } from "./utils";
+import {
+  effectiveSetListItemDurationSeconds,
+  printDateOnly,
+  printTimeOnly,
+  setListPreviewRows,
+} from "./utils";
 
 export function SetListPreview({
+  defaultTransitionSeconds,
   event,
   items,
   music,
   showNotes = false,
 }: {
+  readonly defaultTransitionSeconds?: number | undefined;
   readonly event: OrganizationEvent;
   readonly items: readonly SetListItem[];
   readonly music: readonly OrganizationMusicPiece[];
   readonly showNotes?: boolean;
 }) {
+  const transitionSeconds = defaultTransitionSeconds ?? event.setListDefaultTransitionSeconds;
+  const timing = calculateSetListTiming(items, transitionSeconds, (item) =>
+    effectiveSetListItemDurationSeconds(item, music),
+  );
   const rows = setListPreviewRows(items, music);
   return (
     <div className="set-list-preview">
@@ -29,6 +41,12 @@ export function SetListPreview({
           {printDateOnly(event.startsAt)} at {printTimeOnly(event.startsAt)}
           {event.location ? ` | ${event.location}` : ""}
         </p>
+        <div className="set-list-preview__timing">
+          <span>Estimated runtime: {formatSetListDuration(timing.estimatedRuntime)}</span>
+          {transitionSeconds > 0 ? (
+            <span>Default between-song time: {formatSetListDuration(transitionSeconds)}</span>
+          ) : null}
+        </div>
       </header>
       <ol className="set-list-preview__items">
         {rows.map(({ arranger, composer, kind, notes, number, performers, title }, index) => {
@@ -62,11 +80,13 @@ export function SetListPreview({
 }
 
 export function SetListPrintView({
+  defaultTransitionSeconds,
   event,
   items,
   music,
   showNotes = false,
 }: {
+  readonly defaultTransitionSeconds?: number | undefined;
   readonly event: OrganizationEvent;
   readonly items: readonly SetListItem[];
   readonly music: readonly OrganizationMusicPiece[];
@@ -74,7 +94,13 @@ export function SetListPrintView({
 }) {
   return (
     <div aria-hidden="true" className="set-list-print-view">
-      <SetListPreview event={event} items={items} music={music} showNotes={showNotes} />
+      <SetListPreview
+        defaultTransitionSeconds={defaultTransitionSeconds}
+        event={event}
+        items={items}
+        music={music}
+        showNotes={showNotes}
+      />
     </div>
   );
 }

@@ -131,8 +131,9 @@ export function writeEvent(
            rsvp_deadline_date,
            advance_price_cents, day_of_price_cents, doors_open_time,
            is_ticketing_enabled, ticket_capacity, set_list_json, set_list_approved,
+           set_list_default_transition_seconds,
            is_archived, is_canceled, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
         event.id,
         event.title,
         event.type,
@@ -156,6 +157,7 @@ export function writeEvent(
         event.ticketCapacity,
         JSON.stringify(event.setList),
         event.setListApproved ? 1 : 0,
+        event.setListDefaultTransitionSeconds,
         occurredAt,
         occurredAt,
       );
@@ -168,7 +170,7 @@ export function writeEvent(
            rsvp_deadline_date = ?,
            advance_price_cents = ?, day_of_price_cents = ?, doors_open_time = ?,
            is_ticketing_enabled = ?, ticket_capacity = ?, set_list_json = ?,
-           set_list_approved = ?, updated_at = ?
+           set_list_approved = ?, set_list_default_transition_seconds = ?, updated_at = ?
          WHERE id = ?`,
         event.title,
         event.type,
@@ -192,6 +194,7 @@ export function writeEvent(
         event.ticketCapacity,
         JSON.stringify(event.setList),
         event.setListApproved ? 1 : 0,
+        event.setListDefaultTransitionSeconds,
         occurredAt,
         event.id,
       );

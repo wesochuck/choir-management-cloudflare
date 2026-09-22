@@ -1,5 +1,10 @@
 import type { OrganizationMusicPiece } from "@choir/contracts";
-import { hasSetListPiece, normalizeSetListDuration, parseSetListDuration } from "@choir/domain";
+import {
+  calculateSetListTiming,
+  hasSetListPiece,
+  normalizeSetListDuration,
+  parseSetListDuration,
+} from "@choir/domain";
 import {
   durationFromSeconds,
   effectiveSetListItemDurationSeconds,
@@ -38,6 +43,7 @@ export function useSetListManagerController({
   const [copyEventId, setCopyEventId] = useState("");
   const [items, setItems] = useState<SetListItem[]>([]);
   const [approved, setApproved] = useState(false);
+  const [defaultTransitionSeconds, setDefaultTransitionSeconds] = useState(0);
   const [customType, setCustomType] = useState<"intermission" | "song">("song");
   const [customTitle, setCustomTitle] = useState("");
   const [customComposer, setCustomComposer] = useState("");
@@ -77,6 +83,7 @@ export function useSetListManagerController({
         setSelectedEventId(selectedPerformance?.id ?? "");
         setItems(normalizeItems(selectedPerformance?.setList ?? []));
         setApproved(selectedPerformance?.setListApproved ?? false);
+        setDefaultTransitionSeconds(selectedPerformance?.setListDefaultTransitionSeconds ?? 0);
         setDirty(false);
         setLoaded(true);
       })
@@ -100,13 +107,24 @@ export function useSetListManagerController({
   );
   const selectedEvent = performances.find(({ id }) => id === selectedEventId) ?? null;
   const selectedEventIdForAutosave = selectedEvent?.id ?? null;
-  const songsDuration = items
-    .filter((item) => item.type !== "intermission")
-    .reduce((total, item) => total + effectiveSetListItemDurationSeconds(item, resources.music), 0);
-  const intermissionsDuration = items
-    .filter((item) => item.type === "intermission")
-    .reduce((total, item) => total + effectiveSetListItemDurationSeconds(item, resources.music), 0);
-  const totalDuration = songsDuration + intermissionsDuration;
+
+  const timing = useMemo(
+    () =>
+      calculateSetListTiming(items, defaultTransitionSeconds, (item) =>
+        effectiveSetListItemDurationSeconds(item, resources.music),
+      ),
+    [items, defaultTransitionSeconds, resources.music],
+  );
+  const {
+    songsDuration,
+    intermissionsDuration,
+    defaultTransitionCount,
+    defaultTransitionDuration,
+    estimatedRuntime,
+    missingDurationCustomCount,
+  } = timing;
+  const totalDuration = estimatedRuntime;
+
   const filteredMusic = useMemo(() => {
     const query = musicQuery.trim().toLocaleLowerCase();
     if (!query) return resources.music;
@@ -253,7 +271,7 @@ export function useSetListManagerController({
     }
     const eventId = selectedEvent.id;
     const saveRevision = draftRevisionRef.current;
-    const request = eventRequestFrom(selectedEvent, items, approved);
+    const request = eventRequestFrom(selectedEvent, items, approved, defaultTransitionSeconds);
     lastSaveRevisionRef.current = saveRevision;
     setBusy(true);
     setError(null);
@@ -267,6 +285,7 @@ export function useSetListManagerController({
       if (draftRevisionRef.current === saveRevision && selectedEventId === eventId) {
         setItems(normalizeItems(saved.setList));
         setApproved(saved.setListApproved);
+        setDefaultTransitionSeconds(saved.setListDefaultTransitionSeconds);
         setDirty(false);
         setMessage("Set list saved.");
       } else {
@@ -308,11 +327,24 @@ export function useSetListManagerController({
         saveTimerRef.current = null;
       }
     };
-  }, [busy, dirty, items, approved, selectedEventIdForAutosave]);
+  }, [busy, dirty, items, approved, defaultTransitionSeconds, selectedEventIdForAutosave]);
+
+  function updateDefaultTransitionSeconds(value: number): void {
+    const safe = Math.max(0, Math.min(3_600, Math.floor(value) || 0));
+    setDefaultTransitionSeconds(safe);
+    draftRevisionRef.current += 1;
+    setDirty(true);
+  }
 
   async function copyListText(): Promise<void> {
     if (!selectedEvent) return;
-    const text = setListDocumentText(selectedEvent, items, resources.music, showNotes);
+    const text = setListDocumentText(
+      selectedEvent,
+      items,
+      resources.music,
+      showNotes,
+      defaultTransitionSeconds,
+    );
     try {
       await navigator.clipboard.writeText(text);
       setMessage("Set list copied as text.");
@@ -380,17 +412,22 @@ export function useSetListManagerController({
     customNotes,
     customTitle,
     customType,
+    defaultTransitionCount,
+    defaultTransitionDuration,
+    defaultTransitionSeconds,
     dirty,
     dragIndex,
     editingItem,
     enabled,
     error,
+    estimatedRuntime,
     filteredMusic,
     intermissionsDuration,
     items,
     loaded,
     markDraftDirty,
     message,
+    missingDurationCustomCount,
     moveDraggedItem,
     musicQuery,
     openCustomItem,
@@ -414,6 +451,7 @@ export function useSetListManagerController({
     setCustomNotes,
     setCustomTitle,
     setCustomType,
+    setDefaultTransitionSeconds,
     setDirty,
     setDragIndex,
     setEditingItem,
@@ -426,6 +464,7 @@ export function useSetListManagerController({
     showNotes,
     songsDuration,
     totalDuration,
+    updateDefaultTransitionSeconds,
     updateDraftItems,
   };
 }

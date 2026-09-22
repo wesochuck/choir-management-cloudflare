@@ -79,6 +79,7 @@ function mockEvent(
     rsvpSelfServiceOpen: false,
     setList,
     setListApproved: false,
+    setListDefaultTransitionSeconds: 0,
     startsAt,
     ticketCapacity: null,
     title,

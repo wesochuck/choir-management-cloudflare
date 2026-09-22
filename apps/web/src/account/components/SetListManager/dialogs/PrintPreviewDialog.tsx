@@ -7,6 +7,7 @@ import type { SetListItem } from "../types";
 
 export function PrintPreviewDialog({
   copyListText,
+  defaultTransitionSeconds,
   event,
   items,
   music,
@@ -15,6 +16,7 @@ export function PrintPreviewDialog({
   showNotes = false,
 }: {
   readonly copyListText: () => Promise<void>;
+  readonly defaultTransitionSeconds?: number | undefined;
   readonly event: OrganizationEvent | null;
   readonly items: readonly SetListItem[];
   readonly music: SetListManagerModel["resources"]["music"];
@@ -26,7 +28,13 @@ export function PrintPreviewDialog({
   return (
     <Dialog onClose={onClose} open={open} title="Printable Set List">
       <div className="set-list-preview-dialog">
-        <SetListPreview event={event} items={items} music={music} showNotes={showNotes} />
+        <SetListPreview
+          defaultTransitionSeconds={defaultTransitionSeconds}
+          event={event}
+          items={items}
+          music={music}
+          showNotes={showNotes}
+        />
         <div className="dialog__actions">
           <DialogClose asChild>
             <button className="button button--secondary" type="button">

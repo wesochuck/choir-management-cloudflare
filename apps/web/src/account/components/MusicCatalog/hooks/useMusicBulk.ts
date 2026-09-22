@@ -197,6 +197,7 @@ export function useMusicBulk({
           rsvpFollowUpMode: "inherit",
           setList: itemsToAdd,
           setListApproved: false,
+          setListDefaultTransitionSeconds: 0,
           startsAt: payload.startsAt,
           ticketCapacity: null,
           title: payload.title,

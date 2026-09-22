@@ -96,6 +96,7 @@ export function eventRequestFrom(event: OrganizationEvent): OrganizationEventReq
     rsvpFollowUpMode: event.rsvpFollowUpMode,
     setList: event.setList,
     setListApproved: event.setListApproved,
+    setListDefaultTransitionSeconds: event.setListDefaultTransitionSeconds,
     startsAt: event.startsAt,
     ticketCapacity: event.ticketCapacity,
     title: event.title,

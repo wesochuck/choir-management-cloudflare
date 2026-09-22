@@ -4,6 +4,7 @@ import type {
   OrganizationMusicPiece,
 } from "@choir/contracts";
 import {
+  calculateSetListTiming,
   formatSetListDuration,
   moveSetListItem,
   normalizeSetListDuration,
@@ -22,6 +23,7 @@ export function eventRequestFrom(
   event: OrganizationEvent,
   setList: SetListItem[],
   approved: boolean,
+  defaultTransitionSeconds?: number,
 ) {
   return {
     advancePriceCents: event.advancePriceCents,
@@ -41,6 +43,8 @@ export function eventRequestFrom(
     rsvpDeadlineDate: event.rsvpDeadlineDate,
     setList,
     setListApproved: approved,
+    setListDefaultTransitionSeconds:
+      defaultTransitionSeconds ?? event.setListDefaultTransitionSeconds,
     startsAt: event.startsAt,
     ticketCapacity: event.ticketCapacity,
     title: event.title,
@@ -249,13 +253,22 @@ export function setListDocumentText(
   items: readonly SetListItem[],
   music: readonly OrganizationMusicPiece[],
   showNotes = false,
+  defaultTransitionSeconds?: number,
 ): string {
+  const transitionSeconds = defaultTransitionSeconds ?? event.setListDefaultTransitionSeconds;
+  const timing = calculateSetListTiming(items, transitionSeconds, (item) =>
+    effectiveSetListItemDurationSeconds(item, music),
+  );
   const rows = setListPreviewRows(items, music);
   return [
     `Set List: ${event.title}`,
     `Date: ${printDateOnly(event.startsAt)}`,
     `Time: ${printTimeOnly(event.startsAt)}`,
     `Venue: ${event.location || "—"}`,
+    `Estimated runtime: ${formatSetListDuration(timing.estimatedRuntime)}`,
+    ...(transitionSeconds > 0
+      ? [`Default between-song time: ${formatSetListDuration(transitionSeconds)}`]
+      : []),
     "",
     ...rows.flatMap(({ arranger, composer, kind, notes, number, performers, title }) => {
       if (kind === "intermission") {

@@ -344,3 +344,104 @@ test("shows music library notes on the set list only when the announcer toggle i
   await page.getByRole("checkbox", { name: /Show announcer notes/i }).uncheck();
   await expect(page.locator(".set-list-item-notes")).toHaveCount(0);
 });
+
+test("updates between-song transition time, reflects in timing breakdown, end time, and copy summary", async ({
+  page,
+}) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  const eventRef: { value: Record<string, unknown> } = {
+    value: {
+      advancePriceCents: 0,
+      callTime: "18:00",
+      dayOfPriceCents: 0,
+      details: "",
+      doorsOpenTime: "",
+      durationMinutes: 10,
+      id: eventId,
+      isTicketingEnabled: false,
+      location: "Main Hall",
+      parentPerformanceId: null,
+      publicDetails: "",
+      publicGraphicFileId: null,
+      publishOnWebsite: false,
+      setList: [
+        {
+          composer: "Composer A",
+          id: "item-a",
+          pieceId: musicId,
+          title: "Opening Song",
+          type: "song",
+        },
+        { composer: "Composer B", id: "item-b", pieceId: musicId, title: "Finale", type: "song" },
+      ],
+      setListApproved: false,
+      setListDefaultTransitionSeconds: 0,
+      startsAt: "2026-08-20T20:00:00.000Z",
+      ticketCapacity: null,
+      title: "Browser Performance",
+      type: "Performance",
+      venueId: null,
+      createdAt: "2026-07-20T20:00:00.000Z",
+      updatedAt: "2026-07-20T20:00:00.000Z",
+    },
+  };
+  await page.route("**/api/**", async (route) => {
+    if (await handleShellRoute(route)) return;
+    if (await handleDataRoute(route, eventRef)) return;
+    await fulfillJson(route, { requestId });
+  });
+
+  await page.goto("/admin/setlists");
+  await expect(page.getByRole("heading", { name: "Set lists" })).toBeVisible();
+
+  // Songs duration: 2 pieces of 180s = 360s = 6:00. Transition is 0 so between-song is hidden.
+  await expect(page.locator(".set-list-summary")).toContainText("Songs 6:00");
+  await expect(page.locator(".set-list-summary")).not.toContainText("Between-song time");
+  await expect(page.locator(".set-list-summary")).toContainText("Estimated runtime 6:00");
+  await expect(page.locator(".set-list-summary")).toContainText("Scheduled duration 10:00");
+  await expect(page.locator(".set-list-summary")).toContainText("Remaining time 4:00");
+
+  // Update default transition time to 45 seconds.
+  const transitionInput = page.locator("#set-list-transition-seconds");
+  await expect(transitionInput).toHaveValue("0");
+  await transitionInput.fill("45");
+
+  // Summary breakdown should now show Between-song time: 1 transition * 45s = 0:45
+  // Total estimated runtime: 6:45
+  await expect(page.locator(".set-list-summary")).toContainText("Between-song time 0:45");
+  await expect(page.locator(".set-list-summary")).toContainText(
+    "(1 automatic transition × 45 sec)",
+  );
+  await expect(page.locator(".set-list-summary")).toContainText("Estimated runtime 6:45");
+  await expect(page.locator(".set-list-summary")).toContainText("Remaining time 3:15");
+
+  // Insert a custom entry after Opening Song (between the two songs)
+  await page.getByRole("button", { name: "Insert custom entry after 1. Opening Song" }).click();
+  const editDialog = page.getByRole("dialog", { name: "Edit set-list item" });
+  await editDialog.getByRole("button", { name: "Save item" }).click();
+
+  // Now the items are: Opening Song (song), Intermission (custom), Finale (song).
+  // No two songs are directly adjacent, so automatic between-song time drops to 0 and hides!
+  await expect(page.locator(".set-list-summary")).not.toContainText("Between-song time");
+
+  // Intermission has no duration set, so missing duration warning is displayed.
+  await expect(page.locator(".set-list-duration-warning")).toContainText(
+    "1 Custom entry has no duration and is not included in the estimated runtime.",
+  );
+
+  // Check Print & Copy dialog
+  await page.getByRole("button", { name: "Print & Copy" }).click();
+  const printDialog = page.getByRole("dialog", { name: "Printable Set List" });
+  await expect(printDialog.locator(".set-list-preview__timing")).toContainText(
+    "Estimated runtime: 6:00",
+  );
+  await expect(printDialog.locator(".set-list-preview__timing")).toContainText(
+    "Default between-song time: 0:45",
+  );
+  await printDialog.locator(".dialog__actions").getByRole("button", { name: "Close" }).click();
+
+  // Save now and verify persistence
+  await page.getByRole("button", { name: "Save now" }).click();
+  await expect(page.getByText("Set list saved.", { exact: true })).toBeVisible();
+  expect(eventRef.value.setListDefaultTransitionSeconds).toBe(45);
+});

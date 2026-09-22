@@ -109,6 +109,7 @@ export function MusicPiecePerformances({
         rsvpFollowUpMode: "inherit",
         setList: [performanceSetListItem(piece)],
         setListApproved: false,
+        setListDefaultTransitionSeconds: 0,
         startsAt,
         ticketCapacity: null,
         title,

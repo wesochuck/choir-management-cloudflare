@@ -118,6 +118,7 @@ export interface EventRow {
   readonly rsvpDeadlineDate: string | null;
   readonly rsvpFollowUpMode: "disabled" | "enabled" | "inherit";
   readonly setListApproved: number;
+  readonly setListDefaultTransitionSeconds: number;
   readonly setListJson: string;
   readonly startsAt: string;
   readonly ticketCapacity: number | null;

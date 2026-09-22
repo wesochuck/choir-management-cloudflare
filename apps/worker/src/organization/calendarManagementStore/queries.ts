@@ -46,6 +46,7 @@ export function listOrganizationEventsFromStore(
          rsvp_follow_up_lead_hours AS rsvpFollowUpLeadHours,
          rsvp_follow_up_mode AS rsvpFollowUpMode, rsvp_deadline_date AS rsvpDeadlineDate,
          set_list_json AS setListJson, set_list_approved AS setListApproved,
+         set_list_default_transition_seconds AS setListDefaultTransitionSeconds,
          created_at AS createdAt, updated_at AS updatedAt,
          is_canceled AS isCanceled
        FROM events WHERE is_archived = 0 ORDER BY starts_at DESC, id DESC LIMIT 500`,
@@ -72,6 +73,7 @@ export function listOrganizationEventsFromStore(
       rsvpFollowUpMode: event.rsvpFollowUpMode,
       setList: parseSetList(event.setListJson),
       setListApproved: event.setListApproved === 1,
+      setListDefaultTransitionSeconds: event.setListDefaultTransitionSeconds,
       startsAt: event.startsAt,
       ticketCapacity: event.ticketCapacity,
       title: event.title,

@@ -6,6 +6,7 @@ import {
   effectiveSetListItemDuration,
   effectiveSetListItemNotes,
   normalizeItems,
+  printTimeOnly,
   setListHasLearningTrack,
 } from "./utils";
 import { SetListPrintView } from "./shared";
@@ -101,18 +102,23 @@ export function SetListManagerView({
     customNotes,
     customTitle,
     customType,
+    defaultTransitionCount,
+    defaultTransitionDuration,
+    defaultTransitionSeconds,
     dirty,
     dragIndex,
     editingItem,
     enabled,
     error,
+    estimatedRuntime,
     filteredMusic,
-    intermissionsDuration,
     insertCustomItem,
+    intermissionsDuration,
     items,
     loaded,
     markDraftDirty,
     message,
+    missingDurationCustomCount,
     moveDraggedItem,
     musicQuery,
     openCustomItem,
@@ -135,6 +141,7 @@ export function SetListManagerView({
     setCustomNotes,
     setCustomTitle,
     setCustomType,
+    setDefaultTransitionSeconds,
     setDirty,
     setDragIndex,
     setEditingItem,
@@ -142,11 +149,11 @@ export function SetListManagerView({
     setItems,
     setMessage,
     setMusicQuery,
+    setSelectedEventId,
     setShowNotes,
     showNotes,
-    setSelectedEventId,
     songsDuration,
-    totalDuration,
+    updateDefaultTransitionSeconds,
     updateDraftItems,
   } = model;
   if (!enabled) return null;
@@ -335,6 +342,7 @@ export function SetListManagerView({
                   setSelectedEventId(nextEvent?.id ?? "");
                   setItems(normalizeItems(nextEvent?.setList ?? []));
                   setApproved(nextEvent?.setListApproved ?? false);
+                  setDefaultTransitionSeconds(nextEvent?.setListDefaultTransitionSeconds ?? 0);
                   setDirty(false);
                   setMusicQuery("");
                   setCopyEventId("");
@@ -404,6 +412,30 @@ export function SetListManagerView({
                 <small>Display piece notes for the emcee.</small>
               </span>
             </label>
+            <div className="set-list-transition-control">
+              <label className="field" htmlFor="set-list-transition-seconds">
+                <span className="set-list-field-label">Default time between songs</span>
+              </label>
+              <div className="set-list-inline-control">
+                <input
+                  aria-describedby="set-list-transition-help"
+                  disabled={busy}
+                  id="set-list-transition-seconds"
+                  max={3600}
+                  min={0}
+                  type="number"
+                  value={defaultTransitionSeconds}
+                  onChange={(event) => {
+                    const parsed = Number.parseInt(event.target.value, 10);
+                    updateDefaultTransitionSeconds(Number.isNaN(parsed) ? 0 : parsed);
+                  }}
+                />
+                <span className="set-list-unit">seconds</span>
+              </div>
+              <small className="field-help" id="set-list-transition-help">
+                Applied between consecutive songs unless a Custom entry is placed between them.
+              </small>
+            </div>
           </div>
 
           <div className="set-list-add-panel">
@@ -496,19 +528,73 @@ export function SetListManagerView({
           </div>
 
           <div className="set-list-summary" aria-live="polite">
-            <span>
-              <strong>Songs</strong> {formatSetListDuration(songsDuration)}
-            </span>
-            <span>
-              <strong>Custom entries</strong> {formatSetListDuration(intermissionsDuration)}
-            </span>
-            <span>
-              <strong>Items</strong> {String(items.length)}
-            </span>
-            <span className="set-list-summary__total">
-              <strong>Total</strong> {formatSetListDuration(totalDuration)}
-            </span>
+            <div className="set-list-summary__breakdown">
+              <span>
+                <strong>Songs</strong> {formatSetListDuration(songsDuration)}
+              </span>
+              <span>
+                <strong>Custom entries</strong> {formatSetListDuration(intermissionsDuration)}
+              </span>
+              {defaultTransitionDuration > 0 ? (
+                <span>
+                  <strong>Between-song time</strong>{" "}
+                  {formatSetListDuration(defaultTransitionDuration)}
+                  <small className="set-list-summary__subtext">
+                    ({defaultTransitionCount} automatic transition
+                    {defaultTransitionCount === 1 ? "" : "s"} × {defaultTransitionSeconds} sec)
+                  </small>
+                </span>
+              ) : null}
+              <span>
+                <strong>Items</strong> {String(items.length)}
+              </span>
+            </div>
+            <div className="set-list-summary__totals">
+              <span className="set-list-summary__estimated">
+                <strong>Estimated runtime</strong> {formatSetListDuration(estimatedRuntime)}
+              </span>
+              {selectedEvent.durationMinutes ? (
+                <div className="set-list-summary__comparison">
+                  <span>
+                    <strong>Scheduled duration</strong>{" "}
+                    {formatSetListDuration(selectedEvent.durationMinutes * 60)}
+                  </span>
+                  {estimatedRuntime <= selectedEvent.durationMinutes * 60 ? (
+                    <span className="set-list-summary__remaining">
+                      <strong>Remaining time</strong>{" "}
+                      {formatSetListDuration(selectedEvent.durationMinutes * 60 - estimatedRuntime)}
+                    </span>
+                  ) : (
+                    <span className="set-list-summary__overage">
+                      <strong>Over by</strong>{" "}
+                      {formatSetListDuration(estimatedRuntime - selectedEvent.durationMinutes * 60)}
+                    </span>
+                  )}
+                </div>
+              ) : null}
+              {selectedEvent.startsAt && estimatedRuntime > 0 ? (
+                <div className="set-list-summary__end-time">
+                  <span>
+                    <strong>Estimated concert end:</strong>{" "}
+                    {printTimeOnly(
+                      new Date(
+                        new Date(selectedEvent.startsAt).getTime() + estimatedRuntime * 1000,
+                      ).toISOString(),
+                    )}
+                  </span>
+                </div>
+              ) : null}
+            </div>
           </div>
+          {missingDurationCustomCount > 0 ? (
+            <p className="notice notice--warning set-list-duration-warning" role="status">
+              <strong>
+                {missingDurationCustomCount === 1
+                  ? "1 Custom entry has no duration and is not included in the estimated runtime."
+                  : `${String(missingDurationCustomCount)} Custom entries have no duration and are not included in the estimated runtime.`}
+              </strong>
+            </p>
+          ) : null}
 
           {items.length === 0 ? (
             <p className="empty-state">This Performance does not have set-list items yet.</p>
@@ -734,6 +820,7 @@ export function SetListManagerView({
 
           <PrintPreviewDialog
             copyListText={copyListText}
+            defaultTransitionSeconds={defaultTransitionSeconds}
             event={selectedEvent}
             items={items}
             music={resources.music}
@@ -786,6 +873,7 @@ export function SetListManagerView({
       ) : null}
       {selectedEvent ? (
         <SetListPrintView
+          defaultTransitionSeconds={defaultTransitionSeconds}
           event={selectedEvent}
           items={items}
           music={resources.music}
