@@ -71,7 +71,11 @@ function parseTrackFileIds(value: string | null | undefined): Record<string, str
   }
 }
 
-function readPerformerLabel(storage: DurableObjectStorage): string {
+function readRosterConfiguration(storage: DurableObjectStorage): {
+  readonly performerLabel: string;
+  readonly sections: readonly { readonly code: string; readonly name: string }[];
+  readonly voiceParts: readonly { readonly fullName: string; readonly label: string }[];
+} {
   try {
     const raw = storage.sql
       .exec<{ readonly configuration: string }>(
@@ -81,11 +85,46 @@ function readPerformerLabel(storage: DurableObjectStorage): string {
     const parsed = organizationRosterConfigurationRequestSchema.safeParse(
       JSON.parse(raw) as unknown,
     );
-    if (parsed.success) return parsed.data.performerLabel;
+    if (parsed.success) return parsed.data;
   } catch {
     // Fall back for links issued against Organizations without stored roster settings.
   }
-  return defaultRosterConfiguration.performerLabel;
+  return defaultRosterConfiguration;
+}
+
+export function readTrackLabels(
+  storageOrConfig:
+    | DurableObjectStorage
+    | {
+        readonly sections: readonly { readonly code: string; readonly name: string }[];
+        readonly voiceParts: readonly { readonly fullName: string; readonly label: string }[];
+      },
+): Record<string, string> {
+  const config =
+    "sql" in storageOrConfig ? readRosterConfiguration(storageOrConfig) : storageOrConfig;
+
+  const trackLabels: Record<string, string> = {};
+
+  for (const section of config.sections) {
+    const code = section.code.trim();
+    const name = section.name.trim();
+    if (code && name) {
+      trackLabels[code] = name;
+    }
+  }
+
+  for (const part of config.voiceParts) {
+    const label = part.label.trim();
+    const fullName = part.fullName.trim();
+    if (label && fullName) {
+      trackLabels[label] = fullName;
+    }
+  }
+
+  trackLabels.tutti = "Choir Mix";
+  trackLabels.choirmix = "Choir Mix";
+
+  return trackLabels;
 }
 
 /**
@@ -216,6 +255,7 @@ export function readPlayerDetailsFromStore(
     }
   }
   const items = setList.map((item) => toPlaylistItem(item, pieceMap));
+  const rosterConfig = readRosterConfiguration(storage);
   return Response.json({
     eventArtworkFileId: eventRow.publicGraphicFileId ?? null,
     eventId: eventRow.id,
@@ -223,9 +263,10 @@ export function readPlayerDetailsFromStore(
     eventStartsAt: eventRow.startsAt,
     items,
     organizationName: readOrganizationName(storage),
-    performerLabel: readPerformerLabel(storage),
+    performerLabel: rosterConfig.performerLabel,
     profileId,
     profileName: profileRow.displayName,
+    trackLabels: readTrackLabels(rosterConfig),
   });
 }
 
@@ -263,6 +304,7 @@ export function readPlayerPlaylistFromStore(
     if (piece) pieceMap.set(pieceId, piece);
   }
   const items = setList.map((item) => toPlaylistItem(item, pieceMap));
+  const rosterConfig = readRosterConfiguration(storage);
   return Response.json({
     eventArtworkFileId: eventRow.publicGraphicFileId ?? null,
     eventId: eventRow.id,
@@ -270,6 +312,7 @@ export function readPlayerPlaylistFromStore(
     eventTitle: eventRow.title,
     items,
     organizationName: readOrganizationName(storage),
-    performerLabel: readPerformerLabel(storage),
+    performerLabel: rosterConfig.performerLabel,
+    trackLabels: readTrackLabels(rosterConfig),
   });
 }

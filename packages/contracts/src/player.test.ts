@@ -104,10 +104,17 @@ describe("Player contracts null-matrix and validation", () => {
         eventArtworkFileId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
         organizationName: "Lancaster Community Chorus",
         performerLabel: "Choir Member",
+        trackLabels: { B1: "Bass 1", tutti: "Choir Mix" },
       });
       expect(parsed.eventArtworkFileId).toBe("ffffffff-ffff-4fff-8fff-ffffffffffff");
       expect(parsed.organizationName).toBe("Lancaster Community Chorus");
       expect(parsed.performerLabel).toBe("Choir Member");
+      expect(parsed.trackLabels).toEqual({ B1: "Bass 1", tutti: "Choir Mix" });
+    });
+
+    it("defaults trackLabels to empty record when omitted", () => {
+      const parsed = publicPlayerDetailsResponseSchema.parse(validDetails);
+      expect(parsed.trackLabels).toEqual({});
     });
 
     it("rejects invalid eventId or missing required fields", () => {

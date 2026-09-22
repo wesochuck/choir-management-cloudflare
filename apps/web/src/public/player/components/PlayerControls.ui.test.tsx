@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { useState } from "react";
@@ -184,5 +184,64 @@ describe("PlayerPartSelector interaction", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Choose Voice Part" })).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+
+  it("selects voice part via the mobile native select without opening sheet", async () => {
+    const user = userEvent.setup();
+    const onSelectTrackKey = vi.fn();
+    render(<PartSelectorHarness onSelectTrackKey={onSelectTrackKey} />);
+
+    const select = screen.getByRole("combobox", { name: /Voice Part/i });
+    expect(select).toBeInTheDocument();
+    expect(select).toHaveValue("soprano");
+
+    await user.selectOptions(select, "alto");
+    expect(onSelectTrackKey).toHaveBeenCalledWith("alto");
+    expect(screen.queryByRole("dialog", { name: "Choose Voice Part" })).not.toBeInTheDocument();
+  });
+
+  it("displays configured full names in both mobile select and desktop sheet", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+
+    render(
+      <PlayerPartSelector
+        activeTrackKey="B1"
+        onSelectTrackKey={onSelect}
+        trackKeys={["tutti", "B1", "T1", "SATB"]}
+        trackLabels={{
+          B1: "Bass 1 (Featured)",
+          SATB: "Full Chorus",
+        }}
+      />,
+    );
+
+    // Mobile select options
+    const select = screen.getByRole("combobox", { name: /Voice Part/i });
+    expect(select).toHaveValue("B1");
+    expect(screen.getByRole("option", { name: "Bass 1 (Featured)" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Tenor 1" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Full Chorus" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Choir Mix" })).toBeInTheDocument();
+
+    // Selecting option in mobile select passes original short key
+    await user.selectOptions(select, "T1");
+    expect(onSelect).toHaveBeenCalledWith("T1");
+
+    // Desktop trigger displays active full name
+    const trigger = screen.getByRole("button", { name: /Voice Part/i });
+    expect(trigger).toHaveTextContent("Bass 1 (Featured)");
+
+    // Open desktop sheet to verify radiogroup options
+    await user.click(trigger);
+    const sheet = await screen.findByRole("dialog", { name: "Choose Voice Part" });
+    expect(sheet).toBeVisible();
+
+    const radios = within(sheet).getAllByRole("radio");
+    const radioLabels = radios.map((r) => r.textContent.trim());
+    expect(radioLabels).toContain("Bass 1 (Featured)");
+    expect(radioLabels).toContain("Tenor 1");
+    expect(radioLabels).toContain("Full Chorus");
+    expect(radioLabels).toContain("Choir Mix");
   });
 });

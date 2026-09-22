@@ -7,19 +7,21 @@ import {
 } from "react";
 import { Sheet } from "@choir/ui";
 
-import { formatVoicePartName, sortVoiceParts } from "../../playerVoiceParts";
+import { displayTrackName, sortVoiceParts } from "../../playerVoiceParts";
 
 export function PlayerPartSelector({
   activeTrackKey,
   defaultOpen = false,
   onSelectTrackKey,
   trackKeys,
+  trackLabels,
   voicePartKeys,
 }: {
   readonly activeTrackKey: string;
   readonly defaultOpen?: boolean;
   readonly onSelectTrackKey: (key: string) => void;
   readonly trackKeys: readonly string[];
+  readonly trackLabels?: Readonly<Record<string, string>> | undefined;
   readonly voicePartKeys?: readonly string[] | undefined;
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
@@ -28,9 +30,13 @@ export function PlayerPartSelector({
   const optionsListRef = useRef<HTMLDivElement | null>(null);
 
   const allKeys = useMemo(() => {
-    const combined = new Set([...trackKeys, ...(voicePartKeys ?? [])]);
+    const combined = new Set([
+      ...(activeTrackKey ? [activeTrackKey] : []),
+      ...trackKeys,
+      ...(voicePartKeys ?? []),
+    ]);
     return sortVoiceParts([...combined]);
-  }, [trackKeys, voicePartKeys]);
+  }, [activeTrackKey, trackKeys, voicePartKeys]);
 
   useEffect(() => {
     if (isOpen) {
@@ -72,21 +78,12 @@ export function PlayerPartSelector({
 
   return (
     <div className="public-player__part-selector-container">
-      <button
-        aria-controls="voice-part-sheet"
-        aria-expanded={isOpen}
-        aria-haspopup="dialog"
-        className="public-player__part-trigger"
-        onClick={() => {
-          setIsOpen((prev) => !prev);
-        }}
-        ref={triggerRef}
-        type="button"
-      >
-        <span className="public-player__part-trigger-lead">
+      {/* Mobile Native Picker (< 48rem) */}
+      <label className="public-player__part-picker-mobile" htmlFor="mobile-voice-part-select">
+        <span className="public-player__part-picker-lead">
           <svg
             aria-hidden="true"
-            className="public-player__part-trigger-icon"
+            className="public-player__part-picker-icon"
             fill="none"
             height="18"
             stroke="currentColor"
@@ -99,13 +96,13 @@ export function PlayerPartSelector({
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />
           </svg>
-          <span className="public-player__part-trigger-label">Voice Part</span>
+          <span className="public-player__part-picker-label">Voice Part</span>
         </span>
-        <span className="public-player__part-trigger-value">
-          <span>{formatVoicePartName(activeTrackKey)}</span>
+        <span className="public-player__part-picker-value">
+          <span>{displayTrackName(activeTrackKey, trackLabels)}</span>
           <svg
             aria-hidden="true"
-            className={`public-player__part-trigger-chevron ${isOpen ? "is-open" : ""}`}
+            className="public-player__part-picker-chevron"
             fill="none"
             height="16"
             stroke="currentColor"
@@ -118,73 +115,143 @@ export function PlayerPartSelector({
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </span>
-      </button>
+        <select
+          aria-label="Voice Part"
+          className="public-player__part-picker-select"
+          id="mobile-voice-part-select"
+          onChange={(event) => {
+            onSelectTrackKey(event.target.value);
+          }}
+          value={activeTrackKey}
+        >
+          {allKeys.map((key) => (
+            <option key={key} value={key}>
+              {displayTrackName(key, trackLabels)}
+            </option>
+          ))}
+        </select>
+      </label>
 
-      <Sheet
-        onClose={() => {
-          setIsOpen(false);
-        }}
-        open={isOpen}
-        restoreFocusRef={triggerRef}
-        title="Choose Voice Part"
-      >
-        <div className="public-player__sheet-container">
-          <div className="public-player__sheet-header">
-            <p className="public-player__sheet-title">Choose Voice Part</p>
+      {/* Desktop Custom Trigger + Sheet (>= 48rem) */}
+      <div className="public-player__part-selector-desktop">
+        <button
+          aria-controls="voice-part-sheet"
+          aria-expanded={isOpen}
+          aria-haspopup="dialog"
+          className="public-player__part-trigger"
+          onClick={() => {
+            setIsOpen((prev) => !prev);
+          }}
+          ref={triggerRef}
+          type="button"
+        >
+          <span className="public-player__part-trigger-lead">
+            <svg
+              aria-hidden="true"
+              className="public-player__part-trigger-icon"
+              fill="none"
+              height="18"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+              width="18"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            <span className="public-player__part-trigger-label">Voice Part</span>
+          </span>
+          <span className="public-player__part-trigger-value">
+            <span>{displayTrackName(activeTrackKey, trackLabels)}</span>
+            <svg
+              aria-hidden="true"
+              className={`public-player__part-trigger-chevron ${isOpen ? "is-open" : ""}`}
+              fill="none"
+              height="16"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+              width="16"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </span>
+        </button>
+
+        <Sheet
+          onClose={() => {
+            setIsOpen(false);
+          }}
+          open={isOpen}
+          restoreFocusRef={triggerRef}
+          title="Choose Voice Part"
+        >
+          <div className="public-player__sheet-container">
+            <div className="public-player__sheet-header">
+              <p className="public-player__sheet-title">Choose Voice Part</p>
+            </div>
+            <div
+              aria-label="Choose Voice Part"
+              className="public-player__part-options"
+              onKeyDown={handleRadiogroupKeyDown}
+              ref={optionsListRef}
+              role="radiogroup"
+            >
+              {allKeys.map((key) => {
+                const isSelected = activeTrackKey === key;
+                return (
+                  <button
+                    aria-checked={isSelected}
+                    className={`public-player__part-option ${isSelected ? "is-selected" : ""}`}
+                    key={key}
+                    onClick={() => {
+                      onSelectTrackKey(key);
+                      setIsOpen(false);
+                    }}
+                    ref={isSelected ? selectedOptionRef : undefined}
+                    role="radio"
+                    tabIndex={
+                      isSelected || (!allKeys.includes(activeTrackKey) && key === allKeys[0])
+                        ? 0
+                        : -1
+                    }
+                    type="button"
+                  >
+                    <span aria-hidden="true" className="public-player__part-option-radio">
+                      {isSelected ? (
+                        <span className="public-player__part-option-radio-dot" />
+                      ) : null}
+                    </span>
+                    <span className="public-player__part-option-label">
+                      {displayTrackName(key, trackLabels)}
+                    </span>
+                    {isSelected ? (
+                      <svg
+                        aria-hidden="true"
+                        className="public-player__part-option-check"
+                        fill="none"
+                        height="18"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2.5"
+                        viewBox="0 0 24 24"
+                        width="18"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div
-            aria-label="Choose Voice Part"
-            className="public-player__part-options"
-            onKeyDown={handleRadiogroupKeyDown}
-            ref={optionsListRef}
-            role="radiogroup"
-          >
-            {allKeys.map((key) => {
-              const isSelected = activeTrackKey === key;
-              return (
-                <button
-                  aria-checked={isSelected}
-                  className={`public-player__part-option ${isSelected ? "is-selected" : ""}`}
-                  key={key}
-                  onClick={() => {
-                    onSelectTrackKey(key);
-                    setIsOpen(false);
-                  }}
-                  ref={isSelected ? selectedOptionRef : undefined}
-                  role="radio"
-                  tabIndex={
-                    isSelected || (!allKeys.includes(activeTrackKey) && key === allKeys[0]) ? 0 : -1
-                  }
-                  type="button"
-                >
-                  <span aria-hidden="true" className="public-player__part-option-radio">
-                    {isSelected ? <span className="public-player__part-option-radio-dot" /> : null}
-                  </span>
-                  <span className="public-player__part-option-label">
-                    {formatVoicePartName(key)}
-                  </span>
-                  {isSelected ? (
-                    <svg
-                      aria-hidden="true"
-                      className="public-player__part-option-check"
-                      fill="none"
-                      height="18"
-                      stroke="currentColor"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2.5"
-                      viewBox="0 0 24 24"
-                      width="18"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </Sheet>
+        </Sheet>
+      </div>
     </div>
   );
 }

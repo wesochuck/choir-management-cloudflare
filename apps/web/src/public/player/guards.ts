@@ -49,6 +49,7 @@ export function isPlayerDetails(value: unknown): value is PlayerDetails {
     value.items.every(isPlayerPlaylistItem) &&
     isNullableString(value.organizationName) &&
     isNullableString(value.performerLabel) &&
-    isNullableString(value.profileName)
+    isNullableString(value.profileName) &&
+    (value.trackLabels === undefined || value.trackLabels === null || isRecord(value.trackLabels))
   );
 }

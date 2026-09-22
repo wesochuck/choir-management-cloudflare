@@ -91,5 +91,36 @@ describe("public player api parsing", () => {
     const details = parsePlayerDetails(legacyCachedData);
     expect(details.organizationName).toBeUndefined();
     expect(details.eventId).toBe("event-123");
+    expect(details.trackLabels).toEqual({});
+  });
+
+  it("parsePublicPlaylistDetails preserves trackLabels when present", () => {
+    const details = parsePublicPlaylistDetails({
+      ...validPlaylistResponse,
+      trackLabels: { B1: "Bass 1", SATB: "Full Chorus", tutti: "Choir Mix" },
+    });
+    expect(details.trackLabels).toEqual({
+      B1: "Bass 1",
+      SATB: "Full Chorus",
+      tutti: "Choir Mix",
+    });
+  });
+
+  it("parsePlayerDetails preserves trackLabels when present", () => {
+    const details = parsePlayerDetails({
+      eventArtworkFileId: "artwork-123",
+      eventId: "event-123",
+      eventStartsAt: "2026-12-13T19:00:00.000Z",
+      eventTitle: "2026 Christmas Concert",
+      items: [
+        {
+          title: "Alleluia",
+          trackFileIds: { B1: "file-b1" },
+        },
+      ],
+      organizationName: "Lancaster Community Chorus",
+      trackLabels: { B1: "Bass 1", T1: "Tenor 1" },
+    });
+    expect(details.trackLabels).toEqual({ B1: "Bass 1", T1: "Tenor 1" });
   });
 });

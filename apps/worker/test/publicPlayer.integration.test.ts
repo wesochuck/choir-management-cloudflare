@@ -282,9 +282,16 @@ describe("public player signed flow", () => {
     );
     expect(playlistResponse.status).toBe(200);
     const playlistBody = await playlistResponse.json();
-    expect(playlistBody).toMatchObject({ organizationName: "Organization alpha" });
+    expect(playlistBody).toMatchObject({
+      organizationName: "Organization alpha",
+      trackLabels: expect.objectContaining({
+        B1: "Bass 1",
+        T1: "Tenor 1",
+        tutti: "Choir Mix",
+      }),
+    });
 
-    // 2. recipient-scoped /api/public/player-details returns correct Organization name
+    // 2. recipient-scoped /api/public/player-details returns correct Organization name and track labels
     const alphaMemberToken = await issuePlayerToken(
       "organization-alpha",
       ALPHA_EVENT,
@@ -300,6 +307,11 @@ describe("public player signed flow", () => {
     expect(detailsResponse.status).toBe(200);
     const detailsBody = publicPlayerDetailsResponseSchema.parse(await detailsResponse.json());
     expect(detailsBody.organizationName).toBe("Organization alpha");
+    expect(detailsBody.trackLabels).toMatchObject({
+      B1: "Bass 1",
+      T1: "Tenor 1",
+      tutti: "Choir Mix",
+    });
 
     // 3. Alpha player links on Alpha hostname return Alpha branding; Bravo returns Bravo branding
     const bravoMemberToken = await issuePlayerToken(

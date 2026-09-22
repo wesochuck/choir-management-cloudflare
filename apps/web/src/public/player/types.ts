@@ -26,6 +26,7 @@ export interface PlayerDetails {
   readonly organizationName?: string | undefined;
   readonly performerLabel?: string | undefined;
   readonly profileName?: string | undefined;
+  readonly trackLabels?: Record<string, string> | undefined;
 }
 
 export interface ResolvedTrack {

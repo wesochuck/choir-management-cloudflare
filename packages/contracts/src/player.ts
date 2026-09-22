@@ -29,6 +29,7 @@ export const publicPlayerDetailsResponseSchema = z.object({
   performerLabel: z.string().optional(),
   profileId: z.string(),
   profileName: z.string(),
+  trackLabels: z.record(z.string().min(1).max(100), z.string().min(1).max(100)).default({}),
 });
 
 export type PublicPlayerDetailsResponse = z.infer<typeof publicPlayerDetailsResponseSchema>;
@@ -46,6 +47,7 @@ export const publicPlayerPlaylistResponseSchema = z.object({
   pieces: z.array(playerPlaylistItemSchema),
   requestId: z.string().optional(),
   setList: z.array(playerPlaylistItemSchema),
+  trackLabels: z.record(z.string().min(1).max(100), z.string().min(1).max(100)).default({}),
   voiceParts: z.array(z.unknown()),
 });
 

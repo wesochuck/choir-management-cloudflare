@@ -34,6 +34,17 @@ function normalizePlaylistItem(item: {
   };
 }
 
+function parseTrackLabels(value: unknown): Record<string, string> {
+  if (!isRecord(value)) return {};
+  const result: Record<string, string> = {};
+  for (const [key, val] of Object.entries(value)) {
+    if (typeof val === "string" && val.trim().length > 0) {
+      result[key] = val.trim();
+    }
+  }
+  return result;
+}
+
 export function parsePlayerDetails(data: unknown): PlayerDetails {
   if (!isPlayerDetails(data)) throw new Error("invalid_response");
   return {
@@ -46,6 +57,7 @@ export function parsePlayerDetails(data: unknown): PlayerDetails {
     organizationName: typeof data.organizationName === "string" ? data.organizationName : undefined,
     performerLabel: typeof data.performerLabel === "string" ? data.performerLabel : "Performer",
     profileName: typeof data.profileName === "string" ? data.profileName : undefined,
+    trackLabels: parseTrackLabels(data.trackLabels),
   };
 }
 
@@ -70,6 +82,7 @@ export function parsePublicPlaylistDetails(data: unknown): PlayerDetails {
     items: data.pieces.map(normalizePlaylistItem),
     organizationName: typeof data.organizationName === "string" ? data.organizationName : undefined,
     performerLabel: typeof data.performerLabel === "string" ? data.performerLabel : "Performer",
+    trackLabels: parseTrackLabels(data.trackLabels),
   };
 }
 

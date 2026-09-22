@@ -402,6 +402,7 @@ export function PublicPracticePlayer({
           activeTrackKey={activeTrackKey}
           onSelectTrackKey={selectTrackKey}
           trackKeys={allTrackKeys}
+          trackLabels={details.trackLabels}
         />
         <p className="public-player__empty" role="status">
           No practice tracks are available for this set list yet.
@@ -497,6 +498,7 @@ export function PublicPracticePlayer({
             activeTrackKey={activeTrackKey}
             onSelectTrackKey={selectTrackKey}
             trackKeys={allTrackKeys}
+            trackLabels={details.trackLabels}
           />
 
           {/* Secondary controls: Repeat, Set List, Settings */}
