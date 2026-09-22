@@ -141,31 +141,24 @@ test("renders practice player with artwork, track navigation, and set list @webk
   await expect(nowPlaying.getByRole("button", { name: "Previous track" })).toBeDisabled();
   await expect(nowPlaying.getByRole("button", { name: "Next track" })).toBeEnabled();
 
-  // Voice part selector trigger defaults to Choir Mix (Tutti)
-  const voicePartTrigger = nowPlaying.getByRole("button", { name: /Voice Part/i });
-  await expect(voicePartTrigger).toBeVisible();
-  await expect(voicePartTrigger).toContainText("Choir Mix");
-
-  // Secondary controls
-  await expect(nowPlaying.getByRole("button", { name: "No repeat" })).toBeVisible();
-  await expect(nowPlaying.getByRole("button", { name: /Set list \(2 tracks\)/i })).toBeVisible();
-  await expect(nowPlaying.getByRole("button", { name: "Rehearsal settings" })).toBeVisible();
-
-  // Selecting individual voice part from modal sheet
-  await voicePartTrigger.click();
-  const voicePartSheet = page.getByRole("dialog", { name: "Choose Voice Part" });
-  await expect(voicePartSheet).toBeVisible();
-  const soprano1Option = voicePartSheet.getByRole("radio", { name: "Soprano 1" });
-  await expect(soprano1Option).toBeVisible();
-  await soprano1Option.click();
-  await expect(voicePartSheet).not.toBeVisible();
-  await expect(page.locator(".dialog__overlay")).toHaveCount(0);
-  await expect(voicePartTrigger).toContainText("Soprano 1");
-  await expect(nowPlaying.locator(".public-player__track-badge")).toHaveText("SOPRANO1");
-
-  // Set list verification (responsive)
   const isMobile = testInfo.project.name.includes("mobile");
   if (isMobile) {
+    const mobilePicker = page.locator(".public-player__part-picker-mobile");
+    await expect(mobilePicker).toBeVisible();
+    await expect(page.locator(".public-player__part-picker-value")).toContainText("Choir Mix");
+
+    // Secondary controls
+    await expect(nowPlaying.getByRole("button", { name: "No repeat" })).toBeVisible();
+    await expect(nowPlaying.getByRole("button", { name: /Set list \(2 tracks\)/i })).toBeVisible();
+    await expect(nowPlaying.getByRole("button", { name: "Rehearsal settings" })).toBeVisible();
+
+    // Selecting individual voice part from mobile native select
+    const mobileSelect = page.locator("#mobile-voice-part-select");
+    await mobileSelect.selectOption("soprano1");
+    await expect(page.locator(".public-player__part-picker-value")).toContainText("Soprano 1");
+    await expect(nowPlaying.locator(".public-player__track-badge")).toHaveText("SOPRANO1");
+
+    // Set list verification (responsive)
     const setListBtn = page.getByRole("button", { name: /Set list \(2 tracks\)/i });
     await setListBtn.click();
     const sheet = page.getByRole("dialog", { name: "Set List" });
@@ -173,6 +166,29 @@ test("renders practice player with artwork, track navigation, and set list @webk
     await expect(sheet.getByText("Hallelujah Chorus")).toBeVisible();
     await expect(sheet.getByText("Ave Verum")).toBeVisible();
   } else {
+    // Voice part selector trigger defaults to Choir Mix (Tutti)
+    const voicePartTrigger = nowPlaying.getByRole("button", { name: /Voice Part/i });
+    await expect(voicePartTrigger).toBeVisible();
+    await expect(voicePartTrigger).toContainText("Choir Mix");
+
+    // Secondary controls
+    await expect(nowPlaying.getByRole("button", { name: "No repeat" })).toBeVisible();
+    await expect(nowPlaying.getByRole("button", { name: /Set list \(2 tracks\)/i })).toBeVisible();
+    await expect(nowPlaying.getByRole("button", { name: "Rehearsal settings" })).toBeVisible();
+
+    // Selecting individual voice part from modal sheet
+    await voicePartTrigger.click();
+    const voicePartSheet = page.getByRole("dialog", { name: "Choose Voice Part" });
+    await expect(voicePartSheet).toBeVisible();
+    const soprano1Option = voicePartSheet.getByRole("radio", { name: "Soprano 1" });
+    await expect(soprano1Option).toBeVisible();
+    await soprano1Option.click();
+    await expect(voicePartSheet).not.toBeVisible();
+    await expect(page.locator(".dialog__overlay")).toHaveCount(0);
+    await expect(voicePartTrigger).toContainText("Soprano 1");
+    await expect(nowPlaying.locator(".public-player__track-badge")).toHaveText("SOPRANO1");
+
+    // Set list verification (responsive)
     const setList = page.locator(".public-player__desktop-panel .public-player__set-list");
     await expect(setList).toBeVisible();
     await expect(setList.getByText("2 tracks")).toBeVisible();

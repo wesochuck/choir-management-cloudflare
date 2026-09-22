@@ -1,4 +1,5 @@
 import {
+  organizationIdSchema,
   organizationProvisionRequestSchema,
   platformElevationRequestSchema,
   platformStripeConnectResetRequestSchema,
@@ -457,7 +458,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         404,
       );
     }
-    const organizationId = z.uuid().safeParse(context.req.param("organizationId"));
+    const organizationId = organizationIdSchema.safeParse(context.req.param("organizationId"));
     if (!organizationId.success) {
       return context.json(
         {
@@ -523,7 +524,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           404,
         );
       }
-      const organizationId = z.uuid().safeParse(context.req.param("organizationId"));
+      const organizationId = organizationIdSchema.safeParse(context.req.param("organizationId"));
       if (!organizationId.success) {
         return context.json(
           {

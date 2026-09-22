@@ -110,7 +110,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test("caches the open event offline and explains uncached parts", async ({ page }) => {
+test("caches the open event offline and explains uncached parts", async ({ page }, testInfo) => {
   await page.goto("/player?token=offline-test-token");
   await expect(page.getByRole("heading", { name: "Offline Rehearsal" })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
@@ -126,23 +126,36 @@ test("caches the open event offline and explains uncached parts", async ({ page 
 
   // Going offline, then switching to a part that was never cached, explains itself.
   await page.context().setOffline(true);
-  const voicePartTrigger = nowPlaying.getByRole("button", { name: /Voice Part/i });
-  await voicePartTrigger.click();
-  const voicePartSheet = page.getByRole("dialog", { name: "Choose Voice Part" });
-  await voicePartSheet.getByRole("radio", { name: "Alto" }).click();
-  await expect(voicePartTrigger).toContainText("Alto");
-  await expect(page.getByText("saved offline. Reconnect", { exact: false })).toBeVisible();
+  const isMobile = testInfo.project.name.includes("mobile");
+  if (isMobile) {
+    const mobileSelect = page.locator("#mobile-voice-part-select");
+    await mobileSelect.selectOption("alto");
+    await expect(page.locator(".public-player__part-picker-value")).toContainText("Alto");
+    await expect(page.getByText("saved offline. Reconnect", { exact: false })).toBeVisible();
 
-  // Switching back to the cached part clears the message.
-  await voicePartTrigger.click();
-  await page
-    .getByRole("dialog", { name: "Choose Voice Part" })
-    .getByRole("radio", {
-      name: "Choir Mix",
-    })
-    .click();
-  await expect(voicePartTrigger).toContainText("Choir Mix");
-  await expect(page.getByText("saved offline. Reconnect", { exact: false })).not.toBeVisible();
+    // Switching back to the cached part clears the message.
+    await mobileSelect.selectOption("tutti");
+    await expect(page.locator(".public-player__part-picker-value")).toContainText("Choir Mix");
+    await expect(page.getByText("saved offline. Reconnect", { exact: false })).not.toBeVisible();
+  } else {
+    const voicePartTrigger = nowPlaying.getByRole("button", { name: /Voice Part/i });
+    await voicePartTrigger.click();
+    const voicePartSheet = page.getByRole("dialog", { name: "Choose Voice Part" });
+    await voicePartSheet.getByRole("radio", { name: "Alto" }).click();
+    await expect(voicePartTrigger).toContainText("Alto");
+    await expect(page.getByText("saved offline. Reconnect", { exact: false })).toBeVisible();
+
+    // Switching back to the cached part clears the message.
+    await voicePartTrigger.click();
+    await page
+      .getByRole("dialog", { name: "Choose Voice Part" })
+      .getByRole("radio", {
+        name: "Choir Mix",
+      })
+      .click();
+    await expect(voicePartTrigger).toContainText("Choir Mix");
+    await expect(page.getByText("saved offline. Reconnect", { exact: false })).not.toBeVisible();
+  }
 
   // Reloading the page while offline serves the cached shell and enables offline playback.
   await page.reload();

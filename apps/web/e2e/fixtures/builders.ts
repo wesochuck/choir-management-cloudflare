@@ -38,6 +38,7 @@ import {
   platformOrganizationContextResponseSchema,
   platformOrganizationPublicDomainsResponseSchema,
   platformOrganizationsResponseSchema,
+  platformStripeConnectStatusResponseSchema,
   seatingConfigurationResponseSchema,
   seatingConfigurationRequestSchema,
   singerEventsResponseSchema,
@@ -844,6 +845,25 @@ export function buildPlatformOrganizationPublicDomainsResponse() {
       requestId: "33333333-3333-4333-8333-333333333333",
     },
     (value) => platformOrganizationPublicDomainsResponseSchema.parse(value),
+  );
+}
+
+export function buildPlatformOrganizationStripeConnectResponse(
+  organizationId = organizationAlphaId,
+) {
+  return validated(
+    {
+      accountId: null,
+      activations: { donations: false, dues: false, tickets: false },
+      eligibleForReset: false,
+      hasPaymentHistory: false,
+      hasPendingPayments: false,
+      ineligibilityReason: "No Stripe account is connected.",
+      organizationId,
+      requestId: "33333333-3333-4333-8333-333333333333",
+      status: "not_started" as const,
+    },
+    (value) => platformStripeConnectStatusResponseSchema.parse(value),
   );
 }
 

@@ -27,6 +27,7 @@ import {
   buildOrganizationProfile,
   buildOrganizationProvisionResponse,
   buildPlatformOrganizationPublicDomainsResponse,
+  buildPlatformOrganizationStripeConnectResponse,
   buildFleetSchemaStatusResponse,
   buildPlatformContextResponse,
   buildPlatformDeadLettersResponse,
@@ -663,6 +664,14 @@ export async function installPlatformAdminMocks(
   });
   await page.route("**/api/platform/organizations/*/public-domains", async (route) => {
     await fulfillJson(route, buildPlatformOrganizationPublicDomainsResponse());
+  });
+  await page.route("**/api/platform/organizations/*/stripe-connect", async (route) => {
+    const url = new URL(route.request().url());
+    const segments = url.pathname.split("/");
+    const orgIndex = segments.indexOf("organizations");
+    const organizationId =
+      orgIndex >= 0 && segments[orgIndex + 1] ? segments[orgIndex + 1] : organizationAlphaId;
+    await fulfillJson(route, buildPlatformOrganizationStripeConnectResponse(organizationId));
   });
   await page.route("**/api/platform/job-dead-letters**", async (route) => {
     await fulfillJson(route, buildPlatformDeadLettersResponse());
