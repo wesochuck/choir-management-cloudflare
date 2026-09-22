@@ -55,3 +55,17 @@ export async function resolveOrganizationForStripeAccount(
   if (!row || !["active", "disabled", "pending"].includes(row.status)) return null;
   return row;
 }
+
+export async function removeStripeAccountOrganization(
+  db: D1Database,
+  input: {
+    readonly accountId: string;
+    readonly organizationId: string;
+  },
+): Promise<boolean> {
+  const result = await db
+    .prepare(`DELETE FROM stripe_connected_accounts WHERE account_id = ? AND organization_id = ?`)
+    .bind(input.accountId, input.organizationId)
+    .run();
+  return result.meta.changes > 0;
+}

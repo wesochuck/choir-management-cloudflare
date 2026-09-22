@@ -41,7 +41,7 @@ function identity(storage: DurableObjectStorage) {
     .at(0);
 }
 
-function parseActivations(raw: string): z.infer<typeof paymentActivationSettingsSchema> {
+export function parseActivations(raw: string): z.infer<typeof paymentActivationSettingsSchema> {
   let value: unknown;
   try {
     value = JSON.parse(raw) as unknown;

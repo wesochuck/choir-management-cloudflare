@@ -47,7 +47,10 @@ import {
   recordProviderRefundRequestedInStore,
 } from "../paymentRefundStore";
 import { manageSeasonsInStore } from "../seasonStore";
-import { upsertStripeConnectAccountInStore } from "../stripeConnectStore";
+import {
+  resetStripeConnectAccountInStore,
+  upsertStripeConnectAccountInStore,
+} from "../stripeConnectStore";
 import { ensurePracticePlayerLinkInStore } from "../playerLinkStore";
 import {
   exportMusicFolderReportFromStore,
@@ -107,6 +110,9 @@ export async function dispatchPostRequest(
   }
   if (pathname === "/internal/stripe-connect") {
     return upsertStripeConnectAccountInStore(storage, request);
+  }
+  if (pathname === "/internal/stripe-connect/reset") {
+    return resetStripeConnectAccountInStore(storage, request);
   }
   if (pathname === "/internal/payment-settings") {
     return updatePaymentActivationInStore(storage, await request.json().catch(() => null));

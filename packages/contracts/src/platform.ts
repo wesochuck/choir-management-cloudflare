@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { organizationIdSchema, requestIdSchema } from "./primitives";
+import {
+  organizationIdSchema,
+  paymentActivationSettingsSchema,
+  requestIdSchema,
+} from "./primitives";
 import { publicDomainResponseSchema } from "./exports";
 export const calendarFeedUrlsResponseSchema = z.object({
   expiresAt: z.iso.datetime(),
@@ -430,3 +434,39 @@ export type PlatformMfaStatusResponse = z.infer<typeof platformMfaStatusResponse
 export type PlatformMfaEnrollmentResponse = z.infer<typeof platformMfaEnrollmentResponseSchema>;
 export type PlatformRecoveryCodesResponse = z.infer<typeof platformRecoveryCodesResponseSchema>;
 export type PlatformContextResponse = z.infer<typeof platformContextResponseSchema>;
+
+export const platformStripeConnectStatusResponseSchema = z.object({
+  accountId: z.string().nullable(),
+  activations: paymentActivationSettingsSchema,
+  eligibleForReset: z.boolean(),
+  hasPaymentHistory: z.boolean(),
+  hasPendingPayments: z.boolean(),
+  ineligibilityReason: z.string().nullable(),
+  organizationId: organizationIdSchema,
+  requestId: requestIdSchema,
+  status: z.enum(["not_started", "onboarding", "restricted", "ready"]),
+});
+
+export const platformStripeConnectResetRequestSchema = z.object({
+  confirm: z.literal(true),
+  expectedAccountId: z.string().regex(/^acct_[A-Za-z0-9]+$/),
+  reason: z.string().trim().min(3).max(500),
+});
+
+export const platformStripeConnectResetResponseSchema = z.object({
+  accountId: z.null(),
+  activations: paymentActivationSettingsSchema,
+  organizationId: organizationIdSchema,
+  requestId: requestIdSchema,
+  status: z.literal("not_started"),
+});
+
+export type PlatformStripeConnectStatusResponse = z.infer<
+  typeof platformStripeConnectStatusResponseSchema
+>;
+export type PlatformStripeConnectResetRequest = z.infer<
+  typeof platformStripeConnectResetRequestSchema
+>;
+export type PlatformStripeConnectResetResponse = z.infer<
+  typeof platformStripeConnectResetResponseSchema
+>;

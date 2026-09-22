@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { SqlStorageValue } from "@cloudflare/workers-types";
+import { parseActivations } from "./paymentSettingsStore";
 
 const stripeConnectOperationSchema = z.object({
   accountId: z.string().regex(/^acct_[A-Za-z0-9]+$/),
@@ -234,4 +235,218 @@ export async function upsertStripeConnectAccountInStore(
     );
   });
   return readStripeConnectStatusFromStore(storage, parsed.data.organizationId);
+}
+
+export interface StripeConnectEligibility {
+  readonly accountId: string | null;
+  readonly activations: {
+    readonly donations: boolean;
+    readonly dues: boolean;
+    readonly tickets: boolean;
+  };
+  readonly eligibleForReset: boolean;
+  readonly hasPaymentHistory: boolean;
+  readonly hasPendingPayments: boolean;
+  readonly ineligibilityReason:
+    "not_connected" | "has_payment_history" | "has_pending_payments" | null;
+  readonly status: StripeConnectStatus["status"];
+}
+
+function computeEligibility(
+  storage: DurableObjectStorage,
+  organizationId: string,
+): StripeConnectEligibility | null {
+  const identity = storage.sql
+    .exec<{
+      readonly organizationId: string;
+      readonly paymentActivationJson: string;
+    }>(
+      `SELECT organization_id AS organizationId, payment_activation_json AS paymentActivationJson
+       FROM organization_metadata LIMIT 1`,
+    )
+    .toArray()
+    .at(0);
+  if (identity?.organizationId !== organizationId) return null;
+
+  const row = readRow(storage);
+  const status = mapStoreRow(row);
+  const activations = parseActivations(identity.paymentActivationJson);
+
+  if (!status.accountId) {
+    return {
+      accountId: null,
+      activations,
+      eligibleForReset: false,
+      hasPaymentHistory: false,
+      hasPendingPayments: false,
+      ineligibilityReason: "not_connected",
+      status: "not_started",
+    };
+  }
+
+  const nowIso = new Date().toISOString();
+
+  const countQuery = (sql: string, ...params: (string | number)[]) => {
+    try {
+      const res = storage.sql
+        .exec<{ readonly count: number }>(sql, ...params)
+        .toArray()
+        .at(0);
+      return res?.count ?? 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  const realPaidTickets = countQuery(
+    "SELECT COUNT(*) AS count FROM ticket_purchases WHERE provider_session_id NOT LIKE 'fake_%' AND status IN ('paid', 'refunded')",
+  );
+  const realPaidDonations = countQuery(
+    "SELECT COUNT(*) AS count FROM donations WHERE provider_session_id NOT LIKE 'fake_%' AND status IN ('paid', 'refunded')",
+  );
+  const realPaidDues = countQuery(
+    "SELECT COUNT(*) AS count FROM dues WHERE provider_session_id != '' AND provider_session_id NOT LIKE 'fake_%' AND status IN ('paid', 'refunded')",
+  );
+  const realPaidAttempts = countQuery(
+    "SELECT COUNT(*) AS count FROM payment_attempts WHERE provider_session_id NOT LIKE 'fake_%' AND provider_payment_id NOT LIKE 'fake_%' AND status IN ('paid', 'refunded')",
+  );
+
+  const hasPaymentHistory =
+    realPaidTickets > 0 || realPaidDonations > 0 || realPaidDues > 0 || realPaidAttempts > 0;
+
+  const pendingTickets = countQuery(
+    "SELECT COUNT(*) AS count FROM ticket_purchases WHERE provider_session_id NOT LIKE 'fake_%' AND status = 'pending' AND (expires_at IS NULL OR expires_at > ?)",
+    nowIso,
+  );
+  const pendingDonations = countQuery(
+    "SELECT COUNT(*) AS count FROM donations WHERE provider_session_id NOT LIKE 'fake_%' AND status = 'pending' AND (expires_at IS NULL OR expires_at > ?)",
+    nowIso,
+  );
+  const pendingDues = countQuery(
+    "SELECT COUNT(*) AS count FROM dues WHERE provider_session_id != '' AND provider_session_id NOT LIKE 'fake_%' AND status = 'pending'",
+  );
+  const pendingAttempts = countQuery(
+    "SELECT COUNT(*) AS count FROM payment_attempts WHERE provider_session_id NOT LIKE 'fake_%' AND status = 'pending' AND (expired_at IS NULL OR expired_at > ?)",
+    nowIso,
+  );
+
+  const hasPendingPayments =
+    pendingTickets > 0 || pendingDonations > 0 || pendingDues > 0 || pendingAttempts > 0;
+
+  let ineligibilityReason: StripeConnectEligibility["ineligibilityReason"] = null;
+  if (hasPaymentHistory) {
+    ineligibilityReason = "has_payment_history";
+  } else if (hasPendingPayments) {
+    ineligibilityReason = "has_pending_payments";
+  }
+
+  return {
+    accountId: status.accountId,
+    activations,
+    eligibleForReset: ineligibilityReason === null,
+    hasPaymentHistory,
+    hasPendingPayments,
+    ineligibilityReason,
+    status: status.status,
+  };
+}
+
+export function readStripeConnectEligibilityFromStore(
+  storage: DurableObjectStorage,
+  organizationId: string | null,
+): Response {
+  if (!organizationId) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  const eligibility = computeEligibility(storage, organizationId);
+  if (!eligibility) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  return Response.json(eligibility);
+}
+
+export const stripeConnectResetOperationSchema = z.object({
+  action: z.literal("reset_stripe_connect"),
+  actorUserId: z.string().min(1).max(128),
+  confirm: z.literal(true),
+  expectedAccountId: z.string().regex(/^acct_[A-Za-z0-9]+$/),
+  organizationId: z.string().min(1).max(128),
+  reason: z.string().min(3).max(500),
+  requestId: z.uuid(),
+});
+
+export async function resetStripeConnectAccountInStore(
+  storage: DurableObjectStorage,
+  request: Request,
+): Promise<Response> {
+  const parsed = stripeConnectResetOperationSchema.safeParse(
+    await request.json().catch(() => null),
+  );
+  if (!parsed.success) {
+    return Response.json({ code: "validation_failed" }, { status: 400 });
+  }
+
+  const eligibility = computeEligibility(storage, parsed.data.organizationId);
+  if (!eligibility) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+
+  if (!eligibility.accountId) {
+    return Response.json({ code: "stripe_connect_not_connected" }, { status: 409 });
+  }
+
+  if (eligibility.accountId !== parsed.data.expectedAccountId) {
+    return Response.json({ code: "stripe_connect_account_changed" }, { status: 409 });
+  }
+
+  if (eligibility.hasPaymentHistory) {
+    return Response.json({ code: "stripe_connect_reset_has_payment_history" }, { status: 409 });
+  }
+
+  if (eligibility.hasPendingPayments) {
+    return Response.json({ code: "stripe_connect_reset_has_pending_payments" }, { status: 409 });
+  }
+
+  const occurredAt = new Date().toISOString();
+  const resetActivations = { donations: false, dues: false, tickets: false };
+
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `UPDATE organization_metadata
+       SET payment_activation_json = ?, updated_at = ?
+       WHERE organization_id = ?`,
+      JSON.stringify(resetActivations),
+      occurredAt,
+      parsed.data.organizationId,
+    );
+
+    storage.sql.exec(
+      `DELETE FROM stripe_connect_accounts WHERE organization_id = ?`,
+      parsed.data.organizationId,
+    );
+
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+       VALUES (?, 'platform_administrator', ?, 'stripe_connect.reset',
+         'stripe_connect_account', ?, ?, ?, ?)`,
+      crypto.randomUUID(),
+      parsed.data.actorUserId,
+      parsed.data.expectedAccountId,
+      parsed.data.requestId,
+      JSON.stringify({
+        accountId: parsed.data.expectedAccountId,
+        previousActivations: eligibility.activations,
+        previousStatus: eligibility.status,
+        reason: parsed.data.reason,
+      }),
+      occurredAt,
+    );
+  });
+
+  return Response.json({
+    accountId: null,
+    activations: resetActivations,
+    status: "not_started",
+  });
 }

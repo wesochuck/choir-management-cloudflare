@@ -91,7 +91,10 @@ import {
   listDuesFromStore,
   readMemberActiveSeasonFromStore,
 } from "../seasonStore";
-import { readStripeConnectStatusFromStore } from "../stripeConnectStore";
+import {
+  readStripeConnectEligibilityFromStore,
+  readStripeConnectStatusFromStore,
+} from "../stripeConnectStore";
 import { readOrganizationReconciliationReport } from "../reconciliationStore";
 import { searchOrganizationEntitiesFromStore } from "../searchStore";
 
@@ -496,6 +499,8 @@ export function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Res
       return readTransactionFeeSettingsFromStore(storage, organizationId);
     case "/internal/stripe-connect":
       return readStripeConnectStatusFromStore(storage, organizationId);
+    case "/internal/stripe-connect/eligibility":
+      return readStripeConnectEligibilityFromStore(storage, organizationId);
     case "/internal/payment-settings":
       return readPaymentSettingsFromStore(storage, organizationId);
     case "/internal/ticket-confirmation-settings":

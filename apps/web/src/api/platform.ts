@@ -49,6 +49,11 @@ import {
   type PlatformOrganizationsResponse,
   type PlatformMfaStatusResponse,
   platformEmailSuppressionsResponseSchema,
+  platformStripeConnectStatusResponseSchema,
+  platformStripeConnectResetResponseSchema,
+  type PlatformStripeConnectStatusResponse,
+  type PlatformStripeConnectResetRequest,
+  type PlatformStripeConnectResetResponse,
 } from "@choir/contracts";
 import { z } from "zod";
 
@@ -418,4 +423,31 @@ export async function revokePlatformElevation(elevationId: string): Promise<void
     method: "DELETE",
   });
   platformElevationRevocationResponseSchema.parse(await response.json());
+}
+
+export async function getPlatformOrganizationStripeConnect(
+  organizationId: string,
+  signal?: AbortSignal,
+): Promise<PlatformStripeConnectStatusResponse> {
+  const response = await request(
+    `/api/platform/organizations/${encodeURIComponent(organizationId)}/stripe-connect`,
+    {
+      signal: signal ?? null,
+    },
+  );
+  return platformStripeConnectStatusResponseSchema.parse(await response.json());
+}
+
+export async function resetPlatformOrganizationStripeConnect(
+  organizationId: string,
+  payload: PlatformStripeConnectResetRequest,
+): Promise<PlatformStripeConnectResetResponse> {
+  const response = await request(
+    `/api/platform/organizations/${encodeURIComponent(organizationId)}/stripe-connect/reset`,
+    {
+      body: JSON.stringify(payload),
+      method: "POST",
+    },
+  );
+  return platformStripeConnectResetResponseSchema.parse(await response.json());
 }

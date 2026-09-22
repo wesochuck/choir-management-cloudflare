@@ -7,6 +7,7 @@ import {
   revokePlatformElevation,
 } from "../../../auth/api";
 import { displayDate, type ElevationState } from "./shared";
+import { StripeConnectRecovery } from "./StripeConnectRecovery";
 
 export function OrganizationElevation({ organizationId }: { readonly organizationId: string }) {
   const [actionError, setActionError] = useState<string | null>(null);
@@ -155,6 +156,8 @@ export function OrganizationElevation({ organizationId }: { readonly organizatio
           </button>
         </form>
       ) : null}
+
+      <StripeConnectRecovery organizationId={organizationId} />
     </div>
   );
 }
