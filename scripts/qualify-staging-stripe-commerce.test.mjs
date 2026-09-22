@@ -112,6 +112,36 @@ describe("staging Stripe sandbox commercial qualification helpers", () => {
       ticketReceiptMatches({ eventId: "ev-1", id: "pur-1", status: "paid" }, "ev-1", "pur-1"),
     ).toBe(true);
     expect(
+      ticketReceiptMatches(
+        { eventId: "ev-1", id: "pur-1", scanToken: "tok-1", status: "paid" },
+        "ev-1",
+        "pur-1",
+      ),
+    ).toBe(true);
+    expect(
+      ticketReceiptMatches(
+        { eventId: "ev-1", id: "pur-1", scanToken: null, status: "paid" },
+        "ev-1",
+        "pur-1",
+      ),
+    ).toBe(false);
+    expect(
+      ticketReceiptMatches(
+        { eventId: "ev-1", id: "pur-1", scanToken: null, status: "pending" },
+        "ev-1",
+        "pur-1",
+        "pending",
+      ),
+    ).toBe(true);
+    expect(
+      ticketReceiptMatches(
+        { eventId: "ev-1", id: "pur-1", scanToken: "invalid-token", status: "pending" },
+        "ev-1",
+        "pur-1",
+        "pending",
+      ),
+    ).toBe(false);
+    expect(
       ticketReceiptMatches({ eventId: "ev-1", id: "pur-2", status: "paid" }, "ev-1", "pur-1"),
     ).toBe(false);
     expect(

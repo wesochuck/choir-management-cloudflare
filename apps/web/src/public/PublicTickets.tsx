@@ -10,6 +10,7 @@ import { ticketProcessingFeeCents, ticketUnitPriceCents } from "@choir/domain";
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 
 import {
+  AuthApiError,
   createPublicTicketCheckout,
   getPublicTicketDiscountAvailability,
   getPublicCommerceProjection,
@@ -300,108 +301,285 @@ export function TicketDiscountControls({ state }: { readonly state: TicketDiscou
   );
 }
 
-function TicketReceipt({ token }: { readonly token: string }) {
-  const [purchase, setPurchase] = useState<PublicTicketReceipt | null>(null);
-  const [confirmationSettings, setConfirmationSettings] = useState(
-    DEFAULT_TICKET_CONFIRMATION_SETTINGS,
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 45000;
+
+function getReceiptHeading(status: PublicTicketReceipt["status"]): string {
+  switch (status) {
+    case "pending":
+      return "Ticket order processing";
+    case "paid":
+      return "Your tickets are confirmed";
+    case "refunded":
+      return "Ticket order refunded";
+    case "expired":
+      return "Ticket order expired";
+  }
+}
+
+function getReceiptMessage(
+  status: PublicTicketReceipt["status"],
+  settings: TicketConfirmationSettings,
+): string {
+  switch (status) {
+    case "pending":
+      return settings.pendingMessage;
+    case "paid":
+      return settings.successMessage;
+    case "refunded":
+      return "This ticket order has been refunded.";
+    case "expired":
+      return "This ticket order has expired because payment was not completed.";
+  }
+}
+
+function TicketReceiptPricing({ purchase }: { readonly purchase: PublicTicketReceipt }) {
+  if (!purchase.discountCode) {
+    return (
+      <p>
+        Total: <strong>{money(purchase.amountPaidCents)}</strong>
+      </p>
+    );
+  }
+
+  return (
+    <div className="ticket-price-summary">
+      <p>
+        Original subtotal: <strong>{money(purchase.originalSubtotalCents)}</strong>
+      </p>
+      <p>
+        Discount ({purchase.discountCode}): <strong>-{money(purchase.discountAmountCents)}</strong>
+      </p>
+      <p>
+        Discounted subtotal: <strong>{money(purchase.discountedSubtotalCents)}</strong>
+      </p>
+      <p>
+        Processing fee: <strong>{money(purchase.feeCents)}</strong>
+      </p>
+      <p>
+        Total: <strong>{money(purchase.amountPaidCents)}</strong>
+      </p>
+    </div>
   );
-  const [failed, setFailed] = useState(false);
+}
+
+function TicketReceiptPanel({
+  purchase,
+  settings,
+}: {
+  readonly purchase: PublicTicketReceipt;
+  readonly settings: TicketConfirmationSettings;
+}) {
+  const sortedEvents = purchase.bundleId
+    ? [...purchase.includedEvents].sort((a, b) => {
+        const diff = new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+        return diff !== 0 ? diff : a.title.localeCompare(b.title);
+      })
+    : null;
+
+  return (
+    <div className="panel">
+      <h2>{purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}</h2>
+      {sortedEvents ? (
+        <ul className="public-bundle-event-list">
+          {sortedEvents.map((event) => (
+            <li key={event.id}>
+              {event.title} · {publicDate(event.startsAt, purchase.timezone)}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
+      )}
+      <p>
+        Will call name: <strong>{purchase.buyerName}</strong>
+      </p>
+      <p>
+        Quantity: <strong>{purchase.quantity}</strong>
+      </p>
+      <TicketReceiptPricing purchase={purchase} />
+      {purchase.status === "paid" || purchase.status === "pending" ? (
+        <p>{settings.willCallInstructions}</p>
+      ) : null}
+      {purchase.status === "paid" && purchase.scanToken ? (
+        <details>
+          <summary>Door credential</summary>
+          <p>{settings.qrCodeInstructions}</p>
+          <code className="ticket-credential">{purchase.scanToken}</code>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
+function TicketReceiptContent({
+  onRefresh,
+  settings,
+  token,
+}: {
+  readonly onRefresh: () => void;
+  readonly settings: TicketConfirmationSettings;
+  readonly token: string;
+}) {
+  const [purchase, setPurchase] = useState<PublicTicketReceipt | null>(null);
+  const [isUnavailable, setIsUnavailable] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isTimedOut, setIsTimedOut] = useState(false);
+
   useEffect(() => {
     const controller = new AbortController();
-    void Promise.all([
-      getPublicTicketPurchase(token, controller.signal),
-      getPublicTicketConfirmationSettings(controller.signal).catch(
-        () => DEFAULT_TICKET_CONFIRMATION_SETTINGS,
-      ),
-    ])
-      .then(([nextPurchase, nextSettings]) => {
-        setPurchase(nextPurchase);
-        setConfirmationSettings(nextSettings);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setFailed(true);
-      });
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    let latestPurchase: PublicTicketReceipt | null = null;
+    const startTime = Date.now();
+
+    function schedulePoll() {
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      getPublicTicketPurchase(token, controller.signal)
+        .then((nextPurchase) => {
+          if (controller.signal.aborted) {
+            return;
+          }
+          latestPurchase = nextPurchase;
+          setPurchase(nextPurchase);
+          setLoadError(null);
+
+          if (nextPurchase.status === "pending") {
+            const elapsed = Date.now() - startTime;
+            if (elapsed >= POLL_TIMEOUT_MS) {
+              setIsTimedOut(true);
+            } else {
+              timerId = setTimeout(schedulePoll, POLL_INTERVAL_MS);
+            }
+          }
+        })
+        .catch((error: unknown) => {
+          if (controller.signal.aborted) {
+            return;
+          }
+
+          if (error instanceof AuthApiError && error.status === 404) {
+            setIsUnavailable(true);
+            return;
+          }
+
+          const elapsed = Date.now() - startTime;
+          if (elapsed < POLL_TIMEOUT_MS) {
+            timerId = setTimeout(schedulePoll, POLL_INTERVAL_MS);
+          } else if (!latestPurchase) {
+            setLoadError(
+              "Unable to load ticket receipt. Please check your connection and try again.",
+            );
+          } else {
+            setIsTimedOut(true);
+          }
+        });
+    }
+
+    schedulePoll();
+
     return () => {
       controller.abort();
+      if (timerId !== null) {
+        clearTimeout(timerId);
+      }
     };
   }, [token]);
-  if (failed || !token)
+
+  if (isUnavailable) {
     return <p className="notice notice--error">This ticket receipt is unavailable.</p>;
-  if (!purchase) return <p className="notice notice--info">Loading ticket receipt…</p>;
+  }
+
+  if (loadError && !purchase) {
+    return (
+      <section className="public-section public-section--narrow">
+        <p className="notice notice--error">{loadError}</p>
+        <button
+          className="button button--secondary"
+          onClick={() => {
+            onRefresh();
+          }}
+          type="button"
+        >
+          Check status again
+        </button>
+      </section>
+    );
+  }
+
+  if (!purchase) {
+    return <p className="notice notice--info">Loading ticket receipt…</p>;
+  }
+
   return (
     <section className="public-section public-section--narrow">
-      <h1>
-        {purchase.status === "pending" ? "Ticket order processing" : "Your tickets are confirmed"}
-      </h1>
-      <p>
-        {purchase.status === "pending"
-          ? confirmationSettings.pendingMessage
-          : confirmationSettings.successMessage}
-      </p>
+      <h1>{getReceiptHeading(purchase.status)}</h1>
+      <p>{getReceiptMessage(purchase.status, settings)}</p>
+      {purchase.status === "pending" && isTimedOut ? (
+        <div className="notice notice--info">
+          <p>
+            We are still waiting for confirmation from the payment provider. Your order details are
+            below.
+          </p>
+          <button
+            className="button button--secondary"
+            onClick={() => {
+              onRefresh();
+            }}
+            type="button"
+          >
+            Check status again
+          </button>
+        </div>
+      ) : null}
       {purchase.checkoutMode === "free" ? (
         <p className="notice notice--info">Complimentary order — no payment was collected.</p>
       ) : purchase.checkoutMode === "fake" ? (
         <p className="notice notice--warning">Staging simulation: no payment card was charged.</p>
       ) : null}
-      <div className="panel">
-        <h2>{purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}</h2>
-        {purchase.bundleId ? (
-          <ul className="public-bundle-event-list">
-            {[...purchase.includedEvents]
-              .sort((a, b) => {
-                const diff = new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
-                return diff !== 0 ? diff : a.title.localeCompare(b.title);
-              })
-              .map((event) => (
-                <li key={event.id}>
-                  {event.title} · {publicDate(event.startsAt, purchase.timezone)}
-                </li>
-              ))}
-          </ul>
-        ) : (
-          <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
-        )}
-        <p>
-          Will call name: <strong>{purchase.buyerName}</strong>
-        </p>
-        <p>
-          Quantity: <strong>{purchase.quantity}</strong>
-        </p>
-        {purchase.discountCode ? (
-          <div className="ticket-price-summary">
-            <p>
-              Original subtotal: <strong>{money(purchase.originalSubtotalCents)}</strong>
-            </p>
-            <p>
-              Discount ({purchase.discountCode}):{" "}
-              <strong>-{money(purchase.discountAmountCents)}</strong>
-            </p>
-            <p>
-              Discounted subtotal: <strong>{money(purchase.discountedSubtotalCents)}</strong>
-            </p>
-            <p>
-              Processing fee: <strong>{money(purchase.feeCents)}</strong>
-            </p>
-            <p>
-              Total: <strong>{money(purchase.amountPaidCents)}</strong>
-            </p>
-          </div>
-        ) : (
-          <p>
-            Total: <strong>{money(purchase.amountPaidCents)}</strong>
-          </p>
-        )}
-        <p>{confirmationSettings.willCallInstructions}</p>
-        <details>
-          <summary>Door credential</summary>
-          <p>{confirmationSettings.qrCodeInstructions}</p>
-          <code className="ticket-credential">{purchase.scanToken}</code>
-        </details>
-      </div>
+      <TicketReceiptPanel purchase={purchase} settings={settings} />
       <a className="button button--secondary" href="/tickets">
         Return to tickets
       </a>
     </section>
+  );
+}
+
+export function TicketReceipt({ token }: { readonly token: string }) {
+  const [confirmationSettings, setConfirmationSettings] = useState(
+    DEFAULT_TICKET_CONFIRMATION_SETTINGS,
+  );
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void getPublicTicketConfirmationSettings(controller.signal)
+      .then((nextSettings) => {
+        setConfirmationSettings(nextSettings);
+      })
+      .catch(() => {
+        // Keeps default settings
+      });
+    return () => {
+      controller.abort();
+    };
+  }, []);
+
+  if (!token) {
+    return <p className="notice notice--error">This ticket receipt is unavailable.</p>;
+  }
+
+  return (
+    <TicketReceiptContent
+      key={`${token}:${String(refreshKey)}`}
+      onRefresh={() => {
+        setRefreshKey((key) => key + 1);
+      }}
+      settings={confirmationSettings}
+      token={token}
+    />
   );
 }
 

@@ -537,6 +537,39 @@ test.describe("public ticket pages", () => {
     await expect(page.locator("code.ticket-credential")).toContainText(scanToken);
   });
 
+  test("shows pending receipt and transitions to confirmed after polling", async ({ page }) => {
+    await routePublicBasics(page);
+    let pollCount = 0;
+    await page.route("**/api/public/tickets/order*", async (route) => {
+      pollCount++;
+      if (pollCount === 1) {
+        await route.fulfill({
+          body: JSON.stringify({
+            ...receiptResponse,
+            scanToken: null,
+            status: "pending",
+          }),
+          contentType: "application/json",
+          status: 200,
+        });
+      } else {
+        await route.fulfill({
+          body: JSON.stringify(receiptResponse),
+          contentType: "application/json",
+          status: 200,
+        });
+      }
+    });
+
+    await page.goto(`/tickets/order/success?token=${successToken}`);
+
+    await expect(page.getByRole("heading", { name: "Ticket order processing" })).toBeVisible();
+    await expect(page.locator("code.ticket-credential")).not.toBeVisible();
+
+    await expect(page.getByRole("heading", { name: "Your tickets are confirmed" })).toBeVisible();
+    await expect(page.locator("code.ticket-credential")).toContainText(scanToken);
+  });
+
   test("shows unavailable state when projection is missing", async ({ page }) => {
     await routeHealth(page);
     await routeAnonymousSession(page);

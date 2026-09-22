@@ -375,9 +375,16 @@ export async function readPublicTicketPurchase(
       purchaseId,
     },
   );
-  if (!response.ok)
+  if (response.status === 404)
     throw new TicketingError("ticket_purchase_not_found", 404, "Ticket order not found.");
+  if (!response.ok) {
+    const code = await storeErrorCode(response, "ticket_order_unavailable");
+    throw new TicketingError(code, response.status, "The ticket order could not be loaded.");
+  }
   const purchase = publicTicketPurchaseSchema.parse(await response.json());
+  if (purchase.status !== "paid") {
+    return { ...purchase, scanToken: null };
+  }
   const credential = await issueOrganizationTicketScanCredential(env, organizationId, purchase.id);
   const scanToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {
     algorithm: "HS256",

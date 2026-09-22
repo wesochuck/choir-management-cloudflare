@@ -194,10 +194,27 @@ export const ticketCheckoutResponseSchema = z.object({
   url: z.url(),
 });
 
-export const publicTicketPurchaseResponseSchema = publicTicketPurchaseSchema.extend({
-  requestId: requestIdSchema,
-  scanToken: z.string().min(1).max(4096),
-});
+export const publicTicketPurchaseResponseSchema = publicTicketPurchaseSchema
+  .extend({
+    requestId: requestIdSchema,
+    scanToken: z.string().min(1).max(4096).nullable().default(null),
+  })
+  .superRefine((purchase, context) => {
+    if (purchase.status === "paid" && !purchase.scanToken) {
+      context.addIssue({
+        code: "custom",
+        message: "Paid ticket order must have a scan token.",
+        path: ["scanToken"],
+      });
+    }
+    if (purchase.status !== "paid" && purchase.scanToken !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "Unpaid or cancelled ticket order must not have a scan token.",
+        path: ["scanToken"],
+      });
+    }
+  });
 
 export const ticketScanRequestSchema = z.object({
   eventId: z.uuid(),

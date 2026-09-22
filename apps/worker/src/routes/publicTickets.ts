@@ -252,14 +252,28 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         envelope.resourceId,
       );
       return context.json({ ...purchase, requestId: context.get("requestId") });
-    } catch {
+    } catch (error) {
+      if (error instanceof TicketingError && error.status === 404) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "Ticket order not found.",
+            requestId: context.get("requestId"),
+          },
+          404,
+        );
+      }
+      const status = error instanceof TicketingError && error.status === 429 ? 429 : 503;
       return context.json(
         {
-          code: "not_found",
-          message: "Ticket order not found.",
+          code: error instanceof TicketingError ? error.code : "ticket_order_unavailable",
+          message:
+            error instanceof TicketingError
+              ? error.message
+              : "Ticket order details are currently unavailable.",
           requestId: context.get("requestId"),
         },
-        404,
+        status,
       );
     }
   });

@@ -11,9 +11,10 @@ import {
   organizationPaymentSettingsResponseSchema,
   transactionFeeSettingsResponseSchema,
 } from "@choir/contracts";
-import { exports } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { issueSignedLink } from "../src/security/signedLinks";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import {
   setupTicketingIntegration,
@@ -418,7 +419,7 @@ describe("Organization ticketing", () => {
           "alpha.localhost",
           "/api/organization/tickets/scan",
           "POST",
-          { eventId: event.id, token: `${receipt.scanToken}x` },
+          { eventId: event.id, token: `${receipt.scanToken ?? ""}x` },
           cookie,
         )
       ).status,
@@ -635,5 +636,244 @@ describe("Organization ticketing", () => {
             .one().count,
       ),
     ).toBe(2);
+  });
+
+  it("handles receipt lifecycle across pending, paid, refunded, and expired states with scanToken invariants", async () => {
+    const cookie = await signIn();
+    const event = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          {
+            advancePriceCents: 2_000,
+            callTime: "18:00",
+            dayOfPriceCents: 2_500,
+            details: "Receipt lifecycle performance",
+            doorsOpenTime: "18:30",
+            durationMinutes: 90,
+            isTicketingEnabled: true,
+            location: "Hall A",
+            parentPerformanceId: null,
+            publicDetails: "Public notes",
+            publicGraphicFileId: null,
+            publishOnWebsite: true,
+            rsvpDeadlineDate: "2026-10-10",
+            rsvpFollowUpLeadHours: null,
+            rsvpFollowUpMode: "inherit",
+            setList: [],
+            setListApproved: false,
+            startsAt: "2026-10-15T19:00:00Z",
+            ticketCapacity: 50,
+            title: "Receipt Invariant Concert",
+            type: "Performance",
+            venueId: null,
+          },
+          cookie,
+        )
+      ).json(),
+    );
+
+    const pendingPurchaseId = crypto.randomUUID();
+    const checkoutRequestId = crypto.randomUUID();
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const pendingSessionId = `pending_${pendingPurchaseId}`;
+
+    // 1. Create a real Stripe pending purchase
+    const pendingResponse = await stub.fetch(
+      "https://organization.internal/internal/ticketing/manage",
+      {
+        body: JSON.stringify({
+          action: "create_stripe_pending",
+          checkout: {
+            buyerEmail: "pending.buyer@example.test",
+            buyerName: "Pending Buyer",
+            checkoutRequestId,
+            eventId: event.id,
+            marketingOptIn: false,
+            quantity: 1,
+          },
+          organizationId: "organization-alpha",
+          providerSessionId: pendingSessionId,
+          purchaseId: pendingPurchaseId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(pendingResponse.status).toBe(201);
+
+    const issuedAt = Math.floor(Date.now() / 1000);
+    const receiptToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {
+      algorithm: "HS256",
+      expiresAt: issuedAt + 86400,
+      issuedAt,
+      nonce: crypto.randomUUID(),
+      organizationId: "organization-alpha",
+      purpose: "ticket_receipt",
+      resourceId: pendingPurchaseId,
+      version: 1,
+    });
+
+    // 2. Pending purchase -> 200, status: "pending", scanToken: null
+    const pendingReceiptRes = await exports.default.fetch(
+      api(
+        "tickets.example.test",
+        `/api/public/tickets/order?token=${encodeURIComponent(receiptToken)}`,
+      ),
+    );
+    expect(pendingReceiptRes.status).toBe(200);
+    const pendingReceipt = publicTicketPurchaseResponseSchema.parse(await pendingReceiptRes.json());
+    expect(pendingReceipt.id).toBe(pendingPurchaseId);
+    expect(pendingReceipt.status).toBe("pending");
+    expect(pendingReceipt.scanToken).toBeNull();
+
+    // 3. Invalid receipt token -> 404
+    const invalidTokenRes = await exports.default.fetch(
+      api("tickets.example.test", `/api/public/tickets/order?token=invalid.tampered.token`),
+    );
+    expect(invalidTokenRes.status).toBe(404);
+    expect(await invalidTokenRes.json()).toMatchObject({ code: "not_found" });
+
+    // 4. Valid token on wrong Organization host -> 404
+    const wrongHostRes = await exports.default.fetch(
+      api("bravo.localhost", `/api/public/tickets/order?token=${encodeURIComponent(receiptToken)}`),
+    );
+    expect(wrongHostRes.status).toBe(404);
+    expect(await wrongHostRes.json()).toMatchObject({ code: "not_found" });
+
+    // 5. Complete payment -> 200, status: "paid", non-empty scanToken
+    const completeResponse = await stub.fetch(
+      "https://organization.internal/internal/ticketing/manage",
+      {
+        body: JSON.stringify({
+          action: "stripe_ticket_completed",
+          checkoutRequestId,
+          organizationId: "organization-alpha",
+          providerPaymentId: `pi_${pendingPurchaseId}`,
+          providerSessionId: pendingSessionId,
+          stripeEventId: crypto.randomUUID(),
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(completeResponse.status).toBe(200);
+
+    const paidReceiptRes = await exports.default.fetch(
+      api(
+        "tickets.example.test",
+        `/api/public/tickets/order?token=${encodeURIComponent(receiptToken)}`,
+      ),
+    );
+    expect(paidReceiptRes.status).toBe(200);
+    const paidReceipt = publicTicketPurchaseResponseSchema.parse(await paidReceiptRes.json());
+    expect(paidReceipt.status).toBe("paid");
+    expect(typeof paidReceipt.scanToken === "string" && paidReceipt.scanToken.length > 0).toBe(
+      true,
+    );
+
+    // 6. Refund purchase -> 200, status: "refunded", scanToken: null
+    const refundResponse = await stub.fetch(
+      "https://organization.internal/internal/ticketing/manage",
+      {
+        body: JSON.stringify({
+          action: "stripe_ticket_refunded",
+          checkoutRequestId,
+          organizationId: "organization-alpha",
+          providerPaymentId: `pi_${pendingPurchaseId}`,
+          providerSessionId: pendingSessionId,
+          stripeEventId: crypto.randomUUID(),
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(refundResponse.status).toBe(200);
+
+    const refundedReceiptRes = await exports.default.fetch(
+      api(
+        "tickets.example.test",
+        `/api/public/tickets/order?token=${encodeURIComponent(receiptToken)}`,
+      ),
+    );
+    expect(refundedReceiptRes.status).toBe(200);
+    const refundedReceipt = publicTicketPurchaseResponseSchema.parse(
+      await refundedReceiptRes.json(),
+    );
+    expect(refundedReceipt.status).toBe("refunded");
+    expect(refundedReceipt.scanToken).toBeNull();
+
+    // 7. Expired purchase -> 200, status: "expired", scanToken: null
+    const expiredPurchaseId = crypto.randomUUID();
+    const expiredCheckoutRequestId = crypto.randomUUID();
+    const expiredSessionId = `pending_${expiredPurchaseId}`;
+    await stub.fetch("https://organization.internal/internal/ticketing/manage", {
+      body: JSON.stringify({
+        action: "create_stripe_pending",
+        checkout: {
+          buyerEmail: "expired.buyer@example.test",
+          buyerName: "Expired Buyer",
+          checkoutRequestId: expiredCheckoutRequestId,
+          eventId: event.id,
+          marketingOptIn: false,
+          quantity: 1,
+        },
+        organizationId: "organization-alpha",
+        providerSessionId: expiredSessionId,
+        purchaseId: expiredPurchaseId,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    await stub.fetch("https://organization.internal/internal/ticketing/manage", {
+      body: JSON.stringify({
+        action: "stripe_ticket_expired",
+        checkoutRequestId: expiredCheckoutRequestId,
+        organizationId: "organization-alpha",
+        providerPaymentId: "",
+        providerSessionId: expiredSessionId,
+        stripeEventId: crypto.randomUUID(),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    const expiredToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {
+      algorithm: "HS256",
+      expiresAt: issuedAt + 86400,
+      issuedAt,
+      nonce: crypto.randomUUID(),
+      organizationId: "organization-alpha",
+      purpose: "ticket_receipt",
+      resourceId: expiredPurchaseId,
+      version: 1,
+    });
+    const expiredReceiptRes = await exports.default.fetch(
+      api(
+        "tickets.example.test",
+        `/api/public/tickets/order?token=${encodeURIComponent(expiredToken)}`,
+      ),
+    );
+    expect(expiredReceiptRes.status).toBe(200);
+    const expiredReceipt = publicTicketPurchaseResponseSchema.parse(await expiredReceiptRes.json());
+    expect(expiredReceipt.status).toBe("expired");
+    expect(expiredReceipt.scanToken).toBeNull();
+
+    // 8. Injected internal receipt-service failure -> 503 rather than being masked as 404
+    await runInDurableObject(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE ticket_purchases SET event_starts_at = 'invalid-datetime' WHERE id = ?",
+        pendingPurchaseId,
+      );
+    });
+    const errorReceiptRes = await exports.default.fetch(
+      api(
+        "tickets.example.test",
+        `/api/public/tickets/order?token=${encodeURIComponent(receiptToken)}`,
+      ),
+    );
+    expect(errorReceiptRes.status).toBe(503);
+    expect(await errorReceiptRes.json()).toMatchObject({ code: "ticket_order_unavailable" });
   });
 });

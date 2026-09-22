@@ -118,8 +118,17 @@ export function parseStripeConnectStatus(body) {
   };
 }
 
-export function ticketReceiptMatches(body, eventId, purchaseId) {
-  return body?.id === purchaseId && body?.eventId === eventId && body?.status === "paid";
+export function ticketReceiptMatches(body, eventId, purchaseId, expectedStatus = "paid") {
+  const matchesBasic =
+    body?.id === purchaseId && body?.eventId === eventId && body?.status === expectedStatus;
+  if (!matchesBasic) return false;
+  if (expectedStatus === "paid") {
+    return (
+      body.scanToken === undefined ||
+      (typeof body.scanToken === "string" && body.scanToken.length > 0)
+    );
+  }
+  return body.scanToken === undefined || body.scanToken === null;
 }
 
 export function commerceBoundaryResponsesSafe(responses) {
@@ -255,19 +264,35 @@ async function executeTicketCheckout(eventId) {
 }
 
 async function verifyCanonicalReceipt(successToken, eventId, purchaseId) {
-  const result = await request(
-    `${organizationHost}/api/public/tickets/order?token=${encodeURIComponent(successToken)}`,
-    "GET",
-    "",
-  );
-  if (result.response.status !== 200) {
-    throw new Error(
-      `Canonical ticket receipt failed with ${requestFailure(result.response.status, result.body)}.`,
+  const maxAttempts = 15;
+  const delayMs = 1000;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const result = await request(
+      `${organizationHost}/api/public/tickets/order?token=${encodeURIComponent(successToken)}`,
+      "GET",
+      "",
     );
+    if (result.response.status !== 200) {
+      throw new Error(
+        `Canonical ticket receipt failed with ${requestFailure(result.response.status, result.body)}.`,
+      );
+    }
+    if (ticketReceiptMatches(result.body, eventId, purchaseId, "paid")) {
+      if (typeof result.body?.scanToken !== "string" || result.body.scanToken.length === 0) {
+        throw new Error("Paid ticket receipt unexpectedly missing a scan token.");
+      }
+      return result.body;
+    }
+    if (result.body?.status === "pending") {
+      if (result.body?.scanToken !== null) {
+        throw new Error("Pending ticket receipt unexpectedly included a scan token.");
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      continue;
+    }
+    throw new Error(`Ticket receipt reached unexpected status '${result.body?.status}'.`);
   }
-  if (!ticketReceiptMatches(result.body, eventId, purchaseId)) {
-    throw new Error("The canonical ticket receipt did not match the paid qualification order.");
-  }
+  throw new Error("Timed out waiting for ticket receipt to converge to paid.");
 }
 
 async function resendTicketConfirmation(cookie, purchaseId) {
@@ -448,6 +473,33 @@ async function main() {
           console.log(
             `✅ Stripe Checkout Session created successfully on connected account: ${paidCheckoutResult.url}`,
           );
+          if (typeof paidCheckoutResult.successToken === "string") {
+            const pendingReceiptResult = await request(
+              `${organizationHost}/api/public/tickets/order?token=${encodeURIComponent(paidCheckoutResult.successToken)}`,
+              "GET",
+              "",
+            );
+            if (pendingReceiptResult.response.status !== 200) {
+              throw new Error(
+                `Pending Stripe ticket receipt failed with ${requestFailure(pendingReceiptResult.response.status, pendingReceiptResult.body)}; expected 200.`,
+              );
+            }
+            if (
+              !ticketReceiptMatches(
+                pendingReceiptResult.body,
+                paidEventId,
+                paidCheckoutResult.purchaseId,
+                "pending",
+              )
+            ) {
+              throw new Error(
+                "Pending Stripe ticket receipt did not match pending order or unexpectedly had a scan token.",
+              );
+            }
+            console.log(
+              "✅ Verified pending Stripe ticket receipt returns 200 with status: 'pending' and scanToken: null.\n",
+            );
+          }
           console.log(
             "ℹ️ Interactive card entry is required to complete paid orders in a browser; proceeding with automated qualification fixture.\n",
           );

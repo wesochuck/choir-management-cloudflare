@@ -1,10 +1,18 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, it, vi } from "vitest";
-import type { PublishedOrganizationProjection, TransactionFeeSettings } from "@choir/contracts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  PublishedOrganizationProjection,
+  PublicTicketReceipt,
+  TransactionFeeSettings,
+} from "@choir/contracts";
+import type * as AuthApiModule from "../auth/api";
 import {
+  AuthApiError,
   getPublicCommerceProjection,
+  getPublicTicketConfirmationSettings,
+  getPublicTicketPurchase,
   getPublicTransactionFeeSettings,
   getPublishedOrganizationProjection,
 } from "../auth/api";
@@ -13,20 +21,25 @@ import {
   TicketBundlePurchaseForm,
   TicketDiscountControls,
   type TicketDiscountState,
+  TicketReceipt,
   TicketsContent,
 } from "./PublicTickets";
 import { getEventVenueDetails } from "./venueDetails";
 
-vi.mock("../auth/api", () => ({
-  createPublicTicketCheckout: vi.fn(),
-  getPublicCommerceProjection: vi.fn(),
-  getPublicTicketConfirmationSettings: vi.fn(),
-  getPublicTicketDiscountAvailability: vi.fn().mockResolvedValue({ hasRedeemableCode: false }),
-  getPublicTicketPurchase: vi.fn(),
-  getPublicTransactionFeeSettings: vi.fn(),
-  getPublishedOrganizationProjection: vi.fn(),
-  quotePublicTicketCheckout: vi.fn(),
-}));
+vi.mock("../auth/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof AuthApiModule>();
+  return {
+    ...actual,
+    createPublicTicketCheckout: vi.fn(),
+    getPublicCommerceProjection: vi.fn(),
+    getPublicTicketConfirmationSettings: vi.fn(),
+    getPublicTicketDiscountAvailability: vi.fn().mockResolvedValue({ hasRedeemableCode: false }),
+    getPublicTicketPurchase: vi.fn(),
+    getPublicTransactionFeeSettings: vi.fn(),
+    getPublishedOrganizationProjection: vi.fn(),
+    quotePublicTicketCheckout: vi.fn(),
+  };
+});
 
 const feeSettings: TransactionFeeSettings = {
   fixedCents: 30,
@@ -953,5 +966,321 @@ describe("PublicTickets shell layout", () => {
     expect(screen.queryByRole("navigation", { name: "Public website" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Performances" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Donate" })).not.toBeInTheDocument();
+  });
+});
+
+describe("TicketReceipt", () => {
+  const baseSampleReceipt: PublicTicketReceipt = {
+    amountPaidCents: 2000,
+    bundleId: null,
+    bundleTitle: "",
+    buyerName: "Jane Doe",
+    checkoutMode: "stripe",
+    currency: "usd",
+    discountAmountCents: 0,
+    discountCode: null,
+    discountType: null,
+    discountValue: null,
+    discountedSubtotalCents: 0,
+    eventId: "11111111-1111-4111-8111-111111111111",
+    eventStartsAt: "2026-10-15T19:30:00Z",
+    eventTitle: "Spring Concert",
+    feeCents: 100,
+    id: "22222222-2222-4222-8222-222222222222",
+    includedEvents: [],
+    originalSubtotalCents: 1900,
+    originalUnitPriceCents: 1900,
+    quantity: 1,
+    requestId: "33333333-3333-4333-8333-333333333333",
+    scanToken: null,
+    status: "pending",
+    timezone: "America/New_York",
+    unitPriceCents: 1900,
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.mocked(getPublicTicketConfirmationSettings).mockResolvedValue({
+      pendingMessage: "Order processing message.",
+      qrCodeInstructions: "Show this QR code at the door.",
+      successMessage: "Order success message.",
+      willCallInstructions: "Pick up at will call.",
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it("automatically transitions pending -> pending -> paid and stops polling after paid", async () => {
+    const pendingReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      scanToken: null,
+      status: "pending",
+    };
+    const paidReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      scanToken: "credential.token.123",
+      status: "paid",
+    };
+
+    vi.mocked(getPublicTicketPurchase)
+      .mockResolvedValueOnce(pendingReceipt)
+      .mockResolvedValueOnce(pendingReceipt)
+      .mockResolvedValueOnce(paidReceipt);
+
+    render(<TicketReceipt token="tok-1" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getByRole("heading", { name: "Ticket order processing" })).toBeInTheDocument();
+    expect(screen.getByText("Order processing message.")).toBeInTheDocument();
+    expect(screen.queryByText("Door credential")).not.toBeInTheDocument();
+    expect(getPublicTicketPurchase).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(screen.getByRole("heading", { name: "Ticket order processing" })).toBeInTheDocument();
+    expect(getPublicTicketPurchase).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(screen.getByRole("heading", { name: "Your tickets are confirmed" })).toBeInTheDocument();
+    expect(screen.getByText("Order success message.")).toBeInTheDocument();
+    expect(screen.getByText("Door credential")).toBeInTheDocument();
+    expect(screen.getByText("credential.token.123")).toBeInTheDocument();
+    expect(getPublicTicketPurchase).toHaveBeenCalledTimes(3);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(getPublicTicketPurchase).toHaveBeenCalledTimes(3);
+  });
+
+  it("automatically transitions pending -> refunded, stops polling, and displays refunded state", async () => {
+    const pendingReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      scanToken: null,
+      status: "pending",
+    };
+    const refundedReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      scanToken: null,
+      status: "refunded",
+    };
+
+    vi.mocked(getPublicTicketPurchase)
+      .mockResolvedValueOnce(pendingReceipt)
+      .mockResolvedValueOnce(refundedReceipt);
+
+    render(<TicketReceipt token="tok-refund" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByRole("heading", { name: "Ticket order processing" })).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(screen.getByRole("heading", { name: "Ticket order refunded" })).toBeInTheDocument();
+    expect(screen.getByText("This ticket order has been refunded.")).toBeInTheDocument();
+    expect(screen.queryByText("Door credential")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(getPublicTicketPurchase).toHaveBeenCalledTimes(2);
+  });
+
+  it("automatically transitions pending -> expired, stops polling, and displays expired state", async () => {
+    const pendingReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      scanToken: null,
+      status: "pending",
+    };
+    const expiredReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      scanToken: null,
+      status: "expired",
+    };
+
+    vi.mocked(getPublicTicketPurchase)
+      .mockResolvedValueOnce(pendingReceipt)
+      .mockResolvedValueOnce(expiredReceipt);
+
+    render(<TicketReceipt token="tok-expire" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByRole("heading", { name: "Ticket order processing" })).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(screen.getByRole("heading", { name: "Ticket order expired" })).toBeInTheDocument();
+    expect(
+      screen.getByText("This ticket order has expired because payment was not completed."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Door credential")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(getPublicTicketPurchase).toHaveBeenCalledTimes(2);
+  });
+
+  it("cancels polling on unmount", async () => {
+    const pendingReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      scanToken: null,
+      status: "pending",
+    };
+    vi.mocked(getPublicTicketPurchase).mockResolvedValue(pendingReceipt);
+
+    const { unmount } = render(<TicketReceipt token="tok-unmount" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(getPublicTicketPurchase).toHaveBeenCalledTimes(1);
+
+    unmount();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(getPublicTicketPurchase).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats 404 as unavailable and does not repeatedly poll", async () => {
+    vi.mocked(getPublicTicketPurchase).mockRejectedValue(
+      new AuthApiError("Ticket order not found.", 404, "not_found"),
+    );
+
+    render(<TicketReceipt token="tok-invalid" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    expect(screen.getByText("This ticket receipt is unavailable.")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(getPublicTicketPurchase).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers from transient network or 5xx errors while polling", async () => {
+    const pendingReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      scanToken: null,
+      status: "pending",
+    };
+    const paidReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      scanToken: "recovered.token",
+      status: "paid",
+    };
+
+    vi.mocked(getPublicTicketPurchase)
+      .mockResolvedValueOnce(pendingReceipt)
+      .mockRejectedValueOnce(new AuthApiError("Internal error", 503, "ticket_order_unavailable"))
+      .mockResolvedValueOnce(paidReceipt);
+
+    render(<TicketReceipt token="tok-recover" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByRole("heading", { name: "Ticket order processing" })).toBeInTheDocument();
+
+    // Second call fails with 503
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    // Pending receipt remains visible despite transient error
+    expect(screen.getByRole("heading", { name: "Ticket order processing" })).toBeInTheDocument();
+
+    // Third call succeeds with paid
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(screen.getByRole("heading", { name: "Your tickets are confirmed" })).toBeInTheDocument();
+    expect(screen.getByText("recovered.token")).toBeInTheDocument();
+  });
+
+  it("leaves pending receipt visible with manual retry action upon poll timeout", async () => {
+    const pendingReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      scanToken: null,
+      status: "pending",
+    };
+    vi.mocked(getPublicTicketPurchase).mockResolvedValue(pendingReceipt);
+
+    render(<TicketReceipt token="tok-timeout" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByRole("heading", { name: "Ticket order processing" })).toBeInTheDocument();
+
+    // Advance beyond the 45-second timeout window
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(46000);
+    });
+
+    // Receipt details remain visible
+    expect(screen.getByRole("heading", { name: "Ticket order processing" })).toBeInTheDocument();
+    expect(screen.getByText("Jane Doe")).toBeInTheDocument();
+    expect(screen.getByText("Spring Concert")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "We are still waiting for confirmation from the payment provider. Your order details are below.",
+      ),
+    ).toBeInTheDocument();
+
+    const retryButton = screen.getByRole("button", { name: "Check status again" });
+    expect(retryButton).toBeInTheDocument();
+
+    // Clicking retry starts a new check
+    const callsBefore = vi.mocked(getPublicTicketPurchase).mock.calls.length;
+    await act(async () => {
+      retryButton.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(vi.mocked(getPublicTicketPurchase).mock.calls.length).toBeGreaterThan(callsBefore);
+  });
+
+  it("does not display Door Credential until paid response includes scanToken", async () => {
+    const pendingReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      scanToken: null,
+      status: "pending",
+    };
+    vi.mocked(getPublicTicketPurchase).mockResolvedValueOnce(pendingReceipt);
+
+    render(<TicketReceipt token="tok-cred" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.queryByText("Door credential")).not.toBeInTheDocument();
   });
 });
