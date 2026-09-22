@@ -84,10 +84,15 @@ export function createDuesCheckout(
   const sessionId = operation.providerSessionId ?? `fake_session_${crypto.randomUUID()}`;
   const pendingCheckout = operation.action === "prepare_dues_checkout";
   const checkoutRequestId = operation.checkout.checkoutRequestId || operation.requestId;
-  const feeCents = transactionProcessingFeeCents(
-    season.duesAmountCents,
+  const totalBaseAmountCents = season.duesAmountCents * operation.checkout.profileIds.length;
+  const totalFeeCents = transactionProcessingFeeCents(
+    totalBaseAmountCents,
     transactionFeeSettingsFromStore(storage),
   );
+  const baseFeePerProfileCents = Math.floor(
+    totalFeeCents / operation.checkout.profileIds.length,
+  );
+  const feeRemainderCents = totalFeeCents % operation.checkout.profileIds.length;
 
   const existingAttempt = paymentAttemptByCheckoutRequest(storage, checkoutRequestId);
   if (existingAttempt) {
@@ -102,7 +107,7 @@ export function createDuesCheckout(
         operation.checkout,
         operation.recipientEmail,
         season.duesAmountCents,
-        feeCents,
+        totalFeeCents,
       )
     ) {
       return Response.json({ code: "checkout_request_conflict" }, { status: 409 });
@@ -120,7 +125,9 @@ export function createDuesCheckout(
   try {
     // eslint-disable-next-line complexity -- validates and records one atomic multi-profile dues attempt.
     storage.transactionSync(() => {
-      for (const profileId of operation.checkout.profileIds) {
+      for (const [profileIndex, profileId] of operation.checkout.profileIds.entries()) {
+        const profileFeeCents =
+          baseFeePerProfileCents + (profileIndex < feeRemainderCents ? 1 : 0);
         const existing = storage.sql
           .exec<DuesRow>(
             `${duesSelect} WHERE d.season_id = ? AND d.profile_id = ? LIMIT 1`,
@@ -151,7 +158,7 @@ export function createDuesCheckout(
              provider_session_id = ?, provider_payment_id = ?, status = ?,
              payment_method = 'online', paid_at = ?, updated_at = ?
            WHERE id = ? AND status = 'pending'`,
-            feeCents,
+            profileFeeCents,
             operation.recipientEmail ?? "",
             sessionId,
             pendingCheckout ? "" : `fake_payment_${operation.requestId}`,
@@ -171,7 +178,7 @@ export function createDuesCheckout(
             operation.checkout.seasonId,
             profileId,
             season.duesAmountCents,
-            feeCents,
+            profileFeeCents,
             sessionId,
             pendingCheckout ? "" : `fake_payment_${operation.requestId}`,
             operation.recipientEmail ?? "",
@@ -192,7 +199,7 @@ export function createDuesCheckout(
           operation.requestId,
           JSON.stringify({
             amountCents: season.duesAmountCents,
-            feeCents,
+            profileFeeCents,
             profileId,
             seasonId: operation.checkout.seasonId,
           }),
@@ -211,7 +218,7 @@ export function createDuesCheckout(
           sessionId,
           pendingCheckout ? "" : `fake_payment_${operation.requestId}`,
           pendingCheckout ? "pending" : "paid",
-          (season.duesAmountCents + feeCents) * operation.checkout.profileIds.length,
+          totalBaseAmountCents + totalFeeCents,
           now,
           now,
         );
