@@ -199,7 +199,7 @@ export function createDuesCheckout(
           operation.requestId,
           JSON.stringify({
             amountCents: season.duesAmountCents,
-            profileFeeCents,
+            feeCents: profileFeeCents,
             profileId,
             seasonId: operation.checkout.seasonId,
           }),
