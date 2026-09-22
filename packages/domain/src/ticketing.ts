@@ -114,8 +114,7 @@ export function transactionProcessingFeeCents(
   );
 
   while (
-    chargeAmountCents -
-      providerProcessingFeeCents(chargeAmountCents, settings) <
+    chargeAmountCents - providerProcessingFeeCents(chargeAmountCents, settings) <
     baseAmountCents
   ) {
     chargeAmountCents += 1;
@@ -124,8 +123,7 @@ export function transactionProcessingFeeCents(
   while (chargeAmountCents > baseAmountCents) {
     const previousChargeCents = chargeAmountCents - 1;
     if (
-      previousChargeCents -
-        providerProcessingFeeCents(previousChargeCents, settings) <
+      previousChargeCents - providerProcessingFeeCents(previousChargeCents, settings) <
       baseAmountCents
     ) {
       break;

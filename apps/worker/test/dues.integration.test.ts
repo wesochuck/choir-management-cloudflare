@@ -88,7 +88,11 @@ describe("Organization dues and ticket payment transitions", () => {
     await expect(
       runInDurableObject<
         OrganizationStore,
-        { readonly amountCents: number; readonly feeCents: number; readonly paymentAmountCents: number }
+        {
+          readonly amountCents: number;
+          readonly feeCents: number;
+          readonly paymentAmountCents: number;
+        }
       >(stub, (_instance, state) => {
         const dues = state.storage.sql
           .exec<{ readonly amountCents: number; readonly feeCents: number }>(

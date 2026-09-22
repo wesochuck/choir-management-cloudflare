@@ -89,9 +89,7 @@ export function createDuesCheckout(
     totalBaseAmountCents,
     transactionFeeSettingsFromStore(storage),
   );
-  const baseFeePerProfileCents = Math.floor(
-    totalFeeCents / operation.checkout.profileIds.length,
-  );
+  const baseFeePerProfileCents = Math.floor(totalFeeCents / operation.checkout.profileIds.length);
   const feeRemainderCents = totalFeeCents % operation.checkout.profileIds.length;
 
   const existingAttempt = paymentAttemptByCheckoutRequest(storage, checkoutRequestId);
@@ -126,8 +124,7 @@ export function createDuesCheckout(
     // eslint-disable-next-line complexity -- validates and records one atomic multi-profile dues attempt.
     storage.transactionSync(() => {
       for (const [profileIndex, profileId] of operation.checkout.profileIds.entries()) {
-        const profileFeeCents =
-          baseFeePerProfileCents + (profileIndex < feeRemainderCents ? 1 : 0);
+        const profileFeeCents = baseFeePerProfileCents + (profileIndex < feeRemainderCents ? 1 : 0);
         const existing = storage.sql
           .exec<DuesRow>(
             `${duesSelect} WHERE d.season_id = ? AND d.profile_id = ? LIMIT 1`,
