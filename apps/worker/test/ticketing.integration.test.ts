@@ -876,4 +876,251 @@ describe("Organization ticketing", () => {
     expect(errorReceiptRes.status).toBe(503);
     expect(await errorReceiptRes.json()).toMatchObject({ code: "ticket_order_unavailable" });
   });
+
+  it("wakes the Organization scheduler promptly on Stripe ticket completion and enqueues confirmation", async () => {
+    const cookie = await signIn();
+    const event = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          {
+            advancePriceCents: 2_000,
+            callTime: "18:00",
+            dayOfPriceCents: 2_500,
+            details: "Stripe fulfillment test performance",
+            doorsOpenTime: "18:30",
+            durationMinutes: 90,
+            isTicketingEnabled: true,
+            location: "Hall A",
+            parentPerformanceId: null,
+            publicDetails: "Public notes",
+            publicGraphicFileId: null,
+            publishOnWebsite: true,
+            rsvpDeadlineDate: "2026-10-10",
+            rsvpFollowUpLeadHours: null,
+            rsvpFollowUpMode: "inherit",
+            setList: [],
+            setListApproved: false,
+            startsAt: "2026-10-15T19:00:00Z",
+            ticketCapacity: 50,
+            title: "Stripe Fulfillment Event",
+            type: "Performance",
+            venueId: null,
+          },
+          cookie,
+        )
+      ).json(),
+    );
+    await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/events/${event.id}/tickets/settings`,
+      "PUT",
+      {
+        currency: "usd",
+        enabled: true,
+        pricingTiers: [
+          {
+            capacity: 50,
+            description: "General admission",
+            id: "tier-general",
+            name: "General",
+            priceCents: 2_500,
+          },
+        ],
+        salesCutoffMinutes: 60,
+        salesOpen: true,
+        timezone: "America/New_York",
+      },
+      cookie,
+    );
+
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const pendingPurchaseId = crypto.randomUUID();
+    const checkoutRequestId = crypto.randomUUID();
+    const pendingSessionId = `pending_session_${pendingPurchaseId}`;
+    const providerPaymentId = `pi_${pendingPurchaseId}`;
+    const stripeEventId = `evt_stripe_${pendingPurchaseId}`;
+
+    // 1. Create a Stripe pending purchase
+    const pendingResponse = await stub.fetch(
+      "https://organization.internal/internal/ticketing/manage",
+      {
+        body: JSON.stringify({
+          action: "create_stripe_pending",
+          checkout: {
+            buyerEmail: "stripe.buyer@example.test",
+            buyerName: "Stripe Buyer",
+            checkoutRequestId,
+            eventId: event.id,
+            marketingOptIn: false,
+            quantity: 2,
+          },
+          organizationId: "organization-alpha",
+          providerSessionId: pendingSessionId,
+          purchaseId: pendingPurchaseId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(pendingResponse.status).toBe(201);
+
+    // 2. Put Organization alarm sufficiently far in the future
+    const distantFutureAlarm = Date.now() + 3_600_000;
+    await runInDurableObject<OrganizationStore, undefined>(stub, async (_instance, state) => {
+      await state.storage.setAlarm(distantFutureAlarm);
+      return undefined;
+    });
+    const beforeAlarm = await runInDurableObject<OrganizationStore, number | null>(
+      stub,
+      async (_instance, state) => state.storage.getAlarm(),
+    );
+    expect(beforeAlarm).toBe(distantFutureAlarm);
+
+    // 3. Invoke stripe_ticket_completed
+    const completeResponse = await stub.fetch(
+      "https://organization.internal/internal/ticketing/manage",
+      {
+        body: JSON.stringify({
+          action: "stripe_ticket_completed",
+          checkoutRequestId,
+          organizationId: "organization-alpha",
+          providerPaymentId,
+          providerSessionId: pendingSessionId,
+          stripeEventId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(completeResponse.status).toBe(200);
+
+    // 4. Assert purchase is paid, confirmation + outbox exist, and alarm moved promptly forward
+    const checkState = await runInDurableObject<
+      OrganizationStore,
+      {
+        alarm: number | null;
+        notificationCount: number;
+        notificationStatus: string | null;
+        outboxCount: number;
+        purchaseStatus: string | null;
+      }
+    >(stub, async (_instance, state) => {
+      const alarm = await state.storage.getAlarm();
+      const purchase = state.storage.sql
+        .exec<{ status: string }>(
+          "SELECT status FROM ticket_purchases WHERE id = ? LIMIT 1",
+          pendingPurchaseId,
+        )
+        .toArray()
+        .at(0);
+      const notification = state.storage.sql
+        .exec<{ status: string }>(
+          "SELECT status FROM ticket_notifications WHERE purchase_id = ? LIMIT 1",
+          pendingPurchaseId,
+        )
+        .toArray()
+        .at(0);
+      const outbox = state.storage.sql
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM scheduled_job_outbox WHERE kind = 'ticket_notification'",
+        )
+        .toArray()
+        .at(0);
+      return {
+        alarm,
+        notificationCount: notification ? 1 : 0,
+        notificationStatus: notification?.status ?? null,
+        outboxCount: outbox?.count ?? 0,
+        purchaseStatus: purchase?.status ?? null,
+      };
+    });
+
+    expect(checkState.purchaseStatus).toBe("paid");
+    expect(checkState.notificationCount).toBe(1);
+    expect(checkState.notificationStatus).toBe("queued");
+    expect(checkState.outboxCount).toBe(1);
+    expect(checkState.alarm).not.toBeNull();
+    expect(checkState.alarm).toBeLessThan(distantFutureAlarm);
+    expect(checkState.alarm).toBeLessThanOrEqual(Date.now() + 5_000);
+
+    // 5. Run Durable Object alarm -> marks outbox enqueued
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+    const enqueuedState = await runInDurableObject<OrganizationStore, boolean>(
+      stub,
+      (_instance, state) => {
+        const outbox = state.storage.sql
+          .exec<{ enqueuedAt: string | null }>(
+            "SELECT enqueued_at AS enqueuedAt FROM scheduled_job_outbox WHERE kind = 'ticket_notification' LIMIT 1",
+          )
+          .toArray()
+          .at(0);
+        return Boolean(outbox?.enqueuedAt);
+      },
+    );
+    expect(enqueuedState).toBe(true);
+
+    // 6. Deliver queued job and assert delivery result recorded
+    await deliverQueuedTicketNotification("organization-alpha");
+    const deliveredStatus = await runInDurableObject<OrganizationStore, string | null>(
+      stub,
+      (_instance, state) => {
+        const notification = state.storage.sql
+          .exec<{ status: string }>(
+            "SELECT status FROM ticket_notifications WHERE purchase_id = ? LIMIT 1",
+            pendingPurchaseId,
+          )
+          .toArray()
+          .at(0);
+        return notification?.status ?? null;
+      },
+    );
+    expect(deliveredStatus).toBe("sent");
+
+    // 7. Replay same Stripe webhook -> assert no duplicate confirmation/outbox work
+    const replayResponse = await stub.fetch(
+      "https://organization.internal/internal/ticketing/manage",
+      {
+        body: JSON.stringify({
+          action: "stripe_ticket_completed",
+          checkoutRequestId,
+          organizationId: "organization-alpha",
+          providerPaymentId,
+          providerSessionId: pendingSessionId,
+          stripeEventId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(replayResponse.status).toBe(200);
+    expect(await replayResponse.json()).toMatchObject({ duplicate: true });
+
+    const postReplayState = await runInDurableObject<
+      OrganizationStore,
+      { notificationCount: number; outboxCount: number }
+    >(stub, (_instance, state) => {
+      const notifications = state.storage.sql
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM ticket_notifications WHERE purchase_id = ?",
+          pendingPurchaseId,
+        )
+        .toArray()
+        .at(0);
+      const outbox = state.storage.sql
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM scheduled_job_outbox WHERE kind = 'ticket_notification'",
+        )
+        .toArray()
+        .at(0);
+      return {
+        notificationCount: notifications?.count ?? 0,
+        outboxCount: outbox?.count ?? 0,
+      };
+    });
+    expect(postReplayState.notificationCount).toBe(1);
+    expect(postReplayState.outboxCount).toBe(1);
+  });
 });

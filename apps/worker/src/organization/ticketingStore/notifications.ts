@@ -11,7 +11,7 @@ export function queueTicketConfirmation(
   storage: DurableObjectStorage,
   purchase: TicketPurchaseRow,
   occurredAt: string,
-): void {
+): boolean {
   const dedupeKey = `ticket-confirmation:${purchase.id}`;
   const existing = storage.sql
     .exec<{ readonly id: string }>(
@@ -20,7 +20,7 @@ export function queueTicketConfirmation(
     )
     .toArray()
     .at(0);
-  if (existing) return;
+  if (existing) return false;
 
   const notificationTemplate = readTicketMessageTemplate(
     storage,
@@ -51,6 +51,7 @@ export function queueTicketConfirmation(
     occurredAt,
     occurredAt,
   );
+  return true;
 }
 
 export function recordTicketNotificationResult(

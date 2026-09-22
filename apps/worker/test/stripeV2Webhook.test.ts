@@ -426,4 +426,37 @@ describe("Stripe Accounts v2 webhook verification & processing", () => {
       success: true,
     });
   });
+
+  it("rejects classic checkout events sent to /api/webhook/stripe/v2 as invalid_webhook_event", async () => {
+    const secret = "whsec_v2_test_secret";
+    const app = createTestApp();
+    const env = createMockEnv({
+      APP_ENV: "staging",
+      STRIPE_V2_EVENT_DESTINATION_SECRET: secret,
+    });
+
+    const classicBody = JSON.stringify({
+      account: "acct_test123",
+      data: { object: { id: "cs_test" } },
+      id: "evt_classic_123",
+      livemode: false,
+      object: "event",
+      type: "checkout.session.completed",
+    });
+    const timestamp = Math.floor(Date.now() / 1_000);
+    const signature = await stripeSignatureForTest(secret, classicBody, timestamp);
+
+    const response = await app.request(
+      "https://example.test/api/webhook/stripe/v2",
+      {
+        body: classicBody,
+        headers: { "content-type": "application/json", "stripe-signature": signature },
+        method: "POST",
+      },
+      env,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "invalid_webhook_event" });
+  });
 });

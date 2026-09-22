@@ -722,7 +722,8 @@ describe("new commerce transactions link contacts", () => {
       providerSessionId: "stripe_session_pending_1",
       stripeEventId: "evt_test_1",
     });
-    expect(completed.status).toBe(200);
+    expect(completed.response.status).toBe(200);
+    expect(completed.schedulerWorkQueued).toBe(true);
     expect(ticketContactId(db, uuidFor(305))).not.toBeNull();
     expect(countContacts(db)).toBe(2);
   });

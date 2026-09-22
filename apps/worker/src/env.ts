@@ -66,6 +66,17 @@ export type StartupConfig = z.infer<typeof startupConfigSchema>;
 export function validateStartupConfig(env: Env): StartupConfig {
   betterAuthSecretSchema.parse(env.BETTER_AUTH_SECRET);
   signedLinkSecretSchema.parse(env.SIGNED_LINK_SECRET);
+  if (
+    (env.APP_ENV === "staging" || env.APP_ENV === "production") &&
+    env.STRIPE_PAYMENTS_ENABLED?.trim().toLowerCase() === "true"
+  ) {
+    if (!env.STRIPE_SECRET_KEY?.trim()) {
+      throw new Error("Missing required Stripe secret key (STRIPE_SECRET_KEY).");
+    }
+    if (!env.STRIPE_WEBHOOK_SECRET?.trim()) {
+      throw new Error("Missing required classic Stripe webhook secret (STRIPE_WEBHOOK_SECRET).");
+    }
+  }
   return startupConfigSchema.parse({
     APP_ENV: env.APP_ENV,
     BUILD_VERSION: env.BUILD_VERSION,

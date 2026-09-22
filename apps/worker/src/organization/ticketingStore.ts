@@ -29,17 +29,28 @@ export {
   readTicketWillCallFromStore,
 } from "./ticketingStore/queries";
 
+interface StripeTicketOperationResult {
+  readonly response: Response;
+  readonly schedulerWorkQueued: boolean;
+}
+
 function dispatchStripeTicketOperation(
   storage: DurableObjectStorage,
   operation: z.infer<typeof operationSchema>,
-): Response | null {
+): StripeTicketOperationResult | null {
   switch (operation.action) {
     case "stripe_ticket_completed":
       return completeStripeTicketPurchase(storage, operation);
     case "stripe_ticket_expired":
-      return expireStripeTicketPurchase(storage, operation);
+      return {
+        response: expireStripeTicketPurchase(storage, operation),
+        schedulerWorkQueued: false,
+      };
     case "stripe_ticket_refunded":
-      return refundStripeTicketPurchases(storage, operation);
+      return {
+        response: refundStripeTicketPurchases(storage, operation),
+        schedulerWorkQueued: false,
+      };
     default:
       return null;
   }
@@ -73,7 +84,12 @@ export async function manageTicketingInStore(
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
   const stripeOperation = dispatchStripeTicketOperation(storage, operation.data);
-  if (stripeOperation) return stripeOperation;
+  if (stripeOperation) {
+    if (stripeOperation.response.ok && stripeOperation.schedulerWorkQueued) {
+      await wakeOrganizationAlarm(storage);
+    }
+    return stripeOperation.response;
+  }
   switch (operation.data.action) {
     case "create_fake_checkout": {
       const response = createFakeCheckout(storage, operation.data, organization);

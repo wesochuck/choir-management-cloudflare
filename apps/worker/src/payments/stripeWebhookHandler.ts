@@ -37,7 +37,19 @@ function problem(
   message: string,
   status: ContentfulStatusCode,
 ): Response {
-  return context.json({ code, message, requestId: context.get("requestId") }, status);
+  const requestId = context.get("requestId");
+  const endpointFamily = context.req.path.includes("/v2") ? "v2" : "classic";
+  console.warn(
+    JSON.stringify({
+      code,
+      endpointFamily,
+      environment: context.env.APP_ENV,
+      event: "stripe_webhook_failure",
+      requestId,
+      status,
+    }),
+  );
+  return context.json({ code, message, requestId }, status);
 }
 
 function objectString(object: StripeObject, key: string): string {

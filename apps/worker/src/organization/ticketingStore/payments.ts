@@ -116,21 +116,35 @@ function stripeEventWasProcessed(storage: DurableObjectStorage, eventId: string)
   );
 }
 
+export interface StripeTicketCompletionResult {
+  readonly response: Response;
+  readonly schedulerWorkQueued: boolean;
+}
+
 export function completeStripeTicketPurchase(
   storage: DurableObjectStorage,
   operation: z.infer<typeof stripeTicketCompletedOperationSchema>,
-): Response {
+): StripeTicketCompletionResult {
   const row = purchaseByStripeOperation(
     storage,
     operation.providerSessionId,
     operation.checkoutRequestId,
   );
-  if (!row) return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+  if (!row) {
+    return {
+      response: Response.json({ code: "ticket_purchase_not_found" }, { status: 404 }),
+      schedulerWorkQueued: false,
+    };
+  }
   if (stripeEventWasProcessed(storage, operation.stripeEventId)) {
-    return Response.json({ ...purchaseResult(row), duplicate: true });
+    return {
+      response: Response.json({ ...purchaseResult(row), duplicate: true }),
+      schedulerWorkQueued: false,
+    };
   }
   const occurredAt = new Date().toISOString();
   const shouldFulfill = row.status === "pending" || row.status === "expired";
+  let schedulerWorkQueued = false;
   storage.transactionSync(() => {
     if (shouldFulfill) {
       storage.sql.exec(
@@ -167,7 +181,7 @@ export function completeStripeTicketPurchase(
         occurredAt,
         row.id,
       );
-      queueTicketConfirmation(storage, row, occurredAt);
+      schedulerWorkQueued = queueTicketConfirmation(storage, row, occurredAt);
     }
     storage.sql.exec(
       `INSERT INTO audit_events
@@ -207,9 +221,12 @@ export function completeStripeTicketPurchase(
   // Phase 8: a purchase that just became paid (or an older paid row meeting a
   // duplicate webhook) links its Contact after the fulfillment transaction.
   if (updated?.status === "paid") linkPaidTicketPurchaseContact(storage, updated.id);
-  return updated
-    ? Response.json(purchaseResult(updated))
-    : Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+  return {
+    response: updated
+      ? Response.json(purchaseResult(updated))
+      : Response.json({ code: "ticket_purchase_not_found" }, { status: 404 }),
+    schedulerWorkQueued,
+  };
 }
 
 export function expireStripeTicketPurchase(
