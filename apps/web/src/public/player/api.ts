@@ -34,7 +34,7 @@ function normalizePlaylistItem(item: {
   };
 }
 
-function parsePlayerDetails(data: unknown): PlayerDetails {
+export function parsePlayerDetails(data: unknown): PlayerDetails {
   if (!isPlayerDetails(data)) throw new Error("invalid_response");
   return {
     eventArtworkFileId:
@@ -49,7 +49,7 @@ function parsePlayerDetails(data: unknown): PlayerDetails {
   };
 }
 
-function parsePublicPlaylistDetails(data: unknown): PlayerDetails {
+export function parsePublicPlaylistDetails(data: unknown): PlayerDetails {
   if (!isRecord(data) || !isRecord(data.event) || !Array.isArray(data.pieces)) {
     throw new Error("invalid_response");
   }

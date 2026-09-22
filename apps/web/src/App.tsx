@@ -258,9 +258,6 @@ function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocati
   if (pathname === "/poll") {
     return <PublicPollView />;
   }
-  if (pathname === "/player") {
-    return <PublicPlayerView />;
-  }
   if (pathname === "/auditions" || pathname === "/join") {
     return <PublicAuditionView />;
   }
@@ -279,6 +276,9 @@ function renderPublicOrProductRoute(pathname: string, productShell: ReactNode, s
   }
   if (pathname === "/tickets" || pathname.startsWith("/tickets/")) {
     return <PublicTickets pathname={pathname} />;
+  }
+  if (pathname === "/player") {
+    return <PublicPlayerView />;
   }
   return isPublicOrganizationRoute(pathname) ? (
     <PublicOrganizationSite fallback={productShell} pathname={pathname} signedIn={signedIn} />
@@ -405,10 +405,8 @@ export function App() {
         .toUpperCase()
     : "CM";
 
-  const isPlayerRoute = pathname === "/player";
-
   const productShell = (
-    <div className={`app-shell ${isPlayerRoute ? "app-shell--player" : ""}`}>
+    <div className="app-shell">
       <header className="site-header">
         <a className="brand" href="/" aria-label={`${displayName} home`}>
           {logoFileId ? (
@@ -431,13 +429,11 @@ export function App() {
               Service unavailable
             </span>
           ) : null}
-          {!isPlayerRoute ? (
-            <nav aria-label="Account">
-              <a href={sessionState.status === "authenticated" ? "/account" : "/login"}>
-                {sessionState.status === "authenticated" ? "Account" : "Sign in"}
-              </a>
-            </nav>
-          ) : null}
+          <nav aria-label="Account">
+            <a href={sessionState.status === "authenticated" ? "/account" : "/login"}>
+              {sessionState.status === "authenticated" ? "Account" : "Sign in"}
+            </a>
+          </nav>
         </div>
       </header>
 

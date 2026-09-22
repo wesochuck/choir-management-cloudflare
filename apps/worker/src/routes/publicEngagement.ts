@@ -502,6 +502,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         eventStartsAt: z.string().min(1),
         eventTitle: z.string().min(1).max(500),
         items: z.array(z.record(z.string(), z.unknown())).max(500),
+        organizationName: z.string().trim().min(1).max(120),
         performerLabel: z.string().trim().min(1).max(50).default("Performer"),
       })
       .safeParse(details);
@@ -523,6 +524,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         id: playlist.data.eventId,
         title: playlist.data.eventTitle,
       },
+      organizationName: playlist.data.organizationName,
       pieces: playlist.data.items,
       performerLabel: playlist.data.performerLabel,
       requestId: context.get("requestId"),

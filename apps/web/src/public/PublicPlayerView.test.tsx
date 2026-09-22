@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   PlayerArtwork,
+  PlayerBrand,
   PlayerHeader,
   PlayerPartSelector,
   PlayerProgress,
@@ -54,11 +55,29 @@ const mockDetails: PlayerDetails = {
   eventStartsAt: "2026-10-15T19:00:00.000Z",
   eventTitle: "Autumn Choral Festival",
   items: mockItems,
+  organizationName: "Lancaster Community Chorus",
   performerLabel: "Chamber Singer",
   profileName: "Alice",
 };
 
 describe("PublicPlayerView Components", () => {
+  describe("PlayerBrand", () => {
+    it("renders Organization name and logo request URL", () => {
+      const html = renderToString(<PlayerBrand organizationName="Lancaster Community Chorus" />);
+      expect(html).toContain("Lancaster Community Chorus");
+      expect(html).toContain('src="/api/public/logo"');
+      expect(html).toContain('alt=""');
+      expect(html).toContain('aria-label="Organization"');
+    });
+
+    it("returns null when organizationName is undefined or empty", () => {
+      const htmlUndefined = renderToString(<PlayerBrand organizationName={undefined} />);
+      expect(htmlUndefined).toBe("");
+      const htmlEmpty = renderToString(<PlayerBrand organizationName="" />);
+      expect(htmlEmpty).toBe("");
+    });
+  });
+
   describe("PlayerHeader", () => {
     it("renders event title, formatted date, and singer welcome message", () => {
       const html = renderToString(<PlayerHeader details={mockDetails} />);

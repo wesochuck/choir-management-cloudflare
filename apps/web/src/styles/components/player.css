@@ -22,6 +22,41 @@
     }
   }
 
+  .public-player__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    width: min(100%, 72rem);
+    font-weight: var(--font-weight-extrabold);
+    font-size: var(--font-size-md);
+    color: var(--color-text);
+    padding-inline: var(--spacing-3xs);
+    padding-block-end: var(--spacing-xs);
+  }
+
+  .public-player__brand-logo {
+    max-height: 2.25rem;
+    max-width: 6rem;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: var(--radius-xs, 0.25rem);
+  }
+
+  .public-player__brand-mark {
+    display: grid;
+    width: 2.25rem;
+    height: 2.25rem;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: var(--color-background);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-extrabold);
+    letter-spacing: 0.08em;
+    flex-shrink: 0;
+  }
+
   .public-player {
     display: grid;
     width: min(100%, 72rem);

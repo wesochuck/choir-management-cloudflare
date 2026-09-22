@@ -13,18 +13,43 @@ export const playerPlaylistItemSchema = z.object({
 
 export type PlayerPlaylistItem = z.infer<typeof playerPlaylistItemSchema>;
 
+export const playerBrandingSchema = z.object({
+  organizationName: z.string().trim().min(1).max(120).optional(),
+});
+
+export type PlayerBranding = z.infer<typeof playerBrandingSchema>;
+
 export const publicPlayerDetailsResponseSchema = z.object({
   eventArtworkFileId: z.uuid().nullable().optional(),
   eventId: z.uuid(),
   eventTitle: z.string(),
   eventStartsAt: z.string(),
   items: z.array(playerPlaylistItemSchema),
+  organizationName: z.string().trim().min(1).max(120).optional(),
   performerLabel: z.string().optional(),
   profileId: z.string(),
   profileName: z.string(),
 });
 
 export type PublicPlayerDetailsResponse = z.infer<typeof publicPlayerDetailsResponseSchema>;
+
+export const publicPlayerPlaylistResponseSchema = z.object({
+  allPieces: z.array(playerPlaylistItemSchema),
+  event: z.object({
+    artworkFileId: z.uuid().nullable(),
+    date: z.string(),
+    id: z.uuid(),
+    title: z.string(),
+  }),
+  organizationName: z.string().trim().min(1).max(120),
+  performerLabel: z.string().optional(),
+  pieces: z.array(playerPlaylistItemSchema),
+  requestId: z.string().optional(),
+  setList: z.array(playerPlaylistItemSchema),
+  voiceParts: z.array(z.unknown()),
+});
+
+export type PublicPlayerPlaylistResponse = z.infer<typeof publicPlayerPlaylistResponseSchema>;
 
 export const generatePlayerTokensRequestSchema = z.object({
   eventId: z.uuid(),

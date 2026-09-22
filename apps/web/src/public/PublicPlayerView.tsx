@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  PlayerBrand,
   PlayerHeader,
   PublicPracticePlayer,
   createTokenTrackSource,
@@ -74,6 +75,21 @@ export function PublicPlayerView() {
       window.removeEventListener("online", handleOnline);
     };
   }, [currentToken, isSetListPlayer, retryCount]);
+
+  useEffect(() => {
+    if (pageStatus.type !== "ready") return;
+    if (typeof document === "undefined") return;
+    const previousTitle = document.title;
+    const parts = [pageStatus.details.eventTitle, pageStatus.details.organizationName].filter(
+      Boolean,
+    );
+    if (parts.length > 0) {
+      document.title = parts.join(" · ");
+    }
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [pageStatus]);
 
   const source = useMemo(() => createTokenTrackSource(token ?? ""), [token]);
 
@@ -164,6 +180,7 @@ export function PublicPlayerView() {
 
   return (
     <main className="public-player-layout">
+      <PlayerBrand organizationName={details.organizationName} />
       <section aria-labelledby="player-title" className="public-player">
         <PlayerHeader details={details} />
         <PublicPracticePlayer

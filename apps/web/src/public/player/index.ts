@@ -2,6 +2,7 @@ export * from "./types";
 export * from "./guards";
 export * from "./api";
 export * from "./format";
+export * from "./components/PlayerBrand";
 export * from "./components/PlayerHeader";
 export * from "./components/PlayerArtwork";
 export * from "./components/PlayerPartSelector";

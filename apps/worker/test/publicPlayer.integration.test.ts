@@ -248,6 +248,7 @@ describe("public player signed flow", () => {
     const body: unknown = await response.json();
     const parsed = publicPlayerDetailsResponseSchema.parse(body);
     expect(parsed.eventArtworkFileId).toBeNull();
+    expect(parsed.organizationName).toBe("Organization bravo");
     expect(parsed.items.length).toBeGreaterThanOrEqual(3);
     const nullPiece = parsed.items.find((item) => item.title === "Chant Kyrie");
     expect(nullPiece).toBeDefined();
@@ -264,12 +265,105 @@ describe("public player signed flow", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       event: { artworkFileId: ALPHA_ARTWORK_FILE, id: ALPHA_EVENT, title: "alpha Concert" },
+      organizationName: "Organization alpha",
       setList: expect.arrayContaining([expect.objectContaining({ title: "Alleluia" })]),
     });
     const crossTenantResponse = await exports.default.fetch(
       api("bravo.localhost", `/api/public/player/playlist?token=${encodeURIComponent(token)}`),
     );
     expect(crossTenantResponse.status).toBe(404);
+  });
+
+  it("serves Organization branding and public logo independently of website publication", async () => {
+    // 1. GET /api/public/player/playlist returns correct organizationName
+    const alphaToken = await issuePublicPlayerToken("organization-alpha", ALPHA_EVENT);
+    const playlistResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/player/playlist?token=${encodeURIComponent(alphaToken)}`),
+    );
+    expect(playlistResponse.status).toBe(200);
+    const playlistBody = await playlistResponse.json();
+    expect(playlistBody).toMatchObject({ organizationName: "Organization alpha" });
+
+    // 2. recipient-scoped /api/public/player-details returns correct Organization name
+    const alphaMemberToken = await issuePlayerToken(
+      "organization-alpha",
+      ALPHA_EVENT,
+      ALPHA_PROFILE,
+    );
+    const detailsResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/player-details", {
+        body: JSON.stringify({ token: alphaMemberToken }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(detailsResponse.status).toBe(200);
+    const detailsBody = publicPlayerDetailsResponseSchema.parse(await detailsResponse.json());
+    expect(detailsBody.organizationName).toBe("Organization alpha");
+
+    // 3. Alpha player links on Alpha hostname return Alpha branding; Bravo returns Bravo branding
+    const bravoMemberToken = await issuePlayerToken(
+      "organization-bravo",
+      BRAVO_EVENT,
+      BRAVO_PROFILE,
+    );
+    const bravoDetailsResponse = await exports.default.fetch(
+      api("bravo.localhost", "/api/public/player-details", {
+        body: JSON.stringify({ token: bravoMemberToken }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(bravoDetailsResponse.status).toBe(200);
+    const bravoDetails = publicPlayerDetailsResponseSchema.parse(await bravoDetailsResponse.json());
+    expect(bravoDetails.organizationName).toBe("Organization bravo");
+
+    // 4. cross-tenant token/hostname use still returns 404
+    const crossTenantResponse = await exports.default.fetch(
+      api("bravo.localhost", "/api/public/player-details", {
+        body: JSON.stringify({ token: alphaMemberToken }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(crossTenantResponse.status).toBe(404);
+
+    // 5. Organization name is available even when no hosted website has been published
+    expect(playlistBody).toMatchObject({ organizationName: "Organization alpha" });
+
+    // 6. /api/public/logo returns the correct Organization logo independently of website publication
+    const logoFileId = "f0000000-0000-4000-8000-000000000099";
+    const sampleBytes = [137, 80, 78, 71, 13, 10, 26, 10];
+    const sampleBuffer = new Uint8Array(sampleBytes).buffer;
+    const samplePng = new Uint8Array(sampleBuffer);
+    await uploadPrivateOrganizationFile(
+      { ORGANIZATION_FILES: organizationFiles, ORGANIZATION_STORE: stores },
+      {
+        actorUserId: "public-player",
+        body: sampleBuffer,
+        contentType: "image/png",
+        fileId: logoFileId,
+        fileName: "alpha-logo.png",
+        organizationId: "organization-alpha",
+        requestId: crypto.randomUUID(),
+        sizeBytes: sampleBuffer.byteLength,
+      },
+    );
+    const alphaStub = stores.get(stores.idFromName("organization-alpha"));
+    await runInDurableObject<OrganizationStore, null>(alphaStub, (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE organization_metadata SET logo_file_id = ? WHERE organization_id = ?",
+        logoFileId,
+        "organization-alpha",
+      );
+      return null;
+    });
+
+    const logoResponse = await exports.default.fetch(api("alpha.localhost", "/api/public/logo"));
+    expect(logoResponse.status).toBe(200);
+    expect(logoResponse.headers.get("content-type")).toBe("image/png");
+    const logoBytes = new Uint8Array(await logoResponse.arrayBuffer());
+    expect(logoBytes).toEqual(samplePng);
   });
 
   it("rejects a token used on the wrong hostname", async () => {

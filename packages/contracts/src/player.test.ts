@@ -102,9 +102,11 @@ describe("Player contracts null-matrix and validation", () => {
       const parsed = publicPlayerDetailsResponseSchema.parse({
         ...validDetails,
         eventArtworkFileId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        organizationName: "Lancaster Community Chorus",
         performerLabel: "Choir Member",
       });
       expect(parsed.eventArtworkFileId).toBe("ffffffff-ffff-4fff-8fff-ffffffffffff");
+      expect(parsed.organizationName).toBe("Lancaster Community Chorus");
       expect(parsed.performerLabel).toBe("Choir Member");
     });
 
