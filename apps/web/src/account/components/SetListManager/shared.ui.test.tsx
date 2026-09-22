@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { SetListPreview } from "./shared";
 import type { SetListItem } from "./types";
 import { setListDocumentText } from "./utils";
+import { SetListItemSummaryText } from "./view";
 
 function piece(overrides: Partial<OrganizationMusicPiece> = {}): OrganizationMusicPiece {
   return organizationMusicPieceSchema.parse({
@@ -151,5 +152,137 @@ describe("SetListPreview credit formatting", () => {
     expect(text).toContain("3. Elijah Rock ~ arr. Moses Hogan");
     expect(text).toContain("4. Traditional Chants");
     expect(text).toContain("Intermission");
+  });
+});
+
+describe("SetListItemSummaryText (Admin Set List Builder)", () => {
+  const missingRecording = { status: "missing" } as const;
+
+  it("renders both composer and arranger when both exist", () => {
+    const { container } = render(
+      <SetListItemSummaryText
+        arranger="Peter J. Wilhousky"
+        composer="Mykola Leontovych"
+        duration="1:52"
+        isSong={true}
+        itemNotes=""
+        recordingStatus={missingRecording}
+      />,
+    );
+    expect(container.textContent).toContain("Mykola Leontovych · arr. Peter J. Wilhousky · 1:52");
+  });
+
+  it("renders composer only without prefix when arranger is absent", () => {
+    const { container } = render(
+      <SetListItemSummaryText
+        arranger=""
+        composer="George Frideric Handel"
+        duration="3:45"
+        isSong={true}
+        itemNotes=""
+        recordingStatus={missingRecording}
+      />,
+    );
+    expect(container.textContent).toContain("George Frideric Handel · 3:45");
+    expect(container.textContent).not.toContain("arr.");
+  });
+
+  it("renders arranger only with 'arr. ' prefix when composer is absent", () => {
+    const { container } = render(
+      <SetListItemSummaryText
+        arranger="Moses Hogan"
+        composer=""
+        duration="2:10"
+        isSong={true}
+        itemNotes=""
+        recordingStatus={missingRecording}
+      />,
+    );
+    expect(container.textContent).toContain("arr. Moses Hogan · 2:10");
+  });
+
+  it("renders only duration when neither composer nor arranger exists", () => {
+    const { container } = render(
+      <SetListItemSummaryText
+        arranger=""
+        composer=""
+        duration="4:00"
+        isSong={true}
+        itemNotes=""
+        recordingStatus={missingRecording}
+      />,
+    );
+    expect(container.textContent).toContain("4:00");
+    expect(container.textContent).not.toContain("· 4:00");
+  });
+
+  it("does not render composer or arranger credits for intermission/non-song items", () => {
+    const { container } = render(
+      <SetListItemSummaryText
+        arranger="Should Not Appear"
+        composer="Should Not Appear"
+        duration="15:00"
+        isSong={false}
+        itemNotes=""
+        recordingStatus={missingRecording}
+      />,
+    );
+    expect(container.textContent).not.toContain("Should Not Appear");
+    expect(container.textContent).toBe("15:00");
+  });
+
+  it("explicitly contrasts Admin Builder against Print & Copy for the same song", () => {
+    const composer = "Mykola Leontovych";
+    const arranger = "Peter J. Wilhousky";
+
+    // 1. Admin Builder shows both:
+    const { container: adminContainer } = render(
+      <SetListItemSummaryText
+        arranger={arranger}
+        composer={composer}
+        duration="1:52"
+        isSong={true}
+        itemNotes=""
+        recordingStatus={missingRecording}
+      />,
+    );
+    expect(adminContainer.textContent).toContain(
+      "Mykola Leontovych · arr. Peter J. Wilhousky · 1:52",
+    );
+
+    // 2. Print & Copy shows only arranger (arranger-first rule):
+    const items: SetListItem[] = [
+      {
+        id: "item-1",
+        pieceId: "11111111-1111-4111-8111-111111111111",
+        title: "Carol of the Bells",
+        type: "song",
+      },
+    ];
+    const catalog = [
+      piece({
+        arranger,
+        composer,
+        id: "11111111-1111-4111-8111-111111111111",
+        title: "Carol of the Bells",
+      }),
+    ];
+    const event = organizationEventSchema.parse({
+      createdAt: "2026-08-01T12:00:00.000Z",
+      id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+      location: "Hall",
+      setList: [],
+      startsAt: "2026-12-05T19:30:00.000Z",
+      title: "Concert",
+      type: "Performance",
+      updatedAt: "2026-08-01T12:00:00.000Z",
+    });
+
+    const { container: printContainer } = render(
+      <SetListPreview event={event} items={items} music={catalog} />,
+    );
+    const printCredit = printContainer.querySelector(".set-list-preview__composer")?.textContent;
+    expect(printCredit).toBe("arr. Peter J. Wilhousky");
+    expect(printCredit).not.toContain("Mykola Leontovych");
   });
 });

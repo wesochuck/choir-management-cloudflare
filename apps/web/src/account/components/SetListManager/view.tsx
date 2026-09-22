@@ -10,12 +10,14 @@ import {
 } from "react";
 import {
   displayEvent,
+  effectiveSetListItemArranger,
   effectiveSetListItemComposer,
   effectiveSetListItemDuration,
   effectiveSetListItemNotes,
   itemType,
   normalizeItems,
   printTimeOnly,
+  setListBuilderCredit,
   setListItemRecordingStatus,
   setListHasLearningTrack,
   setListRecordingCoverage,
@@ -69,20 +71,23 @@ function SetListItemNotes({
   return <p className="set-list-item-notes">{notes}</p>;
 }
 
-function SetListItemSummaryText({
+export function SetListItemSummaryText({
+  arranger,
   composer,
   duration,
   isSong,
   itemNotes,
   recordingStatus,
 }: {
+  readonly arranger?: string | undefined;
   readonly composer: string | undefined;
   readonly duration: string | undefined;
   readonly isSong: boolean;
   readonly itemNotes: string;
   readonly recordingStatus: SetListItemRecordingStatus;
 }) {
-  const details = [composer, duration].filter(Boolean).join(" · ");
+  const credit = isSong ? setListBuilderCredit(composer, arranger) : undefined;
+  const details = [credit, duration].filter(Boolean).join(" · ");
   const hasDetails = Boolean(details);
 
   return (
@@ -571,7 +576,10 @@ export function SetListManagerView({
                           type="button"
                         >
                           <strong>{piece.title}</strong>
-                          <span>{piece.composer || "Composer not listed"}</span>
+                          <span>
+                            {setListBuilderCredit(piece.composer, piece.arranger) ??
+                              "Composer not listed"}
+                          </span>
                         </button>
                       ))
                     ) : (
@@ -830,6 +838,7 @@ export function SetListManagerView({
                         </div>
                         <div className="set-list-item-summary">
                           <SetListItemSummaryText
+                            arranger={effectiveSetListItemArranger(item, resources.music)}
                             composer={effectiveSetListItemComposer(item, resources.music)}
                             duration={effectiveSetListItemDuration(item, resources.music)}
                             isSong={itemType(item) === "song"}

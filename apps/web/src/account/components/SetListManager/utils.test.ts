@@ -7,12 +7,14 @@ import {
 import { describe, expect, it } from "vitest";
 
 import {
+  effectiveSetListItemArranger,
   effectiveSetListItemComposer,
   effectiveSetListItemDuration,
   effectiveSetListItemDurationSeconds,
   effectiveSetListItemNotes,
   musicPiecesForSetListItem,
   resolveSetListPreferredPracticeTrack,
+  setListBuilderCredit,
   setListDocumentText,
   setListItemForEdit,
   setListItemRecordingStatus,
@@ -167,6 +169,55 @@ describe("setListPrintedCredit", () => {
 
   it("treats whitespace-only values as absent", () => {
     expect(setListPrintedCredit("   ", "   ")).toBe("");
+  });
+});
+
+describe("setListBuilderCredit", () => {
+  it("shows both composer and arranger with 'arr. ' prefix when both exist", () => {
+    expect(setListBuilderCredit("Stephen Paulus", "Mark Hayes")).toBe(
+      "Stephen Paulus · arr. Mark Hayes",
+    );
+  });
+
+  it("shows composer with no prefix when arranger is absent", () => {
+    expect(setListBuilderCredit("John Smith", undefined)).toBe("John Smith");
+    expect(setListBuilderCredit("John Smith", "")).toBe("John Smith");
+    expect(setListBuilderCredit("John Smith", null)).toBe("John Smith");
+  });
+
+  it("shows arranger with 'arr. ' prefix when composer is absent", () => {
+    expect(setListBuilderCredit(undefined, "Jane Doe")).toBe("arr. Jane Doe");
+    expect(setListBuilderCredit("", "Jane Doe")).toBe("arr. Jane Doe");
+    expect(setListBuilderCredit(null, "Jane Doe")).toBe("arr. Jane Doe");
+  });
+
+  it("returns undefined when neither arranger nor composer exists", () => {
+    expect(setListBuilderCredit(undefined, undefined)).toBeUndefined();
+    expect(setListBuilderCredit("", "")).toBeUndefined();
+    expect(setListBuilderCredit(null, null)).toBeUndefined();
+  });
+
+  it("trims surrounding whitespace from composer and arranger", () => {
+    expect(setListBuilderCredit("  Stephen Paulus  ", "  Mark Hayes  ")).toBe(
+      "Stephen Paulus · arr. Mark Hayes",
+    );
+    expect(setListBuilderCredit("   ", "  Mark Hayes  ")).toBe("arr. Mark Hayes");
+    expect(setListBuilderCredit("  Stephen Paulus  ", "   ")).toBe("Stephen Paulus");
+  });
+
+  it("treats whitespace-only values as absent", () => {
+    expect(setListBuilderCredit("   ", "   ")).toBeUndefined();
+  });
+
+  it("intentionally differs from Print & Copy (arranger precedence) behavior", () => {
+    const composer = "Stephen Paulus";
+    const arranger = "Mark Hayes";
+
+    // Admin Builder shows both:
+    expect(setListBuilderCredit(composer, arranger)).toBe("Stephen Paulus · arr. Mark Hayes");
+
+    // Print & Copy shows only arranger:
+    expect(setListPrintedCredit(arranger, composer)).toBe("arr. Mark Hayes");
   });
 });
 
@@ -358,6 +409,46 @@ describe("effectiveSetListItemComposer", () => {
       type: "intermission",
     };
     expect(effectiveSetListItemComposer(item, music)).toBeUndefined();
+  });
+});
+
+describe("effectiveSetListItemArranger", () => {
+  const musicWithArranger = [
+    piece({
+      arranger: "Mark Hayes",
+      id: pieceId,
+      title: "The Road Home",
+    }),
+  ];
+
+  it("falls back to linked library piece arranger", () => {
+    const item: SetListItem = {
+      id: "item-1",
+      pieceId,
+      title: "The Road Home",
+      type: "song",
+    };
+    expect(effectiveSetListItemArranger(item, musicWithArranger)).toBe("Mark Hayes");
+  });
+
+  it("returns undefined when linked piece has no arranger", () => {
+    const item: SetListItem = {
+      id: "item-1",
+      pieceId,
+      title: "The Road Home",
+      type: "song",
+    };
+    expect(effectiveSetListItemArranger(item, [piece({ arranger: "" })])).toBeUndefined();
+  });
+
+  it("returns undefined for intermission items", () => {
+    const item: SetListItem = {
+      id: "item-2",
+      pieceId,
+      title: "Intermission",
+      type: "intermission",
+    };
+    expect(effectiveSetListItemArranger(item, musicWithArranger)).toBeUndefined();
   });
 });
 

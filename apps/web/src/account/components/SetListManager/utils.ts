@@ -303,6 +303,27 @@ export function effectiveSetListItemComposer(
   );
 }
 
+/** Effective arranger for an item: item's own arranger wins (if present),
+ * otherwise fall back to the arranger of the linked music piece if present. */
+export function effectiveSetListItemArranger(
+  item: SetListItem,
+  music: readonly OrganizationMusicPiece[],
+): string | undefined {
+  if (itemType(item) !== "song") return undefined;
+  const itemCandidate: unknown = item;
+  const itemArranger =
+    typeof itemCandidate === "object" &&
+    itemCandidate !== null &&
+    "arranger" in itemCandidate &&
+    typeof itemCandidate.arranger === "string"
+      ? itemCandidate.arranger
+      : undefined;
+  return (
+    trimmedOrUndefined(itemArranger) ??
+    trimmedOrUndefined(musicPieceForSetListItem(item, music)?.arranger)
+  );
+}
+
 export function normalizeItems(items: readonly SetListItem[]): SetListItem[] {
   return items.map((item) => ({ ...item, id: item.id ?? crypto.randomUUID() }));
 }
@@ -408,6 +429,28 @@ export function setListPrintedCredit(
 
   const normalizedComposer = composer?.trim();
   return normalizedComposer ?? "";
+}
+
+/** Formats credits for the Admin Set List Builder: displays both composer and
+ * arranger when both exist, or the single credit with proper formatting when only
+ * one exists. Returns undefined if neither is present. */
+export function setListBuilderCredit(
+  composer: string | null | undefined,
+  arranger: string | null | undefined,
+): string | undefined {
+  const normalizedComposer = composer?.trim();
+  const normalizedArranger = arranger?.trim();
+
+  if (normalizedComposer && normalizedArranger) {
+    return `${normalizedComposer} · arr. ${normalizedArranger}`;
+  }
+  if (normalizedComposer) {
+    return normalizedComposer;
+  }
+  if (normalizedArranger) {
+    return `arr. ${normalizedArranger}`;
+  }
+  return undefined;
 }
 
 export function setListDocumentText(
