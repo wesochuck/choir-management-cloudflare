@@ -197,10 +197,10 @@ describe("PublicDonationView", () => {
       expect(screen.getByRole("heading", { name: "Support our Choir" })).toBeInTheDocument();
     });
 
-    // 2500 cents * 2.9% + 30 cents = 72.5 + 30 = 103 cents = $1.03
-    expect(screen.getByText("$1.03")).toBeInTheDocument();
-    // Total: 2500 + 103 = 2603 = $26.03
-    expect(screen.getByText("$26.03")).toBeInTheDocument();
+    // Gross up the charge so Stripe's 2.9% + $0.30 fee is paid by the donor
+    // while the Organization still nets the full $25.00 donation.
+    expect(screen.getByText("$1.06")).toBeInTheDocument();
+    expect(screen.getByText("$26.06")).toBeInTheDocument();
   });
 
   it("submits checkout with correct payload when form is valid", async () => {
