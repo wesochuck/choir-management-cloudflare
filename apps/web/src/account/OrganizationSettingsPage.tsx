@@ -386,7 +386,7 @@ function TransactionFeeSettingsSection({
     percentage: 2.9,
   };
   const exampleFeeCents = transactionProcessingFeeCents(1_000, currentFeeSettings);
-  const examplePayerTotalCents = 1_000 + (currentFeeSettings.passFeeToDonor ? exampleFeeCents : 0);
+  const examplePayerTotalCents = 1_000 + exampleFeeCents;
 
   return (
     <fieldset className="surface-card organization-settings-panel">
@@ -414,6 +414,7 @@ function TransactionFeeSettingsSection({
               Percentage (%)
               <input
                 id="transaction-fee-percentage"
+                max="99.99"
                 min="0"
                 onChange={(event) => {
                   setTransactionFeeSettings((current) => ({
@@ -462,11 +463,11 @@ function TransactionFeeSettingsSection({
             Pass the processing fee through to donors
           </label>
           <p className="notice notice--info">
-            On a $10.00 charge, the processing fee is {money(exampleFeeCents)} (
-            {money(Math.round(1_000 * (transactionFeeSettings.percentage / 100)))} variable +{" "}
-            {money(transactionFeeSettings.fixedCents)} fixed), for a total of{" "}
-            {money(examplePayerTotalCents)} paid by the donor when pass-through is enabled;
-            otherwise the Organization covers the fee.
+            On a $10.00 base amount, the grossed-up processing fee is {money(exampleFeeCents)}, for
+            a payer total of {money(examplePayerTotalCents)}. This calculation accounts for the fee
+            Stripe charges on the processing-fee portion itself so the Organization nets the full
+            $10.00. Tickets, ticket bundles, and dues always add this fee; donations add it only
+            when pass-through is enabled.
           </p>
         </div>
       ) : null}
