@@ -6,10 +6,52 @@ export interface InlinePracticeTrackPlayerProps {
   readonly className?: string | undefined;
   readonly fileId: string;
   readonly label?: string | undefined;
+  readonly lowercaseLabelInAria?: boolean | undefined;
   readonly onPause?: (() => void) | undefined;
   readonly onPlay?: (() => void) | undefined;
   readonly pieceTitle: string;
   readonly showLabelInButton?: boolean | undefined;
+  readonly trackTypeNoun?: string | undefined;
+}
+
+function getPlayerButtonLabel(
+  isPlaying: boolean,
+  currentTime: number,
+  defaultButtonLabel: string,
+): string {
+  if (isPlaying || currentTime > 0) {
+    return audioTimeText(currentTime);
+  }
+  return defaultButtonLabel;
+}
+
+function getPlayerActionAria(params: {
+  currentTime: number;
+  isPlaying: boolean;
+  label: string;
+  lowercaseLabelInAria: boolean;
+  pieceTitle: string;
+  trackTypeNoun: string;
+}): string {
+  const { currentTime, isPlaying, label, lowercaseLabelInAria, pieceTitle, trackTypeNoun } = params;
+  const modifier = lowercaseLabelInAria ? label.toLowerCase() : label;
+  const action = isPlaying ? "Pause" : currentTime > 0 ? "Resume" : "Play";
+  return `${action} ${modifier} ${trackTypeNoun} for ${pieceTitle}`;
+}
+
+function getPlayerButtonTitle(
+  isPlaying: boolean,
+  currentTime: number,
+  duration: number,
+  label: string,
+): string {
+  if (isPlaying) {
+    return `Pause (${audioTimeText(currentTime)} / ${audioTimeText(duration)})`;
+  }
+  if (currentTime > 0) {
+    return `Resume (${audioTimeText(currentTime)} / ${audioTimeText(duration)})`;
+  }
+  return `Play ${label}`;
 }
 
 export function InlinePracticeTrackPlayer({
@@ -17,10 +59,12 @@ export function InlinePracticeTrackPlayer({
   className = "",
   fileId,
   label = "Practice track",
+  lowercaseLabelInAria = false,
   onPause,
   onPlay,
   pieceTitle,
   showLabelInButton = false,
+  trackTypeNoun = "recording",
 }: InlinePracticeTrackPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -57,23 +101,16 @@ export function InlinePracticeTrackPlayer({
 
   const src = `/api/organization/files/${encodeURIComponent(fileId)}`;
   const defaultButtonLabel = showLabelInButton ? `Play ${label}` : "Play";
-  const labelText = isPlaying
-    ? audioTimeText(currentTime)
-    : currentTime > 0
-      ? audioTimeText(currentTime)
-      : defaultButtonLabel;
-
-  const actionAria = isPlaying
-    ? `Pause ${label} recording for ${pieceTitle}`
-    : currentTime > 0
-      ? `Resume ${label} recording for ${pieceTitle}`
-      : `Play ${label} recording for ${pieceTitle}`;
-
-  const buttonTitle = isPlaying
-    ? `Pause (${audioTimeText(currentTime)} / ${audioTimeText(duration)})`
-    : currentTime > 0
-      ? `Resume (${audioTimeText(currentTime)} / ${audioTimeText(duration)})`
-      : `Play ${label}`;
+  const labelText = getPlayerButtonLabel(isPlaying, currentTime, defaultButtonLabel);
+  const actionAria = getPlayerActionAria({
+    currentTime,
+    isPlaying,
+    label,
+    lowercaseLabelInAria,
+    pieceTitle,
+    trackTypeNoun,
+  });
+  const buttonTitle = getPlayerButtonTitle(isPlaying, currentTime, duration, label);
 
   return (
     <div

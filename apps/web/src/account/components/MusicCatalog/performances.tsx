@@ -392,7 +392,9 @@ export function MusicTableTrackPlayer({
       className="music-table-track-player"
       fileId={track.fileId}
       label={track.label}
+      lowercaseLabelInAria={true}
       pieceTitle={piece.title}
+      trackTypeNoun="learning track"
     />
   );
 }

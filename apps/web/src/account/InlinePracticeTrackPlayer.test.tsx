@@ -50,4 +50,18 @@ describe("InlinePracticeTrackPlayer", () => {
     expect(html).toContain("custom-player-class");
     expect(html).toContain("custom-button-class");
   });
+
+  it("supports lowercaseLabelInAria and custom trackTypeNoun for catalog learning tracks", () => {
+    const html = renderToString(
+      <InlinePracticeTrackPlayer
+        fileId="file-catalog-1"
+        label="Tutti"
+        lowercaseLabelInAria
+        pieceTitle="First Work"
+        trackTypeNoun="learning track"
+      />,
+    );
+
+    expect(html).toContain('aria-label="Play tutti learning track for First Work"');
+  });
 });
