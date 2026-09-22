@@ -34,7 +34,7 @@ export const donationSettingsResponseSchema = donationSettingsSchema.extend({
 export const transactionFeeSettingsSchema = z.object({
   fixedCents: z.number().int().nonnegative().max(100_000),
   passFeeToDonor: z.boolean().default(false),
-  percentage: z.number().min(0).max(100),
+  percentage: z.number().min(0).max(99.99),
 });
 
 export const transactionFeeSettingsResponseSchema = transactionFeeSettingsSchema.extend({
