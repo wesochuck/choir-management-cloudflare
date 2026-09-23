@@ -1,6 +1,7 @@
 import {
   communicationAudienceRequestSchema,
   communicationDraftRequestSchema,
+  communicationReachSchema,
   communicationRecipientSubjectSchema,
   communicationSendRequestSchema,
   communicationTemplateRequestSchema,
@@ -59,13 +60,7 @@ export const saveOperationSchema = contextSchema.extend({
   action: z.literal("save-draft"),
   message: communicationDraftRequestSchema,
   messageId: z.uuid(),
-  reach: z.object({
-    both: z.number().int().nonnegative(),
-    email: z.number().int().nonnegative(),
-    sms: z.number().int().nonnegative(),
-    total: z.number().int().nonnegative(),
-    unreachable: z.number().int().nonnegative(),
-  }),
+  reach: communicationReachSchema,
 });
 export const sendOperationSchema = contextSchema
   .extend({
@@ -77,9 +72,36 @@ export const sendOperationSchema = contextSchema
     dedupeKey: z.string().trim().min(1).max(256).optional(),
     message: communicationSendRequestSchema,
     messageId: z.uuid(),
-    recipients: z.array(recipientSchema).max(500),
+    recipients: z.array(recipientSchema).max(MAX_COMMUNICATION_DELIVERIES),
+    ticketBuyerPurchasesOverLimit: z.number().int().nonnegative().default(0),
+    undeliverableTicketBuyerPurchases: z.number().int().nonnegative().default(0),
   })
   .superRefine((value, refinementContext) => {
+    const recipientLimit =
+      value.message.audience.ticketBuyerMode === "ticket_service"
+        ? MAX_COMMUNICATION_DELIVERIES
+        : 500;
+    if (value.recipients.length > recipientLimit) {
+      refinementContext.addIssue({
+        code: "too_big",
+        maximum: recipientLimit,
+        origin: "array",
+        path: ["recipients"],
+        type: "array",
+        inclusive: true,
+        message: `A communication cannot contain more than ${String(recipientLimit)} recipients.`,
+      });
+    }
+    if (
+      value.message.audience.ticketBuyerMode === "ticket_service" &&
+      value.ticketBuyerPurchasesOverLimit > 0
+    ) {
+      refinementContext.addIssue({
+        code: "custom",
+        message: `The complete ticket-holder audience exceeds the ${String(MAX_COMMUNICATION_DELIVERIES)}-recipient message limit.`,
+        path: ["ticketBuyerPurchasesOverLimit"],
+      });
+    }
     const deliveryCount = value.recipients.reduce(
       (count, recipient) =>
         count +

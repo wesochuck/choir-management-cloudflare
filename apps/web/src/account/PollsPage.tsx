@@ -588,6 +588,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
           profileIds: [],
           rsvp: "All",
           targetAudiences: ["Members"],
+          ticketBuyerMode: "marketing",
           voiceParts: [],
         },
         channel: "Email",

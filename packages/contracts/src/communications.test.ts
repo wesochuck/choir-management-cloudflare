@@ -4,6 +4,8 @@ import {
   COMMUNICATION_AUDIENCE_CONTACT_IDS_MAX,
   COMMUNICATION_AUDIENCE_CONTACT_LISTS_MAX,
   communicationAudienceRequestSchema,
+  communicationDraftRequestSchema,
+  communicationMessageSchema,
   communicationRecipientSubjectFromLegacy,
   communicationRecipientSubjectId,
   communicationRecipientSubjectSchema,
@@ -64,6 +66,63 @@ describe("Communication audience contracts", () => {
       contactIds: [],
       contactListIds: [],
       targetAudiences: ["Members"],
+      ticketBuyerMode: "marketing",
+    });
+  });
+
+  it("defaults old ticket-buyer audiences to marketing and validates service combinations", () => {
+    expect(
+      communicationAudienceRequestSchema.parse({ targetAudiences: ["Ticket Buyers"] })
+        .ticketBuyerMode,
+    ).toBe("marketing");
+    const serviceAudience = {
+      eventId: "77777777-7777-4777-8777-777777777777",
+      targetAudiences: ["Ticket Buyers"],
+      ticketBuyerMode: "ticket_service",
+    };
+    expect(communicationAudienceRequestSchema.safeParse(serviceAudience).success).toBe(true);
+    expect(
+      communicationAudienceRequestSchema.safeParse({
+        ...serviceAudience,
+        eventId: null,
+      }).success,
+    ).toBe(false);
+    expect(
+      communicationAudienceRequestSchema.safeParse({
+        ...serviceAudience,
+        targetAudiences: ["Ticket Buyers", "Contacts"],
+      }).success,
+    ).toBe(false);
+    expect(
+      communicationDraftRequestSchema.safeParse({
+        audience: serviceAudience,
+        channel: "Both",
+        contentMarkdown: "Notice",
+        subject: "Performance update",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("parses historical message audiences and reach snapshots with safe defaults", () => {
+    const historical = communicationMessageSchema.parse({
+      audience: {
+        eventId: "77777777-7777-4777-8777-777777777777",
+        targetAudiences: ["Ticket Buyers"],
+      },
+      channel: "Email",
+      contentMarkdown: "Historical message",
+      createdAt: "2026-08-01T00:00:00.000Z",
+      id: "88888888-8888-4888-8888-888888888888",
+      reach: { both: 0, email: 0, sms: 0, total: 0, unreachable: 0 },
+      sentAt: null,
+      status: "Draft",
+      subject: "Historical message",
+      updatedAt: "2026-08-01T00:00:00.000Z",
+    });
+    expect(historical.audience.ticketBuyerMode).toBe("marketing");
+    expect(historical.reach).toMatchObject({
+      ticketBuyerPurchasesOverLimit: 0,
+      undeliverableTicketBuyerPurchases: 0,
     });
   });
 

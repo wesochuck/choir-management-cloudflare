@@ -21,6 +21,7 @@ import {
 import {
   communicationReach,
   dedupeCommunicationCandidates,
+  normalizeEmail,
   type CommunicationRecipientCandidate,
 } from "@choir/domain";
 import { z } from "zod";
@@ -36,6 +37,8 @@ import {
 } from "./rpc/repository";
 
 const candidateResponseSchema = z.object({
+  ticketBuyerPurchasesOverLimit: z.number().int().nonnegative().default(0),
+  undeliverableTicketBuyerPurchases: z.number().int().nonnegative().default(0),
   recipients: z.array(
     z.object({
       displayName: z.string().min(1).max(200),
@@ -53,8 +56,10 @@ const candidateResponseSchema = z.object({
     }),
   ),
 });
+const EMAIL_SUPPRESSION_LOOKUP_BATCH_SIZE = 500;
 const deliveryJobResponseSchema = z.object({
   contentMarkdown: z.string().max(100_000),
+  ticketServiceNotice: z.boolean().default(false),
   context: z
     .object({
       eventId: z.uuid(),
@@ -123,6 +128,32 @@ interface Recipient {
   readonly unsubscribeUrl: string | null;
 }
 
+async function globallySuppressedEmails(
+  database: D1Database,
+  recipients: readonly { readonly email: string }[],
+): Promise<ReadonlySet<string>> {
+  const emails = [
+    ...new Set(
+      recipients.map(({ email }) => normalizeEmail(email)).filter((email) => email.length > 0),
+    ),
+  ];
+  if (emails.length === 0) return new Set();
+  const suppressed = new Set<string>();
+  for (let offset = 0; offset < emails.length; offset += EMAIL_SUPPRESSION_LOOKUP_BATCH_SIZE) {
+    const batch = emails.slice(offset, offset + EMAIL_SUPPRESSION_LOOKUP_BATCH_SIZE);
+    const placeholders = batch.map(() => "?").join(", ");
+    const result = await database
+      .prepare(
+        `SELECT email_normalized AS emailNormalized FROM email_recipient_suppressions
+         WHERE active = 1 AND email_normalized IN (${placeholders})`,
+      )
+      .bind(...batch)
+      .all<{ readonly emailNormalized: string }>();
+    for (const { emailNormalized } of result.results) suppressed.add(emailNormalized);
+  }
+  return suppressed;
+}
+
 export interface AutomatedCommunicationRecipient {
   readonly email: string;
   readonly name: string;
@@ -138,7 +169,11 @@ async function resolveRecipients(
   organizationId: string,
   audience: CommunicationAudienceRequest,
   unsubscribeOrigin: string | null,
-): Promise<readonly Recipient[]> {
+): Promise<{
+  readonly recipients: readonly Recipient[];
+  readonly ticketBuyerPurchasesOverLimit: number;
+  readonly undeliverableTicketBuyerPurchases: number;
+}> {
   const [response, emails] = await Promise.all([
     post(env, organizationId, "/internal/communications/audience", {
       audience,
@@ -146,7 +181,8 @@ async function resolveRecipients(
     }),
     listOrganizationProfileEmails(database, organizationId),
   ]);
-  const candidates = candidateResponseSchema.parse(await response.json()).recipients;
+  const resolution = candidateResponseSchema.parse(await response.json());
+  const candidates = resolution.recipients;
   const issuedAt = Math.floor(Date.now() / 1_000);
   // Each audience was built independently in the store. Merge by normalized
   // destination with suppression precedence: an active unsubscribe,
@@ -174,7 +210,8 @@ async function resolveRecipients(
     };
   });
   const resolved = dedupeCommunicationCandidates(domainCandidates);
-  return Promise.all(
+  const globallySuppressed = await globallySuppressedEmails(database, resolved);
+  const recipients = await Promise.all(
     resolved.map(async (recipient) => {
       const subject = subjectFromKindId(recipient.subjectKind, recipient.subjectId);
       // Phase 7 typed unsubscribe subject: profile and contact recipients
@@ -186,6 +223,7 @@ async function resolveRecipients(
       // never minted for new sends.
       const isMember = subject.kind === "profile" && emails.has(recipient.subjectId);
       const tokenable =
+        audience.ticketBuyerMode !== "ticket_service" &&
         recipient.email !== "" &&
         unsubscribeOrigin !== null &&
         (subject.kind === "contact" || (subject.kind === "profile" && isMember));
@@ -203,7 +241,7 @@ async function resolveRecipients(
           })
         : null;
       return {
-        email: recipient.email,
+        email: globallySuppressed.has(normalizeEmail(recipient.email)) ? "" : recipient.email,
         name: recipient.displayName,
         phone: recipient.phone,
         profileId: recipient.subjectId,
@@ -215,6 +253,11 @@ async function resolveRecipients(
       };
     }),
   );
+  return {
+    recipients,
+    ticketBuyerPurchasesOverLimit: resolution.ticketBuyerPurchasesOverLimit,
+    undeliverableTicketBuyerPurchases: resolution.undeliverableTicketBuyerPurchases,
+  };
 }
 
 function subjectIdOf(subject: CommunicationRecipientSubject): string {
@@ -252,9 +295,12 @@ export async function previewCommunicationReach(
   organizationId: string,
   request: Pick<CommunicationSendRequest, "audience" | "channel">,
 ): Promise<CommunicationReach> {
+  const resolution = await resolveRecipients(env, database, organizationId, request.audience, null);
   return communicationReach(
-    await resolveRecipients(env, database, organizationId, request.audience, null),
+    resolution.recipients,
     request.channel,
+    resolution.undeliverableTicketBuyerPurchases,
+    resolution.ticketBuyerPurchasesOverLimit,
   );
 }
 
@@ -270,9 +316,18 @@ export async function saveCommunicationDraft(
   context: ActorContext,
   message: CommunicationDraftRequest,
 ): Promise<CommunicationMessage> {
+  const resolution = await resolveRecipients(
+    env,
+    database,
+    context.organizationId,
+    message.audience,
+    null,
+  );
   const reach = communicationReach(
-    await resolveRecipients(env, database, context.organizationId, message.audience, null),
+    resolution.recipients,
     message.channel,
+    resolution.undeliverableTicketBuyerPurchases,
+    resolution.ticketBuyerPurchasesOverLimit,
   );
   const response = await post(env, context.organizationId, "/internal/communications/manage", {
     action: "save-draft",
@@ -291,13 +346,16 @@ export async function sendOrganizationCommunication(
   message: CommunicationSendRequest,
   idempotencyKey?: string,
 ): Promise<CommunicationMessage> {
-  const recipients = await resolveRecipients(
+  const resolution = await resolveRecipients(
     env,
     database,
     context.organizationId,
     message.audience,
     context.organizationOrigin,
   );
+  if (resolution.ticketBuyerPurchasesOverLimit > 0) {
+    throw new CommunicationRepositoryError("ticket_service_audience_exceeds_limit", 409);
+  }
   const response = await post(env, context.organizationId, "/internal/communications/manage", {
     action: "send",
     ...context,
@@ -305,7 +363,9 @@ export async function sendOrganizationCommunication(
     jobId: crypto.randomUUID(),
     message,
     messageId: crypto.randomUUID(),
-    recipients,
+    recipients: resolution.recipients,
+    ticketBuyerPurchasesOverLimit: resolution.ticketBuyerPurchasesOverLimit,
+    undeliverableTicketBuyerPurchases: resolution.undeliverableTicketBuyerPurchases,
   });
   return communicationMessageSchema.parse(await response.json());
 }

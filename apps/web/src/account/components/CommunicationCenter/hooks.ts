@@ -52,6 +52,33 @@ import {
 
 export type { CommunicationCenterControllerModel } from "./types";
 
+const EMPTY_REACH_STATE: CommunicationReachState = {
+  data: null,
+  error: null,
+  loading: false,
+};
+
+function hasIncompleteTicketServiceAudience(
+  audience: CommunicationAudienceRequest,
+  channel: CommunicationChannel,
+): boolean {
+  return (
+    audience.ticketBuyerMode === "ticket_service" &&
+    (audience.targetAudiences.length !== 1 ||
+      audience.targetAudiences[0] !== "Ticket Buyers" ||
+      !audience.eventId ||
+      channel !== "Email")
+  );
+}
+
+function reachStateForAudience(
+  reachState: CommunicationReachState,
+  audience: CommunicationAudienceRequest,
+  channel: CommunicationChannel,
+): CommunicationReachState {
+  return hasIncompleteTicketServiceAudience(audience, channel) ? EMPTY_REACH_STATE : reachState;
+}
+
 export function useCommunicationCenterController({
   enabled,
 }: {
@@ -211,6 +238,8 @@ export function useCommunicationCenterController({
   // Automatic debounced reach preview when audience or channel changes in compose mode
   useEffect(() => {
     if (!enabled || messageMode !== "compose") return;
+
+    if (hasIncompleteTicketServiceAudience(audience, channel)) return;
 
     const controller = new AbortController();
 
@@ -459,6 +488,12 @@ export function useCommunicationCenterController({
         setError("No reachable recipients found for the selected criteria.");
         return;
       }
+      if (freshReach.ticketBuyerPurchasesOverLimit > 0) {
+        setError(
+          "This event has more than 1,000 paid ticket orders, so the complete audience cannot be sent in one message.",
+        );
+        return;
+      }
       setIsReviewOpen(true);
     } catch (err: unknown) {
       setError(failureMessage(err));
@@ -561,7 +596,7 @@ export function useCommunicationCenterController({
       setIsTestEmailOpen(true);
     },
     providerStatus,
-    reachState,
+    reachState: reachStateForAudience(reachState, audience, channel),
     recipientsExpanded,
     removeConflictingPlaceholder,
     resumeDraft,

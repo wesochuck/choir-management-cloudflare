@@ -79,6 +79,7 @@ export async function deliverCommunicationJob(
       sendingDomain: senderConfig.sendingDomain ?? undefined,
       sourceId: delivery.id,
       sourceKind: delivery.channel === "email" ? "communication_delivery" : undefined,
+      ticketServiceNotice: deliveryJob.ticketServiceNotice,
       subject: renderCommunicationTemplate(deliveryJob.subject, delivery.recipientName, {
         organizationName: orgName,
         ...(deliveryJob.context ?? {}),

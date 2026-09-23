@@ -27,6 +27,7 @@ const deliverySchema = z.object({
   sourceId: z.string().trim().min(1).max(256).optional(),
   sourceKind: emailProviderSourceKindSchema.optional(),
   subject: z.string().max(300),
+  ticketServiceNotice: z.boolean().default(false),
   unsubscribeUrl: z.url().max(4_096).nullable(),
 });
 
@@ -216,10 +217,21 @@ function formatUnsubscribeFooter(unsubscribeUrl: string | null): { html: string;
   };
 }
 
+function formatTicketServiceFooter(enabled: boolean): { html: string; text: string } {
+  if (!enabled) return { html: "", text: "" };
+  const text =
+    "You are receiving this message because you have a valid ticket for this performance.";
+  return {
+    html: `<p style="margin:0 0 8px;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;">${escapeEmailHtml(text)}</p>`,
+    text: `\n\n${text}`,
+  };
+}
+
 function emailContents(
   subject: string,
   contentMarkdown: string,
   unsubscribeUrl: string | null,
+  ticketServiceNotice: boolean,
   branding?: {
     readonly organizationLogoUrl?: string | null | undefined;
     readonly organizationName?: string | null | undefined;
@@ -227,6 +239,7 @@ function emailContents(
   },
 ) {
   const unsubscribe = formatUnsubscribeFooter(unsubscribeUrl);
+  const serviceNotice = formatTicketServiceFooter(ticketServiceNotice);
   const address = formatAddressFooter(branding?.physicalAddress);
   const renderedBody = renderCommunicationMarkdown(contentMarkdown);
   const plainBody = renderCommunicationText(contentMarkdown);
@@ -236,13 +249,13 @@ function emailContents(
   return {
     htmlContent: renderEmailDocument({
       bodyHtml: renderedBody,
-      footerHtml: `${unsubscribe.html}${address.html}<p style="margin:0;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;">Sent using ${escapeEmailHtml(orgName)}.</p>`,
+      footerHtml: `${unsubscribe.html}${serviceNotice.html}${address.html}<p style="margin:0;color:#687078;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:20px;">Sent using ${escapeEmailHtml(orgName)}.</p>`,
       heading: subject,
       organizationLogoUrl: branding?.organizationLogoUrl,
       organizationName: branding?.organizationName,
       preheader,
     }),
-    textContent: `${plainBody}${unsubscribe.text}${address.text}`,
+    textContent: `${plainBody}${unsubscribe.text}${serviceNotice.text}${address.text}`,
   };
 }
 
@@ -345,6 +358,7 @@ async function deliverOrganizationEmail(
     delivery.subject,
     delivery.contentMarkdown,
     delivery.unsubscribeUrl,
+    delivery.ticketServiceNotice,
     {
       organizationLogoUrl: delivery.organizationLogoUrl,
       organizationName: delivery.organizationName,
@@ -391,7 +405,7 @@ async function deliverOrganizationEmail(
 
 export function deliverOrganizationCommunication(
   config: CommunicationProviderConfig,
-  input: z.infer<typeof deliverySchema>,
+  input: z.input<typeof deliverySchema>,
   fetcher: ProviderFetch = fetch,
 ): Promise<CommunicationProviderResult> {
   const delivery = deliverySchema.parse(input);

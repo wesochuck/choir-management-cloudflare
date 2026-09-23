@@ -26,6 +26,7 @@ export const defaultAudience: CommunicationAudienceRequest = {
   profileIds: [],
   rsvp: "All",
   targetAudiences: ["Members"],
+  ticketBuyerMode: "marketing",
   voiceParts: [],
 };
 
@@ -142,7 +143,10 @@ export function parseCommunicationSearch(search: string): InitialNavigationState
 
 export function recipientTypeSummary(audience: CommunicationAudienceRequest): string {
   if (audience.targetAudiences.length === 0) return "No recipient type selected";
-  return audience.targetAudiences.join(" + ");
+  const targets = audience.targetAudiences.join(" + ");
+  return audience.ticketBuyerMode === "ticket_service"
+    ? `${targets} · Important notice for current ticket holders`
+    : targets;
 }
 
 export function memberFiltersSummary(
@@ -205,7 +209,27 @@ export function contactFiltersSummary(
   return parts.join(" · ");
 }
 
-export function reachSummaryText(reach: CommunicationReach, channel: CommunicationChannel): string {
+export function reachSummaryText(
+  reach: CommunicationReach,
+  channel: CommunicationChannel,
+  ticketBuyerMode: CommunicationAudienceRequest["ticketBuyerMode"] = "marketing",
+): string {
+  if (ticketBuyerMode === "ticket_service" && channel === "Email") {
+    const reachableCount = reach.email;
+    const unreachable =
+      reach.unreachable > 0
+        ? `${String(reach.unreachable)} are suppressed or undeliverable`
+        : "0 are suppressed or undeliverable";
+    const undeliverablePurchases =
+      reach.undeliverableTicketBuyerPurchases > 0
+        ? ` · ${String(reach.undeliverableTicketBuyerPurchases)} paid ticket orders have no matching Contact or usable email`
+        : "";
+    const purchasesOverLimit =
+      reach.ticketBuyerPurchasesOverLimit > 0
+        ? ` · ${String(reach.ticketBuyerPurchasesOverLimit)} paid ticket orders exceed the 1,000-order message limit; sending is blocked`
+        : "";
+    return `${String(reachableCount)} ticket-holder recipients can receive this email · ${unreachable}${undeliverablePurchases}${purchasesOverLimit}`;
+  }
   if (channel === "Email") {
     const reachableCount = reach.email;
     const reachable = `${String(reachableCount)} ${reachableCount === 1 ? "person can" : "people can"} receive this email`;

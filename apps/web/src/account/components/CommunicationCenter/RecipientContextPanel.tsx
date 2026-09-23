@@ -173,6 +173,136 @@ function CollapsedRecipientSummary({
   );
 }
 
+function TicketBuyerModeField({
+  canSelectTicketServiceNotice,
+  channel,
+  isTicketServiceNotice,
+  onUpdateAudience,
+}: {
+  readonly canSelectTicketServiceNotice: boolean;
+  readonly channel: CommunicationChannel;
+  readonly isTicketServiceNotice: boolean;
+  readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
+}) {
+  return (
+    <fieldset className="field">
+      <legend className="field-label">Ticket buyer audience</legend>
+      <label className="checkbox-row">
+        <input
+          checked={!isTicketServiceNotice}
+          name="communication-ticket-buyer-mode"
+          onChange={() => {
+            onUpdateAudience((current) => ({ ...current, ticketBuyerMode: "marketing" }));
+          }}
+          type="radio"
+          value="marketing"
+        />
+        Marketing / general communication
+      </label>
+      <label className="checkbox-row">
+        <input
+          checked={isTicketServiceNotice}
+          disabled={!canSelectTicketServiceNotice && !isTicketServiceNotice}
+          name="communication-ticket-buyer-mode"
+          onChange={() => {
+            onUpdateAudience((current) => ({ ...current, ticketBuyerMode: "ticket_service" }));
+          }}
+          type="radio"
+          value="ticket_service"
+        />
+        Important notice for current ticket holders
+      </label>
+      <p className="field-hint">
+        Includes all paid ticket holders for the selected performance, even if they did not opt in
+        to marketing email. Use for cancellations, schedule changes, venue changes, and other
+        ticket-related service notices.
+      </p>
+      {!canSelectTicketServiceNotice && !isTicketServiceNotice ? (
+        <p className="field-hint">
+          {channel !== "Email"
+            ? "Switch delivery channel to Email to enable ticket-holder notices."
+            : "Choose Ticket Buyers only to enable ticket-holder notices."}
+        </p>
+      ) : null}
+      {isTicketServiceNotice ? (
+        <p className="field-hint">
+          This mode sends one email per deliverable ticket-holder address and keeps administrative
+          and provider suppressions in effect.
+        </p>
+      ) : null}
+    </fieldset>
+  );
+}
+
+function EventSelector({
+  audience,
+  events,
+  isTicketServiceNotice,
+  onUpdateAudience,
+}: {
+  readonly audience: CommunicationAudienceRequest;
+  readonly events: readonly OrganizationEvent[];
+  readonly isTicketServiceNotice: boolean;
+  readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
+}) {
+  return (
+    <div className="field">
+      <label htmlFor="communication-event">
+        Event {isTicketServiceNotice ? "(required)" : "(optional)"}
+      </label>
+      <select
+        aria-describedby={
+          isTicketServiceNotice && !audience.eventId
+            ? "communication-event-help communication-event-error"
+            : "communication-event-help"
+        }
+        aria-invalid={isTicketServiceNotice && !audience.eventId ? true : undefined}
+        id="communication-event"
+        onChange={(event) => {
+          const eventId = event.target.value || null;
+          onUpdateAudience((current) => ({
+            ...current,
+            eventId,
+            rsvp: eventId ? current.rsvp : "All",
+          }));
+        }}
+        value={audience.eventId ?? ""}
+      >
+        <option value="">
+          {isTicketServiceNotice ? "Select the affected performance" : "All matching contacts"}
+        </option>
+        {events.map((event) => (
+          <option key={event.id} value={event.id}>
+            {event.isCanceled ? `${eventLabel(event)} (canceled)` : eventLabel(event)}
+          </option>
+        ))}
+      </select>
+      <p className="field-hint" id="communication-event-help">
+        {isTicketServiceNotice
+          ? "Choose the performance whose current paid ticket holders should receive this notice. Canceled performances remain available for cancellation notices."
+          : "Selecting an event unlocks event and attendance placeholders."}
+      </p>
+      {isTicketServiceNotice && !audience.eventId ? (
+        <p className="field-hint" id="communication-event-error" role="alert">
+          Select the affected performance to contact its ticket holders.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function MixedAudienceNotice({ isMixedAudience }: { readonly isMixedAudience: boolean }) {
+  if (!isMixedAudience) return null;
+  return (
+    <div className="notice notice--info communication-mixed-audience-notice">
+      <p>
+        <strong>Multiple groups selected.</strong> Placeholders must be compatible with all selected
+        groups.
+      </p>
+    </div>
+  );
+}
+
 export function RecipientContextPanel({
   audience,
   audienceOptions,
@@ -191,6 +321,8 @@ export function RecipientContextPanel({
   const isContactsSelected = audience.targetAudiences.includes("Contacts");
   const isTicketBuyersSelected = audience.targetAudiences.includes("Ticket Buyers");
   const isMixedAudience = audience.targetAudiences.length > 1;
+  const isTicketServiceNotice = audience.ticketBuyerMode === "ticket_service";
+  const canSelectTicketServiceNotice = channel === "Email" && !isMixedAudience;
 
   function toggleTarget(target: CommunicationAudienceTarget, checked: boolean) {
     onUpdateAudience((current) => {
@@ -199,6 +331,7 @@ export function RecipientContextPanel({
         : current.targetAudiences.filter((t) => t !== target);
       return {
         ...current,
+        ticketBuyerMode: next.includes("Ticket Buyers") ? current.ticketBuyerMode : "marketing",
         targetAudiences: next.length > 0 ? next : ["Members"],
       };
     });
@@ -253,6 +386,7 @@ export function RecipientContextPanel({
                       onChange={(event) => {
                         toggleTarget(option, event.target.checked);
                       }}
+                      disabled={isTicketServiceNotice && option !== "Ticket Buyers"}
                       type="checkbox"
                     />
                     {option}
@@ -260,6 +394,15 @@ export function RecipientContextPanel({
                 ))}
               </div>
             </fieldset>
+
+            {isTicketBuyersSelected ? (
+              <TicketBuyerModeField
+                canSelectTicketServiceNotice={canSelectTicketServiceNotice}
+                channel={channel}
+                isTicketServiceNotice={isTicketServiceNotice}
+                onUpdateAudience={onUpdateAudience}
+              />
+            ) : null}
 
             {/* Delivery Channel */}
             <div className="field">
@@ -272,50 +415,27 @@ export function RecipientContextPanel({
                 value={channel}
               >
                 <option value="Email">Email</option>
-                <option value="SMS">SMS</option>
-                <option value="Both">Both (Email &amp; SMS)</option>
+                <option disabled={isTicketServiceNotice} value="SMS">
+                  SMS
+                </option>
+                <option disabled={isTicketServiceNotice} value="Both">
+                  Both (Email &amp; SMS)
+                </option>
               </select>
             </div>
 
             {/* Event Selector (shown for Members or Ticket Buyers) */}
             {isMembersSelected || isTicketBuyersSelected ? (
-              <div className="field">
-                <label htmlFor="communication-event">Event (optional)</label>
-                <select
-                  aria-describedby="communication-event-help"
-                  id="communication-event"
-                  onChange={(event) => {
-                    const eventId = event.target.value || null;
-                    onUpdateAudience((current) => ({
-                      ...current,
-                      eventId,
-                      rsvp: eventId ? current.rsvp : "All",
-                    }));
-                  }}
-                  value={audience.eventId ?? ""}
-                >
-                  <option value="">All matching contacts</option>
-                  {events.map((event) => (
-                    <option key={event.id} value={event.id}>
-                      {eventLabel(event)}
-                    </option>
-                  ))}
-                </select>
-                <p className="field-hint" id="communication-event-help">
-                  Selecting an event unlocks event and attendance placeholders.
-                </p>
-              </div>
+              <EventSelector
+                audience={audience}
+                events={events}
+                isTicketServiceNotice={isTicketServiceNotice}
+                onUpdateAudience={onUpdateAudience}
+              />
             ) : null}
 
             {/* Mixed Audience Helper Notice */}
-            {isMixedAudience ? (
-              <div className="notice notice--info communication-mixed-audience-notice">
-                <p>
-                  <strong>Multiple groups selected.</strong> Placeholders must be compatible with
-                  all selected groups.
-                </p>
-              </div>
-            ) : null}
+            <MixedAudienceNotice isMixedAudience={isMixedAudience} />
 
             {/* Progressive Disclosure: Member Filters */}
             {isMembersSelected ? (
@@ -374,7 +494,8 @@ export function RecipientContextPanel({
               <span className="reach-error">{reachState.error}</span>
             ) : reachState.data ? (
               <span className="reach-text">
-                <strong>Reach:</strong> {reachSummaryText(reachState.data, channel)}
+                <strong>Reach:</strong>{" "}
+                {reachSummaryText(reachState.data, channel, audience.ticketBuyerMode)}
               </span>
             ) : (
               <span className="reach-text">Reach ready on message creation</span>

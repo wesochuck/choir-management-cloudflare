@@ -85,12 +85,87 @@ describe("RecipientContextPanel Contacts audience", () => {
     const html = renderPanel({
       audience: { ...defaultAudience, targetAudiences: ["Members", "Contacts"] },
       reachState: {
-        data: { both: 1, email: 2, sms: 1, total: 2, unreachable: 0 },
+        data: {
+          both: 1,
+          email: 2,
+          sms: 1,
+          ticketBuyerPurchasesOverLimit: 0,
+          total: 2,
+          undeliverableTicketBuyerPurchases: 0,
+          unreachable: 0,
+        },
         error: null,
         loading: false,
       },
     });
     expect(html).toContain("Reach:");
     expect(html).toContain("2 people can");
+  });
+
+  it("explains the explicit service mode and requires a performance selection", () => {
+    const html = renderPanel({
+      audience: {
+        ...defaultAudience,
+        eventId: null,
+        targetAudiences: ["Ticket Buyers"],
+        ticketBuyerMode: "ticket_service",
+      },
+    });
+    expect(html).toContain("Ticket buyer audience");
+    expect(html).toContain("Important notice for current ticket holders");
+    expect(html).toContain("even if they did not opt in to marketing email");
+    expect(html).toContain("Event ");
+    expect(html).toContain("(required)");
+    expect(html).toContain('aria-invalid="true"');
+    expect(html).toContain("Select the affected performance to contact its ticket holders.");
+  });
+
+  it("keeps Ticket Buyers in marketing mode until staff choose a service notice", () => {
+    const html = renderPanel({
+      audience: { ...defaultAudience, targetAudiences: ["Ticket Buyers"] },
+    });
+    expect(html).toContain(
+      'type="radio" name="communication-ticket-buyer-mode" checked="" value="marketing"',
+    );
+    expect(html).toContain("Marketing / general communication");
+    expect(html).toContain('value="ticket_service"');
+  });
+
+  it("does not enable ticket-service mode for SMS delivery", () => {
+    const html = renderPanel({
+      audience: { ...defaultAudience, targetAudiences: ["Ticket Buyers"] },
+      channel: "SMS",
+    });
+    expect(html).toContain("Switch delivery channel to Email to enable ticket-holder notices.");
+    expect(html).toContain('value="ticket_service"');
+    expect(html).toContain('disabled=""');
+  });
+
+  it("shows unresolved orders and audience-limit counts for service notices", () => {
+    const html = renderPanel({
+      audience: {
+        ...defaultAudience,
+        eventId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        targetAudiences: ["Ticket Buyers"],
+        ticketBuyerMode: "ticket_service",
+      },
+      reachState: {
+        data: {
+          both: 0,
+          email: 998,
+          sms: 0,
+          ticketBuyerPurchasesOverLimit: 2,
+          total: 998,
+          undeliverableTicketBuyerPurchases: 1,
+          unreachable: 2,
+        },
+        error: null,
+        loading: false,
+      },
+    });
+    expect(html).toContain("1 paid ticket orders have no matching Contact or usable email");
+    expect(html).toContain(
+      "2 paid ticket orders exceed the 1,000-order message limit; sending is blocked",
+    );
   });
 });

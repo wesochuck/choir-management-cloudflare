@@ -599,26 +599,42 @@ export function readCommunicationJobFromStore(
       .at(0);
     if (!current || current.canceledAt || current.status !== "Queued") return [];
     const now = new Date().toISOString();
+    const contactPreferenceSuppression =
+      message.audience.ticketBuyerMode === "ticket_service"
+        ? `OR EXISTS (
+             SELECT 1 FROM contact_communication_preferences pref
+             WHERE pref.contact_id = communication_deliveries.profile_id
+               AND pref.channel = 'email' AND pref.status = 'unsubscribed'
+               AND pref.source IN ('provider_bounce', 'provider_complaint')
+           )`
+        : `OR EXISTS (
+             SELECT 1 FROM contact_communication_preferences pref
+             WHERE pref.contact_id = communication_deliveries.profile_id
+               AND pref.channel = 'email' AND pref.status = 'unsubscribed'
+           )`;
     storage.sql.exec(
       `UPDATE communication_deliveries
        SET status = 'suppressed', failure_detail = '', updated_at = ?
        WHERE message_id = ? AND channel = 'email' AND status = 'queued'
          AND (
            EXISTS (
-             SELECT 1 FROM profiles p
-             WHERE p.id = communication_deliveries.profile_id
+           SELECT 1 FROM profiles p
+             WHERE (
+               p.id = communication_deliveries.profile_id OR EXISTS (
+                 SELECT 1 FROM contacts linked_contact
+                 WHERE linked_contact.id = communication_deliveries.profile_id
+                   AND linked_contact.profile_id = p.id
+               )
+             )
                AND (
-                 p.do_not_email = 1 OR EXISTS (
+                 p.do_not_email = 1 OR p.provider_email_suppressed = 1
+                 OR p.last_bounce_at <> '' OR EXISTS (
                    SELECT 1 FROM communication_suppressions s
                    WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
                  )
                )
            )
-           OR EXISTS (
-             SELECT 1 FROM contact_communication_preferences pref
-             WHERE pref.contact_id = communication_deliveries.profile_id
-               AND pref.channel = 'email' AND pref.status = 'unsubscribed'
-           )
+           ${contactPreferenceSuppression}
            OR EXISTS (
              SELECT 1 FROM contacts c
              JOIN communication_suppressions s ON s.profile_id = c.profile_id
@@ -677,12 +693,17 @@ export function readCommunicationJobFromStore(
     );
   });
   const eventId = message.audience.eventId;
-  const context = eventCommunicationContext(storage, eventId);
+  const context = eventCommunicationContext(
+    storage,
+    eventId,
+    message.audience.ticketBuyerMode === "ticket_service",
+  );
   return Response.json({
     contentMarkdown: message.contentMarkdown,
     context,
     deliveries,
     messageId,
     subject: message.subject,
+    ticketServiceNotice: message.audience.ticketBuyerMode === "ticket_service",
   });
 }

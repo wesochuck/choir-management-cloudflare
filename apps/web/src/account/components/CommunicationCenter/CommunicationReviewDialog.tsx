@@ -93,9 +93,20 @@ export function CommunicationReviewDialog({
           <div>
             <dt>Reach</dt>
             <dd>
-              {reachState.data ? reachSummaryText(reachState.data, channel) : "Calculating reach…"}
+              {reachState.data
+                ? reachSummaryText(reachState.data, channel, audience.ticketBuyerMode)
+                : "Calculating reach…"}
             </dd>
           </div>
+          {audience.ticketBuyerMode === "ticket_service" ? (
+            <div>
+              <dt>Ticket buyer audience</dt>
+              <dd>
+                Important notice for current ticket holders. This email is sent because each
+                recipient holds a paid ticket for the selected performance.
+              </dd>
+            </div>
+          ) : null}
           {channel !== "SMS" && subject ? (
             <div>
               <dt>Subject</dt>

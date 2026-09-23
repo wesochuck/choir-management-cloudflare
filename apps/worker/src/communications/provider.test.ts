@@ -71,6 +71,29 @@ describe("Organization communication provider", () => {
     expect(sent?.html).toContain(">Rehearsal</h1>");
   });
 
+  it("explains ticket-service delivery without rendering a marketing unsubscribe CTA", async () => {
+    const email = platformEmailBinding();
+    const explanation =
+      "You are receiving this message because you have a valid ticket for this performance.";
+    await deliverOrganizationCommunication(
+      {
+        EXTERNAL_EFFECTS_MODE: "sandbox",
+        PLATFORM_EMAIL: email,
+        PLATFORM_EMAIL_ALLOWED_RECIPIENTS: "singer@example.test",
+        PLATFORM_EMAIL_FROM: "communications@mail.staging.example.com",
+        PLATFORM_EMAIL_MODE: "sandbox",
+      },
+      { ...delivery, ticketServiceNotice: true, unsubscribeUrl: null },
+    );
+
+    const sent = email.send.mock.calls[0]?.[0];
+    expect(sent?.text).toContain(explanation);
+    expect(sent?.html).toContain(explanation);
+    expect(sent?.text).not.toContain("Unsubscribe");
+    expect(sent?.html).not.toContain("Unsubscribe");
+    expect(sent?.html).not.toContain("unsubscribe?");
+  });
+
   it("renders Organization physical address in email HTML and text footers for CAN-SPAM compliance", async () => {
     const email = platformEmailBinding();
     const addressDelivery = {

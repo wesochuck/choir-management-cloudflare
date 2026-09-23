@@ -1,5 +1,5 @@
 import {
-  communicationAudienceRequestSchema,
+  communicationAudienceChannelRequestSchema,
   communicationDraftRequestSchema,
   communicationSendRequestSchema,
   communicationTestEmailRequestSchema,
@@ -46,6 +46,18 @@ import type { WorkerHonoEnvironment } from "./helpers";
 import { authorizeCalendarRoute, communicationProblem } from "./helpers";
 
 const communicationIdempotencyKeySchema = z.string().trim().min(1).max(256);
+const ticketServiceAudienceMessages = new Set([
+  "Select the affected performance to contact its ticket holders.",
+  "Important ticket-holder notices can only target Ticket Buyers.",
+  "Important ticket-holder notices can only be sent by email. Switch to Email delivery.",
+]);
+
+function communicationValidationMessage(error: z.ZodError, fallback: string): string {
+  return (
+    error.issues.find((issue) => ticketServiceAudienceMessages.has(issue.message))?.message ??
+    fallback
+  );
+}
 
 interface TestEmailTemplateOptions {
   readonly baseDomain: string;
@@ -460,17 +472,17 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         { ...authorization, requestId: context.get("requestId") },
         authorization.status,
       );
-    const body = z
-      .object({
-        audience: communicationAudienceRequestSchema,
-        channel: z.enum(["Email", "SMS", "Both"]),
-      })
-      .safeParse(await context.req.json<unknown>().catch(() => null));
+    const body = communicationAudienceChannelRequestSchema.safeParse(
+      await context.req.json<unknown>().catch(() => null),
+    );
     if (!body.success)
       return context.json(
         {
           code: "validation_failed",
-          message: "Valid communication audience filters and a channel are required.",
+          message: communicationValidationMessage(
+            body.error,
+            "Valid communication audience filters and a channel are required.",
+          ),
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         400,
@@ -509,7 +521,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       return context.json(
         {
           code: "validation_failed",
-          message: "Valid draft details are required.",
+          message: communicationValidationMessage(body.error, "Valid draft details are required."),
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         400,
@@ -550,7 +562,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       return context.json(
         {
           code: "validation_failed",
-          message: "A valid message, audience, and delivery channel are required.",
+          message: communicationValidationMessage(
+            body.error,
+            "A valid message, audience, and delivery channel are required.",
+          ),
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         400,

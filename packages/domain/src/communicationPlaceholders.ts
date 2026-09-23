@@ -30,6 +30,7 @@ export interface CommunicationPlaceholderDefinition {
 export interface CommunicationAudienceLike {
   readonly eventId?: string | null;
   readonly targetAudiences: readonly string[];
+  readonly ticketBuyerMode?: "marketing" | "ticket_service";
 }
 
 export function isCommunicationAudienceTarget(
@@ -47,7 +48,7 @@ export interface CommunicationContextIssue {
   readonly code:
     "incompatible_audience" | "incompatible_channel" | "event_required" | "incompatible_context";
   readonly message: string;
-  readonly placeholder: string;
+  readonly placeholder?: string;
 }
 
 export interface CommunicationTemplateLike {
@@ -478,6 +479,35 @@ export function hasEventDependentCommunicationPlaceholders(
   );
 }
 
+function ticketServiceAudienceIssues(
+  audience: CommunicationAudienceLike,
+  channel: CommunicationChannel,
+): readonly CommunicationContextIssue[] {
+  if (audience.ticketBuyerMode !== "ticket_service") return [];
+
+  const issues: CommunicationContextIssue[] = [];
+  if (channel !== "Email") {
+    issues.push({
+      code: "incompatible_channel",
+      message:
+        "Important ticket-holder notices can only be sent by email. Switch to Email delivery.",
+    });
+  }
+  if (!audience.eventId) {
+    issues.push({
+      code: "event_required",
+      message: "Select the affected performance to contact its ticket holders.",
+    });
+  }
+  if (audience.targetAudiences.length !== 1 || audience.targetAudiences[0] !== "Ticket Buyers") {
+    issues.push({
+      code: "incompatible_audience",
+      message: "Important ticket-holder notices can only target Ticket Buyers.",
+    });
+  }
+  return issues;
+}
+
 export function validateCommunicationContext(request: {
   readonly audience: CommunicationAudienceLike;
   readonly channel: CommunicationChannel;
@@ -488,7 +518,7 @@ export function validateCommunicationContext(request: {
   const fullText = `${subject}\n${contentMarkdown}`;
   const usedTags = extractCommunicationPlaceholders(fullText);
   const context = determineCommunicationPlaceholderContext(fullText);
-  const issues: CommunicationContextIssue[] = [];
+  const issues: CommunicationContextIssue[] = [...ticketServiceAudienceIssues(audience, channel)];
 
   for (const tag of usedTags) {
     const def = findCommunicationPlaceholderDefinition(tag);
