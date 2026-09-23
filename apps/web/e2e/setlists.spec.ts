@@ -173,6 +173,13 @@ async function handleDataRoute(
     });
     return true;
   }
+  if (url.pathname === "/api/organization/venues") {
+    await fulfillJson(route, {
+      requestId,
+      venues: [],
+    });
+    return true;
+  }
   return false;
 }
 
