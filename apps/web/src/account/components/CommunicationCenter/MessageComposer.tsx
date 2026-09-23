@@ -102,6 +102,35 @@ function insertListItemAtSelection(
   replaceSelection(textarea, value, start, end, `${lineBreak}- ${selected || "text"}`, onChange);
 }
 
+function communicationSendDisabled({
+  busy,
+  channel,
+  contentMarkdown,
+  contextIssues,
+  reachState,
+  subject,
+}: {
+  readonly busy: boolean;
+  readonly channel: CommunicationChannel;
+  readonly contentMarkdown: string;
+  readonly contextIssues: readonly CommunicationContextIssue[];
+  readonly reachState: CommunicationReachState;
+  readonly subject: string;
+}): boolean {
+  const hasSubjectError = channel !== "SMS" && subject.trim().length === 0;
+  const hasBodyError = contentMarkdown.trim().length === 0;
+  const hasReachError = reachState.loading || !reachState.data || reachState.data.total === 0;
+  const hasTicketServiceOverflow = (reachState.data?.ticketBuyerPurchasesOverLimit ?? 0) > 0;
+  return (
+    busy ||
+    hasSubjectError ||
+    hasBodyError ||
+    hasReachError ||
+    hasTicketServiceOverflow ||
+    contextIssues.length > 0
+  );
+}
+
 function PlaceholderButton({
   onInsert,
   placeholder,
@@ -146,18 +175,20 @@ function ConflictBanner({
       </div>
       <ul className="communication-conflict-banner__list">
         {contextIssues.map((issue) => (
-          <li key={`${issue.code}:${issue.placeholder}`}>
+          <li key={`${issue.code}:${issue.placeholder ?? "audience"}`}>
             <span>{issue.message}</span>
             <div className="conflict-actions">
-              <button
-                className="button button--secondary button--sm"
-                onClick={() => {
-                  onRemoveConflictingPlaceholder(issue.placeholder);
-                }}
-                type="button"
-              >
-                Remove {issue.placeholder}
-              </button>
+              {issue.placeholder ? (
+                <button
+                  className="button button--secondary button--sm"
+                  onClick={() => {
+                    onRemoveConflictingPlaceholder(issue.placeholder ?? "");
+                  }}
+                  type="button"
+                >
+                  Remove {issue.placeholder}
+                </button>
+              ) : null}
               <button
                 className="button button--secondary button--sm"
                 onClick={() => {
@@ -447,11 +478,14 @@ export function MessageComposer({
   }
 
   // Can the user send or open review?
-  const hasSubjectError = channel !== "SMS" && subject.trim().length === 0;
-  const hasBodyError = contentMarkdown.trim().length === 0;
-  const hasReachError = reachState.loading || !reachState.data || reachState.data.total === 0;
-  const hasConflicts = contextIssues.length > 0;
-  const isSendDisabled = busy || hasSubjectError || hasBodyError || hasReachError || hasConflicts;
+  const isSendDisabled = communicationSendDisabled({
+    busy,
+    channel,
+    contentMarkdown,
+    contextIssues,
+    reachState,
+    subject,
+  });
 
   return (
     <div className="communication-workspace">

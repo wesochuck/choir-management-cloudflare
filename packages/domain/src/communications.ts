@@ -13,7 +13,9 @@ export interface CommunicationReach {
   readonly both: number;
   readonly email: number;
   readonly sms: number;
+  readonly ticketBuyerPurchasesOverLimit: number;
   readonly total: number;
+  readonly undeliverableTicketBuyerPurchases: number;
   readonly unreachable: number;
 }
 
@@ -56,6 +58,8 @@ function available(recipient: ReachableRecipient, channel: CommunicationChannel)
 export function communicationReach(
   recipients: readonly ReachableRecipient[],
   channel: CommunicationChannel,
+  undeliverableTicketBuyerPurchases = 0,
+  ticketBuyerPurchasesOverLimit = 0,
 ): CommunicationReach {
   let email = 0;
   let sms = 0;
@@ -69,7 +73,15 @@ export function communicationReach(
     if (hasEmail && hasSms) both += 1;
     if (!available(recipient, channel)) unreachable += 1;
   }
-  return { both, email, sms, total: recipients.length - unreachable, unreachable };
+  return {
+    both,
+    email,
+    sms,
+    ticketBuyerPurchasesOverLimit,
+    total: recipients.length - unreachable,
+    undeliverableTicketBuyerPurchases,
+    unreachable,
+  };
 }
 
 export function renderCommunicationTemplate(

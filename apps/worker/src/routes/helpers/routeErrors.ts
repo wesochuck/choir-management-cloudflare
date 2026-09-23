@@ -15,6 +15,9 @@ export function communicationProblem(error: unknown, requestIdValue: string, mes
     }),
   );
   const suppression = error instanceof EmailRecipientSuppressedError;
+  const ticketAudienceLimit =
+    error instanceof CommunicationRepositoryError &&
+    error.code === "ticket_service_audience_exceeds_limit";
   const status = suppression
     ? error.status
     : error instanceof CommunicationRepositoryError
@@ -27,7 +30,11 @@ export function communicationProblem(error: unknown, requestIdValue: string, mes
         : error instanceof CommunicationRepositoryError
           ? error.code
           : "service_unavailable",
-      message: suppression ? error.message : message,
+      message: suppression
+        ? error.message
+        : ticketAudienceLimit
+          ? "This performance has more than 1,000 paid ticket orders, so its complete ticket-holder audience exceeds the message limit. No message was sent."
+          : message,
       requestId: requestIdValue,
     } satisfies ProblemDetails,
     status,

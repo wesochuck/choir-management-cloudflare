@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { CommunicationAudienceRequest } from "@choir/contracts";
 import { communicationRecipientSubjectSchema } from "@choir/contracts";
+import { dedupeCommunicationCandidates, type CommunicationRecipientCandidate } from "@choir/domain";
 import { organizationSchemaMigrations } from "../schema/migrations";
 import { resolveCommunicationAudienceFromStore } from "./audience";
 import { sendOperationSchema, type CommunicationAudienceStorage } from "./contracts";
@@ -86,8 +87,12 @@ function seedDatabase(): {
 let idCounter = 0;
 function uuidFor(tag: string): string {
   idCounter += 1;
-  const suffix = `${tag}-${String(idCounter)}`.replace(/[^0-9a-f]/g, "a");
-  return `aaaaaaaa-aaaa-4aaa-8aaa-${suffix.padStart(12, "a").slice(0, 12)}`;
+  const tagHash = Array.from(tag).reduce(
+    (hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0,
+    0,
+  );
+  const suffix = `${tagHash.toString(16).padStart(4, "0")}${idCounter.toString(16).padStart(8, "0")}`;
+  return `aaaaaaaa-aaaa-4aaa-8aaa-${suffix.slice(-12)}`;
 }
 
 function seedProfile(
@@ -108,6 +113,7 @@ function seedContact(
   input: {
     readonly displayName: string;
     readonly email?: string | null;
+    readonly emailSource?: string | null;
     readonly emailStatus?: "unknown" | "subscribed" | "unsubscribed";
     readonly id?: string;
     readonly phone?: string | null;
@@ -145,8 +151,8 @@ function seedContact(
     db.prepare(
       `INSERT INTO contact_communication_preferences
         (contact_id, channel, status, source, observed_at, updated_at)
-       VALUES (?, ?, ?, NULL, ?, ?)`,
-    ).run(id, channel, status, now, now);
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run(id, channel, status, channel === "email" ? (input.emailSource ?? null) : null, now, now);
   }
   return id;
 }
@@ -176,7 +182,16 @@ function suppressProfile(db: DatabaseSync, profileId: string, channel = "email")
   ).run(uuidFor("supp"), profileId, channel, now, now);
 }
 
-function seedTicketPurchase(db: DatabaseSync, buyerName: string, buyerEmail: string): string {
+function seedTicketPurchase(
+  db: DatabaseSync,
+  buyerName: string,
+  buyerEmail: string,
+  options: {
+    readonly eventId?: string;
+    readonly marketingOptIn?: boolean;
+    readonly status?: "expired" | "paid" | "pending" | "refunded";
+  } = {},
+): string {
   const id = uuidFor("purchase");
   const now = new Date().toISOString();
   db.prepare(
@@ -186,15 +201,17 @@ function seedTicketPurchase(db: DatabaseSync, buyerName: string, buyerEmail: str
        currency, provider_session_id, provider_payment_id, status, marketing_opt_in,
        created_at, updated_at, included_events_json, bundle_title)
      VALUES (?, ?, ?, 'Spring concert', ?, 'America/New_York', ?, ?, 1, 2000, 100, 2100,
-       'usd', ?, '', 'paid', 1, ?, ?, '[]', '')`,
+       'usd', ?, '', ?, ?, ?, ?, '[]', '')`,
   ).run(
     id,
     uuidFor("checkout"),
-    uuidFor("event"),
+    options.eventId ?? uuidFor("event"),
     new Date(Date.now() + 86_400_000).toISOString(),
     buyerName,
     buyerEmail,
     uuidFor("session"),
+    options.status ?? "paid",
+    options.marketingOptIn === false ? 0 : 1,
     now,
     now,
   );
@@ -211,6 +228,24 @@ function seedDonation(db: DatabaseSync, buyerName: string, buyerEmail: string): 
      VALUES (?, ?, 'paid', 5000, ?, ?, ?, ?, ?, 1)`,
   ).run(id, uuidFor("checkout"), buyerName, buyerEmail, uuidFor("session"), now, now);
   return id;
+}
+
+function seedCanceledEvent(db: DatabaseSync): string {
+  const id = uuidFor("canceled-event");
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+     VALUES (?, 'Canceled performance', 'Performance', ?, ?, ?)`,
+  ).run(id, now, now, now);
+  db.prepare("UPDATE events SET is_canceled = 1 WHERE id = ?").run(id);
+  return id;
+}
+
+function addBundleAllocation(db: DatabaseSync, purchaseId: string, eventId: string): void {
+  db.prepare(
+    `INSERT INTO ticket_bundle_allocations (purchase_id, event_id, quantity)
+     VALUES (?, ?, 1)`,
+  ).run(purchaseId, eventId);
 }
 
 /**
@@ -237,7 +272,12 @@ async function resolveAudience(
   storage: CommunicationAudienceStorage,
   audience: CommunicationAudienceRequest,
   organizationId: string = ORG_ID,
-): Promise<{ readonly recipients: AudienceRecipient[]; readonly status: number }> {
+): Promise<{
+  readonly recipients: AudienceRecipient[];
+  readonly status: number;
+  readonly ticketBuyerPurchasesOverLimit: number;
+  readonly undeliverableTicketBuyerPurchases: number;
+}> {
   const request = new Request("https://organization.internal/internal/communications/audience", {
     body: JSON.stringify({ audience, organizationId }),
     method: "POST",
@@ -245,11 +285,31 @@ async function resolveAudience(
   const response = await resolveCommunicationAudienceFromStore(storage, request);
   const body: unknown = await response.json();
   if (typeof body !== "object" || body === null || !("recipients" in body)) {
-    return { recipients: [], status: response.status };
+    return {
+      recipients: [],
+      status: response.status,
+      ticketBuyerPurchasesOverLimit: 0,
+      undeliverableTicketBuyerPurchases: 0,
+    };
   }
   const recipients = body.recipients;
   const list = Array.isArray(recipients) ? recipients.filter(isRecipient) : [];
-  return { recipients: list, status: response.status };
+  const undeliverableTicketBuyerPurchases =
+    "undeliverableTicketBuyerPurchases" in body &&
+    typeof body.undeliverableTicketBuyerPurchases === "number"
+      ? body.undeliverableTicketBuyerPurchases
+      : 0;
+  const ticketBuyerPurchasesOverLimit =
+    "ticketBuyerPurchasesOverLimit" in body &&
+    typeof body.ticketBuyerPurchasesOverLimit === "number"
+      ? body.ticketBuyerPurchasesOverLimit
+      : 0;
+  return {
+    recipients: list,
+    status: response.status,
+    ticketBuyerPurchasesOverLimit,
+    undeliverableTicketBuyerPurchases,
+  };
 }
 
 function audienceFor(
@@ -267,6 +327,7 @@ function audienceFor(
     profileIds: [],
     rsvp: "All",
     targetAudiences,
+    ticketBuyerMode: "marketing",
     voiceParts: [],
     ...overrides,
   };
@@ -463,6 +524,255 @@ describe("resolveCommunicationAudienceFromStore", () => {
     });
   });
 
+  it("keeps Ticket Buyer marketing audiences consent-aware with or without an event", async () => {
+    const { db, storage } = seedDatabase();
+    const selectedEventId = uuidFor("marketing-selected-event");
+    const otherEventId = uuidFor("marketing-other-event");
+    const subscribedContact = seedContact(db, {
+      displayName: "Opted-in buyer",
+      email: "opted-in@example.com",
+      emailStatus: "unsubscribed",
+      emailSource: "user_unsubscribe",
+    });
+    const optedOutContact = seedContact(db, {
+      displayName: "Opted-out buyer",
+      email: "opted-out@example.com",
+    });
+    const otherEventContact = seedContact(db, {
+      displayName: "Other-event buyer",
+      email: "other-event@example.com",
+    });
+    const selectedPurchase = seedTicketPurchase(db, "Opted-in buyer", "opted-in@example.com", {
+      eventId: selectedEventId,
+    });
+    const optedOutPurchase = seedTicketPurchase(db, "Opted-out buyer", "opted-out@example.com", {
+      eventId: selectedEventId,
+      marketingOptIn: false,
+    });
+    const otherEventPurchase = seedTicketPurchase(
+      db,
+      "Other-event buyer",
+      "other-event@example.com",
+      { eventId: otherEventId },
+    );
+    linkTransactionContact(db, "ticket_purchases", selectedPurchase, subscribedContact);
+    linkTransactionContact(db, "ticket_purchases", optedOutPurchase, optedOutContact);
+    linkTransactionContact(db, "ticket_purchases", otherEventPurchase, otherEventContact);
+
+    const eventMarketing = await resolveAudience(
+      storage,
+      audienceFor(["Ticket Buyers"], { eventId: selectedEventId }),
+    );
+    expect(eventMarketing.recipients.map(({ email }) => email)).toEqual(["opted-in@example.com"]);
+    expect(eventMarketing.recipients[0]).toMatchObject({ emailUnsubscribed: true });
+
+    const generalMarketing = await resolveAudience(storage, audienceFor(["Ticket Buyers"]));
+    expect(generalMarketing.recipients.map(({ email }) => email).sort()).toEqual([
+      "opted-in@example.com",
+      "other-event@example.com",
+    ]);
+  });
+
+  it("includes paid direct and bundle tickets for a canceled service performance only", async () => {
+    const { db, storage } = seedDatabase();
+    const canceledEventId = seedCanceledEvent(db);
+    const directContact = seedContact(db, {
+      displayName: "Unsubscribed direct buyer",
+      email: "direct@example.com",
+      emailStatus: "unsubscribed",
+      emailSource: "user_unsubscribe",
+    });
+    const bundleContact = seedContact(db, {
+      displayName: "Bundle buyer",
+      email: "bundle@example.com",
+    });
+    const unrelatedContact = seedContact(db, {
+      displayName: "Unrelated bundle buyer",
+      email: "unrelated@example.com",
+    });
+    const directPurchase = seedTicketPurchase(
+      db,
+      "Unsubscribed direct buyer",
+      "direct@example.com",
+      {
+        eventId: canceledEventId,
+        marketingOptIn: false,
+      },
+    );
+    const duplicateDirectPurchase = seedTicketPurchase(
+      db,
+      "Unsubscribed direct buyer",
+      "direct@example.com",
+      { eventId: canceledEventId, marketingOptIn: false },
+    );
+    const bundlePurchase = seedTicketPurchase(db, "Bundle buyer", "bundle@example.com", {
+      eventId: uuidFor("bundle-parent-event"),
+      marketingOptIn: false,
+    });
+    const unrelatedBundlePurchase = seedTicketPurchase(
+      db,
+      "Unrelated bundle buyer",
+      "unrelated@example.com",
+      {
+        eventId: uuidFor("unrelated-parent-event"),
+        marketingOptIn: false,
+      },
+    );
+    linkTransactionContact(db, "ticket_purchases", directPurchase, directContact);
+    linkTransactionContact(db, "ticket_purchases", duplicateDirectPurchase, directContact);
+    linkTransactionContact(db, "ticket_purchases", bundlePurchase, bundleContact);
+    linkTransactionContact(db, "ticket_purchases", unrelatedBundlePurchase, unrelatedContact);
+    addBundleAllocation(db, bundlePurchase, canceledEventId);
+    addBundleAllocation(db, unrelatedBundlePurchase, uuidFor("different-bundle-event"));
+
+    const nonPaidRows = ["pending", "expired", "refunded"] as const;
+    for (const status of nonPaidRows) {
+      const email = `${status}@example.com`;
+      const contactId = seedContact(db, { displayName: status, email });
+      const purchaseId = seedTicketPurchase(db, status, email, {
+        eventId: canceledEventId,
+        marketingOptIn: false,
+        status,
+      });
+      linkTransactionContact(db, "ticket_purchases", purchaseId, contactId);
+    }
+
+    const result = await resolveAudience(
+      storage,
+      audienceFor(["Ticket Buyers"], {
+        eventId: canceledEventId,
+        ticketBuyerMode: "ticket_service",
+      }),
+    );
+    expect(result.recipients.map(({ email }) => email)).toEqual([
+      "bundle@example.com",
+      "direct@example.com",
+      "direct@example.com",
+    ]);
+    expect(result.recipients.filter(({ email }) => email === "direct@example.com")).toEqual([
+      expect.objectContaining({ emailUnsubscribed: false }),
+      expect.objectContaining({ emailUnsubscribed: false }),
+    ]);
+    const dedupeCandidates: CommunicationRecipientCandidate[] = result.recipients.map(
+      (recipient) => ({
+        displayName: recipient.displayName,
+        doNotEmail: recipient.doNotEmail,
+        email: recipient.email,
+        emailSuppressed: recipient.emailSuppressed,
+        emailUnsubscribed: recipient.emailUnsubscribed,
+        phone: recipient.phone,
+        providerBounced: recipient.providerBounced,
+        smsSuppressed: recipient.smsSuppressed,
+        smsUnsubscribed: recipient.smsUnsubscribed,
+        subjectId: recipient.profileId,
+        subjectKind: "contact",
+      }),
+    );
+    expect(
+      dedupeCommunicationCandidates(dedupeCandidates)
+        .map(({ email }) => email)
+        .sort(),
+    ).toEqual(["bundle@example.com", "direct@example.com"]);
+  });
+
+  it("keeps ticket-service marketing opt-outs bypassed while preserving technical and global suppressions", async () => {
+    const { db, storage } = seedDatabase();
+    const eventId = uuidFor("suppression-event");
+    const marketingUnsubscribed = seedContact(db, {
+      displayName: "Marketing unsubscribe",
+      email: "marketing-unsubscribe@example.com",
+      emailStatus: "unsubscribed",
+      emailSource: "user_unsubscribe",
+    });
+    const providerBounced = seedContact(db, {
+      displayName: "Provider bounce",
+      email: "provider-bounce@example.com",
+      emailStatus: "unsubscribed",
+      emailSource: "provider_bounce",
+    });
+    const doNotEmailProfile = seedProfile(db, { displayName: "Do not email" });
+    db.prepare("UPDATE profiles SET do_not_email = 1 WHERE id = ?").run(doNotEmailProfile);
+    const doNotEmail = seedContact(db, {
+      displayName: "Do not email",
+      email: "do-not-email@example.com",
+      profileId: doNotEmailProfile,
+    });
+    const technicalProfile = seedProfile(db, { displayName: "Technical suppression" });
+    suppressProfile(db, technicalProfile);
+    const technical = seedContact(db, {
+      displayName: "Technical suppression",
+      email: "technical-suppression@example.com",
+      profileId: technicalProfile,
+    });
+    const profileBounce = seedProfile(db, { displayName: "Profile bounce" });
+    db.prepare(
+      "UPDATE profiles SET provider_email_suppressed = 1, last_bounce_at = ? WHERE id = ?",
+    ).run(new Date().toISOString(), profileBounce);
+    const profileBounced = seedContact(db, {
+      displayName: "Profile bounce",
+      email: "profile-bounce@example.com",
+      profileId: profileBounce,
+    });
+
+    for (const [contactId, name, email] of [
+      [marketingUnsubscribed, "Marketing unsubscribe", "marketing-unsubscribe@example.com"],
+      [providerBounced, "Provider bounce", "provider-bounce@example.com"],
+      [doNotEmail, "Do not email", "do-not-email@example.com"],
+      [technical, "Technical suppression", "technical-suppression@example.com"],
+      [profileBounced, "Profile bounce", "profile-bounce@example.com"],
+    ] as const) {
+      const purchaseId = seedTicketPurchase(db, name, email, {
+        eventId,
+        marketingOptIn: false,
+      });
+      linkTransactionContact(db, "ticket_purchases", purchaseId, contactId);
+    }
+
+    const result = await resolveAudience(
+      storage,
+      audienceFor(["Ticket Buyers"], { eventId, ticketBuyerMode: "ticket_service" }),
+    );
+    const byContactId = new Map(
+      result.recipients.map((recipient) => [recipient.profileId, recipient]),
+    );
+    expect(byContactId.get(marketingUnsubscribed)).toMatchObject({
+      emailUnsubscribed: false,
+      providerBounced: false,
+    });
+    expect(byContactId.get(providerBounced)).toMatchObject({
+      emailUnsubscribed: false,
+      providerBounced: true,
+    });
+    expect(byContactId.get(doNotEmail)?.doNotEmail).toBe(true);
+    expect(byContactId.get(technical)?.emailSuppressed).toBe(true);
+    expect(byContactId.get(profileBounced)?.providerBounced).toBe(true);
+  });
+
+  it("counts paid service orders that have no resolvable Contact or valid email", async () => {
+    const { db, storage } = seedDatabase();
+    const eventId = uuidFor("unresolved-service-event");
+    seedTicketPurchase(db, "Unlinked buyer", "unlinked@example.com", {
+      eventId,
+      marketingOptIn: false,
+    });
+    const invalidContact = seedContact(db, {
+      displayName: "Invalid email buyer",
+      email: "not-an-email",
+    });
+    const invalidPurchase = seedTicketPurchase(db, "Invalid email buyer", "not-an-email", {
+      eventId,
+      marketingOptIn: false,
+    });
+    linkTransactionContact(db, "ticket_purchases", invalidPurchase, invalidContact);
+
+    const result = await resolveAudience(
+      storage,
+      audienceFor(["Ticket Buyers"], { eventId, ticketBuyerMode: "ticket_service" }),
+    );
+    expect(result.recipients).toEqual([]);
+    expect(result.undeliverableTicketBuyerPurchases).toBe(2);
+  });
+
   it("never interprets a purchase or donation ID as a profile ID", async () => {
     const { db, storage } = seedDatabase();
     const buyerContact = seedContact(db, {
@@ -597,6 +907,29 @@ describe("resolveCommunicationAudienceFromStore", () => {
     expect(recipients).toHaveLength(500);
   });
 
+  it("reports paid ticket orders beyond the bounded service-notice audience", async () => {
+    const { db, storage } = seedDatabase();
+    const eventId = uuidFor("service-limit-event");
+    for (let index = 0; index < 1_001; index += 1) {
+      seedTicketPurchase(
+        db,
+        `Unlinked buyer ${String(index)}`,
+        `buyer${String(index)}@example.com`,
+        {
+          eventId,
+          marketingOptIn: false,
+        },
+      );
+    }
+    const result = await resolveAudience(
+      storage,
+      audienceFor(["Ticket Buyers"], { eventId, ticketBuyerMode: "ticket_service" }),
+    );
+    expect(result.recipients).toEqual([]);
+    expect(result.ticketBuyerPurchasesOverLimit).toBe(1);
+    expect(result.undeliverableTicketBuyerPurchases).toBe(1_000);
+  });
+
   it("carries the v80 recipient subject column through fresh migrations", () => {
     const { db } = seedDatabase();
     const raw: unknown = db.prepare(`PRAGMA table_info(communication_deliveries)`).all();
@@ -613,13 +946,22 @@ describe("resolveCommunicationAudienceFromStore", () => {
 });
 
 describe("communication send boundaries", () => {
-  function sendOperation(recipientCount: number, channel: "Email" | "Both" = "Email") {
+  function sendOperation(
+    recipientCount: number,
+    channel: "Email" | "Both" = "Email",
+    ticketService = false,
+  ) {
     return {
       action: "send",
       actorUserId: "user-tester-001",
       jobId: uuidFor("job"),
       message: {
-        audience: audienceFor(["Members", "Contacts"]),
+        audience: ticketService
+          ? audienceFor(["Ticket Buyers"], {
+              eventId: uuidFor("service-send-event"),
+              ticketBuyerMode: "ticket_service",
+            })
+          : audienceFor(["Members", "Contacts"]),
         channel,
         contentMarkdown: "Boundary probe",
         subject: "Boundary probe",
@@ -640,6 +982,17 @@ describe("communication send boundaries", () => {
   it("rejects more than 500 recipients overall", () => {
     expect(sendOperationSchema.safeParse(sendOperation(500)).success).toBe(true);
     expect(sendOperationSchema.safeParse(sendOperation(501)).success).toBe(false);
+  });
+
+  it("allows up to 1,000 email-only ticket-service recipients and rejects overflow", () => {
+    expect(sendOperationSchema.safeParse(sendOperation(1_000, "Email", true)).success).toBe(true);
+    expect(sendOperationSchema.safeParse(sendOperation(1_001, "Email", true)).success).toBe(false);
+    expect(
+      sendOperationSchema.safeParse({
+        ...sendOperation(1, "Email", true),
+        ticketBuyerPurchasesOverLimit: 1,
+      }).success,
+    ).toBe(false);
   });
 
   it("holds 500 dual-channel recipients within the 1,000-delivery maximum", () => {

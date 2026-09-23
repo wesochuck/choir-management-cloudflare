@@ -22,6 +22,7 @@ function audience(
     profileIds: [],
     rsvp: "All",
     targetAudiences,
+    ticketBuyerMode: "marketing",
     voiceParts: [],
   };
 }

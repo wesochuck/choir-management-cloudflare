@@ -79,7 +79,12 @@ export async function sendMessage(
       return Response.json(message);
     }
   }
-  const reach = communicationReach(operation.recipients, operation.message.channel);
+  const reach = communicationReach(
+    operation.recipients,
+    operation.message.channel,
+    operation.undeliverableTicketBuyerPurchases,
+    operation.ticketBuyerPurchasesOverLimit,
+  );
   if (reach.total === 0)
     return Response.json({ code: "communication_has_no_recipients" }, { status: 409 });
   const deliveries = deliveryRows(

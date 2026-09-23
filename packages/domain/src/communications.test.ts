@@ -21,10 +21,13 @@ describe("Organization communications", () => {
       both: 1,
       email: 2,
       sms: 2,
+      ticketBuyerPurchasesOverLimit: 0,
       total: 2,
+      undeliverableTicketBuyerPurchases: 0,
       unreachable: 2,
     });
     expect(communicationReach(recipients, "Both").total).toBe(3);
+    expect(communicationReach(recipients, "Email", 2, 3).ticketBuyerPurchasesOverLimit).toBe(3);
   });
 
   it("masks destinations and categorizes raw provider failures", () => {

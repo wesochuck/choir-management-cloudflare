@@ -51,6 +51,8 @@ export const communicationAudienceTargetSchema = z.enum([
   "Donors",
 ]);
 
+export const communicationTicketBuyerModeSchema = z.enum(["marketing", "ticket_service"]);
+
 export type CommunicationAudienceTarget = z.infer<typeof communicationAudienceTargetSchema>;
 
 /**
@@ -104,7 +106,7 @@ export const COMMUNICATION_AUDIENCE_CONTACT_LISTS_MAX = 50;
 const communicationContactEmailStatusSchema = z.enum(["unknown", "subscribed", "unsubscribed"]);
 const communicationContactSmsStatusSchema = z.enum(["unknown", "subscribed", "unsubscribed"]);
 
-export const communicationAudienceRequestSchema = z.object({
+const communicationAudienceRequestBaseSchema = z.object({
   contactEmailStatus: communicationContactEmailStatusSchema.nullable().default(null),
   contactIds: z.array(z.uuid()).max(COMMUNICATION_AUDIENCE_CONTACT_IDS_MAX).default([]),
   contactListIds: z.array(z.uuid()).max(COMMUNICATION_AUDIENCE_CONTACT_LISTS_MAX).default([]),
@@ -118,8 +120,49 @@ export const communicationAudienceRequestSchema = z.object({
   profileIds: z.array(z.uuid()).max(500).default([]),
   rsvp: z.enum(["All", "Yes", "No", "Pending"]).default("All"),
   targetAudiences: z.array(communicationAudienceTargetSchema).min(1).max(4).default(["Members"]),
+  ticketBuyerMode: communicationTicketBuyerModeSchema.default("marketing"),
   voiceParts: z.array(z.string().trim().min(1).max(80)).max(100).default([]),
 });
+
+export const communicationAudienceRequestSchema =
+  communicationAudienceRequestBaseSchema.superRefine((audience, context) => {
+    if (audience.ticketBuyerMode !== "ticket_service") return;
+    if (audience.eventId === null) {
+      context.addIssue({
+        code: "custom",
+        message: "Select the affected performance to contact its ticket holders.",
+        path: ["eventId"],
+      });
+    }
+    if (audience.targetAudiences.length !== 1 || audience.targetAudiences[0] !== "Ticket Buyers") {
+      context.addIssue({
+        code: "custom",
+        message: "Important ticket-holder notices can only target Ticket Buyers.",
+        path: ["targetAudiences"],
+      });
+    }
+  });
+
+function validateTicketBuyerDeliveryChannel(
+  value: {
+    readonly audience: CommunicationAudienceRequest;
+    readonly channel: CommunicationChannel;
+  },
+  context: z.RefinementCtx,
+): void {
+  if (value.audience.ticketBuyerMode === "ticket_service" && value.channel !== "Email") {
+    context.addIssue({
+      code: "custom",
+      message:
+        "Important ticket-holder notices can only be sent by email. Switch to Email delivery.",
+      path: ["channel"],
+    });
+  }
+}
+
+export const communicationAudienceChannelRequestSchema = z
+  .object({ audience: communicationAudienceRequestSchema, channel: communicationChannelSchema })
+  .superRefine(validateTicketBuyerDeliveryChannel);
 
 const communicationComposeBaseSchema = z.object({
   audience: communicationAudienceRequestSchema,
@@ -130,6 +173,7 @@ const communicationComposeBaseSchema = z.object({
 
 export const communicationDraftRequestSchema = communicationComposeBaseSchema.superRefine(
   (value, context) => {
+    validateTicketBuyerDeliveryChannel(value, context);
     if (value.channel !== "SMS" && value.subject.length === 0) {
       context.addIssue({ code: "custom", message: "Email messages require a subject." });
     }
@@ -177,7 +221,9 @@ export const communicationReachSchema = z.object({
   both: z.number().int().nonnegative(),
   email: z.number().int().nonnegative(),
   sms: z.number().int().nonnegative(),
+  ticketBuyerPurchasesOverLimit: z.number().int().nonnegative().default(0),
   total: z.number().int().nonnegative(),
+  undeliverableTicketBuyerPurchases: z.number().int().nonnegative().default(0),
   unreachable: z.number().int().nonnegative(),
 });
 

@@ -61,7 +61,11 @@ async function fulfillJson(route: Route, body: unknown, status = 200): Promise<v
   await route.fulfill({ body: JSON.stringify(body), contentType: "application/json", status });
 }
 
-async function handleRoute(route: Route, previewBodies: unknown[]): Promise<void> {
+async function handleRoute(
+  route: Route,
+  previewBodies: unknown[],
+  sendBodies: unknown[] = [],
+): Promise<void> {
   const pathname = new URL(route.request().url()).pathname;
   if (pathname === "/api/public/projection") {
     await route.fulfill({ status: 404 });
@@ -80,6 +84,7 @@ async function handleRoute(route: Route, previewBodies: unknown[]): Promise<void
     return;
   }
   if (pathname === "/api/organization/communications/send") {
+    sendBodies.push(route.request().postDataJSON());
     await fulfillJson(route, queuedMessage, 202);
     return;
   }
@@ -314,6 +319,68 @@ test("preserves all selected audiences and automatically computes reach preview"
     .toMatchObject({
       audience: { targetAudiences: ["Members", "Ticket Buyers", "Donors"] },
     });
+});
+
+test("reviews and queues an event-specific ticket-holder service notice", async ({ page }) => {
+  const previewBodies: unknown[] = [];
+  const sendBodies: unknown[] = [];
+  await page.route("**/api/**", (route) => handleRoute(route, previewBodies, sendBodies));
+
+  await page.goto("/admin/communications?tab=compose");
+  const recipientPanel = page.locator(".communication-recipient-panel");
+  const subject = page.getByLabel("Subject");
+  const body = page.getByRole("textbox", { name: "Message body" });
+  await subject.fill("Performance update");
+  await body.fill("Your performance has been canceled.");
+
+  await recipientPanel.getByRole("checkbox", { name: "Ticket Buyers" }).check();
+  await recipientPanel.getByRole("checkbox", { name: "Members" }).uncheck();
+  await recipientPanel
+    .getByRole("radio", { name: "Important notice for current ticket holders" })
+    .check();
+  await expect(recipientPanel.getByLabel("Event (required)")).toBeVisible();
+  await expect(
+    recipientPanel.getByText("Select the affected performance to contact its ticket holders."),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Review & send" })).toBeDisabled();
+
+  const serviceReach = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/organization/communications/reach-preview") &&
+      response.request().postData()?.includes('"ticketBuyerMode":"ticket_service"') === true,
+  );
+  await recipientPanel.getByLabel("Event (required)").selectOption(eventId);
+  await serviceReach;
+  await expect
+    .poll(() => previewBodies[previewBodies.length - 1])
+    .toMatchObject({
+      audience: {
+        eventId,
+        targetAudiences: ["Ticket Buyers"],
+        ticketBuyerMode: "ticket_service",
+      },
+      channel: "Email",
+    });
+  await expect(recipientPanel.getByRole("status")).toContainText(
+    "2 ticket-holder recipients can receive this email",
+  );
+
+  await page.getByRole("button", { name: "Review & send" }).click();
+  const review = page.getByRole("dialog", { name: "Review message" });
+  await expect(review).toContainText("Important notice for current ticket holders");
+  await expect(review).toContainText("paid ticket for the selected performance");
+  await expect(review).toContainText("2 ticket-holder recipients can receive this email");
+  await review.getByRole("button", { name: "Send to 2 recipients" }).click();
+  await expect(page.getByRole("status")).toContainText("Message queued for 2 recipients.");
+  expect(sendBodies).toHaveLength(1);
+  expect(sendBodies[0]).toMatchObject({
+    audience: {
+      eventId,
+      targetAudiences: ["Ticket Buyers"],
+      ticketBuyerMode: "ticket_service",
+    },
+    channel: "Email",
+  });
 });
 
 test("starts each toolbar list item on a new line", async ({ page }) => {
