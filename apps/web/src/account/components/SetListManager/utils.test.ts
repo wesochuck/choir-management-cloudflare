@@ -1,8 +1,10 @@
 import {
   organizationEventSchema,
   organizationMusicPieceSchema,
+  organizationVenueSchema,
   type OrganizationEvent,
   type OrganizationMusicPiece,
+  type OrganizationVenue,
 } from "@choir/contracts";
 import { describe, expect, it } from "vitest";
 
@@ -13,6 +15,7 @@ import {
   effectiveSetListItemDurationSeconds,
   effectiveSetListItemNotes,
   musicPiecesForSetListItem,
+  resolveEventVenueName,
   resolveSetListPreferredPracticeTrack,
   setListBuilderCredit,
   setListDocumentText,
@@ -136,6 +139,83 @@ describe("setListDocumentText notes", () => {
     ];
     const text = setListDocumentText(event, multiLine, [], true);
     expect(text).toContain("   Notes: First line.\n   Second line.");
+  });
+});
+
+describe("resolveEventVenueName and setListDocumentText venue", () => {
+  const venueId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+  const venue: OrganizationVenue = organizationVenueSchema.parse({
+    address: "123 Main St",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    id: venueId,
+    name: "Fairfield Christian Church",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+
+  const eventWithVenueId: OrganizationEvent = organizationEventSchema.parse({
+    createdAt: "2026-08-01T12:00:00.000Z",
+    id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+    location: "",
+    setList: [],
+    startsAt: "2026-12-13T15:00:00.000Z",
+    title: "2026 Christmas Concert",
+    type: "Performance",
+    updatedAt: "2026-08-01T12:00:00.000Z",
+    venueId,
+  });
+
+  const eventWithLocationOnly: OrganizationEvent = organizationEventSchema.parse({
+    createdAt: "2026-08-01T12:00:00.000Z",
+    id: "6f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+    location: "Community Hall",
+    setList: [],
+    startsAt: "2026-12-13T15:00:00.000Z",
+    title: "Winter Festival",
+    type: "Performance",
+    updatedAt: "2026-08-01T12:00:00.000Z",
+    venueId: null,
+  });
+
+  const eventWithNoVenue: OrganizationEvent = organizationEventSchema.parse({
+    createdAt: "2026-08-01T12:00:00.000Z",
+    id: "7f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+    location: "",
+    setList: [],
+    startsAt: "2026-12-13T15:00:00.000Z",
+    title: "Pop-Up Concert",
+    type: "Performance",
+    updatedAt: "2026-08-01T12:00:00.000Z",
+    venueId: null,
+  });
+
+  it("resolves venue name from venues list when event has venueId", () => {
+    expect(resolveEventVenueName(eventWithVenueId, [venue])).toBe("Fairfield Christian Church");
+  });
+
+  it("falls back to location when venueId is null or not found in venues", () => {
+    expect(resolveEventVenueName(eventWithLocationOnly, [venue])).toBe("Community Hall");
+    expect(resolveEventVenueName(eventWithLocationOnly, [])).toBe("Community Hall");
+    expect(resolveEventVenueName(eventWithVenueId, [])).toBeUndefined();
+  });
+
+  it("returns undefined when neither venue nor location is available", () => {
+    expect(resolveEventVenueName(eventWithNoVenue, [venue])).toBeUndefined();
+  });
+
+  it("formats Venue line with venue name in setListDocumentText when venue is resolved", () => {
+    const text = setListDocumentText(eventWithVenueId, [], [], false, undefined, [venue]);
+    expect(text).toContain("Set List: 2026 Christmas Concert");
+    expect(text).toContain("Venue: Fairfield Christian Church");
+  });
+
+  it("formats Venue line with fallback location in setListDocumentText", () => {
+    const text = setListDocumentText(eventWithLocationOnly, [], []);
+    expect(text).toContain("Venue: Community Hall");
+  });
+
+  it("formats Venue line with dash in setListDocumentText when no venue exists", () => {
+    const text = setListDocumentText(eventWithNoVenue, [], []);
+    expect(text).toContain("Venue: —");
   });
 });
 

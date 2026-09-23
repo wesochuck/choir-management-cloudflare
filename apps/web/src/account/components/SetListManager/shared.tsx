@@ -2,6 +2,7 @@ import type {
   OrganizationEvent,
   OrganizationMusicPiece,
   OrganizationProfile,
+  OrganizationVenue,
 } from "@choir/contracts";
 import { calculateSetListTiming, formatSetListDuration } from "@choir/domain";
 import { useState } from "react";
@@ -12,6 +13,7 @@ import {
   effectiveSetListItemDurationSeconds,
   printDateOnly,
   printTimeOnly,
+  resolveEventVenueName,
   setListPreviewRows,
   setListPrintedCredit,
 } from "./utils";
@@ -22,25 +24,28 @@ export function SetListPreview({
   items,
   music,
   showNotes = false,
+  venues,
 }: {
   readonly defaultTransitionSeconds?: number | undefined;
   readonly event: OrganizationEvent;
   readonly items: readonly SetListItem[];
   readonly music: readonly OrganizationMusicPiece[];
   readonly showNotes?: boolean;
+  readonly venues?: readonly OrganizationVenue[] | string | undefined;
 }) {
   const transitionSeconds = defaultTransitionSeconds ?? event.setListDefaultTransitionSeconds;
   const timing = calculateSetListTiming(items, transitionSeconds, (item) =>
     effectiveSetListItemDurationSeconds(item, music),
   );
   const rows = setListPreviewRows(items, music);
+  const venue = resolveEventVenueName(event, venues);
   return (
     <div className="set-list-preview">
       <header className="set-list-preview__header">
         <h1>{event.title}</h1>
         <p>
           {printDateOnly(event.startsAt)} at {printTimeOnly(event.startsAt)}
-          {event.location ? ` | ${event.location}` : ""}
+          {venue ? ` | ${venue}` : ""}
         </p>
         <div className="set-list-preview__timing">
           <span>Estimated runtime: {formatSetListDuration(timing.estimatedRuntime)}</span>
@@ -86,12 +91,14 @@ export function SetListPrintView({
   items,
   music,
   showNotes = false,
+  venues,
 }: {
   readonly defaultTransitionSeconds?: number | undefined;
   readonly event: OrganizationEvent;
   readonly items: readonly SetListItem[];
   readonly music: readonly OrganizationMusicPiece[];
   readonly showNotes?: boolean;
+  readonly venues?: readonly OrganizationVenue[] | string | undefined;
 }) {
   return (
     <div aria-hidden="true" className="set-list-print-view">
@@ -101,6 +108,7 @@ export function SetListPrintView({
         items={items}
         music={music}
         showNotes={showNotes}
+        venues={venues}
       />
     </div>
   );

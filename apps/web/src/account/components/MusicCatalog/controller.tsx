@@ -16,7 +16,7 @@ export function MusicCatalog({
 }) {
   return (
     <MusicCatalogView
-      model={useMusicCatalogController({ enabled, initialPieceId })}
+      model={useMusicCatalogController({ enabled, initialPieceId, navigate })}
       navigate={navigate}
       returnTo={returnTo}
       view={view}

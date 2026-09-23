@@ -393,6 +393,9 @@ test("multi-selects pieces in music catalog and adds them to existing and new co
   // 1. Test adding to existing concert
   await page.getByRole("button", { name: "Add to set list", exact: true }).click();
   await expect(page.getByText('Added 2 piece(s) to "Spring Gala 2026".')).toBeVisible();
+  const springGalaLink = page.getByRole("link", { name: "Spring Gala 2026" });
+  await expect(springGalaLink).toBeVisible();
+  await expect(springGalaLink).toHaveAttribute("href", /\/admin\/setlists\?eventId=/);
 
   // 2. Select pieces again and create a new concert set list
   await selectFirst.click();
@@ -407,6 +410,9 @@ test("multi-selects pieces in music catalog and adds them to existing and new co
   await expect(
     page.getByText('Created "Winter Concert 2026" and added 2 piece(s) to its set list.'),
   ).toBeVisible();
+  const winterConcertLink = page.getByRole("link", { name: "Winter Concert 2026" });
+  await expect(winterConcertLink).toBeVisible();
+  await expect(winterConcertLink).toHaveAttribute("href", /\/admin\/setlists\?eventId=/);
 });
 
 test("manages genre labels from library settings and aligns the practice save control", async ({

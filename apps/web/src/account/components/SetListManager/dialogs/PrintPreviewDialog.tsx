@@ -14,6 +14,7 @@ export function PrintPreviewDialog({
   onClose,
   open,
   showNotes = false,
+  venues,
 }: {
   readonly copyListText: () => Promise<void>;
   readonly defaultTransitionSeconds?: number | undefined;
@@ -23,6 +24,7 @@ export function PrintPreviewDialog({
   readonly onClose: () => void;
   readonly open: boolean;
   readonly showNotes?: boolean;
+  readonly venues?: SetListManagerModel["resources"]["venues"] | undefined;
 }) {
   if (!event) return null;
   return (
@@ -34,6 +36,7 @@ export function PrintPreviewDialog({
           items={items}
           music={music}
           showNotes={showNotes}
+          venues={venues}
         />
         <div className="dialog__actions">
           <DialogClose asChild>

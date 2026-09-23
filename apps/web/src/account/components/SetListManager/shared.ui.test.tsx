@@ -1,8 +1,10 @@
 import {
   organizationEventSchema,
   organizationMusicPieceSchema,
+  organizationVenueSchema,
   type OrganizationEvent,
   type OrganizationMusicPiece,
+  type OrganizationVenue,
 } from "@choir/contracts";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -284,5 +286,76 @@ describe("SetListItemSummaryText (Admin Set List Builder)", () => {
     const printCredit = printContainer.querySelector(".set-list-preview__composer")?.textContent;
     expect(printCredit).toBe("arr. Peter J. Wilhousky");
     expect(printCredit).not.toContain("Mykola Leontovych");
+  });
+});
+
+describe("SetListPreview venue rendering", () => {
+  const venueId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+  const venue: OrganizationVenue = organizationVenueSchema.parse({
+    address: "123 Main St",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    id: venueId,
+    name: "Fairfield Christian Church",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+
+  const eventWithVenueId: OrganizationEvent = organizationEventSchema.parse({
+    createdAt: "2026-08-01T12:00:00.000Z",
+    id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+    location: "",
+    setList: [],
+    startsAt: "2026-12-13T15:00:00.000Z",
+    title: "2026 Christmas Concert",
+    type: "Performance",
+    updatedAt: "2026-08-01T12:00:00.000Z",
+    venueId,
+  });
+
+  const eventWithLocation: OrganizationEvent = organizationEventSchema.parse({
+    createdAt: "2026-08-01T12:00:00.000Z",
+    id: "6f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+    location: "Community Hall",
+    setList: [],
+    startsAt: "2026-12-13T15:00:00.000Z",
+    title: "Winter Festival",
+    type: "Performance",
+    updatedAt: "2026-08-01T12:00:00.000Z",
+    venueId: null,
+  });
+
+  const eventWithoutVenue: OrganizationEvent = organizationEventSchema.parse({
+    createdAt: "2026-08-01T12:00:00.000Z",
+    id: "7f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+    location: "",
+    setList: [],
+    startsAt: "2026-12-13T15:00:00.000Z",
+    title: "Pop-Up Concert",
+    type: "Performance",
+    updatedAt: "2026-08-01T12:00:00.000Z",
+    venueId: null,
+  });
+
+  it("renders venue name in header when event has venueId matching venues", () => {
+    const { container } = render(
+      <SetListPreview event={eventWithVenueId} items={[]} music={[]} venues={[venue]} />,
+    );
+    const headerP = container.querySelector(".set-list-preview__header p");
+    expect(headerP?.textContent).toContain("Fairfield Christian Church");
+  });
+
+  it("renders location in header when event has location", () => {
+    const { container } = render(
+      <SetListPreview event={eventWithLocation} items={[]} music={[]} />,
+    );
+    const headerP = container.querySelector(".set-list-preview__header p");
+    expect(headerP?.textContent).toContain("Community Hall");
+  });
+
+  it("renders only date and time when neither venue nor location is set", () => {
+    const { container } = render(
+      <SetListPreview event={eventWithoutVenue} items={[]} music={[]} />,
+    );
+    const headerP = container.querySelector(".set-list-preview__header p");
+    expect(headerP?.textContent).not.toContain("|");
   });
 });

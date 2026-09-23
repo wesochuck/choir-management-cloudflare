@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type ReactNode,
   type SetStateAction,
 } from "react";
 import {
@@ -52,7 +53,7 @@ export function useMusicEditor({
   readonly roster: OrganizationRosterConfiguration | null;
   readonly setBusy: (value: boolean) => void;
   readonly setError: (value: string | null) => void;
-  readonly setMessage: (value: string | null) => void;
+  readonly setMessage: (value: ReactNode) => void;
   readonly setPieces: Dispatch<SetStateAction<readonly OrganizationMusicPiece[]>>;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);

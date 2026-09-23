@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { OrganizationMusicPiece } from "@choir/contracts";
 import { useMusicBulk } from "./hooks/useMusicBulk";
 import { useMusicData } from "./hooks/useMusicData";
@@ -9,13 +9,15 @@ import { useMusicImport } from "./hooks/useMusicImport";
 export function useMusicCatalogController({
   enabled,
   initialPieceId,
+  navigate,
 }: {
   readonly enabled: boolean;
   readonly initialPieceId?: string | null | undefined;
+  readonly navigate?: ((href: string) => void) | undefined;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<ReactNode>(null);
   const data = useMusicData({ enabled, setError });
   const filters = useMusicFilters();
   const editor = useMusicEditor({
@@ -36,6 +38,7 @@ export function useMusicCatalogController({
   const bulk = useMusicBulk({
     busy,
     events: data.events,
+    navigate,
     pieces: data.pieces,
     selectedPieces: derived.selectedPieces,
     selectedPieceIds: filters.selectedPieceIds,

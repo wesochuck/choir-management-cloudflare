@@ -922,6 +922,7 @@ export function SetListManagerView({
             }}
             open={printDialogOpen}
             showNotes={showNotes}
+            venues={resources.venues}
           />
 
           <EditItemDialog
@@ -971,6 +972,7 @@ export function SetListManagerView({
           items={items}
           music={resources.music}
           showNotes={showNotes}
+          venues={resources.venues}
         />
       ) : null}
     </section>

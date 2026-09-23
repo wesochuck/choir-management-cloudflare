@@ -24,6 +24,7 @@ import {
   listOrganizationEvents,
   listOrganizationMusic,
   listOrganizationProfiles,
+  listOrganizationVenues,
   rotatePublicPlayerToken,
   updateOrganizationEvent,
 } from "../../../auth/api";
@@ -72,9 +73,10 @@ export function useSetListManagerController({
       listOrganizationEvents(controller.signal),
       listOrganizationMusic(controller.signal),
       listOrganizationProfiles(controller.signal),
+      listOrganizationVenues(controller.signal),
     ])
-      .then(([events, music, profiles]) => {
-        setResources({ events, music, profiles });
+      .then(([events, music, profiles, venues]) => {
+        setResources({ events, music, profiles, venues });
         const requestedEventId =
           initialEventId ?? new URLSearchParams(window.location.search).get("eventId");
         const selectedPerformance =
@@ -344,6 +346,7 @@ export function useSetListManagerController({
       resources.music,
       showNotes,
       defaultTransitionSeconds,
+      resources.venues,
     );
     try {
       await navigator.clipboard.writeText(text);

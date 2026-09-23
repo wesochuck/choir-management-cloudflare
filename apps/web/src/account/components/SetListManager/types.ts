@@ -2,6 +2,7 @@ import type {
   OrganizationEvent,
   OrganizationMusicPiece,
   OrganizationProfile,
+  OrganizationVenue,
 } from "@choir/contracts";
 
 export type SetListItem = OrganizationEvent["setList"][number];
@@ -12,6 +13,7 @@ export interface Resources {
   readonly events: readonly OrganizationEvent[];
   readonly music: readonly OrganizationMusicPiece[];
   readonly profiles: readonly OrganizationProfile[];
+  readonly venues: readonly OrganizationVenue[];
 }
 
 export interface SetListPrintRow {

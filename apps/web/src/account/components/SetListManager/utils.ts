@@ -2,6 +2,7 @@ import type {
   OrganizationEvent,
   OrganizationEventRequest,
   OrganizationMusicPiece,
+  OrganizationVenue,
 } from "@choir/contracts";
 import {
   calculateSetListTiming,
@@ -18,6 +19,7 @@ export const emptyResources: Resources = {
   events: [],
   music: [],
   profiles: [],
+  venues: [],
 };
 
 export function eventRequestFrom(
@@ -453,23 +455,49 @@ export function setListBuilderCredit(
   return undefined;
 }
 
+export function resolveEventVenueName(
+  event: (OrganizationEvent & { venueName?: string | null }) | null | undefined,
+  venues?: readonly OrganizationVenue[] | string,
+): string | undefined {
+  if (!event) return undefined;
+  if (typeof venues === "string") {
+    const trimmed = venues.trim();
+    if (trimmed) return trimmed;
+  }
+  if (event.venueId && venues && typeof venues !== "string") {
+    const venue = venues.find((candidate) => candidate.id === event.venueId);
+    if (venue?.name) {
+      const trimmed = venue.name.trim();
+      if (trimmed) return trimmed;
+    }
+  }
+  if (event.venueName && typeof event.venueName === "string") {
+    const trimmed = event.venueName.trim();
+    if (trimmed) return trimmed;
+  }
+  const location = event.location.trim();
+  return location ? location : undefined;
+}
+
 export function setListDocumentText(
   event: OrganizationEvent,
   items: readonly SetListItem[],
   music: readonly OrganizationMusicPiece[],
   showNotes = false,
   defaultTransitionSeconds?: number,
+  venues?: readonly OrganizationVenue[] | string,
 ): string {
   const transitionSeconds = defaultTransitionSeconds ?? event.setListDefaultTransitionSeconds;
   const timing = calculateSetListTiming(items, transitionSeconds, (item) =>
     effectiveSetListItemDurationSeconds(item, music),
   );
   const rows = setListPreviewRows(items, music);
+  const venue = resolveEventVenueName(event, venues);
   return [
     `Set List: ${event.title}`,
     `Date: ${printDateOnly(event.startsAt)}`,
     `Time: ${printTimeOnly(event.startsAt)}`,
-    `Venue: ${event.location || "—"}`,
+    `Venue: ${venue ?? "—"}`,
     `Estimated runtime: ${formatSetListDuration(timing.estimatedRuntime)}`,
     ...(transitionSeconds > 0
       ? [`Default between-song time: ${formatSetListDuration(transitionSeconds)}`]

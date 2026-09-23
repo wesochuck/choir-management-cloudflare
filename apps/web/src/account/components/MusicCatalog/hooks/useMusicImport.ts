@@ -5,7 +5,7 @@ import {
   type CsvColumnMapping,
   type MusicCsvInspection,
 } from "@choir/domain";
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
   AuthApiError,
   importOrganizationMusicCsv,
@@ -36,7 +36,7 @@ export function useMusicImport({
   readonly busy: boolean;
   readonly setBusy: (value: boolean) => void;
   readonly setError: (value: string | null) => void;
-  readonly setMessage: (value: string | null) => void;
+  readonly setMessage: (value: ReactNode) => void;
   readonly setPieces: Dispatch<SetStateAction<readonly OrganizationMusicPiece[]>>;
 }) {
   const [importDialogOpen, setImportDialogOpen] = useState(false);

@@ -223,6 +223,17 @@
     margin-top: 0;
   }
 
+  .notice a {
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-underline-offset: 0.2rem;
+  }
+
+  .notice a:hover {
+    color: var(--color-primary-strong);
+    text-decoration: underline;
+  }
+
   .notice--error {
     border-color: var(--color-danger);
     background: var(--color-danger-surface);
