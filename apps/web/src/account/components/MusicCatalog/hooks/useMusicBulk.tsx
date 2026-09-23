@@ -4,7 +4,7 @@ import type {
   OrganizationMusicBulkUpdateRequest,
   OrganizationMusicPiece,
 } from "@choir/contracts";
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
   AuthApiError,
   bulkDeleteOrganizationMusicPieces,
@@ -14,10 +14,12 @@ import {
   renameOrganizationMusicCredit,
   updateOrganizationEvent,
 } from "../../../../auth/api";
+import { AppLink } from "../../AuthenticatedShell/navigation";
 import { eventRequestFrom, performanceSetListItem } from "../tableUtils";
 export function useMusicBulk({
   busy,
   events,
+  navigate,
   pieces,
   selectedPieces,
   selectedPieceIds,
@@ -31,13 +33,14 @@ export function useMusicBulk({
 }: {
   readonly busy: boolean;
   readonly events: readonly OrganizationEvent[];
+  readonly navigate?: ((href: string) => void) | undefined;
   readonly pieces: readonly OrganizationMusicPiece[];
   readonly selectedPieces: readonly OrganizationMusicPiece[];
   readonly selectedPieceIds: readonly string[];
   readonly setBusy: (value: boolean) => void;
   readonly setError: (value: string | null) => void;
   readonly setEvents: Dispatch<SetStateAction<readonly OrganizationEvent[]>>;
-  readonly setMessage: (value: string | null) => void;
+  readonly setMessage: (value: ReactNode) => void;
   readonly setPieces: Dispatch<SetStateAction<readonly OrganizationMusicPiece[]>>;
   readonly setSelectedPieceIds: Dispatch<SetStateAction<readonly string[]>>;
   readonly timezone: string;
@@ -164,9 +167,16 @@ export function useMusicBulk({
     setBusy(true);
     setSetListError(null);
     try {
+      const onNavigate =
+        navigate ??
+        ((href: string) => {
+          if (typeof window !== "undefined") {
+            window.location.assign(href);
+          }
+        });
       const itemsToAdd = selectedPieces.map((p) => performanceSetListItem(p));
       let targetEvent: OrganizationEvent;
-      let actionLabel = "";
+      let actionNotice: ReactNode;
       if (payload.mode === "existing") {
         const existingEvent = events.find((e) => e.id === payload.eventId);
         if (!existingEvent) throw new Error("Selected concert event not found.");
@@ -175,7 +185,19 @@ export function useMusicBulk({
           ...eventRequestFrom(existingEvent),
           setList: nextSetList,
         });
-        actionLabel = `Added ${String(itemsToAdd.length)} piece(s) to "${targetEvent.title}".`;
+        actionNotice = (
+          <>
+            {`Added ${String(itemsToAdd.length)} piece(s) to "`}
+            <AppLink
+              className="text-link"
+              href={`/admin/setlists?eventId=${encodeURIComponent(targetEvent.id)}`}
+              onNavigate={onNavigate}
+            >
+              {targetEvent.title}
+            </AppLink>
+            {`".`}
+          </>
+        );
       } else {
         targetEvent = await createOrganizationEvent({
           advancePriceCents: 0,
@@ -204,7 +226,19 @@ export function useMusicBulk({
           type: "Performance",
           venueId: payload.venueId ?? null,
         });
-        actionLabel = `Created "${targetEvent.title}" and added ${String(itemsToAdd.length)} piece(s) to its set list.`;
+        actionNotice = (
+          <>
+            {'Created "'}
+            <AppLink
+              className="text-link"
+              href={`/admin/setlists?eventId=${encodeURIComponent(targetEvent.id)}`}
+              onNavigate={onNavigate}
+            >
+              {targetEvent.title}
+            </AppLink>
+            {`" and added ${String(itemsToAdd.length)} piece(s) to its set list.`}
+          </>
+        );
       }
       setEvents((current) => {
         const exists = current.some((e) => e.id === targetEvent.id);
@@ -214,7 +248,7 @@ export function useMusicBulk({
       });
       setSelectedPieceIds([]);
       setSetListDialogOpen(false);
-      setMessage(actionLabel);
+      setMessage(actionNotice);
     } catch (caught: unknown) {
       setSetListError(
         caught instanceof AuthApiError
