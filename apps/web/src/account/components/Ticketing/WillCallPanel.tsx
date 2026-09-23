@@ -196,7 +196,23 @@ export function WillCallPanel({
               {
                 header: "Buyer name",
                 id: "buyerName",
-                render: (order) => <strong>{order.buyerName}</strong>,
+                render: (order) => (
+                  <>
+                    <strong>{order.buyerName}</strong>
+                    {order.bundleId !== null ? (
+                      <span
+                        className="status-pill status-pill--neutral ticketing-bundle-order-pill"
+                        title={
+                          order.bundleTitle
+                            ? `Bundle purchase: ${order.bundleTitle}`
+                            : "Bundle purchase"
+                        }
+                      >
+                        Bundle
+                      </span>
+                    ) : null}
+                  </>
+                ),
                 sortValue: (order) => buyerLastName(order.buyerName),
               },
               {

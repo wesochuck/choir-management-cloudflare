@@ -71,6 +71,12 @@ const refundedOrder = ticketOrder({
   status: "refunded",
 });
 const paidOrder = ticketOrder({});
+const bundleOrder = ticketOrder({
+  bundleId: "74e47064-75b9-47e9-97e6-c28f5430bee0",
+  bundleTitle: "Season Pass",
+  buyerName: "Bundle Buyer",
+  id: "44444444-5555-4666-8777-888888888888",
+});
 const refundRequestedOrder = ticketOrder({
   buyerName: "Requested Buyer",
   id: "33333333-4444-4555-8666-777777777777",
@@ -127,6 +133,27 @@ describe("WillCallPanel refunded orders", () => {
     await user.click(screen.getByRole("checkbox", { name: "Show refunded" }));
     expect(within(table).getByText("Refunded Buyer")).toBeInTheDocument();
     expect(within(table).getByText("Refunded (simulation)")).toBeInTheDocument();
+  });
+
+  it("shows the Bundle pill inline for bundle buyers without adding a column", () => {
+    renderWillCallPanel([paidOrder, bundleOrder]);
+
+    const table = getWillCallTable();
+    const bundleRow = within(table).getByText("Bundle Buyer").closest("tr");
+    if (!(bundleRow instanceof HTMLTableRowElement)) {
+      throw new Error("Expected the bundle buyer to be rendered in a table row.");
+    }
+    expect(within(bundleRow).getByText("Bundle")).toHaveAttribute(
+      "title",
+      "Bundle purchase: Season Pass",
+    );
+
+    const standaloneRow = within(table).getByText("Paid Buyer").closest("tr");
+    if (!(standaloneRow instanceof HTMLTableRowElement)) {
+      throw new Error("Expected the standalone buyer to be rendered in a table row.");
+    }
+    expect(within(standaloneRow).queryByText("Bundle")).not.toBeInTheDocument();
+    expect(within(table).queryByRole("columnheader", { name: "Bundle" })).not.toBeInTheDocument();
   });
 
   it("distinguishes orders filtered as refunded from a performance with no orders", async () => {

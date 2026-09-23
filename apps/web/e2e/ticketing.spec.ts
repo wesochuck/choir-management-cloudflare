@@ -710,7 +710,10 @@ test.describe("admin ticket management", () => {
     });
     await page.route("**/api/organization/tickets/orders", async (route) => {
       await route.fulfill({
-        body: JSON.stringify({ orders: [adminOrder, sortableAdminOrder], requestId }),
+        body: JSON.stringify({
+          orders: [adminOrder, sortableAdminOrder, bundleAdminOrder],
+          requestId,
+        }),
         contentType: "application/json",
         status: 200,
       });
@@ -748,17 +751,31 @@ test.describe("admin ticket management", () => {
     await expect(
       page.locator(".ticket-dashboard__metric--sold").getByText("Spring Concert", { exact: true }),
     ).toBeVisible();
-    await expect(visibleOrders.getByText("$15.74", { exact: true })).toBeVisible();
-    await expect(visibleOrders.getByText("Paid (simulation)", { exact: true })).toBeVisible();
+    await expect(visibleOrders.getByText("$15.74", { exact: true }).first()).toBeVisible();
+    await expect(
+      visibleOrders.getByText("Paid (simulation)", { exact: true }).first(),
+    ).toBeVisible();
 
     const orderRows = visibleOrders.locator("tbody tr, .data-table-card");
-    await expect(orderRows).toHaveCount(2);
+    await expect(orderRows).toHaveCount(3);
+    const bundleRow = orderRows.filter({ hasText: "Bundle Buyer" });
+    await expect(bundleRow).toHaveCount(1);
+    await expect(bundleRow.locator(".ticketing-bundle-order-pill")).toHaveText("Bundle");
+    const standaloneRow = orderRows.filter({ hasText: "Jane Buyer" });
+    await expect(standaloneRow.locator(".ticketing-bundle-order-pill")).toHaveCount(0);
     const buyerSortButton = page.getByRole("button", { name: "Sort by Buyer name" });
     if ((await buyerSortButton.count()) > 0 && (await buyerSortButton.isVisible())) {
       await buyerSortButton.click();
       await expect(orderRows.first().getByText("Alex Anderson", { exact: true })).toBeVisible();
       await buyerSortButton.click();
       await expect(orderRows.first().getByText("Jane Buyer", { exact: true })).toBeVisible();
+    }
+    if ((page.viewportSize()?.width ?? 0) <= 600) {
+      const viewport = await page.evaluate(() => ({
+        clientWidth: document.documentElement.clientWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      }));
+      expect(viewport.scrollWidth).toBeLessThanOrEqual(viewport.clientWidth);
     }
   });
 
