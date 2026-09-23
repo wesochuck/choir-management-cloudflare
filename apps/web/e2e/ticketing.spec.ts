@@ -875,7 +875,11 @@ test.describe("admin ticket management", () => {
     await expect(orderTable.locator("thead th").first()).toHaveAttribute("aria-sort", "ascending");
     await expect(orderRows.first().locator("td").first()).toContainText("Zara Anderson");
 
-    await orderTable.getByRole("button", { name: "Sort by Bundle" }).click();
+    const bundleSortButton = orderTable.getByRole("button", { name: "Sort by Bundle" });
+    await bundleSortButton.focus();
+    await bundleSortButton.press("Enter");
+    await expect(bundleSortButton).toBeFocused();
+    await expect(orderTable.locator("thead th").nth(3)).toHaveAttribute("aria-sort", "ascending");
     await expect(orderRows.first().locator("td").nth(3)).toHaveText("Archived Bundle");
 
     await orderTable.getByRole("button", { name: "Sort by Status" }).click();
@@ -980,7 +984,9 @@ test.describe("admin ticket management", () => {
     );
     await expect(visibleOrders.getByText("Paid (simulation)", { exact: true })).toBeVisible();
 
-    await visibleOrders.getByRole("button", { name: "Resend" }).click();
+    const resendButton = visibleOrders.getByRole("button", { name: "Resend" });
+    await resendButton.focus();
+    await resendButton.press("Enter");
     await expect(page.getByText("Ticket confirmation queued.")).toBeVisible();
     expect(resendCalled).toBe(true);
 
