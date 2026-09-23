@@ -205,6 +205,7 @@ export {
   type ContactImportErrorRow,
 } from "./contactImport";
 export {
+  communicationRecipientNamePlaceholderKeys,
   communicationPlaceholderDefinitions,
   determineCommunicationPlaceholderContext,
   extractCommunicationPlaceholders,

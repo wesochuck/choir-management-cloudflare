@@ -29,19 +29,19 @@ function audience(
 
 describe("communication placeholder contexts", () => {
   it("shows only the selected poll's member placeholders for a poll draft", () => {
-    const content = "Hi {singerName},\n{{POLL_LINK:11111111-1111-4111-8111-111111111111}}";
+    const content = "Hi {recipientName},\n{{POLL_LINK:11111111-1111-4111-8111-111111111111}}";
 
     expect(communicationPlaceholderContext(content)).toBe("poll");
     expect(
       visibleCommunicationPlaceholders(audience(["Members"]), "Email", "poll", content).map(
         ({ tag }) => tag,
       ),
-    ).toEqual(["{singerName}", "{{POLL_LINK:11111111-1111-4111-8111-111111111111}}"]);
+    ).toEqual(["{recipientName}", "{{POLL_LINK:11111111-1111-4111-8111-111111111111}}"]);
   });
 
   it("keeps ticket confirmation fields separate from poll and attendance fields", () => {
     const content =
-      "Hello {singerName}, {eventTitle} on {eventDate}. {ticketQuantity} tickets, {ticketAmount}. {{TICKET_LINK}}";
+      "Hello {recipientName}, {eventTitle} on {eventDate}. {ticketQuantity} tickets, {ticketAmount}. {{TICKET_LINK}}";
     const context = communicationPlaceholderContext(content);
     const tags = visibleCommunicationPlaceholders(
       audience(["Ticket Buyers"]),
@@ -52,7 +52,7 @@ describe("communication placeholder contexts", () => {
 
     expect(context).toBe("ticket");
     expect(tags).toEqual([
-      "{singerName}",
+      "{recipientName}",
       "{eventTitle}",
       "{eventDate}",
       "{ticketQuantity}",
@@ -76,7 +76,7 @@ describe("communication placeholder contexts", () => {
 
     expect(context).toBe("bundle");
     expect(tags).toEqual([
-      "{singerName}",
+      "{recipientName}",
       "{ticketQuantity}",
       "{ticketAmount}",
       "{ticketBundleName}",

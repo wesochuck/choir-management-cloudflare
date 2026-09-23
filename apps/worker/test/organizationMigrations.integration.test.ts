@@ -3,10 +3,14 @@ import { reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { ticketMessageTemplates } from "../src/organization/ticketMessageTemplates";
+import { paymentMessageTemplates } from "../src/organization/paymentMessageTemplates";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import { applyOrganizationMigration } from "../src/organization/migrations";
 import { organizationSchemaMigrations } from "../src/organization/schema";
-import { refreshUnmodifiedSystemCommunicationTemplates } from "../src/organization/schema/templates";
+import {
+  getSystemCommunicationTemplateDefault,
+  refreshUnmodifiedSystemCommunicationTemplates,
+} from "../src/organization/schema/templates";
 
 function requireBinding<T>(binding: T | undefined, name: string): T {
   if (binding === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
@@ -20,6 +24,29 @@ afterEach(async () => {
 });
 
 describe("Organization schema migrations", () => {
+  it("uses the canonical recipient placeholder in ticket and payment system template defaults", () => {
+    for (const template of [...ticketMessageTemplates, ...paymentMessageTemplates]) {
+      expect(template.contentMarkdown).toContain("Hi {recipientName}");
+      expect(template.contentMarkdown).not.toMatch(/\{(?:singerName|buyerName)\}/);
+    }
+
+    for (const templateId of [
+      "5f0ca4a5-7e4c-4e1a-9a1c-000000000002",
+      "5f0ca4a5-7e4c-4e1a-9a1c-000000000004",
+      "5f0ca4a5-7e4c-4e1a-9a1c-000000000005",
+      "5f0ca4a5-7e4c-4e1a-9a1c-000000000006",
+      "5f0ca4a5-7e4c-4e1a-9a1c-000000000010",
+      "5f0ca4a5-7e4c-4e1a-9a1c-000000000011",
+      "5f0ca4a5-7e4c-4e1a-9a1c-000000000012",
+      "5f0ca4a5-7e4c-4e1a-9a1c-000000000015",
+    ]) {
+      const template = getSystemCommunicationTemplateDefault(templateId);
+      if (!template) throw new Error(`System template ${templateId} is unavailable.`);
+      expect(template.contentMarkdown).toContain("Hi {recipientName}");
+      expect(template.contentMarkdown).not.toMatch(/\{(?:singerName|buyerName)\}/);
+    }
+  });
+
   it("rolls back a migration and its version marker together", async () => {
     const stub = stores.getByName("organization-migration-atomicity");
     const failedMigration = {

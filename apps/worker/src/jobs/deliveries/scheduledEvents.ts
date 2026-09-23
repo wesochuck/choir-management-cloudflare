@@ -232,7 +232,7 @@ export async function deliverAttendanceReportJob(
       requestId: job.jobId,
     },
     {
-      contentMarkdown: renderCommunicationTemplate(template.contentMarkdown, "{singerName}", {
+      contentMarkdown: renderCommunicationTemplate(template.contentMarkdown, "{recipientName}", {
         ...values,
         eventTitle: parsed.data.event.title,
         eventType: parsed.data.event.type,
@@ -245,7 +245,7 @@ export async function deliverAttendanceReportJob(
       }),
       eventId: parsed.data.eventId,
       recipients,
-      subject: renderCommunicationTemplate(template.subject, "{singerName}", {
+      subject: renderCommunicationTemplate(template.subject, "{recipientName}", {
         eventTitle: parsed.data.event.title,
         eventDate: new Intl.DateTimeFormat("en-US", {
           dateStyle: "long",

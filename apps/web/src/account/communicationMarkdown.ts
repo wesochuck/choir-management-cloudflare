@@ -1,4 +1,5 @@
 import type { OrganizationEvent } from "@choir/contracts";
+import { communicationRecipientNamePlaceholderKeys } from "@choir/domain";
 
 function escapeHtml(value: string): string {
   return value
@@ -79,8 +80,15 @@ export function communicationPreviewValues(
     "- Set list not published",
   );
 
+  const recipientNameValues = communicationRecipientNamePlaceholderKeys.reduce<
+    Record<string, string>
+  >((values, key) => {
+    values[`{${key}}`] = "Alex Morgan";
+    return values;
+  }, {});
+
   return {
-    "{singerName}": "Alex Morgan",
+    ...recipientNameValues,
     "{eventTitle}": eventTitle,
     "{eventType}": eventType,
     "{eventDate}": eventDate,
