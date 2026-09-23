@@ -51,7 +51,8 @@ test("records an offline donation that survives a reload @webkit-smoke", async (
   await expect(page.getByRole("status")).toHaveText("Manual donation recorded.");
   await expect(dialog).toBeHidden();
   const historyPanel = page.getByRole("tabpanel", { name: /history/i });
-  await expect(historyPanel.getByText(donorName)).toBeVisible();
+  const visibleRegister = historyPanel.locator(".data-table:visible, .data-table-cards:visible");
+  await expect(visibleRegister.getByText(donorName)).toBeVisible();
 
   // The live read contract must agree with the UI. A Worker regression that
   // drops or renames donation fields fails this parse.
@@ -62,7 +63,10 @@ test("records an offline donation that survives a reload @webkit-smoke", async (
   expect(created).toMatchObject({ amountCents: 7500, paymentMethod: "cash", status: "paid" });
 
   await page.reload();
-  await expect(page.getByRole("tabpanel", { name: /history/i }).getByText(donorName)).toBeVisible();
+  const refreshedHistory = page.getByRole("tabpanel", { name: /history/i });
+  await expect(
+    refreshedHistory.locator(".data-table:visible, .data-table-cards:visible").getByText(donorName),
+  ).toBeVisible();
 });
 
 test("rejects invalid manual-donation payloads with typed failures", async ({

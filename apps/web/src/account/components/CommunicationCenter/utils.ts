@@ -235,6 +235,8 @@ export function scheduledMessageKindLabel(kind: CommunicationScheduledMessage["k
       return "Ticket Confirmation";
     case "ticket_reminder":
       return "Ticket Reminder";
+    case "ticket_refund":
+      return "Ticket Refund Confirmation";
     case "audition_confirmation":
       return "Audition Confirmation";
     case "audition_reminder":

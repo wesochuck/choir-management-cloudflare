@@ -79,6 +79,29 @@ const listedDonations = [
   }),
 ];
 
+const refundedRegisterDonation = {
+  ...donation({
+    buyerEmail: "refunded.donor@example.test",
+    buyerName: "Refunded Donor",
+    id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+    paymentMethod: "check",
+    paymentReference: "Check #1043",
+    thankYouSentAt: null,
+  }),
+  status: "refunded",
+};
+const refundRequestedRegisterDonation = {
+  ...donation({
+    buyerEmail: "requested.donor@example.test",
+    buyerName: "Refund Requested Donor",
+    id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeef",
+    paymentMethod: "stripe",
+    paymentReference: "",
+    thankYouSentAt: null,
+  }),
+  refundRequested: true,
+};
+
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
@@ -240,8 +263,9 @@ test("records a manual donation from the history tab", async ({ page }) => {
 
   await page.goto("/admin/donations");
   const historyPanel = page.getByRole("tabpanel", { name: /history/i });
-  await expect(historyPanel.getByText("Dana Donor")).toBeVisible();
-  await expect(historyPanel.getByText("Check #1042")).toBeVisible();
+  const visibleRegister = historyPanel.locator(".data-table:visible, .data-table-cards:visible");
+  await expect(visibleRegister.getByText("Dana Donor")).toBeVisible();
+  await expect(visibleRegister.getByText("Check #1042")).toBeVisible();
 
   await page.getByRole("button", { name: "Record donation" }).click();
   const dialog = page.getByRole("dialog", { name: "Record donation" });
@@ -278,31 +302,80 @@ test("records a manual donation from the history tab", async ({ page }) => {
 
   await expect(page.getByRole("status")).toHaveText("Manual donation recorded.");
   await expect(dialog).toBeHidden();
-  await expect(historyPanel.getByText("Nora Noble")).toBeVisible();
+  await expect(visibleRegister.getByText("Nora Noble")).toBeVisible();
 });
 
 test("filters donations by thank-you status and payment source", async ({ page }) => {
   await page.goto("/admin/donations");
   const historyPanel = page.getByRole("tabpanel", { name: /history/i });
-  await expect(historyPanel.getByText("Dana Donor")).toBeVisible();
-  await expect(historyPanel.getByText("Marcus Meadows")).toBeVisible();
+  const visibleRegister = historyPanel.locator(".data-table:visible, .data-table-cards:visible");
+  await expect(visibleRegister.getByText("Dana Donor")).toBeVisible();
+  await expect(visibleRegister.getByText("Marcus Meadows")).toBeVisible();
 
   await historyPanel.getByLabel("Thank you letter").selectOption({ label: "Thank you pending" });
-  await expect(historyPanel.getByText("Dana Donor")).toBeVisible();
-  await expect(historyPanel.getByText("Marcus Meadows")).toBeHidden();
+  await expect(visibleRegister.getByText("Dana Donor")).toBeVisible();
+  await expect(visibleRegister.getByText("Marcus Meadows")).toBeHidden();
 
   await historyPanel.getByLabel("Thank you letter").selectOption({ label: "Thank you sent" });
-  await expect(historyPanel.getByText("Dana Donor")).toBeHidden();
-  await expect(historyPanel.getByText("Marcus Meadows")).toBeVisible();
+  await expect(visibleRegister.getByText("Dana Donor")).toBeHidden();
+  await expect(visibleRegister.getByText("Marcus Meadows")).toBeVisible();
 
   await historyPanel.getByLabel("Thank you letter").selectOption({ label: "All" });
   await historyPanel.getByLabel("Payment source").selectOption({ label: "Online (Stripe)" });
-  await expect(historyPanel.getByText("Dana Donor")).toBeVisible();
-  await expect(historyPanel.getByText("Marcus Meadows")).toBeHidden();
+  await expect(visibleRegister.getByText("Dana Donor")).toBeVisible();
+  await expect(visibleRegister.getByText("Marcus Meadows")).toBeHidden();
 
   await historyPanel.getByLabel("Payment source").selectOption({ label: "Manual / Offline" });
-  await expect(historyPanel.getByText("Dana Donor")).toBeHidden();
-  await expect(historyPanel.getByText("Marcus Meadows")).toBeVisible();
+  await expect(visibleRegister.getByText("Dana Donor")).toBeHidden();
+  await expect(visibleRegister.getByText("Marcus Meadows")).toBeVisible();
+});
+
+test("hides refunded donations by default without changing summary totals or the full CSV", async ({
+  page,
+}) => {
+  await page.route("**/api/organization/donations", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      body: JSON.stringify({
+        donations: [...listedDonations, refundedRegisterDonation, refundRequestedRegisterDonation],
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/admin/donations");
+  const historyPanel = page.getByRole("tabpanel", { name: /history/i });
+  const visibleRegister = historyPanel.locator(".data-table:visible, .data-table-cards:visible");
+  const refundedToggle = historyPanel.getByRole("checkbox", { name: "Show refunded" });
+  await expect(refundedToggle).not.toBeChecked();
+  await expect(visibleRegister.getByText("Refunded Donor")).toHaveCount(0);
+  await expect(visibleRegister.getByText("Refund Requested Donor")).toBeVisible();
+  await expect(visibleRegister.getByText("Refund requested", { exact: true })).toBeVisible();
+
+  const summaryCount = historyPanel.locator(".donation-dashboard__metrics .summary-card").first();
+  await expect(summaryCount.locator("strong")).toHaveText("3");
+  const exportLink = historyPanel.getByRole("link", { name: "Export CSV" });
+  const exportHref = await exportLink.getAttribute("href");
+  expect(exportHref).not.toBeNull();
+  const exportPayload = decodeURIComponent(exportHref?.split(",", 2)[1] ?? "");
+  expect(exportPayload).toContain("Refunded Donor");
+
+  await refundedToggle.check();
+  await expect(visibleRegister.getByText("Refunded Donor")).toBeVisible();
+  await expect(summaryCount.locator("strong")).toHaveText("3");
+  await expect(exportLink).toHaveAttribute("href", exportHref ?? "");
+
+  await page.setViewportSize({ height: 844, width: 390 });
+  const layout = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth);
 });
 
 test("toggles thank-you letter status", async ({ page }) => {
@@ -327,8 +400,9 @@ test("toggles thank-you letter status", async ({ page }) => {
   });
 
   await page.goto("/admin/donations");
-  const danaRow = page.getByRole("row", { name: /Dana Donor/ });
-  await expect(danaRow.getByText("Pending")).toBeVisible();
+  const visibleRegister = page.locator(".data-table:visible, .data-table-cards:visible");
+  const danaRow = visibleRegister.locator("tr, .data-table-card").filter({ hasText: "Dana Donor" });
+  await expect(danaRow.getByText("Pending", { exact: true })).toBeVisible();
 
   const thankYouRequestPromise = page.waitForRequest(
     (request) =>

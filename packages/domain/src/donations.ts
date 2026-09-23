@@ -44,6 +44,13 @@ export interface PatronRecord {
   readonly totalDonatedCents: number;
 }
 
+export function canSetDonationThankYouStatus(
+  donationStatus: DonationStatus,
+  thankYouSent: boolean,
+): boolean {
+  return donationStatus !== "refunded" || !thankYouSent;
+}
+
 export function canTransitionDonation(current: DonationStatus, next: DonationStatus): boolean {
   return (
     current === next ||

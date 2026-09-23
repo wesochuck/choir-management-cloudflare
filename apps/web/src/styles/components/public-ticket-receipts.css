@@ -1,0 +1,197 @@
+/* === Public ticket receipt states === */
+@layer components {
+  .ticket-refund-receipt {
+    max-width: 64rem;
+  }
+
+  .ticket-refund-status {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--spacing-xl);
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-xl);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 28%, var(--color-border));
+    border-radius: var(--radius-card);
+    background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+  }
+
+  .ticket-refund-status__illustration {
+    display: grid;
+    width: 7rem;
+    aspect-ratio: 1;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--color-primary) 24%, var(--color-border));
+    border-radius: var(--radius-xl);
+    background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-raised));
+    color: var(--color-primary);
+  }
+
+  .ticket-refund-status__graphic {
+    display: block;
+    width: 100%;
+    max-width: 6.25rem;
+    height: auto;
+  }
+
+  .ticket-refund-status__content {
+    display: grid;
+    min-width: 0;
+    gap: var(--spacing-xs);
+  }
+
+  .ticket-refund-status__content h1 {
+    max-width: none;
+    margin: 0;
+    font-size: var(--font-size-section);
+    line-height: var(--line-height-tight);
+  }
+
+  .ticket-refund-status__content p {
+    margin: 0;
+  }
+
+  .ticket-refund-status__amount {
+    display: grid;
+    gap: var(--spacing-3xs);
+    margin-block: var(--spacing-xs) !important;
+  }
+
+  .ticket-refund-status__amount span {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .ticket-refund-status__amount strong {
+    font-size: var(--font-size-4xl);
+    font-weight: var(--font-weight-bold);
+    line-height: var(--line-height-tight);
+    overflow-wrap: anywhere;
+  }
+
+  .ticket-refund-status__admission-note {
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .ticket-refund-status__provider-note {
+    max-width: 60ch;
+    color: var(--color-text-muted);
+  }
+
+  .ticket-refund-content {
+    display: grid;
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+    align-items: start;
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-lg);
+  }
+
+  .ticket-refund-summary,
+  .ticket-refund-order-details {
+    display: grid;
+    min-width: 0;
+    align-content: start;
+    gap: var(--spacing-md);
+    margin: 0;
+    padding: var(--spacing-lg);
+  }
+
+  .ticket-refund-summary h2,
+  .ticket-refund-order-details h2 {
+    max-width: none;
+    margin: 0;
+    font-size: var(--font-size-2xl);
+    line-height: var(--line-height-tight);
+  }
+
+  .ticket-refund-order-details h3 {
+    max-width: none;
+    margin: 0;
+    font-size: var(--font-size-xl);
+    line-height: var(--line-height-snug);
+    overflow-wrap: anywhere;
+  }
+
+  .ticket-refund-summary dl,
+  .ticket-refund-order-details__facts {
+    display: grid;
+    min-width: 0;
+    gap: var(--spacing-2xs);
+    margin: 0;
+  }
+
+  .ticket-refund-summary dl > div,
+  .ticket-refund-order-details__facts > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: var(--spacing-sm);
+    padding-block: var(--spacing-xs);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .ticket-refund-summary dl > div:last-child,
+  .ticket-refund-order-details__facts > div:last-child {
+    border-bottom: 0;
+  }
+
+  .ticket-refund-summary dt,
+  .ticket-refund-order-details__facts dt {
+    color: var(--color-text-muted);
+  }
+
+  .ticket-refund-summary dd,
+  .ticket-refund-order-details__facts dd {
+    min-width: 0;
+    margin: 0;
+    font-weight: var(--font-weight-semibold);
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .ticket-refund-summary__highlight dt,
+  .ticket-refund-summary__highlight dd {
+    color: var(--color-text);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .ticket-refund-order-details > p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .ticket-refund-order-details .public-bundle-event-list {
+    margin-block: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .ticket-receipt-actions {
+    display: flex;
+    margin-top: var(--spacing-lg);
+  }
+
+  @media (max-width: 48rem) {
+    .ticket-refund-status {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--spacing-md);
+      padding: var(--spacing-lg);
+    }
+
+    .ticket-refund-status__illustration {
+      width: 5.5rem;
+    }
+
+    .ticket-refund-content {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--spacing-md);
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .ticket-receipt-actions .button {
+      width: 100%;
+    }
+  }
+}

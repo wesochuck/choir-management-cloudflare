@@ -76,7 +76,12 @@ describe("Stripe Connect provider contract", () => {
         customerEmail: "singer@example.test",
         lineItems: [
           { productName: "Spring tickets", quantity: 2, unitAmountCents: 1_500 },
-          { productName: "Processing fee", quantity: 1, unitAmountCents: 100 },
+          {
+            productName: "Processing fee",
+            productDescription: "Covers payment processing costs",
+            quantity: 1,
+            unitAmountCents: 100,
+          },
         ],
         metadata: {
           bundle_id: "bundle-123",
@@ -117,6 +122,12 @@ describe("Stripe Connect provider contract", () => {
 
       expect(body.get("line_items[0][price_data][unit_amount]")).toBe("1500");
       expect(body.get("line_items[1][price_data][unit_amount]")).toBe("100");
+      expect(body.get("line_items[0][price_data][product_data][description]")).toBe(
+        "Payment to Example Choir",
+      );
+      expect(body.get("line_items[1][price_data][product_data][description]")).toBe(
+        "Covers payment processing costs",
+      );
     } finally {
       fetchSpy.mockRestore();
     }

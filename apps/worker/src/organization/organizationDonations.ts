@@ -214,14 +214,17 @@ export async function createDonationCheckoutSession(
 
     const lineItems = [
       { productName: "Donation", quantity: 1, unitAmountCents: pendingDonation.amountCents },
+      ...(pendingDonation.feeCents > 0
+        ? [
+            {
+              productName: "Processing fee",
+              productDescription: "Covers payment processing costs",
+              quantity: 1,
+              unitAmountCents: pendingDonation.feeCents,
+            },
+          ]
+        : []),
     ];
-    if (pendingDonation.feeCents > 0) {
-      lineItems.push({
-        productName: "Processing fee",
-        quantity: 1,
-        unitAmountCents: pendingDonation.feeCents,
-      });
-    }
     let stripeSession: { readonly id: string; readonly url: string };
     try {
       stripeSession = await createStripeCheckoutSession(secretKey, stripeStatus.data.accountId, {
@@ -417,7 +420,9 @@ export async function updateOrganizationDonationThankYou(
     throw new DonationError(
       code,
       response.status,
-      "The thank-you letter status could not be updated.",
+      code === "refunded_donation_thank_you_not_allowed"
+        ? "A thank-you letter cannot be marked as sent for a refunded donation."
+        : "The thank-you letter status could not be updated.",
     );
   }
   return donationRecordSchema.parse(await response.json());

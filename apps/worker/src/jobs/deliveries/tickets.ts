@@ -3,6 +3,7 @@ import { deliverOrganizationCommunication } from "../../communications/provider"
 import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
+import { formatTicketBundleEventList } from "./ticketEventList";
 import {
   deliveryOrigin,
   readOrganizationBrandingConfig,
@@ -33,23 +34,10 @@ export async function deliverTicketNotificationJob(
   if (!response.ok || !notification.success) {
     throw new Error("The ticket notification job is unavailable.");
   }
-  const bundleEventList =
-    notification.data.bundleEvents.length > 0
-      ? notification.data.bundleEvents
-          .map((event) => {
-            const dateStr = new Intl.DateTimeFormat("en-US", {
-              dateStyle: "full",
-              timeStyle: "short",
-              timeZone: notification.data.timezone,
-            }).format(new Date(event.startsAt));
-            const venueParts = [event.venueName, event.venueAddress || event.location].filter(
-              Boolean,
-            );
-            const venueStr = venueParts.length > 0 ? `\n  ${venueParts.join(", ")}` : "";
-            return `- **${event.title}** — ${dateStr}${venueStr}`;
-          })
-          .join("\n")
-      : "";
+  const bundleEventList = formatTicketBundleEventList(
+    notification.data.bundleEvents,
+    notification.data.timezone,
+  );
   const templateValues = {
     buyerName: notification.data.buyerName,
     eventDate: new Intl.DateTimeFormat("en-US", {
@@ -59,6 +47,14 @@ export async function deliverTicketNotificationJob(
     }).format(new Date(notification.data.eventStartsAt)),
     eventLocation: notification.data.eventLocation,
     eventTitle: notification.data.eventTitle,
+    refundAmount: money(notification.data.amountPaidCents, notification.data.currency),
+    refundDate: notification.data.refundDate
+      ? new Intl.DateTimeFormat("en-US", {
+          dateStyle: "full",
+          timeStyle: "short",
+          timeZone: notification.data.timezone,
+        }).format(new Date(notification.data.refundDate))
+      : "",
     ticketAmount: new Intl.NumberFormat("en-US", {
       currency: notification.data.currency.toUpperCase(),
       style: "currency",
@@ -89,6 +85,7 @@ export async function deliverTicketNotificationJob(
     templatedContent,
     notification.data.purchaseId,
     notification.data.eventStartsAt,
+    notification.data.kind === "refund",
   );
   const discountSummary = notification.data.discountCode
     ? [

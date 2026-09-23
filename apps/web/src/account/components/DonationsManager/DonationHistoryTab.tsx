@@ -1,5 +1,7 @@
-import { datePartInTimeZone } from "@choir/domain";
-import { useMemo, useState } from "react";
+import { canSetDonationThankYouStatus, datePartInTimeZone } from "@choir/domain";
+import type { DonationRecord } from "@choir/contracts";
+import { DataTable, type DataTableColumn } from "@choir/ui";
+import { useCallback, useMemo, useState } from "react";
 
 import {
   EMPTY_DONATIONS,
@@ -8,7 +10,6 @@ import {
   donationsCsv,
   money,
   tributeLabel,
-  type DonationSort,
   type DonationState,
   type PatronState,
 } from "./types";
@@ -41,13 +42,24 @@ function matchesDonationSearch(donation: (typeof EMPTY_DONATIONS)[number], query
   );
 }
 
+function canMarkThankYouSent(donation: Pick<DonationRecord, "status">): boolean {
+  return canSetDonationThankYouStatus(donation.status, true);
+}
+
 function matchesThankYouFilter(
-  thankYouSentAt: string | null | undefined,
+  donation: Pick<DonationRecord, "status" | "thankYouSentAt">,
   filter: "all" | "pending" | "sent",
 ): boolean {
   if (filter === "all") return true;
-  if (filter === "sent") return Boolean(thankYouSentAt);
-  return !thankYouSentAt;
+  if (filter === "sent") return Boolean(donation.thankYouSentAt);
+  return canMarkThankYouSent(donation) && !donation.thankYouSentAt;
+}
+
+function thankYouState(
+  donation: Pick<DonationRecord, "status" | "thankYouSentAt">,
+): "not-applicable" | "pending" | "sent" {
+  if (donation.thankYouSentAt) return "sent";
+  return canMarkThankYouSent(donation) ? "pending" : "not-applicable";
 }
 
 function matchesPaymentSourceFilter(
@@ -92,7 +104,7 @@ export function DonationHistoryTab({
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [sort, setSort] = useState<DonationSort>("dateDesc");
+  const [showRefunded, setShowRefunded] = useState(false);
   const [thankYouFilter, setThankYouFilter] = useState<"all" | "pending" | "sent">("all");
   const [paymentSourceFilter, setPaymentSourceFilter] = useState<"all" | "online" | "manual">(
     "all",
@@ -109,38 +121,182 @@ export function DonationHistoryTab({
     ? Math.round(totalRaisedCents / paidDonations.length)
     : 0;
 
-  const filteredDonations = useMemo(() => {
+  const matchingDonations = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
-    return donations
-      .filter((donation) => {
-        const donationDate = datePartInTimeZone(new Date(donation.createdAt), timezone);
-        return (
-          matchesDonationSearch(donation, normalizedQuery) &&
-          (!fromDate || donationDate >= fromDate) &&
-          (!toDate || donationDate <= toDate) &&
-          matchesThankYouFilter(donation.thankYouSentAt, thankYouFilter) &&
-          matchesPaymentSourceFilter(donation.paymentMethod, paymentSourceFilter)
-        );
-      })
-      .toSorted((left, right) => {
-        if (sort === "donor") {
-          const leftName = left.anonymous ? "Anonymous" : left.buyerName;
-          const rightName = right.anonymous ? "Anonymous" : right.buyerName;
-          return leftName.localeCompare(rightName);
-        }
-        const direction = sort === "dateDesc" ? -1 : 1;
-        return direction * left.createdAt.localeCompare(right.createdAt);
-      });
-  }, [donations, fromDate, paymentSourceFilter, query, sort, thankYouFilter, timezone, toDate]);
+    return donations.filter((donation) => {
+      const donationDate = datePartInTimeZone(new Date(donation.createdAt), timezone);
+      return (
+        matchesDonationSearch(donation, normalizedQuery) &&
+        (!fromDate || donationDate >= fromDate) &&
+        (!toDate || donationDate <= toDate) &&
+        matchesThankYouFilter(donation, thankYouFilter) &&
+        matchesPaymentSourceFilter(donation.paymentMethod, paymentSourceFilter)
+      );
+    });
+  }, [donations, fromDate, paymentSourceFilter, query, thankYouFilter, timezone, toDate]);
+  const filteredDonations = useMemo(
+    () =>
+      showRefunded
+        ? matchingDonations
+        : matchingDonations.filter((donation) => donation.status !== "refunded"),
+    [matchingDonations, showRefunded],
+  );
 
-  async function handleToggleThankYou(donationId: string, sent: boolean): Promise<void> {
-    setTogglingThankYouId(donationId);
-    try {
-      await updateThankYou(donationId, sent);
-    } finally {
-      setTogglingThankYouId(null);
-    }
-  }
+  const handleToggleThankYou = useCallback(
+    async (donationId: string, sent: boolean) => {
+      setTogglingThankYouId(donationId);
+      try {
+        await updateThankYou(donationId, sent);
+      } finally {
+        setTogglingThankYouId(null);
+      }
+    },
+    [updateThankYou],
+  );
+
+  const donationColumns = useMemo<readonly DataTableColumn<DonationRecord>[]>(
+    () => [
+      {
+        header: "Donor",
+        id: "donor",
+        render: (donation) => (
+          <div className="donation-register__donor">
+            <strong>{donation.anonymous ? "Anonymous" : donation.buyerName}</strong>
+            {!donation.anonymous && donation.buyerEmail ? (
+              <span className="field-help">{donation.buyerEmail}</span>
+            ) : null}
+            {donation.paymentReference ? (
+              <span className="field-help">{donation.paymentReference}</span>
+            ) : null}
+          </div>
+        ),
+        sortValue: (donation) => (donation.anonymous ? "Anonymous" : donation.buyerName),
+      },
+      {
+        header: "Amount",
+        id: "amount",
+        render: (donation) => money(donation.amountCents),
+        sortValue: (donation) => donation.amountCents,
+      },
+      {
+        header: "Payment method",
+        id: "paymentMethod",
+        mobileLabel: "Payment",
+        render: (donation) => paymentMethodLabel(donation.paymentMethod),
+        sortValue: (donation) => paymentMethodLabel(donation.paymentMethod),
+      },
+      {
+        header: "Tribute",
+        id: "tribute",
+        render: (donation) =>
+          `${tributeLabel(donation.tributeType)}${donation.tributeName ? `: ${donation.tributeName}` : ""}`,
+        sortValue: (donation) =>
+          `${tributeLabel(donation.tributeType)}${donation.tributeName ? `: ${donation.tributeName}` : ""}`,
+      },
+      {
+        header: "Status",
+        id: "status",
+        render: (donation) => {
+          const statusDisplay = donationStatusDisplay(donation);
+          return <span className={statusDisplay.badgeClass}>{statusDisplay.label}</span>;
+        },
+        sortValue: (donation) => donationStatusDisplay(donation).label,
+      },
+      {
+        header: "Thank-you letter",
+        id: "thankYou",
+        mobileLabel: "Thank-you",
+        render: (donation) => {
+          const status = thankYouState(donation);
+          return (
+            <div className="thank-you-status-cell">
+              {status === "sent" && donation.thankYouSentAt ? (
+                <>
+                  <span className="badge badge--success">
+                    Sent {new Date(donation.thankYouSentAt).toLocaleDateString()}
+                  </span>
+                  <button
+                    className="text-button"
+                    disabled={busy || togglingThankYouId === donation.id}
+                    onClick={() => void handleToggleThankYou(donation.id, false)}
+                    type="button"
+                  >
+                    Undo
+                  </button>
+                </>
+              ) : status === "pending" ? (
+                <>
+                  <span className="badge badge--muted">Pending</span>
+                  <button
+                    className="text-button"
+                    disabled={busy || togglingThankYouId === donation.id}
+                    onClick={() => void handleToggleThankYou(donation.id, true)}
+                    type="button"
+                  >
+                    Mark sent
+                  </button>
+                </>
+              ) : (
+                <span className="badge badge--muted">Not applicable</span>
+              )}
+            </div>
+          );
+        },
+        sortValue: (donation) => {
+          const status = thankYouState(donation);
+          return status === "sent" ? `sent:${donation.thankYouSentAt ?? ""}` : status;
+        },
+      },
+      {
+        header: "Date",
+        id: "date",
+        render: (donation) => new Date(donation.createdAt).toLocaleDateString(),
+        sortValue: (donation) => donation.createdAt,
+      },
+      {
+        header: "Actions",
+        id: "actions",
+        render: (donation) =>
+          refundId === donation.id ? (
+            <div className="danger-confirmation">
+              <p>Refund this donation?</p>
+              <div className="form-actions">
+                <button
+                  className="button button--secondary"
+                  disabled={busy}
+                  onClick={() => {
+                    setRefundId(null);
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="button button--danger"
+                  disabled={busy}
+                  onClick={() => void refund(donation.id)}
+                  type="button"
+                >
+                  {busy ? "Refunding…" : "Confirm refund"}
+                </button>
+              </div>
+            </div>
+          ) : donation.status === "paid" && canRefundDonation(donation) ? (
+            <button
+              className="text-button"
+              disabled={busy}
+              onClick={() => {
+                setRefundId(donation.id);
+              }}
+              type="button"
+            >
+              Refund
+            </button>
+          ) : null,
+      },
+    ],
+    [busy, handleToggleThankYou, refund, refundId, setRefundId, togglingThankYouId],
+  );
 
   if (donationState.status === "loading") return <p>Loading donations…</p>;
   if (donationState.status === "error")
@@ -269,158 +425,30 @@ export function DonationHistoryTab({
               <option value="manual">Manual / Offline</option>
             </select>
           </label>
-          <label className="field">
-            Sort by
-            <select
-              onChange={(event) => {
-                const value = event.target.value;
-                if (value === "dateDesc" || value === "dateAsc" || value === "donor") {
-                  setSort(value);
-                }
-              }}
-              value={sort}
-            >
-              <option value="dateDesc">Date (Newest First)</option>
-              <option value="dateAsc">Date (Oldest First)</option>
-              <option value="donor">Donor name</option>
-            </select>
-          </label>
         </div>
-        {donations.length === 0 ? (
-          <div className="empty-state">
-            <p>No donations recorded yet.</p>
-          </div>
-        ) : null}
-        {donations.length > 0 && filteredDonations.length === 0 ? (
-          <div className="empty-state">
-            <p>No donations match these filters.</p>
-          </div>
-        ) : null}
-        {filteredDonations.length > 0 ? (
-          <div className="table-scroll">
-            <table className="table--actions">
-              <thead>
-                <tr>
-                  <th>Donor</th>
-                  <th>Amount</th>
-                  <th>Payment method</th>
-                  <th>Tribute</th>
-                  <th>Status</th>
-                  <th>Thank-you letter</th>
-                  <th>Date</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredDonations.map((donation) => (
-                  <tr key={donation.id}>
-                    <td>
-                      {donation.anonymous ? "Anonymous" : donation.buyerName}
-                      {donation.buyerEmail ? (
-                        <>
-                          <br />
-                          <small>{donation.anonymous ? "" : donation.buyerEmail}</small>
-                        </>
-                      ) : null}
-                      {donation.paymentReference ? (
-                        <>
-                          <br />
-                          <small className="field-help">{donation.paymentReference}</small>
-                        </>
-                      ) : null}
-                    </td>
-                    <td>{money(donation.amountCents)}</td>
-                    <td>{paymentMethodLabel(donation.paymentMethod)}</td>
-                    <td>
-                      {tributeLabel(donation.tributeType)}
-                      {donation.tributeName ? `: ${donation.tributeName}` : ""}
-                    </td>
-                    <td>
-                      {(() => {
-                        const statusDisplay = donationStatusDisplay(donation);
-                        return (
-                          <span className={statusDisplay.badgeClass}>{statusDisplay.label}</span>
-                        );
-                      })()}
-                    </td>
-                    <td>
-                      <div className="thank-you-status-cell">
-                        {donation.thankYouSentAt ? (
-                          <>
-                            <span className="badge badge--success">
-                              Sent {new Date(donation.thankYouSentAt).toLocaleDateString()}
-                            </span>
-                            <button
-                              className="text-button"
-                              disabled={busy || togglingThankYouId === donation.id}
-                              onClick={() => void handleToggleThankYou(donation.id, false)}
-                              type="button"
-                            >
-                              Undo
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <span className="badge badge--muted">Pending</span>
-                            <button
-                              className="text-button"
-                              disabled={busy || togglingThankYouId === donation.id}
-                              onClick={() => void handleToggleThankYou(donation.id, true)}
-                              type="button"
-                            >
-                              Mark sent
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                    <td>{new Date(donation.createdAt).toLocaleDateString()}</td>
-                    <td>
-                      {refundId === donation.id ? (
-                        <div className="danger-confirmation">
-                          <p>Refund this donation?</p>
-                          <div className="form-actions">
-                            <button
-                              className="button button--secondary"
-                              disabled={busy}
-                              onClick={() => {
-                                setRefundId(null);
-                              }}
-                              type="button"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              className="button button--danger"
-                              disabled={busy}
-                              onClick={() => void refund(donation.id)}
-                              type="button"
-                            >
-                              {busy ? "Refunding…" : "Confirm refund"}
-                            </button>
-                          </div>
-                        </div>
-                      ) : donation.status === "paid" ? (
-                        canRefundDonation(donation) ? (
-                          <button
-                            className="text-button"
-                            disabled={busy}
-                            onClick={() => {
-                              setRefundId(donation.id);
-                            }}
-                            type="button"
-                          >
-                            Refund
-                          </button>
-                        ) : null
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
+        <label className="checkbox-row">
+          <input
+            checked={showRefunded}
+            onChange={(event) => {
+              setShowRefunded(event.target.checked);
+            }}
+            type="checkbox"
+          />
+          Show refunded
+        </label>
+        <DataTable
+          columns={donationColumns}
+          emptyMessage={
+            donations.length === 0
+              ? "No donations recorded yet."
+              : matchingDonations.length > 0 && filteredDonations.length === 0
+                ? "All donations matching these filters are refunded."
+                : "No donations match these filters."
+          }
+          initialSort={{ columnId: "date", direction: "desc" }}
+          keySelector={(donation) => donation.id}
+          rows={filteredDonations}
+        />
       </fieldset>
       <details className="donation-patrons">
         <summary>

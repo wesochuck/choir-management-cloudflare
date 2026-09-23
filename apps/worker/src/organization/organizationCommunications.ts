@@ -512,6 +512,19 @@ export async function updateCommunicationTemplate(
   return communicationTemplateSchema.parse(await response.json());
 }
 
+export async function resetCommunicationTemplateToSystemDefault(
+  env: Env,
+  context: ActorContext,
+  templateId: string,
+): Promise<CommunicationTemplate> {
+  const response = await post(env, context.organizationId, "/internal/communications/manage", {
+    action: "reset-template-to-system-default",
+    ...context,
+    templateId,
+  });
+  return communicationTemplateSchema.parse(await response.json());
+}
+
 export async function deleteCommunicationTemplate(
   env: Env,
   context: ActorContext,

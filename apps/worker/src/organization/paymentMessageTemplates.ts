@@ -11,11 +11,11 @@ interface PaymentMessageTemplate {
   readonly title: string;
 }
 
-const paymentMessageTemplates: readonly PaymentMessageTemplate[] = [
+export const paymentMessageTemplates: readonly PaymentMessageTemplate[] = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {singerName},\n\n## Thank you for your donation\n\nYour donation to {organizationName} was received.\n\n- **Amount:** {paymentAmount}\n- **Status:** {paymentStatus}\n\n{{DONATION_RECEIPT_LINK}}\n\nPlease keep this receipt for your records.",
+      "Hi {singerName},\n\n## Thank you for your donation\n\nYour gift to {organizationName} was received.\n\n**Donation receipt**\n\n- **Donation amount:** {paymentAmount}\n- **Payment status:** {paymentStatus}\n\nPlease keep this email for your records.",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000013",
     kind: "donation_confirmation",
     subject: "Donation receipt from {organizationName}",
@@ -32,6 +32,13 @@ const paymentMessageTemplates: readonly PaymentMessageTemplate[] = [
   },
 ] as const;
 
+const previousDonationConfirmationTemplate = {
+  contentMarkdown:
+    "Hi {singerName},\n\n## Thank you for your donation\n\nYour donation to {organizationName} was received.\n\n- **Amount:** {paymentAmount}\n- **Status:** {paymentStatus}\n\n{{DONATION_RECEIPT_LINK}}\n\nPlease keep this receipt for your records.",
+  subject: "Donation receipt from {organizationName}",
+  title: "Donation Payment Receipt",
+} as const;
+
 function paymentMessageTemplateFor(kind: PaymentMessageTemplateKind): PaymentMessageTemplate {
   const template = paymentMessageTemplates.find((candidate) => candidate.kind === kind);
   if (!template) throw new Error(`Unknown payment message template: ${kind}`);
@@ -41,7 +48,7 @@ function paymentMessageTemplateFor(kind: PaymentMessageTemplateKind): PaymentMes
 function readPaymentMessageTemplate(
   storage: DurableObjectStorage,
   kind: PaymentMessageTemplateKind,
-): PaymentMessageTemplate {
+): { readonly hasCanonicalReceiptBody: boolean; readonly template: PaymentMessageTemplate } {
   const fallback = paymentMessageTemplateFor(kind);
   const row = storage.sql
     .exec<{
@@ -58,9 +65,24 @@ function readPaymentMessageTemplate(
     )
     .toArray()
     .at(0);
-  return row
-    ? { ...fallback, contentMarkdown: row.contentMarkdown, subject: row.subject, title: row.title }
-    : fallback;
+  if (!row) {
+    return {
+      hasCanonicalReceiptBody: kind === "donation_confirmation",
+      template: fallback,
+    };
+  }
+  return {
+    hasCanonicalReceiptBody:
+      kind === "donation_confirmation" &&
+      (row.contentMarkdown === fallback.contentMarkdown ||
+        row.contentMarkdown === previousDonationConfirmationTemplate.contentMarkdown),
+    template: {
+      ...fallback,
+      contentMarkdown: row.contentMarkdown,
+      subject: row.subject,
+      title: row.title,
+    },
+  };
 }
 
 export function renderPaymentMessageTemplate(
@@ -68,10 +90,15 @@ export function renderPaymentMessageTemplate(
   kind: PaymentMessageTemplateKind,
   recipientName: string,
   values: Readonly<Record<string, string>>,
-): { readonly contentMarkdown: string; readonly subject: string } {
-  const template = readPaymentMessageTemplate(storage, kind);
+): {
+  readonly contentMarkdown: string;
+  readonly hasCanonicalReceiptBody: boolean;
+  readonly subject: string;
+} {
+  const { hasCanonicalReceiptBody, template } = readPaymentMessageTemplate(storage, kind);
   return {
     contentMarkdown: renderCommunicationTemplate(template.contentMarkdown, recipientName, values),
+    hasCanonicalReceiptBody,
     subject: renderCommunicationTemplate(template.subject, recipientName, values),
   };
 }
@@ -111,4 +138,25 @@ export function refreshUnmodifiedPaymentMessageTemplates(sql: SqlStorage): void 
       template.id,
     );
   }
+}
+
+export function refreshUnmodifiedDonationConfirmationTemplate(sql: SqlStorage): void {
+  const template = paymentMessageTemplateFor("donation_confirmation");
+  const now = new Date().toISOString();
+  sql.exec(
+    `UPDATE communication_templates
+     SET title = ?, channel = ?, subject = ?, content_markdown = ?, updated_at = ?
+     WHERE id = ? AND is_system = 1 AND channel = 'Email'
+       AND (updated_at = created_at OR
+         (title = ? AND subject = ? AND content_markdown = ?))`,
+    template.title,
+    template.channel,
+    template.subject,
+    template.contentMarkdown,
+    now,
+    template.id,
+    previousDonationConfirmationTemplate.title,
+    previousDonationConfirmationTemplate.subject,
+    previousDonationConfirmationTemplate.contentMarkdown,
+  );
 }

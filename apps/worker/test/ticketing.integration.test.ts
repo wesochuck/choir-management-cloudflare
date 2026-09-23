@@ -550,6 +550,7 @@ describe("Organization ticketing", () => {
       "ticket.scan.validated",
       "ticket.scan.replayed",
       "ticket.scan.validated",
+      "ticket.refund.notification.queued",
       "ticket.purchase.refunded",
       "ticket.scan.replayed",
       "ticket.scan.validated",

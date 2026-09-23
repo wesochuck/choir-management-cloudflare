@@ -10,7 +10,7 @@ import {
   readRosterAutomationPreviewFromStore,
   seedStagingStatusAutomationFixture,
 } from "../statusAutomationStore";
-import { runOrganizationAlarm } from "../scheduler";
+import { runOrganizationAlarm, wakeOrganizationAlarm } from "../scheduler";
 import {
   createAuditionInStore,
   deleteAuditionInStore,
@@ -43,7 +43,7 @@ import { expireStalePaymentsInStore } from "../paymentCleanupStore";
 import { checkPublicCheckoutRateLimit } from "../checkoutRateLimit";
 import { recordPaymentNotificationResultInStore } from "../paymentNotificationStore";
 import {
-  reconcileProviderRefundInStore,
+  reconcileProviderRefundWithMetadataInStore,
   recordProviderRefundRequestedInStore,
 } from "../paymentRefundStore";
 import { manageSeasonsInStore } from "../seasonStore";
@@ -128,7 +128,11 @@ export async function dispatchPostRequest(
       "action" in body &&
       body.action === "reconcile_provider_refund"
     ) {
-      return reconcileProviderRefundInStore(storage, body);
+      const refund = reconcileProviderRefundWithMetadataInStore(storage, body);
+      if (refund.response.ok && refund.schedulerWorkQueued) {
+        await wakeOrganizationAlarm(storage);
+      }
+      return refund.response;
     }
     return recordPaymentDisputeInStore(storage, body);
   }

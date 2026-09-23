@@ -34,6 +34,10 @@ import {
   setupOrganizationIntegration,
   teardownOrganizationIntegration,
 } from "./organization.integration.fixture";
+import {
+  readTicketMessageTemplate,
+  ticketMessageTemplates,
+} from "../src/organization/ticketMessageTemplates";
 
 const database = requireIntegrationBinding(env.CONTROL_DB, "CONTROL_DB");
 const stores = requireIntegrationBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
@@ -93,6 +97,7 @@ describe("Organization communications", () => {
     const purchaseId = crypto.randomUUID();
     const donationId = crypto.randomUUID();
     const notificationId = crypto.randomUUID();
+    const refundNotificationId = crypto.randomUUID();
     const scheduledJobId = crypto.randomUUID();
     const checkoutRequestId = crypto.randomUUID();
     const providerSessionId = crypto.randomUUID();
@@ -145,6 +150,20 @@ describe("Organization communications", () => {
           purchaseId,
           eventId,
           "ticket-reminder-test",
+          now,
+          now,
+          now,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO ticket_notifications
+            (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
+             content_markdown, status, scheduled_for, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'confirmation', 'buyer@example.test', 'Refund processed',
+             'Refund body', 'queued', ?, ?, ?)`,
+          refundNotificationId,
+          purchaseId,
+          eventId,
+          `ticket-refund:${purchaseId}`,
           now,
           now,
           now,
@@ -272,7 +291,7 @@ describe("Organization communications", () => {
       ).json(),
     );
     expect(scheduled.messages.map(({ kind }) => kind)).toEqual(
-      expect.arrayContaining(["ticket_reminder", "event_reminder"]),
+      expect.arrayContaining(["ticket_refund", "ticket_reminder", "event_reminder"]),
     );
   });
 
@@ -327,6 +346,7 @@ describe("Organization communications", () => {
       "Audition Reminder",
       "Audition Submission Thanks",
       "Bundle Ticket Confirmation",
+      "Bundle Ticket Refund Confirmation",
       "Donation Payment Receipt",
       "Dues Payment Notice",
       "Dues Payment Receipt",
@@ -337,6 +357,7 @@ describe("Organization communications", () => {
       "Rehearsal Reminder",
       "Ticket Concert Reminder",
       "Ticket Confirmation",
+      "Ticket Refund Confirmation",
       "Weather / Schedule Delay Alert",
       "Welcome",
     ]);
@@ -351,6 +372,7 @@ describe("Organization communications", () => {
       "Audition Reminder",
       "Audition Submission Thanks",
       "Bundle Ticket Confirmation",
+      "Bundle Ticket Refund Confirmation",
       "Donation Payment Receipt",
       "Dues Payment Notice",
       "Dues Payment Receipt",
@@ -361,12 +383,13 @@ describe("Organization communications", () => {
       "Rehearsal Reminder",
       "Ticket Concert Reminder",
       "Ticket Confirmation",
+      "Ticket Refund Confirmation",
       "Weather / Schedule Delay Alert",
     ]);
     const systemEmailTemplates = templates.templates.filter(
       ({ channel, isSystem }) => isSystem && channel === "Email",
     );
-    expect(systemEmailTemplates).toHaveLength(15);
+    expect(systemEmailTemplates).toHaveLength(17);
     for (const systemTemplate of systemEmailTemplates) {
       expect(systemTemplate.contentMarkdown, systemTemplate.title).toMatch(/^## |\n## /);
       expect(systemTemplate.subject, systemTemplate.title).not.toMatch(/^[A-Z\s!]+:/);
@@ -478,6 +501,166 @@ describe("Organization communications", () => {
       },
     );
     expect(draftWithConflictResponse.status).toBe(201);
+  });
+
+  it("resets only registered system templates to the current canonical default", async () => {
+    const cookie = await signIn();
+    const initialTemplates = communicationTemplatesResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/communications/templates", cookie),
+        )
+      ).json(),
+    ).templates;
+    const ticketTemplate = initialTemplates.find(({ title }) => title === "Ticket Confirmation");
+    const otherSystemTemplate = initialTemplates.find(
+      ({ title }) => title === "Bundle Ticket Confirmation",
+    );
+    if (!ticketTemplate || !otherSystemTemplate) {
+      throw new Error("The seeded system ticket templates are unavailable.");
+    }
+    const canonical = ticketMessageTemplates.find(({ kind }) => kind === "confirmation");
+    if (!canonical) throw new Error("The canonical ticket confirmation template is unavailable.");
+    const ticketConfirmationSettingsBefore = await runInDurableObject<OrganizationStore, string>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly settings: string }>(
+            "SELECT ticket_confirmation_settings_json AS settings FROM organization_metadata LIMIT 1",
+          )
+          .one().settings,
+    );
+
+    const updated = communicationTemplateResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api(
+            "alpha.localhost",
+            `/api/organization/communications/templates/${ticketTemplate.id}`,
+            cookie,
+            {
+              body: JSON.stringify({
+                channel: "Both",
+                contentMarkdown: "Older ticket wording without venue details.",
+                subject: "Older ticket subject",
+                title: "Older ticket title",
+              }),
+              headers: { "content-type": "application/json" },
+              method: "PUT",
+            },
+          ),
+        )
+      ).json(),
+    );
+    expect(updated).toMatchObject({ channel: "Both", isSystem: true, title: "Older ticket title" });
+
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const reset = await write(
+      "alpha.localhost",
+      `/api/organization/communications/templates/${ticketTemplate.id}/reset-system-default`,
+      cookie,
+      {},
+    );
+    expect(reset.status).toBe(200);
+    const restored = communicationTemplateResponseSchema.parse(await reset.json());
+    expect(restored).toMatchObject({
+      channel: canonical.channel,
+      contentMarkdown: canonical.contentMarkdown,
+      id: ticketTemplate.id,
+      isSystem: true,
+      subject: canonical.subject,
+      title: canonical.title,
+    });
+    expect(restored.contentMarkdown).toContain("- **Venue:** {venueName}");
+    expect(restored.contentMarkdown).toContain("- **Address:** {venueAddress}");
+    expect(Date.parse(restored.updatedAt)).toBeGreaterThan(Date.parse(updated.updatedAt));
+
+    const secondReset = communicationTemplateResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          `/api/organization/communications/templates/${ticketTemplate.id}/reset-system-default`,
+          cookie,
+          {},
+        )
+      ).json(),
+    );
+    expect(secondReset).toMatchObject({
+      channel: canonical.channel,
+      contentMarkdown: canonical.contentMarkdown,
+      subject: canonical.subject,
+      title: canonical.title,
+    });
+
+    const customTemplate = communicationTemplateResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/communications/templates", cookie, {
+          channel: "Email",
+          contentMarkdown: "Organization-owned custom wording.",
+          subject: "Custom subject",
+          title: "Custom template",
+        })
+      ).json(),
+    );
+    expect(customTemplate.isSystem).toBe(false);
+    const customReset = await write(
+      "alpha.localhost",
+      `/api/organization/communications/templates/${customTemplate.id}/reset-system-default`,
+      cookie,
+      {},
+    );
+    expect(customReset.status).toBe(409);
+    expect(await customReset.json()).toMatchObject({ code: "communication_template_not_system" });
+
+    const missingReset = await write(
+      "alpha.localhost",
+      `/api/organization/communications/templates/${crypto.randomUUID()}/reset-system-default`,
+      cookie,
+      {},
+    );
+    expect(missingReset.status).toBe(404);
+
+    const reloadedTemplates = communicationTemplatesResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/communications/templates", cookie),
+        )
+      ).json(),
+    ).templates;
+    expect(reloadedTemplates.find(({ id }) => id === ticketTemplate.id)).toMatchObject({
+      channel: canonical.channel,
+      contentMarkdown: canonical.contentMarkdown,
+      id: ticketTemplate.id,
+      isSystem: true,
+      subject: canonical.subject,
+      title: canonical.title,
+      updatedAt: secondReset.updatedAt,
+    });
+    expect(reloadedTemplates.find(({ id }) => id === otherSystemTemplate.id)).toEqual(
+      otherSystemTemplate,
+    );
+
+    const deliveredTicketTemplate = await runInDurableObject<
+      OrganizationStore,
+      ReturnType<typeof readTicketMessageTemplate>
+    >(stores.get(stores.idFromName("organization-alpha")), (_instance, state) =>
+      readTicketMessageTemplate(state.storage, "confirmation"),
+    );
+    expect(deliveredTicketTemplate).toMatchObject({
+      contentMarkdown: canonical.contentMarkdown,
+      subject: canonical.subject,
+      title: canonical.title,
+    });
+    const ticketConfirmationSettingsAfter = await runInDurableObject<OrganizationStore, string>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly settings: string }>(
+            "SELECT ticket_confirmation_settings_json AS settings FROM organization_metadata LIMIT 1",
+          )
+          .one().settings,
+    );
+    expect(ticketConfirmationSettingsAfter).toBe(ticketConfirmationSettingsBefore);
   });
 
   it("deduplicates a retried manual communication request", async () => {

@@ -212,6 +212,15 @@
     margin-top: var(--spacing-lg);
   }
 
+  .ticketing-bundle-order-pill {
+    display: inline-flex;
+    align-items: center;
+    margin-inline-start: var(--spacing-xs);
+    padding: var(--spacing-3xs) var(--spacing-xs);
+    line-height: var(--line-height-tight);
+    vertical-align: middle;
+  }
+
   .ticketing-tab-panel h3 {
     margin: 0;
   }
@@ -607,6 +616,122 @@
   .ticket-credential-card__fallback-disclosure {
     margin-top: var(--spacing-sm);
     font-size: var(--font-size-sm);
+  }
+
+  .ticket-pass-card {
+    align-items: stretch;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+
+  .ticket-pass-card__header {
+    text-align: center;
+  }
+
+  .ticket-pass-card__header h2 {
+    margin: 0;
+  }
+
+  .ticket-pass-card__header h3 {
+    margin: var(--spacing-xs) 0;
+    font-size: var(--font-size-section);
+  }
+
+  .ticket-pass-card__header p {
+    margin: 0;
+  }
+
+  .ticket-pass-card__qr {
+    align-self: center;
+    max-width: 100%;
+  }
+
+  .ticket-pass-card__instructions {
+    text-align: center;
+  }
+
+  .ticket-pass-card__events {
+    min-width: 0;
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .ticket-pass-card__events > h3 {
+    margin: 0 0 var(--spacing-xs);
+  }
+
+  .ticket-pass-event-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .ticket-pass-event {
+    min-width: 0;
+    padding: var(--spacing-sm) 0;
+    overflow-wrap: anywhere;
+  }
+
+  .ticket-pass-event + .ticket-pass-event {
+    border-top: 1px solid var(--color-border);
+  }
+
+  .ticket-pass-event h4 {
+    margin: 0 0 var(--spacing-3xs);
+  }
+
+  .ticket-pass-event p,
+  .ticket-pass-card__shared-venue p {
+    margin: var(--spacing-3xs) 0;
+  }
+
+  .ticket-pass-card__shared-venue {
+    margin-top: var(--spacing-xs);
+  }
+
+  .ticket-pass-card__shared-venue h4 {
+    margin: 0 0 var(--spacing-3xs);
+  }
+
+  .ticket-purchase-summary {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  @media print {
+    .ticket-pass-card,
+    .ticket-purchase-summary {
+      border-color: #777;
+      background: #fff;
+      box-shadow: none;
+      color: #111;
+    }
+
+    .ticket-purchase-summary,
+    .ticket-pass-card__header,
+    .ticket-pass-card__qr,
+    .ticket-pass-card__instructions,
+    .ticket-pass-card__shared-venue {
+      break-inside: avoid;
+    }
+
+    .ticket-pass-card__qr {
+      background: #fff;
+    }
+
+    .ticket-credential-card__qr-image {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .ticket-pass-event {
+      break-inside: avoid;
+    }
+
+    .public-section--narrow > .button {
+      display: none;
+    }
   }
 
   .public-bundle-event-item {

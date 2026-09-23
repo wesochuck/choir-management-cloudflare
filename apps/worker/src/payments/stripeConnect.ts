@@ -388,6 +388,7 @@ export interface StripeCheckoutSessionInput {
   readonly unitAmountCents?: number;
   readonly lineItems?: readonly {
     readonly productName: string;
+    readonly productDescription?: string;
     readonly quantity: number;
     readonly unitAmountCents: number;
   }[];
@@ -416,7 +417,7 @@ export async function createStripeCheckoutSession(
     body.set(`line_items[${String(index)}][price_data][product_data][name]`, lineItem.productName);
     body.set(
       `line_items[${String(index)}][price_data][product_data][description]`,
-      `Payment to ${input.organizationName}`,
+      lineItem.productDescription ?? `Payment to ${input.organizationName}`,
     );
     body.set(
       `line_items[${String(index)}][price_data][unit_amount]`,

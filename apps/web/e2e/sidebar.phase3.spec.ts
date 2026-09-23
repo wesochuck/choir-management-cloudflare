@@ -84,7 +84,7 @@ test("drawer closes by escape, backdrop, and button with focus restoration", asy
   // Focus containment: tabbing from the close button stays inside the modal.
   await expect(drawer).toBeVisible();
   await expect(drawer).toContainText("Organization Admin");
-  await page.getByRole("button", { name: "Close navigation" }).focus();
+  await page.getByRole("button", { name: "Close Workspace navigation" }).focus();
   await page.keyboard.press("Tab");
   expect(await drawer.evaluate((node) => node.contains(document.activeElement))).toBe(true);
 
@@ -94,7 +94,7 @@ test("drawer closes by escape, backdrop, and button with focus restoration", asy
 
   await trigger.click();
   await expect(drawer).toBeVisible();
-  await page.getByRole("button", { name: "Close navigation" }).click();
+  await page.getByRole("button", { name: "Close Workspace navigation" }).click();
   await expect(drawer).toHaveCount(0);
   await expect(trigger).toBeFocused();
 

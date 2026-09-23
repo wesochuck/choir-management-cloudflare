@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { refundStripeTicketPurchases } from "./ticketingStore/payments";
+import {
+  refundStripeTicketPurchases,
+  type TicketRefundMutationResult,
+} from "./ticketingStore/payments";
 import { refundStripeDonation } from "./donation/stripeLifecycle";
 import { refundStripeDues } from "./seasonStore/payments";
 
@@ -251,7 +254,7 @@ function dispatchDomainRefund(
   organizationId: string,
   providerPaymentId: string,
   stripeEventId: string,
-): Response {
+): TicketRefundMutationResult {
   if (domain === "ticket") {
     return refundStripeTicketPurchases(storage, {
       action: "stripe_ticket_refunded",
@@ -261,27 +264,38 @@ function dispatchDomainRefund(
     });
   }
   if (domain === "donation") {
-    return refundStripeDonation(storage, {
-      action: "stripe_donation_refunded",
+    return {
+      response: refundStripeDonation(storage, {
+        action: "stripe_donation_refunded",
+        organizationId,
+        providerPaymentId,
+        stripeEventId,
+      }),
+      schedulerWorkQueued: false,
+    };
+  }
+  return {
+    response: refundStripeDues(storage, {
+      action: "stripe_dues_refunded",
       organizationId,
       providerPaymentId,
       stripeEventId,
-    });
-  }
-  return refundStripeDues(storage, {
-    action: "stripe_dues_refunded",
-    organizationId,
-    providerPaymentId,
-    stripeEventId,
-  });
+    }),
+    schedulerWorkQueued: false,
+  };
 }
 
-export function reconcileProviderRefundInStore(
+export function reconcileProviderRefundWithMetadataInStore(
   storage: DurableObjectStorage,
   input: unknown,
-): Response {
+): TicketRefundMutationResult {
   const request = reconcileProviderRefundSchema.safeParse(input);
-  if (!request.success) return Response.json({ code: "invalid_refund_request" }, { status: 400 });
+  if (!request.success) {
+    return {
+      response: Response.json({ code: "invalid_refund_request" }, { status: 400 }),
+      schedulerWorkQueued: false,
+    };
+  }
 
   const organizationId = storage.sql
     .exec<{ readonly organizationId: string }>(
@@ -290,23 +304,42 @@ export function reconcileProviderRefundInStore(
     .toArray()
     .at(0)?.organizationId;
   if (organizationId !== request.data.organizationId) {
-    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+    return {
+      response: Response.json({ code: "organization_identity_conflict" }, { status: 409 }),
+      schedulerWorkQueued: false,
+    };
   }
 
   if (isStripeRefundAlreadyAudited(storage, request.data.stripeEventId)) {
-    return Response.json({ duplicate: true, refunded: 0 });
+    return {
+      response: Response.json({ duplicate: true, refunded: 0 }),
+      schedulerWorkQueued: false,
+    };
   }
 
   const { providerPaymentId, stripeEventId } = request.data;
   const matchingDomains = findMatchingRefundDomains(storage, providerPaymentId);
 
   if (matchingDomains.length > 1) {
-    return Response.json({ code: "ambiguous_payment_refund" }, { status: 409 });
+    return {
+      response: Response.json({ code: "ambiguous_payment_refund" }, { status: 409 }),
+      schedulerWorkQueued: false,
+    };
   }
   const domain = matchingDomains[0];
   if (!domain) {
-    return Response.json({ code: "payment_not_found" }, { status: 404 });
+    return {
+      response: Response.json({ code: "payment_not_found" }, { status: 404 }),
+      schedulerWorkQueued: false,
+    };
   }
 
   return dispatchDomainRefund(storage, domain, organizationId, providerPaymentId, stripeEventId);
+}
+
+export function reconcileProviderRefundInStore(
+  storage: DurableObjectStorage,
+  input: unknown,
+): Response {
+  return reconcileProviderRefundWithMetadataInStore(storage, input).response;
 }

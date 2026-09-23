@@ -7,6 +7,7 @@ import {
   saveOrganizationCommunicationTemplate,
   updateOrganizationCommunicationTemplate,
 } from "../../../auth/api";
+import { SystemTemplateResetAction } from "../SystemTemplateResetAction";
 import { channelFromValue, failureMessage } from "./utils";
 
 type TemplateChannelFilter = CommunicationChannel | "All";
@@ -137,6 +138,16 @@ export function TemplatesPanel() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function handleTemplateReset(template: CommunicationTemplate) {
+    setTemplates((current) =>
+      current
+        .map((item) => (item.id === template.id ? template : item))
+        .sort((a, b) => a.title.localeCompare(b.title)),
+    );
+    setEditingTemplate(null);
+    setSuccess(`${template.title} reset to the system default.`);
   }
 
   async function handleDelete(template: CommunicationTemplate) {
@@ -430,6 +441,11 @@ export function TemplatesPanel() {
                 value={editingContent}
               />
             </div>
+            <SystemTemplateResetAction
+              disabled={busy}
+              onReset={handleTemplateReset}
+              template={editingTemplate}
+            />
             <div className="dialog__actions">
               <DialogClose asChild>
                 <button className="button button--secondary" disabled={busy} type="button">

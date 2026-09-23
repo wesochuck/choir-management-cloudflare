@@ -84,6 +84,40 @@ describe("publicTicketPurchaseResponseSchema", () => {
     expect(expired.scanToken).toBeNull();
   });
 
+  it("accepts an authoritative refund timestamp and remains compatible with null, undefined, or omitted values", () => {
+    const refundedAt = "2026-09-22T19:42:00Z";
+    const withTimestamp = publicTicketPurchaseResponseSchema.parse({
+      ...basePurchase,
+      refundedAt,
+      scanToken: null,
+      status: "refunded",
+    });
+    expect(withTimestamp.refundedAt).toBe(refundedAt);
+
+    const withNullTimestamp = publicTicketPurchaseResponseSchema.parse({
+      ...basePurchase,
+      refundedAt: null,
+      scanToken: null,
+      status: "refunded",
+    });
+    expect(withNullTimestamp.refundedAt).toBeNull();
+
+    const withUndefinedTimestamp = publicTicketPurchaseResponseSchema.parse({
+      ...basePurchase,
+      refundedAt: undefined,
+      scanToken: null,
+      status: "refunded",
+    });
+    expect(withUndefinedTimestamp.refundedAt).toBeUndefined();
+
+    const withOmittedTimestamp = publicTicketPurchaseResponseSchema.parse({
+      ...basePurchase,
+      scanToken: null,
+      status: "refunded",
+    });
+    expect(withOmittedTimestamp).not.toHaveProperty("refundedAt");
+  });
+
   it("rejects refunded and expired purchases with non-null scan token", () => {
     expect(() =>
       publicTicketPurchaseResponseSchema.parse({

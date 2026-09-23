@@ -1,4 +1,6 @@
+import { renderCommunicationTemplate } from "@choir/domain";
 import type { z } from "zod";
+import { z as zod } from "zod";
 
 import { readTicketMessageTemplate } from "../ticketMessageTemplates";
 import type {
@@ -49,6 +51,112 @@ export function queueTicketConfirmation(
     crypto.randomUUID(),
     `ticket-notification:${notificationId}`,
     occurredAt,
+    occurredAt,
+  );
+  return true;
+}
+
+export function queueTicketRefundNotification(
+  storage: DurableObjectStorage,
+  purchase: TicketPurchaseRow,
+  occurredAt: string,
+  audit: {
+    readonly actorId: string;
+    readonly actorType: "organization_member" | "provider";
+    readonly requestId: string;
+  },
+): boolean {
+  const dedupeKey = `ticket-refund:${purchase.id}`;
+  const existing = storage.sql
+    .exec<{ readonly id: string }>(
+      "SELECT id FROM ticket_notifications WHERE dedupe_key = ? LIMIT 1",
+      dedupeKey,
+    )
+    .toArray()
+    .at(0);
+  if (existing) return false;
+
+  const notificationId = crypto.randomUUID();
+  const recipient = zod.email().safeParse(purchase.buyerEmail);
+  if (!recipient.success) {
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, ?, ?, 'ticket.refund.notification.skipped', 'ticket_purchase', ?, ?, ?, ?)`,
+      `ticket-refund-notification-skipped:${purchase.id}`,
+      audit.actorType,
+      audit.actorId,
+      purchase.id,
+      audit.requestId,
+      JSON.stringify({ reason: "missing_or_invalid_buyer_email" }),
+      occurredAt,
+    );
+    return false;
+  }
+
+  const template = readTicketMessageTemplate(
+    storage,
+    purchase.bundleId ? "bundle_refund" : "refund",
+  );
+  const templateValues = {
+    refundAmount: new Intl.NumberFormat("en-US", {
+      currency: purchase.currency.toUpperCase(),
+      style: "currency",
+    }).format(purchase.amountPaidCents / 100),
+    refundDate: new Intl.DateTimeFormat("en-US", {
+      dateStyle: "full",
+      timeStyle: "short",
+      timeZone: purchase.timezone,
+    }).format(new Date(occurredAt)),
+  };
+  const renderRefundContent = (value: string) => {
+    const hasOrderDetailsLink = /\{\{TICKET_ORDER_LINK\}\}|\{ticketOrderLink\}/i.test(value);
+    const content = renderCommunicationTemplate(value, purchase.buyerName, templateValues);
+    return hasOrderDetailsLink
+      ? `${content}\n\nThe order link above shows the refund status; refunded tickets cannot be used for admission.`
+      : content;
+  };
+  // Older Workers reject the refund kind before delivery instead of sending a ticket/QR CTA.
+  storage.sql.exec(
+    `INSERT INTO ticket_notifications
+      (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
+       content_markdown, status, scheduled_for, created_at, updated_at)
+     VALUES (?, ?, ?, ?, 'refund', ?, ?, ?, 'queued', ?, ?, ?)`,
+    notificationId,
+    purchase.id,
+    purchase.bundleId ? null : purchase.eventId,
+    dedupeKey,
+    recipient.data,
+    renderCommunicationTemplate(template.subject, purchase.buyerName, templateValues),
+    renderRefundContent(template.contentMarkdown),
+    occurredAt,
+    occurredAt,
+    occurredAt,
+  );
+  storage.sql.exec(
+    `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+     VALUES (?, 'ticket_notification', ?, ?, ?)`,
+    crypto.randomUUID(),
+    `ticket-notification:${notificationId}`,
+    occurredAt,
+    occurredAt,
+  );
+  storage.sql.exec(
+    `INSERT INTO audit_events
+      (id, actor_type, actor_id, action, target_type, target_id,
+       request_id, change_summary, occurred_at)
+     VALUES (?, ?, ?, 'ticket.refund.notification.queued', 'ticket_purchase', ?, ?, ?, ?)`,
+    `ticket-refund-notification:${purchase.id}`,
+    audit.actorType,
+    audit.actorId,
+    purchase.id,
+    audit.requestId,
+    JSON.stringify({
+      notificationId,
+      purchaseId: purchase.id,
+      refundAmountCents: purchase.amountPaidCents,
+    }),
     occurredAt,
   );
   return true;

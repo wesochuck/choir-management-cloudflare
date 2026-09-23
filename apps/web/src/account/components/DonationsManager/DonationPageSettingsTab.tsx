@@ -6,17 +6,21 @@ export function DonationPageSettingsTab({
   busy,
   portalButtonText,
   portalDescription,
+  portalThankYouMessage,
   savePortalSettings,
   setPortalButtonText,
   setPortalDescription,
+  setPortalThankYouMessage,
   settingsState,
 }: {
   readonly busy: boolean;
   readonly portalButtonText: string;
   readonly portalDescription: string;
+  readonly portalThankYouMessage: string;
   readonly savePortalSettings: (event: SyntheticEvent<HTMLFormElement>) => Promise<void>;
   readonly setPortalButtonText: (value: string) => void;
   readonly setPortalDescription: (value: string) => void;
+  readonly setPortalThankYouMessage: (value: string) => void;
   readonly settingsState: DonationSettingsState;
 }) {
   if (settingsState.status === "loading") return <p>Loading donation settings…</p>;
@@ -51,6 +55,21 @@ export function DonationPageSettingsTab({
               setPortalDescription(event.target.value);
             }}
           />
+        </label>
+        <label className="field">
+          Thank-you message after donation
+          <textarea
+            required
+            maxLength={2000}
+            rows={5}
+            value={portalThankYouMessage}
+            onChange={(event) => {
+              setPortalThankYouMessage(event.target.value);
+            }}
+          />
+          <span className="field__hint">
+            Shown after a successful gift. Use plain text; this message cannot contain HTML.
+          </span>
         </label>
         <button className="button button--primary" disabled={busy} type="submit">
           {busy ? "Saving…" : "Save page settings"}

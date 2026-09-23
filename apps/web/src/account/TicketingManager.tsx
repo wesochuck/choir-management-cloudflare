@@ -30,6 +30,10 @@ import { DiscountCodesPanel } from "./components/Ticketing/DiscountCodesPanel";
 import { SharePanel } from "./components/Ticketing/SharePanel";
 import { WillCallPanel } from "./components/Ticketing/WillCallPanel";
 import {
+  getVisibleTicketingNotice,
+  useTicketingNotice,
+} from "./components/Ticketing/ticketingNotice";
+import {
   DEFAULT_TICKET_CONFIRMATION_SETTINGS,
   EMPTY_DISCOUNT_DRAFT,
   findClosestEvent,
@@ -51,7 +55,8 @@ export function TicketingManager({
   const [state, setState] = useState<OrderState>({ status: "loading" });
   const [refundId, setRefundId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const { clearScopedNoticeWhenLeavingTab, clearSuccessNotice, notice, showNotice } =
+    useTicketingNotice();
   const [selectedPerformanceId, setSelectedPerformanceId] = useState("all");
   const [willCallSearch, setWillCallSearch] = useState("");
   const [lastOrderRefreshAt, setLastOrderRefreshAt] = useState<Date | null>(null);
@@ -84,6 +89,7 @@ export function TicketingManager({
   const [refreshingOrders, setRefreshingOrders] = useState(false);
 
   function selectTicketingTab(value: TicketingTab): void {
+    clearScopedNoticeWhenLeavingTab(value);
     setActiveTab(value);
     if (value === "discounts") {
       setDiscountCodesLoading(true);
@@ -182,11 +188,11 @@ export function TicketingManager({
       setLastOrderRefreshAt(new Date());
     } catch {
       // Keep the last successful will-call list visible during a transient refresh failure.
-      setMessage("Status could not be refreshed. The last known status is still shown.");
+      showNotice("Status could not be refreshed. The last known status is still shown.", "error");
     } finally {
       setRefreshingOrders(false);
     }
-  }, []);
+  }, [showNotice]);
 
   useEffect(() => {
     if (!enabled || scanOnly) return;
@@ -228,7 +234,7 @@ export function TicketingManager({
 
   function openNewBundle(): void {
     clearBundleForm();
-    setMessage(null);
+    clearSuccessNotice();
     setBundleError(null);
     setBundleDialogOpen(true);
   }
@@ -236,7 +242,7 @@ export function TicketingManager({
   async function saveBundle(formEvent: SyntheticEvent<HTMLFormElement>) {
     formEvent.preventDefault();
     setBusy(true);
-    setMessage(null);
+    clearSuccessNotice();
     setBundleError(null);
     try {
       const saved = await saveTicketBundle(
@@ -253,7 +259,7 @@ export function TicketingManager({
       setBundles((current) => [saved, ...current.filter(({ id }) => id !== saved.id)]);
       clearBundleForm();
       setBundleDialogOpen(false);
-      setMessage("Ticket bundle saved. Publish the public website to make it visible.");
+      showNotice("Ticket bundle saved. Publish the public website to make it visible.", "info");
     } catch (failure: unknown) {
       setBundleError(
         failure instanceof Error ? failure.message : "The ticket bundle could not be saved.",
@@ -280,7 +286,7 @@ export function TicketingManager({
 
   async function removeBundle(bundleId: string) {
     setBusy(true);
-    setMessage(null);
+    clearSuccessNotice();
     try {
       await deleteTicketBundle(bundleId);
       setBundles((current) => current.filter(({ id }) => id !== bundleId));
@@ -288,9 +294,9 @@ export function TicketingManager({
         setBundleDialogOpen(false);
         clearBundleForm();
       }
-      setMessage("Ticket bundle deleted.");
+      showNotice("Ticket bundle deleted.", "success");
     } catch {
-      setMessage("Bundles with orders cannot be deleted; edit or deactivate them instead.");
+      showNotice("Bundles with orders cannot be deleted; edit or deactivate them instead.", "info");
     } finally {
       setBusy(false);
     }
@@ -298,7 +304,7 @@ export function TicketingManager({
 
   async function refund(purchaseId: string) {
     setBusy(true);
-    setMessage(null);
+    clearSuccessNotice();
     try {
       const refunded = await refundOrganizationTicketOrder(purchaseId);
       setState((current) =>
@@ -311,16 +317,17 @@ export function TicketingManager({
       );
       setRefundId(null);
       if (refunded.status === "refunded") {
-        setMessage("Ticket order refunded.");
+        showNotice("Ticket order refunded.", "success");
       } else if (refunded.refundRequested) {
-        setMessage(
+        showNotice(
           "Refund requested. Refresh the order status to confirm when Stripe finishes processing it.",
+          "info",
         );
       } else {
-        setMessage("The ticket order refund request was recorded.");
+        showNotice("The ticket order refund request was recorded.", "info");
       }
     } catch {
-      setMessage("The ticket order could not be refunded.");
+      showNotice("The ticket order could not be refunded.", "error");
     } finally {
       setBusy(false);
     }
@@ -328,12 +335,12 @@ export function TicketingManager({
 
   async function resendConfirmation(purchaseId: string) {
     setBusy(true);
-    setMessage(null);
+    clearSuccessNotice();
     try {
       await resendTicketConfirmation(purchaseId);
-      setMessage("Ticket confirmation queued.");
+      showNotice("Ticket confirmation queued.", "success");
     } catch {
-      setMessage("The ticket confirmation could not be queued.");
+      showNotice("The ticket confirmation could not be queued.", "error");
     } finally {
       setBusy(false);
     }
@@ -342,13 +349,13 @@ export function TicketingManager({
   async function saveConfirmationSettings(formEvent: SyntheticEvent<HTMLFormElement>) {
     formEvent.preventDefault();
     setConfirmationSaving(true);
-    setMessage(null);
+    clearSuccessNotice();
     try {
       const saved = await updateOrganizationTicketConfirmationSettings(confirmationDraft);
       setConfirmationDraft(saved);
-      setMessage("Ticket confirmation wording saved.");
+      showNotice("Ticket confirmation wording saved.", "success");
     } catch {
-      setMessage("Ticket confirmation wording could not be saved.");
+      showNotice("Ticket confirmation wording could not be saved.", "error");
     } finally {
       setConfirmationSaving(false);
     }
@@ -362,7 +369,7 @@ export function TicketingManager({
     });
     setDiscountError(null);
     setDiscountDialogOpen(true);
-    setMessage(null);
+    clearSuccessNotice();
   }
 
   function editDiscountCode(code: DiscountCode): void {
@@ -379,7 +386,7 @@ export function TicketingManager({
     });
     setDiscountError(null);
     setDiscountDialogOpen(true);
-    setMessage(null);
+    clearSuccessNotice();
   }
 
   function closeDiscountDialog(): void {
@@ -406,13 +413,13 @@ export function TicketingManager({
       redemptionLimit,
     };
     setBusy(true);
-    setMessage(null);
+    clearSuccessNotice();
     setDiscountError(null);
     try {
       const saved = await saveOrganizationDiscountCode(request, editingDiscountCodeId ?? undefined);
       setDiscountCodes((current) => [saved, ...current.filter(({ id }) => id !== saved.id)]);
       closeDiscountDialog();
-      setMessage("Discount code saved.");
+      showNotice("Discount code saved.", "success", "discounts");
     } catch (failure: unknown) {
       setDiscountError(
         failure instanceof Error ? failure.message : "The discount code could not be saved.",
@@ -424,15 +431,16 @@ export function TicketingManager({
 
   async function deactivateDiscountCode(codeId: string): Promise<void> {
     setBusy(true);
-    setMessage(null);
+    clearSuccessNotice();
     try {
       const saved = await deactivateOrganizationDiscountCode(codeId);
       setDiscountCodes((current) => current.map((code) => (code.id === saved.id ? saved : code)));
       setDeactivateDiscountCodeId(null);
-      setMessage("Discount code deactivated.");
+      showNotice("Discount code deactivated.", "success");
     } catch (failure: unknown) {
-      setMessage(
+      showNotice(
         failure instanceof Error ? failure.message : "The discount code could not be deactivated.",
+        "error",
       );
     } finally {
       setBusy(false);
@@ -471,6 +479,7 @@ export function TicketingManager({
       : `${String(ticketsSold)}/${String(ticketCapacity)}`;
   const bundleOrders =
     state.status === "ready" ? state.orders.filter((order) => order.bundleId !== null) : [];
+  const visibleNotice = getVisibleTicketingNotice(notice, activeTab);
 
   if (!enabled) return null;
   if (scanOnly) {
@@ -512,9 +521,12 @@ export function TicketingManager({
             </TabsTrigger>
           ))}
         </TabsList>
-        {message && !bundleDialogOpen && !discountDialogOpen ? (
-          <p className="notice notice--info" role="status">
-            {message}
+        {visibleNotice && !bundleDialogOpen && !discountDialogOpen ? (
+          <p
+            className={`notice notice--${visibleNotice.kind}`}
+            role={visibleNotice.kind === "error" ? "alert" : "status"}
+          >
+            {visibleNotice.message}
           </p>
         ) : null}
         <TabsContent aria-labelledby="ticketing-share-tab" id="ticketing-share-panel" value="share">

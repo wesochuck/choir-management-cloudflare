@@ -57,6 +57,18 @@ function money(cents: number): string {
   );
 }
 
+function getRefundedAmountCents(purchase: PublicTicketReceipt): number {
+  // Refunds are currently full-purchase refunds; use a dedicated refunded amount when partial
+  // refunds are introduced.
+  return purchase.amountPaidCents;
+}
+
+function getRefundedAt(purchase: PublicTicketReceipt): string | null {
+  if (!("refundedAt" in purchase)) return null;
+  const value = purchase.refundedAt;
+  return typeof value === "string" ? value : null;
+}
+
 function publicDate(value: string, timezone: string): string {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "long",
@@ -314,7 +326,7 @@ function getReceiptHeading(status: PublicTicketReceipt["status"]): string {
     case "paid":
       return "Your tickets are confirmed";
     case "refunded":
-      return "Ticket order refunded";
+      return "Refund complete";
     case "expired":
       return "Ticket order expired";
   }
@@ -330,10 +342,95 @@ function getReceiptMessage(
     case "paid":
       return settings.successMessage;
     case "refunded":
-      return "This ticket order has been refunded.";
+      return "Your ticket order has been refunded.";
     case "expired":
       return "This ticket order has expired because payment was not completed.";
   }
+}
+
+function RefundedTicketGraphic() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="ticket-refund-status__graphic"
+      focusable="false"
+      viewBox="0 0 120 120"
+    >
+      <path
+        d="M24 51h72v8a8 8 0 0 0 0 16v8H24v-8a8 8 0 0 1 0-16v-8Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="4"
+      />
+      <path
+        d="M69 54v7m0 10v8"
+        fill="none"
+        stroke="currentColor"
+        strokeDasharray="3 4"
+        strokeLinecap="round"
+        strokeWidth="3"
+      />
+      <path
+        d="M82 34a22 22 0 0 0-39-5m-1 0 1 10 9-4"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="4"
+      />
+      <path
+        d="m40 68 6 6 12-13"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="4"
+      />
+    </svg>
+  );
+}
+
+function TicketReceiptStatus({
+  purchase,
+  settings,
+}: {
+  readonly purchase: PublicTicketReceipt;
+  readonly settings: TicketConfirmationSettings;
+}) {
+  if (purchase.status !== "refunded") {
+    return (
+      <>
+        <h1>{getReceiptHeading(purchase.status)}</h1>
+        <p>{getReceiptMessage(purchase.status, settings)}</p>
+      </>
+    );
+  }
+
+  return (
+    <section aria-labelledby="ticket-refund-status-heading" className="ticket-refund-status">
+      <div className="ticket-refund-status__illustration">
+        <RefundedTicketGraphic />
+      </div>
+      <div className="ticket-refund-status__content">
+        <h1 id="ticket-refund-status-heading">{getReceiptHeading(purchase.status)}</h1>
+        <p>{getReceiptMessage(purchase.status, settings)}</p>
+        <p className="ticket-refund-status__amount">
+          <span>Refunded amount</span>
+          <strong>{money(getRefundedAmountCents(purchase))}</strong>
+        </p>
+        <p className="ticket-refund-status__admission-note">
+          This ticket is no longer valid for admission.
+        </p>
+        {purchase.checkoutMode === "stripe" ? (
+          <p className="ticket-refund-status__provider-note">
+            Your refund has been processed. Your bank or card provider may take additional time to
+            post the credit.
+          </p>
+        ) : null}
+      </div>
+    </section>
+  );
 }
 
 function TicketReceiptPricing({ purchase }: { readonly purchase: PublicTicketReceipt }) {
@@ -366,14 +463,16 @@ function TicketReceiptPricing({ purchase }: { readonly purchase: PublicTicketRec
   );
 }
 
-function TicketCredentialCard({
+function SingleTicketCredentialCard({
   purchase,
   settings,
 }: {
   readonly purchase: PublicTicketReceipt;
   readonly settings: TicketConfirmationSettings;
 }) {
-  const [qrFailed, setQrFailed] = useState(false);
+  const [qrFailedToken, setQrFailedToken] = useState<string | null>(null);
+  const qrFailedForCurrentToken =
+    purchase.scanToken !== null && qrFailedToken === purchase.scanToken;
   const venue = getEventVenueDetails({
     location: purchase.location,
     venueAddress: purchase.venueAddress,
@@ -385,13 +484,13 @@ function TicketCredentialCard({
       <h3>Your ticket</h3>
       <div className="ticket-credential-card__qr">
         <QRCodeImage
-          alt={`Admission QR code for ${purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}`}
+          alt={`Admission QR code for ${purchase.eventTitle}`}
           className="ticket-credential-card__qr-image"
           errorCorrectionLevel="H"
           fallbackMessage="The QR code could not be displayed. Use the ticket link or show this page to event staff."
           margin={2}
           onError={() => {
-            setQrFailed(true);
+            setQrFailedToken(purchase.scanToken);
           }}
           payload={purchase.scanToken ?? ""}
           width={280}
@@ -401,7 +500,7 @@ function TicketCredentialCard({
         {settings.qrCodeInstructions || "Present this QR code at the door."}
       </p>
       <div className="ticket-credential-card__event-details">
-        <h4>{purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}</h4>
+        <h4>{purchase.eventTitle}</h4>
         <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
         {venue.displayName ? (
           <p>
@@ -417,13 +516,419 @@ function TicketCredentialCard({
           </p>
         ) : null}
       </div>
-      {qrFailed && purchase.scanToken ? (
+      {qrFailedForCurrentToken ? (
         <details className="ticket-credential-card__fallback-disclosure">
           <summary>Manual credential</summary>
           <code className="ticket-credential">{purchase.scanToken}</code>
         </details>
       ) : null}
     </article>
+  );
+}
+
+interface BundlePassEvent {
+  readonly event: PublicTicketReceipt["includedEvents"][number];
+  readonly venue: ReturnType<typeof getEventVenueDetails>;
+}
+
+interface BundlePassVenueSummary {
+  readonly displayName: string | null;
+  readonly address: string | null;
+  readonly commonMapUrl: string | null;
+  readonly eventMapUrl: string | null;
+  readonly commonMapLabel: string;
+}
+
+function sharedVenueValue(values: readonly string[]): string | null {
+  const first = values[0];
+  return first && values.every((value) => value === first) ? first : null;
+}
+
+function getBundlePassEvents(purchase: PublicTicketReceipt): readonly BundlePassEvent[] {
+  return [...purchase.includedEvents]
+    .sort((a, b) => {
+      const diff = new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+      return diff !== 0 ? diff : a.title.localeCompare(b.title);
+    })
+    .map((event) => ({
+      event,
+      venue: getEventVenueDetails({
+        location: event.location,
+        venueAddress: event.venueAddress,
+        venueName: event.venueName,
+      }),
+    }));
+}
+
+function getBundlePassVenueSummary(events: readonly BundlePassEvent[]): BundlePassVenueSummary {
+  const displayName = sharedVenueValue(events.map(({ venue }) => venue.displayName));
+  const address = sharedVenueValue(events.map(({ venue }) => venue.venueAddress));
+  const eventMapUrl = sharedVenueValue(events.map(({ venue }) => venue.googleMapsUrl ?? ""));
+  const addressMapUrl = address
+    ? getEventVenueDetails({ venueAddress: address }).googleMapsUrl
+    : null;
+  const commonMapUrl = eventMapUrl ?? (displayName === null ? addressMapUrl : null);
+
+  return {
+    address,
+    commonMapLabel:
+      eventMapUrl !== null ? "View on Google Maps" : "View shared address on Google Maps",
+    commonMapUrl,
+    displayName,
+    eventMapUrl,
+  };
+}
+
+function BundlePassEventVenue({
+  venue,
+  sharedVenue,
+}: {
+  readonly venue: ReturnType<typeof getEventVenueDetails>;
+  readonly sharedVenue: BundlePassVenueSummary;
+}) {
+  const shouldShowName = sharedVenue.displayName === null && venue.displayName !== "";
+  const shouldShowAddress = sharedVenue.address === null && venue.venueAddress !== "";
+  return (
+    <>
+      {shouldShowName ? (
+        <p>
+          <strong>{venue.displayName}</strong>
+        </p>
+      ) : null}
+      {shouldShowAddress ? <p>{venue.venueAddress}</p> : null}
+      {venue.googleMapsUrl && venue.googleMapsUrl !== sharedVenue.eventMapUrl ? (
+        <p>
+          <a href={venue.googleMapsUrl} rel="noreferrer" target="_blank">
+            View on Google Maps
+          </a>
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function BundlePassSharedVenue({ venue }: { readonly venue: BundlePassVenueSummary }) {
+  const hasSharedDetails = [venue.displayName, venue.address, venue.commonMapUrl].some(Boolean);
+  if (!hasSharedDetails) {
+    return null;
+  }
+
+  return (
+    <section
+      aria-label="Venue details shared by all included concerts"
+      className="ticket-pass-card__shared-venue"
+    >
+      <h4>Shared venue</h4>
+      {venue.displayName ? (
+        <p>
+          <strong>{venue.displayName}</strong>
+        </p>
+      ) : null}
+      {venue.address ? <p>{venue.address}</p> : null}
+      {venue.commonMapUrl ? (
+        <p>
+          <a href={venue.commonMapUrl} rel="noreferrer" target="_blank">
+            {venue.commonMapLabel}
+          </a>
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function BundlePassIncludedEvents({
+  events,
+  sharedVenue,
+  timezone,
+}: {
+  readonly events: readonly BundlePassEvent[];
+  readonly sharedVenue: BundlePassVenueSummary;
+  readonly timezone: string;
+}) {
+  return (
+    <section aria-label="Included concerts" className="ticket-pass-card__events">
+      <h3>Included concerts</h3>
+      {events.length > 0 ? (
+        <ul className="ticket-pass-event-list">
+          {events.map(({ event, venue }) => (
+            <li className="ticket-pass-event" key={event.id}>
+              <h4>{event.title}</h4>
+              <p>{publicDate(event.startsAt, timezone)}</p>
+              <BundlePassEventVenue sharedVenue={sharedVenue} venue={venue} />
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>Concert details are not available yet.</p>
+      )}
+      <BundlePassSharedVenue venue={sharedVenue} />
+    </section>
+  );
+}
+
+function BundlePassCredentialCard({
+  purchase,
+  settings,
+}: {
+  readonly purchase: PublicTicketReceipt;
+  readonly settings: TicketConfirmationSettings;
+}) {
+  const [qrFailedToken, setQrFailedToken] = useState<string | null>(null);
+  const events = getBundlePassEvents(purchase);
+  const sharedVenue = getBundlePassVenueSummary(events);
+  const hasScanCredential = purchase.status === "paid" && purchase.scanToken !== null;
+  const qrFailedForCurrentToken = hasScanCredential && qrFailedToken === purchase.scanToken;
+  const qrInstructions = settings.qrCodeInstructions.trim()
+    ? settings.qrCodeInstructions
+    : "Present this pass QR code at the door for admission.";
+
+  return (
+    <article
+      aria-label="Bundle pass admission credential"
+      className="ticket-credential-card ticket-pass-card panel"
+    >
+      <header className="ticket-pass-card__header">
+        <h2>Your bundle pass</h2>
+        <h3>{purchase.bundleTitle}</h3>
+        <p>
+          Includes <strong>{events.length}</strong> {events.length === 1 ? "concert" : "concerts"}
+        </p>
+      </header>
+      {hasScanCredential ? (
+        <div className="ticket-credential-card__qr ticket-pass-card__qr">
+          <QRCodeImage
+            alt={`Bundle pass QR code for ${purchase.bundleTitle}; valid for all ${String(events.length)} included concerts`}
+            className="ticket-credential-card__qr-image"
+            errorCorrectionLevel="H"
+            fallbackMessage="The QR code could not be displayed. Use the ticket link or show this page to event staff."
+            margin={2}
+            onError={() => {
+              setQrFailedToken(purchase.scanToken);
+            }}
+            payload={purchase.scanToken ?? ""}
+            width={280}
+          />
+        </div>
+      ) : null}
+      {hasScanCredential ? (
+        <p className="ticket-credential-card__instructions ticket-pass-card__instructions">
+          {qrInstructions} This same pass QR code is valid for every included concert.
+        </p>
+      ) : null}
+      <BundlePassIncludedEvents
+        events={events}
+        sharedVenue={sharedVenue}
+        timezone={purchase.timezone}
+      />
+      {qrFailedForCurrentToken ? (
+        <details className="ticket-credential-card__fallback-disclosure">
+          <summary>Manual credential</summary>
+          <code className="ticket-credential">{purchase.scanToken}</code>
+        </details>
+      ) : null}
+    </article>
+  );
+}
+
+function SingleTicketOrderSummary({
+  purchase,
+  settings,
+}: {
+  readonly purchase: PublicTicketReceipt;
+  readonly settings: TicketConfirmationSettings;
+}) {
+  const venue = getEventVenueDetails({
+    location: purchase.location,
+    venueAddress: purchase.venueAddress,
+    venueName: purchase.venueName,
+  });
+
+  return (
+    <div className="panel">
+      <h2>{purchase.eventTitle}</h2>
+      <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
+      {venue.displayName ? (
+        <p>
+          <strong>{venue.displayName}</strong>
+        </p>
+      ) : null}
+      {venue.venueAddress ? <p>{venue.venueAddress}</p> : null}
+      {venue.googleMapsUrl ? (
+        <p>
+          <a href={venue.googleMapsUrl} rel="noreferrer" target="_blank">
+            View on Google Maps
+          </a>
+        </p>
+      ) : null}
+      <p>
+        Name on order: <strong>{purchase.buyerName}</strong>
+      </p>
+      <p>
+        Quantity: <strong>{purchase.quantity}</strong>
+      </p>
+      <TicketReceiptPricing purchase={purchase} />
+      {purchase.status === "paid" || purchase.status === "pending" ? (
+        <p>{settings.admissionInstructions || settings.willCallInstructions}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function BundlePurchaseSummary({
+  purchase,
+  settings,
+}: {
+  readonly purchase: PublicTicketReceipt;
+  readonly settings: TicketConfirmationSettings;
+}) {
+  return (
+    <section aria-label="Purchase summary" className="panel ticket-purchase-summary">
+      <h2>Purchase summary</h2>
+      <p>
+        Name on order: <strong>{purchase.buyerName}</strong>
+      </p>
+      <p>
+        Quantity: <strong>{purchase.quantity}</strong>
+      </p>
+      <TicketReceiptPricing purchase={purchase} />
+      {purchase.status === "paid" || purchase.status === "pending" ? (
+        <p>{settings.admissionInstructions || settings.willCallInstructions}</p>
+      ) : null}
+    </section>
+  );
+}
+
+function TicketOrderSchedule({ purchase }: { readonly purchase: PublicTicketReceipt }) {
+  const sortedEvents = purchase.bundleId
+    ? [...purchase.includedEvents].sort((a, b) => {
+        const diff = new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+        return diff !== 0 ? diff : a.title.localeCompare(b.title);
+      })
+    : null;
+  const venue = getEventVenueDetails({
+    location: purchase.location,
+    venueAddress: purchase.venueAddress,
+    venueName: purchase.venueName,
+  });
+
+  if (sortedEvents) {
+    return (
+      <ul className="public-bundle-event-list">
+        {sortedEvents.map((event) => {
+          const eventVenue = getEventVenueDetails({
+            location: event.location,
+            venueAddress: event.venueAddress,
+            venueName: event.venueName,
+          });
+          return (
+            <li className="public-bundle-event-item" key={event.id}>
+              <div>
+                <strong>{event.title}</strong> · {publicDate(event.startsAt, purchase.timezone)}
+              </div>
+              {eventVenue.displayName ? <div>{eventVenue.displayName}</div> : null}
+              {eventVenue.venueAddress ? <div>{eventVenue.venueAddress}</div> : null}
+              {eventVenue.googleMapsUrl ? (
+                <div>
+                  <a href={eventVenue.googleMapsUrl} rel="noreferrer" target="_blank">
+                    View on Google Maps
+                  </a>
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
+  return (
+    <>
+      <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
+      {venue.displayName ? (
+        <p>
+          <strong>{venue.displayName}</strong>
+        </p>
+      ) : null}
+      {venue.venueAddress ? <p>{venue.venueAddress}</p> : null}
+      {venue.googleMapsUrl ? (
+        <p>
+          <a href={venue.googleMapsUrl} rel="noreferrer" target="_blank">
+            View on Google Maps
+          </a>
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function TicketRefundSummary({ purchase }: { readonly purchase: PublicTicketReceipt }) {
+  const hasDiscount = Boolean(purchase.discountCode) || purchase.discountAmountCents > 0;
+  const refundedAt = getRefundedAt(purchase);
+
+  return (
+    <section
+      aria-labelledby="ticket-refund-summary-heading"
+      className="ticket-refund-summary panel"
+    >
+      <h2 id="ticket-refund-summary-heading">Refund summary</h2>
+      <dl>
+        <div className="ticket-refund-summary__highlight">
+          <dt>Refunded amount</dt>
+          <dd>{money(getRefundedAmountCents(purchase))}</dd>
+        </div>
+        {refundedAt ? (
+          <div>
+            <dt>Refund processed</dt>
+            <dd>
+              <time dateTime={refundedAt}>{publicDate(refundedAt, purchase.timezone)}</time>
+            </dd>
+          </div>
+        ) : null}
+        <div>
+          <dt>Original subtotal</dt>
+          <dd>{money(purchase.originalSubtotalCents)}</dd>
+        </div>
+        {hasDiscount ? (
+          <>
+            <div>
+              <dt>{purchase.discountCode ? `Discount (${purchase.discountCode})` : "Discount"}</dt>
+              <dd>−{money(purchase.discountAmountCents)}</dd>
+            </div>
+            <div>
+              <dt>Discounted subtotal</dt>
+              <dd>{money(purchase.discountedSubtotalCents)}</dd>
+            </div>
+          </>
+        ) : null}
+        <div>
+          <dt>Processing fee</dt>
+          <dd>{money(purchase.feeCents)}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
+function TicketRefundOrderDetails({ purchase }: { readonly purchase: PublicTicketReceipt }) {
+  return (
+    <section
+      aria-labelledby="ticket-refund-order-heading"
+      className="ticket-refund-order-details panel"
+    >
+      <h2 id="ticket-refund-order-heading">Refunded order details</h2>
+      <h3>{purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}</h3>
+      <TicketOrderSchedule purchase={purchase} />
+      <dl className="ticket-refund-order-details__facts">
+        <div>
+          <dt>Name on order</dt>
+          <dd>{purchase.buyerName}</dd>
+        </div>
+        <div>
+          <dt>Quantity</dt>
+          <dd>{purchase.quantity}</dd>
+        </div>
+      </dl>
+    </section>
   );
 }
 
@@ -434,81 +939,27 @@ function TicketReceiptPanel({
   readonly purchase: PublicTicketReceipt;
   readonly settings: TicketConfirmationSettings;
 }) {
-  const sortedEvents = purchase.bundleId
-    ? [...purchase.includedEvents].sort((a, b) => {
-        const diff = new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
-        return diff !== 0 ? diff : a.title.localeCompare(b.title);
-      })
-    : null;
-
-  const venue = getEventVenueDetails({
-    location: purchase.location,
-    venueAddress: purchase.venueAddress,
-    venueName: purchase.venueName,
-  });
+  if (purchase.status === "refunded") {
+    return (
+      <div className="ticket-refund-content">
+        <TicketRefundSummary purchase={purchase} />
+        <TicketRefundOrderDetails purchase={purchase} />
+      </div>
+    );
+  }
 
   return (
     <div className="ticket-receipt-container">
-      {purchase.status === "paid" && purchase.scanToken ? (
-        <TicketCredentialCard purchase={purchase} settings={settings} />
+      {purchase.bundleId ? (
+        <BundlePassCredentialCard purchase={purchase} settings={settings} />
+      ) : purchase.status === "paid" && purchase.scanToken ? (
+        <SingleTicketCredentialCard purchase={purchase} settings={settings} />
       ) : null}
-      <div className="panel">
-        <h2>{purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}</h2>
-        {sortedEvents ? (
-          <ul className="public-bundle-event-list">
-            {sortedEvents.map((event) => {
-              const eventVenue = getEventVenueDetails({
-                location: event.location,
-                venueAddress: event.venueAddress,
-                venueName: event.venueName,
-              });
-              return (
-                <li className="public-bundle-event-item" key={event.id}>
-                  <div>
-                    <strong>{event.title}</strong> · {publicDate(event.startsAt, purchase.timezone)}
-                  </div>
-                  {eventVenue.displayName ? <div>{eventVenue.displayName}</div> : null}
-                  {eventVenue.venueAddress ? <div>{eventVenue.venueAddress}</div> : null}
-                  {eventVenue.googleMapsUrl ? (
-                    <div>
-                      <a href={eventVenue.googleMapsUrl} rel="noreferrer" target="_blank">
-                        View on Google Maps
-                      </a>
-                    </div>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <>
-            <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
-            {venue.displayName ? (
-              <p>
-                <strong>{venue.displayName}</strong>
-              </p>
-            ) : null}
-            {venue.venueAddress ? <p>{venue.venueAddress}</p> : null}
-            {venue.googleMapsUrl ? (
-              <p>
-                <a href={venue.googleMapsUrl} rel="noreferrer" target="_blank">
-                  View on Google Maps
-                </a>
-              </p>
-            ) : null}
-          </>
-        )}
-        <p>
-          Name on order: <strong>{purchase.buyerName}</strong>
-        </p>
-        <p>
-          Quantity: <strong>{purchase.quantity}</strong>
-        </p>
-        <TicketReceiptPricing purchase={purchase} />
-        {purchase.status === "paid" || purchase.status === "pending" ? (
-          <p>{settings.admissionInstructions || settings.willCallInstructions}</p>
-        ) : null}
-      </div>
+      {purchase.bundleId ? (
+        <BundlePurchaseSummary purchase={purchase} settings={settings} />
+      ) : (
+        <SingleTicketOrderSummary purchase={purchase} settings={settings} />
+      )}
     </div>
   );
 }
@@ -615,9 +1066,14 @@ function TicketReceiptContent({
   }
 
   return (
-    <section className="public-section public-section--narrow">
-      <h1>{getReceiptHeading(purchase.status)}</h1>
-      <p>{getReceiptMessage(purchase.status, settings)}</p>
+    <section
+      className={
+        purchase.status === "refunded"
+          ? "public-section ticket-refund-receipt"
+          : "public-section public-section--narrow"
+      }
+    >
+      <TicketReceiptStatus purchase={purchase} settings={settings} />
       {purchase.status === "pending" && isTimedOut ? (
         <div className="notice notice--info">
           <p>
@@ -638,12 +1094,20 @@ function TicketReceiptContent({
       {purchase.checkoutMode === "free" ? (
         <p className="notice notice--info">Complimentary order — no payment was collected.</p>
       ) : purchase.checkoutMode === "fake" ? (
-        <p className="notice notice--warning">Staging simulation: no payment card was charged.</p>
+        <p
+          className={
+            purchase.status === "refunded" ? "notice notice--info" : "notice notice--warning"
+          }
+        >
+          Staging simulation: no payment card was charged.
+        </p>
       ) : null}
       <TicketReceiptPanel purchase={purchase} settings={settings} />
-      <a className="button button--secondary" href="/tickets">
-        Return to tickets
-      </a>
+      <div className="ticket-receipt-actions">
+        <a className="button button--secondary" href="/tickets">
+          Return to tickets
+        </a>
+      </div>
     </section>
   );
 }

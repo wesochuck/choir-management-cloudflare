@@ -14,6 +14,7 @@ import type {
   deleteTemplateOperationSchema,
   recipientSchema,
   retryOperationSchema,
+  resetTemplateToSystemDefaultOperationSchema,
   saveOperationSchema,
   saveTemplateOperationSchema,
   sendOperationSchema,
@@ -22,6 +23,7 @@ import type {
 import { MAX_COMMUNICATION_DELIVERIES, type TemplateRow } from "./contracts";
 import { audit, readMessage } from "./shared";
 import { wakeOrganizationAlarm } from "../scheduler";
+import { getSystemCommunicationTemplateDefault } from "../schema/templates";
 
 function deliveryRows(
   message: z.infer<typeof communicationSendRequestSchema>,
@@ -286,6 +288,66 @@ export function updateTemplate(
       "communication_template",
     );
   });
+  const row = storage.sql
+    .exec<TemplateRow>(
+      `SELECT id, title, channel, subject, content_markdown AS contentMarkdown,
+        is_system AS isSystem, created_at AS createdAt, updated_at AS updatedAt
+       FROM communication_templates WHERE id = ? LIMIT 1`,
+      operation.templateId,
+    )
+    .one();
+  return Response.json(communicationTemplateSchema.parse({ ...row, isSystem: row.isSystem === 1 }));
+}
+
+export function resetTemplateToSystemDefault(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof resetTemplateToSystemDefaultOperationSchema>,
+  now: string,
+): Response {
+  const found = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly isSystem: number }>(
+      "SELECT is_system AS isSystem FROM communication_templates WHERE id = ? LIMIT 1",
+      operation.templateId,
+    )
+    .toArray()
+    .at(0);
+  if (!found) return Response.json({ code: "communication_template_not_found" }, { status: 404 });
+  if (found.isSystem !== 1) {
+    return Response.json({ code: "communication_template_not_system" }, { status: 409 });
+  }
+
+  const template = getSystemCommunicationTemplateDefault(operation.templateId);
+  if (!template) {
+    return Response.json(
+      { code: "communication_system_template_default_not_found" },
+      { status: 409 },
+    );
+  }
+
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `UPDATE communication_templates
+       SET title = ?, channel = ?, subject = ?, content_markdown = ?, updated_at = ?
+       WHERE id = ? AND is_system = 1`,
+      template.title,
+      template.channel,
+      template.subject,
+      template.contentMarkdown,
+      now,
+      operation.templateId,
+    );
+    audit(
+      storage,
+      operation.actorUserId,
+      operation.requestId,
+      "organization.communication.template.reset_to_system_default",
+      operation.templateId,
+      { channel: template.channel, title: template.title },
+      now,
+      "communication_template",
+    );
+  });
+
   const row = storage.sql
     .exec<TemplateRow>(
       `SELECT id, title, channel, subject, content_markdown AS contentMarkdown,

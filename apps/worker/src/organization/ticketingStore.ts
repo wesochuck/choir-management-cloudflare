@@ -47,10 +47,7 @@ function dispatchStripeTicketOperation(
         schedulerWorkQueued: false,
       };
     case "stripe_ticket_refunded":
-      return {
-        response: refundStripeTicketPurchases(storage, operation),
-        schedulerWorkQueued: false,
-      };
+      return refundStripeTicketPurchases(storage, operation);
     default:
       return null;
   }
@@ -119,8 +116,13 @@ export async function manageTicketingInStore(
       return attachStripeSession(storage, operation.data);
     case "issue_ticket_scan_credential":
       return issueTicketScanCredential(storage, operation.data);
-    case "refund_fake_purchase":
-      return refundFakePurchase(storage, operation.data);
+    case "refund_fake_purchase": {
+      const refund = refundFakePurchase(storage, operation.data);
+      if (refund.response.ok && refund.schedulerWorkQueued) {
+        await wakeOrganizationAlarm(storage);
+      }
+      return refund.response;
+    }
     case "validate_ticket_scan":
       return validateTicketScan(storage, operation.data);
     case "upsert_ticket_bundle":

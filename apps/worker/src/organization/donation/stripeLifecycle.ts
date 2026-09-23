@@ -34,20 +34,36 @@ export function insertDonationConfirmation(
       .exec<{ readonly name: string }>("SELECT name FROM organization_metadata LIMIT 1")
       .toArray()
       .at(0)?.name ?? "the Organization";
+  const paymentDate = new Date(donation.createdAt).toISOString();
   const message = renderPaymentMessageTemplate(
     storage,
     "donation_confirmation",
     donation.buyerName,
     {
       organizationName,
+      // Keep paymentAmount as a scalar so customized templates that use it inline stay readable.
       paymentAmount: `$${(donation.amountCents / 100).toFixed(2)}`,
+      paymentDate,
+      processingFee: donation.feeCents > 0 ? `$${(donation.feeCents / 100).toFixed(2)}` : "None",
       paymentStatus: "Paid",
+      totalCharged: `$${((donation.amountCents + donation.feeCents) / 100).toFixed(2)}`,
     },
   );
+  const paymentSummary = message.hasCanonicalReceiptBody
+    ? [
+        "",
+        "",
+        "**Additional payment details**",
+        "",
+        `- **Processing fee:** ${donation.feeCents > 0 ? `$${(donation.feeCents / 100).toFixed(2)}` : "None"}`,
+        `- **Total charged:** $${((donation.amountCents + donation.feeCents) / 100).toFixed(2)}`,
+        `- **Date:** ${paymentDate}`,
+      ].join("\n")
+    : "";
   const result = insertPaymentNotificationRecord(
     storage,
     {
-      contentMarkdown: message.contentMarkdown,
+      contentMarkdown: message.contentMarkdown + paymentSummary,
       dedupeKey,
       destination: donation.buyerEmail,
       paymentType: "donation",

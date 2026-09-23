@@ -21,6 +21,8 @@ const defaultDonationSettings: DonationSettings = {
       label: "Benefactor",
     },
   ],
+  thankYouMessage:
+    "Your support helps us continue our programs and share our music with the community.",
 };
 
 function storedDonationSettings(storage: DurableObjectStorage): DonationSettings {

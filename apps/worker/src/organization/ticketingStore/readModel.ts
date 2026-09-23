@@ -100,6 +100,7 @@ export function purchaseResult(row: TicketPurchaseRow) {
     providerSessionId: row.providerSessionId,
     quantity: row.quantity,
     refundRequested: row.refundRequested === 1,
+    refundedAt: row.refundedAt,
     status: row.status,
     timezone: row.timezone,
     unitPriceCents: row.unitPriceCents,

@@ -186,6 +186,7 @@ export interface TicketPurchaseRow {
   readonly providerSessionId: string;
   readonly quantity: number;
   readonly refundRequested: number;
+  readonly refundedAt: string | null;
   readonly scanCredentialExpiresAt: number | null;
   readonly scanCredentialIssuedAt: number | null;
   readonly scanCredentialNonce: string | null;
@@ -248,7 +249,7 @@ export const purchaseSelect = `SELECT id, event_id AS eventId, event_title AS ev
     WHERE pa.payment_type IN ('ticket', 'bundle')
       AND pa.resource_id = ticket_purchases.id
       AND pa.refund_requested_at IS NOT NULL) AS refundRequested,
-  created_at AS createdAt, updated_at AS updatedAt,
+  created_at AS createdAt, updated_at AS updatedAt, refunded_at AS refundedAt,
   scan_credential_nonce AS scanCredentialNonce,
   scan_credential_issued_at AS scanCredentialIssuedAt,
   scan_credential_expires_at AS scanCredentialExpiresAt,

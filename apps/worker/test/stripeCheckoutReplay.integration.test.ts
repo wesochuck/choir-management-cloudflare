@@ -32,6 +32,13 @@ function callUrl(call: unknown[] | undefined): string {
   return "";
 }
 
+function checkoutBody(request: RequestInit | undefined): URLSearchParams {
+  if (typeof request?.body === "string" || request?.body instanceof URLSearchParams) {
+    return new URLSearchParams(request.body);
+  }
+  throw new Error("Expected a URL-encoded Stripe Checkout request body.");
+}
+
 beforeEach(async () => {
   await setupTicketingIntegration();
   const stub = stores.get(stores.idFromName(ORG_ID));
@@ -365,12 +372,61 @@ describe("Stripe donation checkout replay idempotency and failure-resilience", (
     expect(firstCall).toBeDefined();
     const headers = new Headers(firstCall?.[1]?.headers);
     expect(headers.get("idempotency-key")).toBe(`payment-checkout-${checkoutRequestId}`);
+    const body = checkoutBody(firstCall?.[1]);
+    expect(first.donation.feeCents).toBe(0);
+    expect(body.get("line_items[0][price_data][product_data][name]")).toBe("Donation");
+    expect(body.has("line_items[1][price_data][product_data][name]")).toBe(false);
 
     // Replay
     const replay = await createDonationCheckoutSession(mockEnv, ORG_ID, ORIGIN, donationInput);
     expect(replay.donation.id).toBe(first.donation.id);
     expect(replay.successToken).toBe(first.successToken);
     expect(replay.url).toBe(first.url);
+  });
+
+  it("describes the processing fee when the donor pays it", async () => {
+    const stub = stores.get(stores.idFromName(ORG_ID));
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `UPDATE organization_metadata
+         SET transaction_fee_settings_json = '{"fixedCents":30,"passFeeToDonor":true,"percentage":2.9}'
+         WHERE organization_id = ?`,
+        ORG_ID,
+      );
+      return null;
+    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        Response.json({ id: "cs_donation_with_fee", url: "https://checkout.stripe.test/session" }),
+      );
+
+    const checkout = await createDonationCheckoutSession(mockEnv, ORG_ID, ORIGIN, {
+      amountCents: 5_000,
+      anonymous: false,
+      buyerEmail: "donor@example.test",
+      buyerName: "Generous Donor",
+      checkoutRequestId: crypto.randomUUID(),
+      marketingConsent: true,
+      tributeName: "",
+      tributeNotifyEmail: "",
+      tributeType: "none",
+    });
+
+    const stripeCall = fetchSpy.mock.calls.find((call) =>
+      callUrl(call).includes("/v1/checkout/sessions"),
+    );
+    expect(stripeCall).toBeDefined();
+    const body = checkoutBody(stripeCall?.[1]);
+    expect(checkout.donation.feeCents).toBeGreaterThan(0);
+    expect(body.get("line_items[0][price_data][product_data][name]")).toBe("Donation");
+    expect(body.get("line_items[1][price_data][product_data][name]")).toBe("Processing fee");
+    expect(body.get("line_items[1][price_data][product_data][description]")).toBe(
+      "Covers payment processing costs",
+    );
+    expect(body.get("line_items[1][price_data][unit_amount]")).toBe(
+      String(checkout.donation.feeCents),
+    );
   });
 
   it("changed donation payload under same checkoutRequestId returns HTTP 409", async () => {

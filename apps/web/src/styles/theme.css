@@ -20,6 +20,7 @@
 @import "./components/ticketing-donations.css";
 @import "./components/music-piece.css";
 @import "./components/public-site.css";
+@import "./components/public-ticket-receipts.css";
 @import "./components/auth-account.css";
 @import "./components/communications.css";
 @import "./components/communications-provider.css";

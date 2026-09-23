@@ -14,6 +14,7 @@ vi.mock("../auth/api", () => ({
 
 vi.mock("../api", () => ({
   checkoutPublicDonation: vi.fn(),
+  getPublicDonationReceipt: vi.fn(),
   getPublicDonationSettings: vi.fn(),
   getPublicTransactionFeeSettings: vi.fn(),
 }));

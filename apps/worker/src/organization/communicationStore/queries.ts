@@ -122,6 +122,7 @@ export function listMemberBulletinsFromStore(
         eventId ? "[Open practice player](/practice)" : "Practice player unavailable",
       )
       .replace(/\{\{TICKET_LINK\}\}|\{ticketLink\}/gi, "[View ticket order](/tickets)")
+      .replace(/\{\{TICKET_ORDER_LINK\}\}|\{ticketOrderLink\}/gi, "[View order details](/tickets)")
       .replace(/\{\{AUDITION_LINK\}\}|\{auditionLink\}/gi, "[Review audition details](/auditions)");
 
     return {
@@ -201,7 +202,7 @@ interface ScheduledTicketMessageRow {
   readonly eventId: string | null;
   readonly eventTitle: string;
   readonly id: string;
-  readonly kind: "confirmation" | "reminder";
+  readonly kind: "confirmation" | "reminder" | "refund";
   readonly scheduledAt: string;
   readonly status: "failed" | "processing" | "queued" | "sent" | "suppressed";
   readonly subject: string;
@@ -246,7 +247,9 @@ export function listCommunicationScheduledMessagesFromStore(
   }
   const messages: z.infer<typeof communicationScheduledMessageSchema>[] = storage.sql
     .exec<ScheduledTicketMessageRow>(
-      `SELECT n.id, n.kind, n.subject, n.status,
+      `SELECT n.id,
+        CASE WHEN n.dedupe_key LIKE 'ticket-refund:%' THEN 'refund' ELSE n.kind END AS kind,
+        n.subject, n.status,
         n.scheduled_for AS scheduledAt, n.event_id AS eventId,
         COALESCE(e.title, p.event_title) AS eventTitle
        FROM ticket_notifications n
@@ -260,7 +263,12 @@ export function listCommunicationScheduledMessagesFromStore(
         eventId: row.eventId,
         eventTitle: row.eventTitle,
         id: row.id,
-        kind: row.kind === "reminder" ? "ticket_reminder" : "ticket_confirmation",
+        kind:
+          row.kind === "reminder"
+            ? "ticket_reminder"
+            : row.kind === "refund"
+              ? "ticket_refund"
+              : "ticket_confirmation",
         recipientCount: 1,
         scheduledAt: row.scheduledAt,
         status:

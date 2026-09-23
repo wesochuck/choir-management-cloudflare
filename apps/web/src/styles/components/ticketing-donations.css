@@ -186,12 +186,15 @@
   }
 
   .ticket-dashboard__filters.donation-dashboard__filters {
-    grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(8rem, 1fr)) minmax(11rem, 1fr);
+    grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(8rem, 1fr)) repeat(
+        2,
+        minmax(11rem, 1fr)
+      );
   }
 
   /* The pinned navigation leaves a narrower content column at tablet and
    * narrow desktop widths. Keep each donation filter readable instead of
-   * compressing four controls into one row. */
+   * compressing all five controls into one row. */
   @media (max-width: 64rem) {
     .ticket-dashboard__filters.donation-dashboard__filters {
       grid-template-columns: 1fr;
@@ -312,6 +315,16 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--spacing-xs);
+  }
+
+  .donation-register__donor {
+    display: grid;
+    min-width: 0;
+    gap: var(--spacing-3xs);
+  }
+
+  .donation-register__donor .field-help {
+    overflow-wrap: anywhere;
   }
 
   /* Compact discount code disclosure and applied state */
@@ -601,5 +614,161 @@
     border-color: var(--color-border);
     background: var(--color-surface-muted, var(--color-surface));
     color: var(--color-text-muted);
+  }
+
+  .public-donation-receipt {
+    display: grid;
+    gap: var(--spacing-lg);
+  }
+
+  .public-donation-receipt__hero {
+    display: grid;
+    justify-items: center;
+    gap: var(--spacing-sm);
+    padding: clamp(var(--spacing-lg), 5vw, var(--spacing-2xl));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: color-mix(in srgb, var(--color-primary) 6%, var(--color-surface-raised));
+    text-align: center;
+  }
+
+  .public-donation-receipt__hero h1,
+  .public-donation-receipt__hero p {
+    margin: 0;
+  }
+
+  .public-donation-receipt__mark {
+    display: grid;
+    width: 3.5rem;
+    height: 3.5rem;
+    margin-bottom: var(--spacing-2xs);
+    place-items: center;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--color-success-text) 14%, var(--color-surface-raised));
+    color: var(--color-success-text);
+  }
+
+  .public-donation-receipt__mark svg {
+    display: block;
+    width: 2.25rem;
+    height: 2.25rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 2.5;
+  }
+
+  .public-donation-receipt__mark circle {
+    fill: color-mix(in srgb, var(--color-success-text) 12%, var(--color-surface-raised));
+  }
+
+  .public-donation-receipt__status {
+    padding: var(--spacing-3xs) var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .public-donation-receipt__status--paid {
+    border-color: color-mix(in srgb, var(--color-success-text) 50%, var(--color-border));
+    color: var(--color-success-text);
+  }
+
+  .public-donation-receipt__status--pending {
+    border-color: color-mix(in srgb, var(--color-accent) 50%, var(--color-border));
+    color: var(--color-text);
+  }
+
+  .public-donation-receipt__amount-label {
+    margin-top: var(--spacing-xs) !important;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+  }
+
+  .public-donation-receipt__amount {
+    font-size: clamp(2.25rem, 7vw, 3.5rem);
+    font-weight: var(--font-weight-black);
+    line-height: var(--line-height-none);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .public-donation-receipt__thank-you,
+  .public-donation-receipt__message {
+    max-width: 42rem;
+    line-height: var(--line-height-relaxed);
+  }
+
+  .public-donation-receipt__details-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-md);
+  }
+
+  .public-donation-receipt__card {
+    display: grid;
+    align-content: start;
+    gap: var(--spacing-md);
+    min-width: 0;
+    margin: 0;
+    padding: var(--spacing-md);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-raised);
+  }
+
+  .public-donation-receipt__card h2 {
+    margin: 0;
+    font-size: var(--font-size-lg);
+  }
+
+  .public-donation-receipt__rows {
+    display: grid;
+    gap: var(--spacing-sm);
+    margin: 0;
+  }
+
+  .public-donation-receipt__rows > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    align-items: start;
+    gap: var(--spacing-sm);
+  }
+
+  .public-donation-receipt__rows dt {
+    color: var(--color-text-muted);
+  }
+
+  .public-donation-receipt__rows dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+    text-align: right;
+    font-weight: var(--font-weight-medium);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .public-donation-receipt__rows .public-donation-receipt__total {
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--color-border);
+    color: var(--color-text);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .public-donation-receipt__anonymous,
+  .public-donation-receipt__receipt-note {
+    margin: 0;
+    line-height: var(--line-height-relaxed);
+  }
+
+  .public-donation-receipt__receipt-note {
+    text-align: center;
+  }
+
+  @media (max-width: 42rem) {
+    .public-donation-receipt__details-grid {
+      grid-template-columns: 1fr;
+    }
   }
 }

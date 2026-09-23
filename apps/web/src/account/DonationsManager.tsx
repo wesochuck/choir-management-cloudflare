@@ -81,9 +81,11 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   const {
     portalButtonText,
     portalDescription,
+    portalThankYouMessage,
     savePortalSettings,
     setPortalButtonText,
     setPortalDescription,
+    setPortalThankYouMessage,
   } = useDonationPortalCopy({
     busy,
     onSaveSettings: saveSettings,
@@ -262,9 +264,11 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
             busy={busy}
             portalButtonText={portalButtonText}
             portalDescription={portalDescription}
+            portalThankYouMessage={portalThankYouMessage}
             savePortalSettings={savePortalSettings}
             setPortalButtonText={setPortalButtonText}
             setPortalDescription={setPortalDescription}
+            setPortalThankYouMessage={setPortalThankYouMessage}
             settingsState={settingsState}
           />
         </TabsContent>

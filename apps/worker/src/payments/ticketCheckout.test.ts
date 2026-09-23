@@ -50,7 +50,12 @@ describe("ticket checkout provider boundary", () => {
       }),
     ).toEqual([
       { productName: "Concert ticket", quantity: 1, unitAmountCents: 1_600 },
-      { productName: "Processing fee", quantity: 1, unitAmountCents: 77 },
+      {
+        productName: "Processing fee",
+        productDescription: "Covers payment processing costs",
+        quantity: 1,
+        unitAmountCents: 77,
+      },
     ]);
   });
 

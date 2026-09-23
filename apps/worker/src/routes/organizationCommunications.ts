@@ -31,6 +31,7 @@ import {
   retryCommunicationDeliveries,
   deleteCommunicationDraft,
   deleteCommunicationTemplate,
+  resetCommunicationTemplateToSystemDefault,
   saveCommunicationTemplate,
   updateCommunicationTemplate,
   saveCommunicationDraft,
@@ -368,6 +369,47 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       return context.json(result.problem, result.status);
     }
   });
+
+  router.post(
+    "/api/organization/communications/templates/:templateId/reset-system-default",
+    async (context) => {
+      const authorization = await authorizeCalendarRoute(context, true);
+      if (!authorization.ok)
+        return context.json(
+          { ...authorization, requestId: context.get("requestId") },
+          authorization.status,
+        );
+      const templateId = z.uuid().safeParse(context.req.param("templateId"));
+      if (!templateId.success)
+        return context.json(
+          {
+            code: "validation_failed",
+            message: "A valid communication template is required.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          400,
+        );
+      try {
+        const template = await resetCommunicationTemplateToSystemDefault(
+          context.env,
+          {
+            actorUserId: authorization.userId,
+            organizationId: authorization.organizationId,
+            requestId: context.get("requestId"),
+          },
+          templateId.data,
+        );
+        return context.json({ ...template, requestId: context.get("requestId") });
+      } catch (error: unknown) {
+        const result = communicationProblem(
+          error,
+          context.get("requestId"),
+          "The communication template could not be reset.",
+        );
+        return context.json(result.problem, result.status);
+      }
+    },
+  );
 
   router.delete("/api/organization/communications/drafts/:messageId", async (context) => {
     const authorization = await authorizeCalendarRoute(context, true);
