@@ -243,6 +243,7 @@ export const communicationScheduledMessageSchema = z.object({
     "audition_reminder",
     "ticket_confirmation",
     "ticket_reminder",
+    "ticket_refund",
   ]),
   recipientCount: z.number().int().nonnegative(),
   scheduledAt: z.iso.datetime(),

@@ -22,10 +22,14 @@ export const donationLevelSchema = z.object({
   label: z.string().trim().min(1).max(120),
 });
 
+const defaultDonationThankYouMessage =
+  "Your support helps us continue our programs and share our music with the community.";
+
 export const donationSettingsSchema = z.object({
   buttonText: z.string().trim().min(1).max(200),
   description: z.string().trim().max(2_000),
   levels: z.array(donationLevelSchema).max(20),
+  thankYouMessage: z.string().trim().min(1).max(2_000).default(defaultDonationThankYouMessage),
 });
 
 export const donationSettingsResponseSchema = donationSettingsSchema.extend({
@@ -184,7 +188,11 @@ export type DonationPaymentMethod = z.infer<typeof donationPaymentMethodSchema>;
 export type DonationTributeType = z.infer<typeof donationTributeTypeSchema>;
 export type DonationTributeInput = z.infer<typeof donationTributeInputSchema>;
 export type DonationLevel = z.infer<typeof donationLevelSchema>;
-export type DonationSettings = z.infer<typeof donationSettingsSchema>;
+// Keep the new setting optional at call sites so older settings objects remain source-compatible.
+// Parsing through donationSettingsSchema always supplies the safe default.
+export type DonationSettings = z.input<typeof donationSettingsSchema> & {
+  thankYouMessage?: string;
+};
 export type TransactionFeeSettings = z.infer<typeof transactionFeeSettingsSchema>;
 export type TicketConfirmationSettings = z.infer<typeof ticketConfirmationSettingsSchema>;
 export type DonationCheckoutRequest = z.infer<typeof donationCheckoutRequestSchema>;

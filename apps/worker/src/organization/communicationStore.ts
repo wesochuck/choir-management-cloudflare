@@ -5,6 +5,7 @@ import {
   deleteTemplate,
   recordDeliveryResults,
   retryMessage,
+  resetTemplateToSystemDefault,
   saveDraft,
   saveTemplate,
   sendMessage,
@@ -42,6 +43,9 @@ export async function manageCommunicationInStore(
   if (operation.action === "retry") return retryMessage(storage, operation, now);
   if (operation.action === "save-template") return saveTemplate(storage, operation, now);
   if (operation.action === "update-template") return updateTemplate(storage, operation, now);
+  if (operation.action === "reset-template-to-system-default") {
+    return resetTemplateToSystemDefault(storage, operation, now);
+  }
   if (operation.action === "delete-template") return deleteTemplate(storage, operation, now);
   if (operation.action === "delete-draft") return deleteDraft(storage, operation, now);
   if (operation.action === "cancel") return cancelMessage(storage, operation, now);

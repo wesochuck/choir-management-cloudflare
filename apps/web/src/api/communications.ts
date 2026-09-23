@@ -161,6 +161,16 @@ export async function updateOrganizationCommunicationTemplate(
   return communicationTemplateResponseSchema.parse(await response.json());
 }
 
+export async function resetOrganizationCommunicationTemplateToSystemDefault(
+  templateId: string,
+): Promise<CommunicationTemplate> {
+  const response = await request(
+    `/api/organization/communications/templates/${encodeURIComponent(templateId)}/reset-system-default`,
+    { method: "POST" },
+  );
+  return communicationTemplateResponseSchema.parse(await response.json());
+}
+
 export async function deleteOrganizationCommunicationTemplate(templateId: string): Promise<void> {
   const response = await request(
     `/api/organization/communications/templates/${encodeURIComponent(templateId)}`,

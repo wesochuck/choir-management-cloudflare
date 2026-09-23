@@ -45,4 +45,16 @@ describe("renderCommunicationMarkdownPreview", () => {
     expect(rendered).not.toContain("{{singerName}}");
     expect(rendered).not.toContain("{{eventTitle}}");
   });
+
+  it("populates refund placeholders and the order details link", () => {
+    const rendered = renderCommunicationMarkdownPreview(
+      "Refunded {refundAmount} on {refundDate}. {{TICKET_ORDER_LINK}}",
+      communicationPreviewValues(null),
+    );
+
+    expect(rendered).toContain("$25.00");
+    expect(rendered).toContain("August 20, 2026 at 7:00 PM");
+    expect(rendered).toContain("View order details");
+    expect(rendered).not.toContain("{{TICKET_ORDER_LINK}}");
+  });
 });

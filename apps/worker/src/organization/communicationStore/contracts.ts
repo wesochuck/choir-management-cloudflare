@@ -114,6 +114,10 @@ export const updateTemplateOperationSchema = contextSchema.extend({
   template: communicationTemplateRequestSchema,
   templateId: z.uuid(),
 });
+export const resetTemplateToSystemDefaultOperationSchema = contextSchema.extend({
+  action: z.literal("reset-template-to-system-default"),
+  templateId: z.uuid(),
+});
 export const deleteTemplateOperationSchema = contextSchema.extend({
   action: z.literal("delete-template"),
   templateId: z.uuid(),
@@ -147,6 +151,7 @@ export const operationSchema = z.discriminatedUnion("action", [
   retryOperationSchema,
   saveTemplateOperationSchema,
   updateTemplateOperationSchema,
+  resetTemplateToSystemDefaultOperationSchema,
   deleteTemplateOperationSchema,
   deleteDraftOperationSchema,
   cancelOperationSchema,

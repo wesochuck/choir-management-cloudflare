@@ -9,10 +9,13 @@ import {
 import { z } from "zod";
 
 import {
+  refreshUnmodifiedDonationConfirmationTemplate,
   refreshUnmodifiedPaymentMessageTemplates,
   seedPaymentSystemCommunicationTemplates,
 } from "../paymentMessageTemplates";
+import { refreshUnmodifiedTicketRefundTemplates } from "../ticketMessageTemplates";
 import {
+  refreshUnmodifiedBundleTicketCommunicationTemplates,
   refreshUnmodifiedSystemCommunicationTemplates,
   seedAuditionSystemCommunicationTemplates,
   seedPlayerSystemCommunicationTemplates,
@@ -1491,6 +1494,81 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "CREATE INDEX IF NOT EXISTS idx_ticket_purchases_expires_at ON ticket_purchases(expires_at, status)",
       "ALTER TABLE donations ADD COLUMN expires_at TEXT",
       "CREATE INDEX IF NOT EXISTS idx_donations_expires_at ON donations(expires_at, status)",
+    ],
+  },
+  {
+    version: 88,
+    apply: seedTicketSystemCommunicationTemplates,
+    // This adds only system-template rows; deployed Workers retain the current notification schema.
+    statements: [],
+  },
+  {
+    apply: refreshUnmodifiedDonationConfirmationTemplate,
+    // Refreshes old built-in receipt copy, including rows timestamped by v70, without replacing edits.
+    statements: [],
+    version: 89,
+  },
+  {
+    apply: refreshUnmodifiedBundleTicketCommunicationTemplates,
+    statements: [],
+    version: 90,
+  },
+  {
+    apply: refreshUnmodifiedTicketRefundTemplates,
+    // Clarifies the refund details link while preserving customized system templates.
+    statements: [],
+    version: 91,
+  },
+  {
+    version: 92,
+    statements: [
+      "DROP INDEX IF EXISTS idx_ticket_notifications_status",
+      "DROP INDEX IF EXISTS idx_ticket_notifications_purchase",
+      "DROP INDEX IF EXISTS idx_ticket_notifications_provider_message",
+      "ALTER TABLE ticket_notifications RENAME TO ticket_notifications_before_refund_kind",
+      `CREATE TABLE ticket_notifications (
+        id TEXT PRIMARY KEY,
+        purchase_id TEXT NOT NULL,
+        event_id TEXT,
+        dedupe_key TEXT NOT NULL UNIQUE,
+        kind TEXT NOT NULL CHECK (kind IN ('confirmation', 'reminder', 'refund')),
+        destination TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        content_markdown TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('queued', 'processing', 'sent', 'failed', 'suppressed')),
+        attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+        provider_message_id TEXT,
+        failure_detail TEXT NOT NULL DEFAULT '',
+        scheduled_for TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        sent_at TEXT,
+        provider_status TEXT CHECK (provider_status IS NULL OR provider_status IN ('accepted', 'delivered', 'deferred', 'bounced', 'failed', 'rejected', 'complained')),
+        provider_event_id TEXT,
+        provider_event_at TEXT,
+        provider_reason TEXT NOT NULL DEFAULT '',
+        provider_smtp_status_code TEXT,
+        provider_smtp_enhanced_status_code TEXT
+      ) STRICT`,
+      `INSERT INTO ticket_notifications
+        (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
+         content_markdown, status, attempts, provider_message_id, failure_detail,
+         scheduled_for, created_at, updated_at, sent_at, provider_status,
+         provider_event_id, provider_event_at, provider_reason,
+         provider_smtp_status_code, provider_smtp_enhanced_status_code)
+       SELECT id, purchase_id, event_id, dedupe_key, kind, destination, subject,
+         content_markdown, status, attempts, provider_message_id, failure_detail,
+         scheduled_for, created_at, updated_at, sent_at, provider_status,
+         provider_event_id, provider_event_at, provider_reason,
+         provider_smtp_status_code, provider_smtp_enhanced_status_code
+       FROM ticket_notifications_before_refund_kind`,
+      "DROP TABLE ticket_notifications_before_refund_kind",
+      `CREATE INDEX idx_ticket_notifications_status
+       ON ticket_notifications(status, scheduled_for, id)`,
+      `CREATE INDEX idx_ticket_notifications_purchase
+       ON ticket_notifications(purchase_id, kind, event_id)`,
+      `CREATE INDEX idx_ticket_notifications_provider_message
+       ON ticket_notifications(provider_message_id) WHERE provider_message_id IS NOT NULL`,
     ],
   },
 ] as const;

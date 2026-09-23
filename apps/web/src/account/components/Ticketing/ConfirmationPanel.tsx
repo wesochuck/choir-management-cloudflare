@@ -11,11 +11,14 @@ import {
   listOrganizationCommunicationTemplates,
   updateOrganizationCommunicationTemplate,
 } from "../../../auth/api";
+import { SystemTemplateResetAction } from "../SystemTemplateResetAction";
 
 const TICKET_TEMPLATE_IDS = new Set([
   "5f0ca4a5-7e4c-4e1a-9a1c-000000000007",
   "5f0ca4a5-7e4c-4e1a-9a1c-000000000008",
   "5f0ca4a5-7e4c-4e1a-9a1c-000000000009",
+  "5f0ca4a5-7e4c-4e1a-9a1c-000000000017",
+  "5f0ca4a5-7e4c-4e1a-9a1c-000000000018",
 ]);
 
 const PLACEHOLDER_GUIDE = [
@@ -32,17 +35,18 @@ const PLACEHOLDER_GUIDE = [
   { code: "{ticketSubtotal}", desc: "Subtotal after discounts" },
   { code: "{ticketFee}", desc: "Processing fee charged, if any" },
   { code: "{ticketBundleName}", desc: "Ticket bundle package name" },
+  { code: "{refundAmount}", desc: "Refund amount (for refund messages)" },
+  { code: "{refundDate}", desc: "Refund processed date and time (for refund messages)" },
   { code: "{{TICKET_LINK}}", desc: "Link to online receipt and admission QR code" },
-  { code: "{{TICKET_EVENT_LIST}}", desc: "List of performances included in the bundle" },
+  { code: "{{TICKET_ORDER_LINK}}", desc: "Refund-safe link to order details" },
+  {
+    code: "{{TICKET_EVENT_LIST}}",
+    desc: "Included concerts in date order, with each title, date and time, venue, and address or event-location fallback",
+  },
 ] as const;
 
 function isTicketTemplate(template: CommunicationTemplate): boolean {
-  return (
-    TICKET_TEMPLATE_IDS.has(template.id) ||
-    template.title === "Ticket Confirmation" ||
-    template.title === "Bundle Ticket Confirmation" ||
-    template.title === "Ticket Concert Reminder"
-  );
+  return template.isSystem && TICKET_TEMPLATE_IDS.has(template.id);
 }
 
 export function ConfirmationPanel({
@@ -69,6 +73,7 @@ export function ConfirmationPanel({
   const [editContent, setEditContent] = useState("");
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templateActionError, setTemplateActionError] = useState<string | null>(null);
+  const [templateActionSuccess, setTemplateActionSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -102,6 +107,7 @@ export function ConfirmationPanel({
     setEditSubject(template.subject);
     setEditContent(template.contentMarkdown);
     setTemplateActionError(null);
+    setTemplateActionSuccess(null);
   }
 
   async function handleSaveTemplate(event: SyntheticEvent<HTMLFormElement>) {
@@ -126,6 +132,12 @@ export function ConfirmationPanel({
     } finally {
       setSavingTemplate(false);
     }
+  }
+
+  function handleTemplateReset(template: CommunicationTemplate) {
+    setTemplates((current) => current.map((item) => (item.id === template.id ? template : item)));
+    setEditingTemplate(null);
+    setTemplateActionSuccess(`${template.title} reset to the system default.`);
   }
 
   return confirmationLoaded ? (
@@ -215,6 +227,12 @@ export function ConfirmationPanel({
             organization communication template registry.
           </p>
         </header>
+
+        {templateActionSuccess ? (
+          <p className="notice notice--success" role="status">
+            {templateActionSuccess}
+          </p>
+        ) : null}
 
         {templatesLoading ? (
           <p>Loading ticket email templates…</p>
@@ -324,6 +342,11 @@ export function ConfirmationPanel({
               </div>
             </div>
 
+            <SystemTemplateResetAction
+              disabled={savingTemplate}
+              onReset={handleTemplateReset}
+              template={editingTemplate}
+            />
             <div className="dialog__actions">
               <DialogClose asChild>
                 <button

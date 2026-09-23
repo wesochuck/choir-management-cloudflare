@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -1042,6 +1042,8 @@ describe("TicketReceipt", () => {
 
     expect(screen.getByRole("heading", { name: "Ticket order processing" })).toBeInTheDocument();
     expect(screen.getByText("Order processing message.")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Refund summary" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Refund complete" })).not.toBeInTheDocument();
     expect(screen.queryByText("Door credential")).not.toBeInTheDocument();
     expect(getPublicTicketPurchase).toHaveBeenCalledTimes(1);
 
@@ -1058,8 +1060,13 @@ describe("TicketReceipt", () => {
 
     expect(screen.getByRole("heading", { name: "Your tickets are confirmed" })).toBeInTheDocument();
     expect(screen.getByText("Order success message.")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Refund summary" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Refund complete" })).not.toBeInTheDocument();
     vi.useRealTimers();
     expect(await screen.findByRole("img", { name: /Admission QR code/ })).toBeInTheDocument();
+    const ticketCard = screen.getByRole("article", { name: "Ticket admission credential" });
+    expect(within(ticketCard).getByRole("heading", { name: "Your ticket" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Your bundle pass" })).not.toBeInTheDocument();
     expect(screen.queryByText("credential.token.123")).not.toBeInTheDocument();
     expect(screen.queryByText("Manual credential")).not.toBeInTheDocument();
     expect(screen.getAllByText("Symphony Hall").length).toBeGreaterThanOrEqual(1);
@@ -1101,9 +1108,12 @@ describe("TicketReceipt", () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
 
-    expect(screen.getByRole("heading", { name: "Ticket order refunded" })).toBeInTheDocument();
-    expect(screen.getByText("This ticket order has been refunded.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Refund complete" })).toBeInTheDocument();
+    expect(screen.getByText("Your ticket order has been refunded.")).toBeInTheDocument();
+    expect(screen.getByText("This ticket is no longer valid for admission.")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Refund summary" })).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: /Admission QR code/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Refund processed")).not.toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
@@ -1140,6 +1150,8 @@ describe("TicketReceipt", () => {
     });
 
     expect(screen.getByRole("heading", { name: "Ticket order expired" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Refund summary" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Refund complete" })).not.toBeInTheDocument();
     expect(
       screen.getByText("This ticket order has expired because payment was not completed."),
     ).toBeInTheDocument();
@@ -1296,20 +1308,12 @@ describe("TicketReceipt", () => {
     expect(screen.queryByText("credential.token.123")).not.toBeInTheDocument();
   });
 
-  it("renders bundle included performances with venue information", async () => {
+  it("shows a bundle pass QR with the full included-concert context and a separate summary", async () => {
     const bundleReceipt: PublicTicketReceipt = {
       ...baseSampleReceipt,
       bundleId: "bundle-1",
       bundleTitle: "Choral Subscription 2026",
       includedEvents: [
-        {
-          id: "event-a",
-          location: "Chapel",
-          startsAt: "2026-11-01T19:00:00Z",
-          title: "Concert A",
-          venueAddress: "100 Church St",
-          venueName: "Grace Chapel",
-        },
         {
           id: "event-b",
           location: "Hall",
@@ -1317,6 +1321,14 @@ describe("TicketReceipt", () => {
           title: "Concert B",
           venueAddress: "200 State St",
           venueName: "Cathedral Hall",
+        },
+        {
+          id: "event-a",
+          location: "Chapel",
+          startsAt: "2026-11-01T19:00:00Z",
+          title: "Concert A",
+          venueAddress: "100 Church St",
+          venueName: "Grace Chapel",
         },
       ],
       scanToken: "bundle.scan.token",
@@ -1330,14 +1342,121 @@ describe("TicketReceipt", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
+    const passCard = screen.getByRole("article", { name: "Bundle pass admission credential" });
+    expect(within(passCard).getByRole("heading", { name: "Your bundle pass" })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 2, name: "Choral Subscription 2026" }),
+      within(passCard).getByRole("heading", { level: 3, name: "Choral Subscription 2026" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Concert A")).toBeInTheDocument();
-    expect(screen.getByText("Grace Chapel")).toBeInTheDocument();
-    expect(screen.getByText(/100 Church St/)).toBeInTheDocument();
-    expect(screen.getByText("Concert B")).toBeInTheDocument();
-    expect(screen.getByText("Cathedral Hall")).toBeInTheDocument();
-    expect(screen.getByText(/200 State St/)).toBeInTheDocument();
+    expect(within(passCard).getByText("2", { selector: "strong" })).toBeInTheDocument();
+    expect(within(passCard).getByText(/^Includes/, { selector: "p" })).toHaveTextContent(
+      "Includes 2 concerts",
+    );
+    vi.useRealTimers();
+    expect(
+      await within(passCard).findByRole("img", {
+        name: "Bundle pass QR code for Choral Subscription 2026; valid for all 2 included concerts",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(passCard).getByText(/This same pass QR code is valid for every included concert\./),
+    ).toBeInTheDocument();
+
+    const concertHeadings = within(passCard).getAllByRole("heading", { level: 4 });
+    expect(concertHeadings.map((heading) => heading.textContent)).toEqual([
+      "Concert A",
+      "Concert B",
+    ]);
+    expect(within(passCard).getByText("Grace Chapel")).toBeInTheDocument();
+    expect(within(passCard).getByText("100 Church St")).toBeInTheDocument();
+    expect(within(passCard).getByText("Cathedral Hall")).toBeInTheDocument();
+    expect(within(passCard).getByText("200 State St")).toBeInTheDocument();
+
+    const summary = screen.getByLabelText("Purchase summary");
+    expect(within(summary).getByRole("heading", { name: "Purchase summary" })).toBeInTheDocument();
+    expect(within(summary).getByText("Jane Doe")).toBeInTheDocument();
+    expect(within(summary).getByText("Quantity:").parentElement).toHaveTextContent("1");
+    expect(within(summary).getByText("Total:").parentElement).toHaveTextContent("$20.00");
+    expect(within(summary).queryByRole("list")).not.toBeInTheDocument();
+    expect(within(summary).queryByText("Concert A")).not.toBeInTheDocument();
+    expect(within(summary).queryByText("Concert B")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Choral Subscription 2026")).toHaveLength(1);
+  });
+
+  it("shows normalized shared bundle venue details once", async () => {
+    const bundleReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      bundleId: "bundle-1",
+      bundleTitle: "Choral Subscription 2026",
+      includedEvents: [
+        {
+          id: "event-a",
+          location: "Grace Chapel",
+          startsAt: "2026-11-01T19:00:00Z",
+          title: "Concert A",
+          venueAddress: " 100 Church St ",
+          venueName: " Grace Chapel ",
+        },
+        {
+          id: "event-b",
+          location: "100 Church St",
+          startsAt: "2026-12-05T19:00:00Z",
+          title: "Concert B",
+          venueAddress: "",
+          venueName: "Grace Chapel",
+        },
+      ],
+      scanToken: "bundle.scan.token",
+      status: "paid",
+    };
+    vi.mocked(getPublicTicketPurchase).mockResolvedValueOnce(bundleReceipt);
+
+    render(<TicketReceipt token="tok-bundle-shared-venue" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    const passCard = screen.getByRole("article", { name: "Bundle pass admission credential" });
+    expect(within(passCard).getAllByText("Grace Chapel")).toHaveLength(1);
+    expect(within(passCard).getAllByText("100 Church St")).toHaveLength(1);
+    expect(within(passCard).getAllByRole("link", { name: "View on Google Maps" })).toHaveLength(1);
+  });
+
+  it("keeps the bundle pass QR hidden while payment is pending", async () => {
+    const pendingBundleReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      bundleId: "bundle-1",
+      bundleTitle: "Choral Subscription 2026",
+      includedEvents: [
+        {
+          id: "event-a",
+          location: "Chapel",
+          startsAt: "2026-11-01T19:00:00Z",
+          title: "Concert A",
+          venueAddress: "100 Church St",
+          venueName: "Grace Chapel",
+        },
+      ],
+      scanToken: null,
+      status: "pending",
+    };
+    vi.mocked(getPublicTicketPurchase).mockResolvedValueOnce(pendingBundleReceipt);
+
+    render(<TicketReceipt token="tok-pending-bundle" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    const passCard = screen.getByRole("article", { name: "Bundle pass admission credential" });
+    expect(within(passCard).getByRole("heading", { name: "Your bundle pass" })).toBeInTheDocument();
+    expect(within(passCard).getByText("Concert A")).toBeInTheDocument();
+    expect(
+      within(passCard).queryByRole("img", { name: /Bundle pass QR code/ }),
+    ).not.toBeInTheDocument();
+    expect(within(passCard).queryByText("bundle.scan.token")).not.toBeInTheDocument();
+    expect(
+      within(passCard).queryByText(/This same pass QR code is valid for every included concert/),
+    ).not.toBeInTheDocument();
   });
 });

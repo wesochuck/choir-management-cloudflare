@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { canTransitionDonation } from "./donations";
+import { canSetDonationThankYouStatus, canTransitionDonation } from "./donations";
+
+describe("donation thank-you status", () => {
+  it("allows paid status changes, blocks refunded mark-sent, and permits undo", () => {
+    expect(canSetDonationThankYouStatus("paid", true)).toBe(true);
+    expect(canSetDonationThankYouStatus("paid", false)).toBe(true);
+    expect(canSetDonationThankYouStatus("refunded", true)).toBe(false);
+    expect(canSetDonationThankYouStatus("refunded", false)).toBe(true);
+  });
+});
 
 describe("donation status transitions", () => {
   it("allows an expired checkout to complete later", () => {

@@ -65,7 +65,7 @@ export const ticketNotificationJobSchema = z.object({
       z.object({
         id: z.string().optional(),
         location: z.string().default(""),
-        startsAt: z.string(),
+        startsAt: z.iso.datetime(),
         title: z.string(),
         venueAddress: z.string().default(""),
         venueName: z.string().default(""),
@@ -74,10 +74,11 @@ export const ticketNotificationJobSchema = z.object({
     .default([]),
   bundleTitle: z.string().nullable(),
   eventLocation: z.string().default(""),
-  kind: z.enum(["confirmation", "reminder"]),
+  kind: z.enum(["confirmation", "reminder", "refund"]),
   purchaseId: z.uuid(),
   quantity: z.number().int().positive(),
   originalSubtotalCents: z.number().int().nonnegative().default(0),
+  refundDate: z.iso.datetime().nullable(),
   status: z.enum(["queued", "processing"]),
   subject: z.string().max(300),
   timezone: z.string().min(1).max(100),
@@ -241,7 +242,9 @@ const rsvpPlaceholderReplacementPattern = /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/gi;
 const playerPlaceholderPattern = /\{\{PLAYER_LINK\}\}|\{playerLink\}/i;
 const playerPlaceholderReplacementPattern = /\{\{PLAYER_LINK\}\}|\{playerLink\}/gi;
 const ticketLinkPlaceholderPattern = /\{\{TICKET_LINK\}\}|\{ticketLink\}/i;
-const ticketLinkPlaceholderReplacementPattern = /\{\{TICKET_LINK\}\}|\{ticketLink\}/gi;
+const ticketOrderLinkPlaceholderPattern = /\{\{TICKET_ORDER_LINK\}\}|\{ticketOrderLink\}/i;
+const ticketLinksPlaceholderReplacementPattern =
+  /\{\{TICKET_LINK\}\}|\{ticketLink\}|\{\{TICKET_ORDER_LINK\}\}|\{ticketOrderLink\}/gi;
 const auditionLinkPlaceholderPattern = /\{\{AUDITION_LINK\}\}|\{auditionLink\}/i;
 const auditionLinkPlaceholderReplacementPattern = /\{\{AUDITION_LINK\}\}|\{auditionLink\}/gi;
 
@@ -429,8 +432,14 @@ export async function renderTicketLinks(
   content: string,
   purchaseId: string,
   eventStartsAt: string,
+  isRefund = false,
 ): Promise<string> {
-  if (!ticketLinkPlaceholderPattern.test(content)) return content;
+  if (
+    !ticketLinkPlaceholderPattern.test(content) &&
+    !ticketOrderLinkPlaceholderPattern.test(content)
+  ) {
+    return content;
+  }
   const issuedAt = Math.floor(Date.now() / 1_000);
   const eventEndsAt = Math.floor(new Date(eventStartsAt).getTime() / 1_000) + 86_400;
   const token = await issueSignedLink(env.SIGNED_LINK_SECRET, {
@@ -444,9 +453,10 @@ export async function renderTicketLinks(
     version: 1,
   });
   const link = `${await deliveryOrigin(env, organizationId, { unsubscribeUrl: null })}/tickets/order/success?token=${encodeURIComponent(token)}`;
-  return content.replace(
-    ticketLinkPlaceholderReplacementPattern,
-    () => `[View ticket / QR code](${link})`,
+  return content.replace(ticketLinksPlaceholderReplacementPattern, (placeholder) =>
+    isRefund || /order/i.test(placeholder)
+      ? `[View order details](${link})`
+      : `[View ticket / QR code](${link})`,
   );
 }
 

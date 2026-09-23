@@ -124,10 +124,49 @@ test("caches the open event offline and explains uncached parts", async ({ page 
   await nowPlaying.getByRole("button", { name: "Play" }).click();
   await expect(nowPlaying.getByRole("button", { name: "Pause" })).toBeVisible();
 
-  // Going offline, then switching to a part that was never cached, explains itself.
-  await page.context().setOffline(true);
+  // The mobile picker keeps its offline controls available while online.
   const isMobile = testInfo.project.name.includes("mobile");
   if (isMobile) {
+    const queueTrigger = nowPlaying.getByRole("button", { name: /Set list/i });
+    await queueTrigger.click();
+    const picker = page.getByRole("dialog", { name: "Set List" });
+    const pickerTrack = picker.locator(".public-player__queue-list--mobile-picker li").first();
+    await expect(pickerTrack.getByText("Saved offline", { exact: true })).toBeVisible();
+
+    await pickerTrack.getByRole("button", { name: "Remove" }).click();
+    const saveButton = pickerTrack.getByRole("button", { name: "Save offline" });
+    await expect(saveButton).toBeVisible();
+
+    let releaseManualSave: (() => void) | undefined;
+    let markManualSaveStarted: (() => void) | undefined;
+    const manualSaveGate = new Promise<void>((resolve) => {
+      releaseManualSave = resolve;
+    });
+    const manualSaveStarted = new Promise<void>((resolve) => {
+      markManualSaveStarted = resolve;
+    });
+    await page.unroute("**/api/public/player/media/**");
+    await page.route("**/api/public/player/media/**", async (route) => {
+      const url = new URL(route.request().url());
+      const fileId = decodeURIComponent(url.pathname.split("/").pop() ?? "");
+      if (fileId === "file-tutti-1") {
+        markManualSaveStarted?.();
+        await manualSaveGate;
+        await route.fulfill({ body: audioBytes, contentType: "audio/mpeg", status: 200 });
+        return;
+      }
+      await route.fulfill({ body: pngBytes, contentType: "image/png", status: 200 });
+    });
+    await saveButton.click();
+    await manualSaveStarted;
+    await expect(pickerTrack.getByRole("status")).toContainText("Saving…");
+    releaseManualSave?.();
+    await expect(pickerTrack.getByText("Saved offline", { exact: true })).toBeVisible();
+    await picker.getByRole("button", { name: "Close Set List" }).click();
+
+    // Going offline, then switching to a part that was never cached, explains itself.
+    await page.context().setOffline(true);
+
     const mobileSelect = page.locator("#mobile-voice-part-select");
     await mobileSelect.selectOption("alto");
     await expect(page.locator(".public-player__part-picker-value")).toContainText("Alto");
@@ -138,6 +177,8 @@ test("caches the open event offline and explains uncached parts", async ({ page 
     await expect(page.locator(".public-player__part-picker-value")).toContainText("Choir Mix");
     await expect(page.getByText("saved offline. Reconnect", { exact: false })).not.toBeVisible();
   } else {
+    // Going offline, then switching to a part that was never cached, explains itself.
+    await page.context().setOffline(true);
     const voicePartTrigger = nowPlaying.getByRole("button", { name: /Voice Part/i });
     await voicePartTrigger.click();
     const voicePartSheet = page.getByRole("dialog", { name: "Choose Voice Part" });

@@ -186,6 +186,15 @@ const adminOrder = {
   updatedAt: "2026-07-23T15:00:00.000Z",
 };
 
+const bundleAdminOrder = {
+  ...adminOrder,
+  buyerEmail: "bundle.buyer@example.test",
+  buyerName: "Bundle Buyer",
+  bundleId,
+  bundleTitle: "Season Pass",
+  id: "cf6226fc-5c0c-4957-8735-5c72b1c68d31",
+};
+
 const sortableAdminOrder = {
   ...adminOrder,
   amountPaidCents: 900,
@@ -538,6 +547,72 @@ test.describe("public ticket pages", () => {
     await expect(page.locator("code.ticket-credential")).not.toBeVisible();
   });
 
+  test("shows the full bundle pass on the receipt without mobile or print overflow", async ({
+    page,
+  }) => {
+    await routePublicBasics(page);
+    await page.route("**/api/public/tickets/order*", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          ...receiptResponse,
+          bundleId,
+          bundleTitle: "Season Pass",
+          includedEvents: [
+            {
+              id: secondPerformanceId,
+              location: "Riverfront Hall",
+              startsAt: futureIsoDate({ days: 360 }),
+              title: "Winter Choral Concert",
+              venueAddress: "200 State Street, Dayton, OH",
+              venueName: "Cathedral Hall",
+            },
+            {
+              id: eventId,
+              location: "Concert Hall",
+              startsAt: futureDate,
+              title: "Spring Concert",
+              venueAddress: "100 Church Street, Dayton, OH",
+              venueName: "Grace Chapel",
+            },
+          ],
+          scanToken,
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto(`/tickets/order/success?token=${successToken}`);
+
+    const passCard = page.getByRole("article", { name: "Bundle pass admission credential" });
+    await expect(passCard.getByRole("heading", { name: "Your bundle pass" })).toBeVisible();
+    await expect(passCard.getByRole("heading", { name: "Season Pass" })).toBeVisible();
+    await expect(passCard.getByText("Includes 2 concerts")).toBeVisible();
+    await expect(passCard.getByRole("heading", { name: "Spring Concert", level: 4 })).toBeVisible();
+    await expect(
+      passCard.getByRole("heading", { name: "Winter Choral Concert", level: 4 }),
+    ).toBeVisible();
+    await expect(
+      passCard.getByRole("img", {
+        name: /Bundle pass QR code .* valid for all 2 included concerts/,
+      }),
+    ).toBeVisible();
+    const summary = page.getByRole("region", { name: "Purchase summary" });
+    await expect(summary).toBeVisible();
+    await expect(summary.getByText("Season Pass")).not.toBeVisible();
+    await expect(summary.getByRole("list")).toHaveCount(0);
+
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+
+    await page.emulateMedia({ media: "print" });
+    await expect(passCard).toBeVisible();
+    await expect(summary).toBeVisible();
+  });
+
   test("shows pending receipt and transitions to confirmed after polling", async ({ page }) => {
     await routePublicBasics(page);
     let pollCount = 0;
@@ -687,6 +762,233 @@ test.describe("admin ticket management", () => {
     }
   });
 
+  test("shows a bundle pill beside bundle buyers without page overflow", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const archivedBundleOrder = {
+      ...sortableAdminOrder,
+      bundleId: newBundleId,
+      bundleTitle: "Archived Bundle",
+      buyerEmail: "zara@example.test",
+      buyerName: "Zara Anderson",
+      createdAt: "2026-07-23T16:00:00.000Z",
+    };
+    const currentBundleOrder = {
+      ...bundleAdminOrder,
+      bundleTitle: "Former Season Pass title",
+      buyerName: "Alex Zulu",
+      createdAt: "2026-07-23T15:00:00.000Z",
+    };
+    await routeHealth(page);
+    await routeAdminAuth(page);
+    await page.route("**/api/public/projection", async (route) => {
+      await route.fulfill({ status: 404 });
+    });
+    await page.route("**/api/organization/tickets/orders", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          orders: [currentBundleOrder, archivedBundleOrder, adminOrder],
+          requestId,
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/events", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ events: [adminEvent], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/tickets/bundles", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ bundles: [adminBundle], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto("/admin/tickets");
+    await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
+    await page.getByRole("tab", { name: "Bundle Orders" }).click();
+
+    const bundleOrdersPanel = page.locator("#ticketing-orders-panel");
+    const orderTable = bundleOrdersPanel.locator("table.data-table");
+    await expect(orderTable).toBeVisible();
+    await expect(orderTable.locator("thead th")).toHaveCount(8);
+    await expect(orderTable.locator("thead th")).toHaveText([
+      "Buyer ↕",
+      "Email ↕",
+      "Sale date ↓",
+      "Bundle ↕",
+      "Qty ↕",
+      "Amount paid ↕",
+      "Status ↕",
+      "Actions",
+    ]);
+    for (const header of [
+      "Buyer",
+      "Email",
+      "Sale date",
+      "Bundle",
+      "Qty",
+      "Amount paid",
+      "Status",
+    ]) {
+      await expect(orderTable.getByRole("button", { name: `Sort by ${header}` })).toBeVisible();
+    }
+    await expect(orderTable.getByRole("button", { name: "Sort by Actions" })).toHaveCount(0);
+
+    const orderRows = orderTable.locator("tbody tr");
+    await expect(orderRows).toHaveCount(2);
+    await expect(orderRows.first().locator("td").first()).toContainText("Zara Anderson");
+    await expect(orderTable.locator("thead th").nth(2)).toHaveAttribute("aria-sort", "descending");
+
+    const bundleRow = orderRows.filter({ hasText: "Alex Zulu" });
+    const archivedRow = orderRows.filter({ hasText: "Zara Anderson" });
+    await expect(bundleRow.locator("td")).toHaveCount(8);
+    await expect(bundleRow.locator("td").first()).toContainText("Alex Zulu");
+    await expect(bundleRow.locator(".ticketing-bundle-order-pill")).toHaveText("Bundle");
+    await expect(bundleRow.locator("td").nth(3)).toHaveText("Season Pass");
+    await expect(archivedRow.locator("td").nth(3)).toHaveText("Archived Bundle");
+    await expect(bundleRow.locator("td").nth(6)).toContainText("Paid (simulation)");
+    await expect(archivedRow.locator("td").nth(6)).toContainText("pending (simulation)");
+
+    await orderTable.getByRole("button", { name: "Sort by Buyer" }).click();
+    await expect(orderTable.locator("thead th").first()).toHaveAttribute("aria-sort", "ascending");
+    await expect(orderRows.first().locator("td").first()).toContainText("Zara Anderson");
+
+    await orderTable.getByRole("button", { name: "Sort by Bundle" }).click();
+    await expect(orderRows.first().locator("td").nth(3)).toHaveText("Archived Bundle");
+
+    await orderTable.getByRole("button", { name: "Sort by Status" }).click();
+    await expect(orderRows.first().locator("td").nth(6)).toContainText("Paid (simulation)");
+
+    const checkPageLayout = async () =>
+      page.evaluate(() => {
+        const panel = document.querySelector<HTMLElement>("#ticketing-orders-panel");
+        const scrollArea = panel?.querySelector<HTMLElement>(".table-scroll");
+        if (!panel || !scrollArea) {
+          throw new Error("Bundle orders layout is missing its panel or table scroll area.");
+        }
+        return {
+          pageClientWidth: document.documentElement.clientWidth,
+          pageScrollWidth: document.documentElement.scrollWidth,
+          panelClientWidth: panel.clientWidth,
+          scrollAreaClientWidth: scrollArea.clientWidth,
+          scrollAreaOverflowX: getComputedStyle(scrollArea).overflowX,
+        };
+      });
+
+    for (const viewport of [
+      { height: 900, width: 1280 },
+      { height: 844, width: 390 },
+    ]) {
+      await page.setViewportSize(viewport);
+      const layout = await checkPageLayout();
+      expect(layout.pageScrollWidth).toBeLessThanOrEqual(layout.pageClientWidth);
+      expect(layout.scrollAreaClientWidth).toBeLessThanOrEqual(layout.panelClientWidth);
+      expect(layout.scrollAreaOverflowX).toBe("auto");
+    }
+
+    await expect(bundleOrdersPanel.locator(".data-table-cards")).toBeVisible();
+    const bundleCards = bundleOrdersPanel.locator(".data-table-card");
+    await expect(bundleCards).toHaveCount(2);
+    const currentBundleCard = bundleCards.filter({ hasText: "Alex Zulu" });
+    await expect(currentBundleCard.locator(".data-table-card__field")).toHaveCount(8);
+    await expect(currentBundleCard.locator(".ticketing-bundle-order-pill")).toHaveText("Bundle");
+    await expect(currentBundleCard.getByRole("button", { name: "Resend" })).toBeVisible();
+    await expect(currentBundleCard.getByRole("button", { name: "Refund" })).toBeVisible();
+  });
+
+  test("keeps bundle order resend and refund confirmation actions working", async ({ page }) => {
+    let currentOrder = { ...bundleAdminOrder };
+    let resendCalled = false;
+    let refundCalled = false;
+
+    await routeHealth(page);
+    await routeAdminAuth(page);
+    await page.route("**/api/public/projection", async (route) => {
+      await route.fulfill({ status: 404 });
+    });
+    await page.route("**/api/organization/tickets/orders", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ orders: [currentOrder], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/events", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ events: [adminEvent], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/tickets/bundles", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ bundles: [adminBundle], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route(
+      `**/api/organization/tickets/${bundleAdminOrder.id}/confirmation`,
+      async (route) => {
+        resendCalled = true;
+        await route.fulfill({
+          body: JSON.stringify({ status: "queued" }),
+          contentType: "application/json",
+          status: 200,
+        });
+      },
+    );
+    await page.route(`**/api/organization/tickets/${bundleAdminOrder.id}/refund`, async (route) => {
+      refundCalled = true;
+      currentOrder = { ...currentOrder, status: "refunded" };
+      await route.fulfill({
+        body: JSON.stringify(currentOrder),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto("/admin/tickets");
+    await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
+    await page.getByRole("tab", { name: "Bundle Orders" }).click();
+
+    const bundleOrdersPanel = page.locator("#ticketing-orders-panel");
+    const visibleOrders = bundleOrdersPanel.locator(
+      ".data-table:visible, .data-table-cards:visible",
+    );
+    await expect(visibleOrders.getByText("Paid (simulation)", { exact: true })).toBeVisible();
+
+    await visibleOrders.getByRole("button", { name: "Resend" }).click();
+    await expect(page.getByText("Ticket confirmation queued.")).toBeVisible();
+    expect(resendCalled).toBe(true);
+
+    await visibleOrders.getByRole("button", { name: "Refund" }).click();
+    await expect(
+      visibleOrders.getByText("Refund this complete order?", { exact: true }),
+    ).toBeVisible();
+    await visibleOrders.getByRole("button", { name: "Cancel" }).click();
+    await expect(
+      visibleOrders.getByText("Refund this complete order?", { exact: true }),
+    ).not.toBeVisible();
+
+    await visibleOrders.getByRole("button", { name: "Refund" }).click();
+    await expect(
+      visibleOrders.getByText("Refund this complete order?", { exact: true }),
+    ).toBeVisible();
+    await visibleOrders.getByRole("button", { name: "Confirm refund" }).click();
+
+    await expect(page.getByText("Ticket order refunded.")).toBeVisible();
+    await expect(visibleOrders.getByText("Refunded (simulation)", { exact: true })).toHaveCount(0);
+    await bundleOrdersPanel.getByRole("checkbox", { name: "Show refunded" }).check();
+    await expect(visibleOrders.getByText("Refunded (simulation)", { exact: true })).toBeVisible();
+    expect(refundCalled).toBe(true);
+  });
+
   test("auto-selects the performance closest to today in will call", async ({ page }) => {
     const nearEvent = {
       ...adminEvent,
@@ -798,6 +1100,8 @@ test.describe("admin ticket management", () => {
     await visibleOrders.getByRole("button", { name: "Confirm refund" }).click({ force: true });
 
     await expect(page.getByText("Ticket order refunded.")).toBeVisible();
+    await expect(visibleOrders.getByText("Refunded (simulation)", { exact: true })).toHaveCount(0);
+    await page.getByRole("checkbox", { name: "Show refunded" }).check();
     await expect(visibleOrders.getByText("Refunded (simulation)", { exact: true })).toBeVisible();
     expect(refundCalled).toBe(true);
   });
@@ -921,7 +1225,9 @@ test.describe("admin ticket management", () => {
     expect(bundleSaved).toBe(true);
   });
 
-  test("creates and reports a discount code", async ({ page }) => {
+  test("creates a discount code and clears its saved notice when leaving the tab", async ({
+    page,
+  }) => {
     await routeHealth(page);
     await routeAdminAuth(page);
     await page.route("**/api/public/projection", async (route) => {
@@ -975,9 +1281,14 @@ test.describe("admin ticket management", () => {
     await dialog.getByLabel("Eligible item").selectOption({ label: "Spring Concert" });
     await dialog.getByLabel("Percentage (1–100)").fill("10");
     await dialog.getByLabel("Redemption limit (blank is unlimited)").fill("10");
+    await page.clock.install();
     await dialog.getByRole("button", { name: "Save discount code" }).click();
 
     await expect(page.getByText("Discount code saved.")).toBeVisible();
+    await page.getByRole("tab", { name: "Season Bundles" }).click();
+    await expect(page.getByText("Discount code saved.")).toHaveCount(0);
+    await page.getByRole("tab", { name: "Discount Codes" }).click();
+    await expect(page.getByText("Discount code saved.")).toHaveCount(0);
     const discountResults = page.locator(".data-table:visible, .data-table-cards:visible");
     await expect(discountResults.getByText("SPRING10", { exact: true }).first()).toBeVisible();
     await expect(discountResults.getByText("10%", { exact: true }).first()).toBeVisible();

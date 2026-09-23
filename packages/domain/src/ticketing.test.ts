@@ -7,6 +7,7 @@ import {
   remainingTicketCapacity,
   renderTicketWillCallCsv,
   ticketWillCallFilename,
+  ticketCheckoutLineItems,
   ticketProcessingFeeCents,
   ticketOrderQuote,
   transactionProcessingFeeCents,
@@ -14,6 +15,45 @@ import {
 } from "./ticketing";
 
 describe("ticketing rules", () => {
+  it("describes customer-paid ticket and bundle processing fees and omits zero-fee rows", () => {
+    const ticket = ticketCheckoutLineItems({
+      discountedSubtotalCents: 2_500,
+      feeCents: 106,
+      productName: "Spring Concert ticket",
+    });
+    expect(ticket).toEqual([
+      { productName: "Spring Concert ticket", quantity: 1, unitAmountCents: 2_500 },
+      {
+        productName: "Processing fee",
+        productDescription: "Covers payment processing costs",
+        quantity: 1,
+        unitAmountCents: 106,
+      },
+    ]);
+    expect(
+      ticketCheckoutLineItems({
+        discountedSubtotalCents: 6_000,
+        feeCents: 204,
+        productName: "Season bundle",
+      }),
+    ).toEqual([
+      { productName: "Season bundle", quantity: 1, unitAmountCents: 6_000 },
+      {
+        productName: "Processing fee",
+        productDescription: "Covers payment processing costs",
+        quantity: 1,
+        unitAmountCents: 204,
+      },
+    ]);
+    expect(
+      ticketCheckoutLineItems({
+        discountedSubtotalCents: 2_500,
+        feeCents: 0,
+        productName: "Spring Concert ticket",
+      }),
+    ).toEqual([{ productName: "Spring Concert ticket", quantity: 1, unitAmountCents: 2_500 }]);
+  });
+
   it("normalizes discount codes and validates whole percentage values", () => {
     expect(normalizeDiscountCode("  spring-25 ")).toBe("SPRING-25");
     expect(isValidTicketDiscountValue("percentage", 1)).toBe(true);

@@ -11,6 +11,7 @@ import {
   getPublicDonationSettings,
   getPublicTransactionFeeSettings,
 } from "../api";
+import { formatDonationMoney } from "./donationFormat";
 
 const DEFAULT_SETTINGS: DonationSettings = {
   buttonText: "Support our Music",
@@ -27,6 +28,8 @@ const DEFAULT_SETTINGS: DonationSettings = {
       label: "Benefactor",
     },
   ],
+  thankYouMessage:
+    "Your support helps us continue our programs and share our music with the community.",
 };
 
 const DEFAULT_TRANSACTION_FEE_SETTINGS: TransactionFeeSettings = {
@@ -34,12 +37,6 @@ const DEFAULT_TRANSACTION_FEE_SETTINGS: TransactionFeeSettings = {
   passFeeToDonor: false,
   percentage: 2.9,
 };
-
-function money(cents: number): string {
-  return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
-    cents / 100,
-  );
-}
 
 const TRIBUTE_OPTIONS: readonly {
   readonly label: string;
@@ -188,7 +185,7 @@ export function PublicDonationView() {
                   <strong>{level.label}</strong>
                   {level.benefit ? <small>{level.benefit}</small> : null}
                 </span>
-                <strong>{money(level.amountCents)}</strong>
+                <strong>{formatDonationMoney(level.amountCents)}</strong>
               </button>
             ))}
             <button
@@ -355,20 +352,20 @@ export function PublicDonationView() {
               <div className="public-donation-summary-rows">
                 <div className="public-donation-summary-row">
                   <span>Donation</span>
-                  <strong>{money(amountCents)}</strong>
+                  <strong>{formatDonationMoney(amountCents)}</strong>
                 </div>
                 <div className="public-donation-summary-row">
                   <span>Processing fee</span>
                   <span>
                     {transactionFeeSettings.passFeeToDonor
-                      ? money(feeCents)
+                      ? formatDonationMoney(feeCents)
                       : "Covered by the Organization"}
                   </span>
                 </div>
                 <hr className="public-donation-summary-divider" />
                 <div className="public-donation-summary-row public-donation-summary-total">
                   <strong>Total</strong>
-                  <strong>{money(amountCents + feeCents)}</strong>
+                  <strong>{formatDonationMoney(amountCents + feeCents)}</strong>
                 </div>
               </div>
               <button

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  determineCommunicationPlaceholderContext,
   isPlaceholderCompatibleWithAudience,
   isPlaceholderCompatibleWithChannel,
   removeCommunicationPlaceholder,
@@ -79,10 +80,13 @@ describe("communicationPlaceholders domain logic", () => {
 
     it("allows ticket fields only for Ticket Buyers", () => {
       const ticketLinkDef = getDef("{{TICKET_LINK}}");
+      const ticketEventListDef = getDef("{{TICKET_EVENT_LIST}}");
       const ticketQtyDef = getDef("{ticketQuantity}");
 
       expect(isPlaceholderCompatibleWithAudience(ticketLinkDef, ["Ticket Buyers"])).toBe(true);
+      expect(isPlaceholderCompatibleWithAudience(ticketEventListDef, ["Ticket Buyers"])).toBe(true);
       expect(isPlaceholderCompatibleWithAudience(ticketLinkDef, ["Members"])).toBe(false);
+      expect(isPlaceholderCompatibleWithAudience(ticketEventListDef, ["Members"])).toBe(false);
       expect(isPlaceholderCompatibleWithAudience(ticketLinkDef, ["Members", "Ticket Buyers"])).toBe(
         false,
       );
@@ -91,6 +95,23 @@ describe("communicationPlaceholders domain logic", () => {
       expect(isPlaceholderCompatibleWithAudience(ticketQtyDef, ["Members", "Ticket Buyers"])).toBe(
         false,
       );
+    });
+
+    it("describes bundle concerts with venue details and exposes the list only for bundle messages", () => {
+      const content = "{{TICKET_EVENT_LIST}}";
+      const context = determineCommunicationPlaceholderContext(content);
+      const definition = getDef("{{TICKET_EVENT_LIST}}");
+      const placeholders = visibleCommunicationPlaceholders(
+        audience(["Ticket Buyers"]),
+        "Email",
+        context,
+        content,
+      );
+
+      expect(context).toBe("bundle");
+      expect(definition.description).toContain("date and time");
+      expect(definition.description).toContain("address or event-location fallback");
+      expect(placeholders.map(({ tag }) => tag)).toContain("{{TICKET_EVENT_LIST}}");
     });
 
     it("allows universal placeholders for any audience combination", () => {

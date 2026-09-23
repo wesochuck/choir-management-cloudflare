@@ -301,7 +301,9 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   const navigationDrawer = page.getByRole("dialog", { name: "Workspace navigation" });
   await expect(navigationDrawer).toBeVisible();
   const pinNavigation = navigationDrawer.getByRole("button", { name: "Keep sidebar open" });
-  const closeNavigation = navigationDrawer.getByRole("button", { name: "Close navigation" });
+  const closeNavigation = navigationDrawer.getByRole("button", {
+    name: "Close Workspace navigation",
+  });
   await expect(pinNavigation).toHaveClass(/sidebar-drawer__pin/);
   // Coarse pointers use larger touch targets (46px); fine pointers use 36px.
   await expect(pinNavigation).toHaveCSS("width", /^(36|46)px$/);

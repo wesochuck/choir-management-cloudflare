@@ -63,7 +63,8 @@ describe("communication placeholder contexts", () => {
   });
 
   it("only exposes bundle fields for a bundle ticket message", () => {
-    const content = "{ticketBundleName} · {ticketQuantity} · {ticketAmount} · {{TICKET_LINK}}";
+    const content =
+      "{ticketBundleName} · {ticketQuantity} · {ticketAmount} · {{TICKET_EVENT_LIST}} · {{TICKET_LINK}}";
     const context = communicationPlaceholderContext(content);
     const tags = visibleCommunicationPlaceholders(
       audience(["Ticket Buyers"]),
@@ -78,6 +79,7 @@ describe("communication placeholder contexts", () => {
       "{ticketQuantity}",
       "{ticketAmount}",
       "{ticketBundleName}",
+      "{{TICKET_EVENT_LIST}}",
       "{{TICKET_LINK}}",
     ]);
   });

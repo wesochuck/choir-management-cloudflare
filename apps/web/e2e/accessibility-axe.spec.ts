@@ -58,8 +58,14 @@ function isToleratedContrast(violationId: string, target: string, html: string):
   return TOLERATED_CONTRAST_TARGETS.some((entry) => haystack.includes(entry));
 }
 
-async function expectNoSeriousAxeViolations(page: Page, context: string): Promise<void> {
-  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+async function expectNoSeriousAxeViolations(
+  page: Page,
+  context: string,
+  includeSelector?: string,
+): Promise<void> {
+  const axe = new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]);
+  if (includeSelector) axe.include(includeSelector);
+  const results = await axe.analyze();
   const blocking = results.violations.flatMap((violation) =>
     violation.nodes
       .filter(
@@ -148,6 +154,7 @@ test("open mobile navigation has no serious accessibility violations @webkit-smo
 });
 
 test("practice player has no serious accessibility violations @webkit-smoke", async ({ page }) => {
+  await page.setViewportSize({ height: 844, width: 390 });
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
@@ -202,5 +209,29 @@ test("practice player has no serious accessibility violations @webkit-smoke", as
   await page.goto("/player?token=valid-player-token");
   await expect(page.getByRole("heading", { name: "Summer Showcase" })).toBeVisible();
 
+  await page.evaluate(() => {
+    document.documentElement.setAttribute("data-theme", "light");
+  });
   await expectNoSeriousAxeViolations(page, "practice player");
+
+  await page.getByRole("button", { name: /Set list/i }).click();
+  const setListPicker = page.getByRole("dialog", { name: "Set List" });
+  await expect(setListPicker).toBeVisible();
+  const pickerDownload = setListPicker.locator(".public-player__download-btn");
+  await expect(pickerDownload).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expectNoSeriousAxeViolations(
+    page,
+    "light mobile practice player Set List picker",
+    ".sheet[role='dialog']",
+  );
+  await page.evaluate(() => {
+    document.documentElement.setAttribute("data-theme", "dark");
+  });
+  await expect(pickerDownload).toHaveCSS("background-color", "rgb(30, 41, 59)");
+  await expect(pickerDownload).toHaveCSS("color", "rgb(248, 250, 252)");
+  await expectNoSeriousAxeViolations(
+    page,
+    "dark mobile practice player Set List picker",
+    ".sheet[role='dialog']",
+  );
 });

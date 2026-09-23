@@ -23,7 +23,6 @@ export type DonationSettingsState =
   | { readonly settings: DonationSettings; readonly status: "ready" };
 
 export type DonationTab = "history" | "levels" | "portal" | "pageSettings";
-export type DonationSort = "dateDesc" | "dateAsc" | "donor";
 
 export const EMPTY_DONATIONS: readonly DonationRecord[] = [];
 

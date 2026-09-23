@@ -937,6 +937,13 @@
     font-weight: var(--font-weight-bold);
   }
 
+  .public-player__set-list-actions {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--spacing-xs);
+  }
+
   /* Sheet Drawers */
 
   .public-player__sheet-container {
@@ -958,6 +965,135 @@
     margin: var(--spacing-3xs) 0 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
+  }
+
+  .public-player__sheet-header--set-list h2 {
+    margin: 0;
+    font-family: inherit;
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: normal;
+    line-height: var(--line-height-snug);
+  }
+
+  @media (max-width: 47.99rem) {
+    .public-player__sheet-container--set-list {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: var(--spacing-sm);
+      width: 100%;
+      height: 100%;
+      max-height: none;
+      min-height: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .public-player__sheet-header--set-list {
+      flex-shrink: 0;
+      padding-inline-end: calc(var(--control-height) + var(--spacing-sm));
+    }
+
+    .public-player__sheet-header--set-list p:not(.public-player__sheet-title) {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+
+    .public-player__set-list--mobile-picker {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr);
+      min-width: 0;
+      min-height: 0;
+      gap: 0;
+      padding: 0;
+      overflow: hidden;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .public-player__queue-list--mobile-picker {
+      min-width: 0;
+      min-height: 0;
+      gap: var(--spacing-2xs);
+      padding: 0 var(--spacing-2xs) var(--spacing-sm);
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .public-player__queue-list--mobile-picker li {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      min-width: 0;
+      align-items: stretch;
+      gap: var(--spacing-3xs);
+      padding: var(--spacing-2xs);
+      border: 0;
+      border-radius: var(--radius-control);
+      border-inline-start: 3px solid transparent;
+      background: transparent;
+    }
+
+    .public-player__queue-list--mobile-picker li.is-active {
+      border-color: transparent;
+      border-inline-start-color: var(--color-accent);
+      background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+    }
+
+    .public-player__set-list-item--mobile-picker {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      width: 100%;
+      min-width: 0;
+      min-height: 2.75rem;
+      align-items: start;
+      justify-content: stretch;
+      gap: var(--spacing-3xs);
+      padding: var(--spacing-2xs);
+      font: inherit;
+    }
+
+    .public-player__set-list-item--mobile-picker .public-player__set-list-item-main {
+      width: 100%;
+      overflow-wrap: anywhere;
+    }
+
+    .public-player__set-list-item--mobile-picker .public-player__set-list-item-status {
+      max-width: 100%;
+      flex-wrap: wrap;
+      align-self: start;
+    }
+
+    .public-player__set-list-actions--mobile-picker {
+      display: flex;
+      min-width: 0;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--spacing-2xs);
+      padding-inline-start: var(--spacing-2xs);
+    }
+
+    .public-player__set-list-actions--mobile-picker .public-player__download-btn {
+      min-height: 2.25rem;
+      padding: var(--spacing-3xs) var(--spacing-xs);
+      border-color: var(--color-border);
+      background: var(--color-surface);
+      color: var(--color-text);
+      font-size: var(--font-size-xs);
+    }
+
+    .public-player__set-list-actions--mobile-picker .text-button {
+      min-height: 2.25rem;
+      padding: var(--spacing-3xs) var(--spacing-2xs);
+    }
+
+    .public-player__set-list-actions--mobile-picker .public-player__offline-row {
+      max-width: 100%;
+      flex-wrap: wrap;
+    }
   }
 
   /* Rehearsal Options */

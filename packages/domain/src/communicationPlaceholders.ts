@@ -176,6 +176,16 @@ export const communicationPlaceholderDefinitions: readonly CommunicationPlacehol
   },
   {
     audience: ["Ticket Buyers"],
+    category: "Bundle",
+    channels: ["Email"],
+    contexts: ["bundle"],
+    description:
+      "A chronological list of included concerts with each title, date and time, venue, and address or event-location fallback.",
+    label: "Included concerts",
+    tag: "{{TICKET_EVENT_LIST}}",
+  },
+  {
+    audience: ["Ticket Buyers"],
     category: "Ticket",
     channels: ["Email"],
     contexts: ["ticket", "bundle"],
@@ -307,7 +317,12 @@ export function determineCommunicationPlaceholderContext(
 
   if (pollPlaceholderPattern.test(text) || normalized.includes("poll:")) return "poll";
   if (
-    containsAny(normalized, ["{ticketbundlename}", "bundle ticket confirmation", "bundle ticket"])
+    containsAny(normalized, [
+      "{ticketbundlename}",
+      "{{ticket_event_list}}",
+      "bundle ticket confirmation",
+      "bundle ticket",
+    ])
   ) {
     return "bundle";
   }

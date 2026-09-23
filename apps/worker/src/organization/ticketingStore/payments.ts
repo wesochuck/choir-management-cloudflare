@@ -9,8 +9,13 @@ import type {
 } from "./contracts";
 import { purchaseSelect, type TicketPurchaseRow } from "./contracts";
 import { linkPaidTicketPurchaseContact } from "../commerceContacts";
-import { queueTicketConfirmation } from "./notifications";
+import { queueTicketConfirmation, queueTicketRefundNotification } from "./notifications";
 import { purchaseResult } from "./readModel";
+
+export interface TicketRefundMutationResult {
+  readonly response: Response;
+  readonly schedulerWorkQueued: boolean;
+}
 
 function purchaseByStripeOperation(
   storage: DurableObjectStorage,
@@ -73,24 +78,42 @@ export function attachStripeSession(
 export function refundFakePurchase(
   storage: DurableObjectStorage,
   operation: z.infer<typeof refundOperationSchema>,
-): Response {
+): TicketRefundMutationResult {
   const row = storage.sql
     .exec<TicketPurchaseRow>(`${purchaseSelect} WHERE id = ? LIMIT 1`, operation.purchaseId)
     .toArray()
     .at(0);
-  if (!row) return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
-  if (row.status === "refunded") return Response.json(purchaseResult(row));
+  if (!row) {
+    return {
+      response: Response.json({ code: "ticket_purchase_not_found" }, { status: 404 }),
+      schedulerWorkQueued: false,
+    };
+  }
+  if (row.status === "refunded") {
+    return { response: Response.json(purchaseResult(row)), schedulerWorkQueued: false };
+  }
   if (row.status !== "paid") {
-    return Response.json({ code: "ticket_purchase_not_refundable" }, { status: 409 });
+    return {
+      response: Response.json({ code: "ticket_purchase_not_refundable" }, { status: 409 }),
+      schedulerWorkQueued: false,
+    };
   }
   const occurredAt = new Date().toISOString();
+  let schedulerWorkQueued = false;
+  const transition = { changed: false };
   storage.transactionSync(() => {
-    storage.sql.exec(
-      "UPDATE ticket_purchases SET status = 'refunded', refunded_at = ?, updated_at = ? WHERE id = ?",
-      occurredAt,
-      occurredAt,
-      operation.purchaseId,
-    );
+    transition.changed =
+      storage.sql
+        .exec<{ readonly id: string }>(
+          `UPDATE ticket_purchases SET status = 'refunded', refunded_at = ?, updated_at = ?
+       WHERE id = ? AND status = 'paid'
+       RETURNING id`,
+          occurredAt,
+          occurredAt,
+          operation.purchaseId,
+        )
+        .toArray().length > 0;
+    if (!transition.changed) return;
     storage.sql.exec(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
@@ -104,8 +127,33 @@ export function refundFakePurchase(
       JSON.stringify({ amountCents: row.amountPaidCents }),
       occurredAt,
     );
+    schedulerWorkQueued = queueTicketRefundNotification(storage, row, occurredAt, {
+      actorId: operation.actorUserId,
+      actorType: "organization_member",
+      requestId: operation.requestId,
+    });
   });
-  return Response.json({ ...purchaseResult(row), status: "refunded", updatedAt: occurredAt });
+  if (!transition.changed) {
+    const current = storage.sql
+      .exec<TicketPurchaseRow>(`${purchaseSelect} WHERE id = ? LIMIT 1`, operation.purchaseId)
+      .toArray()
+      .at(0);
+    return {
+      response: current
+        ? Response.json(purchaseResult(current))
+        : Response.json({ code: "ticket_purchase_not_found" }, { status: 404 }),
+      schedulerWorkQueued: false,
+    };
+  }
+  return {
+    response: Response.json({
+      ...purchaseResult(row),
+      refundedAt: occurredAt,
+      status: "refunded",
+      updatedAt: occurredAt,
+    }),
+    schedulerWorkQueued,
+  };
 }
 
 function stripeEventWasProcessed(storage: DurableObjectStorage, eventId: string): boolean {
@@ -298,7 +346,7 @@ export function expireStripeTicketPurchase(
 export function refundStripeTicketPurchases(
   storage: DurableObjectStorage,
   operation: z.infer<typeof stripeTicketRefundedOperationSchema>,
-): Response {
+): TicketRefundMutationResult {
   const marker = `stripe-refund:ticket:${operation.stripeEventId}`;
   if (
     storage.sql
@@ -309,7 +357,10 @@ export function refundStripeTicketPurchases(
       )
       .toArray().length > 0
   ) {
-    return Response.json({ refunded: 0, duplicate: true });
+    return {
+      response: Response.json({ refunded: 0, duplicate: true }),
+      schedulerWorkQueued: false,
+    };
   }
   const rows = storage.sql
     .exec<TicketPurchaseRow>(
@@ -317,21 +368,46 @@ export function refundStripeTicketPurchases(
       operation.providerPaymentId,
     )
     .toArray();
-  if (rows.length === 0)
-    return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+  if (rows.length === 0) {
+    return {
+      response: Response.json({ code: "ticket_purchase_not_found" }, { status: 404 }),
+      schedulerWorkQueued: false,
+    };
+  }
   const refundableRows = rows.filter((row) => row.status === "paid");
-  if (refundableRows.length === 0)
-    return Response.json({ code: "ticket_purchase_not_found" }, { status: 404 });
+  if (refundableRows.length === 0) {
+    return {
+      response: Response.json({ code: "ticket_purchase_not_found" }, { status: 404 }),
+      schedulerWorkQueued: false,
+    };
+  }
   const occurredAt = new Date().toISOString();
   let refunded = 0;
+  let schedulerWorkQueued = false;
   storage.transactionSync(() => {
     for (const row of refundableRows) {
-      storage.sql.exec(
-        "UPDATE ticket_purchases SET status = 'refunded', refunded_at = ?, updated_at = ? WHERE id = ?",
-        occurredAt,
-        occurredAt,
-        row.id,
-      );
+      const transitioned =
+        storage.sql
+          .exec<{ readonly id: string }>(
+            `UPDATE ticket_purchases
+           SET status = 'refunded', refunded_at = ?, updated_at = ?
+           WHERE id = ? AND status = 'paid'
+           RETURNING id`,
+            occurredAt,
+            occurredAt,
+            row.id,
+          )
+          .toArray().length > 0;
+      if (!transitioned) continue;
+      schedulerWorkQueued =
+        queueTicketRefundNotification(storage, row, occurredAt, {
+          actorId: "stripe",
+          actorType: "provider",
+          requestId: operation.stripeEventId,
+        }) || schedulerWorkQueued;
+      refunded += 1;
+    }
+    if (refunded > 0) {
       storage.sql.exec(
         `UPDATE payment_attempts SET status = 'refunded', refunded_at = ?, updated_at = ?
          WHERE provider_payment_id = ?`,
@@ -339,7 +415,6 @@ export function refundStripeTicketPurchases(
         occurredAt,
         operation.providerPaymentId,
       );
-      refunded += 1;
     }
     storage.sql.exec(
       `INSERT INTO audit_events
@@ -356,5 +431,5 @@ export function refundStripeTicketPurchases(
       occurredAt,
     );
   });
-  return Response.json({ refunded });
+  return { response: Response.json({ refunded }), schedulerWorkQueued };
 }

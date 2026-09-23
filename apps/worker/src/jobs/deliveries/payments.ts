@@ -11,9 +11,10 @@ import {
 } from "./shared";
 import type { z } from "zod";
 
-async function renderPaymentNotificationContent(
-  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET">,
+export async function renderPaymentNotificationContent(
+  env: Pick<JobConsumerEnv, "SIGNED_LINK_SECRET">,
   organizationId: string,
+  origin: string,
   notification: z.infer<typeof paymentNotificationJobSchema>,
 ): Promise<string> {
   if (
@@ -33,10 +34,6 @@ async function renderPaymentNotificationContent(
     resourceId: notification.resourceId,
     version: 1,
   });
-  const origin =
-    env.PRODUCT_BASE_DOMAIN === "localhost"
-      ? "http://localhost"
-      : `https://${env.PRODUCT_BASE_DOMAIN}`;
   const link = `${origin}/donate/success?token=${encodeURIComponent(token)}`;
   return notification.contentMarkdown.replaceAll(
     "{{DONATION_RECEIPT_LINK}}",
@@ -59,16 +56,17 @@ export async function deliverPaymentNotificationJob(
   if (!response.ok || !notification.success) {
     throw new Error("The payment notification job is unavailable.");
   }
-  const contentMarkdown = await renderPaymentNotificationContent(
-    env,
-    job.organizationId,
-    notification.data,
-  );
   const [senderConfig, branding] = await Promise.all([
     readOrganizationEmailSenderConfig(env, job.organizationId),
     readOrganizationBrandingConfig(env, job.organizationId),
   ]);
   const origin = await deliveryOrigin(env, job.organizationId, { unsubscribeUrl: null });
+  const contentMarkdown = await renderPaymentNotificationContent(
+    env,
+    job.organizationId,
+    origin,
+    notification.data,
+  );
   const logoUrl = branding.logoFileId ? `${origin}/api/public/logo` : null;
   const result = await deliverOrganizationCommunication(env, {
     channel: "email",

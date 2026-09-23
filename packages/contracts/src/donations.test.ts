@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   donationCheckoutRequestSchema,
   donationRecordSchema,
+  donationSettingsSchema,
   manualDonationCreateRequestSchema,
 } from "./donations";
 
@@ -114,5 +115,30 @@ describe("Donation tribute contracts", () => {
     });
     expect(nonAnonNoTribute.anonymous).toBe(false);
     expect(nonAnonNoTribute.tributeType).toBe("none");
+  });
+});
+
+describe("Donation settings", () => {
+  it("supplies the default thank-you message for existing settings", () => {
+    const parsed = donationSettingsSchema.parse({
+      buttonText: "Support our Music",
+      description: "Your gift supports our program.",
+      levels: [],
+    });
+
+    expect(parsed.thankYouMessage).toBe(
+      "Your support helps us continue our programs and share our music with the community.",
+    );
+  });
+
+  it("limits the plain-text thank-you message length", () => {
+    const result = donationSettingsSchema.safeParse({
+      buttonText: "Support our Music",
+      description: "Your gift supports our program.",
+      levels: [],
+      thankYouMessage: "x".repeat(2_001),
+    });
+
+    expect(result.success).toBe(false);
   });
 });

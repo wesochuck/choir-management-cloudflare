@@ -15,6 +15,9 @@ import {
 import { usePersistedDraft } from "../../../persistence";
 import type { DonationSettingsState, DonationState, PatronState } from "./types";
 
+const DEFAULT_DONATION_THANK_YOU_MESSAGE =
+  "Your support helps us continue our programs and share our music with the community.";
+
 export function useDonationQueries(enabled: boolean) {
   const {
     data: donations = [],
@@ -253,6 +256,7 @@ export function useDonationLevels({
 interface DonationPortalCopyDraft {
   buttonText: string;
   description: string;
+  thankYouMessage: string;
 }
 
 export function useDonationPortalCopy({
@@ -268,6 +272,7 @@ export function useDonationPortalCopy({
     return {
       buttonText: settings.buttonText,
       description: settings.description,
+      thankYouMessage: settings.thankYouMessage ?? DEFAULT_DONATION_THANK_YOU_MESSAGE,
     };
   }, [settings]);
 
@@ -280,6 +285,7 @@ export function useDonationPortalCopy({
     normalize: (val) => ({
       buttonText: val.buttonText.trim(),
       description: val.description.trim(),
+      thankYouMessage: val.thankYouMessage.trim(),
     }),
     resourceKey: "organization-donation-portal-copy",
     save: async (currentDraft) => {
@@ -290,17 +296,21 @@ export function useDonationPortalCopy({
         ...settings,
         buttonText: currentDraft.buttonText.trim(),
         description: currentDraft.description.trim(),
+        thankYouMessage: currentDraft.thankYouMessage.trim(),
       };
       await onSaveSettings(updated);
       return {
         buttonText: updated.buttonText,
         description: updated.description,
+        thankYouMessage: currentDraft.thankYouMessage.trim(),
       };
     },
   });
 
   const portalButtonText = draft?.buttonText ?? settings?.buttonText ?? "";
   const portalDescription = draft?.description ?? settings?.description ?? "";
+  const portalThankYouMessage =
+    draft?.thankYouMessage ?? settings?.thankYouMessage ?? DEFAULT_DONATION_THANK_YOU_MESSAGE;
 
   async function savePortalSettings(formEvent: SyntheticEvent<HTMLFormElement>): Promise<void> {
     formEvent.preventDefault();
@@ -310,12 +320,16 @@ export function useDonationPortalCopy({
   return {
     portalButtonText,
     portalDescription,
+    portalThankYouMessage,
     savePortalSettings,
     setPortalButtonText: (text: string) => {
       updateField("buttonText", text);
     },
     setPortalDescription: (desc: string) => {
       updateField("description", desc);
+    },
+    setPortalThankYouMessage: (message: string) => {
+      updateField("thankYouMessage", message);
     },
   };
 }

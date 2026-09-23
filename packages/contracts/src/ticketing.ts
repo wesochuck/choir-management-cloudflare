@@ -187,6 +187,7 @@ export const publicTicketPurchaseSchema = z.object({
   discountedSubtotalCents: z.number().int().nonnegative().default(0),
   originalSubtotalCents: z.number().int().nonnegative().default(0),
   originalUnitPriceCents: z.number().int().nonnegative().default(0),
+  refundedAt: z.iso.datetime().nullable().optional(),
   status: ticketPurchaseStatusSchema,
   timezone: z.string().min(1).max(128),
   unitPriceCents: z.number().int().nonnegative(),

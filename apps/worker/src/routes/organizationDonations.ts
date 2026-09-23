@@ -133,7 +133,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
               : "The thank-you letter status could not be updated.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
-        error instanceof DonationError && error.status === 404 ? 404 : 503,
+        error instanceof DonationError && error.status === 404
+          ? 404
+          : error instanceof DonationError && error.status === 409
+            ? 409
+            : 503,
       );
     }
   });

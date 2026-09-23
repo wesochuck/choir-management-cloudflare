@@ -242,6 +242,7 @@ export function ticketCheckoutLineItems({
   productName,
 }: TicketCheckoutLineItemsInput): readonly {
   readonly productName: string;
+  readonly productDescription?: string;
   readonly quantity: number;
   readonly unitAmountCents: number;
 }[] {
@@ -256,6 +257,7 @@ export function ticketCheckoutLineItems({
   if (feeCents > 0) {
     lineItems.push({
       productName: "Processing fee",
+      productDescription: "Covers payment processing costs",
       quantity: 1,
       unitAmountCents: feeCents,
     });

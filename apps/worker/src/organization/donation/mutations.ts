@@ -1,3 +1,4 @@
+import { canSetDonationThankYouStatus } from "@choir/domain";
 import type { z } from "zod";
 
 import { donationById, donationResult } from "./queries";
@@ -9,6 +10,8 @@ export function updateDonationThankYou(
 ): Response {
   const donation = donationById(storage, operation.donationId);
   if (!donation) return Response.json({ code: "donation_not_found" }, { status: 404 });
+  if (!canSetDonationThankYouStatus(donation.status, operation.thankYouSent))
+    return Response.json({ code: "refunded_donation_thank_you_not_allowed" }, { status: 409 });
   const now = new Date().toISOString();
   const thankYouSentAt = operation.thankYouSent ? now : null;
   storage.transactionSync(() => {

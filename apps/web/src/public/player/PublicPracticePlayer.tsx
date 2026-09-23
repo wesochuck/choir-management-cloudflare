@@ -562,18 +562,20 @@ export function PublicPracticePlayer({
           setQueueOpen(false);
         }}
         open={queueOpen}
+        presentation="mobile-fullscreen"
         restoreFocusRef={queueButtonRef}
         title="Set List"
       >
-        <div className="public-player__sheet-container">
-          <div className="public-player__sheet-header">
-            <p className="public-player__sheet-title">Set List</p>
+        <div className="public-player__sheet-container public-player__sheet-container--set-list">
+          <header className="public-player__sheet-header public-player__sheet-header--set-list">
+            <h2>Set List</h2>
             <p>
               {details.eventTitle} · {playableItems.length} tracks
             </p>
-          </div>
+          </header>
           <PlayerSetList
             activeTrackKey={activeTrackKey}
+            autoRevealActive={queueOpen}
             currentIndex={currentIndex}
             items={details.items}
             offlineIds={offlineIds}
@@ -586,6 +588,7 @@ export function PublicPracticePlayer({
             online={online}
             pendingOfflineIds={pendingOfflineIds}
             playableItems={playableItems}
+            presentation="mobile-picker"
             source={source}
           />
         </div>

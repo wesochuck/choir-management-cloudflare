@@ -1,4 +1,5 @@
-export type TicketMessageTemplateKind = "bundle_confirmation" | "confirmation" | "reminder";
+export type TicketMessageTemplateKind =
+  "bundle_confirmation" | "bundle_refund" | "confirmation" | "refund" | "reminder";
 
 export interface TicketMessageTemplate {
   readonly channel: "Email";
@@ -22,7 +23,7 @@ export const ticketMessageTemplates: readonly TicketMessageTemplate[] = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {buyerName},\n\n## Your ticket bundle is confirmed\n\n- **Bundle:** {ticketBundleName}\n- **Tickets:** {ticketQuantity}\n- **Total paid:** {ticketAmount}\n\n### Included performances\n\n{{TICKET_EVENT_LIST}}\n\n{{TICKET_LINK}}\n\nOpen your ticket to display the QR code for admission. Keep this confirmation for your records. We look forward to seeing you.",
+      "Hi {buyerName},\n\n## Your ticket bundle is confirmed\n\n- **Bundle:** {ticketBundleName}\n- **Tickets:** {ticketQuantity}\n- **Total paid:** {ticketAmount}\n\n### Included concerts\n\n{{TICKET_EVENT_LIST}}\n\n{{TICKET_LINK}}\n\nOpen your ticket to display the QR code for admission. Keep this confirmation for your records. We look forward to seeing you.",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000008",
     kind: "bundle_confirmation",
     subject: "Ticket bundle confirmed: {ticketBundleName}",
@@ -36,6 +37,24 @@ export const ticketMessageTemplates: readonly TicketMessageTemplate[] = [
     kind: "reminder",
     subject: "Reminder: {eventTitle}",
     title: "Ticket Concert Reminder",
+  },
+  {
+    channel: "Email",
+    contentMarkdown:
+      "Hi {buyerName},\n\n## Your ticket refund has been processed\n\n- **Event:** {eventTitle}\n- **Date:** {eventDate}\n- **Tickets:** {ticketQuantity}\n- **Refund amount:** {refundAmount}\n- **Refund processed:** {refundDate}\n\nReview your order details and refund status using the link below:\n\n{{TICKET_ORDER_LINK}}\n\nYour refund has been processed by the organization. Your bank or card provider may take additional time to post the credit to your account.",
+    id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000017",
+    kind: "refund",
+    subject: "Refund processed: {eventTitle}",
+    title: "Ticket Refund Confirmation",
+  },
+  {
+    channel: "Email",
+    contentMarkdown:
+      "Hi {buyerName},\n\n## Your ticket bundle refund has been processed\n\n- **Bundle:** {ticketBundleName}\n- **Tickets:** {ticketQuantity}\n- **Refund amount:** {refundAmount}\n- **Refund processed:** {refundDate}\n\n### Included concerts\n\n{{TICKET_EVENT_LIST}}\n\nReview your order details and refund status using the link below:\n\n{{TICKET_ORDER_LINK}}\n\nYour refund has been processed by the organization. Your bank or card provider may take additional time to post the credit to your account.",
+    id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000018",
+    kind: "bundle_refund",
+    subject: "Refund processed: {ticketBundleName}",
+    title: "Bundle Ticket Refund Confirmation",
   },
 ] as const;
 
@@ -67,4 +86,23 @@ export function readTicketMessageTemplate(
   return row
     ? { ...fallback, contentMarkdown: row.contentMarkdown, subject: row.subject, title: row.title }
     : fallback;
+}
+
+export function refreshUnmodifiedTicketRefundTemplates(sql: SqlStorage): void {
+  const now = new Date().toISOString();
+  for (const template of ticketMessageTemplates.filter(
+    ({ kind }) => kind === "refund" || kind === "bundle_refund",
+  )) {
+    sql.exec(
+      `UPDATE communication_templates
+       SET title = ?, channel = ?, subject = ?, content_markdown = ?, updated_at = ?
+       WHERE id = ? AND is_system = 1 AND channel = 'Email' AND updated_at = created_at`,
+      template.title,
+      template.channel,
+      template.subject,
+      template.contentMarkdown,
+      now,
+      template.id,
+    );
+  }
 }

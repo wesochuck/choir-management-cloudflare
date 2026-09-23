@@ -270,6 +270,7 @@ export {
   POLL_EXPIRATION_DEFAULT_DAYS,
 } from "./polls";
 export {
+  canSetDonationThankYouStatus,
   canTransitionDonation,
   type DonationInput,
   type DonationRecord,

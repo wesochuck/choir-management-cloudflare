@@ -229,10 +229,11 @@ export function readTicketNotificationJobFromStore(
       readonly eventTitle: string;
       readonly feeCents: number;
       readonly id: string;
-      readonly kind: "confirmation" | "reminder";
+      readonly kind: "confirmation" | "reminder" | "refund";
       readonly purchaseId: string;
       readonly quantity: number;
       readonly originalSubtotalCents: number;
+      readonly refundDate: string | null;
       readonly status: string;
       readonly subject: string;
       readonly timezone: string;
@@ -243,10 +244,13 @@ export function readTicketNotificationJobFromStore(
       readonly providerReason: string;
       readonly providerStatus: string | null;
     }>(
-      `SELECT n.id, n.purchase_id AS purchaseId, n.kind, n.destination, n.subject,
+      `SELECT n.id, n.purchase_id AS purchaseId,
+        n.kind,
+        n.destination, n.subject,
         n.content_markdown AS contentMarkdown, n.status, p.buyer_name AS buyerName,
         n.provider_event_at AS providerEventAt, n.provider_message_id AS providerMessageId,
         n.provider_reason AS providerReason, n.provider_status AS providerStatus,
+        p.refunded_at AS refundDate,
         COALESCE(e.title, p.event_title) AS eventTitle,
         p.quantity, p.amount_paid_cents AS amountPaidCents,
         p.original_subtotal_cents AS originalSubtotalCents,

@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import { createDonationCheckoutSession } from "../src/organization/organizationDonations";
+import { renderPaymentNotificationContent } from "../src/jobs/deliveries/payments";
+import { deliveryOrigin, paymentNotificationJobSchema } from "../src/jobs/deliveries/shared";
 import {
+  database,
   setupTicketingIntegration,
   stores,
   teardownTicketingIntegration,
@@ -42,6 +45,15 @@ afterEach(async () => {
 describe("Donation paid transition atomic scheduling and duplicate reconciliation", () => {
   it("transitions pending donation to paid, atomically creating confirmation, outbox, and contact linkage", async () => {
     const stub = stores.get(stores.idFromName(ORG_ID));
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `UPDATE communication_templates
+         SET title = 'Organization donation receipt', subject = 'Your contribution receipt',
+             updated_at = '2026-09-22T12:00:00.000Z'
+         WHERE id = '5f0ca4a5-7e4c-4e1a-9a1c-000000000013'`,
+      );
+      return null;
+    });
     const donationId = crypto.randomUUID();
     const checkoutRequestId = crypto.randomUUID();
     const sessionId = `cs_test_${crypto.randomUUID()}`;
@@ -134,6 +146,19 @@ describe("Donation paid transition atomic scheduling and duplicate reconciliatio
       expect(notifs).toHaveLength(1);
       expect(notifs[0]?.dedupe_key).toBe(`donation-confirmation:${donationId}`);
       expect(notifs[0]?.status).toBe("queued");
+      const notificationBody = state.storage.sql
+        .exec<{ readonly contentMarkdown: string }>(
+          "SELECT content_markdown AS contentMarkdown FROM payment_notifications WHERE resource_id = ?",
+          donationId,
+        )
+        .one().contentMarkdown;
+      expect(notificationBody).toContain("**Donation amount:** $50.00");
+      expect(notificationBody).toContain("**Processing fee:** None");
+      expect(notificationBody).toContain("**Total charged:** $50.00");
+      expect(notificationBody).toContain("**Payment status:** Paid");
+      expect(notificationBody).toContain("**Date:** 20");
+      expect(notificationBody).not.toContain("{{DONATION_RECEIPT_LINK}}");
+      expect(notificationBody).not.toContain("View your donation receipt");
 
       const outbox = state.storage.sql
         .exec<{ readonly kind: string }>(
@@ -155,6 +180,120 @@ describe("Donation paid transition atomic scheduling and duplicate reconciliatio
 
       return null;
     });
+  });
+
+  it("keeps the paymentAmount placeholder scalar in customized donation templates", async () => {
+    const stub = stores.get(stores.idFromName(ORG_ID));
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `UPDATE communication_templates
+         SET content_markdown = 'Thank you for your {paymentAmount} gift.',
+             updated_at = '2026-09-22T12:00:00.000Z'
+         WHERE id = '5f0ca4a5-7e4c-4e1a-9a1c-000000000013'`,
+      );
+      return null;
+    });
+
+    const donationId = crypto.randomUUID();
+    const checkoutRequestId = crypto.randomUUID();
+    const sessionId = `cs_test_${crypto.randomUUID()}`;
+    const pendingResponse = await stub.fetch(
+      "https://organization.internal/internal/donations/manage",
+      {
+        body: JSON.stringify({
+          action: "create_stripe_pending_donation",
+          checkout: {
+            amountCents: 2750,
+            anonymous: false,
+            buyerEmail: "custom-template@example.test",
+            buyerName: "Custom Template Donor",
+            checkoutRequestId,
+            marketingConsent: true,
+            tributeName: "",
+            tributeNotifyEmail: "",
+            tributeType: "none",
+          },
+          donationId,
+          organizationId: ORG_ID,
+          providerSessionId: sessionId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(pendingResponse.status).toBe(201);
+
+    const completedResponse = await stub.fetch(
+      "https://organization.internal/internal/donations/manage",
+      {
+        body: JSON.stringify({
+          action: "stripe_donation_completed",
+          checkoutRequestId,
+          organizationId: ORG_ID,
+          providerPaymentId: `pi_test_${crypto.randomUUID()}`,
+          providerSessionId: sessionId,
+          stripeEventId: `evt_test_${crypto.randomUUID()}`,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(completedResponse.status).toBe(200);
+
+    const notificationBody = await runInDurableObject<OrganizationStore, string>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly contentMarkdown: string }>(
+            "SELECT content_markdown AS contentMarkdown FROM payment_notifications WHERE resource_id = ?",
+            donationId,
+          )
+          .one().contentMarkdown,
+    );
+    expect(notificationBody).toBe("Thank you for your $27.50 gift.");
+  });
+
+  it("uses the Organization canonical host for optional signed receipt links", async () => {
+    await database
+      .prepare(
+        `INSERT INTO organization_domains
+          (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
+         VALUES ('domain-alpha-receipt-canonical', ?, 'alpha-receipt.example.test',
+          'canonical', 'active', 1, '2020-01-01T00:00:00.000Z', '2020-01-01T00:00:00.000Z')`,
+      )
+      .bind(ORG_ID)
+      .run();
+    const origin = await deliveryOrigin(
+      { CONTROL_DB: database, PRODUCT_BASE_DOMAIN: "generic.example.test" },
+      ORG_ID,
+      { unsubscribeUrl: null },
+    );
+    const notification = paymentNotificationJobSchema.parse({
+      contentMarkdown: "{{DONATION_RECEIPT_LINK}}",
+      destination: "donor@example.test",
+      id: "11111111-1111-4111-8111-111111111111",
+      paymentType: "donation",
+      providerEventAt: null,
+      providerMessageId: null,
+      providerReason: "",
+      providerStatus: null,
+      recipientName: "Donor",
+      resourceId: "22222222-2222-4222-8222-222222222222",
+      status: "queued",
+      subject: "Donation receipt",
+    });
+
+    const content = await renderPaymentNotificationContent(
+      { SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET },
+      ORG_ID,
+      origin,
+      notification,
+    );
+
+    expect(content).toContain(
+      "[View your donation receipt](https://alpha-receipt.example.test/donate/success?token=",
+    );
+    expect(content).not.toContain("generic.example.test");
   });
 
   it("replaying the same webhook event is idempotent and does not double-count patron totals or duplicate notifications", async () => {

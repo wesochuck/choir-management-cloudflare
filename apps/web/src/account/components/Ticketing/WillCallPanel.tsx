@@ -1,6 +1,6 @@
 import type { OrganizationEvent, OrganizationTicketOrder } from "@choir/contracts";
 import { DataTable } from "@choir/ui";
-import type { Dispatch, SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import {
   buyerLastName,
   canRefundTicketOrder,
@@ -8,6 +8,24 @@ import {
   ticketOrderStatusDisplay,
   type OrderState,
 } from "./shared";
+
+function willCallEmptyMessage({
+  displayedOrderCount,
+  performanceOrderCount,
+  status,
+  visibleOrderCount,
+}: {
+  readonly displayedOrderCount: number;
+  readonly performanceOrderCount: number;
+  readonly status: OrderState["status"];
+  readonly visibleOrderCount: number;
+}): string | null {
+  if (status !== "ready") return null;
+  if (performanceOrderCount === 0) return "No ticket orders yet.";
+  if (visibleOrderCount === 0) return "No ticket buyers match this search.";
+  if (displayedOrderCount === 0) return "All matching ticket orders are refunded.";
+  return null;
+}
 
 export function WillCallPanel({
   busy,
@@ -54,6 +72,17 @@ export function WillCallPanel({
   readonly visibleOrders: readonly OrganizationTicketOrder[];
   readonly willCallSearch: string;
 }) {
+  const [showRefunded, setShowRefunded] = useState(false);
+  const displayedOrders = showRefunded
+    ? visibleOrders
+    : visibleOrders.filter((order) => order.status !== "refunded");
+  const emptyMessage = willCallEmptyMessage({
+    displayedOrderCount: displayedOrders.length,
+    performanceOrderCount: performanceOrders.length,
+    status: state.status,
+    visibleOrderCount: visibleOrders.length,
+  });
+
   return (
     <>
       <div
@@ -141,22 +170,27 @@ export function WillCallPanel({
               value={willCallSearch}
             />
           </label>
+          <label className="checkbox-row">
+            <input
+              checked={showRefunded}
+              onChange={(event) => {
+                setShowRefunded(event.target.checked);
+              }}
+              type="checkbox"
+            />
+            Show refunded
+          </label>
         </div>
         {state.status === "loading" ? <p>Loading ticket orders…</p> : null}
         {state.status === "error" ? (
           <p className="notice notice--error">Ticket orders could not be loaded.</p>
         ) : null}
-        {state.status === "ready" && performanceOrders.length === 0 ? (
+        {emptyMessage ? (
           <div className="empty-state">
-            <p>No ticket orders yet.</p>
+            <p>{emptyMessage}</p>
           </div>
         ) : null}
-        {state.status === "ready" && performanceOrders.length > 0 && visibleOrders.length === 0 ? (
-          <div className="empty-state">
-            <p>No ticket buyers match this search.</p>
-          </div>
-        ) : null}
-        {visibleOrders.length > 0 ? (
+        {displayedOrders.length > 0 ? (
           <DataTable
             columns={[
               {
@@ -257,7 +291,7 @@ export function WillCallPanel({
             ]}
             initialSort={{ columnId: "saleDate", direction: "desc" }}
             keySelector={(order) => order.id}
-            rows={visibleOrders}
+            rows={displayedOrders}
           />
         ) : null}
       </fieldset>

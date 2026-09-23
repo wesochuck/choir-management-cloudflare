@@ -1,4 +1,5 @@
 import { ticketMessageTemplates } from "../ticketMessageTemplates";
+import { paymentMessageTemplates } from "../paymentMessageTemplates";
 
 const supportedSystemCommunicationTemplates = [
   {
@@ -169,6 +170,30 @@ export const auditionSystemCommunicationTemplates = [
   },
 ] as const;
 
+export interface SystemCommunicationTemplateDefault {
+  readonly channel: "Both" | "Email" | "SMS";
+  readonly contentMarkdown: string;
+  readonly id: string;
+  readonly subject: string;
+  readonly title: string;
+}
+
+const systemCommunicationTemplateDefaults: readonly SystemCommunicationTemplateDefault[] = [
+  ...supportedSystemCommunicationTemplates,
+  ...rsvpSystemCommunicationTemplates,
+  ...scheduledEventSystemCommunicationTemplates,
+  ...playerSystemCommunicationTemplates,
+  ...auditionSystemCommunicationTemplates,
+  ...paymentMessageTemplates,
+  ...ticketMessageTemplates,
+];
+
+export function getSystemCommunicationTemplateDefault(
+  templateId: string,
+): SystemCommunicationTemplateDefault | null {
+  return systemCommunicationTemplateDefaults.find(({ id }) => id === templateId) ?? null;
+}
+
 export function seedPlayerSystemCommunicationTemplates(sql: SqlStorage): void {
   const now = new Date().toISOString();
   for (const template of playerSystemCommunicationTemplates) {
@@ -252,4 +277,33 @@ export function refreshUnmodifiedSystemCommunicationTemplates(sql: SqlStorage): 
       template.id,
     );
   }
+}
+
+const previousBundleTicketConfirmationTemplate = {
+  contentMarkdown:
+    "Hi {buyerName},\n\n## Your ticket bundle is confirmed\n\n- **Bundle:** {ticketBundleName}\n- **Tickets:** {ticketQuantity}\n- **Total paid:** {ticketAmount}\n\n### Included performances\n\n{{TICKET_EVENT_LIST}}\n\n{{TICKET_LINK}}\n\nOpen your ticket to display the QR code for admission. Keep this confirmation for your records. We look forward to seeing you.",
+  subject: "Ticket bundle confirmed: {ticketBundleName}",
+  title: "Bundle Ticket Confirmation",
+} as const;
+
+export function refreshUnmodifiedBundleTicketCommunicationTemplates(sql: SqlStorage): void {
+  const now = new Date().toISOString();
+  const template = ticketMessageTemplates.find(({ kind }) => kind === "bundle_confirmation");
+  if (!template) return;
+  sql.exec(
+    `UPDATE communication_templates
+     SET title = ?, channel = ?, subject = ?, content_markdown = ?, updated_at = ?
+     WHERE id = ? AND is_system = 1 AND channel = 'Email'
+       AND (updated_at = created_at OR
+         (title = ? AND subject = ? AND content_markdown = ?))`,
+    template.title,
+    template.channel,
+    template.subject,
+    template.contentMarkdown,
+    now,
+    template.id,
+    previousBundleTicketConfirmationTemplate.title,
+    previousBundleTicketConfirmationTemplate.subject,
+    previousBundleTicketConfirmationTemplate.contentMarkdown,
+  );
 }
