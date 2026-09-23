@@ -263,8 +263,9 @@ test("records a manual donation from the history tab", async ({ page }) => {
 
   await page.goto("/admin/donations");
   const historyPanel = page.getByRole("tabpanel", { name: /history/i });
-  await expect(historyPanel.getByText("Dana Donor")).toBeVisible();
-  await expect(historyPanel.getByText("Check #1042")).toBeVisible();
+  const visibleRegister = historyPanel.locator(".data-table:visible, .data-table-cards:visible");
+  await expect(visibleRegister.getByText("Dana Donor")).toBeVisible();
+  await expect(visibleRegister.getByText("Check #1042")).toBeVisible();
 
   await page.getByRole("button", { name: "Record donation" }).click();
   const dialog = page.getByRole("dialog", { name: "Record donation" });
@@ -301,31 +302,32 @@ test("records a manual donation from the history tab", async ({ page }) => {
 
   await expect(page.getByRole("status")).toHaveText("Manual donation recorded.");
   await expect(dialog).toBeHidden();
-  await expect(historyPanel.getByText("Nora Noble")).toBeVisible();
+  await expect(visibleRegister.getByText("Nora Noble")).toBeVisible();
 });
 
 test("filters donations by thank-you status and payment source", async ({ page }) => {
   await page.goto("/admin/donations");
   const historyPanel = page.getByRole("tabpanel", { name: /history/i });
-  await expect(historyPanel.getByText("Dana Donor")).toBeVisible();
-  await expect(historyPanel.getByText("Marcus Meadows")).toBeVisible();
+  const visibleRegister = historyPanel.locator(".data-table:visible, .data-table-cards:visible");
+  await expect(visibleRegister.getByText("Dana Donor")).toBeVisible();
+  await expect(visibleRegister.getByText("Marcus Meadows")).toBeVisible();
 
   await historyPanel.getByLabel("Thank you letter").selectOption({ label: "Thank you pending" });
-  await expect(historyPanel.getByText("Dana Donor")).toBeVisible();
-  await expect(historyPanel.getByText("Marcus Meadows")).toBeHidden();
+  await expect(visibleRegister.getByText("Dana Donor")).toBeVisible();
+  await expect(visibleRegister.getByText("Marcus Meadows")).toBeHidden();
 
   await historyPanel.getByLabel("Thank you letter").selectOption({ label: "Thank you sent" });
-  await expect(historyPanel.getByText("Dana Donor")).toBeHidden();
-  await expect(historyPanel.getByText("Marcus Meadows")).toBeVisible();
+  await expect(visibleRegister.getByText("Dana Donor")).toBeHidden();
+  await expect(visibleRegister.getByText("Marcus Meadows")).toBeVisible();
 
   await historyPanel.getByLabel("Thank you letter").selectOption({ label: "All" });
   await historyPanel.getByLabel("Payment source").selectOption({ label: "Online (Stripe)" });
-  await expect(historyPanel.getByText("Dana Donor")).toBeVisible();
-  await expect(historyPanel.getByText("Marcus Meadows")).toBeHidden();
+  await expect(visibleRegister.getByText("Dana Donor")).toBeVisible();
+  await expect(visibleRegister.getByText("Marcus Meadows")).toBeHidden();
 
   await historyPanel.getByLabel("Payment source").selectOption({ label: "Manual / Offline" });
-  await expect(historyPanel.getByText("Dana Donor")).toBeHidden();
-  await expect(historyPanel.getByText("Marcus Meadows")).toBeVisible();
+  await expect(visibleRegister.getByText("Dana Donor")).toBeHidden();
+  await expect(visibleRegister.getByText("Marcus Meadows")).toBeVisible();
 });
 
 test("hides refunded donations by default without changing summary totals or the full CSV", async ({
@@ -398,8 +400,9 @@ test("toggles thank-you letter status", async ({ page }) => {
   });
 
   await page.goto("/admin/donations");
-  const danaRow = page.getByRole("row", { name: /Dana Donor/ });
-  await expect(danaRow.getByText("Pending")).toBeVisible();
+  const visibleRegister = page.locator(".data-table:visible, .data-table-cards:visible");
+  const danaRow = visibleRegister.locator("tr, .data-table-card").filter({ hasText: "Dana Donor" });
+  await expect(danaRow.getByText("Pending", { exact: true })).toBeVisible();
 
   const thankYouRequestPromise = page.waitForRequest(
     (request) =>

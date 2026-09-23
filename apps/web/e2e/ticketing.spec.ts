@@ -1278,9 +1278,11 @@ test.describe("admin ticket management", () => {
       });
     });
     let savedBody: unknown = null;
+    let discountCodeSaved = false;
     await page.route("**/api/organization/tickets/discount-codes", async (route) => {
       if (route.request().method() === "POST") {
         savedBody = route.request().postDataJSON();
+        discountCodeSaved = true;
         await route.fulfill({
           body: JSON.stringify({ ...adminDiscountCode, requestId }),
           contentType: "application/json",
@@ -1289,7 +1291,7 @@ test.describe("admin ticket management", () => {
         return;
       }
       await route.fulfill({
-        body: JSON.stringify({ codes: [], requestId }),
+        body: JSON.stringify({ codes: discountCodeSaved ? [adminDiscountCode] : [], requestId }),
         contentType: "application/json",
         status: 200,
       });
