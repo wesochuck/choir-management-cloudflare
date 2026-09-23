@@ -118,6 +118,35 @@ describe("Donation tribute contracts", () => {
   });
 });
 
+describe("online donation checkout amount", () => {
+  const request = {
+    anonymous: false,
+    buyerEmail: "donor@example.com",
+    buyerName: "Jane Donor",
+    checkoutRequestId: "11111111-1111-4111-8111-111111111111",
+  };
+
+  it("requires the same one-dollar minimum used by the public donation form", () => {
+    expect(donationCheckoutRequestSchema.safeParse({ ...request, amountCents: 99 }).success).toBe(
+      false,
+    );
+    expect(donationCheckoutRequestSchema.safeParse({ ...request, amountCents: 100 }).success).toBe(
+      true,
+    );
+  });
+
+  it("keeps manual and offline donation amounts separate from online checkout", () => {
+    expect(
+      manualDonationCreateRequestSchema.safeParse({
+        amountCents: 1,
+        anonymous: false,
+        buyerEmail: "",
+        buyerName: "Walk-in Donor",
+      }).success,
+    ).toBe(true);
+  });
+});
+
 describe("Donation settings", () => {
   it("supplies the default thank-you message for existing settings", () => {
     const parsed = donationSettingsSchema.parse({

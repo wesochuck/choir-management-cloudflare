@@ -47,7 +47,108 @@ const feeSettings: TransactionFeeSettings = {
   percentage: 2.9,
 };
 
+function checkoutProjection(
+  eventPriceCents: number,
+  bundlePriceCents: number,
+): PublishedOrganizationProjection {
+  return {
+    generatedAt: "2026-09-20T00:00:00Z",
+    organizationId: "org-1",
+    payload: {
+      mediaFileIds: [],
+      organizationName: "LCC",
+      performances: [
+        {
+          advancePriceCents: eventPriceCents,
+          dayOfPriceCents: eventPriceCents,
+          doorsOpenTime: "",
+          graphicFileId: null,
+          id: "11111111-1111-4111-8111-111111111111",
+          isTicketingEnabled: true,
+          location: "",
+          publicDetails: "",
+          startsAt: "2027-12-20T19:00:00Z",
+          ticketCapacity: 100,
+          title: "Checkout test concert",
+          venueAddress: "",
+          venueName: "",
+        },
+      ],
+      settings: {
+        aboutUsText: "",
+        bodyFont: "system",
+        contactEmail: "",
+        enabledNavigation: ["tickets"],
+        headerFont: "system",
+        heroFileId: null,
+        heroHeadline: "LCC",
+        heroSubtitle: "",
+        historyText: "",
+        logoFileId: null,
+        showBrandingHeaderFooter: false,
+      },
+      ticketBundles: [
+        {
+          capacity: 100,
+          eventIds: ["11111111-1111-4111-8111-111111111111"],
+          id: "22222222-2222-4222-8222-222222222222",
+          priceCents: bundlePriceCents,
+          saleEndAt: "2027-12-19T19:00:00Z",
+          title: "Checkout test bundle",
+        },
+      ],
+      timezone: "America/New_York",
+    },
+    version: 1,
+  };
+}
+
 describe("TicketBundlePurchaseForm", () => {
+  it("prevents an unsupported paid total while keeping free and fifty-cent bundle totals available", async () => {
+    const unsupported = checkoutProjection(500, 17);
+    const unsupportedBundle = unsupported.payload.ticketBundles[0];
+    expect(unsupportedBundle).toBeDefined();
+    if (!unsupportedBundle) throw new Error("Expected checkout test bundle");
+    const { rerender } = render(
+      <TicketBundlePurchaseForm
+        bundle={unsupportedBundle}
+        feeSettings={feeSettings}
+        projection={unsupported}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("Card payments must total at least $0.50");
+    expect(screen.getByRole("button", { name: "Complete bundle order" })).toBeDisabled();
+
+    const complimentary = checkoutProjection(500, 0);
+    const complimentaryBundle = complimentary.payload.ticketBundles[0];
+    expect(complimentaryBundle).toBeDefined();
+    if (!complimentaryBundle) throw new Error("Expected complimentary test bundle");
+    rerender(
+      <TicketBundlePurchaseForm
+        bundle={complimentaryBundle}
+        feeSettings={feeSettings}
+        projection={complimentary}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Complete bundle order" })).toBeEnabled();
+
+    const boundary = checkoutProjection(500, 19);
+    const boundaryBundle = boundary.payload.ticketBundles[0];
+    expect(boundaryBundle).toBeDefined();
+    if (!boundaryBundle) throw new Error("Expected boundary test bundle");
+    rerender(
+      <TicketBundlePurchaseForm
+        bundle={boundaryBundle}
+        feeSettings={feeSettings}
+        projection={boundary}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Complete bundle order" })).toBeEnabled();
+  });
+
   it("renders included concerts in chronological order with the soonest at the top in a bulleted list", async () => {
     const projection: PublishedOrganizationProjection = {
       generatedAt: "2026-09-20T00:00:00Z",
@@ -161,6 +262,45 @@ describe("TicketBundlePurchaseForm", () => {
 });
 
 describe("TicketsContent", () => {
+  it("prevents an unsupported ticket total while keeping free and fifty-cent tickets available", async () => {
+    const unsupported = checkoutProjection(17, 500);
+    const { rerender } = render(
+      <TicketsContent
+        feeSettings={feeSettings}
+        nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+        pathname="/tickets/11111111-1111-4111-8111-111111111111"
+        projection={unsupported}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent("Card payments must total at least $0.50");
+    expect(screen.getByRole("button", { name: "Complete ticket order" })).toBeDisabled();
+
+    const complimentary = checkoutProjection(0, 500);
+    rerender(
+      <TicketsContent
+        feeSettings={feeSettings}
+        nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+        pathname="/tickets/11111111-1111-4111-8111-111111111111"
+        projection={complimentary}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Complete ticket order" })).toBeEnabled();
+
+    const boundary = checkoutProjection(19, 500);
+    rerender(
+      <TicketsContent
+        feeSettings={feeSettings}
+        nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+        pathname="/tickets/11111111-1111-4111-8111-111111111111"
+        projection={boundary}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Complete ticket order" })).toBeEnabled();
+  });
+
   it("displays bundles first, then concerts in chronological order with the closest concert to today after the bundles", () => {
     const projection: PublishedOrganizationProjection = {
       generatedAt: "2026-09-20T00:00:00Z",

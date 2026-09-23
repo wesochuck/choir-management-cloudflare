@@ -1,5 +1,6 @@
 import { ticketCheckoutQuoteSchema } from "@choir/contracts";
 import {
+  isSupportedPaidCheckoutAmount,
   isValidTicketDiscountValue,
   normalizeDiscountCode,
   ticketOrderQuote,
@@ -349,6 +350,12 @@ export function createFakeCheckout(
       return Response.json({ code: "discount_code_invalid" }, { status: 422 });
     }
     throw error;
+  }
+  // The final quote includes discounts and any configured processing fee. Reject
+  // unsupported paid totals before capacity, redemption, purchase, payment, or
+  // notification state can be reserved.
+  if (!isSupportedPaidCheckoutAmount(quote.totalCents)) {
+    return Response.json({ code: "ticket_checkout_amount_too_small" }, { status: 422 });
   }
   const pending = operation.action === "create_stripe_pending" && quote.totalCents > 0;
   const primaryEvent = resolution.events[0];

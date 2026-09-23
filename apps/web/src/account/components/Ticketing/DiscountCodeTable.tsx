@@ -10,6 +10,7 @@ export function DiscountCodeTable({
   deactivateDiscountCodeId,
   discountCodes,
   editDiscountCode,
+  onViewRedemptions,
   setDeactivateDiscountCodeId,
 }: {
   readonly busy: boolean;
@@ -17,6 +18,7 @@ export function DiscountCodeTable({
   readonly deactivateDiscountCodeId: string | null;
   readonly discountCodes: readonly DiscountCode[];
   readonly editDiscountCode: (code: DiscountCode) => void;
+  readonly onViewRedemptions: (code: DiscountCode) => void;
   readonly setDeactivateDiscountCodeId: Dispatch<SetStateAction<string | null>>;
 }) {
   return (
@@ -47,8 +49,24 @@ export function DiscountCodeTable({
           header: "Redemptions",
           id: "redemptions",
           render: (code) =>
-            String(code.redemptionCount) +
-            (code.redemptionLimit === null ? "" : "/" + String(code.redemptionLimit)),
+            code.redemptionCount > 0 ? (
+              <>
+                <button
+                  aria-label={`View ${String(code.redemptionCount)} redemptions for ${code.code}`}
+                  className="text-button"
+                  onClick={() => {
+                    onViewRedemptions(code);
+                  }}
+                  type="button"
+                >
+                  {code.redemptionCount}
+                </button>
+                {code.redemptionLimit === null ? null : `/${String(code.redemptionLimit)}`}
+              </>
+            ) : (
+              String(code.redemptionCount) +
+              (code.redemptionLimit === null ? "" : "/" + String(code.redemptionLimit))
+            ),
           sortValue: (code) => code.redemptionCount,
         },
         {

@@ -44,6 +44,10 @@ import {
 } from "./components/Ticketing/shared";
 import { TicketScanner } from "./TicketScanner";
 
+function normalizeDiscountCode(code: string | null): string {
+  return code?.trim().toLocaleLowerCase() ?? "";
+}
+
 // This component coordinates three intentionally co-located manager tools and their shared state.
 export function TicketingManager({
   enabled,
@@ -59,6 +63,8 @@ export function TicketingManager({
     useTicketingNotice();
   const [selectedPerformanceId, setSelectedPerformanceId] = useState("all");
   const [willCallSearch, setWillCallSearch] = useState("");
+  const [willCallDiscountCode, setWillCallDiscountCode] = useState<string | null>(null);
+  const [willCallShowRefunded, setWillCallShowRefunded] = useState(false);
   const [lastOrderRefreshAt, setLastOrderRefreshAt] = useState<Date | null>(null);
   const [ticketEvents, setTicketEvents] = useState<readonly OrganizationEvent[]>([]);
   const [bundles, setBundles] = useState<readonly TicketBundle[]>([]);
@@ -447,6 +453,19 @@ export function TicketingManager({
     }
   }
 
+  function viewDiscountCodeRedemptions(code: DiscountCode): void {
+    setWillCallDiscountCode(code.code);
+    setWillCallShowRefunded(true);
+    setWillCallSearch("");
+    setSelectedPerformanceId("all");
+    selectTicketingTab("willcall");
+  }
+
+  function clearWillCallDiscountCode(): void {
+    setWillCallDiscountCode(null);
+    setWillCallShowRefunded(false);
+  }
+
   const selectedPerformance = ticketEvents.find(({ id }) => id === selectedPerformanceId);
   const performanceOrders =
     state.status === "ready"
@@ -458,12 +477,21 @@ export function TicketingManager({
         )
       : [];
   const normalizedSearch = willCallSearch.trim().toLocaleLowerCase();
-  const visibleOrders = performanceOrders.filter(
-    (order) =>
+  const normalizedDiscountFilter =
+    willCallDiscountCode === null ? null : normalizeDiscountCode(willCallDiscountCode);
+  const visibleOrders = performanceOrders.filter((order) => {
+    const matchesDiscount =
+      normalizedDiscountFilter === null ||
+      (normalizedDiscountFilter.length > 0 &&
+        normalizeDiscountCode(order.discountCode) === normalizedDiscountFilter);
+    const matchesConfirmedRedemption =
+      normalizedDiscountFilter === null || order.status === "paid" || order.status === "refunded";
+    const matchesSearch =
       !normalizedSearch ||
       order.buyerName.toLocaleLowerCase().includes(normalizedSearch) ||
-      order.buyerEmail.toLocaleLowerCase().includes(normalizedSearch),
-  );
+      order.buyerEmail.toLocaleLowerCase().includes(normalizedSearch);
+    return matchesDiscount && matchesConfirmedRedemption && matchesSearch;
+  });
   const paidOrders = performanceOrders.filter((order) => order.status === "paid");
   const ticketsSold = paidOrders.reduce((total, order) => total + order.quantity, 0);
   const ticketSalesCents = paidOrders.reduce(
@@ -572,6 +600,7 @@ export function TicketingManager({
             setDeactivateDiscountCodeId={setDeactivateDiscountCodeId}
             setDiscountDraft={setDiscountDraft}
             ticketEvents={ticketEvents}
+            onViewRedemptions={viewDiscountCodeRedemptions}
           />
         </TabsContent>
         <TabsContent
@@ -581,6 +610,8 @@ export function TicketingManager({
         >
           <WillCallPanel
             busy={busy}
+            clearDiscountCodeFilter={clearWillCallDiscountCode}
+            discountCodeFilter={willCallDiscountCode}
             feesCollectedCents={feesCollectedCents}
             lastOrderRefreshAt={lastOrderRefreshAt}
             performanceOrders={performanceOrders}
@@ -593,7 +624,9 @@ export function TicketingManager({
             selectedPerformanceId={selectedPerformanceId}
             setRefundId={setRefundId}
             setSelectedPerformanceId={setSelectedPerformanceId}
+            setShowRefunded={setWillCallShowRefunded}
             setWillCallSearch={setWillCallSearch}
+            showRefunded={willCallShowRefunded}
             state={state}
             ticketEvents={ticketEvents}
             ticketSalesCents={ticketSalesCents}

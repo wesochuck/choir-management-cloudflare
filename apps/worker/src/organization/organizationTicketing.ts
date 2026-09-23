@@ -98,7 +98,16 @@ export async function issueOrganizationTicketScanCredential(
 }
 
 function ticketCheckoutFailureMessage(code: string, fallback: string): string {
-  return code === "discount_code_invalid" ? "This code is not valid for this purchase." : fallback;
+  const messages: Readonly<Record<string, string>> = {
+    checkout_request_conflict:
+      "This checkout attempt no longer matches the current order. Please try again.",
+    discount_code_invalid: "This code is not valid for this purchase.",
+    ticket_capacity_exceeded: "There are not enough tickets remaining for that quantity.",
+    ticket_checkout_amount_too_small:
+      "Card payments must total at least $0.50. Increase the quantity or remove the discount code.",
+    ticket_sales_closed: "Ticket sales are no longer available for this selection.",
+  };
+  return messages[code] ?? fallback;
 }
 
 async function expirePendingTicketCheckout(
@@ -320,9 +329,9 @@ export async function createPublicTicketCheckout(
       }
       if (error instanceof StripeCheckoutError) {
         throw new TicketingError(
-          "stripe_checkout_unavailable",
-          503,
-          "Stripe checkout is unavailable.",
+          error.code,
+          error.status,
+          ticketCheckoutFailureMessage(error.code, "Stripe checkout is unavailable."),
         );
       }
       throw error;

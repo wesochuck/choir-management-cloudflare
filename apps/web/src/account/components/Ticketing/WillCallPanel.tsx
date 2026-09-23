@@ -1,6 +1,6 @@
 import type { OrganizationEvent, OrganizationTicketOrder } from "@choir/contracts";
 import { DataTable } from "@choir/ui";
-import { useState, type Dispatch, type SetStateAction } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import {
   buyerLastName,
   canRefundTicketOrder,
@@ -10,25 +10,34 @@ import {
 } from "./shared";
 
 function willCallEmptyMessage({
+  discountCodeFilter,
   displayedOrderCount,
   performanceOrderCount,
   status,
   visibleOrderCount,
 }: {
+  readonly discountCodeFilter: string | null;
   readonly displayedOrderCount: number;
   readonly performanceOrderCount: number;
   readonly status: OrderState["status"];
   readonly visibleOrderCount: number;
 }): string | null {
   if (status !== "ready") return null;
-  if (performanceOrderCount === 0) return "No ticket orders yet.";
-  if (visibleOrderCount === 0) return "No ticket buyers match this search.";
+  if (visibleOrderCount === 0) {
+    if (discountCodeFilter !== null) {
+      return `No ticket orders match discount code ${discountCodeFilter}.`;
+    }
+    if (performanceOrderCount === 0) return "No ticket orders yet.";
+    return "No ticket buyers match this search.";
+  }
   if (displayedOrderCount === 0) return "All matching ticket orders are refunded.";
   return null;
 }
 
 export function WillCallPanel({
   busy,
+  clearDiscountCodeFilter,
+  discountCodeFilter,
   feesCollectedCents,
   lastOrderRefreshAt,
   performanceOrders,
@@ -41,7 +50,9 @@ export function WillCallPanel({
   selectedPerformanceId,
   setRefundId,
   setSelectedPerformanceId,
+  setShowRefunded,
   setWillCallSearch,
+  showRefunded,
   state,
   ticketEvents,
   ticketSalesCents,
@@ -51,6 +62,8 @@ export function WillCallPanel({
   willCallSearch,
 }: {
   readonly busy: boolean;
+  readonly clearDiscountCodeFilter: () => void;
+  readonly discountCodeFilter: string | null;
   readonly feesCollectedCents: number;
   readonly lastOrderRefreshAt: Date | null;
   readonly performanceOrders: readonly OrganizationTicketOrder[];
@@ -63,6 +76,7 @@ export function WillCallPanel({
   readonly selectedPerformanceId: string;
   readonly setRefundId: Dispatch<SetStateAction<string | null>>;
   readonly setSelectedPerformanceId: Dispatch<SetStateAction<string>>;
+  readonly setShowRefunded: Dispatch<SetStateAction<boolean>>;
   readonly setWillCallSearch: Dispatch<SetStateAction<string>>;
   readonly state: OrderState;
   readonly ticketEvents: readonly OrganizationEvent[];
@@ -71,12 +85,13 @@ export function WillCallPanel({
   readonly totalRevenueCents: number;
   readonly visibleOrders: readonly OrganizationTicketOrder[];
   readonly willCallSearch: string;
+  readonly showRefunded: boolean;
 }) {
-  const [showRefunded, setShowRefunded] = useState(false);
   const displayedOrders = showRefunded
     ? visibleOrders
     : visibleOrders.filter((order) => order.status !== "refunded");
   const emptyMessage = willCallEmptyMessage({
+    discountCodeFilter,
     displayedOrderCount: displayedOrders.length,
     performanceOrderCount: performanceOrders.length,
     status: state.status,
@@ -181,6 +196,16 @@ export function WillCallPanel({
             Show refunded
           </label>
         </div>
+        {discountCodeFilter !== null ? (
+          <div aria-live="polite" className="ticket-dashboard__active-filter">
+            <span>
+              Filtering by discount code: <strong>{discountCodeFilter}</strong>
+            </span>
+            <button className="text-button" onClick={clearDiscountCodeFilter} type="button">
+              Clear filter
+            </button>
+          </div>
+        ) : null}
         {state.status === "loading" ? <p>Loading ticket orders…</p> : null}
         {state.status === "error" ? (
           <p className="notice notice--error">Ticket orders could not be loaded.</p>
@@ -238,6 +263,26 @@ export function WillCallPanel({
                 id: "amountPaid",
                 render: (order) => money(order.amountPaidCents),
                 sortValue: (order) => order.amountPaidCents,
+              },
+              {
+                header: "Discount code",
+                id: "discountCode",
+                render: (order) =>
+                  order.discountCode !== null ? (
+                    <span
+                      className="ticket-discount-code-pill"
+                      title={
+                        order.discountAmountCents > 0
+                          ? `${order.discountCode} · Discount: ${money(order.discountAmountCents)}`
+                          : undefined
+                      }
+                    >
+                      {order.discountCode}
+                    </span>
+                  ) : (
+                    <span aria-label="No discount code">—</span>
+                  ),
+                sortValue: (order) => order.discountCode ?? "",
               },
               {
                 header: "Status",

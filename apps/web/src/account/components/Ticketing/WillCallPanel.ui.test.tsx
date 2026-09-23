@@ -7,6 +7,7 @@ import {
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { WillCallPanel } from "./WillCallPanel";
 
@@ -83,10 +84,25 @@ const refundRequestedOrder = ticketOrder({
   refundRequested: true,
 });
 
-function renderWillCallPanel(orders: readonly OrganizationTicketOrder[]) {
-  return render(
+interface WillCallPanelTestOptions {
+  readonly clearDiscountCodeFilter?: () => void;
+  readonly discountCodeFilter?: string | null;
+  readonly showRefunded?: boolean;
+}
+
+function WillCallPanelHarness({
+  orders,
+  options,
+}: {
+  readonly orders: readonly OrganizationTicketOrder[];
+  readonly options: WillCallPanelTestOptions;
+}) {
+  const [showRefunded, setShowRefunded] = useState(options.showRefunded ?? false);
+  return (
     <WillCallPanel
       busy={false}
+      clearDiscountCodeFilter={options.clearDiscountCodeFilter ?? vi.fn()}
+      discountCodeFilter={options.discountCodeFilter ?? null}
       feesCollectedCents={0}
       lastOrderRefreshAt={new Date("2026-07-23T15:00:00.000Z")}
       performanceOrders={orders}
@@ -99,7 +115,9 @@ function renderWillCallPanel(orders: readonly OrganizationTicketOrder[]) {
       selectedPerformanceId={eventId}
       setRefundId={vi.fn()}
       setSelectedPerformanceId={vi.fn()}
+      setShowRefunded={setShowRefunded}
       setWillCallSearch={vi.fn()}
+      showRefunded={showRefunded}
       state={{ orders, status: "ready" }}
       ticketEvents={[event]}
       ticketSalesCents={2500}
@@ -107,8 +125,15 @@ function renderWillCallPanel(orders: readonly OrganizationTicketOrder[]) {
       totalRevenueCents={2500}
       visibleOrders={orders}
       willCallSearch=""
-    />,
+    />
   );
+}
+
+function renderWillCallPanel(
+  orders: readonly OrganizationTicketOrder[],
+  options: WillCallPanelTestOptions = {},
+) {
+  return render(<WillCallPanelHarness options={options} orders={orders} />);
 }
 
 function getWillCallTable(): HTMLTableElement {
@@ -165,5 +190,72 @@ describe("WillCallPanel refunded orders", () => {
     await user.click(screen.getByRole("checkbox", { name: "Show refunded" }));
     expect(within(getWillCallTable()).getByText("Refunded Buyer")).toBeInTheDocument();
     expect(screen.queryByText("All matching ticket orders are refunded.")).not.toBeInTheDocument();
+  });
+});
+
+describe("WillCallPanel discount codes", () => {
+  it("shows the order snapshot and a quiet empty value", () => {
+    const discountedOrder = ticketOrder({
+      buyerName: "Discounted Buyer",
+      discountAmountCents: 300,
+      discountCode: "SPRING10",
+      discountType: "percentage",
+      discountValue: 10,
+      id: "55555555-6666-4777-8888-999999999999",
+    });
+    renderWillCallPanel([discountedOrder, paidOrder]);
+
+    const table = getWillCallTable();
+    const discountedRow = within(table).getByText("Discounted Buyer").closest("tr");
+    const regularRow = within(table).getByText("Paid Buyer").closest("tr");
+    if (
+      !(discountedRow instanceof HTMLTableRowElement) ||
+      !(regularRow instanceof HTMLTableRowElement)
+    ) {
+      throw new Error("Expected both orders to be rendered in table rows.");
+    }
+    const discountPill = within(discountedRow).getByText("SPRING10");
+    expect(discountPill).toHaveClass("ticket-discount-code-pill");
+    expect(discountPill).not.toHaveClass("status-pill");
+    expect(within(discountedRow).getByText("SPRING10")).toHaveAttribute(
+      "title",
+      "SPRING10 · Discount: $3.00",
+    );
+    expect(within(regularRow).getByLabelText("No discount code")).toHaveTextContent("—");
+    expect(screen.getByRole("button", { name: "Sort by Discount code" })).toBeInTheDocument();
+  });
+
+  it("shows the active filter, reveals refunded confirmations, and clears it", async () => {
+    const user = userEvent.setup();
+    const clearDiscountCodeFilter = vi.fn();
+    const refundedDiscountOrder = ticketOrder({
+      buyerName: "Refunded Discount Buyer",
+      discountCode: "SPRING10",
+      id: "66666666-7777-4888-8999-aaaaaaaaaaaa",
+      status: "refunded",
+    });
+    renderWillCallPanel([refundedDiscountOrder], {
+      clearDiscountCodeFilter,
+      discountCodeFilter: "SPRING10",
+      showRefunded: true,
+    });
+
+    expect(screen.getByText("Filtering by discount code:")).toBeInTheDocument();
+    const activeFilter = document.querySelector(".ticket-dashboard__active-filter");
+    if (!(activeFilter instanceof HTMLElement)) {
+      throw new Error("Expected the active discount filter indicator.");
+    }
+    expect(within(activeFilter).getByText("SPRING10", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Show refunded" })).toBeChecked();
+    expect(within(getWillCallTable()).getByText("Refunded Discount Buyer")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Show refunded" }));
+    expect(screen.getByRole("checkbox", { name: "Show refunded" })).not.toBeChecked();
+    expect(screen.queryByText("Refunded Discount Buyer")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Show refunded" }));
+    expect(screen.getAllByText("Refunded Discount Buyer").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: "Clear filter" }));
+    expect(clearDiscountCodeFilter).toHaveBeenCalledOnce();
   });
 });

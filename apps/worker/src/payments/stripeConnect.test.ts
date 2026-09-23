@@ -12,6 +12,7 @@ import {
   stripeConnectSetupUrl,
   StripeConnectError,
 } from "./stripeConnect";
+import type { StripeCheckoutError } from "./stripeConnect";
 
 function requestBody(request: RequestInit | undefined): string {
   if (typeof request?.body === "string") return request.body;
@@ -20,6 +21,30 @@ function requestBody(request: RequestInit | undefined): string {
 }
 
 describe("Stripe Connect provider contract", () => {
+  it("rejects positive Checkout totals below fifty cents before calling Stripe", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("Stripe must not be called for an unsupported amount."));
+    try {
+      await expect(
+        createStripeCheckoutSession("sk_test_secret", "acct_test", {
+          cancelUrl: "https://choir.example.test/cancel",
+          currency: "usd",
+          lineItems: [{ productName: "Discounted ticket", quantity: 1, unitAmountCents: 43 }],
+          metadata: { checkout_request_id: "checkout-request-small" },
+          organizationName: "Example Choir",
+          successUrl: "https://choir.example.test/success",
+        }),
+      ).rejects.toMatchObject({
+        code: "ticket_checkout_amount_too_small",
+        status: 422,
+      } satisfies Partial<StripeCheckoutError>);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("recognizes only fully enabled connected accounts as ready", () => {
     expect(
       stripeAccountIsReady({

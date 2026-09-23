@@ -89,7 +89,7 @@ export const ticketConfirmationSettingsResponseSchema = z.preprocess(
 );
 
 export const donationCheckoutRequestSchema = z.object({
-  amountCents: z.number().int().positive().max(10_000_000),
+  amountCents: z.number().int().min(100).max(10_000_000),
   anonymous: z.boolean().default(false),
   buyerEmail: z.email().max(320),
   buyerName: z.string().trim().min(1).max(200),

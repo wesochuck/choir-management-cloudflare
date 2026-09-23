@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isSupportedPaidCheckoutAmount } from "@choir/domain";
 
 export const STRIPE_V2_VERSION = "2026-08-26.dahlia";
 
@@ -110,11 +111,13 @@ export class StripeConnectError extends Error {
 
 export class StripeCheckoutError extends Error {
   readonly status: number;
+  readonly code: string;
 
-  constructor(message: string, status = 503) {
+  constructor(message: string, status = 503, code = "stripe_checkout_unavailable") {
     super(message);
     this.name = "StripeCheckoutError";
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -407,6 +410,17 @@ export async function createStripeCheckoutSession(
       unitAmountCents: input.unitAmountCents ?? 0,
     },
   ];
+  const totalCents = lineItems.reduce(
+    (sum, lineItem) => sum + lineItem.unitAmountCents * lineItem.quantity,
+    0,
+  );
+  if (!isSupportedPaidCheckoutAmount(totalCents)) {
+    throw new StripeCheckoutError(
+      "Card payments must total at least $0.50.",
+      422,
+      "ticket_checkout_amount_too_small",
+    );
+  }
   const body = new URLSearchParams({
     cancel_url: input.cancelUrl,
     mode: "payment",

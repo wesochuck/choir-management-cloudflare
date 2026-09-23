@@ -246,6 +246,7 @@ export {
   type TransactionFeeSettings,
   type TicketWillCallRow,
 } from "./ticketing";
+export { isSupportedPaidCheckoutAmount, MINIMUM_PAID_CHECKOUT_CENTS } from "./checkoutAmount";
 export {
   attendanceReportFilename,
   renderAttendanceReportCsv,

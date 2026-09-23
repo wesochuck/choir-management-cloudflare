@@ -11,6 +11,7 @@ import {
   getPublicDonationSettings,
   getPublicTransactionFeeSettings,
 } from "../api";
+import { shouldStartNewDonationCheckoutAttempt } from "./checkoutAttempt";
 import { formatDonationMoney } from "./donationFormat";
 
 const DEFAULT_SETTINGS: DonationSettings = {
@@ -69,7 +70,7 @@ export function PublicDonationView() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [checkoutRequestId] = useState(() => crypto.randomUUID());
+  const [checkoutRequestId, setCheckoutRequestId] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
     const controller = new AbortController();
@@ -147,6 +148,9 @@ export function PublicDonationView() {
       });
       window.location.assign(result.url || "/donate/success");
     } catch (failure: unknown) {
+      if (shouldStartNewDonationCheckoutAttempt(failure)) {
+        setCheckoutRequestId(crypto.randomUUID());
+      }
       setError(failure instanceof Error ? failure.message : "The donation could not be completed.");
       setBusy(false);
     }

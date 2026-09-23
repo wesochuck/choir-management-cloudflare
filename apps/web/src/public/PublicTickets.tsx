@@ -6,7 +6,11 @@ import type {
   TicketCheckoutQuoteRequest,
   TransactionFeeSettings,
 } from "@choir/contracts";
-import { ticketProcessingFeeCents, ticketUnitPriceCents } from "@choir/domain";
+import {
+  isSupportedPaidCheckoutAmount,
+  ticketProcessingFeeCents,
+  ticketUnitPriceCents,
+} from "@choir/domain";
 import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 
 import {
@@ -23,6 +27,7 @@ import {
 import { OrganizationLayout, PublicTransactionLayout } from "./PublicOrganizationSite";
 import { getEventVenueDetails } from "./venueDetails";
 import { QRCodeImage } from "../shared/QRCodeImage";
+import { shouldStartNewTicketCheckoutAttempt } from "./checkoutAttempt";
 
 type LoadState =
   | { readonly status: "error" }
@@ -1161,7 +1166,7 @@ function TicketPurchaseForm({
 }) {
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
-  const [checkoutRequestId] = useState(() => crypto.randomUUID());
+  const [checkoutRequestId, setCheckoutRequestId] = useState(() => crypto.randomUUID());
   const [confirmEmail, setConfirmEmail] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
@@ -1181,9 +1186,16 @@ function TicketPurchaseForm({
     unitPriceCents,
   });
   const displayedQuote = discount.displayQuote;
+  const checkoutAmountSupported = isSupportedPaidCheckoutAmount(displayedQuote.totalCents);
 
   async function submit(formEvent: SyntheticEvent<HTMLFormElement>) {
     formEvent.preventDefault();
+    if (!checkoutAmountSupported) {
+      setError(
+        "Card payments must total at least $0.50. Increase the quantity or remove the discount code.",
+      );
+      return;
+    }
     if (buyerEmail.trim().toLowerCase() !== confirmEmail.trim().toLowerCase()) {
       setError("Email addresses must match.");
       return;
@@ -1202,6 +1214,9 @@ function TicketPurchaseForm({
       });
       window.location.assign(result.url);
     } catch (failure: unknown) {
+      if (shouldStartNewTicketCheckoutAttempt(failure)) {
+        setCheckoutRequestId(crypto.randomUUID());
+      }
       setError(
         failure instanceof Error ? failure.message : "The ticket order could not be completed.",
       );
@@ -1321,8 +1336,18 @@ function TicketPurchaseForm({
           <p>
             <strong>Total: {money(displayedQuote.totalCents)}</strong>
           </p>
+          {!checkoutAmountSupported ? (
+            <p className="notice notice--error" id="single-ticket-minimum-payment" role="alert">
+              Card payments must total at least $0.50. Increase the quantity or remove the discount
+              code.
+            </p>
+          ) : null}
         </div>
-        <button className="button button--primary" disabled={busy} type="submit">
+        <button
+          className="button button--primary"
+          disabled={busy || !checkoutAmountSupported}
+          type="submit"
+        >
           {busy ? "Completing order…" : "Complete ticket order"}
         </button>
       </form>
@@ -1344,7 +1369,7 @@ export function TicketBundlePurchaseForm({
   const [confirmEmail, setConfirmEmail] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
-  const [checkoutRequestId] = useState(() => crypto.randomUUID());
+  const [checkoutRequestId, setCheckoutRequestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const discount = useTicketDiscountQuote({
@@ -1354,6 +1379,7 @@ export function TicketBundlePurchaseForm({
     unitPriceCents: bundle.priceCents,
   });
   const displayedQuote = discount.displayQuote;
+  const checkoutAmountSupported = isSupportedPaidCheckoutAmount(displayedQuote.totalCents);
   const performanceMap = new Map(projection.payload.performances.map((event) => [event.id, event]));
   const includedEvents = bundle.eventIds
     .map((eventId) => performanceMap.get(eventId))
@@ -1365,6 +1391,12 @@ export function TicketBundlePurchaseForm({
 
   async function submit(formEvent: SyntheticEvent<HTMLFormElement>) {
     formEvent.preventDefault();
+    if (!checkoutAmountSupported) {
+      setError(
+        "Card payments must total at least $0.50. Increase the quantity or remove the discount code.",
+      );
+      return;
+    }
     if (buyerEmail.trim().toLowerCase() !== confirmEmail.trim().toLowerCase()) {
       setError("Email addresses must match.");
       return;
@@ -1383,6 +1415,9 @@ export function TicketBundlePurchaseForm({
       });
       window.location.assign(result.url);
     } catch (failure: unknown) {
+      if (shouldStartNewTicketCheckoutAttempt(failure)) {
+        setCheckoutRequestId(crypto.randomUUID());
+      }
       setError(
         failure instanceof Error ? failure.message : "The bundle order could not be completed.",
       );
@@ -1510,8 +1545,18 @@ export function TicketBundlePurchaseForm({
           <p>
             <strong>Total: {money(displayedQuote.totalCents)}</strong>
           </p>
+          {!checkoutAmountSupported ? (
+            <p className="notice notice--error" id="multi-ticket-minimum-payment" role="alert">
+              Card payments must total at least $0.50. Increase the quantity or remove the discount
+              code.
+            </p>
+          ) : null}
         </div>
-        <button className="button button--primary" disabled={busy} type="submit">
+        <button
+          className="button button--primary"
+          disabled={busy || !checkoutAmountSupported}
+          type="submit"
+        >
           {busy ? "Completing order…" : "Complete bundle order"}
         </button>
       </form>
@@ -1576,50 +1621,64 @@ export function TicketsContent({
       ) : (
         <div className="public-performance-grid">
           {bundles.map((bundle) => (
-            <article className="public-performance-card" key={bundle.id}>
-              <div>
-                <p>Multi-performance pass</p>
-                <h2>{bundle.title}</h2>
-                <p>{money(bundle.priceCents)} per pass</p>
-                <a className="button button--primary" href={`/tickets/bundles/${bundle.id}`}>
-                  Buy pass
-                </a>
+            <article
+              className="public-performance-card public-performance-card--ticket"
+              key={bundle.id}
+            >
+              <div className="public-performance-card__body">
+                <div className="public-performance-card__content">
+                  <p>Multi-performance pass</p>
+                  <h2>{bundle.title}</h2>
+                </div>
+                <div className="public-performance-card__purchase">
+                  <p>{money(bundle.priceCents)} per pass</p>
+                  <a className="button button--primary" href={`/tickets/bundles/${bundle.id}`}>
+                    Buy pass
+                  </a>
+                </div>
               </div>
             </article>
           ))}
           {events.map((event) => {
             const venueDetails = getEventVenueDetails(event);
             return (
-              <article className="public-performance-card" key={event.id}>
-                <div>
-                  <p>{publicDate(event.startsAt, projection.payload.timezone)}</p>
-                  <h2>{event.title}</h2>
-                  {venueDetails.displayName || venueDetails.venueAddress ? (
-                    <div className="public-performance-venue">
-                      {venueDetails.displayName ? (
-                        <p className="public-performance-location">{venueDetails.displayName}</p>
-                      ) : null}
-                      {venueDetails.venueAddress ? (
-                        <p className="public-performance-address">{venueDetails.venueAddress}</p>
-                      ) : null}
-                      {venueDetails.googleMapsUrl ? (
-                        <p>
-                          <a
-                            className="public-performance-map-link"
-                            href={venueDetails.googleMapsUrl}
-                            rel="noopener noreferrer"
-                            target="_blank"
-                          >
-                            View on Google Maps
-                          </a>
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <p>From {money(event.advancePriceCents)}</p>
-                  <a className="button button--primary" href={`/tickets/${event.id}`}>
-                    Buy tickets
-                  </a>
+              <article
+                className="public-performance-card public-performance-card--ticket"
+                key={event.id}
+              >
+                <div className="public-performance-card__body">
+                  <div className="public-performance-card__content">
+                    <p>{publicDate(event.startsAt, projection.payload.timezone)}</p>
+                    <h2>{event.title}</h2>
+                    {venueDetails.displayName || venueDetails.venueAddress ? (
+                      <div className="public-performance-venue">
+                        {venueDetails.displayName ? (
+                          <p className="public-performance-location">{venueDetails.displayName}</p>
+                        ) : null}
+                        {venueDetails.venueAddress ? (
+                          <p className="public-performance-address">{venueDetails.venueAddress}</p>
+                        ) : null}
+                        {venueDetails.googleMapsUrl ? (
+                          <p>
+                            <a
+                              className="public-performance-map-link"
+                              href={venueDetails.googleMapsUrl}
+                              rel="noopener noreferrer"
+                              target="_blank"
+                            >
+                              View on Google Maps
+                            </a>
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="public-performance-card__purchase">
+                    <p>From {money(event.advancePriceCents)}</p>
+                    <a className="button button--primary" href={`/tickets/${event.id}`}>
+                      Buy tickets
+                    </a>
+                  </div>
                 </div>
               </article>
             );

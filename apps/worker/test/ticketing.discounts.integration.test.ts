@@ -9,6 +9,7 @@ import {
   ticketCheckoutResponseSchema,
 } from "@choir/contracts";
 import { exports } from "cloudflare:workers";
+import { runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
@@ -16,8 +17,10 @@ import {
   jsonWrite,
   setupTicketingIntegration,
   signIn,
+  stores,
   teardownTicketingIntegration,
 } from "./ticketing.integration.fixture";
+import type { OrganizationStore } from "../src/organization/OrganizationStore";
 
 beforeEach(async () => setupTicketingIntegration());
 afterEach(async () => teardownTicketingIntegration());
@@ -296,5 +299,127 @@ describe("Organization ticket discounts", () => {
     );
     expect(immutable.status).toBe(409);
     expect(await immutable.json()).toMatchObject({ code: "discount_code_immutable" });
+  });
+
+  it("rejects a discounted 43-cent total before creating checkout state", async () => {
+    const cookie = await signIn();
+    const venue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "2 Stage Road", name: "Minimum Hall" },
+          cookie,
+        )
+      ).json(),
+    );
+    const event = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          {
+            advancePriceCents: 1_000,
+            callTime: "18:00",
+            dayOfPriceCents: 1_000,
+            details: "",
+            doorsOpenTime: "18:30",
+            durationMinutes: 90,
+            isTicketingEnabled: true,
+            location: "Downtown",
+            parentPerformanceId: null,
+            publicDetails: "",
+            publicGraphicFileId: null,
+            publishOnWebsite: true,
+            setList: [],
+            setListApproved: false,
+            startsAt: "2027-12-20T00:00:00.000Z",
+            ticketCapacity: 10,
+            title: "Minimum charge tickets",
+            type: "Performance",
+            rsvpDeadlineDate: "2030-01-01",
+            venueId: venue.id,
+          },
+          cookie,
+        )
+      ).json(),
+    );
+    const code = discountCodeSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/tickets/discount-codes",
+          "POST",
+          {
+            active: true,
+            bundleId: null,
+            code: "MIN43",
+            discountType: "fixed",
+            discountValue: 989,
+            eventId: event.id,
+            redemptionLimit: null,
+          },
+          cookie,
+        )
+      ).json(),
+    );
+    const checkoutRequestId = crypto.randomUUID();
+    const store = stores.get(stores.idFromName("organization-alpha"));
+    const jobsBefore = await runInDurableObject<OrganizationStore, number>(
+      store,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+            "SELECT COUNT(*) AS count FROM scheduled_job_outbox",
+          )
+          .one().count,
+    );
+    const response = await jsonWrite(
+      "tickets.example.test",
+      "/api/public/tickets/checkout",
+      "POST",
+      {
+        buyerEmail: "minimum-charge@example.test",
+        buyerName: "Minimum Charge Buyer",
+        checkoutRequestId,
+        discountCode: code.code,
+        eventId: event.id,
+        marketingOptIn: false,
+        quantity: 1,
+      },
+    );
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({ code: "ticket_checkout_amount_too_small" });
+    const state = await runInDurableObject<OrganizationStore, readonly number[]>(
+      store,
+      (_instance, durable) => [
+        durable.storage.sql
+          .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+            "SELECT COUNT(*) AS count FROM ticket_purchases WHERE checkout_request_id = ?",
+            checkoutRequestId,
+          )
+          .one().count,
+        durable.storage.sql
+          .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+            "SELECT COUNT(*) AS count FROM payment_attempts WHERE checkout_request_id = ?",
+            checkoutRequestId,
+          )
+          .one().count,
+        durable.storage.sql
+          .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+            "SELECT COUNT(*) AS count FROM discount_code_redemptions WHERE checkout_request_id = ?",
+            checkoutRequestId,
+          )
+          .one().count,
+        durable.storage.sql
+          .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+            "SELECT COUNT(*) AS count FROM scheduled_job_outbox",
+          )
+          .one().count,
+      ],
+    );
+    expect(state).toEqual([0, 0, 0, jobsBefore]);
   });
 });

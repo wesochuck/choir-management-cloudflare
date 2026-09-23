@@ -339,6 +339,28 @@
     padding: var(--spacing-xl);
   }
 
+  .public-performance-card--ticket {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .public-performance-card--ticket > .public-performance-card__body {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    padding: var(--spacing-xl);
+  }
+
+  .public-performance-card__content {
+    min-width: 0;
+  }
+
+  .public-performance-card__purchase {
+    margin-top: auto;
+    padding-top: var(--spacing-lg);
+  }
+
   .public-performance-card h3 {
     margin: var(--spacing-2xs) 0 var(--spacing-sm);
   }
