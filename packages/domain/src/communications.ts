@@ -1,3 +1,5 @@
+import { communicationRecipientNamePlaceholderKeys } from "./communicationPlaceholders";
+
 export type CommunicationChannel = "Both" | "Email" | "SMS";
 export type DeliveryChannel = "email" | "sms";
 export type DeliveryStatus = "failed" | "processing" | "queued" | "sent" | "suppressed";
@@ -89,11 +91,16 @@ export function renderCommunicationTemplate(
   recipientName: string,
   values: Readonly<Record<string, string>> = {},
 ): string {
-  const replacements = { buyerName: recipientName, singerName: recipientName, ...values };
-  return Object.entries(replacements).reduce(
-    (message, [key, value]) =>
-      message.split(`{{${key}}}`).join(value).split(`{${key}}`).join(value),
-    template,
+  const replacements: Record<string, string> = { ...values };
+  for (const key of communicationRecipientNamePlaceholderKeys) {
+    replacements[key] = recipientName;
+  }
+  return template.replace(
+    /\{\{([^{}]+)\}\}|\{([^{}]+)\}/g,
+    (match, doubleBracedName: string | undefined, singleBracedName: string | undefined) => {
+      const name = doubleBracedName ?? singleBracedName;
+      return name === undefined ? match : (replacements[name] ?? match);
+    },
   );
 }
 

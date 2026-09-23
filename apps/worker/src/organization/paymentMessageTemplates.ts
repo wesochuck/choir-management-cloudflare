@@ -15,7 +15,7 @@ export const paymentMessageTemplates: readonly PaymentMessageTemplate[] = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {singerName},\n\n## Thank you for your donation\n\nYour gift to {organizationName} was received.\n\n**Donation receipt**\n\n- **Donation amount:** {paymentAmount}\n- **Payment status:** {paymentStatus}\n\nPlease keep this email for your records.",
+      "Hi {recipientName},\n\n## Thank you for your donation\n\nYour gift to {organizationName} was received.\n\n**Donation receipt**\n\n- **Donation amount:** {paymentAmount}\n- **Payment status:** {paymentStatus}\n\nPlease keep this email for your records.",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000013",
     kind: "donation_confirmation",
     subject: "Donation receipt from {organizationName}",
@@ -24,7 +24,7 @@ export const paymentMessageTemplates: readonly PaymentMessageTemplate[] = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {singerName},\n\n## Dues payment received\n\nYour seasonal dues payment to {organizationName} is confirmed.\n\n- **Amount:** {paymentAmount}\n- **Status:** {paymentStatus}\n\nPlease keep this receipt for your records.",
+      "Hi {recipientName},\n\n## Dues payment received\n\nYour seasonal dues payment to {organizationName} is confirmed.\n\n- **Amount:** {paymentAmount}\n- **Status:** {paymentStatus}\n\nPlease keep this receipt for your records.",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000014",
     kind: "dues_confirmation",
     subject: "Dues payment receipt from {organizationName}",

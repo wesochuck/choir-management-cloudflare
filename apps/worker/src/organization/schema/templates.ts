@@ -13,7 +13,7 @@ const supportedSystemCommunicationTemplates = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {singerName},\n\n## Seasonal dues are ready for payment\n\n**Action needed:** Please submit your dues for the current term at your earliest convenience.\n\nIf you have already paid, no further action is needed.\n\nThank you for supporting the choir.",
+      "Hi {recipientName},\n\n## Seasonal dues are ready for payment\n\n**Action needed:** Please submit your dues for the current term at your earliest convenience.\n\nIf you have already paid, no further action is needed.\n\nThank you for supporting the choir.",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000002",
     subject: "Reminder: seasonal dues are ready for payment",
     title: "Dues Payment Notice",
@@ -52,7 +52,7 @@ const rsvpSystemCommunicationTemplates = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {singerName},\n\n## Please RSVP for {eventTitle}\n\n- **Date and time:** {eventDate}\n- **Location:** {eventLocation}\n- **Event type:** {eventType}\n\n{{RSVP_LINKS}}\n\n### Event details\n\n{eventDetails}",
+      "Hi {recipientName},\n\n## Please RSVP for {eventTitle}\n\n- **Date and time:** {eventDate}\n- **Location:** {eventLocation}\n- **Event type:** {eventType}\n\n{{RSVP_LINKS}}\n\n### Event details\n\n{eventDetails}",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000004",
     subject: "Please RSVP: {eventTitle}",
     title: "Event RSVP Invitation",
@@ -60,7 +60,7 @@ const rsvpSystemCommunicationTemplates = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {singerName},\n\n## Rehearsal reminder\n\n- **Rehearsal:** {eventTitle}\n- **Date and time:** {eventDate}\n- **Location:** {eventLocation}\n\nPlease confirm whether you can attend.\n\n{{RSVP_LINKS}}\n\nThank you,\nChoir Management",
+      "Hi {recipientName},\n\n## Rehearsal reminder\n\n- **Rehearsal:** {eventTitle}\n- **Date and time:** {eventDate}\n- **Location:** {eventLocation}\n\nPlease confirm whether you can attend.\n\n{{RSVP_LINKS}}\n\nThank you,\nChoir Management",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000005",
     subject: "Rehearsal reminder: {eventTitle}",
     title: "Rehearsal Reminder",
@@ -71,7 +71,7 @@ const scheduledEventSystemCommunicationTemplates = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {singerName},\n\n## Your RSVP is still needed\n\n- **Event:** {eventTitle}\n- **Date and time:** {eventDate}\n- **Location:** {eventLocation}\n\nPlease let us know whether you can attend.\n\n{{RSVP_LINKS}}\n\nThank you,\nChoir Management",
+      "Hi {recipientName},\n\n## Your RSVP is still needed\n\n- **Event:** {eventTitle}\n- **Date and time:** {eventDate}\n- **Location:** {eventLocation}\n\nPlease let us know whether you can attend.\n\n{{RSVP_LINKS}}\n\nThank you,\nChoir Management",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000015",
     subject: "RSVP needed: {eventTitle}",
     title: "Event RSVP Follow-up",
@@ -130,7 +130,7 @@ const playerSystemCommunicationTemplates = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {singerName},\n\n## Performance reminder: {eventTitle}\n\n- **Call time:** {eventCallTime}\n- **Performance:** {eventDate}\n- **Location:** {eventLocation}\n\n{{RSVP_LINKS}}\n\n### Set list\n\n{setlist}\n\n### Practice materials\n\n{{PLAYER_LINK}}\n\nThank you,\nChoir Management",
+      "Hi {recipientName},\n\n## Performance reminder: {eventTitle}\n\n- **Call time:** {eventCallTime}\n- **Performance:** {eventDate}\n- **Location:** {eventLocation}\n\n{{RSVP_LINKS}}\n\n### Set list\n\n{setlist}\n\n### Practice materials\n\n{{PLAYER_LINK}}\n\nThank you,\nChoir Management",
     id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000006",
     subject: "Performance reminder: {eventTitle}",
     title: "Performance Reminder",
@@ -147,7 +147,7 @@ export const auditionSystemCommunicationTemplates = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {singerName},\n\n## We received your audition inquiry\n\nThank you for your interest. Our team will review your information and contact you with next steps.\n\nNo action is needed right now.\n\nBest,\nChoir Management",
+      "Hi {recipientName},\n\n## We received your audition inquiry\n\nThank you for your interest. Our team will review your information and contact you with next steps.\n\nNo action is needed right now.\n\nBest,\nChoir Management",
     id: auditionSystemCommunicationTemplateIds.submission,
     subject: "We received your audition inquiry",
     title: "Audition Submission Thanks",
@@ -155,7 +155,7 @@ export const auditionSystemCommunicationTemplates = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {singerName},\n\n## Your audition is confirmed\n\n- **Date:** {auditionDate}\n- **Time:** {auditionTime}\n- **Location:** {auditionLocation}\n\n{{AUDITION_LINK}}\n\nUse the link above if you need to review or update your audition. We look forward to meeting you.\n\nBest,\nChoir Management",
+      "Hi {recipientName},\n\n## Your audition is confirmed\n\n- **Date:** {auditionDate}\n- **Time:** {auditionTime}\n- **Location:** {auditionLocation}\n\n{{AUDITION_LINK}}\n\nUse the link above if you need to review or update your audition. We look forward to meeting you.\n\nBest,\nChoir Management",
     id: auditionSystemCommunicationTemplateIds.confirmation,
     subject: "Your audition is confirmed",
     title: "Audition Confirmed",
@@ -163,7 +163,7 @@ export const auditionSystemCommunicationTemplates = [
   {
     channel: "Email",
     contentMarkdown:
-      "Hi {singerName},\n\n## Your audition is tomorrow\n\n- **Date:** {auditionDate}\n- **Time:** {auditionTime}\n- **Location:** {auditionLocation}\n\n{{AUDITION_LINK}}\n\nUse the link above if you need to review or update your audition. We look forward to seeing you.\n\nBest,\nChoir Management",
+      "Hi {recipientName},\n\n## Your audition is tomorrow\n\n- **Date:** {auditionDate}\n- **Time:** {auditionTime}\n- **Location:** {auditionLocation}\n\n{{AUDITION_LINK}}\n\nUse the link above if you need to review or update your audition. We look forward to seeing you.\n\nBest,\nChoir Management",
     id: auditionSystemCommunicationTemplateIds.reminder,
     subject: "Reminder: your audition is tomorrow",
     title: "Audition Reminder",

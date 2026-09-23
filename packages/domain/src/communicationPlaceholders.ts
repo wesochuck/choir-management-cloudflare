@@ -25,7 +25,15 @@ export interface CommunicationPlaceholderDefinition {
   readonly label: string;
   readonly requiresEvent?: boolean;
   readonly tag: string;
+  readonly aliases?: readonly string[];
 }
+
+const legacyRecipientNameAliases = ["singerName", "buyerName"] as const;
+
+export const communicationRecipientNamePlaceholderKeys = [
+  "recipientName",
+  ...legacyRecipientNameAliases,
+] as const;
 
 export interface CommunicationAudienceLike {
   readonly eventId?: string | null;
@@ -60,7 +68,6 @@ export interface CommunicationTemplateLike {
 }
 
 const pollPlaceholderPattern = /\{\{POLL_LINK:[0-9a-f-]{36}\}\}/i;
-const pollPlaceholderGlobalPattern = /\{\{POLL_LINK:[0-9a-f-]{36}\}\}/gi;
 
 export const communicationPlaceholderDefinitions: readonly CommunicationPlaceholderDefinition[] = [
   {
@@ -68,7 +75,11 @@ export const communicationPlaceholderDefinitions: readonly CommunicationPlacehol
     contexts: ["standard", "poll", "ticket", "bundle", "attendance", "audition"],
     description: "The name of the person receiving this message.",
     label: "Recipient name",
-    tag: "{singerName}",
+    tag: "{recipientName}",
+    aliases: [
+      "{{recipientName}}",
+      ...legacyRecipientNameAliases.flatMap((name) => [`{${name}}`, `{{${name}}}`]),
+    ],
   },
   {
     category: "Organization",
@@ -416,23 +427,19 @@ export function findCommunicationPlaceholderDefinition(
     };
   }
   return (
-    communicationPlaceholderDefinitions.find((p) => p.tag.toLowerCase() === tag.toLowerCase()) ??
-    null
+    communicationPlaceholderDefinitions.find(
+      (placeholder) =>
+        placeholder.tag.toLowerCase() === tag.toLowerCase() ||
+        placeholder.aliases?.some((alias) => alias.toLowerCase() === tag.toLowerCase()),
+    ) ?? null
   );
 }
 
 export function extractCommunicationPlaceholders(text: string): readonly string[] {
   const found = new Set<string>();
-  for (const placeholder of communicationPlaceholderDefinitions) {
-    if (text.includes(placeholder.tag)) {
-      found.add(placeholder.tag);
-    }
-  }
-  const pollMatches = text.match(pollPlaceholderGlobalPattern);
-  if (pollMatches) {
-    for (const match of pollMatches) {
-      found.add(match);
-    }
+  const tokenMatches = text.matchAll(/\{\{[^{}]+\}\}|\{[^{}]+\}/g);
+  for (const [match] of tokenMatches) {
+    if (findCommunicationPlaceholderDefinition(match)) found.add(match);
   }
   return Array.from(found);
 }
@@ -591,7 +598,10 @@ export function templateMatchesCommunicationContext(
     template.contentMarkdown,
   );
   const usedTags = extractCommunicationPlaceholders(text);
-  return usedTags.every((tag) => visible.some((placeholder) => placeholder.tag === tag));
+  return usedTags.every((tag) => {
+    const definition = findCommunicationPlaceholderDefinition(tag);
+    return definition !== null && visible.some((placeholder) => placeholder.tag === definition.tag);
+  });
 }
 
 export function removeCommunicationPlaceholder(text: string, tag: string): string {

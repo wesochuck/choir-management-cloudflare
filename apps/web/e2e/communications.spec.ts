@@ -432,6 +432,38 @@ test("populates communication placeholders in the live message preview", async (
   await expect(finalPreview).not.toContainText("{eventTitle}");
 });
 
+test("uses the same recipient name placeholder for ticket buyers and mixed audiences", async ({
+  page,
+}) => {
+  const previewBodies: unknown[] = [];
+  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
+
+  await page.goto("/admin/communications?tab=compose");
+  const recipientPanel = page.locator(".communication-recipient-panel");
+  const personalize = page.getByRole("region", { name: "Personalize message" });
+  const recipientButton = personalize.getByRole("button", {
+    name: "{recipientName} Recipient name",
+  });
+
+  await expect(recipientButton).toBeVisible();
+  await expect(
+    personalize.getByRole("button", { name: /\{singerName\}|\{buyerName\}/ }),
+  ).toHaveCount(0);
+
+  await recipientPanel.getByRole("checkbox", { name: "Ticket Buyers" }).check();
+  await expect(recipientButton).toBeVisible();
+  await recipientPanel.getByRole("checkbox", { name: "Members" }).uncheck();
+  await expect(recipientButton).toBeVisible();
+
+  const message = page.getByRole("textbox", { name: "Message body" });
+  await message.fill("");
+  await recipientButton.click();
+  await expect(message).toHaveValue("{recipientName} ");
+  await expect(page.locator(".communication-composer-preview-col .preview-body")).toContainText(
+    "Alex Morgan",
+  );
+});
+
 test("shows the queued message in unified list and lets the user start another message", async ({
   page,
 }) => {
@@ -440,10 +472,14 @@ test("shows the queued message in unified list and lets the user start another m
 
   await page.goto("/admin/communications?tab=compose");
   await page.getByLabel("Subject").fill("Queued announcement");
-  await page.getByRole("textbox", { name: "Message body" }).fill("Hello queued recipients.");
+  await page
+    .getByRole("textbox", { name: "Message body" })
+    .fill("Hello {singerName}, queued recipients.");
   await page.getByRole("button", { name: "Review & send" }).click();
 
   const reviewDialog = page.getByRole("dialog", { name: "Review message" });
+  await expect(reviewDialog).toContainText("Alex Morgan");
+  await expect(reviewDialog).not.toContainText("{singerName}");
   await reviewDialog.getByRole("button", { name: "Send to 2 recipients" }).click();
 
   await expect(page.getByText("Message queued for 2 recipients.")).toBeVisible();

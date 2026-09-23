@@ -4,12 +4,16 @@ The old PocketBase application seeded message templates in its `messageTemplates
 current Communication Center stores templates per Organization and renders these supported values
 when a message is delivered:
 
-`{singerName}`, `{eventTitle}`, `{eventType}`, `{eventDate}`, `{eventLocation}`, `{eventCallTime}`,
-`{eventDetails}`, `{setlist}`, `{ticketQuantity}`, `{ticketAmount}`, `{ticketBundleName}`,
-`{{RSVP_LINKS}}`, `{{PLAYER_LINK}}`, and `{{TICKET_LINK}}`.
+`{recipientName}`, `{eventTitle}`, `{eventType}`, `{eventDate}`, `{eventLocation}`,
+`{eventCallTime}`, `{eventDetails}`, `{setlist}`, `{ticketQuantity}`, `{ticketAmount}`,
+`{ticketBundleName}`, `{{RSVP_LINKS}}`, `{{PLAYER_LINK}}`, and `{{TICKET_LINK}}`.
 
 Attendance reports additionally support `{attendanceRate}`, `{presentCount}`, `{totalCount}`,
 `{absenteesList}`, and `{thresholdWarningsSection}`.
+
+Existing saved content may use `{singerName}` or `{buyerName}` (with either single or double
+braces); both remain supported recipient-name aliases. New and reset system templates use
+`{recipientName}`.
 
 Audition system templates additionally support `{auditionDate}`, `{auditionTime}`,
 `{auditionDateTime}`, and `{auditionLocation}`.

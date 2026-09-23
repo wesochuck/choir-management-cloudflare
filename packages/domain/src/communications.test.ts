@@ -37,22 +37,32 @@ describe("Organization communications", () => {
     expect(communicationFailureCategory("credential unauthorized")).toBe("authentication");
   });
 
-  it("inserts recipient names literally without replacement-token interpretation", () => {
-    expect(renderCommunicationTemplate("Hello {singerName}", "$& $1 $$")).toBe("Hello $& $1 $$");
+  it("renders canonical recipient names literally without replacement-token interpretation", () => {
+    expect(renderCommunicationTemplate("Hello {recipientName}", "$& $1 $$")).toBe("Hello $& $1 $$");
+    expect(renderCommunicationTemplate("Hello {recipientName}", "{buyerName}")).toBe(
+      "Hello {buyerName}",
+    );
   });
 
   it("supports both scalar placeholder styles", () => {
     expect(
-      renderCommunicationTemplate("Hello {singerName}; {{eventTitle}}", "Ada Alto", {
-        eventTitle: "Spring Concert",
-      }),
-    ).toBe("Hello Ada Alto; Spring Concert");
+      renderCommunicationTemplate(
+        "Hello {recipientName}; {{recipientName}}; {{eventTitle}}",
+        "Ada Alto",
+        {
+          eventTitle: "Spring Concert",
+        },
+      ),
+    ).toBe("Hello Ada Alto; Ada Alto; Spring Concert");
   });
 
-  it("supports buyerName placeholder as recipient name alias", () => {
+  it("supports both legacy recipient aliases in both brace styles", () => {
     expect(
-      renderCommunicationTemplate("Thank you {buyerName}; order for {{buyerName}}", "Jane Buyer"),
-    ).toBe("Thank you Jane Buyer; order for Jane Buyer");
+      renderCommunicationTemplate(
+        "Hi {singerName}, {{singerName}}; thank you {buyerName}, {{buyerName}}.",
+        "Jane Buyer",
+      ),
+    ).toBe("Hi Jane Buyer, Jane Buyer; thank you Jane Buyer, Jane Buyer.");
   });
 
   it("renders organization logo placeholder with image, fallback text, or plain text for SMS", () => {

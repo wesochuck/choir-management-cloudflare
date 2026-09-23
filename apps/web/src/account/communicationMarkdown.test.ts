@@ -24,26 +24,36 @@ describe("renderCommunicationMarkdownPreview", () => {
   });
 
   it("populates preview placeholders without changing the source", () => {
-    const source = "Hi {singerName}, {eventTitle}. {{RSVP_LINKS}}";
+    const source = "Hi {recipientName}, {eventTitle}. {{RSVP_LINKS}}";
     const rendered = renderCommunicationMarkdownPreview(source, communicationPreviewValues(null));
 
     expect(rendered).toContain("Alex Morgan");
     expect(rendered).toContain("Example Performance");
     expect(rendered).toContain("View RSVP details");
-    expect(rendered).not.toContain("{singerName}");
-    expect(source).toBe("Hi {singerName}, {eventTitle}. {{RSVP_LINKS}}");
+    expect(rendered).not.toContain("{recipientName}");
+    expect(source).toBe("Hi {recipientName}, {eventTitle}. {{RSVP_LINKS}}");
   });
 
-  it("populates scalar placeholders written with double braces", () => {
+  it("previews canonical recipient placeholders written with double braces", () => {
     const rendered = renderCommunicationMarkdownPreview(
-      "Hi {{singerName}}, {{eventTitle}}.",
+      "Hi {{recipientName}}, {{eventTitle}}.",
       communicationPreviewValues(null),
     );
 
     expect(rendered).toContain("Alex Morgan");
     expect(rendered).toContain("Example Performance");
-    expect(rendered).not.toContain("{{singerName}}");
+    expect(rendered).not.toContain("{{recipientName}}");
     expect(rendered).not.toContain("{{eventTitle}}");
+  });
+
+  it("continues to preview legacy recipient aliases in both brace styles", () => {
+    const rendered = renderCommunicationMarkdownPreview(
+      "Hi {singerName}, {{singerName}}, {buyerName}, and {{buyerName}}.",
+      communicationPreviewValues(null),
+    );
+
+    expect(rendered.match(/Alex Morgan/g)).toHaveLength(4);
+    expect(rendered).not.toMatch(/\{\{?(?:singerName|buyerName)\}\}?/);
   });
 
   it("populates refund placeholders and the order details link", () => {

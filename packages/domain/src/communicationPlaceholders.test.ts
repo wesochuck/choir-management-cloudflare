@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   determineCommunicationPlaceholderContext,
+  extractCommunicationPlaceholders,
   isPlaceholderCompatibleWithAudience,
   isPlaceholderCompatibleWithChannel,
   removeCommunicationPlaceholder,
@@ -115,19 +116,49 @@ describe("communicationPlaceholders domain logic", () => {
     });
 
     it("allows universal placeholders for any audience combination", () => {
-      const singerNameDef = getDef("{singerName}");
+      const recipientNameDef = getDef("{recipientName}");
       const orgNameDef = getDef("{organizationName}");
 
-      expect(isPlaceholderCompatibleWithAudience(singerNameDef, ["Members"])).toBe(true);
-      expect(isPlaceholderCompatibleWithAudience(singerNameDef, ["Ticket Buyers"])).toBe(true);
-      expect(isPlaceholderCompatibleWithAudience(singerNameDef, ["Donors"])).toBe(true);
+      expect(isPlaceholderCompatibleWithAudience(recipientNameDef, ["Members"])).toBe(true);
+      expect(isPlaceholderCompatibleWithAudience(recipientNameDef, ["Contacts"])).toBe(true);
+      expect(isPlaceholderCompatibleWithAudience(recipientNameDef, ["Ticket Buyers"])).toBe(true);
+      expect(isPlaceholderCompatibleWithAudience(recipientNameDef, ["Donors"])).toBe(true);
       expect(
-        isPlaceholderCompatibleWithAudience(singerNameDef, ["Members", "Ticket Buyers", "Donors"]),
+        isPlaceholderCompatibleWithAudience(recipientNameDef, [
+          "Members",
+          "Contacts",
+          "Ticket Buyers",
+          "Donors",
+        ]),
       ).toBe(true);
 
       expect(isPlaceholderCompatibleWithAudience(orgNameDef, ["Members", "Ticket Buyers"])).toBe(
         true,
       );
+    });
+
+    it("recognizes legacy recipient tokens as the canonical recipient placeholder", () => {
+      const recipientNameDef = getDef("{recipientName}");
+      for (const token of [
+        "{singerName}",
+        "{{singerName}}",
+        "{buyerName}",
+        "{{buyerName}}",
+        "{{recipientName}}",
+      ]) {
+        expect(findCommunicationPlaceholderDefinition(token)).toEqual(recipientNameDef);
+      }
+      expect(
+        extractCommunicationPlaceholders(
+          "Hi {recipientName}, {singerName}, {{singerName}}, {buyerName}, and {{buyerName}}",
+        ),
+      ).toEqual([
+        "{recipientName}",
+        "{singerName}",
+        "{{singerName}}",
+        "{buyerName}",
+        "{{buyerName}}",
+      ]);
     });
   });
 
@@ -140,14 +171,33 @@ describe("communicationPlaceholders domain logic", () => {
     });
 
     it("allows universal placeholders on all channels", () => {
-      const singerNameDef = getDef("{singerName}");
-      expect(isPlaceholderCompatibleWithChannel(singerNameDef, "Email")).toBe(true);
-      expect(isPlaceholderCompatibleWithChannel(singerNameDef, "SMS")).toBe(true);
-      expect(isPlaceholderCompatibleWithChannel(singerNameDef, "Both")).toBe(true);
+      const recipientNameDef = getDef("{recipientName}");
+      expect(isPlaceholderCompatibleWithChannel(recipientNameDef, "Email")).toBe(true);
+      expect(isPlaceholderCompatibleWithChannel(recipientNameDef, "SMS")).toBe(true);
+      expect(isPlaceholderCompatibleWithChannel(recipientNameDef, "Both")).toBe(true);
     });
   });
 
   describe("visibleCommunicationPlaceholders", () => {
+    it("shows one canonical recipient token for each audience and mixed audiences", () => {
+      for (const targetAudiences of [
+        ["Members"],
+        ["Contacts"],
+        ["Ticket Buyers"],
+        ["Donors"],
+        ["Members", "Ticket Buyers", "Donors"],
+      ]) {
+        const recipientTags = visibleCommunicationPlaceholders(
+          audience(targetAudiences),
+          "Email",
+          "standard",
+        )
+          .filter(({ category }) => category === "Recipient")
+          .map(({ tag }) => tag);
+        expect(recipientTags).toEqual(["{recipientName}"]);
+      }
+    });
+
     it("returns RSVP and player links for Members with an event on Email", () => {
       const placeholders = visibleCommunicationPlaceholders(
         audience(["Members"], "event-123"),
@@ -172,7 +222,9 @@ describe("communicationPlaceholders domain logic", () => {
       expect(tags).not.toContain("{{RSVP_LINKS}}");
       expect(tags).not.toContain("{{PLAYER_LINK}}");
       expect(tags).not.toContain("{eventTitle}");
-      expect(tags).toContain("{singerName}");
+      expect(tags).toContain("{recipientName}");
+      expect(tags).not.toContain("{singerName}");
+      expect(tags).not.toContain("{buyerName}");
       expect(tags).toContain("{organizationName}");
     });
 
@@ -200,6 +252,16 @@ describe("communicationPlaceholders domain logic", () => {
         subject: "Rehearsal notice",
       });
       expect(issues).toHaveLength(0);
+    });
+
+    it("returns no issues for legacy recipient aliases with buyer and donor audiences", () => {
+      const issues = validateCommunicationContext({
+        audience: audience(["Ticket Buyers", "Donors"]),
+        channel: "Email",
+        contentMarkdown: "Hello {{singerName}} and {buyerName}.",
+        subject: "Hello {singerName}",
+      });
+      expect(issues).toEqual([]);
     });
 
     it("returns incompatible_audience issue when mixed audience contains RSVP", () => {
@@ -246,7 +308,7 @@ describe("communicationPlaceholders domain logic", () => {
     it("matches template with RSVP for Members + Email + event", () => {
       const template = {
         channel: "Email" as const,
-        contentMarkdown: "Hi {singerName}, please RSVP: {{RSVP_LINKS}}",
+        contentMarkdown: "Hi {recipientName}, please RSVP: {{RSVP_LINKS}}",
         subject: "RSVP for {eventTitle}",
         title: "Rehearsal RSVP",
       };
@@ -268,6 +330,29 @@ describe("communicationPlaceholders domain logic", () => {
       ).toBe(false);
     });
 
+    it("matches saved templates that use either legacy recipient alias", () => {
+      for (const token of [
+        "{singerName}",
+        "{{singerName}}",
+        "{buyerName}",
+        "{{buyerName}}",
+      ] as const) {
+        const template = {
+          channel: "Email" as const,
+          contentMarkdown: `Hello ${token}`,
+          subject: "General announcement",
+          title: "General Announcement",
+        };
+        expect(
+          templateMatchesCommunicationContext(
+            template,
+            audience(["Members", "Ticket Buyers", "Donors"]),
+            "Email",
+          ),
+        ).toBe(true);
+      }
+    });
+
     it("matches universal template for mixed audiences", () => {
       const template = {
         channel: "Email" as const,
@@ -287,9 +372,18 @@ describe("communicationPlaceholders domain logic", () => {
 
   describe("removeCommunicationPlaceholder", () => {
     it("cleanly removes a placeholder from content", () => {
-      const text = "Hello {singerName},\n\nPlease RSVP: {{RSVP_LINKS}}\n\nThank you!";
+      const text = "Hello {recipientName},\n\nPlease RSVP: {{RSVP_LINKS}}\n\nThank you!";
       expect(removeCommunicationPlaceholder(text, "{{RSVP_LINKS}}")).toBe(
-        "Hello {singerName},\n\nPlease RSVP:\n\nThank you!",
+        "Hello {recipientName},\n\nPlease RSVP:\n\nThank you!",
+      );
+    });
+
+    it("removes the exact legacy alias found in message content", () => {
+      const text = "Hello {{singerName}}\n\nThank you {buyerName}!";
+      const token = extractCommunicationPlaceholders(text).find((tag) => tag.startsWith("{{"));
+      expect(token).toBe("{{singerName}}");
+      expect(removeCommunicationPlaceholder(text, token ?? "")).toBe(
+        "Hello\n\nThank you {buyerName}!",
       );
     });
   });
