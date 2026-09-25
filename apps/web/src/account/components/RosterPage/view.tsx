@@ -956,6 +956,23 @@ export function RosterPageView({
                 </label>
                 <label className="checkbox-row">
                   <input
+                    checked={profile.receiveFinancialAlerts}
+                    onChange={(event) => {
+                      setProfile((current) => ({
+                        ...current,
+                        receiveFinancialAlerts: event.target.checked,
+                      }));
+                    }}
+                    type="checkbox"
+                  />
+                  Receive financial alerts (ticket sales)
+                </label>
+                <p className="field-help">
+                  Sends ticket sale notifications to this member when they have a linked email and
+                  email delivery is available.
+                </p>
+                <label className="checkbox-row">
+                  <input
                     checked={profile.hidden}
                     onChange={(event) => {
                       setProfile((current) => ({

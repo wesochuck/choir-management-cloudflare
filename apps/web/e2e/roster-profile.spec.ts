@@ -223,6 +223,28 @@ test("keeps the roster profile dialog open when Messages is selected", async ({ 
     });
   });
 
+  let savedProfilePayload: Record<string, unknown> | null = null;
+  await page.route(`**/api/organization/profiles/${profileId}`, async (route) => {
+    if (route.request().method() === "PUT") {
+      savedProfilePayload = JSON.parse(route.request().postData() ?? "{}");
+      await route.fulfill({
+        body: JSON.stringify({
+          ...savedProfilePayload,
+          createdAt: "2026-07-20T20:00:00.000Z",
+          id: profileId,
+          requestId,
+          statusChangedAt: "2026-07-20T20:00:00.000Z",
+          statusChangeReason: "Updated",
+          updatedAt: "2026-07-20T21:00:00.000Z",
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+      return;
+    }
+    await route.fallback();
+  });
+
   await page.goto("/admin/roster");
   const rosterPage = page.getByRole("main");
   await rosterPage.getByRole("tab", { name: "Settings" }).click();
@@ -252,6 +274,15 @@ test("keeps the roster profile dialog open when Messages is selected", async ({ 
   const profileDialog = page.getByRole("dialog", { name: "Edit Profile" });
   await expect(profileDialog).toBeVisible();
   await profileDialog.getByLabel("Display name").fill("Unsaved browser singer");
+
+  const financialAlertsCheckbox = profileDialog.getByLabel(
+    "Receive financial alerts (ticket sales)",
+  );
+  await expect(financialAlertsCheckbox).toBeVisible();
+  await expect(financialAlertsCheckbox).not.toBeChecked();
+  await financialAlertsCheckbox.check();
+  await expect(financialAlertsCheckbox).toBeChecked();
+
   await profileDialog.getByRole("tab", { name: "Messages" }).click();
 
   await expect(profileDialog).toBeVisible();
@@ -260,4 +291,22 @@ test("keeps the roster profile dialog open when Messages is selected", async ({ 
     "true",
   );
   await expect(profileDialog.getByText("Welcome")).toBeVisible();
+
+  await profileDialog.getByRole("tab", { name: "Info" }).click();
+  await profileDialog.getByRole("button", { name: "Save Profile" }).click();
+  await expect(profileDialog).not.toBeVisible();
+  expect(savedProfilePayload).toMatchObject({
+    receiveFinancialAlerts: true,
+  });
+
+  await rosterPage.getByRole("button", { name: "Add Profile" }).click();
+  const createDialog = page.getByRole("dialog", { name: "Add Profile" });
+  await expect(createDialog).toBeVisible();
+  const newProfileFinancialAlertsCheckbox = createDialog.getByLabel(
+    "Receive financial alerts (ticket sales)",
+  );
+  await expect(newProfileFinancialAlertsCheckbox).toBeVisible();
+  await expect(newProfileFinancialAlertsCheckbox).not.toBeChecked();
+  await createDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(createDialog).not.toBeVisible();
 });

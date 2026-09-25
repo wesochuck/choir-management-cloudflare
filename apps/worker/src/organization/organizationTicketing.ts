@@ -37,6 +37,7 @@ import { PaymentRefundError, requestOrganizationProviderRefund } from "../paymen
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
 import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 import { mutateOrganizationStore, readOrganizationStore, storeErrorCode } from "./rpc/repository";
+import { queueTicketSaleAlert } from "./ticketSaleAlerts";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -148,7 +149,9 @@ export async function createPublicTicketCheckout(
     | "SIGNED_LINK_SECRET"
     | "STRIPE_PAYMENTS_ENABLED"
     | "STRIPE_SECRET_KEY"
-  >,
+  > & {
+    readonly CONTROL_DB?: Env["CONTROL_DB"];
+  },
   organizationId: string,
   origin: string,
   checkout: TicketCheckoutRequest,
@@ -202,6 +205,36 @@ export async function createPublicTicketCheckout(
     const successUrl = new URL("/tickets/order/success", origin);
     successUrl.searchParams.set("token", successToken);
     if (pendingPurchase.checkoutMode === "free" || pendingPurchase.status === "paid") {
+      try {
+        await queueTicketSaleAlert(env, {
+          actorUserId: "public_guest",
+          amountPaidCents: pendingPurchase.amountPaidCents,
+          buyerEmail: pendingPurchase.buyerEmail,
+          buyerName: pendingPurchase.buyerName,
+          currency: pendingPurchase.currency,
+          eventId: pendingPurchase.eventId,
+          eventStartsAt: pendingPurchase.eventStartsAt,
+          eventTitle:
+            pendingPurchase.bundleTitle.trim().length > 0
+              ? pendingPurchase.bundleTitle
+              : pendingPurchase.eventTitle,
+          orderUrl: `${origin}/admin/tickets`,
+          organizationId,
+          organizationOrigin: origin,
+          purchaseId: pendingPurchase.id,
+          quantity: pendingPurchase.quantity,
+          requestId: validated.checkoutRequestId,
+        });
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            event: "ticket_sale_alert_queue_failed",
+            organizationId,
+            purchaseId: pendingPurchase.id,
+            reason: error instanceof Error ? error.message : "unknown_error",
+          }),
+        );
+      }
       return {
         checkoutMode: pendingPurchase.checkoutMode === "free" ? ("free" as const) : checkoutMode,
         purchase: publicTicketPurchaseSchema.parse(pendingPurchase),
@@ -393,6 +426,36 @@ export async function createPublicTicketCheckout(
     );
   }
   const purchase = organizationTicketOrderSchema.parse(await response.json());
+  if (purchase.status === "paid") {
+    try {
+      await queueTicketSaleAlert(env, {
+        actorUserId: "public_guest",
+        amountPaidCents: purchase.amountPaidCents,
+        buyerEmail: purchase.buyerEmail,
+        buyerName: purchase.buyerName,
+        currency: purchase.currency,
+        eventId: purchase.eventId,
+        eventStartsAt: purchase.eventStartsAt,
+        eventTitle:
+          purchase.bundleTitle.trim().length > 0 ? purchase.bundleTitle : purchase.eventTitle,
+        orderUrl: `${origin}/admin/tickets`,
+        organizationId,
+        organizationOrigin: origin,
+        purchaseId: purchase.id,
+        quantity: purchase.quantity,
+        requestId: validated.checkoutRequestId,
+      });
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: "ticket_sale_alert_queue_failed",
+          organizationId,
+          purchaseId: purchase.id,
+          reason: error instanceof Error ? error.message : "unknown_error",
+        }),
+      );
+    }
+  }
   const issuedAt = Math.floor(Date.now() / 1000);
   const eventEndsAt = Math.floor(purchaseEndsAt(purchase) / 1000) + 24 * 60 * 60;
   const successToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {

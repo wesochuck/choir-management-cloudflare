@@ -2,8 +2,11 @@ import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { z } from "zod";
 
+import { organizationTicketOrderSchema } from "@choir/contracts";
 import type { Env } from "../env";
+import { deliveryOrigin } from "../jobs/deliveries/shared";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
+import { queueTicketSaleAlert } from "../organization/ticketSaleAlerts";
 import {
   mapStripeAccountReadiness,
   retrieveStripeConnectedAccount,
@@ -241,6 +244,51 @@ async function reconcileCompletedPaymentFee(
   }
 }
 
+async function queueStripeTicketSaleAlert(
+  context: StripeContext,
+  organizationId: string,
+  resultBody: unknown,
+): Promise<void> {
+  const isDuplicate =
+    typeof resultBody === "object" && resultBody !== null && "duplicate" in resultBody;
+  if (isDuplicate) return;
+
+  const parsedPurchase = organizationTicketOrderSchema.safeParse(resultBody);
+  if (!parsedPurchase.success || parsedPurchase.data.status !== "paid") return;
+
+  try {
+    const origin = await deliveryOrigin(context.env, organizationId, { unsubscribeUrl: null });
+    await queueTicketSaleAlert(context.env, {
+      actorUserId: "stripe",
+      amountPaidCents: parsedPurchase.data.amountPaidCents,
+      buyerEmail: parsedPurchase.data.buyerEmail,
+      buyerName: parsedPurchase.data.buyerName,
+      currency: parsedPurchase.data.currency,
+      eventId: parsedPurchase.data.eventId,
+      eventStartsAt: parsedPurchase.data.eventStartsAt,
+      eventTitle:
+        parsedPurchase.data.bundleTitle.trim().length > 0
+          ? parsedPurchase.data.bundleTitle
+          : parsedPurchase.data.eventTitle,
+      orderUrl: `${origin}/admin/tickets`,
+      organizationId,
+      organizationOrigin: origin,
+      purchaseId: parsedPurchase.data.id,
+      quantity: parsedPurchase.data.quantity,
+      requestId: context.get("requestId"),
+    });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "ticket_sale_alert_queue_failed",
+        organizationId,
+        purchaseId: parsedPurchase.data.id,
+        reason: error instanceof Error ? error.message : "unknown_error",
+      }),
+    );
+  }
+}
+
 async function handleCompleted(
   context: StripeContext,
   organizationId: string,
@@ -277,6 +325,10 @@ async function handleCompleted(
 
   if (accountId && values.providerPaymentId) {
     await reconcileCompletedPaymentFee(context, organizationId, values, accountId);
+  }
+
+  if (target.action === "stripe_ticket_completed") {
+    await queueStripeTicketSaleAlert(context, organizationId, result.body);
   }
 
   return context.json({
