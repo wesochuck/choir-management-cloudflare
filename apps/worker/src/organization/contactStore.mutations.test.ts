@@ -34,7 +34,7 @@ describe("contact schema migrations with real SQLite", () => {
     createContactTestAdapter(db);
     runMigrations(db);
 
-    expect(currentOrganizationSchemaVersion).toBe(94);
+    expect(currentOrganizationSchemaVersion).toBe(95);
     const tables = new Set<string>();
     for (const row of dbAllUnknown(db, "SELECT name FROM sqlite_master WHERE type = 'table'")) {
       if (isNameRow(row)) tables.add(row.name);

@@ -45,7 +45,7 @@ afterEach(async () => {
 });
 
 describe("Hourly fee reconciliation candidate scan hardening (#67)", () => {
-  it("proves new organizations start at the updated schema version 94", async () => {
+  it("proves new organizations start at the updated schema version (including version 94)", async () => {
     const stub = await provisionOrganization("org-fee-schema-version");
     await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
       const version = state.storage.sql
@@ -54,7 +54,7 @@ describe("Hourly fee reconciliation candidate scan hardening (#67)", () => {
         )
         .one().version;
       expect(version).toBe(currentOrganizationSchemaVersion);
-      expect(version).toBe(94);
+      expect(version).toBeGreaterThanOrEqual(94);
     });
   });
 

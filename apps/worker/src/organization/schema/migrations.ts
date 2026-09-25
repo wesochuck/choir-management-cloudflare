@@ -1591,6 +1591,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
          AND provider_payment_id NOT LIKE 'fake_%'`,
     ],
   },
+  {
+    version: 95,
+    statements: [
+      `CREATE INDEX IF NOT EXISTS idx_job_ledger_job_id
+       ON job_ledger(job_id)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;
