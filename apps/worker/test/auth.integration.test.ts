@@ -540,4 +540,117 @@ describe("Better Auth Worker integration", () => {
       user: { id: "user-invited-member" },
     });
   });
+
+  it("enforces rate limits on authentication endpoints and returns 429", async () => {
+    const sendOtp = (ip: string) =>
+      fetchWorker(
+        authRequest("/api/auth/email-otp/send-verification-otp", {
+          body: JSON.stringify({ email: "unknown@example.test", type: "sign-in" }),
+          headers: { "cf-connecting-ip": ip },
+          method: "POST",
+        }),
+      );
+
+    const clientIp = "198.51.100.1";
+    // 3 allowed per 60-second window
+    const res1 = await sendOtp(clientIp);
+    expect(res1.status).toBe(200);
+
+    const res2 = await sendOtp(clientIp);
+    expect(res2.status).toBe(200);
+
+    const res3 = await sendOtp(clientIp);
+    expect(res3.status).toBe(200);
+
+    // 4th request exceeds rate limit
+    const res4 = await sendOtp(clientIp);
+    expect(res4.status).toBe(429);
+    expect(res4.headers.get("x-retry-after")).toBeDefined();
+    await expect(res4.json()).resolves.toMatchObject({
+      message: "Too many requests. Please try again later.",
+    });
+
+    // A different IP is not blocked
+    const otherIpRes = await sendOtp("198.51.100.2");
+    expect(otherIpRes.status).toBe(200);
+  });
+
+  it("cleans up expired rateLimit database records when a window expires", async () => {
+    const clientIp = "198.51.100.10";
+    const now = Date.now();
+    const expiredTimestamp = now - 120_000; // 2 minutes ago (> 60s max window)
+
+    // Seed expired rate limit entries representing old windows from various keys
+    await testEnv.CONTROL_DB.batch([
+      testEnv.CONTROL_DB.prepare(
+        "INSERT INTO rateLimit (id, key, count, lastRequest) VALUES (?, ?, ?, ?)",
+      ).bind(
+        crypto.randomUUID(),
+        `${clientIp}|/email-otp/send-verification-otp`,
+        3,
+        expiredTimestamp,
+      ),
+      testEnv.CONTROL_DB.prepare(
+        "INSERT INTO rateLimit (id, key, count, lastRequest) VALUES (?, ?, ?, ?)",
+      ).bind(crypto.randomUUID(), "198.51.100.11|/sign-in/email", 5, expiredTimestamp),
+      testEnv.CONTROL_DB.prepare(
+        "INSERT INTO rateLimit (id, key, count, lastRequest) VALUES (?, ?, ?, ?)",
+      ).bind(
+        crypto.randomUUID(),
+        "198.51.100.12|/email-otp/send-verification-otp",
+        2,
+        expiredTimestamp,
+      ),
+    ]);
+
+    // Also seed an active entry that is NOT expired
+    const activeKey = "198.51.100.99|/email-otp/send-verification-otp";
+    await testEnv.CONTROL_DB.prepare(
+      "INSERT INTO rateLimit (id, key, count, lastRequest) VALUES (?, ?, ?, ?)",
+    )
+      .bind(crypto.randomUUID(), activeKey, 1, now)
+      .run();
+
+    // Verify initial state has 4 rows
+    const beforeCount = await testEnv.CONTROL_DB.prepare(
+      "SELECT COUNT(*) AS total FROM rateLimit",
+    ).first<{ total: number }>();
+    expect(beforeCount?.total).toBe(4);
+
+    // Make a request from clientIp whose window has expired.
+    // Better Auth detects now - data.lastRequest > windowInMs, resets the counter,
+    // and triggers background cleanup (deleteExpiredRows) via waitUntil.
+    const response = await fetchWorker(
+      authRequest("/api/auth/email-otp/send-verification-otp", {
+        body: JSON.stringify({ email: "unknown@example.test", type: "sign-in" }),
+        headers: { "cf-connecting-ip": clientIp },
+        method: "POST",
+      }),
+    );
+    expect(response.status).toBe(200);
+
+    // Check remaining rateLimit rows
+    const rows = await testEnv.CONTROL_DB.prepare(
+      "SELECT key, count, lastRequest FROM rateLimit",
+    ).all<{ count: number; key: string; lastRequest: number }>();
+
+    // Expired rows for 198.51.100.11 and 198.51.100.12 must have been pruned
+    const keys = rows.results.map((r) => r.key);
+    expect(keys).not.toContain("198.51.100.11|/sign-in/email");
+    expect(keys).not.toContain("198.51.100.12|/email-otp/send-verification-otp");
+
+    // The active row should still be present
+    expect(keys).toContain(activeKey);
+
+    // The requesting client row should be refreshed with count = 1 and new timestamp
+    const clientRow = rows.results.find(
+      (r) => r.key === `${clientIp}|/email-otp/send-verification-otp`,
+    );
+    expect(clientRow).toBeDefined();
+    expect(clientRow?.count).toBe(1);
+    expect(clientRow?.lastRequest).toBeGreaterThanOrEqual(now);
+
+    // Table entries are bounded to active windows
+    expect(rows.results.length).toBe(2);
+  });
 });
