@@ -4,6 +4,7 @@ import {
   type OrganizationEvent,
   type OrganizationTicketOrder,
 } from "@choir/contracts";
+import { calculatePaymentFinancialSummary, type PaymentFinancialSummary } from "@choir/domain";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
@@ -93,17 +94,20 @@ interface WillCallPanelTestOptions {
 function WillCallPanelHarness({
   orders,
   options,
+  financialSummary,
 }: {
   readonly orders: readonly OrganizationTicketOrder[];
   readonly options: WillCallPanelTestOptions;
+  readonly financialSummary?: PaymentFinancialSummary | undefined;
 }) {
   const [showRefunded, setShowRefunded] = useState(options.showRefunded ?? false);
+  const resolvedSummary = financialSummary ?? calculatePaymentFinancialSummary(orders);
   return (
     <WillCallPanel
       busy={false}
       clearDiscountCodeFilter={options.clearDiscountCodeFilter ?? vi.fn()}
       discountCodeFilter={options.discountCodeFilter ?? null}
-      feesCollectedCents={0}
+      financialSummary={resolvedSummary}
       lastOrderRefreshAt={new Date("2026-07-23T15:00:00.000Z")}
       performanceOrders={orders}
       refreshOrders={vi.fn(() => Promise.resolve())}
@@ -120,9 +124,7 @@ function WillCallPanelHarness({
       showRefunded={showRefunded}
       state={{ orders, status: "ready" }}
       ticketEvents={[event]}
-      ticketSalesCents={2500}
       ticketSoldLabel="2"
-      totalRevenueCents={2500}
       visibleOrders={orders}
       willCallSearch=""
     />
@@ -132,8 +134,11 @@ function WillCallPanelHarness({
 function renderWillCallPanel(
   orders: readonly OrganizationTicketOrder[],
   options: WillCallPanelTestOptions = {},
+  financialSummary?: PaymentFinancialSummary,
 ) {
-  return render(<WillCallPanelHarness options={options} orders={orders} />);
+  return render(
+    <WillCallPanelHarness financialSummary={financialSummary} options={options} orders={orders} />,
+  );
 }
 
 function getWillCallTable(): HTMLTableElement {
@@ -257,5 +262,110 @@ describe("WillCallPanel discount codes", () => {
 
     await user.click(screen.getByRole("button", { name: "Clear filter" }));
     expect(clearDiscountCodeFilter).toHaveBeenCalledOnce();
+  });
+});
+
+function getMetricCard(modifier: string): HTMLElement {
+  const card = document.querySelector(`.ticket-dashboard__metric--${modifier}`);
+  if (!(card instanceof HTMLElement)) {
+    throw new Error(`Expected metric card with modifier --${modifier}`);
+  }
+  return card;
+}
+
+describe("WillCallPanel financial KPI cards and fee reconciliation", () => {
+  it("renders all 6 refund-aware sales KPI cards with reconciled Stripe fees", () => {
+    const reconciledPaidOrder = ticketOrder({
+      amountPaidCents: 2600,
+      checkoutMode: "stripe",
+      feeCents: 100,
+      processorFeeCents: 105,
+      status: "paid",
+    });
+
+    renderWillCallPanel([reconciledPaidOrder]);
+
+    // 1. Tickets sold
+    const soldCard = getMetricCard("sold");
+    expect(within(soldCard).getByText("Tickets sold")).toBeInTheDocument();
+
+    // 2. Gross charged
+    const grossCard = getMetricCard("gross");
+    expect(within(grossCard).getByText("Gross charged")).toBeInTheDocument();
+    expect(within(grossCard).getByText("$26.00")).toBeInTheDocument();
+
+    // 3. Refunds
+    const refundsCard = getMetricCard("refunds");
+    expect(within(refundsCard).getByText("Refunds")).toBeInTheDocument();
+    expect(within(refundsCard).getByText("$0.00")).toBeInTheDocument();
+
+    // 4. Customer fees collected
+    const feesCard = getMetricCard("fees");
+    expect(within(feesCard).getByText("Customer fees collected")).toBeInTheDocument();
+    expect(within(feesCard).getByText("$1.00")).toBeInTheDocument();
+
+    // 5. Stripe processing fees paid by Organization
+    const processorCard = getMetricCard("processor-fees");
+    expect(
+      within(processorCard).getByText("Stripe processing fees paid by Organization"),
+    ).toBeInTheDocument();
+    expect(within(processorCard).getByText("-$1.05")).toBeInTheDocument();
+
+    // 6. Net Organization proceeds: $26.00 - $0 - $1.05 = $24.95
+    const netCard = getMetricCard("net");
+    expect(within(netCard).getByText("Net Organization proceeds")).toBeInTheDocument();
+    expect(within(netCard).getByText("$24.95")).toBeInTheDocument();
+
+    // Helper text
+    expect(
+      screen.getByText(
+        "The buyer receives a full refund. Stripe retains the original processing fee, which is paid by the Organization.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows negative net proceeds equal to retained Stripe fee for fully refunded orders", () => {
+    const fullyRefundedOrder = ticketOrder({
+      amountPaidCents: 5000,
+      checkoutMode: "stripe",
+      feeCents: 0,
+      processorFeeCents: 175,
+      status: "refunded",
+    });
+
+    renderWillCallPanel([fullyRefundedOrder]);
+
+    const grossCard = getMetricCard("gross");
+    expect(within(grossCard).getByText("$50.00")).toBeInTheDocument();
+
+    const refundsCard = getMetricCard("refunds");
+    expect(within(refundsCard).getByText("-$50.00")).toBeInTheDocument();
+
+    const processorCard = getMetricCard("processor-fees");
+    expect(within(processorCard).getByText("-$1.75")).toBeInTheDocument();
+
+    const netCard = getMetricCard("net");
+    expect(within(netCard).getByText("-$1.75")).toBeInTheDocument();
+  });
+
+  it("shows Pending for fees and net proceeds with helper text when fees are unreconciled", () => {
+    const unreconciledOrder = ticketOrder({
+      amountPaidCents: 3000,
+      checkoutMode: "stripe",
+      feeCents: 0,
+      processorFeeCents: null,
+      status: "paid",
+    });
+
+    renderWillCallPanel([unreconciledOrder]);
+
+    const processorCard = getMetricCard("processor-fees");
+    expect(within(processorCard).getByText("Pending")).toBeInTheDocument();
+
+    const netCard = getMetricCard("net");
+    expect(within(netCard).getByText("Pending")).toBeInTheDocument();
+
+    expect(screen.getByText("Stripe fee reconciliation pending")).toBeInTheDocument();
+    expect(screen.getByText("Pending Stripe fees")).toBeInTheDocument();
   });
 });

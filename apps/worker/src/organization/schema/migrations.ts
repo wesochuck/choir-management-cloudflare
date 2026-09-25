@@ -1571,6 +1571,15 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON ticket_notifications(provider_message_id) WHERE provider_message_id IS NOT NULL`,
     ],
   },
+  {
+    version: 93,
+    statements: [
+      "ALTER TABLE payment_attempts ADD COLUMN processor_fee_cents INTEGER",
+      "ALTER TABLE payment_attempts ADD COLUMN provider_balance_transaction_id TEXT",
+      "ALTER TABLE payment_attempts ADD COLUMN processor_fee_reconciled_at TEXT",
+      "CREATE INDEX IF NOT EXISTS payment_attempts_provider_payment ON payment_attempts(provider_payment_id) WHERE provider_payment_id <> ''",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

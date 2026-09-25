@@ -4,7 +4,11 @@ import { z } from "zod";
 
 import type { Env } from "../env";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
-import { mapStripeAccountReadiness, retrieveStripeConnectedAccount } from "./stripeConnect";
+import {
+  mapStripeAccountReadiness,
+  retrieveStripeConnectedAccount,
+  retrieveStripePaymentSettlement,
+} from "./stripeConnect";
 import {
   resolveOrganizationForStripeAccount,
   upsertStripeAccountOrganization,
@@ -120,6 +124,8 @@ async function dispatch(
     readonly disputeStatus?: string;
     readonly reason?: string;
     readonly amountCents?: number;
+    readonly processorFeeCents?: number;
+    readonly providerBalanceTransactionId?: string;
   },
 ): Promise<DispatchResult> {
   const response = await invokeOrganizationRpc(
@@ -159,6 +165,7 @@ async function handleCompleted(
     readonly providerSessionId: string;
     readonly stripeEventId: string;
   },
+  accountId?: string,
 ): Promise<Response> {
   const target = paymentTarget(paymentType);
   if (!target)
@@ -181,6 +188,42 @@ async function handleCompleted(
       status,
     );
   }
+
+  if (accountId && values.providerPaymentId && context.env.STRIPE_SECRET_KEY) {
+    try {
+      const settlement = await retrieveStripePaymentSettlement(
+        context.env.STRIPE_SECRET_KEY,
+        accountId,
+        values.providerPaymentId,
+      );
+      if (settlement.feeCents !== null) {
+        await dispatch(
+          context,
+          organizationId,
+          { action: "reconcile_payment_processor_fee", path: "payments" },
+          {
+            ...values,
+            processorFeeCents: settlement.feeCents,
+            ...(settlement.balanceTransactionId
+              ? { providerBalanceTransactionId: settlement.balanceTransactionId }
+              : {}),
+          },
+        );
+      }
+    } catch (error) {
+      console.warn(
+        JSON.stringify({
+          environment: context.env.APP_ENV,
+          event: "stripe_fee_reconciliation_deferred",
+          organizationId,
+          providerPaymentId: values.providerPaymentId,
+          reason: error instanceof Error ? error.message : "unknown_error",
+          requestId: context.get("requestId"),
+        }),
+      );
+    }
+  }
+
   return context.json({
     eventId: values.stripeEventId,
     requestId: context.get("requestId"),
@@ -429,6 +472,7 @@ async function readVerifiedEvent(
 }
 
 interface PreparedWebhook {
+  readonly accountId?: string;
   readonly event: StripeEvent;
   readonly organizationId: string;
   readonly paymentType: string;
@@ -753,6 +797,7 @@ async function prepareWebhookContext(
       400,
     );
   return {
+    accountId,
     event,
     organizationId,
     paymentType,
@@ -783,10 +828,22 @@ async function dispatchPreparedWebhook(
         success: true,
       });
     }
-    return handleCompleted(context, prepared.organizationId, prepared.paymentType, prepared.values);
+    return handleCompleted(
+      context,
+      prepared.organizationId,
+      prepared.paymentType,
+      prepared.values,
+      prepared.accountId,
+    );
   }
   if (prepared.event.type === "checkout.session.async_payment_succeeded") {
-    return handleCompleted(context, prepared.organizationId, prepared.paymentType, prepared.values);
+    return handleCompleted(
+      context,
+      prepared.organizationId,
+      prepared.paymentType,
+      prepared.values,
+      prepared.accountId,
+    );
   }
   if (
     prepared.event.type === "checkout.session.async_payment_failed" ||

@@ -1,4 +1,5 @@
 import type { OrganizationEvent, OrganizationTicketOrder } from "@choir/contracts";
+import type { PaymentFinancialSummary } from "@choir/domain";
 import { DataTable } from "@choir/ui";
 import type { Dispatch, SetStateAction } from "react";
 import {
@@ -34,11 +35,80 @@ function willCallEmptyMessage({
   return null;
 }
 
+function WillCallPerformanceMetrics({
+  financialSummary,
+  selectedPerformance,
+  ticketSoldLabel,
+}: {
+  readonly financialSummary: PaymentFinancialSummary;
+  readonly selectedPerformance: OrganizationEvent | undefined;
+  readonly ticketSoldLabel: string;
+}) {
+  const processorFeeDisplay =
+    financialSummary.processorFeeCents > 0
+      ? `-${money(financialSummary.processorFeeCents)}`
+      : financialSummary.unreconciledProcessorFeeCount > 0
+        ? "Pending"
+        : "$0.00";
+
+  const netProceedsDisplay =
+    financialSummary.netProceedsCents !== null
+      ? financialSummary.netProceedsCents < 0
+        ? `-${money(Math.abs(financialSummary.netProceedsCents))}`
+        : money(financialSummary.netProceedsCents)
+      : "Pending";
+
+  return (
+    <div className="ticket-dashboard__metrics">
+      <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--sold">
+        <span className="summary-card__label">Tickets sold</span>
+        <strong>{ticketSoldLabel}</strong>
+        <small>{selectedPerformance ? selectedPerformance.title : "All performances"}</small>
+      </article>
+      <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--gross">
+        <span className="summary-card__label">Gross charged</span>
+        <strong>{money(financialSummary.grossChargedCents)}</strong>
+        <small>Original charges</small>
+      </article>
+      <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--refunds">
+        <span className="summary-card__label">Refunds</span>
+        <strong>
+          {financialSummary.refundCents > 0 ? `-${money(financialSummary.refundCents)}` : "$0.00"}
+        </strong>
+        <small>Returned to buyers</small>
+      </article>
+      <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--fees">
+        <span className="summary-card__label">Customer fees collected</span>
+        <strong>{money(financialSummary.customerFeeCents)}</strong>
+        <small>Checkout service fees</small>
+      </article>
+      <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--processor-fees">
+        <span className="summary-card__label">Stripe processing fees paid by Organization</span>
+        <strong>{processorFeeDisplay}</strong>
+        <small>
+          {financialSummary.unreconciledProcessorFeeCount > 0
+            ? "Stripe fee reconciliation pending"
+            : "Retained by Stripe"}
+        </small>
+      </article>
+      <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--net">
+        <span className="summary-card__label">Net Organization proceeds</span>
+        <strong>{netProceedsDisplay}</strong>
+        <small>
+          {financialSummary.unreconciledProcessorFeeCount > 0
+            ? "Pending Stripe fees"
+            : "Gross minus refunds and Stripe fees"}
+        </small>
+      </article>
+    </div>
+  );
+}
+
 export function WillCallPanel({
   busy,
   clearDiscountCodeFilter,
   discountCodeFilter,
-  feesCollectedCents,
+  financialSummary,
   lastOrderRefreshAt,
   performanceOrders,
   refreshOrders,
@@ -55,16 +125,14 @@ export function WillCallPanel({
   showRefunded,
   state,
   ticketEvents,
-  ticketSalesCents,
   ticketSoldLabel,
-  totalRevenueCents,
   visibleOrders,
   willCallSearch,
 }: {
   readonly busy: boolean;
   readonly clearDiscountCodeFilter: () => void;
   readonly discountCodeFilter: string | null;
-  readonly feesCollectedCents: number;
+  readonly financialSummary: PaymentFinancialSummary;
   readonly lastOrderRefreshAt: Date | null;
   readonly performanceOrders: readonly OrganizationTicketOrder[];
   readonly refreshOrders: () => Promise<void>;
@@ -80,9 +148,7 @@ export function WillCallPanel({
   readonly setWillCallSearch: Dispatch<SetStateAction<string>>;
   readonly state: OrderState;
   readonly ticketEvents: readonly OrganizationEvent[];
-  readonly ticketSalesCents: number;
   readonly ticketSoldLabel: string;
-  readonly totalRevenueCents: number;
   readonly visibleOrders: readonly OrganizationTicketOrder[];
   readonly willCallSearch: string;
   readonly showRefunded: boolean;
@@ -129,28 +195,15 @@ export function WillCallPanel({
               </select>
             </label>
           </div>
-          <div className="ticket-dashboard__metrics">
-            <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--sold">
-              <span className="summary-card__label">Tickets sold</span>
-              <strong>{ticketSoldLabel}</strong>
-              <small>{selectedPerformance ? selectedPerformance.title : "All performances"}</small>
-            </article>
-            <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--sales">
-              <span className="summary-card__label">Ticket sales</span>
-              <strong>{money(ticketSalesCents)}</strong>
-              <small>Before processing fees</small>
-            </article>
-            <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--fees">
-              <span className="summary-card__label">Fees collected</span>
-              <strong>{money(feesCollectedCents)}</strong>
-              <small>Paid orders</small>
-            </article>
-            <article className="summary-card ticket-dashboard__metric ticket-dashboard__metric--revenue">
-              <span className="summary-card__label">Total revenue</span>
-              <strong>{money(totalRevenueCents)}</strong>
-              <small>Including processing fees</small>
-            </article>
-          </div>
+          <WillCallPerformanceMetrics
+            financialSummary={financialSummary}
+            selectedPerformance={selectedPerformance}
+            ticketSoldLabel={ticketSoldLabel}
+          />
+          <p className="ticket-dashboard__helper-text">
+            The buyer receives a full refund. Stripe retains the original processing fee, which is
+            paid by the Organization.
+          </p>
         </fieldset>
       </div>
       <fieldset className="ticket-dashboard__will-call">

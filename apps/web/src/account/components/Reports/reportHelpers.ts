@@ -6,6 +6,7 @@ import {
 } from "@choir/contracts";
 
 import type { CommerceFilter, CommerceRow, ReportTab, SingerAttendance } from "./shared";
+export type { CommerceRow } from "./shared";
 
 export const TAB_LABELS: readonly { id: ReportTab; label: string }[] = [
   { id: "attendance", label: "Attendance" },
@@ -136,4 +137,33 @@ export function commerceRows(
   return rows.toSorted((left, right) =>
     commerceRowDate(right).localeCompare(commerceRowDate(left)),
   );
+}
+
+export function commerceRowGrossAmount(row: CommerceRow): number {
+  return row.kind === "donation"
+    ? row.record.amountCents + row.record.feeCents
+    : row.record.amountPaidCents;
+}
+
+export function commerceRowRefundAmount(row: CommerceRow): number {
+  return row.record.status === "refunded" ? commerceRowGrossAmount(row) : 0;
+}
+
+export function commerceRowProcessorFee(row: CommerceRow): number | null {
+  if (row.kind === "ticket" && row.record.checkoutMode === "stripe") {
+    return row.record.processorFeeCents ?? null;
+  }
+  return 0;
+}
+
+export function commerceRowNetProceeds(row: CommerceRow): number | null {
+  const gross = commerceRowGrossAmount(row);
+  const refund = commerceRowRefundAmount(row);
+  if (row.kind === "ticket" && row.record.checkoutMode === "stripe") {
+    if (typeof row.record.processorFeeCents !== "number") {
+      return null;
+    }
+    return gross - refund - row.record.processorFeeCents;
+  }
+  return gross - refund;
 }

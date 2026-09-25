@@ -43,6 +43,7 @@ import { expireStalePaymentsInStore } from "../paymentCleanupStore";
 import { checkPublicCheckoutRateLimit } from "../checkoutRateLimit";
 import { recordPaymentNotificationResultInStore } from "../paymentNotificationStore";
 import {
+  reconcilePaymentProcessorFeeInStore,
   reconcileProviderRefundWithMetadataInStore,
   recordProviderRefundRequestedInStore,
 } from "../paymentRefundStore";
@@ -133,6 +134,14 @@ export async function dispatchPostRequest(
         await wakeOrganizationAlarm(storage);
       }
       return refund.response;
+    }
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      "action" in body &&
+      body.action === "reconcile_payment_processor_fee"
+    ) {
+      return reconcilePaymentProcessorFeeInStore(storage, body);
     }
     return recordPaymentDisputeInStore(storage, body);
   }

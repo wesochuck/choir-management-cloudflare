@@ -664,7 +664,7 @@ async function assertBreakpointSpecificLayout(
     const metricsLocator = page.locator(
       ".ticket-dashboard:not(.donation-dashboard) .ticket-dashboard__metric",
     );
-    await expect(metricsLocator).toHaveCount(4);
+    await expect(metricsLocator).toHaveCount(6);
     const metrics = await metricsLocator.evaluateAll((cards) =>
       cards.map((card) => {
         const cardRight = card.getBoundingClientRect().right;

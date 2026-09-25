@@ -182,6 +182,9 @@ export interface TicketPurchaseRow {
   readonly marketingOptIn: number;
   readonly originalSubtotalCents: number;
   readonly originalUnitPriceCents: number;
+  readonly processorFeeCents: number | null;
+  readonly processorFeeReconciledAt: string | null;
+  readonly providerBalanceTransactionId: string | null;
   readonly providerPaymentId: string;
   readonly providerSessionId: string;
   readonly quantity: number;
@@ -249,6 +252,18 @@ export const purchaseSelect = `SELECT id, event_id AS eventId, event_title AS ev
     WHERE pa.payment_type IN ('ticket', 'bundle')
       AND pa.resource_id = ticket_purchases.id
       AND pa.refund_requested_at IS NOT NULL) AS refundRequested,
+  (SELECT pa.processor_fee_cents FROM payment_attempts pa
+    WHERE pa.payment_type IN ('ticket', 'bundle')
+      AND pa.resource_id = ticket_purchases.id
+    ORDER BY pa.created_at DESC LIMIT 1) AS processorFeeCents,
+  (SELECT pa.provider_balance_transaction_id FROM payment_attempts pa
+    WHERE pa.payment_type IN ('ticket', 'bundle')
+      AND pa.resource_id = ticket_purchases.id
+    ORDER BY pa.created_at DESC LIMIT 1) AS providerBalanceTransactionId,
+  (SELECT pa.processor_fee_reconciled_at FROM payment_attempts pa
+    WHERE pa.payment_type IN ('ticket', 'bundle')
+      AND pa.resource_id = ticket_purchases.id
+    ORDER BY pa.created_at DESC LIMIT 1) AS processorFeeReconciledAt,
   created_at AS createdAt, updated_at AS updatedAt, refunded_at AS refundedAt,
   scan_credential_nonce AS scanCredentialNonce,
   scan_credential_issued_at AS scanCredentialIssuedAt,

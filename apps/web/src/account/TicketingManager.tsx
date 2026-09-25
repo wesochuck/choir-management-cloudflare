@@ -6,6 +6,7 @@ import type {
   TicketBundle,
   TicketConfirmationSettings,
 } from "@choir/contracts";
+import { calculatePaymentFinancialSummary } from "@choir/domain";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
 import { useCallback, useEffect, useState, type SyntheticEvent } from "react";
 
@@ -494,12 +495,7 @@ export function TicketingManager({
   });
   const paidOrders = performanceOrders.filter((order) => order.status === "paid");
   const ticketsSold = paidOrders.reduce((total, order) => total + order.quantity, 0);
-  const ticketSalesCents = paidOrders.reduce(
-    (total, order) => total + Math.max(0, order.amountPaidCents - order.feeCents),
-    0,
-  );
-  const feesCollectedCents = paidOrders.reduce((total, order) => total + order.feeCents, 0);
-  const totalRevenueCents = paidOrders.reduce((total, order) => total + order.amountPaidCents, 0);
+  const financialSummary = calculatePaymentFinancialSummary(performanceOrders);
   const ticketCapacity = selectedPerformance?.ticketCapacity ?? null;
   const ticketSoldLabel =
     ticketCapacity === null
@@ -612,7 +608,7 @@ export function TicketingManager({
             busy={busy}
             clearDiscountCodeFilter={clearWillCallDiscountCode}
             discountCodeFilter={willCallDiscountCode}
-            feesCollectedCents={feesCollectedCents}
+            financialSummary={financialSummary}
             lastOrderRefreshAt={lastOrderRefreshAt}
             performanceOrders={performanceOrders}
             refreshOrders={refreshOrders}
@@ -629,9 +625,7 @@ export function TicketingManager({
             showRefunded={willCallShowRefunded}
             state={state}
             ticketEvents={ticketEvents}
-            ticketSalesCents={ticketSalesCents}
             ticketSoldLabel={ticketSoldLabel}
-            totalRevenueCents={totalRevenueCents}
             visibleOrders={visibleOrders}
             willCallSearch={willCallSearch}
           />

@@ -446,7 +446,7 @@
 
   .ticket-dashboard__metrics {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: var(--spacing-sm);
   }
 
@@ -458,21 +458,43 @@
     color: var(--color-text);
   }
 
-  .ticket-dashboard__metric--sales {
+  .ticket-dashboard__metric--sales,
+  .ticket-dashboard__metric--gross {
     border-top-color: #ec4899;
+  }
+
+  .ticket-dashboard__metric--refunds {
+    border-top-color: #ef4444;
   }
 
   .ticket-dashboard__metric--fees {
     border-top-color: #f59e0b;
   }
 
-  .ticket-dashboard__metric--revenue {
+  .ticket-dashboard__metric--processor-fees {
+    border-top-color: #6366f1;
+  }
+
+  .ticket-dashboard__metric--revenue,
+  .ticket-dashboard__metric--net {
     border-top-color: #10b981;
   }
 
-  /* Four metrics become too narrow for ticket counts and currency values
+  .ticket-dashboard__helper-text {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: var(--spacing-xs) 0 0;
+  }
+
+  /* Six metrics become too narrow for ticket counts and currency values
    * once the pinned navigation reduces the content column. */
   @media (max-width: 64rem) {
+    .ticket-dashboard:not(.donation-dashboard) .ticket-dashboard__metrics {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 40rem) {
     .ticket-dashboard:not(.donation-dashboard) .ticket-dashboard__metrics {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
