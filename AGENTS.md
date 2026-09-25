@@ -73,6 +73,11 @@ provider instructions against current authoritative documentation before changin
   merely to make it pass.
 - Do not introduce eyebrow kickers into the web design system. Headings carry their own context;
   `npm run check:no-eyebrows` enforces this.
+- Avoid recurring, unbounded table scans in metered storage (D1 queries, scheduled tasks, queue
+  consumers, and Durable Object SQLite). Where a query runs repeatedly over a growing table, ensure
+  it is supported by a selective index or bounded by a strict partition/filter.
+- Every index added to Durable Object SQLite or D1 must be justified by an access path. Do not add
+  indexes speculatively; each index adds write cost to every insert/update for that table.
 - Keep the Organization Durable Object runtime boundary hibernation-friendly. Runtime code reachable
   from `OrganizationStore.ts` must not perform external fetches, provider I/O, outbound sockets,
   long-lived timers, or other operations prohibited by `npm run check:do-runtime`. The executable

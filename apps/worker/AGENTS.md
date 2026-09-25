@@ -59,6 +59,22 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
   `runOrganizationAlarm()` owns cadence/retry/continuation rescheduling and the single bounded
   DO-to-`JOBS_QUEUE` handoff. Provider I/O stays Worker/queue-side.
 
+## SQL Cost Safety
+
+- Recurring scheduled jobs, reconciliation queries, and queue consumers must not run unbounded full
+  table scans over growing tables.
+- Prefer partial indexes for state-machine queues and reconciliation predicates (e.g.
+  `status = 'pending'` or `processor_fee_cents IS NULL`) so the index stays small and historical
+  rows are not indexed.
+- Keep write overhead in mind: each index on a Durable Object SQLite table or D1 table adds cost to
+  every insert and every update that changes indexed columns.
+- Public abuse controls should reject obvious abuse before database writes or provider calls where
+  practical.
+- When an index is important to a recurring query on a growing table, add a focused
+  `EXPLAIN QUERY PLAN` regression assertion using the real migrated schema.
+- Do not try to optimize leading-wildcard searches such as `LIKE '%term%'` with a normal B-tree
+  index. If those scans become material, evaluate an appropriate search design separately.
+
 ## Queues, Workflows, and Providers
 
 - Queue delivery is at-least-once. Persist a stable idempotency key before a replay can create
