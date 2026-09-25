@@ -9,6 +9,7 @@ import {
 } from "../../communications/emailFeedback";
 import type { Env } from "../../env";
 import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
+import { evaluateEdgeRateLimit } from "../../security/edgeRateLimit";
 
 function publicAuditionInquiryProblem(
   settings: z.infer<typeof organizationAuditionSettingsSchema>,
@@ -58,6 +59,16 @@ export async function submitPublicAuditionInquiry(
   requestIdValue: string,
   clientIp: string,
 ): Promise<Response> {
+  const edgeLimit = await evaluateEdgeRateLimit({
+    clientIp,
+    env,
+    limiterName: "PUBLIC_MUTATION_RATE_LIMITER",
+    operation: "audition_inquiry",
+    organizationId,
+    requestId: requestIdValue,
+  });
+  if (edgeLimit) return edgeLimit;
+
   try {
     await assertEmailProviderRecipientAvailable(env.CONTROL_DB, body.email);
     const stub = organizationStoreStub(env, organizationId);

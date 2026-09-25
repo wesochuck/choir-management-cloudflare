@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import type { Env } from "../../env";
 import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
+import { evaluateEdgeRateLimit } from "../../security/edgeRateLimit";
 import { verifyTurnstileToken } from "../../security/turnstile";
 
 export async function sha256Hex(value: string): Promise<string> {
@@ -24,6 +25,16 @@ export async function preflightCheckoutRequest(
   turnstileToken: string | undefined,
   requestId: string,
 ): Promise<Response | null> {
+  const edgeLimit = await evaluateEdgeRateLimit({
+    clientIp,
+    env,
+    limiterName: "PUBLIC_MUTATION_RATE_LIMITER",
+    operation: action,
+    organizationId,
+    requestId,
+  });
+  if (edgeLimit) return edgeLimit;
+
   const [clientKey, emailKey] = await Promise.all([
     sha256Hex(clientIp || "unknown"),
     sha256Hex(buyerEmail.trim().toLowerCase()),
@@ -110,6 +121,16 @@ export async function preflightTicketQuoteRequest(
   clientIp: string,
   requestId: string,
 ): Promise<Response | null> {
+  const edgeLimit = await evaluateEdgeRateLimit({
+    clientIp,
+    env,
+    limiterName: "PUBLIC_READ_RATE_LIMITER",
+    operation: "ticket_quote",
+    organizationId,
+    requestId,
+  });
+  if (edgeLimit) return edgeLimit;
+
   const clientKey = await sha256Hex(clientIp || "unknown");
   const preflightRes = await invokeOrganizationRpc(
     organizationStoreStub(env, organizationId),

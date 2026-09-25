@@ -1,6 +1,7 @@
 import { type ProblemDetails } from "@choir/contracts";
 import { createAuth, isCanonicalAuthHost, isProductBaseHost } from "../auth/config";
 import { validateStartupConfig } from "../env";
+import { classifyAuthOperation, evaluateEdgeRateLimit } from "../security/edgeRateLimit";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
 
 import type { Hono } from "hono";
@@ -80,6 +81,27 @@ async function staleAuthCookieExpiries(
   return expiries;
 }
 
+function disallowedAuthRouteProblem(pathname: string, requestId: string): ProblemDetails | null {
+  if (pathname === "/api/auth/list-sessions") {
+    return {
+      code: "not_found",
+      message: "Use the redacted account session endpoint instead.",
+      requestId,
+    };
+  }
+  if (
+    pathname.startsWith("/api/auth/organization/") &&
+    !browserOrganizationAuthAllowlist.has(pathname)
+  ) {
+    return {
+      code: "not_found",
+      message: "The requested authentication route is not available.",
+      requestId,
+    };
+  }
+  return null;
+}
+
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/auth/get-session", async (context) => {
     const requestUrl = new URL(context.req.url);
@@ -93,6 +115,15 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         404,
       );
     }
+    const edgeLimit = await evaluateEdgeRateLimit({
+      clientIp: context.req.header("cf-connecting-ip")?.trim() ?? "unknown",
+      env: context.env,
+      limiterName: "AUTH_RATE_LIMITER",
+      operation: "auth:session",
+      requestId: context.get("requestId"),
+    });
+    if (edgeLimit) return edgeLimit;
+
     const auth = createAuth({
       env: context.env,
       requestUrl,
@@ -135,29 +166,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     const config = validateStartupConfig(context.env);
     const requestUrl = new URL(context.req.url);
 
-    if (requestUrl.pathname === "/api/auth/list-sessions") {
-      return context.json(
-        {
-          code: "not_found",
-          message: "Use the redacted account session endpoint instead.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        404,
-      );
-    }
-
-    if (
-      requestUrl.pathname.startsWith("/api/auth/organization/") &&
-      !browserOrganizationAuthAllowlist.has(requestUrl.pathname)
-    ) {
-      return context.json(
-        {
-          code: "not_found",
-          message: "The requested authentication route is not available.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        404,
-      );
+    const disallowedProblem = disallowedAuthRouteProblem(
+      requestUrl.pathname,
+      context.get("requestId"),
+    );
+    if (disallowedProblem) {
+      return context.json(disallowedProblem, 404);
     }
 
     const hostnameIsProductBase = isProductBaseHost(
@@ -183,6 +197,20 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       };
       return context.json(problem, 404);
     }
+
+    const organizationId =
+      resolvedAuthOrganization?.ok === true
+        ? resolvedAuthOrganization.value.organizationId
+        : undefined;
+    const edgeLimit = await evaluateEdgeRateLimit({
+      clientIp: context.req.header("cf-connecting-ip")?.trim() ?? "unknown",
+      env: context.env,
+      limiterName: "AUTH_RATE_LIMITER",
+      operation: classifyAuthOperation(requestUrl.pathname),
+      organizationId,
+      requestId: context.get("requestId"),
+    });
+    if (edgeLimit) return edgeLimit;
 
     const auth = createAuth({
       env: context.env,

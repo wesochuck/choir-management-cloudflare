@@ -27,6 +27,7 @@ const signedLinkSecretSchema = z.string().min(32).max(4096);
 export interface Env {
   readonly APP_ENV: "staging" | "production" | "local";
   readonly ASSETS: Fetcher;
+  readonly AUTH_RATE_LIMITER?: RateLimit | undefined;
   readonly BETTER_AUTH_SECRET: string;
   readonly BREVO_API_KEY?: string | undefined;
   readonly BREVO_SMS_ALLOWED_RECIPIENTS?: string | undefined;
@@ -52,6 +53,8 @@ export interface Env {
   readonly PLATFORM_EMAIL_MODE: "sandbox" | "disabled" | "capture";
   readonly PRODUCT_BASE_DOMAIN: string;
   readonly PROVISIONING_WORKFLOW: Workflow<ProvisioningParams>;
+  readonly PUBLIC_MUTATION_RATE_LIMITER?: RateLimit | undefined;
+  readonly PUBLIC_READ_RATE_LIMITER?: RateLimit | undefined;
   readonly ROUTING_CACHE: KVNamespace;
   readonly SIGNED_LINK_SECRET: string;
   readonly STRIPE_SECRET_KEY?: string | undefined;
