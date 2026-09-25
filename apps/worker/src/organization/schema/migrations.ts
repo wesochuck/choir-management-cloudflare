@@ -1580,6 +1580,17 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "CREATE INDEX IF NOT EXISTS payment_attempts_provider_payment ON payment_attempts(provider_payment_id) WHERE provider_payment_id <> ''",
     ],
   },
+  {
+    version: 94,
+    statements: [
+      `CREATE INDEX IF NOT EXISTS payment_attempts_unreconciled_fee
+       ON payment_attempts(provider_payment_id)
+       WHERE status IN ('paid', 'refunded')
+         AND processor_fee_cents IS NULL
+         AND provider_payment_id <> ''
+         AND provider_payment_id NOT LIKE 'fake_%'`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;
