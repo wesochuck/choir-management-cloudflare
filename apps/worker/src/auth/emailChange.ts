@@ -265,18 +265,20 @@ export async function reconcileEmailChangeNotifications(
   const now = Date.now();
   await env.CONTROL_DB.batch([
     env.CONTROL_DB.prepare(
-      `UPDATE email_change_requests
-       SET status = 'expired', updated_at = ?
-       WHERE status = 'pending' AND expires_at <= ?`,
-    ).bind(now, now),
-    env.CONTROL_DB.prepare(
       `UPDATE email_change_notifications
        SET state = 'canceled', updated_at = ?
        WHERE state IN ('queued', 'failed')
          AND email_change_request_id IN (
-           SELECT id FROM email_change_requests WHERE status = 'expired'
+           SELECT id
+           FROM email_change_requests
+           WHERE status = 'pending' AND expires_at <= ?
          )`,
-    ).bind(now),
+    ).bind(now, now),
+    env.CONTROL_DB.prepare(
+      `UPDATE email_change_requests
+       SET status = 'expired', updated_at = ?
+       WHERE status = 'pending' AND expires_at <= ?`,
+    ).bind(now, now),
   ]);
   await deliverEmailChangeNotifications(env);
 }
