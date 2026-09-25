@@ -1,4 +1,5 @@
 import { type DonationRecord, type OrganizationTicketOrder } from "@choir/contracts";
+import { calculatePaymentFinancialSummary } from "@choir/domain";
 import { useMemo, useState } from "react";
 import { DataTable } from "@choir/ui";
 import { Status, type CommerceFilter, type LoadState } from "./shared";
@@ -8,8 +9,12 @@ import {
   commerceRowDetails,
   commerceRowEmail,
   commerceRowFee,
+  commerceRowGrossAmount,
   commerceRowName,
+  commerceRowNetProceeds,
+  commerceRowProcessorFee,
   commerceRowQuantity,
+  commerceRowRefundAmount,
   commerceRows,
   commerceRowType,
   downloadCsv,
@@ -32,9 +37,32 @@ export function CommerceReport({
   );
   const visibleDonations = filter === "tickets" ? [] : donations;
   const visibleTicketOrders = filter === "donations" ? [] : ticketOrders;
-  const total = rows.reduce((sum, row) => sum + commerceRowAmount(row), 0);
-  const fees = rows.reduce((sum, row) => sum + commerceRowFee(row), 0);
-  const ticketsSold = visibleTicketOrders.reduce((sum, order) => sum + order.quantity, 0);
+  const ticketsSold = visibleTicketOrders
+    .filter((order) => order.status === "paid")
+    .reduce((sum, order) => sum + order.quantity, 0);
+  const financialSummary = useMemo(() => {
+    const inputs = rows.map((row) => {
+      if (row.kind === "ticket") {
+        return {
+          amountPaidCents: row.record.amountPaidCents,
+          checkoutMode: row.record.checkoutMode,
+          feeCents: row.record.feeCents,
+          processorFeeCents: row.record.processorFeeCents,
+          status: row.record.status,
+        };
+      }
+      return {
+        amountPaidCents: row.record.amountCents + row.record.feeCents,
+        checkoutMode:
+          row.record.paymentMethod === "stripe" ? ("stripe" as const) : ("fake" as const),
+        customerFeeCents: row.record.feeCents,
+        feeCents: row.record.feeCents,
+        processorFeeCents: row.record.processorFeeCents,
+        status: row.record.status,
+      };
+    });
+    return calculatePaymentFinancialSummary(inputs);
+  }, [rows]);
   const emptyMessage =
     filter === "donations"
       ? "No donations have been recorded."
@@ -79,22 +107,37 @@ export function CommerceReport({
                 "Email",
                 "Event / tribute",
                 "Quantity",
-                "Amount",
-                "Processing fee",
+                "Gross amount",
+                "Refund amount",
+                "Customer fee collected",
+                "Stripe processing fee",
+                "Net proceeds",
                 "Status",
                 "Date",
               ],
-              ...rows.map((row) => [
-                commerceRowType(row),
-                commerceRowName(row),
-                commerceRowEmail(row),
-                commerceRowDetails(row),
-                commerceRowQuantity(row) ?? "",
-                money(commerceRowAmount(row)),
-                money(commerceRowFee(row)),
-                row.record.status,
-                commerceRowDate(row),
-              ]),
+              ...rows.map((row) => {
+                const processorFee = commerceRowProcessorFee(row);
+                const netProceeds = commerceRowNetProceeds(row);
+                const refundAmount = commerceRowRefundAmount(row);
+                return [
+                  commerceRowType(row),
+                  commerceRowName(row),
+                  commerceRowEmail(row),
+                  commerceRowDetails(row),
+                  commerceRowQuantity(row) ?? "",
+                  money(commerceRowGrossAmount(row)),
+                  refundAmount > 0 ? `-${money(refundAmount)}` : "$0.00",
+                  money(commerceRowFee(row)),
+                  processorFee !== null ? money(processorFee) : "Pending",
+                  netProceeds !== null
+                    ? netProceeds < 0
+                      ? `-${money(Math.abs(netProceeds))}`
+                      : money(netProceeds)
+                    : "Pending",
+                  row.record.status,
+                  commerceRowDate(row),
+                ];
+              }),
             ]);
           }}
           type="button"
@@ -128,12 +171,40 @@ export function CommerceReport({
                 <span>Tickets sold</span>
               </div>
               <div className="reports-kpi">
-                <strong>{money(total)}</strong>
-                <span>Total received</span>
+                <strong>{money(financialSummary.grossChargedCents)}</strong>
+                <span>Gross charged</span>
               </div>
               <div className="reports-kpi">
-                <strong>{money(fees)}</strong>
-                <span>Processing fees</span>
+                <strong>
+                  {financialSummary.refundCents > 0
+                    ? `-${money(financialSummary.refundCents)}`
+                    : "$0.00"}
+                </strong>
+                <span>Refunds</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>{money(financialSummary.customerFeeCents)}</strong>
+                <span>Customer fees</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>
+                  {financialSummary.unreconciledProcessorFeeCount > 0
+                    ? "Pending"
+                    : financialSummary.processorFeeCents > 0
+                      ? `-${money(financialSummary.processorFeeCents)}`
+                      : "$0.00"}
+                </strong>
+                <span>Stripe fees</span>
+              </div>
+              <div className="reports-kpi">
+                <strong>
+                  {financialSummary.netProceedsCents !== null
+                    ? financialSummary.netProceedsCents < 0
+                      ? `-${money(Math.abs(financialSummary.netProceedsCents))}`
+                      : money(financialSummary.netProceedsCents)
+                    : "Pending"}
+                </strong>
+                <span>Net proceeds</span>
               </div>
             </div>
           </fieldset>

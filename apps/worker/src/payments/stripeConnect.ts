@@ -579,3 +579,120 @@ export async function createStripeAccountOnboardingLink(
   }
   return parsed.data.url;
 }
+
+export interface StripePaymentSettlement {
+  readonly balanceTransactionId: string | null;
+  readonly currency: string | null;
+  readonly feeCents: number | null;
+  readonly netCents: number | null;
+}
+
+const stripeSettlementBalanceTxnSchema = z.object({
+  currency: z.string().optional(),
+  fee: z.number().int(),
+  id: z.string().min(1).max(256),
+  net: z.number().int().optional(),
+});
+
+const stripeSettlementChargeSchema = z.object({
+  balance_transaction: z
+    .union([stripeSettlementBalanceTxnSchema, z.string().min(1)])
+    .nullable()
+    .optional(),
+});
+
+const stripeSettlementPaymentIntentSchema = z.object({
+  latest_charge: z
+    .union([stripeSettlementChargeSchema, z.string().min(1)])
+    .nullable()
+    .optional(),
+});
+
+function extractBalanceTransaction(
+  result: unknown,
+  isPaymentIntent: boolean,
+): z.infer<typeof stripeSettlementBalanceTxnSchema> | string | null {
+  if (isPaymentIntent) {
+    const piParsed = stripeSettlementPaymentIntentSchema.safeParse(result);
+    if (
+      piParsed.success &&
+      piParsed.data.latest_charge &&
+      typeof piParsed.data.latest_charge === "object"
+    ) {
+      return piParsed.data.latest_charge.balance_transaction ?? null;
+    }
+    return null;
+  }
+  const chargeParsed = stripeSettlementChargeSchema.safeParse(result);
+  return chargeParsed.success ? (chargeParsed.data.balance_transaction ?? null) : null;
+}
+
+async function fetchBalanceTransactionById(
+  secretKey: string,
+  connectedAccountId: string,
+  balanceTxnId: string,
+): Promise<StripePaymentSettlement> {
+  const txnResult: unknown = await stripeV1Request(
+    secretKey,
+    `/v1/balance_transactions/${encodeURIComponent(balanceTxnId)}`,
+    {
+      errorType: "connect",
+      method: "GET",
+      stripeAccount: connectedAccountId,
+    },
+  );
+  const parsedTxn = stripeSettlementBalanceTxnSchema.safeParse(txnResult);
+  if (parsedTxn.success) {
+    return {
+      balanceTransactionId: parsedTxn.data.id,
+      currency: parsedTxn.data.currency ?? null,
+      feeCents: parsedTxn.data.fee,
+      netCents: parsedTxn.data.net ?? null,
+    };
+  }
+  return {
+    balanceTransactionId: balanceTxnId,
+    currency: null,
+    feeCents: null,
+    netCents: null,
+  };
+}
+
+export async function retrieveStripePaymentSettlement(
+  secretKey: string,
+  connectedAccountId: string,
+  providerPaymentId: string,
+): Promise<StripePaymentSettlement> {
+  const isPaymentIntent = providerPaymentId.startsWith("pi_");
+  const path = isPaymentIntent
+    ? `/v1/payment_intents/${encodeURIComponent(providerPaymentId)}?expand[]=latest_charge.balance_transaction`
+    : `/v1/charges/${encodeURIComponent(providerPaymentId)}?expand[]=balance_transaction`;
+
+  const result: unknown = await stripeV1Request(secretKey, path, {
+    errorType: "connect",
+    method: "GET",
+    stripeAccount: connectedAccountId,
+  });
+
+  const balanceTxn = extractBalanceTransaction(result, isPaymentIntent);
+
+  if (balanceTxn && typeof balanceTxn === "object") {
+    return {
+      balanceTransactionId: balanceTxn.id,
+      currency: balanceTxn.currency ?? null,
+      feeCents: balanceTxn.fee,
+      netCents: balanceTxn.net ?? null,
+    };
+  }
+
+  if (typeof balanceTxn === "string") {
+    return fetchBalanceTransactionById(secretKey, connectedAccountId, balanceTxn);
+  }
+
+  return {
+    balanceTransactionId: null,
+    currency: null,
+    feeCents: null,
+    netCents: null,
+  };
+}

@@ -10,6 +10,7 @@ const jobKindSchema = z.enum([
   "rsvp_follow_up",
   "organization_export",
   "payment_notification",
+  "payment_fee_reconciliation",
   "stale_checkout_cleanup",
   "ticket_notification",
 ]);

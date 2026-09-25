@@ -860,6 +860,12 @@ A record of a successful general admission ticket transaction for a Performance,
 buyer's name, email, purchased quantity, payment status, and Stripe session reference. Used by
 administrators to manage door admission via a printed or digital will call list.
 
+## Ticket Sale Alert
+
+An automated email sent to every member with financial alerts enabled whenever a ticket purchase is
+confirmed, including complimentary orders. It carries the event, quantity, amount paid, buyer name
+and email, and a link to the order. _Avoid_: sales notification, purchase alert
+
 ## Ticketing Configuration
 
 Settings defined on a Performance event that enable ticket sales, set the single ticket price, and

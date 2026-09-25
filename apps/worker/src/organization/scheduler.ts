@@ -496,6 +496,7 @@ function createDueJobs(
     createEventReminderJobs(storage, organizationId, now);
     createRsvpFollowUpJobs(storage, organizationId, now);
     createPostEventReportJobs(storage, organizationId, now);
+    createFeeReconciliationJobs(storage, now);
     if (schedulerDueAt.getTime() <= now.getTime()) {
       storage.sql.exec(
         `UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1`,
@@ -504,6 +505,32 @@ function createDueJobs(
       );
     }
   });
+}
+
+function createFeeReconciliationJobs(storage: DurableObjectStorage, now: Date): void {
+  const unreconciled = storage.sql
+    .exec<{ readonly providerPaymentId: string }>(
+      `SELECT DISTINCT provider_payment_id AS providerPaymentId
+       FROM payment_attempts
+       WHERE status IN ('paid', 'refunded')
+         AND processor_fee_cents IS NULL
+         AND provider_payment_id NOT LIKE 'fake_%'
+         AND provider_payment_id <> ''
+       LIMIT 10`,
+    )
+    .toArray();
+
+  for (const row of unreconciled) {
+    storage.sql.exec(
+      `INSERT OR IGNORE INTO scheduled_job_outbox
+        (job_id, kind, idempotency_key, due_at, created_at)
+       VALUES (?, 'payment_fee_reconciliation', ?, ?, ?)`,
+      crypto.randomUUID(),
+      `reconcile-fee:${row.providerPaymentId}`,
+      now.toISOString(),
+      now.toISOString(),
+    );
+  }
 }
 
 function readPendingJobs(storage: DurableObjectStorage): readonly ScheduledJobRow[] {

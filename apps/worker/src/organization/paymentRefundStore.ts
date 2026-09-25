@@ -343,3 +343,111 @@ export function reconcileProviderRefundInStore(
 ): Response {
   return reconcileProviderRefundWithMetadataInStore(storage, input).response;
 }
+
+const reconcilePaymentProcessorFeeSchema = z.object({
+  action: z.literal("reconcile_payment_processor_fee"),
+  organizationId: z.string().min(1).max(128),
+  processorFeeCents: z.number().int().nonnegative(),
+  providerBalanceTransactionId: z.string().min(1).max(256).nullable().optional(),
+  providerPaymentId: z.string().min(1).max(256),
+});
+
+export function reconcilePaymentProcessorFeeInStore(
+  storage: DurableObjectStorage,
+  input: unknown,
+): Response {
+  const request = reconcilePaymentProcessorFeeSchema.safeParse(input);
+  if (!request.success) {
+    return Response.json({ code: "invalid_reconcile_processor_fee_request" }, { status: 400 });
+  }
+
+  const organizationId = storage.sql
+    .exec<{ readonly organizationId: string }>(
+      "SELECT organization_id AS organizationId FROM organization_metadata LIMIT 1",
+    )
+    .toArray()
+    .at(0)?.organizationId;
+  if (organizationId !== request.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+
+  const matchingAttempts = storage.sql
+    .exec<{
+      readonly id: string;
+      readonly processorFeeCents: number | null;
+      readonly providerBalanceTransactionId: string | null;
+    }>(
+      `SELECT id, processor_fee_cents AS processorFeeCents,
+        provider_balance_transaction_id AS providerBalanceTransactionId
+       FROM payment_attempts
+       WHERE provider_payment_id = ?`,
+      request.data.providerPaymentId,
+    )
+    .toArray();
+
+  if (matchingAttempts.length === 0) {
+    return Response.json({ code: "payment_attempt_not_found" }, { status: 404 });
+  }
+
+  const allAlreadyReconciled = matchingAttempts.every(
+    (attempt) =>
+      attempt.processorFeeCents === request.data.processorFeeCents &&
+      (request.data.providerBalanceTransactionId === undefined ||
+        attempt.providerBalanceTransactionId === request.data.providerBalanceTransactionId),
+  );
+
+  if (allAlreadyReconciled) {
+    return Response.json({ duplicate: true, reconciled: true });
+  }
+
+  const occurredAt = new Date().toISOString();
+  storage.sql.exec(
+    `UPDATE payment_attempts
+     SET processor_fee_cents = ?,
+         provider_balance_transaction_id = COALESCE(?, provider_balance_transaction_id),
+         processor_fee_reconciled_at = COALESCE(processor_fee_reconciled_at, ?),
+         updated_at = ?
+     WHERE provider_payment_id = ?`,
+    request.data.processorFeeCents,
+    request.data.providerBalanceTransactionId ?? null,
+    occurredAt,
+    occurredAt,
+    request.data.providerPaymentId,
+  );
+
+  storage.sql.exec(
+    `INSERT OR IGNORE INTO audit_events
+      (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+     VALUES (?, 'provider', 'stripe', 'payment.processor_fee.reconciled', 'payment_attempt', ?, ?, ?, ?)`,
+    `processor-fee-reconciled:${request.data.providerPaymentId}`,
+    request.data.providerPaymentId,
+    request.data.providerPaymentId,
+    JSON.stringify({
+      processorFeeCents: request.data.processorFeeCents,
+      providerBalanceTransactionId: request.data.providerBalanceTransactionId ?? null,
+      providerPaymentId: request.data.providerPaymentId,
+    }),
+    occurredAt,
+  );
+
+  return Response.json({ reconciled: true });
+}
+
+export function listUnreconciledPaymentAttempts(
+  storage: DurableObjectStorage,
+  limit = 50,
+): readonly string[] {
+  return storage.sql
+    .exec<{ readonly providerPaymentId: string }>(
+      `SELECT DISTINCT provider_payment_id AS providerPaymentId
+       FROM payment_attempts
+       WHERE status IN ('paid', 'refunded')
+         AND processor_fee_cents IS NULL
+         AND provider_payment_id NOT LIKE 'fake_%'
+         AND provider_payment_id <> ''
+       LIMIT ?`,
+      limit,
+    )
+    .toArray()
+    .map((row) => row.providerPaymentId);
+}

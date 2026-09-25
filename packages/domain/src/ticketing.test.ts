@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  calculatePaymentFinancialSummary,
   canTransitionTicketPurchase,
   isValidTicketDiscountValue,
   normalizeDiscountCode,
@@ -167,5 +168,152 @@ describe("ticketing rules", () => {
     expect(ticketWillCallFilename("Winter Concert!", "event-id")).toBe(
       "will-call-winter-concert.csv",
     );
+  });
+
+  describe("calculatePaymentFinancialSummary", () => {
+    it("summarizes a paid Stripe order with reconciled processor fee", () => {
+      const summary = calculatePaymentFinancialSummary([
+        {
+          amountPaidCents: 10_300,
+          checkoutMode: "stripe",
+          feeCents: 300,
+          processorFeeCents: 320,
+          status: "paid",
+        },
+      ]);
+      expect(summary).toEqual({
+        customerFeeCents: 300,
+        grossChargedCents: 10_300,
+        netProceedsCents: 9_980,
+        processorFeeCents: 320,
+        refundCents: 0,
+        unreconciledProcessorFeeCount: 0,
+      });
+    });
+
+    it("summarizes a fully refunded Stripe order showing negative net equal to retained Stripe fee", () => {
+      // Amount charged: $103.00, customer fee: $3.00, Stripe fee: $3.20, refunded: $103.00
+      const summary = calculatePaymentFinancialSummary([
+        {
+          amountPaidCents: 10_300,
+          checkoutMode: "stripe",
+          feeCents: 300,
+          processorFeeCents: 320,
+          status: "refunded",
+        },
+      ]);
+      expect(summary).toEqual({
+        customerFeeCents: 300,
+        grossChargedCents: 10_300,
+        netProceedsCents: -320,
+        processorFeeCents: 320,
+        refundCents: 10_300,
+        unreconciledProcessorFeeCount: 0,
+      });
+    });
+
+    it("summarizes a mixture of paid and refunded Stripe orders", () => {
+      const summary = calculatePaymentFinancialSummary([
+        {
+          amountPaidCents: 10_300,
+          checkoutMode: "stripe",
+          feeCents: 300,
+          processorFeeCents: 320,
+          status: "paid",
+        },
+        {
+          amountPaidCents: 5_150,
+          checkoutMode: "stripe",
+          feeCents: 150,
+          processorFeeCents: 180,
+          status: "refunded",
+        },
+      ]);
+      expect(summary).toEqual({
+        customerFeeCents: 450,
+        grossChargedCents: 15_450,
+        netProceedsCents: 10_300 - 0 - 320 + (5_150 - 5_150 - 180), // 9980 - 180 = 9800
+        processorFeeCents: 500,
+        refundCents: 5_150,
+        unreconciledProcessorFeeCount: 0,
+      });
+    });
+
+    it("withholds net proceeds when unreconciled Stripe fee is pending", () => {
+      const summary = calculatePaymentFinancialSummary([
+        {
+          amountPaidCents: 10_300,
+          checkoutMode: "stripe",
+          feeCents: 300,
+          processorFeeCents: null,
+          status: "paid",
+        },
+      ]);
+      expect(summary.unreconciledProcessorFeeCount).toBe(1);
+      expect(summary.netProceedsCents).toBeNull();
+      expect(summary.grossChargedCents).toBe(10_300);
+      expect(summary.customerFeeCents).toBe(300);
+    });
+
+    it("does not add artificial Stripe fee or mark unreconciled for fake and free checkouts", () => {
+      const summary = calculatePaymentFinancialSummary([
+        {
+          amountPaidCents: 2_500,
+          checkoutMode: "fake",
+          feeCents: 100,
+          processorFeeCents: null,
+          status: "paid",
+        },
+        {
+          amountPaidCents: 0,
+          checkoutMode: "free",
+          feeCents: 0,
+          processorFeeCents: null,
+          status: "paid",
+        },
+      ]);
+      expect(summary).toEqual({
+        customerFeeCents: 100,
+        grossChargedCents: 2_500,
+        netProceedsCents: 2_500,
+        processorFeeCents: 0,
+        refundCents: 0,
+        unreconciledProcessorFeeCount: 0,
+      });
+    });
+
+    it("ignores pending and expired orders in financial totals", () => {
+      const summary = calculatePaymentFinancialSummary([
+        {
+          amountPaidCents: 5_000,
+          checkoutMode: "stripe",
+          feeCents: 150,
+          processorFeeCents: null,
+          status: "pending",
+        },
+        {
+          amountPaidCents: 5_000,
+          checkoutMode: "stripe",
+          feeCents: 150,
+          processorFeeCents: null,
+          status: "expired",
+        },
+        {
+          amountPaidCents: 5_000,
+          checkoutMode: "stripe",
+          feeCents: 150,
+          processorFeeCents: 175,
+          status: "paid",
+        },
+      ]);
+      expect(summary).toEqual({
+        customerFeeCents: 150,
+        grossChargedCents: 5_000,
+        netProceedsCents: 4_825,
+        processorFeeCents: 175,
+        refundCents: 0,
+        unreconciledProcessorFeeCount: 0,
+      });
+    });
   });
 });

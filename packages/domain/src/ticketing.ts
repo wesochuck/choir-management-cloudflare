@@ -264,3 +264,67 @@ export function ticketCheckoutLineItems({
   }
   return lineItems;
 }
+
+export interface FinancialOrderInput {
+  readonly amountPaidCents?: number;
+  readonly checkoutMode?: "fake" | "free" | "stripe";
+  readonly customerFeeCents?: number;
+  readonly feeCents?: number;
+  readonly processorFeeCents?: number | null;
+  readonly status: "expired" | "paid" | "pending" | "refunded";
+  readonly totalChargedCents?: number;
+}
+
+export interface PaymentFinancialSummary {
+  readonly grossChargedCents: number;
+  readonly refundCents: number;
+  readonly customerFeeCents: number;
+  readonly processorFeeCents: number;
+  readonly netProceedsCents: number | null;
+  readonly unreconciledProcessorFeeCount: number;
+}
+
+export function calculatePaymentFinancialSummary(
+  orders: readonly FinancialOrderInput[],
+): PaymentFinancialSummary {
+  let grossChargedCents = 0;
+  let refundCents = 0;
+  let customerFeeCents = 0;
+  let processorFeeCents = 0;
+  let unreconciledProcessorFeeCount = 0;
+
+  for (const order of orders) {
+    if (order.status !== "paid" && order.status !== "refunded") {
+      continue;
+    }
+    const chargeAmount = order.amountPaidCents ?? order.totalChargedCents ?? 0;
+    const feeAmount = order.feeCents ?? order.customerFeeCents ?? 0;
+    grossChargedCents += chargeAmount;
+    customerFeeCents += feeAmount;
+
+    if (order.status === "refunded") {
+      refundCents += chargeAmount;
+    }
+
+    const isStripe = order.checkoutMode === undefined || order.checkoutMode === "stripe";
+    if (isStripe) {
+      if (order.processorFeeCents !== null && order.processorFeeCents !== undefined) {
+        processorFeeCents += order.processorFeeCents;
+      } else {
+        unreconciledProcessorFeeCount += 1;
+      }
+    }
+  }
+
+  const netProceedsCents =
+    unreconciledProcessorFeeCount > 0 ? null : grossChargedCents - refundCents - processorFeeCents;
+
+  return {
+    customerFeeCents,
+    grossChargedCents,
+    netProceedsCents,
+    processorFeeCents,
+    refundCents,
+    unreconciledProcessorFeeCount,
+  };
+}
