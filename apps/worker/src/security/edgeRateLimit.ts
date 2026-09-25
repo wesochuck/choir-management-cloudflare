@@ -56,6 +56,9 @@ export function classifyAuthOperation(pathname: string): string {
   ) {
     return "auth:sensitive";
   }
+  if (pathname.startsWith("/api/auth/callback")) {
+    return "auth:callback";
+  }
   if (pathname === "/api/auth/get-session") {
     return "auth:session";
   }

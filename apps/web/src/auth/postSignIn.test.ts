@@ -52,6 +52,7 @@ describe("isKnownAuthenticatedRoute & isPrivilegedRoute", () => {
     expect(isKnownAuthenticatedRoute("/setup")).toBe(true);
     expect(isKnownAuthenticatedRoute("/admin")).toBe(true);
     expect(isKnownAuthenticatedRoute("/platform")).toBe(true);
+    expect(isKnownAuthenticatedRoute("/accept-invitation")).toBe(true);
     expect(isAuthenticatedRoute("/practice")).toBe(true);
   });
 

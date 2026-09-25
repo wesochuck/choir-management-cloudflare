@@ -16,6 +16,8 @@ const startupConfigSchema = z.object({
   EMAIL_EVENTS_QUEUE_NAME: z.string().min(1).max(128),
   JOBS_DLQ_NAME: z.string().min(1).max(128),
   JOBS_QUEUE_NAME: z.string().min(1).max(128),
+  GOOGLE_CLIENT_ID: z.string().min(1).max(256).optional(),
+  GOOGLE_OAUTH_REDIRECT_URI: z.url().optional(),
   PLATFORM_EMAIL_FROM: z.email(),
   PLATFORM_EMAIL_MODE: z.enum(["capture", "disabled", "sandbox"]),
   PRODUCT_BASE_DOMAIN: z.string().min(1).max(253),
@@ -23,6 +25,7 @@ const startupConfigSchema = z.object({
 
 const betterAuthSecretSchema = z.string().min(32).max(4096);
 const signedLinkSecretSchema = z.string().min(32).max(4096);
+const googleClientSecretSchema = z.string().min(1).max(4096);
 
 export interface Env {
   readonly APP_ENV: "staging" | "production" | "local";
@@ -42,6 +45,9 @@ export interface Env {
   readonly EMAIL_EVENTS_QUEUE_NAME: string;
   readonly EXTERNAL_EFFECTS_MODE: "sandbox" | "disabled" | "fake";
   readonly FLEET_SCHEMA_WORKFLOW: Workflow<FleetSchemaParams>;
+  readonly GOOGLE_CLIENT_ID?: string | undefined;
+  readonly GOOGLE_CLIENT_SECRET?: string | undefined;
+  readonly GOOGLE_OAUTH_REDIRECT_URI?: string | undefined;
   readonly JOBS_QUEUE: Queue;
   readonly JOBS_DLQ_NAME: string;
   readonly JOBS_QUEUE_NAME: string;
@@ -67,9 +73,7 @@ export interface Env {
 
 export type StartupConfig = z.infer<typeof startupConfigSchema>;
 
-export function validateStartupConfig(env: Env): StartupConfig {
-  betterAuthSecretSchema.parse(env.BETTER_AUTH_SECRET);
-  signedLinkSecretSchema.parse(env.SIGNED_LINK_SECRET);
+function validateStripeStartupConfig(env: Env): void {
   if (
     (env.APP_ENV === "staging" || env.APP_ENV === "production") &&
     env.STRIPE_PAYMENTS_ENABLED?.trim().toLowerCase() === "true"
@@ -81,6 +85,38 @@ export function validateStartupConfig(env: Env): StartupConfig {
       throw new Error("Missing required classic Stripe webhook secret (STRIPE_WEBHOOK_SECRET).");
     }
   }
+}
+
+function validateGoogleStartupConfig(env: Env): void {
+  const hasGoogleConfig = Boolean(
+    env.GOOGLE_CLIENT_ID?.trim() ??
+    env.GOOGLE_CLIENT_SECRET?.trim() ??
+    env.GOOGLE_OAUTH_REDIRECT_URI?.trim(),
+  );
+  if (!hasGoogleConfig) return;
+
+  if (!env.GOOGLE_CLIENT_ID?.trim()) {
+    throw new Error("Missing required Google client ID (GOOGLE_CLIENT_ID).");
+  }
+  if (!env.GOOGLE_CLIENT_SECRET?.trim()) {
+    throw new Error("Missing required Google client secret (GOOGLE_CLIENT_SECRET).");
+  }
+  if (!env.GOOGLE_OAUTH_REDIRECT_URI?.trim()) {
+    throw new Error("Missing required Google OAuth redirect URI (GOOGLE_OAUTH_REDIRECT_URI).");
+  }
+  try {
+    new URL(env.GOOGLE_OAUTH_REDIRECT_URI);
+  } catch {
+    throw new Error("Invalid GOOGLE_OAUTH_REDIRECT_URI: must be a valid URL.");
+  }
+  googleClientSecretSchema.parse(env.GOOGLE_CLIENT_SECRET);
+}
+
+export function validateStartupConfig(env: Env): StartupConfig {
+  betterAuthSecretSchema.parse(env.BETTER_AUTH_SECRET);
+  signedLinkSecretSchema.parse(env.SIGNED_LINK_SECRET);
+  validateStripeStartupConfig(env);
+  validateGoogleStartupConfig(env);
   return startupConfigSchema.parse({
     APP_ENV: env.APP_ENV,
     BUILD_VERSION: env.BUILD_VERSION,
@@ -88,6 +124,10 @@ export function validateStartupConfig(env: Env): StartupConfig {
     EXTERNAL_EFFECTS_MODE: env.EXTERNAL_EFFECTS_MODE,
     EMAIL_EVENTS_DLQ_NAME: env.EMAIL_EVENTS_DLQ_NAME,
     EMAIL_EVENTS_QUEUE_NAME: env.EMAIL_EVENTS_QUEUE_NAME,
+    ...(env.GOOGLE_CLIENT_ID ? { GOOGLE_CLIENT_ID: env.GOOGLE_CLIENT_ID } : {}),
+    ...(env.GOOGLE_OAUTH_REDIRECT_URI
+      ? { GOOGLE_OAUTH_REDIRECT_URI: env.GOOGLE_OAUTH_REDIRECT_URI }
+      : {}),
     JOBS_DLQ_NAME: env.JOBS_DLQ_NAME,
     JOBS_QUEUE_NAME: env.JOBS_QUEUE_NAME,
     PLATFORM_EMAIL_FROM: env.PLATFORM_EMAIL_FROM,

@@ -122,11 +122,19 @@ function AlreadySignedIn({ session }: { readonly session: NonNullable<CurrentAut
       .then((path) => {
         if (!controller.signal.aborted) {
           setTargetHref(path);
+          const params = new URLSearchParams(window.location.search);
+          if (params.get("oauth") === "complete") {
+            window.location.replace(path);
+          }
         }
       })
       .catch(() => {
         if (!controller.signal.aborted) {
           setTargetHref("/dashboard");
+          const params = new URLSearchParams(window.location.search);
+          if (params.get("oauth") === "complete") {
+            window.location.replace("/dashboard");
+          }
         }
       });
     return () => {

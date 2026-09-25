@@ -94,12 +94,27 @@ function parsePasskeyReturnedSession(
   return null;
 }
 
+export function isGoogleAuthEnabled(env: Env): boolean {
+  return Boolean(
+    env.GOOGLE_CLIENT_ID?.trim() &&
+    env.GOOGLE_CLIENT_SECRET?.trim() &&
+    env.GOOGLE_OAUTH_REDIRECT_URI?.trim(),
+  );
+}
+
 export function createAuth(context: AuthRequestContext) {
   const { env, requestUrl, waitUntil } = context;
   const origin = requestUrl.origin;
   const rpID = resolveRpId(env.PRODUCT_BASE_DOMAIN, requestUrl);
 
   return betterAuth({
+    account: {
+      accountLinking: {
+        allowDifferentEmails: false,
+        enabled: true,
+        updateUserInfoOnLink: false,
+      },
+    },
     advanced: {
       backgroundTasks: { handler: waitUntil },
       cookiePrefix: "choir-management",
@@ -113,6 +128,19 @@ export function createAuth(context: AuthRequestContext) {
     baseURL: origin,
     database: env.CONTROL_DB,
     disabledPaths: ["/sign-up/email"],
+    socialProviders:
+      env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_OAUTH_REDIRECT_URI
+        ? {
+            google: {
+              clientId: env.GOOGLE_CLIENT_ID.trim(),
+              clientSecret: env.GOOGLE_CLIENT_SECRET.trim(),
+              disableImplicitSignUp: true,
+              disableSignUp: true,
+              prompt: "select_account",
+              redirectURI: env.GOOGLE_OAUTH_REDIRECT_URI.trim(),
+            },
+          }
+        : undefined,
     emailAndPassword: {
       disableSignUp: true,
       enabled: true,

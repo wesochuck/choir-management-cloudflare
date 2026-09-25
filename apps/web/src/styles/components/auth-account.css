@@ -188,6 +188,47 @@
     font-size: var(--font-size-base);
   }
 
+  .auth-hero-action {
+    display: grid;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+  }
+
+  .auth-passkey-button,
+  .auth-google-button {
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+  }
+
+  .auth-google-button__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .auth-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin-block: var(--spacing-lg);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .auth-divider::before,
+  .auth-divider::after {
+    content: "";
+    flex: 1;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .auth-divider span {
+    padding-inline: var(--spacing-sm);
+  }
+
   /* Form stack, fields, and actions */
 
   .form-stack {

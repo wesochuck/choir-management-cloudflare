@@ -126,9 +126,9 @@ export async function generateTotp(totpUri: string, now = Date.now()): Promise<s
   return String(binary % 1_000_000).padStart(6, "0");
 }
 
-export async function fetchWorker(request: Request): Promise<Response> {
+export async function fetchWorker(request: Request, env: Env = testEnv): Promise<Response> {
   const executionContext = createExecutionContext();
-  const response = await worker.fetch(request, testEnv, executionContext);
+  const response = await worker.fetch(request, env, executionContext);
   await waitOnExecutionContext(executionContext);
   return response;
 }
