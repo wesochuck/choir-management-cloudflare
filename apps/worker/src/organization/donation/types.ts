@@ -99,6 +99,9 @@ export interface DonationRow {
   readonly patronId: string | null;
   readonly paymentMethod: string;
   readonly paymentReference: string;
+  readonly processorFeeCents?: number | null;
+  readonly processorFeeReconciledAt?: string | null;
+  readonly providerBalanceTransactionId?: string | null;
   readonly providerPaymentId: string;
   readonly providerSessionId: string;
   readonly refundRequested: number;
@@ -140,5 +143,17 @@ export const donationSelect = `SELECT d.id,
     WHERE pa.payment_type = 'donation'
       AND pa.resource_id = d.id
       AND pa.refund_requested_at IS NOT NULL) AS refundRequested,
+  (SELECT pa.processor_fee_cents FROM payment_attempts pa
+    WHERE pa.payment_type = 'donation'
+      AND pa.resource_id = d.id
+    ORDER BY pa.created_at DESC LIMIT 1) AS processorFeeCents,
+  (SELECT pa.provider_balance_transaction_id FROM payment_attempts pa
+    WHERE pa.payment_type = 'donation'
+      AND pa.resource_id = d.id
+    ORDER BY pa.created_at DESC LIMIT 1) AS providerBalanceTransactionId,
+  (SELECT pa.processor_fee_reconciled_at FROM payment_attempts pa
+    WHERE pa.payment_type = 'donation'
+      AND pa.resource_id = d.id
+    ORDER BY pa.created_at DESC LIMIT 1) AS processorFeeReconciledAt,
   d.created_at AS createdAt, d.updated_at AS updatedAt
   FROM donations d LEFT JOIN donation_expirations de ON de.donation_id = d.id`;

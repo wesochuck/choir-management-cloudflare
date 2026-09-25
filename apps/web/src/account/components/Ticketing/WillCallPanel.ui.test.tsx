@@ -319,7 +319,7 @@ describe("WillCallPanel financial KPI cards and fee reconciliation", () => {
     // Helper text
     expect(
       screen.getByText(
-        "The buyer receives a full refund. Stripe retains the original processing fee, which is paid by the Organization.",
+        "If an order is refunded, the buyer receives a full refund while Stripe retains the original processing fee, which is paid by the Organization.",
       ),
     ).toBeInTheDocument();
   });
@@ -360,6 +360,37 @@ describe("WillCallPanel financial KPI cards and fee reconciliation", () => {
     renderWillCallPanel([unreconciledOrder]);
 
     const processorCard = getMetricCard("processor-fees");
+    expect(within(processorCard).getByText("Pending")).toBeInTheDocument();
+
+    const netCard = getMetricCard("net");
+    expect(within(netCard).getByText("Pending")).toBeInTheDocument();
+
+    expect(screen.getByText("Stripe fee reconciliation pending")).toBeInTheDocument();
+    expect(screen.getByText("Pending Stripe fees")).toBeInTheDocument();
+  });
+
+  it("shows Pending for Stripe fees when there are mixed reconciled and unreconciled orders", () => {
+    const reconciledOrder = ticketOrder({
+      amountPaidCents: 2500,
+      checkoutMode: "stripe",
+      feeCents: 0,
+      id: "55555555-6666-4777-8888-999999999999",
+      processorFeeCents: 175,
+      status: "paid",
+    });
+    const unreconciledOrder = ticketOrder({
+      amountPaidCents: 3000,
+      checkoutMode: "stripe",
+      feeCents: 0,
+      id: "66666666-7777-4888-8999-000000000000",
+      processorFeeCents: null,
+      status: "paid",
+    });
+
+    renderWillCallPanel([reconciledOrder, unreconciledOrder]);
+
+    const processorCard = getMetricCard("processor-fees");
+    // Unreconciled takes precedence: Pending rather than misleading partial -$1.75
     expect(within(processorCard).getByText("Pending")).toBeInTheDocument();
 
     const netCard = getMetricCard("net");

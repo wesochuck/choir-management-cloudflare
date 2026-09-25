@@ -33,7 +33,7 @@ function binding<T>(value: T | undefined, name: string): T {
 
 export const database = binding(env.CONTROL_DB, "CONTROL_DB");
 export const stores = binding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
-const organizationFiles = binding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
+export const organizationFiles = binding(env.ORGANIZATION_FILES, "ORGANIZATION_FILES");
 
 export const api = organizationRequest;
 

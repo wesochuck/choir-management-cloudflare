@@ -153,6 +153,9 @@ export function commerceRowProcessorFee(row: CommerceRow): number | null {
   if (row.kind === "ticket" && row.record.checkoutMode === "stripe") {
     return row.record.processorFeeCents ?? null;
   }
+  if (row.kind === "donation" && row.record.paymentMethod === "stripe") {
+    return row.record.processorFeeCents ?? null;
+  }
   return 0;
 }
 
@@ -160,6 +163,12 @@ export function commerceRowNetProceeds(row: CommerceRow): number | null {
   const gross = commerceRowGrossAmount(row);
   const refund = commerceRowRefundAmount(row);
   if (row.kind === "ticket" && row.record.checkoutMode === "stripe") {
+    if (typeof row.record.processorFeeCents !== "number") {
+      return null;
+    }
+    return gross - refund - row.record.processorFeeCents;
+  }
+  if (row.kind === "donation" && row.record.paymentMethod === "stripe") {
     if (typeof row.record.processorFeeCents !== "number") {
       return null;
     }

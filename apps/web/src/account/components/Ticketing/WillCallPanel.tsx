@@ -45,10 +45,10 @@ function WillCallPerformanceMetrics({
   readonly ticketSoldLabel: string;
 }) {
   const processorFeeDisplay =
-    financialSummary.processorFeeCents > 0
-      ? `-${money(financialSummary.processorFeeCents)}`
-      : financialSummary.unreconciledProcessorFeeCount > 0
-        ? "Pending"
+    financialSummary.unreconciledProcessorFeeCount > 0
+      ? "Pending"
+      : financialSummary.processorFeeCents > 0
+        ? `-${money(financialSummary.processorFeeCents)}`
         : "$0.00";
 
   const netProceedsDisplay =
@@ -201,8 +201,8 @@ export function WillCallPanel({
             ticketSoldLabel={ticketSoldLabel}
           />
           <p className="ticket-dashboard__helper-text">
-            The buyer receives a full refund. Stripe retains the original processing fee, which is
-            paid by the Organization.
+            If an order is refunded, the buyer receives a full refund while Stripe retains the
+            original processing fee, which is paid by the Organization.
           </p>
         </fieldset>
       </div>

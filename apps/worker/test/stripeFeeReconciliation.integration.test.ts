@@ -1,10 +1,20 @@
-import { organizationEventSchema, organizationTicketOrdersResponseSchema } from "@choir/contracts";
+import {
+  donationRecordsResponseSchema,
+  organizationEventSchema,
+  organizationTicketOrdersResponseSchema,
+} from "@choir/contracts";
 import { calculatePaymentFinancialSummary } from "@choir/domain";
-import { exports } from "cloudflare:workers";
+import { createExecutionContext, createMessageBatch, getQueueResult } from "cloudflare:test";
+import { env, exports } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { processDeliveryBatch } from "../src/jobs/consumer";
+import type { DeliveryJob } from "../src/jobs/contracts";
+import * as stripeConnect from "../src/payments/stripeConnect";
 import {
   api,
+  database,
   jsonWrite,
+  organizationFiles,
   setupTicketingIntegration,
   signIn,
   stores,
@@ -377,5 +387,281 @@ describe("Stripe processor fee reconciliation and refund-aware financials", () =
     const order = orders.find((o) => o.id === purchaseId);
     expect(order?.processorFeeCents).toBe(150);
     expect(order?.providerBalanceTransactionId).toBe("txn_initial");
+  });
+
+  it("retries reconciliation job when settlement retrieval initially fails and succeeds on subsequent attempt", async () => {
+    const cookie = await signIn();
+    const nowIso = new Date().toISOString();
+
+    // Ensure stripe_connected_accounts exists in control DB
+    await database
+      .prepare(
+        `INSERT OR REPLACE INTO stripe_connected_accounts
+          (account_id, organization_id, status, created_at, updated_at)
+         VALUES ('acct_alpha_reconcile', 'organization-alpha', 'active', ?, ?)`,
+      )
+      .bind(nowIso, nowIso)
+      .run();
+
+    // Create an event & pending ticket purchase
+    const event = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          {
+            advancePriceCents: 4_500,
+            callTime: "18:00",
+            dayOfPriceCents: 4_500,
+            doorsOpenTime: "18:30",
+            durationMinutes: 60,
+            isTicketingEnabled: true,
+            location: "Retry Hall",
+            parentPerformanceId: null,
+            publicDetails: "Retry Concert",
+            publicGraphicFileId: null,
+            publishOnWebsite: true,
+            rsvpDeadlineDate: "2026-11-01",
+            rsvpFollowUpLeadHours: null,
+            rsvpFollowUpMode: "inherit",
+            setList: [],
+            setListApproved: false,
+            startsAt: "2026-11-25T19:00:00Z",
+            ticketCapacity: 50,
+            title: "Reconciliation Retry Concert",
+            type: "Performance",
+            venueId: null,
+          },
+          cookie,
+        )
+      ).json(),
+    );
+
+    const purchaseId = crypto.randomUUID();
+    const checkoutRequestId = crypto.randomUUID();
+    const providerPaymentId = `pi_retry_${purchaseId}`;
+    const providerSessionId = `cs_retry_${purchaseId}`;
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+
+    await stub.fetch("https://organization.internal/internal/ticketing/manage", {
+      body: JSON.stringify({
+        action: "create_stripe_pending",
+        checkout: {
+          buyerEmail: "retry.buyer@example.test",
+          buyerName: "Retry Buyer",
+          checkoutRequestId,
+          eventId: event.id,
+          marketingOptIn: false,
+          quantity: 1,
+        },
+        organizationId: "organization-alpha",
+        providerSessionId,
+        purchaseId,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+
+    await stub.fetch("https://organization.internal/internal/ticketing/manage", {
+      body: JSON.stringify({
+        action: "stripe_ticket_completed",
+        checkoutRequestId,
+        organizationId: "organization-alpha",
+        providerPaymentId,
+        providerSessionId,
+        stripeEventId: crypto.randomUUID(),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+
+    // Mock retrieveStripePaymentSettlement: fails once, succeeds second time
+    const retrieveSpy = vi
+      .spyOn(stripeConnect, "retrieveStripePaymentSettlement")
+      .mockRejectedValueOnce(new Error("Stripe API connection timeout"))
+      .mockResolvedValueOnce({
+        balanceTransactionId: "txn_retry_success",
+        currency: "usd",
+        feeCents: 161,
+        netCents: 4339,
+      });
+
+    const job: DeliveryJob = {
+      attempt: 1,
+      idempotencyKey: `reconcile-fee:${providerPaymentId}`,
+      jobId: crypto.randomUUID(),
+      kind: "payment_fee_reconciliation",
+      organizationId: "organization-alpha",
+      version: 1,
+    };
+
+    const consumerEnv = {
+      CONTROL_DB: database,
+      EXTERNAL_EFFECTS_MODE: "fake" as const,
+      ORGANIZATION_FILES: organizationFiles,
+      ORGANIZATION_STORE: stores,
+      PRODUCT_BASE_DOMAIN: env.PRODUCT_BASE_DOMAIN,
+      SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
+      STRIPE_SECRET_KEY: "sk_test_fake_key",
+    };
+
+    // Attempt 1: fails
+    const batch1 = createMessageBatch("choir-management-jobs-local", [
+      { attempts: 1, body: job, id: `job-${job.jobId}-1`, timestamp: new Date() },
+    ]);
+    const ctx1 = createExecutionContext();
+    await processDeliveryBatch(batch1, consumerEnv);
+    const result1 = await getQueueResult(batch1, ctx1);
+    expect(result1.explicitAcks).not.toContain(`job-${job.jobId}-1`);
+
+    // Verify order is still unreconciled
+    const ordersRes1 = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/tickets/orders", cookie),
+    );
+    const orders1 = organizationTicketOrdersResponseSchema.parse(await ordersRes1.json()).orders;
+    const order1 = orders1.find((o) => o.id === purchaseId);
+    expect(order1?.processorFeeCents).toBeNull();
+
+    // Attempt 2: retry succeeds
+    const batch2 = createMessageBatch("choir-management-jobs-local", [
+      { attempts: 2, body: job, id: `job-${job.jobId}-2`, timestamp: new Date() },
+    ]);
+    const ctx2 = createExecutionContext();
+    await processDeliveryBatch(batch2, consumerEnv);
+    const result2 = await getQueueResult(batch2, ctx2);
+    expect(result2.explicitAcks).toContain(`job-${job.jobId}-2`);
+
+    // Verify order is now reconciled with fee and balance transaction ID
+    const ordersRes2 = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/tickets/orders", cookie),
+    );
+    const orders2 = organizationTicketOrdersResponseSchema.parse(await ordersRes2.json()).orders;
+    const order2 = orders2.find((o) => o.id === purchaseId);
+    expect(order2?.processorFeeCents).toBe(161);
+    expect(order2?.providerBalanceTransactionId).toBe("txn_retry_success");
+    expect(typeof order2?.processorFeeReconciledAt === "string").toBe(true);
+
+    expect(retrieveSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("reconciles Stripe donation fee, exposes fields on /api/organization/donations, and preserves fee on refund", async () => {
+    const cookie = await signIn();
+    const donationId = crypto.randomUUID();
+    const checkoutRequestId = crypto.randomUUID();
+    const providerPaymentId = `pi_donation_${donationId}`;
+    const providerSessionId = `cs_donation_${donationId}`;
+    const balanceTransactionId = `txn_donation_${donationId}`;
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+
+    // 1. Create pending donation
+    const pendingRes = await stub.fetch("https://organization.internal/internal/donations/manage", {
+      body: JSON.stringify({
+        action: "create_stripe_pending_donation",
+        checkout: {
+          amountCents: 10_000,
+          anonymous: false,
+          buyerEmail: "generous.donor@example.test",
+          buyerName: "Generous Donor",
+          checkoutRequestId,
+          marketingConsent: true,
+          tributeName: "",
+          tributeNotifyEmail: "",
+          tributeType: "none",
+        },
+        donationId,
+        organizationId: "organization-alpha",
+        providerSessionId,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(pendingRes.status).toBe(201);
+
+    // 2. Complete Stripe donation
+    const completeRes = await stub.fetch(
+      "https://organization.internal/internal/donations/manage",
+      {
+        body: JSON.stringify({
+          action: "stripe_donation_completed",
+          checkoutRequestId,
+          organizationId: "organization-alpha",
+          providerPaymentId,
+          providerSessionId,
+          stripeEventId: crypto.randomUUID(),
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(completeRes.status).toBe(200);
+
+    // 3. Verify donations list before reconciliation: processorFeeCents is null
+    const listResBefore = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/donations", cookie),
+    );
+    expect(listResBefore.status).toBe(200);
+    const listBefore = donationRecordsResponseSchema.parse(await listResBefore.json()).donations;
+    const donationBefore = listBefore.find((d) => d.id === donationId);
+    expect(donationBefore).toBeDefined();
+    expect(donationBefore?.status).toBe("paid");
+    expect(donationBefore?.processorFeeCents).toBeNull();
+    expect(donationBefore?.providerBalanceTransactionId).toBeNull();
+    expect(donationBefore?.processorFeeReconciledAt).toBeNull();
+
+    // 4. Reconcile processor fee
+    const reconcileRes = await stub.fetch(
+      "https://organization.internal/internal/payments/manage",
+      {
+        body: JSON.stringify({
+          action: "reconcile_payment_processor_fee",
+          organizationId: "organization-alpha",
+          processorFeeCents: 320,
+          providerBalanceTransactionId: balanceTransactionId,
+          providerPaymentId,
+        }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      },
+    );
+    expect(reconcileRes.status).toBe(200);
+
+    // 5. Verify donations list after reconciliation: fields are populated
+    const listResAfter = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/donations", cookie),
+    );
+    expect(listResAfter.status).toBe(200);
+    const listAfter = donationRecordsResponseSchema.parse(await listResAfter.json()).donations;
+    const donationAfter = listAfter.find((d) => d.id === donationId);
+    expect(donationAfter).toBeDefined();
+    expect(donationAfter?.processorFeeCents).toBe(320);
+    expect(donationAfter?.providerBalanceTransactionId).toBe(balanceTransactionId);
+    expect(typeof donationAfter?.processorFeeReconciledAt === "string").toBe(true);
+
+    // 6. Refund the donation (via Stripe refund webhook dispatch)
+    const refundRes = await stub.fetch("https://organization.internal/internal/donations/manage", {
+      body: JSON.stringify({
+        action: "stripe_donation_refunded",
+        organizationId: "organization-alpha",
+        providerPaymentId,
+        stripeEventId: crypto.randomUUID(),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(refundRes.status).toBe(200);
+
+    // 7. Verify donations list after refund: processor fee is preserved
+    const listResRefunded = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/donations", cookie),
+    );
+    expect(listResRefunded.status).toBe(200);
+    const listRefunded = donationRecordsResponseSchema.parse(
+      await listResRefunded.json(),
+    ).donations;
+    const donationRefunded = listRefunded.find((d) => d.id === donationId);
+    expect(donationRefunded?.status).toBe("refunded");
+    expect(donationRefunded?.processorFeeCents).toBe(320);
+    expect(donationRefunded?.providerBalanceTransactionId).toBe(balanceTransactionId);
   });
 });

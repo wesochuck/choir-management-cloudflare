@@ -140,6 +140,7 @@ export const organizationRpcOperationMap: OrganizationRpcOperationMap = {
       "/internal/donations/donation",
       "/internal/payments/refund-target",
       "/internal/payments/notification-job",
+      "/internal/payments/unreconciled",
       "/internal/seasons/list",
       "/internal/seasons/dues",
       "/internal/seasons/member-active",

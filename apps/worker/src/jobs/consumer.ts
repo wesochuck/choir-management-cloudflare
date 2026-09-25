@@ -22,6 +22,7 @@ import { deliverAuditionNotificationJob } from "./deliveries/auditions";
 import { deliverPaymentNotificationJob } from "./deliveries/payments";
 import { deliverOrganizationExportJob } from "./deliveries/export";
 import { cleanupStaleCheckout } from "./deliveries/cleanup";
+import { deliverPaymentFeeReconciliationJob } from "./deliveries/reconciliation";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { mutateOrganizationStore } from "../organization/rpc/repository";
 
@@ -45,6 +46,10 @@ async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promi
   }
   if (job.kind === "payment_notification") {
     await deliverPaymentNotificationJob(env, job);
+    return;
+  }
+  if (job.kind === "payment_fee_reconciliation") {
+    await deliverPaymentFeeReconciliationJob(env, job);
     return;
   }
   if (job.kind === "organization_export") {

@@ -632,27 +632,23 @@ async function fetchBalanceTransactionById(
   connectedAccountId: string,
   balanceTxnId: string,
 ): Promise<StripePaymentSettlement> {
-  try {
-    const txnResult: unknown = await stripeV1Request(
-      secretKey,
-      `/v1/balance_transactions/${encodeURIComponent(balanceTxnId)}`,
-      {
-        errorType: "connect",
-        method: "GET",
-        stripeAccount: connectedAccountId,
-      },
-    );
-    const parsedTxn = stripeSettlementBalanceTxnSchema.safeParse(txnResult);
-    if (parsedTxn.success) {
-      return {
-        balanceTransactionId: parsedTxn.data.id,
-        currency: parsedTxn.data.currency ?? null,
-        feeCents: parsedTxn.data.fee,
-        netCents: parsedTxn.data.net ?? null,
-      };
-    }
-  } catch {
-    // Swallow network/fetch errors when resolving balance transaction details
+  const txnResult: unknown = await stripeV1Request(
+    secretKey,
+    `/v1/balance_transactions/${encodeURIComponent(balanceTxnId)}`,
+    {
+      errorType: "connect",
+      method: "GET",
+      stripeAccount: connectedAccountId,
+    },
+  );
+  const parsedTxn = stripeSettlementBalanceTxnSchema.safeParse(txnResult);
+  if (parsedTxn.success) {
+    return {
+      balanceTransactionId: parsedTxn.data.id,
+      currency: parsedTxn.data.currency ?? null,
+      feeCents: parsedTxn.data.fee,
+      netCents: parsedTxn.data.net ?? null,
+    };
   }
   return {
     balanceTransactionId: balanceTxnId,

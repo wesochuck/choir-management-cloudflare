@@ -432,3 +432,22 @@ export function reconcilePaymentProcessorFeeInStore(
 
   return Response.json({ reconciled: true });
 }
+
+export function listUnreconciledPaymentAttempts(
+  storage: DurableObjectStorage,
+  limit = 50,
+): readonly string[] {
+  return storage.sql
+    .exec<{ readonly providerPaymentId: string }>(
+      `SELECT DISTINCT provider_payment_id AS providerPaymentId
+       FROM payment_attempts
+       WHERE status IN ('paid', 'refunded')
+         AND processor_fee_cents IS NULL
+         AND provider_payment_id NOT LIKE 'fake_%'
+         AND provider_payment_id <> ''
+       LIMIT ?`,
+      limit,
+    )
+    .toArray()
+    .map((row) => row.providerPaymentId);
+}

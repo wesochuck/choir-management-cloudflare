@@ -131,16 +131,67 @@ describe("Commerce report helpers", () => {
     expect(commerceRowNetProceeds(row)).toBeNull();
   });
 
-  it("handles donation rows with donor fees correctly", () => {
+  it("calculates gross, refund, processor fee, and net proceeds for paid Stripe donation", () => {
     const donation = mockDonation({
       amountCents: 10000,
       feeCents: 320,
+      paymentMethod: "stripe",
+      processorFeeCents: 320,
+      status: "paid",
     });
     const row: CommerceRow = { kind: "donation", record: donation };
 
-    expect(commerceRowGrossAmount(row)).toBe(10320); // 10000 + 320
+    expect(commerceRowGrossAmount(row)).toBe(10320);
+    expect(commerceRowRefundAmount(row)).toBe(0);
+    expect(commerceRowProcessorFee(row)).toBe(320);
+    expect(commerceRowNetProceeds(row)).toBe(10000); // 10320 - 0 - 320
+  });
+
+  it("calculates negative net proceeds equal to retained Stripe fee for refunded Stripe donation", () => {
+    const donation = mockDonation({
+      amountCents: 10000,
+      feeCents: 320,
+      paymentMethod: "stripe",
+      processorFeeCents: 320,
+      status: "refunded",
+    });
+    const row: CommerceRow = { kind: "donation", record: donation };
+
+    expect(commerceRowGrossAmount(row)).toBe(10320);
+    expect(commerceRowRefundAmount(row)).toBe(10320);
+    expect(commerceRowProcessorFee(row)).toBe(320);
+    // Fully refunded Stripe donation nets negative amount equal to the retained fee
+    expect(commerceRowNetProceeds(row)).toBe(-320);
+  });
+
+  it("returns null processor fee and net proceeds for unreconciled Stripe donation", () => {
+    const donation = mockDonation({
+      amountCents: 10000,
+      feeCents: 320,
+      paymentMethod: "stripe",
+      processorFeeCents: null,
+      status: "paid",
+    });
+    const row: CommerceRow = { kind: "donation", record: donation };
+
+    expect(commerceRowGrossAmount(row)).toBe(10320);
+    expect(commerceRowRefundAmount(row)).toBe(0);
+    expect(commerceRowProcessorFee(row)).toBeNull();
+    expect(commerceRowNetProceeds(row)).toBeNull();
+  });
+
+  it("handles non-Stripe donation rows without processor fees", () => {
+    const donation = mockDonation({
+      amountCents: 10000,
+      feeCents: 0,
+      paymentMethod: "check",
+      status: "paid",
+    });
+    const row: CommerceRow = { kind: "donation", record: donation };
+
+    expect(commerceRowGrossAmount(row)).toBe(10000);
     expect(commerceRowRefundAmount(row)).toBe(0);
     expect(commerceRowProcessorFee(row)).toBe(0);
-    expect(commerceRowNetProceeds(row)).toBe(10320);
+    expect(commerceRowNetProceeds(row)).toBe(10000);
   });
 });

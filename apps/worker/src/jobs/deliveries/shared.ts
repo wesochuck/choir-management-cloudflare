@@ -25,6 +25,7 @@ export type JobConsumerEnv = Pick<
       | "PLATFORM_EMAIL_ALLOWED_RECIPIENTS"
       | "PLATFORM_EMAIL_FROM"
       | "PLATFORM_EMAIL_MODE"
+      | "STRIPE_SECRET_KEY"
     >
   >;
 export type DeadLetterConsumerEnv = Pick<Env, "CONTROL_DB"> &

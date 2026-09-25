@@ -155,6 +155,92 @@ export function stripeRefundDispatchMatched(body: unknown): boolean {
   return refunded > 0 || ("duplicate" in body && body.duplicate === true);
 }
 
+async function reconcileCompletedPaymentFee(
+  context: StripeContext,
+  organizationId: string,
+  values: {
+    readonly checkoutRequestId?: string;
+    readonly providerPaymentId: string;
+    readonly providerSessionId: string;
+    readonly stripeEventId: string;
+  },
+  accountId: string,
+): Promise<void> {
+  if (!context.env.STRIPE_SECRET_KEY) {
+    return;
+  }
+  let reconciled = false;
+  try {
+    const settlement = await retrieveStripePaymentSettlement(
+      context.env.STRIPE_SECRET_KEY,
+      accountId,
+      values.providerPaymentId,
+    );
+    if (settlement.feeCents !== null) {
+      const reconcileResult = await dispatch(
+        context,
+        organizationId,
+        { action: "reconcile_payment_processor_fee", path: "payments" },
+        {
+          ...values,
+          processorFeeCents: settlement.feeCents,
+          ...(settlement.balanceTransactionId
+            ? { providerBalanceTransactionId: settlement.balanceTransactionId }
+            : {}),
+        },
+      );
+      if (reconcileResult.response.ok) {
+        reconciled = true;
+      } else {
+        console.warn(
+          JSON.stringify({
+            environment: context.env.APP_ENV,
+            event: "stripe_fee_reconciliation_dispatch_failed",
+            organizationId,
+            providerPaymentId: values.providerPaymentId,
+            status: reconcileResult.response.status,
+          }),
+        );
+      }
+    }
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        environment: context.env.APP_ENV,
+        event: "stripe_fee_reconciliation_deferred",
+        organizationId,
+        providerPaymentId: values.providerPaymentId,
+        reason: error instanceof Error ? error.message : "unknown_error",
+        requestId: context.get("requestId"),
+      }),
+    );
+  }
+
+  if (!reconciled) {
+    try {
+      await context.env.JOBS_QUEUE.send({
+        attempt: 1,
+        idempotencyKey: `reconcile-fee:${values.providerPaymentId}`,
+        jobId: crypto.randomUUID(),
+        kind: "payment_fee_reconciliation",
+        organizationId,
+        version: 1,
+      });
+    } catch (queueError) {
+      console.error(
+        JSON.stringify({
+          environment: context.env.APP_ENV,
+          event: "stripe_fee_reconciliation_queue_failed",
+          organizationId,
+          providerPaymentId: values.providerPaymentId,
+          reason: queueError instanceof Error ? queueError.message : "unknown_error",
+          requestId: context.get("requestId"),
+        }),
+      );
+    }
+  }
+}
+
 async function handleCompleted(
   context: StripeContext,
   organizationId: string,
@@ -189,39 +275,8 @@ async function handleCompleted(
     );
   }
 
-  if (accountId && values.providerPaymentId && context.env.STRIPE_SECRET_KEY) {
-    try {
-      const settlement = await retrieveStripePaymentSettlement(
-        context.env.STRIPE_SECRET_KEY,
-        accountId,
-        values.providerPaymentId,
-      );
-      if (settlement.feeCents !== null) {
-        await dispatch(
-          context,
-          organizationId,
-          { action: "reconcile_payment_processor_fee", path: "payments" },
-          {
-            ...values,
-            processorFeeCents: settlement.feeCents,
-            ...(settlement.balanceTransactionId
-              ? { providerBalanceTransactionId: settlement.balanceTransactionId }
-              : {}),
-          },
-        );
-      }
-    } catch (error) {
-      console.warn(
-        JSON.stringify({
-          environment: context.env.APP_ENV,
-          event: "stripe_fee_reconciliation_deferred",
-          organizationId,
-          providerPaymentId: values.providerPaymentId,
-          reason: error instanceof Error ? error.message : "unknown_error",
-          requestId: context.get("requestId"),
-        }),
-      );
-    }
+  if (accountId && values.providerPaymentId) {
+    await reconcileCompletedPaymentFee(context, organizationId, values, accountId);
   }
 
   return context.json({

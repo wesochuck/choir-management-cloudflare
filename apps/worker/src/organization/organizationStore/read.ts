@@ -83,8 +83,11 @@ import { readTicketConfirmationSettingsFromStore } from "../ticketConfirmationSe
 import { getSetupStateFromStore, getModuleStateFromStore } from "../setupStore";
 import { readPaymentSettingsFromStore } from "../paymentSettingsStore";
 import { readEventReminderJobFromStore, readRsvpFollowUpJobFromStore } from "../schedulingStore";
+import {
+  listUnreconciledPaymentAttempts,
+  readPaymentRefundTargetFromStore,
+} from "../paymentRefundStore";
 import { readPaymentNotificationJobFromStore } from "../paymentNotificationStore";
-import { readPaymentRefundTargetFromStore } from "../paymentRefundStore";
 import { listEmailProviderRoutesFromStore } from "./providerFeedback";
 import {
   listSeasonsFromStore,
@@ -242,6 +245,8 @@ const contentGetHandlers: Record<
     ),
   "/internal/payments/notification-job": (storage, url, organizationId) =>
     readPaymentNotificationJobFromStore(storage, organizationId, url.searchParams.get("jobId")),
+  "/internal/payments/unreconciled": (storage) =>
+    Response.json({ providerPaymentIds: listUnreconciledPaymentAttempts(storage) }),
   "/internal/scheduling/event-reminder-job": (
     storage: DurableObjectStorage,
     url: URL,

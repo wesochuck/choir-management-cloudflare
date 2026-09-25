@@ -53,9 +53,11 @@ export function CommerceReport({
       }
       return {
         amountPaidCents: row.record.amountCents + row.record.feeCents,
-        checkoutMode: "fake" as const,
+        checkoutMode:
+          row.record.paymentMethod === "stripe" ? ("stripe" as const) : ("fake" as const),
+        customerFeeCents: row.record.feeCents,
         feeCents: row.record.feeCents,
-        processorFeeCents: null,
+        processorFeeCents: row.record.processorFeeCents,
         status: row.record.status,
       };
     });
@@ -186,10 +188,10 @@ export function CommerceReport({
               </div>
               <div className="reports-kpi">
                 <strong>
-                  {financialSummary.processorFeeCents > 0
-                    ? `-${money(financialSummary.processorFeeCents)}`
-                    : financialSummary.unreconciledProcessorFeeCount > 0
-                      ? "Pending"
+                  {financialSummary.unreconciledProcessorFeeCount > 0
+                    ? "Pending"
+                    : financialSummary.processorFeeCents > 0
+                      ? `-${money(financialSummary.processorFeeCents)}`
                       : "$0.00"}
                 </strong>
                 <span>Stripe fees</span>
