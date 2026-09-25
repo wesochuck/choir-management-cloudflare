@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import type { Env } from "../../env";
+import { recordDatabaseCost } from "../../observability/databaseCost";
 import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
 import {
   MAX_ATTEMPTS,
@@ -274,7 +275,7 @@ export async function processEmailProviderEventById(
 }
 
 export async function reconcileEmailProviderEvents(
-  env: Pick<Env, "CONTROL_DB" | "ORGANIZATION_STORE">,
+  env: Pick<Env, "CONTROL_DB" | "ORGANIZATION_STORE"> & { readonly APP_ENV?: string | undefined },
 ): Promise<void> {
   await backfillEmailProviderRoutes(env.CONTROL_DB, async (organizationId, offset) =>
     invokeOrganizationRpc(
@@ -290,6 +291,14 @@ export async function reconcileEmailProviderEvents(
   )
     .bind(now)
     .all<{ readonly eventId: string }>();
+  recordDatabaseCost({
+    environment: env.APP_ENV,
+    operation: "d1.email_feedback.reconcile",
+    rowsRead: events.meta.rows_read,
+    rowsReturned: events.results.length,
+    rowsWritten: events.meta.rows_written,
+    store: "d1",
+  });
   for (const event of events.results) {
     try {
       await processEmailProviderEventById(env, event.eventId);

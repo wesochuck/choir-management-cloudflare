@@ -1,3 +1,4 @@
+import { recordDatabaseCost } from "../observability/databaseCost";
 import { issueSignedLink, verifySignedLinkScope } from "../security/signedLinks";
 import type { Env } from "../env";
 
@@ -36,7 +37,9 @@ export type EmailChangeEnvironment = Pick<
   | "PLATFORM_EMAIL_ALLOWED_RECIPIENTS"
   | "PLATFORM_EMAIL_FROM"
   | "PLATFORM_EMAIL_MODE"
->;
+> & {
+  readonly APP_ENV?: string | undefined;
+};
 
 interface EmailChangeRequestRow {
   readonly confirmationOrigin: string;
@@ -263,7 +266,7 @@ export async function reconcileEmailChangeNotifications(
   env: EmailChangeEnvironment,
 ): Promise<void> {
   const now = Date.now();
-  await env.CONTROL_DB.batch([
+  const results = await env.CONTROL_DB.batch([
     env.CONTROL_DB.prepare(
       `UPDATE email_change_notifications
        SET state = 'canceled', updated_at = ?
@@ -280,6 +283,15 @@ export async function reconcileEmailChangeNotifications(
        WHERE status = 'pending' AND expires_at <= ?`,
     ).bind(now, now),
   ]);
+  const rowsRead = results.reduce((sum, r) => sum + r.meta.rows_read, 0);
+  const rowsWritten = results.reduce((sum, r) => sum + r.meta.rows_written, 0);
+  recordDatabaseCost({
+    environment: env.APP_ENV,
+    operation: "d1.email_change.reconcile",
+    rowsRead,
+    rowsWritten,
+    store: "d1",
+  });
   await deliverEmailChangeNotifications(env);
 }
 

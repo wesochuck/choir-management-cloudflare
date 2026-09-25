@@ -1,4 +1,5 @@
 import type { DurableObjectStorage } from "@cloudflare/workers-types";
+import { recordDatabaseCost } from "../observability/databaseCost";
 import { z } from "zod";
 
 export const publicCheckoutRateLimitRequestSchema = z.object({
@@ -24,17 +25,19 @@ function isIdempotentReplay(
   storage: DurableObjectStorage,
   action: string,
   checkoutRequestId?: string,
-): boolean {
-  if (!checkoutRequestId) return false;
+): { readonly isReplay: boolean; readonly rowsRead: number; readonly rowsWritten: number } {
+  if (!checkoutRequestId) return { isReplay: false, rowsRead: 0, rowsWritten: 0 };
   const table = action === "ticket_checkout" ? "ticket_purchases" : "donations";
-  const existing = storage.sql
-    .exec<{ readonly id: string }>(
-      `SELECT id FROM ${table} WHERE checkout_request_id = ? LIMIT 1`,
-      checkoutRequestId,
-    )
-    .toArray()
-    .at(0);
-  return Boolean(existing);
+  const cursor = storage.sql.exec<{ readonly id: string }>(
+    `SELECT id FROM ${table} WHERE checkout_request_id = ? LIMIT 1`,
+    checkoutRequestId,
+  );
+  const existing = cursor.toArray().at(0);
+  return {
+    isReplay: Boolean(existing),
+    rowsRead: cursor.rowsRead,
+    rowsWritten: cursor.rowsWritten,
+  };
 }
 
 function buildRateLimitBuckets(data: PublicCheckoutRateLimitRequest): RateLimitBucketDefinition[] {
@@ -87,17 +90,41 @@ export function checkPublicCheckoutRateLimit(
     return Response.json({ code: "invalid_public_rate_limit_request" }, { status: 400 });
   }
 
-  const identity = storage.sql
-    .exec<{ readonly organizationId: string }>(
-      "SELECT organization_id AS organizationId FROM organization_metadata LIMIT 1",
-    )
-    .toArray()
-    .at(0)?.organizationId;
+  let totalRowsRead = 0;
+  let totalRowsWritten = 0;
+
+  const identityCursor = storage.sql.exec<{ readonly organizationId: string }>(
+    "SELECT organization_id AS organizationId FROM organization_metadata LIMIT 1",
+  );
+  const identity = identityCursor.toArray().at(0)?.organizationId;
+  totalRowsRead += identityCursor.rowsRead;
+  totalRowsWritten += identityCursor.rowsWritten;
+
   if (identity !== parsed.data.organizationId) {
+    recordDatabaseCost({
+      operation: "organization_sqlite.rate_limit.checkout",
+      rowsRead: totalRowsRead,
+      rowsWritten: totalRowsWritten,
+      store: "organization_sqlite",
+    });
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
 
-  if (isIdempotentReplay(storage, parsed.data.action, parsed.data.checkoutRequestId)) {
+  const replayCheck = isIdempotentReplay(
+    storage,
+    parsed.data.action,
+    parsed.data.checkoutRequestId,
+  );
+  totalRowsRead += replayCheck.rowsRead;
+  totalRowsWritten += replayCheck.rowsWritten;
+
+  if (replayCheck.isReplay) {
+    recordDatabaseCost({
+      operation: "organization_sqlite.rate_limit.checkout",
+      rowsRead: totalRowsRead,
+      rowsWritten: totalRowsWritten,
+      store: "organization_sqlite",
+    });
     return Response.json({ allowed: true, idempotentReplay: true });
   }
 
@@ -105,17 +132,23 @@ export function checkPublicCheckoutRateLimit(
   const buckets = buildRateLimitBuckets(parsed.data);
 
   const result = storage.transactionSync(() => {
-    const existing = buckets.map((bucket) => ({
-      ...bucket,
-      row: storage.sql
-        .exec<{ readonly requestCount: number; readonly windowStartedAt: number }>(
-          `SELECT request_count AS requestCount, window_started_at AS windowStartedAt
+    const existing = buckets.map((bucket) => {
+      const cursor = storage.sql.exec<{
+        readonly requestCount: number;
+        readonly windowStartedAt: number;
+      }>(
+        `SELECT request_count AS requestCount, window_started_at AS windowStartedAt
            FROM public_rate_limit_buckets WHERE bucket_key = ? LIMIT 1`,
-          bucket.bucketKey,
-        )
-        .toArray()
-        .at(0),
-    }));
+        bucket.bucketKey,
+      );
+      const row = cursor.toArray().at(0);
+      totalRowsRead += cursor.rowsRead;
+      totalRowsWritten += cursor.rowsWritten;
+      return {
+        ...bucket,
+        row,
+      };
+    });
 
     const retryAfterSeconds = existing.reduce((retryAfter, bucket) => {
       if (!bucket.row || now - bucket.row.windowStartedAt >= bucket.durationMs) return retryAfter;
@@ -150,13 +183,15 @@ export function checkPublicCheckoutRateLimit(
     for (const bucket of existing) {
       const active = bucket.row && now - bucket.row.windowStartedAt < bucket.durationMs;
       if (active) {
-        storage.sql.exec(
+        const updateCursor = storage.sql.exec(
           `UPDATE public_rate_limit_buckets
            SET request_count = request_count + 1 WHERE bucket_key = ?`,
           bucket.bucketKey,
         );
+        totalRowsRead += updateCursor.rowsRead;
+        totalRowsWritten += updateCursor.rowsWritten;
       } else {
-        storage.sql.exec(
+        const insertCursor = storage.sql.exec(
           `INSERT INTO public_rate_limit_buckets (bucket_key, window_started_at, request_count)
            VALUES (?, ?, 1)
            ON CONFLICT(bucket_key) DO UPDATE SET window_started_at = excluded.window_started_at,
@@ -164,15 +199,26 @@ export function checkPublicCheckoutRateLimit(
           bucket.bucketKey,
           now,
         );
+        totalRowsRead += insertCursor.rowsRead;
+        totalRowsWritten += insertCursor.rowsWritten;
       }
     }
 
-    storage.sql.exec(
+    const pruneCursor = storage.sql.exec(
       "DELETE FROM public_rate_limit_buckets WHERE window_started_at < ?",
       now - 24 * 60 * 60 * 1_000,
     );
+    totalRowsRead += pruneCursor.rowsRead;
+    totalRowsWritten += pruneCursor.rowsWritten;
 
     return { allowed: true, reason: "ok", retryAfterSeconds: 0 };
+  });
+
+  recordDatabaseCost({
+    operation: "organization_sqlite.rate_limit.checkout",
+    rowsRead: totalRowsRead,
+    rowsWritten: totalRowsWritten,
+    store: "organization_sqlite",
   });
 
   if (!result.allowed) {

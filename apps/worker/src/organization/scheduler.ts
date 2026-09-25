@@ -1,4 +1,5 @@
 import type { DeliveryJob } from "../jobs/contracts";
+import { recordDatabaseCost } from "../observability/databaseCost";
 import {
   areAuditionDatesPassed,
   rsvpDeadlineFromDate,
@@ -508,17 +509,23 @@ function createDueJobs(
 }
 
 function createFeeReconciliationJobs(storage: DurableObjectStorage, now: Date): void {
-  const unreconciled = storage.sql
-    .exec<{ readonly providerPaymentId: string }>(
-      `SELECT DISTINCT provider_payment_id AS providerPaymentId
+  const cursor = storage.sql.exec<{ readonly providerPaymentId: string }>(
+    `SELECT DISTINCT provider_payment_id AS providerPaymentId
        FROM payment_attempts
        WHERE status IN ('paid', 'refunded')
          AND processor_fee_cents IS NULL
          AND provider_payment_id NOT LIKE 'fake_%'
          AND provider_payment_id <> ''
        LIMIT 10`,
-    )
-    .toArray();
+  );
+  const unreconciled = cursor.toArray();
+  recordDatabaseCost({
+    operation: "organization_sqlite.scheduler.fee_reconciliation",
+    rowsRead: cursor.rowsRead,
+    rowsReturned: unreconciled.length,
+    rowsWritten: cursor.rowsWritten,
+    store: "organization_sqlite",
+  });
 
   for (const row of unreconciled) {
     storage.sql.exec(
@@ -534,16 +541,23 @@ function createFeeReconciliationJobs(storage: DurableObjectStorage, now: Date): 
 }
 
 function readPendingJobs(storage: DurableObjectStorage): readonly ScheduledJobRow[] {
-  return storage.sql
-    .exec<ScheduledJobRow>(
-      `SELECT job_id AS jobId, kind, idempotency_key AS idempotencyKey, due_at AS dueAt
+  const cursor = storage.sql.exec<ScheduledJobRow>(
+    `SELECT job_id AS jobId, kind, idempotency_key AS idempotencyKey, due_at AS dueAt
        FROM scheduled_job_outbox
        WHERE enqueued_at IS NULL
        ORDER BY due_at, job_id
        LIMIT ?`,
-      OUTBOX_BATCH_SIZE,
-    )
-    .toArray();
+    OUTBOX_BATCH_SIZE,
+  );
+  const jobs = cursor.toArray();
+  recordDatabaseCost({
+    operation: "organization_sqlite.scheduler.pending_jobs",
+    rowsRead: cursor.rowsRead,
+    rowsReturned: jobs.length,
+    rowsWritten: cursor.rowsWritten,
+    store: "organization_sqlite",
+  });
+  return jobs;
 }
 
 async function scheduleNextAlarm(
