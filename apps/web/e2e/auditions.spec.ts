@@ -358,7 +358,7 @@ test("shows not-found state for an invalid audition token", async ({ page }) => 
   await expect(page.getByRole("link", { name: "Return to the Organization site" })).toBeVisible();
 });
 
-test("admin manages auditions: list, edit, and save", async ({ page }) => {
+test("admin manages auditions: list, edit, and save", async ({ page }, testInfo) => {
   const updatedAudition: {
     value: { id: string; status: string; adminNotes?: string } | null;
   } = { value: null };
@@ -536,19 +536,26 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
   await page.goto("/admin/auditions");
 
   await expect(page.getByRole("heading", { name: "Auditions" })).toBeVisible();
-  await expect(page.getByText("Singer One")).toBeVisible();
-  await expect(page.getByText("Singer Two")).toBeVisible();
-  await expect(page.getByText("Soprano")).toBeVisible();
+  const visibleAuditions = page.locator(".data-table:visible, .data-table-cards:visible");
+  await expect(visibleAuditions.getByText("Singer One")).toBeVisible();
+  await expect(visibleAuditions.getByText("Singer Two")).toBeVisible();
+  await expect(visibleAuditions.getByText("Soprano")).toBeVisible();
 
-  const firstAuditionRow = page.locator(".audition-table__row").first();
-  const secondAuditionRow = page.locator(".audition-table__row").nth(1);
+  const isMobile =
+    testInfo.project.name.includes("mobile") || (page.viewportSize()?.width ?? 1280) <= 640;
+  const firstAuditionRow = visibleAuditions.locator(".audition-table__row").first();
+  const secondAuditionRow = visibleAuditions.locator(".audition-table__row").nth(1);
 
   await expect(firstAuditionRow.getByRole("button", { name: "Schedule" })).toBeVisible();
   await expect(firstAuditionRow.getByRole("button", { name: "Convert to Profile" })).toHaveCount(0);
   await expect(secondAuditionRow.getByRole("button", { name: "Convert to Profile" })).toBeVisible();
   await expect(secondAuditionRow.getByRole("button", { name: "Schedule" })).toHaveCount(0);
 
-  await firstAuditionRow.getByRole("cell").first().click();
+  if (isMobile) {
+    await firstAuditionRow.locator(".data-table-card__value").first().click();
+  } else {
+    await firstAuditionRow.getByRole("cell").first().click();
+  }
   const scheduleDialog = page.getByRole("dialog", { name: "Schedule audition" });
   await expect(scheduleDialog).toBeVisible();
   await scheduleDialog.getByRole("button", { name: "Cancel" }).click();
@@ -557,7 +564,7 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
   await expect(scheduleDialog).toBeVisible();
   await scheduleDialog.getByRole("button", { name: "Cancel" }).click();
 
-  await page.getByRole("button", { name: "More actions for Singer One" }).click();
+  await firstAuditionRow.getByRole("button", { name: "More actions for Singer One" }).click();
   await expect(page.getByRole("menuitem", { exact: true, name: "Edit" })).toBeVisible();
   await expect(page.getByRole("menuitem", { exact: true, name: "Schedule" })).toBeVisible();
   await expect(
@@ -569,7 +576,7 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
   await expect(deleteDialog).toBeVisible();
   await deleteDialog.getByRole("button", { name: "Cancel" }).click();
 
-  await page.getByRole("button", { name: "More actions for Singer Two" }).click();
+  await secondAuditionRow.getByRole("button", { name: "More actions for Singer Two" }).click();
   await expect(page.getByRole("menuitem", { exact: true, name: "Edit" })).toBeVisible();
   await expect(page.getByRole("menuitem", { exact: true, name: "Reschedule" })).toBeVisible();
   await expect(
@@ -577,11 +584,12 @@ test("admin manages auditions: list, edit, and save", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByRole("menuitem", { exact: true, name: "Delete" })).toBeVisible();
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Edit" }).first().click({ force: true });
-  await expect(page.getByText("Edit Audition")).toBeVisible();
-  await page.getByLabel("Status").selectOption("scheduled");
-  await page.getByLabel("Admin notes").fill("Promising candidate");
-  await page.getByRole("button", { exact: true, name: "Save" }).click();
+  await firstAuditionRow.getByRole("button", { name: "Edit" }).click({ force: true });
+  const editDialog = page.getByRole("dialog", { name: "Edit audition" });
+  await expect(editDialog).toBeVisible();
+  await editDialog.getByLabel("Status").selectOption("scheduled");
+  await editDialog.getByLabel("Admin notes").fill("Promising candidate");
+  await editDialog.getByRole("button", { exact: true, name: "Save" }).click();
 
   await expect(page.getByText("Audition updated.")).toBeVisible();
   expect(updatedAudition.value).not.toBeNull();

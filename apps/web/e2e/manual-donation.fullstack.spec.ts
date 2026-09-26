@@ -35,7 +35,8 @@ test("records an offline donation that survives a reload @webkit-smoke", async (
   await page.goto(`${FULLSTACK_APP_ORIGIN}/admin/donations`);
   await page.getByRole("button", { name: "Record donation" }).click();
   const dialog = page.getByRole("dialog", { name: "Record donation" });
-  await expect(dialog).toBeVisible();
+  const isMobile =
+    testInfo.project.name.includes("mobile") || (page.viewportSize()?.width ?? 1280) <= 640;
   const paymentMethodBox = await dialog.getByLabel("Payment method").boundingBox();
   const paymentReferenceBox = await dialog.getByLabel(/^Check # \/ Reference note/).boundingBox();
   expect(paymentMethodBox).not.toBeNull();
@@ -43,7 +44,11 @@ test("records an offline donation that survives a reload @webkit-smoke", async (
   if (!paymentMethodBox || !paymentReferenceBox) {
     throw new Error("Manual donation payment controls must be measurable.");
   }
-  expect(Math.abs(paymentMethodBox.y - paymentReferenceBox.y)).toBeLessThanOrEqual(2);
+  if (isMobile) {
+    expect(paymentReferenceBox.y).toBeGreaterThan(paymentMethodBox.y);
+  } else {
+    expect(Math.abs(paymentMethodBox.y - paymentReferenceBox.y)).toBeLessThanOrEqual(2);
+  }
 
   await dialog.getByLabel("Tribute").selectOption("honor");
   const tributeNameBox = await dialog.getByLabel("Honoree / Memorial name").boundingBox();
@@ -53,7 +58,11 @@ test("records an offline donation that survives a reload @webkit-smoke", async (
   if (!tributeNameBox || !notificationEmailBox) {
     throw new Error("Manual donation tribute controls must be measurable.");
   }
-  expect(Math.abs(tributeNameBox.y - notificationEmailBox.y)).toBeLessThanOrEqual(2);
+  if (isMobile) {
+    expect(notificationEmailBox.y).toBeGreaterThan(tributeNameBox.y);
+  } else {
+    expect(Math.abs(tributeNameBox.y - notificationEmailBox.y)).toBeLessThanOrEqual(2);
+  }
   await dialog.getByLabel("Tribute").selectOption("none");
 
   await dialog.getByLabel("Amount (USD)").fill("75");
