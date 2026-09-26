@@ -162,6 +162,22 @@ export function writeEvent(
         occurredAt,
       );
     } else {
+      const existingEvent = storage.sql
+        .exec<{ readonly startsAt: string }>(
+          "SELECT starts_at AS startsAt FROM events WHERE id = ? LIMIT 1",
+          event.id,
+        )
+        .toArray()
+        .at(0);
+      if (existingEvent && existingEvent.startsAt !== event.startsAt) {
+        storage.sql.exec(
+          `UPDATE ticket_notifications
+           SET status = 'suppressed', failure_detail = 'Performance rescheduled', updated_at = ?
+           WHERE event_id = ? AND kind = 'reminder' AND status = 'queued'`,
+          occurredAt,
+          event.id,
+        );
+      }
       storage.sql.exec(
         `UPDATE events SET title = ?, type = ?, starts_at = ?, duration_minutes = ?,
            call_time = ?, location = ?, venue_id = ?, parent_performance_id = ?, details = ?,

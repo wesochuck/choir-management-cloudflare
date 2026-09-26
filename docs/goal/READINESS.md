@@ -408,6 +408,13 @@ resend mutation. The helper still uses a zero-dollar simulated order and archive
 is qualification tooling only and does not change the deployed Worker. A fresh authenticated rerun
 is required before claiming permanent-staging evidence for `api.resend-ticket`.
 
+Ticket reminder scheduling and rescheduling behavior is qualified in automated integration tests
+(`apps/worker/test/ticketing.bundles.integration.test.ts` and
+`apps/worker/test/ticketing.integration.test.ts`): bundled purchases generate one concert-specific
+reminder per performance; performance rescheduling updates the reminder deduplication key to allow a
+new reminder for the revised date, preserves historical sent reminder records, and suppresses stale
+queued reminders upon event update or delivery preflight.
+
 ## Prior staging release and deployment path — August 12, 2026
 
 Permanent staging currently serves source commit `e2423b7cc8678c55e20285be14c4abb5590407b5` as

@@ -30,6 +30,15 @@ export function archiveEvent(
       occurredAt,
       operation.eventId,
     );
+    storage.sql.exec(
+      `UPDATE ticket_notifications
+       SET status = 'suppressed', failure_detail = 'Performance archived', updated_at = ?
+       WHERE (event_id = ? OR event_id IN (SELECT id FROM events WHERE parent_performance_id = ?))
+         AND kind = 'reminder' AND status = 'queued'`,
+      occurredAt,
+      operation.eventId,
+      operation.eventId,
+    );
     insertAudit(
       storage,
       operation,
@@ -81,6 +90,15 @@ export function cancelEvent(
       `UPDATE events SET is_canceled = 1, updated_at = ?
        WHERE parent_performance_id = ? AND is_archived = 0 AND is_canceled = 0`,
       occurredAt,
+      operation.eventId,
+    );
+    storage.sql.exec(
+      `UPDATE ticket_notifications
+       SET status = 'suppressed', failure_detail = 'Performance canceled', updated_at = ?
+       WHERE (event_id = ? OR event_id IN (SELECT id FROM events WHERE parent_performance_id = ?))
+         AND kind = 'reminder' AND status = 'queued'`,
+      occurredAt,
+      operation.eventId,
       operation.eventId,
     );
     insertAudit(

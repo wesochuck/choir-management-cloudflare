@@ -80,7 +80,7 @@ export const ticketNotificationJobSchema = z.object({
   quantity: z.number().int().positive(),
   originalSubtotalCents: z.number().int().nonnegative().default(0),
   refundDate: z.iso.datetime().nullable(),
-  status: z.enum(["queued", "processing"]),
+  status: z.enum(["queued", "processing", "suppressed"]),
   subject: z.string().max(300),
   timezone: z.string().min(1).max(100),
   venueAddress: z.string().default(""),

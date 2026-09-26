@@ -191,6 +191,28 @@ export function readTicketWillCallFromStore(
   });
 }
 
+function checkReminderSuppression(row: {
+  readonly dedupeKey: string;
+  readonly eventId: string | null;
+  readonly eventStartsAt: string;
+  readonly isArchived: number;
+  readonly isCanceled: number;
+  readonly kind: string;
+  readonly purchaseId: string;
+}): string | null {
+  if (row.kind !== "reminder") return null;
+  if (row.isCanceled === 1) return "Performance canceled";
+  if (row.isArchived === 1) return "Performance archived";
+  const prefix = `ticket-reminder:${row.purchaseId}:${row.eventId ?? ""}:`;
+  const scheduledStartsAt = row.dedupeKey.startsWith(prefix)
+    ? row.dedupeKey.slice(prefix.length)
+    : null;
+  if (!scheduledStartsAt) return null;
+  const scheduledTime = new Date(scheduledStartsAt).getTime();
+  if (isNaN(scheduledTime)) return null;
+  return scheduledTime !== new Date(row.eventStartsAt).getTime() ? "Performance rescheduled" : null;
+}
+
 export function readTicketNotificationJobFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,
@@ -239,6 +261,10 @@ export function readTicketNotificationJobFromStore(
       readonly timezone: string;
       readonly venueAddress: string;
       readonly venueName: string;
+      readonly eventId: string | null;
+      readonly dedupeKey: string;
+      readonly isArchived: number;
+      readonly isCanceled: number;
       readonly providerEventAt: string | null;
       readonly providerMessageId: string | null;
       readonly providerReason: string;
@@ -267,7 +293,11 @@ export function readTicketNotificationJobFromStore(
           p.event_starts_at) AS eventStartsAt,
         COALESCE(v.name, '') AS venueName,
         COALESCE(v.address, '') AS venueAddress,
-        COALESCE(e.location, '') AS eventLocation
+        COALESCE(e.location, '') AS eventLocation,
+        n.event_id AS eventId,
+        n.dedupe_key AS dedupeKey,
+        COALESCE(e.is_canceled, 0) AS isCanceled,
+        COALESCE(e.is_archived, 0) AS isArchived
        FROM ticket_notifications n
        JOIN ticket_purchases p ON p.id = n.purchase_id
        LEFT JOIN events e ON e.id = COALESCE(n.event_id, p.event_id)
@@ -277,8 +307,32 @@ export function readTicketNotificationJobFromStore(
     )
     .toArray()
     .at(0);
-  if (!row || !["queued", "processing"].includes(row.status)) {
+  if (!row) {
     return Response.json({ code: "ticket_notification_not_found" }, { status: 404 });
+  }
+  if (row.status === "suppressed") {
+    return Response.json({ ...row, bundleEvents: [] });
+  }
+  if (!["queued", "processing"].includes(row.status)) {
+    return Response.json({ code: "ticket_notification_not_found" }, { status: 404 });
+  }
+
+  const suppressionReason = checkReminderSuppression(row);
+  if (suppressionReason) {
+    storage.sql.exec(
+      `UPDATE ticket_notifications
+       SET status = 'suppressed', failure_detail = ?, updated_at = ?
+       WHERE id = ?`,
+      suppressionReason,
+      new Date().toISOString(),
+      row.id,
+    );
+    return Response.json({
+      ...row,
+      status: "suppressed",
+      failureDetail: suppressionReason,
+      bundleEvents: [],
+    });
   }
   const bundleEvents = storage.sql
     .exec<{

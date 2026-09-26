@@ -16,6 +16,19 @@ import { runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { issueSignedLink } from "../src/security/signedLinks";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
+
+async function triggerScheduler(stub: DurableObjectStub<OrganizationStore>): Promise<void> {
+  const overdueAt = new Date(Date.now() - 1_000).toISOString();
+  await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+    state.storage.sql.exec(
+      "UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1",
+      overdueAt,
+      overdueAt,
+    );
+    return state.storage.setAlarm(Date.now() + 60_000).then(() => undefined);
+  });
+  await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+}
 import {
   setupTicketingIntegration,
   teardownTicketingIntegration,
@@ -1127,5 +1140,480 @@ describe("Organization ticketing", () => {
     });
     expect(postReplayState.notificationCount).toBe(1);
     expect(postReplayState.outboxCount).toBe(1);
+  });
+
+  it("handles ticket reminder creation and delivery when performances are rescheduled before or after reminders exist", async () => {
+    const cookie = await signIn();
+    const eventBody = {
+      advancePriceCents: 1_500,
+      callTime: "",
+      dayOfPriceCents: 1_500,
+      details: "",
+      doorsOpenTime: "",
+      durationMinutes: 60,
+      isTicketingEnabled: true,
+      location: "Grand Hall",
+      parentPerformanceId: null,
+      publicDetails: "",
+      publicGraphicFileId: null,
+      publishOnWebsite: true,
+      setList: [],
+      setListApproved: false,
+      ticketCapacity: 20,
+      title: "Reschedule Test Concert",
+      type: "Performance" as const,
+      rsvpDeadlineDate: "2030-01-01",
+      venueId: null,
+    };
+    const now = Date.now();
+
+    // SCENARIO 1: Rescheduled before any reminder exists
+    // 1. Create event 5 days in the future
+    const event1StartsAt = new Date(now + 120 * 60 * 60 * 1000).toISOString();
+    const event1 = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          { ...eventBody, startsAt: event1StartsAt, title: "Future Concert 1" },
+          cookie,
+        )
+      ).json(),
+    );
+    // Paid checkout
+    const checkout1 = ticketCheckoutResponseSchema.parse(
+      await (
+        await jsonWrite("tickets.example.test", "/api/public/tickets/checkout", "POST", {
+          buyerEmail: "reschedule1@example.test",
+          buyerName: "Buyer 1",
+          checkoutRequestId: crypto.randomUUID(),
+          eventId: event1.id,
+          marketingOptIn: false,
+          quantity: 1,
+        })
+      ).json(),
+    );
+    expect(checkout1.purchase.status).toBe("paid");
+
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+
+    // 2. Scheduler runs while outside horizon: no reminder generated
+    await triggerScheduler(stub);
+    const remindersBeforeMove = await runInDurableObject<OrganizationStore, number>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder'",
+            checkout1.purchase.id,
+          )
+          .one().count,
+    );
+    expect(remindersBeforeMove).toBe(0);
+
+    // 3. Move event into the 24-hour reminder horizon (e.g. 10 hours from now)
+    const revised1StartsAt = new Date(now + 10 * 60 * 60 * 1000).toISOString();
+    await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/events/${event1.id}`,
+      "PUT",
+      { ...eventBody, id: event1.id, startsAt: revised1StartsAt, title: "Future Concert 1" },
+      cookie,
+    );
+
+    // 4. Scheduler runs inside new horizon: exactly one reminder produced for the new date
+    await triggerScheduler(stub);
+    const remindersAfterMove = await runInDurableObject<
+      OrganizationStore,
+      { dedupeKey: string; status: string }[]
+    >(stub, (_instance, state) =>
+      state.storage.sql
+        .exec<{ dedupeKey: string; status: string }>(
+          `SELECT dedupe_key AS dedupeKey, status
+           FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder'`,
+          checkout1.purchase.id,
+        )
+        .toArray(),
+    );
+    expect(remindersAfterMove).toHaveLength(1);
+    const [firstReminderAfterMove] = remindersAfterMove;
+    expect(firstReminderAfterMove?.dedupeKey).toBe(
+      `ticket-reminder:${checkout1.purchase.id}:${event1.id}:${revised1StartsAt}`,
+    );
+    expect(firstReminderAfterMove?.status).toBe("queued");
+
+    // 5. Repeated scheduler runs do not duplicate
+    await triggerScheduler(stub);
+    const countAfterReplay1 = await runInDurableObject<OrganizationStore, number>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder'",
+            checkout1.purchase.id,
+          )
+          .one().count,
+    );
+    expect(countAfterReplay1).toBe(1);
+
+    // Deliver confirmation and reminder
+    await deliverQueuedTicketNotification("organization-alpha"); // confirmation
+    await deliverQueuedTicketNotification("organization-alpha"); // reminder
+    const sentCount1 = await runInDurableObject<OrganizationStore, number>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder' AND status = 'sent'",
+            checkout1.purchase.id,
+          )
+          .one().count,
+    );
+    expect(sentCount1).toBe(1);
+
+    // SCENARIO 2: Rescheduled after reminder was sent
+    // 1. Move event1 to 4 days out (outside horizon)
+    const laterStartsAt = new Date(now + 96 * 60 * 60 * 1000).toISOString();
+    await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/events/${event1.id}`,
+      "PUT",
+      { ...eventBody, id: event1.id, startsAt: laterStartsAt, title: "Future Concert 1" },
+      cookie,
+    );
+
+    // 2. Scheduler runs outside new horizon: no second reminder yet
+    await triggerScheduler(stub);
+    const countOutside2 = await runInDurableObject<OrganizationStore, number>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder'",
+            checkout1.purchase.id,
+          )
+          .one().count,
+    );
+    expect(countOutside2).toBe(1);
+
+    // 3. Move event1 to 8 hours out (inside new horizon)
+    const secondRevisedStartsAt = new Date(now + 8 * 60 * 60 * 1000).toISOString();
+    await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/events/${event1.id}`,
+      "PUT",
+      { ...eventBody, id: event1.id, startsAt: secondRevisedStartsAt, title: "Future Concert 1" },
+      cookie,
+    );
+
+    // 4. Scheduler runs inside new horizon: second reminder is produced
+    await triggerScheduler(stub);
+    const remindersAfterSecondMove = await runInDurableObject<
+      OrganizationStore,
+      { dedupeKey: string; status: string }[]
+    >(stub, (_instance, state) =>
+      state.storage.sql
+        .exec<{ dedupeKey: string; status: string }>(
+          `SELECT dedupe_key AS dedupeKey, status
+           FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder'
+           ORDER BY created_at`,
+          checkout1.purchase.id,
+        )
+        .toArray(),
+    );
+    expect(remindersAfterSecondMove).toHaveLength(2);
+    const [firstHistorical, secondQueued] = remindersAfterSecondMove;
+    // Historical first reminder is still sent
+    expect(firstHistorical?.status).toBe("sent");
+    expect(firstHistorical?.dedupeKey).toBe(
+      `ticket-reminder:${checkout1.purchase.id}:${event1.id}:${revised1StartsAt}`,
+    );
+    // Second reminder is queued
+    expect(secondQueued?.status).toBe("queued");
+    expect(secondQueued?.dedupeKey).toBe(
+      `ticket-reminder:${checkout1.purchase.id}:${event1.id}:${secondRevisedStartsAt}`,
+    );
+
+    // 5. Repeated scheduler runs do not duplicate
+    await triggerScheduler(stub);
+    const countAfterReplay2 = await runInDurableObject<OrganizationStore, number>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder'",
+            checkout1.purchase.id,
+          )
+          .one().count,
+    );
+    expect(countAfterReplay2).toBe(2);
+
+    // Deliver second reminder
+    await deliverQueuedTicketNotification("organization-alpha");
+    const finalSentCount = await runInDurableObject<OrganizationStore, number>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder' AND status = 'sent'",
+            checkout1.purchase.id,
+          )
+          .one().count,
+    );
+    expect(finalSentCount).toBe(2);
+
+    // SCENARIO 3: Rescheduled while old reminder is queued
+    // 1. Create a new event within 24h horizon
+    const event2StartsAt = new Date(now + 14 * 60 * 60 * 1000).toISOString();
+    const event2 = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          { ...eventBody, startsAt: event2StartsAt, title: "Queued Reschedule Concert" },
+          cookie,
+        )
+      ).json(),
+    );
+    const checkout2 = ticketCheckoutResponseSchema.parse(
+      await (
+        await jsonWrite("tickets.example.test", "/api/public/tickets/checkout", "POST", {
+          buyerEmail: "queued.reschedule@example.test",
+          buyerName: "Buyer 2",
+          checkoutRequestId: crypto.randomUUID(),
+          eventId: event2.id,
+          marketingOptIn: false,
+          quantity: 1,
+        })
+      ).json(),
+    );
+    // Deliver confirmation for checkout2
+    await deliverQueuedTicketNotification("organization-alpha");
+
+    // 2. Scheduler runs and creates reminder for original date (queued)
+    await triggerScheduler(stub);
+    const queuedReminder = await runInDurableObject<
+      OrganizationStore,
+      { dedupeKey: string; failureDetail: string; status: string } | undefined
+    >(stub, (_instance, state) =>
+      state.storage.sql
+        .exec<{ dedupeKey: string; failureDetail: string; status: string }>(
+          `SELECT dedupe_key AS dedupeKey, status, failure_detail AS failureDetail
+           FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder'`,
+          checkout2.purchase.id,
+        )
+        .toArray()
+        .at(0),
+    );
+    expect(queuedReminder?.status).toBe("queued");
+
+    // 3. Before delivery, update event2's start time to 5 days in the future
+    const event2RescheduledAt = new Date(now + 120 * 60 * 60 * 1000).toISOString();
+    await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/events/${event2.id}`,
+      "PUT",
+      {
+        ...eventBody,
+        id: event2.id,
+        startsAt: event2RescheduledAt,
+        title: "Queued Reschedule Concert",
+      },
+      cookie,
+    );
+
+    // 4. Verify the queued reminder was marked suppressed with 'Performance rescheduled'
+    const suppressedReminder = await runInDurableObject<
+      OrganizationStore,
+      { failureDetail: string; status: string } | undefined
+    >(stub, (_instance, state) =>
+      state.storage.sql
+        .exec<{ failureDetail: string; status: string }>(
+          `SELECT status, failure_detail AS failureDetail
+           FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder'`,
+          checkout2.purchase.id,
+        )
+        .toArray()
+        .at(0),
+    );
+    expect(suppressedReminder).toMatchObject({
+      failureDetail: "Performance rescheduled",
+      status: "suppressed",
+    });
+
+    // 5. Deliver the queued notification job — verifies it cannot be delivered with old-date semantics
+    await deliverQueuedTicketNotification("organization-alpha");
+    // Verify it remains suppressed and never reached sent
+    const staleReminderAfterDeliver = await runInDurableObject<
+      OrganizationStore,
+      { failureDetail: string; status: string } | undefined
+    >(stub, (_instance, state) =>
+      state.storage.sql
+        .exec<{ failureDetail: string; status: string }>(
+          `SELECT status, failure_detail AS failureDetail
+           FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder'`,
+          checkout2.purchase.id,
+        )
+        .toArray()
+        .at(0),
+    );
+    expect(staleReminderAfterDeliver?.status).toBe("suppressed");
+
+    // 6. Move event2 into the horizon (e.g. 5 hours out)
+    const event2RevisedStartsAt = new Date(now + 5 * 60 * 60 * 1000).toISOString();
+    await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/events/${event2.id}`,
+      "PUT",
+      {
+        ...eventBody,
+        id: event2.id,
+        startsAt: event2RevisedStartsAt,
+        title: "Queued Reschedule Concert",
+      },
+      cookie,
+    );
+
+    // 7. Scheduler runs inside new horizon: new reminder is generated for revised occurrence
+    await triggerScheduler(stub);
+    const event2Reminders = await runInDurableObject<
+      OrganizationStore,
+      { dedupeKey: string; failureDetail: string; status: string }[]
+    >(stub, (_instance, state) =>
+      state.storage.sql
+        .exec<{ dedupeKey: string; failureDetail: string; status: string }>(
+          `SELECT dedupe_key AS dedupeKey, status, failure_detail AS failureDetail
+           FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder'
+           ORDER BY created_at`,
+          checkout2.purchase.id,
+        )
+        .toArray(),
+    );
+    expect(event2Reminders).toHaveLength(2);
+    const [firstEvent2Reminder, secondEvent2Reminder] = event2Reminders;
+    // Historical stale reminder
+    expect(firstEvent2Reminder?.status).toBe("suppressed");
+    expect(firstEvent2Reminder?.failureDetail).toBe("Performance rescheduled");
+    // New reminder for revised occurrence
+    expect(secondEvent2Reminder?.status).toBe("queued");
+    expect(secondEvent2Reminder?.dedupeKey).toBe(
+      `ticket-reminder:${checkout2.purchase.id}:${event2.id}:${event2RevisedStartsAt}`,
+    );
+
+    // 8. Deliver new reminder: reaches sent
+    await deliverQueuedTicketNotification("organization-alpha");
+    const event2FinalSent = await runInDurableObject<OrganizationStore, number>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder' AND status = 'sent'",
+            checkout2.purchase.id,
+          )
+          .one().count,
+    );
+    expect(event2FinalSent).toBe(1);
+  });
+
+  it("suppresses queued reminders when an event is canceled or archived", async () => {
+    const cookie = await signIn();
+    const eventBody = {
+      advancePriceCents: 1_500,
+      callTime: "",
+      dayOfPriceCents: 1_500,
+      details: "",
+      doorsOpenTime: "",
+      durationMinutes: 60,
+      isTicketingEnabled: true,
+      location: "Grand Hall",
+      parentPerformanceId: null,
+      publicDetails: "",
+      publicGraphicFileId: null,
+      publishOnWebsite: true,
+      setList: [],
+      setListApproved: false,
+      ticketCapacity: 20,
+      title: "Cancellation Test Concert",
+      type: "Performance" as const,
+      rsvpDeadlineDate: "2030-01-01",
+      venueId: null,
+    };
+    const now = Date.now();
+    const startsAt = new Date(now + 12 * 60 * 60 * 1000).toISOString();
+    const event = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          { ...eventBody, startsAt },
+          cookie,
+        )
+      ).json(),
+    );
+    const checkout = ticketCheckoutResponseSchema.parse(
+      await (
+        await jsonWrite("tickets.example.test", "/api/public/tickets/checkout", "POST", {
+          buyerEmail: "cancel.test@example.test",
+          buyerName: "Cancel Buyer",
+          checkoutRequestId: crypto.randomUUID(),
+          eventId: event.id,
+          marketingOptIn: false,
+          quantity: 1,
+        })
+      ).json(),
+    );
+    await deliverQueuedTicketNotification("organization-alpha"); // confirmation
+
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    await triggerScheduler(stub);
+
+    // Cancel the event
+    const cancelRes = await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/events/${event.id}/cancel`,
+      "POST",
+      {},
+      cookie,
+    );
+    expect(cancelRes.status).toBe(200);
+
+    // Check that the queued reminder was marked suppressed
+    const reminderStatus = await runInDurableObject<
+      OrganizationStore,
+      { failureDetail: string; status: string } | undefined
+    >(stub, (_instance, state) =>
+      state.storage.sql
+        .exec<{ failureDetail: string; status: string }>(
+          `SELECT status, failure_detail AS failureDetail
+           FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder'`,
+          checkout.purchase.id,
+        )
+        .toArray()
+        .at(0),
+    );
+    expect(reminderStatus).toMatchObject({
+      failureDetail: "Performance canceled",
+      status: "suppressed",
+    });
+
+    // Attempt delivery: handles cleanly without error
+    await deliverQueuedTicketNotification("organization-alpha");
+
+    // Re-running scheduler does not recreate reminder for canceled event
+    await triggerScheduler(stub);
+    const reminderCount = await runInDurableObject<OrganizationStore, number>(
+      stub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ count: number }>(
+            "SELECT COUNT(*) AS count FROM ticket_notifications WHERE purchase_id = ? AND kind = 'reminder'",
+            checkout.purchase.id,
+          )
+          .one().count,
+    );
+    expect(reminderCount).toBe(1);
   });
 });

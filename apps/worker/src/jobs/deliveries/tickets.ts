@@ -34,6 +34,9 @@ export async function deliverTicketNotificationJob(
   if (!response.ok || !notification.success) {
     throw new Error("The ticket notification job is unavailable.");
   }
+  if (notification.data.status === "suppressed") {
+    return;
+  }
   const bundleEventList = formatTicketBundleEventList(
     notification.data.bundleEvents,
     notification.data.timezone,

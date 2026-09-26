@@ -153,7 +153,8 @@ function createTicketReminderJobs(storage: DurableObjectStorage, now: Date): voi
     .toArray();
   const notificationTemplate = readTicketMessageTemplate(storage, "reminder");
   for (const candidate of candidates) {
-    const dedupeKey = `ticket-reminder:${candidate.purchaseId}:${candidate.eventId}`;
+    const normalizedStartsAt = new Date(candidate.eventStartsAt).toISOString();
+    const dedupeKey = `ticket-reminder:${candidate.purchaseId}:${candidate.eventId}:${normalizedStartsAt}`;
     const exists = storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
         "SELECT id FROM ticket_notifications WHERE dedupe_key = ? LIMIT 1",
