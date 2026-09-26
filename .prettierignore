@@ -1,0 +1,3 @@
+# Kilo/Agent Manager tool state (worktrees, session recovery data).
+# Machine-generated, gitignored, and must never be format-gated.
+.kilo/
