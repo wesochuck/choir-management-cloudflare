@@ -3,14 +3,29 @@ import {
   organizationProvisionRequestSchema,
   platformElevationRequestSchema,
   platformStripeConnectResetRequestSchema,
+  platformStripeReconciliationApplyRequestSchema,
+  platformStripeReconciliationPreviewRequestSchema,
   publicDomainRegistrationRequestSchema,
   type OrganizationProvisionResponse,
   type PlatformOrganizationContextResponse,
   type PlatformOrganizationPublicDomainsResponse,
+  type PlatformStripeReconciliationApplyResponse,
+  type PlatformStripeReconciliationApplyResult,
+  type PlatformStripeReconciliationPreviewResponse,
+  type PlatformStripeReconciliationRow,
   type ProblemDetails,
 } from "@choir/contracts";
+import {
+  compareStripePaymentToLocalCandidate,
+  type ReconciliationLookupError,
+  type StripePaymentSnapshot,
+} from "@choir/domain";
 import { z } from "zod";
 import { removeStripeAccountOrganization } from "../payments/stripeRouting";
+import {
+  retrieveStripePaymentReconciliationSnapshot,
+  StripeConnectError,
+} from "../payments/stripeConnect";
 import { createAuth, isProductBaseHost } from "../auth/config";
 import {
   assertEmailProviderRecipientAvailable,
@@ -48,6 +63,29 @@ import {
 
 const RECONCILIATION_ARCHIVE_PAGE_SIZE = 1_000;
 type WorkerContext = Context<WorkerHonoEnvironment>;
+
+async function mapConcurrent<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let currentIndex = 0;
+
+  async function worker() {
+    while (currentIndex < items.length) {
+      const index = currentIndex++;
+      const item = items[index];
+      if (item !== undefined) {
+        results[index] = await fn(item);
+      }
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+  await Promise.all(workers);
+  return results;
+}
 
 async function authorizePlatformRead(
   context: WorkerContext,
@@ -739,6 +777,468 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         requestId: context.get("requestId"),
         status: "not_started",
       });
+    },
+  );
+
+  router.post(
+    "/api/platform/organizations/:organizationId/stripe-reconciliation/preview",
+    async (context) => {
+      const config = validateStartupConfig(context.env);
+      const requestUrl = new URL(context.req.url);
+      if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+        return context.json(
+          {
+            code: "not_found",
+            message:
+              "Platform Stripe reconciliation is available only on the product base hostname.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+      const organizationId = organizationIdSchema.safeParse(context.req.param("organizationId"));
+      if (!organizationId.success) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "The Organization was not found.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+      const authorization = await authorizePlatformRead(context, requestUrl);
+      if (authorization instanceof Response) return authorization;
+      const organization = await context.env.CONTROL_DB.prepare(
+        "SELECT id FROM organizations WHERE id = ? LIMIT 1",
+      )
+        .bind(organizationId.data)
+        .first<{ readonly id: string }>();
+      if (!organization) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "The Organization was not found.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+
+      const parsedBody = platformStripeReconciliationPreviewRequestSchema.safeParse(
+        await context.req.json<unknown>().catch(() => ({})),
+      );
+      if (!parsedBody.success) {
+        return context.json(
+          {
+            code: "validation_failed",
+            message: "Invalid preview request parameters.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          400,
+        );
+      }
+
+      const stub = organizationStoreStub(context.env, organizationId.data);
+      const eligibilityRes = await invokeOrganizationRpc(
+        stub,
+        `https://organization.internal/internal/stripe-connect/eligibility?organizationId=${encodeURIComponent(organizationId.data)}`,
+      );
+      if (!eligibilityRes.ok) {
+        return context.json(
+          {
+            code: "stripe_connect_unavailable",
+            message: "Organization Stripe Connect details could not be checked.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          503,
+        );
+      }
+      const eligibility = await eligibilityRes.json<{ readonly accountId: string | null }>();
+      if (!eligibility.accountId) {
+        return context.json(
+          {
+            code: "stripe_connect_not_connected",
+            message: "This Organization does not currently have a connected Stripe account.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          409,
+        );
+      }
+
+      const secretKey = context.env.STRIPE_SECRET_KEY;
+      if (!secretKey) {
+        return context.json(
+          {
+            code: "stripe_unavailable",
+            message: "Stripe API key is not configured.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          503,
+        );
+      }
+
+      const { candidates, hasMore } = await stub.listStripePaymentReconciliationCandidates({
+        limit: parsedBody.data.limit,
+        organizationId: organizationId.data,
+        since: parsedBody.data.since,
+      });
+
+      const rows: PlatformStripeReconciliationRow[] = await mapConcurrent(
+        candidates,
+        4,
+        async (candidate) => {
+          let snapshot: StripePaymentSnapshot | null = null;
+          let lookupError: ReconciliationLookupError | null = null;
+          try {
+            snapshot = await retrieveStripePaymentReconciliationSnapshot(
+              secretKey,
+              eligibility.accountId!,
+              candidate.providerPaymentId,
+            );
+          } catch (err: unknown) {
+            if (err instanceof StripeConnectError) {
+              lookupError = { code: err.code, message: err.safeMessage, status: err.status };
+            } else {
+              lookupError = { message: err instanceof Error ? err.message : String(err) };
+            }
+          }
+
+          const comparison = compareStripePaymentToLocalCandidate(candidate, snapshot, lookupError);
+
+          return {
+            classification: comparison.classification,
+            createdAt: candidate.createdAt,
+            currency: candidate.currency,
+            localAmountCents: candidate.amountCents,
+            localPaymentAttemptStatus: candidate.paymentAttemptStatus,
+            localProcessorFeeCents: candidate.processorFeeCents,
+            localProviderBalanceTransactionId: candidate.providerBalanceTransactionId,
+            localResourceStatus: candidate.resourceStatus,
+            manualReviewReason: comparison.manualReviewReason,
+            paymentType: candidate.paymentType,
+            proposedActions: [...comparison.proposedActions],
+            providerPaymentId: candidate.providerPaymentId,
+            resourceId: candidate.resourceId,
+            safeToApply: comparison.safeToApply,
+            stripeAmountChargedCents: snapshot?.amountChargedCents ?? null,
+            stripeAmountRefundedCents: snapshot?.amountRefundedCents ?? null,
+            stripeFullyRefunded: snapshot?.fullyRefunded ?? null,
+            stripeProcessorFeeCents: snapshot?.processorFeeCents ?? null,
+            stripeProviderBalanceTransactionId: snapshot?.providerBalanceTransactionId ?? null,
+            stripeRefundCompletedAt: snapshot?.refundCompletedAt ?? null,
+            stripeStatus: comparison.stripeStatus,
+          };
+        },
+      );
+
+      const scannedCount = rows.length;
+      const matchedCount = rows.filter((r) => r.classification === "matched").length;
+      const repairableCount = rows.filter(
+        (r) => r.safeToApply && r.proposedActions.length > 0,
+      ).length;
+      const manualReviewCount = rows.filter(
+        (r) => !r.safeToApply && r.classification !== "matched",
+      ).length;
+
+      const occurredAt = new Date().toISOString();
+      await context.env.CONTROL_DB.prepare(
+        `INSERT INTO platform_audit_events
+          (id, actor_user_id, organization_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+         VALUES (?, ?, ?, 'platform.stripe_reconciliation.previewed', 'organization', ?, ?, ?, ?)`,
+      )
+        .bind(
+          crypto.randomUUID(),
+          authorization.userId,
+          organizationId.data,
+          organizationId.data,
+          context.get("requestId"),
+          JSON.stringify({
+            accountId: eligibility.accountId,
+            manualReviewCount,
+            matchedCount,
+            repairableCount,
+            scannedCount,
+            since: parsedBody.data.since ?? null,
+          }),
+          occurredAt,
+        )
+        .run();
+
+      const responsePayload: PlatformStripeReconciliationPreviewResponse = {
+        accountId: eligibility.accountId,
+        hasMore,
+        manualReviewCount,
+        matchedCount,
+        organizationId: organizationId.data,
+        repairableCount,
+        requestId: context.get("requestId"),
+        rows,
+        scannedCount,
+      };
+
+      return context.json(responsePayload);
+    },
+  );
+
+  router.post(
+    "/api/platform/organizations/:organizationId/stripe-reconciliation/apply",
+    async (context) => {
+      const config = validateStartupConfig(context.env);
+      const requestUrl = new URL(context.req.url);
+      if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+        return context.json(
+          {
+            code: "not_found",
+            message:
+              "Platform Stripe reconciliation is available only on the product base hostname.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+      const organizationId = organizationIdSchema.safeParse(context.req.param("organizationId"));
+      if (!organizationId.success) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "The Organization was not found.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+
+      const auth = createAuth({
+        env: context.env,
+        requestUrl,
+        waitUntil: (promise) => {
+          context.executionCtx.waitUntil(promise);
+        },
+      });
+      const session = await auth.api.getSession({ headers: context.req.raw.headers });
+      const authorization = await authorizePlatformAdministratorSession(
+        context.env.CONTROL_DB,
+        session?.session.id ?? null,
+        session?.user.id ?? null,
+      );
+      if (!authorization.ok) {
+        return context.json(
+          {
+            code: authorization.error.code,
+            message: authorization.error.message,
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          authorization.error.code === "unauthorized" ? 401 : 403,
+        );
+      }
+
+      const elevation = await getPlatformOrganizationContext(
+        context.env.CONTROL_DB,
+        organizationId.data,
+        session?.session.id ?? "",
+        authorization.value.userId,
+      );
+      if (!elevation.canEdit) {
+        return context.json(
+          {
+            code: "platform_elevation_required",
+            message:
+              "Enable a current Platform Administrator elevation before applying reconciliation.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          403,
+        );
+      }
+
+      const organization = await context.env.CONTROL_DB.prepare(
+        "SELECT id FROM organizations WHERE id = ? LIMIT 1",
+      )
+        .bind(organizationId.data)
+        .first<{ readonly id: string }>();
+      if (!organization) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "The Organization was not found.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+
+      const parsedBody = platformStripeReconciliationApplyRequestSchema.safeParse(
+        await context.req.json<unknown>().catch(() => null),
+      );
+      if (!parsedBody.success) {
+        return context.json(
+          {
+            code: "validation_failed",
+            message:
+              "A valid confirmation, auditable reason (3-500 characters), and parameters are required.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          400,
+        );
+      }
+
+      const stub = organizationStoreStub(context.env, organizationId.data);
+      const eligibilityRes = await invokeOrganizationRpc(
+        stub,
+        `https://organization.internal/internal/stripe-connect/eligibility?organizationId=${encodeURIComponent(organizationId.data)}`,
+      );
+      if (!eligibilityRes.ok) {
+        return context.json(
+          {
+            code: "stripe_connect_unavailable",
+            message: "Organization Stripe Connect details could not be checked.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          503,
+        );
+      }
+      const eligibility = await eligibilityRes.json<{ readonly accountId: string | null }>();
+      if (!eligibility.accountId) {
+        return context.json(
+          {
+            code: "stripe_connect_not_connected",
+            message: "This Organization does not currently have a connected Stripe account.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          409,
+        );
+      }
+
+      const secretKey = context.env.STRIPE_SECRET_KEY;
+      if (!secretKey) {
+        return context.json(
+          {
+            code: "stripe_unavailable",
+            message: "Stripe API key is not configured.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          503,
+        );
+      }
+
+      const { candidates } = await stub.listStripePaymentReconciliationCandidates({
+        limit: 200,
+        organizationId: organizationId.data,
+        since: parsedBody.data.since,
+      });
+
+      const selectedIds = parsedBody.data.providerPaymentIds;
+      const targetCandidates =
+        selectedIds && selectedIds.length > 0
+          ? candidates.filter((c) => selectedIds.includes(c.providerPaymentId))
+          : candidates;
+
+      const results: PlatformStripeReconciliationApplyResult[] = await mapConcurrent(
+        targetCandidates,
+        4,
+        async (candidate) => {
+          let snapshot: StripePaymentSnapshot | null = null;
+          let lookupError: ReconciliationLookupError | null = null;
+          try {
+            snapshot = await retrieveStripePaymentReconciliationSnapshot(
+              secretKey,
+              eligibility.accountId!,
+              candidate.providerPaymentId,
+            );
+          } catch (err: unknown) {
+            if (err instanceof StripeConnectError) {
+              lookupError = { code: err.code, message: err.safeMessage, status: err.status };
+            } else {
+              lookupError = { message: err instanceof Error ? err.message : String(err) };
+            }
+          }
+
+          const comparison = compareStripePaymentToLocalCandidate(candidate, snapshot, lookupError);
+
+          if (!comparison.safeToApply || comparison.proposedActions.length === 0) {
+            return {
+              actionsApplied: [],
+              message:
+                comparison.manualReviewReason ??
+                "Row is already matched or requires manual review.",
+              providerPaymentId: candidate.providerPaymentId,
+              status: "skipped",
+            };
+          }
+
+          const applyResult = await stub.applyHistoricalStripeReconciliation({
+            actions: comparison.proposedActions,
+            adminUserId: authorization.value.userId,
+            organizationId: organizationId.data,
+            providerPaymentId: candidate.providerPaymentId,
+            reason: parsedBody.data.reason,
+            stripeSnapshot: {
+              amountChargedCents: snapshot!.amountChargedCents,
+              amountRefundedCents: snapshot!.amountRefundedCents,
+              fullyRefunded: snapshot!.fullyRefunded,
+              processorFeeCents: snapshot!.processorFeeCents,
+              providerBalanceTransactionId: snapshot!.providerBalanceTransactionId,
+              refundCompletedAt: snapshot!.refundCompletedAt,
+            },
+          });
+
+          return {
+            actionsApplied: [...applyResult.actionsApplied],
+            message: applyResult.message,
+            providerPaymentId: candidate.providerPaymentId,
+            status: applyResult.status,
+          };
+        },
+      );
+
+      const appliedCount = results.filter((r) => r.status === "applied").length;
+      const skippedCount = results.filter((r) => r.status === "skipped").length;
+      const failedCount = results.filter((r) => r.status === "failed").length;
+      const refundedCount = results.filter((r) =>
+        r.actionsApplied.includes("mark_refunded"),
+      ).length;
+      const feeBackfilledCount = results.filter((r) =>
+        r.actionsApplied.includes("backfill_fee"),
+      ).length;
+
+      const occurredAt = new Date().toISOString();
+      await context.env.CONTROL_DB.prepare(
+        `INSERT INTO platform_audit_events
+          (id, actor_user_id, organization_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+         VALUES (?, ?, ?, 'platform.stripe_reconciliation.applied', 'organization', ?, ?, ?, ?)`,
+      )
+        .bind(
+          crypto.randomUUID(),
+          authorization.value.userId,
+          organizationId.data,
+          organizationId.data,
+          context.get("requestId"),
+          JSON.stringify({
+            accountId: eligibility.accountId,
+            appliedCount,
+            failedCount,
+            feeBackfilledCount,
+            reason: parsedBody.data.reason,
+            refundedCount,
+            skippedCount,
+          }),
+          occurredAt,
+        )
+        .run();
+
+      const responsePayload: PlatformStripeReconciliationApplyResponse = {
+        accountId: eligibility.accountId,
+        appliedCount,
+        failedCount,
+        feeBackfilledCount,
+        organizationId: organizationId.data,
+        refundedCount,
+        requestId: context.get("requestId"),
+        results,
+        skippedCount,
+      };
+
+      return context.json(responsePayload);
     },
   );
 

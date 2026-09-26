@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isSupportedPaidCheckoutAmount } from "@choir/domain";
+import { stripeChargeRefundIsComplete } from "./stripeWebhook";
 
 export const STRIPE_V2_VERSION = "2026-08-26.dahlia";
 
@@ -694,5 +695,171 @@ export async function retrieveStripePaymentSettlement(
     currency: null,
     feeCents: null,
     netCents: null,
+  };
+}
+
+export interface StripePaymentReconciliationSnapshot {
+  readonly amountChargedCents: number;
+  readonly amountRefundedCents: number;
+  readonly chargeId: string | null;
+  readonly currency: string | null;
+  readonly fullyRefunded: boolean;
+  readonly processorFeeCents: number | null;
+  readonly providerBalanceTransactionId: string | null;
+  readonly providerPaymentId: string;
+  readonly refundCompletedAt: string | null;
+}
+
+const stripeReconciliationBalanceTxnSchema = z.object({
+  currency: z.string().optional(),
+  fee: z.number().int().nonnegative(),
+  id: z.string(),
+  net: z.number().int().optional(),
+});
+
+const stripeReconciliationRefundItemSchema = z.object({
+  amount: z.number().int().nonnegative().optional(),
+  created: z.number(),
+  id: z.string(),
+  status: z.string().optional(),
+});
+
+const stripeReconciliationChargeSchema = z.object({
+  amount: z.number().int().nonnegative(),
+  amount_refunded: z.number().int().nonnegative().optional().default(0),
+  balance_transaction: z
+    .union([stripeReconciliationBalanceTxnSchema, z.string().min(1)])
+    .nullable()
+    .optional(),
+  currency: z.string().optional(),
+  id: z.string(),
+  refunded: z.boolean().optional(),
+  refunds: z
+    .object({
+      data: z.array(stripeReconciliationRefundItemSchema),
+    })
+    .nullable()
+    .optional(),
+});
+
+const stripeReconciliationPaymentIntentSchema = z.object({
+  amount: z.number().int().nonnegative().optional(),
+  currency: z.string().optional(),
+  id: z.string(),
+  latest_charge: z
+    .union([stripeReconciliationChargeSchema, z.string().min(1)])
+    .nullable()
+    .optional(),
+});
+
+export async function retrieveStripePaymentReconciliationSnapshot(
+  secretKey: string,
+  connectedAccountId: string,
+  providerPaymentId: string,
+): Promise<StripePaymentReconciliationSnapshot> {
+  const isPaymentIntent = providerPaymentId.startsWith("pi_");
+  const path = isPaymentIntent
+    ? `/v1/payment_intents/${encodeURIComponent(providerPaymentId)}?expand[]=latest_charge.balance_transaction&expand[]=latest_charge.refunds`
+    : `/v1/charges/${encodeURIComponent(providerPaymentId)}?expand[]=balance_transaction&expand[]=refunds`;
+
+  const result: unknown = await stripeV1Request(secretKey, path, {
+    errorType: "connect",
+    method: "GET",
+    stripeAccount: connectedAccountId,
+  });
+
+  let chargeObj: z.infer<typeof stripeReconciliationChargeSchema> | null = null;
+  let fallbackAmount = 0;
+  let fallbackCurrency: string | null = null;
+
+  if (isPaymentIntent) {
+    const piParsed = stripeReconciliationPaymentIntentSchema.safeParse(result);
+    if (piParsed.success) {
+      fallbackAmount = piParsed.data.amount ?? 0;
+      fallbackCurrency = piParsed.data.currency ?? null;
+      if (typeof piParsed.data.latest_charge === "string") {
+        const directChargeResult: unknown = await stripeV1Request(
+          secretKey,
+          `/v1/charges/${encodeURIComponent(piParsed.data.latest_charge)}?expand[]=balance_transaction&expand[]=refunds`,
+          {
+            errorType: "connect",
+            method: "GET",
+            stripeAccount: connectedAccountId,
+          },
+        );
+        const parsedDirectCharge = stripeReconciliationChargeSchema.safeParse(directChargeResult);
+        if (parsedDirectCharge.success) {
+          chargeObj = parsedDirectCharge.data;
+        }
+      } else if (piParsed.data.latest_charge && typeof piParsed.data.latest_charge === "object") {
+        chargeObj = piParsed.data.latest_charge;
+      }
+    }
+  } else {
+    const chargeParsed = stripeReconciliationChargeSchema.safeParse(result);
+    if (chargeParsed.success) {
+      chargeObj = chargeParsed.data;
+    }
+  }
+
+  if (!chargeObj) {
+    return {
+      amountChargedCents: fallbackAmount,
+      amountRefundedCents: 0,
+      chargeId: null,
+      currency: fallbackCurrency,
+      fullyRefunded: false,
+      processorFeeCents: null,
+      providerBalanceTransactionId: null,
+      providerPaymentId,
+      refundCompletedAt: null,
+    };
+  }
+
+  const rawRefunds = chargeObj.refunds?.data ?? [];
+  const succeededRefunds = rawRefunds.filter(
+    (refund) => refund.status === undefined || refund.status === "succeeded",
+  );
+  const timingCandidates = succeededRefunds.length > 0 ? succeededRefunds : rawRefunds;
+  const latestRefund =
+    timingCandidates.length > 0
+      ? timingCandidates.reduce((latest, current) =>
+          current.created > latest.created ? current : latest,
+        )
+      : null;
+  const refundCompletedAt = latestRefund?.created
+    ? new Date(latestRefund.created * 1000).toISOString()
+    : null;
+
+  const fullyRefunded = stripeChargeRefundIsComplete(
+    chargeObj as unknown as Record<string, unknown>,
+  );
+
+  let processorFeeCents: number | null = null;
+  let providerBalanceTransactionId: string | null = null;
+
+  if (chargeObj.balance_transaction && typeof chargeObj.balance_transaction === "object") {
+    processorFeeCents = chargeObj.balance_transaction.fee;
+    providerBalanceTransactionId = chargeObj.balance_transaction.id;
+  } else if (typeof chargeObj.balance_transaction === "string") {
+    const settlement = await fetchBalanceTransactionById(
+      secretKey,
+      connectedAccountId,
+      chargeObj.balance_transaction,
+    );
+    processorFeeCents = settlement.feeCents;
+    providerBalanceTransactionId = settlement.balanceTransactionId;
+  }
+
+  return {
+    amountChargedCents: chargeObj.amount,
+    amountRefundedCents: chargeObj.amount_refunded ?? 0,
+    chargeId: chargeObj.id,
+    currency: chargeObj.currency ?? fallbackCurrency ?? null,
+    fullyRefunded,
+    processorFeeCents,
+    providerBalanceTransactionId,
+    providerPaymentId,
+    refundCompletedAt,
   };
 }

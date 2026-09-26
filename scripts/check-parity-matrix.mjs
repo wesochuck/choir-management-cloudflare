@@ -60,6 +60,8 @@ const expectedApiRoutes = [
   "POST /api/account/email-change/confirm",
   "GET /api/singer/seating-profiles",
   "GET /api/platform/maintenance/run",
+  "POST /api/platform/organizations/:organizationId/stripe-reconciliation/preview",
+  "POST /api/platform/organizations/:organizationId/stripe-reconciliation/apply",
   "POST /api/public/poll-details",
   "POST /api/public/poll-vote",
   "POST /api/organization/poll-tokens",

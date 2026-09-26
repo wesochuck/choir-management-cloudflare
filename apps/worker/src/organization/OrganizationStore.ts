@@ -44,6 +44,11 @@ import {
   readContactImportErrorCsvFromStore,
   updateContactImportMappingInStore,
 } from "./contactImportStore";
+import {
+  applyHistoricalStripeReconciliationInStore,
+  listStripePaymentReconciliationCandidatesInStore,
+  type ApplyHistoricalStripeReconciliationInput,
+} from "./stripePaymentReconciliationStore";
 import { migrateOrganization } from "./migrations";
 import { runOrganizationAlarm, wakeOrganizationAlarm } from "./scheduler";
 import { dispatchPostRequest } from "./organizationStore/post";
@@ -413,6 +418,19 @@ export class OrganizationStore extends DurableObject {
     readonly organizationId: string;
   }) {
     return commitEmailDomainVerificationInStore(this.ctx.storage, input);
+  }
+
+  // Platform Stripe reconciliation: strongly typed Durable Object RPC methods.
+  listStripePaymentReconciliationCandidates(input: {
+    readonly limit?: number | null | undefined;
+    readonly organizationId: string;
+    readonly since?: string | null | undefined;
+  }) {
+    return listStripePaymentReconciliationCandidatesInStore(this.ctx.storage, input);
+  }
+
+  applyHistoricalStripeReconciliation(input: ApplyHistoricalStripeReconciliationInput) {
+    return applyHistoricalStripeReconciliationInStore(this.ctx.storage, input);
   }
 
   private async dispatchRpcCall(call: OrganizationRpcCall): Promise<OrganizationRpcResult> {

@@ -8,6 +8,7 @@ import {
 } from "../../../auth/api";
 import { displayDate, type ElevationState } from "./shared";
 import { StripeConnectRecovery } from "./StripeConnectRecovery";
+import { StripePaymentReconciliation } from "./StripePaymentReconciliation";
 
 export function OrganizationElevation({ organizationId }: { readonly organizationId: string }) {
   const [actionError, setActionError] = useState<string | null>(null);
@@ -158,6 +159,10 @@ export function OrganizationElevation({ organizationId }: { readonly organizatio
       ) : null}
 
       <StripeConnectRecovery organizationId={organizationId} />
+      <StripePaymentReconciliation
+        canEdit={elevation.status === "ready" && elevation.context.canEdit}
+        organizationId={organizationId}
+      />
     </div>
   );
 }

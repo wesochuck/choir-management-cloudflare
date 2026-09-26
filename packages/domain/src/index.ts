@@ -303,3 +303,12 @@ export type {
   SetupProgress,
   OrganizationSetup,
 } from "./setup";
+export {
+  compareStripePaymentToLocalCandidate,
+  type LocalPaymentCandidate,
+  type ReconciliationComparisonResult,
+  type ReconciliationLookupError,
+  type StripePaymentSnapshot,
+  type StripeReconciliationAction,
+  type StripeReconciliationClassification,
+} from "./stripeReconciliation";

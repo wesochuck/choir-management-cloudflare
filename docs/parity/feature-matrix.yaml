@@ -1320,6 +1320,37 @@
           ],
       },
       {
+        "id": "api.platform.stripe-reconciliation-preview",
+        "method": "POST",
+        "path": "/api/platform/organizations/:organizationId/stripe-reconciliation/preview",
+        "owner": "apps/worker",
+        "milestone": 6,
+        "status": "verified",
+        "baselineEvidence":
+          "No equivalent legacy Stripe-backed payment reconciliation workflow existed.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/platformOperations.ts",
+            "apps/worker/src/organization/stripePaymentReconciliationStore.ts",
+            "apps/worker/test/stripeReconciliation.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.platform.stripe-reconciliation-apply",
+        "method": "POST",
+        "path": "/api/platform/organizations/:organizationId/stripe-reconciliation/apply",
+        "owner": "apps/worker",
+        "milestone": 6,
+        "status": "verified",
+        "baselineEvidence": "No equivalent legacy Stripe-backed payment repair workflow existed.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/platformOperations.ts",
+            "apps/worker/src/organization/stripePaymentReconciliationStore.ts",
+            "apps/worker/test/stripeReconciliation.integration.test.ts",
+          ],
+      },
+      {
         "id": "api.platform.email-suppressions",
         "method": "GET",
         "path": "/api/platform/email-suppressions",

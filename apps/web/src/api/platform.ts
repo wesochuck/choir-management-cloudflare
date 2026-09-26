@@ -54,6 +54,12 @@ import {
   type PlatformStripeConnectStatusResponse,
   type PlatformStripeConnectResetRequest,
   type PlatformStripeConnectResetResponse,
+  platformStripeReconciliationPreviewResponseSchema,
+  platformStripeReconciliationApplyResponseSchema,
+  type PlatformStripeReconciliationPreviewRequest,
+  type PlatformStripeReconciliationPreviewResponse,
+  type PlatformStripeReconciliationApplyRequest,
+  type PlatformStripeReconciliationApplyResponse,
 } from "@choir/contracts";
 import { z } from "zod";
 
@@ -450,4 +456,34 @@ export async function resetPlatformOrganizationStripeConnect(
     },
   );
   return platformStripeConnectResetResponseSchema.parse(await response.json());
+}
+
+export async function previewPlatformStripeReconciliation(
+  organizationId: string,
+  payload?: PlatformStripeReconciliationPreviewRequest,
+  signal?: AbortSignal,
+): Promise<PlatformStripeReconciliationPreviewResponse> {
+  const response = await request(
+    `/api/platform/organizations/${encodeURIComponent(organizationId)}/stripe-reconciliation/preview`,
+    {
+      body: JSON.stringify(payload ?? {}),
+      method: "POST",
+      signal: signal ?? null,
+    },
+  );
+  return platformStripeReconciliationPreviewResponseSchema.parse(await response.json());
+}
+
+export async function applyPlatformStripeReconciliation(
+  organizationId: string,
+  payload: PlatformStripeReconciliationApplyRequest,
+): Promise<PlatformStripeReconciliationApplyResponse> {
+  const response = await request(
+    `/api/platform/organizations/${encodeURIComponent(organizationId)}/stripe-reconciliation/apply`,
+    {
+      body: JSON.stringify(payload),
+      method: "POST",
+    },
+  );
+  return platformStripeReconciliationApplyResponseSchema.parse(await response.json());
 }

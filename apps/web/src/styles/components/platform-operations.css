@@ -499,6 +499,56 @@
     font-weight: var(--font-weight-bold);
   }
 
+  .platform-stripe-reconciliation {
+    display: grid;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-xl);
+  }
+
+  .platform-reconciliation-controls {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--spacing-md);
+    flex-wrap: wrap;
+  }
+
+  .platform-reconciliation-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: var(--spacing-sm);
+    margin: var(--spacing-md) 0;
+  }
+
+  .platform-reconciliation-metric {
+    display: flex;
+    flex-direction: column;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .platform-reconciliation-metric span {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  .platform-reconciliation-metric strong {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    margin-top: var(--spacing-2xs);
+  }
+
+  .platform-reconciliation-actions {
+    margin: var(--spacing-md) 0;
+  }
+
+  .status-pill--error {
+    border-color: var(--color-danger);
+    background: color-mix(in srgb, var(--color-danger) 12%, var(--color-surface));
+    color: var(--color-danger);
+  }
+
   .organization-mfa-enrollment,
   .organization-verification,
   .organization-enrollment-start {

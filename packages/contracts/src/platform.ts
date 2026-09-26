@@ -470,3 +470,115 @@ export type PlatformStripeConnectResetRequest = z.infer<
 export type PlatformStripeConnectResetResponse = z.infer<
   typeof platformStripeConnectResetResponseSchema
 >;
+
+export const platformStripeReconciliationClassificationSchema = z.enum([
+  "matched",
+  "refund_status_mismatch",
+  "processor_fee_missing",
+  "balance_transaction_missing",
+  "refund_and_fee_mismatch",
+  "partial_refund_manual_review",
+  "amount_mismatch_manual_review",
+  "provider_payment_missing",
+  "provider_lookup_failed",
+  "local_inconsistency",
+]);
+
+export type PlatformStripeReconciliationClassification = z.infer<
+  typeof platformStripeReconciliationClassificationSchema
+>;
+
+export const platformStripeReconciliationActionSchema = z.enum(["mark_refunded", "backfill_fee"]);
+
+export type PlatformStripeReconciliationAction = z.infer<
+  typeof platformStripeReconciliationActionSchema
+>;
+
+export const platformStripeReconciliationRowSchema = z.object({
+  classification: platformStripeReconciliationClassificationSchema,
+  createdAt: z.string(),
+  currency: z.string().nullable(),
+  localAmountCents: z.number().int().nonnegative(),
+  localPaymentAttemptStatus: z.string(),
+  localProcessorFeeCents: z.number().int().nonnegative().nullable(),
+  localProviderBalanceTransactionId: z.string().nullable(),
+  localResourceStatus: z.string(),
+  manualReviewReason: z.string().nullable(),
+  paymentType: z.enum(["ticket", "bundle", "donation", "dues"]),
+  proposedActions: z.array(platformStripeReconciliationActionSchema),
+  providerPaymentId: z.string(),
+  resourceId: z.string(),
+  safeToApply: z.boolean(),
+  stripeAmountChargedCents: z.number().int().nonnegative().nullable(),
+  stripeAmountRefundedCents: z.number().int().nonnegative().nullable(),
+  stripeFullyRefunded: z.boolean().nullable(),
+  stripeProcessorFeeCents: z.number().int().nonnegative().nullable(),
+  stripeProviderBalanceTransactionId: z.string().nullable(),
+  stripeRefundCompletedAt: z.string().nullable(),
+  stripeStatus: z.string().nullable(),
+});
+
+export type PlatformStripeReconciliationRow = z.infer<typeof platformStripeReconciliationRowSchema>;
+
+export const platformStripeReconciliationPreviewRequestSchema = z.object({
+  limit: z.number().int().min(1).max(200).optional(),
+  since: z.iso.datetime().nullable().optional(),
+});
+
+export type PlatformStripeReconciliationPreviewRequest = z.infer<
+  typeof platformStripeReconciliationPreviewRequestSchema
+>;
+
+export const platformStripeReconciliationPreviewResponseSchema = z.object({
+  accountId: z.string(),
+  hasMore: z.boolean(),
+  manualReviewCount: z.number().int().nonnegative(),
+  matchedCount: z.number().int().nonnegative(),
+  organizationId: organizationIdSchema,
+  repairableCount: z.number().int().nonnegative(),
+  requestId: requestIdSchema,
+  rows: z.array(platformStripeReconciliationRowSchema),
+  scannedCount: z.number().int().nonnegative(),
+});
+
+export type PlatformStripeReconciliationPreviewResponse = z.infer<
+  typeof platformStripeReconciliationPreviewResponseSchema
+>;
+
+export const platformStripeReconciliationApplyRequestSchema = z.object({
+  confirm: z.literal(true),
+  providerPaymentIds: z.array(z.string().min(1)).optional(),
+  reason: z.string().trim().min(3).max(500),
+  since: z.iso.datetime().nullable().optional(),
+});
+
+export type PlatformStripeReconciliationApplyRequest = z.infer<
+  typeof platformStripeReconciliationApplyRequestSchema
+>;
+
+export const platformStripeReconciliationApplyResultSchema = z.object({
+  actionsApplied: z.array(platformStripeReconciliationActionSchema),
+  message: z.string().optional(),
+  providerPaymentId: z.string(),
+  status: z.enum(["applied", "skipped", "failed"]),
+});
+
+export type PlatformStripeReconciliationApplyResult = z.infer<
+  typeof platformStripeReconciliationApplyResultSchema
+>;
+
+export const platformStripeReconciliationApplyResponseSchema = z.object({
+  accountId: z.string(),
+  appliedCount: z.number().int().nonnegative(),
+  failedCount: z.number().int().nonnegative(),
+  feeBackfilledCount: z.number().int().nonnegative(),
+  organizationId: organizationIdSchema,
+  refundedCount: z.number().int().nonnegative(),
+  requestId: requestIdSchema,
+  results: z.array(platformStripeReconciliationApplyResultSchema),
+  skippedCount: z.number().int().nonnegative(),
+});
+
+export type PlatformStripeReconciliationApplyResponse = z.infer<
+  typeof platformStripeReconciliationApplyResponseSchema
+>;
