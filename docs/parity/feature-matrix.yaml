@@ -1544,6 +1544,23 @@
           ],
       },
       {
+        "id": "api.reactivate-ticket-discount-code",
+        "method": "POST",
+        "path": "/api/organization/tickets/discount-codes/:codeId/reactivate",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "verified",
+        "baselineEvidence":
+          "No equivalent Discount Code administration workflow existed in the baseline.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationTicketing.ts",
+            "apps/worker/src/organization/organizationTicketing.ts",
+            "apps/worker/src/organization/ticketingStore.ts",
+            "apps/worker/test/ticketing.discounts.integration.test.ts",
+          ],
+      },
+      {
         "id": "api.checkout-dues",
         "method": "POST",
         "path": "/api/singer/dues/checkout",

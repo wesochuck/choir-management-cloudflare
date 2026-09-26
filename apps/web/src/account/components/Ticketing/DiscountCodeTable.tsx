@@ -11,6 +11,7 @@ export function DiscountCodeTable({
   discountCodes,
   editDiscountCode,
   onViewRedemptions,
+  reactivateDiscountCode,
   setDeactivateDiscountCodeId,
 }: {
   readonly busy: boolean;
@@ -19,6 +20,7 @@ export function DiscountCodeTable({
   readonly discountCodes: readonly DiscountCode[];
   readonly editDiscountCode: (code: DiscountCode) => void;
   readonly onViewRedemptions: (code: DiscountCode) => void;
+  readonly reactivateDiscountCode: (codeId: string) => Promise<void>;
   readonly setDeactivateDiscountCodeId: Dispatch<SetStateAction<string | null>>;
 }) {
   return (
@@ -48,25 +50,30 @@ export function DiscountCodeTable({
         {
           header: "Redemptions",
           id: "redemptions",
-          render: (code) =>
-            code.redemptionCount > 0 ? (
-              <>
-                <button
-                  aria-label={`View ${String(code.redemptionCount)} redemptions for ${code.code}`}
-                  className="text-button"
-                  onClick={() => {
-                    onViewRedemptions(code);
-                  }}
-                  type="button"
-                >
+          render: (code) => (
+            <span className="discount-redemptions-cell">
+              {code.redemptionCount > 0 ? (
+                <>
+                  <button
+                    aria-label={`View ${String(code.redemptionCount)} redemptions for ${code.code}`}
+                    className="text-button discount-redemptions-trigger"
+                    onClick={() => {
+                      onViewRedemptions(code);
+                    }}
+                    type="button"
+                  >
+                    {code.redemptionCount}
+                  </button>
+                  {code.redemptionLimit === null ? null : `/${String(code.redemptionLimit)}`}
+                </>
+              ) : (
+                <span className="discount-redemptions-zero">
                   {code.redemptionCount}
-                </button>
-                {code.redemptionLimit === null ? null : `/${String(code.redemptionLimit)}`}
-              </>
-            ) : (
-              String(code.redemptionCount) +
-              (code.redemptionLimit === null ? "" : "/" + String(code.redemptionLimit))
-            ),
+                  {code.redemptionLimit === null ? "" : `/${String(code.redemptionLimit)}`}
+                </span>
+              )}
+            </span>
+          ),
           sortValue: (code) => code.redemptionCount,
         },
         {
@@ -111,21 +118,18 @@ export function DiscountCodeTable({
               </div>
             ) : (
               <div className="form-actions">
-                <button
-                  className="text-button"
-                  disabled={busy || !code.editable}
-                  onClick={() => {
-                    editDiscountCode(code);
-                  }}
-                  title={
-                    code.editable
-                      ? undefined
-                      : "Terms are locked after the first confirmed redemption."
-                  }
-                  type="button"
-                >
-                  Edit
-                </button>
+                {code.editable ? (
+                  <button
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => {
+                      editDiscountCode(code);
+                    }}
+                    type="button"
+                  >
+                    Edit
+                  </button>
+                ) : null}
                 {code.active ? (
                   <button
                     className="text-button text-button--danger"
@@ -137,7 +141,16 @@ export function DiscountCodeTable({
                   >
                     Deactivate
                   </button>
-                ) : null}
+                ) : (
+                  <button
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => void reactivateDiscountCode(code.id)}
+                    type="button"
+                  >
+                    Reactivate
+                  </button>
+                )}
               </div>
             ),
         },

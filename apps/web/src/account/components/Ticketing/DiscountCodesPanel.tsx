@@ -21,6 +21,7 @@ export function DiscountCodesPanel({
   editingDiscountCodeId,
   openNewDiscountCode,
   onViewRedemptions,
+  reactivateDiscountCode,
   saveDiscountCode,
   setDeactivateDiscountCodeId,
   setDiscountDraft,
@@ -41,6 +42,7 @@ export function DiscountCodesPanel({
   readonly editingDiscountCodeId: string | null;
   readonly openNewDiscountCode: () => void;
   readonly onViewRedemptions: (code: DiscountCode) => void;
+  readonly reactivateDiscountCode: (codeId: string) => Promise<void>;
   readonly saveDiscountCode: (event: SyntheticEvent<HTMLFormElement>) => Promise<void>;
   readonly setDeactivateDiscountCodeId: Dispatch<SetStateAction<string | null>>;
   readonly setDiscountDraft: Dispatch<SetStateAction<DiscountDraft>>;
@@ -93,6 +95,7 @@ export function DiscountCodesPanel({
           discountCodes={discountCodes}
           editDiscountCode={editDiscountCode}
           onViewRedemptions={onViewRedemptions}
+          reactivateDiscountCode={reactivateDiscountCode}
           setDeactivateDiscountCodeId={setDeactivateDiscountCodeId}
         />
       ) : null}

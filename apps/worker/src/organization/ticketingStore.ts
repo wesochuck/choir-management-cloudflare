@@ -1,7 +1,11 @@
 import type { z } from "zod";
 
 import { identity } from "./ticketingStore/readModel";
-import { deactivateDiscountCode, upsertDiscountCode } from "./ticketingStore/discountCodes";
+import {
+  deactivateDiscountCode,
+  reactivateDiscountCode,
+  upsertDiscountCode,
+} from "./ticketingStore/discountCodes";
 import { issueTicketScanCredential, validateTicketScan } from "./ticketingStore/scanning";
 import {
   recordTicketNotificationResult,
@@ -133,6 +137,8 @@ export async function manageTicketingInStore(
       return upsertDiscountCode(storage, operation.data);
     case "deactivate_discount_code":
       return deactivateDiscountCode(storage, operation.data);
+    case "reactivate_discount_code":
+      return reactivateDiscountCode(storage, operation.data);
     case "record_ticket_notification_result":
       return recordTicketNotificationResult(storage, operation.data);
     case "resend_ticket_confirmation": {

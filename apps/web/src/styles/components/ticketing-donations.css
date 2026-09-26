@@ -705,6 +705,28 @@
     font-weight: var(--font-weight-medium);
   }
 
+  .discount-redemptions-cell {
+    display: inline-flex;
+    align-items: baseline;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .discount-redemptions-trigger.text-button {
+    padding-inline: 0;
+    font-weight: var(--font-weight-semibold);
+    text-decoration: underline;
+    text-underline-offset: 0.2rem;
+  }
+
+  .discount-redemptions-trigger.text-button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  .discount-redemptions-zero {
+    font-weight: var(--font-weight-normal);
+  }
+
   .public-donation-receipt {
     display: grid;
     gap: var(--spacing-lg);

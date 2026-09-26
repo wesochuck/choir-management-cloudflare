@@ -106,6 +106,11 @@ export const deactivateDiscountCodeOperationSchema = bundleActorSchema.extend({
   codeId: z.uuid(),
 });
 
+export const reactivateDiscountCodeOperationSchema = bundleActorSchema.extend({
+  action: z.literal("reactivate_discount_code"),
+  codeId: z.uuid(),
+});
+
 export const stripeTicketCompletedOperationSchema = stripeTicketOperationSchema.extend({
   action: z.literal("stripe_ticket_completed"),
 });
@@ -132,6 +137,7 @@ export const operationSchema = z.discriminatedUnion("action", [
   resendConfirmationOperationSchema,
   upsertDiscountCodeOperationSchema,
   deactivateDiscountCodeOperationSchema,
+  reactivateDiscountCodeOperationSchema,
   stripeTicketCompletedOperationSchema,
   stripeTicketExpiredOperationSchema,
   stripeTicketRefundedOperationSchema,

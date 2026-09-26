@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState, type SyntheticEvent } from "react";
 import {
   deleteTicketBundle,
   deactivateOrganizationDiscountCode,
+  reactivateOrganizationDiscountCode,
   getOrganizationTicketConfirmationSettings,
   listOrganizationEvents,
   listOrganizationTicketOrders,
@@ -454,6 +455,23 @@ export function TicketingManager({
     }
   }
 
+  async function reactivateDiscountCode(codeId: string): Promise<void> {
+    setBusy(true);
+    clearSuccessNotice();
+    try {
+      const saved = await reactivateOrganizationDiscountCode(codeId);
+      setDiscountCodes((current) => current.map((code) => (code.id === saved.id ? saved : code)));
+      showNotice("Discount code reactivated.", "success");
+    } catch (failure: unknown) {
+      showNotice(
+        failure instanceof Error ? failure.message : "The discount code could not be reactivated.",
+        "error",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function viewDiscountCodeRedemptions(code: DiscountCode): void {
     setWillCallDiscountCode(code.code);
     setWillCallShowRefunded(true);
@@ -592,6 +610,7 @@ export function TicketingManager({
             editDiscountCode={editDiscountCode}
             editingDiscountCodeId={editingDiscountCodeId}
             openNewDiscountCode={openNewDiscountCode}
+            reactivateDiscountCode={reactivateDiscountCode}
             saveDiscountCode={saveDiscountCode}
             setDeactivateDiscountCodeId={setDeactivateDiscountCodeId}
             setDiscountDraft={setDiscountDraft}

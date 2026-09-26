@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   deleteOrganizationTicketBundle,
   deactivateOrganizationDiscountCode,
+  reactivateOrganizationDiscountCode,
   listOrganizationDiscountCodes,
   listOrganizationTicketBundles,
   listOrganizationTicketOrders,
@@ -175,6 +176,51 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
             error instanceof TicketingError
               ? error.message
               : "The discount code could not be deactivated.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        error instanceof TicketingError && error.status === 404 ? 404 : 503,
+      );
+    }
+  });
+
+  router.post("/api/organization/tickets/discount-codes/:codeId/reactivate", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const codeId = z.uuid().safeParse(context.req.param("codeId"));
+    if (!codeId.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid discount code is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      const reactivated = await reactivateOrganizationDiscountCode(
+        context.env,
+        {
+          actorUserId: authorization.userId,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+        },
+        codeId.data,
+      );
+      return context.json({ ...reactivated, requestId: context.get("requestId") });
+    } catch (error: unknown) {
+      return context.json(
+        {
+          code: error instanceof TicketingError ? error.code : "discount_code_unavailable",
+          message:
+            error instanceof TicketingError
+              ? error.message
+              : "The discount code could not be reactivated.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         error instanceof TicketingError && error.status === 404 ? 404 : 503,

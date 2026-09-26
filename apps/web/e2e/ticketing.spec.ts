@@ -1703,4 +1703,140 @@ test.describe("admin ticket management", () => {
     await page.getByRole("tab", { name: "Season Bundles" }).click();
     await expect(page.getByText("No bundles yet.")).toBeVisible();
   });
+
+  test("reactivates an inactive discount code and aligns redemption count geometry", async ({
+    page,
+  }) => {
+    await routeHealth(page);
+    await routeAdminAuth(page);
+    await page.route("**/api/public/projection", async (route) => {
+      await route.fulfill({ status: 404 });
+    });
+    await page.route("**/api/organization/tickets/orders", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ orders: [], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/events", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ events: [adminEvent], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/tickets/bundles", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ bundles: [adminBundle], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    const inactiveRedeemedCode = {
+      ...adminDiscountCode,
+      active: false,
+      code: "INACTIVE10",
+      deactivatedAt: "2026-07-20T00:00:00.000Z",
+      editable: false,
+      id: "b5cba6a0-6c8f-44a8-8c6e-20a1b1c6b3a1",
+      redemptionCount: 1,
+      redemptionLimit: 10,
+    };
+    const activeZeroCode = {
+      ...adminDiscountCode,
+      active: true,
+      code: "ZEROCODE",
+      editable: true,
+      id: "c6dba6a0-6c8f-44a8-8c6e-20a1b1c6b3a2",
+      redemptionCount: 0,
+      redemptionLimit: 10,
+    };
+
+    let codes = [inactiveRedeemedCode, activeZeroCode];
+    await page.route("**/api/organization/tickets/discount-codes", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ codes, requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    let reactivateCalled = false;
+    await page.route(
+      `**/api/organization/tickets/discount-codes/${inactiveRedeemedCode.id}/reactivate`,
+      async (route) => {
+        reactivateCalled = true;
+        const reactivated = {
+          ...inactiveRedeemedCode,
+          active: true,
+          deactivatedAt: null,
+        };
+        codes = codes.map((c) => (c.id === reactivated.id ? reactivated : c));
+        await route.fulfill({
+          body: JSON.stringify({ ...reactivated, requestId }),
+          contentType: "application/json",
+          status: 200,
+        });
+      },
+    );
+
+    await page.goto("/admin/tickets");
+    await page.getByRole("tab", { name: "Discount Codes" }).click();
+
+    const discountPanel = page.locator("#ticketing-discounts-panel");
+    const visibleDiscounts = discountPanel.locator(
+      ".data-table:visible, .data-table-cards:visible",
+    );
+    await expect(visibleDiscounts.getByText("INACTIVE10", { exact: true }).first()).toBeVisible();
+    await expect(visibleDiscounts.getByText("ZEROCODE", { exact: true }).first()).toBeVisible();
+
+    // Verify row actions
+    const discountRows = visibleDiscounts.locator("tbody tr, .data-table-card");
+    const rowInactive = discountRows.filter({ hasText: "INACTIVE10" });
+    const rowZero = discountRows.filter({ hasText: "ZEROCODE" });
+
+    // Redeemed inactive code has Reactivate, but no Edit
+    await expect(rowInactive.getByRole("button", { name: "Reactivate" })).toBeVisible();
+    await expect(rowInactive.getByRole("button", { name: "Edit" })).toHaveCount(0);
+    await expect(rowInactive.getByRole("button", { name: "Deactivate" })).toHaveCount(0);
+
+    // Unused active code has Edit and Deactivate, but no Reactivate
+    await expect(rowZero.getByRole("button", { name: "Edit" })).toBeVisible();
+    await expect(rowZero.getByRole("button", { name: "Deactivate" })).toBeVisible();
+    await expect(rowZero.getByRole("button", { name: "Reactivate" })).toHaveCount(0);
+
+    // Alignment geometry regression assertion: on desktop table, compare left edge of displayed count for 1 row and 0 row
+    const desktopTable = discountPanel.locator("table.data-table");
+    if (await desktopTable.isVisible()) {
+      const desktopRowInactive = desktopTable.locator("tbody tr").filter({ hasText: "INACTIVE10" });
+      const desktopRowZero = desktopTable.locator("tbody tr").filter({ hasText: "ZEROCODE" });
+      const triggerBox = await desktopRowInactive
+        .locator(".discount-redemptions-trigger")
+        .boundingBox();
+      const zeroBox = await desktopRowZero.locator(".discount-redemptions-zero").boundingBox();
+      expect(triggerBox).toBeTruthy();
+      expect(zeroBox).toBeTruthy();
+      if (triggerBox && zeroBox) {
+        expect(Math.abs(triggerBox.x - zeroBox.x)).toBeLessThanOrEqual(1.5);
+      }
+    }
+
+    // Click Reactivate on INACTIVE10
+    await rowInactive.getByRole("button", { name: "Reactivate" }).click();
+
+    // Verify notice and updated state
+    await expect(page.getByText("Discount code reactivated.")).toBeVisible();
+    expect(reactivateCalled).toBe(true);
+    // Dialog must NOT be opened
+    await expect(page.getByRole("dialog", { name: "Edit discount code" })).toHaveCount(0);
+
+    // Status is now Active and Reactivate is replaced by Deactivate
+    await expect(rowInactive.getByText("Active", { exact: true })).toBeVisible();
+    await expect(rowInactive.getByRole("button", { name: "Deactivate" })).toBeVisible();
+    await expect(rowInactive.getByRole("button", { name: "Reactivate" })).toHaveCount(0);
+    // Edit remains suppressed because terms are still locked
+    await expect(rowInactive.getByRole("button", { name: "Edit" })).toHaveCount(0);
+  });
 });

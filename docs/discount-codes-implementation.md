@@ -26,12 +26,16 @@ glossary; this document adds workflow, persistence, contract, and verification g
 
 ## Code administration lifecycle
 
-Organization Owners and Organization Administrators can create, edit, deactivate, and report on
-codes. Administrative changes are attributed in Organization Audit History.
+Organization Owners and Organization Administrators can create, edit, deactivate, reactivate, and
+report on codes. Administrative changes are attributed in Organization Audit History.
 
 An unused code is editable, including its item, type, value, and limit. After its first confirmed
-redemption, its terms are immutable and it may only be deactivated. Deactivation blocks new checkout
+redemption, its discount terms are immutable. Availability is independent: a code may be deactivated
+and later reactivated through dedicated, audited lifecycle actions. Deactivation blocks new checkout
 reservations immediately but does not change the quoted terms of an already pending checkout.
+Reactivation makes the code eligible again for new checkouts without altering historical discount
+terms, redemption counts, or order snapshots. Both deactivation and reactivation transitions are
+explicitly recorded in Organization Audit History.
 
 The public checkout shows the optional code field only when the linked Performance or Bundle has a
 code that could currently be redeemed. The public response must not expose code values, remaining

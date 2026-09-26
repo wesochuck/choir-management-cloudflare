@@ -158,6 +158,14 @@ export async function deactivateOrganizationDiscountCode(codeId: string): Promis
   return discountCodeSchema.parse(await response.json());
 }
 
+export async function reactivateOrganizationDiscountCode(codeId: string): Promise<DiscountCode> {
+  const response = await request(
+    `/api/organization/tickets/discount-codes/${encodeURIComponent(codeId)}/reactivate`,
+    { method: "POST" },
+  );
+  return discountCodeSchema.parse(await response.json());
+}
+
 export async function refundOrganizationTicketOrder(
   purchaseId: string,
 ): Promise<OrganizationTicketOrder> {

@@ -166,19 +166,21 @@ export function DiscountCodeForm({
             }}
           />
         </div>
-        <label>
-          <input
-            checked={discountDraft.active}
-            type="checkbox"
-            onChange={(event) => {
-              setDiscountDraft((current) => ({
-                ...current,
-                active: event.target.checked,
-              }));
-            }}
-          />{" "}
-          Available for redemption
-        </label>
+        {editingDiscountCodeId ? null : (
+          <label>
+            <input
+              checked={discountDraft.active}
+              type="checkbox"
+              onChange={(event) => {
+                setDiscountDraft((current) => ({
+                  ...current,
+                  active: event.target.checked,
+                }));
+              }}
+            />{" "}
+            Available for redemption
+          </label>
+        )}
         <div className="dialog__actions">
           <DialogClose asChild>
             <button className="button button--secondary" disabled={busy} type="button">

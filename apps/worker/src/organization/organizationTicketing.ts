@@ -656,6 +656,31 @@ export async function deactivateOrganizationDiscountCode(
   return discountCodeSchema.parse(await response.json());
 }
 
+export async function reactivateOrganizationDiscountCode(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  actor: ActorContext,
+  codeId: string,
+): Promise<DiscountCode> {
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/ticketing/manage",
+    {
+      action: "reactivate_discount_code",
+      codeId: z.uuid().parse(codeId),
+      ...actor,
+    },
+  );
+  if (!response.ok) {
+    throw new TicketingError(
+      await storeErrorCode(response, "ticketing_error"),
+      response.status,
+      "The discount code could not be reactivated.",
+    );
+  }
+  return discountCodeSchema.parse(await response.json());
+}
+
 async function refundFakeTicketPurchaseInStore(
   env: Pick<Env, "ORGANIZATION_STORE">,
   actor: ActorContext,

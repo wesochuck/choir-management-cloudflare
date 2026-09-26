@@ -4,6 +4,7 @@ import type { z } from "zod";
 
 import type {
   deactivateDiscountCodeOperationSchema,
+  reactivateDiscountCodeOperationSchema,
   upsertDiscountCodeOperationSchema,
 } from "./contracts";
 import { discountCodeResult, discountCodeRows } from "./readModel";
@@ -50,6 +51,7 @@ export function upsertDiscountCode(
     .exec<{
       readonly active: number;
       readonly bundleId: string | null;
+      readonly deactivatedAt: string | null;
       readonly discountType: "fixed" | "percentage";
       readonly discountValue: number;
       readonly eventId: string | null;
@@ -61,8 +63,8 @@ export function upsertDiscountCode(
     }>(
       `SELECT id, normalized_code AS normalizedCode, event_id AS eventId,
         bundle_id AS bundleId, discount_type AS discountType, discount_value AS discountValue,
-        redemption_limit AS redemptionLimit, active, first_redeemed_at AS firstRedeemedAt,
-        created_at AS createdAt
+        redemption_limit AS redemptionLimit, active, deactivated_at AS deactivatedAt,
+        first_redeemed_at AS firstRedeemedAt, created_at AS createdAt
        FROM discount_codes WHERE id = ? LIMIT 1`,
       operation.codeId,
     )
@@ -89,22 +91,32 @@ export function upsertDiscountCode(
         )
         .one().count
     : 0;
-  if (
+  const termsChanged = Boolean(
     existing &&
-    confirmedCount > 0 &&
-    ((existing.active === 0 && operation.code.active) ||
-      existing.normalizedCode !== normalizedCode ||
+    (existing.normalizedCode !== normalizedCode ||
       existing.eventId !== operation.code.eventId ||
       existing.bundleId !== operation.code.bundleId ||
       existing.discountType !== operation.code.discountType ||
       existing.discountValue !== operation.code.discountValue ||
-      existing.redemptionLimit !== operation.code.redemptionLimit)
-  ) {
+      existing.redemptionLimit !== operation.code.redemptionLimit),
+  );
+  if (existing && confirmedCount > 0 && termsChanged) {
     return Response.json({ code: "discount_code_immutable" }, { status: 409 });
+  }
+  if (existing && (operation.code.active ? 1 : 0) !== existing.active) {
+    return Response.json(
+      { code: "discount_code_availability_lifecycle_required" },
+      { status: 400 },
+    );
   }
   const occurredAt = new Date().toISOString();
   const itemType = operation.code.eventId ? "performance" : "bundle";
-  const deactivatedAt = operation.code.active ? null : occurredAt;
+  const deactivatedAt = existing
+    ? existing.deactivatedAt
+    : operation.code.active
+      ? null
+      : occurredAt;
+  const activeValue = existing ? existing.active : operation.code.active ? 1 : 0;
   storage.transactionSync(() => {
     storage.sql.exec(
       `INSERT INTO discount_codes
@@ -133,7 +145,7 @@ export function upsertDiscountCode(
       operation.code.discountType,
       operation.code.discountValue,
       operation.code.redemptionLimit,
-      operation.code.active ? 1 : 0,
+      activeValue,
       deactivatedAt,
       operation.actorUserId,
       existing?.createdAt ?? occurredAt,
@@ -150,7 +162,7 @@ export function upsertDiscountCode(
       operation.codeId,
       operation.requestId,
       JSON.stringify({
-        active: operation.code.active,
+        active: Boolean(activeValue),
         discountType: operation.code.discountType,
         discountValue: operation.code.discountValue,
         itemType,
@@ -187,12 +199,51 @@ export function deactivateDiscountCode(
       operation.codeId,
     );
     storage.sql.exec(
-      `INSERT INTO audit_events
+      `INSERT OR IGNORE INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
          request_id, change_summary, occurred_at)
        VALUES (?, 'organization_member', ?, 'ticket.discount_code.deactivated',
         'discount_code', ?, ?, '{}', ?)`,
       `discount-code-deactivated:${operation.requestId}`,
+      operation.actorUserId,
+      operation.codeId,
+      operation.requestId,
+      occurredAt,
+    );
+  });
+  const saved = discountCodeRows(storage).find(({ id }) => id === operation.codeId);
+  return saved
+    ? Response.json(discountCodeResult(saved))
+    : Response.json({ code: "discount_code_not_found" }, { status: 404 });
+}
+
+export function reactivateDiscountCode(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof reactivateDiscountCodeOperationSchema>,
+): Response {
+  const existing = storage.sql
+    .exec<{ readonly id: string; readonly active: number }>(
+      "SELECT id, active FROM discount_codes WHERE id = ? LIMIT 1",
+      operation.codeId,
+    )
+    .toArray()
+    .at(0);
+  if (!existing) return Response.json({ code: "discount_code_not_found" }, { status: 404 });
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      `UPDATE discount_codes SET active = 1, deactivated_at = NULL,
+       updated_at = ? WHERE id = ?`,
+      occurredAt,
+      operation.codeId,
+    );
+    storage.sql.exec(
+      `INSERT OR IGNORE INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'ticket.discount_code.reactivated',
+        'discount_code', ?, ?, '{}', ?)`,
+      `discount-code-reactivated:${operation.requestId}`,
       operation.actorUserId,
       operation.codeId,
       operation.requestId,

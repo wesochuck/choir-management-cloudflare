@@ -42,6 +42,7 @@ const expectedApiRoutes = [
   "POST /api/organization/tickets/discount-codes",
   "PUT /api/organization/tickets/discount-codes/:codeId",
   "POST /api/organization/tickets/discount-codes/:codeId/deactivate",
+  "POST /api/organization/tickets/discount-codes/:codeId/reactivate",
   "POST /api/singer/dues/checkout",
   "POST /api/public/donations/checkout",
   "POST /api/webhook/stripe",
