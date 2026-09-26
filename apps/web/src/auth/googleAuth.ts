@@ -63,6 +63,24 @@ export function buildOAuthDestinations(
   };
 }
 
+export function hasOAuthCompletionMarker(search: string | null | undefined): boolean {
+  if (!search) return false;
+  return new URLSearchParams(search).get("oauth") === "complete";
+}
+
+export interface OAuthCompletionState {
+  readonly isOAuthComplete: boolean;
+  readonly search: string;
+}
+
+export function readOAuthCompletionState(search: string | null | undefined): OAuthCompletionState {
+  const query = search ?? "";
+  return {
+    isOAuthComplete: hasOAuthCompletionMarker(query),
+    search: query,
+  };
+}
+
 export function mapOAuthErrorMessage(errorCode: string | null | undefined): string | null {
   if (!errorCode) return null;
   const normalized = errorCode.trim().toLowerCase().replace(/\s+/g, "_");

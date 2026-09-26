@@ -18,6 +18,7 @@ import { JoinRosterView } from "./auth/JoinRosterView";
 import { ForgotPasswordView } from "./auth/ForgotPasswordView";
 import { EmailChangeConfirmationView } from "./auth/EmailChangeConfirmationView";
 import { getCurrentSession, getPublishedOrganizationProjection } from "./auth/api";
+import { readOAuthCompletionState, type OAuthCompletionState } from "./auth/googleAuth";
 import { determinePostSignInPath, isAuthenticatedRoute } from "./auth/postSignIn";
 import { ResetPasswordView } from "./auth/ResetPasswordView";
 import { SignInView } from "./auth/SignInView";
@@ -109,21 +110,26 @@ function AccountLoading() {
   );
 }
 
-function AlreadySignedIn({ session }: { readonly session: NonNullable<CurrentAuthSession> }) {
+interface AlreadySignedInProps {
+  readonly isOAuthComplete: boolean;
+  readonly search: string;
+  readonly session: NonNullable<CurrentAuthSession>;
+}
+
+function AlreadySignedIn({ isOAuthComplete, search, session }: AlreadySignedInProps) {
   const [targetHref, setTargetHref] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
     void determinePostSignInPath({
       currentPathname: window.location.pathname,
-      search: window.location.search,
+      search,
       signal: controller.signal,
     })
       .then((path) => {
         if (!controller.signal.aborted) {
           setTargetHref(path);
-          const params = new URLSearchParams(window.location.search);
-          if (params.get("oauth") === "complete") {
+          if (isOAuthComplete) {
             window.location.replace(path);
           }
         }
@@ -131,8 +137,7 @@ function AlreadySignedIn({ session }: { readonly session: NonNullable<CurrentAut
       .catch(() => {
         if (!controller.signal.aborted) {
           setTargetHref("/dashboard");
-          const params = new URLSearchParams(window.location.search);
-          if (params.get("oauth") === "complete") {
+          if (isOAuthComplete) {
             window.location.replace("/dashboard");
           }
         }
@@ -140,7 +145,7 @@ function AlreadySignedIn({ session }: { readonly session: NonNullable<CurrentAut
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [isOAuthComplete, search]);
 
   const href = targetHref ?? "/dashboard";
   const isAdmin = targetHref === "/admin" || targetHref?.startsWith("/admin/") === true;
@@ -196,6 +201,7 @@ function selectContent(
   pathname: string,
   resetLocation: PasswordResetLocation,
   sessionState: SessionState,
+  oauthCompletion: OAuthCompletionState,
   finishSignIn: () => void,
   finishSignOut: () => void,
   finishInvitationSignIn: () => void,
@@ -215,7 +221,13 @@ function selectContent(
   }
   if (pathname === "/login") {
     if (sessionState.status === "authenticated") {
-      return <AlreadySignedIn session={sessionState.session} />;
+      return (
+        <AlreadySignedIn
+          isOAuthComplete={oauthCompletion.isOAuthComplete}
+          search={oauthCompletion.search}
+          session={sessionState.session}
+        />
+      );
     }
     return <SignInView onSignedIn={finishSignIn} />;
   }
@@ -299,6 +311,9 @@ export function App() {
   const [projectionVersion, setProjectionVersion] = useState<number>(1);
   const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
   const [resetLocation] = useState(() => readPasswordResetLocation(pathname));
+  const [oauthCompletion] = useState(() =>
+    readOAuthCompletionState(typeof window !== "undefined" ? window.location.search : ""),
+  );
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -394,6 +409,7 @@ export function App() {
     pathname,
     resetLocation,
     sessionState,
+    oauthCompletion,
     finishSignIn,
     finishSignOut,
     finishInvitationSignIn,

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildOAuthDestinations, mapOAuthErrorMessage } from "./googleAuth";
+import {
+  buildOAuthDestinations,
+  hasOAuthCompletionMarker,
+  mapOAuthErrorMessage,
+  readOAuthCompletionState,
+} from "./googleAuth";
 
 describe("buildOAuthDestinations", () => {
   it("creates callback and errorCallback on current origin defaulting to /login?oauth=complete", () => {
@@ -92,5 +97,44 @@ describe("mapOAuthErrorMessage", () => {
     expect(mapOAuthErrorMessage(null)).toBeNull();
     expect(mapOAuthErrorMessage(undefined)).toBeNull();
     expect(mapOAuthErrorMessage("")).toBeNull();
+  });
+});
+
+describe("hasOAuthCompletionMarker", () => {
+  it("detects oauth=complete in search query string with or without leading question mark", () => {
+    expect(hasOAuthCompletionMarker("?oauth=complete")).toBe(true);
+    expect(hasOAuthCompletionMarker("oauth=complete")).toBe(true);
+    expect(hasOAuthCompletionMarker("?oauth=complete&returnTo=%2Fadmin%2Froster")).toBe(true);
+    expect(hasOAuthCompletionMarker("?returnTo=%2Fadmin%2Froster&oauth=complete")).toBe(true);
+  });
+
+  it("returns false when oauth parameter is missing or does not equal complete", () => {
+    expect(hasOAuthCompletionMarker("")).toBe(false);
+    expect(hasOAuthCompletionMarker(null)).toBe(false);
+    expect(hasOAuthCompletionMarker(undefined)).toBe(false);
+    expect(hasOAuthCompletionMarker("?returnTo=%2Fadmin")).toBe(false);
+    expect(hasOAuthCompletionMarker("?oauth=pending")).toBe(false);
+    expect(hasOAuthCompletionMarker("?oauth=")).toBe(false);
+  });
+});
+
+describe("readOAuthCompletionState", () => {
+  it("captures completion status and preserves search query string", () => {
+    expect(readOAuthCompletionState("?oauth=complete&returnTo=%2Fadmin%2Froster")).toEqual({
+      isOAuthComplete: true,
+      search: "?oauth=complete&returnTo=%2Fadmin%2Froster",
+    });
+    expect(readOAuthCompletionState("?returnTo=%2Fdashboard")).toEqual({
+      isOAuthComplete: false,
+      search: "?returnTo=%2Fdashboard",
+    });
+    expect(readOAuthCompletionState("")).toEqual({
+      isOAuthComplete: false,
+      search: "",
+    });
+    expect(readOAuthCompletionState(undefined)).toEqual({
+      isOAuthComplete: false,
+      search: "",
+    });
   });
 });

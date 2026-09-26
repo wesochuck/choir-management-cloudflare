@@ -69,6 +69,15 @@ describe("SignInView Google UI", () => {
     expect(replaceStateSpy).toHaveBeenCalledWith(null, "", "/login");
   });
 
+  it("strips oauth parameter from URL on mount while preserving other parameters", () => {
+    window.history.pushState({}, "", "/login?oauth=complete&returnTo=%2Fadmin%2Froster");
+    const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+
+    render(<SignInView onSignedIn={vi.fn()} />);
+
+    expect(replaceStateSpy).toHaveBeenCalledWith(null, "", "/login?returnTo=%2Fadmin%2Froster");
+  });
+
   it("calls signInWithGoogle and handles failure error display", async () => {
     const user = userEvent.setup();
     const signInSpy = vi.mocked(googleAuthModule.signInWithGoogle).mockResolvedValue({
