@@ -55,7 +55,7 @@ import type { Context, Hono } from "hono";
 
 import type { WorkerHonoEnvironment } from "./helpers";
 
-import { resolveCanonicalOrganizationId } from "./helpers";
+import { isAuthorizedPlatformHostname, resolveCanonicalOrganizationId } from "./helpers";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import {
   reconciliationReportSchema,
@@ -1006,14 +1006,14 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.post(
     "/api/platform/organizations/:organizationId/stripe-reconciliation/preview",
     async (context) => {
-      const config = validateStartupConfig(context.env);
+      validateStartupConfig(context.env);
       const requestUrl = new URL(context.req.url);
-      if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+      if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
         return context.json(
           {
             code: "not_found",
             message:
-              "Platform Stripe reconciliation is available only on the product base hostname.",
+              "Platform Stripe reconciliation requires the product base hostname or a registered Organization host.",
             requestId: context.get("requestId"),
           } satisfies ProblemDetails,
           404,
@@ -1142,14 +1142,14 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.post(
     "/api/platform/organizations/:organizationId/stripe-reconciliation/apply",
     async (context) => {
-      const config = validateStartupConfig(context.env);
+      validateStartupConfig(context.env);
       const requestUrl = new URL(context.req.url);
-      if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
+      if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
         return context.json(
           {
             code: "not_found",
             message:
-              "Platform Stripe reconciliation is available only on the product base hostname.",
+              "Platform Stripe reconciliation requires the product base hostname or a registered Organization host.",
             requestId: context.get("requestId"),
           } satisfies ProblemDetails,
           404,

@@ -706,6 +706,134 @@ describe("Platform Stripe Reconciliation", () => {
     });
   });
 
+  it("serves preview and apply from a registered Organization host", async () => {
+    const { orgId, stub } = await seedTestOrganization();
+    const accountId = "acct_orghost_test";
+    await seedConnectedStripe(stub, orgId, accountId);
+
+    const now = new Date().toISOString();
+    await testEnv.CONTROL_DB.prepare(
+      `INSERT INTO organization_domains
+        (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
+       VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
+    )
+      .bind(crypto.randomUUID(), orgId, "test-org.localhost", now, now)
+      .run();
+
+    const ticketId = crypto.randomUUID();
+    const attemptId = crypto.randomUUID();
+    const eventId = crypto.randomUUID();
+
+    await runInDurableObject(stub, (_instance: unknown, state: DurableObjectState) => {
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+         VALUES (?, 'Spring Preview', 'Performance', ?, ?, ?)`,
+        eventId,
+        now,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO ticket_purchases
+          (id, checkout_request_id, event_id, event_title, event_starts_at, event_timezone,
+           bundle_id, bundle_title, buyer_name, buyer_email, quantity, unit_price_cents,
+           fee_cents, amount_paid_cents, currency, provider_session_id,
+           provider_payment_id, status, marketing_opt_in, created_at, updated_at)
+         VALUES (?, ?, ?, 'Spring Preview', ?, 'America/New_York', NULL, '',
+                 'Owen Owner', 'owen@test.com', 1, 6000, 0, 6000, 'usd',
+                 'cs_orghost_1', 'pi_orghost_1', 'paid', 0, ?, ?)`,
+        ticketId,
+        crypto.randomUUID(),
+        eventId,
+        now,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO payment_attempts
+          (id, payment_type, resource_id, checkout_request_id, provider_session_id, provider_payment_id,
+           status, amount_cents, created_at, updated_at)
+         VALUES (?, 'ticket', ?, 'req_orghost_1', 'cs_orghost_1', 'pi_orghost_1', 'paid', 6000, ?, ?)`,
+        attemptId,
+        ticketId,
+        now,
+        now,
+      );
+      return null;
+    });
+
+    vi.spyOn(stripeConnect, "retrieveStripePaymentReconciliationSnapshot").mockResolvedValue({
+      amountChargedCents: 6000,
+      amountRefundedCents: 6000,
+      chargeId: "ch_orghost_1",
+      currency: "usd",
+      fullyRefunded: true,
+      processorFeeCents: 210,
+      providerBalanceTransactionId: "txn_orghost_1",
+      providerPaymentId: "pi_orghost_1",
+      refundCompletedAt: "2026-04-01T12:00:00.000Z",
+    });
+
+    await seedInvitedUser();
+    const memberCookie = await signInInvitedUser();
+    const sessionId = await grantPlatformAdministratorForCurrentSession();
+    await grantPlatformElevation(orgId, sessionId);
+
+    const orgOrigin = "http://test-org.localhost";
+
+    const unknownHostPreview = await fetchWorker(
+      authRequest(
+        `/api/platform/organizations/${orgId}/stripe-reconciliation/preview`,
+        {
+          body: JSON.stringify({}),
+          headers: { cookie: memberCookie },
+          method: "POST",
+        },
+        "http://unknown.localhost",
+      ),
+    );
+    expect(unknownHostPreview.status).toBe(404);
+
+    const orgPreview = await fetchWorker(
+      authRequest(
+        `/api/platform/organizations/${orgId}/stripe-reconciliation/preview`,
+        {
+          body: JSON.stringify({}),
+          headers: { cookie: memberCookie },
+          method: "POST",
+        },
+        orgOrigin,
+      ),
+    );
+    expect(orgPreview.status).toBe(200);
+    const orgPreviewData = platformStripeReconciliationPreviewResponseSchema.parse(
+      await orgPreview.json(),
+    );
+    expect(orgPreviewData.repairableCount).toBe(1);
+
+    const orgApply = await fetchWorker(
+      authRequest(
+        `/api/platform/organizations/${orgId}/stripe-reconciliation/apply`,
+        {
+          body: JSON.stringify({
+            confirm: true,
+            providerPaymentIds: ["pi_orghost_1"],
+            reason: "Repair from Organization host",
+          }),
+          headers: { cookie: memberCookie },
+          method: "POST",
+        },
+        orgOrigin,
+      ),
+    );
+    expect(orgApply.status).toBe(200);
+    const orgApplyData = platformStripeReconciliationApplyResponseSchema.parse(
+      await orgApply.json(),
+    );
+    expect(orgApplyData.appliedCount).toBe(1);
+    expect(orgApplyData.refundedCount).toBe(1);
+  });
+
   it("KPI regression: reproduces the accounting problem and verifies financial summary post-reconciliation", () => {
     // Ticket A: $50 paid locally, but fully refunded in Stripe ($1.75 fee)
     // Ticket B: $75 paid locally and retained ($2.48 fee)
