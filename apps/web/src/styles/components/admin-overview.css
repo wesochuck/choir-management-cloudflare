@@ -281,7 +281,7 @@
     text-decoration: underline;
   }
 
-  @media (max-width: 60rem) {
+  @media (max-width: 64rem) {
     .admin-overview__guide-steps {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -548,12 +548,6 @@
       margin-left: auto;
       padding-inline: var(--spacing-3xs);
       font-size: var(--font-size-2xs);
-    }
-  }
-
-  @media (max-width: 390px) {
-    .admin-overview__cards {
-      gap: var(--spacing-2xs);
     }
   }
 }

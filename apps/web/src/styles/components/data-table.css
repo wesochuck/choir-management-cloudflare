@@ -47,6 +47,38 @@
     margin-left: auto;
   }
 
+  .data-table th.data-table__cell--center,
+  .data-table td.data-table__cell--center {
+    text-align: center;
+  }
+
+  .data-table th.data-table__cell--center .data-table__sort-button {
+    margin-inline: auto;
+  }
+
+  .data-table th.data-table__cell--right,
+  .data-table td.data-table__cell--right {
+    text-align: right;
+  }
+
+  .data-table th.data-table__cell--right .data-table__sort-button {
+    margin-left: auto;
+  }
+
+  .data-table th.data-table__cell--left,
+  .data-table td.data-table__cell--left {
+    text-align: left;
+  }
+
+  .data-table th.data-table__cell--left .data-table__sort-button {
+    margin-right: auto;
+  }
+
+  .dns-record-token {
+    word-break: break-all;
+    overflow-wrap: anywhere;
+  }
+
   .data-table td.data-table__cell--actions > .table-actions,
   .data-table td.data-table__cell--actions > .button-row,
   .data-table td.data-table__cell--actions > .form-actions,
@@ -216,37 +248,6 @@
   }
 
   @media (max-width: 40rem) {
-    .seasons-manager-controls {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
-    .seasons-manager-tabs {
-      width: 100%;
-    }
-
-    .seasons-manager-tabs .button,
-    .seasons-manager-controls > .button {
-      flex: 1 1 10rem;
-    }
-
-    .dues-records-header {
-      grid-template-columns: 1fr;
-      grid-template-areas:
-        "toolbar"
-        "description";
-      align-items: stretch;
-      gap: var(--spacing-sm);
-    }
-
-    .dues-records-toolbar {
-      grid-template-columns: 1fr;
-    }
-
-    .dues-records-header > .seasons-manager-description {
-      margin-bottom: 0;
-    }
-
     .data-table {
       display: none;
     }
@@ -320,6 +321,21 @@
       gap: var(--spacing-xs);
     }
 
+    .data-table-card__field--center .data-table-card__value {
+      text-align: center;
+    }
+
+    .data-table-card__field--right .data-table-card__value {
+      text-align: right;
+    }
+
+    .data-table-card__field--left .data-table-card__value {
+      text-align: left;
+    }
+
+    /* Content constraint: on narrow phone viewports (< 416px / 26rem), stack card key-value pairs
+     * vertically to prevent truncation or awkward wrapping of tabular cell contents when horizontal
+     * space is insufficient for label and value side-by-side. */
     @media (max-width: 26rem) {
       .data-table-card__field {
         flex-direction: column;
@@ -334,10 +350,6 @@
       .data-table-card__field--actions .data-table-card__value {
         justify-content: flex-start;
       }
-    }
-
-    .music-bulk-edit-field {
-      grid-template-columns: 1fr;
     }
   }
   .data-table-pagination {

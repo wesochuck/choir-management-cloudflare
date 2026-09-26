@@ -122,4 +122,44 @@ describe("ManualDonationModal interaction", () => {
     expect(anonymousCheckbox).toBeInTheDocument();
     expect(anonymousCheckbox).not.toBeChecked();
   });
+
+  it("associates optional field labels and donor email help accessibly", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onSave = vi.fn((): Promise<void> => Promise.resolve());
+    renderModal({ onClose, onSave });
+
+    const donorEmail = screen.getByLabelText(/^Donor email/);
+    expect(donorEmail).toHaveAttribute("aria-describedby", "manual-donation-donor-email-help");
+    expect(screen.getByText("Links to patron giving history.")).toHaveAttribute(
+      "id",
+      "manual-donation-donor-email-help",
+    );
+
+    expect(screen.getByLabelText(/^Check # \/ Reference note/)).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Tribute"), "honor");
+    expect(screen.getByLabelText("Honoree / Memorial name")).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Notification email/)).toBeInTheDocument();
+  });
+
+  it("keeps both manual-donation acknowledgment choices operable", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onSave = vi.fn((): Promise<void> => Promise.resolve());
+    renderModal({ onClose, onSave });
+
+    const anonymousCheckbox = screen.getByLabelText(
+      "Mark as anonymous (hide donor name from public recognition)",
+    );
+    const thankYouCheckbox = screen.getByLabelText(
+      "Thank-you letter or acknowledgment has already been sent",
+    );
+
+    await user.click(anonymousCheckbox);
+    await user.click(thankYouCheckbox);
+
+    expect(anonymousCheckbox).toBeChecked();
+    expect(thankYouCheckbox).toBeChecked();
+  });
 });

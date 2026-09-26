@@ -77,9 +77,10 @@ export function BundlePanel({
           </p>
         ) : null}
         <form className="form-stack" onSubmit={(formEvent) => void saveBundle(formEvent)}>
-          <label className="field">
-            Bundle title
+          <div className="field">
+            <label htmlFor="bundle-title">Bundle title</label>
             <input
+              id="bundle-title"
               required
               maxLength={500}
               value={bundleTitle}
@@ -87,11 +88,12 @@ export function BundlePanel({
                 setBundleTitle(event.target.value);
               }}
             />
-          </label>
+          </div>
           <div className="form-grid form-grid--two">
-            <label className="field">
-              Price (USD)
+            <div className="field">
+              <label htmlFor="bundle-price">Price (USD)</label>
               <input
+                id="bundle-price"
                 required
                 min="0"
                 step="0.01"
@@ -101,10 +103,14 @@ export function BundlePanel({
                   setBundlePrice(event.target.value);
                 }}
               />
-            </label>
-            <label className="field">
-              Capacity (blank is unlimited)
+            </div>
+            <div className="field">
+              <label className="field__label-row" htmlFor="bundle-capacity">
+                <span>Capacity</span>{" "}
+                <span className="field-help field-help--inline">(blank is unlimited)</span>
+              </label>
               <input
+                id="bundle-capacity"
                 min="1"
                 step="1"
                 type="number"
@@ -113,11 +119,12 @@ export function BundlePanel({
                   setBundleCapacity(event.target.value);
                 }}
               />
-            </label>
+            </div>
           </div>
-          <label className="field">
-            Sale ends
+          <div className="field">
+            <label htmlFor="bundle-sale-end">Sale ends</label>
             <input
+              id="bundle-sale-end"
               required
               type="datetime-local"
               value={bundleSaleEnd}
@@ -125,7 +132,7 @@ export function BundlePanel({
                 setBundleSaleEnd(event.target.value);
               }}
             />
-          </label>
+          </div>
           <label>
             <input
               checked={bundleIsActive}

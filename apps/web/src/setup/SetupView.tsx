@@ -321,7 +321,7 @@ export function SetupView() {
                       style={{ display: "none" }}
                       type="file"
                     />
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <div className="button-row">
                       <button
                         className="button button--secondary button--sm"
                         disabled={uploadingLogo || busy}

@@ -648,6 +648,12 @@
     gap: var(--spacing-sm);
   }
 
+  @media (max-width: 40rem) {
+    .music-bulk-edit-field {
+      grid-template-columns: 1fr;
+    }
+  }
+
   .music-bulk-edit-section-options {
     display: flex;
     flex-wrap: wrap;

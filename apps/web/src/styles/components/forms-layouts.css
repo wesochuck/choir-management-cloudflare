@@ -5,10 +5,135 @@
 @layer components {
   /* Keep the aside aligned with the first card in a split layout. */
 
+  .field {
+    display: grid;
+    align-content: start;
+    gap: var(--spacing-2xs);
+    min-width: 0;
+  }
+
+  .field__label-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--spacing-2xs);
+  }
+
+  .field__label-row--between {
+    justify-content: space-between;
+  }
+
   .field-help {
     display: block;
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
+  }
+
+  .field-help--inline,
+  .field__label-row .field-help {
+    display: inline;
+    font-weight: var(--font-weight-regular);
+  }
+
+  .field-error {
+    display: block;
+    color: var(--color-danger-text);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+  }
+
+  .field-error[role="alert"] {
+    margin-top: var(--spacing-3xs);
+  }
+
+  /* === Canonical Choice Controls (Checkboxes & Radios) === */
+
+  .choice-field,
+  .checkbox-row,
+  .checkbox-field,
+  .checkbox-label {
+    display: inline-flex;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+    min-width: 0;
+    min-height: 1.5rem;
+    cursor: pointer;
+    user-select: none;
+    line-height: var(--line-height-normal);
+  }
+
+  .choice-field input[type="checkbox"],
+  .choice-field input[type="radio"],
+  .checkbox-row input[type="checkbox"],
+  .checkbox-row input[type="radio"],
+  .checkbox-field input[type="checkbox"],
+  .checkbox-field input[type="radio"],
+  .checkbox-label input[type="checkbox"],
+  .checkbox-label input[type="radio"] {
+    appearance: auto;
+    -webkit-appearance: auto;
+    box-sizing: border-box;
+    width: var(--choice-size, 1rem);
+    height: var(--choice-size, 1rem);
+    min-width: var(--choice-size, 1rem);
+    min-height: var(--choice-size, 1rem);
+    flex: 0 0 var(--choice-size, 1rem);
+    margin-top: var(--spacing-3xs);
+    margin-right: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    padding: 0;
+  }
+
+  .choice-field__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3xs);
+    min-width: 0;
+  }
+
+  .choice-field__title {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+  }
+
+  .choice-field__description,
+  .choice-field .field-help,
+  .checkbox-row .field-help {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-regular);
+  }
+
+  /* Modifiers */
+  .choice-field--large,
+  .checkbox-row--large {
+    --choice-size: var(--choice-size-lg, 1.125rem);
+  }
+
+  .choice-field:has(> input:disabled),
+  .checkbox-row:has(> input:disabled),
+  .checkbox-field:has(> input:disabled),
+  .checkbox-label:has(> input:disabled) {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .choice-group {
+    display: grid;
+    gap: var(--spacing-xs);
+    border: 0;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+  }
+
+  .choice-group legend {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+    margin-bottom: var(--spacing-2xs);
+    padding: 0;
   }
 
   .form-grid {
@@ -48,18 +173,22 @@
     line-height: var(--line-height-snug);
   }
 
-  @media (max-width: 40rem) {
-    .signed-in-main .public-website-settings label:has(> input[type="checkbox"]) {
-      align-items: flex-start;
-    }
-
-    .signed-in-main .public-website-settings label:has(> input[type="checkbox"]) > input {
-      margin-top: var(--spacing-3xs);
-    }
-  }
-
   .form-grid__wide {
     grid-column: 1 / -1;
+  }
+
+  @media (max-width: 40rem) {
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .settings-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .form-grid__wide {
+      grid-column: auto;
+    }
   }
 
   .ticketing-price-note {
@@ -547,6 +676,54 @@
     min-width: 10rem;
   }
 
+  /* === Canonical In-Form Action Rows & Button Rows === */
+  .form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm) var(--spacing-md);
+    margin-top: var(--spacing-sm);
+  }
+
+  .form-actions--start {
+    justify-content: flex-start;
+  }
+
+  .form-actions--end {
+    justify-content: flex-end;
+  }
+
+  .form-actions--between {
+    justify-content: space-between;
+  }
+
+  .form-actions--inline {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-top: 0;
+  }
+
+  .button-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  .button-row--start {
+    justify-content: flex-start;
+  }
+
+  .button-row--end {
+    justify-content: flex-end;
+  }
+
+  .button-row--between {
+    justify-content: space-between;
+  }
+
   /* === Sticky Form Actions Bar === */
   .sticky-form-actions {
     position: sticky;
@@ -735,41 +912,6 @@
   .ticket-purchase-summary {
     min-width: 0;
     overflow-wrap: anywhere;
-  }
-
-  @media print {
-    .ticket-pass-card,
-    .ticket-purchase-summary {
-      border-color: #777;
-      background: #fff;
-      box-shadow: none;
-      color: #111;
-    }
-
-    .ticket-purchase-summary,
-    .ticket-pass-card__header,
-    .ticket-pass-card__qr,
-    .ticket-pass-card__instructions,
-    .ticket-pass-card__shared-venue {
-      break-inside: avoid;
-    }
-
-    .ticket-pass-card__qr {
-      background: #fff;
-    }
-
-    .ticket-credential-card__qr-image {
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-
-    .ticket-pass-event {
-      break-inside: avoid;
-    }
-
-    .public-section--narrow > .button {
-      display: none;
-    }
   }
 
   .public-bundle-event-item {

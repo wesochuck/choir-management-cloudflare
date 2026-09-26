@@ -280,7 +280,7 @@ export function OrganizationBrandingPanel() {
                 style={{ display: "none" }}
                 type="file"
               />
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+              <div className="button-row">
                 <button
                   className="button button--secondary button--sm"
                   disabled={busy}

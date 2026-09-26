@@ -234,3 +234,61 @@ test("verifies Platform Administrator access using passkey", async ({ page }) =>
 
   guard.assertNoUnexpectedRequests();
 });
+
+test("aligns paired form fields on desktop and collapses to single-column on mobile in design system", async ({
+  page,
+}) => {
+  const guard = await installStrictGuard(page);
+  const session = await installSessionShell(page, {});
+  await installPlatformAdminMocks(page, {
+    gatePlatformContext: false,
+    mfaStatus: {
+      activePlatformAdministrator: true,
+      enrollmentComplete: true,
+      twoFactorEnabled: true,
+    },
+    userId: session.user.id,
+  });
+  await installPlatformSpecShell(
+    page,
+    session,
+    {
+      code: "not_found",
+      message: "No canonical Organization hostname is active.",
+      status: 404,
+    },
+    "44444444-4444-4444-8444-444444444444",
+  );
+
+  // Desktop viewport: paired controls in .form-grid align horizontally
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.goto("/platform/design-system");
+
+  const formsSection = page.getByRole("region", { name: "Forms" });
+  await expect(formsSection).toBeVisible();
+
+  const voiceSelect = formsSection.getByLabel("Voice part");
+  const sectionInput = formsSection.getByLabel(/^Section note/);
+  await expect(voiceSelect).toBeVisible();
+  await expect(sectionInput).toBeVisible();
+
+  const voiceBox = await voiceSelect.boundingBox();
+  const sectionBox = await sectionInput.boundingBox();
+  expect(voiceBox).not.toBeNull();
+  expect(sectionBox).not.toBeNull();
+  if (voiceBox && sectionBox) {
+    expect(Math.abs(voiceBox.y - sectionBox.y)).toBeLessThanOrEqual(2);
+  }
+
+  // Mobile viewport: below 40rem (640px), .form-grid collapses to 1 column
+  await page.setViewportSize({ width: 500, height: 800 });
+  const mobileVoiceBox = await voiceSelect.boundingBox();
+  const mobileSectionBox = await sectionInput.boundingBox();
+  expect(mobileVoiceBox).not.toBeNull();
+  expect(mobileSectionBox).not.toBeNull();
+  if (mobileVoiceBox && mobileSectionBox) {
+    expect(mobileSectionBox.y).toBeGreaterThan(mobileVoiceBox.y + mobileVoiceBox.height);
+  }
+
+  guard.assertNoUnexpectedRequests();
+});

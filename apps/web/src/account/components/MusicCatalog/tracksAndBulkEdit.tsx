@@ -554,8 +554,7 @@ export function MusicBulkEditDialog({
           </div>
         </fieldset>
         <div
-          className="dialog__actions"
-          style={{ justifyContent: canBulkDelete && !deleteConfirm ? "space-between" : "flex-end" }}
+          className={`dialog__actions ${canBulkDelete && !deleteConfirm ? "dialog__actions--between" : ""}`}
         >
           {canBulkDelete && !deleteConfirm ? (
             <button
@@ -569,7 +568,7 @@ export function MusicBulkEditDialog({
               Delete {String(selectedCount)} pieces
             </button>
           ) : null}
-          <div style={{ display: "flex", gap: "var(--spacing-sm)" }}>
+          <div className="button-row">
             <DialogClose asChild>
               <button className="button button--secondary" disabled={busy} type="button">
                 Cancel

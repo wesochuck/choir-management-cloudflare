@@ -150,21 +150,21 @@ export function RosterInviteLinksDialog({
               void handleCreate(e);
             }}
           >
-            <div className="form-grid">
-              <div className="field">
-                <label htmlFor="invite-link-label">Link label</label>
-                <input
-                  id="invite-link-label"
-                  maxLength={100}
-                  onChange={(e) => {
-                    setLabel(e.target.value);
-                  }}
-                  placeholder="e.g. Spring 2026 Roster"
-                  required
-                  value={label}
-                />
-              </div>
+            <div className="field">
+              <label htmlFor="invite-link-label">Link label</label>
+              <input
+                id="invite-link-label"
+                maxLength={100}
+                onChange={(e) => {
+                  setLabel(e.target.value);
+                }}
+                placeholder="e.g. Spring 2026 Roster"
+                required
+                value={label}
+              />
+            </div>
 
+            <div className="form-grid">
               <div className="field">
                 <label htmlFor="invite-link-expiry">Expiration</label>
                 <select
@@ -184,7 +184,10 @@ export function RosterInviteLinksDialog({
               </div>
 
               <div className="field">
-                <label htmlFor="invite-link-max-uses">Max uses (optional)</label>
+                <label className="field__label-row" htmlFor="invite-link-max-uses">
+                  <span>Max uses</span>{" "}
+                  <span className="field-help field-help--inline">(optional)</span>
+                </label>
                 <input
                   id="invite-link-max-uses"
                   min="1"
@@ -198,7 +201,7 @@ export function RosterInviteLinksDialog({
               </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1rem" }}>
+            <div className="form-actions form-actions--end">
               <button className="button button--primary" disabled={isCreating} type="submit">
                 {isCreating ? "Creating…" : "Create invite link"}
               </button>
@@ -278,7 +281,7 @@ export function RosterInviteLinksDialog({
                     header: "Actions",
                     id: "actions",
                     render: (link) => (
-                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <div className="table-actions">
                         <button
                           className="button button--secondary button--small"
                           onClick={() => void handleCopy(link.id)}

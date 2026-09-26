@@ -178,9 +178,10 @@ export function WillCallPanel({
             <div>
               <p>Choose a performance to view ticket sales, revenue, and will-call activity.</p>
             </div>
-            <label className="field">
-              Select performance
+            <div className="field">
+              <label htmlFor="will-call-select-performance">Select performance</label>
               <select
+                id="will-call-select-performance"
                 onChange={(event) => {
                   setSelectedPerformanceId(event.target.value);
                 }}
@@ -193,7 +194,7 @@ export function WillCallPanel({
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
           </div>
           <WillCallPerformanceMetrics
             financialSummary={financialSummary}
@@ -227,9 +228,10 @@ export function WillCallPanel({
           </div>
         </div>
         <div className="ticket-dashboard__filters ticket-dashboard__filters--search">
-          <label className="field">
-            Search
+          <div className="field">
+            <label htmlFor="will-call-search">Search</label>
             <input
+              id="will-call-search"
               onChange={(event) => {
                 setWillCallSearch(event.target.value);
               }}
@@ -237,7 +239,7 @@ export function WillCallPanel({
               type="search"
               value={willCallSearch}
             />
-          </label>
+          </div>
           <label className="checkbox-row">
             <input
               checked={showRefunded}

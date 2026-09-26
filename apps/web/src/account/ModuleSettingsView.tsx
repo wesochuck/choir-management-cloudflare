@@ -151,7 +151,7 @@ export function ModuleSettingsView() {
               </legend>
               <div className="form-stack module-settings-group__modules">
                 {group.modules.map((mod) => (
-                  <label className="checkbox-row" key={mod.id}>
+                  <label className="choice-field" key={mod.id}>
                     <input
                       checked={mod.enabled}
                       disabled={busyModuleId !== null}
@@ -160,12 +160,12 @@ export function ModuleSettingsView() {
                       }}
                       type="checkbox"
                     />
-                    <div>
-                      <strong>{mod.label ?? mod.id}</strong>
+                    <span className="choice-field__content">
+                      <strong className="choice-field__title">{mod.label ?? mod.id}</strong>
                       {mod.description ? (
-                        <span className="field-help">{mod.description}</span>
+                        <span className="choice-field__description">{mod.description}</span>
                       ) : null}
-                    </div>
+                    </span>
                   </label>
                 ))}
               </div>

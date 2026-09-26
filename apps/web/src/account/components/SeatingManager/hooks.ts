@@ -10,7 +10,7 @@ import type { ViewMode } from "./types";
 function useIsNarrowScreen(): boolean {
   const [narrow, setNarrow] = useState(false);
   useEffect(() => {
-    const m = window.matchMedia("(max-width: 700px)");
+    const m = window.matchMedia("(max-width: 48rem)");
     const u = () => {
       setNarrow(m.matches);
     };

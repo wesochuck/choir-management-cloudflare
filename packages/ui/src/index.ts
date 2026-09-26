@@ -4,6 +4,7 @@ export {
   type DataTableColumn,
   type DataTablePagination,
   type DataTablePresentation,
+  type DataTableProps,
   type DataTableRenderContext,
   type DataTableRowContext,
   type DataTableRowProps,

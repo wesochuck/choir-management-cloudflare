@@ -1,63 +1,82 @@
-/* === Theme stylesheet === *
- * Layer order and import order preserve the original single-file cascade:
- * tokens < base < components, and source order within each layer is the
- * original file order. Add new styles to the matching components/*.css file.
+/* === Theme stylesheet ===
+ * Layer order defines high-level cascade precedence:
+ * tokens < base < components
+ *
+ * Within @layer components, imports are structured by architectural role:
+ * 1. Tokens & Foundations
+ * 2. Shared UI Primitives (forms, data table, overlays, controls)
+ * 3. Shell & Layout Infrastructure (shell, workspace, refinements)
+ * 4. Feature Modules (audio, set lists, profiles, music, ticketing, communications, operations)
+ * 5. Theme Palettes & Overrides
+ * 6. Consolidated Print Stylesheet
  */
 
 @layer tokens, base, components;
 
+/* 1. Tokens & Foundations */
 @import "./tokens.css";
 @import "./base.css";
-@import "./components/set-list.css";
-@import "./components/player.css";
-@import "./components/set-list-items.css";
-@import "./components/profiles.css";
-@import "./components/music-library.css";
-@import "./components/music-settings.css";
-@import "./components/music-genres.css";
-@import "./components/music-catalog.css";
-@import "./components/music-import.css";
-@import "./components/ticketing-donations.css";
-@import "./components/music-piece.css";
-@import "./components/public-site.css";
-@import "./components/public-ticket-receipts.css";
-@import "./components/auth-account.css";
-@import "./components/communications.css";
-@import "./components/communications-provider.css";
-@import "./components/communications-composer.css";
-@import "./components/communications-placeholders.css";
-@import "./components/communications-picker.css";
-@import "./components/account-managers.css";
-@import "./components/setup-wizard.css";
-@import "./components/account-seating.css";
-@import "./components/seating-editor-layout.css";
-@import "./components/seating-workspace.css";
-@import "./components/seating-tray.css";
-@import "./components/seating-list.css";
-@import "./components/seating-responsive.css";
-@import "./components/print.css";
-@import "./components/account-schedule.css";
-@import "./components/calendar-attendance.css";
-@import "./components/platform-admin.css";
-@import "./components/platform-operations.css";
-@import "./components/platform-directory.css";
-@import "./components/platform-workspace.css";
-@import "./components/modules-public.css";
-@import "./components/data-table.css";
-@import "./components/signed-in-shell.css";
-@import "./components/signed-in-workspace.css";
-@import "./components/signed-in-rsvp-dashboard.css";
-@import "./components/signed-in-public-tables.css";
+
+/* 2. Shared UI Primitives */
 @import "./components/forms-layouts.css";
+@import "./components/data-table.css";
 @import "./components/autocomplete.css";
 @import "./components/overlays.css";
+
+/* 3. Shell & Layout Infrastructure */
+@import "./components/signed-in-shell.css";
+@import "./components/signed-in-workspace.css";
 @import "./components/shell-refinements.css";
-@import "./components/usability-themes.css";
-@import "./components/usability-theme-controls.css";
-@import "./components/usability-responsive.css";
-@import "./components/usability-print-media.css";
-@import "./components/usability-native-controls.css";
+
+/* 4. Feature Modules */
+/* Set lists & audio player */
+@import "./components/set-list.css";
+@import "./components/set-list-items.css";
+@import "./components/player.css";
+
+/* Profiles & directory */
+@import "./components/profiles.css";
+
+/* Music library */
+@import "./components/music-library.css";
+@import "./components/music-piece.css";
+@import "./components/music-settings.css";
+
+/* Public site & ticketing */
+@import "./components/public-site.css";
+@import "./components/public-ticket-receipts.css";
+@import "./components/ticketing-donations.css";
+@import "./components/modules-public.css";
+
+/* Authentication & onboarding */
+@import "./components/auth-account.css";
+@import "./components/setup-wizard.css";
+
+/* Communications */
+@import "./components/communications.css";
+@import "./components/communications-provider.css";
+
+/* Account management & scheduling */
+@import "./components/account-managers.css";
+@import "./components/account-roster.css";
+@import "./components/account-schedule.css";
+@import "./components/calendar-attendance.css";
+@import "./components/account-seating.css";
+@import "./components/seating-editor-layout.css";
 @import "./components/admin-overview.css";
 @import "./components/reports.css";
+
+/* Platform operations */
+@import "./components/platform-admin.css";
+@import "./components/platform-operations.css";
+
+/* Utilities & platform tooling */
 @import "./components/command-palette.css";
 @import "./components/platform-design-system.css";
+
+/* 5. Theme Palettes & Overrides */
+@import "./components/usability-themes.css";
+@import "./components/usability-theme-controls.css";
+
+/* 6. Consolidated Print Stylesheet */
+@import "./components/print.css";

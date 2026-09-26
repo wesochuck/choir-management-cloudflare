@@ -216,7 +216,7 @@ function OrganizationPaymentSettingsPanel() {
           ) : null}
           <div className="form-stack">
             {paymentModules.map((module) => (
-              <label className="checkbox-row" key={module.id}>
+              <label className="choice-field" key={module.id}>
                 <input
                   checked={settings.activations[module.id]}
                   disabled={busyModule !== null}
@@ -225,9 +225,9 @@ function OrganizationPaymentSettingsPanel() {
                   }}
                   type="checkbox"
                 />
-                <span>
-                  <strong>{module.label}</strong>{" "}
-                  <span className="field-help">{module.description}</span>
+                <span className="choice-field__content">
+                  <strong className="choice-field__title">{module.label}</strong>
+                  <span className="choice-field__description">{module.description}</span>
                 </span>
               </label>
             ))}
@@ -410,8 +410,8 @@ function TransactionFeeSettingsSection({
       {settingsLoaded && transactionFeeSettings ? (
         <div className="form-stack settings-form">
           <div className="settings-grid">
-            <label className="field" htmlFor="transaction-fee-percentage">
-              Percentage (%)
+            <div className="field">
+              <label htmlFor="transaction-fee-percentage">Percentage (%)</label>
               <input
                 id="transaction-fee-percentage"
                 max="99.99"
@@ -426,9 +426,9 @@ function TransactionFeeSettingsSection({
                 type="number"
                 value={transactionFeeSettings.percentage}
               />
-            </label>
-            <label className="field" htmlFor="transaction-fee-fixed">
-              Fixed fee (USD)
+            </div>
+            <div className="field">
+              <label htmlFor="transaction-fee-fixed">Fixed fee (USD)</label>
               <input
                 id="transaction-fee-fixed"
                 inputMode="decimal"
@@ -447,9 +447,9 @@ function TransactionFeeSettingsSection({
                 type="text"
                 value={fixedFeeDraft}
               />
-            </label>
+            </div>
           </div>
-          <label className="checkbox-row">
+          <label className="choice-field">
             <input
               checked={transactionFeeSettings.passFeeToDonor}
               onChange={(event) => {
@@ -460,7 +460,7 @@ function TransactionFeeSettingsSection({
               }}
               type="checkbox"
             />
-            Pass the processing fee through to donors
+            <span className="choice-field__content">Pass the processing fee through to donors</span>
           </label>
           <p className="notice notice--info">
             On a $10.00 base amount, the grossed-up processing fee is {money(exampleFeeCents)}, for

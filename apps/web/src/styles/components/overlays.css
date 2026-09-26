@@ -3,92 +3,6 @@
  * theme.css so the cascade is unchanged.
  */
 @layer components {
-  @media (max-width: 48rem) {
-    .platform-setup-monitor__heading,
-    .platform-setup-check {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
-    .platform-setup-monitor__heading .button {
-      width: 100%;
-    }
-
-    .platform-setup-monitor__error .button {
-      width: 100%;
-    }
-
-    .platform-setup-check__status {
-      justify-content: space-between;
-      text-align: left;
-    }
-
-    .provider-status-card__row {
-      flex-direction: column;
-    }
-
-    .communication-sender-details {
-      grid-template-columns: 1fr;
-    }
-
-    .provider-status-card__row .platform-setup-status {
-      align-self: flex-start;
-    }
-
-    .ticketing-page-header {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
-    .ticketing-page-header .button {
-      width: 100%;
-    }
-
-    .donation-levels-heading {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
-    .donation-levels-heading .button {
-      align-self: flex-start;
-    }
-
-    .ticketing-tabs {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .ticketing-tabs button {
-      text-align: left;
-    }
-
-    .ticketing-share-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .ticket-dashboard__intro,
-    .ticket-dashboard__section-heading {
-      flex-direction: column;
-    }
-
-    .ticket-dashboard__intro .field {
-      width: 100%;
-      flex-basis: auto;
-    }
-
-    .ticket-dashboard__metrics {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .ticket-dashboard__filters {
-      grid-template-columns: 1fr;
-    }
-
-    .ticket-confirmation-settings__grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
   .empty-page {
     display: grid;
     justify-items: start;
@@ -214,6 +128,14 @@
     z-index: 10;
   }
 
+  .dialog__actions--start {
+    justify-content: flex-start;
+  }
+
+  .dialog__actions--between {
+    justify-content: space-between;
+  }
+
   /* Compact confirmation dialog */
   .dialog--confirmation {
     width: min(28rem, calc(100% - 2rem));
@@ -238,6 +160,9 @@
     box-shadow: none;
   }
 
+  /* Content constraint: short viewport heights (e.g. mobile landscape < 512px tall) require
+   * reduced header/action spacing and viewport-relative max-height to ensure dialogs remain
+   * scrollable and action buttons are not pushed below the screen fold. */
   @media (max-height: 32rem) {
     .dialog--responsive {
       max-height: calc(100dvh - 1rem);
@@ -287,7 +212,7 @@
     box-shadow: 1rem 0 3rem rgb(0 0 0 / 16%);
   }
 
-  @media (max-width: 47.99rem) {
+  @media (max-width: 48rem) {
     .sheet--mobile-fullscreen {
       inset: 0;
       width: 100vw;
@@ -446,29 +371,7 @@
     margin-top: 0;
   }
 
-  .signed-in-shell[data-sidebar-pinned="false"] .mobile-nav-trigger {
-    display: inline-grid;
-    place-items: center;
-  }
-
   @media (max-width: 48rem) {
-    .signed-in-body {
-      display: block;
-    }
-
-    .signed-in-sidebar {
-      display: none;
-    }
-
-    .mobile-nav-trigger {
-      display: inline-grid;
-      place-items: center;
-    }
-
-    .signed-in-main {
-      padding: var(--spacing-lg) var(--spacing-md) 3rem;
-    }
-
     .floating-save-bar {
       align-items: stretch;
       flex-direction: column;
@@ -494,110 +397,9 @@
     .event-editor-save-bar .dialog__actions .button {
       flex: 1;
     }
-
-    .communication-template-editor-save-bar {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
-    .communication-template-editor-save-bar .dialog__actions {
-      justify-content: stretch;
-    }
-
-    .communication-template-editor-save-bar .dialog__actions .button {
-      flex: 1;
-    }
-
-    .page-heading {
-      align-items: start;
-      flex-direction: column;
-      margin-bottom: var(--spacing-lg);
-    }
-
-    .workspace-card-grid,
-    .ticket-scanner__toolbar,
-    .ticket-scanner__grid {
-      grid-template-columns: 1fr;
-    }
-
-    .ticket-dashboard__metrics.donation-dashboard__metrics {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .ticket-dashboard__filters.donation-dashboard__filters {
-      grid-template-columns: 1fr;
-    }
-
-    .ticket-scanner__toolbar .table-actions {
-      justify-content: flex-start;
-    }
-
-    .page-toolbar {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
-    /* In a column toolbar, the shared search field's flex-basis would become
-     * a vertical size. Keep the label sized to its input instead. */
-    .page-toolbar .search-field {
-      flex: 0 1 auto;
-    }
-
-    .page-toolbar__actions {
-      width: 100%;
-    }
-
-    .page-toolbar__actions .button {
-      flex: 1;
-    }
   }
 
   @media (max-width: 40rem) {
-    .signed-in-header {
-      align-items: stretch;
-      flex-direction: column;
-      gap: var(--spacing-sm);
-    }
-
-    .signed-in-header__actions {
-      justify-content: space-between;
-    }
-
-    .signed-in-header__actions > * {
-      flex: 1;
-    }
-
-    .workspace-switcher select,
-    .signed-in-header__actions .button {
-      width: 100%;
-    }
-
-    .signed-in-header__actions > .theme-switcher {
-      flex: 0 0 2.3rem;
-    }
-
-    .signed-in-header__brand > a {
-      flex: 1;
-    }
-
-    .form-grid {
-      grid-template-columns: 1fr;
-    }
-
-    /* Keep rehearsal time and venue controls paired on narrow screens so the
-     * venue dropdown stays aligned with the end-time control. */
-    .audition-rehearsal-grid {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .settings-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .form-grid__wide {
-      grid-column: auto;
-    }
-
     /* Mobile presentation for long-form dialogs: fullscreen dynamic viewport */
     .dialog--responsive {
       top: 0;

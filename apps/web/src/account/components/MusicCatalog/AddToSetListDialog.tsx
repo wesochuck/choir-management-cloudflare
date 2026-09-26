@@ -112,7 +112,7 @@ export function AddToSetListDialog({
 
         <fieldset className="music-setlist-target-mode" style={{ margin: "0.5rem 0" }}>
           <legend className="sr-only">Set list target</legend>
-          <div className="form-actions" style={{ justifyContent: "flex-start", gap: "1rem" }}>
+          <div className="form-actions form-actions--start">
             <label className="radio-label">
               <input
                 checked={mode === "existing"}

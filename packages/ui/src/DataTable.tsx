@@ -87,6 +87,8 @@ function dataTableElementRowEventProps<T extends HTMLElement>(
 }
 
 export interface DataTableColumn<T> {
+  readonly align?: "left" | "center" | "right";
+  readonly className?: string;
   readonly header: string;
   readonly headerContent?: ReactNode;
   readonly id: string;
@@ -100,23 +102,26 @@ export interface DataTableSort {
   readonly direction: DataTableSortDirection;
 }
 
-interface DataTableProps<T> {
+export interface DataTableProps<T> {
   readonly columns: readonly DataTableColumn<T>[];
   readonly emptyMessage?: string;
   readonly expandedRowId?: string | null;
   readonly getRowProps?: (row: T, context: DataTableRowContext<T>) => DataTableRowProps | undefined;
   readonly initialSort?: DataTableSort;
+  readonly isRowInteractive?: (row: T) => boolean;
   readonly keySelector: (row: T) => string;
   readonly onRowClick?: (row: T) => void;
   readonly pagination?: DataTablePagination;
   readonly renderExpandedRow?: (row: T, presentation: DataTablePresentation) => ReactNode;
-  readonly rowLabel?: (row: T) => string;
+  readonly rowLabel?: (row: T) => string | undefined;
   readonly rows: readonly T[];
 }
 
 function isInteractiveTarget(target: EventTarget | null, currentTarget: HTMLElement): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  const closest = target.closest("a,button,input,select,textarea,[role='button']");
+  const closest = target.closest(
+    "a,button,input,select,textarea,[role='button'],.table-actions,.data-table__cell--actions,.data-table-card__field--actions",
+  );
   return closest !== null && closest !== currentTarget;
 }
 
@@ -126,6 +131,42 @@ function isActionColumn<T>(column: DataTableColumn<T>): boolean {
     column.id === "actions" ||
     /^(action|actions|manage)$/i.test(column.header)
   );
+}
+
+function getColumnCellClass<T>(column: DataTableColumn<T>): string | undefined {
+  const classes: string[] = [];
+  if (isActionColumn(column)) {
+    classes.push("data-table__cell--actions");
+  }
+  if (column.align === "center") {
+    classes.push("data-table__cell--center");
+  } else if (column.align === "right") {
+    classes.push("data-table__cell--right");
+  } else if (column.align === "left") {
+    classes.push("data-table__cell--left");
+  }
+  if (column.className) {
+    classes.push(column.className);
+  }
+  return classes.length > 0 ? classes.join(" ") : undefined;
+}
+
+function getCardFieldClass<T>(column: DataTableColumn<T>): string {
+  const classes: string[] = ["data-table-card__field"];
+  if (isActionColumn(column)) {
+    classes.push("data-table-card__field--actions");
+  }
+  if (column.align === "center") {
+    classes.push("data-table-card__field--center");
+  } else if (column.align === "right") {
+    classes.push("data-table-card__field--right");
+  } else if (column.align === "left") {
+    classes.push("data-table-card__field--left");
+  }
+  if (column.className) {
+    classes.push(column.className);
+  }
+  return classes.join(" ");
 }
 
 function compareValues(
@@ -151,6 +192,7 @@ export function DataTable<T>({
   expandedRowId = null,
   getRowProps,
   initialSort,
+  isRowInteractive,
   keySelector,
   onRowClick,
   pagination,
@@ -237,13 +279,13 @@ export function DataTable<T>({
             <tr>
               {columns.map((column) => {
                 const active = sort?.columnId === column.id;
-                const actionColumn = isActionColumn(column);
+                const cellClass = getColumnCellClass(column);
                 return (
                   <th
                     aria-sort={
                       active ? (sort.direction === "asc" ? "ascending" : "descending") : "none"
                     }
-                    className={actionColumn ? "data-table__cell--actions" : undefined}
+                    className={cellClass}
                     key={column.id}
                   >
                     {column.sortValue ? (
@@ -273,13 +315,15 @@ export function DataTable<T>({
               const index = startIndex + localIndex;
               const rowId = keySelector(row);
               const isExpanded = renderExpandedRow !== undefined && expandedRowId === rowId;
+              const isInteractive =
+                Boolean(onRowClick) && (isRowInteractive ? isRowInteractive(row) : true);
               const customRowProps = getRowProps?.(row, {
                 index,
                 presentation: "table",
                 rows: sortedRows,
               });
               const rowClassName =
-                [onRowClick ? "data-table__row--interactive" : null, customRowProps?.className]
+                [isInteractive ? "data-table__row--interactive" : null, customRowProps?.className]
                   .filter(Boolean)
                   .join(" ") || undefined;
               const rowEventProps =
@@ -287,29 +331,26 @@ export function DataTable<T>({
               return (
                 <Fragment key={rowId}>
                   <tr
+                    aria-label={isInteractive ? (rowLabel?.(row) ?? "Open row") : undefined}
                     className={rowClassName}
                     draggable={customRowProps?.draggable}
                     onClick={(event) => {
-                      if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget))
+                      if (!isInteractive || isInteractiveTarget(event.target, event.currentTarget))
                         return;
-                      onRowClick(row);
+                      onRowClick?.(row);
                     }}
                     onKeyDown={(event) => {
-                      if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget))
+                      if (!isInteractive || isInteractiveTarget(event.target, event.currentTarget))
                         return;
                       if (event.key !== "Enter" && event.key !== " ") return;
                       event.preventDefault();
-                      onRowClick(row);
+                      onRowClick?.(row);
                     }}
                     {...rowEventProps}
-                    tabIndex={onRowClick ? 0 : undefined}
-                    aria-label={onRowClick ? (rowLabel?.(row) ?? "Open row") : undefined}
+                    tabIndex={isInteractive ? 0 : undefined}
                   >
                     {columns.map((column) => (
-                      <td
-                        className={isActionColumn(column) ? "data-table__cell--actions" : undefined}
-                        key={column.id}
-                      >
+                      <td className={getColumnCellClass(column)} key={column.id}>
                         {column.render(row, { presentation: "table" })}
                       </td>
                     ))}
@@ -332,13 +373,15 @@ export function DataTable<T>({
           const index = startIndex + localIndex;
           const rowId = keySelector(row);
           const isExpanded = renderExpandedRow !== undefined && expandedRowId === rowId;
+          const isInteractive =
+            Boolean(onRowClick) && (isRowInteractive ? isRowInteractive(row) : true);
           const customRowProps = getRowProps?.(row, {
             index,
             presentation: "card",
             rows: sortedRows,
           });
           const cardClassName = [
-            onRowClick ? "data-table-card data-table-card--interactive" : "data-table-card",
+            isInteractive ? "data-table-card data-table-card--interactive" : "data-table-card",
             customRowProps?.className,
           ]
             .filter(Boolean)
@@ -347,32 +390,27 @@ export function DataTable<T>({
           return (
             <Fragment key={rowId}>
               <div
-                aria-label={onRowClick ? (rowLabel?.(row) ?? "Open row") : undefined}
+                aria-label={isInteractive ? (rowLabel?.(row) ?? "Open row") : undefined}
                 className={cardClassName}
                 draggable={customRowProps?.draggable}
                 onClick={(event) => {
-                  if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget)) return;
-                  onRowClick(row);
+                  if (!isInteractive || isInteractiveTarget(event.target, event.currentTarget))
+                    return;
+                  onRowClick?.(row);
                 }}
                 onKeyDown={(event) => {
-                  if (!onRowClick || isInteractiveTarget(event.target, event.currentTarget)) return;
+                  if (!isInteractive || isInteractiveTarget(event.target, event.currentTarget))
+                    return;
                   if (event.key !== "Enter" && event.key !== " ") return;
                   event.preventDefault();
-                  onRowClick(row);
+                  onRowClick?.(row);
                 }}
                 {...cardEventProps}
-                role={onRowClick ? "button" : undefined}
-                tabIndex={onRowClick ? 0 : undefined}
+                role={isInteractive ? "button" : undefined}
+                tabIndex={isInteractive ? 0 : undefined}
               >
                 {columns.map((column) => (
-                  <div
-                    className={
-                      isActionColumn(column)
-                        ? "data-table-card__field data-table-card__field--actions"
-                        : "data-table-card__field"
-                    }
-                    key={column.id}
-                  >
+                  <div className={getCardFieldClass(column)} key={column.id}>
                     <span className="data-table-card__label">
                       {column.mobileLabel ?? column.header}
                     </span>

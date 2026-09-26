@@ -441,7 +441,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
         <fieldset>
           <legend>Public navigation</legend>
           {(["tickets", "donations", "auditions"] as const).map((item) => (
-            <label key={item}>
+            <label className="choice-field" key={item}>
               <input
                 checked={draft.enabledNavigation.includes(item)}
                 onChange={(event) => {
@@ -454,16 +454,18 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
                 }}
                 type="checkbox"
               />
-              {item === "tickets"
-                ? "Tickets"
-                : item === "donations"
-                  ? "Donate"
-                  : "Auditions & Inquiries"}
+              <span className="choice-field__content">
+                {item === "tickets"
+                  ? "Tickets"
+                  : item === "donations"
+                    ? "Donate"
+                    : "Auditions & Inquiries"}
+              </span>
             </label>
           ))}
           <p className="field-help">Enable links only after the matching public module is ready.</p>
         </fieldset>
-        <label>
+        <label className="choice-field">
           <input
             checked={draft.showBrandingHeaderFooter}
             onChange={(event) => {
@@ -471,7 +473,9 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
             }}
             type="checkbox"
           />
-          Use this header and footer on public transaction pages
+          <span className="choice-field__content">
+            Use this header and footer on public transaction pages
+          </span>
         </label>
         <div className="form-actions">
           <button className="button button--secondary" disabled={busy} onClick={() => void save()}>

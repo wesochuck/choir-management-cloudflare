@@ -1,7 +1,9 @@
-/* === Print rules, roster configuration, and my schedule ===
- * Split from the original single-file stylesheet; imported in order from
- * theme.css so the cascade is unchanged.
+/* === Consolidated Print Stylesheet ===
+ * Owns all @page and @media print rules for the application.
+ * Imported after screen styles in theme.css so print declarations
+ * naturally override screen styles without requiring !important flags.
  */
+
 @page {
   size: landscape;
   margin: 0.35in;
@@ -9,23 +11,54 @@
 
 @layer components {
   @media print {
+    /* 1. Global Print Resets & Color Adjust */
+    *,
+    *::before,
+    *::after {
+      /* Browser print engine requirement: ensure backgrounds and borders are printed */
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
     html,
     body {
       width: 100%;
       min-width: 0;
     }
 
+    /* 2. Hide Navigation, Sidebar, and Interactive Screen Chrome
+     * Deliberate override semantics: screen chrome and interactive controls must
+     * never appear on printed output regardless of component-level display rules. */
     .signed-in-header,
     .signed-in-sidebar,
     .skip-link,
     .page-heading,
     .no-print,
+    .no-print.no-print.no-print,
     .seating-tray,
     .seating-page-heading__actions,
     .seating-tabs,
     .seating-toolbar-card,
-    .seating-toolbar {
+    .seating-toolbar,
+    .public-section--narrow > .button {
       display: none !important;
+    }
+
+    /* 3. Unconstrain Shell & Main Content for Full Page Width */
+    #root,
+    .signed-in-shell,
+    .signed-in-body,
+    .signed-in-main {
+      width: 100%;
+      min-width: 0;
+      max-width: none;
+      min-height: 0;
+      margin: 0;
+      padding: 0;
+      overflow: visible;
+      border: 0;
+      background: #fff;
+      color: #111;
     }
 
     .signed-in-shell {
@@ -35,55 +68,176 @@
       --color-surface-raised: #fff;
       --color-text-muted: #555;
       --color-text: #111;
-      min-height: 0;
-      background: #fff;
-      color: #111;
     }
 
     .signed-in-body {
       display: block;
-      min-height: 0;
     }
 
-    .signed-in-main {
+    /* 4. Seating Chart Canvas & Grid Layout */
+    .seating-workspace,
+    .seating-editor-canvas,
+    .seating-grid--canvas {
       width: 100%;
+      min-width: 0;
       max-width: none;
+      min-height: 0;
       margin: 0;
       padding: 0;
-    }
-
-    .seating-workspace,
-    .seating-editor-canvas {
-      width: 100%;
-      display: block;
-      padding: 0;
+      overflow: visible;
       border: 0;
-      background: transparent;
+      background: #fff;
+      color: #111;
     }
 
+    .seating-editor-canvas,
     .seating-grid--canvas {
       display: flex;
-      width: 100%;
       flex-direction: column;
       gap: var(--spacing-2xs);
-      padding: 0;
-      border: 0;
-      background: transparent;
     }
 
     .seating-row--canvas {
+      display: grid;
       width: 100%;
       min-width: 0;
-      grid-template-columns: 5rem repeat(var(--seating-seat-count), minmax(2.4rem, 1fr));
+      grid-template-columns: 5rem repeat(var(--seating-seat-count), minmax(0, 1fr));
+      gap: var(--spacing-3xs);
       break-inside: avoid;
     }
 
-    .seating-seat--canvas {
-      min-height: 3.25rem;
+    .seating-row-label--canvas {
+      min-width: 0;
+      padding-right: var(--spacing-2xs);
       color: #111;
+      font-size: var(--font-size-xs);
+    }
+
+    .seating-row-label--canvas span {
+      color: #444;
+      font-size: var(--font-size-2xs);
+    }
+
+    .seating-seat--canvas {
+      min-width: 0;
+      min-height: 3.25rem;
+      padding: var(--spacing-3xs);
+      border-color: #777;
+      border-radius: var(--radius-sm);
+      color: #111;
+      background: #fff;
+      font-size: var(--font-size-2xs);
+    }
+
+    .seating-seat--canvas * {
+      color: #111;
+    }
+
+    .seating-seat--canvas .seating-seat__suggestion,
+    .seating-seat--canvas .seating-seat__voice {
+      color: #555;
+    }
+
+    .seating-stage-marker {
+      min-width: 15rem;
+      color: #333;
+      border-color: #777;
+    }
+
+    /* 5. Seating Name Index (Consolidated from seating-editor-layout.css) */
+    .seating-name-index {
+      width: 100%;
+      break-inside: avoid;
+    }
+
+    .seating-name-index__heading {
+      margin-bottom: var(--spacing-2xs);
+    }
+
+    .seating-name-index__heading h2 {
+      font-size: var(--font-size-body);
+    }
+
+    .seating-name-index__heading p {
+      font-size: var(--font-size-xs);
+    }
+
+    .seating-name-index__entries {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0 var(--spacing-xs);
+    }
+
+    .seating-name-index__entries li {
+      gap: var(--spacing-3xs);
+      padding: var(--spacing-3xs) 0;
+      border-bottom-color: #ddd;
+    }
+
+    .seating-name-index__entries li strong,
+    .seating-name-index__location,
+    .seating-name-index__entries .seating-list-voice-part {
+      font-size: var(--font-size-2xs);
+    }
+
+    /* 6. Set List Print Layout & Preview
+     * Hide editor and editing chrome, show only the print view */
+    .set-list-section {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
       background: #fff;
     }
 
+    /* Deliberate override: editor chrome must be hidden during print */
+    .set-list-section > :not(.set-list-print-view) {
+      display: none !important;
+    }
+
+    .set-list-print-view {
+      display: block;
+      width: 100%;
+      margin: 0;
+      color: #111;
+      background: #fff;
+      font-size: var(--font-size-md);
+    }
+
+    .set-list-print-view .set-list-preview {
+      display: grid;
+      max-height: none;
+      overflow: visible;
+      padding: 0;
+      border: 0;
+      background: #fff;
+    }
+
+    .set-list-print-view .set-list-preview__header {
+      padding-bottom: var(--spacing-md);
+      border-color: #bbb;
+    }
+
+    .set-list-print-view .set-list-preview__header h1,
+    .set-list-print-view .set-list-preview__header p,
+    .set-list-print-view .set-list-preview__song-line,
+    .set-list-print-view .set-list-preview__intermission,
+    .set-list-print-view .set-list-preview__group,
+    .set-list-print-view .set-list-preview__note {
+      color: #111;
+    }
+
+    .set-list-print-view .set-list-preview__song {
+      border-color: #bbb;
+      break-inside: avoid;
+    }
+
+    .set-list-print-view .set-list-preview__intermission {
+      border-color: #888;
+    }
+
+    /* Legacy set-list layout print overrides */
     .set-list-layout {
       display: block;
       padding: 0;
@@ -92,6 +246,7 @@
       color: #111;
     }
 
+    /* Deliberate override: legacy set list editing controls hidden */
     .set-list-layout > .form-stack,
     .set-list-summary,
     .set-list-save-row,
@@ -110,178 +265,35 @@
       border: 0;
       padding: var(--spacing-2xs) 0;
     }
-  }
 
-  .roster-configuration-list {
-    display: grid;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-md);
-  }
-
-  .roster-configuration-row {
-    display: grid;
-    grid-template-columns: minmax(5rem, 0.6fr) minmax(10rem, 2fr) minmax(7rem, 1fr) auto auto;
-    align-items: end;
-    gap: var(--spacing-sm);
-  }
-
-  .roster-configuration-row label:not(.checkbox-row) {
-    display: grid;
-    gap: var(--spacing-2xs);
-  }
-
-  .roster-performer-list {
-    display: grid;
-    gap: var(--spacing-sm);
-    margin-bottom: var(--spacing-md);
-  }
-
-  .roster-performer-card {
-    min-width: 0;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-card);
-    background: var(--color-surface-raised);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .roster-performer-card__legend {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--spacing-xs);
-    width: calc(100% - 1rem);
-    padding: var(--spacing-xs) var(--spacing-xs);
-  }
-
-  .roster-performer-card__legend strong {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .roster-performer-card__footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--spacing-md);
-    padding: var(--spacing-sm) var(--spacing-md);
-  }
-
-  .roster-performer-card__status {
-    flex: 0 0 auto;
-    padding: var(--spacing-2xs) var(--spacing-sm);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-full);
-    background: color-mix(in srgb, var(--color-text-muted) 16%, var(--color-surface));
-    color: var(--color-text-muted);
-    font-size: var(--font-size-xs);
-    font-weight: var(--font-weight-bold);
-  }
-
-  .roster-performer-card__status--assigned {
-    border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
-    color: var(--color-accent);
-    background: color-mix(in srgb, var(--color-accent) 22%, var(--color-surface));
-  }
-
-  .roster-performer-card__fields {
-    display: grid;
-    grid-template-columns: minmax(6rem, 0.7fr) minmax(12rem, 1.7fr) minmax(9rem, 1fr);
-    gap: var(--spacing-sm);
-    padding: var(--spacing-md);
-  }
-
-  .roster-performer-card__fields label {
-    display: grid;
-    min-width: 0;
-    gap: var(--spacing-2xs);
-  }
-
-  .roster-performer-card__fields input,
-  .roster-performer-card__fields select {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .roster-performer-card__footer {
-    border-top: 1px solid var(--color-border);
-    background: color-mix(in srgb, var(--color-surface) 50%, transparent);
-  }
-
-  .roster-performer-card__footer p {
-    margin: 0;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-sm);
-    line-height: var(--line-height-normal);
-  }
-
-  .roster-performer-card__footer .button {
-    flex: 0 0 auto;
-    white-space: nowrap;
-  }
-
-  /* The pinned workspace navigation can leave the roster editor narrower than
-   * the viewport. Give its action controls their own grid cells before they
-   * begin competing with the Track only checkbox. */
-  @media (max-width: 64rem) {
-    .roster-configuration-row {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  @media (max-width: 48rem) {
-    .roster-performer-card__fields {
-      grid-template-columns: 1fr;
+    /* 7. Ticket Passes, Receipts & Orders (Consolidated from forms-layouts.css) */
+    .ticket-pass-card,
+    .ticket-purchase-summary {
+      border-color: #777;
+      background: #fff;
+      box-shadow: none;
+      color: #111;
     }
 
-    .roster-performer-card__footer {
-      align-items: stretch;
-      flex-direction: column;
+    .ticket-purchase-summary,
+    .ticket-pass-card__header,
+    .ticket-pass-card__qr,
+    .ticket-pass-card__instructions,
+    .ticket-pass-card__shared-venue {
+      break-inside: avoid;
     }
 
-    .roster-performer-card__footer .button {
-      width: 100%;
+    .ticket-pass-card__qr {
+      background: #fff;
     }
-  }
 
-  @media (max-width: 30rem) {
-    .roster-performer-card__legend {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: var(--spacing-2xs);
+    .ticket-credential-card__qr-image {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
-  }
 
-  .account-section--my-schedule {
-    grid-column: 1 / -1;
-  }
-
-  .my-schedule__controls {
-    display: flex;
-    justify-content: flex-end;
-    margin: -var(--spacing-3xs) 0 var(--spacing-md);
-  }
-
-  .my-schedule__controls .checkbox-row {
-    margin: 0;
-  }
-
-  .calendar-feed-url-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--spacing-sm);
-  }
-
-  .calendar-feed-url-row .button {
-    height: var(--control-height);
-    min-height: var(--control-height);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    box-sizing: border-box;
-    white-space: nowrap;
+    .ticket-pass-event {
+      break-inside: avoid;
+    }
   }
 }

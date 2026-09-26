@@ -152,22 +152,17 @@
 
   .design-system__choices {
     display: grid;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-md);
     margin: 0;
-    padding: var(--spacing-sm);
+    padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
+    background: var(--color-surface);
   }
 
   .design-system__choices legend {
     padding-inline: var(--spacing-2xs);
     font-weight: var(--font-weight-semibold);
-  }
-
-  .design-system__choices label {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-xs);
   }
 
   @media (max-width: 64rem) {

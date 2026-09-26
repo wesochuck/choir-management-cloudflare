@@ -43,10 +43,11 @@ function MusicCatalogSettingsSection({
     <fieldset className="music-publisher-settings">
       <legend>Catalog table &amp; lookup settings</legend>
       <div className="music-catalog-settings__form form-stack">
-        <label className="field">
-          Default rows per page
+        <div className="field">
+          <label htmlFor="music-catalog-default-page-size">Default rows per page</label>
           <select
-            aria-label="Default rows per page"
+            aria-describedby="music-catalog-default-page-size-help"
+            id="music-catalog-default-page-size"
             value={String(defaultPageSize)}
             onChange={(event) => {
               onDefaultPageSizeChange(Number(event.target.value));
@@ -57,14 +58,15 @@ function MusicCatalogSettingsSection({
             <option value="100">100 pieces (default)</option>
             <option value="250">250 pieces</option>
           </select>
-          <small className="field-help">
+          <span className="field-help" id="music-catalog-default-page-size-help">
             The initial page size used when opening the Music Catalog table.
-          </small>
-        </label>
-        <label className="field">
-          Publisher search URL template
+          </span>
+        </div>
+        <div className="field">
+          <label htmlFor="music-publisher-template">Publisher search URL template</label>
           <input
             aria-describedby="music-publisher-settings-help"
+            id="music-publisher-template"
             placeholder="https://publisher.example/search?catalog={catalogId}"
             type="text"
             value={template}
@@ -72,10 +74,10 @@ function MusicCatalogSettingsSection({
               onTemplateChange(event.target.value);
             }}
           />
-          <small className="field-help" id="music-publisher-settings-help">
+          <span className="field-help" id="music-publisher-settings-help">
             Leave blank to hide. Use <code>{"{catalogId}"}</code> where the catalog number belongs.
-          </small>
-        </label>
+          </span>
+        </div>
         <button
           className="button button--secondary"
           disabled={busy || !dirty}
@@ -109,10 +111,10 @@ function MusicPracticeSettingsSection({
     <fieldset className="music-practice-settings">
       <legend>Public practice-player links</legend>
       <div className="music-practice-settings__form form-stack">
-        <label className="field">
-          Link lifetime (days)
+        <div className="field">
+          <label htmlFor="music-practice-lifetime-days">Link lifetime (days)</label>
           <input
-            aria-label="Link lifetime (days)"
+            id="music-practice-lifetime-days"
             min="1"
             max="3650"
             type="number"
@@ -121,7 +123,7 @@ function MusicPracticeSettingsSection({
               onLifetimeChange(Number(event.target.value));
             }}
           />
-        </label>
+        </div>
         <button
           className="button button--secondary"
           disabled={busy || !dirty}
@@ -184,9 +186,11 @@ function MusicGenreSettingsSection({
           submitAdd();
         }}
       >
-        <label className="field">
-          Add a genre label
+        <div className="field">
+          <label htmlFor="music-genre-new-label">Add a genre label</label>
           <input
+            aria-describedby="music-genre-new-label-help"
+            id="music-genre-new-label"
             maxLength={100}
             placeholder="e.g. Folk, Gospel, Pop"
             type="text"
@@ -195,10 +199,10 @@ function MusicGenreSettingsSection({
               setNewLabel(event.target.value);
             }}
           />
-          <small className="field-help">
+          <span className="field-help" id="music-genre-new-label-help">
             Added labels appear as choices when editing catalog pieces.
-          </small>
-        </label>
+          </span>
+        </div>
         <button
           className="button button--secondary"
           disabled={busyLabel !== null || newLabel.trim() === ""}

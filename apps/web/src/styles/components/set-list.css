@@ -220,18 +220,18 @@
 
   .set-list-copy-row .button {
     min-width: 6.5rem;
-    height: var(--control-height);
-    min-height: var(--control-height);
-    padding: var(--spacing-xs) var(--spacing-sm);
-    box-sizing: border-box;
   }
 
   .set-list-visibility {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     min-height: 0;
     padding: var(--spacing-3xs) var(--spacing-3xs);
     gap: var(--spacing-xs);
+  }
+
+  .set-list-visibility > input {
+    margin-top: var(--spacing-3xs);
   }
 
   .set-list-visibility > span {

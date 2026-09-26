@@ -478,7 +478,7 @@ export function SetListManagerView({
                 </select>
               </label>
               <button
-                className="button button--secondary button--small"
+                className="button button--secondary button--control-height"
                 disabled={!copyEventId}
                 type="button"
                 onClick={copyMissingItems}

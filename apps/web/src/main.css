@@ -5,9 +5,15 @@
  * fallback defined in tokens.css. */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* Breakpoint scale aligned to Tailwind's default theme: 40rem (sm), 48rem
- * (md), 64rem (lg), 80rem (xl). Component CSS uses these values for media
- * queries; prefer Tailwind responsive utilities for new markup. */
+/* Breakpoint scale aligned to Tailwind's default theme:
+ * - 40rem (sm, 640px) - Mobile / phone breakpoint (cards, single-column forms, stacked nav)
+ * - 48rem (md, 768px) - Tablet breakpoint (sidebar collapse, 2-column layouts)
+ * - 64rem (lg, 1024px) - Desktop breakpoint (expanded sidebar, 3-4 column layouts)
+ * - 80rem (xl, 1280px) - Wide desktop breakpoint (full multi-column grids)
+ * Component CSS normalizes to these four canonical breakpoints. Retained exceptions
+ * (e.g. short viewport height or narrow phone card field stacking) must be content-driven
+ * and documented with the specific layout constraint they protect. Prefer Tailwind
+ * responsive utilities for new markup. */
 
 @theme {
   /* Colors — emitted as CSS custom properties on :root so existing BEM

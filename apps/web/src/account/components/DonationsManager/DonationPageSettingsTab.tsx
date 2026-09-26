@@ -34,9 +34,10 @@ export function DonationPageSettingsTab({
         <div>
           <p>Customize the headline and explanation shown to donors before checkout.</p>
         </div>
-        <label className="field">
-          Call-to-action heading
+        <div className="field">
+          <label htmlFor="donation-portal-cta-heading">Call-to-action heading</label>
           <input
+            id="donation-portal-cta-heading"
             required
             maxLength={200}
             value={portalButtonText}
@@ -44,10 +45,11 @@ export function DonationPageSettingsTab({
               setPortalButtonText(event.target.value);
             }}
           />
-        </label>
-        <label className="field">
-          Portal description
+        </div>
+        <div className="field">
+          <label htmlFor="donation-portal-description">Portal description</label>
           <textarea
+            id="donation-portal-description"
             maxLength={2000}
             rows={5}
             value={portalDescription}
@@ -55,10 +57,12 @@ export function DonationPageSettingsTab({
               setPortalDescription(event.target.value);
             }}
           />
-        </label>
-        <label className="field">
-          Thank-you message after donation
+        </div>
+        <div className="field">
+          <label htmlFor="donation-portal-thank-you">Thank-you message after donation</label>
           <textarea
+            aria-describedby="donation-portal-thank-you-help"
+            id="donation-portal-thank-you"
             required
             maxLength={2000}
             rows={5}
@@ -67,10 +71,10 @@ export function DonationPageSettingsTab({
               setPortalThankYouMessage(event.target.value);
             }}
           />
-          <span className="field__hint">
+          <p className="field-help" id="donation-portal-thank-you-help">
             Shown after a successful gift. Use plain text; this message cannot contain HTML.
-          </span>
-        </label>
+          </p>
+        </div>
         <button className="button button--primary" disabled={busy} type="submit">
           {busy ? "Saving…" : "Save page settings"}
         </button>

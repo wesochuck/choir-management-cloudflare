@@ -4,7 +4,7 @@ import type {
   OrganizationAuditionCreateRequest,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
-import { Dialog, DialogClose, DropdownMenu } from "@choir/ui";
+import { DataTable, Dialog, DialogClose, DropdownMenu, type DataTableColumn } from "@choir/ui";
 
 import {
   STATUS_LABELS,
@@ -29,165 +29,167 @@ export function AuditionTable({
   readonly onEdit: (audition: OrganizationAudition) => void;
   readonly onSchedule: (audition: OrganizationAudition) => void;
 }) {
-  return (
-    <div className="audition-table" role="table">
-      <div className="audition-table__header" role="row">
-        <span role="columnheader">Name / contact</span>
-        <span role="columnheader">Preferred times</span>
-        <span role="columnheader">Status</span>
-        <span role="columnheader">Submitted</span>
-        <span role="columnheader">Actions</span>
-      </div>
-      {auditions.map((audition) => (
-        <div
-          aria-label={
-            audition.status === "pending" ? `Schedule audition for ${audition.name}` : undefined
-          }
-          className={`audition-table__row${audition.status === "pending" ? " audition-table__row--interactive" : ""}`}
-          key={audition.id}
-          onClick={
-            audition.status === "pending"
-              ? () => {
-                  onSchedule(audition);
-                }
-              : undefined
-          }
-          onKeyDown={
-            audition.status === "pending"
-              ? (event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  onSchedule(audition);
-                }
-              : undefined
-          }
-          role="row"
-          tabIndex={audition.status === "pending" ? 0 : undefined}
-        >
-          <span role="cell">
-            <strong>{audition.name}</strong>
-            <small className="table-secondary">
-              {audition.email}
-              {audition.phone ? ` · ${audition.phone}` : ""}
-              {audition.voicePart ? ` · ${audition.voicePart}` : ""}
-            </small>
-          </span>
-          <span role="cell">
-            {audition.scheduledTimeSlot
-              ? formatDate(audition.scheduledTimeSlot)
-              : audition.requestedSlots.length > 0
-                ? (() => {
-                    const requestedState = requestedSlotState(audition.requestedSlots);
-                    return (
-                      <>
-                        <span>{String(audition.requestedSlots.length)} requested</span>
-                        {requestedState.passedCount === audition.requestedSlots.length ? (
-                          <small className="table-secondary audition-time-status audition-time-status--past">
-                            All requested times passed
-                          </small>
-                        ) : requestedState.passedCount > 0 ? (
-                          <small className="table-secondary audition-time-status audition-time-status--past">
-                            {String(requestedState.passedCount)} passed
-                          </small>
-                        ) : null}
-                      </>
-                    );
-                  })()
-                : "Any time"}
-          </span>
-          <span role="cell">
-            <span className={`badge badge--${audition.status}`}>
-              {STATUS_LABELS[audition.status]}
-            </span>
-          </span>
-          <span role="cell">{formatDate(audition.createdAt)}</span>
-          <span
-            onClick={(event) => {
-              event.stopPropagation();
+  const columns: readonly DataTableColumn<OrganizationAudition>[] = [
+    {
+      header: "Name / contact",
+      id: "name",
+      mobileLabel: "Name / contact",
+      render: (audition) => (
+        <>
+          <strong>{audition.name}</strong>
+          <small className="table-secondary">
+            {audition.email}
+            {audition.phone ? ` · ${audition.phone}` : ""}
+            {audition.voicePart ? ` · ${audition.voicePart}` : ""}
+          </small>
+        </>
+      ),
+      sortValue: (audition) => audition.name.toLowerCase(),
+    },
+    {
+      header: "Preferred times",
+      id: "preferredTimes",
+      mobileLabel: "Preferred times",
+      render: (audition) =>
+        audition.scheduledTimeSlot
+          ? formatDate(audition.scheduledTimeSlot)
+          : audition.requestedSlots.length > 0
+            ? (() => {
+                const requestedState = requestedSlotState(audition.requestedSlots);
+                return (
+                  <>
+                    <span>{String(audition.requestedSlots.length)} requested</span>
+                    {requestedState.passedCount === audition.requestedSlots.length ? (
+                      <small className="table-secondary audition-time-status audition-time-status--past">
+                        All requested times passed
+                      </small>
+                    ) : requestedState.passedCount > 0 ? (
+                      <small className="table-secondary audition-time-status audition-time-status--past">
+                        {String(requestedState.passedCount)} passed
+                      </small>
+                    ) : null}
+                  </>
+                );
+              })()
+            : "Any time",
+      sortValue: (audition) => audition.scheduledTimeSlot ?? audition.requestedSlots[0] ?? "",
+    },
+    {
+      header: "Status",
+      id: "status",
+      mobileLabel: "Status",
+      render: (audition) => (
+        <span className={`badge badge--${audition.status}`}>{STATUS_LABELS[audition.status]}</span>
+      ),
+      sortValue: (audition) => STATUS_LABELS[audition.status],
+    },
+    {
+      header: "Submitted",
+      id: "submitted",
+      mobileLabel: "Submitted",
+      render: (audition) => formatDate(audition.createdAt),
+      sortValue: (audition) => audition.createdAt,
+    },
+    {
+      header: "Actions",
+      id: "actions",
+      mobileLabel: "Actions",
+      render: (audition) => (
+        <div className="table-actions">
+          <button
+            className="button button--secondary button--small"
+            onClick={() => {
+              onEdit(audition);
             }}
-            onKeyDown={(event) => {
-              event.stopPropagation();
-            }}
-            role="cell"
+            type="button"
           >
-            <div className="table-actions">
-              <button
-                className="button button--secondary button--small"
-                onClick={() => {
+            Edit
+          </button>
+          {audition.status === "scheduled" || audition.status === "completed" ? (
+            <button
+              className="button button--secondary button--small"
+              onClick={() => {
+                onConvert(audition);
+              }}
+              type="button"
+            >
+              Convert to Profile
+            </button>
+          ) : null}
+          {audition.status === "pending" ? (
+            <button
+              className="button button--secondary button--small"
+              onClick={() => {
+                onSchedule(audition);
+              }}
+              type="button"
+            >
+              Schedule
+            </button>
+          ) : null}
+          <DropdownMenu
+            accessibleLabel={`More actions for ${audition.name}`}
+            items={[
+              {
+                label: "Edit",
+                onSelect: () => {
                   onEdit(audition);
-                }}
+                },
+              },
+              {
+                label:
+                  audition.status === "scheduled" || Boolean(audition.scheduledTimeSlot)
+                    ? "Reschedule"
+                    : "Schedule",
+                onSelect: () => {
+                  onSchedule(audition);
+                },
+              },
+              {
+                label: "Convert to Profile",
+                onSelect: () => {
+                  onConvert(audition);
+                },
+              },
+              {
+                label: "Delete",
+                onSelect: () => {
+                  onDelete(audition);
+                },
+              },
+            ]}
+            trigger={
+              <button
+                aria-label={`More actions for ${audition.name}`}
+                className="button button--secondary button--small audition-table__overflow"
                 type="button"
               >
-                Edit
+                <span aria-hidden="true">⋮</span>
               </button>
-              {audition.status === "scheduled" || audition.status === "completed" ? (
-                <button
-                  className="button button--secondary button--small"
-                  onClick={() => {
-                    onConvert(audition);
-                  }}
-                  type="button"
-                >
-                  Convert to Profile
-                </button>
-              ) : null}
-              {audition.status === "pending" ? (
-                <button
-                  className="button button--secondary button--small"
-                  onClick={() => {
-                    onSchedule(audition);
-                  }}
-                  type="button"
-                >
-                  Schedule
-                </button>
-              ) : null}
-              <DropdownMenu
-                accessibleLabel={`More actions for ${audition.name}`}
-                items={[
-                  {
-                    label: "Edit",
-                    onSelect: () => {
-                      onEdit(audition);
-                    },
-                  },
-                  {
-                    label:
-                      audition.status === "scheduled" || Boolean(audition.scheduledTimeSlot)
-                        ? "Reschedule"
-                        : "Schedule",
-                    onSelect: () => {
-                      onSchedule(audition);
-                    },
-                  },
-                  {
-                    label: "Convert to Profile",
-                    onSelect: () => {
-                      onConvert(audition);
-                    },
-                  },
-                  {
-                    label: "Delete",
-                    onSelect: () => {
-                      onDelete(audition);
-                    },
-                  },
-                ]}
-                trigger={
-                  <button
-                    aria-label={`More actions for ${audition.name}`}
-                    className="button button--secondary button--small audition-table__overflow"
-                    type="button"
-                  >
-                    <span aria-hidden="true">⋮</span>
-                  </button>
-                }
-              />
-            </div>
-          </span>
+            }
+          />
         </div>
-      ))}
-    </div>
+      ),
+    },
+  ];
+
+  return (
+    <DataTable
+      columns={columns}
+      emptyMessage="No auditions match the current filters."
+      getRowProps={() => ({
+        className: "audition-table__row",
+      })}
+      isRowInteractive={(audition) => audition.status === "pending"}
+      keySelector={(audition) => audition.id}
+      onRowClick={(audition) => {
+        onSchedule(audition);
+      }}
+      rowLabel={(audition) =>
+        audition.status === "pending" ? `Schedule audition for ${audition.name}` : undefined
+      }
+      rows={auditions}
+    />
   );
 }
 

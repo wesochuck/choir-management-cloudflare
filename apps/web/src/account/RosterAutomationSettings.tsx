@@ -100,7 +100,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
           <div className="roster-automation__cards">
             <fieldset className="roster-automation__card">
               <legend className="roster-automation__legend">Profile Status Automation</legend>
-              <label className="checkbox-row">
+              <label className="choice-field">
                 <input
                   checked={configuration.statusAutomationEnabled}
                   onChange={(event) => {
@@ -111,7 +111,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
                   }}
                   type="checkbox"
                 />
-                Automatically manage Profile Status
+                <span className="choice-field__content">Automatically manage Profile Status</span>
               </label>
               <div className="settings-grid">
                 <label className="field" htmlFor="status-automation-threshold">
@@ -134,7 +134,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
                   />
                 </label>
               </div>
-              <label className="checkbox-row">
+              <label className="choice-field">
                 <input
                   checked={configuration.statusAutomationRecoveryEnabled}
                   onChange={(event) => {
@@ -145,13 +145,15 @@ export function RosterAutomationSettings({ enabled }: Props) {
                   }}
                   type="checkbox"
                 />
-                Restore to Active when a future Performance RSVP is Yes
+                <span className="choice-field__content">
+                  Restore to Active when a future Performance RSVP is Yes
+                </span>
               </label>
             </fieldset>
 
             <fieldset className="roster-automation__card">
               <legend className="roster-automation__legend">On Break Timeout</legend>
-              <label className="checkbox-row">
+              <label className="choice-field">
                 <input
                   checked={configuration.onBreakTimeoutEnabled}
                   onChange={(event) => {
@@ -162,7 +164,9 @@ export function RosterAutomationSettings({ enabled }: Props) {
                   }}
                   type="checkbox"
                 />
-                Automatically age out On Break Profiles
+                <span className="choice-field__content">
+                  Automatically age out On Break Profiles
+                </span>
               </label>
               <label className="field" htmlFor="on-break-timeout-days">
                 Days on Break before Inactive
@@ -187,7 +191,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
 
             <fieldset className="roster-automation__card">
               <legend className="roster-automation__legend">RSVP Expiry</legend>
-              <label className="checkbox-row">
+              <label className="choice-field">
                 <input
                   checked={configuration.rsvpExpiryEnabled}
                   onChange={(event) => {
@@ -195,13 +199,15 @@ export function RosterAutomationSettings({ enabled }: Props) {
                   }}
                   type="checkbox"
                 />
-                Convert Pending responses to No at the deadline
+                <span className="choice-field__content">
+                  Convert Pending responses to No at the deadline
+                </span>
               </label>
             </fieldset>
 
             <fieldset className="roster-automation__card">
               <legend className="roster-automation__legend">Pending RSVP follow-up</legend>
-              <label className="checkbox-row">
+              <label className="choice-field">
                 <input
                   checked={configuration.rsvpFollowUpEnabled}
                   onChange={(event) => {
@@ -212,7 +218,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
                   }}
                   type="checkbox"
                 />
-                Send the pending RSVP follow-up email
+                <span className="choice-field__content">Send the pending RSVP follow-up email</span>
               </label>
               <label className="field" htmlFor="rsvp-follow-up-lead-hours">
                 Hours before the RSVP deadline

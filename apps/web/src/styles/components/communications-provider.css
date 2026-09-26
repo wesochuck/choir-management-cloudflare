@@ -903,7 +903,7 @@
     align-items: start;
   }
 
-  @media (max-width: 54rem) {
+  @media (max-width: 64rem) {
     .communication-composer-two-column {
       grid-template-columns: 1fr;
     }
@@ -1184,6 +1184,31 @@
   @media (max-width: 48rem) {
     .communication-template-filters {
       grid-template-columns: 1fr;
+    }
+
+    .provider-status-card__row {
+      flex-direction: column;
+    }
+
+    .communication-sender-details {
+      grid-template-columns: 1fr;
+    }
+
+    .provider-status-card__row .platform-setup-status {
+      align-self: flex-start;
+    }
+
+    .communication-template-editor-save-bar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .communication-template-editor-save-bar .dialog__actions {
+      justify-content: stretch;
+    }
+
+    .communication-template-editor-save-bar .dialog__actions .button {
+      flex: 1;
     }
   }
 

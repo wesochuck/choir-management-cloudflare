@@ -254,8 +254,8 @@ export function SettingsForm({
 
       <fieldset className="surface-card organization-settings-panel form-stack">
         <legend>Public intake & form</legend>
-        <div className="space-y-3">
-          <label className="flex items-start gap-3 cursor-pointer">
+        <div className="choice-group">
+          <label className="choice-field">
             <input
               checked={draft.mode === "audition"}
               name="intake-mode"
@@ -265,14 +265,14 @@ export function SettingsForm({
               type="radio"
               value="audition"
             />
-            <div>
-              <span className="font-semibold block">Auditions Required</span>
-              <span className="text-sm text-muted-foreground block">
+            <span className="choice-field__content">
+              <strong className="choice-field__title">Auditions Required</strong>
+              <span className="choice-field__description">
                 Prospective members must select and schedule a specific audition time slot.
               </span>
-            </div>
+            </span>
           </label>
-          <label className="flex items-start gap-3 cursor-pointer">
+          <label className="choice-field">
             <input
               checked={draft.mode === "open_inquiry"}
               name="intake-mode"
@@ -282,32 +282,33 @@ export function SettingsForm({
               type="radio"
               value="open_inquiry"
             />
-            <div>
-              <span className="font-semibold block">Open Interest / No Audition</span>
-              <span className="text-sm text-muted-foreground block">
+            <span className="choice-field__content">
+              <strong className="choice-field__title">Open Interest / No Audition</strong>
+              <span className="choice-field__description">
                 For non-auditioned groups. Prospective members submit contact info and see your
                 regular rehearsal schedule.
               </span>
-            </div>
+            </span>
           </label>
         </div>
 
-        <label className="checkbox-field">
+        <label className="choice-field">
           <input
             checked={draft.enabled}
             onChange={(event) => {
               setDraft((current) => ({ ...current, enabled: event.target.checked }));
             }}
             type="checkbox"
-          />{" "}
-          Accept public inquiries / requests
+          />
+          <span className="choice-field__content">Accept public inquiries / requests</span>
         </label>
 
         {isAuditionMode ? (
           <>
-            <label className="field">
-              Target Performance
+            <div className="field">
+              <label htmlFor="audition-target-performance">Target Performance</label>
               <select
+                id="audition-target-performance"
                 onChange={(event) => {
                   setDraft((current) => ({
                     ...current,
@@ -325,11 +326,13 @@ export function SettingsForm({
                     </option>
                   ))}
               </select>
-            </label>
-            <label className="field">
-              Audition venue
+            </div>
+            <div className="field">
+              <label htmlFor="audition-settings-venue">Audition venue</label>
               <select
+                aria-describedby="audition-settings-venue-help"
                 aria-required="true"
+                id="audition-settings-venue"
                 onChange={(event) => {
                   setError(null);
                   setDraft((current) => ({
@@ -346,13 +349,13 @@ export function SettingsForm({
                   </option>
                 ))}
               </select>
-              <span className="field-help">
+              <span className="field-help" id="audition-settings-venue-help">
                 Choose where these audition time slots will take place.{" "}
                 <button className="text-button" onClick={openNewVenueDialog} type="button">
                   Add a new venue
                 </button>
               </span>
-            </label>
+            </div>
           </>
         ) : null}
 
@@ -361,6 +364,7 @@ export function SettingsForm({
             Public form confirmation message
           </label>
           <textarea
+            aria-describedby="audition-public-confirmation-message-help"
             id="audition-public-confirmation-message"
             onChange={(event) => {
               setDraft((current) => ({ ...current, confirmationMessage: event.target.value }));
@@ -368,13 +372,13 @@ export function SettingsForm({
             rows={3}
             value={draft.confirmationMessage}
           />
-          <span className="field-help">
+          <span className="field-help" id="audition-public-confirmation-message-help">
             This is the message shown on the public form after someone submits. Automated emails are
-            managed as system templates in Communications.
+            managed as system templates in Communications.{" "}
+            <a className="text-button" href="/admin/communications?tab=templates">
+              Edit notification email templates
+            </a>
           </span>
-          <a className="text-button" href="/admin/communications?tab=templates">
-            Edit notification email templates
-          </a>
         </div>
       </fieldset>
 
@@ -492,10 +496,11 @@ export function SettingsForm({
               {newVenueError}
             </p>
           ) : null}
-          <label className="field">
-            Venue name
+          <div className="field">
+            <label htmlFor="audition-new-venue-name">Venue name</label>
             <input
               autoFocus
+              id="audition-new-venue-name"
               onChange={(event) => {
                 setNewVenueName(event.target.value);
               }}
@@ -503,17 +508,20 @@ export function SettingsForm({
               type="text"
               value={newVenueName}
             />
-          </label>
-          <label className="field">
-            Address (optional)
+          </div>
+          <div className="field">
+            <label className="field__label-row" htmlFor="audition-new-venue-address">
+              <span>Address</span> <span className="field-help field-help--inline">(optional)</span>
+            </label>
             <input
+              id="audition-new-venue-address"
               onChange={(event) => {
                 setNewVenueAddress(event.target.value);
               }}
               type="text"
               value={newVenueAddress}
             />
-          </label>
+          </div>
           <div className="form-actions">
             <button
               className="button button--secondary"

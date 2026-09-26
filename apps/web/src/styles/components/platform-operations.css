@@ -1010,7 +1010,7 @@
     box-shadow: var(--shadow-sm);
   }
 
-  @media (max-width: 60rem) {
+  @media (max-width: 64rem) {
     .signed-in-main.signed-in-main--platform .platform-organization-list--directory > li {
       grid-template-columns: minmax(0, 1fr) minmax(10rem, 0.55fr);
     }
@@ -1027,6 +1027,25 @@
   }
 
   @media (max-width: 48rem) {
+    .platform-setup-monitor__heading,
+    .platform-setup-check {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .platform-setup-monitor__heading .button {
+      width: 100%;
+    }
+
+    .platform-setup-monitor__error .button {
+      width: 100%;
+    }
+
+    .platform-setup-check__status {
+      justify-content: space-between;
+      text-align: left;
+    }
+
     .signed-in-main.signed-in-main--platform .platform-provisioning-form,
     .signed-in-main.signed-in-main--platform .mfa-start-form {
       grid-template-columns: 1fr;

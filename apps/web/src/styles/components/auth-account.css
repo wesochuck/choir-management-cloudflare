@@ -238,7 +238,9 @@
 
   .field {
     display: grid;
+    align-content: start;
     gap: var(--spacing-xs);
+    min-width: 0;
   }
 
   .field label {
@@ -273,20 +275,5 @@
 
   .field select {
     min-height: 3.25rem;
-  }
-
-  .form-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: var(--spacing-sm) var(--spacing-md);
-  }
-
-  .form-actions--start {
-    justify-content: flex-start;
-  }
-
-  .form-actions--end {
-    justify-content: flex-end;
   }
 }

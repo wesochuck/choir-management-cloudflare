@@ -244,10 +244,11 @@ export function DesignSystemView() {
 
       <section aria-labelledby="ds-buttons" className="surface-card design-system__section">
         <DesignSystemSectionHeading
-          description="Filled variants use .button with one modifier. Ghost row actions use .text-button. Inline search rows match --control-height."
+          description="Filled variants use .button with one modifier. Ghost row actions use .text-button. Form actions use .form-actions with alignment modifiers. Inline search rows match --control-height."
           id="ds-buttons"
           title="Buttons & actions"
         />
+        <h3>Button variants & rows</h3>
         <div className="button-row">
           <button className="button button--primary" type="button">
             Primary
@@ -270,6 +271,12 @@ export function DesignSystemView() {
             Ghost danger
           </button>
         </div>
+
+        <h3>Inline form action (--control-height)</h3>
+        <p className="field-help">
+          Buttons paired directly with an input or select in an inline row use
+          .button--control-height to match control geometry.
+        </p>
         <form
           className="design-system__inline-row"
           onSubmit={(event) => {
@@ -284,6 +291,38 @@ export function DesignSystemView() {
             Search
           </button>
         </form>
+
+        <h3>In-form action rows</h3>
+        <p className="field-help">
+          Generic form action containers use .form-actions with alignment modifiers
+          (.form-actions--start, .form-actions--between, .form-actions--end). Specialized surfaces
+          (.dialog__actions for sticky dialog footers, .table-actions for data tables) remain
+          distinct.
+        </p>
+        <div className="form-actions form-actions--start">
+          <button className="button button--secondary" type="button">
+            Start aligned (Secondary)
+          </button>
+          <button className="button button--primary" type="button">
+            Start aligned (Primary)
+          </button>
+        </div>
+        <div className="form-actions form-actions--between">
+          <button className="button button--secondary" type="button">
+            Space between (Cancel)
+          </button>
+          <button className="button button--primary" type="button">
+            Space between (Continue)
+          </button>
+        </div>
+        <div className="form-actions form-actions--end">
+          <button className="button button--secondary" type="button">
+            End aligned (Cancel)
+          </button>
+          <button className="button button--primary" type="button">
+            End aligned (Save)
+          </button>
+        </div>
       </section>
 
       <section aria-labelledby="ds-notices" className="surface-card design-system__section">
@@ -308,7 +347,7 @@ export function DesignSystemView() {
 
       <section aria-labelledby="ds-forms" className="surface-card design-system__section">
         <DesignSystemSectionHeading
-          description="Operational forms use .form-stack with .field wrappers and the shared control geometry."
+          description="Canonical field anatomy: label row, control, below-control help, and validation messages. Paired controls align in .form-grid and collapse below 40rem."
           id="ds-forms"
           title="Forms"
         />
@@ -319,14 +358,45 @@ export function DesignSystemView() {
           }}
         >
           <div className="field">
-            <label htmlFor="ds-sample-name">Organization name</label>
-            <input id="ds-sample-name" placeholder="Harborview Chorus" type="text" />
-            <p className="field-help">Shown on the public website and receipts.</p>
+            <label htmlFor="ds-sample-required">Organization name</label>
+            <input id="ds-sample-required" placeholder="Harborview Chorus" required type="text" />
+          </div>
+          <div className="field">
+            <label className="field__label-row" htmlFor="ds-sample-optional">
+              <span>Alternate contact</span>
+              <span className="field-help field-help--inline">(Optional)</span>
+            </label>
+            <input id="ds-sample-optional" placeholder="e.g. Stage Manager" type="text" />
+          </div>
+          <div className="field">
+            <label htmlFor="ds-sample-help">Public contact email</label>
+            <input
+              aria-describedby="ds-sample-help-text"
+              id="ds-sample-help"
+              placeholder="info@example.test"
+              type="email"
+            />
+            <p className="field-help" id="ds-sample-help-text">
+              Shown on public event listings and receipt footers.
+            </p>
+          </div>
+          <div className="field">
+            <label htmlFor="ds-sample-invalid">Season code</label>
+            <input
+              aria-describedby="ds-sample-invalid-error"
+              aria-invalid="true"
+              defaultValue="S2"
+              id="ds-sample-invalid"
+              type="text"
+            />
+            <p className="field-error" id="ds-sample-invalid-error" role="alert">
+              Enter at least 3 characters.
+            </p>
           </div>
           <div className="form-grid">
             <div className="field">
-              <label htmlFor="ds-sample-voice">Voice part</label>
-              <select id="ds-sample-voice">
+              <label htmlFor="ds-sample-paired-select">Voice part</label>
+              <select defaultValue="soprano" id="ds-sample-paired-select">
                 <option value="soprano">Soprano</option>
                 <option value="alto">Alto</option>
                 <option value="tenor">Tenor</option>
@@ -334,29 +404,115 @@ export function DesignSystemView() {
               </select>
             </div>
             <div className="field">
-              <label htmlFor="ds-sample-notes">Director notes</label>
-              <textarea id="ds-sample-notes" placeholder="Warm-ups start at 7pm…" />
+              <label className="field__label-row" htmlFor="ds-sample-paired-input">
+                <span>Section note</span>
+                <span className="field-help field-help--inline">(Optional)</span>
+              </label>
+              <input
+                aria-describedby="ds-sample-paired-help"
+                id="ds-sample-paired-input"
+                placeholder="e.g. Section leader"
+                type="text"
+              />
+              <p className="field-help" id="ds-sample-paired-help">
+                Visible only to directors and section leaders.
+              </p>
             </div>
           </div>
           <div className="field">
-            <label htmlFor="ds-sample-invalid">Season code</label>
-            <input aria-describedby="ds-sample-invalid-error" id="ds-sample-invalid" type="text" />
-            <p className="notice notice--error" id="ds-sample-invalid-error" role="alert">
-              Enter at least 3 characters.
-            </p>
+            <label htmlFor="ds-sample-notes">Director notes</label>
+            <textarea id="ds-sample-notes" placeholder="Warm-ups start at 7pm…" rows={3} />
           </div>
-          <fieldset className="design-system__choices">
-            <legend>Notifications</legend>
-            <label>
-              <input defaultChecked type="checkbox" /> Email reminders
-            </label>
-            <label>
-              <input name="ds-contact" type="radio" /> Email
-            </label>
-            <label>
-              <input name="ds-contact" type="radio" /> SMS
-            </label>
-          </fieldset>
+          <div className="design-system__choices form-stack">
+            <fieldset className="choice-group">
+              <legend>Choice controls: single-line & multi-line</legend>
+              <label className="choice-field">
+                <input defaultChecked type="checkbox" />
+                <span className="choice-field__content">Email reminders before performances</span>
+              </label>
+              <label className="choice-field">
+                <input aria-describedby="ds-choice-desc-help" type="checkbox" />
+                <span className="choice-field__content">
+                  <span className="choice-field__title">Automatic attendance follow-up</span>
+                  <span className="choice-field__description" id="ds-choice-desc-help">
+                    Send an automated email reminder to singers with pending RSVPs 48 hours before
+                    the rehearsal call time.
+                  </span>
+                </span>
+              </label>
+              <label className="choice-field">
+                <input disabled type="checkbox" />
+                <span className="choice-field__content">
+                  <span className="choice-field__title">Archived season syncing (Disabled)</span>
+                  <span className="choice-field__description">
+                    This option cannot be enabled while the current season is actively performing.
+                  </span>
+                </span>
+              </label>
+              <label className="choice-field">
+                <input type="checkbox" />
+                <span className="choice-field__content">
+                  I agree to the volunteer liability waiver, media release policy, and member code
+                  of conduct for all published seasonal events.
+                </span>
+              </label>
+            </fieldset>
+
+            <fieldset className="choice-group">
+              <legend>Choice controls: radio group</legend>
+              <label className="choice-field">
+                <input defaultChecked name="ds-intake-mode" type="radio" value="audition" />
+                <span className="choice-field__content">
+                  <span className="choice-field__title">Audition required</span>
+                  <span className="choice-field__description">
+                    Prospective members must schedule a time slot with the artistic director.
+                  </span>
+                </span>
+              </label>
+              <label className="choice-field">
+                <input name="ds-intake-mode" type="radio" value="open" />
+                <span className="choice-field__content">
+                  <span className="choice-field__title">Open inquiry</span>
+                  <span className="choice-field__description">
+                    Accept prospective member contact information without scheduling an audition.
+                  </span>
+                </span>
+              </label>
+              <label className="choice-field">
+                <input disabled name="ds-intake-mode" type="radio" value="closed" />
+                <span className="choice-field__content">
+                  <span className="choice-field__title">Roster closed (Disabled)</span>
+                  <span className="choice-field__description">
+                    No new singer inquiries are being accepted at this time.
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+
+            <fieldset className="choice-group">
+              <legend>Choice controls: large public / touch variant</legend>
+              <label className="choice-field choice-field--large">
+                <input defaultChecked type="checkbox" />
+                <span className="choice-field__content">
+                  Hide my name from public donor recognition
+                </span>
+              </label>
+              <label className="choice-field choice-field--large">
+                <input type="checkbox" />
+                <span className="choice-field__content">
+                  I would like to receive email updates about future concert dates and ticket sales
+                </span>
+              </label>
+            </fieldset>
+          </div>
+          <div className="form-actions form-actions--end">
+            <button className="button button--secondary" type="button">
+              Reset
+            </button>
+            <button className="button button--primary" type="submit">
+              Save changes
+            </button>
+          </div>
         </form>
       </section>
 

@@ -151,73 +151,34 @@
     border-color: var(--color-accent);
   }
 
-  .signed-in-main input[type="checkbox"],
-  .signed-in-main input[type="radio"] {
+  /* Fallback for unclassed label wrappers inside signed-in shells and dialogs */
+  :where(.signed-in-main, .dialog, .dialog--responsive) label:has(> input[type="checkbox"]),
+  :where(.signed-in-main, .dialog, .dialog--responsive) label:has(> input[type="radio"]) {
+    display: inline-flex;
+    min-width: 0;
+    min-height: 1.5rem;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+    white-space: normal;
+    cursor: pointer;
+    line-height: var(--line-height-normal);
+  }
+
+  :where(.signed-in-main, .dialog, .dialog--responsive) label:has(> input[type="checkbox"]) > input,
+  :where(.signed-in-main, .dialog, .dialog--responsive) label:has(> input[type="radio"]) > input {
     appearance: auto;
     -webkit-appearance: auto;
     box-sizing: border-box;
-    width: 1rem;
-    height: 1rem;
-    min-width: 1rem;
-    min-height: 1rem;
-    flex: 0 0 1rem;
-    margin: 0 var(--spacing-xs) 0 0;
-    padding: 0;
-    accent-color: auto;
-    vertical-align: middle;
-  }
-
-  .signed-in-main .checkbox-field,
-  .signed-in-main .checkbox-row,
-  .signed-in-main .checkbox-label {
-    display: flex;
-    gap: var(--spacing-xs);
-    min-height: 1.5rem;
-    align-items: center;
-  }
-
-  .signed-in-main .checkbox-field input,
-  .signed-in-main .checkbox-row input,
-  .signed-in-main .checkbox-label input {
-    margin-right: 0;
-    flex: 0 0 1rem;
-  }
-
-  /* Keep native checkboxes from collapsing when labels share a row. */
-  .signed-in-main label:has(> input[type="checkbox"]),
-  .signed-in-main label:has(> input[type="radio"]) {
-    display: inline-flex;
-    min-width: 0;
-    min-height: 1.75rem;
-    align-items: center;
-    gap: var(--spacing-xs);
-    white-space: normal;
-  }
-
-  .signed-in-main label:has(> input[type="checkbox"]) > input,
-  .signed-in-main label:has(> input[type="radio"]) > input {
-    width: 1rem;
-    height: 1rem;
-    min-width: 1rem;
-    min-height: 1rem;
-    flex: 0 0 1rem;
-    margin: 0;
-  }
-  .signed-in-main label.flex:has(> input[type="radio"]) {
-    align-items: flex-start;
-  }
-  .signed-in-main label:has(> input[type="radio"]) > div {
-    min-width: 0;
-  }
-
-  /* Keep the set-list visibility checkbox aligned with its heading, not centered
- * against the helper text below it. */
-  .signed-in-main .set-list-visibility {
-    align-items: flex-start;
-  }
-
-  .signed-in-main .set-list-visibility > input {
+    width: var(--choice-size, 1rem);
+    height: var(--choice-size, 1rem);
+    min-width: var(--choice-size, 1rem);
+    min-height: var(--choice-size, 1rem);
+    flex: 0 0 var(--choice-size, 1rem);
     margin-top: var(--spacing-3xs);
+    margin-right: 0;
+    margin-bottom: 0;
+    margin-left: 0;
+    padding: 0;
   }
 
   /* Keep signed-in dialog inputs on the same control system. */
@@ -243,70 +204,6 @@
   .dialog--responsive textarea {
     min-height: 6rem;
     line-height: var(--line-height-snug);
-  }
-
-  .dialog--responsive input[type="checkbox"],
-  .dialog--responsive input[type="radio"],
-  .dialog input[type="checkbox"],
-  .dialog input[type="radio"] {
-    appearance: auto;
-    -webkit-appearance: auto;
-    box-sizing: border-box;
-    width: 1rem;
-    height: 1rem;
-    min-width: 1rem;
-    min-height: 1rem;
-    flex: 0 0 1rem;
-    margin: 0 var(--spacing-xs) 0 0;
-    padding: 0;
-    accent-color: auto;
-    vertical-align: middle;
-  }
-
-  .dialog--responsive .checkbox-row,
-  .dialog--responsive .checkbox-label,
-  .dialog--responsive .checkbox-field,
-  .dialog .checkbox-row,
-  .dialog .checkbox-label,
-  .dialog .checkbox-field {
-    display: flex;
-    gap: var(--spacing-xs);
-    min-height: 1.5rem;
-    align-items: center;
-  }
-
-  .dialog--responsive .checkbox-row input,
-  .dialog--responsive .checkbox-label input,
-  .dialog--responsive .checkbox-field input,
-  .dialog .checkbox-row input,
-  .dialog .checkbox-label input,
-  .dialog .checkbox-field input {
-    margin-right: 0;
-    flex: 0 0 1rem;
-  }
-
-  .dialog--responsive label:has(> input[type="checkbox"]),
-  .dialog--responsive label:has(> input[type="radio"]),
-  .dialog label:has(> input[type="checkbox"]),
-  .dialog label:has(> input[type="radio"]) {
-    display: inline-flex;
-    min-width: 0;
-    min-height: 1.75rem;
-    align-items: center;
-    gap: var(--spacing-xs);
-    white-space: normal;
-  }
-
-  .dialog--responsive label:has(> input[type="checkbox"]) > input,
-  .dialog--responsive label:has(> input[type="radio"]) > input,
-  .dialog label:has(> input[type="checkbox"]) > input,
-  .dialog label:has(> input[type="radio"]) > input {
-    width: 1rem;
-    height: 1rem;
-    min-width: 1rem;
-    min-height: 1rem;
-    flex: 0 0 1rem;
-    margin: 0;
   }
 
   .summary-card {

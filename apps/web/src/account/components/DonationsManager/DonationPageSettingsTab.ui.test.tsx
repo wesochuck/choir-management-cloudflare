@@ -37,6 +37,7 @@ describe("DonationPageSettingsTab", () => {
     });
     expect(message).toHaveValue("Your support keeps our music going.");
     expect(message).toHaveAttribute("maxLength", "2000");
+    expect(message).toHaveAttribute("aria-describedby", "donation-portal-thank-you-help");
     expect(screen.getByText(/cannot contain HTML/)).toBeInTheDocument();
 
     fireEvent.change(message, { target: { value: "Thank you for giving." } });

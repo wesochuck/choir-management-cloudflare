@@ -1140,45 +1140,9 @@
     }
   }
 
-  @media (max-width: 32rem) {
+  @media (max-width: 40rem) {
     .seating-name-index__entries {
       grid-template-columns: 1fr;
-    }
-  }
-
-  @media print {
-    .seating-name-index {
-      width: 100%;
-      break-inside: avoid;
-    }
-
-    .seating-name-index__heading {
-      margin-bottom: var(--spacing-2xs);
-    }
-
-    .seating-name-index__heading h2 {
-      font-size: var(--font-size-body);
-    }
-
-    .seating-name-index__heading p {
-      font-size: var(--font-size-xs);
-    }
-
-    .seating-name-index__entries {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 0 var(--spacing-xs);
-    }
-
-    .seating-name-index__entries li {
-      gap: var(--spacing-3xs);
-      padding: var(--spacing-3xs) 0;
-      border-bottom-color: #ddd;
-    }
-
-    .seating-name-index__entries li strong,
-    .seating-name-index__location,
-    .seating-name-index__entries .seating-list-voice-part {
-      font-size: var(--font-size-2xs);
     }
   }
 

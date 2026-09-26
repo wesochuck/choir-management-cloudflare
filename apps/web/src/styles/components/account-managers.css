@@ -84,6 +84,28 @@
     }
   }
 
+  @media (max-width: 40rem) {
+    .seasons-manager-controls {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .seasons-manager-tabs {
+      width: 100%;
+    }
+
+    .seasons-manager-tabs .button,
+    .seasons-manager-controls > .button {
+      flex: 1 1 10rem;
+    }
+
+    /* Keep rehearsal time and venue controls paired on narrow screens so the
+     * venue dropdown stays aligned with the end-time control. */
+    .audition-rehearsal-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   .audition-schedule-form {
     gap: var(--spacing-sm);
   }
@@ -150,13 +172,6 @@
   .audition-tab-panel h2,
   .audition-tab-panel > .section-description {
     margin: 0;
-  }
-
-  .button-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--spacing-sm);
   }
 
   /* Auth methods, text buttons, and notices */

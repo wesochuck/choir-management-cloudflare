@@ -156,9 +156,10 @@ export function ConfirmationPanel({
         <fieldset className="ticket-confirmation-settings__fieldset">
           <legend>Admission and confirmation page wording</legend>
           <div className="ticket-confirmation-settings__grid">
-            <label className="field">
-              Success Message
+            <div className="field">
+              <label htmlFor="ticket-success-message">Success Message</label>
               <textarea
+                id="ticket-success-message"
                 onChange={(event) => {
                   setConfirmationDraft((current) => ({
                     ...current,
@@ -168,10 +169,11 @@ export function ConfirmationPanel({
                 rows={3}
                 value={confirmationDraft.successMessage}
               />
-            </label>
-            <label className="field">
-              Pending / Unverified Message
+            </div>
+            <div className="field">
+              <label htmlFor="ticket-pending-message">Pending / Unverified Message</label>
               <textarea
+                id="ticket-pending-message"
                 onChange={(event) => {
                   setConfirmationDraft((current) => ({
                     ...current,
@@ -181,10 +183,11 @@ export function ConfirmationPanel({
                 rows={3}
                 value={confirmationDraft.pendingMessage}
               />
-            </label>
-            <label className="field">
-              Admission Instructions
+            </div>
+            <div className="field">
+              <label htmlFor="ticket-admission-instructions">Admission Instructions</label>
               <textarea
+                id="ticket-admission-instructions"
                 onChange={(event) => {
                   const val = event.target.value;
                   setConfirmationDraft((current) => ({
@@ -196,10 +199,11 @@ export function ConfirmationPanel({
                 rows={4}
                 value={confirmationDraft.admissionInstructions}
               />
-            </label>
-            <label className="field">
-              QR Code Instructions
+            </div>
+            <div className="field">
+              <label htmlFor="ticket-qr-code-instructions">QR Code Instructions</label>
               <textarea
+                id="ticket-qr-code-instructions"
                 onChange={(event) => {
                   setConfirmationDraft((current) => ({
                     ...current,
@@ -209,7 +213,7 @@ export function ConfirmationPanel({
                 rows={4}
                 value={confirmationDraft.qrCodeInstructions}
               />
-            </label>
+            </div>
           </div>
           <div className="form-actions">
             <button className="button button--primary" disabled={confirmationSaving} type="submit">

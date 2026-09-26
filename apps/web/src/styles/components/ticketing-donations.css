@@ -201,6 +201,78 @@
     }
   }
 
+  @media (max-width: 48rem) {
+    .ticketing-page-header {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .ticketing-page-header .button {
+      width: 100%;
+    }
+
+    .donation-levels-heading {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .donation-levels-heading .button {
+      align-self: flex-start;
+    }
+
+    .ticketing-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ticketing-tabs button {
+      text-align: left;
+    }
+
+    .ticketing-share-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .ticket-dashboard__intro,
+    .ticket-dashboard__section-heading {
+      flex-direction: column;
+    }
+
+    .ticket-dashboard__intro .field {
+      width: 100%;
+      flex-basis: auto;
+    }
+
+    .ticket-dashboard__metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ticket-dashboard__filters {
+      grid-template-columns: 1fr;
+    }
+
+    .ticket-confirmation-settings__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .ticket-scanner__toolbar,
+    .ticket-scanner__grid {
+      grid-template-columns: 1fr;
+    }
+
+    .ticket-dashboard__metrics.donation-dashboard__metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ticket-dashboard__filters.donation-dashboard__filters {
+      grid-template-columns: 1fr;
+    }
+
+    .ticket-scanner__toolbar .table-actions {
+      justify-content: flex-start;
+    }
+  }
+
   .donation-patrons {
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
@@ -390,6 +462,7 @@
   .public-donation-form {
     display: grid;
     gap: var(--spacing-lg);
+    --choice-size: var(--choice-size-lg, 1.125rem);
   }
 
   /* Prevent native radio and checkbox controls from rendering oversized */
@@ -398,14 +471,12 @@
     appearance: auto;
     -webkit-appearance: auto;
     box-sizing: border-box;
-    width: 1.125rem !important;
-    height: 1.125rem !important;
-    min-width: 1.125rem !important;
-    min-height: 1.125rem !important;
-    max-width: 1.125rem !important;
-    max-height: 1.125rem !important;
+    width: var(--choice-size, 1.125rem);
+    height: var(--choice-size, 1.125rem);
+    min-width: var(--choice-size, 1.125rem);
+    min-height: var(--choice-size, 1.125rem);
     flex-shrink: 0;
-    padding: 0 !important;
+    padding: 0;
     margin: 0;
   }
 
@@ -416,13 +487,13 @@
     gap: var(--spacing-sm);
   }
 
-  @media (max-width: 52rem) {
+  @media (max-width: 48rem) {
     .public-donation-form .donation-level-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
-  @media (max-width: 34rem) {
+  @media (max-width: 40rem) {
     .public-donation-form .donation-level-grid {
       grid-template-columns: 1fr;
     }
@@ -440,7 +511,7 @@
     align-items: start;
   }
 
-  @media (max-width: 52rem) {
+  @media (max-width: 48rem) {
     .public-donation-body {
       grid-template-columns: 1fr;
     }
@@ -464,7 +535,7 @@
     }
   }
 
-  @media (max-width: 28rem) {
+  @media (max-width: 40rem) {
     .donation-tribute-options {
       grid-template-columns: 1fr;
     }
@@ -509,7 +580,7 @@
     margin-top: var(--spacing-sm);
   }
 
-  @media (max-width: 36rem) {
+  @media (max-width: 40rem) {
     .public-donation-tribute-fields {
       grid-template-columns: 1fr;
     }
@@ -522,13 +593,13 @@
     gap: var(--spacing-md);
   }
 
-  @media (max-width: 56rem) {
+  @media (max-width: 48rem) {
     .public-donation-contact-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
-  @media (max-width: 36rem) {
+  @media (max-width: 40rem) {
     .public-donation-contact-grid {
       grid-template-columns: 1fr;
     }
@@ -542,11 +613,16 @@
 
   .public-donation-checkbox-label {
     display: inline-flex;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--spacing-xs);
     font-size: var(--font-size-sm);
     cursor: pointer;
     user-select: none;
+    line-height: var(--line-height-normal);
+  }
+
+  .public-donation-checkbox-label input {
+    margin-top: var(--spacing-3xs);
   }
 
   /* Summary Block / Card */
@@ -779,7 +855,7 @@
     text-align: center;
   }
 
-  @media (max-width: 42rem) {
+  @media (max-width: 40rem) {
     .public-donation-receipt__details-grid {
       grid-template-columns: 1fr;
     }

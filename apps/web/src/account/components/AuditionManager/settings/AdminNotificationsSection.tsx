@@ -23,7 +23,7 @@ export function AdminNotificationsSection({
   return (
     <fieldset className="surface-card organization-settings-panel form-stack">
       <legend>Administrator notifications</legend>
-      <label className="checkbox-field">
+      <label className="choice-field">
         <input
           checked={draft.adminNotifyEnabled}
           onChange={(event) => {
@@ -31,7 +31,7 @@ export function AdminNotificationsSection({
           }}
           type="checkbox"
         />
-        Notify administrators when an inquiry arrives
+        <span className="choice-field__content">Notify administrators when an inquiry arrives</span>
       </label>
       {draft.adminNotifyEnabled ? (
         <>
@@ -47,7 +47,7 @@ export function AdminNotificationsSection({
                   const eligible =
                     recipient.profile.receiveAdminNotifications && !recipient.profile.doNotEmail;
                   return (
-                    <label className="checkbox-row" key={recipient.profile.id}>
+                    <label className="choice-field" key={recipient.profile.id}>
                       <input
                         checked={draft.adminNotifyUsers.includes(recipient.email)}
                         disabled={!eligible}
@@ -56,15 +56,17 @@ export function AdminNotificationsSection({
                         }}
                         type="checkbox"
                       />
-                      <span>
-                        {recipient.profile.displayName} · {recipient.email}
-                        <small className="field-help">
+                      <span className="choice-field__content">
+                        <span className="choice-field__title">
+                          {recipient.profile.displayName} · {recipient.email}
+                        </span>
+                        <span className="choice-field__description">
                           {!eligible
                             ? "Emails disabled in this Profile"
                             : recipient.role === "owner"
                               ? "Owner"
                               : "Administrator"}
-                        </small>
+                        </span>
                       </span>
                     </label>
                   );

@@ -251,4 +251,84 @@ describe("DataTable interaction", () => {
     await user.selectOptions(screen.getByLabelText("Rows per page"), "4");
     expect(onPageSizeChange).toHaveBeenCalledWith(4);
   });
+
+  it("supports conditional row interactivity via isRowInteractive", async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    render(
+      <DataTable
+        columns={memberColumns({ onAction: () => undefined })}
+        isRowInteractive={(member) => member.section === "Soprano"}
+        keySelector={(row) => row.id}
+        onRowClick={onRowClick}
+        rowLabel={(row) => (row.section === "Soprano" ? `Open ${row.name}` : undefined)}
+        rows={MEMBERS}
+      />,
+    );
+
+    // Alpha Singer is Soprano (interactive), Beta Singer is Alto (non-interactive)
+    const table = document.querySelector("table.data-table");
+    expect(table).not.toBeNull();
+    const rows = table?.querySelectorAll("tbody tr");
+    expect(rows).toHaveLength(2);
+
+    const betaRow = rows?.[0]; // Alto
+    const alphaRow = rows?.[1]; // Soprano
+
+    expect(betaRow).not.toHaveClass("data-table__row--interactive");
+    expect(betaRow).not.toHaveAttribute("tabindex");
+    expect(betaRow).not.toHaveAttribute("aria-label");
+
+    expect(alphaRow).toHaveClass("data-table__row--interactive");
+    expect(alphaRow).toHaveAttribute("tabindex", "0");
+    expect(alphaRow).toHaveAttribute("aria-label", "Open Alpha Singer");
+
+    // Clicking non-interactive row does not trigger onRowClick
+    if (betaRow) {
+      await user.click(betaRow);
+      expect(onRowClick).not.toHaveBeenCalled();
+    }
+
+    // Clicking interactive row triggers onRowClick
+    if (alphaRow) {
+      await user.click(alphaRow);
+      expect(onRowClick).toHaveBeenCalledWith(MEMBERS[1]);
+    }
+  });
+
+  it("applies column alignment and custom className to th, td, and card fields", () => {
+    const customColumns: readonly DataTableColumn<Member>[] = [
+      {
+        align: "center",
+        className: "custom-status-col",
+        header: "Status",
+        id: "status",
+        mobileLabel: "Member Status",
+        render: () => "Active",
+      },
+      {
+        align: "right",
+        header: "Score",
+        id: "score",
+        render: () => "100",
+      },
+    ];
+
+    render(<DataTable columns={customColumns} keySelector={(row) => row.id} rows={MEMBERS} />);
+
+    const ths = document.querySelectorAll("table.data-table thead th");
+    expect(ths[0]).toHaveClass("data-table__cell--center");
+    expect(ths[0]).toHaveClass("custom-status-col");
+    expect(ths[1]).toHaveClass("data-table__cell--right");
+
+    const tds = document.querySelectorAll("table.data-table tbody td");
+    expect(tds[0]).toHaveClass("data-table__cell--center");
+    expect(tds[0]).toHaveClass("custom-status-col");
+    expect(tds[1]).toHaveClass("data-table__cell--right");
+
+    const cardFields = document.querySelectorAll(".data-table-card__field");
+    expect(cardFields[0]).toHaveClass("data-table-card__field--center");
+    expect(cardFields[0]).toHaveClass("custom-status-col");
+    expect(cardFields[1]).toHaveClass("data-table-card__field--right");
+  });
 });

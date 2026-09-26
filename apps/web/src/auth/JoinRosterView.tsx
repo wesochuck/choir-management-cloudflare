@@ -424,7 +424,7 @@ export function JoinRosterView() {
                 value={email}
               />
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+            <div className="form-actions form-actions--end">
               <button className="button button--primary" disabled={isSendingCode} type="submit">
                 {isSendingCode ? "Sending code…" : "Continue with email"}
               </button>
@@ -559,10 +559,7 @@ export function JoinRosterView() {
                 />
               </div>
 
-              <div
-                className="field field--checkbox"
-                style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
-              >
+              <label className="choice-field">
                 <input
                   checked={showInDirectory}
                   id={directoryCheckboxId}
@@ -571,13 +568,13 @@ export function JoinRosterView() {
                   }}
                   type="checkbox"
                 />
-                <label htmlFor={directoryCheckboxId} style={{ margin: 0 }}>
+                <span className="choice-field__content">
                   Show my contact info in member directory
-                </label>
-              </div>
+                </span>
+              </label>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "1.5rem" }}>
+            <div className="form-actions form-actions--end">
               <button className="button button--primary" disabled={isRedeeming} type="submit">
                 {isRedeeming ? "Joining…" : "Join roster"}
               </button>

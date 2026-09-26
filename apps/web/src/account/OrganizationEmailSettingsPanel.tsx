@@ -1,5 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import type { OrganizationEmailDomainDnsRecord, OrganizationEmailSettings } from "@choir/contracts";
+import { DataTable, type DataTableColumn } from "@choir/ui";
 import {
   AuthApiError,
   getOrganizationEmailSettings,
@@ -7,60 +8,6 @@ import {
   verifyOrganizationEmailDomain,
 } from "../auth/api";
 import { usePersistedDraft } from "../persistence";
-
-function DnsRecordRow({
-  copiedKey,
-  onCopy,
-  record,
-}: {
-  readonly copiedKey: string | null;
-  readonly onCopy: (key: string, text: string) => void;
-  readonly record: OrganizationEmailDomainDnsRecord;
-}) {
-  const recordKey = `${record.type}-${record.name}`;
-  const isCopied = copiedKey === recordKey;
-  return (
-    <tr>
-      <td>
-        <strong>{record.type}</strong>
-      </td>
-      <td style={{ wordBreak: "break-all" }}>
-        <code>{record.name}</code>
-      </td>
-      <td style={{ wordBreak: "break-all" }}>
-        <code>{record.value}</code>
-      </td>
-      <td style={{ textAlign: "center" }}>
-        <span
-          className={`status-pill status-pill--${
-            record.status === "valid"
-              ? "active"
-              : record.status === "pending"
-                ? "pending"
-                : "inactive"
-          }`}
-        >
-          {record.status === "valid"
-            ? "Valid"
-            : record.status === "pending"
-              ? "Pending"
-              : "Missing"}
-        </span>
-      </td>
-      <td style={{ textAlign: "right" }}>
-        <button
-          className="button button--ghost button--xs"
-          onClick={() => {
-            onCopy(recordKey, record.value);
-          }}
-          type="button"
-        >
-          {isCopied ? "Copied!" : "Copy"}
-        </button>
-      </td>
-    </tr>
-  );
-}
 
 function DnsChecklist({
   dnsRecords,
@@ -82,6 +29,81 @@ function DnsChecklist({
       setCopiedKey((current) => (current === key ? null : current));
     }, 2000);
   }
+
+  const columns: readonly DataTableColumn<OrganizationEmailDomainDnsRecord>[] = [
+    {
+      header: "Type",
+      id: "type",
+      mobileLabel: "Type",
+      render: (record) => <strong>{record.type}</strong>,
+      sortValue: (record) => record.type,
+    },
+    {
+      className: "dns-table__token",
+      header: "Name / Host",
+      id: "name",
+      mobileLabel: "Name / Host",
+      render: (record) => <code className="dns-record-token">{record.name}</code>,
+      sortValue: (record) => record.name,
+    },
+    {
+      className: "dns-table__token",
+      header: "Value / Destination",
+      id: "value",
+      mobileLabel: "Value / Destination",
+      render: (record) => <code className="dns-record-token">{record.value}</code>,
+      sortValue: (record) => record.value,
+    },
+    {
+      align: "center",
+      header: "Status",
+      id: "status",
+      mobileLabel: "Status",
+      render: (record) => (
+        <span
+          className={`status-pill status-pill--${
+            record.status === "valid"
+              ? "active"
+              : record.status === "pending"
+                ? "pending"
+                : "inactive"
+          }`}
+        >
+          {record.status === "valid"
+            ? "Valid"
+            : record.status === "pending"
+              ? "Pending"
+              : "Missing"}
+        </span>
+      ),
+      sortValue: (record) => record.status,
+    },
+    {
+      header: "Copy",
+      id: "actions",
+      mobileLabel: "Copy",
+      render: (record) => {
+        const recordKey = `${record.type}-${record.name}`;
+        const isCopied = copiedKey === recordKey;
+        return (
+          <button
+            aria-label={
+              isCopied
+                ? `Copied ${record.type} record ${record.name}`
+                : `Copy value for ${record.type} record ${record.name}`
+            }
+            className="button button--ghost button--xs"
+            onClick={() => {
+              copyToClipboard(recordKey, record.value);
+            }}
+            type="button"
+          >
+            {isCopied ? "Copied!" : "Copy"}
+          </button>
+        );
+      },
+    },
+  ];
 
   return (
     <div
@@ -133,29 +155,12 @@ function DnsChecklist({
         </div>
       </div>
 
-      <div style={{ overflowX: "auto" }}>
-        <table className="table" style={{ fontSize: "0.875rem", width: "100%" }}>
-          <thead>
-            <tr>
-              <th style={{ textAlign: "left" }}>Type</th>
-              <th style={{ textAlign: "left" }}>Name / Host</th>
-              <th style={{ textAlign: "left" }}>Value / Destination</th>
-              <th style={{ textAlign: "center" }}>Status</th>
-              <th style={{ textAlign: "right" }}>Copy</th>
-            </tr>
-          </thead>
-          <tbody>
-            {dnsRecords.map((record) => (
-              <DnsRecordRow
-                copiedKey={copiedKey}
-                key={`${record.type}-${record.name}`}
-                onCopy={copyToClipboard}
-                record={record}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        columns={columns}
+        emptyMessage="No DNS records configured."
+        keySelector={(record) => `${record.type}-${record.name}`}
+        rows={dnsRecords}
+      />
     </div>
   );
 }

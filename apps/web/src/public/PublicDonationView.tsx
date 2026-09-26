@@ -325,8 +325,8 @@ export function PublicDonationView() {
 
             <fieldset className="field public-donation-preferences-fieldset">
               <legend>Preferences</legend>
-              <div className="public-donation-preferences">
-                <label className="public-donation-checkbox-label">
+              <div className="public-donation-preferences choice-group">
+                <label className="choice-field choice-field--large public-donation-checkbox-label">
                   <input
                     checked={anonymous}
                     onChange={(e) => {
@@ -334,9 +334,11 @@ export function PublicDonationView() {
                     }}
                     type="checkbox"
                   />
-                  <span>Hide my name from public donor recognition</span>
+                  <span className="choice-field__content">
+                    Hide my name from public donor recognition
+                  </span>
                 </label>
-                <label className="public-donation-checkbox-label">
+                <label className="choice-field choice-field--large public-donation-checkbox-label">
                   <input
                     checked={marketingConsent}
                     onChange={(e) => {
@@ -344,7 +346,9 @@ export function PublicDonationView() {
                     }}
                     type="checkbox"
                   />
-                  <span>I would like to receive updates about future events and programs</span>
+                  <span className="choice-field__content">
+                    I would like to receive updates about future events and programs
+                  </span>
                 </label>
               </div>
             </fieldset>

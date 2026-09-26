@@ -55,6 +55,23 @@ describe("DesignSystemView", () => {
     expect(html).toContain("notice--warning");
     expect(html).toContain("notice--error");
     expect(html).toContain("form-stack");
+    expect(html).toContain("field__label-row");
+    expect(html).toContain("field-help--inline");
+    expect(html).toContain("field-error");
+    expect(html).toContain("form-grid");
+    expect(html).toContain("form-actions");
+    expect(html).toContain("form-actions--start");
+    expect(html).toContain("form-actions--end");
+    expect(html).toContain("form-actions--between");
+    expect(html).toContain("choice-field");
+    expect(html).toContain("choice-field__content");
+    expect(html).toContain("choice-field__title");
+    expect(html).toContain("choice-field__description");
+    expect(html).toContain("choice-field--large");
+    expect(html).toContain("choice-group");
+    expect(html).toContain('aria-describedby="ds-sample-help-text"');
+    expect(html).toContain('aria-describedby="ds-sample-invalid-error"');
+    expect(html).toContain('aria-describedby="ds-sample-paired-help"');
   });
 
   it("renders interactive primitive triggers without opening overlays", () => {

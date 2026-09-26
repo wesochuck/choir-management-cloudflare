@@ -56,9 +56,10 @@ export function DiscountCodeForm({
         </p>
       ) : null}
       <form className="form-stack" onSubmit={(event) => void saveDiscountCode(event)}>
-        <label className="field">
-          Code
+        <div className="field">
+          <label htmlFor="discount-code">Code</label>
           <input
+            id="discount-code"
             required
             maxLength={64}
             value={discountDraft.code}
@@ -66,10 +67,11 @@ export function DiscountCodeForm({
               setDiscountDraft((current) => ({ ...current, code: event.target.value }));
             }}
           />
-        </label>
-        <label className="field">
-          Eligible item
+        </div>
+        <div className="field">
+          <label htmlFor="discount-eligible-item">Eligible item</label>
           <select
+            id="discount-eligible-item"
             required
             value={eligibleItem}
             onChange={(event) => {
@@ -97,13 +99,14 @@ export function DiscountCodeForm({
               ))}
             </optgroup>
           </select>
-        </label>
-        <fieldset className="field">
+        </div>
+        <fieldset className="fieldset-container">
           <legend>Discount amount</legend>
           <div className="form-grid form-grid--two">
-            <label className="field">
-              Discount type
+            <div className="field">
+              <label htmlFor="discount-type">Discount type</label>
               <select
+                id="discount-type"
                 value={discountDraft.discountType}
                 onChange={(event) => {
                   const type = event.target.value === "fixed" ? "fixed" : "percentage";
@@ -116,12 +119,15 @@ export function DiscountCodeForm({
                 <option value="percentage">Percentage</option>
                 <option value="fixed">Fixed amount per unit</option>
               </select>
-            </label>
-            <label className="field">
-              {discountDraft.discountType === "percentage"
-                ? "Percentage (1–100)"
-                : "Amount per unit (USD)"}
+            </div>
+            <div className="field">
+              <label htmlFor="discount-value">
+                {discountDraft.discountType === "percentage"
+                  ? "Percentage (1–100)"
+                  : "Amount per unit (USD)"}
+              </label>
               <input
+                id="discount-value"
                 required
                 min={discountDraft.discountType === "percentage" ? 1 : 0}
                 max={discountDraft.discountType === "percentage" ? 100 : undefined}
@@ -138,12 +144,16 @@ export function DiscountCodeForm({
                   }));
                 }}
               />
-            </label>
+            </div>
           </div>
         </fieldset>
-        <label className="field">
-          Redemption limit (blank is unlimited)
+        <div className="field">
+          <label className="field__label-row" htmlFor="discount-redemption-limit">
+            <span>Redemption limit</span>{" "}
+            <span className="field-help field-help--inline">(blank is unlimited)</span>
+          </label>
           <input
+            id="discount-redemption-limit"
             min="1"
             step="1"
             type="number"
@@ -155,7 +165,7 @@ export function DiscountCodeForm({
               }));
             }}
           />
-        </label>
+        </div>
         <label>
           <input
             checked={discountDraft.active}

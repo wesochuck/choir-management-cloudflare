@@ -124,4 +124,33 @@ describe("RosterInviteLinksDialog UI interaction", () => {
       expect(screen.getAllByText("Copied!").length).toBeGreaterThan(0);
     });
   });
+
+  it("uses canonical form layout with full-width label, paired grid, and form-actions--end", async () => {
+    vi.mocked(api.listRosterInviteLinks).mockResolvedValue({
+      links: [],
+      requestId: "req-layout",
+    });
+
+    render(<RosterInviteLinksDialog onClose={vi.fn()} open={true} />);
+    await waitFor(() => {
+      expect(screen.getByText("Roster invite links")).toBeInTheDocument();
+    });
+
+    const labelInput = screen.getByLabelText("Link label");
+    const expirySelect = screen.getByLabelText("Expiration");
+    const maxUsesInput = screen.getByLabelText("Max uses (optional)");
+
+    // Link label is outside the form-grid
+    expect(labelInput.closest(".form-grid")).toBeNull();
+
+    // Expiration and Max uses are paired inside the form-grid
+    const formGrid = expirySelect.closest(".form-grid");
+    expect(formGrid).not.toBeNull();
+    expect(maxUsesInput.closest(".form-grid")).toBe(formGrid);
+
+    // Create button is in a form-actions--end container
+    const createBtn = screen.getByRole("button", { name: "Create invite link" });
+    const actionContainer = createBtn.closest(".form-actions");
+    expect(actionContainer).toHaveClass("form-actions--end");
+  });
 });

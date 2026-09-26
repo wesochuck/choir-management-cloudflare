@@ -47,27 +47,33 @@ export function RegularRehearsalScheduleSection({
   return (
     <fieldset className="surface-card organization-settings-panel form-stack">
       <legend>Regular rehearsal schedule</legend>
-      <label className="field">
-        Start Date / First Rehearsal Date
+      <div className="field">
+        <label className="field__label-row" htmlFor="intake-rehearsal-start-date">
+          <span>Start Date / First Rehearsal Date</span>{" "}
+          <span className="field-help field-help--inline">(Optional)</span>
+        </label>
         <input
+          aria-describedby="intake-rehearsal-start-date-help"
+          id="intake-rehearsal-start-date"
           onChange={(e) => {
             onUpdateStartDate(e.target.value ? e.target.value : null);
           }}
           type="date"
           value={draft.startDate ?? ""}
         />
-        <span className="field-help">
+        <p className="field-help" id="intake-rehearsal-start-date-help">
           Optional date for the group&apos;s first rehearsal or the next open rehearsal.
-        </span>
-      </label>
+        </p>
+      </div>
       <p className="field-help">
         Set when rehearsals start and end, then choose the official Organization venue where they
         happen.
       </p>
       <div className="form-grid form-grid--compact audition-rehearsal-grid">
-        <label className="field">
-          Day of week
+        <div className="field">
+          <label htmlFor="intake-rehearsal-day">Day of week</label>
           <select
+            id="intake-rehearsal-day"
             onChange={(e) => {
               const parsed = dayOfWeekSchema.safeParse(e.target.value);
               if (parsed.success) setRehearsalDay(parsed.data);
@@ -82,30 +88,33 @@ export function RegularRehearsalScheduleSection({
             <option value="saturday">Saturday</option>
             <option value="sunday">Sunday</option>
           </select>
-        </label>
-        <label className="field">
-          Start time
+        </div>
+        <div className="field">
+          <label htmlFor="intake-rehearsal-start">Start time</label>
           <input
+            id="intake-rehearsal-start"
             onChange={(e) => {
               setRehearsalStart(timeInputStateValue(e.currentTarget));
             }}
             type="time"
             value={rehearsalStart}
           />
-        </label>
-        <label className="field">
-          End time
+        </div>
+        <div className="field">
+          <label htmlFor="intake-rehearsal-end">End time</label>
           <input
+            id="intake-rehearsal-end"
             onChange={(e) => {
               setRehearsalEnd(timeInputStateValue(e.currentTarget));
             }}
             type="time"
             value={rehearsalEnd}
           />
-        </label>
-        <label className="field">
-          Rehearsal venue
+        </div>
+        <div className="field">
+          <label htmlFor="intake-rehearsal-venue">Rehearsal venue</label>
           <select
+            aria-describedby="intake-rehearsal-venue-help"
             aria-required="true"
             id="intake-rehearsal-venue"
             onChange={(e) => {
@@ -121,13 +130,13 @@ export function RegularRehearsalScheduleSection({
               </option>
             ))}
           </select>
-          <span className="field-help">
+          <span className="field-help" id="intake-rehearsal-venue-help">
             Use a venue from the official Organization list.{" "}
             <button className="text-button" onClick={onAddVenue} type="button">
               Add a new venue
             </button>
           </span>
-        </label>
+        </div>
       </div>
       {rehearsalError ? (
         <p className="notice notice--error" role="alert">
@@ -167,8 +176,12 @@ export function RegularRehearsalScheduleSection({
       )}
 
       <div className="field">
-        <label htmlFor="intake-rehearsal-notes">Rehearsal & Season Notes (optional)</label>
+        <label className="field__label-row" htmlFor="intake-rehearsal-notes">
+          <span>Rehearsal &amp; Season Notes</span>{" "}
+          <span className="field-help field-help--inline">(optional)</span>
+        </label>
         <textarea
+          aria-describedby="intake-rehearsal-notes-help"
           id="intake-rehearsal-notes"
           onChange={(e) => {
             onUpdateNotes(e.target.value);
@@ -177,7 +190,9 @@ export function RegularRehearsalScheduleSection({
           rows={3}
           value={draft.rehearsalNotes}
         />
-        <span className="field-help">Displayed to prospective members alongside the schedule.</span>
+        <p className="field-help" id="intake-rehearsal-notes-help">
+          Displayed to prospective members alongside the schedule.
+        </p>
       </div>
     </fieldset>
   );

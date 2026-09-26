@@ -847,6 +847,35 @@
     .member-dashboard__layout {
       grid-template-columns: 1fr;
     }
+
+    .page-heading {
+      align-items: start;
+      flex-direction: column;
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .workspace-card-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .page-toolbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    /* In a column toolbar, the shared search field's flex-basis would become
+     * a vertical size. Keep the label sized to its input instead. */
+    .page-toolbar .search-field {
+      flex: 0 1 auto;
+    }
+
+    .page-toolbar__actions {
+      width: 100%;
+    }
+
+    .page-toolbar__actions .button {
+      flex: 1;
+    }
   }
 
   @media (max-width: 40rem) {
@@ -1034,32 +1063,6 @@
     font-weight: var(--font-weight-bold);
   }
 
-  .audition-table {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: auto;
-    scrollbar-gutter: stable;
-  }
-
-  .audition-table__header,
-  .audition-table__row {
-    display: grid;
-    grid-template-columns:
-      minmax(12rem, 1.45fr) minmax(8rem, 0.95fr) minmax(6rem, 0.65fr) minmax(8rem, 0.85fr)
-      minmax(10rem, 1.2fr);
-    align-items: center;
-    min-width: 48rem;
-  }
-
-  @media (max-width: 64rem) {
-    .audition-table__header,
-    .audition-table__row {
-      grid-template-columns:
-        minmax(10rem, 1.35fr) minmax(7.5rem, 0.9fr) minmax(5.5rem, 0.6fr) minmax(7.5rem, 0.8fr)
-        minmax(9rem, 1.1fr);
-      min-width: 44rem;
-    }
-  }
   .audition-tab-panel,
   .audition-tab-panel fieldset,
   .audition-tab-panel form,
@@ -1116,103 +1119,8 @@
     color: var(--color-text-muted);
   }
 
-  .audition-table__header {
-    padding: var(--spacing-sm) var(--spacing-sm);
-    border-bottom: 1px solid var(--color-border);
-    color: var(--color-text-muted);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-bold);
-  }
-
-  .audition-table__header > :last-child,
-  .audition-table__row > [role="cell"]:last-child {
-    text-align: right;
-  }
-
-  .audition-table__row {
-    padding: var(--spacing-sm) var(--spacing-sm);
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .audition-table__row--interactive {
-    cursor: pointer;
-  }
-
-  .audition-table__row--interactive:hover {
-    background: color-mix(in srgb, var(--color-primary) 7%, transparent);
-  }
-
-  .audition-table__row--interactive:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: -2px;
-  }
-
-  .audition-table__row > [role="cell"] {
-    min-width: 0;
-  }
-
-  .audition-table__row .table-actions {
-    justify-content: flex-end;
-  }
-
   .audition-table__overflow {
     min-width: 2.5rem;
     padding-inline: var(--spacing-xs);
-  }
-
-  @media (max-width: 40rem) {
-    .audition-table {
-      display: grid;
-      gap: var(--spacing-sm);
-      overflow: visible;
-    }
-
-    .audition-table__header {
-      display: none;
-    }
-
-    .audition-table__row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      min-width: 0;
-      gap: var(--spacing-xs) var(--spacing-sm);
-      padding: var(--spacing-sm);
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius-control);
-      background: var(--color-surface-raised);
-    }
-
-    .audition-table__row > [role="cell"]:nth-child(n + 2) {
-      grid-column: 1;
-    }
-
-    .audition-table__row > [role="cell"]:nth-child(2)::before,
-    .audition-table__row > [role="cell"]:nth-child(3)::before,
-    .audition-table__row > [role="cell"]:nth-child(4)::before {
-      display: block;
-      margin-bottom: var(--spacing-3xs);
-      color: var(--color-text-muted);
-      font-size: var(--font-size-xs);
-      font-weight: var(--font-weight-bold);
-      text-transform: uppercase;
-    }
-
-    .audition-table__row > [role="cell"]:nth-child(2)::before {
-      content: "Preferred times";
-    }
-    .audition-table__row > [role="cell"]:nth-child(3)::before {
-      content: "Status";
-    }
-    .audition-table__row > [role="cell"]:nth-child(4)::before {
-      content: "Submitted";
-    }
-    .audition-table__row > [role="cell"]:nth-child(5) {
-      grid-column: 1 / -1;
-      text-align: left;
-    }
-
-    .audition-table__row .table-actions {
-      justify-content: flex-start;
-    }
   }
 }
