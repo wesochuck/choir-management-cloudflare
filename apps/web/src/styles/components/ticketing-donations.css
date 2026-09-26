@@ -327,6 +327,28 @@
     overflow-wrap: anywhere;
   }
 
+  .manual-donation-form .form-grid > .field {
+    min-width: 0;
+    align-content: start;
+  }
+
+  .manual-donation-field-label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--spacing-2xs);
+  }
+
+  .manual-donation-field-label .field-help--inline {
+    display: inline;
+  }
+
+  .manual-donation-options {
+    display: grid;
+    gap: var(--spacing-sm);
+    padding-block: var(--spacing-xs);
+  }
+
   /* Compact discount code disclosure and applied state */
   .ticket-discount-controls {
     display: grid;

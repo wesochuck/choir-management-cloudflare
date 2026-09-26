@@ -126,13 +126,14 @@ export function ManualDonationModal({
           {error}
         </p>
       ) : null}
-      <form className="form-stack" onSubmit={(event) => void handleSubmit(event)}>
+      <form className="form-stack manual-donation-form" onSubmit={(event) => void handleSubmit(event)}>
         <div className="form-grid">
-          <label className="field">
-            Amount (USD)
+          <div className="field">
+            <label htmlFor="manual-donation-amount">Amount (USD)</label>
             <input
               autoFocus
               disabled={busy}
+              id="manual-donation-amount"
               min="0.01"
               onChange={(event) => {
                 setAmount(event.target.value);
@@ -143,22 +144,23 @@ export function ManualDonationModal({
               type="number"
               value={amount}
             />
-          </label>
-          <label className="field">
-            Date received
+          </div>
+          <div className="field">
+            <label htmlFor="manual-donation-received-date">Date received</label>
             <input
               disabled={busy}
+              id="manual-donation-received-date"
               onChange={(event) => {
                 setReceivedDate(event.target.value);
               }}
               type="date"
               value={receivedDate}
             />
-          </label>
+          </div>
         </div>
 
-        <label className="field">
-          Donor name
+        <div className="field">
+          <label htmlFor="manual-donation-donor-name">Donor name</label>
           <Autocomplete
             ariaLabel="Donor name"
             disabled={busy}
@@ -202,13 +204,17 @@ export function ManualDonationModal({
             required
             value={donorName}
           />
-        </label>
+        </div>
 
-        <label className="field">
-          Donor email{" "}
-          <span className="field-help">(Optional — links to patron giving history)</span>
+        <div className="field">
+          <label className="manual-donation-field-label" htmlFor="manual-donation-donor-email">
+            <span>Donor email</span>
+            <span className="field-help field-help--inline">(Optional)</span>
+          </label>
           <input
+            aria-describedby="manual-donation-donor-email-help"
             disabled={busy}
+            id="manual-donation-donor-email"
             maxLength={320}
             onChange={(event) => {
               setDonorEmail(event.target.value);
@@ -217,13 +223,17 @@ export function ManualDonationModal({
             type="email"
             value={donorEmail}
           />
-        </label>
+          <span className="field-help" id="manual-donation-donor-email-help">
+            Links to patron giving history.
+          </span>
+        </div>
 
         <div className="form-grid">
-          <label className="field">
-            Payment method
+          <div className="field">
+            <label htmlFor="manual-donation-payment-method">Payment method</label>
             <select
               disabled={busy}
+              id="manual-donation-payment-method"
               onChange={(event) => {
                 const parsed = donationPaymentMethodSchema
                   .exclude(["stripe"])
@@ -238,11 +248,18 @@ export function ManualDonationModal({
               <option value="card_offline">Credit / Debit Card (Offline)</option>
               <option value="other">Other</option>
             </select>
-          </label>
-          <label className="field">
-            Check # / Reference note <span className="field-help">(Optional)</span>
+          </div>
+          <div className="field">
+            <label
+              className="manual-donation-field-label"
+              htmlFor="manual-donation-payment-reference"
+            >
+              <span>Check # / Reference note</span>
+              <span className="field-help field-help--inline">(Optional)</span>
+            </label>
             <input
               disabled={busy}
+              id="manual-donation-payment-reference"
               maxLength={500}
               onChange={(event) => {
                 setPaymentReference(event.target.value);
@@ -251,13 +268,14 @@ export function ManualDonationModal({
               type="text"
               value={paymentReference}
             />
-          </label>
+          </div>
         </div>
 
-        <label className="field">
-          Tribute
+        <div className="field">
+          <label htmlFor="manual-donation-tribute">Tribute</label>
           <select
             disabled={busy}
+            id="manual-donation-tribute"
             onChange={(event) => {
               const parsed = donationTributeInputSchema.safeParse(event.target.value);
               if (parsed.success) setTributeType(parsed.data);
@@ -268,14 +286,15 @@ export function ManualDonationModal({
             <option value="honor">In Honor Of</option>
             <option value="memory">In Memory Of</option>
           </select>
-        </label>
+        </div>
 
         {tributeType === "honor" || tributeType === "memory" ? (
           <div className="form-grid">
-            <label className="field">
-              Honoree / Memorial name
+            <div className="field">
+              <label htmlFor="manual-donation-tribute-name">Honoree / Memorial name</label>
               <input
                 disabled={busy}
+                id="manual-donation-tribute-name"
                 maxLength={500}
                 onChange={(event) => {
                   setTributeName(event.target.value);
@@ -284,11 +303,18 @@ export function ManualDonationModal({
                 type="text"
                 value={tributeName}
               />
-            </label>
-            <label className="field">
-              Notification email <span className="field-help">(Optional)</span>
+            </div>
+            <div className="field">
+              <label
+                className="manual-donation-field-label"
+                htmlFor="manual-donation-tribute-notify-email"
+              >
+                <span>Notification email</span>
+                <span className="field-help field-help--inline">(Optional)</span>
+              </label>
               <input
                 disabled={busy}
+                id="manual-donation-tribute-notify-email"
                 maxLength={320}
                 onChange={(event) => {
                   setTributeNotifyEmail(event.target.value);
@@ -297,33 +323,35 @@ export function ManualDonationModal({
                 type="email"
                 value={tributeNotifyEmail}
               />
-            </label>
+            </div>
           </div>
         ) : null}
 
-        <label className="checkbox-field">
-          <input
-            checked={anonymous}
-            disabled={busy}
-            onChange={(event) => {
-              setAnonymous(event.target.checked);
-            }}
-            type="checkbox"
-          />
-          <span>Mark as anonymous (hide donor name from public recognition)</span>
-        </label>
+        <div className="manual-donation-options">
+          <label className="checkbox-field">
+            <input
+              checked={anonymous}
+              disabled={busy}
+              onChange={(event) => {
+                setAnonymous(event.target.checked);
+              }}
+              type="checkbox"
+            />
+            <span>Mark as anonymous (hide donor name from public recognition)</span>
+          </label>
 
-        <label className="checkbox-field">
-          <input
-            checked={thankYouSent}
-            disabled={busy}
-            onChange={(event) => {
-              setThankYouSent(event.target.checked);
-            }}
-            type="checkbox"
-          />
-          <span>Thank-you letter or acknowledgment has already been sent</span>
-        </label>
+          <label className="checkbox-field">
+            <input
+              checked={thankYouSent}
+              disabled={busy}
+              onChange={(event) => {
+                setThankYouSent(event.target.checked);
+              }}
+              type="checkbox"
+            />
+            <span>Thank-you letter or acknowledgment has already been sent</span>
+          </label>
+        </div>
 
         <div className="dialog__actions">
           <button className="button button--primary" disabled={busy} type="submit">
