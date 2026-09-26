@@ -752,55 +752,126 @@ const stripeReconciliationPaymentIntentSchema = z.object({
     .optional(),
 });
 
-export async function retrieveStripePaymentReconciliationSnapshot(
+type ReconciliationCharge = z.infer<typeof stripeReconciliationChargeSchema>;
+
+interface ResolvedReconciliationCharge {
+  readonly charge: ReconciliationCharge | null;
+  readonly fallbackAmount: number;
+  readonly fallbackCurrency: string | null;
+}
+
+async function fetchReconciliationCharge(
   secretKey: string,
   connectedAccountId: string,
-  providerPaymentId: string,
-): Promise<StripePaymentReconciliationSnapshot> {
-  const isPaymentIntent = providerPaymentId.startsWith("pi_");
-  const path = isPaymentIntent
-    ? `/v1/payment_intents/${encodeURIComponent(providerPaymentId)}?expand[]=latest_charge.balance_transaction&expand[]=latest_charge.refunds`
-    : `/v1/charges/${encodeURIComponent(providerPaymentId)}?expand[]=balance_transaction&expand[]=refunds`;
-
+  path: string,
+): Promise<ReconciliationCharge | null> {
   const result: unknown = await stripeV1Request(secretKey, path, {
     errorType: "connect",
     method: "GET",
     stripeAccount: connectedAccountId,
   });
+  const parsed = stripeReconciliationChargeSchema.safeParse(result);
+  return parsed.success ? parsed.data : null;
+}
 
-  let chargeObj: z.infer<typeof stripeReconciliationChargeSchema> | null = null;
-  let fallbackAmount = 0;
-  let fallbackCurrency: string | null = null;
-
-  if (isPaymentIntent) {
-    const piParsed = stripeReconciliationPaymentIntentSchema.safeParse(result);
-    if (piParsed.success) {
-      fallbackAmount = piParsed.data.amount ?? 0;
-      fallbackCurrency = piParsed.data.currency ?? null;
-      if (typeof piParsed.data.latest_charge === "string") {
-        const directChargeResult: unknown = await stripeV1Request(
-          secretKey,
-          `/v1/charges/${encodeURIComponent(piParsed.data.latest_charge)}?expand[]=balance_transaction&expand[]=refunds`,
-          {
-            errorType: "connect",
-            method: "GET",
-            stripeAccount: connectedAccountId,
-          },
-        );
-        const parsedDirectCharge = stripeReconciliationChargeSchema.safeParse(directChargeResult);
-        if (parsedDirectCharge.success) {
-          chargeObj = parsedDirectCharge.data;
-        }
-      } else if (piParsed.data.latest_charge && typeof piParsed.data.latest_charge === "object") {
-        chargeObj = piParsed.data.latest_charge;
-      }
-    }
-  } else {
-    const chargeParsed = stripeReconciliationChargeSchema.safeParse(result);
-    if (chargeParsed.success) {
-      chargeObj = chargeParsed.data;
-    }
+async function resolveReconciliationCharge(
+  secretKey: string,
+  connectedAccountId: string,
+  providerPaymentId: string,
+): Promise<ResolvedReconciliationCharge> {
+  if (!providerPaymentId.startsWith("pi_")) {
+    const charge = await fetchReconciliationCharge(
+      secretKey,
+      connectedAccountId,
+      `/v1/charges/${encodeURIComponent(providerPaymentId)}?expand[]=balance_transaction&expand[]=refunds`,
+    );
+    return { charge, fallbackAmount: 0, fallbackCurrency: null };
   }
+
+  const intentResult: unknown = await stripeV1Request(
+    secretKey,
+    `/v1/payment_intents/${encodeURIComponent(providerPaymentId)}?expand[]=latest_charge.balance_transaction&expand[]=latest_charge.refunds`,
+    {
+      errorType: "connect",
+      method: "GET",
+      stripeAccount: connectedAccountId,
+    },
+  );
+  const parsedIntent = stripeReconciliationPaymentIntentSchema.safeParse(intentResult);
+  if (!parsedIntent.success) {
+    return { charge: null, fallbackAmount: 0, fallbackCurrency: null };
+  }
+  const fallbackAmount = parsedIntent.data.amount ?? 0;
+  const fallbackCurrency = parsedIntent.data.currency ?? null;
+  const latestCharge = parsedIntent.data.latest_charge;
+  if (typeof latestCharge === "string") {
+    const charge = await fetchReconciliationCharge(
+      secretKey,
+      connectedAccountId,
+      `/v1/charges/${encodeURIComponent(latestCharge)}?expand[]=balance_transaction&expand[]=refunds`,
+    );
+    return { charge, fallbackAmount, fallbackCurrency };
+  }
+  return { charge: latestCharge ?? null, fallbackAmount, fallbackCurrency };
+}
+
+function selectRefundCompletedAt(
+  refunds: readonly {
+    readonly created: number;
+    readonly status?: string | undefined;
+  }[],
+): string | null {
+  const succeeded = refunds.filter(
+    (refund) => refund.status === undefined || refund.status === "succeeded",
+  );
+  const timingCandidates = succeeded.length > 0 ? succeeded : refunds;
+  const latest =
+    timingCandidates.length > 0
+      ? timingCandidates.reduce((newest, current) =>
+          current.created > newest.created ? current : newest,
+        )
+      : null;
+  return latest?.created ? new Date(latest.created * 1000).toISOString() : null;
+}
+
+async function extractReconciliationFee(
+  secretKey: string,
+  connectedAccountId: string,
+  balanceTransaction: ReconciliationCharge["balance_transaction"],
+): Promise<{
+  readonly processorFeeCents: number | null;
+  readonly providerBalanceTransactionId: string | null;
+}> {
+  if (balanceTransaction && typeof balanceTransaction === "object") {
+    return {
+      processorFeeCents: balanceTransaction.fee,
+      providerBalanceTransactionId: balanceTransaction.id,
+    };
+  }
+  if (typeof balanceTransaction === "string") {
+    const settlement = await fetchBalanceTransactionById(
+      secretKey,
+      connectedAccountId,
+      balanceTransaction,
+    );
+    return {
+      processorFeeCents: settlement.feeCents,
+      providerBalanceTransactionId: settlement.balanceTransactionId,
+    };
+  }
+  return { processorFeeCents: null, providerBalanceTransactionId: null };
+}
+
+export async function retrieveStripePaymentReconciliationSnapshot(
+  secretKey: string,
+  connectedAccountId: string,
+  providerPaymentId: string,
+): Promise<StripePaymentReconciliationSnapshot> {
+  const {
+    charge: chargeObj,
+    fallbackAmount,
+    fallbackCurrency,
+  } = await resolveReconciliationCharge(secretKey, connectedAccountId, providerPaymentId);
 
   if (!chargeObj) {
     return {
@@ -816,46 +887,24 @@ export async function retrieveStripePaymentReconciliationSnapshot(
     };
   }
 
-  const rawRefunds = chargeObj.refunds?.data ?? [];
-  const succeededRefunds = rawRefunds.filter(
-    (refund) => refund.status === undefined || refund.status === "succeeded",
+  const refundCompletedAt = selectRefundCompletedAt(chargeObj.refunds?.data ?? []);
+
+  const fullyRefunded = stripeChargeRefundIsComplete({
+    amount: chargeObj.amount,
+    amount_refunded: chargeObj.amount_refunded,
+  });
+
+  const { processorFeeCents, providerBalanceTransactionId } = await extractReconciliationFee(
+    secretKey,
+    connectedAccountId,
+    chargeObj.balance_transaction,
   );
-  const timingCandidates = succeededRefunds.length > 0 ? succeededRefunds : rawRefunds;
-  const latestRefund =
-    timingCandidates.length > 0
-      ? timingCandidates.reduce((latest, current) =>
-          current.created > latest.created ? current : latest,
-        )
-      : null;
-  const refundCompletedAt = latestRefund?.created
-    ? new Date(latestRefund.created * 1000).toISOString()
-    : null;
-
-  const fullyRefunded = stripeChargeRefundIsComplete(
-    chargeObj as unknown as Record<string, unknown>,
-  );
-
-  let processorFeeCents: number | null = null;
-  let providerBalanceTransactionId: string | null = null;
-
-  if (chargeObj.balance_transaction && typeof chargeObj.balance_transaction === "object") {
-    processorFeeCents = chargeObj.balance_transaction.fee;
-    providerBalanceTransactionId = chargeObj.balance_transaction.id;
-  } else if (typeof chargeObj.balance_transaction === "string") {
-    const settlement = await fetchBalanceTransactionById(
-      secretKey,
-      connectedAccountId,
-      chargeObj.balance_transaction,
-    );
-    processorFeeCents = settlement.feeCents;
-    providerBalanceTransactionId = settlement.balanceTransactionId;
-  }
 
   return {
     amountChargedCents: chargeObj.amount,
-    amountRefundedCents: chargeObj.amount_refunded ?? 0,
+    amountRefundedCents: chargeObj.amount_refunded,
     chargeId: chargeObj.id,
-    currency: chargeObj.currency ?? fallbackCurrency ?? null,
+    currency: chargeObj.currency ?? fallbackCurrency,
     fullyRefunded,
     processorFeeCents,
     providerBalanceTransactionId,

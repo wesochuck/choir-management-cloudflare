@@ -166,8 +166,8 @@ describe("Platform Stripe Reconciliation", () => {
       }),
     );
     expect(adminApplyNoElevation.status).toBe(403);
-    const elevationError = (await adminApplyNoElevation.json()) as { code: string };
-    expect(elevationError.code).toBe("platform_elevation_required");
+    const elevationBody: unknown = await adminApplyNoElevation.json();
+    expect(elevationBody).toMatchObject({ code: "platform_elevation_required" });
 
     // 5. With elevation
     await grantPlatformElevation(orgId, sessionId);
@@ -426,14 +426,16 @@ describe("Platform Stripe Reconciliation", () => {
       expect(audits[0]?.id).toBe(
         "stripe-history-reconciled:pi_ticket_1:backfill_fee+mark_refunded",
       );
-      const summary = JSON.parse(audits[0]!.change_summary) as {
-        newResourceStatus: string;
-        previousResourceStatus: string;
-        source: string;
-      };
-      expect(summary.source).toBe("stripe_historical_reconciliation");
-      expect(summary.previousResourceStatus).toBe("paid");
-      expect(summary.newResourceStatus).toBe("refunded");
+      const firstAudit = audits[0];
+      if (!firstAudit) {
+        throw new Error("Expected reconciliation audit event");
+      }
+      const summary: unknown = JSON.parse(firstAudit.change_summary);
+      expect(summary).toMatchObject({
+        newResourceStatus: "refunded",
+        previousResourceStatus: "paid",
+        source: "stripe_historical_reconciliation",
+      });
 
       // Verify NO customer refund email queued
       const queuedJobs = state.storage.sql

@@ -56,36 +56,39 @@ export interface ReconciliationComparisonResult {
   readonly stripeStatus: string | null;
 }
 
-export function compareStripePaymentToLocalCandidate(
-  candidate: LocalPaymentCandidate,
-  snapshot: StripePaymentSnapshot | null,
-  error?: ReconciliationLookupError | null,
+type StripeDisplayStatus = "refunded" | "partially_refunded" | "paid";
+
+function lookupFailureResult(
+  error: ReconciliationLookupError | null | undefined,
 ): ReconciliationComparisonResult {
-  if (!snapshot || error) {
-    if (error?.status === 404 || error?.code === "resource_missing") {
-      return {
-        classification: "provider_payment_missing",
-        manualReviewReason: "Payment record was not found in the connected Stripe account.",
-        proposedActions: [],
-        safeToApply: false,
-        stripeStatus: "not_found",
-      };
-    }
+  if (error?.status === 404 || error?.code === "resource_missing") {
     return {
-      classification: "provider_lookup_failed",
-      manualReviewReason: error?.message ?? "Error retrieving payment from Stripe.",
+      classification: "provider_payment_missing",
+      manualReviewReason: "Payment record was not found in the connected Stripe account.",
       proposedActions: [],
       safeToApply: false,
-      stripeStatus: "error",
+      stripeStatus: "not_found",
     };
   }
+  return {
+    classification: "provider_lookup_failed",
+    manualReviewReason: error?.message ?? "Error retrieving payment from Stripe.",
+    proposedActions: [],
+    safeToApply: false,
+    stripeStatus: "error",
+  };
+}
 
-  const stripeStatus = snapshot.fullyRefunded
-    ? "refunded"
-    : snapshot.amountRefundedCents > 0
-      ? "partially_refunded"
-      : "paid";
+function stripeDisplayStatus(snapshot: StripePaymentSnapshot): StripeDisplayStatus {
+  if (snapshot.fullyRefunded) return "refunded";
+  return snapshot.amountRefundedCents > 0 ? "partially_refunded" : "paid";
+}
 
+function amountReviewResult(
+  candidate: LocalPaymentCandidate,
+  snapshot: StripePaymentSnapshot,
+  stripeStatus: StripeDisplayStatus,
+): ReconciliationComparisonResult | null {
   const expectedCurrency = candidate.currency?.toLowerCase() ?? "usd";
   if (snapshot.currency && snapshot.currency.toLowerCase() !== expectedCurrency) {
     return {
@@ -107,62 +110,78 @@ export function compareStripePaymentToLocalCandidate(
     };
   }
 
-  if (!snapshot.fullyRefunded && snapshot.amountRefundedCents > 0) {
-    return {
-      classification: "partial_refund_manual_review",
-      manualReviewReason: `Partial refund in Stripe ($${(snapshot.amountRefundedCents / 100).toFixed(2)} of $${(snapshot.amountChargedCents / 100).toFixed(2)} refunded). Choir Management only supports full refunds; manual review required.`,
-      proposedActions: [],
-      safeToApply: false,
-      stripeStatus,
-    };
+  return null;
+}
+
+function partialRefundResult(
+  snapshot: StripePaymentSnapshot,
+  stripeStatus: StripeDisplayStatus,
+): ReconciliationComparisonResult | null {
+  if (snapshot.fullyRefunded || snapshot.amountRefundedCents === 0) return null;
+  return {
+    classification: "partial_refund_manual_review",
+    manualReviewReason: `Partial refund in Stripe ($${(snapshot.amountRefundedCents / 100).toFixed(2)} of $${(snapshot.amountChargedCents / 100).toFixed(2)} refunded). Choir Management only supports full refunds; manual review required.`,
+    proposedActions: [],
+    safeToApply: false,
+    stripeStatus,
+  };
+}
+
+type LocalReconciliationState = "paid" | "refunded" | "inconsistent";
+
+function localReconciliationState(candidate: LocalPaymentCandidate): LocalReconciliationState {
+  if (candidate.resourceStatus === "paid" && candidate.paymentAttemptStatus === "paid") {
+    return "paid";
   }
-
-  const localIsPaid =
-    candidate.resourceStatus === "paid" && candidate.paymentAttemptStatus === "paid";
-  const localIsRefunded =
-    candidate.resourceStatus === "refunded" && candidate.paymentAttemptStatus === "refunded";
-
-  if (!localIsPaid && !localIsRefunded) {
-    return {
-      classification: "local_inconsistency",
-      manualReviewReason: `Local resource status ('${candidate.resourceStatus}') and payment attempt status ('${candidate.paymentAttemptStatus}') do not match.`,
-      proposedActions: [],
-      safeToApply: false,
-      stripeStatus,
-    };
+  if (candidate.resourceStatus === "refunded" && candidate.paymentAttemptStatus === "refunded") {
+    return "refunded";
   }
+  return "inconsistent";
+}
 
+function feeConflictResult(
+  candidate: LocalPaymentCandidate,
+  snapshot: StripePaymentSnapshot,
+  stripeStatus: StripeDisplayStatus,
+): ReconciliationComparisonResult | null {
   if (
-    candidate.processorFeeCents !== null &&
-    snapshot.processorFeeCents !== null &&
-    candidate.processorFeeCents !== snapshot.processorFeeCents
+    candidate.processorFeeCents === null ||
+    snapshot.processorFeeCents === null ||
+    candidate.processorFeeCents === snapshot.processorFeeCents
   ) {
-    return {
-      classification: "amount_mismatch_manual_review",
-      manualReviewReason: `Local processor fee ($${(candidate.processorFeeCents / 100).toFixed(2)}) differs from Stripe processor fee ($${(snapshot.processorFeeCents / 100).toFixed(2)}).`,
-      proposedActions: [],
-      safeToApply: false,
-      stripeStatus,
-    };
+    return null;
   }
+  return {
+    classification: "amount_mismatch_manual_review",
+    manualReviewReason: `Local processor fee ($${(candidate.processorFeeCents / 100).toFixed(2)}) differs from Stripe processor fee ($${(snapshot.processorFeeCents / 100).toFixed(2)}).`,
+    proposedActions: [],
+    safeToApply: false,
+    stripeStatus,
+  };
+}
 
-  const needsFee = candidate.processorFeeCents === null && snapshot.processorFeeCents !== null;
-  const needsBalanceTxn =
-    candidate.providerBalanceTransactionId === null &&
-    snapshot.providerBalanceTransactionId !== null;
-  const feeActionNeeded = needsFee || needsBalanceTxn;
+function feeBackfillResult(
+  needsFee: boolean,
+  stripeStatus: StripeDisplayStatus,
+): ReconciliationComparisonResult {
+  return {
+    classification: needsFee ? "processor_fee_missing" : "balance_transaction_missing",
+    manualReviewReason: null,
+    proposedActions: ["backfill_fee"],
+    safeToApply: true,
+    stripeStatus,
+  };
+}
 
-  if (snapshot.fullyRefunded) {
-    if (localIsPaid) {
-      if (feeActionNeeded) {
-        return {
-          classification: "refund_and_fee_mismatch",
-          manualReviewReason: null,
-          proposedActions: ["mark_refunded", "backfill_fee"],
-          safeToApply: true,
-          stripeStatus,
-        };
-      }
+function repairResult(
+  localState: LocalReconciliationState,
+  fullyRefunded: boolean,
+  feeActionNeeded: boolean,
+  needsFee: boolean,
+  stripeStatus: StripeDisplayStatus,
+): ReconciliationComparisonResult {
+  if (fullyRefunded && localState === "paid") {
+    if (!feeActionNeeded) {
       return {
         classification: "refund_status_mismatch",
         manualReviewReason: null,
@@ -171,35 +190,18 @@ export function compareStripePaymentToLocalCandidate(
         stripeStatus,
       };
     }
-
-    if (feeActionNeeded) {
-      return {
-        classification: needsFee ? "processor_fee_missing" : "balance_transaction_missing",
-        manualReviewReason: null,
-        proposedActions: ["backfill_fee"],
-        safeToApply: true,
-        stripeStatus,
-      };
-    }
-
     return {
-      classification: "matched",
+      classification: "refund_and_fee_mismatch",
       manualReviewReason: null,
-      proposedActions: [],
-      safeToApply: false,
+      proposedActions: ["mark_refunded", "backfill_fee"],
+      safeToApply: true,
       stripeStatus,
     };
   }
 
-  if (localIsPaid) {
+  if (localState === "paid" || fullyRefunded) {
     if (feeActionNeeded) {
-      return {
-        classification: needsFee ? "processor_fee_missing" : "balance_transaction_missing",
-        manualReviewReason: null,
-        proposedActions: ["backfill_fee"],
-        safeToApply: true,
-        stripeStatus,
-      };
+      return feeBackfillResult(needsFee, stripeStatus);
     }
     return {
       classification: "matched",
@@ -218,4 +220,49 @@ export function compareStripePaymentToLocalCandidate(
     safeToApply: false,
     stripeStatus,
   };
+}
+
+export function compareStripePaymentToLocalCandidate(
+  candidate: LocalPaymentCandidate,
+  snapshot: StripePaymentSnapshot | null,
+  error?: ReconciliationLookupError | null,
+): ReconciliationComparisonResult {
+  if (!snapshot || error) {
+    return lookupFailureResult(error);
+  }
+
+  const stripeStatus = stripeDisplayStatus(snapshot);
+
+  const amountReview = amountReviewResult(candidate, snapshot, stripeStatus);
+  if (amountReview) return amountReview;
+
+  const partialReview = partialRefundResult(snapshot, stripeStatus);
+  if (partialReview) return partialReview;
+
+  const localState = localReconciliationState(candidate);
+  if (localState === "inconsistent") {
+    return {
+      classification: "local_inconsistency",
+      manualReviewReason: `Local resource status ('${candidate.resourceStatus}') and payment attempt status ('${candidate.paymentAttemptStatus}') do not match.`,
+      proposedActions: [],
+      safeToApply: false,
+      stripeStatus,
+    };
+  }
+
+  const feeConflict = feeConflictResult(candidate, snapshot, stripeStatus);
+  if (feeConflict) return feeConflict;
+
+  const needsFee = candidate.processorFeeCents === null && snapshot.processorFeeCents !== null;
+  const needsBalanceTxn =
+    candidate.providerBalanceTransactionId === null &&
+    snapshot.providerBalanceTransactionId !== null;
+
+  return repairResult(
+    localState,
+    snapshot.fullyRefunded,
+    needsFee || needsBalanceTxn,
+    needsFee,
+    stripeStatus,
+  );
 }

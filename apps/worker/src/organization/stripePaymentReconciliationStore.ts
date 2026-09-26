@@ -1,3 +1,4 @@
+import type { SqlStorageValue } from "@cloudflare/workers-types";
 import type { LocalPaymentCandidate } from "@choir/domain";
 
 const candidateQuery = `SELECT
@@ -114,6 +115,136 @@ export interface ApplyHistoricalStripeReconciliationResult {
   readonly status: "applied" | "skipped" | "failed";
 }
 
+interface ReconciliationPurchaseRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly amountPaidCents: number;
+  readonly bundleId: string | null;
+  readonly id: string;
+  readonly status: string;
+}
+
+interface ReconciliationAttemptRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly id: string;
+  readonly processorFeeCents: number | null;
+  readonly providerBalanceTransactionId: string | null;
+  readonly status: string;
+}
+
+function applyRefundTransition(
+  storage: DurableObjectStorage,
+  purchases: readonly ReconciliationPurchaseRow[],
+  attempts: readonly ReconciliationAttemptRow[],
+  refundTimestamp: string,
+  occurredAt: string,
+): { readonly attemptUpdated: boolean; readonly purchaseUpdated: boolean } {
+  let purchaseUpdated = false;
+  for (const purchase of purchases) {
+    if (purchase.status === "paid") {
+      storage.sql.exec(
+        `UPDATE ticket_purchases
+         SET status = 'refunded', refunded_at = ?, updated_at = ?
+         WHERE id = ? AND status = 'paid'`,
+        refundTimestamp,
+        occurredAt,
+        purchase.id,
+      );
+      purchaseUpdated = true;
+    }
+  }
+
+  let attemptUpdated = false;
+  for (const attempt of attempts) {
+    if (attempt.status !== "refunded") {
+      storage.sql.exec(
+        `UPDATE payment_attempts
+         SET status = 'refunded', refunded_at = ?, updated_at = ?
+         WHERE id = ? AND status <> 'refunded'`,
+        refundTimestamp,
+        occurredAt,
+        attempt.id,
+      );
+      attemptUpdated = true;
+    }
+  }
+
+  return { attemptUpdated, purchaseUpdated };
+}
+
+function applyFeeBackfill(
+  storage: DurableObjectStorage,
+  attempts: readonly ReconciliationAttemptRow[],
+  snapshot: ApplyHistoricalStripeReconciliationInput["stripeSnapshot"],
+  occurredAt: string,
+): boolean {
+  if (snapshot.processorFeeCents === null) return false;
+  let feeUpdated = false;
+  for (const attempt of attempts) {
+    if (
+      attempt.processorFeeCents === null ||
+      (attempt.providerBalanceTransactionId === null &&
+        snapshot.providerBalanceTransactionId !== null)
+    ) {
+      storage.sql.exec(
+        `UPDATE payment_attempts
+         SET processor_fee_cents = COALESCE(processor_fee_cents, ?),
+             provider_balance_transaction_id = COALESCE(provider_balance_transaction_id, ?),
+             processor_fee_reconciled_at = COALESCE(processor_fee_reconciled_at, ?),
+             updated_at = ?
+         WHERE id = ?`,
+        snapshot.processorFeeCents,
+        snapshot.providerBalanceTransactionId,
+        occurredAt,
+        occurredAt,
+        attempt.id,
+      );
+      feeUpdated = true;
+    }
+  }
+  return feeUpdated;
+}
+
+function writeReconciliationAudit(
+  storage: DurableObjectStorage,
+  input: ApplyHistoricalStripeReconciliationInput,
+  purchases: readonly ReconciliationPurchaseRow[],
+  attempts: readonly ReconciliationAttemptRow[],
+  actionsApplied: readonly ("mark_refunded" | "backfill_fee")[],
+  changes: readonly string[],
+  occurredAt: string,
+): void {
+  const primaryPurchase = purchases[0];
+  const auditSummary = {
+    amountChargedCents: input.stripeSnapshot.amountChargedCents,
+    amountRefundedCents: input.stripeSnapshot.amountRefundedCents,
+    changes,
+    newResourceStatus: input.actions.includes("mark_refunded")
+      ? "refunded"
+      : (primaryPurchase?.status ?? "unknown"),
+    paymentType: primaryPurchase?.bundleId ? "bundle" : "ticket",
+    previousResourceStatus: primaryPurchase?.status ?? "unknown",
+    processorFeeCents: input.stripeSnapshot.processorFeeCents,
+    providerBalanceTransactionId: input.stripeSnapshot.providerBalanceTransactionId,
+    providerPaymentId: input.providerPaymentId,
+    reason: input.reason,
+    resourceId: primaryPurchase?.id ?? attempts[0]?.id,
+    source: "stripe_historical_reconciliation",
+    stripeRefundCompletedAt: input.stripeSnapshot.refundCompletedAt,
+  };
+
+  storage.sql.exec(
+    `INSERT OR IGNORE INTO audit_events
+      (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+     VALUES (?, 'platform_administrator', ?, 'payment.stripe_history.reconciled', 'payment', ?, ?, ?, ?)`,
+    `stripe-history-reconciled:${input.providerPaymentId}:${[...actionsApplied].sort().join("+")}`,
+    input.adminUserId,
+    input.providerPaymentId,
+    crypto.randomUUID(),
+    JSON.stringify(auditSummary),
+    occurredAt,
+  );
+}
+
 export function applyHistoricalStripeReconciliationInStore(
   storage: DurableObjectStorage,
   input: ApplyHistoricalStripeReconciliationInput,
@@ -134,12 +265,7 @@ export function applyHistoricalStripeReconciliationInStore(
   }
 
   const existingPurchases = storage.sql
-    .exec<{
-      readonly amountPaidCents: number;
-      readonly bundleId: string | null;
-      readonly id: string;
-      readonly status: string;
-    }>(
+    .exec<ReconciliationPurchaseRow>(
       `SELECT id, status, amount_paid_cents AS amountPaidCents, bundle_id AS bundleId
        FROM ticket_purchases WHERE provider_payment_id = ?`,
       input.providerPaymentId,
@@ -147,12 +273,7 @@ export function applyHistoricalStripeReconciliationInStore(
     .toArray();
 
   const existingAttempts = storage.sql
-    .exec<{
-      readonly id: string;
-      readonly processorFeeCents: number | null;
-      readonly providerBalanceTransactionId: string | null;
-      readonly status: string;
-    }>(
+    .exec<ReconciliationAttemptRow>(
       `SELECT id, status, processor_fee_cents AS processorFeeCents,
         provider_balance_transaction_id AS providerBalanceTransactionId
        FROM payment_attempts WHERE provider_payment_id = ?`,
@@ -175,36 +296,13 @@ export function applyHistoricalStripeReconciliationInStore(
 
   storage.transactionSync(() => {
     if (input.actions.includes("mark_refunded")) {
-      let purchaseUpdated = false;
-      for (const purchase of existingPurchases) {
-        if (purchase.status === "paid") {
-          storage.sql.exec(
-            `UPDATE ticket_purchases
-             SET status = 'refunded', refunded_at = ?, updated_at = ?
-             WHERE id = ? AND status = 'paid'`,
-            refundTimestamp,
-            occurredAt,
-            purchase.id,
-          );
-          purchaseUpdated = true;
-        }
-      }
-
-      let attemptUpdated = false;
-      for (const attempt of existingAttempts) {
-        if (attempt.status !== "refunded") {
-          storage.sql.exec(
-            `UPDATE payment_attempts
-             SET status = 'refunded', refunded_at = ?, updated_at = ?
-             WHERE id = ? AND status <> 'refunded'`,
-            refundTimestamp,
-            occurredAt,
-            attempt.id,
-          );
-          attemptUpdated = true;
-        }
-      }
-
+      const { attemptUpdated, purchaseUpdated } = applyRefundTransition(
+        storage,
+        existingPurchases,
+        existingAttempts,
+        refundTimestamp,
+        occurredAt,
+      );
       if (purchaseUpdated || attemptUpdated) {
         actionsApplied.push("mark_refunded");
         if (purchaseUpdated) changes.push("resource_status");
@@ -213,66 +311,26 @@ export function applyHistoricalStripeReconciliationInStore(
     }
 
     if (input.actions.includes("backfill_fee")) {
-      if (input.stripeSnapshot.processorFeeCents !== null) {
-        let feeUpdated = false;
-        for (const attempt of existingAttempts) {
-          if (
-            attempt.processorFeeCents === null ||
-            (attempt.providerBalanceTransactionId === null &&
-              input.stripeSnapshot.providerBalanceTransactionId !== null)
-          ) {
-            storage.sql.exec(
-              `UPDATE payment_attempts
-               SET processor_fee_cents = COALESCE(processor_fee_cents, ?),
-                   provider_balance_transaction_id = COALESCE(provider_balance_transaction_id, ?),
-                   processor_fee_reconciled_at = COALESCE(processor_fee_reconciled_at, ?),
-                   updated_at = ?
-               WHERE id = ?`,
-              input.stripeSnapshot.processorFeeCents,
-              input.stripeSnapshot.providerBalanceTransactionId,
-              occurredAt,
-              occurredAt,
-              attempt.id,
-            );
-            feeUpdated = true;
-          }
-        }
-        if (feeUpdated) {
-          actionsApplied.push("backfill_fee");
-          changes.push("processor_fee", "balance_transaction");
-        }
+      const feeUpdated = applyFeeBackfill(
+        storage,
+        existingAttempts,
+        input.stripeSnapshot,
+        occurredAt,
+      );
+      if (feeUpdated) {
+        actionsApplied.push("backfill_fee");
+        changes.push("processor_fee", "balance_transaction");
       }
     }
 
     if (actionsApplied.length > 0) {
-      const primaryPurchase = existingPurchases[0];
-      const auditSummary = {
-        amountChargedCents: input.stripeSnapshot.amountChargedCents,
-        amountRefundedCents: input.stripeSnapshot.amountRefundedCents,
+      writeReconciliationAudit(
+        storage,
+        input,
+        existingPurchases,
+        existingAttempts,
+        actionsApplied,
         changes,
-        newResourceStatus: input.actions.includes("mark_refunded")
-          ? "refunded"
-          : (primaryPurchase?.status ?? "unknown"),
-        paymentType: primaryPurchase?.bundleId ? "bundle" : "ticket",
-        previousResourceStatus: primaryPurchase?.status ?? "unknown",
-        processorFeeCents: input.stripeSnapshot.processorFeeCents,
-        providerBalanceTransactionId: input.stripeSnapshot.providerBalanceTransactionId,
-        providerPaymentId: input.providerPaymentId,
-        reason: input.reason,
-        resourceId: primaryPurchase?.id ?? existingAttempts[0]?.id,
-        source: "stripe_historical_reconciliation",
-        stripeRefundCompletedAt: input.stripeSnapshot.refundCompletedAt,
-      };
-
-      storage.sql.exec(
-        `INSERT OR IGNORE INTO audit_events
-          (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
-         VALUES (?, 'platform_administrator', ?, 'payment.stripe_history.reconciled', 'payment', ?, ?, ?, ?)`,
-        `stripe-history-reconciled:${input.providerPaymentId}:${[...actionsApplied].sort().join("+")}`,
-        input.adminUserId,
-        input.providerPaymentId,
-        crypto.randomUUID(),
-        JSON.stringify(auditSummary),
         occurredAt,
       );
     }

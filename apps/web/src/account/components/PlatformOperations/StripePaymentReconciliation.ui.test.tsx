@@ -100,12 +100,18 @@ describe("StripePaymentReconciliation", () => {
     });
 
     const checkedMetric = screen.getByText("Checked").closest(".platform-reconciliation-metric");
-    expect(within(checkedMetric as HTMLElement).getByText("2")).toBeInTheDocument();
+    if (!(checkedMetric instanceof HTMLElement)) {
+      throw new Error("Expected checked metric");
+    }
+    expect(within(checkedMetric).getByText("2")).toBeInTheDocument();
 
     const matchedMetric = screen
       .getByText("Already matched")
       .closest(".platform-reconciliation-metric");
-    expect(within(matchedMetric as HTMLElement).getByText("1")).toBeInTheDocument();
+    if (!(matchedMetric instanceof HTMLElement)) {
+      throw new Error("Expected matched metric");
+    }
+    expect(within(matchedMetric).getByText("1")).toBeInTheDocument();
 
     // Table rows (scoped to the table presentation; card markup duplicates content)
     const resultsTable = screen.getByRole("table");
@@ -190,7 +196,11 @@ describe("StripePaymentReconciliation", () => {
     expect(confirmButton).not.toBeDisabled();
 
     // Submit the form
-    fireEvent.submit(confirmButton.closest("form") as HTMLFormElement);
+    const applyForm = confirmButton.closest("form");
+    if (!applyForm) {
+      throw new Error("Expected apply form");
+    }
+    fireEvent.submit(applyForm);
 
     await waitFor(() => {
       expect(platformApi.applyPlatformStripeReconciliation).toHaveBeenCalledWith("org_test", {

@@ -1,8 +1,9 @@
 import type {
+  PlatformStripeReconciliationApplyResponse,
   PlatformStripeReconciliationPreviewResponse,
   PlatformStripeReconciliationRow,
 } from "@choir/contracts";
-import { DataTable, Dialog } from "@choir/ui";
+import { DataTable, Dialog, type DataTableColumn } from "@choir/ui";
 import { useState } from "react";
 
 import {
@@ -57,6 +58,157 @@ function classificationBadge(classification: PlatformStripeReconciliationRow["cl
     case "local_inconsistency":
       return <span className="status-pill status-pill--error">Inconsistent</span>;
   }
+}
+
+function formatApplySuccessMessage(
+  result: Pick<
+    PlatformStripeReconciliationApplyResponse,
+    "appliedCount" | "feeBackfilledCount" | "refundedCount"
+  >,
+): string {
+  return `Applied reconciliation repairs: ${String(result.appliedCount)} record${result.appliedCount === 1 ? "" : "s"} updated (${String(result.refundedCount)} refund${result.refundedCount === 1 ? "" : "s"}, ${String(result.feeBackfilledCount)} fee${result.feeBackfilledCount === 1 ? "" : "s"} backfilled).`;
+}
+
+const reconciliationColumns: readonly DataTableColumn<PlatformStripeReconciliationRow>[] = [
+  {
+    header: "Date",
+    id: "date",
+    mobileLabel: "Date",
+    render: (row) => displayDate(row.createdAt),
+  },
+  {
+    header: "Type",
+    id: "type",
+    mobileLabel: "Type",
+    render: (row) => (row.paymentType === "ticket" ? "Ticket purchase" : "Bundle purchase"),
+  },
+  {
+    header: "Stripe Payment",
+    id: "payment",
+    mobileLabel: "Stripe payment",
+    render: (row) => <code>{row.providerPaymentId}</code>,
+  },
+  {
+    header: "Choir Status",
+    id: "choir-status",
+    mobileLabel: "Choir status",
+    render: (row) => (
+      <span className={`status-pill ${statusPillClass(row.localPaymentAttemptStatus)}`}>
+        {row.localPaymentAttemptStatus}
+      </span>
+    ),
+  },
+  {
+    header: "Stripe Status",
+    id: "stripe-status",
+    mobileLabel: "Stripe status",
+    render: (row) => (
+      <span className={`status-pill ${statusPillClass(row.stripeStatus ?? "unknown")}`}>
+        {row.stripeStatus ?? "not found"}
+      </span>
+    ),
+  },
+  {
+    header: "Charged",
+    id: "charged",
+    mobileLabel: "Charged",
+    render: (row) => formatMoney(row.localAmountCents, row.currency),
+  },
+  {
+    header: "Refunded",
+    id: "refunded",
+    mobileLabel: "Refunded",
+    render: (row) => formatMoney(row.stripeAmountRefundedCents, row.currency),
+  },
+  {
+    header: "Processor Fee",
+    id: "fee",
+    mobileLabel: "Processor fee",
+    render: (row) =>
+      row.localProcessorFeeCents !== null ? (
+        formatMoney(row.localProcessorFeeCents, row.currency)
+      ) : row.stripeProcessorFeeCents !== null ? (
+        <em>{formatMoney(row.stripeProcessorFeeCents, row.currency)} (new)</em>
+      ) : (
+        "—"
+      ),
+  },
+  {
+    header: "Classification",
+    id: "classification",
+    mobileLabel: "Classification",
+    render: (row) => (
+      <div>
+        {classificationBadge(row.classification)}
+        {row.manualReviewReason ? <div className="field-help">{row.manualReviewReason}</div> : null}
+      </div>
+    ),
+  },
+];
+
+function ReconciliationResults({
+  canEdit,
+  data,
+  onOpenApply,
+}: {
+  readonly canEdit: boolean;
+  readonly data: PlatformStripeReconciliationPreviewResponse;
+  readonly onOpenApply: () => void;
+}) {
+  return (
+    <div className="platform-reconciliation-results">
+      <div className="platform-reconciliation-metrics">
+        <div className="platform-reconciliation-metric">
+          <span>Checked</span>
+          <strong>{data.scannedCount}</strong>
+        </div>
+        <div className="platform-reconciliation-metric">
+          <span>Already matched</span>
+          <strong>{data.matchedCount}</strong>
+        </div>
+        <div className="platform-reconciliation-metric">
+          <span>Repairable</span>
+          <strong>{data.repairableCount}</strong>
+        </div>
+        <div className="platform-reconciliation-metric">
+          <span>Needs review</span>
+          <strong>{data.manualReviewCount}</strong>
+        </div>
+      </div>
+
+      {data.hasMore ? (
+        <p className="notice notice--warning" role="status">
+          Only part of the payment history was scanned. Narrow the date range with “Only check
+          payments since” and run the preview again to cover the remaining records.
+        </p>
+      ) : null}
+
+      <div className="platform-reconciliation-actions">
+        {data.repairableCount > 0 ? (
+          canEdit ? (
+            <button className="button button--primary" onClick={onOpenApply} type="button">
+              Apply reconciliation repairs ({data.repairableCount})
+            </button>
+          ) : (
+            <div className="notice notice--warning" role="alert">
+              <strong>Platform elevation required:</strong> Enable Platform edits above to apply
+              historical reconciliation repairs.
+            </div>
+          )
+        ) : null}
+      </div>
+
+      {data.rows.length === 0 ? (
+        <p className="empty-state">No payment records found matching the filter.</p>
+      ) : (
+        <DataTable
+          columns={reconciliationColumns}
+          keySelector={(row) => `${row.providerPaymentId}:${row.resourceId}`}
+          rows={data.rows}
+        />
+      )}
+    </div>
+  );
 }
 
 export function StripePaymentReconciliation({
@@ -117,9 +269,7 @@ export function StripePaymentReconciliation({
       });
       setApplyDialogOpen(false);
       setApplyReason("");
-      setSuccessMessage(
-        `Applied reconciliation repairs: ${result.appliedCount} record${result.appliedCount === 1 ? "" : "s"} updated (${result.refundedCount} refund${result.refundedCount === 1 ? "" : "s"}, ${result.feeBackfilledCount} fee${result.feeBackfilledCount === 1 ? "" : "s"} backfilled).`,
-      );
+      setSuccessMessage(formatApplySuccessMessage(result));
       // Automatically refresh the preview to reflect the repairs
       await handleRunPreview(false);
     } catch (err: unknown) {
@@ -170,7 +320,9 @@ export function StripePaymentReconciliation({
           <label htmlFor="platform-reconciliation-since">Only check payments since</label>
           <input
             id="platform-reconciliation-since"
-            onChange={(e) => setSinceDate(e.target.value)}
+            onChange={(e) => {
+              setSinceDate(e.target.value);
+            }}
             type="date"
             value={sinceDate}
           />
@@ -181,148 +333,15 @@ export function StripePaymentReconciliation({
       </form>
 
       {previewData ? (
-        <div className="platform-reconciliation-results">
-          <div className="platform-reconciliation-metrics">
-            <div className="platform-reconciliation-metric">
-              <span>Checked</span>
-              <strong>{previewData.scannedCount}</strong>
-            </div>
-            <div className="platform-reconciliation-metric">
-              <span>Already matched</span>
-              <strong>{previewData.matchedCount}</strong>
-            </div>
-            <div className="platform-reconciliation-metric">
-              <span>Repairable</span>
-              <strong>{previewData.repairableCount}</strong>
-            </div>
-            <div className="platform-reconciliation-metric">
-              <span>Needs review</span>
-              <strong>{previewData.manualReviewCount}</strong>
-            </div>
-          </div>
-
-          {previewData.hasMore ? (
-            <p className="notice notice--warning" role="status">
-              Only part of the payment history was scanned. Narrow the date range with “Only check
-              payments since” and run the preview again to cover the remaining records.
-            </p>
-          ) : null}
-
-          <div className="platform-reconciliation-actions">
-            {previewData.repairableCount > 0 ? (
-              canEdit ? (
-                <button
-                  className="button button--primary"
-                  onClick={() => {
-                    setApplyError(null);
-                    setApplyReason("");
-                    setApplyDialogOpen(true);
-                  }}
-                  type="button"
-                >
-                  Apply reconciliation repairs ({previewData.repairableCount})
-                </button>
-              ) : (
-                <div className="notice notice--warning" role="alert">
-                  <strong>Platform elevation required:</strong> Enable Platform edits above to apply
-                  historical reconciliation repairs.
-                </div>
-              )
-            ) : null}
-          </div>
-
-          {previewData.rows.length === 0 ? (
-            <p className="empty-state">No payment records found matching the filter.</p>
-          ) : (
-            <DataTable
-              columns={[
-                {
-                  header: "Date",
-                  id: "date",
-                  mobileLabel: "Date",
-                  render: (row) => displayDate(row.createdAt),
-                },
-                {
-                  header: "Type",
-                  id: "type",
-                  mobileLabel: "Type",
-                  render: (row) =>
-                    row.paymentType === "ticket" ? "Ticket purchase" : "Bundle purchase",
-                },
-                {
-                  header: "Stripe Payment",
-                  id: "payment",
-                  mobileLabel: "Stripe payment",
-                  render: (row) => <code>{row.providerPaymentId}</code>,
-                },
-                {
-                  header: "Choir Status",
-                  id: "choir-status",
-                  mobileLabel: "Choir status",
-                  render: (row) => (
-                    <span
-                      className={`status-pill ${statusPillClass(row.localPaymentAttemptStatus)}`}
-                    >
-                      {row.localPaymentAttemptStatus}
-                    </span>
-                  ),
-                },
-                {
-                  header: "Stripe Status",
-                  id: "stripe-status",
-                  mobileLabel: "Stripe status",
-                  render: (row) => (
-                    <span
-                      className={`status-pill ${statusPillClass(row.stripeStatus ?? "unknown")}`}
-                    >
-                      {row.stripeStatus ?? "not found"}
-                    </span>
-                  ),
-                },
-                {
-                  header: "Charged",
-                  id: "charged",
-                  mobileLabel: "Charged",
-                  render: (row) => formatMoney(row.localAmountCents, row.currency),
-                },
-                {
-                  header: "Refunded",
-                  id: "refunded",
-                  mobileLabel: "Refunded",
-                  render: (row) => formatMoney(row.stripeAmountRefundedCents, row.currency),
-                },
-                {
-                  header: "Processor Fee",
-                  id: "fee",
-                  mobileLabel: "Processor fee",
-                  render: (row) =>
-                    row.localProcessorFeeCents !== null ? (
-                      formatMoney(row.localProcessorFeeCents, row.currency)
-                    ) : row.stripeProcessorFeeCents !== null ? (
-                      <em>{formatMoney(row.stripeProcessorFeeCents, row.currency)} (new)</em>
-                    ) : (
-                      "—"
-                    ),
-                },
-                {
-                  header: "Classification",
-                  id: "classification",
-                  mobileLabel: "Classification",
-                  render: (row) => (
-                    <div>
-                      {classificationBadge(row.classification)}
-                      {row.manualReviewReason ? (
-                        <div className="field-help">{row.manualReviewReason}</div>
-                      ) : null}
-                    </div>
-                  ),
-                },
-              ]}
-              keySelector={(row) => `${row.providerPaymentId}:${row.resourceId}`}
-              rows={previewData.rows}
-            />
-          )}
-        </div>
+        <ReconciliationResults
+          canEdit={canEdit}
+          data={previewData}
+          onOpenApply={() => {
+            setApplyError(null);
+            setApplyReason("");
+            setApplyDialogOpen(true);
+          }}
+        />
       ) : null}
 
       <Dialog
@@ -379,7 +398,9 @@ export function StripePaymentReconciliation({
               id="platform-reconciliation-reason"
               maxLength={500}
               minLength={3}
-              onChange={(e) => setApplyReason(e.target.value)}
+              onChange={(e) => {
+                setApplyReason(e.target.value);
+              }}
               placeholder="e.g. Repair historical refunded tickets and backfill processor fees for 2026 season"
               required
               rows={3}
@@ -391,7 +412,9 @@ export function StripePaymentReconciliation({
             <button
               className="button button--secondary"
               disabled={applyBusy}
-              onClick={() => setApplyDialogOpen(false)}
+              onClick={() => {
+                setApplyDialogOpen(false);
+              }}
               type="button"
             >
               Cancel

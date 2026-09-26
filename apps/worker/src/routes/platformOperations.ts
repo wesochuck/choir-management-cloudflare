@@ -17,6 +17,7 @@ import {
 } from "@choir/contracts";
 import {
   compareStripePaymentToLocalCandidate,
+  type LocalPaymentCandidate,
   type ReconciliationLookupError,
   type StripePaymentSnapshot,
 } from "@choir/domain";
@@ -69,7 +70,7 @@ async function mapConcurrent<T, R>(
   concurrency: number,
   fn: (item: T) => Promise<R>,
 ): Promise<R[]> {
-  const results: R[] = new Array(items.length);
+  const results: R[] = new Array<R>(items.length);
   let currentIndex = 0;
 
   async function worker() {
@@ -85,6 +86,228 @@ async function mapConcurrent<T, R>(
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
   await Promise.all(workers);
   return results;
+}
+
+async function fetchReconciliationSnapshot(
+  secretKey: string,
+  accountId: string,
+  providerPaymentId: string,
+): Promise<{
+  readonly lookupError: ReconciliationLookupError | null;
+  readonly snapshot: StripePaymentSnapshot | null;
+}> {
+  try {
+    const snapshot = await retrieveStripePaymentReconciliationSnapshot(
+      secretKey,
+      accountId,
+      providerPaymentId,
+    );
+    return { lookupError: null, snapshot };
+  } catch (err: unknown) {
+    if (err instanceof StripeConnectError) {
+      return {
+        lookupError: { code: err.code, message: err.safeMessage, status: err.status },
+        snapshot: null,
+      };
+    }
+    return {
+      lookupError: { message: err instanceof Error ? err.message : String(err) },
+      snapshot: null,
+    };
+  }
+}
+
+function buildReconciliationRow(
+  candidate: LocalPaymentCandidate,
+  snapshot: StripePaymentSnapshot | null,
+  lookupError: ReconciliationLookupError | null,
+): PlatformStripeReconciliationRow {
+  const comparison = compareStripePaymentToLocalCandidate(candidate, snapshot, lookupError);
+  return {
+    classification: comparison.classification,
+    createdAt: candidate.createdAt,
+    currency: candidate.currency,
+    localAmountCents: candidate.amountCents,
+    localPaymentAttemptStatus: candidate.paymentAttemptStatus,
+    localProcessorFeeCents: candidate.processorFeeCents,
+    localProviderBalanceTransactionId: candidate.providerBalanceTransactionId,
+    localResourceStatus: candidate.resourceStatus,
+    manualReviewReason: comparison.manualReviewReason,
+    paymentType: candidate.paymentType,
+    proposedActions: [...comparison.proposedActions],
+    providerPaymentId: candidate.providerPaymentId,
+    resourceId: candidate.resourceId,
+    safeToApply: comparison.safeToApply,
+    stripeAmountChargedCents: snapshot?.amountChargedCents ?? null,
+    stripeAmountRefundedCents: snapshot?.amountRefundedCents ?? null,
+    stripeFullyRefunded: snapshot?.fullyRefunded ?? null,
+    stripeProcessorFeeCents: snapshot?.processorFeeCents ?? null,
+    stripeProviderBalanceTransactionId: snapshot?.providerBalanceTransactionId ?? null,
+    stripeRefundCompletedAt: snapshot?.refundCompletedAt ?? null,
+    stripeStatus: comparison.stripeStatus,
+  };
+}
+
+async function applyReconciliationToCandidate(args: {
+  readonly accountId: string;
+  readonly adminUserId: string;
+  readonly candidate: LocalPaymentCandidate;
+  readonly organizationId: string;
+  readonly reason: string;
+  readonly secretKey: string;
+  readonly stub: ReturnType<typeof organizationStoreStub>;
+}): Promise<PlatformStripeReconciliationApplyResult> {
+  const { lookupError, snapshot } = await fetchReconciliationSnapshot(
+    args.secretKey,
+    args.accountId,
+    args.candidate.providerPaymentId,
+  );
+  const comparison = compareStripePaymentToLocalCandidate(args.candidate, snapshot, lookupError);
+
+  if (!snapshot || !comparison.safeToApply || comparison.proposedActions.length === 0) {
+    return {
+      actionsApplied: [],
+      message: comparison.manualReviewReason ?? "Row is already matched or requires manual review.",
+      providerPaymentId: args.candidate.providerPaymentId,
+      status: "skipped",
+    };
+  }
+
+  const applyResult = await args.stub.applyHistoricalStripeReconciliation({
+    actions: comparison.proposedActions,
+    adminUserId: args.adminUserId,
+    organizationId: args.organizationId,
+    providerPaymentId: args.candidate.providerPaymentId,
+    reason: args.reason,
+    stripeSnapshot: {
+      amountChargedCents: snapshot.amountChargedCents,
+      amountRefundedCents: snapshot.amountRefundedCents,
+      fullyRefunded: snapshot.fullyRefunded,
+      processorFeeCents: snapshot.processorFeeCents,
+      providerBalanceTransactionId: snapshot.providerBalanceTransactionId,
+      refundCompletedAt: snapshot.refundCompletedAt,
+    },
+  });
+
+  return {
+    actionsApplied: [...applyResult.actionsApplied],
+    message: applyResult.message,
+    providerPaymentId: args.candidate.providerPaymentId,
+    status: applyResult.status,
+  };
+}
+
+async function resolveReconciliationStripeAccess(
+  context: Context<WorkerHonoEnvironment>,
+  stub: ReturnType<typeof organizationStoreStub>,
+  organizationId: string,
+): Promise<
+  | { readonly accountId: string; readonly ok: true; readonly secretKey: string }
+  | { readonly ok: false; readonly response: Response }
+> {
+  const eligibilityRes = await invokeOrganizationRpc(
+    stub,
+    `https://organization.internal/internal/stripe-connect/eligibility?organizationId=${encodeURIComponent(organizationId)}`,
+  );
+  if (!eligibilityRes.ok) {
+    return {
+      ok: false,
+      response: context.json(
+        {
+          code: "stripe_connect_unavailable",
+          message: "Organization Stripe Connect details could not be checked.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        503,
+      ),
+    };
+  }
+  const eligibility = await eligibilityRes.json<{ readonly accountId: string | null }>();
+  if (!eligibility.accountId) {
+    return {
+      ok: false,
+      response: context.json(
+        {
+          code: "stripe_connect_not_connected",
+          message: "This Organization does not currently have a connected Stripe account.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        409,
+      ),
+    };
+  }
+  const secretKey = context.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    return {
+      ok: false,
+      response: context.json(
+        {
+          code: "stripe_unavailable",
+          message: "Stripe API key is not configured.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        503,
+      ),
+    };
+  }
+  return { accountId: eligibility.accountId, ok: true, secretKey };
+}
+
+async function requireReconciliationElevation(
+  context: Context<WorkerHonoEnvironment>,
+  requestUrl: URL,
+  organizationId: string,
+): Promise<
+  | { readonly adminUserId: string; readonly ok: true }
+  | { readonly ok: false; readonly response: Response }
+> {
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizePlatformAdministratorSession(
+    context.env.CONTROL_DB,
+    session?.session.id ?? null,
+    session?.user.id ?? null,
+  );
+  if (!authorization.ok) {
+    return {
+      ok: false,
+      response: context.json(
+        {
+          code: authorization.error.code,
+          message: authorization.error.message,
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        authorization.error.code === "unauthorized" ? 401 : 403,
+      ),
+    };
+  }
+  const elevation = await getPlatformOrganizationContext(
+    context.env.CONTROL_DB,
+    organizationId,
+    session?.session.id ?? "",
+    authorization.value.userId,
+  );
+  if (!elevation.canEdit) {
+    return {
+      ok: false,
+      response: context.json(
+        {
+          code: "platform_elevation_required",
+          message:
+            "Enable a current Platform Administrator elevation before applying reconciliation.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        403,
+      ),
+    };
+  }
+  return { adminUserId: authorization.value.userId, ok: true };
 }
 
 async function authorizePlatformRead(
@@ -840,43 +1063,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       }
 
       const stub = organizationStoreStub(context.env, organizationId.data);
-      const eligibilityRes = await invokeOrganizationRpc(
+      const stripeAccess = await resolveReconciliationStripeAccess(
+        context,
         stub,
-        `https://organization.internal/internal/stripe-connect/eligibility?organizationId=${encodeURIComponent(organizationId.data)}`,
+        organizationId.data,
       );
-      if (!eligibilityRes.ok) {
-        return context.json(
-          {
-            code: "stripe_connect_unavailable",
-            message: "Organization Stripe Connect details could not be checked.",
-            requestId: context.get("requestId"),
-          } satisfies ProblemDetails,
-          503,
-        );
-      }
-      const eligibility = await eligibilityRes.json<{ readonly accountId: string | null }>();
-      if (!eligibility.accountId) {
-        return context.json(
-          {
-            code: "stripe_connect_not_connected",
-            message: "This Organization does not currently have a connected Stripe account.",
-            requestId: context.get("requestId"),
-          } satisfies ProblemDetails,
-          409,
-        );
-      }
-
-      const secretKey = context.env.STRIPE_SECRET_KEY;
-      if (!secretKey) {
-        return context.json(
-          {
-            code: "stripe_unavailable",
-            message: "Stripe API key is not configured.",
-            requestId: context.get("requestId"),
-          } satisfies ProblemDetails,
-          503,
-        );
-      }
+      if (!stripeAccess.ok) return stripeAccess.response;
+      const { accountId, secretKey } = stripeAccess;
 
       const { candidates, hasMore } = await stub.listStripePaymentReconciliationCandidates({
         limit: parsedBody.data.limit,
@@ -888,47 +1081,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         candidates,
         4,
         async (candidate) => {
-          let snapshot: StripePaymentSnapshot | null = null;
-          let lookupError: ReconciliationLookupError | null = null;
-          try {
-            snapshot = await retrieveStripePaymentReconciliationSnapshot(
-              secretKey,
-              eligibility.accountId!,
-              candidate.providerPaymentId,
-            );
-          } catch (err: unknown) {
-            if (err instanceof StripeConnectError) {
-              lookupError = { code: err.code, message: err.safeMessage, status: err.status };
-            } else {
-              lookupError = { message: err instanceof Error ? err.message : String(err) };
-            }
-          }
-
-          const comparison = compareStripePaymentToLocalCandidate(candidate, snapshot, lookupError);
-
-          return {
-            classification: comparison.classification,
-            createdAt: candidate.createdAt,
-            currency: candidate.currency,
-            localAmountCents: candidate.amountCents,
-            localPaymentAttemptStatus: candidate.paymentAttemptStatus,
-            localProcessorFeeCents: candidate.processorFeeCents,
-            localProviderBalanceTransactionId: candidate.providerBalanceTransactionId,
-            localResourceStatus: candidate.resourceStatus,
-            manualReviewReason: comparison.manualReviewReason,
-            paymentType: candidate.paymentType,
-            proposedActions: [...comparison.proposedActions],
-            providerPaymentId: candidate.providerPaymentId,
-            resourceId: candidate.resourceId,
-            safeToApply: comparison.safeToApply,
-            stripeAmountChargedCents: snapshot?.amountChargedCents ?? null,
-            stripeAmountRefundedCents: snapshot?.amountRefundedCents ?? null,
-            stripeFullyRefunded: snapshot?.fullyRefunded ?? null,
-            stripeProcessorFeeCents: snapshot?.processorFeeCents ?? null,
-            stripeProviderBalanceTransactionId: snapshot?.providerBalanceTransactionId ?? null,
-            stripeRefundCompletedAt: snapshot?.refundCompletedAt ?? null,
-            stripeStatus: comparison.stripeStatus,
-          };
+          const { lookupError, snapshot } = await fetchReconciliationSnapshot(
+            secretKey,
+            accountId,
+            candidate.providerPaymentId,
+          );
+          return buildReconciliationRow(candidate, snapshot, lookupError);
         },
       );
 
@@ -954,7 +1112,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           organizationId.data,
           context.get("requestId"),
           JSON.stringify({
-            accountId: eligibility.accountId,
+            accountId,
             manualReviewCount,
             matchedCount,
             repairableCount,
@@ -966,7 +1124,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         .run();
 
       const responsePayload: PlatformStripeReconciliationPreviewResponse = {
-        accountId: eligibility.accountId,
+        accountId,
         hasMore,
         manualReviewCount,
         matchedCount,
@@ -1009,47 +1167,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         );
       }
 
-      const auth = createAuth({
-        env: context.env,
+      const elevation = await requireReconciliationElevation(
+        context,
         requestUrl,
-        waitUntil: (promise) => {
-          context.executionCtx.waitUntil(promise);
-        },
-      });
-      const session = await auth.api.getSession({ headers: context.req.raw.headers });
-      const authorization = await authorizePlatformAdministratorSession(
-        context.env.CONTROL_DB,
-        session?.session.id ?? null,
-        session?.user.id ?? null,
-      );
-      if (!authorization.ok) {
-        return context.json(
-          {
-            code: authorization.error.code,
-            message: authorization.error.message,
-            requestId: context.get("requestId"),
-          } satisfies ProblemDetails,
-          authorization.error.code === "unauthorized" ? 401 : 403,
-        );
-      }
-
-      const elevation = await getPlatformOrganizationContext(
-        context.env.CONTROL_DB,
         organizationId.data,
-        session?.session.id ?? "",
-        authorization.value.userId,
       );
-      if (!elevation.canEdit) {
-        return context.json(
-          {
-            code: "platform_elevation_required",
-            message:
-              "Enable a current Platform Administrator elevation before applying reconciliation.",
-            requestId: context.get("requestId"),
-          } satisfies ProblemDetails,
-          403,
-        );
-      }
+      if (!elevation.ok) return elevation.response;
 
       const organization = await context.env.CONTROL_DB.prepare(
         "SELECT id FROM organizations WHERE id = ? LIMIT 1",
@@ -1083,43 +1206,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       }
 
       const stub = organizationStoreStub(context.env, organizationId.data);
-      const eligibilityRes = await invokeOrganizationRpc(
+      const stripeAccess = await resolveReconciliationStripeAccess(
+        context,
         stub,
-        `https://organization.internal/internal/stripe-connect/eligibility?organizationId=${encodeURIComponent(organizationId.data)}`,
+        organizationId.data,
       );
-      if (!eligibilityRes.ok) {
-        return context.json(
-          {
-            code: "stripe_connect_unavailable",
-            message: "Organization Stripe Connect details could not be checked.",
-            requestId: context.get("requestId"),
-          } satisfies ProblemDetails,
-          503,
-        );
-      }
-      const eligibility = await eligibilityRes.json<{ readonly accountId: string | null }>();
-      if (!eligibility.accountId) {
-        return context.json(
-          {
-            code: "stripe_connect_not_connected",
-            message: "This Organization does not currently have a connected Stripe account.",
-            requestId: context.get("requestId"),
-          } satisfies ProblemDetails,
-          409,
-        );
-      }
-
-      const secretKey = context.env.STRIPE_SECRET_KEY;
-      if (!secretKey) {
-        return context.json(
-          {
-            code: "stripe_unavailable",
-            message: "Stripe API key is not configured.",
-            requestId: context.get("requestId"),
-          } satisfies ProblemDetails,
-          503,
-        );
-      }
+      if (!stripeAccess.ok) return stripeAccess.response;
+      const { accountId, secretKey } = stripeAccess;
 
       const { candidates } = await stub.listStripePaymentReconciliationCandidates({
         limit: 200,
@@ -1136,59 +1229,16 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const results: PlatformStripeReconciliationApplyResult[] = await mapConcurrent(
         targetCandidates,
         4,
-        async (candidate) => {
-          let snapshot: StripePaymentSnapshot | null = null;
-          let lookupError: ReconciliationLookupError | null = null;
-          try {
-            snapshot = await retrieveStripePaymentReconciliationSnapshot(
-              secretKey,
-              eligibility.accountId!,
-              candidate.providerPaymentId,
-            );
-          } catch (err: unknown) {
-            if (err instanceof StripeConnectError) {
-              lookupError = { code: err.code, message: err.safeMessage, status: err.status };
-            } else {
-              lookupError = { message: err instanceof Error ? err.message : String(err) };
-            }
-          }
-
-          const comparison = compareStripePaymentToLocalCandidate(candidate, snapshot, lookupError);
-
-          if (!comparison.safeToApply || comparison.proposedActions.length === 0) {
-            return {
-              actionsApplied: [],
-              message:
-                comparison.manualReviewReason ??
-                "Row is already matched or requires manual review.",
-              providerPaymentId: candidate.providerPaymentId,
-              status: "skipped",
-            };
-          }
-
-          const applyResult = await stub.applyHistoricalStripeReconciliation({
-            actions: comparison.proposedActions,
-            adminUserId: authorization.value.userId,
+        async (candidate) =>
+          applyReconciliationToCandidate({
+            accountId,
+            adminUserId: elevation.adminUserId,
+            candidate,
             organizationId: organizationId.data,
-            providerPaymentId: candidate.providerPaymentId,
             reason: parsedBody.data.reason,
-            stripeSnapshot: {
-              amountChargedCents: snapshot!.amountChargedCents,
-              amountRefundedCents: snapshot!.amountRefundedCents,
-              fullyRefunded: snapshot!.fullyRefunded,
-              processorFeeCents: snapshot!.processorFeeCents,
-              providerBalanceTransactionId: snapshot!.providerBalanceTransactionId,
-              refundCompletedAt: snapshot!.refundCompletedAt,
-            },
-          });
-
-          return {
-            actionsApplied: [...applyResult.actionsApplied],
-            message: applyResult.message,
-            providerPaymentId: candidate.providerPaymentId,
-            status: applyResult.status,
-          };
-        },
+            secretKey,
+            stub,
+          }),
       );
 
       const appliedCount = results.filter((r) => r.status === "applied").length;
@@ -1209,12 +1259,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       )
         .bind(
           crypto.randomUUID(),
-          authorization.value.userId,
+          elevation.adminUserId,
           organizationId.data,
           organizationId.data,
           context.get("requestId"),
           JSON.stringify({
-            accountId: eligibility.accountId,
+            accountId,
             appliedCount,
             failedCount,
             feeBackfilledCount,
@@ -1227,7 +1277,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         .run();
 
       const responsePayload: PlatformStripeReconciliationApplyResponse = {
-        accountId: eligibility.accountId,
+        accountId,
         appliedCount,
         failedCount,
         feeBackfilledCount,
