@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AuthApiError, listPlatformOrganizations, provisionOrganization } from "../../../auth/api";
 import { FleetSchemaPreparation } from "./FleetSchemaPreparation";
 import { PlatformOrganizationDomains } from "./OrganizationDomains";
+import { StripeConnectRecovery } from "./StripeConnectRecovery";
 import {
   organizationAccessHref,
   organizationHref,
@@ -17,6 +18,7 @@ export function OrganizationDirectory() {
   const [directory, setDirectory] = useState<DirectoryState>({ status: "loading" });
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [recoveryOrganizationId, setRecoveryOrganizationId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -221,7 +223,27 @@ export function OrganizationDirectory() {
                       >
                         Manage access
                       </a>
+                      <button
+                        aria-expanded={recoveryOrganizationId === organization.organizationId}
+                        className="button button--secondary"
+                        onClick={() => {
+                          setRecoveryOrganizationId((current) =>
+                            current === organization.organizationId
+                              ? null
+                              : organization.organizationId,
+                          );
+                        }}
+                        type="button"
+                      >
+                        Stripe Connect recovery
+                      </button>
                     </div>
+                  ) : null}
+                  {ready && recoveryOrganizationId === organization.organizationId ? (
+                    <StripeConnectRecovery
+                      key={organization.organizationId}
+                      organizationId={organization.organizationId}
+                    />
                   ) : null}
                 </li>
               );

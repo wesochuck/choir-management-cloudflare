@@ -13,7 +13,10 @@ export function OrganizationsUnavailable() {
 export function AccessUnavailable() {
   return (
     <p className="notice notice--warning" role="status">
-      Scoped Organization access is available after an Organization host has been selected.
+      To sync refunds or enable temporary edit access, open the{" "}
+      <a href="/platform/organizations">Organization directory</a> and choose “Manage access” for
+      your Organization. Stripe payment reconciliation is available on that Organization’s access
+      page.
     </p>
   );
 }

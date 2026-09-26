@@ -7,7 +7,6 @@ import {
   revokePlatformElevation,
 } from "../../../auth/api";
 import { displayDate, type ElevationState } from "./shared";
-import { StripeConnectRecovery } from "./StripeConnectRecovery";
 import { StripePaymentReconciliation } from "./StripePaymentReconciliation";
 
 export function OrganizationElevation({ organizationId }: { readonly organizationId: string }) {
@@ -158,7 +157,6 @@ export function OrganizationElevation({ organizationId }: { readonly organizatio
         </form>
       ) : null}
 
-      <StripeConnectRecovery organizationId={organizationId} />
       <StripePaymentReconciliation
         canEdit={elevation.status === "ready" && elevation.context.canEdit}
         organizationId={organizationId}
