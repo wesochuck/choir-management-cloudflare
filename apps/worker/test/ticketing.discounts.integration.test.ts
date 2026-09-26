@@ -571,6 +571,27 @@ describe("Organization ticket discounts", () => {
     );
     expect(inactiveQuote.status).toBe(422);
 
+    // Verify availability cannot be flipped through the generic term update
+    const flipAvailability = await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/tickets/discount-codes/${unusedCreated.id}`,
+      "PUT",
+      {
+        active: true,
+        bundleId: null,
+        code: "UNUSED10",
+        discountType: "percentage",
+        discountValue: 10,
+        eventId: eventA.id,
+        redemptionLimit: 5,
+      },
+      cookie,
+    );
+    expect(flipAvailability.status).toBe(400);
+    expect(await flipAvailability.json()).toMatchObject({
+      code: "discount_code_availability_lifecycle_required",
+    });
+
     // 4. Reactivate
     const unusedReactivated = discountCodeSchema.parse(
       await (

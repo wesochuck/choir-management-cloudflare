@@ -85,7 +85,18 @@ export function DiscountCodeTable({
         {
           header: "Status",
           id: "status",
-          render: (code) => (code.active ? "Active" : "Inactive"),
+          render: (code) =>
+            code.editable ? (
+              code.active ? (
+                "Active"
+              ) : (
+                "Inactive"
+              )
+            ) : (
+              <span title="Terms are locked after the first confirmed redemption.">
+                {code.active ? "Active" : "Inactive"}
+              </span>
+            ),
           sortValue: (code) => (code.active ? 1 : 0),
         },
         {

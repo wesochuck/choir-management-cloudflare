@@ -160,6 +160,18 @@ describe("DiscountCodeTable redemption controls", () => {
     expect(row3.getByRole("button", { name: "Reactivate" })).toBeInTheDocument();
     expect(row3.queryByRole("button", { name: "Deactivate" })).not.toBeInTheDocument();
 
+    // Locked rows explain the missing Edit action on their status text
+    expect(row0.getByText("Active")).not.toHaveAttribute("title");
+    expect(row1.getByText("Active")).toHaveAttribute(
+      "title",
+      "Terms are locked after the first confirmed redemption.",
+    );
+    expect(row2.getByText("Inactive")).not.toHaveAttribute("title");
+    expect(row3.getByText("Inactive")).toHaveAttribute(
+      "title",
+      "Terms are locked after the first confirmed redemption.",
+    );
+
     // Reactivation calls reactivateDiscountCode without opening edit dialog
     await user.click(row3.getByRole("button", { name: "Reactivate" }));
     expect(reactivateDiscountCode).toHaveBeenCalledOnce();
