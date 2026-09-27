@@ -20,7 +20,10 @@ import {
   type UpdateContactInput,
   type UpdateContactListInput,
 } from "./contactStore";
-import type { OrganizationEmailDomainDnsRecord } from "@choir/contracts";
+import type {
+  OrganizationEmailDomainDnsRecord,
+  PlatformStripeReconciliationCursor,
+} from "@choir/contracts";
 import {
   commitEmailDomainVerificationInStore,
   prepareEmailDomainVerificationInStore,
@@ -422,8 +425,13 @@ export class OrganizationStore extends DurableObject {
 
   // Platform Stripe reconciliation: strongly typed Durable Object RPC methods.
   listStripePaymentReconciliationCandidates(input: {
+    readonly cursor?: PlatformStripeReconciliationCursor;
     readonly limit?: number | null | undefined;
     readonly organizationId: string;
+    readonly paymentAttemptIds?: readonly string[] | undefined;
+    readonly providerPaymentIds?: readonly string[] | undefined;
+    readonly resourceIds?: readonly string[] | undefined;
+    readonly snapshotAt?: string | undefined;
     readonly since?: string | null | undefined;
   }) {
     return listStripePaymentReconciliationCandidatesInStore(this.ctx.storage, input);

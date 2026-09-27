@@ -482,13 +482,20 @@ export const platformStripeReconciliationClassificationSchema = z.enum([
   "provider_payment_missing",
   "provider_lookup_failed",
   "local_inconsistency",
+  "ticket_payment_status_mismatch",
+  "ticket_payment_not_captured_manual_review",
+  "ticket_fulfillment_manual_review",
 ]);
 
 export type PlatformStripeReconciliationClassification = z.infer<
   typeof platformStripeReconciliationClassificationSchema
 >;
 
-export const platformStripeReconciliationActionSchema = z.enum(["mark_refunded", "backfill_fee"]);
+export const platformStripeReconciliationActionSchema = z.enum([
+  "mark_paid",
+  "mark_refunded",
+  "backfill_fee",
+]);
 
 export type PlatformStripeReconciliationAction = z.infer<
   typeof platformStripeReconciliationActionSchema
@@ -504,24 +511,41 @@ export const platformStripeReconciliationRowSchema = z.object({
   localProviderBalanceTransactionId: z.string().nullable(),
   localResourceStatus: z.string(),
   manualReviewReason: z.string().nullable(),
+  paymentAttemptId: z.string().min(1).max(128),
   paymentType: z.enum(["ticket", "bundle", "donation", "dues"]),
   proposedActions: z.array(platformStripeReconciliationActionSchema),
   providerPaymentId: z.string(),
   resourceId: z.string(),
   safeToApply: z.boolean(),
   stripeAmountChargedCents: z.number().int().nonnegative().nullable(),
+  stripeAmountCapturedCents: z.number().int().nonnegative().nullable(),
+  stripeAmountReceivedCents: z.number().int().nonnegative().nullable(),
   stripeAmountRefundedCents: z.number().int().nonnegative().nullable(),
+  stripeChargeCaptured: z.boolean().nullable(),
+  stripeChargeStatus: z.string().nullable(),
   stripeFullyRefunded: z.boolean().nullable(),
   stripeProcessorFeeCents: z.number().int().nonnegative().nullable(),
   stripeProviderBalanceTransactionId: z.string().nullable(),
   stripeRefundCompletedAt: z.string().nullable(),
   stripeStatus: z.string().nullable(),
+  stripePaymentIntentStatus: z.string().nullable(),
 });
 
 export type PlatformStripeReconciliationRow = z.infer<typeof platformStripeReconciliationRowSchema>;
 
+export const platformStripeReconciliationCursorSchema = z.object({
+  createdAt: z.iso.datetime(),
+  paymentAttemptId: z.string().min(1).max(128),
+});
+
+export type PlatformStripeReconciliationCursor = z.infer<
+  typeof platformStripeReconciliationCursorSchema
+>;
+
 export const platformStripeReconciliationPreviewRequestSchema = z.object({
+  cursor: platformStripeReconciliationCursorSchema.optional(),
   limit: z.number().int().min(1).max(200).optional(),
+  snapshotAt: z.iso.datetime().optional(),
   since: z.iso.datetime().nullable().optional(),
 });
 
@@ -539,18 +563,37 @@ export const platformStripeReconciliationPreviewResponseSchema = z.object({
   requestId: requestIdSchema,
   rows: z.array(platformStripeReconciliationRowSchema),
   scannedCount: z.number().int().nonnegative(),
+  nextCursor: platformStripeReconciliationCursorSchema.nullable(),
+  snapshotAt: z.iso.datetime(),
 });
 
 export type PlatformStripeReconciliationPreviewResponse = z.infer<
   typeof platformStripeReconciliationPreviewResponseSchema
 >;
 
-export const platformStripeReconciliationApplyRequestSchema = z.object({
-  confirm: z.literal(true),
-  providerPaymentIds: z.array(z.string().min(1)).optional(),
-  reason: z.string().trim().min(3).max(500),
-  since: z.iso.datetime().nullable().optional(),
-});
+export const platformStripeReconciliationApplyRequestSchema = z
+  .object({
+    confirm: z.literal(true),
+    paymentAttemptIds: z.array(z.string().min(1).max(128)).min(1).max(200).optional(),
+    providerPaymentIds: z.array(z.string().min(1)).min(1).max(200).optional(),
+    resourceIds: z.array(z.string().min(1)).min(1).max(200).optional(),
+    reason: z.string().trim().min(3).max(500),
+    snapshotAt: z.iso.datetime().optional(),
+    since: z.iso.datetime().nullable().optional(),
+  })
+  .refine(
+    (request) =>
+      [request.resourceIds, request.providerPaymentIds, request.paymentAttemptIds].filter(
+        (selection) => selection !== undefined,
+      ).length <= 1,
+    { message: "Choose one reconciliation selection key." },
+  )
+  .refine(
+    (request) =>
+      request.paymentAttemptIds === undefined ||
+      new Set(request.paymentAttemptIds).size === request.paymentAttemptIds.length,
+    { message: "A reconciliation payment attempt may only be selected once." },
+  );
 
 export type PlatformStripeReconciliationApplyRequest = z.infer<
   typeof platformStripeReconciliationApplyRequestSchema
@@ -573,6 +616,7 @@ export const platformStripeReconciliationApplyResponseSchema = z.object({
   failedCount: z.number().int().nonnegative(),
   feeBackfilledCount: z.number().int().nonnegative(),
   organizationId: organizationIdSchema,
+  paidCount: z.number().int().nonnegative(),
   refundedCount: z.number().int().nonnegative(),
   requestId: requestIdSchema,
   results: z.array(platformStripeReconciliationApplyResultSchema),

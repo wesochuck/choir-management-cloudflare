@@ -211,7 +211,7 @@ describe("Platform Stripe Reconciliation", () => {
                  'Alice Test', 'alice@test.com', 2, 2500, 0, 5000, 'usd',
                  'cs_dryrun_1', 'pi_dryrun_1', 'paid', 0, ?, ?)`,
         ticketId,
-        crypto.randomUUID(),
+        "req_dryrun_1",
         eventId,
         now,
         now,
@@ -326,7 +326,7 @@ describe("Platform Stripe Reconciliation", () => {
                  'Bob Buyer', 'bob@test.com', 2, 2500, 0, 5000, 'usd',
                  'cs_ticket_1', 'pi_ticket_1', 'paid', 0, ?, ?)`,
         ticketId,
-        crypto.randomUUID(),
+        "req_ticket_1",
         eventId,
         now,
         now,
@@ -512,7 +512,7 @@ describe("Platform Stripe Reconciliation", () => {
                  'Charlie', 'charlie@test.com', 1, 10000, 0, 10000, 'usd',
                  'cs_bundle_1', 'pi_bundle_1', 'paid', 0, ?, ?)`,
         bundlePurchaseId,
-        crypto.randomUUID(),
+        "req_bundle_1",
         bundleId,
         now,
         now,
@@ -611,7 +611,7 @@ describe("Platform Stripe Reconciliation", () => {
                  'Ida Test', 'ida@test.com', 1, 4000, 0, 4000, 'usd',
                  'cs_twice_1', 'pi_twice_1', 'paid', 0, ?, ?)`,
         ticketId,
-        crypto.randomUUID(),
+        "req_twice_1",
         eventId,
         now,
         now,
@@ -743,7 +743,7 @@ describe("Platform Stripe Reconciliation", () => {
                  'Owen Owner', 'owen@test.com', 1, 6000, 0, 6000, 'usd',
                  'cs_orghost_1', 'pi_orghost_1', 'paid', 0, ?, ?)`,
         ticketId,
-        crypto.randomUUID(),
+        "req_orghost_1",
         eventId,
         now,
         now,
@@ -832,6 +832,419 @@ describe("Platform Stripe Reconciliation", () => {
     );
     expect(orgApplyData.appliedCount).toBe(1);
     expect(orgApplyData.refundedCount).toBe(1);
+  });
+
+  it("paginates beyond the newest 200 abandoned Checkouts and repairs the older paid purchase exactly once", async () => {
+    const { orgId, stub } = await seedTestOrganization();
+    const accountId = "acct_missing_webhook_payment";
+    await seedConnectedStripe(stub, orgId, accountId);
+
+    const now = new Date();
+    const createdAt = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString();
+    const expiredAt = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const abandonedCreatedAt = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const abandonedExpiredAt = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    const eventId = crypto.randomUUID();
+    const purchaseId = crypto.randomUUID();
+    const attemptId = `payment-attempt:${purchaseId}`;
+    const checkoutRequestId = crypto.randomUUID();
+    const stripeSessionId = "cs_reconciliation_old_1";
+    const paymentIntentId = "pi_reconciliation_old_1";
+    const abandonedCheckouts = Array.from({ length: 205 }, (_, index) => {
+      const suffix = String(index).padStart(3, "0");
+      return {
+        attemptId: `attempt_abandoned_${suffix}`,
+        checkoutRequestId: `request_abandoned_${suffix}`,
+        purchaseId: `purchase_abandoned_${suffix}`,
+        sessionId: `cs_reconciliation_abandoned_${suffix}`,
+      };
+    });
+
+    await runInDurableObject(stub, (_instance: unknown, state: DurableObjectState) => {
+      state.storage.sql.exec(
+        `INSERT INTO events
+          (id, title, type, starts_at, ticket_capacity, created_at, updated_at)
+         VALUES (?, 'Archived Spring Concert', 'Performance', ?, 3, ?, ?)`,
+        eventId,
+        createdAt,
+        createdAt,
+        createdAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO ticket_purchases
+          (id, checkout_request_id, event_id, event_title, event_starts_at, event_timezone,
+           bundle_id, bundle_title, buyer_name, buyer_email, quantity, unit_price_cents,
+           fee_cents, amount_paid_cents, currency, provider_session_id, provider_payment_id,
+           status, marketing_opt_in, created_at, updated_at, expires_at, expired_at)
+         VALUES (?, ?, ?, 'Archived Spring Concert', ?, 'America/New_York', NULL, '',
+                 'Morgan Buyer', 'morgan.buyer@example.com', 2, 67, 0, 134, 'usd', ?, '',
+                 'expired', 0, ?, ?, ?, ?)`,
+        purchaseId,
+        checkoutRequestId,
+        eventId,
+        createdAt,
+        stripeSessionId,
+        createdAt,
+        createdAt,
+        expiredAt,
+        expiredAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO payment_attempts
+          (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+           provider_payment_id, status, amount_cents, created_at, updated_at, expired_at)
+         VALUES (?, 'ticket', ?, ?, ?, '', 'expired', 134, ?, ?, ?)`,
+        attemptId,
+        purchaseId,
+        checkoutRequestId,
+        stripeSessionId,
+        createdAt,
+        createdAt,
+        expiredAt,
+      );
+      for (const abandoned of abandonedCheckouts) {
+        state.storage.sql.exec(
+          `INSERT INTO ticket_purchases
+            (id, checkout_request_id, event_id, event_title, event_starts_at, event_timezone,
+             bundle_id, bundle_title, buyer_name, buyer_email, quantity, unit_price_cents,
+             fee_cents, amount_paid_cents, currency, provider_session_id, provider_payment_id,
+             status, marketing_opt_in, created_at, updated_at, expires_at, expired_at)
+           VALUES (?, ?, ?, 'Archived Spring Concert', ?, 'America/New_York', NULL, '',
+                   'Abandoned Buyer', 'abandoned.buyer@example.com', 1, 134, 0, 134, 'usd', ?, '',
+                   'expired', 0, ?, ?, ?, ?)`,
+          abandoned.purchaseId,
+          abandoned.checkoutRequestId,
+          eventId,
+          abandonedCreatedAt,
+          abandoned.sessionId,
+          abandonedCreatedAt,
+          abandonedCreatedAt,
+          abandonedExpiredAt,
+          abandonedExpiredAt,
+        );
+        state.storage.sql.exec(
+          `INSERT INTO payment_attempts
+            (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+             provider_payment_id, status, amount_cents, created_at, updated_at, expired_at)
+           VALUES (?, 'ticket', ?, ?, ?, '', 'expired', 134, ?, ?, ?)`,
+          abandoned.attemptId,
+          abandoned.purchaseId,
+          abandoned.checkoutRequestId,
+          abandoned.sessionId,
+          abandonedCreatedAt,
+          abandonedCreatedAt,
+          abandonedExpiredAt,
+        );
+      }
+      const reconciliationPlan = state.storage.sql
+        .exec<{ readonly detail: string }>(
+          `EXPLAIN QUERY PLAN SELECT pa.id
+           FROM payment_attempts pa INDEXED BY payment_attempts_stripe_reconciliation_page
+           JOIN ticket_purchases p
+             ON pa.payment_type IN ('ticket', 'bundle') AND pa.resource_id = p.id
+           WHERE pa.payment_type IN ('ticket', 'bundle')
+             AND (pa.status IN ('paid', 'refunded', 'pending', 'expired') OR
+                  p.status IN ('paid', 'refunded', 'pending', 'expired'))
+             AND pa.provider_payment_id NOT LIKE 'fake_%'
+             AND (pa.provider_payment_id <> '' OR pa.provider_session_id GLOB 'cs_*')
+             AND pa.amount_cents > 0
+             AND (? IS NULL OR pa.created_at >= ?)
+             AND pa.created_at <= ?
+             AND (pa.created_at, pa.id) < (?, ?)
+           ORDER BY pa.created_at DESC, pa.id DESC
+           LIMIT ?`,
+          null,
+          null,
+          now.toISOString(),
+          abandonedCreatedAt,
+          "attempt_abandoned_005",
+          51,
+        )
+        .toArray()
+        .map((row) => row.detail)
+        .join(" ");
+      expect(reconciliationPlan).toContain(
+        "SEARCH pa USING INDEX payment_attempts_stripe_reconciliation_page",
+      );
+      return null;
+    });
+
+    vi.spyOn(stripeConnect, "retrieveStripeCheckoutReconciliationSession").mockImplementation(
+      (_secretKey, _connectedAccountId, requestedSessionId) => {
+        if (requestedSessionId === stripeSessionId) {
+          return Promise.resolve({
+            amountTotalCents: 134,
+            currency: "usd",
+            id: stripeSessionId,
+            metadata: {
+              checkout_request_id: checkoutRequestId,
+              organization_id: orgId,
+              payment_type: "ticket",
+              purchase_id: purchaseId,
+            },
+            mode: "payment",
+            paymentIntentId,
+            paymentStatus: "paid",
+            status: "complete",
+          });
+        }
+        const abandoned = abandonedCheckouts.find(
+          (checkout) => checkout.sessionId === requestedSessionId,
+        );
+        if (!abandoned) throw new Error("Unexpected reconciliation Checkout Session ID");
+        return Promise.resolve({
+          amountTotalCents: 134,
+          currency: "usd",
+          id: abandoned.sessionId,
+          metadata: {
+            checkout_request_id: abandoned.checkoutRequestId,
+            organization_id: orgId,
+            payment_type: "ticket",
+            purchase_id: abandoned.purchaseId,
+          },
+          mode: "payment",
+          paymentIntentId: null,
+          paymentStatus: "unpaid",
+          status: "expired",
+        });
+      },
+    );
+    vi.spyOn(stripeConnect, "retrieveStripePaymentReconciliationSnapshot").mockResolvedValue({
+      amountCapturedCents: 134,
+      amountChargedCents: 134,
+      amountReceivedCents: 134,
+      amountRefundedCents: 0,
+      chargeCaptured: true,
+      chargeId: "ch_reconciliation_old_1",
+      chargeStatus: "succeeded",
+      currency: "usd",
+      fullyRefunded: false,
+      paymentIntentId,
+      paymentIntentStatus: "succeeded",
+      processorFeeCents: 36,
+      providerBalanceTransactionId: "txn_reconciliation_old_1",
+      providerPaymentId: paymentIntentId,
+      refundCompletedAt: null,
+    });
+
+    await seedInvitedUser();
+    const memberCookie = await signInInvitedUser();
+    const platformSessionId = await grantPlatformAdministratorForCurrentSession();
+    await grantPlatformElevation(orgId, platformSessionId);
+    const since = createdAt;
+
+    const previewResponse = await fetchWorker(
+      authRequest(`/api/platform/organizations/${orgId}/stripe-reconciliation/preview`, {
+        body: JSON.stringify({ since }),
+        headers: { cookie: memberCookie },
+        method: "POST",
+      }),
+    );
+    expect(previewResponse.status).toBe(200);
+    const preview = platformStripeReconciliationPreviewResponseSchema.parse(
+      await previewResponse.json(),
+    );
+    expect(preview).toMatchObject({ hasMore: true, scannedCount: 50 });
+    expect(preview.nextCursor).toEqual({
+      createdAt: abandonedCreatedAt,
+      paymentAttemptId: "attempt_abandoned_155",
+    });
+    expect(preview.rows.some((row) => row.resourceId === purchaseId)).toBe(false);
+    expect(preview.rows.at(-1)?.paymentAttemptId).toBe("attempt_abandoned_155");
+
+    const previewPages = [preview];
+    let currentPage = preview;
+    while (currentPage.hasMore && previewPages.length < 5) {
+      const cursor = currentPage.nextCursor;
+      if (!cursor) throw new Error("Expected the next reconciliation page cursor");
+      const nextPageResponse = await fetchWorker(
+        authRequest(`/api/platform/organizations/${orgId}/stripe-reconciliation/preview`, {
+          body: JSON.stringify({ cursor, since, snapshotAt: preview.snapshotAt }),
+          headers: { cookie: memberCookie },
+          method: "POST",
+        }),
+      );
+      expect(nextPageResponse.status).toBe(200);
+      currentPage = platformStripeReconciliationPreviewResponseSchema.parse(
+        await nextPageResponse.json(),
+      );
+      previewPages.push(currentPage);
+    }
+    expect(previewPages).toHaveLength(5);
+    expect(previewPages[1]?.rows[0]?.paymentAttemptId).toBe("attempt_abandoned_154");
+    const nextPage = previewPages.at(-1);
+    if (!nextPage) throw new Error("Expected the final reconciliation page");
+    expect(nextPage).toMatchObject({ hasMore: false, repairableCount: 1, scannedCount: 6 });
+    expect(nextPage.rows[0]?.paymentAttemptId).toBe("attempt_abandoned_004");
+    expect(nextPage.rows.some((row) => row.resourceId === purchaseId)).toBe(true);
+    expect(
+      new Set(previewPages.flatMap((page) => page.rows).map((row) => row.paymentAttemptId)).size,
+    ).toBe(206);
+    const repairedRow = nextPage.rows.find((row) => row.resourceId === purchaseId);
+    if (!repairedRow) throw new Error("Expected the older successful payment after page four");
+    expect(repairedRow).toMatchObject({
+      classification: "ticket_payment_status_mismatch",
+      localPaymentAttemptStatus: "expired",
+      localResourceStatus: "expired",
+      proposedActions: ["mark_paid", "backfill_fee"],
+      paymentAttemptId: attemptId,
+      resourceId: purchaseId,
+    });
+
+    const requestBody = {
+      confirm: true,
+      paymentAttemptIds: [repairedRow.paymentAttemptId],
+      reason: "Repair a successful Stripe payment whose webhook was missed",
+      since,
+      snapshotAt: nextPage.snapshotAt,
+    };
+    const emptySelectionResponse = await fetchWorker(
+      authRequest(`/api/platform/organizations/${orgId}/stripe-reconciliation/apply`, {
+        body: JSON.stringify({ ...requestBody, paymentAttemptIds: [] }),
+        headers: { cookie: memberCookie },
+        method: "POST",
+      }),
+    );
+    expect(emptySelectionResponse.status).toBe(400);
+    await runInDurableObject(stub, (_instance: unknown, state: DurableObjectState) => {
+      expect(
+        state.storage.sql
+          .exec<{ readonly status: string }>(
+            "SELECT status FROM ticket_purchases WHERE id = ?",
+            purchaseId,
+          )
+          .one().status,
+      ).toBe("expired");
+      expect(
+        state.storage.sql
+          .exec<{ readonly count: number }>("SELECT COUNT(*) AS count FROM contacts")
+          .one().count,
+      ).toBe(0);
+      return null;
+    });
+    const applyResponse = await fetchWorker(
+      authRequest(`/api/platform/organizations/${orgId}/stripe-reconciliation/apply`, {
+        body: JSON.stringify(requestBody),
+        headers: { cookie: memberCookie },
+        method: "POST",
+      }),
+    );
+    expect(applyResponse.status).toBe(200);
+    const applied = platformStripeReconciliationApplyResponseSchema.parse(
+      await applyResponse.json(),
+    );
+    expect(applied).toMatchObject({ appliedCount: 1, paidCount: 1, feeBackfilledCount: 1 });
+    expect(applied.results[0]?.providerPaymentId).toBe(paymentIntentId);
+
+    await runInDurableObject(stub, (_instance: unknown, state: DurableObjectState) => {
+      const purchase = state.storage.sql
+        .exec<{
+          readonly amount_paid_cents: number;
+          readonly expired_at: string | null;
+          readonly expires_at: string | null;
+          readonly provider_payment_id: string;
+          readonly status: string;
+        }>(
+          `SELECT amount_paid_cents, expired_at, expires_at, provider_payment_id, status
+           FROM ticket_purchases WHERE id = ?`,
+          purchaseId,
+        )
+        .one();
+      expect(purchase).toMatchObject({
+        amount_paid_cents: 134,
+        expired_at: null,
+        expires_at: null,
+        provider_payment_id: paymentIntentId,
+        status: "paid",
+      });
+
+      const attempt = state.storage.sql
+        .exec<{
+          readonly processor_fee_cents: number | null;
+          readonly provider_balance_transaction_id: string | null;
+          readonly status: string;
+        }>(
+          `SELECT processor_fee_cents, provider_balance_transaction_id, status
+           FROM payment_attempts WHERE id = ?`,
+          attemptId,
+        )
+        .one();
+      expect(attempt).toMatchObject({
+        processor_fee_cents: 36,
+        provider_balance_transaction_id: "txn_reconciliation_old_1",
+        status: "paid",
+      });
+
+      const counts = state.storage.sql
+        .exec<{
+          readonly contacts: number;
+          readonly notifications: number;
+          readonly paidTickets: number;
+          readonly queuedJobs: number;
+          readonly reconciliationAudits: number;
+        }>(
+          `SELECT
+            (SELECT COUNT(*) FROM contacts WHERE normalized_email = 'morgan.buyer@example.com') AS contacts,
+            (SELECT COUNT(*) FROM ticket_notifications WHERE purchase_id = ?) AS notifications,
+            (SELECT COALESCE(SUM(quantity), 0) FROM ticket_purchases WHERE id = ? AND status = 'paid') AS paidTickets,
+            (SELECT COUNT(*) FROM scheduled_job_outbox) AS queuedJobs,
+            (SELECT COUNT(*) FROM audit_events WHERE action = 'payment.stripe_history.reconciled') AS reconciliationAudits`,
+          purchaseId,
+          purchaseId,
+        )
+        .one();
+      expect(counts).toEqual({
+        contacts: 1,
+        notifications: 0,
+        paidTickets: 2,
+        queuedJobs: 0,
+        reconciliationAudits: 1,
+      });
+      return null;
+    });
+
+    const repeatedApplyResponse = await fetchWorker(
+      authRequest(`/api/platform/organizations/${orgId}/stripe-reconciliation/apply`, {
+        body: JSON.stringify(requestBody),
+        headers: { cookie: memberCookie },
+        method: "POST",
+      }),
+    );
+    expect(repeatedApplyResponse.status).toBe(200);
+    const repeated = platformStripeReconciliationApplyResponseSchema.parse(
+      await repeatedApplyResponse.json(),
+    );
+    expect(repeated).toMatchObject({ appliedCount: 0, paidCount: 0, skippedCount: 1 });
+
+    await runInDurableObject(stub, (_instance: unknown, state: DurableObjectState) => {
+      expect(
+        state.storage.sql
+          .exec<{ readonly count: number }>(
+            `SELECT COUNT(*) AS count FROM contacts
+             WHERE normalized_email = 'morgan.buyer@example.com'`,
+          )
+          .one().count,
+      ).toBe(1);
+      expect(
+        state.storage.sql
+          .exec<{ readonly count: number }>(
+            `SELECT COUNT(*) AS count FROM audit_events
+             WHERE action = 'payment.stripe_history.reconciled'`,
+          )
+          .one().count,
+      ).toBe(1);
+      expect(
+        state.storage.sql
+          .exec<{ readonly count: number }>("SELECT COUNT(*) AS count FROM ticket_notifications")
+          .one().count,
+      ).toBe(0);
+      expect(
+        state.storage.sql
+          .exec<{ readonly count: number }>("SELECT COUNT(*) AS count FROM scheduled_job_outbox")
+          .one().count,
+      ).toBe(0);
+      return null;
+    });
   });
 
   it("KPI regression: reproduces the accounting problem and verifies financial summary post-reconciliation", () => {

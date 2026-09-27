@@ -1,4 +1,5 @@
 import type {
+  PlatformStripeReconciliationCursor,
   PlatformStripeReconciliationApplyResponse,
   PlatformStripeReconciliationPreviewResponse,
   PlatformStripeReconciliationRow,
@@ -44,6 +45,12 @@ function classificationBadge(classification: PlatformStripeReconciliationRow["cl
       return <span className="status-pill status-pill--warning">Repair refund & fee</span>;
     case "refund_status_mismatch":
       return <span className="status-pill status-pill--warning">Repair refund</span>;
+    case "ticket_payment_status_mismatch":
+      return <span className="status-pill status-pill--warning">Restore paid ticket</span>;
+    case "ticket_payment_not_captured_manual_review":
+      return <span className="status-pill status-pill--error">Payment not captured</span>;
+    case "ticket_fulfillment_manual_review":
+      return <span className="status-pill status-pill--error">Ticket needs review</span>;
     case "processor_fee_missing":
     case "balance_transaction_missing":
       return <span className="status-pill status-pill--neutral">Backfill fee</span>;
@@ -63,10 +70,10 @@ function classificationBadge(classification: PlatformStripeReconciliationRow["cl
 function formatApplySuccessMessage(
   result: Pick<
     PlatformStripeReconciliationApplyResponse,
-    "appliedCount" | "feeBackfilledCount" | "refundedCount"
+    "appliedCount" | "feeBackfilledCount" | "paidCount" | "refundedCount"
   >,
 ): string {
-  return `Applied reconciliation repairs: ${String(result.appliedCount)} record${result.appliedCount === 1 ? "" : "s"} updated (${String(result.refundedCount)} refund${result.refundedCount === 1 ? "" : "s"}, ${String(result.feeBackfilledCount)} fee${result.feeBackfilledCount === 1 ? "" : "s"} backfilled).`;
+  return `Applied reconciliation repairs: ${String(result.appliedCount)} record${result.appliedCount === 1 ? "" : "s"} updated (${String(result.paidCount)} ticket${result.paidCount === 1 ? "" : "s"} restored, ${String(result.refundedCount)} refund${result.refundedCount === 1 ? "" : "s"}, ${String(result.feeBackfilledCount)} fee${result.feeBackfilledCount === 1 ? "" : "s"} backfilled).`;
 }
 
 const reconciliationColumns: readonly DataTableColumn<PlatformStripeReconciliationRow>[] = [
@@ -150,10 +157,18 @@ function ReconciliationResults({
   canEdit,
   data,
   onOpenApply,
+  onNextPage,
+  onPreviousPage,
+  hasPreviousPage,
+  loading,
 }: {
   readonly canEdit: boolean;
   readonly data: PlatformStripeReconciliationPreviewResponse;
+  readonly hasPreviousPage: boolean;
+  readonly loading: boolean;
   readonly onOpenApply: () => void;
+  readonly onNextPage: () => void;
+  readonly onPreviousPage: () => void;
 }) {
   return (
     <div className="platform-reconciliation-results">
@@ -178,9 +193,30 @@ function ReconciliationResults({
 
       {data.hasMore ? (
         <p className="notice notice--warning" role="status">
-          Only part of the payment history was scanned. Narrow the date range with “Only check
-          payments since” and run the preview again to cover the remaining records.
+          More payment history is available on the next page. Only the displayed page has been
+          checked against Stripe.
         </p>
+      ) : null}
+
+      {hasPreviousPage || data.nextCursor ? (
+        <nav aria-label="Stripe reconciliation pages" className="platform-reconciliation-pages">
+          <button
+            className="button button--secondary"
+            disabled={!hasPreviousPage || loading}
+            onClick={onPreviousPage}
+            type="button"
+          >
+            Previous page
+          </button>
+          <button
+            className="button button--secondary"
+            disabled={!data.nextCursor || loading}
+            onClick={onNextPage}
+            type="button"
+          >
+            Next page
+          </button>
+        </nav>
       ) : null}
 
       <div className="platform-reconciliation-actions">
@@ -222,6 +258,13 @@ export function StripePaymentReconciliation({
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewData, setPreviewData] =
     useState<PlatformStripeReconciliationPreviewResponse | null>(null);
+  const [previewSinceIso, setPreviewSinceIso] = useState<string | null>(null);
+  const [previewCursor, setPreviewCursor] = useState<PlatformStripeReconciliationCursor | null>(
+    null,
+  );
+  const [cursorHistory, setCursorHistory] = useState<(PlatformStripeReconciliationCursor | null)[]>(
+    [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -230,18 +273,26 @@ export function StripePaymentReconciliation({
   const [applyBusy, setApplyBusy] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
 
-  async function handleRunPreview(clearSuccess = true) {
+  async function runPreviewPage(args: {
+    readonly clearSuccess: boolean;
+    readonly cursor: PlatformStripeReconciliationCursor | null;
+    readonly since: string | null;
+    readonly snapshotAt: string | null;
+  }) {
     setLoadingPreview(true);
     setError(null);
-    if (clearSuccess) {
+    if (args.clearSuccess) {
       setSuccessMessage(null);
     }
     try {
-      const sinceIso = sinceDate ? new Date(`${sinceDate}T00:00:00Z`).toISOString() : undefined;
       const data = await previewPlatformStripeReconciliation(organizationId, {
-        since: sinceIso,
+        ...(args.cursor ? { cursor: args.cursor } : {}),
+        since: args.since ?? undefined,
+        ...(args.snapshotAt ? { snapshotAt: args.snapshotAt } : {}),
       });
       setPreviewData(data);
+      setPreviewSinceIso(args.since);
+      setPreviewCursor(args.cursor);
     } catch (err: unknown) {
       setError(
         err instanceof AuthApiError
@@ -253,10 +304,48 @@ export function StripePaymentReconciliation({
     }
   }
 
+  async function handleRunPreview(clearSuccess = true) {
+    const since = sinceDate ? new Date(`${sinceDate}T00:00:00Z`).toISOString() : null;
+    setCursorHistory([]);
+    await runPreviewPage({ clearSuccess, cursor: null, since, snapshotAt: null });
+  }
+
+  async function handleNextPage() {
+    const cursor = previewData?.nextCursor;
+    if (!previewData || !cursor) return;
+    setCursorHistory((history) => [...history, previewCursor]);
+    await runPreviewPage({
+      clearSuccess: false,
+      cursor,
+      since: previewSinceIso,
+      snapshotAt: previewData.snapshotAt,
+    });
+  }
+
+  async function handlePreviousPage() {
+    const previousCursor = cursorHistory.at(-1);
+    if (!previewData || previousCursor === undefined) return;
+    setCursorHistory((history) => history.slice(0, -1));
+    await runPreviewPage({
+      clearSuccess: false,
+      cursor: previousCursor,
+      since: previewSinceIso,
+      snapshotAt: previewData.snapshotAt,
+    });
+  }
+
   async function handleApplySubmit() {
     const trimmedReason = applyReason.trim();
     if (trimmedReason.length < 3 || trimmedReason.length > 500) {
       setApplyError("Reason must be between 3 and 500 characters.");
+      return;
+    }
+    const paymentAttemptIds =
+      previewData?.rows
+        .filter((row) => row.safeToApply && row.proposedActions.length > 0)
+        .map((row) => row.paymentAttemptId) ?? [];
+    if (paymentAttemptIds.length === 0 || !previewData) {
+      setApplyError("Run a new preview before applying reconciliation repairs.");
       return;
     }
 
@@ -265,7 +354,10 @@ export function StripePaymentReconciliation({
     try {
       const result = await applyPlatformStripeReconciliation(organizationId, {
         confirm: true,
+        paymentAttemptIds,
         reason: trimmedReason,
+        since: previewSinceIso,
+        snapshotAt: previewData.snapshotAt,
       });
       setApplyDialogOpen(false);
       setApplyReason("");
@@ -291,9 +383,9 @@ export function StripePaymentReconciliation({
       <div className="section-heading section-heading--nested platform-operation__heading">
         <h4 id="stripe-reconciliation-title">Stripe payment reconciliation</h4>
         <p>
-          Audit and repair historical payments against Stripe truth. Safely fixes missing refund
-          records and backfills processor fees without notifying customers or issuing new Stripe
-          charges.
+          Audit and repair historical payments against Stripe truth. Restores confirmed successful
+          ticket payments, fixes missing refund records, and backfills processor fees without
+          notifying customers or issuing new Stripe charges.
         </p>
       </div>
 
@@ -341,11 +433,15 @@ export function StripePaymentReconciliation({
         <ReconciliationResults
           canEdit={canEdit}
           data={previewData}
+          hasPreviousPage={cursorHistory.length > 0}
+          loading={loadingPreview}
+          onNextPage={() => void handleNextPage()}
           onOpenApply={() => {
             setApplyError(null);
             setApplyReason("");
             setApplyDialogOpen(true);
           }}
+          onPreviousPage={() => void handlePreviousPage()}
         />
       ) : null}
 
@@ -381,8 +477,9 @@ export function StripePaymentReconciliation({
                 refund emails for historical repairs.
               </li>
               <li>
-                <strong>Accurate financial KPIs:</strong> Updates local payment and ticket status to
-                reflect full refunds and backfills processor fees, restoring correct net proceeds.
+                <strong>Accurate ticketing and financial records:</strong> Restores paid ticket
+                status when Stripe confirms a successful captured payment, reflects full refunds,
+                and backfills processor fees. Historical ticket emails are not sent.
               </li>
               <li>
                 <strong>Audit logging:</strong> A permanent{" "}

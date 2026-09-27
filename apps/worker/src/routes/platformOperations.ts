@@ -24,6 +24,7 @@ import {
 import { z } from "zod";
 import { removeStripeAccountOrganization } from "../payments/stripeRouting";
 import {
+  retrieveStripeCheckoutReconciliationSession,
   retrieveStripePaymentReconciliationSnapshot,
   StripeConnectError,
 } from "../payments/stripeConnect";
@@ -88,21 +89,244 @@ async function mapConcurrent<T, R>(
   return results;
 }
 
+function checkoutSessionSnapshotFields(
+  session: Awaited<ReturnType<typeof retrieveStripeCheckoutReconciliationSession>>,
+): Partial<StripePaymentSnapshot> {
+  return {
+    checkoutSessionAmountCents: session.amountTotalCents,
+    checkoutSessionCurrency: session.currency,
+    checkoutSessionId: session.id,
+    checkoutSessionMode: session.mode,
+    checkoutSessionOrganizationId: session.metadata.organization_id ?? null,
+    checkoutSessionPaymentStatus: session.paymentStatus,
+    checkoutSessionPaymentType: session.metadata.payment_type ?? null,
+    checkoutSessionPurchaseId: session.metadata.purchase_id ?? null,
+    checkoutSessionRequestId: session.metadata.checkout_request_id ?? null,
+    checkoutSessionStatus: session.status,
+  };
+}
+
+function checkoutSessionMatchesCandidate(
+  session: Awaited<ReturnType<typeof retrieveStripeCheckoutReconciliationSession>>,
+  candidate: LocalPaymentCandidate,
+  organizationId: string,
+): boolean {
+  return (
+    session.id === candidate.providerSessionId &&
+    session.mode === "payment" &&
+    session.metadata.organization_id === organizationId &&
+    session.metadata.purchase_id === candidate.resourceId &&
+    session.metadata.checkout_request_id === candidate.checkoutRequestId &&
+    session.metadata.payment_type === candidate.paymentType
+  );
+}
+
+function checkoutSessionFallbackSnapshot(
+  session: Awaited<ReturnType<typeof retrieveStripeCheckoutReconciliationSession>>,
+  candidate: LocalPaymentCandidate,
+  providerPaymentId: string,
+  checkoutFields: Partial<StripePaymentSnapshot>,
+): StripePaymentSnapshot {
+  return {
+    amountCapturedCents: null,
+    amountChargedCents: session.amountTotalCents ?? candidate.amountCents,
+    amountReceivedCents: null,
+    amountRefundedCents: 0,
+    chargeCaptured: null,
+    chargeId: null,
+    chargeStatus: null,
+    currency: session.currency,
+    fullyRefunded: false,
+    paymentIntentId: providerPaymentId.startsWith("pi_") ? providerPaymentId : null,
+    paymentIntentStatus: null,
+    processorFeeCents: null,
+    providerBalanceTransactionId: null,
+    providerPaymentId,
+    refundCompletedAt: null,
+    ...checkoutFields,
+  };
+}
+
+function nullable<T>(value: T | null | undefined): T | null {
+  return value ?? null;
+}
+
+function reconciliationProviderPaymentId(
+  snapshot: StripePaymentSnapshot | null,
+  candidate: LocalPaymentCandidate,
+): string {
+  if (snapshot?.providerPaymentId) return snapshot.providerPaymentId;
+  return candidate.providerPaymentId.length > 0
+    ? candidate.providerPaymentId
+    : candidate.providerSessionId;
+}
+
+function stripeRowFields(
+  snapshot: StripePaymentSnapshot | null,
+): Pick<
+  PlatformStripeReconciliationRow,
+  | "stripeAmountChargedCents"
+  | "stripeAmountCapturedCents"
+  | "stripeAmountReceivedCents"
+  | "stripeAmountRefundedCents"
+  | "stripeChargeCaptured"
+  | "stripeChargeStatus"
+  | "stripeFullyRefunded"
+  | "stripeProcessorFeeCents"
+  | "stripeProviderBalanceTransactionId"
+  | "stripeRefundCompletedAt"
+  | "stripePaymentIntentStatus"
+> {
+  return {
+    stripeAmountChargedCents: nullable(snapshot?.amountChargedCents),
+    stripeAmountCapturedCents: nullable(snapshot?.amountCapturedCents),
+    stripeAmountReceivedCents: nullable(snapshot?.amountReceivedCents),
+    stripeAmountRefundedCents: nullable(snapshot?.amountRefundedCents),
+    stripeChargeCaptured: nullable(snapshot?.chargeCaptured),
+    stripeChargeStatus: nullable(snapshot?.chargeStatus),
+    stripeFullyRefunded: nullable(snapshot?.fullyRefunded),
+    stripeProcessorFeeCents: nullable(snapshot?.processorFeeCents),
+    stripeProviderBalanceTransactionId: nullable(snapshot?.providerBalanceTransactionId),
+    stripeRefundCompletedAt: nullable(snapshot?.refundCompletedAt),
+    stripePaymentIntentStatus: nullable(snapshot?.paymentIntentStatus),
+  };
+}
+
+function stripeSnapshotForApply(snapshot: StripePaymentSnapshot) {
+  return {
+    amountChargedCents: snapshot.amountChargedCents,
+    amountCapturedCents: nullable(snapshot.amountCapturedCents),
+    amountReceivedCents: nullable(snapshot.amountReceivedCents),
+    amountRefundedCents: snapshot.amountRefundedCents,
+    chargeCaptured: nullable(snapshot.chargeCaptured),
+    chargeStatus: nullable(snapshot.chargeStatus),
+    checkoutSessionAmountCents: nullable(snapshot.checkoutSessionAmountCents),
+    checkoutSessionCurrency: nullable(snapshot.checkoutSessionCurrency),
+    checkoutSessionId: nullable(snapshot.checkoutSessionId),
+    checkoutSessionMode: nullable(snapshot.checkoutSessionMode),
+    checkoutSessionOrganizationId: nullable(snapshot.checkoutSessionOrganizationId),
+    checkoutSessionPaymentStatus: nullable(snapshot.checkoutSessionPaymentStatus),
+    checkoutSessionPaymentType: nullable(snapshot.checkoutSessionPaymentType),
+    checkoutSessionPurchaseId: nullable(snapshot.checkoutSessionPurchaseId),
+    checkoutSessionRequestId: nullable(snapshot.checkoutSessionRequestId),
+    checkoutSessionStatus: nullable(snapshot.checkoutSessionStatus),
+    currency: snapshot.currency,
+    fullyRefunded: snapshot.fullyRefunded,
+    paymentIntentId: nullable(snapshot.paymentIntentId),
+    paymentIntentStatus: nullable(snapshot.paymentIntentStatus),
+    processorFeeCents: snapshot.processorFeeCents,
+    providerBalanceTransactionId: snapshot.providerBalanceTransactionId,
+    providerPaymentId: snapshot.providerPaymentId,
+    refundCompletedAt: snapshot.refundCompletedAt,
+  };
+}
+
+function staleReconciliationSelectionResponse(context: Context<WorkerHonoEnvironment>): Response {
+  return context.json(
+    {
+      code: "stripe_reconciliation_preview_stale",
+      message:
+        "One or more selected payments changed or fell outside the preview cutoff. Run a new preview before applying.",
+      requestId: context.get("requestId"),
+    } satisfies ProblemDetails,
+    409,
+  );
+}
+
+async function selectReconciliationApplyCandidates(args: {
+  readonly organizationId: string;
+  readonly paymentAttemptIds?: readonly string[] | undefined;
+  readonly providerPaymentIds?: readonly string[] | undefined;
+  readonly resourceIds?: readonly string[] | undefined;
+  readonly since?: string | null | undefined;
+  readonly snapshotAt?: string | undefined;
+  readonly stub: ReturnType<typeof organizationStoreStub>;
+}): Promise<readonly LocalPaymentCandidate[] | null> {
+  if (args.paymentAttemptIds !== undefined) {
+    const selection = await args.stub.listStripePaymentReconciliationCandidates({
+      organizationId: args.organizationId,
+      paymentAttemptIds: args.paymentAttemptIds,
+      snapshotAt: args.snapshotAt,
+      since: args.since,
+    });
+    return selection.candidates.length === args.paymentAttemptIds.length
+      ? selection.candidates
+      : null;
+  }
+
+  if (args.resourceIds !== undefined || args.providerPaymentIds !== undefined) {
+    const selection =
+      args.resourceIds !== undefined
+        ? await args.stub.listStripePaymentReconciliationCandidates({
+            organizationId: args.organizationId,
+            resourceIds: args.resourceIds,
+            snapshotAt: args.snapshotAt,
+            since: args.since,
+          })
+        : await args.stub.listStripePaymentReconciliationCandidates({
+            organizationId: args.organizationId,
+            providerPaymentIds: args.providerPaymentIds,
+            snapshotAt: args.snapshotAt,
+            since: args.since,
+          });
+    const requestedIds = args.resourceIds ?? args.providerPaymentIds ?? [];
+    const candidateIds = new Set(
+      selection.candidates.map((candidate) =>
+        args.resourceIds !== undefined ? candidate.resourceId : candidate.providerPaymentId,
+      ),
+    );
+    return requestedIds.some((id) => !candidateIds.has(id)) ? null : selection.candidates;
+  }
+
+  const { candidates } = await args.stub.listStripePaymentReconciliationCandidates({
+    limit: 200,
+    organizationId: args.organizationId,
+    since: args.since,
+  });
+  return candidates;
+}
+
 async function fetchReconciliationSnapshot(
   secretKey: string,
   accountId: string,
-  providerPaymentId: string,
+  candidate: LocalPaymentCandidate,
+  organizationId: string,
 ): Promise<{
   readonly lookupError: ReconciliationLookupError | null;
   readonly snapshot: StripePaymentSnapshot | null;
 }> {
   try {
+    let providerPaymentId = candidate.providerPaymentId;
+    let checkoutSessionSnapshot: Partial<StripePaymentSnapshot> = {};
+    if (providerPaymentId === "") {
+      const session = await retrieveStripeCheckoutReconciliationSession(
+        secretKey,
+        accountId,
+        candidate.providerSessionId,
+      );
+      checkoutSessionSnapshot = checkoutSessionSnapshotFields(session);
+      providerPaymentId = session.paymentIntentId ?? "";
+      if (
+        !providerPaymentId.startsWith("pi_") ||
+        !checkoutSessionMatchesCandidate(session, candidate, organizationId)
+      ) {
+        return {
+          lookupError: null,
+          snapshot: checkoutSessionFallbackSnapshot(
+            session,
+            candidate,
+            providerPaymentId,
+            checkoutSessionSnapshot,
+          ),
+        };
+      }
+    }
     const snapshot = await retrieveStripePaymentReconciliationSnapshot(
       secretKey,
       accountId,
       providerPaymentId,
     );
-    return { lookupError: null, snapshot };
+    return { lookupError: null, snapshot: { ...snapshot, ...checkoutSessionSnapshot } };
   } catch (err: unknown) {
     if (err instanceof StripeConnectError) {
       return {
@@ -133,17 +357,13 @@ function buildReconciliationRow(
     localProviderBalanceTransactionId: candidate.providerBalanceTransactionId,
     localResourceStatus: candidate.resourceStatus,
     manualReviewReason: comparison.manualReviewReason,
+    paymentAttemptId: candidate.paymentAttemptId,
     paymentType: candidate.paymentType,
     proposedActions: [...comparison.proposedActions],
-    providerPaymentId: candidate.providerPaymentId,
+    providerPaymentId: reconciliationProviderPaymentId(snapshot, candidate),
     resourceId: candidate.resourceId,
     safeToApply: comparison.safeToApply,
-    stripeAmountChargedCents: snapshot?.amountChargedCents ?? null,
-    stripeAmountRefundedCents: snapshot?.amountRefundedCents ?? null,
-    stripeFullyRefunded: snapshot?.fullyRefunded ?? null,
-    stripeProcessorFeeCents: snapshot?.processorFeeCents ?? null,
-    stripeProviderBalanceTransactionId: snapshot?.providerBalanceTransactionId ?? null,
-    stripeRefundCompletedAt: snapshot?.refundCompletedAt ?? null,
+    ...stripeRowFields(snapshot),
     stripeStatus: comparison.stripeStatus,
   };
 }
@@ -160,7 +380,8 @@ async function applyReconciliationToCandidate(args: {
   const { lookupError, snapshot } = await fetchReconciliationSnapshot(
     args.secretKey,
     args.accountId,
-    args.candidate.providerPaymentId,
+    args.candidate,
+    args.organizationId,
   );
   const comparison = compareStripePaymentToLocalCandidate(args.candidate, snapshot, lookupError);
 
@@ -168,7 +389,7 @@ async function applyReconciliationToCandidate(args: {
     return {
       actionsApplied: [],
       message: comparison.manualReviewReason ?? "Row is already matched or requires manual review.",
-      providerPaymentId: args.candidate.providerPaymentId,
+      providerPaymentId: reconciliationProviderPaymentId(snapshot, args.candidate),
       status: "skipped",
     };
   }
@@ -176,23 +397,17 @@ async function applyReconciliationToCandidate(args: {
   const applyResult = await args.stub.applyHistoricalStripeReconciliation({
     actions: comparison.proposedActions,
     adminUserId: args.adminUserId,
+    candidate: args.candidate,
     organizationId: args.organizationId,
-    providerPaymentId: args.candidate.providerPaymentId,
+    providerPaymentId: snapshot.providerPaymentId,
     reason: args.reason,
-    stripeSnapshot: {
-      amountChargedCents: snapshot.amountChargedCents,
-      amountRefundedCents: snapshot.amountRefundedCents,
-      fullyRefunded: snapshot.fullyRefunded,
-      processorFeeCents: snapshot.processorFeeCents,
-      providerBalanceTransactionId: snapshot.providerBalanceTransactionId,
-      refundCompletedAt: snapshot.refundCompletedAt,
-    },
+    stripeSnapshot: stripeSnapshotForApply(snapshot),
   });
 
   return {
     actionsApplied: [...applyResult.actionsApplied],
     message: applyResult.message,
-    providerPaymentId: args.candidate.providerPaymentId,
+    providerPaymentId: reconciliationProviderPaymentId(snapshot, args.candidate),
     status: applyResult.status,
   };
 }
@@ -1071,11 +1286,14 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       if (!stripeAccess.ok) return stripeAccess.response;
       const { accountId, secretKey } = stripeAccess;
 
-      const { candidates, hasMore } = await stub.listStripePaymentReconciliationCandidates({
-        limit: parsedBody.data.limit,
-        organizationId: organizationId.data,
-        since: parsedBody.data.since,
-      });
+      const { candidates, hasMore, nextCursor, snapshotAt } =
+        await stub.listStripePaymentReconciliationCandidates({
+          ...(parsedBody.data.cursor ? { cursor: parsedBody.data.cursor } : {}),
+          ...(parsedBody.data.limit !== undefined ? { limit: parsedBody.data.limit } : {}),
+          ...(parsedBody.data.snapshotAt ? { snapshotAt: parsedBody.data.snapshotAt } : {}),
+          organizationId: organizationId.data,
+          since: parsedBody.data.since,
+        });
 
       const rows: PlatformStripeReconciliationRow[] = await mapConcurrent(
         candidates,
@@ -1084,7 +1302,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           const { lookupError, snapshot } = await fetchReconciliationSnapshot(
             secretKey,
             accountId,
-            candidate.providerPaymentId,
+            candidate,
+            organizationId.data,
           );
           return buildReconciliationRow(candidate, snapshot, lookupError);
         },
@@ -1117,6 +1336,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
             matchedCount,
             repairableCount,
             scannedCount,
+            cursor: parsedBody.data.cursor ?? null,
+            snapshotAt,
             since: parsedBody.data.since ?? null,
           }),
           occurredAt,
@@ -1133,6 +1354,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         requestId: context.get("requestId"),
         rows,
         scannedCount,
+        nextCursor,
+        snapshotAt,
       };
 
       return context.json(responsePayload);
@@ -1214,17 +1437,16 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       if (!stripeAccess.ok) return stripeAccess.response;
       const { accountId, secretKey } = stripeAccess;
 
-      const { candidates } = await stub.listStripePaymentReconciliationCandidates({
-        limit: 200,
+      const targetCandidates = await selectReconciliationApplyCandidates({
         organizationId: organizationId.data,
+        paymentAttemptIds: parsedBody.data.paymentAttemptIds,
+        providerPaymentIds: parsedBody.data.providerPaymentIds,
+        resourceIds: parsedBody.data.resourceIds,
         since: parsedBody.data.since,
+        snapshotAt: parsedBody.data.snapshotAt,
+        stub,
       });
-
-      const selectedIds = parsedBody.data.providerPaymentIds;
-      const targetCandidates =
-        selectedIds && selectedIds.length > 0
-          ? candidates.filter((c) => selectedIds.includes(c.providerPaymentId))
-          : candidates;
+      if (!targetCandidates) return staleReconciliationSelectionResponse(context);
 
       const results: PlatformStripeReconciliationApplyResult[] = await mapConcurrent(
         targetCandidates,
@@ -1247,6 +1469,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const refundedCount = results.filter((r) =>
         r.actionsApplied.includes("mark_refunded"),
       ).length;
+      const paidCount = results.filter((r) => r.actionsApplied.includes("mark_paid")).length;
       const feeBackfilledCount = results.filter((r) =>
         r.actionsApplied.includes("backfill_fee"),
       ).length;
@@ -1268,6 +1491,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
             appliedCount,
             failedCount,
             feeBackfilledCount,
+            paidCount,
             reason: parsedBody.data.reason,
             refundedCount,
             skippedCount,
@@ -1282,6 +1506,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         failedCount,
         feeBackfilledCount,
         organizationId: organizationId.data,
+        paidCount,
         refundedCount,
         requestId: context.get("requestId"),
         results,

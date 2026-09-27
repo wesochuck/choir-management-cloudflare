@@ -1598,6 +1598,17 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON job_ledger(job_id)`,
     ],
   },
+  {
+    version: 96,
+    statements: [
+      `CREATE INDEX IF NOT EXISTS payment_attempts_stripe_reconciliation_page
+       ON payment_attempts(created_at DESC, id DESC)
+       WHERE payment_type IN ('ticket', 'bundle')
+         AND provider_payment_id NOT LIKE 'fake_%'
+         AND (provider_payment_id <> '' OR provider_session_id GLOB 'cs_*')
+         AND amount_cents > 0`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

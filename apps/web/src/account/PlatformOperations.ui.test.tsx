@@ -53,11 +53,13 @@ describe("Platform operations hostname placement", () => {
       hasMore: false,
       manualReviewCount: 0,
       matchedCount: 0,
+      nextCursor: null,
       organizationId: "org_test",
       repairableCount: 0,
       requestId: "req_test",
       rows: [],
       scannedCount: 0,
+      snapshotAt: "2026-09-26T12:00:00.000Z",
     });
     render(
       <PlatformOperations

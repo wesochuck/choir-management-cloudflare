@@ -83,6 +83,31 @@ const stripeCheckoutSessionSchema = z.object({
   url: z.url(),
 });
 
+const stripeCheckoutReconciliationSessionSchema = z.object({
+  amount_total: z.number().int().nonnegative().nullable().optional(),
+  currency: z.string().nullable().optional(),
+  id: z.string(),
+  metadata: z.record(z.string(), z.string()).default({}),
+  mode: z.string(),
+  payment_intent: z
+    .union([z.string(), z.object({ id: z.string() })])
+    .nullable()
+    .optional(),
+  payment_status: z.string(),
+  status: z.string().nullable(),
+});
+
+export interface StripeCheckoutReconciliationSession {
+  readonly amountTotalCents: number | null;
+  readonly currency: string | null;
+  readonly id: string;
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly mode: string;
+  readonly paymentIntentId: string | null;
+  readonly paymentStatus: string;
+  readonly status: string | null;
+}
+
 export class StripeConnectError extends Error {
   readonly status: number;
   readonly code: string;
@@ -471,6 +496,42 @@ export async function retrieveStripeCheckoutSession(
   );
 }
 
+export async function retrieveStripeCheckoutReconciliationSession(
+  secretKey: string,
+  connectedAccountId: string,
+  sessionId: string,
+): Promise<StripeCheckoutReconciliationSession> {
+  const result: unknown = await stripeV1Request(
+    secretKey,
+    `/v1/checkout/sessions/${encodeURIComponent(sessionId)}`,
+    {
+      errorType: "connect",
+      method: "GET",
+      stripeAccount: connectedAccountId,
+    },
+  );
+  const parsed = stripeCheckoutReconciliationSessionSchema.safeParse(result);
+  if (!parsed.success) {
+    throw new StripeConnectError(
+      "Stripe Checkout session could not be verified for reconciliation.",
+      502,
+      { code: "stripe_checkout_session_invalid" },
+    );
+  }
+  const paymentIntent = parsed.data.payment_intent;
+  return {
+    amountTotalCents: parsed.data.amount_total ?? null,
+    currency: parsed.data.currency ?? null,
+    id: parsed.data.id,
+    metadata: parsed.data.metadata,
+    mode: parsed.data.mode,
+    paymentIntentId:
+      typeof paymentIntent === "string" ? paymentIntent : (paymentIntent?.id ?? null),
+    paymentStatus: parsed.data.payment_status,
+    status: parsed.data.status,
+  };
+}
+
 export async function createStripeRefund(
   secretKey: string,
   connectedAccountId: string,
@@ -700,13 +761,19 @@ export async function retrieveStripePaymentSettlement(
 
 export interface StripePaymentReconciliationSnapshot {
   readonly amountChargedCents: number;
+  readonly amountCapturedCents?: number | null | undefined;
+  readonly amountReceivedCents?: number | null | undefined;
   readonly amountRefundedCents: number;
   readonly chargeId: string | null;
+  readonly chargeCaptured?: boolean | null | undefined;
+  readonly chargeStatus?: string | null | undefined;
   readonly currency: string | null;
   readonly fullyRefunded: boolean;
   readonly processorFeeCents: number | null;
   readonly providerBalanceTransactionId: string | null;
   readonly providerPaymentId: string;
+  readonly paymentIntentId?: string | null | undefined;
+  readonly paymentIntentStatus?: string | null | undefined;
   readonly refundCompletedAt: string | null;
 }
 
@@ -726,13 +793,17 @@ const stripeReconciliationRefundItemSchema = z.object({
 
 const stripeReconciliationChargeSchema = z.object({
   amount: z.number().int().nonnegative(),
+  amount_captured: z.number().int().nonnegative().optional(),
   amount_refunded: z.number().int().nonnegative().optional().default(0),
   balance_transaction: z
     .union([stripeReconciliationBalanceTxnSchema, z.string().min(1)])
     .nullable()
     .optional(),
   currency: z.string().optional(),
+  captured: z.boolean().optional(),
   id: z.string(),
+  paid: z.boolean().optional(),
+  payment_intent: z.string().nullable().optional(),
   refunded: z.boolean().optional(),
   refunds: z
     .object({
@@ -740,16 +811,19 @@ const stripeReconciliationChargeSchema = z.object({
     })
     .nullable()
     .optional(),
+  status: z.string().optional(),
 });
 
 const stripeReconciliationPaymentIntentSchema = z.object({
   amount: z.number().int().nonnegative().optional(),
+  amount_received: z.number().int().nonnegative().optional(),
   currency: z.string().optional(),
   id: z.string(),
   latest_charge: z
     .union([stripeReconciliationChargeSchema, z.string().min(1)])
     .nullable()
     .optional(),
+  status: z.string().optional(),
 });
 
 type ReconciliationCharge = z.infer<typeof stripeReconciliationChargeSchema>;
@@ -758,6 +832,9 @@ interface ResolvedReconciliationCharge {
   readonly charge: ReconciliationCharge | null;
   readonly fallbackAmount: number;
   readonly fallbackCurrency: string | null;
+  readonly amountReceivedCents: number | null;
+  readonly paymentIntentId: string | null;
+  readonly paymentIntentStatus: string | null;
 }
 
 async function fetchReconciliationCharge(
@@ -774,20 +851,34 @@ async function fetchReconciliationCharge(
   return parsed.success ? parsed.data : null;
 }
 
-async function resolveReconciliationCharge(
+function reconciliationChargePath(chargeId: string): string {
+  return `/v1/charges/${encodeURIComponent(chargeId)}?expand[]=balance_transaction&expand[]=refunds`;
+}
+
+function paymentIntentChargeResult(
+  paymentIntent: z.infer<typeof stripeReconciliationPaymentIntentSchema>,
+  charge: ReconciliationCharge | null,
+): ResolvedReconciliationCharge {
+  const latestCharge = paymentIntent.latest_charge;
+  return {
+    amountReceivedCents:
+      paymentIntent.amount_received ??
+      (typeof latestCharge === "object" && latestCharge !== null
+        ? (latestCharge.amount_captured ?? null)
+        : (charge?.amount_captured ?? null)),
+    charge: typeof latestCharge === "object" ? (latestCharge ?? null) : charge,
+    fallbackAmount: paymentIntent.amount ?? 0,
+    fallbackCurrency: paymentIntent.currency ?? null,
+    paymentIntentId: paymentIntent.id,
+    paymentIntentStatus: paymentIntent.status ?? null,
+  };
+}
+
+async function fetchPaymentIntentReconciliationCharge(
   secretKey: string,
   connectedAccountId: string,
   providerPaymentId: string,
 ): Promise<ResolvedReconciliationCharge> {
-  if (!providerPaymentId.startsWith("pi_")) {
-    const charge = await fetchReconciliationCharge(
-      secretKey,
-      connectedAccountId,
-      `/v1/charges/${encodeURIComponent(providerPaymentId)}?expand[]=balance_transaction&expand[]=refunds`,
-    );
-    return { charge, fallbackAmount: 0, fallbackCurrency: null };
-  }
-
   const intentResult: unknown = await stripeV1Request(
     secretKey,
     `/v1/payment_intents/${encodeURIComponent(providerPaymentId)}?expand[]=latest_charge.balance_transaction&expand[]=latest_charge.refunds`,
@@ -799,20 +890,49 @@ async function resolveReconciliationCharge(
   );
   const parsedIntent = stripeReconciliationPaymentIntentSchema.safeParse(intentResult);
   if (!parsedIntent.success) {
-    return { charge: null, fallbackAmount: 0, fallbackCurrency: null };
+    return {
+      amountReceivedCents: null,
+      charge: null,
+      fallbackAmount: 0,
+      fallbackCurrency: null,
+      paymentIntentId: null,
+      paymentIntentStatus: null,
+    };
   }
-  const fallbackAmount = parsedIntent.data.amount ?? 0;
-  const fallbackCurrency = parsedIntent.data.currency ?? null;
-  const latestCharge = parsedIntent.data.latest_charge;
-  if (typeof latestCharge === "string") {
+  const paymentIntent = parsedIntent.data;
+  const latestCharge = paymentIntent.latest_charge;
+  const charge =
+    typeof latestCharge === "string"
+      ? await fetchReconciliationCharge(
+          secretKey,
+          connectedAccountId,
+          reconciliationChargePath(latestCharge),
+        )
+      : null;
+  return paymentIntentChargeResult(paymentIntent, charge);
+}
+
+async function resolveReconciliationCharge(
+  secretKey: string,
+  connectedAccountId: string,
+  providerPaymentId: string,
+): Promise<ResolvedReconciliationCharge> {
+  if (!providerPaymentId.startsWith("pi_")) {
     const charge = await fetchReconciliationCharge(
       secretKey,
       connectedAccountId,
-      `/v1/charges/${encodeURIComponent(latestCharge)}?expand[]=balance_transaction&expand[]=refunds`,
+      reconciliationChargePath(providerPaymentId),
     );
-    return { charge, fallbackAmount, fallbackCurrency };
+    return {
+      amountReceivedCents: charge?.amount_captured ?? null,
+      charge,
+      fallbackAmount: 0,
+      fallbackCurrency: null,
+      paymentIntentId: charge?.payment_intent ?? null,
+      paymentIntentStatus: null,
+    };
   }
-  return { charge: latestCharge ?? null, fallbackAmount, fallbackCurrency };
+  return fetchPaymentIntentReconciliationCharge(secretKey, connectedAccountId, providerPaymentId);
 }
 
 function selectRefundCompletedAt(
@@ -871,18 +991,27 @@ export async function retrieveStripePaymentReconciliationSnapshot(
     charge: chargeObj,
     fallbackAmount,
     fallbackCurrency,
+    amountReceivedCents,
+    paymentIntentId,
+    paymentIntentStatus,
   } = await resolveReconciliationCharge(secretKey, connectedAccountId, providerPaymentId);
 
   if (!chargeObj) {
     return {
       amountChargedCents: fallbackAmount,
+      amountCapturedCents: null,
+      amountReceivedCents,
       amountRefundedCents: 0,
       chargeId: null,
+      chargeCaptured: null,
+      chargeStatus: null,
       currency: fallbackCurrency,
       fullyRefunded: false,
       processorFeeCents: null,
       providerBalanceTransactionId: null,
       providerPaymentId,
+      paymentIntentId,
+      paymentIntentStatus,
       refundCompletedAt: null,
     };
   }
@@ -902,13 +1031,19 @@ export async function retrieveStripePaymentReconciliationSnapshot(
 
   return {
     amountChargedCents: chargeObj.amount,
+    amountCapturedCents: chargeObj.amount_captured ?? null,
+    amountReceivedCents,
     amountRefundedCents: chargeObj.amount_refunded,
     chargeId: chargeObj.id,
+    chargeCaptured: chargeObj.captured ?? null,
+    chargeStatus: chargeObj.status ?? null,
     currency: chargeObj.currency ?? fallbackCurrency,
     fullyRefunded,
     processorFeeCents,
     providerBalanceTransactionId,
     providerPaymentId,
+    paymentIntentId,
+    paymentIntentStatus,
     refundCompletedAt,
   };
 }

@@ -14,6 +14,7 @@ vi.mock("../../../api/platform", () => ({
 const mockPreviewResponse: PlatformStripeReconciliationPreviewResponse = {
   accountId: "acct_test",
   hasMore: false,
+  nextCursor: null,
   manualReviewCount: 0,
   matchedCount: 1,
   organizationId: "org_test",
@@ -31,18 +32,24 @@ const mockPreviewResponse: PlatformStripeReconciliationPreviewResponse = {
       localResourceStatus: "paid",
       manualReviewReason:
         "Stripe was fully refunded ($50.00) but local record is still paid. Processor fee $1.75 missing.",
+      paymentAttemptId: "attempt_1",
       paymentType: "ticket",
       proposedActions: ["mark_refunded", "backfill_fee"],
       providerPaymentId: "pi_12345",
       resourceId: "ticket_1",
       safeToApply: true,
       stripeAmountChargedCents: 5000,
+      stripeAmountCapturedCents: null,
+      stripeAmountReceivedCents: null,
       stripeAmountRefundedCents: 5000,
+      stripeChargeCaptured: null,
+      stripeChargeStatus: null,
       stripeFullyRefunded: true,
       stripeProcessorFeeCents: 175,
       stripeProviderBalanceTransactionId: "txn_1",
       stripeRefundCompletedAt: "2026-02-16T10:00:00.000Z",
       stripeStatus: "fully_refunded",
+      stripePaymentIntentStatus: null,
     },
     {
       classification: "matched",
@@ -54,21 +61,28 @@ const mockPreviewResponse: PlatformStripeReconciliationPreviewResponse = {
       localProviderBalanceTransactionId: "txn_2",
       localResourceStatus: "paid",
       manualReviewReason: null,
+      paymentAttemptId: "attempt_2",
       paymentType: "ticket",
       proposedActions: [],
       providerPaymentId: "pi_67890",
       resourceId: "ticket_2",
       safeToApply: false,
       stripeAmountChargedCents: 7500,
+      stripeAmountCapturedCents: null,
+      stripeAmountReceivedCents: null,
       stripeAmountRefundedCents: 0,
+      stripeChargeCaptured: null,
+      stripeChargeStatus: null,
       stripeFullyRefunded: false,
       stripeProcessorFeeCents: 248,
       stripeProviderBalanceTransactionId: "txn_2",
       stripeRefundCompletedAt: null,
       stripeStatus: "paid",
+      stripePaymentIntentStatus: null,
     },
   ],
   scannedCount: 2,
+  snapshotAt: "2026-02-16T10:00:00.000Z",
 };
 
 describe("StripePaymentReconciliation", () => {
@@ -135,6 +149,7 @@ describe("StripePaymentReconciliation", () => {
     vi.mocked(platformApi.previewPlatformStripeReconciliation).mockResolvedValueOnce({
       ...mockPreviewResponse,
       hasMore: true,
+      nextCursor: { createdAt: "2026-02-15T12:00:00.000Z", paymentAttemptId: "attempt_2" },
     });
 
     render(<StripePaymentReconciliation canEdit={false} organizationId="org_test" />);
@@ -142,7 +157,94 @@ describe("StripePaymentReconciliation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run reconciliation preview" }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Only part of the payment history was scanned/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/More payment history is available on the next page/),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled();
+  });
+
+  it("pages with the preview cursor and applies exactly the visible page selection", async () => {
+    const cursor = { createdAt: "2026-02-15T12:00:00.000Z", paymentAttemptId: "attempt_2" };
+    const firstPage = {
+      ...mockPreviewResponse,
+      hasMore: true,
+      nextCursor: cursor,
+    };
+    const firstRow = mockPreviewResponse.rows[0];
+    if (!firstRow) throw new Error("Expected a reconciliation row");
+    const secondPage = {
+      ...mockPreviewResponse,
+      hasMore: false,
+      matchedCount: 0,
+      nextCursor: null,
+      repairableCount: 1,
+      rows: [
+        {
+          ...firstRow,
+          paymentAttemptId: "attempt_older",
+          providerPaymentId: "pi_older",
+          resourceId: "ticket_older",
+        },
+      ],
+      scannedCount: 1,
+    };
+    vi.mocked(platformApi.previewPlatformStripeReconciliation)
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValue(secondPage);
+    vi.mocked(platformApi.applyPlatformStripeReconciliation).mockResolvedValueOnce({
+      accountId: "acct_test",
+      appliedCount: 1,
+      failedCount: 0,
+      feeBackfilledCount: 0,
+      organizationId: "org_test",
+      paidCount: 1,
+      refundedCount: 0,
+      requestId: "req_page_apply",
+      results: [
+        {
+          actionsApplied: ["mark_paid"],
+          providerPaymentId: "pi_older",
+          status: "applied",
+        },
+      ],
+      skippedCount: 0,
+    });
+
+    render(<StripePaymentReconciliation canEdit={true} organizationId="org_test" />);
+    fireEvent.change(screen.getByLabelText("Only check payments since"), {
+      target: { value: "2026-02-15" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Run reconciliation preview" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Next page" })).toBeEnabled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    await waitFor(() => {
+      expect(screen.getAllByText("pi_older").length).toBeGreaterThan(0);
+    });
+    expect(platformApi.previewPlatformStripeReconciliation).toHaveBeenNthCalledWith(2, "org_test", {
+      cursor,
+      since: "2026-02-15T00:00:00.000Z",
+      snapshotAt: mockPreviewResponse.snapshotAt,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply reconciliation repairs (1)" }));
+    fireEvent.change(screen.getByLabelText("Reason for applying reconciliation repairs"), {
+      target: { value: "Repair an older Stripe-confirmed payment" },
+    });
+    const confirmButton = screen.getByRole("button", { name: "Apply reconciliation repairs" });
+    const form = confirmButton.closest("form");
+    if (!form) throw new Error("Expected apply form");
+    fireEvent.submit(form);
+
+    await waitFor(() => {
+      expect(platformApi.applyPlatformStripeReconciliation).toHaveBeenCalledWith("org_test", {
+        confirm: true,
+        paymentAttemptIds: ["attempt_older"],
+        reason: "Repair an older Stripe-confirmed payment",
+        since: "2026-02-15T00:00:00.000Z",
+        snapshotAt: mockPreviewResponse.snapshotAt,
+      });
     });
   });
 
@@ -156,6 +258,7 @@ describe("StripePaymentReconciliation", () => {
       failedCount: 0,
       feeBackfilledCount: 1,
       organizationId: "org_test",
+      paidCount: 0,
       refundedCount: 1,
       requestId: "req_apply_1",
       results: [
@@ -171,12 +274,23 @@ describe("StripePaymentReconciliation", () => {
 
     render(<StripePaymentReconciliation canEdit={true} organizationId="org_test" />);
 
+    fireEvent.change(screen.getByLabelText("Only check payments since"), {
+      target: { value: "2026-02-15" },
+    });
+
     fireEvent.click(screen.getByRole("button", { name: "Run reconciliation preview" }));
 
     await waitFor(() => {
       expect(
         screen.getByRole("button", { name: "Apply reconciliation repairs (1)" }),
       ).toBeInTheDocument();
+    });
+
+    expect(platformApi.previewPlatformStripeReconciliation).toHaveBeenCalledWith("org_test", {
+      since: "2026-02-15T00:00:00.000Z",
+    });
+    fireEvent.change(screen.getByLabelText("Only check payments since"), {
+      target: { value: "2026-02-16" },
     });
 
     // Open dialog
@@ -206,6 +320,9 @@ describe("StripePaymentReconciliation", () => {
       expect(platformApi.applyPlatformStripeReconciliation).toHaveBeenCalledWith("org_test", {
         confirm: true,
         reason: "Reconcile 2026 concert refunds",
+        paymentAttemptIds: ["attempt_1"],
+        snapshotAt: mockPreviewResponse.snapshotAt,
+        since: "2026-02-15T00:00:00.000Z",
       });
     });
 
@@ -213,6 +330,63 @@ describe("StripePaymentReconciliation", () => {
     await waitFor(() => {
       expect(
         screen.getByText(/Applied reconciliation repairs: 1 record updated/),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("labels successful pending ticket repairs and reports their count", async () => {
+    const firstRow = mockPreviewResponse.rows[0];
+    const matchedRow = mockPreviewResponse.rows[1];
+    if (!firstRow || !matchedRow) throw new Error("Expected fixture reconciliation rows");
+    vi.mocked(platformApi.previewPlatformStripeReconciliation).mockResolvedValue({
+      ...mockPreviewResponse,
+      repairableCount: 1,
+      rows: [
+        {
+          ...firstRow,
+          classification: "ticket_payment_status_mismatch",
+          localPaymentAttemptStatus: "expired",
+          localResourceStatus: "expired",
+          manualReviewReason: null,
+          proposedActions: ["mark_paid"],
+        },
+        matchedRow,
+      ],
+    });
+    vi.mocked(platformApi.applyPlatformStripeReconciliation).mockResolvedValueOnce({
+      accountId: "acct_test",
+      appliedCount: 1,
+      failedCount: 0,
+      feeBackfilledCount: 0,
+      organizationId: "org_test",
+      paidCount: 1,
+      refundedCount: 0,
+      requestId: "req_paid_apply",
+      results: [
+        {
+          actionsApplied: ["mark_paid"],
+          providerPaymentId: "pi_12345",
+          status: "applied",
+        },
+      ],
+      skippedCount: 0,
+    });
+
+    render(<StripePaymentReconciliation canEdit={true} organizationId="org_test" />);
+    fireEvent.click(screen.getByRole("button", { name: "Run reconciliation preview" }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Restore paid ticket").length).toBeGreaterThan(0);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply reconciliation repairs (1)" }));
+    fireEvent.change(screen.getByLabelText("Reason for applying reconciliation repairs"), {
+      target: { value: "Restore Stripe-confirmed tickets" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply reconciliation repairs" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/1 ticket restored, 0 refunds, 0 fees backfilled/),
       ).toBeInTheDocument();
     });
   });

@@ -45,7 +45,7 @@ afterEach(async () => {
 });
 
 describe("job_ledger.job_id index for outbox joins and reminder recovery (#68)", () => {
-  it("proves new organizations start at schema version 95 with idx_job_ledger_job_id", async () => {
+  it("proves new organizations start at the current schema with reconciliation paging indexes", async () => {
     const stub = await provisionOrganization("org-ledger-schema-version");
     await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
       const version = state.storage.sql
@@ -62,6 +62,12 @@ describe("job_ledger.job_id index for outbox joins and reminder recovery (#68)",
         )
         .one().count;
       expect(indexExists).toBe(1);
+      const reconciliationIndexExists = state.storage.sql
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'index' AND name = 'payment_attempts_stripe_reconciliation_page'",
+        )
+        .one().count;
+      expect(reconciliationIndexExists).toBe(1);
     });
   });
 
@@ -100,6 +106,33 @@ describe("job_ledger.job_id index for outbox joins and reminder recovery (#68)",
       const indexExists = state.storage.sql
         .exec<{ count: number }>(
           "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'index' AND name = 'idx_job_ledger_job_id'",
+        )
+        .one().count;
+      expect(indexExists).toBe(1);
+    });
+  });
+
+  it("applies forward migration 96 to add the bounded Stripe reconciliation index", async () => {
+    const stub = await provisionOrganization("org-stripe-reconciliation-index-upgrade");
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec("DROP INDEX IF EXISTS payment_attempts_stripe_reconciliation_page");
+      state.storage.sql.exec("DELETE FROM organization_schema_migrations WHERE version >= 96");
+
+      const migration96 = organizationSchemaMigrations.find(
+        (migration) => migration.version === 96,
+      );
+      if (!migration96) throw new Error("Migration 96 not found");
+      applyOrganizationMigration(state.storage, migration96);
+
+      const version = state.storage.sql
+        .exec<{ version: number }>(
+          "SELECT version FROM organization_schema_migrations ORDER BY version DESC LIMIT 1",
+        )
+        .one().version;
+      expect(version).toBe(96);
+      const indexExists = state.storage.sql
+        .exec<{ count: number }>(
+          "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'index' AND name = 'payment_attempts_stripe_reconciliation_page'",
         )
         .one().count;
       expect(indexExists).toBe(1);

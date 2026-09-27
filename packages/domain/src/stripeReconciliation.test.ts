@@ -238,4 +238,187 @@ describe("compareStripePaymentToLocalCandidate", () => {
     expect(result.safeToApply).toBe(false);
     expect(result.manualReviewReason).toContain("do not match");
   });
+
+  it("repairs an old expired checkout only when its captured Checkout Session and PaymentIntent match", () => {
+    const candidate = createCandidate({
+      amountCents: 134,
+      checkoutRequestId: "request-1",
+      currency: "usd",
+      discountCodeId: null,
+      fulfillmentBlockReason: null,
+      organizationId: "org-1",
+      paymentAttemptStatus: "expired",
+      processorFeeCents: null,
+      providerBalanceTransactionId: null,
+      providerPaymentId: "",
+      providerSessionId: "cs_old_1",
+      refundedAt: null,
+      resourceAmountCents: 134,
+      resourceProviderPaymentId: "",
+      resourceStatus: "expired",
+    });
+    const snapshot = createSnapshot({
+      amountChargedCents: 134,
+      amountCapturedCents: 134,
+      amountReceivedCents: 134,
+      chargeCaptured: true,
+      chargeStatus: "succeeded",
+      checkoutSessionAmountCents: 134,
+      checkoutSessionCurrency: "usd",
+      checkoutSessionId: "cs_old_1",
+      checkoutSessionMode: "payment",
+      checkoutSessionOrganizationId: "org-1",
+      checkoutSessionPaymentStatus: "paid",
+      checkoutSessionPaymentType: "ticket",
+      checkoutSessionPurchaseId: "resource-1",
+      checkoutSessionRequestId: "request-1",
+      checkoutSessionStatus: "complete",
+      paymentIntentId: "pi_recovered_1",
+      paymentIntentStatus: "succeeded",
+      processorFeeCents: 36,
+      providerBalanceTransactionId: "txn_recovered_1",
+      providerPaymentId: "pi_recovered_1",
+    });
+
+    const result = compareStripePaymentToLocalCandidate(candidate, snapshot);
+
+    expect(result.classification).toBe("ticket_payment_status_mismatch");
+    expect(result.safeToApply).toBe(true);
+    expect(result.proposedActions).toEqual(["mark_paid", "backfill_fee"]);
+  });
+
+  it.each([
+    { paymentIntentStatus: "processing", amountReceivedCents: 0, chargeCaptured: false },
+    { paymentIntentStatus: "requires_capture", amountReceivedCents: 0, chargeCaptured: false },
+    { paymentIntentStatus: "succeeded", amountReceivedCents: 133, chargeCaptured: true },
+  ])("leaves an incomplete or partial capture for manual review: %o", (state) => {
+    const candidate = createCandidate({
+      amountCents: 134,
+      checkoutRequestId: "request-1",
+      organizationId: "org-1",
+      paymentAttemptStatus: "pending",
+      providerPaymentId: "",
+      providerSessionId: "cs_pending_1",
+      resourceAmountCents: 134,
+      resourceProviderPaymentId: "",
+      resourceStatus: "pending",
+    });
+    const snapshot = createSnapshot({
+      amountChargedCents: 134,
+      amountCapturedCents: state.amountReceivedCents,
+      amountReceivedCents: state.amountReceivedCents,
+      chargeCaptured: state.chargeCaptured,
+      chargeStatus: state.chargeCaptured ? "succeeded" : "pending",
+      checkoutSessionAmountCents: 134,
+      checkoutSessionCurrency: "usd",
+      checkoutSessionId: "cs_pending_1",
+      checkoutSessionMode: "payment",
+      checkoutSessionOrganizationId: "org-1",
+      checkoutSessionPaymentStatus: "paid",
+      checkoutSessionPaymentType: "ticket",
+      checkoutSessionPurchaseId: "resource-1",
+      checkoutSessionRequestId: "request-1",
+      checkoutSessionStatus: "complete",
+      paymentIntentId: "pi_pending_1",
+      paymentIntentStatus: state.paymentIntentStatus,
+      providerPaymentId: "pi_pending_1",
+    });
+
+    const result = compareStripePaymentToLocalCandidate(candidate, snapshot);
+
+    expect(result.classification).toBe("ticket_payment_not_captured_manual_review");
+    expect(result.safeToApply).toBe(false);
+    expect(result.proposedActions).toEqual([]);
+  });
+
+  it("leaves ticket fulfillment for review when reservation capacity is no longer available", () => {
+    const candidate = createCandidate({
+      amountCents: 134,
+      checkoutRequestId: "request-1",
+      fulfillmentBlockReason: "Performance is at capacity.",
+      organizationId: "org-1",
+      paymentAttemptStatus: "expired",
+      providerPaymentId: "",
+      providerSessionId: "cs_old_1",
+      resourceAmountCents: 134,
+      resourceProviderPaymentId: "",
+      resourceStatus: "expired",
+    });
+    const snapshot = createSnapshot({
+      amountChargedCents: 134,
+      amountCapturedCents: 134,
+      amountReceivedCents: 134,
+      chargeCaptured: true,
+      chargeStatus: "succeeded",
+      checkoutSessionAmountCents: 134,
+      checkoutSessionCurrency: "usd",
+      checkoutSessionId: "cs_old_1",
+      checkoutSessionMode: "payment",
+      checkoutSessionOrganizationId: "org-1",
+      checkoutSessionPaymentStatus: "paid",
+      checkoutSessionPaymentType: "ticket",
+      checkoutSessionPurchaseId: "resource-1",
+      checkoutSessionRequestId: "request-1",
+      checkoutSessionStatus: "complete",
+      paymentIntentId: "pi_recovered_1",
+      paymentIntentStatus: "succeeded",
+      providerPaymentId: "pi_recovered_1",
+    });
+
+    const result = compareStripePaymentToLocalCandidate(candidate, snapshot);
+
+    expect(result.classification).toBe("ticket_fulfillment_manual_review");
+    expect(result.safeToApply).toBe(false);
+    expect(result.proposedActions).toEqual([]);
+  });
+
+  it("rejects a Checkout Session whose Organization metadata or currency does not match", () => {
+    const candidate = createCandidate({
+      amountCents: 134,
+      checkoutRequestId: "request-1",
+      organizationId: "org-1",
+      paymentAttemptStatus: "expired",
+      providerPaymentId: "",
+      providerSessionId: "cs_old_1",
+      resourceAmountCents: 134,
+      resourceProviderPaymentId: "",
+      resourceStatus: "expired",
+    });
+    const validSnapshot = createSnapshot({
+      amountChargedCents: 134,
+      amountCapturedCents: 134,
+      amountReceivedCents: 134,
+      chargeCaptured: true,
+      chargeStatus: "succeeded",
+      checkoutSessionAmountCents: 134,
+      checkoutSessionCurrency: "usd",
+      checkoutSessionId: "cs_old_1",
+      checkoutSessionMode: "payment",
+      checkoutSessionOrganizationId: "org-1",
+      checkoutSessionPaymentStatus: "paid",
+      checkoutSessionPaymentType: "ticket",
+      checkoutSessionPurchaseId: "resource-1",
+      checkoutSessionRequestId: "request-1",
+      checkoutSessionStatus: "complete",
+      paymentIntentId: "pi_recovered_1",
+      paymentIntentStatus: "succeeded",
+      providerPaymentId: "pi_recovered_1",
+    });
+
+    const wrongOrganization = compareStripePaymentToLocalCandidate(candidate, {
+      ...validSnapshot,
+      checkoutSessionOrganizationId: "org-other",
+    });
+    expect(wrongOrganization.safeToApply).toBe(false);
+    expect(wrongOrganization.proposedActions).toEqual([]);
+
+    const wrongCurrency = compareStripePaymentToLocalCandidate(candidate, {
+      ...validSnapshot,
+      checkoutSessionCurrency: "eur",
+      currency: "eur",
+    });
+    expect(wrongCurrency.classification).toBe("amount_mismatch_manual_review");
+    expect(wrongCurrency.safeToApply).toBe(false);
+    expect(wrongCurrency.proposedActions).toEqual([]);
+  });
 });
