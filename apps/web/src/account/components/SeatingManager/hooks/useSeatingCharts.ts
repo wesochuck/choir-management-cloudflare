@@ -42,6 +42,7 @@ export function useSeatingCharts({
       listOrganizationEventAttendance(eventId, controller.signal),
     ])
       .then(([nextCharts, nextAttendance]) => {
+        if (controller.signal.aborted) return;
         setCharts(nextCharts);
         setAttendance(nextAttendance);
         const requestedChart = new URLSearchParams(window.location.search).get("chartId");
@@ -62,6 +63,7 @@ export function useSeatingCharts({
         setError(null);
       })
       .catch((caught: unknown) => {
+        if (controller.signal.aborted) return;
         if (!(caught instanceof DOMException && caught.name === "AbortError")) {
           setError(
             caught instanceof Error ? caught.message : "Performance seating could not be loaded.",
@@ -69,7 +71,9 @@ export function useSeatingCharts({
         }
       })
       .finally(() => {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       });
     return () => {
       controller.abort();

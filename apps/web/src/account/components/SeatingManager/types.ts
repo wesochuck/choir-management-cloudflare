@@ -1,4 +1,5 @@
 import type {
+  OrganizationCalendarSettings,
   OrganizationEvent,
   OrganizationProfile,
   OrganizationRosterConfiguration,
@@ -6,6 +7,7 @@ import type {
 } from "@choir/contracts";
 
 export interface SeatingResources {
+  readonly calendarSettings?: OrganizationCalendarSettings;
   readonly events: readonly OrganizationEvent[];
   readonly profiles: readonly OrganizationProfile[];
   readonly roster: OrganizationRosterConfiguration;

@@ -676,6 +676,9 @@
         "targetEvidence":
           [
             "apps/web/src/account/components/SeatingManager/controller.tsx",
+            "apps/web/src/account/components/SeatingManager/seatingSelection.ui.test.tsx",
+            "packages/domain/src/performanceSelection.ts",
+            "packages/domain/src/performanceSelection.test.ts",
             "packages/domain/src/seatingLayout.ts",
             "packages/domain/src/seatingLayout.test.ts",
             "apps/worker/src/organization/organizationSeating.ts",

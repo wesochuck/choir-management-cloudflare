@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { selectDefaultPerformance } from "@choir/domain";
 import {
+  getOrganizationCalendarSettings,
   getOrganizationRosterConfiguration,
   getOrganizationSeatingConfiguration,
   listOrganizationEvents,
@@ -10,10 +12,19 @@ import type { SeatingResources } from "../types";
 export function useSeatingResources({ enabled }: { readonly enabled: boolean }) {
   const resourcesRef = useRef<SeatingResources | null>(null);
   const eventIdRef = useRef("");
+  const hasInitializedSelectionRef = useRef(false);
   const [resources, setResources] = useState<SeatingResources | null>(null);
   const [eventId, setEventId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const selectEventId: React.Dispatch<React.SetStateAction<string>> = useCallback((action) => {
+    setEventId((prev) => {
+      const next = typeof action === "function" ? action(prev) : action;
+      eventIdRef.current = next;
+      return next;
+    });
+  }, []);
 
   const updateUrl = useCallback((nextEventId: string, nextChartId: string | null) => {
     const params = new URLSearchParams(window.location.search);
@@ -41,19 +52,46 @@ export function useSeatingResources({ enabled }: { readonly enabled: boolean }) 
       listOrganizationProfiles(controller.signal),
       getOrganizationRosterConfiguration(controller.signal),
       getOrganizationSeatingConfiguration(controller.signal),
+      getOrganizationCalendarSettings(controller.signal),
     ])
-      .then(([events, profiles, roster, seating]) => {
+      .then(([events, profiles, roster, seating, calendarSettings]) => {
+        if (controller.signal.aborted) return;
         const performances = events.filter(({ type }) => type === "Performance");
-        const nextResources = { events: performances, profiles, roster, seating };
+        const nextResources: SeatingResources = {
+          calendarSettings,
+          events: performances,
+          profiles,
+          roster,
+          seating,
+        };
         resourcesRef.current = nextResources;
         setResources(nextResources);
+
         const requested = new URLSearchParams(window.location.search).get("eventId");
-        const selected = performances.some(({ id }) => id === requested)
-          ? requested
-          : (performances[0]?.id ?? "");
-        setEventId(selected ?? "");
+        const currentEventId = eventIdRef.current;
+        const isCurrentStillValid = performances.some(({ id }) => id === currentEventId);
+
+        let selected: string;
+        if (hasInitializedSelectionRef.current && isCurrentStillValid) {
+          selected = currentEventId;
+        } else if (requested && performances.some(({ id }) => id === requested)) {
+          selected = requested;
+          hasInitializedSelectionRef.current = true;
+        } else {
+          const defaultPerformance = selectDefaultPerformance(
+            events,
+            new Date(),
+            calendarSettings.timezone,
+          );
+          selected = defaultPerformance?.id ?? "";
+          hasInitializedSelectionRef.current = true;
+        }
+
+        eventIdRef.current = selected;
+        setEventId(selected);
       })
       .catch((caught: unknown) => {
+        if (controller.signal.aborted) return;
         if (!(caught instanceof DOMException && caught.name === "AbortError")) {
           setError(
             caught instanceof Error ? caught.message : "Seating resources could not be loaded.",
@@ -61,7 +99,9 @@ export function useSeatingResources({ enabled }: { readonly enabled: boolean }) 
         }
       })
       .finally(() => {
-        setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       });
     return () => {
       controller.abort();
@@ -76,7 +116,7 @@ export function useSeatingResources({ enabled }: { readonly enabled: boolean }) 
     resources,
     resourcesRef,
     setError,
-    setEventId,
+    setEventId: selectEventId,
     setLoading,
     setResources,
     updateUrl,

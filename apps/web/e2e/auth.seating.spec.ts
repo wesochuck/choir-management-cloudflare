@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { installOrganizationApi } from "./fixtures/apiMocks";
+import { buildOrganizationEvent } from "./fixtures/builders";
 
 test("renders the focused seating canvas with structural controls", async ({ page }) => {
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });
@@ -225,5 +226,63 @@ test("falls back to CSS focus mode when Fullscreen API is rejected", async ({ pa
       /seating-workspace--fallback-focus/,
     );
   }
+  api.assertNoUnexpectedRequests();
+});
+
+test("defaults Seating to closest upcoming Performance and honors explicit deep links", async ({
+  page,
+}) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+
+  const pastConcertId = "11111111-1111-4111-8111-111111111111";
+  const nearestUpcomingId = "22222222-2222-4222-8222-222222222222";
+  const distantUpcomingId = "33333333-3333-4333-8333-333333333333";
+  const rehearsalId = "44444444-4444-4444-8444-444444444444";
+
+  const now = Date.now();
+  const pastDate = new Date(now - 7 * 86_400_000).toISOString();
+  const nearestDate = new Date(now + 1 * 86_400_000).toISOString();
+  const distantDate = new Date(now + 30 * 86_400_000).toISOString();
+  const rehearsalDate = new Date(now + 12 * 3600_000).toISOString();
+
+  const pastConcert = buildOrganizationEvent({
+    id: pastConcertId,
+    startsAt: pastDate,
+    title: "Past Festival",
+    type: "Performance",
+  });
+  const nearestConcert = buildOrganizationEvent({
+    id: nearestUpcomingId,
+    startsAt: nearestDate,
+    title: "Nearest Spring Concert",
+    type: "Performance",
+  });
+  const distantConcert = buildOrganizationEvent({
+    id: distantUpcomingId,
+    startsAt: distantDate,
+    title: "Distant Gala",
+    type: "Performance",
+  });
+  const rehearsal = buildOrganizationEvent({
+    id: rehearsalId,
+    startsAt: rehearsalDate,
+    title: "Dress Rehearsal",
+    type: "Rehearsal",
+  });
+
+  api.events.set([distantConcert, pastConcert, rehearsal, nearestConcert]);
+
+  // Navigate to bare /admin/seating without query parameters
+  await page.goto("/admin/seating");
+
+  const performanceSelect = page.getByLabel("Seating Performance");
+  await expect(performanceSelect).toHaveValue(nearestUpcomingId);
+  await expect(page).toHaveURL(new RegExp(`eventId=${nearestUpcomingId}`));
+
+  // Navigate directly with an explicit historical deep link
+  await page.goto(`/admin/seating?eventId=${pastConcertId}`);
+  await expect(performanceSelect).toHaveValue(pastConcertId);
+  await expect(page).toHaveURL(new RegExp(`eventId=${pastConcertId}`));
+
   api.assertNoUnexpectedRequests();
 });
