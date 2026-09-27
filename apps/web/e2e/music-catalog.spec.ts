@@ -1,6 +1,7 @@
 import type { OrganizationEvent, OrganizationMusicPiece } from "@choir/contracts";
 import {
   organizationEventRequestSchema,
+  organizationMusicGenreBatchAddRequestSchema,
   organizationMusicGenreDeleteRequestSchema,
   organizationMusicGenreRenameRequestSchema,
   organizationMusicLibrarySettingsRequestSchema,
@@ -442,6 +443,27 @@ test("manages genre labels from library settings and aligns the practice save co
       await fulfill(route, { code: "validation_failed", requestId }, 400);
       return;
     }
+    if (url.pathname === "/api/organization/music/genres/batch-add") {
+      const parsedBatch = organizationMusicGenreBatchAddRequestSchema.safeParse(
+        route.request().postDataJSON(),
+      );
+      if (!parsedBatch.success) {
+        await fulfill(route, { code: "validation_failed", requestId }, 400);
+        return;
+      }
+      for (const label of parsedBatch.data.labels) {
+        if (!genres.includes(label)) {
+          genres.push(label);
+        }
+      }
+      genres.sort((a, b) => a.localeCompare(b));
+      await fulfill(route, {
+        pieces,
+        requestId,
+        settings: { genres, practicePlayerLinkLifetimeDays: 180, publisherSearchTemplate: "" },
+      });
+      return;
+    }
     if (url.pathname === "/api/organization/music/genres/rename") {
       const parsed = organizationMusicGenreRenameRequestSchema.safeParse(
         route.request().postDataJSON(),
@@ -603,8 +625,8 @@ test("manages genre labels from library settings and aligns the practice save co
     ).toBeLessThanOrEqual(1);
   }
 
-  const genreInput = page.getByLabel("Add a genre label");
-  const genreButton = page.getByRole("button", { name: "Add genre" });
+  const genreInput = page.getByLabel("Add genre labels");
+  const genreButton = page.getByRole("button", { name: "Add to list" });
   await expect(genreInput).toBeVisible();
   await expect(genreButton).toBeVisible();
   // Below 40rem the help text can wrap, so center alignment is a desktop
@@ -619,26 +641,33 @@ test("manages genre labels from library settings and aligns the practice save co
     const buttonCenter = genreButtonBox.y + genreButtonBox.height / 2;
     expect(Math.abs(inputCenter - buttonCenter)).toBeLessThanOrEqual(3);
   }
-  await expect(page.locator(".music-genre-chip").filter({ hasText: "Christmas" })).toBeVisible();
+  const visibleGenreManager = page.locator(".data-table:visible, .data-table-cards:visible");
+  const genreRow = (name: string) =>
+    visibleGenreManager.locator("tbody tr, .data-table-card").filter({ hasText: name });
 
-  await page.getByLabel("Add a genre label").fill("Folk");
-  await page.getByRole("button", { name: "Add genre" }).click();
-  await expect(page.getByText("Genre added.")).toBeVisible();
-  await expect(page.locator(".music-genre-chip").filter({ hasText: "Folk" })).toBeVisible();
+  await expect(genreRow("Christmas")).toBeVisible();
 
-  await page.getByRole("button", { name: "Rename Christmas genre" }).click();
-  await page.getByLabel("Rename Christmas genre").fill("Holiday");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await genreInput.fill("Folk");
+  await genreButton.click();
+  await expect(genreRow("Folk")).toBeVisible();
+  await expect(genreRow("Folk").getByText("Pending")).toBeVisible();
+  await page.getByRole("button", { name: "Save 1 new genre" }).click();
+  await expect(page.getByText("1 new genre added.")).toBeVisible();
+  await expect(genreRow("Folk")).toBeVisible();
+
+  await visibleGenreManager.getByRole("button", { name: "Rename Christmas genre" }).click();
+  await visibleGenreManager.getByLabel("Rename Christmas genre").fill("Holiday");
+  await visibleGenreManager.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Genre renamed.")).toBeVisible();
-  await expect(page.locator(".music-genre-chip").filter({ hasText: "Holiday" })).toBeVisible();
-  await expect(page.locator(".music-genre-chip").filter({ hasText: "Christmas" })).toHaveCount(0);
+  await expect(genreRow("Holiday")).toBeVisible();
+  await expect(genreRow("Christmas")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Delete Holiday genre" }).click();
+  await visibleGenreManager.getByRole("button", { name: "Delete Holiday genre" }).click();
   const removeDialog = page.getByRole("dialog", { name: "Remove Holiday?" });
   await expect(removeDialog).toBeVisible();
   await removeDialog.getByRole("button", { name: "Remove genre" }).click();
   await expect(page.getByText("Genre removed.")).toBeVisible();
-  await expect(page.locator(".music-genre-chip").filter({ hasText: "Holiday" })).toHaveCount(0);
+  await expect(genreRow("Holiday")).toHaveCount(0);
 });
 
 test("keeps the piece editor action buttons on a single row", async ({ page }) => {
