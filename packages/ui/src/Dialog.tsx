@@ -1,15 +1,18 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { usePortalContainer } from "./usePortalContainer";
 import { useConfirmation } from "./useConfirmation";
 
 export interface DialogProps {
   readonly children: ReactNode;
   readonly className?: string;
+  readonly container?: HTMLElement | null;
   readonly description?: string;
   readonly dirty?: boolean;
   readonly footer?: ReactNode;
   readonly onClose: () => void;
+  readonly onCloseAutoFocus?: (event: Event) => void;
   readonly open: boolean;
   readonly title: string;
   readonly variant?: "default" | "confirmation";
@@ -42,16 +45,23 @@ export function DialogFooter({
 export function Dialog({
   children,
   className,
+  container: explicitContainer,
   description,
   dirty,
   footer,
   onClose,
+  onCloseAutoFocus,
   open,
   title,
   variant = "default",
 }: DialogProps) {
   const [inputDirty, setInputDirty] = useState(false);
+  const portalContext = usePortalContainer();
   const { confirm, confirmationDialog } = useConfirmation();
+
+  const isScoped = explicitContainer !== undefined || portalContext.isScoped;
+  const resolvedContainer =
+    explicitContainer !== undefined ? explicitContainer : portalContext.container;
 
   useEffect(() => {
     if (open) {
@@ -84,37 +94,40 @@ export function Dialog({
         }}
         open={open}
       >
-        <DialogPrimitive.Portal>
-          <DialogPrimitive.Overlay className="dialog__overlay" />
-          <DialogPrimitive.Content
-            className={`dialog dialog--responsive ${variant === "confirmation" ? "dialog--confirmation" : ""} ${className ?? ""}`.trim()}
-            onEscapeKeyDown={(event) => {
-              event.preventDefault();
-              void requestClose();
-            }}
-            onInput={() => {
-              setInputDirty(true);
-            }}
-          >
-            <div className="dialog__header">
-              <div>
-                <DialogPrimitive.Title className="dialog__title">{title}</DialogPrimitive.Title>
-                {description ? (
-                  <DialogPrimitive.Description className="dialog__description">
-                    {description}
-                  </DialogPrimitive.Description>
-                ) : null}
+        {!isScoped || resolvedContainer ? (
+          <DialogPrimitive.Portal container={resolvedContainer ?? undefined}>
+            <DialogPrimitive.Overlay className="dialog__overlay" />
+            <DialogPrimitive.Content
+              className={`dialog dialog--responsive ${variant === "confirmation" ? "dialog--confirmation" : ""} ${className ?? ""}`.trim()}
+              onCloseAutoFocus={onCloseAutoFocus}
+              onEscapeKeyDown={(event) => {
+                event.preventDefault();
+                void requestClose();
+              }}
+              onInput={() => {
+                setInputDirty(true);
+              }}
+            >
+              <div className="dialog__header">
+                <div>
+                  <DialogPrimitive.Title className="dialog__title">{title}</DialogPrimitive.Title>
+                  {description ? (
+                    <DialogPrimitive.Description className="dialog__description">
+                      {description}
+                    </DialogPrimitive.Description>
+                  ) : null}
+                </div>
+                <DialogPrimitive.Close asChild>
+                  <button className="dialog__close" type="button" aria-label="Close">
+                    &times;
+                  </button>
+                </DialogPrimitive.Close>
               </div>
-              <DialogPrimitive.Close asChild>
-                <button className="dialog__close" type="button" aria-label="Close">
-                  &times;
-                </button>
-              </DialogPrimitive.Close>
-            </div>
-            <div className="dialog__body">{children}</div>
-            {footer ? <div className="dialog__actions dialog__footer">{footer}</div> : null}
-          </DialogPrimitive.Content>
-        </DialogPrimitive.Portal>
+              <div className="dialog__body">{children}</div>
+              {footer ? <div className="dialog__actions dialog__footer">{footer}</div> : null}
+            </DialogPrimitive.Content>
+          </DialogPrimitive.Portal>
+        ) : null}
       </DialogPrimitive.Root>
       {confirmationDialog}
     </>

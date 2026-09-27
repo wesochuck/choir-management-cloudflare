@@ -91,25 +91,139 @@ test("renders the focused seating canvas with structural controls", async ({ pag
       .first();
     await expect(assignedSeat).toHaveAttribute("title", "Browser Singer");
     await expect(assignedSeat.getByText("Browser Singer", { exact: true })).toBeHidden();
-    await expect(assignedSeat.getByText("BS", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Full Screen" }).click();
+    await expect(page.locator(".seating-workspace")).toHaveClass(/seating-workspace--focus/);
+    const isFullscreen = await page.evaluate(
+      () => document.fullscreenElement === document.querySelector(".seating-workspace"),
+    );
+    expect(isFullscreen).toBe(true);
+
+    // Open confirmation in fullscreen
     await assignedSeat.getByRole("button", { name: "Remove Browser Singer from Seat 1" }).click();
     const clearSeatDialog = page.getByRole("dialog", { name: "Clear seat assignment?" });
+    await expect(clearSeatDialog).toBeVisible();
     await expect(clearSeatDialog).toContainText("return them to Unassigned Profiles");
+
+    // Assert the dialog is rendered inside the fullscreen workspace element
+    const dialogInWorkspace = await page.evaluate(() => {
+      const dialog = document.querySelector('[role="dialog"]');
+      const ws = document.querySelector(".seating-workspace");
+      return Boolean(dialog && ws?.contains(dialog));
+    });
+    expect(dialogInWorkspace).toBe(true);
+
+    // 1. Cancel preserves assignment, maintains fullscreen, and restores focus
+    await clearSeatDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(clearSeatDialog).toHaveCount(0);
+    await expect(
+      page.locator(".seating-seat--assigned").filter({ hasText: "Browser Singer" }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.fullscreenElement === document.querySelector(".seating-workspace"),
+      ),
+    ).toBe(true);
+
+    // 2. Exiting fullscreen with dialog open keeps it visible
+    await assignedSeat.getByRole("button", { name: "Remove Browser Singer from Seat 1" }).click();
+    await expect(clearSeatDialog).toBeVisible();
+    await page.evaluate(() => document.exitFullscreen());
+    await expect(page.locator(".seating-workspace")).not.toHaveClass(/seating-workspace--focus/);
+    await expect(clearSeatDialog).toBeVisible();
+    // Dismissing in normal mode works cleanly
+    await clearSeatDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(clearSeatDialog).toHaveCount(0);
+
+    // Reenter fullscreen
+    await page.getByRole("button", { name: "Full Screen" }).click();
+    await expect(page.locator(".seating-workspace")).toHaveClass(/seating-workspace--focus/);
+    await page.waitForFunction(
+      () => document.fullscreenElement === document.querySelector(".seating-workspace"),
+    );
+
+    // 3. Confirm clears assignment in fullscreen and restores useful focus
+    await assignedSeat.getByRole("button", { name: "Remove Browser Singer from Seat 1" }).click();
+    await expect(clearSeatDialog).toBeVisible();
     await clearSeatDialog.getByRole("button", { name: "Clear assignment" }).click();
     await expect(
       page.locator(".seating-seat--assigned").filter({ hasText: "Browser Singer" }),
     ).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        () => document.fullscreenElement === document.querySelector(".seating-workspace"),
+      ),
+    ).toBe(true);
     const firstRow = page.locator(".seating-row--canvas").filter({ hasText: "Row 1" }).first();
     await expect(firstRow.locator(".seating-seat--canvas")).toHaveCount(10);
 
+    // Delete empty seat in fullscreen
     await firstRow.getByRole("button", { name: "Delete empty Seat 1", exact: true }).click();
     const deleteSeatDialog = page.getByRole("dialog", { name: "Delete empty seat?" });
     await expect(deleteSeatDialog).toBeVisible();
     await deleteSeatDialog.getByRole("button", { name: "Delete seat" }).click();
     await expect(firstRow.locator(".seating-seat--canvas")).toHaveCount(9);
+
+    // 4. Test another dialog + nested discard confirmation in fullscreen
+    await page.getByRole("button", { name: "Rename", exact: true }).click();
+    const renameChartDialog = page.getByRole("dialog", { name: "Rename seating chart" });
+    await expect(renameChartDialog).toBeVisible();
+    await renameChartDialog.getByLabel("Chart name").fill("Dirty chart draft");
+    // Escape triggers discard confirmation
+    await page.keyboard.press("Escape");
+    const discardDialog = page.getByRole("dialog", { name: "Discard unsaved changes?" });
+    await expect(discardDialog).toBeVisible();
+    // Cancel preserves dialog
+    await discardDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(discardDialog).toHaveCount(0);
+    await expect(renameChartDialog).toBeVisible();
+    // Discard closes
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeVisible();
+    await page.getByRole("button", { name: "Discard changes" }).click();
+    await expect(renameChartDialog).toHaveCount(0);
+
+    // Exit fullscreen
+    await page.getByRole("button", { name: "Exit full screen" }).click();
+    await expect(page.locator(".seating-workspace")).not.toHaveClass(/seating-workspace--focus/);
   }
   await expect(page.getByRole("button", { name: "+ Add row to back" })).toBeVisible();
   await expect(page.getByRole("button", { name: "+ Add row to front" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Unassigned Profiles" })).toBeVisible();
+  api.assertNoUnexpectedRequests();
+});
+
+test("falls back to CSS focus mode when Fullscreen API is rejected", async ({ page }) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  await page.goto("/admin/seating");
+
+  if ((page.viewportSize()?.width ?? 1000) > 700) {
+    // Reject requestFullscreen to exercise CSS fallback
+    await page.evaluate(() => {
+      Element.prototype.requestFullscreen = () =>
+        Promise.reject(new Error("Fullscreen API rejected"));
+    });
+    await page.getByRole("button", { name: "Full Screen" }).click();
+    await expect(page.locator(".seating-workspace")).toHaveClass(
+      /seating-workspace--fallback-focus/,
+    );
+
+    // Open chart dialog in fallback focus
+    await page.getByRole("button", { name: "Create chart" }).click();
+    const chartDialog = page.getByRole("dialog", { name: "New seating chart" });
+    await expect(chartDialog).toBeVisible();
+
+    // Escape closes the dialog without exiting fallback focus
+    await page.keyboard.press("Escape");
+    await expect(chartDialog).toHaveCount(0);
+    await expect(page.locator(".seating-workspace")).toHaveClass(
+      /seating-workspace--fallback-focus/,
+    );
+
+    // Escape when no modal is open exits fallback focus
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".seating-workspace")).not.toHaveClass(
+      /seating-workspace--fallback-focus/,
+    );
+  }
   api.assertNoUnexpectedRequests();
 });

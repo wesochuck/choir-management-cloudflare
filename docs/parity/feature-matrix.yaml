@@ -3466,6 +3466,7 @@
             "apps/web/src/styles/theme.css",
             "packages/domain/src/seatingLayout.test.ts",
             "apps/worker/test/seating.integration.test.ts",
+            "apps/web/src/account/components/SeatingManager/seatingClearConfirmation.ui.test.tsx",
             "apps/web/e2e/auth.seating.spec.ts",
           ],
       },

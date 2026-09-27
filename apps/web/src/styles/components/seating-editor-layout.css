@@ -309,6 +309,10 @@
     background: var(--color-surface);
   }
 
+  .seating-portal-host {
+    display: contents;
+  }
+
   .seating-page-heading {
     display: flex;
     align-items: flex-start;

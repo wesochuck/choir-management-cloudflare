@@ -20,6 +20,7 @@ export interface ConfirmState {
   readonly confirmLabel: string;
   readonly message: string;
   readonly onConfirm: () => void | Promise<void>;
+  readonly seatKey?: string;
   readonly title: string;
 }
 

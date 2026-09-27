@@ -41,6 +41,7 @@ export function SeatTile({
     <div
       aria-label={`${label}${assigned ? `, assigned to ${assigned.displayName}` : ", empty"}`}
       className={`seating-seat seating-seat--canvas${assigned ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}${draggable.isDragging ? " seating-seat--dragging" : ""}${droppable.isOver ? " seating-seat--drop-target" : ""}`}
+      data-seat-key={seatKey}
       draggable={Boolean(assigned)}
       ref={(node) => {
         draggable.setNodeRef(node);

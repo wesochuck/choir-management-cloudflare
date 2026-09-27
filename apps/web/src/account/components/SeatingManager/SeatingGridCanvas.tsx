@@ -41,6 +41,7 @@ export function SeatingGridCanvas({
     <div
       aria-label="Seating chart assignments"
       className={`seating-editor-canvas${isEditing ? " seating-editor-canvas--editing" : " seating-editor-canvas--readonly"}`}
+      tabIndex={-1}
     >
       {isEditing ? (
         <button

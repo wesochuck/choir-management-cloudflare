@@ -87,4 +87,83 @@ describe("ConfirmDialog interaction", () => {
     const descriptionEl = screen.getByText("A detailed explanation that may be unusually long.");
     expect(dialog).toHaveAttribute("aria-describedby", descriptionEl.id);
   });
+
+  it("mounts in document.body by default and inside portal host when scoped", async () => {
+    const { PortalContainerHost, PortalContainerProvider } = await import("./PortalContainer");
+    const onCancel = vi.fn();
+    const onConfirm = vi.fn();
+
+    // Default outside provider
+    const { unmount } = render(
+      <ConfirmDialog
+        description="Unscoped confirm"
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+        open
+        title="Unscoped dialog"
+      />,
+    );
+    const unscopedDialog = screen.getByRole("dialog", { name: "Unscoped dialog" });
+    expect(document.body.contains(unscopedDialog)).toBe(true);
+    unmount();
+
+    // Scoped inside provider
+    const { container } = render(
+      <PortalContainerProvider>
+        <div data-testid="workspace">
+          <ConfirmDialog
+            description="Scoped confirm"
+            onCancel={onCancel}
+            onConfirm={onConfirm}
+            open
+            title="Scoped dialog"
+          />
+          <PortalContainerHost className="confirm-portal-host" />
+        </div>
+      </PortalContainerProvider>,
+    );
+
+    const host = container.querySelector(".confirm-portal-host");
+    const scopedDialog = screen.getByRole("dialog", { name: "Scoped dialog" });
+    expect(host?.contains(scopedDialog)).toBe(true);
+  });
+
+  it("calls onCloseAutoFocus when dialog closes", async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    const onConfirm = vi.fn();
+    const onCloseAutoFocus = vi.fn((event: Event) => {
+      event.preventDefault();
+    });
+
+    const { rerender } = render(
+      <ConfirmDialog
+        description="Autofocus test"
+        onCancel={onCancel}
+        onCloseAutoFocus={onCloseAutoFocus}
+        onConfirm={onConfirm}
+        open
+        title="Autofocus dialog"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    // Closing the controlled dialog triggers onCloseAutoFocus
+    rerender(
+      <ConfirmDialog
+        description="Autofocus test"
+        onCancel={onCancel}
+        onCloseAutoFocus={onCloseAutoFocus}
+        onConfirm={onConfirm}
+        open={false}
+        title="Autofocus dialog"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(onCloseAutoFocus).toHaveBeenCalled();
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import { Tabs, TabsContent } from "@choir/ui";
+import { PortalContainerHost, PortalContainerProvider, Tabs, TabsContent } from "@choir/ui";
 import { AppLink } from "../AuthenticatedShell/navigation";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 import { FormationEditor } from "./shared";
@@ -78,54 +78,57 @@ export function SeatingManagerView({
   const eligibleCount = eligibleProfiles.length;
 
   return (
-    <div
-      className={`seating-workspace${focusMode ? " seating-workspace--focus" : ""}${fallbackFocus ? " seating-workspace--fallback-focus" : ""}`}
-      ref={workspaceRef}
-    >
-      <SeatingHeader
-        activeEvent={activeEvent}
-        assignedCount={assignedCount}
-        eligibleCount={eligibleCount}
-        enterFocus={() => {
-          void enterFocus();
-        }}
-        exitFocus={() => {
-          void exitFocus();
-        }}
-        focusMode={focusMode}
-        isNarrow={isNarrow}
-        mobileEditing={mobileEditing}
-        setMobileEditing={setMobileEditing}
-        totalSeats={totalSeats}
-      />
+    <PortalContainerProvider>
+      <div
+        className={`seating-workspace${focusMode ? " seating-workspace--focus" : ""}${fallbackFocus ? " seating-workspace--fallback-focus" : ""}`}
+        ref={workspaceRef}
+      >
+        <SeatingHeader
+          activeEvent={activeEvent}
+          assignedCount={assignedCount}
+          eligibleCount={eligibleCount}
+          enterFocus={() => {
+            void enterFocus();
+          }}
+          exitFocus={() => {
+            void exitFocus();
+          }}
+          focusMode={focusMode}
+          isNarrow={isNarrow}
+          mobileEditing={mobileEditing}
+          setMobileEditing={setMobileEditing}
+          totalSeats={totalSeats}
+        />
 
-      <Tabs onValueChange={setFormationTab} value={formationTab}>
-        <SeatingTabs />
+        <Tabs onValueChange={setFormationTab} value={formationTab}>
+          <SeatingTabs />
 
-        <TabsContent
-          aria-labelledby="seating-formations-tab"
-          className="seating-tab-panel"
-          id="seating-formations-panel"
-          value="formations"
-        >
-          <FormationEditor
-            initial={resources.seating}
-            key={JSON.stringify(resources.seating)}
-            onSaved={(seating) => {
-              setResources((current) => (current ? { ...current, seating } : current));
-            }}
-            roster={resources.roster}
-          />
-        </TabsContent>
-        <TabsContent
-          aria-labelledby="seating-chart-tab"
-          className="seating-tab-panel"
-          id="seating-chart-panel"
-          value="chart"
-        >
-          <SeatingChartPanel model={model} />
-        </TabsContent>
-      </Tabs>
-    </div>
+          <TabsContent
+            aria-labelledby="seating-formations-tab"
+            className="seating-tab-panel"
+            id="seating-formations-panel"
+            value="formations"
+          >
+            <FormationEditor
+              initial={resources.seating}
+              key={JSON.stringify(resources.seating)}
+              onSaved={(seating) => {
+                setResources((current) => (current ? { ...current, seating } : current));
+              }}
+              roster={resources.roster}
+            />
+          </TabsContent>
+          <TabsContent
+            aria-labelledby="seating-chart-tab"
+            className="seating-tab-panel"
+            id="seating-chart-panel"
+            value="chart"
+          >
+            <SeatingChartPanel model={model} />
+          </TabsContent>
+        </Tabs>
+        <PortalContainerHost className="seating-portal-host" />
+      </div>
+    </PortalContainerProvider>
   );
 }

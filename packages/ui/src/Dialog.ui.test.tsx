@@ -163,4 +163,134 @@ describe("Dialog interaction", () => {
 
     expect(screen.getByRole("button", { name: "Footer action" })).toBeInTheDocument();
   });
+
+  it("mounts in document.body by default when no portal container provider is present", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<DialogHarness onClose={onClose} />);
+
+    await openDialog(user);
+
+    const dialog = screen.getByRole("dialog", { name: "Test dialog" });
+    expect(document.body.contains(dialog)).toBe(true);
+    const overlay = document.querySelector(".dialog__overlay");
+    expect(overlay).not.toBeNull();
+    expect(document.body.contains(overlay)).toBe(true);
+  });
+
+  it("mounts the dialog and its overlay inside the scoped portal container host", async () => {
+    const { PortalContainerHost, PortalContainerProvider } = await import("./PortalContainer");
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const { container } = render(
+      <PortalContainerProvider>
+        <div data-testid="workspace">
+          <DialogHarness onClose={onClose} />
+          <PortalContainerHost className="test-portal-host" />
+        </div>
+      </PortalContainerProvider>,
+    );
+
+    await openDialog(user);
+
+    const host = container.querySelector(".test-portal-host");
+    expect(host).not.toBeNull();
+    const dialog = screen.getByRole("dialog", { name: "Test dialog" });
+    const overlay = document.querySelector(".dialog__overlay");
+    expect(host?.contains(dialog)).toBe(true);
+    expect(host?.contains(overlay)).toBe(true);
+  });
+
+  it("keeps nested dirty-discard confirmation inside the same scoped portal container host", async () => {
+    const { PortalContainerHost, PortalContainerProvider } = await import("./PortalContainer");
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const { container } = render(
+      <PortalContainerProvider>
+        <div data-testid="workspace">
+          <DialogHarness dirty onClose={onClose} />
+          <PortalContainerHost className="test-portal-host" />
+        </div>
+      </PortalContainerProvider>,
+    );
+
+    await openDialog(user);
+    await user.keyboard("{Escape}");
+
+    const host = container.querySelector(".test-portal-host");
+    const confirmation = await screen.findByRole("dialog", {
+      name: "Discard unsaved changes?",
+    });
+    expect(host?.contains(confirmation)).toBe(true);
+
+    // Cancel preserves dialog inside host
+    await user.click(within(confirmation).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("dialog", { name: "Discard unsaved changes?" }),
+      ).not.toBeInTheDocument();
+    });
+    expect(host?.contains(screen.getByRole("dialog", { name: "Test dialog" }))).toBe(true);
+
+    // Discard closes dialog and cleans up
+    await user.keyboard("{Escape}");
+    const reopened = await screen.findByRole("dialog", {
+      name: "Discard unsaved changes?",
+    });
+    await user.click(within(reopened).getByRole("button", { name: "Discard changes" }));
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("handles isolated provider instances without interference", async () => {
+    const { PortalContainerHost, PortalContainerProvider } = await import("./PortalContainer");
+    const onCloseA = vi.fn();
+    const onCloseB = vi.fn();
+
+    const { container } = render(
+      <div>
+        <PortalContainerProvider>
+          <div data-testid="workspace-a">
+            <button
+              onClick={() => {
+                // Handled in separate harness
+              }}
+              type="button"
+            >
+              Workspace A
+            </button>
+            <Dialog onClose={onCloseA} open title="Dialog A">
+              Content A
+            </Dialog>
+            <PortalContainerHost className="host-a" />
+          </div>
+        </PortalContainerProvider>
+        <PortalContainerProvider>
+          <div data-testid="workspace-b">
+            <Dialog onClose={onCloseB} open title="Dialog B">
+              Content B
+            </Dialog>
+            <PortalContainerHost className="host-b" />
+          </div>
+        </PortalContainerProvider>
+      </div>,
+    );
+
+    const hostA = container.querySelector(".host-a");
+    const hostB = container.querySelector(".host-b");
+    if (!(hostA instanceof HTMLElement) || !(hostB instanceof HTMLElement)) {
+      throw new Error("Host element not found");
+    }
+    const dialogA = within(hostA).getByRole("dialog", { hidden: true });
+    const dialogB = within(hostB).getByRole("dialog", { hidden: true });
+
+    expect(dialogA).toHaveTextContent("Content A");
+    expect(dialogB).toHaveTextContent("Content B");
+    expect(hostA.contains(dialogA)).toBe(true);
+    expect(hostA.contains(dialogB)).toBe(false);
+    expect(hostB.contains(dialogB)).toBe(true);
+    expect(hostB.contains(dialogA)).toBe(false);
+  });
 });

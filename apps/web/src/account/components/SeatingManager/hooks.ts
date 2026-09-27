@@ -101,16 +101,29 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
     }
   }
   async function exitFocus(): Promise<void> {
-    if (document.fullscreenElement) await document.exitFullscreen().catch(() => undefined);
+    if (
+      document.fullscreenElement &&
+      workspaceRef.current &&
+      (document.fullscreenElement === workspaceRef.current ||
+        workspaceRef.current.contains(document.fullscreenElement))
+    ) {
+      await document.exitFullscreen().catch(() => undefined);
+    }
     setFocusMode(false);
     setFallbackFocus(false);
   }
   useEffect(() => {
     const onFs = () => {
-      setFocusMode(Boolean(document.fullscreenElement));
+      const isWorkspaceFullscreen = Boolean(
+        document.fullscreenElement &&
+        workspaceRef.current &&
+        (document.fullscreenElement === workspaceRef.current ||
+          workspaceRef.current.contains(document.fullscreenElement)),
+      );
+      setFocusMode(isWorkspaceFullscreen);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && fallbackFocus) void exitFocus();
+      if (e.key === "Escape" && !e.defaultPrevented && fallbackFocus) void exitFocus();
     };
     document.addEventListener("fullscreenchange", onFs);
     document.addEventListener("keydown", onKey);

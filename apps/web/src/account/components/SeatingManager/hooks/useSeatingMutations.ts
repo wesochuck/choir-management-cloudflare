@@ -122,6 +122,7 @@ export function useSeatingMutations({
           ? `Clear ${occupant.displayName} from this seat and return them to Unassigned Profiles?`
           : "Clear the assigned Profile from this seat without deleting the seat?",
         confirmLabel: "Clear assignment",
+        seatKey: key,
         onConfirm: () => {
           updateLayout(clearSeatAssignment({ ...chart }, rowIndex, seatIndex));
           setConfirmState(null);
@@ -133,6 +134,7 @@ export function useSeatingMutations({
       title: "Delete empty seat?",
       message: "Delete this empty seat from the row?",
       confirmLabel: "Delete seat",
+      seatKey: key,
       onConfirm: () => {
         updateLayout(removeSeat({ ...chart }, rowIndex, seatIndex));
         setConfirmState(null);

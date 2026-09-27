@@ -19,5 +19,11 @@ export { Autocomplete, type AutocompleteOption } from "./Autocomplete";
 export { Sheet } from "./Sheet";
 export { Tabs, TabsContent, TabsList, TabsTrigger } from "./Tabs";
 export { useConfirmation } from "./useConfirmation";
+export {
+  PortalContainerHost,
+  PortalContainerProvider,
+  type PortalContainerProviderProps,
+} from "./PortalContainer";
+export { usePortalContainer, type PortalContainerContextValue } from "./usePortalContainer";
 
 export const UI_PACKAGE_STATUS = "foundation-ready" as const;

@@ -6,7 +6,7 @@ import type {
 } from "@choir/contracts";
 import { useDraggable } from "@dnd-kit/core";
 import { Dialog, DialogClose } from "@choir/ui";
-import { useState, type DragEvent } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import { updateOrganizationSeatingConfiguration } from "../../../auth/api";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { normalizeFormationOrder, formationOrderOptions, moveFormationOrderItem } from "./utils";
@@ -20,11 +20,25 @@ export function ConfirmDialog({
   readonly onClose: () => void;
   readonly state: ConfirmState | null;
 }) {
+  const confirmedRef = useRef(false);
+  const targetSeatKey = state?.seatKey;
+
   if (!state) return null;
   return (
     <Dialog
       description="This action cannot be undone."
       onClose={onClose}
+      onCloseAutoFocus={(event) => {
+        if (confirmedRef.current) {
+          event.preventDefault();
+          confirmedRef.current = false;
+          const target =
+            (targetSeatKey
+              ? document.querySelector<HTMLElement>(`[data-seat-key="${targetSeatKey}"]`)
+              : null) ?? document.querySelector<HTMLElement>(".seating-editor-canvas");
+          target?.focus();
+        }
+      }}
       open
       title={state.title}
       variant="confirmation"
@@ -40,6 +54,7 @@ export function ConfirmDialog({
           <button
             className="button button--danger"
             onClick={() => {
+              confirmedRef.current = true;
               void state.onConfirm();
             }}
             type="button"
