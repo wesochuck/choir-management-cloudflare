@@ -1,5 +1,7 @@
 import {
   organizationEventSchema,
+  organizationProfileSchema,
+  type OrganizationAttendanceRow,
   type OrganizationCalendarSettings,
   type OrganizationEvent,
   type OrganizationProfile,
@@ -7,7 +9,7 @@ import {
   type OrganizationSeatingChart,
   type SeatingConfiguration,
 } from "@choir/contracts";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as authApiModule from "../../../auth/api";
@@ -352,5 +354,153 @@ describe("SeatingManager default Performance selection", () => {
     expect(select).toHaveValue(todayPassedPerformance.id);
     expect(screen.getByRole("heading", { name: "Start a seating chart" })).toBeInTheDocument();
     expect(api.createOrganizationSeatingChart).not.toHaveBeenCalled();
+  });
+});
+
+describe("Seat assignment candidate picker", () => {
+  const aliceId = "a0a0a0a0-a0a0-4a0a-8a0a-a0a0a0a0a0a0";
+  const bobId = "b0b0b0b0-b0b0-4b0b-8b0b-b0b0b0b0b0b0";
+  const carolId = "c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0";
+  const daveId = "d0d0d0d0-d0d0-4d0d-8d0d-d0d0d0d0d0d0";
+  const pickerEventId = "e0e0e0e0-e0e0-4e0e-8e0e-e0e0e0e0e0e0";
+
+  function singer(id: string, displayName: string): OrganizationProfile {
+    return organizationProfileSchema.parse({
+      createdAt: "2025-01-01T00:00:00.000Z",
+      displayName,
+      globalStatus: "Active",
+      id,
+      updatedAt: "2025-01-01T00:00:00.000Z",
+      voicePart: "S1",
+    });
+  }
+
+  const alice = singer(aliceId, "Alice Alto");
+  const bob = singer(bobId, "Bob Bass");
+  const carol = singer(carolId, "Carol Caller");
+  const dave = singer(daveId, "Dave Doe");
+
+  function attending(
+    profile: OrganizationProfile,
+    rsvp: "Yes" | "Pending",
+  ): OrganizationAttendanceRow {
+    return {
+      attendance: "Present",
+      displayName: profile.displayName,
+      profileId: profile.id,
+      rsvp,
+      updatedAt: "2025-01-01T00:00:00.000Z",
+      voicePart: "S1",
+    };
+  }
+
+  const pickerEvent = performance(pickerEventId, "Picker Concert", "2025-06-01T19:00:00.000Z");
+
+  function chartWithAssignments(
+    id: string,
+    name: string,
+    assignments: Record<string, string>,
+  ): OrganizationSeatingChart {
+    return {
+      ...chart(id, pickerEventId, name),
+      assignments,
+      rowCounts: [3],
+    };
+  }
+
+  const chartA = chartWithAssignments("chart-a", "Chart A", { "0-0": aliceId, "0-1": bobId });
+  const chartB = chartWithAssignments("chart-b", "Chart B", {});
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.getOrganizationCalendarSettings).mockResolvedValue({
+      timezone: "America/New_York",
+    });
+    vi.mocked(api.getOrganizationRosterConfiguration).mockResolvedValue(mockRoster);
+    vi.mocked(api.getOrganizationSeatingConfiguration).mockResolvedValue(mockSeating);
+    vi.mocked(api.listOrganizationProfiles).mockResolvedValue([alice, bob, carol, dave]);
+    vi.mocked(api.listOrganizationEvents).mockResolvedValue([pickerEvent]);
+    vi.mocked(api.listOrganizationSeatingCharts).mockResolvedValue([chartA, chartB]);
+    vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue([
+      attending(alice, "Yes"),
+      attending(bob, "Yes"),
+      attending(carol, "Yes"),
+      attending(dave, "Pending"),
+    ]);
+  });
+
+  afterEach(() => {
+    window.history.replaceState({}, "", "/");
+  });
+
+  async function openSeat(seatLabel: RegExp | string) {
+    fireEvent.click(screen.getByRole("button", { name: seatLabel }));
+    return screen.findByRole("dialog", { name: /^Seat \d+$/ });
+  }
+
+  it("shows only unassigned eligible Profiles on an empty seat", async () => {
+    render(<SeatingManager enabled />);
+    await flushLoad();
+
+    const dialog = await openSeat("Seat 3, empty");
+    expect(within(dialog).getByRole("button", { name: /Carol Caller/ })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Alice Alto/ })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Bob Bass/ })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Dave Doe/ })).not.toBeInTheDocument();
+  });
+
+  it("excludes the occupant and other assigned Profiles on an occupied seat", async () => {
+    render(<SeatingManager enabled />);
+    await flushLoad();
+
+    const dialog = await openSeat(/Seat 1, assigned to Alice Alto/);
+    expect(within(dialog).getByText(/Assigned to Alice Alto/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /Carol Caller/ })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Alice Alto/ })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /Bob Bass/ })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Unassign" })).toBeInTheDocument();
+  });
+
+  it("makes a Profile available again after unassigning", async () => {
+    render(<SeatingManager enabled />);
+    await flushLoad();
+
+    await openSeat(/Seat 1, assigned to Alice Alto/);
+    fireEvent.click(screen.getByRole("button", { name: "Unassign" }));
+
+    const dialog = await openSeat("Seat 1, empty");
+    expect(within(dialog).getByRole("button", { name: /Alice Alto/ })).toBeInTheDocument();
+  });
+
+  it("removes an assigned candidate from later pickers and shows the empty state", async () => {
+    render(<SeatingManager enabled />);
+    await flushLoad();
+
+    const firstDialog = await openSeat("Seat 3, empty");
+    fireEvent.click(within(firstDialog).getByRole("button", { name: /Carol Caller/ }));
+
+    const dialog = await openSeat(/Seat 1, assigned to Alice Alto/);
+    expect(within(dialog).queryByRole("button", { name: /Carol Caller/ })).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByText("All eligible attending Profiles are already assigned to seats."),
+    ).toBeInTheDocument();
+  });
+
+  it("scopes candidate availability to the current chart", async () => {
+    render(<SeatingManager enabled />);
+    await flushLoad();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Select seating chart" }), {
+      target: { value: "chart-a" },
+    });
+    const dialogA = await openSeat("Seat 3, empty");
+    expect(within(dialogA).queryByRole("button", { name: /Alice Alto/ })).not.toBeInTheDocument();
+    fireEvent.click(within(dialogA).getByRole("button", { name: "Cancel" }));
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Select seating chart" }), {
+      target: { value: "chart-b" },
+    });
+    const dialogB = await openSeat("Seat 3, empty");
+    expect(within(dialogB).getByRole("button", { name: /Alice Alto/ })).toBeInTheDocument();
   });
 });

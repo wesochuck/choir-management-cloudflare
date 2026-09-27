@@ -443,8 +443,8 @@ function ProfileLookupDialog({
 
 interface SeatDetailDialogProps {
   readonly applyChart: (chart: OrganizationSeatingChartRequest) => void;
+  readonly assignmentCandidates: readonly OrganizationProfile[];
   readonly chart: OrganizationSeatingChartRequest;
-  readonly eligibleProfiles: readonly OrganizationProfile[];
   readonly isVoicePartLayout: boolean;
   readonly partLabel: string;
   readonly profilesById: Map<string, OrganizationProfile>;
@@ -456,8 +456,8 @@ interface SeatDetailDialogProps {
 
 function SeatDetailDialog({
   applyChart,
+  assignmentCandidates,
   chart,
-  eligibleProfiles,
   isVoicePartLayout,
   partLabel,
   profilesById,
@@ -474,7 +474,7 @@ function SeatDetailDialog({
   const canDeleteSeat = !assignedProfileId && (chart.rowCounts[rowIndex] ?? 0) > 1;
   const suggestion = chart.sectionSuggestions[selectedSeat];
   const groups = groupSeatAssignmentProfiles(
-    eligibleProfiles,
+    assignmentCandidates,
     suggestion,
     isVoicePartLayout,
     roster,
@@ -502,6 +502,9 @@ function SeatDetailDialog({
           </p>
         ) : null}
         <div className="seating-assignment-picker">
+          {groups.length === 0 ? (
+            <p className="notice">All eligible attending Profiles are already assigned to seats.</p>
+          ) : null}
           {groups.map((group) => (
             <section className="seating-assignment-group" key={group.key}>
               <h3 className="seating-assignment-group__heading">{group.label}</h3>
@@ -578,6 +581,7 @@ function SeatDetailDialog({
 
 export interface SeatingDialogsProps {
   readonly applyChart: (chart: OrganizationSeatingChartRequest) => void;
+  readonly assignmentCandidates: readonly OrganizationProfile[];
   readonly changeNewChartRowCount: (value: number) => void;
   readonly changeNewChartSingerCount: (value: number) => void;
   readonly chart: OrganizationSeatingChartRequest;
@@ -591,7 +595,6 @@ export interface SeatingDialogsProps {
   readonly copyPerformanceId: string;
   readonly copySelectedChart: () => void;
   readonly createChart: () => void;
-  readonly eligibleProfiles: readonly OrganizationProfile[];
   readonly eventId: string;
   readonly events: readonly OrganizationEvent[];
   readonly isVoicePartLayout: boolean;
@@ -630,6 +633,7 @@ export interface SeatingDialogsProps {
 
 export function SeatingDialogs({
   applyChart,
+  assignmentCandidates,
   changeNewChartRowCount,
   changeNewChartSingerCount,
   chart,
@@ -643,7 +647,6 @@ export function SeatingDialogs({
   copyPerformanceId,
   copySelectedChart,
   createChart,
-  eligibleProfiles,
   eventId,
   events,
   isVoicePartLayout,
@@ -737,8 +740,8 @@ export function SeatingDialogs({
 
       <SeatDetailDialog
         applyChart={applyChart}
+        assignmentCandidates={assignmentCandidates}
         chart={chart}
-        eligibleProfiles={eligibleProfiles}
         isVoicePartLayout={isVoicePartLayout}
         partLabel={partLabel}
         profilesById={profilesById}
