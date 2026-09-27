@@ -14,6 +14,7 @@ import {
   effectiveSetListItemComposer,
   effectiveSetListItemDuration,
   effectiveSetListItemNotes,
+  formatPracticePlayerExpiration,
   itemType,
   normalizeItems,
   printTimeOnly,
@@ -29,6 +30,7 @@ import type { SetListItem } from "./types";
 import type { SetListManagerModel } from "./hooks";
 import { CustomItemDialog } from "./dialogs/CustomItemDialog";
 import { EditItemDialog } from "./dialogs/EditItemDialog";
+import { PracticePlayerShareDialog } from "./dialogs/PracticePlayerShareDialog";
 import { PrintPreviewDialog } from "./dialogs/PrintPreviewDialog";
 import { AppLink } from "../AuthenticatedShell/navigation";
 
@@ -220,12 +222,19 @@ export function SetListManagerView({
     musicQuery,
     openCustomItem,
     openItemEditor,
+    copyPracticePlayerLink,
+    linkStatus,
+    linkStatusError,
+    openPlayerQrCode,
     openPracticePlayer,
     performances,
     performerLabelPlural,
-    playerBusy,
+    playerAction,
+    qrDialogOpen,
+    qrUrl,
+    renewPracticePlayerLink,
     resources,
-    rotatePracticePlayer,
+    setQrDialogOpen,
     save,
     saveItemEdit,
     selectedEvent,
@@ -353,26 +362,67 @@ export function SetListManagerView({
             <div className="button-row" aria-label="Set-list tools">
               <button
                 className="button button--secondary"
-                disabled={busy || playerBusy || practicePlayerUnavailableReason !== undefined}
+                disabled={
+                  busy ||
+                  playerAction !== null ||
+                  practicePlayerUnavailableReason !== undefined ||
+                  linkStatus?.status === "expired"
+                }
                 onClick={() => {
                   void openPracticePlayer();
                 }}
                 title={practicePlayerUnavailableReason}
                 type="button"
               >
-                {playerBusy ? "Opening player…" : "Practice Player"}
+                {playerAction === "open" ? "Opening player…" : "Practice Player"}
               </button>
               <button
                 className="button button--secondary"
-                disabled={busy || playerBusy || practicePlayerUnavailableReason !== undefined}
+                disabled={
+                  busy ||
+                  playerAction !== null ||
+                  practicePlayerUnavailableReason !== undefined ||
+                  linkStatus?.status === "expired"
+                }
                 onClick={() => {
-                  void rotatePracticePlayer();
+                  void copyPracticePlayerLink();
                 }}
                 title={practicePlayerUnavailableReason}
                 type="button"
               >
-                {playerBusy ? "Rotating link…" : "Rotate & copy link"}
+                {playerAction === "copy" ? "Copying link…" : "Copy player link"}
               </button>
+              <button
+                className="button button--secondary"
+                disabled={
+                  busy ||
+                  playerAction !== null ||
+                  practicePlayerUnavailableReason !== undefined ||
+                  linkStatus?.status === "expired"
+                }
+                onClick={() => {
+                  void openPlayerQrCode();
+                }}
+                title={practicePlayerUnavailableReason}
+                type="button"
+              >
+                {playerAction === "qr" ? "Preparing QR code…" : "Player QR code"}
+              </button>
+              {linkStatus?.status === "expired" ? (
+                <button
+                  className="button button--secondary"
+                  disabled={
+                    busy || playerAction !== null || practicePlayerUnavailableReason !== undefined
+                  }
+                  onClick={() => {
+                    void renewPracticePlayerLink();
+                  }}
+                  title={practicePlayerUnavailableReason}
+                  type="button"
+                >
+                  {playerAction === "renew" ? "Generating link…" : "Renew player link"}
+                </button>
+              ) : null}
               <button
                 className="button button--secondary"
                 onClick={() => {
@@ -385,7 +435,11 @@ export function SetListManagerView({
             </div>
             {practicePlayerUnavailableReason ? (
               <p className="field-help set-list-player-help">{practicePlayerUnavailableReason}</p>
-            ) : null}
+            ) : (
+              <p className="field-help set-list-player-help">
+                {linkStatusError ?? formatPracticePlayerExpiration(linkStatus)}
+              </p>
+            )}
           </>
         ) : null}
       </div>
@@ -923,6 +977,17 @@ export function SetListManagerView({
             open={printDialogOpen}
             showNotes={showNotes}
             venues={resources.venues}
+          />
+
+          <PracticePlayerShareDialog
+            event={selectedEvent}
+            linkStatus={linkStatus}
+            onClose={() => {
+              setQrDialogOpen(false);
+            }}
+            onCopyLink={copyPracticePlayerLink}
+            open={qrDialogOpen}
+            url={qrUrl}
           />
 
           <EditItemDialog

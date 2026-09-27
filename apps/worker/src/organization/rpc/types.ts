@@ -203,6 +203,7 @@ export const organizationRpcOperationMap: OrganizationRpcOperationMap = {
       "/internal/player/details",
       "/internal/player/playlist",
       "/internal/player/public-link",
+      "/internal/player/public-link/status",
       "/internal/music/pieces",
       "/internal/music/settings",
       "/internal/reports/music-folders/*",

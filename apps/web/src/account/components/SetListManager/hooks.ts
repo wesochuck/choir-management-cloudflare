@@ -13,23 +13,27 @@ import {
   eventRequestFrom,
   moveItemToIndex,
   normalizeItems,
+  setListHasLearningTrack,
   setListItemEditError,
   setListItemForEdit,
   setListDocumentText,
 } from "./utils";
-import type { Resources, SetListItem } from "./types";
+import type { PlayerAction, Resources, SetListItem } from "./types";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthApiError,
   generatePublicPlayerToken,
   getOrganizationCalendarSettings,
+  getPublicPlayerLinkStatus,
   listOrganizationEvents,
   listOrganizationMusic,
   listOrganizationProfiles,
   listOrganizationVenues,
-  rotatePublicPlayerToken,
+  type PublicPlayerLink,
+  type PublicPlayerLinkStatus,
   updateOrganizationEvent,
 } from "../../../auth/api";
+import { copyRichLink } from "../../../shared/clipboard";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 
 export function useSetListManagerController({
@@ -56,7 +60,12 @@ export function useSetListManagerController({
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [editingItem, setEditingItem] = useState<SetListItem | null>(null);
   const [busy, setBusy] = useState(false);
-  const [playerBusy, setPlayerBusy] = useState(false);
+  const [playerAction, setPlayerAction] = useState<PlayerAction>(null);
+  const [linkStatus, setLinkStatus] = useState<PublicPlayerLinkStatus | null>(null);
+  const [linkStatusError, setLinkStatusError] = useState<string | null>(null);
+  const [activePlayerLink, setActivePlayerLink] = useState<PublicPlayerLink | null>(null);
+  const [qrDialogOpen, setQrDialogOpen] = useState(false);
+  const [qrUrl, setQrUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -74,6 +83,11 @@ export function useSetListManagerController({
   function setSelectedEventId(eventId: string): void {
     selectedEventIdRef.current = eventId;
     setSelectedEventIdState(eventId);
+    setLinkStatus(null);
+    setLinkStatusError(null);
+    setActivePlayerLink(null);
+    setQrDialogOpen(false);
+    setQrUrl("");
   }
 
   useEffect(() => {
@@ -91,6 +105,11 @@ export function useSetListManagerController({
       setError(null);
       setMessage(null);
       setDirty(false);
+      setLinkStatus(null);
+      setLinkStatusError(null);
+      setActivePlayerLink(null);
+      setQrDialogOpen(false);
+      setQrUrl("");
     }
 
     Promise.all([
@@ -156,6 +175,28 @@ export function useSetListManagerController({
   );
   const selectedEvent = performances.find(({ id }) => id === selectedEventId) ?? null;
   const selectedEventIdForAutosave = selectedEvent?.id ?? null;
+  const selectedEventIdForStatus = selectedEvent?.id ?? null;
+
+  useEffect(() => {
+    if (!enabled || !selectedEventIdForStatus) return;
+
+    const controller = new AbortController();
+
+    getPublicPlayerLinkStatus(selectedEventIdForStatus, controller.signal)
+      .then((status) => {
+        setLinkStatus(status);
+        setLinkStatusError(null);
+      })
+      .catch((caught: unknown) => {
+        if (!(caught instanceof DOMException && caught.name === "AbortError")) {
+          setLinkStatusError("Practice player link status could not be loaded.");
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [enabled, selectedEventIdForStatus]);
 
   const timing = useMemo(
     () =>
@@ -403,12 +444,42 @@ export function useSetListManagerController({
     }
   }
 
+  const isPracticePlayerEligible = Boolean(
+    selectedEvent && approved && setListHasLearningTrack(items, resources.music),
+  );
+
+  async function ensureActiveLink(): Promise<PublicPlayerLink | null> {
+    if (!selectedEvent || !isPracticePlayerEligible) return null;
+    const expiresAtMs =
+      activePlayerLink && activePlayerLink.expiresAt < 10_000_000_000
+        ? activePlayerLink.expiresAt * 1000
+        : (activePlayerLink?.expiresAt ?? 0);
+    if (activePlayerLink && expiresAtMs > Date.now()) {
+      return activePlayerLink;
+    }
+    const link = await generatePublicPlayerToken(selectedEvent.id);
+    setActivePlayerLink(link);
+    setLinkStatus({
+      active: true,
+      eventId: selectedEvent.id,
+      expiresAt: link.expiresAt,
+      issuedAt: link.issuedAt,
+      status: "active",
+    });
+    return link;
+  }
+
   async function openPracticePlayer(): Promise<void> {
-    if (!selectedEvent || busy || playerBusy) return;
-    setPlayerBusy(true);
+    if (!selectedEvent || busy || playerAction !== null || !isPracticePlayerEligible) return;
+    if (linkStatus?.status === "expired") {
+      setError("The practice player link has expired. Renew the link before opening.");
+      return;
+    }
+    setPlayerAction("open");
     setError(null);
     try {
-      const link = await generatePublicPlayerToken(selectedEvent.id);
+      const link = await ensureActiveLink();
+      if (!link) return;
       window.location.assign(link.url);
     } catch (caught: unknown) {
       setError(
@@ -417,26 +488,84 @@ export function useSetListManagerController({
           : "The no-login practice player could not be opened.",
       );
     } finally {
-      setPlayerBusy(false);
+      setPlayerAction(null);
     }
   }
 
-  async function rotatePracticePlayer(): Promise<void> {
-    if (!selectedEvent || busy || playerBusy) return;
-    setPlayerBusy(true);
+  async function copyPracticePlayerLink(): Promise<void> {
+    if (!selectedEvent || busy || playerAction !== null || !isPracticePlayerEligible) return;
+    if (linkStatus?.status === "expired") {
+      setError("The practice player link has expired. Renew the link before copying.");
+      return;
+    }
+    setPlayerAction("copy");
     setError(null);
     try {
-      const link = await rotatePublicPlayerToken(selectedEvent.id);
-      await navigator.clipboard.writeText(link.url);
-      setMessage("Practice player link rotated and copied. The previous link no longer works.");
+      const link = await ensureActiveLink();
+      if (!link) return;
+      const label = `Practice Player \u2013 ${selectedEvent.title}`;
+      const absoluteUrl = new URL(link.url, window.location.origin).toString();
+      await copyRichLink({ label, url: absoluteUrl });
+      setMessage("Practice player link copied.");
     } catch (caught: unknown) {
       setError(
         caught instanceof AuthApiError
           ? caught.message
-          : "The practice player link could not be rotated or copied.",
+          : "The practice player link could not be copied.",
       );
     } finally {
-      setPlayerBusy(false);
+      setPlayerAction(null);
+    }
+  }
+
+  async function openPlayerQrCode(): Promise<void> {
+    if (!selectedEvent || busy || playerAction !== null || !isPracticePlayerEligible) return;
+    if (linkStatus?.status === "expired") {
+      setError("The practice player link has expired. Renew the link before viewing QR code.");
+      return;
+    }
+    setPlayerAction("qr");
+    setError(null);
+    try {
+      const link = await ensureActiveLink();
+      if (!link) return;
+      const absoluteUrl = new URL(link.url, window.location.origin).toString();
+      setQrUrl(absoluteUrl);
+      setQrDialogOpen(true);
+    } catch (caught: unknown) {
+      setError(
+        caught instanceof AuthApiError
+          ? caught.message
+          : "The practice player QR code could not be prepared.",
+      );
+    } finally {
+      setPlayerAction(null);
+    }
+  }
+
+  async function renewPracticePlayerLink(): Promise<void> {
+    if (!selectedEvent || busy || playerAction !== null || !isPracticePlayerEligible) return;
+    setPlayerAction("renew");
+    setError(null);
+    try {
+      const link = await generatePublicPlayerToken(selectedEvent.id);
+      setActivePlayerLink(link);
+      setLinkStatus({
+        active: true,
+        eventId: selectedEvent.id,
+        expiresAt: link.expiresAt,
+        issuedAt: link.issuedAt,
+        status: "active",
+      });
+      setMessage("Practice player link renewed.");
+    } catch (caught: unknown) {
+      setError(
+        caught instanceof AuthApiError
+          ? caught.message
+          : "The practice player link could not be renewed.",
+      );
+    } finally {
+      setPlayerAction(null);
     }
   }
 
@@ -483,11 +612,18 @@ export function useSetListManagerController({
     openCustomItem,
     insertCustomItem,
     openItemEditor,
+    copyPracticePlayerLink,
+    linkStatus,
+    linkStatusError,
+    openPlayerQrCode,
     openPracticePlayer,
-    rotatePracticePlayer,
     performances,
     performerLabelPlural,
-    playerBusy,
+    playerAction,
+    playerBusy: playerAction !== null,
+    qrDialogOpen,
+    qrUrl,
+    renewPracticePlayerLink,
     resources,
     save,
     saveItemEdit,
@@ -509,6 +645,7 @@ export function useSetListManagerController({
     setItems,
     setMessage,
     setMusicQuery,
+    setQrDialogOpen,
     setSelectedEventId,
     setShowNotes,
     showNotes,

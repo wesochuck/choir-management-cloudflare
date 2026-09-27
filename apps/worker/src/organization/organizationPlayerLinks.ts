@@ -67,12 +67,35 @@ export async function generatePlayerTokens(
   return { tokens };
 }
 
+export interface PublicPlayerLinkStatus {
+  readonly active: boolean;
+  readonly eventId: string;
+  readonly expiresAt: number | null;
+  readonly issuedAt: number | null;
+  readonly status: "none" | "active" | "expired";
+}
+
+export async function getPublicPlayerLinkStatus(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+  eventId: string,
+): Promise<PublicPlayerLinkStatus> {
+  const url = new URL("https://organization.internal/internal/player/public-link/status");
+  url.searchParams.set("eventId", eventId);
+  url.searchParams.set("organizationId", organizationId);
+  const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
+  if (!response.ok) {
+    throw new Error("Practice player link status is unavailable.");
+  }
+  return await response.json();
+}
+
 export async function generatePublicPlayerToken(
   env: Pick<Env, "ORGANIZATION_STORE" | "SIGNED_LINK_SECRET">,
   organizationId: string,
   eventId: string,
   rotate = false,
-): Promise<{ token: string }> {
+): Promise<{ readonly expiresAt: number; readonly issuedAt: number; readonly token: string }> {
   const settingsResponse = await readOrganizationStore(
     env,
     organizationId,
@@ -113,6 +136,8 @@ export async function generatePublicPlayerToken(
   }
   const link = playerLinkRowSchema.parse(await linkResponse.json());
   return {
+    expiresAt: link.expiresAt,
+    issuedAt: link.issuedAt,
     token: await issueSignedLink(env.SIGNED_LINK_SECRET, {
       algorithm: "HS256",
       expiresAt: link.expiresAt,

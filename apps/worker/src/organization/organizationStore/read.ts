@@ -15,7 +15,10 @@ import {
 } from "../calendarManagementStore";
 import { listProfileStatusHistoryFromStore } from "../statusAutomationStore";
 import { readPlayerDetailsFromStore, readPlayerPlaylistFromStore } from "../playerStore";
-import { readPracticePlayerLinkFromStore } from "../playerLinkStore";
+import {
+  readPracticePlayerLinkFromStore,
+  readPracticePlayerLinkStatusFromStore,
+} from "../playerLinkStore";
 import {
   readAuditionFromStore,
   readPublicAuditionFromStore,
@@ -302,6 +305,15 @@ const contentGetHandlers: Record<
     readPracticePlayerLinkFromStore(storage, {
       eventId: url.searchParams.get("eventId"),
       nonce: url.searchParams.get("nonce"),
+      organizationId,
+    }),
+  "/internal/player/public-link/status": (
+    storage: DurableObjectStorage,
+    url: URL,
+    organizationId: string | null,
+  ) =>
+    readPracticePlayerLinkStatusFromStore(storage, {
+      eventId: url.searchParams.get("eventId"),
       organizationId,
     }),
   "/internal/audition/details": (

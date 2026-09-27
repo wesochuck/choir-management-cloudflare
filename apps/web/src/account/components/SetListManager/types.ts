@@ -9,6 +9,8 @@ export type SetListItem = OrganizationEvent["setList"][number];
 
 export type PerformerCredit = NonNullable<SetListItem["performerCredits"]>[number];
 
+export type PlayerAction = "open" | "copy" | "qr" | "renew" | null;
+
 export interface Resources {
   readonly events: readonly OrganizationEvent[];
   readonly music: readonly OrganizationMusicPiece[];

@@ -14,6 +14,7 @@ import {
   effectiveSetListItemDuration,
   effectiveSetListItemDurationSeconds,
   effectiveSetListItemNotes,
+  formatPracticePlayerExpiration,
   musicPiecesForSetListItem,
   resolveEventVenueName,
   resolveSetListPreferredPracticeTrack,
@@ -800,5 +801,54 @@ describe("setListRecordingCoverage", () => {
       songsMissingRecording: 0,
       songsWithRecording: 1,
     });
+  });
+});
+
+describe("formatPracticePlayerExpiration", () => {
+  const timestamp = new Date("2026-10-04T13:30:00.000Z").getTime();
+
+  it("handles null and none status", () => {
+    expect(formatPracticePlayerExpiration(null)).toBe(
+      "A Practice Player link has not been created yet.",
+    );
+    expect(
+      formatPracticePlayerExpiration({
+        active: false,
+        eventId: "event-1",
+        expiresAt: null,
+        issuedAt: null,
+        status: "none",
+      }),
+    ).toBe("A Practice Player link has not been created yet.");
+  });
+
+  it("formats active status with locale-aware date and time", () => {
+    const formatted = formatPracticePlayerExpiration(
+      {
+        active: true,
+        eventId: "event-1",
+        expiresAt: timestamp,
+        issuedAt: timestamp - 86400000,
+        status: "active",
+      },
+      "en-US",
+    );
+    expect(formatted).toMatch(/^Practice Player link expires Oct 4, 2026/);
+    expect(formatted.endsWith(".")).toBe(true);
+  });
+
+  it("formats expired status with locale-aware date and time", () => {
+    const formatted = formatPracticePlayerExpiration(
+      {
+        active: false,
+        eventId: "event-1",
+        expiresAt: timestamp,
+        issuedAt: timestamp - 86400000,
+        status: "expired",
+      },
+      "en-US",
+    );
+    expect(formatted).toMatch(/^Practice Player link expired Oct 4, 2026/);
+    expect(formatted.endsWith(".")).toBe(true);
   });
 });

@@ -449,6 +449,20 @@ describe("member dashboard", () => {
     const publishedBody = await published.json();
     expect(readToken(publishedBody)).toBeTruthy();
     expect(readUrl(publishedBody)).toContain("http://alpha.localhost/player?mode=set-list&token=");
+
+    const statusResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/player-tokens/${PERFORMANCE_ID}/status`, cookie),
+    );
+    const statusBody = await statusResponse.json();
+    expect(statusBody).toMatchObject({
+      active: true,
+      eventId: PERFORMANCE_ID,
+      status: "active",
+    });
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (typeof statusBody === "object" && statusBody !== null && "expiresAt" in statusBody) {
+      expect(Number(statusBody.expiresAt)).toBeGreaterThan(nowSeconds);
+    }
     const publicPlayerResponse = await exports.default.fetch(
       api(
         "alpha.localhost",

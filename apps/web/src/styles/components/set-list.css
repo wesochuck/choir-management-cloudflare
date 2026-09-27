@@ -561,4 +561,32 @@
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
   }
+
+  /* Practice player QR code share dialog */
+
+  .practice-player-share-dialog__content {
+    display: grid;
+    gap: var(--spacing-md);
+    text-align: center;
+  }
+
+  .practice-player-share-dialog__event {
+    margin: 0;
+    font-weight: 600;
+  }
+
+  .practice-player-share-dialog__qr-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--spacing-sm);
+    background: #ffffff;
+    border-radius: var(--radius-control);
+    border: 1px solid var(--color-border);
+    margin: 0 auto;
+  }
+
+  .practice-player-share-dialog__expiration {
+    margin: 0;
+  }
 }

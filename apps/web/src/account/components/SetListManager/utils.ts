@@ -12,6 +12,7 @@ import {
   parseSetListDuration,
 } from "@choir/domain";
 import { resolvePreferredPracticeTrack, type PreferredPracticeTrack } from "../MusicCatalog/utils";
+import type { PublicPlayerLinkStatus } from "../../../api/player";
 import type { SetListItem, SetListPreviewRow, SetListPrintRow } from "./types";
 import type { Resources } from "./types";
 
@@ -376,6 +377,25 @@ export function printTimeOnly(value: string): string {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+export function formatPracticePlayerExpiration(
+  status: PublicPlayerLinkStatus | null,
+  locale?: string,
+): string {
+  if (!status || status.status === "none" || !status.expiresAt) {
+    return "A Practice Player link has not been created yet.";
+  }
+  const timestamp = status.expiresAt < 10_000_000_000 ? status.expiresAt * 1000 : status.expiresAt;
+  const formatted = new Intl.DateTimeFormat(locale, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(timestamp));
+
+  if (status.status === "expired") {
+    return `Practice Player link expired ${formatted}.`;
+  }
+  return `Practice Player link expires ${formatted}.`;
 }
 
 function printRowsFor(

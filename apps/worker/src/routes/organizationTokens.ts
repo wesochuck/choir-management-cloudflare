@@ -15,6 +15,7 @@ import { generatePollTokens } from "../organization/organizationPollLinks";
 import {
   generatePlayerTokens,
   generatePublicPlayerToken,
+  getPublicPlayerLinkStatus,
   PracticePlayerUnavailableError,
 } from "../organization/organizationPlayerLinks";
 
@@ -181,6 +182,47 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         {
           code: "service_unavailable",
           message: "Player tokens could not be generated.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        503,
+      );
+    }
+  });
+
+  router.get("/api/organization/player-tokens/:eventId/status", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const eventId = z.uuid().safeParse(context.req.param("eventId"));
+    if (!eventId.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid event ID is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      const status = await getPublicPlayerLinkStatus(
+        context.env,
+        authorization.organizationId,
+        eventId.data,
+      );
+      return context.json({
+        ...status,
+        requestId: context.get("requestId"),
+      });
+    } catch {
+      return context.json(
+        {
+          code: "service_unavailable",
+          message: "Player token status could not be retrieved.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         503,

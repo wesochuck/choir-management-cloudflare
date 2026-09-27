@@ -161,3 +161,35 @@ export async function ensurePracticePlayerLinkInStore(
   });
   return Response.json(link);
 }
+
+export function readPracticePlayerLinkStatusFromStore(
+  storage: DurableObjectStorage,
+  input: {
+    readonly eventId: string | null;
+    readonly organizationId: string | null;
+  },
+): Response {
+  const eventId = z.uuid().safeParse(input.eventId);
+  if (!identityMatches(storage, input.organizationId) || !eventId.success) {
+    return Response.json({ code: "practice_link_not_found" }, { status: 404 });
+  }
+  const link = readLink(storage, eventId.data);
+  if (!link) {
+    return Response.json({
+      active: false,
+      eventId: eventId.data,
+      expiresAt: null,
+      issuedAt: null,
+      status: "none",
+    });
+  }
+  const now = Math.floor(Date.now() / 1_000);
+  const isExpired = link.expiresAt <= now;
+  return Response.json({
+    active: !isExpired,
+    eventId: link.eventId,
+    expiresAt: link.expiresAt,
+    issuedAt: link.issuedAt,
+    status: isExpired ? "expired" : "active",
+  });
+}
