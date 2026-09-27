@@ -184,7 +184,10 @@ export function recordTicketNotificationResult(
       provider_message_id = ?,
       provider_status = CASE WHEN ? = 'sent' AND ? IS NOT NULL AND provider_status IS NULL THEN 'accepted' ELSE provider_status END,
       failure_detail = ?, updated_at = ?,
-      sent_at = CASE WHEN ? IN ('sent', 'suppressed') THEN ? ELSE sent_at END
+      sent_at = CASE WHEN ? IN ('sent', 'suppressed') THEN ? ELSE sent_at END,
+      rendered_subject = COALESCE(?, rendered_subject),
+      rendered_content_markdown = COALESCE(?, rendered_content_markdown),
+      rendered_at = CASE WHEN ? IS NOT NULL OR ? IS NOT NULL THEN ? ELSE rendered_at END
      WHERE id = ?`,
     operation.status,
     operation.providerMessageId,
@@ -193,6 +196,11 @@ export function recordTicketNotificationResult(
     operation.failureDetail,
     now,
     operation.status,
+    now,
+    operation.renderedSubject ?? null,
+    operation.renderedContentMarkdown ?? null,
+    operation.renderedSubject ?? null,
+    operation.renderedContentMarkdown ?? null,
     now,
     notificationId,
   );

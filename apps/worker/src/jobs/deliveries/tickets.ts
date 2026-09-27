@@ -8,6 +8,7 @@ import {
   deliveryOrigin,
   readOrganizationBrandingConfig,
   readOrganizationEmailSenderConfig,
+  renderSafeTicketSnapshotContent,
   renderTicketLinks,
   ticketNotificationJobSchema,
 } from "./shared";
@@ -113,6 +114,14 @@ export async function deliverTicketNotificationJob(
   ]);
   const origin = await deliveryOrigin(env, job.organizationId, { unsubscribeUrl: null });
   const logoUrl = branding.logoFileId ? `${origin}/api/public/logo` : null;
+  const renderedSubject = renderCommunicationTemplate(
+    notification.data.subject,
+    notification.data.buyerName,
+    templateValues,
+  );
+  const safeBody =
+    renderSafeTicketSnapshotContent(templatedContent, notification.data.kind === "refund") +
+    discountSummary;
   const result = await deliverOrganizationCommunication(env, {
     channel: "email",
     contentMarkdown: contentWithTicketLink + discountSummary,
@@ -129,11 +138,7 @@ export async function deliverTicketNotificationJob(
     sendingDomain: senderConfig.sendingDomain ?? undefined,
     sourceId: notification.data.id,
     sourceKind: "ticket_notification",
-    subject: renderCommunicationTemplate(
-      notification.data.subject,
-      notification.data.buyerName,
-      templateValues,
-    ),
+    subject: renderedSubject,
     unsubscribeUrl: null,
   });
   const recordResponse = await invokeOrganizationRpc(
@@ -146,6 +151,8 @@ export async function deliverTicketNotificationJob(
         jobId: job.jobId,
         organizationId: job.organizationId,
         providerMessageId: result.providerMessageId,
+        renderedContentMarkdown: safeBody,
+        renderedSubject,
         status: result.status,
       }),
       headers: { "content-type": "application/json" },

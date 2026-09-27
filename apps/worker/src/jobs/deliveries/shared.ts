@@ -461,6 +461,14 @@ export async function renderTicketLinks(
   );
 }
 
+export function renderSafeTicketSnapshotContent(content: string, isRefund = false): string {
+  return content.replace(ticketLinksPlaceholderReplacementPattern, (placeholder) =>
+    isRefund || /order/i.test(placeholder)
+      ? "[View order details](#)"
+      : "[View ticket / QR code](#)",
+  );
+}
+
 export async function renderPollLinks(
   env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET"> &
     Partial<Pick<JobConsumerEnv, "CONTROL_DB">>,

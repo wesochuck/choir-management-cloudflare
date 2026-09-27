@@ -85,6 +85,8 @@ export const ticketNotificationResultOperationSchema = organizationContextSchema
   failureDetail: z.string().max(2_000),
   jobId: z.uuid(),
   providerMessageId: z.string().max(512).nullable(),
+  renderedContentMarkdown: z.string().max(100_000).optional(),
+  renderedSubject: z.string().max(300).optional(),
   status: z.enum(["failed", "sent", "suppressed"]),
 });
 

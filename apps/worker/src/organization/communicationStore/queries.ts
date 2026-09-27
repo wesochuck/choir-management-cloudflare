@@ -226,7 +226,14 @@ export function listCommunicationHistoryFromStore(
         n.id,
         n.scheduled_for AS sort_timestamp,
         CASE WHEN n.status = 'failed' THEN 'Failed' WHEN n.status IN ('sent', 'suppressed') THEN 'Sent' ELSE 'Queued' END AS status,
-        n.subject,
+        COALESCE(
+          n.rendered_subject,
+          CASE
+            WHEN p.bundle_title <> '' THEN REPLACE(REPLACE(REPLACE(n.subject, '{ticketBundleName}', p.bundle_title), '{eventTitle}', p.bundle_title), '{buyerName}', p.buyer_name)
+            WHEN COALESCE(e.title, p.event_title) <> '' THEN REPLACE(REPLACE(REPLACE(n.subject, '{eventTitle}', COALESCE(e.title, p.event_title)), '{ticketBundleName}', COALESCE(e.title, p.event_title)), '{buyerName}', p.buyer_name)
+            ELSE n.subject
+          END
+        ) AS subject,
         'Email' AS channel,
         NULL AS createdAt,
         NULL AS updatedAt,
@@ -234,9 +241,9 @@ export function listCommunicationHistoryFromStore(
         NULL AS canceledAt,
         NULL AS reachJson,
         NULL AS audienceJson,
-        NULL AS contentMarkdown,
+        COALESCE(n.rendered_content_markdown, n.content_markdown) AS contentMarkdown,
         n.event_id AS eventId,
-        COALESCE(e.title, p.event_title) AS eventTitle,
+        COALESCE(NULLIF(p.bundle_title, ''), e.title, p.event_title) AS eventTitle,
         CASE
           WHEN n.dedupe_key LIKE 'ticket-refund:%' OR n.kind = 'refund' THEN 'ticket_refund'
           WHEN n.kind = 'reminder' THEN 'ticket_reminder'
@@ -564,9 +571,17 @@ export function listCommunicationScheduledMessagesFromStore(
     .exec<ScheduledTicketMessageRow>(
       `SELECT n.id,
         CASE WHEN n.dedupe_key LIKE 'ticket-refund:%' THEN 'refund' ELSE n.kind END AS kind,
-        n.subject, n.status,
+        COALESCE(
+          n.rendered_subject,
+          CASE
+            WHEN p.bundle_title <> '' THEN REPLACE(REPLACE(REPLACE(n.subject, '{ticketBundleName}', p.bundle_title), '{eventTitle}', p.bundle_title), '{buyerName}', p.buyer_name)
+            WHEN COALESCE(e.title, p.event_title) <> '' THEN REPLACE(REPLACE(REPLACE(n.subject, '{eventTitle}', COALESCE(e.title, p.event_title)), '{ticketBundleName}', COALESCE(e.title, p.event_title)), '{buyerName}', p.buyer_name)
+            ELSE n.subject
+          END
+        ) AS subject,
+        n.status,
         n.scheduled_for AS scheduledAt, n.event_id AS eventId,
-        COALESCE(e.title, p.event_title) AS eventTitle
+        COALESCE(NULLIF(p.bundle_title, ''), e.title, p.event_title) AS eventTitle
        FROM ticket_notifications n
        JOIN ticket_purchases p ON p.id = n.purchase_id
        LEFT JOIN events e ON e.id = n.event_id

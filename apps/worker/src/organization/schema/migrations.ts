@@ -1609,6 +1609,14 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
          AND amount_cents > 0`,
     ],
   },
+  {
+    version: 97,
+    statements: [
+      "ALTER TABLE ticket_notifications ADD COLUMN rendered_subject TEXT",
+      "ALTER TABLE ticket_notifications ADD COLUMN rendered_content_markdown TEXT",
+      "ALTER TABLE ticket_notifications ADD COLUMN rendered_at TEXT",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;
