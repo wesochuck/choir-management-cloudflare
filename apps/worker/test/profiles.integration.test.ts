@@ -177,6 +177,11 @@ describe("Organization Profiles", () => {
       }),
     );
     expect(rejected.status).toBe(400);
+    await expect(rejected.json()).resolves.toMatchObject({
+      code: "validation_failed",
+      message:
+        'Unrecognized voice part "NotConfigured" on row 3. Configured voice parts: S1, S2, A1, A2, T1, T2, B1, B2.',
+    });
     const afterRejected = organizationProfilesResponseSchema.parse(
       await (
         await exports.default.fetch(
@@ -185,6 +190,29 @@ describe("Organization Profiles", () => {
       ).json(),
     ).profiles;
     expect(afterRejected).toHaveLength(2);
+
+    const fullNamesImport = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles/import", cookie, {
+        body: "Name,Voice Part\nSoprano Singer,Soprano 1\nAlto Singer, alto 2 \nTenor Singer,t1",
+        headers: { "content-type": "text/csv" },
+        method: "POST",
+      }),
+    );
+    expect(fullNamesImport.status).toBe(201);
+    const updatedProfiles = organizationProfilesResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          apiRequest("alpha.localhost", "/api/organization/profiles", cookie),
+        )
+      ).json(),
+    ).profiles;
+    expect(updatedProfiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ displayName: "Soprano Singer", voicePart: "S1" }),
+        expect.objectContaining({ displayName: "Alto Singer", voicePart: "A2" }),
+        expect.objectContaining({ displayName: "Tenor Singer", voicePart: "T1" }),
+      ]),
+    );
   });
 
   it("creates and lists Profiles only within the canonical authenticated Organization", async () => {

@@ -27,11 +27,27 @@ const directoryStoreResponseSchema = z.object({
 
 export class OrganizationProfileMutationError extends Error {
   readonly code: "voice_part_not_configured";
+  readonly configuredVoiceParts?: readonly string[] | undefined;
+  readonly rejectedValue?: string | undefined;
 
-  constructor(performerLabel = "Performer") {
-    super(`The selected ${performerLabel} is not configured for this Organization.`);
+  constructor(
+    options?:
+      | string
+      | {
+          readonly configuredVoiceParts?: readonly string[] | undefined;
+          readonly rejectedValue?: string | undefined;
+        },
+  ) {
+    const opts = typeof options === "string" ? undefined : options;
+    const configuredSuffix =
+      opts?.configuredVoiceParts && opts.configuredVoiceParts.length > 0
+        ? ` Configured voice parts: ${opts.configuredVoiceParts.join(", ")}.`
+        : "";
+    super(`The selected voice part is not configured for this Organization.${configuredSuffix}`);
     this.name = "OrganizationProfileMutationError";
     this.code = "voice_part_not_configured";
+    this.configuredVoiceParts = opts?.configuredVoiceParts;
+    this.rejectedValue = opts?.rejectedValue;
   }
 }
 
@@ -47,11 +63,15 @@ async function assertProfileMutationAccepted(response: Response, operation: stri
       "code" in body &&
       body.code === "voice_part_not_configured"
     ) {
-      const performerLabel =
-        "performerLabel" in body && typeof body.performerLabel === "string"
-          ? body.performerLabel
-          : "Performer";
-      throw new OrganizationProfileMutationError(performerLabel);
+      const configuredVoiceParts =
+        "configuredVoiceParts" in body && Array.isArray(body.configuredVoiceParts)
+          ? body.configuredVoiceParts.filter((item): item is string => typeof item === "string")
+          : undefined;
+      const rejectedValue =
+        "rejectedValue" in body && typeof body.rejectedValue === "string"
+          ? body.rejectedValue
+          : undefined;
+      throw new OrganizationProfileMutationError({ configuredVoiceParts, rejectedValue });
     }
   }
   if (!response.ok) throw new Error(`The Organization store rejected the Profile ${operation}.`);

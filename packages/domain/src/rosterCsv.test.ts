@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { emailAddressSchema } from "@choir/contracts";
 
-import { mapRosterCsvColumns, parseRosterCsv, renderRosterCsv, RosterCsvError } from "./rosterCsv";
+import {
+  inspectRosterCsv,
+  mapRosterCsvColumns,
+  parseRosterCsv,
+  renderRosterCsv,
+  resolveVoicePartLabel,
+  RosterCsvError,
+} from "./rosterCsv";
 
 describe("roster CSV", () => {
   it("preserves field order, Idle status, escaping, and the section-leader block", () => {
@@ -161,5 +168,85 @@ describe("roster CSV", () => {
         voicePart: "S1",
       }),
     ]);
+  });
+
+  describe("voice part auto-resolution and validation", () => {
+    const configuredVoiceParts = [
+      { fullName: "Soprano 1", label: "S1" },
+      { fullName: "Soprano 2", label: "S2" },
+      { fullName: "Alto 1", label: "A1" },
+      { fullName: "Alto 2", label: "A2" },
+      { fullName: "Tenor 1", label: "T1" },
+      { fullName: "Tenor 2", label: "T2" },
+      { fullName: "Bass 1", label: "B1" },
+      { fullName: "Bass 2", label: "B2" },
+    ];
+
+    it("resolves voice parts by label and fullName case-insensitively with trimming", () => {
+      expect(resolveVoicePartLabel("s1", configuredVoiceParts)).toEqual({
+        matched: true,
+        canonicalLabel: "S1",
+      });
+      expect(resolveVoicePartLabel("  Soprano 1  ", configuredVoiceParts)).toEqual({
+        matched: true,
+        canonicalLabel: "S1",
+      });
+      expect(resolveVoicePartLabel("alto 2", configuredVoiceParts)).toEqual({
+        matched: true,
+        canonicalLabel: "A2",
+      });
+      expect(resolveVoicePartLabel("", configuredVoiceParts)).toEqual({
+        matched: true,
+        canonicalLabel: "",
+      });
+      expect(resolveVoicePartLabel("Baritenor", configuredVoiceParts)).toEqual({
+        matched: false,
+      });
+    });
+
+    it("maps standard full voice part names and trimmed lowercase labels to canonical labels on CSV import", () => {
+      const csv = [
+        "Name,Voice Part",
+        "Singer One,Soprano 1",
+        "Singer Two, alto 2 ",
+        "Singer Three,t1",
+        "Singer Four,",
+      ].join("\n");
+      const parsed = parseRosterCsv(csv, 500, "Performer", configuredVoiceParts);
+      expect(parsed[0]?.voicePart).toBe("S1");
+      expect(parsed[1]?.voicePart).toBe("A2");
+      expect(parsed[2]?.voicePart).toBe("T1");
+      expect(parsed[3]?.voicePart).toBe("");
+    });
+
+    it("rejects unrecognized voice parts with row number, offending value, and configured options", () => {
+      const csv = ["Name,Voice Part", "Valid Singer,S1", "Invalid Singer,Baritenor"].join("\n");
+      expect(() => parseRosterCsv(csv, 500, "Performer", configuredVoiceParts)).toThrow(
+        'Unrecognized voice part "Baritenor" on row 3. Configured voice parts: S1, S2, A1, A2, T1, T2, B1, B2.',
+      );
+    });
+
+    it("surfaces pre-import warnings and fatal error for unrecognized voice parts during inspection", () => {
+      const csv = ["Name,Voice Part", "Alice,Soprano 1", "Bob,Baritenor"].join("\n");
+      const inspection = inspectRosterCsv(csv, "Performer", configuredVoiceParts);
+      expect(inspection.fatalError).toBe(
+        'Unrecognized voice part "Baritenor" on row 3. Configured voice parts: S1, S2, A1, A2, T1, T2, B1, B2.',
+      );
+      expect(inspection.warnings).toContainEqual(
+        expect.objectContaining({
+          header: "Voice Part",
+          message:
+            'Unrecognized voice part "Baritenor". Configured voice parts: S1, S2, A1, A2, T1, T2, B1, B2.',
+          rows: [3],
+        }),
+      );
+    });
+
+    it("inspects cleanly when full names are resolved", () => {
+      const csv = ["Name,Voice Part", "Alice,Soprano 1", "Bob,Alto 2"].join("\n");
+      const inspection = inspectRosterCsv(csv, "Performer", configuredVoiceParts);
+      expect(inspection.fatalError).toBeNull();
+      expect(inspection.warnings).toHaveLength(0);
+    });
   });
 });

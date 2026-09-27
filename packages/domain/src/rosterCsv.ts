@@ -20,6 +20,35 @@ export interface RosterCsvImportProfile {
   readonly voicePart: string;
 }
 
+export interface ConfiguredVoicePartReference {
+  readonly fullName: string;
+  readonly label: string;
+}
+
+export function resolveVoicePartLabel(
+  rawVoicePart: string,
+  configuredVoiceParts: readonly ConfiguredVoicePartReference[],
+): { matched: true; canonicalLabel: string } | { matched: false } {
+  const trimmed = rawVoicePart.trim();
+  if (trimmed === "") {
+    return { matched: true, canonicalLabel: "" };
+  }
+  const normalized = trimmed.toLowerCase();
+  const matchedByLabel = configuredVoiceParts.find(
+    (vp) => vp.label.trim().toLowerCase() === normalized,
+  );
+  if (matchedByLabel) {
+    return { matched: true, canonicalLabel: matchedByLabel.label };
+  }
+  const matchedByName = configuredVoiceParts.find(
+    (vp) => vp.fullName.trim().toLowerCase() === normalized,
+  );
+  if (matchedByName) {
+    return { matched: true, canonicalLabel: matchedByName.label };
+  }
+  return { matched: false };
+}
+
 export class RosterCsvError extends Error {
   constructor(
     message: string,
@@ -133,6 +162,7 @@ export function parseRosterCsv(
   csv: string,
   maximumRows = 500,
   performerLabel = "Performer",
+  configuredVoiceParts?: readonly ConfiguredVoicePartReference[],
 ): RosterCsvImportProfile[] {
   const rows = parseRows(csv.replace(/^\uFEFF/, ""));
   const [headerRow, ...remaining] = rows;
@@ -169,6 +199,19 @@ export function parseRosterCsv(
       throw new RosterCsvError(`Email "${email}" is not valid.`, rowNumber);
     }
     const explicitLeader = valueAt(row, leaderIndex).toLowerCase();
+    const rawVoicePart = valueAt(row, voicePartIndex);
+    let voicePart = rawVoicePart;
+    if (configuredVoiceParts && rawVoicePart !== "") {
+      const resolution = resolveVoicePartLabel(rawVoicePart, configuredVoiceParts);
+      if (!resolution.matched) {
+        const configuredList = configuredVoiceParts.map((vp) => vp.label).join(", ");
+        throw new RosterCsvError(
+          `Unrecognized voice part "${rawVoicePart}" on row ${String(rowNumber)}. Configured voice parts: ${configuredList}.`,
+          rowNumber,
+        );
+      }
+      voicePart = resolution.canonicalLabel;
+    }
     return {
       displayName,
       email,
@@ -178,7 +221,7 @@ export function parseRosterCsv(
         leaders.has(profileKey(displayName, email)),
       notes: valueAt(row, notesIndex),
       phone: valueAt(row, phoneIndex),
-      voicePart: valueAt(row, voicePartIndex),
+      voicePart,
     };
   });
 }
@@ -186,6 +229,7 @@ export function parseRosterCsv(
 export interface RosterCsvColumnWarning {
   readonly header: string;
   readonly message: string;
+  readonly rows?: readonly number[];
   readonly sourceIndex: number;
 }
 
@@ -196,7 +240,40 @@ export interface RosterCsvInspection {
   readonly warnings: readonly RosterCsvColumnWarning[];
 }
 
-export function inspectRosterCsv(csv: string, performerLabel = "Performer"): RosterCsvInspection {
+function findInvalidVoicePartWarnings(
+  profileRows: readonly string[][],
+  headers: readonly string[],
+  voicePartIndex: number,
+  configuredVoiceParts: readonly ConfiguredVoicePartReference[],
+): readonly RosterCsvColumnWarning[] {
+  const invalidRows: { rowNumber: number; value: string }[] = [];
+  profileRows.forEach((row, index) => {
+    const value = valueAt(row, voicePartIndex);
+    if (value !== "") {
+      const resolution = resolveVoicePartLabel(value, configuredVoiceParts);
+      if (!resolution.matched) {
+        invalidRows.push({ rowNumber: index + 2, value });
+      }
+    }
+  });
+  if (invalidRows.length === 0) return [];
+  const configuredList = configuredVoiceParts.map((vp) => vp.label).join(", ");
+  const sampleValue = invalidRows[0]?.value ?? "";
+  return [
+    {
+      header: headers[voicePartIndex] ?? "Voice Part",
+      message: `Unrecognized voice part "${sampleValue}". Configured voice parts: ${configuredList}.`,
+      rows: invalidRows.map((r) => r.rowNumber),
+      sourceIndex: voicePartIndex,
+    },
+  ];
+}
+
+export function inspectRosterCsv(
+  csv: string,
+  performerLabel = "Performer",
+  configuredVoiceParts?: readonly ConfiguredVoicePartReference[],
+): RosterCsvInspection {
   try {
     const rows = parseRows(csv.replace(/^\uFEFF/, ""));
     const [headerRow, ...remaining] = rows;
@@ -222,6 +299,12 @@ export function inspectRosterCsv(csv: string, performerLabel = "Performer"): Ros
             },
           ],
     );
+    const voicePartIndex = columnIndex(normalizedHeaders, "Voice Part", performerLabel);
+    if (voicePartIndex >= 0 && configuredVoiceParts && configuredVoiceParts.length > 0) {
+      warnings.push(
+        ...findInvalidVoicePartWarnings(profileRows, headers, voicePartIndex, configuredVoiceParts),
+      );
+    }
     if (nameIndex < 0) {
       return {
         fatalError: "The CSV requires a Name column.",
@@ -231,7 +314,7 @@ export function inspectRosterCsv(csv: string, performerLabel = "Performer"): Ros
       };
     }
     try {
-      parseRosterCsv(csv, 500, performerLabel);
+      parseRosterCsv(csv, 500, performerLabel, configuredVoiceParts);
     } catch (error: unknown) {
       return {
         fatalError: error instanceof RosterCsvError ? error.message : "The CSV could not be read.",

@@ -392,10 +392,12 @@ export function useRosterPageController({
     setRosterImportInspecting(Boolean(file));
     setError(null);
     if (!file) return;
+    const configuredVoiceParts =
+      roster.status === "ready" ? roster.configuration.voiceParts : undefined;
     void file
       .text()
       .then((csv) => {
-        const initialInspection = inspectRosterCsv(csv, performerLabel);
+        const initialInspection = inspectRosterCsv(csv, performerLabel, configuredVoiceParts);
         const mappings = initialInspection.headers.map((header, sourceIndex) => ({
           sourceIndex,
           targetHeader: rosterCsvColumnForHeader(header, performerLabel),
@@ -403,7 +405,11 @@ export function useRosterPageController({
         setRosterImportCsv(csv);
         setRosterImportHeaders(initialInspection.headers);
         setRosterImportMappings(mappings);
-        const inspection = inspectRosterCsv(mapRosterCsvColumns(csv, mappings), performerLabel);
+        const inspection = inspectRosterCsv(
+          mapRosterCsvColumns(csv, mappings),
+          performerLabel,
+          configuredVoiceParts,
+        );
         setRosterImportInspection(inspection);
         if (inspection.fatalError) setError(inspection.fatalError);
       })
@@ -421,9 +427,15 @@ export function useRosterPageController({
     );
     setRosterImportMappings(nextMappings);
     setRosterImportConfirmed(false);
-    setRosterImportInspection(
-      inspectRosterCsv(mapRosterCsvColumns(rosterImportCsv, nextMappings), performerLabel),
+    const configuredVoiceParts =
+      roster.status === "ready" ? roster.configuration.voiceParts : undefined;
+    const nextInspection = inspectRosterCsv(
+      mapRosterCsvColumns(rosterImportCsv, nextMappings),
+      performerLabel,
+      configuredVoiceParts,
     );
+    setRosterImportInspection(nextInspection);
+    setError(nextInspection.fatalError);
   }
 
   function openCreate() {

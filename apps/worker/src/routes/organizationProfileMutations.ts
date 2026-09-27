@@ -62,7 +62,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         context.env,
         authorization.organizationId,
       );
-      const parsed = parseRosterCsv(csv, 500, rosterConfiguration.performerLabel);
+      const parsed = parseRosterCsv(
+        csv,
+        500,
+        rosterConfiguration.performerLabel,
+        rosterConfiguration.voiceParts,
+      );
       if (parsed.length === 0) throw new RosterCsvError("The CSV contains no Profiles.");
       await assertEmailProviderRecipientsAvailable(
         context.env.CONTROL_DB,
@@ -84,7 +89,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     } catch (error: unknown) {
       if (error instanceof RosterCsvError) {
-        const row = error.row === null ? "" : ` (row ${String(error.row)})`;
+        const row =
+          error.row === null || error.message.includes(`row ${String(error.row)}`)
+            ? ""
+            : ` (row ${String(error.row)})`;
         return context.json(
           {
             code: "validation_failed",

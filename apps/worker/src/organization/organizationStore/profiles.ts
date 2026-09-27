@@ -1,4 +1,4 @@
-import { calculateOnBreakInactiveAt } from "@choir/domain";
+import { calculateOnBreakInactiveAt, resolveVoicePartLabel } from "@choir/domain";
 import { organizationRosterConfigurationRequestSchema } from "@choir/contracts";
 import {
   recalculateProfileStatuses,
@@ -173,8 +173,12 @@ export function listDirectoryProfiles(
   return Response.json({ profiles });
 }
 
-function isConfiguredVoicePart(storage: DurableObjectStorage, voicePart: string): boolean {
-  if (voicePart === "") return true;
+function resolveConfiguredVoicePart(
+  storage: DurableObjectStorage,
+  voicePart: string,
+): { valid: true; canonicalLabel: string } | { valid: false; configuredVoiceParts: string[] } {
+  const trimmed = voicePart.trim();
+  if (trimmed === "") return { valid: true, canonicalLabel: "" };
   try {
     const raw = storage.sql
       .exec<{ readonly configuration: string }>(
@@ -183,9 +187,17 @@ function isConfiguredVoicePart(storage: DurableObjectStorage, voicePart: string)
       .one().configuration;
     const configuration: unknown = JSON.parse(raw);
     const parsed = organizationRosterConfigurationRequestSchema.safeParse(configuration);
-    return parsed.success && parsed.data.voiceParts.some(({ label }) => label === voicePart);
+    if (!parsed.success) return { valid: false, configuredVoiceParts: [] };
+    const resolution = resolveVoicePartLabel(trimmed, parsed.data.voiceParts);
+    if (resolution.matched) {
+      return { valid: true, canonicalLabel: resolution.canonicalLabel };
+    }
+    return {
+      valid: false,
+      configuredVoiceParts: parsed.data.voiceParts.map((vp) => vp.label),
+    };
   } catch {
-    return false;
+    return { valid: false, configuredVoiceParts: [] };
   }
 }
 
@@ -222,12 +234,19 @@ export async function createProfile(
   }
   const occurredAt = new Date().toISOString();
   const profile = parsed.data.profile;
-  if (!isConfiguredVoicePart(storage, profile.voicePart)) {
+  const voicePartResolution = resolveConfiguredVoicePart(storage, profile.voicePart);
+  if (!voicePartResolution.valid) {
     return Response.json(
-      { code: "voice_part_not_configured", performerLabel: performerLabel(storage) },
+      {
+        code: "voice_part_not_configured",
+        configuredVoiceParts: voicePartResolution.configuredVoiceParts,
+        performerLabel: performerLabel(storage),
+        rejectedValue: profile.voicePart,
+      },
       { status: 400 },
     );
   }
+  const canonicalVoicePart = voicePartResolution.canonicalLabel;
   storage.transactionSync(() => {
     storage.sql.exec(
       `INSERT INTO profiles
@@ -239,7 +258,7 @@ export async function createProfile(
       parsed.data.profileId,
       profile.displayName,
       profile.phone,
-      profile.voicePart,
+      canonicalVoicePart,
       profile.globalStatus,
       profile.notes,
       profile.showInDirectory ? 1 : 0,
@@ -287,17 +306,26 @@ export async function importProfiles(
   if (organizationIdentity(storage)?.organizationId !== parsed.data.organizationId) {
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
-  if (
-    parsed.data.profiles.some(({ profile }) => !isConfiguredVoicePart(storage, profile.voicePart))
-  ) {
+  const invalidProfile = parsed.data.profiles.find(
+    ({ profile }) => !resolveConfiguredVoicePart(storage, profile.voicePart).valid,
+  );
+  if (invalidProfile) {
+    const resolution = resolveConfiguredVoicePart(storage, invalidProfile.profile.voicePart);
     return Response.json(
-      { code: "voice_part_not_configured", performerLabel: performerLabel(storage) },
+      {
+        code: "voice_part_not_configured",
+        configuredVoiceParts: resolution.valid ? [] : resolution.configuredVoiceParts,
+        performerLabel: performerLabel(storage),
+        rejectedValue: invalidProfile.profile.voicePart,
+      },
       { status: 400 },
     );
   }
   const occurredAt = new Date().toISOString();
   storage.transactionSync(() => {
     for (const { profile, profileId } of parsed.data.profiles) {
+      const resolution = resolveConfiguredVoicePart(storage, profile.voicePart);
+      const canonicalVoicePart = resolution.valid ? resolution.canonicalLabel : profile.voicePart;
       storage.sql.exec(
         `INSERT INTO profiles
           (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
@@ -308,7 +336,7 @@ export async function importProfiles(
         profileId,
         profile.displayName,
         profile.phone,
-        profile.voicePart,
+        canonicalVoicePart,
         profile.globalStatus,
         profile.notes,
         profile.showInDirectory ? 1 : 0,
@@ -357,12 +385,19 @@ export async function updateProfile(
   if (exists === 0) return Response.json({ code: "profile_not_found" }, { status: 404 });
   const occurredAt = new Date().toISOString();
   const profile = parsed.data.profile;
-  if (!isConfiguredVoicePart(storage, profile.voicePart)) {
+  const voicePartResolution = resolveConfiguredVoicePart(storage, profile.voicePart);
+  if (!voicePartResolution.valid) {
     return Response.json(
-      { code: "voice_part_not_configured", performerLabel: performerLabel(storage) },
+      {
+        code: "voice_part_not_configured",
+        configuredVoiceParts: voicePartResolution.configuredVoiceParts,
+        performerLabel: performerLabel(storage),
+        rejectedValue: profile.voicePart,
+      },
       { status: 400 },
     );
   }
+  const canonicalVoicePart = voicePartResolution.canonicalLabel;
   const existing = storage.sql
     .exec<{
       readonly [column: string]: SqlStorageValue;
@@ -401,7 +436,7 @@ export async function updateProfile(
          receive_financial_alerts = ?, is_section_leader = ?, hidden = ?, updated_at = ? WHERE id = ?`,
       profile.displayName,
       profile.phone,
-      profile.voicePart,
+      canonicalVoicePart,
       profile.globalStatus,
       toSqlBit(profile.statusIsManual),
       profile.notes,
