@@ -93,7 +93,7 @@ describe("Ticket notifications rendered Communications history", () => {
     const notificationId = crypto.randomUUID();
     const jobId = crypto.randomUUID();
 
-    await runInDurableObject<OrganizationStore, void>(alphaStub, (_instance, state) => {
+    await runInDurableObject<OrganizationStore, null>(alphaStub, (_instance, state) => {
       state.storage.sql.exec(
         `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
          VALUES (?, 'Earth and Sky and Sea', 'Performance', ?, ?, ?)`,
@@ -142,6 +142,7 @@ describe("Ticket notifications rendered Communications history", () => {
         now,
         now,
       );
+      return null;
     });
 
     // Deliver the queued ticket notification
@@ -202,7 +203,7 @@ describe("Ticket notifications rendered Communications history", () => {
       (item) => item.kind === "automated" && item.scheduledMessage.id === notificationId,
     );
     expect(ticketItem).toBeDefined();
-    if (ticketItem && ticketItem.kind === "automated") {
+    if (ticketItem?.kind === "automated") {
       expect(ticketItem.scheduledMessage.subject).toBe("Tickets confirmed: Earth and Sky and Sea");
       expect(ticketItem.scheduledMessage.status).toBe("Sent");
     }
@@ -216,7 +217,7 @@ describe("Ticket notifications rendered Communications history", () => {
     const notificationId = crypto.randomUUID();
     const jobId = crypto.randomUUID();
 
-    await runInDurableObject<OrganizationStore, void>(alphaStub, (_instance, state) => {
+    await runInDurableObject<OrganizationStore, null>(alphaStub, (_instance, state) => {
       state.storage.sql.exec(
         `INSERT INTO ticket_purchases
           (id, checkout_request_id, event_id, event_title, event_starts_at, event_timezone,
@@ -257,6 +258,7 @@ describe("Ticket notifications rendered Communications history", () => {
         now,
         now,
       );
+      return null;
     });
 
     await deliverQueuedTicketNotification("organization-alpha");
@@ -270,7 +272,7 @@ describe("Ticket notifications rendered Communications history", () => {
       (i) => i.kind === "automated" && i.scheduledMessage.id === notificationId,
     );
     expect(item).toBeDefined();
-    if (item && item.kind === "automated") {
+    if (item?.kind === "automated") {
       expect(item.scheduledMessage.subject).toBe("Ticket bundle confirmed: LCC 2026–2027 Season");
       expect(item.scheduledMessage.subject).not.toContain("{ticketBundleName}");
     }
@@ -285,7 +287,7 @@ describe("Ticket notifications rendered Communications history", () => {
     const notificationId = crypto.randomUUID();
     const jobId = crypto.randomUUID();
 
-    await runInDurableObject<OrganizationStore, void>(alphaStub, (_instance, state) => {
+    await runInDurableObject<OrganizationStore, null>(alphaStub, (_instance, state) => {
       state.storage.sql.exec(
         `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
          VALUES (?, 'Messiah Sing-Along', 'Performance', ?, ?, ?)`,
@@ -334,6 +336,7 @@ describe("Ticket notifications rendered Communications history", () => {
         now,
         now,
       );
+      return null;
     });
 
     await deliverQueuedTicketNotification("organization-alpha");
@@ -347,7 +350,7 @@ describe("Ticket notifications rendered Communications history", () => {
       (i) => i.kind === "automated" && i.scheduledMessage.id === notificationId,
     );
     expect(item).toBeDefined();
-    if (item && item.kind === "automated") {
+    if (item?.kind === "automated") {
       expect(item.scheduledMessage.subject).toBe("Reminder: Messiah Sing-Along");
     }
   });
@@ -362,7 +365,7 @@ describe("Ticket notifications rendered Communications history", () => {
     const singleNotifId = crypto.randomUUID();
     const bundleNotifId = crypto.randomUUID();
 
-    await runInDurableObject<OrganizationStore, void>(alphaStub, (_instance, state) => {
+    await runInDurableObject<OrganizationStore, null>(alphaStub, (_instance, state) => {
       // Event
       state.storage.sql.exec(
         `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
@@ -440,6 +443,7 @@ describe("Ticket notifications rendered Communications history", () => {
         now,
         now,
       );
+      return null;
     });
 
     const historyRes = await exports.default.fetch(
@@ -452,7 +456,7 @@ describe("Ticket notifications rendered Communications history", () => {
       (i) => i.kind === "automated" && i.scheduledMessage.id === singleNotifId,
     );
     expect(singleItem).toBeDefined();
-    if (singleItem && singleItem.kind === "automated") {
+    if (singleItem?.kind === "automated") {
       expect(singleItem.scheduledMessage.subject).toBe("Tickets confirmed: Earth and Sky and Sea");
     }
 
@@ -460,7 +464,7 @@ describe("Ticket notifications rendered Communications history", () => {
       (i) => i.kind === "automated" && i.scheduledMessage.id === bundleNotifId,
     );
     expect(bundleItem).toBeDefined();
-    if (bundleItem && bundleItem.kind === "automated") {
+    if (bundleItem?.kind === "automated") {
       expect(bundleItem.scheduledMessage.subject).toBe("Ticket bundle confirmed: 2026–2027 Season");
     }
   });

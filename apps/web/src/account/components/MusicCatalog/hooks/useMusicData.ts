@@ -28,6 +28,7 @@ export function useMusicData({
   const [timezone, setTimezone] = useState("UTC");
   const [publisherSearchTemplate, setPublisherSearchTemplate] = useState("");
   const [defaultPageSize, setDefaultPageSize] = useState(100);
+  const [configuredGenres, setConfiguredGenres] = useState<readonly string[]>([]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -48,6 +49,7 @@ export function useMusicData({
         setTimezone(calendarSettings.timezone);
         setPublisherSearchTemplate(musicSettings.publisherSearchTemplate);
         setDefaultPageSize(musicSettings.defaultPageSize);
+        setConfiguredGenres(musicSettings.genres);
       })
       .catch((caught: unknown) => {
         if (!(caught instanceof DOMException && caught.name === "AbortError")) {
@@ -60,6 +62,7 @@ export function useMusicData({
   }, [enabled, setError]);
 
   return {
+    configuredGenres,
     defaultPageSize,
     events,
     pieces,

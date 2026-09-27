@@ -2,6 +2,7 @@ import {
   organizationMusicBulkDeleteRequestSchema,
   organizationMusicBulkUpdateRequestSchema,
   organizationMusicCreditRenameRequestSchema,
+  organizationMusicGenreBatchAddRequestSchema,
   organizationMusicGenreDeleteRequestSchema,
   organizationMusicGenreRenameRequestSchema,
   organizationMusicLibrarySettingsRequestSchema,
@@ -54,6 +55,10 @@ export const musicOperationSchema = z.discriminatedUnion("action", [
   operationContextSchema.extend({
     action: z.literal("delete_genre"),
     genre: organizationMusicGenreDeleteRequestSchema,
+  }),
+  operationContextSchema.extend({
+    action: z.literal("batch_add_genres"),
+    labels: organizationMusicGenreBatchAddRequestSchema.shape.labels,
   }),
   operationContextSchema.extend({
     action: z.literal("delete"),

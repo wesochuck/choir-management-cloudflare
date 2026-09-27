@@ -30,6 +30,7 @@ export function useMusicCatalogController({
     setPieces: data.setPieces,
   });
   const derived = useMusicDerived({
+    configuredGenres: data.configuredGenres,
     editingId: editor.editingId,
     piece: editor.piece,
     pieces: data.pieces,

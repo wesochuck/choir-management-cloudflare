@@ -3,11 +3,13 @@ import { useMemo } from "react";
 import { genreKey, uniqueGenreLabels } from "../utils";
 
 export function useMusicDerived({
+  configuredGenres = [],
   editingId,
   piece,
   pieces,
   selectedPieceIds,
 }: {
+  readonly configuredGenres?: readonly string[] | undefined;
   readonly editingId: string | null;
   readonly piece: OrganizationMusicPieceRequest;
   readonly pieces: readonly OrganizationMusicPiece[];
@@ -25,11 +27,17 @@ export function useMusicDerived({
     [editingId, pieces],
   );
 
-  const availableGenres = useMemo(
-    () =>
-      uniqueGenreLabels(pieces.flatMap(({ genres }) => genres)).sort((a, b) => a.localeCompare(b)),
-    [pieces],
-  );
+  const availableGenres = useMemo(() => {
+    const labels = new Map<string, string>();
+    for (const label of [
+      ...configuredGenres,
+      ...uniqueGenreLabels(pieces.flatMap(({ genres }) => genres)),
+    ]) {
+      const key = genreKey(label);
+      if (!labels.has(key)) labels.set(key, label);
+    }
+    return [...labels.values()].sort((a, b) => a.localeCompare(b));
+  }, [configuredGenres, pieces]);
 
   const genreCounts = useMemo(() => {
     const counts = new Map<string, number>();

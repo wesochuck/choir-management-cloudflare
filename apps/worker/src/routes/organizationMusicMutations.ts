@@ -2,6 +2,7 @@ import {
   organizationMusicBulkDeleteRequestSchema,
   organizationMusicBulkUpdateRequestSchema,
   organizationMusicCreditRenameRequestSchema,
+  organizationMusicGenreBatchAddRequestSchema,
   organizationMusicGenreDeleteRequestSchema,
   organizationMusicGenreRenameRequestSchema,
   organizationMusicPieceRequestSchema,
@@ -10,6 +11,7 @@ import {
 import { z } from "zod";
 import { MusicCsvError, parseMusicCsvWithRows } from "@choir/domain";
 import {
+  batchAddOrganizationMusicGenres,
   bulkDeleteOrganizationMusicPieces,
   createOrganizationMusicPiece,
   bulkUpdateOrganizationMusicPieces,
@@ -385,6 +387,56 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         {
           code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
           message: "The music genre could not be removed.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        status,
+      );
+    }
+  });
+
+  router.post("/api/organization/music/genres/batch-add", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const body = organizationMusicGenreBatchAddRequestSchema.safeParse(
+      await context.req.json<unknown>().catch(() => null),
+    );
+    if (!body.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Provide a valid list of unique genre labels to add.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    try {
+      const result = await batchAddOrganizationMusicGenres(
+        context.env,
+        {
+          actorUserId: authorization.userId,
+          organizationId: authorization.organizationId,
+          requestId: context.get("requestId"),
+        },
+        body.data,
+      );
+      return context.json({ ...result, requestId: context.get("requestId") }, 201);
+    } catch (error: unknown) {
+      const status = error instanceof MusicRepositoryError ? error.status : 503;
+      return context.json(
+        {
+          code: error instanceof MusicRepositoryError ? error.code : "service_unavailable",
+          message:
+            error instanceof MusicRepositoryError && error.code === "music_genre_already_exists"
+              ? "One or more genre labels already exist in your catalog."
+              : error instanceof MusicRepositoryError && error.code === "music_genre_limit_exceeded"
+                ? "A maximum of 100 genres is allowed in your catalog."
+                : "The music genres could not be added.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         status,

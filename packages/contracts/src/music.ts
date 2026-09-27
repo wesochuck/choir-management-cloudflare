@@ -177,6 +177,30 @@ export const organizationMusicGenreDeleteRequestSchema = z
   })
   .strict();
 
+export const organizationMusicGenreBatchAddRequestSchema = z
+  .object({
+    labels: z
+      .array(z.string().trim().min(1).max(100))
+      .min(1)
+      .max(100)
+      .readonly()
+      .superRefine((labels, context) => {
+        const seen = new Set<string>();
+        for (const label of labels) {
+          const lower = label.toLowerCase();
+          if (seen.has(lower)) {
+            context.addIssue({
+              code: "custom",
+              message: "Genre labels in the batch must be unique.",
+            });
+            return;
+          }
+          seen.add(lower);
+        }
+      }),
+  })
+  .strict();
+
 export const organizationMusicPieceSchema = organizationMusicPieceRequestSchema.extend({
   createdAt: z.iso.datetime(),
   id: z.uuid(),
@@ -250,6 +274,9 @@ export type OrganizationMusicGenreRenameRequest = z.infer<
 >;
 export type OrganizationMusicGenreDeleteRequest = z.infer<
   typeof organizationMusicGenreDeleteRequestSchema
+>;
+export type OrganizationMusicGenreBatchAddRequest = z.infer<
+  typeof organizationMusicGenreBatchAddRequestSchema
 >;
 export type OrganizationMusicPiece = z.infer<typeof organizationMusicPieceSchema>;
 export type OrganizationMusicBulkDeleteResponse = z.infer<

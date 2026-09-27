@@ -382,6 +382,48 @@ describe("Organization music catalog", () => {
     );
     expect(bravoSettings.genres).toEqual([]);
   });
+
+  it("batch-adds genres to organization settings with duplicate prevention and tenant isolation", async () => {
+    const cookie = await signIn();
+    const batchRes = await write(
+      "alpha.localhost",
+      "/api/organization/music/genres/batch-add",
+      cookie,
+      { labels: ["Classical", "Jazz", "Gospel"] },
+    );
+    expect(batchRes.status).toBe(201);
+    const batchAdded = organizationMusicGenreMutationResponseSchema.parse(await batchRes.json());
+    expect(batchAdded.settings.genres).toEqual(["Classical", "Gospel", "Jazz"]);
+
+    // Duplicate against existing is rejected with 409 Conflict
+    const dupRes = await write(
+      "alpha.localhost",
+      "/api/organization/music/genres/batch-add",
+      cookie,
+      { labels: ["classical"] },
+    );
+    expect(dupRes.status).toBe(409);
+
+    // Duplicate within request is rejected with 400
+    const dupWithinRes = await write(
+      "alpha.localhost",
+      "/api/organization/music/genres/batch-add",
+      cookie,
+      { labels: ["Pop", "pop"] },
+    );
+    expect(dupWithinRes.status).toBe(400);
+
+    // Bravo organization remains unaffected
+    const bravoSettings = organizationMusicLibrarySettingsResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("bravo.localhost", "/api/organization/music-library-settings", cookie),
+        )
+      ).json(),
+    );
+    expect(bravoSettings.genres).toEqual([]);
+  });
+
   it("uploads, attaches, plays, downloads, and removes a private learning track", async () => {
     const cookie = await signIn();
     const piece = organizationMusicPieceResponseSchema.parse(

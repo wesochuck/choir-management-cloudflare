@@ -12,6 +12,7 @@ import {
   type OrganizationMusicBulkDeleteRequest,
   type OrganizationMusicBulkUpdateRequest,
   type OrganizationMusicCreditRenameRequest,
+  type OrganizationMusicGenreBatchAddRequest,
   type OrganizationMusicGenreDeleteRequest,
   type OrganizationMusicGenreRenameRequest,
   type OrganizationMusicPieceRequest,
@@ -125,6 +126,19 @@ export async function deleteOrganizationMusicGenre(
 }> {
   const response = await request("/api/organization/music/genres/delete", {
     body: JSON.stringify(deleteRequest),
+    method: "POST",
+  });
+  return parseGenreMutationResponse(await response.json());
+}
+
+export async function batchAddOrganizationMusicGenres(
+  batchRequest: OrganizationMusicGenreBatchAddRequest,
+): Promise<{
+  readonly pieces: readonly OrganizationMusicPiece[];
+  readonly settings: OrganizationMusicLibrarySettings;
+}> {
+  const response = await request("/api/organization/music/genres/batch-add", {
+    body: JSON.stringify(batchRequest),
     method: "POST",
   });
   return parseGenreMutationResponse(await response.json());

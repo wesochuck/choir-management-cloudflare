@@ -8,6 +8,7 @@ import {
   type OrganizationMusicBulkDeleteRequest,
   type OrganizationMusicBulkUpdateRequest,
   type OrganizationMusicCreditRenameRequest,
+  type OrganizationMusicGenreBatchAddRequest,
   type OrganizationMusicGenreDeleteRequest,
   type OrganizationMusicGenreRenameRequest,
   type OrganizationMusicLibrarySettings,
@@ -233,6 +234,26 @@ export async function deleteOrganizationMusicGenre(
     action: "delete_genre",
     ...context,
     genre,
+  });
+  return parseGenreMutationResponse(response);
+}
+
+export async function batchAddOrganizationMusicGenres(
+  env: Env,
+  context: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  },
+  batch: OrganizationMusicGenreBatchAddRequest,
+): Promise<{
+  readonly pieces: readonly OrganizationMusicPiece[];
+  readonly settings: OrganizationMusicLibrarySettings;
+}> {
+  const response = await mutate(env, context.organizationId, {
+    action: "batch_add_genres",
+    ...context,
+    labels: batch.labels,
   });
   return parseGenreMutationResponse(response);
 }

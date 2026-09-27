@@ -103,3 +103,56 @@ export function rewriteGenreLabels(
     settings: storedMusicLibrarySettings(storage),
   });
 }
+
+export function batchAddGenres(
+  storage: DurableObjectStorage,
+  operation: Extract<z.infer<typeof musicOperationSchema>, { readonly action: "batch_add_genres" }>,
+): Response {
+  const settings = storedMusicLibrarySettings(storage);
+  const existingSet = new Set(settings.genres.map((label: string) => label.toLowerCase()));
+
+  for (const label of operation.labels) {
+    if (existingSet.has(label.toLowerCase())) {
+      return Response.json(
+        { code: "music_genre_already_exists", message: `The genre '${label}' already exists.` },
+        { status: 409 },
+      );
+    }
+    existingSet.add(label.toLowerCase());
+  }
+
+  const merged = [...settings.genres, ...operation.labels].sort((a, b) => a.localeCompare(b));
+  if (merged.length > 100) {
+    return Response.json(
+      { code: "music_genre_limit_exceeded", message: "A maximum of 100 genres is allowed." },
+      { status: 400 },
+    );
+  }
+
+  const occurredAt = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      "UPDATE organization_metadata SET music_genres_json = ?, updated_at = ?",
+      JSON.stringify(merged),
+      occurredAt,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id,
+         request_id, change_summary, occurred_at)
+       VALUES (?, 'organization_member', ?, 'music.genres_batch_added',
+         'organization', ?, ?, ?, ?)`,
+      `music:genres_batch_added:${operation.requestId}`,
+      operation.actorUserId,
+      operation.organizationId,
+      operation.requestId,
+      JSON.stringify({ addedGenres: operation.labels }),
+      occurredAt,
+    );
+  });
+
+  return Response.json({
+    pieces: [],
+    settings: storedMusicLibrarySettings(storage),
+  });
+}

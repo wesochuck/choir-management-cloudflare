@@ -8,7 +8,7 @@ import { musicOperationSchema } from "./types.js";
 import { parseStoredPiece } from "./crud.js";
 import { bulkDeletePieces, bulkUpdatePieces } from "./bulk.js";
 import { renameMusicCredit } from "./credits.js";
-import { rewriteGenreLabels } from "./genres.js";
+import { batchAddGenres, rewriteGenreLabels } from "./genres.js";
 import { importPieces } from "./import.js";
 import { updateMusicLibrarySettings } from "./settings.js";
 import { deletePiece, writePiece } from "./crud.js";
@@ -36,7 +36,7 @@ export {
 } from "./crud.js";
 export { bulkDeletePieces, bulkUpdatePieces } from "./bulk.js";
 export { renameMusicCredit } from "./credits.js";
-export { rewriteGenreLabels } from "./genres.js";
+export { batchAddGenres, rewriteGenreLabels } from "./genres.js";
 export { importPieces } from "./import.js";
 export {
   readMusicLibrarySettingsFromStore,
@@ -83,6 +83,9 @@ export async function manageMusicInStore(
   if (operation.data.action === "rename_credit") return renameMusicCredit(storage, operation.data);
   if (operation.data.action === "rename_genre" || operation.data.action === "delete_genre") {
     return rewriteGenreLabels(storage, operation.data);
+  }
+  if (operation.data.action === "batch_add_genres") {
+    return batchAddGenres(storage, operation.data);
   }
   if (operation.data.action === "update_settings") {
     return updateMusicLibrarySettings(storage, operation.data);
