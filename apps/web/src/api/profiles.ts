@@ -11,7 +11,10 @@ import {
   organizationProfileFolderNumbersResponseSchema,
   organizationProfilePerformanceHistoryResponseSchema,
   organizationProfileStatusHistoryResponseSchema,
+  organizationMemberRoleUpdateResponseSchema,
   organizationImpersonationStatusResponseSchema,
+  type OrganizationInvitationRole,
+  type OrganizationMemberRoleUpdateResponse,
   type OrganizationImpersonationStatusResponse,
   type MemberProfile,
   type MemberProfileUpdateRequest,
@@ -49,6 +52,21 @@ export async function linkOrganizationMembershipProfile(
     body: JSON.stringify({ profileId }),
     method: "PUT",
   });
+}
+
+export async function updateOrganizationMemberRole(
+  membershipId: string,
+  role: OrganizationInvitationRole,
+  expectedRole: OrganizationInvitationRole,
+): Promise<OrganizationMemberRoleUpdateResponse> {
+  const response = await request(
+    `/api/organization/members/${encodeURIComponent(membershipId)}/role`,
+    {
+      body: JSON.stringify({ expectedRole, role }),
+      method: "PUT",
+    },
+  );
+  return organizationMemberRoleUpdateResponseSchema.parse(await response.json());
 }
 
 export async function createOrganizationProfile(

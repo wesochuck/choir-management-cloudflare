@@ -1,20 +1,26 @@
 import {
   organizationInvitationRequestSchema,
+  type CurrentAuthSession,
   type OrganizationAuthStatusResponse,
+  type OrganizationInvitationRole,
   type OrganizationInvitationSummary,
   type OrganizationMembershipSummary,
   type OrganizationProfile,
 } from "@choir/contracts";
+import { allowedRoleOptionsForActor } from "@choir/domain";
+import { Dialog, DialogClose } from "@choir/ui";
 import { useEffect, useState } from "react";
 
 import {
   AuthApiError,
   cancelOrganizationInvitation,
   createOrganizationInvitation,
+  getCurrentSession,
   linkOrganizationMembershipProfile,
   listOrganizationInvitations,
   listOrganizationMemberships,
   listOrganizationProfiles,
+  updateOrganizationMemberRole,
 } from "../auth/api";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 
@@ -24,7 +30,7 @@ function displayDate(value: string): string {
   );
 }
 
-function roleLabel(role: OrganizationInvitationSummary["role"]): string {
+function roleLabel(role: OrganizationInvitationRole): string {
   switch (role) {
     case "administrator":
       return "Organization Administrator";
@@ -35,7 +41,7 @@ function roleLabel(role: OrganizationInvitationSummary["role"]): string {
   }
 }
 
-function parseInvitationRole(value: string): OrganizationInvitationSummary["role"] {
+function parseInvitationRole(value: string): OrganizationInvitationRole {
   if (value === "owner" || value === "administrator") {
     return value;
   }
@@ -64,26 +70,204 @@ type MembershipLinkState =
       readonly truncated: boolean;
     };
 
+interface ChangeMemberRoleDialogProps {
+  readonly actorRole: OrganizationAuthStatusResponse["role"];
+  readonly currentUserEmail?: string | undefined;
+  readonly currentUserId?: string | undefined;
+  readonly membership: OrganizationMembershipSummary;
+  readonly onClose: () => void;
+  readonly onRoleUpdated: (
+    updatedMembership: OrganizationMembershipSummary,
+    wasSelf: boolean,
+  ) => void;
+}
+
+function isSelfMembership(
+  membership: OrganizationMembershipSummary,
+  currentUserId?: string,
+  currentUserEmail?: string,
+): boolean {
+  if (currentUserId && membership.userId === currentUserId) {
+    return true;
+  }
+  return currentUserEmail?.toLowerCase() === membership.email.toLowerCase();
+}
+
+function ChangeRoleWarnings({
+  isDemotingSelfFromOwner,
+  isDemotingSelfToMember,
+  isPromotingToOwner,
+}: {
+  readonly isDemotingSelfFromOwner: boolean;
+  readonly isDemotingSelfToMember: boolean;
+  readonly isPromotingToOwner: boolean;
+}) {
+  if (isPromotingToOwner) {
+    return (
+      <p className="notice notice--info" role="status">
+        Promoting to Organization Owner grants full management access, including owner promotion,
+        billing, and organization configuration.
+      </p>
+    );
+  }
+  if (isDemotingSelfFromOwner) {
+    return (
+      <p className="notice notice--warning" role="alert">
+        Warning: You are demoting yourself from Organization Owner. You will immediately lose access
+        to Owner-only settings.
+      </p>
+    );
+  }
+  if (isDemotingSelfToMember) {
+    return (
+      <p className="notice notice--warning" role="alert">
+        Warning: You are demoting yourself to Organization Member. You will immediately lose
+        Administrator management access.
+      </p>
+    );
+  }
+  return null;
+}
+
+function ChangeMemberRoleDialog({
+  actorRole,
+  currentUserEmail,
+  currentUserId,
+  membership,
+  onClose,
+  onRoleUpdated,
+}: ChangeMemberRoleDialogProps) {
+  const isSelf = isSelfMembership(membership, currentUserId, currentUserEmail);
+  const [selectedRole, setSelectedRole] = useState<OrganizationInvitationRole>(membership.role);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const allowedOptions = allowedRoleOptionsForActor(actorRole, membership.role, isSelf);
+  const isDirty = selectedRole !== membership.role;
+  const isPromotingToOwner = selectedRole === "owner" && membership.role !== "owner";
+  const isDemotingSelfFromOwner = isSelf && membership.role === "owner" && selectedRole !== "owner";
+  const isDemotingSelfToMember =
+    isSelf && membership.role !== "member" && selectedRole === "member";
+  const isDangerAction = isDemotingSelfFromOwner || isDemotingSelfToMember;
+
+  function handleClose() {
+    if (!busy) {
+      onClose();
+    }
+  }
+
+  async function handleSave() {
+    if (!isDirty || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await updateOrganizationMemberRole(
+        membership.id,
+        selectedRole,
+        membership.role,
+      );
+      onRoleUpdated({ ...membership, role: response.role }, isSelf);
+      onClose();
+    } catch (err: unknown) {
+      setError(
+        err instanceof AuthApiError
+          ? err.message
+          : "The Organization Membership role could not be updated.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog
+      description={`Change Organization role for ${membership.name} (${membership.email}).`}
+      dirty={isDirty}
+      onClose={handleClose}
+      open={true}
+      title="Change member role"
+    >
+      <div className="form-stack">
+        {error ? (
+          <p className="notice notice--error" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="field">
+          <label htmlFor="change-member-role-select">Organization role</label>
+          <select
+            disabled={busy}
+            id="change-member-role-select"
+            onChange={(event) => {
+              setSelectedRole(parseInvitationRole(event.target.value));
+            }}
+            value={selectedRole}
+          >
+            {allowedOptions.map((roleOption) => (
+              <option key={roleOption} value={roleOption}>
+                {roleLabel(roleOption)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <ChangeRoleWarnings
+          isDemotingSelfFromOwner={isDemotingSelfFromOwner}
+          isDemotingSelfToMember={isDemotingSelfToMember}
+          isPromotingToOwner={isPromotingToOwner}
+        />
+
+        <div className="dialog__actions">
+          <DialogClose asChild>
+            <button
+              className="button button--secondary"
+              disabled={busy}
+              onClick={handleClose}
+              type="button"
+            >
+              Cancel
+            </button>
+          </DialogClose>
+          <button
+            className={`button ${isDangerAction ? "button--danger" : "button--primary"}`}
+            disabled={busy || !isDirty}
+            onClick={() => {
+              void handleSave();
+            }}
+            type="button"
+          >
+            {busy ? "Saving…" : "Save role"}
+          </button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
 function MembershipProfileLinkList({
+  actorRole,
   busyMembershipId,
+  currentUserEmail,
+  currentUserId,
   onLink,
+  onOpenRoleChange,
   onSelectedProfile,
   selectedProfiles,
   state,
 }: {
+  readonly actorRole: OrganizationAuthStatusResponse["role"];
   readonly busyMembershipId: string | null;
+  readonly currentUserEmail?: string | undefined;
+  readonly currentUserId?: string | undefined;
   readonly onLink: (membership: OrganizationMembershipSummary) => void;
+  readonly onOpenRoleChange: (membership: OrganizationMembershipSummary) => void;
   readonly onSelectedProfile: (membershipId: string, profileId: string) => void;
   readonly selectedProfiles: Readonly<Record<string, string>>;
   readonly state: Extract<MembershipLinkState, { status: "ready" }>;
 }) {
   if (state.memberships.length === 0) {
-    return <p className="empty-state">There are no Organization Memberships to link.</p>;
-  }
-  if (state.profiles.length === 0) {
-    return (
-      <p className="empty-state">Create an Organization Profile before linking a Membership.</p>
-    );
+    return <p className="empty-state">There are no Organization Memberships.</p>;
   }
   const profileMembership = new Map(
     state.memberships.flatMap((membership) =>
@@ -93,62 +277,81 @@ function MembershipProfileLinkList({
   return (
     <>
       <ul className="account-list organization-invitation-list">
-        {state.memberships.map((membership) => (
-          <li aria-label={`Membership: ${membership.email}`} key={membership.id}>
-            <div>
-              <h4>{membership.name}</h4>
-              <p>{membership.email}</p>
-              <p>{roleLabel(membership.role)}</p>
-            </div>
-            <div className="form-actions">
-              <label className="field">
-                Organization Profile
-                <select
-                  value={selectedProfiles[membership.id] ?? ""}
-                  onChange={(event) => {
-                    onSelectedProfile(membership.id, event.target.value);
+        {state.memberships.map((membership) => {
+          const isSelf = isSelfMembership(membership, currentUserId, currentUserEmail);
+          const allowedOptions = allowedRoleOptionsForActor(actorRole, membership.role, isSelf);
+          const canChangeRole = allowedOptions.length > 0;
+
+          return (
+            <li aria-label={`Membership: ${membership.email}`} key={membership.id}>
+              <div>
+                <h4>{membership.name}</h4>
+                <p>{membership.email}</p>
+                <p>{roleLabel(membership.role)}</p>
+              </div>
+              <div className="form-actions">
+                {canChangeRole ? (
+                  <button
+                    aria-label={`Change role for ${membership.name}`}
+                    className="button button--secondary"
+                    disabled={busyMembershipId !== null}
+                    onClick={() => {
+                      onOpenRoleChange(membership);
+                    }}
+                    type="button"
+                  >
+                    Change role
+                  </button>
+                ) : null}
+                <label className="field">
+                  Organization Profile
+                  <select
+                    value={selectedProfiles[membership.id] ?? ""}
+                    onChange={(event) => {
+                      onSelectedProfile(membership.id, event.target.value);
+                    }}
+                  >
+                    <option value="">Choose a Profile</option>
+                    {state.profiles.map((profile) => {
+                      const linkedMembershipId = profileMembership.get(profile.id);
+                      return (
+                        <option
+                          disabled={
+                            linkedMembershipId !== undefined && linkedMembershipId !== membership.id
+                          }
+                          key={profile.id}
+                          value={profile.id}
+                        >
+                          {profile.displayName}
+                          {linkedMembershipId === membership.id ? " (linked)" : ""}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+                <button
+                  className="button button--secondary"
+                  disabled={
+                    busyMembershipId !== null ||
+                    !selectedProfiles[membership.id] ||
+                    selectedProfiles[membership.id] === membership.profileId
+                  }
+                  onClick={() => {
+                    onLink(membership);
                   }}
+                  type="button"
                 >
-                  <option value="">Choose a Profile</option>
-                  {state.profiles.map((profile) => {
-                    const linkedMembershipId = profileMembership.get(profile.id);
-                    return (
-                      <option
-                        disabled={
-                          linkedMembershipId !== undefined && linkedMembershipId !== membership.id
-                        }
-                        key={profile.id}
-                        value={profile.id}
-                      >
-                        {profile.displayName}
-                        {linkedMembershipId === membership.id ? " (linked)" : ""}
-                      </option>
-                    );
-                  })}
-                </select>
-              </label>
-              <button
-                className="button button--secondary"
-                disabled={
-                  busyMembershipId !== null ||
-                  !selectedProfiles[membership.id] ||
-                  selectedProfiles[membership.id] === membership.profileId
-                }
-                onClick={() => {
-                  onLink(membership);
-                }}
-                type="button"
-              >
-                {busyMembershipId === membership.id ? "Linking…" : "Link Profile"}
-              </button>
-            </div>
-          </li>
-        ))}
+                  {busyMembershipId === membership.id ? "Linking…" : "Link Profile"}
+                </button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
       {state.truncated ? (
         <p className="notice notice--warning">
-          Showing the first 500 Memberships. Link additional accounts through a smaller maintenance
-          batch.
+          Showing the first 500 Memberships. Manage additional accounts through a smaller
+          maintenance batch.
         </p>
       ) : null}
     </>
@@ -160,6 +363,9 @@ function MembershipProfileLinks({ context }: { readonly context: OrganizationAut
   const [message, setMessage] = useState<string | null>(null);
   const [selectedProfiles, setSelectedProfiles] = useState<Record<string, string>>({});
   const [state, setState] = useState<MembershipLinkState>({ status: "loading" });
+  const [currentUser, setCurrentUser] = useState<CurrentAuthSession | null>(null);
+  const [roleDialogMembership, setRoleDialogMembership] =
+    useState<OrganizationMembershipSummary | null>(null);
   const mfaBlocked = context.mfaRequired && !context.mfaSatisfied;
 
   useEffect(() => {
@@ -168,14 +374,16 @@ function MembershipProfileLinks({ context }: { readonly context: OrganizationAut
     Promise.all([
       listOrganizationMemberships(abortController.signal),
       listOrganizationProfiles(abortController.signal),
+      getCurrentSession(abortController.signal).catch(() => null),
     ])
-      .then(([membershipResult, profiles]) => {
+      .then(([membershipResult, profiles, session]) => {
         setState({
           memberships: membershipResult.memberships,
           profiles,
           status: "ready",
           truncated: membershipResult.truncated,
         });
+        setCurrentUser(session);
         setSelectedProfiles(
           Object.fromEntries(
             membershipResult.memberships.map((membership) => [
@@ -199,9 +407,9 @@ function MembershipProfileLinks({ context }: { readonly context: OrganizationAut
   if (mfaBlocked) {
     return (
       <fieldset className="surface-card organization-settings-panel organization-pending-invitations">
-        <legend>Membership Profile links</legend>
+        <legend>Organization Memberships</legend>
         <p className="notice notice--info">
-          Profile links will be available after Organization MFA is verified.
+          Organization Memberships will be available after Organization MFA is verified.
         </p>
       </fieldset>
     );
@@ -236,34 +444,74 @@ function MembershipProfileLinks({ context }: { readonly context: OrganizationAut
     }
   }
 
+  function handleRoleUpdated(updatedMembership: OrganizationMembershipSummary, wasSelf: boolean) {
+    setState((current) =>
+      current.status === "ready"
+        ? {
+            ...current,
+            memberships: current.memberships.map((candidate) =>
+              candidate.id === updatedMembership.id ? updatedMembership : candidate,
+            ),
+          }
+        : current,
+    );
+    setMessage(
+      `Role updated to ${roleLabel(updatedMembership.role)} for ${updatedMembership.name}.`,
+    );
+    if (wasSelf && typeof window !== "undefined" && typeof window.location.reload === "function") {
+      window.location.reload();
+    }
+  }
+
   return (
     <fieldset className="surface-card organization-settings-panel organization-pending-invitations">
-      <legend>Membership Profile links</legend>
+      <legend>Organization Memberships</legend>
       <div className="section-heading section-heading--compact">
         <p className="section-description">
-          Link each sign-in Membership to one Profile in this Organization. Profiles already linked
-          to another Membership cannot be selected.
+          Manage member roles and link each sign-in Membership to a Profile in this Organization.
+          Profiles already linked to another Membership cannot be selected.
         </p>
       </div>
       {state.status === "loading" ? <p role="status">Loading Memberships and Profiles…</p> : null}
       {state.status === "error" ? (
         <p className="notice notice--error" role="alert">
-          Membership Profile links could not be loaded.
+          Organization Memberships could not be loaded.
         </p>
       ) : null}
       {message ? <p role="status">{message}</p> : null}
       {state.status === "ready" ? (
-        <MembershipProfileLinkList
-          busyMembershipId={busyMembershipId}
-          onLink={(membership) => {
-            void linkProfile(membership);
-          }}
-          onSelectedProfile={(membershipId, profileId) => {
-            setSelectedProfiles((current) => ({ ...current, [membershipId]: profileId }));
-          }}
-          selectedProfiles={selectedProfiles}
-          state={state}
-        />
+        <>
+          <MembershipProfileLinkList
+            actorRole={context.role}
+            busyMembershipId={busyMembershipId}
+            currentUserEmail={currentUser?.user.email}
+            currentUserId={currentUser?.user.id}
+            onLink={(membership) => {
+              void linkProfile(membership);
+            }}
+            onOpenRoleChange={(membership) => {
+              setRoleDialogMembership(membership);
+            }}
+            onSelectedProfile={(membershipId, profileId) => {
+              setSelectedProfiles((current) => ({ ...current, [membershipId]: profileId }));
+            }}
+            selectedProfiles={selectedProfiles}
+            state={state}
+          />
+          {roleDialogMembership ? (
+            <ChangeMemberRoleDialog
+              actorRole={context.role}
+              currentUserEmail={currentUser?.user.email}
+              currentUserId={currentUser?.user.id}
+              key={roleDialogMembership.id}
+              membership={roleDialogMembership}
+              onClose={() => {
+                setRoleDialogMembership(null);
+              }}
+              onRoleUpdated={handleRoleUpdated}
+            />
+          ) : null}
+        </>
       ) : null}
     </fieldset>
   );

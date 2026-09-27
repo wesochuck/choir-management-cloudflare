@@ -316,3 +316,10 @@ export {
   type StripeReconciliationAction,
   type StripeReconciliationClassification,
 } from "./stripeReconciliation";
+export {
+  evaluateMemberRoleChange,
+  allowedRoleOptionsForActor,
+  type CanChangeMemberRoleParams,
+  type RoleChangeDecision,
+  type RoleChangeFailureReason,
+} from "./organizationMemberships";

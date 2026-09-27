@@ -1,8 +1,10 @@
 import {
+  organizationMemberRoleUpdateRequestSchema,
   organizationMfaPolicyRequestSchema,
   organizationMfaVerificationRequestSchema,
   organizationProfileLinkRequestSchema,
   type OrganizationInvitationActionResponse,
+  type OrganizationMemberRoleUpdateResponse,
   type OrganizationMembershipsResponse,
   type ProblemDetails,
 } from "@choir/contracts";
@@ -17,6 +19,7 @@ import { validateStartupConfig } from "../env";
 import { authorizeOrganizationMember } from "../tenancy/authorizeOrganization";
 import { linkOrganizationProfile } from "../tenancy/linkOrganizationProfile";
 import { listPublicDomains } from "../tenancy/registerPublicDomain";
+import { updateOrganizationMemberRole } from "../tenancy/updateOrganizationMemberRole";
 
 import type { Hono } from "hono";
 
@@ -416,7 +419,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     const rows = await context.env.CONTROL_DB.prepare(
-      `SELECT m.id, u.email, u.name, m.profileId, m.role
+      `SELECT m.id, m.userId, u.email, u.name, m.profileId, m.role
      FROM member m
      INNER JOIN user u ON u.id = m.userId
      WHERE m.organizationId = ?
@@ -430,6 +433,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         name: string;
         profileId: string | null;
         role: "admin" | "member" | "owner";
+        userId: string;
       }>();
     const response: OrganizationMembershipsResponse = {
       memberships: rows.results.slice(0, 500).map((row) => ({
@@ -438,6 +442,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         name: row.name,
         profileId: row.profileId,
         role: row.role === "admin" ? "administrator" : row.role,
+        userId: row.userId,
       })),
       requestId: context.get("requestId"),
       truncated: rows.results.length > 500,
@@ -538,6 +543,103 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         503,
       );
     }
+  });
+
+  router.put("/api/organization/members/:membershipId/role", async (context) => {
+    validateStartupConfig(context.env);
+    const requestUrl = new URL(context.req.url);
+    const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+    const membershipId = z.string().min(1).max(128).safeParse(context.req.param("membershipId"));
+    if (!organizationId || !membershipId.success) {
+      return context.json(
+        {
+          code: "not_found",
+          message: "The Organization Membership was not found.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        404,
+      );
+    }
+    const parsedBody = organizationMemberRoleUpdateRequestSchema.safeParse(
+      await context.req.json<unknown>().catch(() => null),
+    );
+    if (!parsedBody.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid expected role and new role are required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+
+    const auth = createAuth({
+      env: context.env,
+      requestUrl,
+      waitUntil: (promise) => {
+        context.executionCtx.waitUntil(promise);
+      },
+    });
+    const session = await auth.api.getSession({ headers: context.req.raw.headers });
+    const authorization = await authorizeOrganizationMember(
+      context.env.CONTROL_DB,
+      organizationId,
+      session?.session.id,
+      session?.user.id,
+    );
+    if (!authorization.ok) {
+      return context.json(
+        {
+          code: authorization.error.code,
+          message: authorization.error.message,
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        authorization.error.code === "unauthorized" ? 401 : 403,
+      );
+    }
+    if (authorization.value.role === "member") {
+      return context.json(
+        {
+          code: "forbidden",
+          message: "Only Organization Owners and Administrators may change Membership roles.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        403,
+      );
+    }
+
+    const updated = await updateOrganizationMemberRole(context.env, {
+      actorRole: authorization.value.role,
+      actorUserId: authorization.value.userId,
+      expectedRole: parsedBody.data.expectedRole,
+      membershipId: membershipId.data,
+      newRole: parsedBody.data.role,
+      organizationId,
+      requestId: context.get("requestId"),
+    });
+
+    if (!updated.ok) {
+      const status =
+        updated.error.code === "not_found" ? 404 : updated.error.code === "forbidden" ? 403 : 409;
+      return context.json(
+        {
+          code: updated.error.code,
+          message: updated.error.message,
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        status,
+      );
+    }
+
+    const response: OrganizationMemberRoleUpdateResponse = {
+      membershipId: updated.value.membershipId,
+      organizationId: updated.value.organizationId,
+      previousRole: updated.value.previousRole,
+      requestId: context.get("requestId"),
+      role: updated.value.role,
+    };
+    return context.json(response);
   });
 
   router.get("/api/organization/public-domains", async (context) => {

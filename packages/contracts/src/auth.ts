@@ -252,6 +252,7 @@ export const organizationMembershipSummarySchema = z.object({
   name: z.string().min(1).max(200),
   profileId: z.uuid().nullable(),
   role: organizationInvitationRoleSchema,
+  userId: z.string().min(1).max(128).optional(),
 });
 
 export const organizationMembershipsResponseSchema = z.object({
@@ -260,5 +261,25 @@ export const organizationMembershipsResponseSchema = z.object({
   truncated: z.boolean(),
 });
 
+export const organizationMemberRoleUpdateRequestSchema = z.object({
+  expectedRole: organizationInvitationRoleSchema,
+  role: organizationInvitationRoleSchema,
+});
+
+export const organizationMemberRoleUpdateResponseSchema = z.object({
+  membershipId: z.string().min(1).max(128),
+  organizationId: organizationIdSchema,
+  previousRole: organizationInvitationRoleSchema,
+  requestId: requestIdSchema,
+  role: organizationInvitationRoleSchema,
+});
+
+export type OrganizationInvitationRole = z.infer<typeof organizationInvitationRoleSchema>;
 export type OrganizationMembershipSummary = z.infer<typeof organizationMembershipSummarySchema>;
 export type OrganizationMembershipsResponse = z.infer<typeof organizationMembershipsResponseSchema>;
+export type OrganizationMemberRoleUpdateRequest = z.infer<
+  typeof organizationMemberRoleUpdateRequestSchema
+>;
+export type OrganizationMemberRoleUpdateResponse = z.infer<
+  typeof organizationMemberRoleUpdateResponseSchema
+>;
