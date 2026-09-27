@@ -55,7 +55,6 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
     currentFormation,
     deleteChart,
     editingId,
-    eligibleProfiles,
     error,
     eventId,
     flushSave,
@@ -98,6 +97,7 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
     setViewMode,
     showSeatNumbers,
     showVoiceParts,
+    unassignedProfiles,
     viewMode,
   } = model;
 
@@ -181,6 +181,7 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
 
       <SeatingDialogs
         applyChart={applyChart}
+        assignmentCandidates={unassignedProfiles}
         changeNewChartRowCount={changeNewChartRowCount}
         changeNewChartSingerCount={changeNewChartSingerCount}
         chart={chart}
@@ -196,7 +197,6 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
         createChart={() => {
           void createChart();
         }}
-        eligibleProfiles={eligibleProfiles}
         eventId={eventId}
         events={resources.events}
         isVoicePartLayout={currentFormation?.isVoicePartLayout ?? false}
