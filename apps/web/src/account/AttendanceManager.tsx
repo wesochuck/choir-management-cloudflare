@@ -48,10 +48,10 @@ function AttendanceGroupComponent({
   partLabel,
   savingIds,
 }: AttendanceGroupProps) {
-  const [voicePart, rows] = group;
+  const { name, rows } = group;
   return (
-    <div className="attendance-group" key={voicePart}>
-      <h3>{voicePart}</h3>
+    <div className="attendance-group" key={group.key}>
+      <h3>{name}</h3>
       {rows.map((row) => {
         const isSaving = savingIds.has(row.profileId) || bulkBusy;
         return (
@@ -144,7 +144,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   const [filter, setFilter] = useState<AttendanceFilter>("Pending");
   const [query, setQuery] = useState("");
 
-  const { dataUpdatedAt, eventId, events, rows, setSelectedEventId, venues } =
+  const { dataUpdatedAt, eventId, events, rosterConfiguration, rows, setSelectedEventId, venues } =
     useAttendanceQueries(enabled);
 
   const {
@@ -164,6 +164,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   const { counts, groupedRows, markableRows } = useAttendanceFiltering({
     filter,
     query,
+    rosterConfiguration,
     rows,
     savingIds,
   });
@@ -289,7 +290,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
           <AttendanceGroupComponent
             bulkBusy={bulkBusy}
             group={group}
-            key={group[0]}
+            key={group.key}
             onChange={changeAttendance}
             partLabel={partLabel}
             savingIds={savingIds}
@@ -308,7 +309,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
           <AttendanceGroupComponent
             bulkBusy={bulkBusy}
             group={group}
-            key={`not-rsvped-${group[0]}`}
+            key={`not-rsvped-${group.key}`}
             onChange={changeAttendance}
             partLabel={partLabel}
             savingIds={savingIds}

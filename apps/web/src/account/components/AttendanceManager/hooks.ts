@@ -2,20 +2,23 @@ import type {
   OrganizationAttendanceRow,
   OrganizationAttendanceStatus,
   OrganizationEvent,
+  OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import {
+  getOrganizationRosterConfiguration,
   listOrganizationEventAttendance,
   listOrganizationEvents,
   listOrganizationVenues,
   queryKeys,
   updateOrganizationEventAttendance,
 } from "../../../api";
+import { type AttendanceGroup, groupRowsBySection } from "./grouping";
 
+export type { AttendanceGroup };
 export type AttendanceFilter = "All" | "Present" | "Absent" | "Pending";
-export type AttendanceGroup = readonly [string, readonly OrganizationAttendanceRow[]];
 
 const nextAttendance: Record<OrganizationAttendanceStatus, OrganizationAttendanceStatus> = {
   Absent: "Pending",
@@ -38,21 +41,6 @@ function closestFutureEvent(
   return closest;
 }
 
-function groupRowsByVoicePart(
-  rows: readonly OrganizationAttendanceRow[],
-): readonly AttendanceGroup[] {
-  const groups = new Map<string, OrganizationAttendanceRow[]>();
-  [...rows]
-    .sort((a, b) => a.displayName.localeCompare(b.displayName))
-    .forEach((row) => {
-      const label = row.voicePart || "Other";
-      const group = groups.get(label) ?? [];
-      group.push(row);
-      groups.set(label, group);
-    });
-  return [...groups.entries()];
-}
-
 export function useAttendanceQueries(enabled: boolean) {
   const { data: events = [] } = useQuery({
     enabled,
@@ -64,6 +52,12 @@ export function useAttendanceQueries(enabled: boolean) {
     enabled,
     queryFn: ({ signal }) => listOrganizationVenues(signal),
     queryKey: queryKeys.organization.venues,
+  });
+
+  const { data: rosterConfiguration } = useQuery({
+    enabled,
+    queryFn: ({ signal }) => getOrganizationRosterConfiguration(signal),
+    queryKey: queryKeys.organization.rosterConfiguration,
   });
 
   const defaultEventId = useMemo(
@@ -84,6 +78,7 @@ export function useAttendanceQueries(enabled: boolean) {
     dataUpdatedAt,
     eventId,
     events,
+    rosterConfiguration,
     rows,
     setSelectedEventId,
     venues,
@@ -93,11 +88,13 @@ export function useAttendanceQueries(enabled: boolean) {
 export function useAttendanceFiltering({
   filter,
   query,
+  rosterConfiguration,
   rows,
   savingIds,
 }: {
   readonly filter: AttendanceFilter;
   readonly query: string;
+  readonly rosterConfiguration?: OrganizationRosterConfiguration | null | undefined;
   readonly rows: readonly OrganizationAttendanceRow[];
   readonly savingIds: ReadonlySet<string>;
 }) {
@@ -129,10 +126,16 @@ export function useAttendanceFiltering({
       return matchesFilter && matchesQuery && (isSearchResult || row.rsvp === "Yes");
     });
     return {
-      notRsvped: groupRowsByVoicePart(filtered.filter((row) => row.rsvp !== "Yes")),
-      rsvped: groupRowsByVoicePart(filtered.filter((row) => row.rsvp === "Yes")),
+      notRsvped: groupRowsBySection(
+        filtered.filter((row) => row.rsvp !== "Yes"),
+        rosterConfiguration,
+      ),
+      rsvped: groupRowsBySection(
+        filtered.filter((row) => row.rsvp === "Yes"),
+        rosterConfiguration,
+      ),
     };
-  }, [filter, query, rows]);
+  }, [filter, query, rosterConfiguration, rows]);
 
   const markableRows = useMemo(
     () =>
