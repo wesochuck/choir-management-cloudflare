@@ -56,7 +56,6 @@ export function CommunicationCenterView({
     isTestEmailOpen,
     loadingDeliveryId,
     loadingHistory,
-    messageFilter,
     messageMode,
     nextPage,
     openDeliveryDetails,
@@ -64,6 +63,7 @@ export function CommunicationCenterView({
     openReviewAndSend,
     openSaveAsTemplate,
     openTestEmail,
+    originFilter,
     pageNumber,
     previousPage,
     providerStatus,
@@ -84,10 +84,12 @@ export function CommunicationCenterView({
     setIsReviewOpen,
     setIsSaveTemplateOpen,
     setIsTestEmailOpen,
-    setMessageFilter,
     setMessageMode,
+    setOriginFilter,
     setRecipientsExpanded,
+    setStatusFilter,
     setSubject,
+    statusFilter,
     subject,
     successNotice,
     templates,
@@ -222,7 +224,8 @@ export function CommunicationCenterView({
           ) : (
             <MessagesPanel
               busy={busy}
-              currentFilter={messageFilter}
+              currentOrigin={originFilter}
+              currentStatus={statusFilter}
               deliveryDetailsMessage={deliveryDetailsMessage}
               deliverySummary={deliverySummary}
               hasNextPage={hasNextPage}
@@ -231,13 +234,14 @@ export function CommunicationCenterView({
               loadingHistory={loadingHistory}
               onCancelQueued={cancelQueuedMessage}
               onDeleteDraft={deleteDraft}
-              onFilterChange={setMessageFilter}
               onNewMessage={openNewMessage}
               onNextPage={() => void nextPage()}
               onOpenDeliveryDetails={openDeliveryDetails}
+              onOriginFilterChange={setOriginFilter}
               onPreviousPage={() => void previousPage()}
               onResumeDraft={resumeDraft}
               onRetryDeliveries={retryDeliveries}
+              onStatusFilterChange={setStatusFilter}
               pageNumber={pageNumber}
               unifiedMessages={unifiedMessages}
             />

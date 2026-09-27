@@ -1,10 +1,12 @@
 import type { CommunicationDeliverySummary, CommunicationMessage } from "@choir/contracts";
 import { CommunicationDeliveryDetails } from "./CommunicationDeliveryDetails";
-import type { UnifiedCommunicationItem } from "./types";
-import { displayDate, scheduledMessageKindLabel } from "./utils";
+import type { MessageOriginFilter, MessageStatusFilter, UnifiedCommunicationItem } from "./types";
+import { displayDate, getEmptyStateText, scheduledMessageKindLabel } from "./utils";
 
 interface MessageListProps {
   readonly busy: boolean;
+  readonly currentOrigin: MessageOriginFilter;
+  readonly currentStatus: MessageStatusFilter;
   readonly deliveryDetailsMessage: CommunicationMessage | null;
   readonly deliverySummary: CommunicationDeliverySummary | null;
   readonly loadingDeliveryId: string | null;
@@ -207,6 +209,8 @@ function MessageCard({
 
 export function MessageList({
   busy,
+  currentOrigin,
+  currentStatus,
   deliveryDetailsMessage,
   deliverySummary,
   loadingDeliveryId,
@@ -220,7 +224,7 @@ export function MessageList({
   if (unifiedMessages.length === 0) {
     return (
       <div className="communication-empty-state notice notice--info" role="status">
-        <p>No messages found matching the selected filter.</p>
+        <p>{getEmptyStateText(currentStatus, currentOrigin)}</p>
       </div>
     );
   }

@@ -858,3 +858,196 @@ test("paginates communication history across pages", async ({ page }) => {
   await prevBtn.click();
   await expect(page.getByText("Page One Announcement")).toBeVisible();
 });
+
+test("filters communication messages by separate Status and Type controls", async ({ page }) => {
+  const previewBodies: unknown[] = [];
+  const manualDraft = {
+    audience: {
+      eventId: null,
+      globalStatuses: ["Active"],
+      profileIds: [],
+      rsvp: "All",
+      targetAudiences: ["Members"],
+      voiceParts: [],
+    },
+    channel: "Email",
+    contentMarkdown: "Draft text",
+    createdAt: "2026-08-01T10:00:00.000Z",
+    id: "77777777-7777-4777-8777-777777777771",
+    reach: { both: 0, email: 1, sms: 0, total: 1, unreachable: 0 },
+    sentAt: null,
+    status: "Draft",
+    subject: "Gala Draft Notice",
+    updatedAt: "2026-08-01T10:00:00.000Z",
+  };
+  const manualSent = {
+    ...manualDraft,
+    id: "77777777-7777-4777-8777-777777777772",
+    sentAt: "2026-08-02T10:00:00.000Z",
+    status: "Sent",
+    subject: "Sent Rehearsal Update",
+  };
+  const manualFailed = {
+    ...manualDraft,
+    id: "77777777-7777-4777-8777-777777777773",
+    sentAt: "2026-08-03T10:00:00.000Z",
+    status: "Failed",
+    subject: "Failed Member Blast",
+  };
+  const autoScheduled = {
+    channel: "Email" as const,
+    createdAt: "2026-08-01T00:00:00.000Z",
+    eventId: null,
+    eventTitle: "Concert",
+    id: "88888888-8888-4888-8888-888888888881",
+    kind: "ticket_reminder" as const,
+    recipientCount: 20,
+    scheduledAt: "2026-08-10T12:00:00.000Z",
+    status: "Scheduled" as const,
+    subject: "Scheduled Ticket Reminder",
+    updatedAt: "2026-08-01T00:00:00.000Z",
+  };
+  const autoSent = {
+    ...autoScheduled,
+    id: "88888888-8888-4888-8888-888888888882",
+    status: "Sent" as const,
+    subject: "Sent Audition Notice",
+  };
+  const autoFailed = {
+    ...autoScheduled,
+    id: "88888888-8888-4888-8888-888888888883",
+    status: "Failed" as const,
+    subject: "Failed Attendance Report",
+  };
+
+  interface MockManualMessage {
+    audience: typeof manualDraft.audience;
+    channel: string;
+    contentMarkdown: string;
+    createdAt: string;
+    id: string;
+    reach: typeof manualDraft.reach;
+    sentAt: string | null;
+    status: string;
+    subject: string;
+    updatedAt: string;
+  }
+
+  interface MockScheduledMessage {
+    eventId: string | null;
+    eventTitle: string;
+    id: string;
+    kind: string;
+    recipientCount: number;
+    scheduledAt: string;
+    status: string;
+    subject: string;
+  }
+
+  type MockHistoryItem =
+    | { kind: "manual"; message: MockManualMessage; sortTimestamp: string }
+    | { kind: "automated"; scheduledMessage: MockScheduledMessage; sortTimestamp: string };
+
+  const allItems: readonly MockHistoryItem[] = [
+    { kind: "manual", message: manualDraft, sortTimestamp: manualDraft.createdAt },
+    { kind: "manual", message: manualSent, sortTimestamp: manualSent.sentAt },
+    { kind: "manual", message: manualFailed, sortTimestamp: manualFailed.sentAt },
+    {
+      kind: "automated",
+      scheduledMessage: autoScheduled,
+      sortTimestamp: autoScheduled.scheduledAt,
+    },
+    { kind: "automated", scheduledMessage: autoSent, sortTimestamp: autoSent.scheduledAt },
+    { kind: "automated", scheduledMessage: autoFailed, sortTimestamp: autoFailed.scheduledAt },
+  ];
+
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/organization/communications/history") {
+      const origin = url.searchParams.get("origin");
+      const status = url.searchParams.get("status");
+
+      let filtered = allItems;
+      if (origin === "manual") {
+        filtered = filtered.filter((i) => i.kind === "manual");
+      } else if (origin === "automated") {
+        filtered = filtered.filter((i) => i.kind === "automated");
+      }
+      if (status === "draft") {
+        filtered = filtered.filter((i) => i.kind === "manual" && i.message.status === "Draft");
+      } else if (status === "scheduled") {
+        filtered = filtered.filter(
+          (i) => i.kind === "automated" && i.scheduledMessage.status === "Scheduled",
+        );
+      } else if (status === "sent") {
+        filtered = filtered.filter((i) => {
+          if (i.kind === "manual") return i.message.status === "Sent";
+          return i.scheduledMessage.status === "Sent";
+        });
+      } else if (status === "failed") {
+        filtered = filtered.filter((i) => {
+          if (i.kind === "manual") return i.message.status === "Failed";
+          return i.scheduledMessage.status === "Failed";
+        });
+      }
+
+      await fulfillJson(route, {
+        items: filtered,
+        nextCursor: null,
+        requestId,
+      });
+      return;
+    }
+    await handleRoute(route, previewBodies);
+  });
+
+  await page.goto("/admin/communications?tab=history");
+
+  // Verify group labels and initial aria-pressed
+  await expect(page.getByText("Status", { exact: true })).toBeVisible();
+  await expect(page.getByText("Type", { exact: true })).toBeVisible();
+
+  const statusAllBtn = page.getByRole("button", { name: "All", exact: true });
+  const typeAllBtn = page.getByRole("button", { name: "All messages", exact: true });
+  await expect(statusAllBtn).toHaveAttribute("aria-pressed", "true");
+  await expect(typeAllBtn).toHaveAttribute("aria-pressed", "true");
+
+  // Initial: all visible
+  await expect(page.getByText("Gala Draft Notice")).toBeVisible();
+  await expect(page.getByText("Sent Rehearsal Update")).toBeVisible();
+  await expect(page.getByText("Failed Member Blast")).toBeVisible();
+  await expect(page.getByText("Scheduled Ticket Reminder")).toBeVisible();
+  await expect(page.getByText("Sent Audition Notice")).toBeVisible();
+  await expect(page.getByText("Failed Attendance Report")).toBeVisible();
+
+  // Filter: Sent + All messages
+  const sentBtn = page.getByRole("button", { name: "Sent", exact: true });
+  await sentBtn.click();
+  await expect(sentBtn).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("Sent Rehearsal Update")).toBeVisible();
+  await expect(page.getByText("Sent Audition Notice")).toBeVisible();
+  await expect(page.getByText("Gala Draft Notice")).toHaveCount(0);
+  await expect(page.getByText("Failed Member Blast")).toHaveCount(0);
+
+  // Filter: Sent + Automated
+  const automatedBtn = page.getByRole("button", { name: "Automated", exact: true });
+  await automatedBtn.click();
+  await expect(sentBtn).toHaveAttribute("aria-pressed", "true");
+  await expect(automatedBtn).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("Sent Audition Notice")).toBeVisible();
+  await expect(page.getByText("Sent Rehearsal Update")).toHaveCount(0);
+
+  // Filter: Sent + Manual
+  const manualBtn = page.getByRole("button", { name: "Manual", exact: true });
+  await manualBtn.click();
+  await expect(sentBtn).toHaveAttribute("aria-pressed", "true");
+  await expect(manualBtn).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("Sent Rehearsal Update")).toBeVisible();
+  await expect(page.getByText("Sent Audition Notice")).toHaveCount(0);
+
+  // Filter: Failed + Manual
+  const failedBtn = page.getByRole("button", { name: "Failed", exact: true });
+  await failedBtn.click();
+  await expect(page.getByText("Failed Member Blast")).toBeVisible();
+  await expect(page.getByText("Sent Rehearsal Update")).toHaveCount(0);
+});

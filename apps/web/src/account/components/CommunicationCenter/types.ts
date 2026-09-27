@@ -22,8 +22,12 @@ export type CommunicationSection = "messages" | "templates" | "settings";
 
 export type MessageWorkspaceMode = "list" | "compose";
 
-export type MessageFilter =
-  "all" | "drafts" | "scheduled" | "queued" | "sent" | "failed" | "automated";
+export type MessageStatusFilter = "all" | "draft" | "scheduled" | "queued" | "sent" | "failed";
+
+export type MessageOriginFilter = "all" | "manual" | "automated";
+
+/** @deprecated Use MessageStatusFilter and MessageOriginFilter instead */
+export type MessageFilter = MessageStatusFilter;
 
 export type UnifiedCommunicationItem =
   | {
@@ -81,7 +85,6 @@ export interface CommunicationCenterControllerModel {
   readonly isTestEmailOpen: boolean;
   readonly loadingDeliveryId: string | null;
   readonly loadingHistory: boolean;
-  readonly messageFilter: MessageFilter;
   readonly messageMode: MessageWorkspaceMode;
   readonly nextPage: () => Promise<void>;
   readonly openDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
@@ -90,6 +93,7 @@ export interface CommunicationCenterControllerModel {
   readonly openReviewAndSend: () => Promise<void>;
   readonly openSaveAsTemplate: () => void;
   readonly openTestEmail: () => void;
+  readonly originFilter: MessageOriginFilter;
   readonly pageNumber: number;
   readonly previousPage: () => Promise<void>;
   readonly providerStatus: OrganizationProviderStatusResponse | null;
@@ -110,11 +114,13 @@ export interface CommunicationCenterControllerModel {
   readonly setIsReviewOpen: (open: boolean) => void;
   readonly setIsSaveTemplateOpen: (open: boolean) => void;
   readonly setIsTestEmailOpen: (open: boolean) => void;
-  readonly setMessageFilter: (filter: MessageFilter) => void;
   readonly setMessageMode: (mode: MessageWorkspaceMode) => void;
+  readonly setOriginFilter: (origin: MessageOriginFilter) => void;
   readonly setRecipientsExpanded: (expanded: boolean) => void;
+  readonly setStatusFilter: (status: MessageStatusFilter) => void;
   readonly setSubject: (subject: string) => void;
   readonly setVoiceParts: (voiceParts: string) => void;
+  readonly statusFilter: MessageStatusFilter;
   readonly subject: string;
   readonly successNotice: string | null;
   readonly templates: readonly CommunicationTemplate[];

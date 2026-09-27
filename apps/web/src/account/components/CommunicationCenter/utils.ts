@@ -10,7 +10,8 @@ import { AuthApiError } from "../../../auth/api";
 import type {
   CommunicationAudienceTarget,
   CommunicationSection,
-  MessageFilter,
+  MessageOriginFilter,
+  MessageStatusFilter,
   MessageWorkspaceMode,
   UnifiedCommunicationItem,
 } from "./types";
@@ -58,86 +59,105 @@ export function channelFromValue(value: string): CommunicationChannel {
   return "Email";
 }
 
+export function getEmptyStateText(
+  status: MessageStatusFilter,
+  origin: MessageOriginFilter,
+): string {
+  if (status === "all") {
+    if (origin === "manual") return "No manual messages found.";
+    if (origin === "automated") return "No automated messages found.";
+    return "No messages found.";
+  }
+
+  if (status === "draft") {
+    if (origin === "automated") return "No automated drafts found.";
+    if (origin === "manual") return "No manual drafts found.";
+    return "No drafts found.";
+  }
+
+  const originAdjective = origin === "all" ? "" : origin === "manual" ? " manual" : " automated";
+
+  switch (status) {
+    case "scheduled":
+      return `No scheduled${originAdjective} messages found.`;
+    case "queued":
+      return `No queued${originAdjective} messages found.`;
+    case "sent":
+      return `No sent${originAdjective} messages found.`;
+    case "failed":
+      return `No failed${originAdjective} messages found.`;
+    default:
+      return "No messages found matching the selected filter.";
+  }
+}
+
 export interface InitialNavigationState {
   readonly draftId: string | null;
-  readonly messageFilter: MessageFilter;
+  readonly messageMode: MessageWorkspaceMode;
+  readonly originFilter: MessageOriginFilter;
+  readonly section: CommunicationSection;
+  readonly statusFilter: MessageStatusFilter;
+}
+
+function parseSearchOrigin(
+  rawType: string | null,
+  rawStatus: string | null,
+  tab: string | null,
+): MessageOriginFilter {
+  if (rawType === "manual") return "manual";
+  if (rawType === "automated" || rawStatus === "automated" || tab === "automated") {
+    return "automated";
+  }
+  return "all";
+}
+
+function parseSearchStatus(rawStatus: string | null, tab: string | null): MessageStatusFilter {
+  if (rawStatus === "draft" || rawStatus === "drafts") return "draft";
+  if (rawStatus === "scheduled" || rawStatus === "upcoming") return "scheduled";
+  if (rawStatus === "queued") return "queued";
+  if (rawStatus === "sent") return "sent";
+  if (rawStatus === "failed") return "failed";
+  if (!rawStatus) {
+    if (tab === "drafts") return "draft";
+    if (tab === "upcoming") return "scheduled";
+  }
+  return "all";
+}
+
+function parseNavigationMode(tab: string | null): {
   readonly messageMode: MessageWorkspaceMode;
   readonly section: CommunicationSection;
+} {
+  if (tab === "compose") return { messageMode: "compose", section: "messages" };
+  if (tab === "templates") return { messageMode: "list", section: "templates" };
+  if (tab === "settings") return { messageMode: "list", section: "settings" };
+  return { messageMode: "list", section: "messages" };
 }
 
 export function parseCommunicationSearch(search: string): InitialNavigationState {
   const params = new URLSearchParams(search);
   const draftId = params.get("draftId");
-  const tab = params.get("tab");
+  const tab = params.get("tab")?.toLowerCase() ?? null;
+  const rawStatus = (params.get("status") ?? params.get("filter"))?.toLowerCase() ?? null;
+  const rawType = (params.get("type") ?? params.get("origin"))?.toLowerCase() ?? null;
 
   if (draftId) {
     return {
       draftId,
-      messageFilter: "all",
       messageMode: "compose",
+      originFilter: "all",
       section: "messages",
+      statusFilter: "all",
     };
   }
 
-  if (tab === "compose") {
-    return {
-      draftId: null,
-      messageFilter: "all",
-      messageMode: "compose",
-      section: "messages",
-    };
-  }
-
-  if (tab === "drafts") {
-    return {
-      draftId: null,
-      messageFilter: "drafts",
-      messageMode: "list",
-      section: "messages",
-    };
-  }
-
-  if (tab === "upcoming") {
-    return {
-      draftId: null,
-      messageFilter: "scheduled",
-      messageMode: "list",
-      section: "messages",
-    };
-  }
-
-  if (tab === "history") {
-    return {
-      draftId: null,
-      messageFilter: "all",
-      messageMode: "list",
-      section: "messages",
-    };
-  }
-
-  if (tab === "templates") {
-    return {
-      draftId: null,
-      messageFilter: "all",
-      messageMode: "list",
-      section: "templates",
-    };
-  }
-
-  if (tab === "settings") {
-    return {
-      draftId: null,
-      messageFilter: "all",
-      messageMode: "list",
-      section: "settings",
-    };
-  }
-
+  const { messageMode, section } = parseNavigationMode(tab);
   return {
     draftId: null,
-    messageFilter: "all",
-    messageMode: "list",
-    section: "messages",
+    messageMode,
+    originFilter: parseSearchOrigin(rawType, rawStatus, tab),
+    section,
+    statusFilter: parseSearchStatus(rawStatus, tab),
   };
 }
 

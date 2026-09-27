@@ -1,11 +1,12 @@
 import type { CommunicationDeliverySummary, CommunicationMessage } from "@choir/contracts";
 import { CommunicationPagination } from "./CommunicationPagination";
 import { MessageList } from "./MessageList";
-import type { MessageFilter, UnifiedCommunicationItem } from "./types";
+import type { MessageOriginFilter, MessageStatusFilter, UnifiedCommunicationItem } from "./types";
 
 interface MessagesPanelProps {
   readonly busy: boolean;
-  readonly currentFilter: MessageFilter;
+  readonly currentOrigin: MessageOriginFilter;
+  readonly currentStatus: MessageStatusFilter;
   readonly deliveryDetailsMessage: CommunicationMessage | null;
   readonly deliverySummary: CommunicationDeliverySummary | null;
   readonly hasNextPage?: boolean;
@@ -14,30 +15,39 @@ interface MessagesPanelProps {
   readonly loadingHistory?: boolean;
   readonly onCancelQueued: (messageId: string) => Promise<void>;
   readonly onDeleteDraft: (messageId: string) => Promise<void>;
-  readonly onFilterChange: (filter: MessageFilter) => void;
   readonly onNewMessage: () => void;
   readonly onNextPage?: () => void;
   readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
+  readonly onOriginFilterChange: (origin: MessageOriginFilter) => void;
   readonly onPreviousPage?: () => void;
   readonly onResumeDraft: (draft: CommunicationMessage) => void;
   readonly onRetryDeliveries: (messageId: string) => Promise<void>;
+  readonly onStatusFilterChange: (status: MessageStatusFilter) => void;
   readonly pageNumber?: number;
   readonly unifiedMessages: readonly UnifiedCommunicationItem[];
 }
 
-const filterOptions: readonly { readonly id: MessageFilter; readonly label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "drafts", label: "Drafts" },
-  { id: "scheduled", label: "Scheduled" },
-  { id: "queued", label: "Queued" },
-  { id: "sent", label: "Sent" },
-  { id: "failed", label: "Failed" },
-  { id: "automated", label: "Automated" },
-];
+const statusFilterOptions: readonly { readonly id: MessageStatusFilter; readonly label: string }[] =
+  [
+    { id: "all", label: "All" },
+    { id: "draft", label: "Drafts" },
+    { id: "scheduled", label: "Scheduled" },
+    { id: "queued", label: "Queued" },
+    { id: "sent", label: "Sent" },
+    { id: "failed", label: "Failed" },
+  ];
+
+const originFilterOptions: readonly { readonly id: MessageOriginFilter; readonly label: string }[] =
+  [
+    { id: "all", label: "All messages" },
+    { id: "manual", label: "Manual" },
+    { id: "automated", label: "Automated" },
+  ];
 
 export function MessagesPanel({
   busy,
-  currentFilter,
+  currentOrigin,
+  currentStatus,
   deliveryDetailsMessage,
   deliverySummary,
   hasNextPage,
@@ -46,13 +56,14 @@ export function MessagesPanel({
   loadingHistory,
   onCancelQueued,
   onDeleteDraft,
-  onFilterChange,
   onNewMessage,
   onNextPage,
   onOpenDeliveryDetails,
+  onOriginFilterChange,
   onPreviousPage,
   onResumeDraft,
   onRetryDeliveries,
+  onStatusFilterChange,
   pageNumber,
   unifiedMessages,
 }: MessagesPanelProps) {
@@ -70,26 +81,64 @@ export function MessagesPanel({
         </button>
       </div>
 
-      {/* Filter Row */}
-      <div aria-label="Message filters" className="communication-filter-row" role="toolbar">
-        {filterOptions.map((opt) => (
-          <button
-            aria-pressed={currentFilter === opt.id}
-            className={`filter-chip ${currentFilter === opt.id ? "is-active" : ""}`}
-            key={opt.id}
-            onClick={() => {
-              onFilterChange(opt.id);
-            }}
-            type="button"
+      {/* Filter Groups */}
+      <div aria-label="Message filter options" className="communication-filter-groups">
+        <div className="communication-filter-group communication-filter-group--status">
+          <span className="communication-filter-group__label" id="status-filter-label">
+            Status
+          </span>
+          <div
+            aria-labelledby="status-filter-label"
+            className="communication-filter-group__chips"
+            role="toolbar"
           >
-            {opt.label}
-          </button>
-        ))}
+            {statusFilterOptions.map((opt) => (
+              <button
+                aria-pressed={currentStatus === opt.id}
+                className={`filter-chip ${currentStatus === opt.id ? "is-active" : ""}`}
+                key={opt.id}
+                onClick={() => {
+                  onStatusFilterChange(opt.id);
+                }}
+                type="button"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="communication-filter-group communication-filter-group--type">
+          <span className="communication-filter-group__label" id="type-filter-label">
+            Type
+          </span>
+          <div
+            aria-labelledby="type-filter-label"
+            className="communication-filter-group__chips"
+            role="toolbar"
+          >
+            {originFilterOptions.map((opt) => (
+              <button
+                aria-pressed={currentOrigin === opt.id}
+                className={`filter-chip ${currentOrigin === opt.id ? "is-active" : ""}`}
+                key={opt.id}
+                onClick={() => {
+                  onOriginFilterChange(opt.id);
+                }}
+                type="button"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Message List */}
       <MessageList
         busy={busy}
+        currentOrigin={currentOrigin}
+        currentStatus={currentStatus}
         deliveryDetailsMessage={deliveryDetailsMessage}
         deliverySummary={deliverySummary}
         loadingDeliveryId={loadingDeliveryId}

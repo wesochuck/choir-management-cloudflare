@@ -40,7 +40,8 @@ import type {
   CommunicationCenterControllerModel,
   CommunicationReachState,
   CommunicationSection,
-  MessageFilter,
+  MessageOriginFilter,
+  MessageStatusFilter,
   MessageWorkspaceMode,
   UnifiedCommunicationItem,
 } from "./types";
@@ -59,26 +60,6 @@ const EMPTY_REACH_STATE: CommunicationReachState = {
   error: null,
   loading: false,
 };
-
-function filterToQuery(filter: MessageFilter): { origin?: string; status?: string } {
-  switch (filter) {
-    case "drafts":
-      return { origin: "manual", status: "draft" };
-    case "scheduled":
-      return { status: "scheduled" };
-    case "queued":
-      return { status: "queued" };
-    case "sent":
-      return { status: "sent" };
-    case "failed":
-      return { status: "failed" };
-    case "automated":
-      return { origin: "automated" };
-    case "all":
-    default:
-      return {};
-  }
-}
 
 function hasIncompleteTicketServiceAudience(
   audience: CommunicationAudienceRequest,
@@ -101,6 +82,43 @@ function reachStateForAudience(
   return hasIncompleteTicketServiceAudience(audience, channel) ? EMPTY_REACH_STATE : reachState;
 }
 
+function filterFallbackHistory(
+  items: CommunicationHistoryItem[],
+  status: MessageStatusFilter,
+  origin: MessageOriginFilter,
+): CommunicationHistoryItem[] {
+  let res = items;
+  if (origin === "manual") {
+    res = res.filter((i) => i.kind === "manual");
+  } else if (origin === "automated") {
+    res = res.filter((i) => i.kind === "automated");
+  }
+  if (status === "draft") {
+    res = res.filter((i) => i.kind === "manual" && i.message.status === "Draft");
+  } else if (status === "scheduled") {
+    res = res.filter((i) => i.kind === "automated" && i.scheduledMessage.status === "Scheduled");
+  } else if (status === "queued") {
+    res = res.filter(
+      (i) =>
+        (i.kind === "automated" && i.scheduledMessage.status === "Queued") ||
+        (i.kind === "manual" && i.message.status === "Queued"),
+    );
+  } else if (status === "sent") {
+    res = res.filter(
+      (i) =>
+        (i.kind === "automated" && i.scheduledMessage.status === "Sent") ||
+        (i.kind === "manual" && i.message.status === "Sent"),
+    );
+  } else if (status === "failed") {
+    res = res.filter(
+      (i) =>
+        (i.kind === "automated" && i.scheduledMessage.status === "Failed") ||
+        (i.kind === "manual" && i.message.status === "Failed"),
+    );
+  }
+  return res;
+}
+
 export function useCommunicationCenterController({
   enabled,
 }: {
@@ -113,7 +131,9 @@ export function useCommunicationCenterController({
 
   const [activeSection, setActiveSection] = useState<CommunicationSection>(initialNav.section);
   const [messageMode, setMessageMode] = useState<MessageWorkspaceMode>(initialNav.messageMode);
-  const [messageFilter, setMessageFilter] = useState<MessageFilter>(initialNav.messageFilter);
+  const [statusFilter, setStatusFilter] = useState<MessageStatusFilter>(initialNav.statusFilter);
+  const [originFilter, setOriginFilter] = useState<MessageOriginFilter>(initialNav.originFilter);
+  const historyAbortControllerRef = useRef<AbortController | null>(null);
 
   const [audience, setAudience] = useState<CommunicationAudienceRequest>(defaultAudience);
   const audienceRef = useRef<CommunicationAudienceRequest>(defaultAudience);
@@ -214,17 +234,28 @@ export function useCommunicationCenterController({
 
   const loadHistoryPage = useCallback(
     async (
-      targetFilter: MessageFilter,
+      targetStatus: MessageStatusFilter,
+      targetOrigin: MessageOriginFilter,
       cursor: string | null,
       signal?: AbortSignal,
     ): Promise<void> => {
       if (cursor !== null) setLoadingHistory(true);
       try {
-        const query = {
+        const query: {
+          cursor: string | null;
+          limit: number;
+          origin?: "manual" | "automated";
+          status?: "draft" | "scheduled" | "queued" | "sent" | "failed";
+        } = {
           cursor,
           limit: 50,
-          ...filterToQuery(targetFilter),
         };
+        if (targetOrigin !== "all") {
+          query.origin = targetOrigin;
+        }
+        if (targetStatus !== "all") {
+          query.status = targetStatus;
+        }
         const page = await getOrganizationCommunicationHistory(query, signal);
         setHistoryItems(page.items);
         setNextCursor(page.nextCursor);
@@ -247,37 +278,11 @@ export function useCommunicationCenterController({
               scheduledMessage: s,
               sortTimestamp: s.scheduledAt,
             }));
-            let merged = [...manualItems, ...scheduledItems].sort(
+            const merged = [...manualItems, ...scheduledItems].sort(
               (a, b) => new Date(b.sortTimestamp).getTime() - new Date(a.sortTimestamp).getTime(),
             );
-            if (targetFilter === "drafts") {
-              merged = merged.filter((i) => i.kind === "manual" && i.message.status === "Draft");
-            } else if (targetFilter === "scheduled") {
-              merged = merged.filter(
-                (i) => i.kind === "automated" && i.scheduledMessage.status === "Scheduled",
-              );
-            } else if (targetFilter === "queued") {
-              merged = merged.filter(
-                (i) =>
-                  (i.kind === "automated" && i.scheduledMessage.status === "Queued") ||
-                  (i.kind === "manual" && i.message.status === "Queued"),
-              );
-            } else if (targetFilter === "sent") {
-              merged = merged.filter(
-                (i) =>
-                  (i.kind === "automated" && i.scheduledMessage.status === "Sent") ||
-                  (i.kind === "manual" && i.message.status === "Sent"),
-              );
-            } else if (targetFilter === "failed") {
-              merged = merged.filter(
-                (i) =>
-                  (i.kind === "automated" && i.scheduledMessage.status === "Failed") ||
-                  (i.kind === "manual" && i.message.status === "Failed"),
-              );
-            } else if (targetFilter === "automated") {
-              merged = merged.filter((i) => i.kind === "automated");
-            }
-            setHistoryItems(merged.slice(0, 50));
+            const filtered = filterFallbackHistory(merged, targetStatus, targetOrigin);
+            setHistoryItems(filtered.slice(0, 50));
             setNextCursor(null);
           } catch {
             setError(failureMessage(err));
@@ -296,7 +301,12 @@ export function useCommunicationCenterController({
     const controller = new AbortController();
     void Promise.resolve().then(() => {
       if (!controller.signal.aborted) {
-        void loadHistoryPage(initialNav.messageFilter, null, controller.signal);
+        void loadHistoryPage(
+          initialNav.statusFilter,
+          initialNav.originFilter,
+          null,
+          controller.signal,
+        );
       }
     });
 
@@ -345,7 +355,14 @@ export function useCommunicationCenterController({
     return () => {
       controller.abort();
     };
-  }, [enabled, initialNav.draftId, initialNav.messageFilter, loadHistoryPage, resumeDraft]);
+  }, [
+    enabled,
+    initialNav.draftId,
+    initialNav.originFilter,
+    initialNav.statusFilter,
+    loadHistoryPage,
+    resumeDraft,
+  ]);
 
   // Automatic debounced reach preview when audience or channel changes in compose mode
   useEffect(() => {
@@ -451,12 +468,18 @@ export function useCommunicationCenterController({
       title: scheduled.subject || scheduled.eventTitle || "Automated send",
     }));
 
-    const all = [...manualItems, ...scheduledItems].sort(
+    let all = [...manualItems, ...scheduledItems].sort(
       (a, b) => unifiedItemSortTimestamp(b) - unifiedItemSortTimestamp(a),
     );
 
-    switch (messageFilter) {
-      case "drafts":
+    if (originFilter === "manual") {
+      all = all.filter((item) => !item.automated);
+    } else if (originFilter === "automated") {
+      all = all.filter((item) => item.automated);
+    }
+
+    switch (statusFilter) {
+      case "draft":
         return all.filter((item) => item.status === "Draft");
       case "scheduled":
         return all.filter((item) => item.status === "Scheduled");
@@ -466,25 +489,48 @@ export function useCommunicationCenterController({
         return all.filter((item) => item.status === "Sent");
       case "failed":
         return all.filter((item) => item.status === "Failed");
-      case "automated":
-        return all.filter((item) => item.automated);
       case "all":
       default:
         return all;
     }
-  }, [historyItems, messages, scheduledMessages, messageFilter]);
+  }, [historyItems, messages, scheduledMessages, originFilter, statusFilter]);
 
-  const changeMessageFilter = useCallback(
-    (nextFilter: MessageFilter) => {
-      setMessageFilter(nextFilter);
+  const changeStatusFilter = useCallback(
+    (nextStatus: MessageStatusFilter) => {
+      historyAbortControllerRef.current?.abort();
+      const controller = new AbortController();
+      historyAbortControllerRef.current = controller;
+
+      setStatusFilter(nextStatus);
       setPageNumber(1);
       setCurrentCursor(null);
       setNextCursor(null);
       setCursorStack([]);
+      setDeliveryDetailsMessage(null);
+      setDeliverySummary(null);
       setLoadingHistory(true);
-      void loadHistoryPage(nextFilter, null);
+      void loadHistoryPage(nextStatus, originFilter, null, controller.signal);
     },
-    [loadHistoryPage],
+    [loadHistoryPage, originFilter],
+  );
+
+  const changeOriginFilter = useCallback(
+    (nextOrigin: MessageOriginFilter) => {
+      historyAbortControllerRef.current?.abort();
+      const controller = new AbortController();
+      historyAbortControllerRef.current = controller;
+
+      setOriginFilter(nextOrigin);
+      setPageNumber(1);
+      setCurrentCursor(null);
+      setNextCursor(null);
+      setCursorStack([]);
+      setDeliveryDetailsMessage(null);
+      setDeliverySummary(null);
+      setLoadingHistory(true);
+      void loadHistoryPage(statusFilter, nextOrigin, null, controller.signal);
+    },
+    [loadHistoryPage, statusFilter],
   );
 
   const nextPage = useCallback(async () => {
@@ -493,8 +539,8 @@ export function useCommunicationCenterController({
     setCurrentCursor(nextCursor);
     setPageNumber((prev) => prev + 1);
     setLoadingHistory(true);
-    await loadHistoryPage(messageFilter, nextCursor);
-  }, [currentCursor, loadHistoryPage, messageFilter, nextCursor]);
+    await loadHistoryPage(statusFilter, originFilter, nextCursor);
+  }, [currentCursor, loadHistoryPage, nextCursor, originFilter, statusFilter]);
 
   const previousPage = useCallback(async () => {
     if (cursorStack.length === 0) return;
@@ -503,8 +549,8 @@ export function useCommunicationCenterController({
     setCurrentCursor(prevCursor);
     setPageNumber((prev) => Math.max(1, prev - 1));
     setLoadingHistory(true);
-    await loadHistoryPage(messageFilter, prevCursor);
-  }, [cursorStack, loadHistoryPage, messageFilter]);
+    await loadHistoryPage(statusFilter, originFilter, prevCursor);
+  }, [cursorStack, loadHistoryPage, originFilter, statusFilter]);
 
   // Actions
   const deleteDraftAction = useCallback(
@@ -524,7 +570,7 @@ export function useCommunicationCenterController({
         setHistoryItems((current) =>
           current.filter((item) => !(item.kind === "manual" && item.message.id === messageId)),
         );
-        void loadHistoryPage(messageFilter, currentCursor);
+        void loadHistoryPage(statusFilter, originFilter, currentCursor);
         setSuccessNotice("Draft deleted.");
       } catch (err: unknown) {
         setError(failureMessage(err));
@@ -532,7 +578,7 @@ export function useCommunicationCenterController({
         setBusy(false);
       }
     },
-    [confirm, currentCursor, loadHistoryPage, messageFilter],
+    [confirm, currentCursor, loadHistoryPage, originFilter, statusFilter],
   );
 
   const cancelQueuedAction = useCallback(
@@ -551,7 +597,7 @@ export function useCommunicationCenterController({
         setMessages((current) =>
           current.map((m) => (m.id === messageId ? { ...m, ...canceled } : m)),
         );
-        void loadHistoryPage(messageFilter, currentCursor);
+        void loadHistoryPage(statusFilter, originFilter, currentCursor);
         setSuccessNotice("Queued communication canceled.");
       } catch (err: unknown) {
         setError(failureMessage(err));
@@ -559,7 +605,7 @@ export function useCommunicationCenterController({
         setBusy(false);
       }
     },
-    [confirm, currentCursor, loadHistoryPage, messageFilter],
+    [confirm, currentCursor, loadHistoryPage, originFilter, statusFilter],
   );
 
   const openDeliveryDetails = useCallback(async (message: CommunicationMessage) => {
@@ -585,7 +631,7 @@ export function useCommunicationCenterController({
         const summary = await getOrganizationCommunicationDeliverySummary(messageId);
         setDeliverySummary(summary);
         setMessages(await listOrganizationCommunications());
-        void loadHistoryPage(messageFilter, currentCursor);
+        void loadHistoryPage(statusFilter, originFilter, currentCursor);
         setSuccessNotice(`Retried delivery for ${String(retried)} recipients.`);
       } catch (err: unknown) {
         setError(failureMessage(err));
@@ -593,7 +639,7 @@ export function useCommunicationCenterController({
         setBusy(false);
       }
     },
-    [currentCursor, loadHistoryPage, messageFilter],
+    [currentCursor, loadHistoryPage, originFilter, statusFilter],
   );
 
   const saveDraftAction = useCallback(async () => {
@@ -608,14 +654,23 @@ export function useCommunicationCenterController({
         subject,
       });
       setMessages((current) => [saved, ...current.filter((m) => m.id !== saved.id)]);
-      void loadHistoryPage(messageFilter, currentCursor);
+      void loadHistoryPage(statusFilter, originFilter, currentCursor);
       setSuccessNotice("Draft saved successfully.");
     } catch (err: unknown) {
       setError(failureMessage(err));
     } finally {
       setBusy(false);
     }
-  }, [audience, channel, contentMarkdown, currentCursor, loadHistoryPage, messageFilter, subject]);
+  }, [
+    audience,
+    channel,
+    contentMarkdown,
+    currentCursor,
+    loadHistoryPage,
+    originFilter,
+    statusFilter,
+    subject,
+  ]);
 
   const saveTemplateAction = useCallback(
     async (title: string) => {
@@ -701,7 +756,7 @@ export function useCommunicationCenterController({
       setIsReviewOpen(false);
       setMessageMode("list");
       setActiveSection("messages");
-      void loadHistoryPage(messageFilter, null);
+      void loadHistoryPage(statusFilter, originFilter, null);
       setSuccessNotice(`Message queued for ${String(queued.reach.total)} recipients.`);
       // Reset composer
       replaceAudience(defaultAudience);
@@ -719,8 +774,9 @@ export function useCommunicationCenterController({
     channel,
     contentMarkdown,
     loadHistoryPage,
-    messageFilter,
+    originFilter,
     sendIdempotencyKey,
+    statusFilter,
     subject,
   ]);
 
@@ -780,7 +836,6 @@ export function useCommunicationCenterController({
     isTestEmailOpen,
     loadingDeliveryId,
     loadingHistory,
-    messageFilter,
     messageMode,
     nextPage,
     openDeliveryDetails,
@@ -795,6 +850,7 @@ export function useCommunicationCenterController({
     openTestEmail: () => {
       setIsTestEmailOpen(true);
     },
+    originFilter,
     pageNumber,
     previousPage,
     providerStatus,
@@ -815,11 +871,13 @@ export function useCommunicationCenterController({
     setIsReviewOpen,
     setIsSaveTemplateOpen,
     setIsTestEmailOpen,
-    setMessageFilter: changeMessageFilter,
     setMessageMode,
+    setOriginFilter: changeOriginFilter,
     setRecipientsExpanded,
+    setStatusFilter: changeStatusFilter,
     setSubject,
     setVoiceParts,
+    statusFilter,
     subject,
     successNotice,
     templates,
