@@ -31,6 +31,7 @@ export function SeatTile({
   onActivate,
   onDrop,
   onRemove,
+  presentation,
   seatKey,
   suggestion,
 }: SeatTileProps) {
@@ -41,6 +42,7 @@ export function SeatTile({
     <div
       aria-label={`${label}${assigned ? `, assigned to ${assigned.displayName}` : ", empty"}`}
       className={`seating-seat seating-seat--canvas${assigned ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}${draggable.isDragging ? " seating-seat--dragging" : ""}${droppable.isOver ? " seating-seat--drop-target" : ""}`}
+      data-name-presentation={presentation}
       data-seat-key={seatKey}
       draggable={Boolean(assigned)}
       ref={(node) => {

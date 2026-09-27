@@ -38,6 +38,7 @@ export interface SeatTileProps {
   readonly onActivate: () => void;
   readonly onDrop: (token: string) => void;
   readonly onRemove: () => void;
+  readonly presentation?: "initials" | "full";
   readonly seatKey: string;
   readonly suggestion: string | undefined;
 }

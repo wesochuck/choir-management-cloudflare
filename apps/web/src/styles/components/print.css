@@ -138,6 +138,48 @@
       color: #555;
     }
 
+    /* Honor resolved seating name presentation consistently between screen and print */
+    .seating-seat--assigned[data-name-presentation="initials"] .seating-seat__name-full,
+    .seating-row[data-name-presentation="initials"]
+      .seating-seat--assigned
+      .seating-seat__name-full {
+      display: none !important;
+    }
+
+    .seating-seat--assigned[data-name-presentation="initials"] .seating-seat__name-initials,
+    .seating-row[data-name-presentation="initials"]
+      .seating-seat--assigned
+      .seating-seat__name-initials {
+      display: inline !important;
+    }
+
+    .seating-seat--assigned[data-name-presentation="full"] .seating-seat__name-full,
+    .seating-row[data-name-presentation="full"] .seating-seat--assigned .seating-seat__name-full {
+      display: inline !important;
+    }
+
+    .seating-seat--assigned[data-name-presentation="full"] .seating-seat__name-initials,
+    .seating-row[data-name-presentation="full"]
+      .seating-seat--assigned
+      .seating-seat__name-initials {
+      display: none !important;
+    }
+
+    /* When full names are selected, allow wrapping and content-driven seat heights in print */
+    .seating-seat--canvas[data-name-presentation="full"] strong,
+    .seating-row[data-name-presentation="full"] .seating-seat--canvas strong {
+      overflow: visible;
+      white-space: normal;
+      word-break: break-word;
+      text-overflow: clip;
+    }
+
+    .seating-seat--canvas[data-name-presentation="full"],
+    .seating-row[data-name-presentation="full"] .seating-seat--canvas {
+      height: auto;
+      min-height: 3.25rem;
+    }
+
     .seating-stage-marker {
       min-width: 15rem;
       color: #333;

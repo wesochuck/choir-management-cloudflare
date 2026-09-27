@@ -1,6 +1,6 @@
 import { expect, test, type Route } from "@playwright/test";
 import { installOrganizationApi } from "./fixtures/apiMocks";
-import { buildSeatingChart } from "./fixtures/builders";
+import { buildSeatingChart, fixtureIds } from "./fixtures/builders";
 
 const setListRequestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const setListEventId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -371,6 +371,10 @@ test.describe("Consolidated Print Stylesheet (@media print)", () => {
         await fulfillJson(route, { requestId: setListRequestId, venues: [] });
         return;
       }
+      if (url.pathname === "/api/organization/calendar-settings") {
+        await fulfillJson(route, { requestId: setListRequestId, timezone: "America/New_York" });
+        return;
+      }
       await fulfillJson(route, { requestId: setListRequestId });
     });
 
@@ -431,6 +435,86 @@ test.describe("Consolidated Print Stylesheet (@media print)", () => {
         });
       expect(printViewStyles.display).toBe("block");
       expect(printViewStyles.backgroundColor).toBe("rgb(255, 255, 255)");
+    }
+  });
+
+  test("seating chart name presentation is consistent between screen and print across compact and wide rows", async ({
+    page,
+  }, testInfo) => {
+    const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+    // Configure a chart with 2 rows: row 0 has 2 seats (wide), row 1 has 18 seats (narrow)
+    api.seatingCharts.set([
+      buildSeatingChart({
+        assignments: {
+          "0-0": fixtureIds.browserProfileId,
+          "1-0": fixtureIds.unexpectedProfileId,
+        },
+        rowCounts: [2, 18],
+      }),
+    ]);
+
+    await page.setViewportSize({ width: 1200, height: 800 });
+    await page.goto("/admin/seating");
+    await expect(page.getByRole("heading", { name: "Performance seating" })).toBeVisible();
+
+    const canvas = page.locator(".seating-editor-canvas");
+    await expect(canvas).toBeVisible();
+
+    const rows = page.locator(".seating-row--canvas");
+    await expect(rows).toHaveCount(2);
+
+    const narrowRow = rows.nth(0); // Row 2 (back row, 18 seats)
+    const wideRow = rows.nth(1); // Row 1 (front row, 2 seats)
+
+    // Verify row 0 (front row, wide) has presentation="full" on screen
+    await expect(wideRow).toHaveAttribute("data-name-presentation", "full");
+    // Verify row 1 (back row, narrow) has presentation="initials" on screen
+    await expect(narrowRow).toHaveAttribute("data-name-presentation", "initials");
+
+    // Check visible spans on screen
+    const wideSeatFull = wideRow
+      .locator(".seating-seat--assigned .seating-seat__name-full")
+      .first();
+    const wideSeatInitials = wideRow
+      .locator(".seating-seat--assigned .seating-seat__name-initials")
+      .first();
+    const narrowSeatFull = narrowRow
+      .locator(".seating-seat--assigned .seating-seat__name-full")
+      .first();
+    const narrowSeatInitials = narrowRow
+      .locator(".seating-seat--assigned .seating-seat__name-initials")
+      .first();
+
+    await expect(wideSeatFull).toBeVisible();
+    await expect(wideSeatInitials).toBeHidden();
+    await expect(narrowSeatFull).toBeHidden();
+    await expect(narrowSeatInitials).toBeVisible();
+
+    // Switch to print media
+    await page.emulateMedia({ media: "print" });
+
+    // Assert that print media honors exact same presentation (no switch from initials to full or vice versa)
+    expect(await wideSeatFull.evaluate((el) => getComputedStyle(el).display)).not.toBe("none");
+    expect(await wideSeatInitials.evaluate((el) => getComputedStyle(el).display)).toBe("none");
+    expect(await narrowSeatFull.evaluate((el) => getComputedStyle(el).display)).toBe("none");
+    expect(await narrowSeatInitials.evaluate((el) => getComputedStyle(el).display)).not.toBe(
+      "none",
+    );
+
+    // Switch back to screen and verify restoration
+    await page.emulateMedia({ media: "screen" });
+    await expect(wideSeatFull).toBeVisible();
+    await expect(narrowSeatInitials).toBeVisible();
+
+    if (
+      page.context().browser()?.browserType().name() === "chromium" &&
+      !testInfo.project.name.includes("mobile")
+    ) {
+      await page.emulateMedia({ media: "print" });
+      const letterPdf = await page.pdf({ format: "Letter", landscape: true });
+      expect(letterPdf.length).toBeGreaterThan(1000);
+      const a4Pdf = await page.pdf({ format: "A4", landscape: true });
+      expect(a4Pdf.length).toBeGreaterThan(1000);
     }
   });
 });

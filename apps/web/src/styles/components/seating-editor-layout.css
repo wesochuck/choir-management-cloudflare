@@ -862,13 +862,35 @@
     display: none;
   }
 
+  .seating-seat--assigned[data-name-presentation="initials"] .seating-seat__name-full,
+  .seating-row[data-name-presentation="initials"] .seating-seat--assigned .seating-seat__name-full {
+    display: none;
+  }
+
+  .seating-seat--assigned[data-name-presentation="initials"] .seating-seat__name-initials,
+  .seating-row[data-name-presentation="initials"]
+    .seating-seat--assigned
+    .seating-seat__name-initials {
+    display: inline;
+  }
+
+  .seating-seat--assigned[data-name-presentation="full"] .seating-seat__name-full,
+  .seating-row[data-name-presentation="full"] .seating-seat--assigned .seating-seat__name-full {
+    display: inline;
+  }
+
+  .seating-seat--assigned[data-name-presentation="full"] .seating-seat__name-initials,
+  .seating-row[data-name-presentation="full"] .seating-seat--assigned .seating-seat__name-initials {
+    display: none;
+  }
+
   @media screen {
     @container seating-seat (max-width: 5.25rem) {
-      .seating-seat--assigned .seating-seat__name-full {
+      .seating-seat--assigned:not([data-name-presentation]) .seating-seat__name-full {
         display: none;
       }
 
-      .seating-seat--assigned .seating-seat__name-initials {
+      .seating-seat--assigned:not([data-name-presentation]) .seating-seat__name-initials {
         display: inline;
       }
     }

@@ -5,8 +5,9 @@ import type {
   OrganizationSeatingChartRequest,
   SeatingFormation,
 } from "@choir/contracts";
-import type { CSSProperties } from "react";
+import { type CSSProperties, useRef } from "react";
 import { SeatName, SeatTile } from "./chartParts";
+import { useSeatingNamePresentation } from "./hooks/useSeatingNamePresentation";
 
 export interface SeatingGridCanvasProps {
   readonly chart: OrganizationSeatingChartRequest;
@@ -35,12 +36,15 @@ export function SeatingGridCanvas({
   setSelectedSeat,
   updateLayout,
 }: SeatingGridCanvasProps) {
+  const canvasRef = useRef<HTMLDivElement>(null);
+  useSeatingNamePresentation(canvasRef, chart);
   const profileForSeat = (seatKey: string) => profilesById.get(chart.assignments[seatKey] ?? "");
 
   return (
     <div
       aria-label="Seating chart assignments"
       className={`seating-editor-canvas${isEditing ? " seating-editor-canvas--editing" : " seating-editor-canvas--readonly"}`}
+      ref={canvasRef}
       tabIndex={-1}
     >
       {isEditing ? (
@@ -57,6 +61,7 @@ export function SeatingGridCanvas({
       <div className="seating-grid seating-grid--canvas">
         {rows.map((rowIndex) => {
           const count = chart.rowCounts[rowIndex] ?? 0;
+          const initialPresentation = count >= 15 ? "initials" : "full";
           const occupied = Array.from(
             { length: count },
             (_, seatIndex) => chart.assignments[`${String(rowIndex)}-${String(seatIndex)}`],
@@ -64,6 +69,7 @@ export function SeatingGridCanvas({
           return (
             <div
               className="seating-row seating-row--canvas"
+              data-name-presentation={initialPresentation}
               key={rowIndex}
               style={{ "--seating-seat-count": String(count) } as CSSProperties}
             >
@@ -112,6 +118,7 @@ export function SeatingGridCanvas({
                     onRemove={() => {
                       requestRemoveSeat(rowIndex, seatIndex);
                     }}
+                    presentation={initialPresentation}
                     seatKey={seatKey}
                     suggestion={suggestion}
                   />
@@ -119,6 +126,7 @@ export function SeatingGridCanvas({
                   <div
                     aria-label={`Seat ${String(seatIndex + 1)}${profile ? `, assigned to ${profile.displayName}` : ", empty"}`}
                     className={`seating-seat seating-seat--canvas seating-seat--readonly${profile ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}`}
+                    data-name-presentation={initialPresentation}
                     key={seatKey}
                     title={profile?.displayName}
                   >
