@@ -37,6 +37,7 @@ import {
 } from "./lazyComponents";
 import { accountGroups, platformGroups, rosterProfileTabFromSearch } from "./utils";
 import type { AccessState, NavigationGroup, RouteState, Workspace } from "./types";
+import { parseCreditFilterFromSearch } from "../MusicCatalog/utils";
 
 export function renderAccountPage(
   pathname: string,
@@ -114,11 +115,22 @@ function renderMusicPage({
   if (pathname.endsWith("/settings") || new URLSearchParams(search).get("tab") === "settings") {
     return <MusicLibrarySettings enabled={focusedEnabled} navigate={navigate} />;
   }
+  const creditFilter = parseCreditFilterFromSearch(search);
+  const handleClearCreditFilter = () => {
+    const params = new URLSearchParams(search);
+    params.delete("credit");
+    params.delete("creditRole");
+    const nextQuery = params.toString();
+    const basePath = pathname.startsWith("/admin/music") ? "/admin/music" : "/admin/library";
+    navigate(nextQuery ? `${basePath}?${nextQuery}` : basePath);
+  };
   return (
     <MusicCatalog
+      creditFilter={creditFilter}
       enabled={focusedEnabled}
       initialPieceId={musicPieceId}
       navigate={navigate}
+      onClearCreditFilter={handleClearCreditFilter}
       returnTo={returnToSetList ? "/admin/setlists" : null}
       view={musicCatalogView}
     />

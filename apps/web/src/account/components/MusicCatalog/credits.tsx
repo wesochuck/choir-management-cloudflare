@@ -1,18 +1,26 @@
 import { DataTable, Dialog, DialogClose } from "@choir/ui";
 import { useMemo, useState } from "react";
 
+import { AppLink } from "../AuthenticatedShell/navigation";
 import { summarizeMusicCredits, type MusicCreditSummary } from "./utils";
 import type { OrganizationMusicPiece } from "@choir/contracts";
 
 export function MusicCredits({
   busy,
+  onNavigate,
   onRename,
   pieces,
 }: {
   readonly busy: boolean;
+  readonly onNavigate?: ((href: string) => void) | undefined;
   readonly onRename: (currentName: string, newName: string) => Promise<number>;
   readonly pieces: readonly OrganizationMusicPiece[];
 }) {
+  const navigate =
+    onNavigate ??
+    ((href: string) => {
+      window.location.assign(href);
+    });
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<MusicCreditSummary | null>(null);
   const [newName, setNewName] = useState("");
@@ -82,21 +90,54 @@ export function MusicCredits({
               header: "Composer pieces",
               id: "composerPieces",
               mobileLabel: "Composer pieces",
-              render: ({ composerPieces }) => composerPieces,
+              render: ({ composerPieces, name }) =>
+                composerPieces > 0 ? (
+                  <AppLink
+                    ariaLabel={`View ${String(composerPieces)} piece${composerPieces === 1 ? "" : "s"} composed by ${name}`}
+                    href={`/admin/library?credit=${encodeURIComponent(name)}&creditRole=composer`}
+                    onNavigate={navigate}
+                  >
+                    {String(composerPieces)}
+                  </AppLink>
+                ) : (
+                  <span>0</span>
+                ),
               sortValue: ({ composerPieces }) => composerPieces,
             },
             {
               header: "Arranger pieces",
               id: "arrangerPieces",
               mobileLabel: "Arranger pieces",
-              render: ({ arrangerPieces }) => arrangerPieces,
+              render: ({ arrangerPieces, name }) =>
+                arrangerPieces > 0 ? (
+                  <AppLink
+                    ariaLabel={`View ${String(arrangerPieces)} piece${arrangerPieces === 1 ? "" : "s"} arranged by ${name}`}
+                    href={`/admin/library?credit=${encodeURIComponent(name)}&creditRole=arranger`}
+                    onNavigate={navigate}
+                  >
+                    {String(arrangerPieces)}
+                  </AppLink>
+                ) : (
+                  <span>0</span>
+                ),
               sortValue: ({ arrangerPieces }) => arrangerPieces,
             },
             {
               header: "Total pieces",
               id: "totalPieces",
               mobileLabel: "Total pieces",
-              render: ({ totalPieces }) => totalPieces,
+              render: ({ name, totalPieces }) =>
+                totalPieces > 0 ? (
+                  <AppLink
+                    ariaLabel={`View ${String(totalPieces)} piece${totalPieces === 1 ? "" : "s"} credited to ${name}`}
+                    href={`/admin/library?credit=${encodeURIComponent(name)}&creditRole=any`}
+                    onNavigate={navigate}
+                  >
+                    {String(totalPieces)}
+                  </AppLink>
+                ) : (
+                  <span>0</span>
+                ),
               sortValue: ({ totalPieces }) => totalPieces,
             },
             {

@@ -89,3 +89,110 @@ describe("MusicCatalogTable Play Column Sorting", () => {
     expect(descendingSorted.map((piece) => piece.id)).toEqual(["p4", "p3", "p1", "p2"]);
   });
 });
+
+describe("MusicCatalogTable Credit Filtering", () => {
+  const pieces: readonly OrganizationMusicPiece[] = [
+    {
+      ...mockPiece("p1", "The Lord Bless You"),
+      arranger: "Mark Hayes",
+      composer: "John Rutter",
+    },
+    {
+      ...mockPiece("p2", "Look at the World"),
+      arranger: "",
+      composer: "John Rutter",
+    },
+    {
+      ...mockPiece("p3", "Amazing Grace"),
+      arranger: "John Rutter",
+      composer: "Traditional",
+    },
+    {
+      ...mockPiece("p4", "Gloria (Parent Work)"),
+      arranger: "",
+      composer: "Various",
+    },
+    {
+      ...mockPiece("p5", "Domine Deus (Movement)"),
+      arranger: "",
+      composer: "John Rutter",
+      parentId: "p4",
+    },
+  ];
+
+  it("filters strictly by exact composer when creditRole is composer", () => {
+    const html = renderToString(
+      <MusicCatalogTable
+        creditFilter={{ name: "John Rutter", role: "composer" }}
+        genreFilterMode="and"
+        onDeselectMany={vi.fn()}
+        onEdit={vi.fn()}
+        onSelectMany={vi.fn()}
+        onToggleSelection={vi.fn()}
+        pieces={pieces}
+        publisherSearchTemplate=""
+        search=""
+        selectedGenres={[]}
+        selectedIds={[]}
+        showUncategorized={false}
+      />,
+    );
+
+    // p1 (composer: John Rutter) and p2 (composer: John Rutter) should match
+    expect(html).toContain("The Lord Bless You");
+    expect(html).toContain("Look at the World");
+    // p3 (arranger: John Rutter, composer: Traditional) should NOT match
+    expect(html).not.toContain("Amazing Grace");
+    // p5 (composer: John Rutter, movement of p4) matches and causes parent p4 to render for context
+    expect(html).toContain("Domine Deus (Movement)");
+    expect(html).toContain("Gloria (Parent Work)");
+  });
+
+  it("filters strictly by exact arranger when creditRole is arranger", () => {
+    const html = renderToString(
+      <MusicCatalogTable
+        creditFilter={{ name: "John Rutter", role: "arranger" }}
+        genreFilterMode="and"
+        onDeselectMany={vi.fn()}
+        onEdit={vi.fn()}
+        onSelectMany={vi.fn()}
+        onToggleSelection={vi.fn()}
+        pieces={pieces}
+        publisherSearchTemplate=""
+        search=""
+        selectedGenres={[]}
+        selectedIds={[]}
+        showUncategorized={false}
+      />,
+    );
+
+    // p3 has arranger John Rutter
+    expect(html).toContain("Amazing Grace");
+    // p2 has composer John Rutter, not arranger
+    expect(html).not.toContain("Look at the World");
+  });
+
+  it("filters by composer or arranger when creditRole is any", () => {
+    const html = renderToString(
+      <MusicCatalogTable
+        creditFilter={{ name: "John Rutter", role: "any" }}
+        genreFilterMode="and"
+        onDeselectMany={vi.fn()}
+        onEdit={vi.fn()}
+        onSelectMany={vi.fn()}
+        onToggleSelection={vi.fn()}
+        pieces={pieces}
+        publisherSearchTemplate=""
+        search=""
+        selectedGenres={[]}
+        selectedIds={[]}
+        showUncategorized={false}
+      />,
+    );
+
+    expect(html).toContain("The Lord Bless You");
+    expect(html).toContain("Look at the World");
+    expect(html).toContain("Amazing Grace");
+    expect(html).toContain("Domine Deus (Movement)");
+  });
+});

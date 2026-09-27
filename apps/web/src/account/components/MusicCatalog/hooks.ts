@@ -6,20 +6,26 @@ import { useMusicDerived } from "./hooks/useMusicDerived";
 import { useMusicEditor } from "./hooks/useMusicEditor";
 import { useMusicFilters } from "./hooks/useMusicFilters";
 import { useMusicImport } from "./hooks/useMusicImport";
+import type { MusicCreditFilter } from "./utils";
+
 export function useMusicCatalogController({
+  creditFilter,
   enabled,
   initialPieceId,
   navigate,
+  onClearCreditFilter,
 }: {
+  readonly creditFilter?: MusicCreditFilter | null | undefined;
   readonly enabled: boolean;
   readonly initialPieceId?: string | null | undefined;
   readonly navigate?: ((href: string) => void) | undefined;
+  readonly onClearCreditFilter?: (() => void) | undefined;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<ReactNode>(null);
   const data = useMusicData({ enabled, setError });
-  const filters = useMusicFilters();
+  const filters = useMusicFilters({ creditFilter, onClearCreditFilter });
   const editor = useMusicEditor({
     busy,
     pieces: data.pieces,
@@ -89,13 +95,15 @@ export function useMusicCatalogController({
     bulkError: bulk.bulkError,
     busy,
     childCount: derived.childCount,
-    defaultPageSize: data.defaultPageSize,
-    deselectManyPieces: filters.deselectManyPieces,
+    clearCreditFilter: filters.clearCreditFilter,
     closeBulkDialog: bulk.closeBulkDialog,
     closeDialog: editor.closeDialog,
     closeImportDialog: importer.closeImportDialog,
     copiesInput: editor.copiesInput,
+    creditFilter: filters.creditFilter,
+    defaultPageSize: data.defaultPageSize,
     deleteConfirm: editor.deleteConfirm,
+    deselectManyPieces: filters.deselectManyPieces,
     dialogOpen: editor.dialogOpen,
     durationAutoFillLabel: editor.durationAutoFillLabel,
     durationDetectionNotice: editor.durationDetectionNotice,
@@ -148,6 +156,7 @@ export function useMusicCatalogController({
     setBulkDialogOpen: bulk.setBulkDialogOpen,
     setBulkError: bulk.setBulkError,
     setCopiesInput: editor.setCopiesInput,
+    setCreditFilter: filters.setCreditFilter,
     setDeleteConfirm: editor.setDeleteConfirm,
     setDurationValue: editor.setDurationValue,
     setEditorPiece: editor.setEditorPiece,

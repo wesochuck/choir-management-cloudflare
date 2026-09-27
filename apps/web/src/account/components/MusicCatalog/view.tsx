@@ -34,10 +34,12 @@ export function MusicCatalogView({
     bulkError,
     busy,
     childCount,
+    clearCreditFilter,
     closeBulkDialog,
     closeDialog,
     closeImportDialog,
     copiesInput,
+    creditFilter,
     defaultPageSize,
     deleteConfirm,
     deselectManyPieces,
@@ -148,7 +150,7 @@ export function MusicCatalogView({
         {!roster ? (
           <p role="status">Loading music credits…</p>
         ) : (
-          <MusicCredits busy={busy} onRename={renameCredit} pieces={pieces} />
+          <MusicCredits busy={busy} onNavigate={navigate} onRename={renameCredit} pieces={pieces} />
         )}
       </section>
     );
@@ -284,7 +286,29 @@ export function MusicCatalogView({
                 Export CSV
               </a>
             </div>
+            {creditFilter ? (
+              <div className="music-catalog-active-filter" role="status">
+                <span>
+                  Filtered by{" "}
+                  {creditFilter.role === "composer"
+                    ? "composer"
+                    : creditFilter.role === "arranger"
+                      ? "arranger"
+                      : "composer or arranger"}
+                  : <strong>{creditFilter.name}</strong>
+                </span>
+                <button
+                  aria-label={`Clear filter for ${creditFilter.name}`}
+                  className="button button--secondary button--small"
+                  onClick={clearCreditFilter}
+                  type="button"
+                >
+                  Clear
+                </button>
+              </div>
+            ) : null}
             <MusicCatalogTable
+              creditFilter={creditFilter}
               defaultPageSize={defaultPageSize}
               genreFilterMode={genreFilterMode}
               showUncategorized={showUncategorized}
@@ -644,7 +668,7 @@ export function MusicCatalogView({
             pieces={pieces}
             selectedCount={selectedPieces.length}
             selectedPieceIds={selectedPieceIds}
-            key={bulkDialogOpen ? "open" : "closed"}
+            key={bulkDialogOpen ? "bulk-open" : "bulk-closed"}
           />
           <AddToSetListDialog
             busy={busy}
@@ -661,7 +685,7 @@ export function MusicCatalogView({
             selectedPieces={selectedPieces}
             timezone={timezone}
             venues={venues}
-            key={setListDialogOpen ? "open" : "closed"}
+            key={setListDialogOpen ? "setlist-open" : "setlist-closed"}
           />
           <CsvImportDialog
             busy={busy || musicImportInspecting}

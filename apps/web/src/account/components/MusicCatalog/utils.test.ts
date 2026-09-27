@@ -4,6 +4,7 @@ import type { OrganizationMusicPiece } from "@choir/contracts";
 
 import {
   normalizeDurationInput,
+  parseCreditFilterFromSearch,
   parseDuration,
   pieceTrackCount,
   resolvePreferredPracticeTrack,
@@ -182,5 +183,42 @@ describe("pieceTrackCount & trackCount", () => {
     expect(trackCount(movementOne, allPieces)).toBe(2);
     expect(trackCount(movementTwo, allPieces)).toBe(0);
     expect(trackCount(standalone, allPieces)).toBe(0);
+  });
+});
+
+describe("credit filter parsing", () => {
+  it("parses valid credit and creditRole parameters", () => {
+    expect(parseCreditFilterFromSearch("?credit=John%20Rutter&creditRole=composer")).toEqual({
+      name: "John Rutter",
+      role: "composer",
+    });
+
+    expect(parseCreditFilterFromSearch("?credit=Mark%20Hayes&creditRole=arranger")).toEqual({
+      name: "Mark Hayes",
+      role: "arranger",
+    });
+
+    expect(parseCreditFilterFromSearch("?credit=Alice%20Parker&creditRole=any")).toEqual({
+      name: "Alice Parker",
+      role: "any",
+    });
+  });
+
+  it("defaults invalid or missing creditRole to any", () => {
+    expect(parseCreditFilterFromSearch("?credit=John%20Rutter")).toEqual({
+      name: "John Rutter",
+      role: "any",
+    });
+
+    expect(parseCreditFilterFromSearch("?credit=John%20Rutter&creditRole=invalid")).toEqual({
+      name: "John Rutter",
+      role: "any",
+    });
+  });
+
+  it("returns null when credit is absent or empty", () => {
+    expect(parseCreditFilterFromSearch("")).toBeNull();
+    expect(parseCreditFilterFromSearch("?creditRole=composer")).toBeNull();
+    expect(parseCreditFilterFromSearch("?credit=%20%20")).toBeNull();
   });
 });

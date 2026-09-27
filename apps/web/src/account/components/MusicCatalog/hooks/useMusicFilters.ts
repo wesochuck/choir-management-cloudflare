@@ -1,13 +1,43 @@
-import { useState } from "react";
-import { genreKey } from "../utils";
+import { useCallback, useState } from "react";
+import { genreKey, type MusicCreditFilter } from "../utils";
 
-export function useMusicFilters() {
+export function useMusicFilters({
+  creditFilter: initialCreditFilter,
+  onClearCreditFilter,
+}: {
+  readonly creditFilter?: MusicCreditFilter | null | undefined;
+  readonly onClearCreditFilter?: (() => void) | undefined;
+} = {}) {
   const [search, setSearch] = useState("");
   const [genreFilterSearch, setGenreFilterSearch] = useState("");
   const [genreFilterMode, setGenreFilterMode] = useState<"and" | "or">("or");
   const [selectedGenres, setSelectedGenres] = useState<readonly string[]>([]);
   const [selectedPieceIds, setSelectedPieceIds] = useState<readonly string[]>([]);
   const [showUncategorized, setShowUncategorized] = useState(false);
+  const [creditFilterOverride, setCreditFilterOverride] = useState<
+    MusicCreditFilter | null | undefined
+  >(undefined);
+  const [prevInitial, setPrevInitial] = useState(initialCreditFilter);
+
+  if (
+    initialCreditFilter?.name !== prevInitial?.name ||
+    initialCreditFilter?.role !== prevInitial?.role
+  ) {
+    setPrevInitial(initialCreditFilter);
+    setCreditFilterOverride(undefined);
+  }
+
+  const creditFilter =
+    creditFilterOverride !== undefined ? creditFilterOverride : (initialCreditFilter ?? null);
+
+  const clearCreditFilter = useCallback(() => {
+    setCreditFilterOverride(null);
+    onClearCreditFilter?.();
+  }, [onClearCreditFilter]);
+
+  const setCreditFilter = useCallback((next: MusicCreditFilter | null) => {
+    setCreditFilterOverride(next);
+  }, []);
 
   function toggleGenre(genre: string): void {
     setShowUncategorized(false);
@@ -46,6 +76,8 @@ export function useMusicFilters() {
   }
 
   return {
+    clearCreditFilter,
+    creditFilter,
     genreFilterMode,
     genreFilterSearch,
     search,
@@ -53,6 +85,7 @@ export function useMusicFilters() {
     selectManyPieces,
     selectedGenres,
     selectedPieceIds,
+    setCreditFilter,
     setGenreFilterMode,
     setGenreFilterSearch,
     setSearch,

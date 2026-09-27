@@ -1,5 +1,30 @@
 import type { OrganizationMusicPiece, OrganizationMusicPieceRequest } from "@choir/contracts";
 
+export type MusicCreditRole = "composer" | "arranger" | "any";
+
+export interface MusicCreditFilter {
+  readonly name: string;
+  readonly role: MusicCreditRole;
+}
+
+export function parseMusicCreditRole(value: string | null | undefined): MusicCreditRole {
+  if (value === "composer" || value === "arranger" || value === "any") {
+    return value;
+  }
+  return "any";
+}
+
+export function parseCreditFilterFromSearch(search: string): MusicCreditFilter | null {
+  const params = new URLSearchParams(search);
+  const credit = params.get("credit")?.trim();
+  if (!credit) return null;
+  const roleParam = params.get("creditRole");
+  return {
+    name: credit,
+    role: parseMusicCreditRole(roleParam),
+  };
+}
+
 export interface MusicCreditSummary {
   readonly arrangerPieces: number;
   readonly composerPieces: number;

@@ -16,12 +16,14 @@ export function ThemeIcon({ preference }: { readonly preference: ThemePreference
 
 export function AppLink({
   ariaCurrent,
+  ariaLabel,
   children,
   className,
   href,
   onNavigate,
 }: {
   readonly ariaCurrent?: "page" | undefined;
+  readonly ariaLabel?: string | undefined;
   readonly children: ReactNode;
   readonly className?: string | undefined;
   readonly href: string;
@@ -31,6 +33,7 @@ export function AppLink({
     <a
       href={href}
       aria-current={ariaCurrent}
+      aria-label={ariaLabel}
       className={className}
       onClick={(event) => {
         if (

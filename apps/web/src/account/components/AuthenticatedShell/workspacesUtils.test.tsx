@@ -25,6 +25,15 @@ describe("renderOrganizationPage routing and aliases", () => {
       notFoundPage,
     );
     expect(musicResult).not.toBe(notFoundMarker);
+
+    const creditFilterResult = renderOrganizationPage(
+      { pathname: "/admin/library", search: "?credit=John%20Rutter&creditRole=composer" },
+      true,
+      true,
+      navigate,
+      notFoundPage,
+    );
+    expect(creditFilterResult).not.toBe(notFoundMarker);
   });
 
   it("resolves /admin/music settings variants to valid pages", () => {

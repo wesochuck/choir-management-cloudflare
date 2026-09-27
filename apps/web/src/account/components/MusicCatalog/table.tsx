@@ -4,11 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import { buildMusicPublisherSearchUrl } from "../../musicPublisherSearch";
 
 import { GenreChips } from "./shared";
-import { composerText, durationText, genreKey, pieceTrackCount } from "./utils";
+import {
+  composerText,
+  durationText,
+  genreKey,
+  pieceTrackCount,
+  type MusicCreditFilter,
+} from "./utils";
 
 import { MusicTableTrackPlayer } from "./performances";
 
 export function MusicCatalogTable({
+  creditFilter,
   defaultPageSize = 100,
   genreFilterMode,
   showUncategorized,
@@ -25,6 +32,7 @@ export function MusicCatalogTable({
   selectedIds,
   selectedGenres,
 }: {
+  readonly creditFilter?: MusicCreditFilter | null | undefined;
   readonly defaultPageSize?: number | undefined;
   readonly genreFilterMode: "and" | "or";
   readonly showUncategorized: boolean;
@@ -62,7 +70,18 @@ export function MusicCatalogTable({
         (genreFilterMode === "and"
           ? selected.every((genre) => pieceGenres.includes(genre))
           : selected.some((genre) => pieceGenres.includes(genre)));
-    return matchesSearch && matchesGenres;
+    const matchesCredit = (() => {
+      if (!creditFilter?.name.trim()) return true;
+      const target = creditFilter.name.trim();
+      if (creditFilter.role === "composer") {
+        return piece.composer.trim() === target;
+      }
+      if (creditFilter.role === "arranger") {
+        return piece.arranger.trim() === target;
+      }
+      return piece.composer.trim() === target || piece.arranger.trim() === target;
+    })();
+    return matchesSearch && matchesGenres && matchesCredit;
   };
   const matchingIds = new Set(pieces.filter(matchesPiece).map((piece) => piece.id));
   const childrenByParent = new Map<string, OrganizationMusicPiece[]>();
@@ -102,7 +121,14 @@ export function MusicCatalogTable({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset page on filter change
     setPage(1);
-  }, [genreFilterMode, search, selectedGenres, showUncategorized]);
+  }, [
+    creditFilter?.name,
+    creditFilter?.role,
+    genreFilterMode,
+    search,
+    selectedGenres,
+    showUncategorized,
+  ]);
 
   const sortParent = (piece: OrganizationMusicPiece): OrganizationMusicPiece =>
     piece.parentId ? (parents.get(piece.parentId) ?? piece) : piece;
