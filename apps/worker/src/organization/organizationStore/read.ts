@@ -35,7 +35,9 @@ import {
 import { listMusicPiecesFromStore, readMusicLibrarySettingsFromStore } from "../musicStore";
 import { listResourcesFromStore } from "../resourceStore";
 import {
+  listCommunicationHistoryFromStore,
   listCommunicationMessagesFromStore,
+  listCommunicationRecipientsFromStore,
   listMemberBulletinsFromStore,
   listProfileDeliveriesFromStore,
   listCommunicationScheduledMessagesFromStore,
@@ -132,6 +134,21 @@ const contentGetHandlers: Record<
     listResourcesFromStore(storage, organizationId),
   "/internal/communications": (storage, _url, organizationId) =>
     listCommunicationMessagesFromStore(storage, organizationId),
+  "/internal/communications/history": (storage, url, organizationId) =>
+    listCommunicationHistoryFromStore(storage, {
+      cursor: url.searchParams.get("cursor"),
+      limit: url.searchParams.get("limit"),
+      organizationId,
+      origin: url.searchParams.get("origin"),
+      status: url.searchParams.get("status"),
+    }),
+  "/internal/communications/recipients": (storage, url, organizationId) =>
+    listCommunicationRecipientsFromStore(storage, {
+      cursor: url.searchParams.get("cursor"),
+      limit: url.searchParams.get("limit"),
+      messageId: url.searchParams.get("messageId"),
+      organizationId,
+    }),
   "/internal/communications/member-bulletins": (storage, url, organizationId) =>
     listMemberBulletinsFromStore(storage, {
       organizationId,
@@ -144,8 +161,12 @@ const contentGetHandlers: Record<
     }),
   "/internal/communications/scheduled": (storage, _url, organizationId) =>
     listCommunicationScheduledMessagesFromStore(storage, organizationId),
-  "/internal/communications/templates": (storage, _url, organizationId) =>
-    listCommunicationTemplatesFromStore(storage, organizationId),
+  "/internal/communications/templates": (storage, url, organizationId) =>
+    listCommunicationTemplatesFromStore(storage, {
+      cursor: url.searchParams.get("cursor"),
+      limit: url.searchParams.get("limit"),
+      organizationId,
+    }),
   "/internal/communications/template": (storage, url, organizationId) =>
     readCommunicationTemplateFromStore(storage, organizationId, url.searchParams.get("templateId")),
   "/internal/communications/summary": (

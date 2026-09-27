@@ -1,4 +1,5 @@
 import {
+  communicationDeliveryRecipientSchema,
   communicationDeliverySummarySchema,
   communicationRecipientSubjectFromLegacy,
   communicationRecipientSubjectSchema,
@@ -32,6 +33,320 @@ export function listCommunicationMessagesFromStore(
     .toArray()
     .map(parseMessage);
   return Response.json({ messages });
+}
+
+interface HistoryCursor {
+  readonly id: string;
+  readonly sortTimestamp: string;
+  readonly sourceRank: number;
+}
+
+function parseHistoryCursor(cursor: string | null): HistoryCursor | null {
+  if (!cursor || cursor.length > 256) return null;
+  const parts = cursor.split("|");
+  if (parts.length !== 3) return null;
+  const sortTimestamp = parts[0];
+  const rankStr = parts[1];
+  const id = parts[2];
+  if (!sortTimestamp || !rankStr || !id) return null;
+  const sourceRank = Number(rankStr);
+  if (!Number.isInteger(sourceRank) || sourceRank < 0 || sourceRank > 3) return null;
+  if (id.length > 128) return null;
+  if (isNaN(Date.parse(sortTimestamp))) return null;
+  return { id, sortTimestamp, sourceRank };
+}
+
+interface HistoryRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly audienceJson: string | null;
+  readonly autoKind: string | null;
+  readonly canceledAt: string | null;
+  readonly channel: string;
+  readonly contentMarkdown: string | null;
+  readonly createdAt: string | null;
+  readonly eventId: string | null;
+  readonly eventTitle: string | null;
+  readonly id: string;
+  readonly kind: "automated" | "manual";
+  readonly reachJson: string | null;
+  readonly recipientCount: number | null;
+  readonly sentAt: string | null;
+  readonly sortTimestamp: string;
+  readonly sourceRank: number;
+  readonly status: string;
+  readonly subject: string;
+  readonly updatedAt: string | null;
+}
+
+const STATUS_FILTER_MAP: Readonly<Record<string, string>> = {
+  canceled: "Canceled",
+  draft: "Draft",
+  failed: "Failed",
+  queued: "Queued",
+  scheduled: "Scheduled",
+  sent: "Sent",
+};
+
+function buildHistoryWhere(
+  origin?: string | null,
+  status?: string | null,
+  cursor?: HistoryCursor | null,
+): { readonly bindings: unknown[]; readonly whereSql: string } {
+  const whereClauses: string[] = [];
+  const bindings: unknown[] = [];
+
+  if (origin === "manual") {
+    whereClauses.push("source_rank = 3");
+  } else if (origin === "automated") {
+    whereClauses.push("source_rank < 3");
+  }
+
+  const normalizedStatus = (status ?? "all").toLowerCase();
+  const mappedStatus = STATUS_FILTER_MAP[normalizedStatus];
+  if (mappedStatus) {
+    whereClauses.push(`status = '${mappedStatus}'`);
+  }
+
+  if (cursor) {
+    whereClauses.push(
+      "(sort_timestamp < ? OR (sort_timestamp = ? AND (source_rank < ? OR (source_rank = ? AND id < ?))))",
+    );
+    bindings.push(
+      cursor.sortTimestamp,
+      cursor.sortTimestamp,
+      cursor.sourceRank,
+      cursor.sourceRank,
+      cursor.id,
+    );
+  }
+
+  const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+  return { bindings, whereSql };
+}
+
+function parseManualMessageStatus(status: string): MessageRow["status"] {
+  switch (status) {
+    case "Draft":
+    case "Queued":
+    case "Sent":
+    case "Failed":
+      return status;
+    default:
+      return "Draft";
+  }
+}
+
+function mapHistoryRow(row: HistoryRow) {
+  const sortTimestamp = new Date(row.sortTimestamp).toISOString();
+  if (row.kind === "manual") {
+    const message = parseMessage({
+      audienceJson: row.audienceJson ?? "{}",
+      canceledAt: row.canceledAt,
+      channel: row.channel === "Both" || row.channel === "SMS" ? row.channel : "Email",
+      contentMarkdown: row.contentMarkdown ?? "",
+      createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : sortTimestamp,
+      id: row.id,
+      reachJson: row.reachJson ?? "{}",
+      sentAt: row.sentAt ? new Date(row.sentAt).toISOString() : null,
+      status: parseManualMessageStatus(row.status),
+      subject: row.subject,
+      updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : sortTimestamp,
+    });
+    return {
+      kind: "manual" as const,
+      message,
+      sortTimestamp,
+    };
+  }
+  const scheduledMessage = communicationScheduledMessageSchema.parse({
+    eventId: row.eventId,
+    eventTitle: row.eventTitle ?? "",
+    id: row.id,
+    kind: row.autoKind,
+    recipientCount: row.recipientCount ?? 0,
+    scheduledAt: sortTimestamp,
+    status: row.status,
+    subject: row.subject,
+  });
+  return {
+    kind: "automated" as const,
+    scheduledMessage,
+    sortTimestamp,
+  };
+}
+
+export function listCommunicationHistoryFromStore(
+  storage: DurableObjectStorage,
+  input: {
+    readonly cursor?: string | null;
+    readonly limit?: string | number | null;
+    readonly organizationId: string | null;
+    readonly origin?: string | null;
+    readonly status?: string | null;
+  },
+): Response {
+  if (!input.organizationId || !identityMatches(storage, input.organizationId)) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+
+  const rawLimit = Number(input.limit ?? 50);
+  const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 50;
+  const cursor = parseHistoryCursor(input.cursor ?? null);
+  const { bindings, whereSql } = buildHistoryWhere(input.origin, input.status, cursor);
+  bindings.push(limit + 1);
+
+  const sql = `
+    WITH combined AS (
+      SELECT
+        'manual' AS kind,
+        3 AS source_rank,
+        id,
+        COALESCE(sent_at, created_at) AS sort_timestamp,
+        CASE WHEN canceled_at IS NOT NULL THEN 'Canceled' ELSE status END AS status,
+        subject,
+        channel,
+        created_at AS createdAt,
+        updated_at AS updatedAt,
+        sent_at AS sentAt,
+        canceled_at AS canceledAt,
+        reach_json AS reachJson,
+        audience_json AS audienceJson,
+        content_markdown AS contentMarkdown,
+        NULL AS eventId,
+        NULL AS eventTitle,
+        NULL AS autoKind,
+        NULL AS recipientCount
+      FROM communication_messages
+
+      UNION ALL
+
+      SELECT
+        'automated' AS kind,
+        2 AS source_rank,
+        n.id,
+        n.scheduled_for AS sort_timestamp,
+        CASE WHEN n.status = 'failed' THEN 'Failed' WHEN n.status IN ('sent', 'suppressed') THEN 'Sent' ELSE 'Queued' END AS status,
+        n.subject,
+        'Email' AS channel,
+        NULL AS createdAt,
+        NULL AS updatedAt,
+        NULL AS sentAt,
+        NULL AS canceledAt,
+        NULL AS reachJson,
+        NULL AS audienceJson,
+        NULL AS contentMarkdown,
+        n.event_id AS eventId,
+        COALESCE(e.title, p.event_title) AS eventTitle,
+        CASE
+          WHEN n.dedupe_key LIKE 'ticket-refund:%' OR n.kind = 'refund' THEN 'ticket_refund'
+          WHEN n.kind = 'reminder' THEN 'ticket_reminder'
+          ELSE 'ticket_confirmation'
+        END AS autoKind,
+        1 AS recipientCount
+      FROM ticket_notifications n
+      JOIN ticket_purchases p ON p.id = n.purchase_id
+      LEFT JOIN events e ON e.id = n.event_id
+
+      UNION ALL
+
+      SELECT
+        'automated' AS kind,
+        1 AS source_rank,
+        n.id,
+        n.scheduled_for AS sort_timestamp,
+        CASE WHEN n.status = 'failed' THEN 'Failed' WHEN n.status IN ('sent', 'suppressed') THEN 'Sent' ELSE 'Queued' END AS status,
+        n.subject,
+        'Email' AS channel,
+        NULL AS createdAt,
+        NULL AS updatedAt,
+        NULL AS sentAt,
+        NULL AS canceledAt,
+        NULL AS reachJson,
+        NULL AS audienceJson,
+        NULL AS contentMarkdown,
+        NULL AS eventId,
+        ('Audition: ' || a.name) AS eventTitle,
+        CASE WHEN n.kind = 'audition_reminder' THEN 'audition_reminder' ELSE 'audition_confirmation' END AS autoKind,
+        1 AS recipientCount
+      FROM audition_notifications n
+      JOIN auditions a ON a.id = n.audition_id
+      WHERE n.kind IN ('scheduled_confirmation', 'audition_reminder')
+
+      UNION ALL
+
+      SELECT
+        'automated' AS kind,
+        0 AS source_rank,
+        o.job_id AS id,
+        o.due_at AS sort_timestamp,
+        CASE
+          WHEN l.status = 'completed' THEN 'Sent'
+          WHEN l.status = 'failed' THEN 'Failed'
+          WHEN o.enqueued_at IS NOT NULL THEN 'Queued'
+          ELSE 'Scheduled'
+        END AS status,
+        CASE
+          WHEN o.kind = 'event_reminder' THEN ('Event reminder: ' || e.title)
+          WHEN o.kind = 'rsvp_follow_up' THEN ('RSVP follow-up: ' || e.title)
+          ELSE ('Attendance report: ' || e.title)
+        END AS subject,
+        'Email' AS channel,
+        NULL AS createdAt,
+        NULL AS updatedAt,
+        NULL AS sentAt,
+        NULL AS canceledAt,
+        NULL AS reachJson,
+        NULL AS audienceJson,
+        NULL AS contentMarkdown,
+        e.id AS eventId,
+        e.title AS eventTitle,
+        o.kind AS autoKind,
+        0 AS recipientCount
+      FROM scheduled_job_outbox o
+      LEFT JOIN job_ledger l ON l.job_id = o.job_id
+      JOIN events e ON (o.idempotency_key LIKE ('%:' || e.id) OR o.idempotency_key LIKE ('%:' || e.id || ':%'))
+      WHERE o.kind IN ('event_reminder', 'rsvp_follow_up', 'attendance_report')
+    )
+    SELECT
+      kind,
+      source_rank AS sourceRank,
+      id,
+      sort_timestamp AS sortTimestamp,
+      status,
+      subject,
+      channel,
+      createdAt,
+      updatedAt,
+      sentAt,
+      canceledAt,
+      reachJson,
+      audienceJson,
+      contentMarkdown,
+      eventId,
+      eventTitle,
+      autoKind,
+      recipientCount
+    FROM combined
+    ${whereSql}
+    ORDER BY sort_timestamp DESC, source_rank DESC, id DESC
+    LIMIT ?
+  `;
+
+  const rows = storage.sql.exec<HistoryRow>(sql, ...bindings).toArray();
+  const hasMore = rows.length > limit;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+  const items = pageRows.map(mapHistoryRow);
+
+  const lastRow = pageRows.at(-1);
+  const nextCursor =
+    hasMore && lastRow
+      ? `${lastRow.sortTimestamp}|${String(lastRow.sourceRank)}|${lastRow.id}`
+      : null;
+
+  return Response.json({
+    items,
+    nextCursor,
+  });
 }
 
 function bulletinPreview(value: string): string {
@@ -355,21 +670,127 @@ export function listCommunicationScheduledMessagesFromStore(
   return Response.json({ messages: messages.slice(0, 200) });
 }
 
-export function listCommunicationTemplatesFromStore(
+interface TemplateCursor {
+  readonly id: string;
+  readonly isSystem: number;
+  readonly title: string;
+}
+
+function parseTemplateCursor(cursor: string | null): TemplateCursor | null {
+  if (!cursor || cursor.length > 512) return null;
+  const parts = cursor.split("|");
+  if (parts.length !== 3) return null;
+  const isSystemStr = parts[0];
+  const encodedTitle = parts[1];
+  const id = parts[2];
+  if (!isSystemStr || !encodedTitle || !id) return null;
+  const isSystem = Number(isSystemStr);
+  if (isSystem !== 0 && isSystem !== 1) return null;
+  if (id.length > 128) return null;
+  try {
+    const title = decodeURIComponent(encodedTitle);
+    return { id, isSystem, title };
+  } catch {
+    return null;
+  }
+}
+
+function queryTemplateRows(
   storage: DurableObjectStorage,
-  organizationId: string | null,
-): Response {
-  if (!organizationId || !identityMatches(storage, organizationId))
-    return Response.json({ code: "organization_not_found" }, { status: 404 });
-  const templates = storage.sql
+  cursor: TemplateCursor | null,
+  limit: number,
+): readonly TemplateRow[] {
+  if (cursor) {
+    return storage.sql
+      .exec<TemplateRow>(
+        `SELECT id, title, channel, subject, content_markdown AS contentMarkdown,
+          is_system AS isSystem, created_at AS createdAt, updated_at AS updatedAt
+         FROM communication_templates
+         WHERE is_system < ?
+           OR (is_system = ? AND (
+             title COLLATE NOCASE > ?
+             OR (title COLLATE NOCASE = ? AND id > ?)
+           ))
+         ORDER BY is_system DESC, title COLLATE NOCASE ASC, id ASC
+         LIMIT ?`,
+        cursor.isSystem,
+        cursor.isSystem,
+        cursor.title,
+        cursor.title,
+        cursor.id,
+        limit + 1,
+      )
+      .toArray();
+  }
+  return storage.sql
     .exec<TemplateRow>(
       `SELECT id, title, channel, subject, content_markdown AS contentMarkdown,
         is_system AS isSystem, created_at AS createdAt, updated_at AS updatedAt
-       FROM communication_templates ORDER BY is_system DESC, title COLLATE NOCASE, id LIMIT 200`,
+       FROM communication_templates
+       ORDER BY is_system DESC, title COLLATE NOCASE ASC, id ASC
+       LIMIT ?`,
+      limit + 1,
     )
-    .toArray()
-    .map((row) => communicationTemplateSchema.parse({ ...row, isSystem: row.isSystem === 1 }));
-  return Response.json({ templates });
+    .toArray();
+}
+
+function parseTemplatesInput(
+  input:
+    | string
+    | null
+    | {
+        readonly cursor?: string | null;
+        readonly limit?: string | number | null;
+        readonly organizationId: string | null;
+      },
+): {
+  readonly cursor: TemplateCursor | null;
+  readonly limit: number;
+  readonly organizationId: string | null;
+} {
+  if (typeof input === "string" || input === null) {
+    return { cursor: null, limit: 50, organizationId: input };
+  }
+  const rawLimit = Number(input.limit ?? 50);
+  const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 50;
+  const cursor = parseTemplateCursor(input.cursor ?? null);
+  return { cursor, limit, organizationId: input.organizationId };
+}
+
+export function listCommunicationTemplatesFromStore(
+  storage: DurableObjectStorage,
+  input:
+    | string
+    | null
+    | {
+        readonly cursor?: string | null;
+        readonly limit?: string | number | null;
+        readonly organizationId: string | null;
+      },
+): Response {
+  const { cursor, limit, organizationId } = parseTemplatesInput(input);
+  if (!organizationId || !identityMatches(storage, organizationId)) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+
+  const rows = queryTemplateRows(storage, cursor, limit);
+  const hasMore = rows.length > limit;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+
+  const templates = pageRows.map((row) =>
+    communicationTemplateSchema.parse({ ...row, isSystem: row.isSystem === 1 }),
+  );
+
+  const lastRow = pageRows.at(-1);
+  const nextCursor =
+    hasMore && lastRow
+      ? `${lastRow.isSystem ? "1" : "0"}|${encodeURIComponent(lastRow.title)}|${lastRow.id}`
+      : null;
+
+  return Response.json({
+    nextCursor,
+    templates,
+  });
 }
 
 export function readCommunicationTemplateFromStore(
@@ -561,6 +982,83 @@ export function readCommunicationSummaryFromStore(
       })),
     }),
   );
+}
+
+interface RecipientRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly channel: "email" | "sms";
+  readonly id: string;
+  readonly providerStatus:
+    "accepted" | "delivered" | "deferred" | "bounced" | "failed" | "rejected" | "complained" | null;
+  readonly recipientName: string;
+  readonly status: "failed" | "processing" | "queued" | "sent" | "suppressed";
+}
+
+export function listCommunicationRecipientsFromStore(
+  storage: DurableObjectStorage,
+  input: {
+    readonly cursor?: string | null;
+    readonly limit?: string | number | null;
+    readonly messageId: string | null;
+    readonly organizationId: string | null;
+  },
+): Response {
+  if (!input.organizationId || !identityMatches(storage, input.organizationId)) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  const parsedMessageId = z.uuid().safeParse(input.messageId);
+  if (!parsedMessageId.success || !readMessage(storage, parsedMessageId.data)) {
+    return Response.json({ code: "communication_message_not_found" }, { status: 404 });
+  }
+
+  const rawLimit = Number(input.limit ?? 100);
+  const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 100;
+  const cursor = input.cursor && input.cursor.length <= 128 ? input.cursor : null;
+
+  const rows = cursor
+    ? storage.sql
+        .exec<RecipientRow>(
+          `SELECT id, recipient_name AS recipientName, channel, status, provider_status AS providerStatus
+           FROM communication_deliveries
+           WHERE message_id = ? AND id > ?
+           ORDER BY id ASC
+           LIMIT ?`,
+          parsedMessageId.data,
+          cursor,
+          limit + 1,
+        )
+        .toArray()
+    : storage.sql
+        .exec<RecipientRow>(
+          `SELECT id, recipient_name AS recipientName, channel, status, provider_status AS providerStatus
+           FROM communication_deliveries
+           WHERE message_id = ?
+           ORDER BY id ASC
+           LIMIT ?`,
+          parsedMessageId.data,
+          limit + 1,
+        )
+        .toArray();
+
+  const hasMore = rows.length > limit;
+  const pageRows = hasMore ? rows.slice(0, limit) : rows;
+
+  const recipients = pageRows.map((r) =>
+    communicationDeliveryRecipientSchema.parse({
+      channel: r.channel,
+      providerStatus: r.providerStatus,
+      recipientName: r.recipientName,
+      status: r.status,
+    }),
+  );
+
+  const lastRow = pageRows.at(-1);
+  const nextCursor = hasMore && lastRow ? lastRow.id : null;
+
+  return Response.json({
+    nextCursor,
+    recipients,
+  });
 }
 
 export function readCommunicationJobFromStore(

@@ -172,6 +172,8 @@ export const organizationRpcOperationMap: OrganizationRpcOperationMap = {
   communication: operationMapFor([
     ...getOperations(
       "/internal/communications",
+      "/internal/communications/history",
+      "/internal/communications/recipients",
       "/internal/communications/member-bulletins",
       "/internal/communications/deliveries",
       "/internal/communications/scheduled",

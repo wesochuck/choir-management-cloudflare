@@ -1,5 +1,7 @@
 import {
+  communicationDeliveryRecipientsPageResponseSchema,
   communicationDeliverySummarySchema,
+  communicationHistoryPageResponseSchema,
   communicationMessageSchema,
   communicationMessagesResponseSchema,
   communicationRecipientSubjectFromLegacy,
@@ -8,8 +10,10 @@ import {
   communicationTemplateSchema,
   communicationTemplatesResponseSchema,
   type CommunicationAudienceRequest,
+  type CommunicationDeliveryRecipient,
   type CommunicationDeliverySummary,
   type CommunicationDraftRequest,
+  type CommunicationHistoryItem,
   type CommunicationMessage,
   type CommunicationReach,
   type CommunicationRecipientSubject,
@@ -529,18 +533,97 @@ export async function deleteCommunicationDraft(
   });
 }
 
+export async function listCommunicationHistory(
+  env: Env,
+  organizationId: string,
+  options?: {
+    cursor?: string | null;
+    limit?: string | number | null;
+    origin?: string | null;
+    status?: string | null;
+  },
+): Promise<{
+  readonly items: readonly CommunicationHistoryItem[];
+  readonly nextCursor: string | null;
+}> {
+  const parameters: Record<string, string> = {};
+  if (options?.cursor) parameters.cursor = options.cursor;
+  if (options?.limit != null) {
+    parameters.limit = String(options.limit);
+  }
+  if (options?.origin) parameters.origin = options.origin;
+  if (options?.status) parameters.status = options.status;
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/communications/history",
+    parameters,
+  );
+  if (!response.ok) throw await failure(response);
+  return communicationHistoryPageResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json());
+}
+
+export async function listCommunicationRecipients(
+  env: Env,
+  organizationId: string,
+  options: {
+    cursor?: string | null;
+    limit?: string | number | null;
+    messageId: string;
+  },
+): Promise<{
+  readonly nextCursor: string | null;
+  readonly recipients: readonly CommunicationDeliveryRecipient[];
+}> {
+  const parameters: Record<string, string> = { messageId: options.messageId };
+  if (options.cursor) parameters.cursor = options.cursor;
+  if (options.limit !== undefined && options.limit !== null) {
+    parameters.limit = String(options.limit);
+  }
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/communications/recipients",
+    parameters,
+  );
+  if (!response.ok) throw await failure(response);
+  return communicationDeliveryRecipientsPageResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json());
+}
+
 export async function listCommunicationTemplates(
   env: Env,
   organizationId: string,
-): Promise<readonly CommunicationTemplate[]> {
+  options?: {
+    cursor?: string | null;
+    limit?: string | number | null;
+  },
+): Promise<{
+  readonly nextCursor: string | null;
+  readonly templates: readonly CommunicationTemplate[];
+}> {
+  const parameters: Record<string, string> = {};
+  if (options?.cursor) parameters.cursor = options.cursor;
+  if (options?.limit != null) {
+    parameters.limit = String(options.limit);
+  }
   const response = await readOrganizationStore(
     env,
     organizationId,
     "/internal/communications/templates",
+    parameters,
   );
   if (!response.ok) throw await failure(response);
-  return communicationTemplatesResponseSchema.omit({ requestId: true }).parse(await response.json())
-    .templates;
+  const parsed = communicationTemplatesResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json());
+  return {
+    nextCursor: parsed.nextCursor ?? null,
+    templates: parsed.templates,
+  };
 }
 
 export async function saveCommunicationTemplate(

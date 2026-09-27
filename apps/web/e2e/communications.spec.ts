@@ -126,6 +126,7 @@ async function handleRoute(
       twoFactorVerified: false,
     },
     "/api/organization/communications": { messages: [], requestId },
+    "/api/organization/communications/history": { items: [], nextCursor: null, requestId },
     "/api/organization/communications/scheduled": { messages: [], requestId },
     "/api/organization/communications/templates": {
       requestId,
@@ -535,29 +536,33 @@ test("shows recipient names in message delivery details", async ({ page }) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
-    if (pathname === "/api/organization/communications") {
+    if (
+      pathname === "/api/organization/communications" ||
+      pathname === "/api/organization/communications/history"
+    ) {
+      const historyMsg = {
+        audience: {
+          eventId: null,
+          globalStatuses: ["Active"],
+          profileIds: [],
+          rsvp: "All",
+          targetAudiences: ["Members"],
+          voiceParts: [],
+        },
+        channel: "Email",
+        contentMarkdown: "Hello {singerName}",
+        createdAt: "2026-08-14T18:12:00.000Z",
+        id: historyMessageId,
+        reach: { both: 0, email: 2, sms: 0, total: 2, unreachable: 0 },
+        sentAt: "2026-08-14T18:12:00.000Z",
+        status: "Sent",
+        subject: "Rehearsal update",
+        updatedAt: "2026-08-14T18:12:00.000Z",
+      };
       await fulfillJson(route, {
-        messages: [
-          {
-            audience: {
-              eventId: null,
-              globalStatuses: ["Active"],
-              profileIds: [],
-              rsvp: "All",
-              targetAudiences: ["Members"],
-              voiceParts: [],
-            },
-            channel: "Email",
-            contentMarkdown: "Hello {singerName}",
-            createdAt: "2026-08-14T18:12:00.000Z",
-            id: historyMessageId,
-            reach: { both: 0, email: 2, sms: 0, total: 2, unreachable: 0 },
-            sentAt: "2026-08-14T18:12:00.000Z",
-            status: "Sent",
-            subject: "Rehearsal update",
-            updatedAt: "2026-08-14T18:12:00.000Z",
-          },
-        ],
+        items: [{ kind: "manual", message: historyMsg, sortTimestamp: historyMsg.sentAt }],
+        messages: [historyMsg],
+        nextCursor: null,
         requestId,
       });
       return;
@@ -623,16 +628,22 @@ test("allows queued messages to be edited or canceled", async ({ page }) => {
   const previewBodies: unknown[] = [];
   await page.route("**/api/**", async (route) => {
     const pathname = new URL(route.request().url()).pathname;
-    if (pathname === "/api/organization/communications") {
+    if (
+      pathname === "/api/organization/communications" ||
+      pathname === "/api/organization/communications/history"
+    ) {
+      const secondMessage = {
+        ...queuedMessage,
+        id: secondQueuedMessageId,
+        subject: "Queued follow-up",
+      };
       await fulfillJson(route, {
-        messages: [
-          queuedMessage,
-          {
-            ...queuedMessage,
-            id: secondQueuedMessageId,
-            subject: "Queued follow-up",
-          },
+        items: [
+          { kind: "manual", message: queuedMessage, sortTimestamp: queuedMessage.createdAt },
+          { kind: "manual", message: secondMessage, sortTimestamp: secondMessage.createdAt },
         ],
+        messages: [queuedMessage, secondMessage],
+        nextCursor: null,
         requestId,
       });
       return;
@@ -780,4 +791,70 @@ test("hides delivery mode notice banner in production", async ({ page }) => {
 
   await page.goto("/admin/communications");
   await expect(page.getByText(/Delivery mode:/i)).toHaveCount(0);
+});
+
+test("paginates communication history across pages", async ({ page }) => {
+  const previewBodies: unknown[] = [];
+  const msg1 = {
+    audience: {
+      eventId: null,
+      globalStatuses: ["Active"],
+      profileIds: [],
+      rsvp: "All",
+      targetAudiences: ["Members"],
+      voiceParts: [],
+    },
+    channel: "Email",
+    contentMarkdown: "Content 1",
+    createdAt: "2026-08-14T18:12:00.000Z",
+    id: "66666666-6666-4666-8666-666666666661",
+    reach: { both: 0, email: 2, sms: 0, total: 2, unreachable: 0 },
+    sentAt: "2026-08-14T18:12:00.000Z",
+    status: "Sent",
+    subject: "Page One Announcement",
+    updatedAt: "2026-08-14T18:12:00.000Z",
+  };
+  const msg2 = {
+    ...msg1,
+    id: "66666666-6666-4666-8666-666666666662",
+    subject: "Page Two Announcement",
+  };
+
+  await page.route("**/api/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/organization/communications/history") {
+      const cursor = url.searchParams.get("cursor");
+      if (!cursor) {
+        await fulfillJson(route, {
+          items: [{ kind: "manual", message: msg1, sortTimestamp: msg1.sentAt }],
+          nextCursor: "cursor-to-page-2",
+          requestId,
+        });
+        return;
+      }
+      await fulfillJson(route, {
+        items: [{ kind: "manual", message: msg2, sortTimestamp: msg2.sentAt }],
+        nextCursor: null,
+        requestId,
+      });
+      return;
+    }
+    await handleRoute(route, previewBodies);
+  });
+
+  await page.goto("/admin/communications?tab=history");
+  await expect(page.getByText("Page One Announcement")).toBeVisible();
+  const nextBtn = page.getByRole("button", { name: "Next page" });
+  const prevBtn = page.getByRole("button", { name: "Previous page" });
+
+  await expect(nextBtn).toBeEnabled();
+  await expect(prevBtn).toBeDisabled();
+
+  await nextBtn.click();
+  await expect(page.getByText("Page Two Announcement")).toBeVisible();
+  await expect(nextBtn).toBeDisabled();
+  await expect(prevBtn).toBeEnabled();
+
+  await prevBtn.click();
+  await expect(page.getByText("Page One Announcement")).toBeVisible();
 });

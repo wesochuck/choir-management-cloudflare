@@ -15,7 +15,9 @@ import { identityMatches } from "./communicationStore/shared";
 
 export { resolveCommunicationAudienceFromStore } from "./communicationStore/audience";
 export {
+  listCommunicationHistoryFromStore,
   listCommunicationMessagesFromStore,
+  listCommunicationRecipientsFromStore,
   listCommunicationScheduledMessagesFromStore,
   listCommunicationTemplatesFromStore,
   listMemberBulletinsFromStore,

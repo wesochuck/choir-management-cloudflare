@@ -1,13 +1,15 @@
 import type { CommunicationChannel, CommunicationTemplate } from "@choir/contracts";
 import { Dialog, DialogClose, useConfirmation } from "@choir/ui";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   deleteOrganizationCommunicationTemplate,
+  getOrganizationCommunicationTemplatesPage,
   listOrganizationCommunicationTemplates,
   saveOrganizationCommunicationTemplate,
   updateOrganizationCommunicationTemplate,
 } from "../../../auth/api";
 import { SystemTemplateResetAction } from "../SystemTemplateResetAction";
+import { CommunicationPagination } from "./CommunicationPagination";
 import { channelFromValue, failureMessage } from "./utils";
 
 type TemplateChannelFilter = CommunicationChannel | "All";
@@ -40,6 +42,12 @@ function templateMatchesFilters(
 
 export function TemplatesPanel() {
   const [templates, setTemplates] = useState<readonly CommunicationTemplate[]>([]);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [cursorStack, setCursorStack] = useState<(string | null)[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
+
   const [search, setSearch] = useState("");
   const [channelFilter, setChannelFilter] = useState<TemplateChannelFilter>("All");
   const [typeFilter, setTypeFilter] = useState<TemplateTypeFilter>("all");
@@ -62,17 +70,56 @@ export function TemplatesPanel() {
   const [success, setSuccess] = useState<string | null>(null);
   const { confirm, confirmationDialog } = useConfirmation();
 
-  useEffect(() => {
-    const controller = new AbortController();
-    listOrganizationCommunicationTemplates(controller.signal)
-      .then(setTemplates)
-      .catch((err: unknown) => {
-        if (!controller.signal.aborted) setError(failureMessage(err));
+  const loadPage = useCallback(async (cursor: string | null, signal?: AbortSignal) => {
+    if (cursor !== null) {
+      setLoadingTemplates(true);
+    }
+    try {
+      const page = await getOrganizationCommunicationTemplatesPage(
+        { cursor, limit: 50 },
+        signal,
+      ).catch(async () => {
+        const list = await listOrganizationCommunicationTemplates(signal);
+        return { nextCursor: null, templates: list };
       });
+      setTemplates(page.templates);
+      setNextCursor(page.nextCursor);
+    } catch (err: unknown) {
+      if (!signal?.aborted) setError(failureMessage(err));
+    } finally {
+      setLoadingTemplates(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    void Promise.resolve().then(() => {
+      if (!active) return;
+      void loadPage(null, controller.signal);
+    });
     return () => {
+      active = false;
       controller.abort();
     };
-  }, []);
+  }, [loadPage]);
+
+  async function handleNextPage() {
+    if (!nextCursor || loadingTemplates) return;
+    setCursorStack((prev) => [...prev, currentCursor]);
+    setCurrentCursor(nextCursor);
+    setPageNumber((p) => p + 1);
+    await loadPage(nextCursor);
+  }
+
+  async function handlePreviousPage() {
+    if (pageNumber <= 1 || loadingTemplates) return;
+    const prevCursor = cursorStack[cursorStack.length - 1] ?? null;
+    setCursorStack((prev) => prev.slice(0, -1));
+    setCurrentCursor(prevCursor);
+    setPageNumber((p) => p - 1);
+    await loadPage(prevCursor);
+  }
 
   const normalizedSearch = search.trim().toLowerCase();
   const visibleTemplates = templates.filter((template) =>
@@ -308,6 +355,18 @@ export function TemplatesPanel() {
           ))
         )}
       </div>
+
+      {nextCursor || pageNumber > 1 ? (
+        <CommunicationPagination
+          disabled={loadingTemplates}
+          hasNextPage={Boolean(nextCursor)}
+          hasPreviousPage={pageNumber > 1}
+          label="Templates pagination"
+          onNextPage={() => void handleNextPage()}
+          onPreviousPage={() => void handlePreviousPage()}
+          pageNumber={pageNumber}
+        />
+      ) : null}
 
       {/* Create New Template Dialog */}
       <Dialog

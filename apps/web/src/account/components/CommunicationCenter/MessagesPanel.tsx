@@ -1,4 +1,5 @@
 import type { CommunicationDeliverySummary, CommunicationMessage } from "@choir/contracts";
+import { CommunicationPagination } from "./CommunicationPagination";
 import { MessageList } from "./MessageList";
 import type { MessageFilter, UnifiedCommunicationItem } from "./types";
 
@@ -7,14 +8,20 @@ interface MessagesPanelProps {
   readonly currentFilter: MessageFilter;
   readonly deliveryDetailsMessage: CommunicationMessage | null;
   readonly deliverySummary: CommunicationDeliverySummary | null;
+  readonly hasNextPage?: boolean;
+  readonly hasPreviousPage?: boolean;
   readonly loadingDeliveryId: string | null;
+  readonly loadingHistory?: boolean;
   readonly onCancelQueued: (messageId: string) => Promise<void>;
   readonly onDeleteDraft: (messageId: string) => Promise<void>;
   readonly onFilterChange: (filter: MessageFilter) => void;
   readonly onNewMessage: () => void;
+  readonly onNextPage?: () => void;
   readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
+  readonly onPreviousPage?: () => void;
   readonly onResumeDraft: (draft: CommunicationMessage) => void;
   readonly onRetryDeliveries: (messageId: string) => Promise<void>;
+  readonly pageNumber?: number;
   readonly unifiedMessages: readonly UnifiedCommunicationItem[];
 }
 
@@ -33,14 +40,20 @@ export function MessagesPanel({
   currentFilter,
   deliveryDetailsMessage,
   deliverySummary,
+  hasNextPage,
+  hasPreviousPage,
   loadingDeliveryId,
+  loadingHistory,
   onCancelQueued,
   onDeleteDraft,
   onFilterChange,
   onNewMessage,
+  onNextPage,
   onOpenDeliveryDetails,
+  onPreviousPage,
   onResumeDraft,
   onRetryDeliveries,
+  pageNumber,
   unifiedMessages,
 }: MessagesPanelProps) {
   return (
@@ -87,6 +100,18 @@ export function MessagesPanel({
         onRetryDeliveries={onRetryDeliveries}
         unifiedMessages={unifiedMessages}
       />
+
+      {pageNumber !== undefined && onNextPage && onPreviousPage ? (
+        <CommunicationPagination
+          disabled={busy || loadingHistory}
+          hasNextPage={Boolean(hasNextPage)}
+          hasPreviousPage={Boolean(hasPreviousPage)}
+          label="Messages history pagination"
+          onNextPage={onNextPage}
+          onPreviousPage={onPreviousPage}
+          pageNumber={pageNumber}
+        />
+      ) : null}
     </div>
   );
 }

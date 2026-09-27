@@ -1,5 +1,7 @@
 import {
+  communicationDeliveryRecipientsPageResponseSchema,
   communicationDeliverySummaryResponseSchema,
+  communicationHistoryPageResponseSchema,
   communicationMessageResponseSchema,
   communicationMessagesResponseSchema,
   communicationReachResponseSchema,
@@ -13,8 +15,10 @@ import {
   organizationEmailDomainVerifyResponseSchema,
   organizationEmailSettingsResponseSchema,
   organizationProfileDeliveriesResponseSchema,
+  type CommunicationDeliveryRecipientsPageResponse,
   type CommunicationDeliverySummary,
   type CommunicationDraftRequest,
+  type CommunicationHistoryPageResponse,
   type CommunicationMessage,
   type CommunicationReach,
   type CommunicationScheduledMessage,
@@ -29,6 +33,60 @@ import {
 } from "@choir/contracts";
 
 import { request } from "./client";
+
+export async function getOrganizationCommunicationHistory(
+  options?: {
+    cursor?: string | null;
+    limit?: number;
+    origin?: string | null;
+    status?: string | null;
+  },
+  signal?: AbortSignal,
+): Promise<CommunicationHistoryPageResponse> {
+  const params = new URLSearchParams();
+  if (options?.cursor) params.set("cursor", options.cursor);
+  if (options?.limit) params.set("limit", String(options.limit));
+  if (options?.origin && options.origin !== "all") params.set("origin", options.origin);
+  if (options?.status && options.status !== "all") params.set("status", options.status);
+  const path = `/api/organization/communications/history${params.toString() ? `?${params.toString()}` : ""}`;
+  const response = await request(path, { signal: signal ?? null });
+  return communicationHistoryPageResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationCommunicationRecipients(
+  messageId: string,
+  options?: {
+    cursor?: string | null;
+    limit?: number;
+  },
+  signal?: AbortSignal,
+): Promise<CommunicationDeliveryRecipientsPageResponse> {
+  const params = new URLSearchParams();
+  if (options?.cursor) params.set("cursor", options.cursor);
+  if (options?.limit) params.set("limit", String(options.limit));
+  const path = `/api/organization/communications/${encodeURIComponent(messageId)}/recipients${params.toString() ? `?${params.toString()}` : ""}`;
+  const response = await request(path, { signal: signal ?? null });
+  return communicationDeliveryRecipientsPageResponseSchema.parse(await response.json());
+}
+
+export async function getOrganizationCommunicationTemplatesPage(
+  options?: {
+    cursor?: string | null;
+    limit?: number;
+  },
+  signal?: AbortSignal,
+): Promise<{
+  readonly nextCursor: string | null;
+  readonly templates: readonly CommunicationTemplate[];
+}> {
+  const params = new URLSearchParams();
+  if (options?.cursor) params.set("cursor", options.cursor);
+  if (options?.limit) params.set("limit", String(options.limit));
+  const path = `/api/organization/communications/templates${params.toString() ? `?${params.toString()}` : ""}`;
+  const response = await request(path, { signal: signal ?? null });
+  const parsed = communicationTemplatesResponseSchema.parse(await response.json());
+  return { nextCursor: parsed.nextCursor ?? null, templates: parsed.templates };
+}
 
 export async function previewOrganizationCommunicationReach(
   communication: Pick<CommunicationSendRequest, "audience" | "channel">,

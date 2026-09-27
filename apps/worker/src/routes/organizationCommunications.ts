@@ -23,6 +23,8 @@ import {
 import { listOrganizationEvents } from "../calendar/organizationCalendar";
 import {
   CommunicationRepositoryError,
+  listCommunicationHistory,
+  listCommunicationRecipients,
   listOrganizationCommunications,
   listOrganizationScheduledMessages,
   listCommunicationTemplates,
@@ -227,6 +229,72 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
   });
 
+  router.get("/api/organization/communications/history", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok)
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    try {
+      const url = new URL(context.req.url);
+      const cursor = url.searchParams.get("cursor");
+      const limit = url.searchParams.get("limit");
+      const origin = url.searchParams.get("origin");
+      const status = url.searchParams.get("status");
+      const page = await listCommunicationHistory(context.env, authorization.organizationId, {
+        cursor,
+        limit,
+        origin,
+        status,
+      });
+      return context.json({
+        items: page.items,
+        nextCursor: page.nextCursor,
+        requestId: context.get("requestId"),
+      });
+    } catch (error: unknown) {
+      const result = communicationProblem(
+        error,
+        context.get("requestId"),
+        "Communication history is temporarily unavailable.",
+      );
+      return context.json(result.problem, result.status);
+    }
+  });
+
+  router.get("/api/organization/communications/:messageId/recipients", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok)
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    try {
+      const messageId = context.req.param("messageId");
+      const url = new URL(context.req.url);
+      const cursor = url.searchParams.get("cursor");
+      const limit = url.searchParams.get("limit");
+      const page = await listCommunicationRecipients(context.env, authorization.organizationId, {
+        cursor,
+        limit,
+        messageId,
+      });
+      return context.json({
+        nextCursor: page.nextCursor,
+        recipients: page.recipients,
+        requestId: context.get("requestId"),
+      });
+    } catch (error: unknown) {
+      const result = communicationProblem(
+        error,
+        context.get("requestId"),
+        "Communication recipients are temporarily unavailable.",
+      );
+      return context.json(result.problem, result.status);
+    }
+  });
+
   router.get("/api/organization/communications/templates", async (context) => {
     const authorization = await authorizeCalendarRoute(context, true);
     if (!authorization.ok)
@@ -235,9 +303,17 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         authorization.status,
       );
     try {
+      const url = new URL(context.req.url);
+      const cursor = url.searchParams.get("cursor");
+      const limit = url.searchParams.get("limit");
+      const page = await listCommunicationTemplates(context.env, authorization.organizationId, {
+        cursor,
+        limit,
+      });
       return context.json({
+        nextCursor: page.nextCursor,
         requestId: context.get("requestId"),
-        templates: await listCommunicationTemplates(context.env, authorization.organizationId),
+        templates: page.templates,
       });
     } catch (error: unknown) {
       const result = communicationProblem(

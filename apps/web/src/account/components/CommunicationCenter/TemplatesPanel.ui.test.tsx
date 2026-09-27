@@ -82,4 +82,37 @@ describe("TemplatesPanel", () => {
       screen.queryByRole("button", { name: "Reset to system default" }),
     ).not.toBeInTheDocument();
   });
+
+  it("paginates communication templates across pages", async () => {
+    const user = userEvent.setup();
+    const templatesPageSpy = vi
+      .spyOn(organizationApi, "getOrganizationCommunicationTemplatesPage")
+      .mockResolvedValueOnce({
+        nextCursor: "cursor-page-2",
+        templates: [systemTemplate],
+      })
+      .mockResolvedValueOnce({
+        nextCursor: null,
+        templates: [customTemplate],
+      });
+
+    render(<TemplatesPanel />);
+    await waitFor(() => {
+      expect(screen.getByRole("article", { name: systemTemplate.title })).toBeInTheDocument();
+    });
+
+    const nextButton = screen.getByRole("button", { name: "Next page" });
+    expect(nextButton).toBeEnabled();
+    const prevButton = screen.getByRole("button", { name: "Previous page" });
+    expect(prevButton).toBeDisabled();
+
+    await user.click(nextButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("article", { name: customTemplate.title })).toBeInTheDocument();
+    });
+    expect(templatesPageSpy).toHaveBeenCalledTimes(2);
+    expect(nextButton).toBeDisabled();
+    expect(prevButton).toBeEnabled();
+  });
 });

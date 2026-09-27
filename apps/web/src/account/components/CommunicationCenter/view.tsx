@@ -49,17 +49,23 @@ export function CommunicationCenterView({
     emailSettings,
     error,
     events,
+    hasNextPage,
+    hasPreviousPage,
     isReviewOpen,
     isSaveTemplateOpen,
     isTestEmailOpen,
     loadingDeliveryId,
+    loadingHistory,
     messageFilter,
     messageMode,
+    nextPage,
     openDeliveryDetails,
     openNewMessage,
     openReviewAndSend,
     openSaveAsTemplate,
     openTestEmail,
+    pageNumber,
+    previousPage,
     providerStatus,
     reachState,
     recipientsExpanded,
@@ -219,14 +225,20 @@ export function CommunicationCenterView({
               currentFilter={messageFilter}
               deliveryDetailsMessage={deliveryDetailsMessage}
               deliverySummary={deliverySummary}
+              hasNextPage={hasNextPage}
+              hasPreviousPage={hasPreviousPage}
               loadingDeliveryId={loadingDeliveryId}
+              loadingHistory={loadingHistory}
               onCancelQueued={cancelQueuedMessage}
               onDeleteDraft={deleteDraft}
               onFilterChange={setMessageFilter}
               onNewMessage={openNewMessage}
+              onNextPage={() => void nextPage()}
               onOpenDeliveryDetails={openDeliveryDetails}
+              onPreviousPage={() => void previousPage()}
               onResumeDraft={resumeDraft}
               onRetryDeliveries={retryDeliveries}
+              pageNumber={pageNumber}
               unifiedMessages={unifiedMessages}
             />
           )

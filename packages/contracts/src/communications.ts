@@ -328,8 +328,14 @@ export const communicationTemplateResponseSchema = communicationTemplateSchema.a
   z.object({ requestId: requestIdSchema }),
 );
 export const communicationTemplatesResponseSchema = z.object({
+  nextCursor: z.string().max(512).nullable().optional(),
   requestId: requestIdSchema,
   templates: z.array(communicationTemplateSchema).max(200),
+});
+export const communicationTemplatesPageResponseSchema = z.object({
+  nextCursor: z.string().max(512).nullable(),
+  requestId: requestIdSchema,
+  templates: z.array(communicationTemplateSchema).max(100),
 });
 export const communicationDeleteResponseSchema = z.object({
   id: z.uuid(),
@@ -344,11 +350,61 @@ export const communicationUnsubscribeResponseSchema = z.object({
   success: z.literal(true),
 });
 
+export const communicationHistoryItemSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("manual"),
+    message: communicationMessageSchema,
+    sortTimestamp: z.iso.datetime(),
+  }),
+  z.object({
+    kind: z.literal("automated"),
+    scheduledMessage: communicationScheduledMessageSchema,
+    sortTimestamp: z.iso.datetime(),
+  }),
+]);
+
+export const communicationHistoryStatusFilterSchema = z.enum([
+  "all",
+  "draft",
+  "scheduled",
+  "queued",
+  "sent",
+  "failed",
+  "canceled",
+]);
+
+export const communicationHistoryOriginFilterSchema = z.enum(["all", "manual", "automated"]);
+
+export const communicationHistoryPageResponseSchema = z.object({
+  items: z.array(communicationHistoryItemSchema).max(100),
+  nextCursor: z.string().max(256).nullable(),
+  requestId: requestIdSchema,
+});
+
+export const communicationDeliveryRecipientsPageResponseSchema = z.object({
+  nextCursor: z.string().max(256).nullable(),
+  recipients: z.array(communicationDeliveryRecipientSchema).max(100),
+  requestId: requestIdSchema,
+});
+
 export type CommunicationAudienceRequest = z.infer<typeof communicationAudienceRequestSchema>;
 export type CommunicationChannel = z.infer<typeof communicationChannelSchema>;
 export type CommunicationDeliveryRecipient = z.infer<typeof communicationDeliveryRecipientSchema>;
+export type CommunicationDeliveryRecipientsPageResponse = z.infer<
+  typeof communicationDeliveryRecipientsPageResponseSchema
+>;
 export type CommunicationDeliverySummary = z.infer<typeof communicationDeliverySummarySchema>;
 export type CommunicationDraftRequest = z.infer<typeof communicationDraftRequestSchema>;
+export type CommunicationHistoryItem = z.infer<typeof communicationHistoryItemSchema>;
+export type CommunicationHistoryOriginFilter = z.infer<
+  typeof communicationHistoryOriginFilterSchema
+>;
+export type CommunicationHistoryPageResponse = z.infer<
+  typeof communicationHistoryPageResponseSchema
+>;
+export type CommunicationHistoryStatusFilter = z.infer<
+  typeof communicationHistoryStatusFilterSchema
+>;
 export type CommunicationMessage = z.infer<typeof communicationMessageSchema>;
 export type CommunicationReach = z.infer<typeof communicationReachSchema>;
 export type CommunicationScheduledMessage = z.infer<typeof communicationScheduledMessageSchema>;
@@ -356,6 +412,9 @@ export type CommunicationSendRequest = z.infer<typeof communicationSendRequestSc
 export type CommunicationTestEmailRequest = z.infer<typeof communicationTestEmailRequestSchema>;
 export type CommunicationTemplate = z.infer<typeof communicationTemplateSchema>;
 export type CommunicationTemplateRequest = z.infer<typeof communicationTemplateRequestSchema>;
+export type CommunicationTemplatesPageResponse = z.infer<
+  typeof communicationTemplatesPageResponseSchema
+>;
 export type SingerLearningTrackPiece = z.infer<typeof singerLearningTrackPieceSchema>;
 
 export const organizationProfileDeliverySchema = z.object({

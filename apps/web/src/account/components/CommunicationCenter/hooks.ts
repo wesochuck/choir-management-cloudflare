@@ -2,6 +2,7 @@ import type {
   CommunicationAudienceRequest,
   CommunicationChannel,
   CommunicationDeliverySummary,
+  CommunicationHistoryItem,
   CommunicationMessage,
   CommunicationScheduledMessage,
   CommunicationTemplate,
@@ -19,6 +20,7 @@ import {
   deleteOrganizationCommunicationDraft,
   deleteOrganizationCommunicationTemplate,
   getOrganizationCommunicationDeliverySummary,
+  getOrganizationCommunicationHistory,
   getOrganizationEmailSettings,
   getOrganizationProviderStatus,
   getOrganizationRosterConfiguration,
@@ -57,6 +59,26 @@ const EMPTY_REACH_STATE: CommunicationReachState = {
   error: null,
   loading: false,
 };
+
+function filterToQuery(filter: MessageFilter): { origin?: string; status?: string } {
+  switch (filter) {
+    case "drafts":
+      return { origin: "manual", status: "draft" };
+    case "scheduled":
+      return { status: "scheduled" };
+    case "queued":
+      return { status: "queued" };
+    case "sent":
+      return { status: "sent" };
+    case "failed":
+      return { status: "failed" };
+    case "automated":
+      return { origin: "automated" };
+    case "all":
+    default:
+      return {};
+  }
+}
 
 function hasIncompleteTicketServiceAudience(
   audience: CommunicationAudienceRequest,
@@ -106,6 +128,13 @@ export function useCommunicationCenterController({
   const [scheduledMessages, setScheduledMessages] = useState<
     readonly CommunicationScheduledMessage[]
   >([]);
+  const [historyItems, setHistoryItems] = useState<readonly CommunicationHistoryItem[]>([]);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [cursorStack, setCursorStack] = useState<(string | null)[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+
   const [templates, setTemplates] = useState<readonly CommunicationTemplate[]>([]);
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [contactLists, setContactLists] = useState<readonly ContactList[]>([]);
@@ -183,13 +212,95 @@ export function useCommunicationCenterController({
     setActiveSection("messages");
   }
 
+  const loadHistoryPage = useCallback(
+    async (
+      targetFilter: MessageFilter,
+      cursor: string | null,
+      signal?: AbortSignal,
+    ): Promise<void> => {
+      if (cursor !== null) setLoadingHistory(true);
+      try {
+        const query = {
+          cursor,
+          limit: 50,
+          ...filterToQuery(targetFilter),
+        };
+        const page = await getOrganizationCommunicationHistory(query, signal);
+        setHistoryItems(page.items);
+        setNextCursor(page.nextCursor);
+      } catch (err: unknown) {
+        if (!signal?.aborted) {
+          try {
+            const [manual, scheduled] = await Promise.all([
+              listOrganizationCommunications(signal),
+              listOrganizationScheduledMessages(signal),
+            ]);
+            setMessages(manual);
+            setScheduledMessages(scheduled);
+            const manualItems: CommunicationHistoryItem[] = manual.map((m) => ({
+              kind: "manual",
+              message: m,
+              sortTimestamp: m.sentAt ?? m.createdAt,
+            }));
+            const scheduledItems: CommunicationHistoryItem[] = scheduled.map((s) => ({
+              kind: "automated",
+              scheduledMessage: s,
+              sortTimestamp: s.scheduledAt,
+            }));
+            let merged = [...manualItems, ...scheduledItems].sort(
+              (a, b) => new Date(b.sortTimestamp).getTime() - new Date(a.sortTimestamp).getTime(),
+            );
+            if (targetFilter === "drafts") {
+              merged = merged.filter((i) => i.kind === "manual" && i.message.status === "Draft");
+            } else if (targetFilter === "scheduled") {
+              merged = merged.filter(
+                (i) => i.kind === "automated" && i.scheduledMessage.status === "Scheduled",
+              );
+            } else if (targetFilter === "queued") {
+              merged = merged.filter(
+                (i) =>
+                  (i.kind === "automated" && i.scheduledMessage.status === "Queued") ||
+                  (i.kind === "manual" && i.message.status === "Queued"),
+              );
+            } else if (targetFilter === "sent") {
+              merged = merged.filter(
+                (i) =>
+                  (i.kind === "automated" && i.scheduledMessage.status === "Sent") ||
+                  (i.kind === "manual" && i.message.status === "Sent"),
+              );
+            } else if (targetFilter === "failed") {
+              merged = merged.filter(
+                (i) =>
+                  (i.kind === "automated" && i.scheduledMessage.status === "Failed") ||
+                  (i.kind === "manual" && i.message.status === "Failed"),
+              );
+            } else if (targetFilter === "automated") {
+              merged = merged.filter((i) => i.kind === "automated");
+            }
+            setHistoryItems(merged.slice(0, 50));
+            setNextCursor(null);
+          } catch {
+            setError(failureMessage(err));
+          }
+        }
+      } finally {
+        if (!signal?.aborted) setLoadingHistory(false);
+      }
+    },
+    [],
+  );
+
   // Load initial data
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
+    void Promise.resolve().then(() => {
+      if (!controller.signal.aborted) {
+        void loadHistoryPage(initialNav.messageFilter, null, controller.signal);
+      }
+    });
+
     Promise.all([
-      listOrganizationCommunications(controller.signal),
-      listOrganizationScheduledMessages(controller.signal),
       listOrganizationEvents(controller.signal),
       listOrganizationCommunicationTemplates(controller.signal),
       getOrganizationProviderStatus(controller.signal),
@@ -199,8 +310,6 @@ export function useCommunicationCenterController({
     ])
       .then(
         ([
-          loadedMessages,
-          loadedScheduled,
           loadedEvents,
           loadedTemplates,
           loadedStatus,
@@ -208,32 +317,35 @@ export function useCommunicationCenterController({
           loadedRosterConfig,
           loadedContactLists,
         ]) => {
-          setMessages(loadedMessages);
-          setScheduledMessages(loadedScheduled);
           setEvents(loadedEvents);
           setTemplates(loadedTemplates);
           setProviderStatus(loadedStatus);
           setEmailSettings(loadedEmailSettings);
           setRosterConfiguration(loadedRosterConfig);
           setContactLists(loadedContactLists);
-
-          if (initialNav.draftId) {
-            const draft = loadedMessages.find(
-              (m) => m.id === initialNav.draftId && m.status === "Draft",
-            );
-            if (draft) {
-              resumeDraft(draft);
-            }
-          }
         },
       )
       .catch((err: unknown) => {
         if (!controller.signal.aborted) setError(failureMessage(err));
       });
+
+    if (initialNav.draftId) {
+      listOrganizationCommunications(controller.signal)
+        .then((loadedMessages) => {
+          const draft = loadedMessages.find(
+            (m) => m.id === initialNav.draftId && m.status === "Draft",
+          );
+          if (draft) {
+            resumeDraft(draft);
+          }
+        })
+        .catch(() => undefined);
+    }
+
     return () => {
       controller.abort();
     };
-  }, [enabled, initialNav.draftId, resumeDraft]);
+  }, [enabled, initialNav.draftId, initialNav.messageFilter, loadHistoryPage, resumeDraft]);
 
   // Automatic debounced reach preview when audience or channel changes in compose mode
   useEffect(() => {
@@ -282,6 +394,39 @@ export function useCommunicationCenterController({
 
   // Unified messages list
   const unifiedMessages: readonly UnifiedCommunicationItem[] = useMemo(() => {
+    if (historyItems.length > 0) {
+      return historyItems.map((item): UnifiedCommunicationItem => {
+        if (item.kind === "manual") {
+          return {
+            automated: false,
+            channel: item.message.channel,
+            id: item.message.id,
+            kind: "manual",
+            message: item.message,
+            recipientCount: item.message.reach.total,
+            status: item.message.status,
+            timestamp: item.sortTimestamp,
+            title:
+              item.message.subject.length > 0
+                ? item.message.subject
+                : `${item.message.channel} message`,
+          };
+        }
+        return {
+          automated: true,
+          channel: "Email",
+          id: item.scheduledMessage.id,
+          kind: "scheduled",
+          recipientCount: null,
+          scheduledMessage: item.scheduledMessage,
+          status: item.scheduledMessage.status,
+          timestamp: item.sortTimestamp,
+          title:
+            item.scheduledMessage.subject || item.scheduledMessage.eventTitle || "Automated send",
+        };
+      });
+    }
+
     const manualItems: UnifiedCommunicationItem[] = messages.map((message) => ({
       automated: false,
       channel: message.channel,
@@ -327,7 +472,39 @@ export function useCommunicationCenterController({
       default:
         return all;
     }
-  }, [messages, scheduledMessages, messageFilter]);
+  }, [historyItems, messages, scheduledMessages, messageFilter]);
+
+  const changeMessageFilter = useCallback(
+    (nextFilter: MessageFilter) => {
+      setMessageFilter(nextFilter);
+      setPageNumber(1);
+      setCurrentCursor(null);
+      setNextCursor(null);
+      setCursorStack([]);
+      setLoadingHistory(true);
+      void loadHistoryPage(nextFilter, null);
+    },
+    [loadHistoryPage],
+  );
+
+  const nextPage = useCallback(async () => {
+    if (!nextCursor) return;
+    setCursorStack((prev) => [...prev, currentCursor]);
+    setCurrentCursor(nextCursor);
+    setPageNumber((prev) => prev + 1);
+    setLoadingHistory(true);
+    await loadHistoryPage(messageFilter, nextCursor);
+  }, [currentCursor, loadHistoryPage, messageFilter, nextCursor]);
+
+  const previousPage = useCallback(async () => {
+    if (cursorStack.length === 0) return;
+    const prevCursor = cursorStack[cursorStack.length - 1] ?? null;
+    setCursorStack((prev) => prev.slice(0, -1));
+    setCurrentCursor(prevCursor);
+    setPageNumber((prev) => Math.max(1, prev - 1));
+    setLoadingHistory(true);
+    await loadHistoryPage(messageFilter, prevCursor);
+  }, [cursorStack, loadHistoryPage, messageFilter]);
 
   // Actions
   const deleteDraftAction = useCallback(
@@ -344,6 +521,10 @@ export function useCommunicationCenterController({
       try {
         await deleteOrganizationCommunicationDraft(messageId);
         setMessages((current) => current.filter((m) => m.id !== messageId));
+        setHistoryItems((current) =>
+          current.filter((item) => !(item.kind === "manual" && item.message.id === messageId)),
+        );
+        void loadHistoryPage(messageFilter, currentCursor);
         setSuccessNotice("Draft deleted.");
       } catch (err: unknown) {
         setError(failureMessage(err));
@@ -351,7 +532,7 @@ export function useCommunicationCenterController({
         setBusy(false);
       }
     },
-    [confirm],
+    [confirm, currentCursor, loadHistoryPage, messageFilter],
   );
 
   const cancelQueuedAction = useCallback(
@@ -370,6 +551,7 @@ export function useCommunicationCenterController({
         setMessages((current) =>
           current.map((m) => (m.id === messageId ? { ...m, ...canceled } : m)),
         );
+        void loadHistoryPage(messageFilter, currentCursor);
         setSuccessNotice("Queued communication canceled.");
       } catch (err: unknown) {
         setError(failureMessage(err));
@@ -377,7 +559,7 @@ export function useCommunicationCenterController({
         setBusy(false);
       }
     },
-    [confirm],
+    [confirm, currentCursor, loadHistoryPage, messageFilter],
   );
 
   const openDeliveryDetails = useCallback(async (message: CommunicationMessage) => {
@@ -394,21 +576,25 @@ export function useCommunicationCenterController({
     }
   }, []);
 
-  const retryDeliveriesAction = useCallback(async (messageId: string) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const retried = await retryOrganizationCommunicationDeliveries(messageId);
-      const summary = await getOrganizationCommunicationDeliverySummary(messageId);
-      setDeliverySummary(summary);
-      setMessages(await listOrganizationCommunications());
-      setSuccessNotice(`Retried delivery for ${String(retried)} recipients.`);
-    } catch (err: unknown) {
-      setError(failureMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  const retryDeliveriesAction = useCallback(
+    async (messageId: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const retried = await retryOrganizationCommunicationDeliveries(messageId);
+        const summary = await getOrganizationCommunicationDeliverySummary(messageId);
+        setDeliverySummary(summary);
+        setMessages(await listOrganizationCommunications());
+        void loadHistoryPage(messageFilter, currentCursor);
+        setSuccessNotice(`Retried delivery for ${String(retried)} recipients.`);
+      } catch (err: unknown) {
+        setError(failureMessage(err));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [currentCursor, loadHistoryPage, messageFilter],
+  );
 
   const saveDraftAction = useCallback(async () => {
     setBusy(true);
@@ -422,13 +608,14 @@ export function useCommunicationCenterController({
         subject,
       });
       setMessages((current) => [saved, ...current.filter((m) => m.id !== saved.id)]);
+      void loadHistoryPage(messageFilter, currentCursor);
       setSuccessNotice("Draft saved successfully.");
     } catch (err: unknown) {
       setError(failureMessage(err));
     } finally {
       setBusy(false);
     }
-  }, [audience, channel, contentMarkdown, subject]);
+  }, [audience, channel, contentMarkdown, currentCursor, loadHistoryPage, messageFilter, subject]);
 
   const saveTemplateAction = useCallback(
     async (title: string) => {
@@ -514,6 +701,7 @@ export function useCommunicationCenterController({
       setIsReviewOpen(false);
       setMessageMode("list");
       setActiveSection("messages");
+      void loadHistoryPage(messageFilter, null);
       setSuccessNotice(`Message queued for ${String(queued.reach.total)} recipients.`);
       // Reset composer
       replaceAudience(defaultAudience);
@@ -526,7 +714,15 @@ export function useCommunicationCenterController({
     } finally {
       setBusy(false);
     }
-  }, [audience, channel, contentMarkdown, sendIdempotencyKey, subject]);
+  }, [
+    audience,
+    channel,
+    contentMarkdown,
+    loadHistoryPage,
+    messageFilter,
+    sendIdempotencyKey,
+    subject,
+  ]);
 
   const sendTestEmailAction = useCallback(
     async (email: string) => {
@@ -577,12 +773,16 @@ export function useCommunicationCenterController({
     error,
     events,
     formatVoiceParts,
+    hasNextPage: Boolean(nextCursor),
+    hasPreviousPage: pageNumber > 1,
     isReviewOpen,
     isSaveTemplateOpen,
     isTestEmailOpen,
     loadingDeliveryId,
+    loadingHistory,
     messageFilter,
     messageMode,
+    nextPage,
     openDeliveryDetails,
     openNewMessage,
     openNewTemplateDialog: () => {
@@ -595,6 +795,8 @@ export function useCommunicationCenterController({
     openTestEmail: () => {
       setIsTestEmailOpen(true);
     },
+    pageNumber,
+    previousPage,
     providerStatus,
     reachState: reachStateForAudience(reachState, audience, channel),
     recipientsExpanded,
@@ -613,7 +815,7 @@ export function useCommunicationCenterController({
     setIsReviewOpen,
     setIsSaveTemplateOpen,
     setIsTestEmailOpen,
-    setMessageFilter,
+    setMessageFilter: changeMessageFilter,
     setMessageMode,
     setRecipientsExpanded,
     setSubject,
