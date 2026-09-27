@@ -4,6 +4,7 @@ import {
   hasSetListPiece,
   normalizeSetListDuration,
   parseSetListDuration,
+  selectDefaultPerformance,
 } from "@choir/domain";
 import {
   durationFromSeconds,
@@ -21,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthApiError,
   generatePublicPlayerToken,
+  getOrganizationCalendarSettings,
   listOrganizationEvents,
   listOrganizationMusic,
   listOrganizationProfiles,
@@ -40,7 +42,7 @@ export function useSetListManagerController({
   const { performerLabelPlural } = useOrganizationTerminology();
   const [resources, setResources] = useState<Resources>(emptyResources);
   const [loaded, setLoaded] = useState(false);
-  const [selectedEventId, setSelectedEventId] = useState("");
+  const [selectedEventId, setSelectedEventIdState] = useState("");
   const [copyEventId, setCopyEventId] = useState("");
   const [items, setItems] = useState<SetListItem[]>([]);
   const [approved, setApproved] = useState(false);
@@ -65,28 +67,73 @@ export function useSetListManagerController({
   const saveRef = useRef<() => Promise<void>>(() => Promise.resolve());
   const draftRevisionRef = useRef(0);
   const lastSaveRevisionRef = useRef(-1);
+  const hasInitializedSelectionRef = useRef(false);
+  const selectedEventIdRef = useRef("");
+  const lastRequestedEventIdsRef = useRef<string | null>(null);
+
+  function setSelectedEventId(eventId: string): void {
+    selectedEventIdRef.current = eventId;
+    setSelectedEventIdState(eventId);
+  }
 
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
+    function initializeDraftForEvent(event: Resources["events"][number] | null): void {
+      const eventId = event?.id ?? "";
+      selectedEventIdRef.current = eventId;
+      setSelectedEventIdState(eventId);
+      setItems(normalizeItems(event?.setList ?? []));
+      setApproved(event?.setListApproved ?? false);
+      setDefaultTransitionSeconds(event?.setListDefaultTransitionSeconds ?? 0);
+      setMusicQuery("");
+      setCopyEventId("");
+      setError(null);
+      setMessage(null);
+      setDirty(false);
+    }
+
     Promise.all([
       listOrganizationEvents(controller.signal),
       listOrganizationMusic(controller.signal),
       listOrganizationProfiles(controller.signal),
       listOrganizationVenues(controller.signal),
+      getOrganizationCalendarSettings(controller.signal),
     ])
-      .then(([events, music, profiles, venues]) => {
+      .then(([events, music, profiles, venues, calendarSettings]) => {
         setResources({ events, music, profiles, venues });
-        const requestedEventId =
-          initialEventId ?? new URLSearchParams(window.location.search).get("eventId");
-        const selectedPerformance =
-          events.find(({ id, type }) => type === "Performance" && id === requestedEventId) ??
-          events.find(({ type }) => type === "Performance");
-        setSelectedEventId(selectedPerformance?.id ?? "");
-        setItems(normalizeItems(selectedPerformance?.setList ?? []));
-        setApproved(selectedPerformance?.setListApproved ?? false);
-        setDefaultTransitionSeconds(selectedPerformance?.setListDefaultTransitionSeconds ?? 0);
-        setDirty(false);
+
+        const explicitEventIds = [
+          initialEventId,
+          new URLSearchParams(window.location.search).get("eventId"),
+        ].filter((eventId): eventId is string => Boolean(eventId));
+        const performancesById = new Map(
+          events
+            .filter(({ type }) => type === "Performance")
+            .map((event) => [event.id, event] as const),
+        );
+        const requestedEventIdsKey =
+          explicitEventIds.length > 0 ? explicitEventIds.join("\u0000") : null;
+        const explicitPerformance = explicitEventIds
+          .map((eventId) => performancesById.get(eventId))
+          .find((event) => event !== undefined);
+        const isFirstResourceLoad = !hasInitializedSelectionRef.current;
+        const hasNewExplicitRequest = requestedEventIdsKey !== lastRequestedEventIdsRef.current;
+
+        if (isFirstResourceLoad) {
+          initializeDraftForEvent(
+            explicitPerformance ??
+              selectDefaultPerformance(events, new Date(), calendarSettings.timezone),
+          );
+          hasInitializedSelectionRef.current = true;
+        } else if (
+          hasNewExplicitRequest &&
+          explicitPerformance &&
+          explicitPerformance.id !== selectedEventIdRef.current
+        ) {
+          initializeDraftForEvent(explicitPerformance);
+        }
+        lastRequestedEventIdsRef.current = requestedEventIdsKey;
         setLoaded(true);
       })
       .catch((caught: unknown) => {

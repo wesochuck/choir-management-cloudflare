@@ -28,6 +28,10 @@ export {
   zonedLocalDateTimeToUtc,
 } from "./calendarTime";
 export {
+  selectDefaultPerformance,
+  type PerformanceSelectionCandidate,
+} from "./performanceSelection";
+export {
   inspectRosterCsv,
   mapRosterCsvColumns,
   parseRosterCsv,

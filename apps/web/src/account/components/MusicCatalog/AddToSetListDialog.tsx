@@ -3,7 +3,7 @@ import type {
   OrganizationMusicPiece,
   OrganizationVenue,
 } from "@choir/contracts";
-import { zonedLocalDateTimeToUtc } from "@choir/domain";
+import { selectDefaultPerformance, zonedLocalDateTimeToUtc } from "@choir/domain";
 import { Dialog, DialogClose } from "@choir/ui";
 import { useMemo, useState } from "react";
 import { performanceDateLabel } from "./tableUtils";
@@ -46,10 +46,15 @@ export function AddToSetListDialog({
     [events],
   );
 
-  const [mode, setMode] = useState<"existing" | "new">(() =>
-    performances.length > 0 ? "existing" : "new",
-  );
-  const [selectedEventId, setSelectedEventId] = useState<string>(() => performances[0]?.id ?? "");
+  const [initialTarget] = useState(() => {
+    const performance = selectDefaultPerformance(events, new Date(), timezone);
+    return {
+      mode: performance ? ("existing" as const) : ("new" as const),
+      selectedEventId: performance?.id ?? "",
+    };
+  });
+  const [mode, setMode] = useState<"existing" | "new">(initialTarget.mode);
+  const [selectedEventId, setSelectedEventId] = useState<string>(initialTarget.selectedEventId);
   const [newTitle, setNewTitle] = useState("");
   const [newDate, setNewDate] = useState("");
   const [newVenueId, setNewVenueId] = useState("");
