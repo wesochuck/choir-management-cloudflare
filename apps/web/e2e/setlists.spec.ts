@@ -121,6 +121,10 @@ async function handleDataRoute(
     await fulfillJson(route, { events: [eventRef.value], requestId });
     return true;
   }
+  if (url.pathname === "/api/organization/calendar-settings") {
+    await fulfillJson(route, { requestId, timezone: "America/New_York" });
+    return true;
+  }
   if (url.pathname === "/api/organization/music") {
     await fulfillJson(route, {
       pieces: [
@@ -529,6 +533,10 @@ test("shows recording coverage and plays inline audio previews in set list build
   await page.route("**/api/**", async (route) => {
     if (await handleShellRoute(route)) return;
     const url = new URL(route.request().url());
+    if (url.pathname === "/api/organization/calendar-settings") {
+      await fulfillJson(route, { requestId, timezone: "America/New_York" });
+      return true;
+    }
     if (url.pathname === "/api/organization/music") {
       await fulfillJson(route, {
         pieces: [
