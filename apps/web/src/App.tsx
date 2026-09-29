@@ -1,6 +1,9 @@
+import "./main.css";
+import "./styles/theme.css";
+
 import type { CurrentAuthSession } from "@choir/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 
 import { getHealth } from "./api";
 
@@ -26,12 +29,15 @@ import { purgeCachedPlayerMetadata, purgeOfflineAudioForSource } from "./offline
 import { PublicUnsubscribeView } from "./public/PublicUnsubscribeView";
 import { PublicPollView } from "./public/PublicPollView";
 import { PublicRsvpView } from "./public/PublicRsvpView";
-import { PublicPlayerView } from "./public/PublicPlayerView";
 import { PublicAuditionView } from "./public/PublicAuditionView";
 import { PublicOrganizationSite } from "./public/PublicOrganizationSite";
 import { PublicTickets } from "./public/PublicTickets";
 import { PublicDonations } from "./public/PublicDonations";
 import { SetupView } from "./setup/SetupView";
+
+const PublicPlayerView = lazy(() =>
+  import("./public/PublicPlayerView").then((m) => ({ default: m.PublicPlayerView })),
+);
 
 type ServiceState = "checking" | "offline" | "ready";
 type SessionState =
@@ -294,7 +300,11 @@ function renderPublicOrProductRoute(pathname: string, productShell: ReactNode, s
     return <PublicTickets pathname={pathname} />;
   }
   if (pathname === "/player") {
-    return <PublicPlayerView />;
+    return (
+      <Suspense fallback={null}>
+        <PublicPlayerView />
+      </Suspense>
+    );
   }
   return isPublicOrganizationRoute(pathname) ? (
     <PublicOrganizationSite fallback={productShell} pathname={pathname} signedIn={signedIn} />

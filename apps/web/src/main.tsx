@@ -1,10 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { App } from "./App";
 import { registerServiceWorker } from "./offline/registerServiceWorker";
-import "./main.css";
-import "./styles/theme.css";
 
 const root = document.querySelector<HTMLDivElement>("#root");
 
@@ -12,10 +9,22 @@ if (!root) {
   throw new Error("Application root is missing");
 }
 
-createRoot(root).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+
+if (pathname === "/player") {
+  const { PlayerApp } = await import("./public/PlayerApp");
+  createRoot(root).render(
+    <StrictMode>
+      <PlayerApp />
+    </StrictMode>,
+  );
+} else {
+  const { App } = await import("./App");
+  createRoot(root).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}
 
 registerServiceWorker();
