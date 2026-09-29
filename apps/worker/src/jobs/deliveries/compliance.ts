@@ -121,6 +121,15 @@ export async function deliverComplianceReminderJob(
   const contentMarkdown = buildComplianceReminderMarkdown(organizationName, task);
 
   for (const [email, name] of recipients.entries()) {
+    // Provider routes identify one recipient in one occurrence, including across job retries.
+    // Hash the tuple to keep the key bounded and avoid embedding recipient addresses in logs.
+    const digest = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(JSON.stringify([job.organizationId, job.idempotencyKey, email])),
+    );
+    const sourceId = Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, "0"),
+    ).join("");
     await deliverOrganizationCommunication(env, {
       channel: "email",
       contentMarkdown,
@@ -135,7 +144,7 @@ export async function deliverComplianceReminderJob(
       recipientName: name,
       replyTo: senderConfig.replyTo ?? undefined,
       sendingDomain: senderConfig.sendingDomain ?? undefined,
-      sourceId: task.id,
+      sourceId,
       sourceKind: "compliance_reminder",
       subject,
       unsubscribeUrl: null,

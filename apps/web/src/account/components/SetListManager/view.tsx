@@ -1098,7 +1098,7 @@ export function SetListManagerView({
                 aria-label="Ordered set-list items"
                 id="set-list-items"
               >
-                {presentation.map((entry) => {
+                {presentation.flatMap((entry) => {
                   if (entry.kind === "intermission") {
                     return renderItemRow({ index: entry.flatIndex, item: entry.item });
                   }
@@ -1112,51 +1112,49 @@ export function SetListManagerView({
                   }
 
                   const parentTitle = entry.parentItem?.title ?? entry.parentPiece.title;
-                  return (
-                    <Fragment
-                      key={`group-${entry.parentPiece.id}-${String(entry.parentFlatIndex ?? entry.movements[0]?.flatIndex)}`}
-                    >
-                      {entry.parentItem && entry.parentFlatIndex !== undefined ? (
-                        renderItemRow({
-                          index: entry.parentFlatIndex,
-                          item: entry.parentItem,
-                          movementCount: entry.movements.length,
-                          programNumber: entry.programNumber,
-                        })
-                      ) : (
-                        <li
-                          aria-label={`Grouped work: ${parentTitle}`}
-                          className="set-list-group-header"
-                          key={`group-header-${entry.parentPiece.id}`}
-                        >
-                          <div className="set-list-group-header__content">
-                            <strong className="set-list-item-position">
-                              {String(entry.programNumber)}.
-                            </strong>
-                            <strong>{parentTitle}</strong>
-                            <span className="set-list-item-type">
-                              {String(entry.movements.length)}{" "}
-                              {entry.movements.length === 1 ? "movement" : "movements"}
+                  // Keep every real row at the same React reconciliation depth, keyed by
+                  // item ID, so regrouping never remounts a focused reorder handle.
+                  return [
+                    entry.parentItem && entry.parentFlatIndex !== undefined ? (
+                      renderItemRow({
+                        index: entry.parentFlatIndex,
+                        item: entry.parentItem,
+                        movementCount: entry.movements.length,
+                        programNumber: entry.programNumber,
+                      })
+                    ) : (
+                      <li
+                        aria-label={`Grouped work: ${parentTitle}`}
+                        className="set-list-group-header"
+                        key={`group-header-${entry.parentPiece.id}-${String(entry.movements[0]?.item.id)}`}
+                      >
+                        <div className="set-list-group-header__content">
+                          <strong className="set-list-item-position">
+                            {String(entry.programNumber)}.
+                          </strong>
+                          <strong>{parentTitle}</strong>
+                          <span className="set-list-item-type">
+                            {String(entry.movements.length)}{" "}
+                            {entry.movements.length === 1 ? "movement" : "movements"}
+                          </span>
+                          {entry.builderCredit ? (
+                            <span className="set-list-group-header__credit">
+                              · {entry.builderCredit}
                             </span>
-                            {entry.builderCredit ? (
-                              <span className="set-list-group-header__credit">
-                                · {entry.builderCredit}
-                              </span>
-                            ) : null}
-                          </div>
-                        </li>
-                      )}
-                      {entry.movements.map((movement) =>
-                        renderItemRow({
-                          displayCredit: movement.builderCredit,
-                          index: movement.flatIndex,
-                          isMovement: true,
-                          item: movement.item,
-                          parentTitle,
-                        }),
-                      )}
-                    </Fragment>
-                  );
+                          ) : null}
+                        </div>
+                      </li>
+                    ),
+                    ...entry.movements.map((movement) =>
+                      renderItemRow({
+                        displayCredit: movement.builderCredit,
+                        index: movement.flatIndex,
+                        isMovement: true,
+                        item: movement.item,
+                        parentTitle,
+                      }),
+                    ),
+                  ];
                 })}
               </ol>
             </>

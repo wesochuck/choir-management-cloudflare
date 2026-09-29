@@ -29,9 +29,10 @@ export const emailProviderSourceKindSchema = z.enum([
 export type EmailProviderSourceKind = z.infer<typeof emailProviderSourceKindSchema>;
 type EmailProviderStatus = z.infer<typeof emailProviderStatusSchema>;
 
+// Compliance reminders have no per-recipient Organization delivery row. Their feedback
+// and recipient suppression are tracked by the control-plane provider route ledger.
 export const organizationEmailProviderSourceKindSchema = z.enum([
   "communication_delivery",
-  "compliance_reminder",
   "ticket_notification",
   "audition_notification",
   "payment_notification",

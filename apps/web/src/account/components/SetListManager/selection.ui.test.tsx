@@ -1,5 +1,6 @@
 import {
   organizationEventSchema,
+  organizationMusicPieceSchema,
   type OrganizationEvent,
   type OrganizationMusicPiece,
   type OrganizationProfile,
@@ -144,4 +145,52 @@ describe("SetListManager default Performance selection", () => {
     expect(screen.getByText("Past song")).toBeInTheDocument();
     expect(api.listOrganizationEvents).toHaveBeenCalledTimes(2);
   });
+});
+
+it("preserves the focused keyboard handle when a movement leaves and rejoins a group", async () => {
+  const parent = organizationMusicPieceSchema.parse({
+    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    title: "Suite",
+    createdAt: "2025-01-01T00:00:00.000Z",
+    updatedAt: "2025-01-01T00:00:00.000Z",
+  });
+  const children = ["First", "Second"].map((title, index) =>
+    organizationMusicPieceSchema.parse({
+      ...parent,
+      id:
+        index === 0
+          ? "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+          : "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      parentId: parent.id,
+      title,
+    }),
+  );
+  const items = children.map((piece, index) => ({
+    id: `movement-${String(index)}`,
+    pieceId: piece.id,
+    title: piece.title,
+    type: "song" as const,
+  }));
+  vi.mocked(api.listOrganizationEvents).mockResolvedValue([
+    { ...defaultEvent, setList: [...items, { id: "other", title: "Other", type: "song" }] },
+  ]);
+  vi.mocked(api.listOrganizationMusic).mockResolvedValue([parent, ...children]);
+  vi.mocked(api.listOrganizationProfiles).mockResolvedValue([]);
+  vi.mocked(api.listOrganizationVenues).mockResolvedValue([]);
+  vi.mocked(api.getOrganizationCalendarSettings).mockResolvedValue({ timezone: "UTC" });
+  render(<SetListManager enabled initialEventId={defaultEvent.id} />);
+  await flushResourceLoad();
+  const handle = screen.getByRole("button", { name: "Reorder Second, position 2 of 3" });
+  handle.focus();
+  fireEvent.keyDown(handle, { key: " " });
+  fireEvent.keyDown(handle, { key: "ArrowDown" });
+  expect(handle).toHaveFocus();
+  expect(handle).toHaveAccessibleName("Reordering Second, position 3 of 3");
+  fireEvent.keyDown(handle, { key: "ArrowUp" });
+  expect(handle).toHaveFocus();
+  expect(handle).toHaveAccessibleName("Reordering Second, position 2 of 3");
+  fireEvent.keyDown(handle, { key: "ArrowDown" });
+  fireEvent.keyDown(handle, { key: "Escape" });
+  expect(handle).toHaveFocus();
+  expect(handle).toHaveAccessibleName("Reorder Second, position 2 of 3");
 });
