@@ -18,6 +18,7 @@ export const emailProviderStatusSchema = z.enum([
 
 export const emailProviderSourceKindSchema = z.enum([
   "communication_delivery",
+  "compliance_reminder",
   "ticket_notification",
   "audition_notification",
   "payment_notification",
@@ -30,6 +31,7 @@ type EmailProviderStatus = z.infer<typeof emailProviderStatusSchema>;
 
 export const organizationEmailProviderSourceKindSchema = z.enum([
   "communication_delivery",
+  "compliance_reminder",
   "ticket_notification",
   "audition_notification",
   "payment_notification",

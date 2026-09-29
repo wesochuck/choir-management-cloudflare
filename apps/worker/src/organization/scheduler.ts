@@ -11,6 +11,7 @@ import {
 } from "@choir/contracts";
 import { readTicketMessageTemplate } from "./ticketMessageTemplates";
 import { readRosterAutomationConfiguration, runRosterAutomations } from "./statusAutomationStore";
+import { advanceComplianceReminder, findDueComplianceReminders } from "./complianceStore";
 
 const SCHEDULER_INTERVAL_MS = 60 * 60 * 1000;
 const OUTBOX_BATCH_SIZE = 10;
@@ -499,6 +500,7 @@ function createDueJobs(
     createRsvpFollowUpJobs(storage, organizationId, now);
     createPostEventReportJobs(storage, organizationId, now);
     createFeeReconciliationJobs(storage, now);
+    createComplianceReminderJobs(storage, organizationId, now);
     if (schedulerDueAt.getTime() <= now.getTime()) {
       storage.sql.exec(
         `UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1`,
@@ -538,6 +540,40 @@ function createFeeReconciliationJobs(storage: DurableObjectStorage, now: Date): 
       now.toISOString(),
       now.toISOString(),
     );
+  }
+}
+
+function createComplianceReminderJobs(
+  storage: DurableObjectStorage,
+  organizationId: string,
+  now: Date,
+): void {
+  const reminders = findDueComplianceReminders(storage, now);
+  for (const reminder of reminders) {
+    const idempotencyKey = `nonprofit-compliance:${organizationId}:${reminder.task.kind}:${reminder.cycleDueDate}:${reminder.occurrenceDate}`;
+    const nowIso = now.toISOString();
+    const existing = storage.sql
+      .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+        `SELECT COUNT(*) AS count FROM scheduled_job_outbox WHERE idempotency_key = ?
+         UNION ALL
+         SELECT COUNT(*) AS count FROM job_ledger WHERE idempotency_key = ? AND status != 'failed'`,
+        idempotencyKey,
+        idempotencyKey,
+      )
+      .toArray();
+    const alreadyQueuedOrSent = existing.some((row) => row.count > 0);
+    if (!alreadyQueuedOrSent) {
+      storage.sql.exec(
+        `INSERT OR IGNORE INTO scheduled_job_outbox
+          (job_id, kind, idempotency_key, due_at, created_at)
+         VALUES (?, 'compliance_reminder', ?, ?, ?)`,
+        crypto.randomUUID(),
+        idempotencyKey,
+        nowIso,
+        nowIso,
+      );
+    }
+    advanceComplianceReminder(storage, reminder.task.id, reminder.task.nextReminderAt, nowIso);
   }
 }
 

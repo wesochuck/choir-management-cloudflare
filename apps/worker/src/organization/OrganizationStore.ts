@@ -52,6 +52,12 @@ import {
   listStripePaymentReconciliationCandidatesInStore,
   type ApplyHistoricalStripeReconciliationInput,
 } from "./stripePaymentReconciliationStore";
+import {
+  completeComplianceTaskInStore,
+  readNonprofitComplianceFromStore,
+  setNonprofitEnabledInStore,
+  updateComplianceTaskInStore,
+} from "./complianceStore";
 import { migrateOrganization } from "./migrations";
 import { runOrganizationAlarm, wakeOrganizationAlarm } from "./scheduler";
 import { dispatchPostRequest } from "./organizationStore/post";
@@ -353,6 +359,53 @@ export class OrganizationStore extends DurableObject {
     readonly requestId: string;
   }) {
     return cancelContactImportInStore(this.ctx.storage, input);
+  }
+
+  // Nonprofit compliance tracker: strongly typed Durable Object RPC methods.
+  // Call via `stub.methodName(...)`; no internal fetch routing.
+  readNonprofitCompliance() {
+    return readNonprofitComplianceFromStore(this.ctx.storage);
+  }
+
+  setNonprofitEnabled(input: {
+    readonly actorUserId: string;
+    readonly enabled: boolean;
+    readonly organizationId: string;
+    readonly requestId: string;
+  }) {
+    return setNonprofitEnabledInStore(this.ctx.storage, input, input.enabled);
+  }
+
+  updateComplianceTask(input: {
+    readonly actorUserId: string;
+    readonly applicable?: boolean | undefined;
+    readonly nextDueDate?: string | null | undefined;
+    readonly organizationId: string;
+    readonly recurrenceMonths?: number | undefined;
+    readonly requestId: string;
+    readonly taskId: string;
+  }) {
+    return updateComplianceTaskInStore(this.ctx.storage, input, input.taskId, {
+      ...(input.applicable !== undefined ? { applicable: input.applicable } : {}),
+      ...(input.nextDueDate !== undefined ? { nextDueDate: input.nextDueDate } : {}),
+      ...(input.recurrenceMonths !== undefined ? { recurrenceMonths: input.recurrenceMonths } : {}),
+    });
+  }
+
+  completeComplianceTask(input: {
+    readonly actorUserId: string;
+    readonly completedDate?: string | null | undefined;
+    readonly organizationId: string;
+    readonly requestId: string;
+    readonly taskId: string;
+  }) {
+    return completeComplianceTaskInStore(
+      this.ctx.storage,
+      input,
+      input.taskId,
+      input.completedDate ?? null,
+      new Date(),
+    );
   }
 
   processContactImportBatch(input: {

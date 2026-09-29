@@ -13,6 +13,7 @@ export * from "./auditions";
 export * from "./seating";
 export * from "./ticketing";
 export * from "./donations";
+export * from "./nonprofitCompliance";
 export * from "./seasons";
 export * from "./exports";
 export * from "./player";

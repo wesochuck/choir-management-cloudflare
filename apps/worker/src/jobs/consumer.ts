@@ -22,6 +22,7 @@ import { deliverAuditionNotificationJob } from "./deliveries/auditions";
 import { deliverPaymentNotificationJob } from "./deliveries/payments";
 import { deliverOrganizationExportJob } from "./deliveries/export";
 import { cleanupStaleCheckout } from "./deliveries/cleanup";
+import { deliverComplianceReminderJob } from "./deliveries/compliance";
 import { deliverPaymentFeeReconciliationJob } from "./deliveries/reconciliation";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { mutateOrganizationStore } from "../organization/rpc/repository";
@@ -70,6 +71,16 @@ async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promi
       return;
     }
     await deliverScheduledEventCommunication(env, job, job.kind);
+    return;
+  }
+  if (job.kind === "compliance_reminder") {
+    if (
+      !env.CONTROL_DB &&
+      (env.EXTERNAL_EFFECTS_MODE === "fake" || env.EXTERNAL_EFFECTS_MODE === "disabled")
+    ) {
+      return;
+    }
+    await deliverComplianceReminderJob(env, job);
     return;
   }
   if (

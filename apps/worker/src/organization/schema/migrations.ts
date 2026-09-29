@@ -1617,6 +1617,36 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE ticket_notifications ADD COLUMN rendered_at TEXT",
     ],
   },
+  {
+    version: 98,
+    statements: [
+      "ALTER TABLE organization_metadata ADD COLUMN nonprofit_enabled INTEGER NOT NULL DEFAULT 0",
+      `CREATE TABLE IF NOT EXISTS organization_compliance_tasks (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        applicable INTEGER NOT NULL DEFAULT 1,
+        recurrence_months INTEGER NOT NULL,
+        next_due_date TEXT,
+        last_completed_date TEXT,
+        next_reminder_at TEXT,
+        reminder_interval_days INTEGER NOT NULL DEFAULT 7,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS organization_compliance_completions (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL REFERENCES organization_compliance_tasks(id),
+        cycle_due_date TEXT NOT NULL,
+        completed_date TEXT NOT NULL,
+        completed_by_user_id TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS organization_compliance_tasks_reminder_due
+       ON organization_compliance_tasks(next_reminder_at)
+       WHERE applicable = 1 AND next_reminder_at IS NOT NULL`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

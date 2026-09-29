@@ -275,6 +275,14 @@ export {
   type DonorSuggestionTicketBuyerInput,
 } from "./donorSuggestions";
 export {
+  addDaysToDateOnly,
+  addDaysToIsoDateTime,
+  addMonthsToDateOnly,
+  compareDateOnly,
+  isValidDateOnlyString,
+  nextDueDateFromCompletion,
+} from "./complianceRecurrence";
+export {
   defaultPollExpirationAt,
   pollArchiveDueAt,
   POLL_ARCHIVE_DELAY_DAYS,

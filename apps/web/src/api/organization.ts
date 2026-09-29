@@ -35,7 +35,9 @@ import {
   type OrganizationExportStartResponse,
   type OrganizationExportStatusResponse,
   moduleStatesResponseSchema,
+  nonprofitComplianceSettingsResponseSchema,
   type ModuleState,
+  type NonprofitComplianceSettingsResponse,
 } from "@choir/contracts";
 
 import { request, requestJson } from "./client";
@@ -321,4 +323,53 @@ export async function updateOrganizationBranding(
     method: "PUT",
   });
   return organizationBrandingSchema.parse(await response.json());
+}
+
+export async function getNonprofitComplianceSettings(
+  signal?: AbortSignal,
+): Promise<NonprofitComplianceSettingsResponse> {
+  const response = await request("/api/organization/compliance", { signal: signal ?? null });
+  return nonprofitComplianceSettingsResponseSchema.parse(await response.json());
+}
+
+export async function toggleNonprofitCompliance(
+  enabled: boolean,
+): Promise<NonprofitComplianceSettingsResponse> {
+  const response = await request("/api/organization/compliance/toggle", {
+    body: JSON.stringify({ enabled }),
+    method: "PUT",
+  });
+  return nonprofitComplianceSettingsResponseSchema.parse(await response.json());
+}
+
+export async function updateComplianceTask(
+  taskId: string,
+  update: {
+    readonly applicable?: boolean;
+    readonly nextDueDate?: string | null;
+    readonly recurrenceMonths?: number;
+  },
+): Promise<NonprofitComplianceSettingsResponse> {
+  const response = await request(
+    `/api/organization/compliance/tasks/${encodeURIComponent(taskId)}`,
+    {
+      body: JSON.stringify({ ...update, taskId }),
+      method: "PATCH",
+    },
+  );
+  return nonprofitComplianceSettingsResponseSchema.parse(await response.json());
+}
+
+export async function completeComplianceTask(
+  taskId: string,
+  completedDate?: string,
+): Promise<NonprofitComplianceSettingsResponse> {
+  const response = await request(
+    `/api/organization/compliance/tasks/${encodeURIComponent(taskId)}/complete`,
+    {
+      body: JSON.stringify({ ...(completedDate ? { completedDate } : {}), taskId }),
+      method: "POST",
+    },
+  );
+  return nonprofitComplianceSettingsResponseSchema.parse(await response.json());
 }

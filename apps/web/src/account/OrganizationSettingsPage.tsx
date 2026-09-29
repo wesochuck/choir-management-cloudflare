@@ -13,6 +13,7 @@ import {
 } from "../auth/api";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { OrganizationBrandingPanel } from "./OrganizationBrandingPanel";
+import { OrganizationNonprofitCompliancePanel } from "./OrganizationNonprofitCompliancePanel";
 import { OrganizationEmailSettingsPanel } from "./OrganizationEmailSettingsPanel";
 import type {
   OrganizationExportStatusResponse,
@@ -552,6 +553,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
   return (
     <div className="settings-stack">
       <OrganizationBrandingPanel />
+      <OrganizationNonprofitCompliancePanel timezone={timezone} />
       <OrganizationPaymentSettingsPanel />
       <TransactionFeeSettingsSection
         feeError={feeError}

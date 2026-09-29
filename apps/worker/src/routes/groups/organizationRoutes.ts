@@ -10,6 +10,7 @@ import { registerRoutes as registerOrganizationBrandingRoutes } from "../organiz
 import { registerRoutes as registerOrganizationCalendarSettingsRoutes } from "../organizationCalendarSettings";
 import { registerRoutes as registerOrganizationCommerceSettingsRoutes } from "../organizationCommerceSettings";
 import { registerRoutes as registerOrganizationCommunicationsRoutes } from "../organizationCommunications";
+import { registerRoutes as registerOrganizationComplianceRoutes } from "../organizationCompliance";
 import { registerRoutes as registerOrganizationContactsRoutes } from "../organizationContacts";
 import { registerRoutes as registerOrganizationContactImportsRoutes } from "../organizationContactImports";
 import { registerRoutes as registerOrganizationDashboardRoutes } from "../organizationDashboard";
@@ -60,6 +61,7 @@ export function registerOrganizationGroupRoutes(router: Hono<WorkerHonoEnvironme
   registerOrganizationCalendarSettingsRoutes(router);
   registerOrganizationCommerceSettingsRoutes(router);
   registerOrganizationCommunicationsRoutes(router);
+  registerOrganizationComplianceRoutes(router);
   registerOrganizationContactsRoutes(router);
   registerOrganizationContactImportsRoutes(router);
   registerOrganizationDashboardRoutes(router);
