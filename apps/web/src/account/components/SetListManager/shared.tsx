@@ -11,12 +11,104 @@ import { getLastName } from "../../nameFormatting";
 import type { PerformerCredit, SetListItem } from "./types";
 import {
   effectiveSetListItemDurationSeconds,
+  formatPerformerCredits,
+  groupSetListForPresentation,
   printDateOnly,
   printTimeOnly,
   resolveEventVenueName,
-  setListPreviewRows,
-  setListPrintedCredit,
+  type PresentationGroupEntry,
+  type PresentationIntermissionEntry,
+  type PresentationStandaloneEntry,
+  type SetListPresentationEntry,
 } from "./utils";
+
+function renderIntermissionPreview(entry: PresentationIntermissionEntry, showNotes: boolean) {
+  return (
+    <li className="set-list-preview__intermission" key={`intermission-${String(entry.flatIndex)}`}>
+      {entry.item.title}
+      {showNotes && entry.notes ? (
+        <div className="set-list-preview__note">{entry.notes}</div>
+      ) : null}
+    </li>
+  );
+}
+
+function renderStandalonePreview(entry: PresentationStandaloneEntry, showNotes: boolean) {
+  const performers = formatPerformerCredits(entry.item);
+  return (
+    <li className="set-list-preview__song" key={`song-${String(entry.flatIndex)}`}>
+      <div className="set-list-preview__song-line">
+        <span>
+          {String(entry.programNumber)}. {entry.item.title}
+        </span>
+        {entry.credit ? <span className="set-list-preview__composer">{entry.credit}</span> : null}
+      </div>
+      {entry.parentPiece ? (
+        <div className="set-list-preview__from-parent">from {entry.parentPiece.title}</div>
+      ) : null}
+      {performers ? <div className="set-list-preview__group">Group — {performers}</div> : null}
+      {showNotes && entry.notes ? (
+        <div className="set-list-preview__note">{entry.notes}</div>
+      ) : null}
+    </li>
+  );
+}
+
+function renderGroupPreview(entry: PresentationGroupEntry, showNotes: boolean) {
+  const parentTitle = entry.parentItem?.title ?? entry.parentPiece.title;
+  const parentPerformers = entry.parentItem ? formatPerformerCredits(entry.parentItem) : "";
+  const groupKey = `group-${entry.parentPiece.id}-${String(entry.parentFlatIndex ?? entry.movements[0]?.flatIndex)}`;
+  return (
+    <li className="set-list-preview__song set-list-preview__song--group" key={groupKey}>
+      <div className="set-list-preview__song-line">
+        <span>
+          {String(entry.programNumber)}. {parentTitle}
+        </span>
+        {entry.credit ? <span className="set-list-preview__composer">{entry.credit}</span> : null}
+      </div>
+      {parentPerformers ? (
+        <div className="set-list-preview__group">Group — {parentPerformers}</div>
+      ) : null}
+      {showNotes && entry.notes ? (
+        <div className="set-list-preview__note">{entry.notes}</div>
+      ) : null}
+      <ul aria-label={`Movements of ${parentTitle}`} className="set-list-preview__movements">
+        {entry.movements.map((movement) => {
+          const mPerformers = formatPerformerCredits(movement.item);
+          return (
+            <li
+              className="set-list-preview__movement"
+              key={`movement-${String(movement.flatIndex)}`}
+            >
+              <div className="set-list-preview__song-line">
+                <span className="set-list-preview__movement-title">{movement.item.title}</span>
+                {movement.credit ? (
+                  <span className="set-list-preview__composer">{movement.credit}</span>
+                ) : null}
+              </div>
+              {mPerformers ? (
+                <div className="set-list-preview__group">Group — {mPerformers}</div>
+              ) : null}
+              {showNotes && movement.notes ? (
+                <div className="set-list-preview__note">{movement.notes}</div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </li>
+  );
+}
+
+function renderPreviewEntry(entry: SetListPresentationEntry, showNotes: boolean) {
+  if (entry.kind === "intermission") {
+    return renderIntermissionPreview(entry, showNotes);
+  }
+  if (entry.kind === "standalone") {
+    return renderStandalonePreview(entry, showNotes);
+  }
+  return renderGroupPreview(entry, showNotes);
+}
 
 export function SetListPreview({
   defaultTransitionSeconds,
@@ -37,7 +129,7 @@ export function SetListPreview({
   const timing = calculateSetListTiming(items, transitionSeconds, (item) =>
     effectiveSetListItemDurationSeconds(item, music),
   );
-  const rows = setListPreviewRows(items, music);
+  const entries = groupSetListForPresentation(items, music);
   const venue = resolveEventVenueName(event, venues);
   return (
     <div className="set-list-preview">
@@ -55,31 +147,7 @@ export function SetListPreview({
         </div>
       </header>
       <ol className="set-list-preview__items">
-        {rows.map(({ arranger, composer, kind, notes, number, performers, title }, index) => {
-          if (kind === "intermission") {
-            return (
-              <li className="set-list-preview__intermission" key={`${title}-${String(index)}`}>
-                {title}
-                {showNotes && notes ? <div className="set-list-preview__note">{notes}</div> : null}
-              </li>
-            );
-          }
-          const credit = setListPrintedCredit(arranger, composer);
-          return (
-            <li className="set-list-preview__song" key={`${title}-${String(index)}`}>
-              <div className="set-list-preview__song-line">
-                <span>
-                  {String(number)}. {title}
-                </span>
-                {credit ? <span className="set-list-preview__composer">{credit}</span> : null}
-              </div>
-              {performers ? (
-                <div className="set-list-preview__group">Group — {performers}</div>
-              ) : null}
-              {showNotes && notes ? <div className="set-list-preview__note">{notes}</div> : null}
-            </li>
-          );
-        })}
+        {entries.map((entry) => renderPreviewEntry(entry, showNotes))}
       </ol>
     </div>
   );

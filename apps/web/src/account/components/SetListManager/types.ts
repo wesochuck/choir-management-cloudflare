@@ -30,3 +30,11 @@ export interface SetListPreviewRow extends SetListPrintRow {
   readonly kind: "intermission" | "song";
   readonly number: number | null;
 }
+
+export type {
+  PresentationGroupEntry,
+  PresentationIntermissionEntry,
+  PresentationMovementItem,
+  PresentationStandaloneEntry,
+  SetListPresentationEntry,
+} from "./presentation";

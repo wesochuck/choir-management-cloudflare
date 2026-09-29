@@ -15,6 +15,7 @@ import {
   effectiveSetListItemDuration,
   effectiveSetListItemNotes,
   formatPracticePlayerExpiration,
+  groupSetListForPresentation,
   itemType,
   normalizeItems,
   printTimeOnly,
@@ -76,20 +77,31 @@ function SetListItemNotes({
 export function SetListItemSummaryText({
   arranger,
   composer,
+  displayCredit,
   duration,
   isSong,
   itemNotes,
+  movementCount,
+  parentWorkTitle,
   recordingStatus,
 }: {
   readonly arranger?: string | undefined;
   readonly composer: string | undefined;
+  readonly displayCredit?: string | undefined;
   readonly duration: string | undefined;
   readonly isSong: boolean;
   readonly itemNotes: string;
+  readonly movementCount?: number | undefined;
+  readonly parentWorkTitle?: string | undefined;
   readonly recordingStatus: SetListItemRecordingStatus;
 }) {
-  const credit = isSong ? setListBuilderCredit(composer, arranger) : undefined;
-  const details = [credit, duration].filter(Boolean).join(" · ");
+  const credit = isSong ? (displayCredit ?? setListBuilderCredit(composer, arranger)) : undefined;
+  const parentText = parentWorkTitle ? `Movement of ${parentWorkTitle}` : undefined;
+  const movementSummary =
+    movementCount !== undefined
+      ? `${String(movementCount)} movement${movementCount === 1 ? "" : "s"}`
+      : undefined;
+  const details = [parentText, movementSummary, credit, duration].filter(Boolean).join(" · ");
   const hasDetails = Boolean(details);
 
   return (
@@ -161,6 +173,107 @@ function reorderHandleLabel(
   keyboardDragging: boolean,
 ): string {
   return `${keyboardDragging ? "Reordering" : "Reorder"} ${title}, position ${String(index + 1)} of ${String(itemCount)}`;
+}
+
+function buildItemRowClassName({
+  dropAfter,
+  dropBefore,
+  isDragging,
+  isIntermission,
+  isMovement,
+  isParent,
+  isRecentlyMoved,
+}: {
+  readonly dropAfter: boolean;
+  readonly dropBefore: boolean;
+  readonly isDragging: boolean;
+  readonly isIntermission: boolean;
+  readonly isMovement: boolean;
+  readonly isParent: boolean;
+  readonly isRecentlyMoved: boolean;
+}): string {
+  const classes = ["set-list-item"];
+  if (isMovement) classes.push("set-list-item--movement");
+  if (isParent) classes.push("set-list-item--group-parent");
+  if (isDragging) classes.push("set-list-item--dragging");
+  if (isIntermission) classes.push("set-list-item--intermission");
+  if (dropBefore) classes.push("set-list-item--drop-before");
+  if (dropAfter) classes.push("set-list-item--drop-after");
+  if (isRecentlyMoved) classes.push("set-list-item--moved");
+  return classes.join(" ");
+}
+
+function renderItemLeadingIndicator(isMovement: boolean, programNumber?: number) {
+  if (isMovement) {
+    return (
+      <span aria-hidden="true" className="set-list-item-movement-indicator">
+        ↳
+      </span>
+    );
+  }
+  if (programNumber !== undefined) {
+    return <strong className="set-list-item-position">{String(programNumber)}.</strong>;
+  }
+  return null;
+}
+
+function SetListInsertZone({
+  dragIndex,
+  dropAfter,
+  index,
+  itemTitle,
+  onDrop,
+  onInsertCustom,
+  onSetDragOverBoundary,
+  programNumber,
+}: {
+  readonly dragIndex: number | null;
+  readonly dropAfter: boolean;
+  readonly index: number;
+  readonly itemTitle: string;
+  readonly onDrop: (boundary: number) => void;
+  readonly onInsertCustom: (index: number) => void;
+  readonly onSetDragOverBoundary: (boundary: number | null) => void;
+  readonly programNumber?: number | undefined;
+}) {
+  const targetIndex = index + 1;
+  const itemLabel =
+    programNumber !== undefined ? `${String(programNumber)}. ${itemTitle}` : itemTitle;
+  return (
+    <li
+      className={`set-list-insert-zone${dropAfter ? " set-list-insert-zone--drop-target" : ""}`}
+      role="presentation"
+      onDragOver={(event) => {
+        if (dragIndex === null) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        onSetDragOverBoundary(targetIndex);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        onDrop(targetIndex);
+      }}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+      }}
+    >
+      {dropAfter ? (
+        <span className="set-list-insert-zone__drop-label" aria-hidden="true">
+          Drop item here
+        </span>
+      ) : null}
+      <button
+        aria-label={`Insert custom entry after ${itemLabel}`}
+        className="set-list-insert-zone__button"
+        type="button"
+        onClick={() => {
+          onInsertCustom(targetIndex);
+        }}
+      >
+        + Insert custom entry
+      </button>
+    </li>
+  );
 }
 
 // eslint-disable-next-line complexity -- render composition preserves the existing screen's independent states and dialogs.
@@ -266,6 +379,23 @@ export function SetListManagerView({
     () => setListRecordingCoverage(items, resources.music),
     [items, resources.music],
   );
+  const musicById = useMemo(
+    () => new Map(resources.music.map((p) => [p.id, p])),
+    [resources.music],
+  );
+  const childCountByParentId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of resources.music) {
+      if (p.parentId) {
+        map.set(p.parentId, (map.get(p.parentId) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [resources.music]);
+  const presentation = useMemo(
+    () => groupSetListForPresentation(items, resources.music),
+    [items, resources.music],
+  );
   if (!enabled) return null;
   const practicePlayerUnavailableReason = !approved
     ? "Approve this set list before opening the Practice Player."
@@ -354,6 +484,173 @@ export function SetListManagerView({
       moveKeyboardItem(event.key === "ArrowUp" ? -1 : 1);
     }
   }
+
+  function renderItemRow({
+    displayCredit,
+    index,
+    isMovement = false,
+    item,
+    movementCount,
+    parentTitle,
+    parentWorkTitle,
+    programNumber,
+  }: {
+    readonly displayCredit?: string | undefined;
+    readonly index: number;
+    readonly isMovement?: boolean;
+    readonly item: SetListItem;
+    readonly movementCount?: number | undefined;
+    readonly parentTitle?: string | undefined;
+    readonly parentWorkTitle?: string | undefined;
+    readonly programNumber?: number | undefined;
+  }) {
+    const itemNotes = effectiveSetListItemNotes(item, resources.music);
+    const dropState = dropStateForItem(index, dragIndex, dragOverBoundary);
+    const keyboardDragging = keyboardDragIndex === index;
+    const itemDragging = setListItemIsDragging(index, dragIndex, keyboardDragIndex);
+    const recordingStatus = setListItemRecordingStatus(item, resources.music);
+
+    const className = buildItemRowClassName({
+      dropAfter: dropState.after,
+      dropBefore: dropState.before,
+      isDragging: itemDragging,
+      isIntermission: item.type === "intermission",
+      isMovement,
+      isParent: movementCount !== undefined,
+      isRecentlyMoved: recentlyMovedItemId === item.id,
+    });
+    const ariaLabel =
+      isMovement && parentTitle ? `Movement: ${item.title} of ${parentTitle}` : undefined;
+
+    return (
+      <Fragment key={item.id}>
+        <li
+          aria-label={ariaLabel}
+          className={className}
+          draggable
+          onClick={(event) => {
+            const target = event.target;
+            if (
+              !(target instanceof HTMLElement) ||
+              target.closest("button, a, .set-list-drag-handle")
+            ) {
+              return;
+            }
+            openItemEditor(index);
+          }}
+          onDragEnd={() => {
+            setKeyboardDragIndex(null);
+            setKeyboardDragOriginItems(null);
+            setDragIndex(null);
+            setDragOverBoundary(null);
+          }}
+          onDragOver={(event) => {
+            if (dragIndex === null) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+            setDragOverBoundary(dropBoundaryForEvent(event, index));
+          }}
+          onDragStart={() => {
+            setKeyboardDragIndex(null);
+            setKeyboardDragOriginItems(null);
+            setDragIndex(index);
+            setDragOverBoundary(null);
+            setRecentlyMovedItemId(null);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            dropDraggedItem(dropBoundaryForEvent(event, index));
+          }}
+          onPointerCancel={(event) => {
+            if (event.pointerType === "touch") {
+              setKeyboardDragIndex(null);
+              setKeyboardDragOriginItems(null);
+              setDragIndex(null);
+              setDragOverBoundary(null);
+            }
+          }}
+          onPointerDown={(event) => {
+            if (event.pointerType === "touch") {
+              setKeyboardDragIndex(null);
+              setKeyboardDragOriginItems(null);
+              setDragIndex(index);
+              setDragOverBoundary(null);
+            }
+          }}
+          onPointerUp={(event) => {
+            if (event.pointerType === "touch") {
+              moveDraggedItemWithFeedback(index);
+              setDragOverBoundary(null);
+            }
+          }}
+        >
+          <div className="set-list-item-heading">
+            <div className="set-list-item-title">
+              <button
+                aria-describedby="set-list-keyboard-reorder-help"
+                aria-label={reorderHandleLabel(item.title, index, items.length, keyboardDragging)}
+                aria-pressed={keyboardDragging}
+                aria-controls="set-list-items"
+                className="set-list-drag-handle"
+                onKeyDown={(event) => {
+                  handleKeyboardReorderKeyDown(index, event);
+                }}
+                title="Drag to reorder, or press Space or Enter for keyboard control"
+                type="button"
+              >
+                <span aria-hidden="true" />
+              </button>
+              {renderItemLeadingIndicator(isMovement, programNumber)}
+              <strong>{item.title}</strong>
+              {item.type === "intermission" ? (
+                <span className="set-list-item-type">Custom entry</span>
+              ) : null}
+            </div>
+            <SetListItemRowActions
+              item={item}
+              onEdit={() => {
+                openItemEditor(index);
+              }}
+              onRemove={() => {
+                updateDraftItems((current) =>
+                  current.filter((_, itemIndex) => itemIndex !== index),
+                );
+              }}
+              recordingStatus={recordingStatus}
+            />
+          </div>
+          <div className="set-list-item-summary">
+            <SetListItemSummaryText
+              arranger={effectiveSetListItemArranger(item, resources.music)}
+              composer={effectiveSetListItemComposer(item, resources.music)}
+              displayCredit={displayCredit}
+              duration={effectiveSetListItemDuration(item, resources.music)}
+              isSong={itemType(item) === "song"}
+              itemNotes={itemNotes}
+              movementCount={movementCount}
+              parentWorkTitle={parentWorkTitle}
+              recordingStatus={recordingStatus}
+            />
+            {item.isFeaturedNumber ? <span className="status-pill">Featured</span> : null}
+          </div>
+          <SetListItemNotes notes={itemNotes} showNotes={showNotes} />
+        </li>
+        {index < items.length - 1 ? (
+          <SetListInsertZone
+            dragIndex={dragIndex}
+            dropAfter={dropState.after}
+            index={index}
+            itemTitle={item.title}
+            onDrop={dropDraggedItem}
+            onInsertCustom={insertCustomItem}
+            onSetDragOverBoundary={setDragOverBoundary}
+            programNumber={programNumber}
+          />
+        ) : null}
+      </Fragment>
+    );
+  }
+
   return (
     <section className="account-section set-list-section" aria-label="Set list editor">
       <div className="section-heading section-heading--compact set-list-page-intro">
@@ -619,23 +916,41 @@ export function SetListManagerView({
                     role="listbox"
                   >
                     {filteredMusic.length > 0 ? (
-                      filteredMusic.slice(0, 50).map((piece) => (
-                        <button
-                          className="set-list-music-result"
-                          key={piece.id}
-                          onClick={() => {
-                            addMusicPiece(piece);
-                          }}
-                          role="option"
-                          type="button"
-                        >
-                          <strong>{piece.title}</strong>
-                          <span>
-                            {setListBuilderCredit(piece.composer, piece.arranger) ??
-                              "Composer not listed"}
-                          </span>
-                        </button>
-                      ))
+                      filteredMusic.slice(0, 50).map((piece) => {
+                        const parentPiece = piece.parentId
+                          ? musicById.get(piece.parentId)
+                          : undefined;
+                        const childCount = piece.parentId
+                          ? 0
+                          : (childCountByParentId.get(piece.id) ?? 0);
+                        return (
+                          <button
+                            className="set-list-music-result"
+                            key={piece.id}
+                            onClick={() => {
+                              addMusicPiece(piece);
+                            }}
+                            role="option"
+                            type="button"
+                          >
+                            <strong>{piece.parentId ? `↳ ${piece.title}` : piece.title}</strong>
+                            {parentPiece ? (
+                              <span className="set-list-music-result__parent">
+                                Movement of {parentPiece.title}
+                              </span>
+                            ) : null}
+                            {childCount > 0 ? (
+                              <span className="set-list-music-result__movement-count">
+                                {String(childCount)} {childCount === 1 ? "movement" : "movements"}
+                              </span>
+                            ) : null}
+                            <span>
+                              {setListBuilderCredit(piece.composer, piece.arranger) ??
+                                "Composer not listed"}
+                            </span>
+                          </button>
+                        );
+                      })
                     ) : (
                       <p className="set-list-music-results__empty">No matching music pieces.</p>
                     )}
@@ -783,163 +1098,63 @@ export function SetListManagerView({
                 aria-label="Ordered set-list items"
                 id="set-list-items"
               >
-                {items.map((item, index) => {
-                  const itemNotes = effectiveSetListItemNotes(item, resources.music);
-                  const dropState = dropStateForItem(index, dragIndex, dragOverBoundary);
-                  const keyboardDragging = keyboardDragIndex === index;
-                  const itemDragging = setListItemIsDragging(index, dragIndex, keyboardDragIndex);
-                  const recordingStatus = setListItemRecordingStatus(item, resources.music);
+                {presentation.map((entry) => {
+                  if (entry.kind === "intermission") {
+                    return renderItemRow({ index: entry.flatIndex, item: entry.item });
+                  }
+                  if (entry.kind === "standalone") {
+                    return renderItemRow({
+                      index: entry.flatIndex,
+                      item: entry.item,
+                      parentWorkTitle: entry.parentPiece?.title,
+                      programNumber: entry.programNumber,
+                    });
+                  }
+
+                  const parentTitle = entry.parentItem?.title ?? entry.parentPiece.title;
                   return (
-                    <Fragment key={item.id}>
-                      <li
-                        className={`set-list-item${itemDragging ? " set-list-item--dragging" : ""}${item.type === "intermission" ? " set-list-item--intermission" : ""}${dropState.before ? " set-list-item--drop-before" : ""}${dropState.after ? " set-list-item--drop-after" : ""}${recentlyMovedItemId === item.id ? " set-list-item--moved" : ""}`}
-                        draggable
-                        onClick={(event) => {
-                          const target = event.target;
-                          if (
-                            !(target instanceof HTMLElement) ||
-                            target.closest("button, a, .set-list-drag-handle")
-                          ) {
-                            return;
-                          }
-                          openItemEditor(index);
-                        }}
-                        onDragEnd={() => {
-                          setKeyboardDragIndex(null);
-                          setKeyboardDragOriginItems(null);
-                          setDragIndex(null);
-                          setDragOverBoundary(null);
-                        }}
-                        onDragOver={(event) => {
-                          if (dragIndex === null) return;
-                          event.preventDefault();
-                          event.dataTransfer.dropEffect = "move";
-                          setDragOverBoundary(dropBoundaryForEvent(event, index));
-                        }}
-                        onDragStart={() => {
-                          setKeyboardDragIndex(null);
-                          setKeyboardDragOriginItems(null);
-                          setDragIndex(index);
-                          setDragOverBoundary(null);
-                          setRecentlyMovedItemId(null);
-                        }}
-                        onDrop={(event) => {
-                          event.preventDefault();
-                          dropDraggedItem(dropBoundaryForEvent(event, index));
-                        }}
-                        onPointerCancel={(event) => {
-                          if (event.pointerType === "touch") {
-                            setKeyboardDragIndex(null);
-                            setKeyboardDragOriginItems(null);
-                            setDragIndex(null);
-                            setDragOverBoundary(null);
-                          }
-                        }}
-                        onPointerDown={(event) => {
-                          if (event.pointerType === "touch") {
-                            setKeyboardDragIndex(null);
-                            setKeyboardDragOriginItems(null);
-                            setDragIndex(index);
-                            setDragOverBoundary(null);
-                          }
-                        }}
-                        onPointerUp={(event) => {
-                          if (event.pointerType === "touch") {
-                            moveDraggedItemWithFeedback(index);
-                            setDragOverBoundary(null);
-                          }
-                        }}
-                      >
-                        <div className="set-list-item-heading">
-                          <div className="set-list-item-title">
-                            <button
-                              aria-describedby="set-list-keyboard-reorder-help"
-                              aria-label={reorderHandleLabel(
-                                item.title,
-                                index,
-                                items.length,
-                                keyboardDragging,
-                              )}
-                              aria-pressed={keyboardDragging}
-                              aria-controls="set-list-items"
-                              className="set-list-drag-handle"
-                              onKeyDown={(event) => {
-                                handleKeyboardReorderKeyDown(index, event);
-                              }}
-                              title="Drag to reorder, or press Space or Enter for keyboard control"
-                              type="button"
-                            >
-                              <span aria-hidden="true" />
-                            </button>
-                            <strong className="set-list-item-position">{String(index + 1)}.</strong>
-                            <strong>{item.title}</strong>
-                            {item.type === "intermission" ? (
-                              <span className="set-list-item-type">Custom entry</span>
+                    <Fragment
+                      key={`group-${entry.parentPiece.id}-${String(entry.parentFlatIndex ?? entry.movements[0]?.flatIndex)}`}
+                    >
+                      {entry.parentItem && entry.parentFlatIndex !== undefined ? (
+                        renderItemRow({
+                          index: entry.parentFlatIndex,
+                          item: entry.parentItem,
+                          movementCount: entry.movements.length,
+                          programNumber: entry.programNumber,
+                        })
+                      ) : (
+                        <li
+                          aria-label={`Grouped work: ${parentTitle}`}
+                          className="set-list-group-header"
+                          key={`group-header-${entry.parentPiece.id}`}
+                        >
+                          <div className="set-list-group-header__content">
+                            <strong className="set-list-item-position">
+                              {String(entry.programNumber)}.
+                            </strong>
+                            <strong>{parentTitle}</strong>
+                            <span className="set-list-item-type">
+                              {String(entry.movements.length)}{" "}
+                              {entry.movements.length === 1 ? "movement" : "movements"}
+                            </span>
+                            {entry.builderCredit ? (
+                              <span className="set-list-group-header__credit">
+                                · {entry.builderCredit}
+                              </span>
                             ) : null}
                           </div>
-                          <SetListItemRowActions
-                            item={item}
-                            onEdit={() => {
-                              openItemEditor(index);
-                            }}
-                            onRemove={() => {
-                              updateDraftItems((current) =>
-                                current.filter((_, itemIndex) => itemIndex !== index),
-                              );
-                            }}
-                            recordingStatus={recordingStatus}
-                          />
-                        </div>
-                        <div className="set-list-item-summary">
-                          <SetListItemSummaryText
-                            arranger={effectiveSetListItemArranger(item, resources.music)}
-                            composer={effectiveSetListItemComposer(item, resources.music)}
-                            duration={effectiveSetListItemDuration(item, resources.music)}
-                            isSong={itemType(item) === "song"}
-                            itemNotes={itemNotes}
-                            recordingStatus={recordingStatus}
-                          />
-                          {item.isFeaturedNumber ? (
-                            <span className="status-pill">Featured</span>
-                          ) : null}
-                        </div>
-                        <SetListItemNotes notes={itemNotes} showNotes={showNotes} />
-                      </li>
-                      {index < items.length - 1 ? (
-                        <li
-                          className={`set-list-insert-zone${dropState.after ? " set-list-insert-zone--drop-target" : ""}`}
-                          role="presentation"
-                          onDragOver={(event) => {
-                            if (dragIndex === null) return;
-                            event.preventDefault();
-                            event.dataTransfer.dropEffect = "move";
-                            setDragOverBoundary(index + 1);
-                          }}
-                          onDrop={(event) => {
-                            event.preventDefault();
-                            dropDraggedItem(index + 1);
-                          }}
-                          onPointerDown={(event) => {
-                            event.stopPropagation();
-                          }}
-                        >
-                          {dropState.after ? (
-                            <span className="set-list-insert-zone__drop-label" aria-hidden="true">
-                              Drop item here
-                            </span>
-                          ) : null}
-                          <button
-                            aria-label={`Insert custom entry after ${String(index + 1)}. ${item.title}`}
-                            className="set-list-insert-zone__button"
-                            type="button"
-                            onClick={() => {
-                              insertCustomItem(index + 1);
-                            }}
-                          >
-                            + Insert custom entry
-                          </button>
                         </li>
-                      ) : null}
+                      )}
+                      {entry.movements.map((movement) =>
+                        renderItemRow({
+                          displayCredit: movement.builderCredit,
+                          index: movement.flatIndex,
+                          isMovement: true,
+                          item: movement.item,
+                          parentTitle,
+                        }),
+                      )}
                     </Fragment>
                   );
                 })}

@@ -119,6 +119,29 @@
     white-space: pre-line;
   }
 
+  .set-list-preview__from-parent {
+    padding: var(--spacing-3xs) 0 0 var(--spacing-md);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    font-style: italic;
+  }
+
+  .set-list-preview__movements {
+    display: grid;
+    gap: 0;
+    margin: var(--spacing-3xs) 0 0 0;
+    padding: 0 0 0 var(--spacing-lg);
+    list-style: none;
+  }
+
+  .set-list-preview__movement {
+    padding: var(--spacing-3xs) 0;
+  }
+
+  .set-list-preview__movement-title {
+    font-weight: var(--font-weight-normal);
+  }
+
   .set-list-preview__intermission {
     padding: var(--spacing-xs) 0;
     border-top: 1px dashed var(--color-border);
@@ -316,6 +339,18 @@
   .set-list-music-results__empty {
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
+  }
+
+  .set-list-music-result__parent {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    font-style: italic;
+  }
+
+  .set-list-music-result__movement-count {
+    font-size: var(--font-size-xs);
+    color: var(--color-accent);
+    font-weight: var(--font-weight-medium);
   }
 
   .set-list-music-results__empty {

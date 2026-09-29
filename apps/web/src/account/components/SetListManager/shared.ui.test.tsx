@@ -359,3 +359,115 @@ describe("SetListPreview venue rendering", () => {
     expect(headerP?.textContent).not.toContain("|");
   });
 });
+
+describe("SetListPreview multi-movement works", () => {
+  const event = organizationEventSchema.parse({
+    createdAt: "2026-08-01T12:00:00.000Z",
+    id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+    location: "Hall",
+    setList: [],
+    startsAt: "2026-11-15T15:00:00.000Z",
+    title: "Choral Concert",
+    type: "Performance",
+    updatedAt: "2026-08-01T12:00:00.000Z",
+  });
+
+  const sunriseMass = piece({
+    composer: "Ola Gjeilo",
+    id: "10000000-0000-4000-8000-000000000001",
+    title: "Sunrise Mass",
+  });
+
+  const spheres = piece({
+    arranger: "Dan Forrest",
+    composer: "Ola Gjeilo",
+    id: "10000000-0000-4000-8000-000000000002",
+    parentId: sunriseMass.id,
+    title: "The Spheres",
+  });
+
+  const sunrise = piece({
+    composer: "Ola Gjeilo",
+    id: "10000000-0000-4000-8000-000000000003",
+    parentId: sunriseMass.id,
+    title: "Sunrise",
+  });
+
+  const sealLullaby = piece({
+    composer: "Eric Whitacre",
+    id: "20000000-0000-4000-8000-000000000001",
+    title: "The Seal Lullaby",
+  });
+
+  const catalog = [sunriseMass, spheres, sunrise, sealLullaby];
+
+  it("renders parent + movements as a grouped work with indented unnumbered movements", () => {
+    const items: SetListItem[] = [
+      { id: "1", pieceId: sunriseMass.id, title: "Sunrise Mass", type: "song" },
+      { id: "2", pieceId: spheres.id, title: "The Spheres", type: "song" },
+      { id: "3", pieceId: sunrise.id, title: "Sunrise", type: "song" },
+      { id: "4", pieceId: sealLullaby.id, title: "The Seal Lullaby", type: "song" },
+    ];
+
+    const { container } = render(<SetListPreview event={event} items={items} music={catalog} />);
+    const groupEl = container.querySelector(".set-list-preview__song--group");
+    expect(groupEl).not.toBeNull();
+    expect(groupEl?.textContent).toContain("1. Sunrise Mass");
+    expect(groupEl?.textContent).toContain("Ola Gjeilo");
+
+    const movements = groupEl?.querySelectorAll(".set-list-preview__movement");
+    expect(movements).toHaveLength(2);
+    expect(movements?.[0]?.textContent).toContain("The Spheres");
+    expect(movements?.[0]?.textContent).toContain("arr. Dan Forrest");
+    expect(movements?.[1]?.textContent).toContain("Sunrise");
+    // movement 2 shares parent composer, so its credit is omitted
+    expect(movements?.[1]?.querySelector(".set-list-preview__composer")).toBeNull();
+
+    // The next song gets program number 2
+    const allSongs = container.querySelectorAll(
+      ".set-list-preview__items > .set-list-preview__song",
+    );
+    expect(allSongs).toHaveLength(2);
+    expect(allSongs[1]?.textContent).toContain("2. The Seal Lullaby");
+  });
+
+  it("renders derived parent heading when contiguous movements appear without explicit parent item", () => {
+    const items: SetListItem[] = [
+      { id: "1", pieceId: spheres.id, title: "The Spheres", type: "song" },
+      { id: "2", pieceId: sunrise.id, title: "Sunrise", type: "song" },
+      { id: "3", pieceId: sealLullaby.id, title: "The Seal Lullaby", type: "song" },
+    ];
+
+    const { container } = render(<SetListPreview event={event} items={items} music={catalog} />);
+    const groupEl = container.querySelector(".set-list-preview__song--group");
+    expect(groupEl?.textContent).toContain("1. Sunrise Mass");
+    expect(groupEl?.textContent).toContain("The Spheres");
+    expect(groupEl?.textContent).toContain("Sunrise");
+
+    const nextSong = container.querySelectorAll(
+      ".set-list-preview__items > .set-list-preview__song",
+    )[1];
+    expect(nextSong?.textContent).toContain("2. The Seal Lullaby");
+  });
+
+  it("renders single movement as standalone with 'from <Parent Title>' context", () => {
+    const items: SetListItem[] = [
+      { id: "1", pieceId: sunrise.id, title: "Sunrise", type: "song" },
+      { id: "2", pieceId: sealLullaby.id, title: "The Seal Lullaby", type: "song" },
+    ];
+
+    const { container } = render(<SetListPreview event={event} items={items} music={catalog} />);
+    const firstSong = container.querySelectorAll(
+      ".set-list-preview__items > .set-list-preview__song",
+    )[0];
+    expect(firstSong?.textContent).toContain("1. Sunrise");
+    const fromParent = firstSong?.querySelector(".set-list-preview__from-parent");
+    expect(fromParent?.textContent).toBe("from Sunrise Mass");
+
+    const secondSong = container.querySelectorAll(
+      ".set-list-preview__items > .set-list-preview__song",
+    )[1];
+    expect(secondSong?.textContent).toContain("2. The Seal Lullaby");
+    expect(secondSong?.querySelector(".set-list-preview__from-parent")).toBeNull();
+  });
+});

@@ -852,3 +852,124 @@ describe("formatPracticePlayerExpiration", () => {
     expect(formatted.endsWith(".")).toBe(true);
   });
 });
+
+describe("setListDocumentText multi-movement works", () => {
+  const event: OrganizationEvent = organizationEventSchema.parse({
+    createdAt: "2026-08-01T12:00:00.000Z",
+    id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e6f",
+    location: "Symphony Hall",
+    setList: [],
+    startsAt: "2026-11-15T15:00:00.000Z",
+    title: "Earth and Sky and Sea",
+    type: "Performance",
+    updatedAt: "2026-08-01T12:00:00.000Z",
+  });
+
+  const sunriseMass = piece({
+    composer: "Ola Gjeilo",
+    id: "10000000-0000-4000-8000-000000000001",
+    title: "Sunrise Mass",
+  });
+
+  const spheres = piece({
+    composer: "Ola Gjeilo",
+    id: "10000000-0000-4000-8000-000000000002",
+    parentId: sunriseMass.id,
+    title: "The Spheres",
+  });
+
+  const sunrise = piece({
+    composer: "Ola Gjeilo",
+    id: "10000000-0000-4000-8000-000000000003",
+    parentId: sunriseMass.id,
+    title: "Sunrise",
+  });
+
+  const city = piece({
+    composer: "Ola Gjeilo",
+    id: "10000000-0000-4000-8000-000000000004",
+    parentId: sunriseMass.id,
+    title: "The City",
+  });
+
+  const sealLullaby = piece({
+    composer: "Eric Whitacre",
+    id: "20000000-0000-4000-8000-000000000001",
+    title: "The Seal Lullaby",
+  });
+
+  const catalog = [sunriseMass, spheres, sunrise, city, sealLullaby];
+
+  it("formats parent + movements into one program number with indented unnumbered movements", () => {
+    const items: SetListItem[] = [
+      { id: "1", pieceId: sealLullaby.id, title: "The Seal Lullaby", type: "song" },
+      { id: "2", pieceId: sunriseMass.id, title: "Sunrise Mass", type: "song" },
+      { id: "3", pieceId: spheres.id, title: "The Spheres", type: "song" },
+      { id: "4", pieceId: sunrise.id, title: "Sunrise", type: "song" },
+      { id: "5", pieceId: city.id, title: "The City", type: "song" },
+    ];
+
+    const text = setListDocumentText(event, items, catalog);
+    expect(text).toContain("1. The Seal Lullaby ~ Eric Whitacre");
+    expect(text).toContain("2. Sunrise Mass ~ Ola Gjeilo\n   The Spheres\n   Sunrise\n   The City");
+    expect(text).not.toContain("3. The Spheres");
+  });
+
+  it("formats derived parent heading for contiguous movements without explicit parent item", () => {
+    const items: SetListItem[] = [
+      { id: "1", pieceId: spheres.id, title: "The Spheres", type: "song" },
+      { id: "2", pieceId: sunrise.id, title: "Sunrise", type: "song" },
+      { id: "3", pieceId: city.id, title: "The City", type: "song" },
+      { id: "4", pieceId: sealLullaby.id, title: "The Seal Lullaby", type: "song" },
+    ];
+
+    const text = setListDocumentText(event, items, catalog);
+    expect(text).toContain("1. Sunrise Mass ~ Ola Gjeilo\n   The Spheres\n   Sunrise\n   The City");
+    expect(text).toContain("2. The Seal Lullaby ~ Eric Whitacre");
+  });
+
+  it("formats single movement standalone with from <Parent>", () => {
+    const items: SetListItem[] = [
+      { id: "1", pieceId: city.id, title: "The City", type: "song" },
+      { id: "2", pieceId: sealLullaby.id, title: "The Seal Lullaby", type: "song" },
+    ];
+
+    const text = setListDocumentText(event, items, catalog);
+    expect(text).toContain("1. The City ~ Ola Gjeilo\n   from Sunrise Mass");
+    expect(text).toContain("2. The Seal Lullaby ~ Eric Whitacre");
+  });
+
+  it("does not regroup movements separated by an intermission", () => {
+    const items: SetListItem[] = [
+      { id: "1", pieceId: spheres.id, title: "The Spheres", type: "song" },
+      { id: "2", title: "Intermission", type: "intermission" },
+      { id: "3", pieceId: city.id, title: "The City", type: "song" },
+    ];
+
+    const text = setListDocumentText(event, items, catalog);
+    expect(text).toContain("1. The Spheres ~ Ola Gjeilo\n   from Sunrise Mass");
+    expect(text).toContain("Intermission");
+    expect(text).toContain("2. The City ~ Ola Gjeilo\n   from Sunrise Mass");
+  });
+
+  it("displays movement differing credit in plain text", () => {
+    const arrangedSpheres = piece({
+      arranger: "Dan Forrest",
+      composer: "Ola Gjeilo",
+      id: "10000000-0000-4000-8000-000000000005",
+      parentId: sunriseMass.id,
+      title: "The Spheres (arr. Forrest)",
+    });
+
+    const items: SetListItem[] = [
+      { id: "1", pieceId: sunriseMass.id, title: "Sunrise Mass", type: "song" },
+      { id: "2", pieceId: arrangedSpheres.id, title: "The Spheres", type: "song" },
+      { id: "3", pieceId: sunrise.id, title: "Sunrise", type: "song" },
+    ];
+
+    const text = setListDocumentText(event, items, [...catalog, arrangedSpheres]);
+    expect(text).toContain(
+      "1. Sunrise Mass ~ Ola Gjeilo\n   The Spheres ~ arr. Dan Forrest\n   Sunrise",
+    );
+  });
+});

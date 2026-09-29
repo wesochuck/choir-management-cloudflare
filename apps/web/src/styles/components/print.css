@@ -275,6 +275,21 @@
       break-inside: avoid;
     }
 
+    .set-list-print-view .set-list-preview__from-parent {
+      color: #333;
+      font-style: italic;
+    }
+
+    .set-list-print-view .set-list-preview__movements {
+      list-style: none;
+      padding-left: var(--spacing-lg);
+      margin: 0;
+    }
+
+    .set-list-print-view .set-list-preview__movement {
+      break-inside: avoid;
+    }
+
     .set-list-print-view .set-list-preview__intermission {
       border-color: #888;
     }

@@ -15,6 +15,37 @@ import { resolvePreferredPracticeTrack, type PreferredPracticeTrack } from "../M
 import type { PublicPlayerLinkStatus } from "../../../api/player";
 import type { SetListItem, SetListPreviewRow, SetListPrintRow } from "./types";
 import type { Resources } from "./types";
+import {
+  effectiveSetListItemArranger,
+  effectiveSetListItemComposer,
+  effectiveSetListItemNotes,
+  formatPerformerCredits,
+  groupSetListForPresentation,
+  indentedNoteLines,
+  setListBuilderCredit,
+  setListPrintedCredit,
+  type PresentationGroupEntry,
+  type PresentationIntermissionEntry,
+  type PresentationMovementItem,
+  type PresentationStandaloneEntry,
+  type SetListPresentationEntry,
+} from "./presentation";
+
+export {
+  effectiveSetListItemArranger,
+  effectiveSetListItemComposer,
+  effectiveSetListItemNotes,
+  formatPerformerCredits,
+  groupSetListForPresentation,
+  indentedNoteLines,
+  setListBuilderCredit,
+  setListPrintedCredit,
+  type PresentationGroupEntry,
+  type PresentationIntermissionEntry,
+  type PresentationMovementItem,
+  type PresentationStandaloneEntry,
+  type SetListPresentationEntry,
+};
 
 export const emptyResources: Resources = {
   events: [],
@@ -254,20 +285,6 @@ export function setListItemForEdit(
   };
 }
 
-/** Notes announced for an item: the item's own notes win, otherwise fall back
- * to the notes on the linked music library piece so catalog notes reach the
- * set list without being copied into it. */
-export function effectiveSetListItemNotes(
-  item: SetListItem,
-  music: readonly OrganizationMusicPiece[],
-): string {
-  return (
-    trimmedOrUndefined(item.notes) ??
-    trimmedOrUndefined(musicPieceForSetListItem(item, music)?.notes) ??
-    ""
-  );
-}
-
 export function durationFromSeconds(seconds: number | null): string | undefined {
   return seconds && seconds > 0 ? formatSetListDuration(seconds) : undefined;
 }
@@ -291,40 +308,6 @@ export function effectiveSetListItemDurationSeconds(
 ): number {
   const duration = effectiveSetListItemDuration(item, music);
   return duration ? (parseSetListDuration(duration) ?? 0) : 0;
-}
-
-/** Effective composer for an item: item's own composer wins, otherwise fall
- * back to the composer of the linked music piece if present. */
-export function effectiveSetListItemComposer(
-  item: SetListItem,
-  music: readonly OrganizationMusicPiece[],
-): string | undefined {
-  if (itemType(item) !== "song") return undefined;
-  return (
-    trimmedOrUndefined(item.composer) ??
-    trimmedOrUndefined(musicPieceForSetListItem(item, music)?.composer)
-  );
-}
-
-/** Effective arranger for an item: item's own arranger wins (if present),
- * otherwise fall back to the arranger of the linked music piece if present. */
-export function effectiveSetListItemArranger(
-  item: SetListItem,
-  music: readonly OrganizationMusicPiece[],
-): string | undefined {
-  if (itemType(item) !== "song") return undefined;
-  const itemCandidate: unknown = item;
-  const itemArranger =
-    typeof itemCandidate === "object" &&
-    itemCandidate !== null &&
-    "arranger" in itemCandidate &&
-    typeof itemCandidate.arranger === "string"
-      ? itemCandidate.arranger
-      : undefined;
-  return (
-    trimmedOrUndefined(itemArranger) ??
-    trimmedOrUndefined(musicPieceForSetListItem(item, music)?.arranger)
-  );
 }
 
 export function normalizeItems(items: readonly SetListItem[]): SetListItem[] {
@@ -440,40 +423,6 @@ export function setListPreviewRows(
     };
   });
 }
-export function setListPrintedCredit(
-  arranger: string | null | undefined,
-  composer: string | null | undefined,
-): string {
-  const normalizedArranger = arranger?.trim();
-  if (normalizedArranger) {
-    return `arr. ${normalizedArranger}`;
-  }
-
-  const normalizedComposer = composer?.trim();
-  return normalizedComposer ?? "";
-}
-
-/** Formats credits for the Admin Set List Builder: displays both composer and
- * arranger when both exist, or the single credit with proper formatting when only
- * one exists. Returns undefined if neither is present. */
-export function setListBuilderCredit(
-  composer: string | null | undefined,
-  arranger: string | null | undefined,
-): string | undefined {
-  const normalizedComposer = composer?.trim();
-  const normalizedArranger = arranger?.trim();
-
-  if (normalizedComposer && normalizedArranger) {
-    return `${normalizedComposer} · arr. ${normalizedArranger}`;
-  }
-  if (normalizedComposer) {
-    return normalizedComposer;
-  }
-  if (normalizedArranger) {
-    return `arr. ${normalizedArranger}`;
-  }
-  return undefined;
-}
 
 export function resolveEventVenueName(
   event: (OrganizationEvent & { venueName?: string | null }) | null | undefined,
@@ -499,6 +448,70 @@ export function resolveEventVenueName(
   return location ? location : undefined;
 }
 
+function formatIntermissionLines(
+  entry: PresentationIntermissionEntry,
+  showNotes: boolean,
+): string[] {
+  return [entry.item.title, ...(showNotes && entry.notes ? indentedNoteLines(entry.notes) : [])];
+}
+
+function formatStandaloneLines(entry: PresentationStandaloneEntry, showNotes: boolean): string[] {
+  const performers = formatPerformerCredits(entry.item);
+  const lines: string[] = [
+    `${String(entry.programNumber)}. ${entry.item.title}${entry.credit ? ` ~ ${entry.credit}` : ""}`,
+  ];
+  if (entry.parentPiece) {
+    lines.push(`   from ${entry.parentPiece.title}`);
+  }
+  if (performers) {
+    lines.push(`   Group — ${performers}`);
+  }
+  if (showNotes && entry.notes) {
+    lines.push(...indentedNoteLines(entry.notes));
+  }
+  return lines;
+}
+
+function formatGroupLines(entry: PresentationGroupEntry, showNotes: boolean): string[] {
+  const parentTitle = entry.parentItem?.title ?? entry.parentPiece.title;
+  const parentPerformers = entry.parentItem ? formatPerformerCredits(entry.parentItem) : "";
+  const lines: string[] = [
+    `${String(entry.programNumber)}. ${parentTitle}${entry.credit ? ` ~ ${entry.credit}` : ""}`,
+  ];
+  if (parentPerformers) {
+    lines.push(`   Group — ${parentPerformers}`);
+  }
+  if (showNotes && entry.notes) {
+    lines.push(...indentedNoteLines(entry.notes));
+  }
+
+  for (const movement of entry.movements) {
+    const mPerformers = formatPerformerCredits(movement.item);
+    lines.push(`   ${movement.item.title}${movement.credit ? ` ~ ${movement.credit}` : ""}`);
+    if (mPerformers) {
+      lines.push(`      Group — ${mPerformers}`);
+    }
+    if (showNotes && movement.notes) {
+      lines.push(...indentedNoteLines(movement.notes, "      "));
+    }
+  }
+
+  return lines;
+}
+
+function formatPresentationEntryLines(
+  entry: SetListPresentationEntry,
+  showNotes: boolean,
+): string[] {
+  if (entry.kind === "intermission") {
+    return formatIntermissionLines(entry, showNotes);
+  }
+  if (entry.kind === "standalone") {
+    return formatStandaloneLines(entry, showNotes);
+  }
+  return formatGroupLines(entry, showNotes);
+}
+
 export function setListDocumentText(
   event: OrganizationEvent,
   items: readonly SetListItem[],
@@ -511,7 +524,7 @@ export function setListDocumentText(
   const timing = calculateSetListTiming(items, transitionSeconds, (item) =>
     effectiveSetListItemDurationSeconds(item, music),
   );
-  const rows = setListPreviewRows(items, music);
+  const entries = groupSetListForPresentation(items, music);
   const venue = resolveEventVenueName(event, venues);
   return [
     `Set List: ${event.title}`,
@@ -523,21 +536,6 @@ export function setListDocumentText(
       ? [`Default between-song time: ${formatSetListDuration(transitionSeconds)}`]
       : []),
     "",
-    ...rows.flatMap(({ arranger, composer, kind, notes, number, performers, title }) => {
-      if (kind === "intermission") {
-        return [title, ...(showNotes && notes ? indentedNoteLines(notes) : [])];
-      }
-      const credit = setListPrintedCredit(arranger, composer);
-      return [
-        `${String(number)}. ${title}${credit ? ` ~ ${credit}` : ""}`,
-        ...(performers ? [`   Group — ${performers}`] : []),
-        ...(showNotes && notes ? indentedNoteLines(notes) : []),
-      ];
-    }),
+    ...entries.flatMap((entry) => formatPresentationEntryLines(entry, showNotes)),
   ].join("\n");
-}
-
-function indentedNoteLines(notes: string): string[] {
-  const [firstLine, ...restLines] = notes.split("\n");
-  return [`   Notes: ${firstLine ?? ""}`, ...restLines.map((line) => `   ${line}`)];
 }
