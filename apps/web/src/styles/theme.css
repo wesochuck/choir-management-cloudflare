@@ -43,6 +43,7 @@
 @import "./components/music-settings.css";
 
 /* Public site & ticketing */
+@import "./components/buttons.css";
 @import "./components/public-site.css";
 @import "./components/public-ticket-receipts.css";
 @import "./components/ticketing-donations.css";

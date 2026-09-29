@@ -44,6 +44,7 @@ import {
   singerEventsResponseSchema,
   singerSeatingResponseSchema,
   moduleStatesResponseSchema,
+  nonprofitComplianceSettingsResponseSchema,
   organizationSeatingChartsResponseSchema,
   setupStatusSchema,
   type AccountOrganization,
@@ -474,6 +475,12 @@ export function buildRsvpHistoryEntry(
 export function buildCalendarSettingsResponse(timezone = "America/New_York") {
   return validated({ requestId: defaultFixtureRequestId, timezone }, (value) =>
     organizationCalendarSettingsResponseSchema.parse(value),
+  );
+}
+
+export function buildNonprofitComplianceSettingsResponse(enabled = false) {
+  return validated({ enabled, requestId: defaultFixtureRequestId, tasks: [] }, (value) =>
+    nonprofitComplianceSettingsResponseSchema.parse(value),
   );
 }
 

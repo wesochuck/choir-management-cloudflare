@@ -1,12 +1,12 @@
 /* === Practice Player standalone stylesheet ===
  * Minimal critical stylesheet for public /player route.
  */
-@layer tokens, base, components;
-
 @import "../main.css";
+@layer tokens, base, components;
 @import "./tokens.css";
 @import "./base.css";
 @import "./components/forms-layouts.css";
 @import "./components/overlays.css";
 @import "./components/auth-account.css";
+@import "./components/buttons.css";
 @import "./components/player.css";
