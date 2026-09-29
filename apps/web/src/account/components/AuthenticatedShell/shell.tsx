@@ -706,6 +706,7 @@ export function AuthenticatedShell({
               route.pathname.startsWith("/admin/communications")
                 ? "signed-in-main--communications"
                 : "",
+              route.pathname.startsWith("/admin/seating") ? "signed-in-main--seating" : "",
               workspace === "platform" ? "signed-in-main--platform" : "",
             ]
               .filter(Boolean)

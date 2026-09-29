@@ -291,12 +291,21 @@
 
   /* Focused seating editor workspace */
 
+  /* Wide workspace treatment for seating */
+  .signed-in-main.signed-in-main--seating,
+  .signed-in-main:has(.seating-workspace) {
+    width: 100%;
+    max-width: 100%;
+    padding: clamp(var(--spacing-md), 2vw, var(--spacing-lg))
+      clamp(var(--spacing-sm), 1.5vw, var(--spacing-md)) 3rem;
+  }
+
   /* Focused seating editor */
   .seating-workspace {
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-xs);
   }
 
   .seating-workspace:fullscreen,
@@ -317,8 +326,8 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: var(--spacing-md);
-    padding-block: var(--spacing-3xs);
+    gap: var(--spacing-sm);
+    padding-block: 0;
   }
 
   .seating-page-heading > div:first-child {
@@ -326,7 +335,7 @@
   }
 
   .seating-page-heading h1 {
-    margin: var(--spacing-3xs) 0 0;
+    margin: 0;
   }
 
   .seating-page-heading p:last-child {
@@ -351,7 +360,7 @@
   .seating-tabs button {
     border: 0;
     border-bottom: 2px solid transparent;
-    padding: var(--spacing-xs) var(--spacing-sm);
+    padding: var(--spacing-2xs) var(--spacing-sm);
     color: var(--color-text-muted);
     background: transparent;
     font-weight: var(--font-weight-extrabold);
@@ -366,22 +375,22 @@
   .seating-tab-panel {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-sm);
+    gap: var(--spacing-xs);
     min-width: 0;
   }
 
   .seating-chart-content {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-xs);
     min-width: 0;
   }
 
   .seating-toolbar-card {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-sm);
-    padding: var(--spacing-sm) var(--spacing-md);
+    gap: var(--spacing-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface-raised);
@@ -623,17 +632,35 @@
     min-width: 0;
     flex-direction: column;
     align-items: stretch;
-    gap: var(--spacing-xs);
-    padding: clamp(var(--spacing-sm), 1.5vw, var(--spacing-lg));
+    gap: var(--spacing-2xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface-raised);
   }
 
+  .seating-editor-canvas > .button--small {
+    align-self: center;
+    min-height: 1.85rem;
+    padding: var(--spacing-3xs) var(--spacing-md);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--color-border) 80%, transparent);
+    background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+  }
+
+  .seating-editor-canvas > .button--small:hover,
+  .seating-editor-canvas > .button--small:focus-visible {
+    border-style: solid;
+    border-color: var(--color-accent);
+    background: var(--color-surface);
+  }
+
   .seating-stage-marker {
     align-self: center;
-    min-width: min(22rem, 65%);
-    padding: var(--spacing-2xs) var(--spacing-md);
+    min-width: min(20rem, 60%);
+    padding: var(--spacing-3xs) var(--spacing-md);
     border: 1px solid color-mix(in srgb, var(--color-accent) 50%, var(--color-border));
     border-radius: var(--radius-full);
     color: var(--color-text-muted);
@@ -648,7 +675,7 @@
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: clamp(var(--spacing-2xs), 0.8vw, var(--spacing-sm));
+    gap: var(--spacing-2xs);
     overflow-x: auto;
     overflow-y: visible;
     padding: var(--spacing-3xs);
@@ -659,40 +686,52 @@
   .seating-row--canvas {
     display: grid;
     grid-template-columns:
-      minmax(4.4rem, 7rem) 1.6rem repeat(var(--seating-seat-count), minmax(3rem, 1fr))
-      1.7rem;
+      3.85rem 1.45rem repeat(var(--seating-seat-count), minmax(3rem, 1fr))
+      1.45rem;
     align-items: stretch;
-    gap: clamp(var(--spacing-3xs), 0.6vw, var(--spacing-xs));
+    gap: var(--spacing-2xs);
     min-width: min-content;
   }
 
   .seating-row-label--canvas {
     display: flex;
-    min-width: 4.4rem;
+    min-width: 0;
+    width: 100%;
     flex-direction: column;
     justify-content: center;
     align-items: flex-end;
     gap: var(--spacing-3xs);
-    padding-right: var(--spacing-2xs);
+    padding-right: var(--spacing-3xs);
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
     text-align: right;
+    line-height: var(--line-height-tight, 1.2);
+  }
+
+  .seating-row-label--canvas strong {
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
   }
 
   .seating-row-label--canvas span {
     font-size: var(--font-size-xs);
+    white-space: nowrap;
   }
 
   .seating-row-action-btn {
     align-self: center;
-    width: 1.65rem;
-    min-height: 1.65rem;
+    width: 1.45rem;
+    min-height: 1.45rem;
     padding: 0;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-full);
     color: var(--color-text-muted);
     background: var(--color-surface);
     cursor: pointer;
+    display: inline-grid;
+    place-items: center;
+    font-size: var(--font-size-sm);
+    line-height: 1;
   }
 
   .seating-row-action-btn:hover,
@@ -1281,7 +1320,7 @@
     }
 
     .seating-row--canvas {
-      grid-template-columns: 4.2rem 1.45rem repeat(var(--seating-seat-count), 4.4rem) 1.5rem;
+      grid-template-columns: 3.85rem 1.45rem repeat(var(--seating-seat-count), 4.4rem) 1.45rem;
     }
 
     .seating-seat--canvas {
