@@ -1,3 +1,4 @@
+import { NumberInput } from "@choir/ui";
 import { formatSetListDuration, moveSetListItem } from "@choir/domain";
 import {
   Fragment,
@@ -869,13 +870,12 @@ export function SetListManagerView({
                 <span className="set-list-field-label">Default time between songs</span>
               </label>
               <div className="set-list-inline-control">
-                <input
+                <NumberInput
                   aria-describedby="set-list-transition-help"
                   disabled={busy}
                   id="set-list-transition-seconds"
                   max={3600}
                   min={0}
-                  type="number"
                   value={defaultTransitionSeconds}
                   onChange={(event) => {
                     const parsed = Number.parseInt(event.target.value, 10);

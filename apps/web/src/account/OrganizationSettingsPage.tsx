@@ -21,7 +21,7 @@ import type {
   TransactionFeeSettings,
 } from "@choir/contracts";
 import { transactionProcessingFeeCents } from "@choir/domain";
-import { useConfirmation } from "@choir/ui";
+import { NumberInput, useConfirmation } from "@choir/ui";
 import { usePersistedDraft } from "../persistence";
 
 const fallbackTimeZones = [
@@ -413,7 +413,7 @@ function TransactionFeeSettingsSection({
           <div className="settings-grid">
             <div className="field">
               <label htmlFor="transaction-fee-percentage">Percentage (%)</label>
-              <input
+              <NumberInput
                 id="transaction-fee-percentage"
                 max="99.99"
                 min="0"
@@ -424,7 +424,6 @@ function TransactionFeeSettingsSection({
                   }));
                 }}
                 step="0.01"
-                type="number"
                 value={transactionFeeSettings.percentage}
               />
             </div>

@@ -143,6 +143,29 @@ it("keeps newer edits dirty when a previous save finishes", async () => {
   expect(screen.getByRole("region", { name: "Unsaved changes" })).toBeInTheDocument();
 });
 
+it("allows clearing recurrence and saves the replacement without a leading zero", async () => {
+  const { user } = await setup();
+  await user.click(firstButton("Edit"));
+  const input = screen.getByLabelText("Recurrence (months)");
+  await user.clear(input);
+  expect(input).toHaveValue(null);
+  expect(api.updateComplianceTask).not.toHaveBeenCalled();
+  await user.type(input, "24");
+  await user.click(
+    within(screen.getByRole("region", { name: "Unsaved changes" })).getByRole("button", {
+      name: "Save changes",
+    }),
+  );
+  await waitFor(() => {
+    expect(api.updateComplianceTask).toHaveBeenCalledWith(settings.tasks[0]?.id, {
+      applicable: true,
+      nextDueDate: date,
+      recurrenceMonths: 24,
+    });
+  });
+  expect(input).toHaveValue(24);
+});
+
 it("uses a focus-trapped completion dialog with guarded dismissal and focus restoration", async () => {
   const { user } = await setup();
   const trigger = firstButton("Mark completed");

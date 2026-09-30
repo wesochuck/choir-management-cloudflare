@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { OrganizationMusicLibrarySettings, OrganizationMusicPiece } from "@choir/contracts";
-import { DataTable, type DataTableColumn, useConfirmation } from "@choir/ui";
+import { NumberInput, DataTable, type DataTableColumn, useConfirmation } from "@choir/ui";
 import {
   AuthApiError,
   batchAddOrganizationMusicGenres,
@@ -113,11 +113,10 @@ function MusicPracticeSettingsSection({
       <div className="music-practice-settings__form form-stack">
         <div className="field">
           <label htmlFor="music-practice-lifetime-days">Link lifetime (days)</label>
-          <input
+          <NumberInput
             id="music-practice-lifetime-days"
             min="1"
             max="3650"
-            type="number"
             value={lifetimeDays}
             onChange={(event) => {
               onLifetimeChange(Number(event.target.value));

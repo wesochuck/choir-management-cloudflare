@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { NumberInput } from "@choir/ui";
 
 import type { PracticeTrackSource } from "../source";
 
@@ -35,14 +36,13 @@ export function PlayerRehearsalOptions({
         <label className="public-player__option">
           <span>Start track at</span>
           <span className="public-player__inline-input">
-            <input
+            <NumberInput
               inputMode="decimal"
               min={0}
               onChange={(event) => {
                 onChangeStartAt(event.target.value);
               }}
               step={1}
-              type="number"
               value={startAt}
             />
             <small>seconds</small>

@@ -16,6 +16,7 @@ export { ConfirmDialog, type ConfirmationOptions } from "./ConfirmDialog";
 export { Dialog, DialogClose, DialogFooter, type DialogProps } from "./Dialog";
 export { DropdownMenu } from "./DropdownMenu";
 export { Autocomplete, type AutocompleteOption } from "./Autocomplete";
+export { NumberInput } from "./NumberInput";
 export { Sheet } from "./Sheet";
 export { Tabs, TabsContent, TabsList, TabsTrigger } from "./Tabs";
 export { useConfirmation } from "./useConfirmation";

@@ -1,5 +1,5 @@
 import type { OrganizationEvent, TicketBundle } from "@choir/contracts";
-import { Dialog, DialogClose } from "@choir/ui";
+import { Dialog, DialogClose, NumberInput } from "@choir/ui";
 import type { Dispatch, SetStateAction, SyntheticEvent } from "react";
 
 import type { DiscountDraft } from "./shared";
@@ -126,19 +126,18 @@ export function DiscountCodeForm({
                   ? "Percentage (1–100)"
                   : "Amount per unit (USD)"}
               </label>
-              <input
+              <NumberInput
                 id="discount-value"
                 required
                 min={discountDraft.discountType === "percentage" ? 1 : 0}
                 max={discountDraft.discountType === "percentage" ? 100 : undefined}
                 step={discountDraft.discountType === "percentage" ? 1 : 0.01}
-                type="number"
                 value={fixedValue}
                 onChange={(event) => {
                   setDiscountDraft((current) => ({
                     ...current,
                     discountValue:
-                      current.discountType === "fixed"
+                      current.discountType === "fixed" && event.target.value !== ""
                         ? String(Math.round(Number(event.target.value) * 100))
                         : event.target.value,
                   }));

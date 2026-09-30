@@ -1,5 +1,5 @@
 import { clearSeatAssignment, moveAssignment } from "@choir/domain";
-import { Dialog, DialogClose } from "@choir/ui";
+import { NumberInput, Dialog, DialogClose } from "@choir/ui";
 import type {
   OrganizationEvent,
   OrganizationProfile,
@@ -85,26 +85,24 @@ function ChartDialog({
             <div className="form-grid seating-chart-create-fields">
               <label className="field">
                 Singers to place
-                <input
+                <NumberInput
                   aria-describedby="seating-chart-rsvp-help"
                   max={4_000}
                   min={0}
                   onChange={(event) => {
                     changeNewChartSingerCount(event.target.valueAsNumber);
                   }}
-                  type="number"
                   value={newChartSingerCount}
                 />
               </label>
               <label className="field">
                 Rows
-                <input
+                <NumberInput
                   max={maxNewChartRows}
                   min={1}
                   onChange={(event) => {
                     changeNewChartRowCount(event.target.valueAsNumber);
                   }}
-                  type="number"
                   value={newChartRowCount}
                 />
               </label>

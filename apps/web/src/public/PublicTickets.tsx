@@ -1,3 +1,4 @@
+import { NumberInput } from "@choir/ui";
 import type {
   PublishedOrganizationProjection,
   PublicTicketReceipt,
@@ -1301,11 +1302,10 @@ function TicketPurchaseForm({
         </label>
         <label className="field">
           Quantity
-          <input
+          <NumberInput
             min="1"
             max="10"
             step="1"
-            type="number"
             value={quantity}
             onChange={(e) => {
               const raw = Number(e.target.value);
@@ -1510,11 +1510,10 @@ export function TicketBundlePurchaseForm({
         </label>
         <label className="field">
           Quantity
-          <input
+          <NumberInput
             min="1"
             max="10"
             step="1"
-            type="number"
             value={quantity}
             onChange={(event) => {
               const raw = Number(event.target.value);

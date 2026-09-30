@@ -1,3 +1,4 @@
+import { NumberInput } from "@choir/ui";
 import type {
   OrganizationProfile,
   OrganizationRosterAutomationPreviewResponse,
@@ -116,7 +117,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
               <div className="settings-grid">
                 <label className="field" htmlFor="status-automation-threshold">
                   Consecutive missed Performances
-                  <input
+                  <NumberInput
                     id="status-automation-threshold"
                     min="1"
                     max="10"
@@ -129,7 +130,6 @@ export function RosterAutomationSettings({ enabled }: Props) {
                         ),
                       });
                     }}
-                    type="number"
                     value={configuration.statusAutomationMissThreshold}
                   />
                 </label>
@@ -170,7 +170,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
               </label>
               <label className="field" htmlFor="on-break-timeout-days">
                 Days on Break before Inactive
-                <input
+                <NumberInput
                   id="on-break-timeout-days"
                   min="1"
                   max="3650"
@@ -183,7 +183,6 @@ export function RosterAutomationSettings({ enabled }: Props) {
                       ),
                     });
                   }}
-                  type="number"
                   value={configuration.onBreakTimeoutDays}
                 />
               </label>
@@ -222,7 +221,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
               </label>
               <label className="field" htmlFor="rsvp-follow-up-lead-hours">
                 Hours before the RSVP deadline
-                <input
+                <NumberInput
                   id="rsvp-follow-up-lead-hours"
                   min="1"
                   max="720"
@@ -235,13 +234,12 @@ export function RosterAutomationSettings({ enabled }: Props) {
                       ),
                     });
                   }}
-                  type="number"
                   value={configuration.rsvpFollowUpLeadHours}
                 />
               </label>
               <label className="field" htmlFor="attendance-report-warning-threshold">
                 Rehearsal misses before an attendance warning
-                <input
+                <NumberInput
                   id="attendance-report-warning-threshold"
                   min="1"
                   max="10"
@@ -254,7 +252,6 @@ export function RosterAutomationSettings({ enabled }: Props) {
                       ),
                     });
                   }}
-                  type="number"
                   value={configuration.attendanceReportWarningThreshold}
                 />
               </label>

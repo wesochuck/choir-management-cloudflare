@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Dialog, DialogClose, useConfirmation } from "@choir/ui";
+import { NumberInput, Dialog, DialogClose, useConfirmation } from "@choir/ui";
 import { usePersistedDraft } from "../persistence";
 import type {
   NonprofitComplianceSettingsResponse,
@@ -354,14 +354,13 @@ export function OrganizationNonprofitCompliancePanel({
                               <label htmlFor={`task-recurrence-${task.id}`}>
                                 Recurrence (months)
                               </label>
-                              <input
+                              <NumberInput
                                 id={`task-recurrence-${task.id}`}
                                 max={120}
                                 min={1}
                                 onChange={(e) => {
                                   editor.updateField("recurrenceMonths", Number(e.target.value));
                                 }}
-                                type="number"
                                 value={editor.draft?.recurrenceMonths ?? task.recurrenceMonths}
                               />
                             </div>

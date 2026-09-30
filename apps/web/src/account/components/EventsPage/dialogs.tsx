@@ -1,5 +1,5 @@
 import type { OrganizationEvent, OrganizationEventRequest } from "@choir/contracts";
-import { Dialog, DialogClose } from "@choir/ui";
+import { NumberInput, Dialog, DialogClose } from "@choir/ui";
 import { type Dispatch, type DragEvent, type SetStateAction, useState } from "react";
 import { dayOfPriceStartLabel } from "../../eventPricing";
 import { QRCodeShareCard } from "../../QRCodeShareCard";
@@ -228,7 +228,7 @@ export function EventEditorDialog({
               {event.rsvpFollowUpMode === "enabled" ? (
                 <label className="field" htmlFor="events-page-rsvp-follow-up-hours">
                   Hours before deadline
-                  <input
+                  <NumberInput
                     id="events-page-rsvp-follow-up-hours"
                     min={1}
                     max={720}
@@ -241,7 +241,6 @@ export function EventEditorDialog({
                         ),
                       }));
                     }}
-                    type="number"
                     value={event.rsvpFollowUpLeadHours ?? 48}
                   />
                 </label>
