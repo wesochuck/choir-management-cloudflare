@@ -9,6 +9,16 @@ interface OfflineAudioRecord {
   readonly source: OfflineAudioSource | null;
 }
 
+export interface OfflineAudioMetadata {
+  readonly fileId: string;
+  readonly key: string;
+  readonly organizationId: string | null;
+  readonly savedAt: number;
+  readonly scope: string;
+  readonly sizeBytes: number;
+  readonly source: OfflineAudioSource | null;
+}
+
 export interface SaveOfflineAudioDetails {
   readonly organizationId?: string;
   readonly source?: OfflineAudioSource;
@@ -23,8 +33,9 @@ export interface OfflineStorageEntry {
 export const OFFLINE_AUDIO_CAP_BYTES = 300 * 1024 * 1024;
 
 const databaseName = "choir-private-media";
-const storeName = "audio";
-const databaseVersion = 1;
+const audioStoreName = "audio";
+const metadataStoreName = "audioMetadata";
+const databaseVersion = 2;
 const activeUrls = new Map<string, string>();
 
 function recordKey(scope: string, fileId: string): string {
@@ -57,9 +68,49 @@ function openDatabase(): Promise<IDBDatabase> {
       reject(new Error("Offline media storage upgrade was blocked by another tab."));
     };
 
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains(storeName)) {
-        request.result.createObjectStore(storeName, { keyPath: "key" });
+    request.onupgradeneeded = (event) => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(audioStoreName)) {
+        db.createObjectStore(audioStoreName, { keyPath: "key" });
+      }
+      let metaStore: IDBObjectStore;
+      if (!db.objectStoreNames.contains(metadataStoreName)) {
+        metaStore = db.createObjectStore(metadataStoreName, { keyPath: "key" });
+        metaStore.createIndex("scope", "scope", { unique: false });
+      } else {
+        const tx = request.transaction;
+        if (tx) {
+          metaStore = tx.objectStore(metadataStoreName);
+        } else {
+          return;
+        }
+      }
+
+      if (event.oldVersion < 2 && event.oldVersion > 0) {
+        const tx = request.transaction;
+        if (!tx) return;
+        const audioStore = tx.objectStore(audioStoreName);
+        const cursorReq = audioStore.openCursor();
+        cursorReq.onsuccess = () => {
+          const cursor = cursorReq.result;
+          if (cursor) {
+            const rec = offlineRecord(cursor.value);
+            if (rec) {
+              const key =
+                typeof cursor.key === "string" ? cursor.key : recordKey(rec.scope, rec.fileId);
+              metaStore.put({
+                fileId: rec.fileId,
+                key,
+                organizationId: rec.organizationId,
+                savedAt: rec.savedAt,
+                scope: rec.scope,
+                sizeBytes: rec.blob.size,
+                source: rec.source,
+              });
+            }
+            cursor.continue();
+          }
+        };
       }
     };
 
@@ -111,6 +162,20 @@ function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   });
 }
 
+function awaitTransaction(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => {
+      resolve();
+    };
+    tx.onabort = () => {
+      reject(tx.error ?? new Error("Offline media transaction aborted."));
+    };
+    tx.onerror = () => {
+      reject(tx.error ?? new Error("Offline media transaction failed."));
+    };
+  });
+}
+
 function releaseUrl(key: string): void {
   const url = activeUrls.get(key);
   if (!url) return;
@@ -118,7 +183,8 @@ function releaseUrl(key: string): void {
   activeUrls.delete(key);
 }
 
-function recordBlob(value: object): Blob | null {
+function recordBlob(value: unknown): Blob | null {
+  if (typeof value !== "object" || value === null) return null;
   if (!("blob" in value) || !(value.blob instanceof Blob)) return null;
   return value.blob;
 }
@@ -149,6 +215,27 @@ function offlineSource(value: object): OfflineAudioSource | null {
   return value.source;
 }
 
+function offlineMetadataRecord(value: unknown): OfflineAudioMetadata | null {
+  if (typeof value !== "object" || value === null) return null;
+  const fileId = recordFileId(value);
+  const savedAt = recordSavedAt(value);
+  const scope = recordScope(value);
+  if (!fileId || savedAt === null || !scope) return null;
+  const key =
+    "key" in value && typeof value.key === "string" ? value.key : recordKey(scope, fileId);
+  const sizeBytes =
+    "sizeBytes" in value && typeof value.sizeBytes === "number" ? value.sizeBytes : 0;
+  return {
+    fileId,
+    key,
+    organizationId: optionalOrganizationId(value),
+    savedAt,
+    scope,
+    sizeBytes,
+    source: offlineSource(value),
+  };
+}
+
 function offlineRecord(value: unknown): OfflineAudioRecord | null {
   if (typeof value !== "object" || value === null) return null;
   const blob = recordBlob(value);
@@ -166,17 +253,18 @@ function offlineRecord(value: unknown): OfflineAudioRecord | null {
   };
 }
 
-async function readScopeRecords(
+async function readScopeMetadata(
   database: IDBDatabase,
   scope: string,
-): Promise<readonly OfflineAudioRecord[]> {
-  const result: unknown = await requestResult(
-    database.transaction(storeName, "readonly").objectStore(storeName).getAll(),
-  );
+): Promise<readonly OfflineAudioMetadata[]> {
+  const tx = database.transaction(metadataStoreName, "readonly");
+  const store = tx.objectStore(metadataStoreName);
+  const index = store.index("scope");
+  const result: unknown = await requestResult(index.getAll(scope));
   const records = Array.isArray(result)
-    ? result.flatMap((value) => offlineRecord(value) ?? [])
+    ? result.flatMap((value) => offlineMetadataRecord(value) ?? [])
     : [];
-  return records.filter((record) => record.scope === scope);
+  return records;
 }
 
 /**
@@ -204,15 +292,16 @@ export function planOfflineEvictions(
 }
 
 async function deleteOfflineRecord(database: IDBDatabase, key: string): Promise<void> {
-  await requestResult(
-    database.transaction(storeName, "readwrite").objectStore(storeName).delete(key),
-  );
+  const tx = database.transaction([audioStoreName, metadataStoreName], "readwrite");
+  tx.objectStore(audioStoreName).delete(key);
+  tx.objectStore(metadataStoreName).delete(key);
+  await awaitTransaction(tx);
   releaseUrl(key);
 }
 
 export async function listOfflineAudioIds(scope: string): Promise<ReadonlySet<string>> {
   const database = await openDatabase();
-  const records = await readScopeRecords(database, scope);
+  const records = await readScopeMetadata(database, scope);
   return new Set(records.map(({ fileId }) => fileId));
 }
 
@@ -230,33 +319,43 @@ export async function saveOfflineAudio(
   }
   const key = recordKey(scope, fileId);
   const database = await openDatabase();
-  await requestResult(
-    database
-      .transaction(storeName, "readwrite")
-      .objectStore(storeName)
-      .put({
-        blob,
-        fileId,
-        key,
-        organizationId: details.organizationId ?? null,
-        savedAt: Date.now(),
-        scope,
-        source: details.source ?? null,
-      }),
-  );
+  const tx = database.transaction([audioStoreName, metadataStoreName], "readwrite");
+  tx.objectStore(audioStoreName).put({
+    blob,
+    key,
+  });
+  tx.objectStore(metadataStoreName).put({
+    fileId,
+    key,
+    organizationId: details.organizationId ?? null,
+    savedAt: Date.now(),
+    scope,
+    sizeBytes: blob.size,
+    source: details.source ?? null,
+  });
+  await awaitTransaction(tx);
   releaseUrl(key);
-  const records = await readScopeRecords(database, scope);
+
+  const records = await readScopeMetadata(database, scope);
   const victims = planOfflineEvictions(
     records.map((record) => ({
-      key: recordKey(record.scope, record.fileId),
+      key: record.key,
       savedAt: record.savedAt,
-      sizeBytes: record.blob.size,
+      sizeBytes: record.sizeBytes,
     })),
     OFFLINE_AUDIO_CAP_BYTES,
     key,
   );
-  for (const victim of victims) {
-    await deleteOfflineRecord(database, victim);
+  if (victims.length > 0) {
+    const evictTx = database.transaction([audioStoreName, metadataStoreName], "readwrite");
+    const audioStore = evictTx.objectStore(audioStoreName);
+    const metaStore = evictTx.objectStore(metadataStoreName);
+    for (const victim of victims) {
+      audioStore.delete(victim);
+      metaStore.delete(victim);
+      releaseUrl(victim);
+    }
+    await awaitTransaction(evictTx);
   }
 }
 
@@ -266,11 +365,11 @@ export async function offlineAudioUrl(scope: string, fileId: string): Promise<st
   if (active) return active;
   const database = await openDatabase();
   const result: unknown = await requestResult(
-    database.transaction(storeName, "readonly").objectStore(storeName).get(key),
+    database.transaction(audioStoreName, "readonly").objectStore(audioStoreName).get(key),
   );
-  const record = offlineRecord(result);
-  if (!record?.blob) return null;
-  const url = URL.createObjectURL(record.blob);
+  const blob = recordBlob(result);
+  if (!blob) return null;
+  const url = URL.createObjectURL(blob);
   activeUrls.set(key, url);
   return url;
 }
@@ -290,11 +389,18 @@ export async function purgeOfflineAudioForOrganization(
   organizationId: string,
 ): Promise<number> {
   const database = await openDatabase();
-  const records = await readScopeRecords(database, scope);
+  const records = await readScopeMetadata(database, scope);
   const doomed = records.filter((record) => record.organizationId === organizationId);
+  if (doomed.length === 0) return 0;
+  const tx = database.transaction([audioStoreName, metadataStoreName], "readwrite");
+  const audioStore = tx.objectStore(audioStoreName);
+  const metaStore = tx.objectStore(metadataStoreName);
   for (const record of doomed) {
-    await deleteOfflineRecord(database, recordKey(record.scope, record.fileId));
+    audioStore.delete(record.key);
+    metaStore.delete(record.key);
+    releaseUrl(record.key);
   }
+  await awaitTransaction(tx);
   return doomed.length;
 }
 
@@ -309,12 +415,25 @@ export async function purgeOfflineAudioForSource(
   source: OfflineAudioSource,
 ): Promise<number> {
   const database = await openDatabase();
-  const records = await readScopeRecords(database, scope);
+  const records = await readScopeMetadata(database, scope);
   const doomed = records.filter((record) => record.source === source);
+  if (doomed.length === 0) return 0;
+  const tx = database.transaction([audioStoreName, metadataStoreName], "readwrite");
+  const audioStore = tx.objectStore(audioStoreName);
+  const metaStore = tx.objectStore(metadataStoreName);
   for (const record of doomed) {
-    await deleteOfflineRecord(database, recordKey(record.scope, record.fileId));
+    audioStore.delete(record.key);
+    metaStore.delete(record.key);
+    releaseUrl(record.key);
   }
+  await awaitTransaction(tx);
   return doomed.length;
+}
+
+async function deletePlayerMetadataRecord(database: IDBDatabase, key: string): Promise<void> {
+  await requestResult(
+    database.transaction(audioStoreName, "readwrite").objectStore(audioStoreName).delete(key),
+  );
 }
 
 const DEFAULT_METADATA_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days retention
@@ -328,8 +447,8 @@ export async function saveCachedPlayerMetadata(
   const database = await openDatabase();
   await requestResult(
     database
-      .transaction(storeName, "readwrite")
-      .objectStore(storeName)
+      .transaction(audioStoreName, "readwrite")
+      .objectStore(audioStoreName)
       .put({
         details,
         key: `metadata:${scope}:${key}`,
@@ -348,13 +467,13 @@ export async function getCachedPlayerMetadata(
   const database = await openDatabase();
   const storageKey = `metadata:${scope}:${key}`;
   const result: unknown = await requestResult(
-    database.transaction(storeName, "readonly").objectStore(storeName).get(storageKey),
+    database.transaction(audioStoreName, "readonly").objectStore(audioStoreName).get(storageKey),
   );
   if (typeof result === "object" && result !== null && "details" in result) {
     if ("savedAt" in result && typeof result.savedAt === "number") {
       if (Date.now() - result.savedAt >= maxAgeMs) {
         // Expired metadata: lazily evict from IndexedDB
-        void deleteOfflineRecord(database, storageKey).catch(() => undefined);
+        void deletePlayerMetadataRecord(database, storageKey).catch(() => undefined);
         return null;
       }
     }
@@ -373,13 +492,13 @@ export async function purgeCachedPlayerMetadata(scope: string): Promise<number> 
   const database = await openDatabase();
   const prefix = `metadata:${scope}:`;
   const result: unknown = await requestResult(
-    database.transaction(storeName, "readonly").objectStore(storeName).getAll(),
+    database.transaction(audioStoreName, "readonly").objectStore(audioStoreName).getAll(),
   );
   if (!Array.isArray(result)) return 0;
   let purged = 0;
   for (const item of result) {
     if (isObjectWithKey(item) && item.key.startsWith(prefix)) {
-      await deleteOfflineRecord(database, item.key);
+      await deletePlayerMetadataRecord(database, item.key);
       purged += 1;
     }
   }

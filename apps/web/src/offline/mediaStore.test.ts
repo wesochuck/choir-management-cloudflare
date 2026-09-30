@@ -23,7 +23,7 @@ interface MockDatabase {
   onclose: (() => void) | null;
   onerror: (() => void) | null;
   onversionchange: (() => void) | null;
-  transaction: () => { objectStore: () => unknown };
+  transaction: ReturnType<typeof vi.fn>;
 }
 
 function successfulRequest<T>(result: T): FakeRequest<T> {
@@ -35,20 +35,50 @@ function successfulRequest<T>(result: T): FakeRequest<T> {
 }
 
 function installIndexedDatabase() {
-  const records = new Map<string, unknown>();
+  const audioRecords = new Map<string, unknown>();
+  const metadataRecords = new Map<string, unknown>();
   const activeDatabases: MockDatabase[] = [];
-  const store = {
-    delete: (key: string) => {
-      records.delete(key);
+
+  const audioStore = {
+    delete: vi.fn((key: string) => {
+      audioRecords.delete(key);
       return successfulRequest(undefined);
-    },
-    get: (key: string) => successfulRequest(records.get(key)),
-    getAll: () => successfulRequest([...records.values()]),
-    put: (record: { readonly key: string }) => {
-      records.set(record.key, record);
+    }),
+    get: vi.fn((key: string) => successfulRequest(audioRecords.get(key))),
+    getAll: vi.fn(() => successfulRequest([...audioRecords.values()])),
+    put: vi.fn((record: { readonly key: string }) => {
+      audioRecords.set(record.key, record);
       return successfulRequest(record.key);
-    },
+    }),
   };
+
+  const metadataIndex = {
+    getAll: vi.fn((scope: string) => {
+      const matched = [...metadataRecords.values()].filter(
+        (rec): rec is { readonly scope: string } =>
+          typeof rec === "object" && rec !== null && "scope" in rec && rec.scope === scope,
+      );
+      return successfulRequest(matched);
+    }),
+  };
+
+  const metadataStore = {
+    delete: vi.fn((key: string) => {
+      metadataRecords.delete(key);
+      return successfulRequest(undefined);
+    }),
+    get: vi.fn((key: string) => successfulRequest(metadataRecords.get(key))),
+    getAll: vi.fn(() => successfulRequest([...metadataRecords.values()])),
+    index: vi.fn((name: string) => {
+      if (name === "scope") return metadataIndex;
+      throw new Error(`Unknown index ${name}`);
+    }),
+    put: vi.fn((record: { readonly key: string }) => {
+      metadataRecords.set(record.key, record);
+      return successfulRequest(record.key);
+    }),
+  };
+
   const openFn = vi.fn<() => FakeRequest<MockDatabase>>(() => {
     let isClosed = false;
     const database: MockDatabase = {
@@ -62,7 +92,21 @@ function installIndexedDatabase() {
       onclose: null,
       onerror: null,
       onversionchange: null,
-      transaction: () => ({ objectStore: () => store }),
+      transaction: vi.fn(() => {
+        const tx = {
+          objectStore: (name: string) => {
+            if (name === "audioMetadata") return metadataStore;
+            return audioStore;
+          },
+          onabort: null as (() => void) | null,
+          oncomplete: null as (() => void) | null,
+          onerror: null as (() => void) | null,
+        };
+        queueMicrotask(() => {
+          tx.oncomplete?.();
+        });
+        return tx;
+      }),
     };
     activeDatabases.push(database);
     return successfulRequest(database);
@@ -72,8 +116,12 @@ function installIndexedDatabase() {
   });
   return {
     activeDatabases,
+    audioRecords,
+    audioStore,
+    metadataIndex,
+    metadataStore,
+    metadataRecords,
     openFn,
-    records,
   };
 }
 
@@ -279,7 +327,11 @@ describe("offline IndexedDB connection lifecycle", () => {
         onclose: null,
         onerror: null,
         onversionchange: null,
-        transaction: () => ({ objectStore: () => ({ getAll: () => successfulRequest([]) }) }),
+        transaction: vi.fn(() => ({
+          objectStore: () => ({
+            index: () => ({ getAll: () => successfulRequest([]) }),
+          }),
+        })),
       };
       return successfulRequest(database);
     });
@@ -331,5 +383,143 @@ describe("offline IndexedDB connection lifecycle", () => {
     // Next operation should still reuse the new connection without re-opening
     await listOfflineAudioIds("alpha.localhost");
     expect(harness.openFn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("scoped metadata storage and eviction", () => {
+  it("lists IDs using scoped metadata index without accessing audio blob records", async () => {
+    const harness = installIndexedDatabase();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(new Blob(["audio-bytes"], { type: "audio/mpeg" }), { status: 200 }),
+        ),
+      ),
+    );
+    await saveOfflineAudio("scope-a", "file-1", "/track-1");
+    await saveOfflineAudio("scope-b", "file-2", "/track-2");
+
+    harness.audioStore.get.mockClear();
+    harness.audioStore.getAll.mockClear();
+
+    const idsA = await listOfflineAudioIds("scope-a");
+    expect(idsA).toEqual(new Set(["file-1"]));
+    expect(harness.metadataIndex.getAll).toHaveBeenCalledWith("scope-a");
+    // Assert audioStore (blobs) was never read
+    expect(harness.audioStore.get).not.toHaveBeenCalled();
+    expect(harness.audioStore.getAll).not.toHaveBeenCalled();
+  });
+
+  it("evicts oldest entries when storage exceeds cap, touching only the scoped metadata", async () => {
+    installIndexedDatabase();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(new Blob([new Uint8Array(100 * 1024 * 1024)], { type: "audio/mpeg" }), {
+            status: 200,
+          }),
+        ),
+      ),
+    );
+    // OFFLINE_AUDIO_CAP_BYTES is 300MB
+    await saveOfflineAudio("scope-evict", "file-1", "/track-1");
+    await saveOfflineAudio("scope-evict", "file-2", "/track-2");
+    await saveOfflineAudio("scope-evict", "file-3", "/track-3");
+    expect(await listOfflineAudioIds("scope-evict")).toEqual(
+      new Set(["file-1", "file-2", "file-3"]),
+    );
+
+    // Save a 4th file (100MB) which exceeds 300MB cap; file-1 should be evicted as oldest
+    await saveOfflineAudio("scope-evict", "file-4", "/track-4");
+    expect(await listOfflineAudioIds("scope-evict")).toEqual(
+      new Set(["file-2", "file-3", "file-4"]),
+    );
+  });
+
+  it("migrates existing v1 records to audioMetadata store on upgrade", async () => {
+    const metaPut = vi.fn();
+    const metaStore = {
+      createIndex: vi.fn(),
+      put: metaPut,
+    };
+    const blob = new Blob(["v1 audio"], { type: "audio/mpeg" });
+    const cursor = {
+      key: "scope-v1:file-v1",
+      value: {
+        blob,
+        fileId: "file-v1",
+        organizationId: "org-1",
+        savedAt: 123456,
+        scope: "scope-v1",
+        source: "session" as const,
+      },
+      continue: vi.fn(),
+    };
+    let cursorCallback: (() => void) | null = null;
+    const cursorReq = {
+      get result() {
+        return cursor;
+      },
+      set onsuccess(cb: () => void) {
+        cursorCallback = cb;
+      },
+    };
+    const audioStore = {
+      openCursor: vi.fn(() => cursorReq),
+    };
+
+    const metadataIndex = {
+      getAll: vi.fn(() => successfulRequest([])),
+    };
+    const metadataQueryStore = {
+      index: vi.fn(() => metadataIndex),
+    };
+
+    vi.stubGlobal("indexedDB", {
+      open: vi.fn(() => {
+        const req = {
+          error: null,
+          onerror: null,
+          onsuccess: null as (() => void) | null,
+          onupgradeneeded: null as ((ev: { oldVersion: number }) => void) | null,
+          result: {
+            close: vi.fn(),
+            isClosed: false,
+            objectStoreNames: { contains: (name: string) => name === "audio" },
+            createObjectStore: vi.fn(() => metaStore),
+            onclose: null,
+            onerror: null,
+            onversionchange: null,
+            transaction: vi.fn(() => ({
+              objectStore: vi.fn(() => metadataQueryStore),
+            })),
+          },
+          transaction: {
+            objectStore: vi.fn((name: string) =>
+              name === "audioMetadata" ? metaStore : audioStore,
+            ),
+          },
+        };
+        queueMicrotask(() => {
+          req.onupgradeneeded?.({ oldVersion: 1 });
+          cursorCallback?.();
+          req.onsuccess?.();
+        });
+        return req;
+      }),
+    });
+
+    await listOfflineAudioIds("scope-v1");
+    expect(metaPut).toHaveBeenCalledWith({
+      fileId: "file-v1",
+      key: "scope-v1:file-v1",
+      organizationId: "org-1",
+      savedAt: 123456,
+      scope: "scope-v1",
+      sizeBytes: blob.size,
+      source: "session",
+    });
   });
 });
