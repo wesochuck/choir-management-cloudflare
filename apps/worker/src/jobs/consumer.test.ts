@@ -3,7 +3,13 @@ import { describe, expect, it } from "vitest";
 import { renderCommunicationMarkdown } from "../communications/provider";
 import { verifySignedLink } from "../security/signedLinks";
 import { renderPlayerLinks, renderRsvpLinks } from "./consumer";
-import { renderPollLinks, renderTicketLinks } from "./deliveries/shared";
+import {
+  deliveryOrigin,
+  type JobConsumerEnv,
+  renderPollLinks,
+  renderTicketLinks,
+  resolveCanonicalOrigin,
+} from "./deliveries/shared";
 
 const secret = "unit-test-rsvp-link-secret-that-is-at-least-thirty-two-characters";
 
@@ -177,5 +183,180 @@ describe("ticket order links", () => {
     );
     expect(refundUsingLegacyPlaceholder).toContain("[View order details](");
     expect(refundUsingLegacyPlaceholder).not.toContain("View ticket / QR code");
+  });
+});
+
+describe("canonical origin resolution and link render query deduplication", () => {
+  function createMockControlDb(hostnames: Record<string, string>): {
+    readonly db: NonNullable<JobConsumerEnv["CONTROL_DB"]>;
+    getQueryCount: () => number;
+  } {
+    let queryCount = 0;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- test mock
+    const db = {
+      prepare: () => {
+        queryCount += 1;
+        return {
+          bind: (organizationId: string) => ({
+            first: <T>() => {
+              const hostname = hostnames[organizationId];
+              // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- test mock
+              return Promise.resolve((hostname ? { hostname } : null) as T);
+            },
+          }),
+        };
+      },
+    } as unknown as NonNullable<JobConsumerEnv["CONTROL_DB"]>;
+
+    return {
+      db,
+      getQueryCount: () => queryCount,
+    };
+  }
+
+  it("resolves canonical active domain from CONTROL_DB", async () => {
+    const { db, getQueryCount } = createMockControlDb({
+      "org-1": "singers.org-1.com",
+    });
+
+    const origin = await resolveCanonicalOrigin({ CONTROL_DB: db }, "org-1");
+    expect(origin).toBe("https://singers.org-1.com");
+    expect(getQueryCount()).toBe(1);
+
+    const missingOrigin = await resolveCanonicalOrigin({ CONTROL_DB: db }, "org-none");
+    expect(missingOrigin).toBeNull();
+    expect(getQueryCount()).toBe(2);
+
+    const noDbOrigin = await resolveCanonicalOrigin({}, "org-1");
+    expect(noDbOrigin).toBeNull();
+  });
+
+  it("preserves fallback to recipient unsubscribeUrl when canonicalOrigin is null", async () => {
+    const { db, getQueryCount } = createMockControlDb({});
+    const env = {
+      CONTROL_DB: db,
+      PRODUCT_BASE_DOMAIN: "base.example.test",
+    };
+
+    // Passing canonicalOrigin = null explicitly avoids D1 queries and falls back to recipient unsubscribeUrl
+    const origin = await deliveryOrigin(
+      env,
+      "org-without-domain",
+      { unsubscribeUrl: "https://recipient-specific.example.test/unsub?t=1" },
+      null,
+    );
+    expect(origin).toBe("https://recipient-specific.example.test");
+    expect(getQueryCount()).toBe(0);
+
+    // When unsubscribeUrl is also null, falls back to PRODUCT_BASE_DOMAIN
+    const baseOrigin = await deliveryOrigin(
+      env,
+      "org-without-domain",
+      { unsubscribeUrl: null },
+      null,
+    );
+    expect(baseOrigin).toBe("https://base.example.test");
+    expect(getQueryCount()).toBe(0);
+  });
+
+  it("reuses resolved canonicalOrigin across all recipients and link renderers with exactly one D1 query", async () => {
+    const { db, getQueryCount } = createMockControlDb({
+      "org-alpha": "choir.alpha.org",
+    });
+    const env = {
+      CONTROL_DB: db,
+      PRODUCT_BASE_DOMAIN: "staging.example.test",
+      SIGNED_LINK_SECRET: secret,
+    };
+
+    // Resolve canonical origin once at the job boundary
+    const canonicalOrigin = await resolveCanonicalOrigin(env, "org-alpha");
+    expect(canonicalOrigin).toBe("https://choir.alpha.org");
+    expect(getQueryCount()).toBe(1);
+
+    const recipients = [
+      {
+        profileId: "11111111-1111-4111-8111-111111111111",
+        unsubscribeUrl: "https://fallback.test/u1",
+      },
+      {
+        profileId: "22222222-2222-4222-8222-222222222222",
+        unsubscribeUrl: "https://fallback.test/u2",
+      },
+      {
+        profileId: "33333333-3333-4333-8333-333333333333",
+        unsubscribeUrl: "https://fallback.test/u3",
+      },
+    ];
+
+    const template =
+      "Hello!\n\nRSVP: {{RSVP_LINKS}}\n\nPlayer: {{PLAYER_LINK}}\n\nPoll: {{POLL_LINK:bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb}}";
+
+    for (const recipient of recipients) {
+      let content = await renderRsvpLinks(
+        env,
+        "org-alpha",
+        template,
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        recipient,
+        canonicalOrigin,
+      );
+      content = await renderPlayerLinks(
+        env,
+        "org-alpha",
+        content,
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        recipient,
+        canonicalOrigin,
+      );
+      content = await renderPollLinks(env, "org-alpha", content, recipient, canonicalOrigin);
+
+      expect(content).toContain("https://choir.alpha.org/rsvp?token=");
+      expect(content).toContain("https://choir.alpha.org/player?token=");
+      expect(content).toContain("https://choir.alpha.org/poll?token=");
+    }
+
+    // Crucial assertion: despite 3 recipients * 3 link types = 9 link renderings,
+    // the query count remains 1 because canonicalOrigin was reused!
+    expect(getQueryCount()).toBe(1);
+  });
+
+  it("isolates canonical origins when two organizations are processed in succession", async () => {
+    const { db, getQueryCount } = createMockControlDb({
+      "org-1": "org1.com",
+      "org-2": "org2.com",
+    });
+    const env = {
+      CONTROL_DB: db,
+      PRODUCT_BASE_DOMAIN: "staging.example.test",
+      SIGNED_LINK_SECRET: secret,
+    };
+
+    const origin1 = await resolveCanonicalOrigin(env, "org-1");
+    const origin2 = await resolveCanonicalOrigin(env, "org-2");
+    expect(origin1).toBe("https://org1.com");
+    expect(origin2).toBe("https://org2.com");
+    expect(getQueryCount()).toBe(2);
+
+    const rsvp1 = await renderRsvpLinks(
+      env,
+      "org-1",
+      "{{RSVP_LINKS}}",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      { profileId: "11111111-1111-4111-8111-111111111111", unsubscribeUrl: null },
+      origin1,
+    );
+    const rsvp2 = await renderRsvpLinks(
+      env,
+      "org-2",
+      "{{RSVP_LINKS}}",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      { profileId: "22222222-2222-4222-8222-222222222222", unsubscribeUrl: null },
+      origin2,
+    );
+
+    expect(rsvp1).toContain("https://org1.com/rsvp?token=");
+    expect(rsvp2).toContain("https://org2.com/rsvp?token=");
+    expect(getQueryCount()).toBe(2);
   });
 });

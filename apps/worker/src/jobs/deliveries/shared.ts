@@ -357,23 +357,34 @@ export const scheduledReportMemberSchema = z.object({
   role: z.enum(["admin", "owner"]),
 });
 
+export async function resolveCanonicalOrigin(
+  env: Partial<Pick<JobConsumerEnv, "CONTROL_DB">>,
+  organizationId: string,
+): Promise<string | null> {
+  if (!env.CONTROL_DB) return null;
+  const row = await env.CONTROL_DB.prepare(
+    `SELECT hostname
+     FROM organization_domains
+     WHERE organization_id = ? AND kind = 'canonical' AND status = 'active'
+     ORDER BY created_at, id
+     LIMIT 1`,
+  )
+    .bind(organizationId)
+    .first<{ readonly hostname: string }>();
+  return row?.hostname ? `https://${row.hostname}` : null;
+}
+
 export async function deliveryOrigin(
   env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN"> & Partial<Pick<JobConsumerEnv, "CONTROL_DB">>,
   organizationId: string,
   delivery: { readonly unsubscribeUrl: string | null },
+  canonicalOrigin?: string | null,
 ): Promise<string> {
-  if (env.CONTROL_DB) {
-    const row = await env.CONTROL_DB.prepare(
-      `SELECT hostname
-       FROM organization_domains
-       WHERE organization_id = ? AND kind = 'canonical' AND status = 'active'
-       ORDER BY created_at, id
-       LIMIT 1`,
-    )
-      .bind(organizationId)
-      .first<{ readonly hostname: string }>();
-    if (row?.hostname) return `https://${row.hostname}`;
-  }
+  const resolvedCanonicalOrigin =
+    canonicalOrigin !== undefined
+      ? canonicalOrigin
+      : await resolveCanonicalOrigin(env, organizationId);
+  if (resolvedCanonicalOrigin) return resolvedCanonicalOrigin;
   if (delivery.unsubscribeUrl) return new URL(delivery.unsubscribeUrl).origin;
   if (!env.PRODUCT_BASE_DOMAIN || env.PRODUCT_BASE_DOMAIN === "localhost") {
     return "http://localhost";
@@ -382,7 +393,8 @@ export async function deliveryOrigin(
 }
 
 export async function renderRsvpLinks(
-  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET">,
+  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET"> &
+    Partial<Pick<JobConsumerEnv, "CONTROL_DB">>,
   organizationId: string,
   content: string,
   eventId: string | null,
@@ -390,6 +402,7 @@ export async function renderRsvpLinks(
     readonly profileId: string;
     readonly unsubscribeUrl: string | null;
   },
+  canonicalOrigin?: string | null,
 ): Promise<string> {
   if (!rsvpPlaceholderPattern.test(content)) return content;
   if (!eventId) {
@@ -399,13 +412,14 @@ export async function renderRsvpLinks(
     );
   }
   const token = await issueRsvpToken(env, organizationId, eventId, delivery.profileId);
-  const rsvpLink = `${await deliveryOrigin(env, organizationId, delivery)}/rsvp?token=${encodeURIComponent(token)}`;
+  const rsvpLink = `${await deliveryOrigin(env, organizationId, delivery, canonicalOrigin)}/rsvp?token=${encodeURIComponent(token)}`;
   const replacement = `[Open RSVP page](${rsvpLink})\n\n(No login required.)`;
   return content.replace(rsvpPlaceholderReplacementPattern, () => replacement);
 }
 
 export async function renderPlayerLinks(
-  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET">,
+  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET"> &
+    Partial<Pick<JobConsumerEnv, "CONTROL_DB">>,
   organizationId: string,
   content: string,
   eventId: string | null,
@@ -413,6 +427,7 @@ export async function renderPlayerLinks(
     readonly profileId: string;
     readonly unsubscribeUrl: string | null;
   },
+  canonicalOrigin?: string | null,
 ): Promise<string> {
   if (!playerPlaceholderPattern.test(content)) return content;
   if (!eventId) {
@@ -422,18 +437,20 @@ export async function renderPlayerLinks(
     );
   }
   const token = await issuePlayerToken(env, organizationId, eventId, delivery.profileId);
-  const playerLink = `${await deliveryOrigin(env, organizationId, delivery)}/player?token=${encodeURIComponent(token)}`;
+  const playerLink = `${await deliveryOrigin(env, organizationId, delivery, canonicalOrigin)}/player?token=${encodeURIComponent(token)}`;
   const replacement = `[Open practice player](${playerLink})\n\n(No login required.)`;
   return content.replace(playerPlaceholderReplacementPattern, () => replacement);
 }
 
 export async function renderTicketLinks(
-  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET">,
+  env: Pick<JobConsumerEnv, "PRODUCT_BASE_DOMAIN" | "SIGNED_LINK_SECRET"> &
+    Partial<Pick<JobConsumerEnv, "CONTROL_DB">>,
   organizationId: string,
   content: string,
   purchaseId: string,
   eventStartsAt: string,
   isRefund = false,
+  canonicalOrigin?: string | null,
 ): Promise<string> {
   if (
     !ticketLinkPlaceholderPattern.test(content) &&
@@ -453,7 +470,7 @@ export async function renderTicketLinks(
     resourceId: purchaseId,
     version: 1,
   });
-  const link = `${await deliveryOrigin(env, organizationId, { unsubscribeUrl: null })}/tickets/order/success?token=${encodeURIComponent(token)}`;
+  const link = `${await deliveryOrigin(env, organizationId, { unsubscribeUrl: null }, canonicalOrigin)}/tickets/order/success?token=${encodeURIComponent(token)}`;
   return content.replace(ticketLinksPlaceholderReplacementPattern, (placeholder) =>
     isRefund || /order/i.test(placeholder)
       ? `[View order details](${link})`
@@ -478,13 +495,14 @@ export async function renderPollLinks(
     readonly profileId: string;
     readonly unsubscribeUrl: string | null;
   },
+  canonicalOrigin?: string | null,
 ): Promise<string> {
   const pollIds = [
     ...new Set([...content.matchAll(pollPlaceholderPattern)].map((match) => match[1])),
   ];
   if (pollIds.length === 0) return content;
 
-  const origin = await deliveryOrigin(env, organizationId, delivery);
+  const origin = await deliveryOrigin(env, organizationId, delivery, canonicalOrigin);
   const issuedAt = Math.floor(Date.now() / 1_000);
   const tokens = new Map(
     await Promise.all(

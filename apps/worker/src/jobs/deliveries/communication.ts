@@ -13,6 +13,7 @@ import {
   renderPlayerLinks,
   renderPollLinks,
   renderRsvpLinks,
+  resolveCanonicalOrigin,
 } from "./shared";
 
 export async function deliverCommunicationJob(
@@ -25,7 +26,13 @@ export async function deliverCommunicationJob(
   const trimmedOrgName = branding.organizationName.trim();
   const orgName =
     trimmedOrgName.length > 0 ? trimmedOrgName : (senderConfig.fromName ?? "Choir Management");
-  const origin = await deliveryOrigin(env, job.organizationId, { unsubscribeUrl: null });
+  const canonicalOrigin = await resolveCanonicalOrigin(env, job.organizationId);
+  const origin = await deliveryOrigin(
+    env,
+    job.organizationId,
+    { unsubscribeUrl: null },
+    canonicalOrigin,
+  );
   const logoUrl = branding.logoFileId ? `${origin}/api/public/logo` : null;
 
   for (const delivery of deliveryJob.deliveries) {
@@ -49,6 +56,7 @@ export async function deliverCommunicationJob(
       templatedContent,
       deliveryJob.context?.eventId ?? null,
       delivery,
+      canonicalOrigin,
     );
     const contentWithPlayerLinks = await renderPlayerLinks(
       env,
@@ -56,12 +64,14 @@ export async function deliverCommunicationJob(
       contentWithRsvpLinks,
       deliveryJob.context?.eventId ?? null,
       delivery,
+      canonicalOrigin,
     );
     const renderedContent = await renderPollLinks(
       env,
       job.organizationId,
       contentWithPlayerLinks,
       delivery,
+      canonicalOrigin,
     );
     const result = await deliverOrganizationCommunication(env, {
       channel: delivery.channel,
