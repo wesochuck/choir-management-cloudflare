@@ -1,5 +1,6 @@
 import {
   organizationAttendanceResponseSchema,
+  organizationAttendanceReportResponseSchema,
   organizationEventSchema,
   organizationEventRsvpHistoryResponseSchema,
   organizationEventArchiveResponseSchema,
@@ -20,6 +21,7 @@ import {
   singerEventsResponseSchema,
   type OrganizationEvent,
   type OrganizationEventRsvpHistoryResponse,
+  type OrganizationAttendanceReportResponse,
   type OrganizationAttendanceRow,
   type OrganizationAttendanceUpdate,
   type OrganizationEventRequest,
@@ -112,6 +114,23 @@ export async function listOrganizationEventAttendance(
   if (!response.ok) throw new Error("The Organization store rejected the attendance request.");
   return organizationAttendanceResponseSchema.omit({ requestId: true }).parse(await response.json())
     .rows;
+}
+
+export async function getOrganizationEventAttendanceReport(
+  env: Env,
+  organizationId: string,
+  eventId: string,
+): Promise<Omit<OrganizationAttendanceReportResponse, "requestId"> | null> {
+  const url = new URL("https://organization.internal/internal/calendar/attendance-report");
+  url.searchParams.set("eventId", eventId);
+  url.searchParams.set("organizationId", organizationId);
+  const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
+  if (response.status === 404) return null;
+  if (!response.ok)
+    throw new Error("The Organization store rejected the attendance report request.");
+  return organizationAttendanceReportResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json());
 }
 
 export async function listOrganizationEventRsvpHistory(

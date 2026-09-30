@@ -108,6 +108,7 @@ export const organizationRpcOperationMap: OrganizationRpcOperationMap = {
       "/internal/calendar/events",
       "/internal/calendar/dashboard-summary",
       "/internal/calendar/attendance",
+      "/internal/calendar/attendance-report",
       "/internal/calendar/event-rsvp-history",
       "/internal/calendar/event-rsvp-export",
       "/internal/calendar/event-rsvp",

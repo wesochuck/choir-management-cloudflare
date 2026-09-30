@@ -2,10 +2,12 @@ import {
   donationRecordSchema,
   organizationTicketOrderSchema,
   type DonationRecord,
+  type OrganizationAttendanceRow,
   type OrganizationTicketOrder,
 } from "@choir/contracts";
 import { describe, expect, it } from "vitest";
 import {
+  aggregateAttendance,
   commerceRowGrossAmount,
   commerceRowNetProceeds,
   commerceRowProcessorFee,
@@ -193,5 +195,98 @@ describe("Commerce report helpers", () => {
     expect(commerceRowRefundAmount(row)).toBe(0);
     expect(commerceRowProcessorFee(row)).toBe(0);
     expect(commerceRowNetProceeds(row)).toBe(10000);
+  });
+});
+
+describe("aggregateAttendance", () => {
+  it("returns empty array when there are no rehearsals", () => {
+    expect(aggregateAttendance([])).toEqual([]);
+  });
+
+  it("aggregates attendance correctly across rehearsals with sorting by absences descending then name ascending", () => {
+    const r1: readonly OrganizationAttendanceRow[] = [
+      {
+        attendance: "Present",
+        displayName: "Alice",
+        profileId: "11111111-1111-4111-8111-111111111111",
+        rsvp: "Yes",
+        updatedAt: null,
+        voicePart: "S1",
+      },
+      {
+        attendance: "Absent",
+        displayName: "Bob",
+        profileId: "22222222-2222-4222-8222-222222222222",
+        rsvp: "No",
+        updatedAt: null,
+        voicePart: "T1",
+      },
+      {
+        attendance: "Pending",
+        displayName: "Charlie",
+        profileId: "33333333-3333-4333-8333-333333333333",
+        rsvp: "Pending",
+        updatedAt: null,
+        voicePart: "B1",
+      },
+    ];
+
+    const r2: readonly OrganizationAttendanceRow[] = [
+      {
+        attendance: "Absent",
+        displayName: "Alice",
+        profileId: "11111111-1111-4111-8111-111111111111",
+        rsvp: "No",
+        updatedAt: null,
+        voicePart: "S1",
+      },
+      {
+        attendance: "Absent",
+        displayName: "Bob",
+        profileId: "22222222-2222-4222-8222-222222222222",
+        rsvp: "No",
+        updatedAt: null,
+        voicePart: "T1",
+      },
+      {
+        attendance: "Present",
+        displayName: "Charlie",
+        profileId: "33333333-3333-4333-8333-333333333333",
+        rsvp: "Yes",
+        updatedAt: null,
+        voicePart: "B1",
+      },
+    ];
+
+    const result = aggregateAttendance([r1, r2]);
+
+    expect(result).toHaveLength(3);
+    // Bob has 2 absences (first)
+    expect(result[0]).toEqual({
+      absences: 2,
+      name: "Bob",
+      present: 0,
+      profileId: "22222222-2222-4222-8222-222222222222",
+      total: 2,
+      voicePart: "T1",
+    });
+    // Alice has 1 absence, 1 present
+    expect(result[1]).toEqual({
+      absences: 1,
+      name: "Alice",
+      present: 1,
+      profileId: "11111111-1111-4111-8111-111111111111",
+      total: 2,
+      voicePart: "S1",
+    });
+    // Charlie has 0 absences, 1 present, 1 pending
+    expect(result[2]).toEqual({
+      absences: 0,
+      name: "Charlie",
+      present: 1,
+      profileId: "33333333-3333-4333-8333-333333333333",
+      total: 2,
+      voicePart: "B1",
+    });
   });
 });

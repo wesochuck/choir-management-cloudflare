@@ -109,6 +109,27 @@ export const organizationAttendanceResponseSchema = z.object({
   rows: z.array(organizationAttendanceRowSchema).max(500),
 });
 
+export const organizationAttendanceReportRowSchema = z.object({
+  absences: z.number().int().nonnegative(),
+  name: z.string().min(1).max(200),
+  present: z.number().int().nonnegative(),
+  profileId: z.uuid(),
+  total: z.number().int().nonnegative(),
+  voicePart: z.string().max(100).default(""),
+});
+
+export const organizationAttendanceReportResponseSchema = z.object({
+  eventId: z.uuid(),
+  requestId: requestIdSchema,
+  rows: z.array(organizationAttendanceReportRowSchema).max(500),
+  totalRehearsals: z.number().int().nonnegative(),
+});
+
+export type OrganizationAttendanceReportRow = z.infer<typeof organizationAttendanceReportRowSchema>;
+export type OrganizationAttendanceReportResponse = z.infer<
+  typeof organizationAttendanceReportResponseSchema
+>;
+
 export const organizationProfileFolderNumberSchema = z.object({
   eventId: z.uuid(),
   eventTitle: z.string().min(1).max(500),

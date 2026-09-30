@@ -1,5 +1,6 @@
 import {
   organizationAttendanceResponseSchema,
+  organizationAttendanceReportResponseSchema,
   organizationEventSchema,
   organizationEventArchiveResponseSchema,
   organizationEventCancelResponseSchema,
@@ -12,6 +13,7 @@ import {
   organizationVenueDeleteResponseSchema,
   organizationVenuesResponseSchema,
   type OrganizationAttendanceRow,
+  type OrganizationAttendanceReportResponse,
   type OrganizationAttendanceUpdate,
   type OrganizationCalendarSettings,
   type OrganizationDashboardSummaryResponse,
@@ -149,6 +151,17 @@ export async function listOrganizationEventAttendance(
     { signal: signal ?? null },
   );
   return organizationAttendanceResponseSchema.parse(await response.json()).rows;
+}
+
+export async function getOrganizationEventAttendanceReport(
+  eventId: string,
+  signal?: AbortSignal,
+): Promise<OrganizationAttendanceReportResponse> {
+  const response = await request(
+    `/api/organization/events/${encodeURIComponent(eventId)}/attendance-report`,
+    { signal: signal ?? null },
+  );
+  return organizationAttendanceReportResponseSchema.parse(await response.json());
 }
 
 export async function getOrganizationEventRsvpHistory(

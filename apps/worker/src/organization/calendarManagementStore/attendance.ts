@@ -42,6 +42,89 @@ export function listEventAttendanceFromStore(
   return Response.json({ eventId: eventId.data, rows });
 }
 
+export function readEventAttendanceReportFromStore(
+  storage: DurableObjectStorage,
+  input: { readonly eventId: string | null; readonly organizationId: string | null },
+): Response {
+  const eventId = z.uuid().safeParse(input.eventId);
+  if (!identityMatches(storage, input.organizationId) || !eventId.success) {
+    return Response.json({ code: "attendance_report_not_found" }, { status: 404 });
+  }
+  if (!recordExists(storage, "events", eventId.data)) {
+    return Response.json({ code: "event_not_found" }, { status: 404 });
+  }
+
+  const rehearsalRows = storage.sql
+    .exec<{ readonly id: string }>(
+      `SELECT id FROM events
+       WHERE parent_performance_id = ?
+         AND type = 'Rehearsal'
+         AND is_canceled = 0
+         AND is_archived = 0
+       ORDER BY starts_at ASC, id ASC`,
+      eventId.data,
+    )
+    .toArray();
+
+  const totalRehearsals = rehearsalRows.length;
+  if (totalRehearsals === 0) {
+    return Response.json({
+      eventId: eventId.data,
+      rows: [],
+      totalRehearsals: 0,
+    });
+  }
+
+  const rehearsalIds = rehearsalRows.map((r) => r.id);
+  const placeholders = rehearsalIds.map(() => "?").join(", ");
+
+  const rawRows = storage.sql
+    .exec<{
+      readonly absences: number;
+      readonly name: string;
+      readonly present: number;
+      readonly profileId: string;
+      readonly voicePart: string;
+    }>(
+      `SELECT
+         p.id AS profileId,
+         p.display_name AS name,
+         COALESCE(p.voice_part, '') AS voicePart,
+         CAST(COUNT(CASE WHEN r.attendance = 'Absent' THEN 1 END) AS INTEGER) AS absences,
+         CAST(COUNT(CASE WHEN r.attendance = 'Present' THEN 1 END) AS INTEGER) AS present
+       FROM (
+         SELECT id, display_name, voice_part
+         FROM profiles
+         ORDER BY display_name COLLATE NOCASE ASC, id ASC
+         LIMIT 500
+       ) p
+       LEFT JOIN event_rosters r
+         ON r.profile_id = p.id
+         AND r.event_id IN (${placeholders})
+       GROUP BY p.id
+       LIMIT 500`,
+      ...rehearsalIds,
+    )
+    .toArray();
+
+  const rows = rawRows
+    .map((row) => ({
+      absences: row.absences,
+      name: row.name,
+      present: row.present,
+      profileId: row.profileId,
+      total: totalRehearsals,
+      voicePart: row.voicePart,
+    }))
+    .sort((a, b) => b.absences - a.absences || a.name.localeCompare(b.name));
+
+  return Response.json({
+    eventId: eventId.data,
+    rows,
+    totalRehearsals,
+  });
+}
+
 export function listEventRsvpHistoryFromStore(
   storage: DurableObjectStorage,
   input: { readonly eventId: string | null; readonly organizationId: string | null },

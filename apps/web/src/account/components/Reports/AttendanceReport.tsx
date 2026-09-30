@@ -1,9 +1,9 @@
 import { type OrganizationEvent } from "@choir/contracts";
 import { useEffect, useMemo, useState } from "react";
 import { DataTable } from "@choir/ui";
-import { listOrganizationEventAttendance } from "../../../auth/api";
+import { getOrganizationEventAttendanceReport } from "../../../auth/api";
 import { EventPicker, Status, type LoadState, type SingerAttendance } from "./shared";
-import { aggregateAttendance, downloadCsv, reportEvents } from "./reportHelpers";
+import { downloadCsv, reportEvents } from "./reportHelpers";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 export function AttendanceReport({
   events,
@@ -42,14 +42,17 @@ export function AttendanceReport({
       setState("ready");
       return;
     }
+    if (rehearsals.length === 0) {
+      setRows([]);
+      setState("ready");
+      return;
+    }
     const controller = new AbortController();
     setState("loading");
-    Promise.all(
-      rehearsals.map((event) => listOrganizationEventAttendance(event.id, controller.signal)),
-    )
-      .then((attendance) => {
+    getOrganizationEventAttendanceReport(selectedId, controller.signal)
+      .then((report) => {
         if (!controller.signal.aborted) {
-          setRows(aggregateAttendance(attendance));
+          setRows(report.rows);
           setState("ready");
         }
       })
@@ -59,7 +62,7 @@ export function AttendanceReport({
     return () => {
       controller.abort();
     };
-  }, [rehearsals, selectedId]);
+  }, [rehearsals.length, selectedId]);
 
   const average = rows.length
     ? rows.reduce((sum, row) => sum + (row.total ? (row.present / row.total) * 100 : 0), 0) /

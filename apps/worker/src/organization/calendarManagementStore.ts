@@ -24,6 +24,7 @@ export { listProfileFolderNumbersFromStore } from "./calendarManagementStore/fol
 export {
   listEventAttendanceFromStore,
   listEventRsvpHistoryFromStore,
+  readEventAttendanceReportFromStore,
 } from "./calendarManagementStore/attendance";
 export {
   listMemberEventsFromStore,

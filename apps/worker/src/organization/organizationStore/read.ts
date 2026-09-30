@@ -4,6 +4,7 @@ import {
   readOrganizationDashboardSummaryFromStore,
   readEventRsvpExportFromStore,
   listEventAttendanceFromStore,
+  readEventAttendanceReportFromStore,
   listEventRsvpHistoryFromStore,
   listMemberEventsFromStore,
   listProfileFolderNumbersFromStore,
@@ -469,6 +470,11 @@ function dispatchCalendarGetRequest(
       return readOrganizationDashboardSummaryFromStore(storage, organizationId);
     case "/internal/calendar/attendance":
       return listEventAttendanceFromStore(storage, {
+        eventId: url.searchParams.get("eventId"),
+        organizationId,
+      });
+    case "/internal/calendar/attendance-report":
+      return readEventAttendanceReportFromStore(storage, {
         eventId: url.searchParams.get("eventId"),
         organizationId,
       });

@@ -1,5 +1,6 @@
 import {
   organizationAttendanceResponseSchema,
+  organizationAttendanceReportResponseSchema,
   organizationEventSchema,
   organizationProfileFolderNumberSchema,
   organizationProfileFolderNumbersResponseSchema,
@@ -420,5 +421,266 @@ describe("Organization attendance", () => {
         expect.objectContaining({ profileId: pendingProfile.id, rsvp: "Pending" }),
       ]),
     );
+  });
+
+  it("aggregates attendance report server-side across linked rehearsals with tenant isolation and index use", async () => {
+    const cookie = await signIn();
+
+    // 1. Create a performance with no rehearsals -> reports 0 totalRehearsals and empty rows
+    const emptyPerf = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          durationMinutes: 120,
+          rsvpDeadlineDate: "2026-10-10",
+          startsAt: "2026-10-15T19:00:00Z",
+          title: "Empty Performance",
+          type: "Performance",
+        })
+      ).json(),
+    );
+
+    const emptyReport = organizationAttendanceReportResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api(
+            "alpha.localhost",
+            `/api/organization/events/${emptyPerf.id}/attendance-report`,
+            cookie,
+          ),
+        )
+      ).json(),
+    );
+    expect(emptyReport.eventId).toBe(emptyPerf.id);
+    expect(emptyReport.totalRehearsals).toBe(0);
+    expect(emptyReport.rows).toEqual([]);
+
+    // 2. Create another performance with 2 active rehearsals, 1 canceled rehearsal, and another unrelated performance with rehearsals
+    const performance = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          durationMinutes: 120,
+          rsvpDeadlineDate: "2026-11-10",
+          startsAt: "2026-11-15T19:00:00Z",
+          title: "Main Performance",
+          type: "Performance",
+        })
+      ).json(),
+    );
+
+    const rehearsal1 = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          durationMinutes: 120,
+          parentPerformanceId: performance.id,
+          startsAt: "2026-11-01T19:00:00Z",
+          title: "Rehearsal 1",
+          type: "Rehearsal",
+        })
+      ).json(),
+    );
+
+    const rehearsal2 = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          durationMinutes: 120,
+          parentPerformanceId: performance.id,
+          startsAt: "2026-11-08T19:00:00Z",
+          title: "Rehearsal 2",
+          type: "Rehearsal",
+        })
+      ).json(),
+    );
+
+    // Canceled rehearsal - must be excluded
+    const canceledRehearsal = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          durationMinutes: 120,
+          parentPerformanceId: performance.id,
+          startsAt: "2026-11-05T19:00:00Z",
+          title: "Canceled Rehearsal",
+          type: "Rehearsal",
+        })
+      ).json(),
+    );
+    await write(
+      "alpha.localhost",
+      `/api/organization/events/${canceledRehearsal.id}/cancel`,
+      cookie,
+      {},
+    );
+
+    // Another performance's rehearsal - must be excluded
+    const otherPerformance = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          durationMinutes: 120,
+          rsvpDeadlineDate: "2026-12-10",
+          startsAt: "2026-12-15T19:00:00Z",
+          title: "Other Performance",
+          type: "Performance",
+        })
+      ).json(),
+    );
+    await write("alpha.localhost", "/api/organization/events", cookie, {
+      durationMinutes: 120,
+      parentPerformanceId: otherPerformance.id,
+      startsAt: "2026-12-01T19:00:00Z",
+      title: "Other Rehearsal",
+      type: "Rehearsal",
+    });
+
+    // Create 3 singers:
+    // Singer A (Bob): Absent in R1, Absent in R2 -> absences: 2, present: 0
+    // Singer B (Alice): Present in R1, Absent in R2 -> absences: 1, present: 1
+    // Singer C (Charlie): Present in R1, Present in R2 -> absences: 0, present: 2
+    const bob = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Bob Baritone",
+          voicePart: "B1",
+        })
+      ).json(),
+    );
+    const alice = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Alice Alto",
+          voicePart: "A1",
+        })
+      ).json(),
+    );
+    const charlie = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Charlie Tenor",
+          voicePart: "T1",
+        })
+      ).json(),
+    );
+
+    // Set attendance in R1
+    await write(
+      "alpha.localhost",
+      `/api/organization/events/${rehearsal1.id}/attendance`,
+      cookie,
+      {
+        updates: [
+          { attendance: "Absent", profileId: bob.id },
+          { attendance: "Present", profileId: alice.id },
+          { attendance: "Present", profileId: charlie.id },
+        ],
+      },
+      "PUT",
+    );
+
+    // Set attendance in R2
+    await write(
+      "alpha.localhost",
+      `/api/organization/events/${rehearsal2.id}/attendance`,
+      cookie,
+      {
+        updates: [
+          { attendance: "Absent", profileId: bob.id },
+          { attendance: "Absent", profileId: alice.id },
+          { attendance: "Present", profileId: charlie.id },
+        ],
+      },
+      "PUT",
+    );
+
+    // Fetch the attendance report
+    const reportResponse = await exports.default.fetch(
+      api(
+        "alpha.localhost",
+        `/api/organization/events/${performance.id}/attendance-report`,
+        cookie,
+      ),
+    );
+    expect(reportResponse.status).toBe(200);
+    const report = organizationAttendanceReportResponseSchema.parse(await reportResponse.json());
+
+    expect(report.eventId).toBe(performance.id);
+    expect(report.totalRehearsals).toBe(2);
+
+    const bobRow = report.rows.find((r) => r.profileId === bob.id);
+    expect(bobRow).toEqual({
+      absences: 2,
+      name: "Bob Baritone",
+      present: 0,
+      profileId: bob.id,
+      total: 2,
+      voicePart: "B1",
+    });
+
+    const aliceRow = report.rows.find((r) => r.profileId === alice.id);
+    expect(aliceRow).toEqual({
+      absences: 1,
+      name: "Alice Alto",
+      present: 1,
+      profileId: alice.id,
+      total: 2,
+      voicePart: "A1",
+    });
+
+    const charlieRow = report.rows.find((r) => r.profileId === charlie.id);
+    expect(charlieRow).toEqual({
+      absences: 0,
+      name: "Charlie Tenor",
+      present: 2,
+      profileId: charlie.id,
+      total: 2,
+      voicePart: "T1",
+    });
+
+    // Verify ordering: Bob (2 absences) comes before Alice (1 absence) comes before Charlie (0 absences)
+    const bobIndex = report.rows.findIndex((r) => r.profileId === bob.id);
+    const aliceIndex = report.rows.findIndex((r) => r.profileId === alice.id);
+    const charlieIndex = report.rows.findIndex((r) => r.profileId === charlie.id);
+    expect(bobIndex).toBeLessThan(aliceIndex);
+    expect(aliceIndex).toBeLessThan(charlieIndex);
+
+    // 3. Tenant isolation: bravo cannot access alpha's performance attendance report
+    const crossOrgResponse = await exports.default.fetch(
+      api(
+        "bravo.localhost",
+        `/api/organization/events/${performance.id}/attendance-report`,
+        cookie,
+      ),
+    );
+    expect(crossOrgResponse.status).toBe(404);
+
+    // 4. Verify query plan uses idx_event_rosters_profile index
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      const plan = state.storage.sql
+        .exec<{ readonly detail: string }>(
+          `EXPLAIN QUERY PLAN
+           SELECT
+             p.id AS profileId,
+             p.display_name AS name,
+             COALESCE(p.voice_part, '') AS voicePart,
+             CAST(COUNT(CASE WHEN r.attendance = 'Absent' THEN 1 END) AS INTEGER) AS absences,
+             CAST(COUNT(CASE WHEN r.attendance = 'Present' THEN 1 END) AS INTEGER) AS present
+           FROM (
+             SELECT id, display_name, voice_part
+             FROM profiles
+             ORDER BY display_name COLLATE NOCASE ASC, id ASC
+             LIMIT 500
+           ) p
+           LEFT JOIN event_rosters r
+             ON r.profile_id = p.id
+             AND r.event_id IN (?, ?)
+           GROUP BY p.id
+           LIMIT 500`,
+          rehearsal1.id,
+          rehearsal2.id,
+        )
+        .toArray();
+      const planDetails = plan.map((p) => p.detail).join("\n");
+      // Must use index lookup for event_rosters
+      expect(planDetails).toContain("SEARCH r USING INDEX");
+      return null;
+    });
   });
 });
