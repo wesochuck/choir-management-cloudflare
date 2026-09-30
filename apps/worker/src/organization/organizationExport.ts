@@ -1,7 +1,9 @@
-const MAX_ORGANIZATION_EXPORT_BYTES = 50 * 1024 * 1024;
+import { createHash } from "node:crypto";
+
+export const MAX_ORGANIZATION_EXPORT_BYTES = 50 * 1024 * 1024;
 
 export interface OrganizationExportArchive {
-  readonly archive: string;
+  readonly archive: ReadableStream<Uint8Array>;
   readonly byteCount: number;
   readonly checksumSha256: string;
   readonly manifest: {
@@ -15,7 +17,7 @@ export interface OrganizationExportArchive {
   };
 }
 
-interface ArchiveFile {
+export interface ArchiveFile {
   readonly checksums: Readonly<Record<string, string>>;
   readonly contentType: string;
   readonly fileName: string;
@@ -25,16 +27,112 @@ interface ArchiveFile {
   readonly uploadedAt: string | null;
 }
 
-interface ExportSnapshotLike {
+export interface ExportSnapshotLike {
   readonly metadata: Readonly<Record<string, unknown>>;
   readonly records: Readonly<Record<string, readonly Readonly<Record<string, unknown>>[]>>;
 }
 
-async function sha256Hex(value: Uint8Array): Promise<string> {
-  const input = new Uint8Array(value.byteLength);
-  input.set(value);
-  const digest = await crypto.subtle.digest("SHA-256", input.buffer);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+function* generatePayloadJsonChunks(input: {
+  readonly files: readonly ArchiveFile[];
+  readonly organizationId: string;
+  readonly snapshot: ExportSnapshotLike;
+  readonly exportedAt: string;
+}): Generator<string, void, undefined> {
+  yield '{"exportVersion":1,"exportedAt":';
+  yield JSON.stringify(input.exportedAt);
+  yield ',"files":[';
+  for (let i = 0; i < input.files.length; i++) {
+    if (i > 0) yield ",";
+    yield JSON.stringify(input.files[i]);
+  }
+  yield '],"metadata":';
+  yield JSON.stringify(input.snapshot.metadata);
+  yield ',"organizationId":';
+  yield JSON.stringify(input.organizationId);
+  yield ',"records":{';
+
+  const entries = Object.entries(input.snapshot.records);
+  for (let t = 0; t < entries.length; t++) {
+    const entry = entries[t];
+    if (!entry) continue;
+    const [table, rows] = entry;
+    if (t > 0) yield ",";
+    yield `${JSON.stringify(table)}:[`;
+    for (let r = 0; r < rows.length; r++) {
+      if (r > 0) yield ",";
+      yield JSON.stringify(rows[r]);
+    }
+    yield "]";
+  }
+  yield "}}";
+}
+
+function computePayloadManifest(input: {
+  readonly files: readonly ArchiveFile[];
+  readonly organizationId: string;
+  readonly snapshot: ExportSnapshotLike;
+  readonly exportedAt: string;
+}): {
+  readonly byteCount: number;
+  readonly checksumSha256: string;
+} {
+  const hash = createHash("sha256");
+  const encoder = new TextEncoder();
+  let byteCount = 0;
+  for (const chunk of generatePayloadJsonChunks(input)) {
+    const chunkBytes = encoder.encode(chunk);
+    byteCount += chunkBytes.byteLength;
+    if (byteCount > MAX_ORGANIZATION_EXPORT_BYTES) {
+      throw new Error("export_too_large");
+    }
+    hash.update(chunkBytes);
+  }
+  return {
+    byteCount,
+    checksumSha256: hash.digest("hex"),
+  };
+}
+
+function createOrganizationExportArchiveStream(
+  manifest: OrganizationExportArchive["manifest"],
+  input: {
+    readonly files: readonly ArchiveFile[];
+    readonly organizationId: string;
+    readonly snapshot: ExportSnapshotLike;
+    readonly exportedAt: string;
+  },
+): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  const manifestPrefix = encoder.encode(`{"manifest":${JSON.stringify(manifest)},"payload":`);
+  const archiveSuffix = new Uint8Array([125]); // '}'
+
+  const generator = generatePayloadJsonChunks(input);
+  let prefixSent = false;
+  let suffixSent = false;
+
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (!prefixSent) {
+        controller.enqueue(manifestPrefix);
+        prefixSent = true;
+        return;
+      }
+      const next = generator.next();
+      if (!next.done) {
+        controller.enqueue(encoder.encode(next.value));
+        return;
+      }
+      if (!suffixSent) {
+        controller.enqueue(archiveSuffix);
+        suffixSent = true;
+        controller.close();
+      }
+    },
+  });
+}
+
+export async function readArchiveStreamAsText(stream: ReadableStream<Uint8Array>): Promise<string> {
+  return new Response(stream).text();
 }
 
 export async function buildOrganizationExportArchive(input: {
@@ -43,22 +141,19 @@ export async function buildOrganizationExportArchive(input: {
   readonly snapshot: ExportSnapshotLike;
   readonly exportedAt?: string;
 }): Promise<OrganizationExportArchive> {
+  await Promise.resolve();
   const exportedAt = input.exportedAt ?? new Date().toISOString();
-  const payload = {
-    exportVersion: 1 as const,
+  const payloadInput = {
     exportedAt,
     files: input.files,
-    metadata: input.snapshot.metadata,
     organizationId: input.organizationId,
-    records: input.snapshot.records,
+    snapshot: input.snapshot,
   };
-  const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
-  if (payloadBytes.byteLength > MAX_ORGANIZATION_EXPORT_BYTES) {
-    throw new Error("export_too_large");
-  }
+  const payloadManifest = computePayloadManifest(payloadInput);
+
   const manifest = {
-    byteCount: payloadBytes.byteLength,
-    checksumSha256: await sha256Hex(payloadBytes),
+    byteCount: payloadManifest.byteCount,
+    checksumSha256: payloadManifest.checksumSha256,
     exportedAt,
     exportVersion: 1 as const,
     fileCount: input.files.length,
@@ -67,8 +162,20 @@ export async function buildOrganizationExportArchive(input: {
       Object.entries(input.snapshot.records).map(([table, rows]) => [table, rows.length]),
     ),
   };
+
+  const rawStream = createOrganizationExportArchiveStream(manifest, payloadInput);
+  const manifestPrefixBytes = new TextEncoder().encode(
+    `{"manifest":${JSON.stringify(manifest)},"payload":`,
+  ).byteLength;
+  const totalArchiveBytes = manifestPrefixBytes + manifest.byteCount + 1; // +1 for trailing '}'
+
+  const archiveStream =
+    typeof FixedLengthStream !== "undefined"
+      ? rawStream.pipeThrough(new FixedLengthStream(totalArchiveBytes))
+      : rawStream;
+
   return {
-    archive: JSON.stringify({ manifest, payload }),
+    archive: archiveStream,
     byteCount: manifest.byteCount,
     checksumSha256: manifest.checksumSha256,
     manifest,
