@@ -31,21 +31,73 @@ function recordKey(scope: string, fileId: string): string {
   return `${scope}:${fileId}`;
 }
 
+let cachedDatabasePromise: Promise<IDBDatabase> | null = null;
+let currentConnectionGeneration = 0;
+let lastIndexedDB: IDBFactory | null = null;
+
 function openDatabase(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (typeof indexedDB === "undefined") {
+    return Promise.reject(new Error("Offline media storage is unavailable."));
+  }
+  if (lastIndexedDB !== indexedDB) {
+    cachedDatabasePromise = null;
+    lastIndexedDB = indexedDB;
+  }
+  if (cachedDatabasePromise) {
+    return cachedDatabasePromise;
+  }
+  const generation = ++currentConnectionGeneration;
+  const promise = new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(databaseName, databaseVersion);
+
+    request.onblocked = () => {
+      if (currentConnectionGeneration === generation) {
+        cachedDatabasePromise = null;
+      }
+      reject(new Error("Offline media storage upgrade was blocked by another tab."));
+    };
+
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(storeName)) {
         request.result.createObjectStore(storeName, { keyPath: "key" });
       }
     };
+
     request.onsuccess = () => {
-      resolve(request.result);
+      const db = request.result;
+
+      db.onversionchange = () => {
+        db.close();
+        if (currentConnectionGeneration === generation) {
+          cachedDatabasePromise = null;
+        }
+      };
+
+      db.onclose = () => {
+        if (currentConnectionGeneration === generation) {
+          cachedDatabasePromise = null;
+        }
+      };
+
+      resolve(db);
     };
+
     request.onerror = () => {
+      if (currentConnectionGeneration === generation) {
+        cachedDatabasePromise = null;
+      }
       reject(request.error ?? new Error("Offline media storage could not be opened."));
     };
   });
+
+  cachedDatabasePromise = promise.catch((error: unknown) => {
+    if (currentConnectionGeneration === generation) {
+      cachedDatabasePromise = null;
+    }
+    throw error;
+  });
+
+  return cachedDatabasePromise;
 }
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {

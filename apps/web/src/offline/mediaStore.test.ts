@@ -11,9 +11,19 @@ import {
 
 interface FakeRequest<T> {
   error: Error | null;
+  onerror: ((event?: unknown) => void) | null;
+  onsuccess: ((event?: unknown) => void) | null;
+  result: T | null;
+}
+
+interface MockDatabase {
+  close: ReturnType<typeof vi.fn>;
+  readonly isClosed: boolean;
+  objectStoreNames: { contains: () => boolean };
+  onclose: (() => void) | null;
   onerror: (() => void) | null;
-  onsuccess: (() => void) | null;
-  result: T;
+  onversionchange: (() => void) | null;
+  transaction: () => { objectStore: () => unknown };
 }
 
 function successfulRequest<T>(result: T): FakeRequest<T> {
@@ -24,8 +34,9 @@ function successfulRequest<T>(result: T): FakeRequest<T> {
   return request;
 }
 
-function installIndexedDatabase(): void {
+function installIndexedDatabase() {
   const records = new Map<string, unknown>();
+  const activeDatabases: MockDatabase[] = [];
   const store = {
     delete: (key: string) => {
       records.delete(key);
@@ -38,13 +49,32 @@ function installIndexedDatabase(): void {
       return successfulRequest(record.key);
     },
   };
-  const database = {
-    objectStoreNames: { contains: () => true },
-    transaction: () => ({ objectStore: () => store }),
-  };
-  vi.stubGlobal("indexedDB", {
-    open: () => successfulRequest(database),
+  const openFn = vi.fn<() => FakeRequest<MockDatabase>>(() => {
+    let isClosed = false;
+    const database: MockDatabase = {
+      close: vi.fn(() => {
+        isClosed = true;
+      }),
+      get isClosed() {
+        return isClosed;
+      },
+      objectStoreNames: { contains: () => true },
+      onclose: null,
+      onerror: null,
+      onversionchange: null,
+      transaction: () => ({ objectStore: () => store }),
+    };
+    activeDatabases.push(database);
+    return successfulRequest(database);
   });
+  vi.stubGlobal("indexedDB", {
+    open: openFn,
+  });
+  return {
+    activeDatabases,
+    openFn,
+    records,
+  };
 }
 
 afterEach(() => {
@@ -207,5 +237,99 @@ describe("cached player metadata", () => {
     expect(await getCachedPlayerMetadata("org-a.localhost", "token-1")).toBeNull();
     expect(await getCachedPlayerMetadata("org-a.localhost", "token-2")).toBeNull();
     expect(await getCachedPlayerMetadata("org-b.localhost", "token-3")).toEqual({ title: "B1" });
+  });
+});
+
+describe("offline IndexedDB connection lifecycle", () => {
+  it("reuses one open request across repeated and concurrent operations", async () => {
+    const harness = installIndexedDatabase();
+    await Promise.all([
+      listOfflineAudioIds("alpha.localhost"),
+      listOfflineAudioIds("alpha.localhost"),
+      listOfflineAudioIds("beta.localhost"),
+    ]);
+    expect(harness.openFn).toHaveBeenCalledOnce();
+    await listOfflineAudioIds("alpha.localhost");
+    expect(harness.openFn).toHaveBeenCalledOnce();
+  });
+
+  it("resets cached promise on open failure so retry succeeds", async () => {
+    let shouldFail = true;
+    const harness = installIndexedDatabase();
+    harness.openFn.mockImplementation(() => {
+      if (shouldFail) {
+        const req: FakeRequest<MockDatabase> = {
+          error: new Error("Opening failed"),
+          onerror: null,
+          onsuccess: null,
+          result: null,
+        };
+        queueMicrotask(() => req.onerror?.());
+        return req;
+      }
+      let isClosed = false;
+      const database: MockDatabase = {
+        close: vi.fn(() => {
+          isClosed = true;
+        }),
+        get isClosed() {
+          return isClosed;
+        },
+        objectStoreNames: { contains: () => true },
+        onclose: null,
+        onerror: null,
+        onversionchange: null,
+        transaction: () => ({ objectStore: () => ({ getAll: () => successfulRequest([]) }) }),
+      };
+      return successfulRequest(database);
+    });
+
+    await expect(listOfflineAudioIds("alpha.localhost")).rejects.toThrow("Opening failed");
+
+    shouldFail = false;
+    const ids = await listOfflineAudioIds("alpha.localhost");
+    expect(ids).toEqual(new Set());
+    expect(harness.openFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("closes old handle on versionchange and next calls obtain new version", async () => {
+    const harness = installIndexedDatabase();
+    await listOfflineAudioIds("alpha.localhost");
+    expect(harness.openFn).toHaveBeenCalledTimes(1);
+
+    const oldDb = harness.activeDatabases[0];
+    if (!oldDb) throw new Error("Expected database connection");
+    expect(oldDb.isClosed).toBe(false);
+
+    // Simulate versionchange event
+    oldDb.onversionchange?.();
+    expect(oldDb.close).toHaveBeenCalled();
+
+    // Subsequent operation should open a new connection
+    await listOfflineAudioIds("alpha.localhost");
+    expect(harness.openFn).toHaveBeenCalledTimes(2);
+    expect(harness.activeDatabases.length).toBe(2);
+  });
+
+  it("does not invalidate new connection when old handle fires late close or error", async () => {
+    const harness = installIndexedDatabase();
+    await listOfflineAudioIds("alpha.localhost");
+    const oldDb = harness.activeDatabases[0];
+    if (!oldDb) throw new Error("Expected database connection");
+
+    // Trigger versionchange to roll generation
+    oldDb.onversionchange?.();
+
+    // New operation creates new connection
+    await listOfflineAudioIds("alpha.localhost");
+    expect(harness.openFn).toHaveBeenCalledTimes(2);
+
+    // Late close/error on oldDb
+    oldDb.onclose?.();
+    oldDb.onerror?.();
+
+    // Next operation should still reuse the new connection without re-opening
+    await listOfflineAudioIds("alpha.localhost");
+    expect(harness.openFn).toHaveBeenCalledTimes(2);
   });
 });
