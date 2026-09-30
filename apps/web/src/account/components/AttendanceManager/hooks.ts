@@ -5,7 +5,7 @@ import type {
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import {
   getOrganizationRosterConfiguration,
@@ -158,6 +158,7 @@ export function useAttendanceMutations({
 }) {
   const queryClient = useQueryClient();
   const [savingIds, setSavingIds] = useState<ReadonlySet<string>>(new Set());
+  const mutationGenerations = useRef<Map<string, number>>(new Map());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [rescueCandidate, setRescueCandidate] = useState<OrganizationAttendanceRow | null>(null);
@@ -177,44 +178,73 @@ export function useAttendanceMutations({
     row: OrganizationAttendanceRow,
     updates: Partial<OrganizationAttendanceRow>,
   ) {
-    markSaving(row.profileId, true);
-    setMessage(null);
+    const targetEventId = eventId;
+    const profileId = row.profileId;
     const nextValue = updates.attendance ?? row.attendance;
-    const previous = queryClient.getQueryData<readonly OrganizationAttendanceRow[]>(
-      queryKeys.organization.attendance(eventId),
+
+    const generation = (mutationGenerations.current.get(profileId) ?? 0) + 1;
+    mutationGenerations.current.set(profileId, generation);
+
+    markSaving(profileId, true);
+    setMessage(null);
+
+    const currentRows = queryClient.getQueryData<readonly OrganizationAttendanceRow[]>(
+      queryKeys.organization.attendance(targetEventId),
     );
+    const previousAttendance =
+      currentRows?.find((candidate) => candidate.profileId === profileId)?.attendance ??
+      row.attendance;
+
     queryClient.setQueryData(
-      queryKeys.organization.attendance(eventId),
+      queryKeys.organization.attendance(targetEventId),
       (current: readonly OrganizationAttendanceRow[] | undefined) =>
         (current ?? []).map((candidate) =>
-          candidate.profileId === row.profileId
-            ? { ...candidate, attendance: nextValue }
-            : candidate,
+          candidate.profileId === profileId ? { ...candidate, attendance: nextValue } : candidate,
         ),
     );
     try {
-      const saved = await updateOrganizationEventAttendance(eventId, [
+      const saved = await updateOrganizationEventAttendance(targetEventId, [
         {
           attendance: nextValue,
-          profileId: row.profileId,
+          profileId,
         },
       ]);
-      const savedRow = saved.find((candidate) => candidate.profileId === row.profileId);
+      const savedRow = saved.find((candidate) => candidate.profileId === profileId);
       if (savedRow) {
         queryClient.setQueryData(
-          queryKeys.organization.attendance(eventId),
+          queryKeys.organization.attendance(targetEventId),
           (current: readonly OrganizationAttendanceRow[] | undefined) =>
-            (current ?? []).map((candidate) =>
-              candidate.profileId === row.profileId ? savedRow : candidate,
-            ),
+            (current ?? []).map((candidate) => {
+              if (
+                candidate.profileId === profileId &&
+                mutationGenerations.current.get(profileId) === generation
+              ) {
+                return savedRow;
+              }
+              return candidate;
+            }),
         );
       }
     } catch {
-      queryClient.setQueryData(queryKeys.organization.attendance(eventId), previous);
+      queryClient.setQueryData(
+        queryKeys.organization.attendance(targetEventId),
+        (current: readonly OrganizationAttendanceRow[] | undefined) =>
+          (current ?? []).map((candidate) => {
+            if (
+              candidate.profileId === profileId &&
+              mutationGenerations.current.get(profileId) === generation
+            ) {
+              return { ...candidate, attendance: previousAttendance };
+            }
+            return candidate;
+          }),
+      );
       setMessage("That attendance update could not be saved. Try again.");
       throw new Error("attendance_update_failed");
     } finally {
-      markSaving(row.profileId, false);
+      if (mutationGenerations.current.get(profileId) === generation) {
+        markSaving(profileId, false);
+      }
     }
   }
 
@@ -262,14 +292,30 @@ export function useAttendanceMutations({
 
   async function markRemainingPresent(markableRows: readonly OrganizationAttendanceRow[]) {
     if (!eventId || markableRows.length === 0 || bulkBusy) return;
+    const targetEventId = eventId;
     setBulkBusy(true);
     setMessage(null);
-    const previous = queryClient.getQueryData<readonly OrganizationAttendanceRow[]>(
-      queryKeys.organization.attendance(eventId),
-    );
+
     const targetProfileIds = new Set(markableRows.map((row) => row.profileId));
+    const currentRows = queryClient.getQueryData<readonly OrganizationAttendanceRow[]>(
+      queryKeys.organization.attendance(targetEventId),
+    );
+    const previousAttendanceMap = new Map<string, OrganizationAttendanceStatus>();
+    for (const r of markableRows) {
+      const prev =
+        currentRows?.find((c) => c.profileId === r.profileId)?.attendance ?? r.attendance;
+      previousAttendanceMap.set(r.profileId, prev);
+    }
+
+    const rowGenerations = new Map<string, number>();
+    for (const r of markableRows) {
+      const gen = (mutationGenerations.current.get(r.profileId) ?? 0) + 1;
+      mutationGenerations.current.set(r.profileId, gen);
+      rowGenerations.set(r.profileId, gen);
+    }
+
     queryClient.setQueryData(
-      queryKeys.organization.attendance(eventId),
+      queryKeys.organization.attendance(targetEventId),
       (current: readonly OrganizationAttendanceRow[] | undefined) =>
         (current ?? []).map((row) =>
           targetProfileIds.has(row.profileId) ? { ...row, attendance: "Present" as const } : row,
@@ -277,7 +323,7 @@ export function useAttendanceMutations({
     );
     try {
       const saved = await updateOrganizationEventAttendance(
-        eventId,
+        targetEventId,
         markableRows.map((row) => ({
           attendance: "Present" as const,
           profileId: row.profileId,
@@ -285,12 +331,31 @@ export function useAttendanceMutations({
       );
       const savedById = new Map(saved.map((row) => [row.profileId, row]));
       queryClient.setQueryData(
-        queryKeys.organization.attendance(eventId),
+        queryKeys.organization.attendance(targetEventId),
         (current: readonly OrganizationAttendanceRow[] | undefined) =>
-          (current ?? []).map((row) => savedById.get(row.profileId) ?? row),
+          (current ?? []).map((row) => {
+            const gen = rowGenerations.get(row.profileId);
+            if (gen !== undefined && mutationGenerations.current.get(row.profileId) === gen) {
+              return savedById.get(row.profileId) ?? row;
+            }
+            return row;
+          }),
       );
     } catch {
-      queryClient.setQueryData(queryKeys.organization.attendance(eventId), previous);
+      queryClient.setQueryData(
+        queryKeys.organization.attendance(targetEventId),
+        (current: readonly OrganizationAttendanceRow[] | undefined) =>
+          (current ?? []).map((row) => {
+            const gen = rowGenerations.get(row.profileId);
+            if (gen !== undefined && mutationGenerations.current.get(row.profileId) === gen) {
+              const prev = previousAttendanceMap.get(row.profileId);
+              if (prev !== undefined) {
+                return { ...row, attendance: prev };
+              }
+            }
+            return row;
+          }),
+      );
       setMessage("The remaining attendance could not be saved. Try again.");
     } finally {
       setBulkBusy(false);

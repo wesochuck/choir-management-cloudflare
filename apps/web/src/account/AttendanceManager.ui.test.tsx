@@ -194,4 +194,111 @@ describe("AttendanceManager section grouping and sorting UI", () => {
       }),
     ]);
   });
+
+  it("safely isolates optimistic rollback when concurrent row saves fail and succeed", async () => {
+    const user = userEvent.setup();
+    let rejectBob: ((err: Error) => void) | undefined;
+    let resolveCharlie: ((rows: OrganizationAttendanceRow[]) => void) | undefined;
+
+    vi.mocked(api.updateOrganizationEventAttendance).mockImplementation(
+      async (_eventId, updates) => {
+        const update = updates[0];
+        if (update?.profileId === "p-3") {
+          return new Promise<OrganizationAttendanceRow[]>((_resolve, reject) => {
+            rejectBob = reject;
+          });
+        }
+        if (update?.profileId === "p-4") {
+          return new Promise<OrganizationAttendanceRow[]>((resolve) => {
+            resolveCharlie = resolve;
+          });
+        }
+        return mockRows;
+      },
+    );
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText("Bob Iverson")).toBeInTheDocument();
+      expect(screen.getByText("Charlie Bass")).toBeInTheDocument();
+    });
+
+    const allFilterButton = screen.getByRole("button", { name: "All 4" });
+    await user.click(allFilterButton);
+
+    const bobButton = screen.getByRole("button", {
+      name: /Bob Iverson: Tap to check in/,
+    });
+    const charlieButton = screen.getByRole("button", {
+      name: /Charlie Bass: Tap to check in/,
+    });
+
+    // Click Bob then Charlie
+    await user.click(bobButton);
+    await user.click(charlieButton);
+
+    // Optimistically, both should show Present
+    expect(screen.getByRole("button", { name: /Bob Iverson: Present/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Charlie Bass: Present/ })).toBeInTheDocument();
+
+    const charlieRow = mockRows.find((r) => r.profileId === "p-4");
+    if (!charlieRow) throw new Error("Expected p-4 mock row");
+
+    // Now Charlie succeeds
+    resolveCharlie?.([
+      {
+        ...charlieRow,
+        attendance: "Present",
+      },
+    ]);
+
+    // Bob fails
+    rejectBob?.(new Error("Network error"));
+
+    // Verify Bob is rolled back to Pending, while Charlie remains Present
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /Bob Iverson: Tap to check in/ }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Charlie Bass: Present/ })).toBeInTheDocument();
+      expect(
+        screen.getByText("That attendance update could not be saved. Try again."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("safely rolls back bulk attendance updates on failure without affecting other rows", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.updateOrganizationEventAttendance).mockRejectedValueOnce(
+      new Error("Bulk update failed"),
+    );
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText("Bob Iverson")).toBeInTheDocument();
+    });
+
+    const allFilterButton = screen.getByRole("button", { name: "All 4" });
+    await user.click(allFilterButton);
+
+    const bulkButton = screen.getByRole("button", { name: "Mark remaining present" });
+    await user.click(bulkButton);
+
+    // In dialog
+    const dialogConfirm = screen.getAllByRole("button", { name: "Mark remaining present" });
+    const lastConfirm = dialogConfirm[dialogConfirm.length - 1];
+    if (!lastConfirm) throw new Error("Expected confirm button");
+    await user.click(lastConfirm);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("The remaining attendance could not be saved. Try again."),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /Bob Iverson: Tap to check in/ }),
+      ).toBeInTheDocument();
+    });
+  });
 });
