@@ -1647,6 +1647,14 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        WHERE applicable = 1 AND next_reminder_at IS NOT NULL`,
     ],
   },
+  {
+    version: 99,
+    statements: [
+      // Latest completion per task, including insertion order for equal timestamps.
+      `CREATE INDEX IF NOT EXISTS organization_compliance_completions_latest
+       ON organization_compliance_completions(task_id, created_at)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

@@ -141,9 +141,44 @@ describe("Nonprofit Compliance Store", () => {
     // Recurrence is 12 months from 2026-05-15 -> 2027-05-15 (NOT 2027-05-31)
     expect(completion.task?.nextDueDate).toBe("2027-05-15");
     expect(completion.task?.nextReminderAt).toBeNull();
+    expect(completion.task?.lastCompletedByUserId).toBe(testActor.actorUserId);
+    expect(
+      readNonprofitComplianceFromStore(storage).tasks.find((task) => task.id === irs.id),
+    ).toMatchObject({ lastCompletedByUserId: testActor.actorUserId });
   });
 
-  it("findDueComplianceReminders respects due date and organization timezone", () => {
+  it("reads the latest recorded completion actor with an indexed lookup", () => {
+    const { storage } = setupTestDatabase();
+    const task = setNonprofitEnabledInStore(storage, testActor, true).tasks[0];
+    if (!task) throw new Error("Missing seeded task.");
+    // Same recording timestamp: insertion order determines the latest completion,
+    // rather than a backdated completion date or a random UUID.
+    const now = new Date("2024-06-01T12:00:00Z");
+    completeComplianceTaskInStore(storage, testActor, task.id, "2024-05-31", now);
+    completeComplianceTaskInStore(
+      storage,
+      { ...testActor, actorUserId: "second-admin" },
+      task.id,
+      "2024-05-30",
+      now,
+    );
+    expect(
+      readNonprofitComplianceFromStore(storage).tasks.find(({ id }) => id === task.id),
+    ).toMatchObject({ lastCompletedByUserId: "second-admin", lastCompletedDate: "2024-05-30" });
+    const plan = storage.sql
+      .exec<{ readonly detail: string }>(
+        `EXPLAIN QUERY PLAN SELECT completed_by_user_id FROM organization_compliance_completions
+       WHERE task_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+        task.id,
+      )
+      .toArray();
+    expect(plan.map((row) => row.detail).join(" ")).toContain(
+      "USING INDEX organization_compliance_completions_latest",
+    );
+    expect(plan.map((row) => row.detail).join(" ")).not.toContain("TEMP B-TREE");
+  });
+
+  it("starts reminders four weeks before the due date in the Organization timezone", () => {
     // Organization in America/New_York (UTC-4 in summer)
     const { storage } = setupTestDatabase("America/New_York");
     setNonprofitEnabledInStore(storage, testActor, true);
@@ -156,17 +191,16 @@ describe("Nonprofit Compliance Store", () => {
       nextDueDate: "2026-05-15",
     });
 
-    // 2026-05-14 23:30 New York time is 2026-05-15 03:30 UTC
-    // At 2026-05-14T20:00:00 EDT (2026-05-15T00:00:00Z), local time is still May 14
-    const beforeDueInNy = new Date("2026-05-15T02:00:00Z"); // 10 PM May 14 EDT
+    // The reminder window starts April 17, exactly 28 days before May 15.
+    const beforeDueInNy = new Date("2026-04-17T03:59:59Z"); // April 16 in New York
     expect(findDueComplianceReminders(storage, beforeDueInNy)).toHaveLength(0);
 
-    // At midnight EDT: 2026-05-15T04:00:00Z -> becomes May 15 in NY
-    const onDueInNy = new Date("2026-05-15T04:05:00Z");
+    const onDueInNy = new Date("2026-04-17T04:00:00Z"); // Midnight April 17 EDT
     const due = findDueComplianceReminders(storage, onDueInNy);
     expect(due).toHaveLength(1);
     expect(due[0]?.task.kind).toBe("irs_annual_return");
     expect(due[0]?.cycleDueDate).toBe("2026-05-15");
+    expect(due[0]?.occurrenceDate).toBe("2026-04-17");
 
     // Advancing reminder by 7 days
     advanceComplianceReminder(storage, irs.id, null, onDueInNy.toISOString());
@@ -181,6 +215,9 @@ describe("Nonprofit Compliance Store", () => {
     const sevenDaysLater = new Date(onDueInNy.getTime() + 7 * 24 * 60 * 60 * 1000 + 1000);
     const secondOccurrence = findDueComplianceReminders(storage, sevenDaysLater);
     expect(secondOccurrence).toHaveLength(1);
+
+    completeComplianceTaskInStore(storage, testActor, irs.id, "2026-04-24", sevenDaysLater);
+    expect(findDueComplianceReminders(storage, sevenDaysLater)).toHaveLength(0);
   });
 
   it("stopped reminders when disabled or made not applicable", () => {

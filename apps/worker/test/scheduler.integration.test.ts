@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { reset, runDurableObjectAlarm, runInDurableObject } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
+import { futureDateString } from "@choir/testkit";
 
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import { wakeOrganizationAlarm } from "../src/organization/scheduler";
@@ -105,6 +106,59 @@ afterEach(async () => {
 });
 
 describe("Organization scheduler", () => {
+  it("queues one compliance reminder before the deadline and preserves weekly replay protection", async () => {
+    const stub = await provisionScheduler();
+    const actor = {
+      actorUserId: "bootstrap",
+      organizationId: "organization-scheduler",
+      requestId: crypto.randomUUID(),
+    };
+    const settings = await stub.setNonprofitEnabled({ ...actor, enabled: true });
+    const irs = settings.tasks.find(({ kind }) => kind === "irs_annual_return");
+    const ohio = settings.tasks.find(({ kind }) => kind === "ohio_ag_annual_report");
+    if (!irs || !ohio) throw new Error("Missing seeded compliance tasks.");
+    const dueDate = futureDateString({ days: 21 });
+    await stub.updateComplianceTask({ ...actor, taskId: irs.id, nextDueDate: dueDate });
+    await stub.updateComplianceTask({
+      ...actor,
+      taskId: ohio.id,
+      nextDueDate: futureDateString({ days: 29 }),
+    });
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec("UPDATE organization_metadata SET timezone = 'UTC'");
+      state.storage.sql.exec(
+        "UPDATE scheduler_state SET next_due_at = ? WHERE singleton = 1",
+        new Date(Date.now() - 1_000).toISOString(),
+      );
+      return state.storage.setAlarm(Date.now() + 60_000).then(() => undefined);
+    });
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+    const first = (await readAllOutboxJobs(stub)).filter(
+      ({ kind }) => kind === "compliance_reminder",
+    );
+    expect(first).toHaveLength(1);
+    expect(first[0]?.idempotencyKey).toContain(
+      `nonprofit-compliance:organization-scheduler:irs_annual_return:${dueDate}:`,
+    );
+    expect(first[0]?.enqueuedAt).toEqual(expect.any(String));
+    const refreshed = await stub.readNonprofitCompliance();
+    expect(refreshed.tasks.find(({ id }) => id === irs.id)?.nextReminderAt).toEqual(
+      expect.any(String),
+    );
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        "UPDATE scheduler_state SET next_due_at = ? WHERE singleton = 1",
+        new Date(Date.now() - 1_000).toISOString(),
+      );
+      return state.storage.setAlarm(Date.now() + 60_000).then(() => undefined);
+    });
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+    expect(
+      (await readAllOutboxJobs(stub)).filter(({ kind }) => kind === "compliance_reminder"),
+    ).toEqual(first);
+  });
+
   it("creates one stable job and safely re-enqueues an uncertain outbox delivery", async () => {
     const stub = await provisionScheduler();
     const overdueAt = new Date(Date.now() - 1_000).toISOString();

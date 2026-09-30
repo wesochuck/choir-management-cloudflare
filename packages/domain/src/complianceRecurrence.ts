@@ -1,5 +1,27 @@
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
+export const COMPLIANCE_REMINDER_LEAD_DAYS = 28;
+
+export function complianceTaskStatus(
+  task: {
+    readonly applicable: boolean;
+    readonly lastCompletedDate: string | null;
+    readonly nextDueDate: string | null;
+  },
+  today: string,
+): "not_applicable" | "not_scheduled" | "scheduled" | "completed" | "upcoming" | "due" | "overdue" {
+  if (!task.applicable) return "not_applicable";
+  if (task.nextDueDate === null) {
+    return task.lastCompletedDate === null ? "not_scheduled" : "completed";
+  }
+  if (task.nextDueDate < today) return "overdue";
+  if (task.nextDueDate === today) return "due";
+  if (task.nextDueDate <= addDaysToDateOnly(today, COMPLIANCE_REMINDER_LEAD_DAYS)) {
+    return "upcoming";
+  }
+  return task.lastCompletedDate === null ? "scheduled" : "completed";
+}
+
 function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }

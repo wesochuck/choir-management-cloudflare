@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { NonprofitComplianceSettingsResponse } from "@choir/contracts";
-import { futureDateString } from "@choir/testkit";
+import { futureDateString, pastDateString, relativeDate } from "@choir/testkit";
 import * as api from "../api/organization";
 import { SaveBar, SaveCoordinatorProvider, useSaveCoordinator } from "../persistence";
 import { OrganizationNonprofitCompliancePanel } from "./OrganizationNonprofitCompliancePanel";
@@ -82,6 +82,56 @@ beforeEach(() => {
   );
   vi.mocked(api.completeComplianceTask).mockResolvedValue(settings);
 });
+
+it("explains that weekly reminders start four weeks before the due date", async () => {
+  await setup();
+  expect(
+    screen.getByText(/starting four weeks before the stored due date until marked complete/),
+  ).toBeInTheDocument();
+});
+
+it.each(["Jordan Smith", null, undefined])(
+  "shows completion attribution with name=%s",
+  async (name) => {
+    vi.mocked(api.getNonprofitComplianceSettings).mockResolvedValue({
+      ...settings,
+      tasks: settings.tasks.map((task) => ({
+        ...task,
+        lastCompletedDate: pastDateString({ days: 1 }),
+        lastCompletedByUserId: "admin-id",
+        lastCompletedByName: name,
+      })),
+    });
+    await setup();
+    expect(screen.getAllByText(`By ${name ?? "Name unavailable"}`)).toHaveLength(2);
+  },
+);
+
+it.each([
+  { days: 29, completed: true, label: "Completed", tone: "success" },
+  { days: 29, completed: false, label: "Scheduled", tone: "neutral" },
+  { days: 28, completed: true, label: "Upcoming", tone: "neutral" },
+  { days: 0, completed: true, label: "Due", tone: "warning" },
+  { days: -1, completed: true, label: "Overdue", tone: "danger" },
+  { days: null, completed: false, label: "Not scheduled", tone: "neutral" },
+  { days: null, completed: true, label: "Completed", tone: "success" },
+])(
+  "shows $label for a task $days days away with completion=$completed",
+  async ({ days, completed, label, tone }) => {
+    vi.mocked(api.getNonprofitComplianceSettings).mockResolvedValue({
+      ...settings,
+      tasks: settings.tasks.map((task) => ({
+        ...task,
+        lastCompletedDate: completed ? pastDateString({ days: 365 }) : null,
+        nextDueDate: days === null ? null : relativeDate({ days }).toISOString().slice(0, 10),
+      })),
+    });
+    await setup();
+    const pills = screen.getAllByLabelText(`Status: ${label}`);
+    expect(pills).toHaveLength(2);
+    for (const pill of pills) expect(pill).toHaveClass(`status-pill--${tone}`);
+  },
+);
 
 it("guards task switching and navigation, and saves through the shared SaveBar", async () => {
   const { user, onLeave } = await setup();

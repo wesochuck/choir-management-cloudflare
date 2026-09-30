@@ -5,7 +5,7 @@ import type {
   NonprofitComplianceSettingsResponse,
   NonprofitComplianceTask,
 } from "@choir/contracts";
-import { datePartInTimeZone } from "@choir/domain";
+import { complianceTaskStatus, datePartInTimeZone } from "@choir/domain";
 import {
   completeComplianceTask,
   getNonprofitComplianceSettings,
@@ -35,19 +35,16 @@ interface ComplianceStatus {
 }
 
 function calculateTaskStatus(task: NonprofitComplianceTask, today: string): ComplianceStatus {
-  if (!task.applicable) {
-    return { label: "Not applicable", tone: "neutral" };
-  }
-  if (!task.nextDueDate) {
-    return { label: "Upcoming", tone: "neutral" };
-  }
-  if (task.nextDueDate < today) {
-    return { label: "Overdue", tone: "danger" };
-  }
-  if (task.nextDueDate === today) {
-    return { label: "Due", tone: "warning" };
-  }
-  return { label: "Upcoming", tone: "neutral" };
+  const statuses: Record<ReturnType<typeof complianceTaskStatus>, ComplianceStatus> = {
+    not_applicable: { label: "Not applicable", tone: "neutral" },
+    not_scheduled: { label: "Not scheduled", tone: "neutral" },
+    scheduled: { label: "Scheduled", tone: "neutral" },
+    completed: { label: "Completed", tone: "success" },
+    upcoming: { label: "Upcoming", tone: "neutral" },
+    due: { label: "Due", tone: "warning" },
+    overdue: { label: "Overdue", tone: "danger" },
+  };
+  return statuses[complianceTaskStatus(task, today)];
 }
 
 export function OrganizationNonprofitCompliancePanel({
@@ -224,7 +221,8 @@ export function OrganizationNonprofitCompliancePanel({
             <div className="compliance-tracker-container" style={{ marginTop: "1rem" }}>
               <p className="field__hint" style={{ marginBottom: "1rem" }}>
                 Track recurring filing requirements. Weekly reminders are sent to all Organization
-                Owners and Administrators starting on the stored due date until marked complete.
+                Owners and Administrators starting four weeks before the stored due date until
+                marked complete.
               </p>
 
               <div className="compliance-tasks-list" style={{ display: "grid", gap: "1rem" }}>
@@ -411,6 +409,11 @@ export function OrganizationNonprofitCompliancePanel({
                               Last completed:
                             </span>
                             <span>{task.lastCompletedDate ?? "None recorded"}</span>
+                            {task.lastCompletedDate ? (
+                              <span style={{ display: "block" }}>
+                                By {task.lastCompletedByName ?? "Name unavailable"}
+                              </span>
+                            ) : null}
                           </div>
                           <div>
                             <span style={{ color: "var(--color-text-subtle)", display: "block" }}>

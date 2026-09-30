@@ -19,6 +19,8 @@ export const nonprofitComplianceTaskSchema = z.object({
   id: z.uuid(),
   kind: nonprofitComplianceTaskKindSchema,
   lastCompletedDate: dateOnlyStringSchema.nullable(),
+  lastCompletedByUserId: z.string().min(1).nullable().optional(),
+  lastCompletedByName: z.string().min(1).nullable().optional(),
   nextDueDate: dateOnlyStringSchema.nullable(),
   nextReminderAt: z.iso.datetime().nullable(),
   recurrenceMonths: z.number().int().min(1).max(120),

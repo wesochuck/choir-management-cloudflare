@@ -5,9 +5,48 @@ import {
   addDaysToIsoDateTime,
   addMonthsToDateOnly,
   compareDateOnly,
+  complianceTaskStatus,
   isValidDateOnlyString,
   nextDueDateFromCompletion,
 } from "./complianceRecurrence";
+
+describe("complianceTaskStatus", () => {
+  // Fixed historical snapshot includes the leap-day reminder boundary.
+  const today = "2024-02-01";
+  it.each([
+    { days: 29, completed: false, status: "scheduled" },
+    { days: 29, completed: true, status: "completed" },
+    { days: 28, completed: false, status: "upcoming" },
+    { days: 28, completed: true, status: "upcoming" },
+    { days: 1, completed: true, status: "upcoming" },
+    { days: 0, completed: false, status: "due" },
+    { days: 0, completed: true, status: "due" },
+    { days: -1, completed: false, status: "overdue" },
+    { days: -1, completed: true, status: "overdue" },
+    { days: null, completed: false, status: "not_scheduled" },
+    { days: null, completed: true, status: "completed" },
+  ])("returns $status at $days days with completion=$completed", ({ days, completed, status }) => {
+    expect(
+      complianceTaskStatus(
+        {
+          applicable: true,
+          lastCompletedDate: completed ? "2023-02-01" : null,
+          nextDueDate: days === null ? null : addDaysToDateOnly(today, days),
+        },
+        today,
+      ),
+    ).toBe(status);
+  });
+
+  it("keeps inapplicable tasks neutral even when their deadline has passed", () => {
+    expect(
+      complianceTaskStatus(
+        { applicable: false, lastCompletedDate: null, nextDueDate: "2024-01-01" },
+        today,
+      ),
+    ).toBe("not_applicable");
+  });
+});
 
 describe("isValidDateOnlyString", () => {
   it("accepts well-formed calendar dates", () => {

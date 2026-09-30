@@ -8,6 +8,7 @@ import type { Hono } from "hono";
 
 import { organizationStoreStub } from "../organization/rpc/client";
 import { authorizeCalendarRoute, type WorkerHonoEnvironment } from "./helpers";
+import { complianceResponseWithNames } from "./helpers/complianceResponse";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/compliance", async (context) => {
@@ -21,7 +22,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       const stub = organizationStoreStub(context.env, authorization.organizationId);
       const settings = await stub.readNonprofitCompliance();
-      return context.json({ ...settings, requestId: context.get("requestId") });
+      const response = await complianceResponseWithNames(
+        context.env,
+        authorization.organizationId,
+        settings,
+      );
+      return context.json({ ...response, requestId: context.get("requestId") });
     } catch {
       return context.json(
         {
@@ -63,7 +69,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         organizationId: authorization.organizationId,
         requestId: context.get("requestId"),
       });
-      return context.json({ ...settings, requestId: context.get("requestId") });
+      const response = await complianceResponseWithNames(
+        context.env,
+        authorization.organizationId,
+        settings,
+      );
+      return context.json({ ...response, requestId: context.get("requestId") });
     } catch {
       return context.json(
         {
@@ -123,7 +134,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         );
       }
       const settings = await stub.readNonprofitCompliance();
-      return context.json({ ...settings, requestId: context.get("requestId") });
+      const response = await complianceResponseWithNames(
+        context.env,
+        authorization.organizationId,
+        settings,
+      );
+      return context.json({ ...response, requestId: context.get("requestId") });
     } catch {
       return context.json(
         {
@@ -181,7 +197,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         );
       }
       const settings = await stub.readNonprofitCompliance();
-      return context.json({ ...settings, requestId: context.get("requestId") });
+      const response = await complianceResponseWithNames(
+        context.env,
+        authorization.organizationId,
+        settings,
+      );
+      return context.json({ ...response, requestId: context.get("requestId") });
     } catch {
       return context.json(
         {

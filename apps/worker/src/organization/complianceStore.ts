@@ -5,7 +5,9 @@ import {
   type NonprofitComplianceTaskKind,
 } from "@choir/contracts";
 import {
+  addDaysToDateOnly,
   addDaysToIsoDateTime,
+  COMPLIANCE_REMINDER_LEAD_DAYS,
   datePartInTimeZone,
   isValidDateOnlyString,
   nextDueDateFromCompletion,
@@ -51,6 +53,7 @@ interface ComplianceTaskRow {
   readonly id: string;
   readonly kind: string;
   readonly last_completed_date: string | null;
+  readonly last_completed_by_user_id?: string | null;
   readonly next_due_date: string | null;
   readonly next_reminder_at: string | null;
   readonly recurrence_months: number;
@@ -70,6 +73,7 @@ function rowToTask(row: ComplianceTaskRow): NonprofitComplianceTask {
     id: row.id,
     kind: nonprofitComplianceTaskKindSchema.parse(row.kind),
     lastCompletedDate: row.last_completed_date,
+    lastCompletedByUserId: row.last_completed_by_user_id ?? null,
     nextDueDate: row.next_due_date,
     nextReminderAt: row.next_reminder_at,
     recurrenceMonths: row.recurrence_months,
@@ -86,6 +90,20 @@ function readNonprofitEnabled(storage: ComplianceStoreStorage): boolean {
     .toArray()
     .at(0);
   return (row?.nonprofit_enabled ?? 0) === 1;
+}
+
+function readComplianceTaskRow(storage: ComplianceStoreStorage, taskId: string) {
+  return storage.sql
+    .exec<ComplianceTaskRow>(
+      `SELECT task.*,
+        (SELECT completed_by_user_id FROM organization_compliance_completions
+         WHERE task_id = task.id ORDER BY created_at DESC, rowid DESC LIMIT 1)
+          AS last_completed_by_user_id
+       FROM organization_compliance_tasks task WHERE task.id = ? LIMIT 1`,
+      taskId,
+    )
+    .toArray()
+    .at(0);
 }
 
 function readOrganizationTimezone(storage: ComplianceStoreStorage): string {
@@ -124,9 +142,13 @@ export function readNonprofitComplianceFromStore(storage: ComplianceStoreStorage
 } {
   const tasks = storage.sql
     .exec<ComplianceTaskRow>(
-      `SELECT id, kind, title, applicable, recurrence_months, next_due_date,
-        last_completed_date, next_reminder_at, reminder_interval_days
-       FROM organization_compliance_tasks ORDER BY kind`,
+      `SELECT task.id, task.kind, task.title, task.applicable, task.recurrence_months,
+        task.next_due_date, task.last_completed_date, task.next_reminder_at,
+        task.reminder_interval_days,
+        (SELECT completed_by_user_id FROM organization_compliance_completions
+         WHERE task_id = task.id ORDER BY created_at DESC, rowid DESC LIMIT 1)
+          AS last_completed_by_user_id
+       FROM organization_compliance_tasks task ORDER BY task.kind`,
     )
     .toArray()
     .map(rowToTask);
@@ -200,13 +222,7 @@ export function updateComplianceTaskInStore(
   }
   const occurredAt = new Date().toISOString();
   const updated = storage.transactionSync((): NonprofitComplianceTask | null => {
-    const existing = storage.sql
-      .exec<ComplianceTaskRow>(
-        "SELECT * FROM organization_compliance_tasks WHERE id = ? LIMIT 1",
-        taskId,
-      )
-      .toArray()
-      .at(0);
+    const existing = readComplianceTaskRow(storage, taskId);
     if (!existing) return null;
     const nextDueDate =
       update.nextDueDate === undefined ? existing.next_due_date : update.nextDueDate;
@@ -230,13 +246,7 @@ export function updateComplianceTaskInStore(
       { taskId, taskKind: existing.kind },
       occurredAt,
     );
-    const refreshed = storage.sql
-      .exec<ComplianceTaskRow>(
-        "SELECT * FROM organization_compliance_tasks WHERE id = ? LIMIT 1",
-        taskId,
-      )
-      .toArray()
-      .at(0);
+    const refreshed = readComplianceTaskRow(storage, taskId);
     return refreshed ? rowToTask(refreshed) : null;
   });
   if (updated === null) return { code: "not_found", ok: false };
@@ -257,13 +267,7 @@ export function completeComplianceTaskInStore(
   const effectiveCompletedDate = completedDate ?? datePartInTimeZone(now, timezone);
   const occurredAt = now.toISOString();
   const updated = storage.transactionSync((): NonprofitComplianceTask | null => {
-    const existing = storage.sql
-      .exec<ComplianceTaskRow>(
-        "SELECT * FROM organization_compliance_tasks WHERE id = ? LIMIT 1",
-        taskId,
-      )
-      .toArray()
-      .at(0);
+    const existing = readComplianceTaskRow(storage, taskId);
     if (!existing) return null;
     const cycleDueDate = existing.next_due_date ?? effectiveCompletedDate;
     storage.sql.exec(
@@ -294,13 +298,7 @@ export function completeComplianceTaskInStore(
       { cycleDueDate, completedDate: effectiveCompletedDate, taskId, taskKind: existing.kind },
       occurredAt,
     );
-    const refreshed = storage.sql
-      .exec<ComplianceTaskRow>(
-        "SELECT * FROM organization_compliance_tasks WHERE id = ? LIMIT 1",
-        taskId,
-      )
-      .toArray()
-      .at(0);
+    const refreshed = readComplianceTaskRow(storage, taskId);
     return refreshed ? rowToTask(refreshed) : null;
   });
   if (updated === null) return { code: "not_found", ok: false };
@@ -328,7 +326,7 @@ export function findDueComplianceReminders(
          AND next_due_date <= ?
          AND (next_reminder_at IS NULL OR next_reminder_at <= ?)
        ORDER BY next_due_date, kind`,
-      today,
+      addDaysToDateOnly(today, COMPLIANCE_REMINDER_LEAD_DAYS),
       nowIso,
     )
     .toArray();

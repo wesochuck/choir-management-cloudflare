@@ -279,6 +279,8 @@ export {
   addDaysToIsoDateTime,
   addMonthsToDateOnly,
   compareDateOnly,
+  COMPLIANCE_REMINDER_LEAD_DAYS,
+  complianceTaskStatus,
   isValidDateOnlyString,
   nextDueDateFromCompletion,
 } from "./complianceRecurrence";
