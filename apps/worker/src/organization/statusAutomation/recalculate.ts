@@ -9,7 +9,7 @@ import { insertAudit } from "./audit";
 import { recordEventRsvpChange } from "./attendance";
 import { readProfiles, readRosterAutomationConfiguration, readTimezone } from "./store";
 import { performancesByProfile, readPerformances } from "./attendance";
-import type { StatusAutomationActor, StoredPendingRsvpRow } from "./types";
+import type { StatusAutomationActor } from "./types";
 import { defaultStatusAutomationActor } from "./types";
 
 export function recordProfileStatusChange(
@@ -73,12 +73,14 @@ export function recalculateProfileStatusesInTransaction(
   storage: DurableObjectStorage,
   now: Date,
   actor: StatusAutomationActor,
+  affectedProfileIds?: readonly string[],
 ): number {
   const configuration = readRosterAutomationConfiguration(storage);
   const timezone = readTimezone(storage);
-  const performances = performancesByProfile(readPerformances(storage));
+  const profiles = readProfiles(storage, affectedProfileIds);
+  const performances = performancesByProfile(readPerformances(storage, affectedProfileIds));
   let changed = 0;
-  for (const profile of readProfiles(storage)) {
+  for (const profile of profiles) {
     if (profile.statusIsManual === 1 || profile.voicePart.trim() === "") continue;
     const profilePerformances = performances.get(profile.id) ?? [];
     const evaluation = evaluateProfileStatus({
@@ -137,6 +139,7 @@ export function runRosterAutomations(
   organizationId: string,
   now = new Date(),
   requestId?: string,
+  affectedProfileIds?: readonly string[],
 ): { readonly profileStatusChanges: number; readonly rsvpExpirations: number } {
   const actor =
     requestId === undefined
@@ -147,43 +150,74 @@ export function runRosterAutomations(
   storage.transactionSync(() => {
     const configuration = readRosterAutomationConfiguration(storage);
     const timezone = readTimezone(storage);
+    const expiredProfileIds = new Set<string>();
     if (configuration.rsvpExpiryEnabled) {
-      const pending = storage.sql
-        .exec<StoredPendingRsvpRow>(
-          `SELECT e.id AS eventId, p.id AS profileId,
-             e.starts_at AS startsAt, e.type, e.rsvp_deadline_date AS rsvpDeadlineDate
-           FROM events e
-           CROSS JOIN profiles p
-           LEFT JOIN event_rosters r ON r.event_id = e.id AND r.profile_id = p.id
-           WHERE COALESCE(r.rsvp, 'Pending') = 'Pending'
-             AND e.type = 'Performance' AND e.is_archived = 0 AND e.is_canceled = 0
-           ORDER BY e.starts_at, e.id, p.id LIMIT 100000`,
+      const candidateEvents = storage.sql
+        .exec<{
+          readonly id: string;
+          readonly startsAt: string;
+          readonly rsvpDeadlineDate: string;
+        }>(
+          `SELECT id, starts_at AS startsAt, rsvp_deadline_date AS rsvpDeadlineDate
+           FROM events
+           WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
+             AND rsvp_deadline_date IS NOT NULL AND rsvp_deadline_date != ''
+             AND starts_at > ?
+           ORDER BY starts_at, id`,
+          now.toISOString(),
         )
         .toArray();
-      for (const row of pending) {
-        const deadline = rsvpDeadlineFromDate(row.rsvpDeadlineDate ?? "", timezone);
-        const startsAt = new Date(row.startsAt);
+      for (const event of candidateEvents) {
+        const deadline = rsvpDeadlineFromDate(event.rsvpDeadlineDate, timezone);
+        const startsAt = new Date(event.startsAt);
         if (
-          Number.isFinite(startsAt.getTime()) &&
-          startsAt.getTime() > now.getTime() &&
-          deadline &&
-          isRsvpDeadlinePassed(deadline, now) &&
-          recordEventRsvpChange(storage, {
-            actor,
-            automatic: true,
-            eventId: row.eventId,
-            newRsvp: "No",
-            occurredAt: now.toISOString(),
-            profileId: row.profileId,
-            reason: `RSVP deadline passed on ${deadline.deadlineDate}.`,
-            rsvpNote: "",
-          })
+          !Number.isFinite(startsAt.getTime()) ||
+          startsAt.getTime() <= now.getTime() ||
+          !deadline ||
+          !isRsvpDeadlinePassed(deadline, now)
         ) {
-          rsvpExpirations += 1;
+          continue;
+        }
+        const pendingProfiles = storage.sql
+          .exec<{ readonly profileId: string }>(
+            `SELECT p.id AS profileId
+             FROM profiles p
+             LEFT JOIN event_rosters r ON r.event_id = ? AND r.profile_id = p.id
+             WHERE trim(COALESCE(p.voice_part, '')) != ''
+               AND COALESCE(r.rsvp, 'Pending') = 'Pending'
+             ORDER BY p.id`,
+            event.id,
+          )
+          .toArray();
+        for (const row of pendingProfiles) {
+          if (
+            recordEventRsvpChange(storage, {
+              actor,
+              automatic: true,
+              eventId: event.id,
+              newRsvp: "No",
+              occurredAt: now.toISOString(),
+              profileId: row.profileId,
+              reason: `RSVP deadline passed on ${deadline.deadlineDate}.`,
+              rsvpNote: "",
+            })
+          ) {
+            rsvpExpirations += 1;
+            expiredProfileIds.add(row.profileId);
+          }
         }
       }
     }
-    profileStatusChanges = recalculateProfileStatusesInTransaction(storage, now, actor);
+    let targetProfileIds = affectedProfileIds;
+    if (affectedProfileIds && expiredProfileIds.size > 0) {
+      targetProfileIds = [...new Set([...affectedProfileIds, ...expiredProfileIds])];
+    }
+    profileStatusChanges = recalculateProfileStatusesInTransaction(
+      storage,
+      now,
+      actor,
+      targetProfileIds,
+    );
   });
   return { profileStatusChanges, rsvpExpirations };
 }
@@ -193,6 +227,7 @@ export function recalculateProfileStatuses(
   organizationId: string,
   now = new Date(),
   requestId?: string,
+  affectedProfileIds?: readonly string[],
 ): number {
   let changed = 0;
   const actor =
@@ -200,7 +235,7 @@ export function recalculateProfileStatuses(
       ? defaultStatusAutomationActor(organizationId, now.toISOString())
       : { actorId: "", actorType: "system" as const, requestId };
   storage.transactionSync(() => {
-    changed = recalculateProfileStatusesInTransaction(storage, now, actor);
+    changed = recalculateProfileStatusesInTransaction(storage, now, actor, affectedProfileIds);
   });
   return changed;
 }

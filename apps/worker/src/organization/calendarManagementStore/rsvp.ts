@@ -84,6 +84,7 @@ export function updateEventRsvp(
     rsvpOperation.organizationId,
     new Date(occurredAt),
     rsvpOperation.requestId,
+    [rsvpOperation.rsvp.profileId],
   );
   return Response.json({
     eventId: rsvpOperation.eventId,
@@ -160,11 +161,15 @@ export function bulkUpdateEventRsvp(
       occurredAt,
     );
   });
+  const affectedProfileIds = [
+    ...new Set(bulkRsvpOperation.updates.map((update) => update.profileId)),
+  ];
   recalculateProfileStatuses(
     storage,
     bulkRsvpOperation.organizationId,
     new Date(occurredAt),
     bulkRsvpOperation.requestId,
+    affectedProfileIds,
   );
   return listEventAttendanceFromStore(storage, {
     eventId: bulkRsvpOperation.eventId,

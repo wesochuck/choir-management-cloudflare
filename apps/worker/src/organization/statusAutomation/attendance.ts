@@ -1,41 +1,119 @@
 import { isRsvpDeadlinePassed, rsvpDeadlineFromDate } from "@choir/domain";
 
 import { insertAudit } from "./audit";
-import { profileHasVoicePart } from "./store";
+import { profileHasVoicePart, readProfiles } from "./store";
 import type {
   EventRsvpChange,
   RawEventRow,
-  RawPerformanceRow,
   StatusAutomationActor,
   StoredEventRow,
   StoredPerformanceRow,
 } from "./types";
 
-export function readPerformances(storage: DurableObjectStorage): readonly StoredPerformanceRow[] {
-  return storage.sql
-    .exec<RawPerformanceRow>(
-      `SELECT p.id AS profileId, e.id, e.title, e.starts_at AS startsAt,
-         e.duration_minutes AS durationMinutes, e.is_archived AS isArchived,
-         e.is_canceled AS isCanceled, COALESCE(r.rsvp, 'Pending') AS rsvp,
-         COALESCE(r.attendance, 'Pending') AS attendance
-       FROM profiles p
-       CROSS JOIN events e
-       LEFT JOIN event_rosters r ON r.event_id = e.id AND r.profile_id = p.id
-       WHERE e.type = 'Performance' AND e.is_archived = 0 AND e.is_canceled = 0
-       ORDER BY r.profile_id, e.starts_at DESC, e.id DESC LIMIT 100000`,
+interface RawActiveEventRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly id: string;
+  readonly title: string;
+  readonly startsAt: string;
+  readonly durationMinutes: number | null;
+  readonly isArchived: number;
+  readonly isCanceled: number;
+}
+
+function toAttendance(value: string | undefined): "Absent" | "Pending" | "Present" {
+  if (value === "Absent" || value === "Present") {
+    return value;
+  }
+  return "Pending";
+}
+
+function toRsvp(value: string | undefined): "No" | "Pending" | "Yes" {
+  if (value === "No" || value === "Yes") {
+    return value;
+  }
+  return "Pending";
+}
+
+export function readPerformances(
+  storage: DurableObjectStorage,
+  profileIds?: readonly string[],
+): readonly StoredPerformanceRow[] {
+  const events = storage.sql
+    .exec<RawActiveEventRow>(
+      `SELECT id, title, starts_at AS startsAt, duration_minutes AS durationMinutes,
+         is_archived AS isArchived, is_canceled AS isCanceled
+       FROM events
+       WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
+       ORDER BY starts_at DESC, id DESC`,
     )
-    .toArray()
-    .map((row) => ({
-      attendance: row.attendance,
-      durationMinutes: row.durationMinutes,
-      id: row.id,
-      isArchived: row.isArchived === 1,
-      isCanceled: row.isCanceled === 1,
-      profileId: row.profileId,
-      rsvp: row.rsvp,
-      startsAt: row.startsAt,
-      title: row.title,
-    }));
+    .toArray();
+  if (events.length === 0) return [];
+
+  const targetProfiles = readProfiles(storage, profileIds);
+  if (targetProfiles.length === 0) return [];
+
+  const rosterMap = new Map<string, { readonly attendance: string; readonly rsvp: string }>();
+  if (profileIds) {
+    const placeholders = profileIds.map(() => "?").join(", ");
+    const rows = storage.sql
+      .exec<{
+        readonly attendance: string;
+        readonly eventId: string;
+        readonly profileId: string;
+        readonly rsvp: string;
+      }>(
+        `SELECT profile_id AS profileId, event_id AS eventId, rsvp, attendance
+         FROM event_rosters
+         WHERE profile_id IN (${placeholders})`,
+        ...profileIds,
+      )
+      .toArray();
+    for (const row of rows) {
+      rosterMap.set(`${row.profileId}:${row.eventId}`, {
+        attendance: row.attendance,
+        rsvp: row.rsvp,
+      });
+    }
+  } else {
+    const rows = storage.sql
+      .exec<{
+        readonly attendance: string;
+        readonly eventId: string;
+        readonly profileId: string;
+        readonly rsvp: string;
+      }>(
+        `SELECT r.profile_id AS profileId, r.event_id AS eventId, r.rsvp, r.attendance
+         FROM event_rosters r
+         JOIN events e ON e.id = r.event_id
+         WHERE e.type = 'Performance' AND e.is_archived = 0 AND e.is_canceled = 0`,
+      )
+      .toArray();
+    for (const row of rows) {
+      rosterMap.set(`${row.profileId}:${row.eventId}`, {
+        attendance: row.attendance,
+        rsvp: row.rsvp,
+      });
+    }
+  }
+
+  const result: StoredPerformanceRow[] = [];
+  for (const profile of targetProfiles) {
+    for (const event of events) {
+      const roster = rosterMap.get(`${profile.id}:${event.id}`);
+      result.push({
+        attendance: toAttendance(roster?.attendance),
+        durationMinutes: event.durationMinutes,
+        id: event.id,
+        isArchived: event.isArchived === 1,
+        isCanceled: event.isCanceled === 1,
+        profileId: profile.id,
+        rsvp: toRsvp(roster?.rsvp),
+        startsAt: event.startsAt,
+        title: event.title,
+      });
+    }
+  }
+  return result;
 }
 
 export function performancesByProfile(

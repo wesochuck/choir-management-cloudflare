@@ -293,6 +293,7 @@ export async function createProfile(
     parsed.data.organizationId,
     new Date(occurredAt),
     parsed.data.requestId,
+    [parsed.data.profileId],
   );
   return Response.json(readProfile(storage, parsed.data.profileId));
 }

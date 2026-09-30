@@ -683,10 +683,23 @@ export async function runOrganizationAlarm(
     await storage.deleteAlarm();
     return { enqueuedJobCount: 0, organizationId: null };
   }
-  runRosterAutomations(storage, organizationId, now);
-  archiveDuePolls(storage, organizationId, now);
-  autoDisableExpiredAuditions(storage, organizationId, now);
-  createDueJobs(storage, organizationId, now, options.force === true);
+  const scheduler = storage.sql
+    .exec<SchedulerStateRow>(
+      "SELECT next_due_at AS nextDueAt FROM scheduler_state WHERE singleton = 1",
+    )
+    .toArray()
+    .at(0);
+  const isDue =
+    options.force === true ||
+    !scheduler ||
+    new Date(scheduler.nextDueAt).getTime() <= now.getTime();
+
+  if (isDue) {
+    runRosterAutomations(storage, organizationId, now);
+    archiveDuePolls(storage, organizationId, now);
+    autoDisableExpiredAuditions(storage, organizationId, now);
+    createDueJobs(storage, organizationId, now, options.force === true);
+  }
 
   const pendingJobs = readPendingJobs(storage);
   if (pendingJobs.length === 0) {

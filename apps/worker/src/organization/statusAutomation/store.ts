@@ -47,7 +47,25 @@ export function readRosterAutomationConfiguration(
   }
 }
 
-export function readProfiles(storage: DurableObjectStorage): readonly StoredProfileRow[] {
+export function readProfiles(
+  storage: DurableObjectStorage,
+  profileIds?: readonly string[],
+): readonly StoredProfileRow[] {
+  if (profileIds) {
+    if (profileIds.length === 0) return [];
+    const placeholders = profileIds.map(() => "?").join(", ");
+    return storage.sql
+      .exec<StoredProfileRow>(
+        `SELECT id, display_name AS displayName, created_at AS createdAt, voice_part AS voicePart,
+           global_status AS globalStatus, status_is_manual AS statusIsManual,
+           status_changed_at AS statusChangedAt, status_change_reason AS statusChangeReason
+         FROM profiles
+         WHERE id IN (${placeholders})
+         ORDER BY display_name COLLATE NOCASE ASC, id ASC`,
+        ...profileIds,
+      )
+      .toArray();
+  }
   return storage.sql
     .exec<StoredProfileRow>(
       `SELECT id, display_name AS displayName, created_at AS createdAt, voice_part AS voicePart,

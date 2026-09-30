@@ -127,11 +127,15 @@ export function updateAttendance(
       occurredAt,
     );
   });
+  const affectedProfileIds = [
+    ...new Set(operation.attendance.updates.map((update) => update.profileId)),
+  ];
   recalculateProfileStatuses(
     storage,
     operation.organizationId,
     new Date(occurredAt),
     operation.requestId,
+    affectedProfileIds,
   );
   return listEventAttendanceFromStore(storage, {
     eventId: operation.eventId,

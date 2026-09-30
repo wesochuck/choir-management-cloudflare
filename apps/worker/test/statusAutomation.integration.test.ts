@@ -27,7 +27,11 @@ import {
   readCapturedPlatformEmailsForTest,
 } from "../src/auth/platformEmail";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
-import { runRosterAutomations } from "../src/organization/statusAutomationStore";
+import {
+  recalculateProfileStatuses,
+  runRosterAutomations,
+} from "../src/organization/statusAutomationStore";
+import { runOrganizationAlarm } from "../src/organization/scheduler";
 
 const USER_EMAIL = "status-automation.manager@example.test";
 
@@ -1143,5 +1147,215 @@ describe("roster status automation", () => {
     for (const index of automatedIndexes) {
       expect(auditActorTypes[index]).toBe("system");
     }
+  });
+
+  it("evaluates only specified profile IDs during single or bulk mutations without full roster scan", async () => {
+    const orgId = "organization-alpha";
+    const cookie = await signIn();
+
+    // Create Profile 1 and Profile 2 as active performers
+    const profile1 = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Performer One",
+          voicePart: "S1",
+        })
+      ).json(),
+    );
+    const profile2 = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Performer Two",
+          voicePart: "A1",
+        })
+      ).json(),
+    );
+
+    // Create 3 past performance events and record "Absent" attendance for both profiles
+    const now = Date.now();
+    const eventIds: string[] = [];
+    for (let i = 1; i <= 3; i++) {
+      const event = organizationEventSchema.parse(
+        await (
+          await write("alpha.localhost", "/api/organization/events", cookie, {
+            durationMinutes: 60,
+            rsvpDeadlineDate: "2030-01-01",
+            startsAt: new Date(now - (4 - i) * 86_400_000).toISOString(),
+            title: `Past Performance ${String(i)}`,
+            type: "Performance",
+          })
+        ).json(),
+      );
+      eventIds.push(event.id);
+    }
+
+    const stub = stores.get(stores.idFromName(orgId));
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      for (const eventId of eventIds) {
+        state.storage.sql.exec(
+          `INSERT OR REPLACE INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at)
+           VALUES (?, ?, 'No', 'Absent', ?, ?), (?, ?, 'No', 'Absent', ?, ?)`,
+          eventId,
+          profile1.id,
+          new Date(now).toISOString(),
+          new Date(now).toISOString(),
+          eventId,
+          profile2.id,
+          new Date(now).toISOString(),
+          new Date(now).toISOString(),
+        );
+      }
+      return null;
+    });
+
+    // Both profiles are still Active
+    const readStatuses = async (): Promise<{ p1: string; p2: string }> => {
+      return runInDurableObject<OrganizationStore, { p1: string; p2: string }>(
+        stub,
+        (_instance, state) => {
+          const rows = state.storage.sql
+            .exec<{ readonly id: string; readonly global_status: string }>(
+              "SELECT id, global_status FROM profiles WHERE id IN (?, ?)",
+              profile1.id,
+              profile2.id,
+            )
+            .toArray();
+          const p1 = rows.find((r) => r.id === profile1.id)?.global_status ?? "";
+          const p2 = rows.find((r) => r.id === profile2.id)?.global_status ?? "";
+          return { p1, p2 };
+        },
+      );
+    };
+
+    expect(await readStatuses()).toEqual({ p1: "Active", p2: "Active" });
+
+    // Recalculate ONLY profile 1
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      recalculateProfileStatuses(state.storage, orgId, new Date(), "req-target-1", [profile1.id]);
+      return null;
+    });
+
+    // Profile 1 became Inactive due to 3 missed performances; Profile 2 is UNTOUCHED and remains Active!
+    expect(await readStatuses()).toEqual({ p1: "Inactive", p2: "Active" });
+
+    // Now recalculate profile 2
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      recalculateProfileStatuses(state.storage, orgId, new Date(), "req-target-2", [profile2.id]);
+      return null;
+    });
+
+    // Profile 2 is now also Inactive
+    expect(await readStatuses()).toEqual({ p1: "Inactive", p2: "Inactive" });
+  });
+
+  it("does not re-evaluate global status automations on outbox continuation wakes until nextDueAt", async () => {
+    const orgId = "organization-alpha";
+    const cookie = await signIn();
+
+    const profile = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Continuation Singer",
+          voicePart: "T1",
+        })
+      ).json(),
+    );
+
+    const now = Date.now();
+    // Create an event whose RSVP deadline has passed
+    const event = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          durationMinutes: 120,
+          rsvpDeadlineDate: new Date(now - 86_400_000).toISOString().slice(0, 10),
+          startsAt: new Date(now + 3 * 86_400_000).toISOString(),
+          title: "Continuation Performance",
+          type: "Performance",
+        })
+      ).json(),
+    );
+
+    const stub = stores.get(stores.idFromName(orgId));
+
+    // First, run full alarm to establish scheduler_state with nextDueAt in the future
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      const queue = requireBinding(env.JOBS_QUEUE, "JOBS_QUEUE");
+      return runOrganizationAlarm(state.storage, queue, new Date(now), { force: true }).then(
+        () => null,
+      );
+    });
+
+    // Insert pending outbox jobs and an event_rosters row with 'Pending' RSVP
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT OR REPLACE INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at)
+         VALUES (?, ?, 'Pending', 'Pending', ?, ?)`,
+        event.id,
+        profile.id,
+        new Date(now).toISOString(),
+        new Date(now).toISOString(),
+      );
+      state.storage.sql.exec(
+        `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+         VALUES ('job-cont-1', 'ticket_notification', 'key-cont-1', ?, ?)`,
+        new Date(now - 1_000).toISOString(),
+        new Date(now - 1_000).toISOString(),
+      );
+      return null;
+    });
+
+    // Run alarm 1 second later without force (simulating 1-second continuation wake to drain outbox)
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      const queue = requireBinding(env.JOBS_QUEUE, "JOBS_QUEUE");
+      return runOrganizationAlarm(state.storage, queue, new Date(now + 1_000), {
+        force: false,
+      }).then(() => null);
+    });
+
+    // Assert the outbox job was enqueued, but RSVP was NOT expired because isDue was false
+    const rsvpStatusAfterContinuation = await runInDurableObject<OrganizationStore, string>(
+      stub,
+      (_instance, state) => {
+        const outboxJob = state.storage.sql
+          .exec<{ readonly enqueued_at: string | null }>(
+            "SELECT enqueued_at FROM scheduled_job_outbox WHERE job_id = 'job-cont-1'",
+          )
+          .one();
+        expect(outboxJob.enqueued_at).not.toBeNull();
+
+        const roster = state.storage.sql
+          .exec<{ readonly rsvp: string }>(
+            "SELECT rsvp FROM event_rosters WHERE event_id = ? AND profile_id = ?",
+            event.id,
+            profile.id,
+          )
+          .one();
+        return roster.rsvp;
+      },
+    );
+    expect(rsvpStatusAfterContinuation).toBe("Pending");
+
+    // When forced or due, it DOES run the automation and expires the RSVP to 'No'
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      const queue = requireBinding(env.JOBS_QUEUE, "JOBS_QUEUE");
+      return runOrganizationAlarm(state.storage, queue, new Date(now + 1_000), {
+        force: true,
+      }).then(() => null);
+    });
+
+    const rsvpStatusAfterForced = await runInDurableObject<OrganizationStore, string>(
+      stub,
+      (_instance, state) => {
+        const roster = state.storage.sql
+          .exec<{ readonly rsvp: string }>(
+            "SELECT rsvp FROM event_rosters WHERE event_id = ? AND profile_id = ?",
+            event.id,
+            profile.id,
+          )
+          .one();
+        return roster.rsvp;
+      },
+    );
+    expect(rsvpStatusAfterForced).toBe("No");
   });
 });
