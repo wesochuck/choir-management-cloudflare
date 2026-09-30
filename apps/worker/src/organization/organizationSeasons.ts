@@ -253,6 +253,7 @@ export async function createDuesCheckoutSession(
           ? [
               {
                 productName: "Processing fee",
+                productDescription: "Covers payment processing costs",
                 quantity: 1,
                 unitAmountCents: totalFeeCents,
               },

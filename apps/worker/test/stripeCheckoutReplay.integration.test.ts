@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import { createPublicTicketCheckout } from "../src/organization/organizationTicketing";
 import { createDonationCheckoutSession } from "../src/organization/organizationDonations";
+import { createDuesCheckoutSession } from "../src/organization/organizationSeasons";
 import {
   setupTicketingIntegration,
   stores,
@@ -328,6 +329,63 @@ describe("Stripe ticket checkout replay idempotency and failure-resilience", () 
       return row.status;
     });
     expect(status).toBe("pending");
+  });
+});
+
+describe("Stripe dues checkout descriptions", () => {
+  it("describes processing costs separately from the dues payment to the Organization", async () => {
+    const profileId = crypto.randomUUID();
+    const seasonId = crypto.randomUUID();
+    const stub = stores.get(stores.idFromName(ORG_ID));
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      const now = new Date().toISOString();
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Dues Member', ?, ?)`,
+        profileId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Concert Season', ?, ?, 2000, ?, ?)`,
+        seasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+      );
+      return null;
+    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        Response.json({ id: "cs_dues_with_fee", url: "https://checkout.stripe.test/session" }),
+      );
+
+    const checkout = await createDuesCheckoutSession(mockEnv, ORG_ID, ORIGIN, {
+      checkoutRequestId: crypto.randomUUID(),
+      profileIds: [profileId],
+      seasonId,
+    });
+
+    expect(checkout.checkoutMode).toBe("stripe");
+    const stripeCall = fetchSpy.mock.calls.find((call) =>
+      callUrl(call).includes("/v1/checkout/sessions"),
+    );
+    expect(stripeCall).toBeDefined();
+    const body = checkoutBody(stripeCall?.[1]);
+    expect(body.get("line_items[0][price_data][product_data][name]")).toBe("Concert Season dues");
+    expect(body.get("line_items[0][price_data][product_data][description]")).toMatch(
+      /^Payment to /,
+    );
+    expect(body.get("line_items[0][price_data][unit_amount]")).toBe("2000");
+    expect(body.get("line_items[1][price_data][product_data][name]")).toBe("Processing fee");
+    expect(body.get("line_items[1][price_data][product_data][description]")).toBe(
+      "Covers payment processing costs",
+    );
+    expect(body.get("line_items[1][price_data][unit_amount]")).toBe("91");
   });
 });
 
