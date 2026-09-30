@@ -38,3 +38,16 @@ rollback cannot revert those settings. Keep trigger changes backward compatible 
 Do not use `wrangler deploy` for promotion. Do not point the local command at the production
 environment. Production requires its separate approval contract and a separately designed release
 path.
+
+## Authentication cookie compatibility
+
+Staging uses the `choir-management-staging` cookie namespace, scoped to the staging product domain.
+It ignores older `choir-management` cookies, including cookies inherited from a parent domain, so
+stale browser state cannot mask a new staging sign-in. Local and production cookie names are
+unchanged. The first promotion of this namespace requires existing staging users to sign in once;
+clearing browser storage is unnecessary. Passkey registrations and account data are unchanged.
+
+There is no database migration. Rolling back to a version using the previous namespace may require
+another sign-in; older cookies are deliberately left untouched to avoid modifying parent-domain
+sessions. Staging qualification helpers recognize both namespaces and verify the session with the
+server before reusing cached credentials.

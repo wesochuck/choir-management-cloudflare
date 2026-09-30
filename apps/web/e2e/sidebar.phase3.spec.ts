@@ -432,7 +432,7 @@ test("workspace roles gate destinations without adding routes", async ({ page })
   memberApi.setSingerDashboard(buildSingerDashboardResponse({ organizationName: "Alpha Choir" }));
   await page.setViewportSize({ height: 900, width: 1280 });
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: /Dashboard|Welcome back/ })).toBeVisible();
+  await expect(page.getByRole("heading", { exact: true, name: "Dashboard" })).toBeVisible();
   // Member workspace exposes no Organization admin destinations.
   await expect(
     page.locator(".signed-in-sidebar").getByRole("link", { name: "Roster" }),

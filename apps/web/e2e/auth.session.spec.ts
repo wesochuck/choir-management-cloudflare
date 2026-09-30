@@ -7,6 +7,55 @@ import {
 } from "./fixtures/builders";
 import { fulfillJson } from "./fixtures/session";
 
+test("shows a recoverable session service error instead of another sign-in form", async ({
+  page,
+}) => {
+  const api = await installOrganizationApi(page, { strict: true });
+  let unavailable = true;
+  await page.route("**/api/auth/get-session", async (route) => {
+    if (unavailable) await fulfillJson(route, { code: "service_unavailable" }, 503);
+    else await fulfillJson(route, { session: api.session.session, user: api.session.user });
+  });
+
+  await page.goto("/account");
+  await expect(page.getByRole("alert")).toContainText("could not check your session");
+  await expect(page.getByLabel("Email address")).toHaveCount(0);
+  unavailable = false;
+  await page.getByRole("button", { name: "Retry session check" }).click();
+  await expect(
+    page.getByRole("heading", { name: "We couldn’t confirm your sign-in." }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("banner").getByRole("button", { name: "Sign out", exact: true }),
+  ).toBeVisible();
+  api.assertNoUnexpectedRequests();
+});
+
+test("stops navigation when successful OTP sign-in does not establish a browser session", async ({
+  page,
+}) => {
+  const api = await installOrganizationApi(page, { initiallySignedIn: false, strict: true });
+  await page.route("**/api/auth/get-session", async (route) => fulfillJson(route, null));
+  await page.goto("/login");
+  await page.getByLabel("Email address").fill(api.session.user.email);
+  await page.getByRole("button", { name: "Send sign-in code" }).click();
+  await page.getByLabel("6-digit sign-in code").fill("123456");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+
+  await expect(page.getByRole("alert")).toContainText("no valid session was found");
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("link", { name: "Return to sign in" })).toBeVisible();
+  api.assertNoUnexpectedRequests();
+});
+
+test("reports a missing session after a Google callback", async ({ page }) => {
+  const api = await installOrganizationApi(page, { initiallySignedIn: false, strict: true });
+  await page.goto("/login?oauth=complete");
+  await expect(page.getByRole("alert")).toContainText("no valid session was found");
+  await expect(page.getByLabel("Email address")).toHaveCount(0);
+  api.assertNoUnexpectedRequests();
+});
+
 test("completes OTP sign-in and manages Organizations and sessions", async ({ page }) => {
   const api = await installOrganizationApi(page, {
     initiallySignedIn: false,

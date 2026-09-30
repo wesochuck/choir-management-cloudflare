@@ -1,4 +1,4 @@
-import { getStagingSession } from "./staging-auth-helper.mjs";
+import { getStagingSession, hasUsableSessionCookie } from "./staging-auth-helper.mjs";
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
   /\/$/,
   "",
@@ -43,7 +43,7 @@ function requestFailure(status, body) {
 export function reusableStagingSessionCookie(value) {
   const cookie = value.trim();
   if (!cookie) return null;
-  if (!cookie.includes("choir-management.session_token=")) {
+  if (!hasUsableSessionCookie(cookie)) {
     throw new Error("STAGING_SESSION_COOKIE is not a staging session cookie.");
   }
   return cookie;

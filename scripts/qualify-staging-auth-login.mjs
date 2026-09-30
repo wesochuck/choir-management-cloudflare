@@ -1,3 +1,4 @@
+import { hasUsableSessionCookie } from "./staging-auth-helper.mjs";
 import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
@@ -45,7 +46,7 @@ const sessionCookie = setCookies
   .filter(Boolean)
   .join("; ");
 
-if (!sessionCookie.includes("choir-management.session_token=")) {
+if (!hasUsableSessionCookie(sessionCookie)) {
   throw new Error("The sign-in response did not return a staging session cookie.");
 }
 

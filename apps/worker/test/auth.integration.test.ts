@@ -112,6 +112,133 @@ describe("Better Auth Worker integration", () => {
     expect(sessionBody.session).not.toHaveProperty("token");
   });
 
+  it("signs in on staging despite legacy cookies and shares only the staging session", async () => {
+    await seedInvitedUser();
+    await seedOrganizations();
+    const stagingEnv = {
+      ...testEnv,
+      APP_ENV: "staging" as const,
+      AUTH_RATE_LIMITER: { limit: () => Promise.resolve({ success: true }) },
+      PRODUCT_BASE_DOMAIN: "staging.musicsite.org",
+    };
+    const origin = "https://staging.musicsite.org";
+    const legacyCookies =
+      "__Secure-choir-management.session_token=stale; __Secure-choir-management.session_token=older; choir-management.session_token=old-local";
+    await testEnv.CONTROL_DB.prepare("UPDATE organization_domains SET hostname = ? WHERE id = ?")
+      .bind("alpha.staging.musicsite.org", "domain-alpha")
+      .run();
+
+    const sendResponse = await fetchWorker(
+      authRequest(
+        "/api/auth/email-otp/send-verification-otp",
+        {
+          body: JSON.stringify({ email: INVITED_EMAIL, type: "sign-in" }),
+          method: "POST",
+          headers: { cookie: legacyCookies },
+        },
+        origin,
+      ),
+      stagingEnv,
+    );
+    expect(sendResponse.status).toBe(200);
+    const otp = readCapturedPlatformEmailsForTest()[0]?.text.match(/Use (\d{6}) to sign in/)?.[1];
+    expect(otp).toMatch(/^\d{6}$/);
+    const signedIn = await fetchWorker(
+      authRequest(
+        "/api/auth/sign-in/email-otp",
+        {
+          body: JSON.stringify({ email: INVITED_EMAIL, otp }),
+          method: "POST",
+          headers: { cookie: legacyCookies },
+        },
+        origin,
+      ),
+      stagingEnv,
+    );
+    expect(signedIn.status).toBe(200);
+    const cookie = responseCookie(signedIn, "__Secure-choir-management-staging.session_token");
+    const attributes = signedIn.headers
+      .getSetCookie()
+      .find((value) => value.startsWith(`${cookie};`));
+    expect(attributes).toMatch(/Domain=\.?staging\.musicsite\.org(?:;|$)/);
+    expect(attributes).toContain("Path=/");
+    expect(attributes).toContain("HttpOnly");
+    expect(attributes).toContain("Secure");
+    expect(attributes).toContain("SameSite=Lax");
+
+    for (const host of [origin, "https://alpha.staging.musicsite.org"]) {
+      const session = await fetchWorker(
+        authRequest(
+          "/api/auth/get-session",
+          {
+            headers: { cookie: `${legacyCookies}; ${cookie}` },
+          },
+          host,
+        ),
+        stagingEnv,
+      );
+      expect(session.status).toBe(200);
+      await expect(session.json()).resolves.toMatchObject({ user: { id: "user-invited-member" } });
+    }
+    const legacyOnly = await fetchWorker(
+      authRequest(
+        "/api/auth/get-session",
+        {
+          headers: { cookie: legacyCookies },
+        },
+        origin,
+      ),
+      stagingEnv,
+    );
+    await expect(legacyOnly.json()).resolves.toBeNull();
+    expect(legacyOnly.headers.getSetCookie()).toEqual([]);
+
+    const crossOrigin = await fetchWorker(
+      new Request(`${origin}/api/account/profile`, {
+        method: "PATCH",
+        headers: { cookie, origin: "https://untrusted.example.test" },
+      }),
+      stagingEnv,
+    );
+    expect(crossOrigin.status).toBe(403);
+    await expect(crossOrigin.json()).resolves.toMatchObject({ code: "csrf_origin_mismatch" });
+
+    const signedOut = await fetchWorker(
+      authRequest(
+        "/api/auth/sign-out",
+        {
+          method: "POST",
+          headers: { cookie: `${legacyCookies}; ${cookie}` },
+        },
+        origin,
+      ),
+      stagingEnv,
+    );
+    expect(signedOut.status).toBe(200);
+    expect(
+      signedOut.headers
+        .getSetCookie()
+        .some(
+          (value) =>
+            value.startsWith("__Secure-choir-management-staging.session_token=") &&
+            value.includes("Max-Age=0"),
+        ),
+    ).toBe(true);
+    const revoked = await fetchWorker(
+      authRequest(
+        "/api/auth/get-session",
+        {
+          headers: { cookie },
+        },
+        origin,
+      ),
+      stagingEnv,
+    );
+    await expect(revoked.json()).resolves.toBeNull();
+    expect(revoked.headers.getSetCookie()).toHaveLength(2);
+    expect(revoked.headers.getSetCookie().every((value) => value.includes("Max-Age=0"))).toBe(true);
+  });
+
   it("expires stale auth cookies when a presented token fails verification", async () => {
     const response = await fetchWorker(
       authRequest("/api/auth/get-session", {

@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { getStagingSession } from "./staging-auth-helper.mjs";
+import { getStagingSession, hasUsableSessionCookie } from "./staging-auth-helper.mjs";
 import { pathToFileURL } from "node:url";
 
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
@@ -173,7 +173,7 @@ async function signIn(readline, loginEmail) {
     throw new Error(`Sign-in request failed with HTTP ${String(signInResponse.response.status)}.`);
   }
   const cookie = sessionCookieFrom(signInResponse.response);
-  if (!cookie.includes("choir-management.session_token=")) {
+  if (!hasUsableSessionCookie(cookie)) {
     throw new Error("The sign-in response did not return a staging session cookie.");
   }
   return cookie;
@@ -190,7 +190,7 @@ async function passwordSignIn(loginEmail, password) {
     );
   }
   const cookie = sessionCookieFrom(result.response);
-  if (!cookie.includes("choir-management.session_token=")) {
+  if (!hasUsableSessionCookie(cookie)) {
     throw new Error("The password sign-in response did not return a staging session cookie.");
   }
   return cookie;

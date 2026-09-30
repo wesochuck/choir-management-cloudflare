@@ -15,6 +15,14 @@ afterEach(() => {
 });
 
 describe("staging auth helper", () => {
+  it("recognizes staging-specific session cookies", () => {
+    expect(hasUsableSessionCookie("__Secure-choir-management-staging.session_token=active")).toBe(
+      true,
+    );
+    expect(hasUsableSessionCookie("__Secure-choir-management-staging.session_token=")).toBe(false);
+    expect(hasUsableSessionCookie("unrelated.session_token=active")).toBe(false);
+  });
+
   it("decodes valid base32 string without padding", () => {
     const bytes = decodeBase32("JBSWY3DPEHPK3PXP");
     expect(bytes instanceof Uint8Array).toBe(true);
@@ -77,7 +85,7 @@ describe("staging auth helper", () => {
           getSetCookie: () => [
             "__Secure-choir-management.session_token=; Max-Age=0",
             "__Secure-choir-management.session_data=; Max-Age=0",
-            "__Secure-choir-management.two_factor=challenge-cookie; Max-Age=600",
+            "__Secure-choir-management-staging.two_factor=challenge-cookie; Max-Age=600",
           ],
         },
         json: async () => ({ twoFactorMethods: ["totp"], twoFactorRedirect: true }),

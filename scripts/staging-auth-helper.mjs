@@ -69,14 +69,17 @@ export async function generateTotp(secretOrUri, now = Date.now()) {
 }
 
 function cookieValue(cookieHeader, cookieKind) {
-  const names = new Set([
-    `choir-management.${cookieKind}`,
-    `__Secure-choir-management.${cookieKind}`,
-    `__Host-choir-management.${cookieKind}`,
-    `choir-management-${cookieKind}`,
-    `__Secure-choir-management-${cookieKind}`,
-    `__Host-choir-management-${cookieKind}`,
-  ]);
+  // Accept the previous namespace while qualifying either side of a staging rollback.
+  const names = new Set(
+    ["choir-management-staging", "choir-management"].flatMap((prefix) => [
+      `${prefix}.${cookieKind}`,
+      `__Secure-${prefix}.${cookieKind}`,
+      `__Host-${prefix}.${cookieKind}`,
+      `${prefix}-${cookieKind}`,
+      `__Secure-${prefix}-${cookieKind}`,
+      `__Host-${prefix}-${cookieKind}`,
+    ]),
+  );
 
   for (const part of cookieHeader.split(";")) {
     const separator = part.indexOf("=");

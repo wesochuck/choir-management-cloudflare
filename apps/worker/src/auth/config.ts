@@ -117,7 +117,8 @@ export function createAuth(context: AuthRequestContext) {
     },
     advanced: {
       backgroundTasks: { handler: waitUntil },
-      cookiePrefix: "choir-management",
+      // Keep staging cookies distinct from cookies inherited from the production parent domain.
+      cookiePrefix: env.APP_ENV === "staging" ? "choir-management-staging" : "choir-management",
       crossSubDomainCookies: crossSubdomainCookieOptions(env.APP_ENV, env.PRODUCT_BASE_DOMAIN),
       database: { generateId: "uuid" },
       ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },

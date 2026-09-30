@@ -54,7 +54,8 @@ router.use("*", async (context, next) => {
   const method = context.req.method.toUpperCase();
   const cookie = context.req.header("cookie") ?? "";
   const authorization = context.req.header("authorization") ?? "";
-  const hasSessionCookie = /(?:^|;\s*)(?:__Secure-)?choir-management\.session_token=/.test(cookie);
+  const hasSessionCookie =
+    /(?:^|;\s*)(?:__Secure-)?choir-management(?:-staging)?\.session_token=/.test(cookie);
   const isBearerClient = /^Bearer\s+/i.test(authorization);
   const path = new URL(context.req.url).pathname;
   if (

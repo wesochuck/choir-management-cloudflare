@@ -43,7 +43,7 @@ type ServiceState = "checking" | "offline" | "ready";
 type SessionState =
   | { readonly status: "anonymous" }
   | { readonly status: "checking" }
-  | { readonly status: "error" }
+  | { readonly status: "error"; readonly reason: "unavailable" | "unconfirmed" }
   | { readonly session: NonNullable<CurrentAuthSession>; readonly status: "authenticated" };
 
 const moduleCards = [
@@ -112,6 +112,32 @@ function AccountLoading() {
       <p className="notice notice--info" role="status">
         Checking your account…
       </p>
+    </main>
+  );
+}
+
+function SessionCheckError({ reason }: { readonly reason: "unavailable" | "unconfirmed" }) {
+  return (
+    <main className="auth-layout">
+      <section className="auth-card" aria-labelledby="session-error-title">
+        <h1 id="session-error-title">We couldn’t confirm your sign-in.</h1>
+        <p className="notice notice--error" role="alert">
+          {reason === "unconfirmed"
+            ? "Sign-in completed, but no valid session was found. Check that cookies are allowed for this site, then try again."
+            : "The account service could not check your session. Please retry before signing in again."}
+        </p>
+        <button
+          className="button button--primary"
+          onClick={() => {
+            window.location.reload();
+          }}
+        >
+          Retry session check
+        </button>
+        <a className="button button--secondary" href="/login">
+          Return to sign in
+        </a>
+      </section>
     </main>
   );
 }
@@ -203,6 +229,20 @@ function passwordRecoveryRoute(pathname: string, resetLocation: PasswordResetLoc
   return null;
 }
 
+function sessionBoundary(
+  pathname: string,
+  sessionState: SessionState,
+  oauthCompletion: OAuthCompletionState,
+): ReactNode {
+  if (pathname !== "/login" && !isAuthenticatedRoute(pathname)) return null;
+  if (sessionState.status === "error") return <SessionCheckError reason={sessionState.reason} />;
+  if (sessionState.status === "checking") return <AccountLoading />;
+  if (sessionState.status === "anonymous" && oauthCompletion.isOAuthComplete) {
+    return <SessionCheckError reason="unconfirmed" />;
+  }
+  return null;
+}
+
 function selectContent(
   pathname: string,
   resetLocation: PasswordResetLocation,
@@ -214,6 +254,8 @@ function selectContent(
 ): ReactNode {
   const utilityRoute = publicUtilityRoute(pathname, resetLocation);
   if (utilityRoute) return utilityRoute;
+  const sessionNotice = sessionBoundary(pathname, sessionState, oauthCompletion);
+  if (sessionNotice) return sessionNotice;
   if (pathname === "/accept-invitation") {
     if (sessionState.status === "checking") return <AccountLoading />;
     if (sessionState.status === "authenticated") {
@@ -348,7 +390,7 @@ export function App() {
         if (error instanceof DOMException && error.name === "AbortError") {
           return;
         }
-        setSessionState({ status: "error" });
+        setSessionState({ reason: "unavailable", status: "error" });
       }
     }
 
@@ -377,7 +419,7 @@ export function App() {
     }
   }, [pathname]);
 
-  function finishSignIn() {
+  function finishSignIn(destination?: string) {
     setSessionState({ status: "checking" });
     void (async () => {
       const controller = new AbortController();
@@ -385,14 +427,21 @@ export function App() {
         controller.abort();
       }, 8000);
       try {
-        const nextPath = await determinePostSignInPath({
-          currentPathname: pathname,
-          search: window.location.search,
-          signal: controller.signal,
-        });
+        const session = await getCurrentSession(controller.signal);
+        if (!session) {
+          setSessionState({ reason: "unconfirmed", status: "error" });
+          return;
+        }
+        const nextPath =
+          destination ??
+          (await determinePostSignInPath({
+            currentPathname: pathname,
+            search: window.location.search,
+            signal: controller.signal,
+          }));
         window.location.assign(nextPath);
       } catch {
-        window.location.assign("/dashboard");
+        setSessionState({ reason: "unavailable", status: "error" });
       } finally {
         window.clearTimeout(timeoutId);
       }
@@ -412,7 +461,7 @@ export function App() {
   }
 
   function finishInvitationSignIn() {
-    window.location.assign(`/accept-invitation${window.location.search}`);
+    finishSignIn(`/accept-invitation${window.location.search}`);
   }
 
   const content = selectContent(

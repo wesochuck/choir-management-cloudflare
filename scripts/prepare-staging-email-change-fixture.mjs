@@ -1,3 +1,4 @@
+import { hasUsableSessionCookie } from "./staging-auth-helper.mjs";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { pathToFileURL } from "node:url";
@@ -86,7 +87,7 @@ async function signIn(readline, email) {
     throw new Error(`Sign-in request failed with HTTP ${String(signInResponse.response.status)}.`);
   }
   const cookie = sessionCookieFrom(signInResponse.response);
-  if (!cookie.includes("choir-management.session_token=")) {
+  if (!hasUsableSessionCookie(cookie)) {
     throw new Error("The sign-in response did not return a staging session cookie.");
   }
   return cookie;
