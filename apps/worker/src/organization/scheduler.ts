@@ -283,6 +283,12 @@ function createRsvpFollowUpJobs(
   }
 }
 
+export function computePrefixUpperBound(prefix: string): string {
+  if (prefix.length === 0) throw new Error("Prefix must not be empty");
+  const lastCharCode = prefix.charCodeAt(prefix.length - 1);
+  return `${prefix.slice(0, -1)}${String.fromCharCode(lastCharCode + 1)}`;
+}
+
 function createEventReminderJobs(
   storage: DurableObjectStorage,
   organizationId: string,
@@ -305,6 +311,7 @@ function createEventReminderJobs(
   for (const candidate of candidates) {
     const baseIdempotencyKey = `event-reminder:${organizationId}:${candidate.eventId}`;
     const retryPrefix = `${baseIdempotencyKey}:retry:`;
+    const retryPrefixUpperBound = computePrefixUpperBound(retryPrefix);
     const existingJobs = storage.sql
       .exec<ExistingEventReminderJobRow>(
         `SELECT o.job_id AS jobId, l.status, l.terminal_at AS terminalAt
@@ -313,12 +320,12 @@ function createEventReminderJobs(
          WHERE o.kind = 'event_reminder'
            AND (
              o.idempotency_key = ?
-             OR substr(o.idempotency_key, 1, length(?)) = ?
+             OR (o.idempotency_key >= ? AND o.idempotency_key < ?)
            )
          ORDER BY o.created_at, o.job_id`,
         baseIdempotencyKey,
         retryPrefix,
-        retryPrefix,
+        retryPrefixUpperBound,
       )
       .toArray();
     const reminderHistoryCount = storage.sql
@@ -327,11 +334,11 @@ function createEventReminderJobs(
          WHERE kind = 'event_reminder'
            AND (
              idempotency_key = ?
-             OR substr(idempotency_key, 1, length(?)) = ?
+             OR (idempotency_key >= ? AND idempotency_key < ?)
            )`,
         baseIdempotencyKey,
         retryPrefix,
-        retryPrefix,
+        retryPrefixUpperBound,
       )
       .one().count;
     if (existingJobs.length > 0) {
