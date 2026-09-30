@@ -36,7 +36,54 @@ const databaseName = "choir-private-media";
 const audioStoreName = "audio";
 const metadataStoreName = "audioMetadata";
 const databaseVersion = 2;
-const activeUrls = new Map<string, string>();
+
+export interface OfflineAudioLease {
+  readonly fileId: string;
+  readonly release: () => void;
+  readonly scope: string;
+  readonly url: string;
+}
+
+interface TrackedUrl {
+  refCount: number;
+  url: string;
+}
+
+const activeUrlEntries = new Map<string, TrackedUrl>();
+const pendingUrlPromises = new Map<string, Promise<string | null>>();
+const keyGenerations = new Map<string, number>();
+
+function getKeyGeneration(key: string): number {
+  return keyGenerations.get(key) ?? 0;
+}
+
+function bumpKeyGeneration(key: string): void {
+  keyGenerations.set(key, (keyGenerations.get(key) ?? 0) + 1);
+}
+
+function releaseUrlRef(key: string): void {
+  const entry = activeUrlEntries.get(key);
+  if (!entry) return;
+  entry.refCount -= 1;
+  if (entry.refCount <= 0) {
+    URL.revokeObjectURL(entry.url);
+    activeUrlEntries.delete(key);
+  }
+}
+
+function forceRevokeUrl(key: string): void {
+  bumpKeyGeneration(key);
+  const entry = activeUrlEntries.get(key);
+  if (entry) {
+    URL.revokeObjectURL(entry.url);
+    activeUrlEntries.delete(key);
+  }
+}
+
+export function releaseOfflineAudioUrl(scope: string, fileId: string): void {
+  const key = recordKey(scope, fileId);
+  releaseUrlRef(key);
+}
 
 function recordKey(scope: string, fileId: string): string {
   return `${scope}:${fileId}`;
@@ -176,13 +223,6 @@ function awaitTransaction(tx: IDBTransaction): Promise<void> {
   });
 }
 
-function releaseUrl(key: string): void {
-  const url = activeUrls.get(key);
-  if (!url) return;
-  URL.revokeObjectURL(url);
-  activeUrls.delete(key);
-}
-
 function recordBlob(value: unknown): Blob | null {
   if (typeof value !== "object" || value === null) return null;
   if (!("blob" in value) || !(value.blob instanceof Blob)) return null;
@@ -296,7 +336,7 @@ async function deleteOfflineRecord(database: IDBDatabase, key: string): Promise<
   tx.objectStore(audioStoreName).delete(key);
   tx.objectStore(metadataStoreName).delete(key);
   await awaitTransaction(tx);
-  releaseUrl(key);
+  forceRevokeUrl(key);
 }
 
 export async function listOfflineAudioIds(scope: string): Promise<ReadonlySet<string>> {
@@ -334,7 +374,7 @@ export async function saveOfflineAudio(
     source: details.source ?? null,
   });
   await awaitTransaction(tx);
-  releaseUrl(key);
+  forceRevokeUrl(key);
 
   const records = await readScopeMetadata(database, scope);
   const victims = planOfflineEvictions(
@@ -353,25 +393,88 @@ export async function saveOfflineAudio(
     for (const victim of victims) {
       audioStore.delete(victim);
       metaStore.delete(victim);
-      releaseUrl(victim);
+      forceRevokeUrl(victim);
     }
     await awaitTransaction(evictTx);
   }
 }
 
-export async function offlineAudioUrl(scope: string, fileId: string): Promise<string | null> {
+export async function acquireOfflineAudioUrl(
+  scope: string,
+  fileId: string,
+): Promise<OfflineAudioLease | null> {
   const key = recordKey(scope, fileId);
-  const active = activeUrls.get(key);
-  if (active) return active;
-  const database = await openDatabase();
-  const result: unknown = await requestResult(
-    database.transaction(audioStoreName, "readonly").objectStore(audioStoreName).get(key),
-  );
-  const blob = recordBlob(result);
-  if (!blob) return null;
-  const url = URL.createObjectURL(blob);
-  activeUrls.set(key, url);
-  return url;
+  const active = activeUrlEntries.get(key);
+  if (active) {
+    active.refCount += 1;
+    let released = false;
+    return {
+      fileId,
+      release: () => {
+        if (released) return;
+        released = true;
+        releaseUrlRef(key);
+      },
+      scope,
+      url: active.url,
+    };
+  }
+
+  let pending = pendingUrlPromises.get(key);
+  if (!pending) {
+    const readGeneration = getKeyGeneration(key);
+    pending = (async (): Promise<string | null> => {
+      try {
+        const database = await openDatabase();
+        const result: unknown = await requestResult(
+          database.transaction(audioStoreName, "readonly").objectStore(audioStoreName).get(key),
+        );
+        const blob = recordBlob(result);
+        if (!blob) return null;
+
+        if (getKeyGeneration(key) !== readGeneration) {
+          return null;
+        }
+
+        const url = URL.createObjectURL(blob);
+        if (getKeyGeneration(key) !== readGeneration) {
+          URL.revokeObjectURL(url);
+          return null;
+        }
+
+        activeUrlEntries.set(key, { refCount: 0, url });
+        return url;
+      } finally {
+        pendingUrlPromises.delete(key);
+      }
+    })();
+
+    pendingUrlPromises.set(key, pending);
+  }
+
+  const url = await pending;
+  if (!url) return null;
+
+  const entry = activeUrlEntries.get(key);
+  if (!entry) return null;
+
+  entry.refCount += 1;
+  let released = false;
+  return {
+    fileId,
+    release: () => {
+      if (released) return;
+      released = true;
+      releaseUrlRef(key);
+    },
+    scope,
+    url: entry.url,
+  };
+}
+
+export async function offlineAudioUrl(scope: string, fileId: string): Promise<string | null> {
+  const lease = await acquireOfflineAudioUrl(scope, fileId);
+  return lease ? lease.url : null;
 }
 
 export async function removeOfflineAudio(scope: string, fileId: string): Promise<void> {
@@ -398,7 +501,7 @@ export async function purgeOfflineAudioForOrganization(
   for (const record of doomed) {
     audioStore.delete(record.key);
     metaStore.delete(record.key);
-    releaseUrl(record.key);
+    forceRevokeUrl(record.key);
   }
   await awaitTransaction(tx);
   return doomed.length;
@@ -424,7 +527,7 @@ export async function purgeOfflineAudioForSource(
   for (const record of doomed) {
     audioStore.delete(record.key);
     metaStore.delete(record.key);
-    releaseUrl(record.key);
+    forceRevokeUrl(record.key);
   }
   await awaitTransaction(tx);
   return doomed.length;

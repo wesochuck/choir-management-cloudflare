@@ -100,6 +100,7 @@ export function PublicPracticePlayer({
 
   const scope = typeof window === "undefined" ? "" : window.location.host;
   const {
+    acquireOfflineUrl,
     ensureOfflineCopies,
     offlineIds,
     online,
@@ -127,7 +128,12 @@ export function PublicPracticePlayer({
   const currentItem = playableItems[safeSelectedItemIndex] ?? null;
   const currentTrack = currentItem ? resolveTrack(currentItem, activeTrackKey) : null;
   const currentIndex = currentItem ? playableItems.indexOf(currentItem) : -1;
-  const offlineUrl = useOfflineAudioUrl(resolveOfflineUrl, currentTrack?.fileId, offlineIds);
+  const offlineUrl = useOfflineAudioUrl(
+    resolveOfflineUrl,
+    currentTrack?.fileId,
+    offlineIds,
+    acquireOfflineUrl,
+  );
   const audioSrc = offlineUrl ?? (currentTrack ? source.mediaUrl(currentTrack.fileId) : "");
   const eventArtworkUrl = details.eventArtworkFileId
     ? source.artworkUrl(details.eventArtworkFileId)

@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  acquireOfflineAudioUrl,
   listOfflineAudioIds,
   offlineAudioUrl,
   planOfflineEvictions,
   purgeOfflineAudioForOrganization,
+  releaseOfflineAudioUrl,
   removeOfflineAudio,
   saveOfflineAudio,
 } from "./mediaStore";
@@ -521,5 +523,119 @@ describe("scoped metadata storage and eviction", () => {
       sizeBytes: blob.size,
       source: "session",
     });
+  });
+});
+
+describe("offline playback object URL lifecycle", () => {
+  it("deduplicates concurrent acquisitions to one URL creation", async () => {
+    installIndexedDatabase();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(new Blob(["audio-bytes"], { type: "audio/mpeg" }), { status: 200 }),
+        ),
+      ),
+    );
+    const createUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:dedup-audio");
+    const revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+
+    await saveOfflineAudio("scope-lease", "file-1", "/track-1");
+    createUrl.mockClear();
+
+    const [lease1, lease2] = await Promise.all([
+      acquireOfflineAudioUrl("scope-lease", "file-1"),
+      acquireOfflineAudioUrl("scope-lease", "file-1"),
+    ]);
+
+    expect(createUrl).toHaveBeenCalledOnce();
+    expect(lease1?.url).toBe("blob:dedup-audio");
+    expect(lease2?.url).toBe("blob:dedup-audio");
+
+    // Release lease 1: lease 2 is still held, so URL is not revoked yet
+    lease1?.release();
+    expect(revokeUrl).not.toHaveBeenCalled();
+
+    // Release lease 2: refCount reaches 0, so URL is revoked
+    lease2?.release();
+    expect(revokeUrl).toHaveBeenCalledWith("blob:dedup-audio");
+  });
+
+  it("delayed reads racing deletion/purge do not publish an obsolete URL", async () => {
+    installIndexedDatabase();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(new Blob(["audio-bytes"], { type: "audio/mpeg" }), { status: 200 }),
+        ),
+      ),
+    );
+    const createUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:raced-audio");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+
+    await saveOfflineAudio("scope-race", "file-1", "/track-1");
+    createUrl.mockClear();
+
+    // Start acquisition
+    const acquirePromise = acquireOfflineAudioUrl("scope-race", "file-1");
+
+    // Race with removal before resolution completes
+    await removeOfflineAudio("scope-race", "file-1");
+
+    const lease = await acquirePromise;
+    expect(lease).toBeNull();
+  });
+
+  it("permits retry after a failed read", async () => {
+    const harness = installIndexedDatabase();
+    let shouldFail = true;
+    harness.audioStore.get.mockImplementation((key: string) => {
+      if (shouldFail) {
+        const req: FakeRequest<unknown> = {
+          error: new Error("Read failed"),
+          onerror: null,
+          onsuccess: null,
+          result: null,
+        };
+        queueMicrotask(() => req.onerror?.());
+        return req;
+      }
+      return successfulRequest({ blob: new Blob(["audio"], { type: "audio/mpeg" }), key });
+    });
+
+    await expect(acquireOfflineAudioUrl("scope-retry", "file-retry")).rejects.toThrow(
+      "Read failed",
+    );
+
+    // Retry should succeed
+    shouldFail = false;
+    vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:retried-audio");
+    const lease = await acquireOfflineAudioUrl("scope-retry", "file-retry");
+    expect(lease?.url).toBe("blob:retried-audio");
+    lease?.release();
+  });
+
+  it("releases tracked URL when releaseOfflineAudioUrl is called directly", async () => {
+    installIndexedDatabase();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(new Blob(["audio-bytes"], { type: "audio/mpeg" }), { status: 200 }),
+        ),
+      ),
+    );
+    const createUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:direct-audio");
+    const revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+
+    await saveOfflineAudio("scope-direct", "file-1", "/track-1");
+    createUrl.mockClear();
+
+    const lease = await acquireOfflineAudioUrl("scope-direct", "file-1");
+    expect(lease?.url).toBe("blob:direct-audio");
+
+    releaseOfflineAudioUrl("scope-direct", "file-1");
+    expect(revokeUrl).toHaveBeenCalledWith("blob:direct-audio");
   });
 });

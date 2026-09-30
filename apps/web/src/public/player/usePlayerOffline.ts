@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import type { OfflineAudioLease } from "../../offline/mediaStore";
 import { resolveTrack } from "./format";
 import type { PlayerPlaylistItem } from "./types";
 
@@ -8,27 +9,53 @@ import type { PlayerPlaylistItem } from "./types";
  * copy. Re-resolves when the known offline set grows, so a copy that lands just after the first
  * lookup (transparent auto-cache in flight) is picked up instead of streaming forever. State
  * updates happen only in async continuations, never synchronously in the effect.
+ *
+ * When `acquireOfflineUrl` is provided, holds an explicit `OfflineAudioLease` for the active track
+ * and releases it on track replacement or component unmount, preventing URL leaks.
  */
 export function useOfflineAudioUrl(
   resolveOfflineUrl: (fileId: string) => Promise<string | null>,
   fileId: string | undefined,
   offlineIds: ReadonlySet<string>,
+  acquireOfflineUrl?: (fileId: string) => Promise<OfflineAudioLease | null>,
 ): string | null {
-  const [urls, setUrls] = useState<Readonly<Record<string, string>>>({});
+  const [activeUrl, setActiveUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!fileId || urls[fileId]) return;
+    if (!fileId) return;
     let cancelled = false;
-    void resolveOfflineUrl(fileId).then((url) => {
-      if (cancelled || !url) return;
-      setUrls((current) => (current[fileId] ? current : { ...current, [fileId]: url }));
-    });
+    let leaseToRelease: OfflineAudioLease | null = null;
+
+    if (acquireOfflineUrl) {
+      void acquireOfflineUrl(fileId).then((lease) => {
+        if (cancelled) {
+          lease?.release();
+          return;
+        }
+        if (lease) {
+          leaseToRelease = lease;
+          setActiveUrl(lease.url);
+        } else {
+          setActiveUrl(null);
+        }
+      });
+    } else {
+      void resolveOfflineUrl(fileId).then((url) => {
+        if (cancelled) return;
+        setActiveUrl(url);
+      });
+    }
+
     return () => {
       cancelled = true;
+      if (leaseToRelease) {
+        leaseToRelease.release();
+        leaseToRelease = null;
+      }
     };
-  }, [fileId, offlineIds, resolveOfflineUrl, urls]);
+  }, [acquireOfflineUrl, fileId, offlineIds, resolveOfflineUrl]);
 
-  return fileId ? (urls[fileId] ?? null) : null;
+  return activeUrl;
 }
 
 /**

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+  acquireOfflineAudioUrl,
   listOfflineAudioIds,
   offlineAudioUrl,
+  releaseOfflineAudioUrl,
   removeOfflineAudio,
   saveOfflineAudio,
+  type OfflineAudioLease,
   type OfflineAudioSource,
 } from "./mediaStore";
 
@@ -19,9 +22,11 @@ export interface UseOfflineCopiesOptions {
 }
 
 export interface OfflineCopies {
+  readonly acquireOfflineUrl: (fileId: string) => Promise<OfflineAudioLease | null>;
   readonly ensureOfflineCopies: (fileIds: readonly string[]) => void;
   readonly offlineIds: ReadonlySet<string>;
   readonly online: boolean;
+  readonly releaseOfflineUrl: (fileId: string) => void;
   readonly removeOfflineCopy: (fileId: string) => Promise<void>;
   readonly resolveOfflineUrl: (fileId: string) => Promise<string | null>;
   readonly saveOfflineCopy: (fileId: string) => Promise<void>;
@@ -131,10 +136,28 @@ export function useOfflineCopies({ scope, source }: UseOfflineCopiesOptions): Of
     [scope],
   );
 
+  const acquireOfflineUrl = useCallback(
+    async (fileId: string): Promise<OfflineAudioLease | null> => {
+      if (!scope) return null;
+      return acquireOfflineAudioUrl(scope, fileId);
+    },
+    [scope],
+  );
+
+  const releaseOfflineUrl = useCallback(
+    (fileId: string): void => {
+      if (!scope) return;
+      releaseOfflineAudioUrl(scope, fileId);
+    },
+    [scope],
+  );
+
   return {
+    acquireOfflineUrl,
     ensureOfflineCopies,
     offlineIds,
     online,
+    releaseOfflineUrl,
     removeOfflineCopy,
     resolveOfflineUrl,
     saveOfflineCopy,
