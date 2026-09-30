@@ -1000,3 +1000,271 @@ describe("communication send boundaries", () => {
     expect(sendOperationSchema.safeParse(sendOperation(500, "Both")).success).toBe(true);
   });
 });
+
+describe("communication delivery suppression query plan and correctness", () => {
+  const suppressionUpdateSql = `UPDATE communication_deliveries
+       SET status = 'suppressed', failure_detail = '', updated_at = ?
+       WHERE message_id = ? AND channel = 'email' AND status = 'queued'
+         AND (
+           EXISTS (
+             SELECT 1 FROM profiles p
+             WHERE p.id IN (
+               communication_deliveries.profile_id,
+               (
+                 SELECT linked_contact.profile_id
+                 FROM contacts linked_contact
+                 WHERE linked_contact.id = communication_deliveries.profile_id
+               )
+             )
+               AND (
+                 p.do_not_email = 1 OR p.provider_email_suppressed = 1
+                 OR p.last_bounce_at <> '' OR EXISTS (
+                   SELECT 1 FROM communication_suppressions s
+                   WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
+                 )
+               )
+           )
+           OR EXISTS (
+             SELECT 1 FROM contact_communication_preferences pref
+             WHERE pref.contact_id = communication_deliveries.profile_id
+               AND pref.channel = 'email' AND pref.status = 'unsubscribed'
+           )
+           OR EXISTS (
+             SELECT 1 FROM contacts c
+             JOIN communication_suppressions s ON s.profile_id = c.profile_id
+             WHERE c.id = communication_deliveries.profile_id
+               AND s.channel = 'email' AND s.active = 1
+           )
+         )`;
+
+  it("uses indexed lookup for profiles without scanning the table", () => {
+    const { db } = seedDatabase();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- test query inspection
+    const planRows = db.prepare(`EXPLAIN QUERY PLAN ${suppressionUpdateSql}`).all() as {
+      readonly detail: string;
+    }[];
+
+    // No scan of profiles allowed
+    const scanProfiles = planRows.filter(
+      (step) =>
+        step.detail.includes("SCAN p") ||
+        (step.detail.includes("SCAN") && step.detail.includes("profiles")),
+    );
+    expect(scanProfiles).toHaveLength(0);
+
+    // Profile lookup must use SEARCH
+    const searchProfiles = planRows.filter(
+      (step) =>
+        step.detail.includes("SEARCH p") ||
+        (step.detail.includes("SEARCH") && step.detail.includes("profiles")),
+    );
+    expect(searchProfiles.length).toBeGreaterThan(0);
+  });
+
+  it("accurately suppresses direct profiles, linked contacts, and contact preferences while leaving unsuppressed rows queued", () => {
+    const { db } = seedDatabase();
+    const now = new Date().toISOString();
+    const messageId1 = uuidFor("msg-1");
+    const messageId2 = uuidFor("msg-2");
+
+    // 1. Direct normal profile (should remain queued)
+    const profileNormal = uuidFor("p-normal");
+    seedProfile(db, { displayName: "Normal Singer", id: profileNormal });
+
+    // 2. Direct suppressed profiles
+    const profileDoNotEmail = uuidFor("p-dne");
+    seedProfile(db, { displayName: "DNE Singer", id: profileDoNotEmail });
+    db.prepare(`UPDATE profiles SET do_not_email = 1 WHERE id = ?`).run(profileDoNotEmail);
+
+    const profileBounced = uuidFor("p-bounce");
+    seedProfile(db, { displayName: "Bounced Singer", id: profileBounced });
+    db.prepare(`UPDATE profiles SET last_bounce_at = ? WHERE id = ?`).run(now, profileBounced);
+
+    const profileSuppressed = uuidFor("p-supp");
+    seedProfile(db, { displayName: "Suppressed Singer", id: profileSuppressed });
+    db.prepare(
+      `INSERT INTO communication_suppressions (id, profile_id, channel, reason, active, created_at, updated_at)
+       VALUES (?, ?, 'email', 'manager', 1, ?, ?)`,
+    ).run(uuidFor("supp-1"), profileSuppressed, now, now);
+
+    // 3. Contacts linked to profiles
+    const contactLinkedNormal = uuidFor("c-linked-normal");
+    seedContact(db, {
+      displayName: "Linked Normal Contact",
+      id: contactLinkedNormal,
+      profileId: profileNormal,
+    });
+
+    const contactLinkedSuppressed = uuidFor("c-linked-supp");
+    seedContact(db, {
+      displayName: "Linked Suppressed Contact",
+      id: contactLinkedSuppressed,
+      profileId: profileSuppressed,
+    });
+
+    // 4. Contact with unsubscribe preference
+    const contactUnsubscribed = uuidFor("c-unsub");
+    seedContact(db, { displayName: "Unsub Contact", id: contactUnsubscribed });
+    db.prepare(
+      `INSERT OR REPLACE INTO contact_communication_preferences (contact_id, channel, status, source, observed_at, updated_at)
+       VALUES (?, 'email', 'unsubscribed', 'manual', ?, ?)`,
+    ).run(contactUnsubscribed, now, now);
+
+    // 5. Unlinked contact with no suppression
+    const contactUnlinked = uuidFor("c-unlinked");
+    seedContact(db, { displayName: "Unlinked Contact", id: contactUnlinked });
+
+    // Insert deliveries for message 1
+    const insertDelivery = db.prepare(
+      `INSERT INTO communication_deliveries
+       (id, message_id, channel, profile_id, destination, recipient_name, status, failure_detail, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'queued', '', ?, ?)`,
+    );
+
+    const dNormal = uuidFor("d-normal");
+    insertDelivery.run(
+      dNormal,
+      messageId1,
+      "email",
+      profileNormal,
+      "normal@example.test",
+      "Normal",
+      now,
+      now,
+    );
+
+    const dDoNotEmail = uuidFor("d-dne");
+    insertDelivery.run(
+      dDoNotEmail,
+      messageId1,
+      "email",
+      profileDoNotEmail,
+      "dne@example.test",
+      "DNE",
+      now,
+      now,
+    );
+
+    const dBounced = uuidFor("d-bounce");
+    insertDelivery.run(
+      dBounced,
+      messageId1,
+      "email",
+      profileBounced,
+      "bounced@example.test",
+      "Bounced",
+      now,
+      now,
+    );
+
+    const dSuppressed = uuidFor("d-supp");
+    insertDelivery.run(
+      dSuppressed,
+      messageId1,
+      "email",
+      profileSuppressed,
+      "supp@example.test",
+      "Supp",
+      now,
+      now,
+    );
+
+    const dLinkedNormal = uuidFor("d-lnormal");
+    insertDelivery.run(
+      dLinkedNormal,
+      messageId1,
+      "email",
+      contactLinkedNormal,
+      "lnormal@example.test",
+      "LNormal",
+      now,
+      now,
+    );
+
+    const dLinkedSupp = uuidFor("d-lsupp");
+    insertDelivery.run(
+      dLinkedSupp,
+      messageId1,
+      "email",
+      contactLinkedSuppressed,
+      "lsupp@example.test",
+      "LSupp",
+      now,
+      now,
+    );
+
+    const dUnsub = uuidFor("d-unsub");
+    insertDelivery.run(
+      dUnsub,
+      messageId1,
+      "email",
+      contactUnsubscribed,
+      "unsub@example.test",
+      "Unsub",
+      now,
+      now,
+    );
+
+    const dUnlinked = uuidFor("d-unlinked");
+    insertDelivery.run(
+      dUnlinked,
+      messageId1,
+      "email",
+      contactUnlinked,
+      "unlinked@example.test",
+      "Unlinked",
+      now,
+      now,
+    );
+
+    // SMS delivery for suppressed profile (should NOT be suppressed by email suppression)
+    const dSms = uuidFor("d-sms");
+    insertDelivery.run(
+      dSms,
+      messageId1,
+      "sms",
+      profileDoNotEmail,
+      "+15551234567",
+      "DNE SMS",
+      now,
+      now,
+    );
+
+    // Another message delivery (should remain untouched)
+    const dMsg2 = uuidFor("d-msg2");
+    insertDelivery.run(
+      dMsg2,
+      messageId2,
+      "email",
+      profileDoNotEmail,
+      "dne@example.test",
+      "DNE Msg 2",
+      now,
+      now,
+    );
+
+    // Execute suppression UPDATE for message 1
+    db.prepare(suppressionUpdateSql).run(now, messageId1);
+
+    // Check statuses
+    const getStatus = (deliveryId: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- test query inspection
+      const row = db
+        .prepare(`SELECT status FROM communication_deliveries WHERE id = ?`)
+        .get(deliveryId) as { status: string } | undefined;
+      return row?.status;
+    };
+
+    expect(getStatus(dNormal)).toBe("queued");
+    expect(getStatus(dLinkedNormal)).toBe("queued");
+    expect(getStatus(dUnlinked)).toBe("queued");
+    expect(getStatus(dSms)).toBe("queued"); // SMS is not suppressed by email update
+    expect(getStatus(dMsg2)).toBe("queued"); // Different message untouched
+
+    expect(getStatus(dDoNotEmail)).toBe("suppressed");
+    expect(getStatus(dBounced)).toBe("suppressed");
+    expect(getStatus(dSuppressed)).toBe("suppressed");
+    expect(getStatus(dLinkedSupp)).toBe("suppressed");
+    expect(getStatus(dUnsub)).toBe("suppressed");
+  });
+});

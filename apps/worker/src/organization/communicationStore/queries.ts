@@ -1131,12 +1131,13 @@ export function readCommunicationJobFromStore(
        WHERE message_id = ? AND channel = 'email' AND status = 'queued'
          AND (
            EXISTS (
-           SELECT 1 FROM profiles p
-             WHERE (
-               p.id = communication_deliveries.profile_id OR EXISTS (
-                 SELECT 1 FROM contacts linked_contact
+             SELECT 1 FROM profiles p
+             WHERE p.id IN (
+               communication_deliveries.profile_id,
+               (
+                 SELECT linked_contact.profile_id
+                 FROM contacts linked_contact
                  WHERE linked_contact.id = communication_deliveries.profile_id
-                   AND linked_contact.profile_id = p.id
                )
              )
                AND (
