@@ -531,4 +531,63 @@ describe("Organization queue delivery", () => {
     expect(stored.messageCount).toBe(3);
     expect(stored.reminderSentAt).toEqual(expect.any(String));
   });
+
+  it("processes multi-organization batches concurrently and isolates independent lanes", async () => {
+    const alphaJob1: DeliveryJob = {
+      attempt: 1,
+      idempotencyKey: "attendance-report:event-alpha:multi-1",
+      jobId: "11111111-1111-4111-8111-111111111121",
+      kind: "attendance_report",
+      organizationId: "organization-alpha",
+      version: 1,
+    };
+    const bravoJob1: DeliveryJob = {
+      attempt: 1,
+      idempotencyKey: "attendance-report:event-bravo:multi-1",
+      jobId: "22222222-2222-4222-8222-222222222221",
+      kind: "attendance_report",
+      organizationId: "organization-bravo",
+      version: 1,
+    };
+    const alphaJob2: DeliveryJob = {
+      attempt: 1,
+      idempotencyKey: "attendance-report:event-alpha:multi-2",
+      jobId: "11111111-1111-4111-8111-111111111122",
+      kind: "attendance_report",
+      organizationId: "organization-alpha",
+      version: 1,
+    };
+
+    const batch = createMessageBatch("choir-management-jobs-local", [
+      { attempts: 1, body: alphaJob1, id: "msg-alpha-1", timestamp: new Date() },
+      { attempts: 1, body: bravoJob1, id: "msg-bravo-1", timestamp: new Date() },
+      { attempts: 1, body: { malformed: true }, id: "msg-malformed", timestamp: new Date() },
+      { attempts: 1, body: alphaJob2, id: "msg-alpha-2", timestamp: new Date() },
+    ]);
+
+    const executionContext = createExecutionContext();
+    const consumerEnvironment = {
+      EXTERNAL_EFFECTS_MODE: "fake" as const,
+      ORGANIZATION_FILES: organizationFiles,
+      ORGANIZATION_STORE: organizationStore,
+      PRODUCT_BASE_DOMAIN: env.PRODUCT_BASE_DOMAIN,
+      SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
+    };
+
+    await processDeliveryBatch(batch, consumerEnvironment);
+    const result = queueResultSchema.parse(await getQueueResult(batch, executionContext));
+
+    expect(result.explicitAcks).toEqual(
+      expect.arrayContaining(["msg-alpha-1", "msg-bravo-1", "msg-malformed", "msg-alpha-2"]),
+    );
+    expect(result.retryMessages).toHaveLength(0);
+
+    const alphaRow1 = await readJobLedger("organization-alpha", alphaJob1.idempotencyKey);
+    const alphaRow2 = await readJobLedger("organization-alpha", alphaJob2.idempotencyKey);
+    const bravoRow1 = await readJobLedger("organization-bravo", bravoJob1.idempotencyKey);
+
+    expect(alphaRow1?.status).toBe("completed");
+    expect(alphaRow2?.status).toBe("completed");
+    expect(bravoRow1?.status).toBe("completed");
+  });
 });

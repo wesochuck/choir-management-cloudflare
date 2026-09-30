@@ -179,13 +179,65 @@ async function processDeliveryMessage(message: Message, env: JobConsumerEnv): Pr
   }
 }
 
+export const MAX_CONCURRENT_ORGANIZATION_LANES = 3;
+
+async function processLane(messages: Message[], env: JobConsumerEnv): Promise<void> {
+  for (const message of messages) {
+    try {
+      await processDeliveryMessage(message, env);
+    } catch (error: unknown) {
+      console.error(
+        JSON.stringify({
+          errorType: error instanceof Error ? error.name : "UnknownError",
+          event: "queue_lane_unhandled_error",
+          messageId: message.id,
+        }),
+      );
+    }
+  }
+}
+
 export async function processDeliveryBatch(
   batch: MessageBatch,
   env: JobConsumerEnv,
 ): Promise<void> {
-  for (const message of batch.messages) {
-    await processDeliveryMessage(message, env);
+  if (batch.messages.length === 0) {
+    return;
   }
+
+  const laneMap = new Map<string, Message[]>();
+  for (const message of batch.messages) {
+    const parsed = deliveryJobSchema.safeParse(message.body);
+    const laneKey = parsed.success ? parsed.data.organizationId : "__invalid__";
+    const existing = laneMap.get(laneKey);
+    if (existing) {
+      existing.push(message);
+    } else {
+      laneMap.set(laneKey, [message]);
+    }
+  }
+
+  const lanes = Array.from(laneMap.values());
+  let nextLaneIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextLaneIndex < lanes.length) {
+      const laneIndex = nextLaneIndex;
+      nextLaneIndex += 1;
+      const lane = lanes[laneIndex];
+      if (lane) {
+        await processLane(lane, env);
+      }
+    }
+  }
+
+  const workerCount = Math.min(lanes.length, MAX_CONCURRENT_ORGANIZATION_LANES);
+  const workers: Promise<void>[] = [];
+  for (let i = 0; i < workerCount; i += 1) {
+    workers.push(worker());
+  }
+
+  await Promise.all(workers);
 }
 
 function createDeadLetterRecord(batch: MessageBatch, message: Message) {

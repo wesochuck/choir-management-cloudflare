@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { renderCommunicationMarkdown } from "../communications/provider";
 import { verifySignedLink } from "../security/signedLinks";
-import { renderPlayerLinks, renderRsvpLinks } from "./consumer";
+import {
+  MAX_CONCURRENT_ORGANIZATION_LANES,
+  processDeliveryBatch,
+  renderPlayerLinks,
+  renderRsvpLinks,
+} from "./consumer";
+import type { OrganizationStore } from "../organization/OrganizationStore";
+import type { OrganizationRpcCall } from "../organization/rpc/types";
 import {
   deliveryOrigin,
   type JobConsumerEnv,
@@ -358,5 +365,324 @@ describe("canonical origin resolution and link render query deduplication", () =
     expect(rsvp1).toContain("https://org1.com/rsvp?token=");
     expect(rsvp2).toContain("https://org2.com/rsvp?token=");
     expect(getQueryCount()).toBe(2);
+  });
+});
+
+interface MockMessageItem {
+  readonly attempts: number;
+  readonly body: unknown;
+  readonly id: string;
+  readonly timestamp: Date;
+  ack: () => void;
+  retry: (options?: { delaySeconds?: number }) => void;
+}
+
+function createMockQueueMessage(
+  id: string,
+  body: unknown,
+  onAck?: () => void,
+  onRetry?: () => void,
+): MockMessageItem {
+  return {
+    ack: () => {
+      onAck?.();
+    },
+    attempts: 1,
+    body,
+    id,
+    retry: () => {
+      onRetry?.();
+    },
+    timestamp: new Date("2026-07-21T12:00:00.000Z"),
+  };
+}
+
+function createMockConsumerEnv(
+  onJobRpc?: (orgId: string, operation: string, body: unknown) => Promise<void> | void,
+): JobConsumerEnv {
+  return {
+    EXTERNAL_EFFECTS_MODE: "fake",
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- mock bucket
+    ORGANIZATION_FILES: {} as unknown as R2Bucket,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- mock store namespace
+    ORGANIZATION_STORE: {
+      getByName(orgId: string) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- mock store stub
+        return {
+          async jobRpc(call: OrganizationRpcCall) {
+            const isClaim =
+              call.path === "/internal/jobs/claim" || call.operation.includes("claim");
+            const isComplete =
+              call.path === "/internal/jobs/complete" || call.operation.includes("complete");
+            if (onJobRpc) {
+              await onJobRpc(
+                orgId,
+                isClaim ? "claim" : isComplete ? "complete" : call.operation,
+                call.body,
+              );
+            }
+            if (isClaim) {
+              return {
+                headers: {},
+                ok: true,
+                status: 200,
+                value: { claimed: true, status: "claimed" },
+              };
+            }
+            if (isComplete) {
+              return {
+                headers: {},
+                ok: true,
+                status: 200,
+                value: { completed: true },
+              };
+            }
+            return {
+              headers: {},
+              ok: true,
+              status: 200,
+              value: {},
+            };
+          },
+        } as unknown as DurableObjectStub<OrganizationStore>;
+      },
+    } as unknown as NonNullable<JobConsumerEnv["ORGANIZATION_STORE"]>,
+    PRODUCT_BASE_DOMAIN: "staging.example.test",
+    SIGNED_LINK_SECRET: secret,
+  };
+}
+
+function createAttendanceJobBody(orgId: string, jobId: string) {
+  return {
+    attempt: 1,
+    idempotencyKey: `attendance-report:${jobId}:2026-07-21`,
+    jobId,
+    kind: "attendance_report" as const,
+    organizationId: orgId,
+    version: 1,
+  };
+}
+
+describe("processDeliveryBatch lane concurrency", () => {
+  it("progresses independent organization B while organization A waits on a slow job", async () => {
+    let resolveGateA: () => void = () => {
+      /* gate init */
+    };
+    const gateA = new Promise<void>((resolve) => {
+      resolveGateA = resolve;
+    });
+
+    const completionEvents: string[] = [];
+    let b1Acked = false;
+    let a1Acked = false;
+    let a2Acked = false;
+
+    const jobA1Id = "11111111-1111-4111-8111-111111111111";
+    const jobA2Id = "22222222-2222-4222-8222-222222222222";
+    const jobB1Id = "33333333-3333-4333-8333-333333333333";
+
+    const env = createMockConsumerEnv(async (orgId, operation, body) => {
+      let jobId: string | undefined;
+      if (
+        typeof body === "object" &&
+        body !== null &&
+        "jobId" in body &&
+        typeof body.jobId === "string"
+      ) {
+        jobId = body.jobId;
+      }
+      if (orgId === "organization-alpha" && jobId === jobA1Id && operation === "claim") {
+        await gateA;
+      }
+      if (operation === "complete") {
+        completionEvents.push(`${orgId}:${jobId ?? "unknown"}`);
+      }
+    });
+
+    const msgA1 = createMockQueueMessage(
+      "m-a1",
+      createAttendanceJobBody("organization-alpha", jobA1Id),
+      () => {
+        a1Acked = true;
+      },
+    );
+    const msgB1 = createMockQueueMessage(
+      "m-b1",
+      createAttendanceJobBody("organization-bravo", jobB1Id),
+      () => {
+        b1Acked = true;
+      },
+    );
+    const msgA2 = createMockQueueMessage(
+      "m-a2",
+      createAttendanceJobBody("organization-alpha", jobA2Id),
+      () => {
+        a2Acked = true;
+      },
+    );
+
+    // Batch contains interleaved messages: [A1, B1, A2]
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- mock batch
+    const batch = {
+      messages: [msgA1, msgB1, msgA2],
+      queue: "test-queue",
+    } as unknown as MessageBatch;
+
+    const batchPromise = processDeliveryBatch(batch, env);
+
+    // Yield macro-task / micro-tasks so concurrent lanes get scheduled
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Organization B must have completed and acked even while Org A is blocked on gateA!
+    expect(b1Acked).toBe(true);
+    expect(a1Acked).toBe(false);
+    expect(a2Acked).toBe(false);
+    expect(completionEvents).toContain(`organization-bravo:${jobB1Id}`);
+
+    // Release Organization A's slow job
+    resolveGateA();
+    await batchPromise;
+
+    expect(a1Acked).toBe(true);
+    expect(a2Acked).toBe(true);
+    // Within Org A, job A1 must complete before job A2
+    const a1Index = completionEvents.indexOf(`organization-alpha:${jobA1Id}`);
+    const a2Index = completionEvents.indexOf(`organization-alpha:${jobA2Id}`);
+    expect(a1Index).toBeGreaterThanOrEqual(0);
+    expect(a2Index).toBeGreaterThan(a1Index);
+  });
+
+  it("bounds active concurrency to at most 3 lanes across multiple organizations", async () => {
+    const activeLanes = new Set<string>();
+    let peakLanes = 0;
+    let releaseBarrier: () => void = () => {
+      /* barrier init */
+    };
+    const barrier = new Promise<void>((resolve) => {
+      releaseBarrier = resolve;
+    });
+
+    const orgIds = [
+      "organization-alpha",
+      "organization-bravo",
+      "organization-charlie",
+      "organization-delta",
+      "organization-echo",
+    ];
+
+    const env = createMockConsumerEnv(async (orgId, operation) => {
+      if (operation === "claim") {
+        activeLanes.add(orgId);
+        peakLanes = Math.max(peakLanes, activeLanes.size);
+        if (activeLanes.size === 3) {
+          // Once 3 lanes are active, release all workers so they can complete
+          releaseBarrier();
+        } else if (activeLanes.size < 3) {
+          await barrier;
+        }
+      }
+      if (operation === "complete") {
+        activeLanes.delete(orgId);
+      }
+    });
+
+    const acks: string[] = [];
+    const jobIds = [
+      "11111111-1111-4111-8111-111111111101",
+      "11111111-1111-4111-8111-111111111102",
+      "11111111-1111-4111-8111-111111111103",
+      "11111111-1111-4111-8111-111111111104",
+      "11111111-1111-4111-8111-111111111105",
+    ];
+    const messages = orgIds.map((orgId, idx) =>
+      createMockQueueMessage(
+        `m-${String(idx)}`,
+        createAttendanceJobBody(orgId, jobIds[idx] ?? "11111111-1111-4111-8111-111111111199"),
+        () => {
+          acks.push(orgId);
+        },
+      ),
+    );
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- mock batch
+    const batch = { messages, queue: "test-queue" } as unknown as MessageBatch;
+    await processDeliveryBatch(batch, env);
+
+    expect(peakLanes).toBe(MAX_CONCURRENT_ORGANIZATION_LANES);
+    expect(peakLanes).toBeLessThanOrEqual(3);
+    expect(acks).toHaveLength(5);
+  });
+
+  it("handles malformed message bodies without crashing or creating unbounded lanes", async () => {
+    let invalidAcked = false;
+    let validAcked = false;
+
+    const invalidMsg = createMockQueueMessage("m-invalid", { notAJob: true }, () => {
+      invalidAcked = true;
+    });
+    const validMsg = createMockQueueMessage(
+      "m-valid",
+      createAttendanceJobBody("organization-alpha", "44444444-4444-4444-8444-444444444444"),
+      () => {
+        validAcked = true;
+      },
+    );
+
+    const env = createMockConsumerEnv();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- mock batch
+    const batch = {
+      messages: [invalidMsg, validMsg],
+      queue: "test-queue",
+    } as unknown as MessageBatch;
+    await processDeliveryBatch(batch, env);
+
+    expect(invalidAcked).toBe(true);
+    expect(validAcked).toBe(true);
+  });
+
+  it("handles an empty message batch cleanly", async () => {
+    const env = createMockConsumerEnv();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- mock batch
+    const batch = { messages: [], queue: "test-queue" } as unknown as MessageBatch;
+    await expect(processDeliveryBatch(batch, env)).resolves.toBeUndefined();
+  });
+
+  it("isolates lane failures so a failure in one organization does not block or abandon others", async () => {
+    let orgAFailed = false;
+    let orgBCompleted = false;
+
+    const env = createMockConsumerEnv((orgId, operation) => {
+      if (orgId === "organization-failing" && operation === "claim") {
+        throw new Error("Simulated DO crash in org-failing");
+      }
+    });
+
+    const msgFail = createMockQueueMessage(
+      "m-fail",
+      createAttendanceJobBody("organization-failing", "55555555-5555-4555-8555-555555555555"),
+      () => {
+        /* no-op ack */
+      },
+      () => {
+        orgAFailed = true;
+      },
+    );
+    const msgSuccess = createMockQueueMessage(
+      "m-success",
+      createAttendanceJobBody("organization-alpha", "66666666-6666-4666-8666-666666666666"),
+      () => {
+        orgBCompleted = true;
+      },
+    );
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- mock batch
+    const batch = {
+      messages: [msgFail, msgSuccess],
+      queue: "test-queue",
+    } as unknown as MessageBatch;
+    await processDeliveryBatch(batch, env);
+
+    expect(orgAFailed).toBe(true);
+    expect(orgBCompleted).toBe(true);
   });
 });
