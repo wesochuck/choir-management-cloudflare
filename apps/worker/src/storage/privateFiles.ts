@@ -73,13 +73,91 @@ type PrivateFileEnv = Pick<Env, "ORGANIZATION_FILES" | "ORGANIZATION_STORE">;
 
 export class PrivateFileStorageError extends Error {
   constructor(
-    readonly kind: "conflict" | "not_found" | "range_not_satisfiable" | "unavailable",
+    readonly kind:
+      "conflict" | "not_found" | "range_not_satisfiable" | "unavailable" | "validation",
     message: string,
     readonly sizeBytes: number | null = null,
   ) {
     super(message);
     this.name = "PrivateFileStorageError";
   }
+}
+
+function hasStringKind(error: object): error is { readonly kind: string } {
+  return "kind" in error && typeof Reflect.get(error, "kind") === "string";
+}
+
+export function isPrivateFileStorageError(error: unknown): error is PrivateFileStorageError {
+  return (
+    error instanceof PrivateFileStorageError ||
+    (error instanceof Error && error.name === "PrivateFileStorageError" && hasStringKind(error))
+  );
+}
+
+export function findPrivateFileStorageError(error: unknown): PrivateFileStorageError | null {
+  if (isPrivateFileStorageError(error)) {
+    return error;
+  }
+  if (error && typeof error === "object" && "cause" in error) {
+    return findPrivateFileStorageError(error.cause);
+  }
+  if (
+    error instanceof TypeError &&
+    (error.message.includes("FixedLengthStream") ||
+      error.message.includes("did not receive expected amount of data") ||
+      error.message.includes("too many bytes") ||
+      error.message.includes("too few bytes"))
+  ) {
+    return new PrivateFileStorageError(
+      "validation",
+      "The private file body does not match its declared content length.",
+    );
+  }
+  return null;
+}
+
+export type PrivateFileUploadBody = ReadableStream<Uint8Array> | ArrayBuffer;
+
+function createByteValidationTransform(declaredSizeBytes: number): {
+  readonly transform: TransformStream<Uint8Array, Uint8Array>;
+  readonly assertComplete: () => void;
+} {
+  let bytesRead = 0;
+  let finished = false;
+
+  const transform = new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      bytesRead += chunk.byteLength;
+      if (bytesRead > declaredSizeBytes) {
+        throw new PrivateFileStorageError(
+          "validation",
+          "The private file body does not match its declared content length.",
+        );
+      }
+      controller.enqueue(chunk);
+    },
+    flush() {
+      if (bytesRead !== declaredSizeBytes) {
+        throw new PrivateFileStorageError(
+          "validation",
+          "The private file body does not match its declared content length.",
+        );
+      }
+      finished = true;
+    },
+  });
+
+  return {
+    assertComplete: () => {
+      if (!finished || bytesRead !== declaredSizeBytes) {
+        throw new PrivateFileStorageError(
+          "validation",
+          "The private file body does not match its declared content length.",
+        );
+      }
+    },
+    transform,
+  };
 }
 
 function requestedRange(value: string, sizeBytes: number): { length: number; offset: number } {
@@ -174,11 +252,16 @@ async function abortReservation(
 
 export async function uploadPrivateOrganizationFile(
   env: PrivateFileEnv,
-  input: z.infer<typeof privateFileReservationSchema> & { readonly body: ArrayBuffer },
+  input: z.infer<typeof privateFileReservationSchema> & {
+    readonly body: PrivateFileUploadBody;
+  },
 ): Promise<Omit<PrivateFileResponse, "requestId">> {
   const parsed = privateFileReservationSchema.parse(input);
-  if (input.body.byteLength !== parsed.sizeBytes) {
-    throw new PrivateFileStorageError("conflict", "The private file size changed during upload.");
+  if (input.body instanceof ArrayBuffer && input.body.byteLength !== parsed.sizeBytes) {
+    throw new PrivateFileStorageError(
+      "validation",
+      "The private file body does not match its declared content length.",
+    );
   }
   const stub = organizationStoreStub(env, parsed.organizationId);
   const reservationResponse = await invokeOrganizationRpc(
@@ -214,10 +297,22 @@ export async function uploadPrivateOrganizationFile(
     storageKey: expectedKey,
   };
   try {
-    await env.ORGANIZATION_FILES.put(expectedKey, input.body, {
-      customMetadata: { fileId: parsed.fileId, organizationId: parsed.organizationId },
-      httpMetadata: { contentType: parsed.contentType },
-    });
+    if (input.body instanceof ArrayBuffer) {
+      await env.ORGANIZATION_FILES.put(expectedKey, input.body, {
+        customMetadata: { fileId: parsed.fileId, organizationId: parsed.organizationId },
+        httpMetadata: { contentType: parsed.contentType },
+      });
+    } else {
+      const validation = createByteValidationTransform(parsed.sizeBytes);
+      const stream = input.body
+        .pipeThrough(validation.transform)
+        .pipeThrough(new FixedLengthStream(parsed.sizeBytes));
+      await env.ORGANIZATION_FILES.put(expectedKey, stream, {
+        customMetadata: { fileId: parsed.fileId, organizationId: parsed.organizationId },
+        httpMetadata: { contentType: parsed.contentType },
+      });
+      validation.assertComplete();
+    }
     const readyResponse = await invokeOrganizationRpc(
       stub,
       "https://organization.internal/internal/files/ready",
@@ -241,6 +336,10 @@ export async function uploadPrivateOrganizationFile(
   } catch (error: unknown) {
     await env.ORGANIZATION_FILES.delete(expectedKey).catch(() => undefined);
     await abortReservation(stub, transition);
+    const storageError = findPrivateFileStorageError(error);
+    if (storageError) {
+      throw storageError;
+    }
     throw error;
   }
 }

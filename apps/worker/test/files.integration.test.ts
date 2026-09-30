@@ -202,4 +202,267 @@ describe("Private Organization files", () => {
     expect(poisonedMetadataResponse.status).toBe(503);
     expect(await poisonedMetadataResponse.text()).not.toContain("bravo-only");
   });
+
+  it("streams multi-chunk uploads to R2 and completes reservation", async () => {
+    const cookie = await signIn();
+    const fileId = "66666666-6666-4666-8666-666666666666";
+    const chunks = [
+      new TextEncoder().encode("first chunk - "),
+      new TextEncoder().encode("second chunk - "),
+      new TextEncoder().encode("final chunk"),
+    ];
+    const totalLength = chunks.reduce((sum, c) => sum + c.byteLength, 0);
+
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(chunk);
+        }
+        controller.close();
+      },
+    });
+
+    const response = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/files/${fileId}`, cookie, {
+        body: stream,
+        headers: {
+          "content-length": String(totalLength),
+          "content-type": "text/plain",
+          "x-file-name": encodeURIComponent("streamed-file.txt"),
+        },
+        method: "PUT",
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    const downloaded = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/files/${fileId}`, cookie),
+    );
+    expect(downloaded.status).toBe(200);
+    expect(await downloaded.text()).toBe("first chunk - second chunk - final chunk");
+  });
+
+  it("rejects streaming overflow and cleans up R2 and pending reservation", async () => {
+    const cookie = await signIn();
+    const fileId = "77777777-7777-4777-8777-777777777777";
+    const chunks = [
+      new TextEncoder().encode("0123456789"),
+      new TextEncoder().encode("0123456789"),
+      new TextEncoder().encode("extra-overflow-bytes"),
+    ];
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) {
+          controller.enqueue(chunk);
+        }
+        controller.close();
+      },
+    });
+
+    const response = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/files/${fileId}`, cookie, {
+        body: stream,
+        headers: {
+          "content-length": "20",
+          "content-type": "text/plain",
+          "x-file-name": encodeURIComponent("overflow.txt"),
+        },
+        method: "PUT",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "validation_failed" });
+
+    // Verify R2 object does not exist
+    await expect(
+      organizationFiles.head(privateOrganizationFileKey("organization-alpha", fileId)),
+    ).resolves.toBeNull();
+
+    // Verify DO pending reservation was cleaned up
+    const alphaObjectId = organizationStore.idFromName("organization-alpha");
+    await expect(
+      runInDurableObject<OrganizationStore, number>(
+        organizationStore.get(alphaObjectId),
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ count: number }>(
+              "SELECT COUNT(*) AS count FROM private_files WHERE id = ?",
+              fileId,
+            )
+            .toArray()[0]?.count ?? 0,
+      ),
+    ).resolves.toBe(0);
+  });
+
+  it("rejects streaming truncation and cleans up R2 and pending reservation", async () => {
+    const cookie = await signIn();
+    const fileId = "88888888-8888-4888-8888-888888888888";
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("short"));
+        controller.close();
+      },
+    });
+
+    const response = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/files/${fileId}`, cookie, {
+        body: stream,
+        headers: {
+          "content-length": "100",
+          "content-type": "text/plain",
+          "x-file-name": encodeURIComponent("truncated.txt"),
+        },
+        method: "PUT",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "validation_failed" });
+
+    await expect(
+      organizationFiles.head(privateOrganizationFileKey("organization-alpha", fileId)),
+    ).resolves.toBeNull();
+
+    const alphaObjectId = organizationStore.idFromName("organization-alpha");
+    await expect(
+      runInDurableObject<OrganizationStore, number>(
+        organizationStore.get(alphaObjectId),
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ count: number }>(
+              "SELECT COUNT(*) AS count FROM private_files WHERE id = ?",
+              fileId,
+            )
+            .toArray()[0]?.count ?? 0,
+      ),
+    ).resolves.toBe(0);
+  });
+
+  it("cleans up R2 and reservation when client stream aborts with error", async () => {
+    const cookie = await signIn();
+    const fileId = "99999999-9999-4999-8999-999999999999";
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("partial chunk"));
+        controller.error(new Error("client connection dropped"));
+      },
+    });
+
+    const response = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/files/${fileId}`, cookie, {
+        body: stream,
+        headers: {
+          "content-length": "100",
+          "content-type": "text/plain",
+          "x-file-name": encodeURIComponent("aborted.txt"),
+        },
+        method: "PUT",
+      }),
+    );
+
+    expect([400, 503]).toContain(response.status);
+
+    await expect(
+      organizationFiles.head(privateOrganizationFileKey("organization-alpha", fileId)),
+    ).resolves.toBeNull();
+
+    const alphaObjectId = organizationStore.idFromName("organization-alpha");
+    await expect(
+      runInDurableObject<OrganizationStore, number>(
+        organizationStore.get(alphaObjectId),
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ count: number }>(
+              "SELECT COUNT(*) AS count FROM private_files WHERE id = ?",
+              fileId,
+            )
+            .toArray()[0]?.count ?? 0,
+      ),
+    ).resolves.toBe(0);
+  });
+
+  it("rejects reservation conflict when file ID is already in use", async () => {
+    const cookie = await signIn();
+    const fileId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const first = await uploadFile("alpha.localhost", cookie, fileId, "first upload");
+    expect(first.status).toBe(201);
+
+    const second = await uploadFile("alpha.localhost", cookie, fileId, "second upload");
+    expect(second.status).toBe(409);
+    expect(await second.json()).toMatchObject({ code: "conflict" });
+  });
+
+  it("rejects uploads exceeding maximum declared size before reservation", async () => {
+    const cookie = await signIn();
+    const fileId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const response = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/files/${fileId}`, cookie, {
+        body: new Uint8Array([1, 2, 3]),
+        headers: {
+          "content-length": String(20 * 1024 * 1024 + 1),
+          "content-type": "text/plain",
+          "x-file-name": encodeURIComponent("oversized.txt"),
+        },
+        method: "PUT",
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "validation_failed" });
+
+    const alphaObjectId = organizationStore.idFromName("organization-alpha");
+    await expect(
+      runInDurableObject<OrganizationStore, number>(
+        organizationStore.get(alphaObjectId),
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ count: number }>(
+              "SELECT COUNT(*) AS count FROM private_files WHERE id = ?",
+              fileId,
+            )
+            .toArray()[0]?.count ?? 0,
+      ),
+    ).resolves.toBe(0);
+  });
+
+  it("supports exact maximum 20 MiB streaming upload with bounded memory", async () => {
+    const cookie = await signIn();
+    const fileId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const oneMbChunk = new Uint8Array(1024 * 1024);
+    let chunksSent = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (chunksSent < 20) {
+          controller.enqueue(oneMbChunk);
+          chunksSent += 1;
+        } else {
+          controller.close();
+        }
+      },
+    });
+
+    const response = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/files/${fileId}`, cookie, {
+        body: stream,
+        headers: {
+          "content-length": String(20 * 1024 * 1024),
+          "content-type": "application/octet-stream",
+          "x-file-name": encodeURIComponent("max-file.bin"),
+        },
+        method: "PUT",
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    const parsed = privateFileResponseSchema.parse(await response.json());
+    expect(parsed.sizeBytes).toBe(20 * 1024 * 1024);
+    expect(parsed.id).toBe(fileId);
+
+    const headResult = await organizationFiles.head(
+      privateOrganizationFileKey("organization-alpha", fileId),
+    );
+    expect(headResult).not.toBeNull();
+    expect(headResult?.size).toBe(20 * 1024 * 1024);
+  });
 });

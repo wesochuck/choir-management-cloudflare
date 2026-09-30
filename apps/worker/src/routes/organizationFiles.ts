@@ -3,6 +3,7 @@ import { createAuth } from "../auth/config";
 import { validateStartupConfig } from "../env";
 import {
   PrivateFileStorageError,
+  findPrivateFileStorageError,
   privateFileIdSchema,
   readPrivateOrganizationFile,
   reclaimPrivateOrganizationFile,
@@ -20,6 +21,34 @@ import {
   resolveCanonicalOrganizationId,
   privateFileDownloadResponse,
 } from "./helpers";
+
+function formatPrivateFileUploadError(
+  error: unknown,
+  requestId: string,
+): { readonly body: ProblemDetails; readonly status: 400 | 409 | 503 } {
+  const storageError = findPrivateFileStorageError(error);
+  if (storageError?.kind === "validation") {
+    return {
+      body: {
+        code: "validation_failed",
+        message: storageError.message,
+        requestId,
+      },
+      status: 400,
+    };
+  }
+  const conflict = storageError?.kind === "conflict";
+  return {
+    body: {
+      code: conflict ? "conflict" : "service_unavailable",
+      message: conflict
+        ? "The private file ID is already in use."
+        : "The private file could not be stored safely.",
+      requestId,
+    },
+    status: conflict ? 409 : 503,
+  };
+}
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.put("/api/organization/files/:fileId", async (context) => {
@@ -73,8 +102,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     }
-    const body = await context.req.arrayBuffer();
-    if (body.byteLength !== uploadHeaders.sizeBytes) {
+    if (!context.req.raw.body) {
       return context.json(
         {
           code: "validation_failed",
@@ -87,13 +115,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       const uploaded = await uploadPrivateOrganizationFile(context.env, {
         actorUserId: authorization.value.userId,
-        body,
+        body: context.req.raw.body,
         contentType: uploadHeaders.contentType,
         fileId: fileId.data,
         fileName: uploadHeaders.fileName,
         organizationId,
         requestId: context.get("requestId"),
-        sizeBytes: body.byteLength,
+        sizeBytes: uploadHeaders.sizeBytes,
       });
       const response: PrivateFileResponse = {
         ...uploaded,
@@ -101,17 +129,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       };
       return context.json(response, 201);
     } catch (error: unknown) {
-      const conflict = error instanceof PrivateFileStorageError && error.kind === "conflict";
-      return context.json(
-        {
-          code: conflict ? "conflict" : "service_unavailable",
-          message: conflict
-            ? "The private file ID is already in use."
-            : "The private file could not be stored safely.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        conflict ? 409 : 503,
-      );
+      const { body, status } = formatPrivateFileUploadError(error, context.get("requestId"));
+      return context.json(body, status);
     }
   });
 
