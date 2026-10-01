@@ -1,6 +1,6 @@
 import type { OrganizationMusicPiece, OrganizationRosterConfiguration } from "@choir/contracts";
 import { DataTable } from "@choir/ui";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { buildMusicPublisherSearchUrl } from "../../musicPublisherSearch";
 
 import { GenreChips } from "./shared";
@@ -49,67 +49,70 @@ export function MusicCatalogTable({
   readonly selectedIds: readonly string[];
   readonly selectedGenres: readonly string[];
 }) {
-  const parents = new Map(pieces.map((piece) => [piece.id, piece]));
-  const needle = search.trim().toLocaleLowerCase();
-  const selected = selectedGenres.map(genreKey);
-  const matchesPiece = (piece: OrganizationMusicPiece): boolean => {
-    const matchesSearch = [
-      piece.title,
-      piece.composer,
-      piece.arranger,
-      piece.catalogId,
-      ...piece.genres,
-    ]
-      .join(" ")
-      .toLocaleLowerCase()
-      .includes(needle);
-    const pieceGenres = piece.genres.map(genreKey);
-    const matchesGenres = showUncategorized
-      ? pieceGenres.length === 0
-      : selected.length === 0 ||
-        (genreFilterMode === "and"
-          ? selected.every((genre) => pieceGenres.includes(genre))
-          : selected.some((genre) => pieceGenres.includes(genre)));
-    const matchesCredit = (() => {
-      if (!creditFilter?.name.trim()) return true;
-      const target = creditFilter.name.trim();
-      if (creditFilter.role === "composer") {
-        return piece.composer.trim() === target;
-      }
-      if (creditFilter.role === "arranger") {
-        return piece.arranger.trim() === target;
-      }
-      return piece.composer.trim() === target || piece.arranger.trim() === target;
-    })();
-    return matchesSearch && matchesGenres && matchesCredit;
-  };
-  const matchingIds = new Set(pieces.filter(matchesPiece).map((piece) => piece.id));
-  const childrenByParent = new Map<string, OrganizationMusicPiece[]>();
-  pieces.forEach((piece) => {
-    if (!piece.parentId) return;
-    const children = childrenByParent.get(piece.parentId) ?? [];
-    children.push(piece);
-    childrenByParent.set(piece.parentId, children);
-  });
-  const visiblePieces: OrganizationMusicPiece[] = [];
-  const includedIds = new Set<string>();
-  pieces
-    .filter((piece) => !piece.parentId)
-    .forEach((parent) => {
-      const matchingChildren = (childrenByParent.get(parent.id) ?? []).filter((child) =>
-        matchingIds.has(child.id),
-      );
-      if (!matchingIds.has(parent.id) && matchingChildren.length === 0) return;
-      visiblePieces.push(parent);
-      includedIds.add(parent.id);
-      matchingChildren.forEach((child) => {
-        visiblePieces.push(child);
-        includedIds.add(child.id);
-      });
+  const parents = useMemo(() => new Map(pieces.map((piece) => [piece.id, piece])), [pieces]);
+  const visiblePieces = useMemo(() => {
+    const needle = search.trim().toLocaleLowerCase();
+    const selected = selectedGenres.map(genreKey);
+    const matchesPiece = (piece: OrganizationMusicPiece): boolean => {
+      const matchesSearch = [
+        piece.title,
+        piece.composer,
+        piece.arranger,
+        piece.catalogId,
+        ...piece.genres,
+      ]
+        .join(" ")
+        .toLocaleLowerCase()
+        .includes(needle);
+      const pieceGenres = piece.genres.map(genreKey);
+      const matchesGenres = showUncategorized
+        ? pieceGenres.length === 0
+        : selected.length === 0 ||
+          (genreFilterMode === "and"
+            ? selected.every((genre) => pieceGenres.includes(genre))
+            : selected.some((genre) => pieceGenres.includes(genre)));
+      const matchesCredit = (() => {
+        if (!creditFilter?.name.trim()) return true;
+        const target = creditFilter.name.trim();
+        if (creditFilter.role === "composer") {
+          return piece.composer.trim() === target;
+        }
+        if (creditFilter.role === "arranger") {
+          return piece.arranger.trim() === target;
+        }
+        return piece.composer.trim() === target || piece.arranger.trim() === target;
+      })();
+      return matchesSearch && matchesGenres && matchesCredit;
+    };
+    const matchingIds = new Set(pieces.filter(matchesPiece).map((piece) => piece.id));
+    const childrenByParent = new Map<string, OrganizationMusicPiece[]>();
+    pieces.forEach((piece) => {
+      if (!piece.parentId) return;
+      const children = childrenByParent.get(piece.parentId) ?? [];
+      children.push(piece);
+      childrenByParent.set(piece.parentId, children);
     });
-  pieces.forEach((piece) => {
-    if (!includedIds.has(piece.id) && matchingIds.has(piece.id)) visiblePieces.push(piece);
-  });
+    const visiblePieces: OrganizationMusicPiece[] = [];
+    const includedIds = new Set<string>();
+    pieces
+      .filter((piece) => !piece.parentId)
+      .forEach((parent) => {
+        const matchingChildren = (childrenByParent.get(parent.id) ?? []).filter((child) =>
+          matchingIds.has(child.id),
+        );
+        if (!matchingIds.has(parent.id) && matchingChildren.length === 0) return;
+        visiblePieces.push(parent);
+        includedIds.add(parent.id);
+        matchingChildren.forEach((child) => {
+          visiblePieces.push(child);
+          includedIds.add(child.id);
+        });
+      });
+    pieces.forEach((piece) => {
+      if (!includedIds.has(piece.id) && matchingIds.has(piece.id)) visiblePieces.push(piece);
+    });
+    return visiblePieces;
+  }, [creditFilter, genreFilterMode, pieces, search, selectedGenres, showUncategorized]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
 
@@ -132,7 +135,7 @@ export function MusicCatalogTable({
 
   const sortParent = (piece: OrganizationMusicPiece): OrganizationMusicPiece =>
     piece.parentId ? (parents.get(piece.parentId) ?? piece) : piece;
-  const selectedIdSet = new Set(selectedIds);
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const selectedVisibleCount = visiblePieces.reduce(
     (count, piece) => count + (selectedIdSet.has(piece.id) ? 1 : 0),
     0,

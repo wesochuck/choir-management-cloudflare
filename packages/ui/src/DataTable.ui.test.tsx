@@ -332,3 +332,32 @@ describe("DataTable interaction", () => {
     expect(cardFields[1]).toHaveClass("data-table-card__field--right");
   });
 });
+
+it("evaluates sort keys once per row while preserving natural ordering and empty-last sorting", async () => {
+  const rows: readonly Member[] = [
+    { id: "empty", name: "", section: "" },
+    ...Array.from({ length: 20 }, (_, index) => ({
+      id: String(index),
+      name: `Singer ${String(20 - index)}`,
+      section: "S1",
+    })),
+  ];
+  const sortValue = vi.fn((row: Member) => row.name || null);
+  const user = userEvent.setup();
+  render(
+    <DataTable
+      columns={[{ id: "name", header: "Name", render: (row) => row.name || "Empty", sortValue }]}
+      rows={rows}
+      keySelector={(row) => row.id}
+      initialSort={{ columnId: "name", direction: "asc" }}
+    />,
+  );
+  expect(firstTableCellText()).toBe("Singer 1");
+  expect(sortValue).toHaveBeenCalledTimes(rows.length);
+  expect(document.querySelector("table tbody tr:last-child td")?.textContent).toBe("Empty");
+  sortValue.mockClear();
+  await user.click(screen.getByRole("button", { name: "Sort by Name" }));
+  expect(firstTableCellText()).toBe("Singer 20");
+  expect(sortValue).toHaveBeenCalledTimes(rows.length);
+  expect(document.querySelector("table tbody tr:last-child td")?.textContent).toBe("Empty");
+});

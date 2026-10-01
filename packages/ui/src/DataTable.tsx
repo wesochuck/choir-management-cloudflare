@@ -169,6 +169,8 @@ function getCardFieldClass<T>(column: DataTableColumn<T>): string {
   return classes.join(" ");
 }
 
+const sortCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
 function compareValues(
   left: boolean | number | string | null | undefined,
   right: boolean | number | string | null | undefined,
@@ -180,10 +182,7 @@ function compareValues(
   if (typeof left === "boolean" && typeof right === "boolean") {
     return Number(left) - Number(right);
   }
-  return String(left).localeCompare(String(right), undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
+  return sortCollator.compare(String(left), String(right));
 }
 
 export function DataTable<T>({
@@ -205,15 +204,19 @@ export function DataTable<T>({
     if (!sort) return rows;
     const column = columns.find(({ id }) => id === sort.columnId);
     if (!column?.sortValue) return rows;
-    return [...rows].sort((left, right) => {
-      const leftValue = column.sortValue?.(left);
-      const rightValue = column.sortValue?.(right);
-      const leftEmpty = leftValue === null || leftValue === undefined || leftValue === "";
-      const rightEmpty = rightValue === null || rightValue === undefined || rightValue === "";
-      if (leftEmpty !== rightEmpty) return leftEmpty ? 1 : -1;
-      const comparison = compareValues(leftValue, rightValue);
-      return sort.direction === "asc" ? comparison : -comparison;
-    });
+    const sortValue = column.sortValue;
+    return rows
+      .map((row) => ({ row, value: sortValue(row) }))
+      .sort((left, right) => {
+        const leftValue = left.value;
+        const rightValue = right.value;
+        const leftEmpty = leftValue === null || leftValue === undefined || leftValue === "";
+        const rightEmpty = rightValue === null || rightValue === undefined || rightValue === "";
+        if (leftEmpty !== rightEmpty) return leftEmpty ? 1 : -1;
+        const comparison = compareValues(leftValue, rightValue);
+        return sort.direction === "asc" ? comparison : -comparison;
+      })
+      .map(({ row }) => row);
   }, [columns, rows, sort]);
 
   const paginated = useMemo(() => {

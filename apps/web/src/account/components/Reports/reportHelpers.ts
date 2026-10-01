@@ -17,20 +17,22 @@ export const TAB_LABELS: readonly { id: ReportTab; label: string }[] = [
   { id: "music-folders", label: "Music Folder Report" },
 ];
 
+const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+const currencyFormatter = new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" });
+
 export function formatDate(value: string | null | undefined, withTime = false): string {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    ...(withTime ? { timeStyle: "short" } : {}),
-  }).format(date);
+  return (withTime ? dateTimeFormatter : dateFormatter).format(date);
 }
 
 export function money(cents: number): string {
-  return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
-    cents / 100,
-  );
+  return currencyFormatter.format(cents / 100);
 }
 
 function csvCell(value: string | number): string {

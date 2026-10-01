@@ -18,16 +18,15 @@ function isReadyDuesState(state: DuesState): state is DuesReadyState {
   return state.status === "ready";
 }
 
+const currencyFormatter = new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" });
+const seasonDateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+
 function money(cents: number): string {
-  return new Intl.NumberFormat(undefined, { currency: "USD", style: "currency" }).format(
-    cents / 100,
-  );
+  return currencyFormatter.format(cents / 100);
 }
 
 function seasonDate(season: Season): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
-    new Date(season.startsAt),
-  );
+  return seasonDateFormatter.format(new Date(season.startsAt));
 }
 
 function statusLabel(record: DuesRecord | undefined): string {
@@ -75,6 +74,17 @@ export function MemberDuesPage({ enabled }: { readonly enabled: boolean }) {
         : [],
     [state],
   );
+
+  const duesBySeason = useMemo(() => {
+    const records = new Map<string, DuesRecord>();
+    if (state.status === "ready") {
+      for (const record of state.dues) {
+        // Preserve the first matching record, as the previous Array.find did.
+        if (!records.has(record.seasonId)) records.set(record.seasonId, record);
+      }
+    }
+    return records;
+  }, [state]);
 
   async function pay(season: Season): Promise<void> {
     if (busySeasonId) return;
@@ -128,7 +138,7 @@ export function MemberDuesPage({ enabled }: { readonly enabled: boolean }) {
       ) : (
         <div className="member-dues-list" role="list">
           {activeSeasons.map((season) => {
-            const record = readyState.dues.find(({ seasonId }) => seasonId === season.id);
+            const record = duesBySeason.get(season.id);
             const amountCents = record?.amountCents ?? season.duesAmountCents;
             const feeCents =
               record?.feeCents ??
