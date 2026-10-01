@@ -639,3 +639,22 @@ describe("offline playback object URL lifecycle", () => {
     expect(revokeUrl).toHaveBeenCalledWith("blob:direct-audio");
   });
 });
+
+it("releasing old generation must not revoke replacement lease", async () => {
+  installIndexedDatabase();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(() => Promise.resolve(new Response(new Blob(["audio"], { type: "audio/mpeg" })))),
+  );
+  vi.spyOn(URL, "createObjectURL")
+    .mockReturnValueOnce("blob:old-generation")
+    .mockReturnValueOnce("blob:new-generation");
+  const revoked = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+  await saveOfflineAudio("review-scope", "track", "/track");
+  const oldLease = await acquireOfflineAudioUrl("review-scope", "track");
+  await saveOfflineAudio("review-scope", "track", "/replacement");
+  const newLease = await acquireOfflineAudioUrl("review-scope", "track");
+  oldLease?.release();
+  expect(revoked).not.toHaveBeenCalledWith(newLease?.url);
+  newLease?.release();
+});

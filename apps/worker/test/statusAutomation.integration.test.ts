@@ -31,6 +31,8 @@ import {
   recalculateProfileStatuses,
   runRosterAutomations,
 } from "../src/organization/statusAutomationStore";
+import { readProfiles } from "../src/organization/statusAutomation/store";
+import { readPerformances } from "../src/organization/statusAutomation/attendance";
 import { runOrganizationAlarm } from "../src/organization/scheduler";
 
 const USER_EMAIL = "status-automation.manager@example.test";
@@ -1358,4 +1360,158 @@ describe("roster status automation", () => {
     );
     expect(rsvpStatusAfterForced).toBe("No");
   });
+});
+
+it("bounds decision histories and supports a 500-profile bulk attendance update", async () => {
+  const cookie = await signIn();
+  const stub = stores.getByName("organization-alpha");
+  const fixture = await runInDurableObject<
+    OrganizationStore,
+    { profileIds: string[]; eventId: string }
+  >(stub, (_instance, state) => {
+    const at = new Date().toISOString();
+    const profileIds = Array.from({ length: 500 }, () => crypto.randomUUID());
+    for (const [index, id] of profileIds.entries()) {
+      state.storage.sql.exec(
+        "INSERT INTO profiles (id, display_name, voice_part, created_at, updated_at) VALUES (?, ?, 'S1', ?, ?)",
+        id,
+        `Bounded Singer ${String(index)}`,
+        at,
+        at,
+      );
+    }
+    const eventIds: string[] = [];
+    for (let index = 0; index < 201; index += 1) {
+      const id = crypto.randomUUID();
+      eventIds.push(id);
+      state.storage.sql.exec(
+        "INSERT INTO events (id, title, type, starts_at, duration_minutes, created_at, updated_at) VALUES (?, ?, 'Performance', ?, 60, ?, ?)",
+        id,
+        `History ${String(index)}`,
+        new Date(Date.now() - (index + 3) * 86400000).toISOString(),
+        at,
+        at,
+      );
+    }
+    const recoveringId = profileIds[499];
+    if (!recoveringId) throw new Error("missing recovery profile");
+    state.storage.sql.exec(
+      "UPDATE profiles SET global_status = 'Inactive' WHERE id = ?",
+      recoveringId,
+    );
+    let earliestYes = "";
+    for (let index = 1; index <= 25; index += 1) {
+      const id = crypto.randomUUID();
+      if (index === 1) earliestYes = id;
+      state.storage.sql.exec(
+        "INSERT INTO events (id, title, type, starts_at, duration_minutes, created_at, updated_at) VALUES (?, ?, 'Performance', ?, 60, ?, ?)",
+        id,
+        `Future ${String(index)}`,
+        new Date(Date.now() + index * 86400000).toISOString(),
+        at,
+        at,
+      );
+      state.storage.sql.exec(
+        "INSERT INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at) VALUES (?, ?, 'Yes', 'Pending', ?, ?)",
+        id,
+        recoveringId,
+        at,
+        at,
+      );
+    }
+    expect(readProfiles(state.storage, profileIds.slice(0, 101))).toHaveLength(101);
+    expect(readProfiles(state.storage, [...profileIds, ...profileIds])).toHaveLength(500);
+    expect(readProfiles(state.storage, [])).toEqual([]);
+    const histories = readPerformances(state.storage, profileIds);
+    expect(histories.length).toBeLessThanOrEqual(500 * 21);
+    expect(histories.some((row) => row.profileId === recoveringId && row.id === earliestYes)).toBe(
+      true,
+    );
+    expect(
+      recalculateProfileStatuses(
+        state.storage,
+        "organization-alpha",
+        new Date(),
+        "bounded-recovery",
+        profileIds,
+      ),
+    ).toBe(1);
+    expect(
+      state.storage.sql
+        .exec<{ readonly triggerId: string }>(
+          "SELECT trigger_id AS triggerId FROM profile_status_history WHERE profile_id = ? ORDER BY occurred_at DESC LIMIT 1",
+          recoveringId,
+        )
+        .one().triggerId,
+    ).toBe(earliestYes);
+    const eventId = eventIds[0];
+    if (!eventId) throw new Error("missing event");
+    return { profileIds, eventId };
+  });
+  const response = await write(
+    "alpha.localhost",
+    `/api/organization/events/${fixture.eventId}/attendance`,
+    cookie,
+    { updates: fixture.profileIds.map((profileId) => ({ profileId, attendance: "Present" })) },
+    "PUT",
+  );
+  expect(response.status).toBe(200);
+});
+
+it("pages past ongoing performances and preserves local-day and tie ordering", async () => {
+  await runInDurableObject<OrganizationStore, null>(
+    stores.getByName("organization-alpha"),
+    (_instance, state) => {
+      const now = new Date("2026-09-30T12:00:00.000Z");
+      const at = now.toISOString();
+      const profileId = crypto.randomUUID();
+      state.storage.sql.exec(
+        "INSERT INTO profiles (id, display_name, voice_part, created_at, updated_at) VALUES (?, 'Paging Singer', 'S1', ?, ?)",
+        profileId,
+        at,
+        at,
+      );
+      for (let index = 0; index < 101; index += 1) {
+        state.storage.sql.exec(
+          "INSERT INTO events (id, title, type, starts_at, duration_minutes, created_at, updated_at) VALUES (?, 'Ongoing', 'Performance', '2026-09-30T11:00:00.000Z', 120, ?, ?)",
+          crypto.randomUUID(),
+          at,
+          at,
+        );
+      }
+      state.storage.sql.exec(
+        "INSERT INTO events (id, title, type, starts_at, created_at, updated_at) VALUES (?, 'No duration today', 'Performance', '2026-09-30T08:00:00.000Z', ?, ?)",
+        crypto.randomUUID(),
+        at,
+        at,
+      );
+      const endedIds = Array.from({ length: 4 }, () => crypto.randomUUID())
+        .sort()
+        .reverse();
+      for (const id of endedIds) {
+        state.storage.sql.exec(
+          "INSERT INTO events (id, title, type, starts_at, duration_minutes, created_at, updated_at) VALUES (?, 'Ended', 'Performance', '2026-09-29T08:00:00.000Z', 60, ?, ?)",
+          id,
+          at,
+          at,
+        );
+      }
+      for (const flag of ["is_archived", "is_canceled"] as const) {
+        state.storage.sql.exec(
+          `INSERT INTO events (id, title, type, starts_at, duration_minutes, ${flag}, created_at, updated_at) VALUES (?, 'Excluded', 'Performance', '2026-09-30T06:00:00.000Z', 60, 1, ?, ?)`,
+          crypto.randomUUID(),
+          at,
+          at,
+        );
+      }
+      const histories = readPerformances(state.storage, [profileId], {
+        now,
+        timezone: "America/New_York",
+        endedLimit: 3,
+        includeRecent: false,
+      });
+      expect(histories.map((row) => row.id)).toEqual(endedIds.slice(0, 3));
+      return null;
+    },
+  );
 });

@@ -61,9 +61,9 @@ function bumpKeyGeneration(key: string): void {
   keyGenerations.set(key, (keyGenerations.get(key) ?? 0) + 1);
 }
 
-function releaseUrlRef(key: string): void {
+function releaseUrlRef(key: string, expectedEntry?: TrackedUrl): void {
   const entry = activeUrlEntries.get(key);
-  if (!entry) return;
+  if (!entry || (expectedEntry && entry !== expectedEntry)) return;
   entry.refCount -= 1;
   if (entry.refCount <= 0) {
     URL.revokeObjectURL(entry.url);
@@ -413,7 +413,7 @@ export async function acquireOfflineAudioUrl(
       release: () => {
         if (released) return;
         released = true;
-        releaseUrlRef(key);
+        releaseUrlRef(key, active);
       },
       scope,
       url: active.url,
@@ -465,7 +465,7 @@ export async function acquireOfflineAudioUrl(
     release: () => {
       if (released) return;
       released = true;
-      releaseUrlRef(key);
+      releaseUrlRef(key, entry);
     },
     scope,
     url: entry.url,

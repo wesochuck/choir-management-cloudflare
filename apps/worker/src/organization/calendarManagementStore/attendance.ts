@@ -54,19 +54,15 @@ export function readEventAttendanceReportFromStore(
     return Response.json({ code: "event_not_found" }, { status: 404 });
   }
 
-  const rehearsalRows = storage.sql
-    .exec<{ readonly id: string }>(
-      `SELECT id FROM events
-       WHERE parent_performance_id = ?
-         AND type = 'Rehearsal'
-         AND is_canceled = 0
-         AND is_archived = 0
-       ORDER BY starts_at ASC, id ASC`,
+  const totalRehearsals = storage.sql
+    .exec<{ readonly total: number }>(
+      `SELECT COUNT(*) AS total FROM events
+       WHERE parent_performance_id = ? AND type = 'Rehearsal'
+         AND is_canceled = 0 AND is_archived = 0`,
       eventId.data,
     )
-    .toArray();
+    .one().total;
 
-  const totalRehearsals = rehearsalRows.length;
   if (totalRehearsals === 0) {
     return Response.json({
       eventId: eventId.data,
@@ -74,9 +70,6 @@ export function readEventAttendanceReportFromStore(
       totalRehearsals: 0,
     });
   }
-
-  const rehearsalIds = rehearsalRows.map((r) => r.id);
-  const placeholders = rehearsalIds.map(() => "?").join(", ");
 
   const rawRows = storage.sql
     .exec<{
@@ -100,10 +93,14 @@ export function readEventAttendanceReportFromStore(
        ) p
        LEFT JOIN event_rosters r
          ON r.profile_id = p.id
-         AND r.event_id IN (${placeholders})
+         AND r.event_id IN (
+           SELECT id FROM events
+           WHERE parent_performance_id = ? AND type = 'Rehearsal'
+             AND is_canceled = 0 AND is_archived = 0
+         )
        GROUP BY p.id
        LIMIT 500`,
-      ...rehearsalIds,
+      eventId.data,
     )
     .toArray();
 

@@ -78,7 +78,23 @@ export function recalculateProfileStatusesInTransaction(
   const configuration = readRosterAutomationConfiguration(storage);
   const timezone = readTimezone(storage);
   const profiles = readProfiles(storage, affectedProfileIds);
-  const performances = performancesByProfile(readPerformances(storage, affectedProfileIds));
+  const eligibleProfiles = profiles.filter(
+    (profile) => profile.statusIsManual !== 1 && profile.voicePart.trim() !== "",
+  );
+  const performances = performancesByProfile(
+    configuration.statusAutomationEnabled
+      ? readPerformances(
+          storage,
+          eligibleProfiles.map((profile) => profile.id),
+          {
+            now,
+            timezone,
+            endedLimit: configuration.statusAutomationMissThreshold,
+            includeRecent: false,
+          },
+        )
+      : [],
+  );
   let changed = 0;
   for (const profile of profiles) {
     if (profile.statusIsManual === 1 || profile.voicePart.trim() === "") continue;

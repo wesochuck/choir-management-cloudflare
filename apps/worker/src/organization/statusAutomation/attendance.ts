@@ -1,13 +1,14 @@
-import { isRsvpDeadlinePassed, rsvpDeadlineFromDate } from "@choir/domain";
+import { isRsvpDeadlinePassed, performanceHasEnded, rsvpDeadlineFromDate } from "@choir/domain";
 
 import { insertAudit } from "./audit";
-import { profileHasVoicePart, readProfiles } from "./store";
+import { profileHasVoicePart, readProfiles, readTimezone } from "./store";
 import type {
   EventRsvpChange,
   RawEventRow,
   StatusAutomationActor,
   StoredEventRow,
   StoredPerformanceRow,
+  StoredProfileRow,
 } from "./types";
 
 interface RawActiveEventRow {
@@ -34,72 +35,120 @@ function toRsvp(value: string | undefined): "No" | "Pending" | "Yes" {
   return "Pending";
 }
 
+const activeEventColumns = `id, title, starts_at AS startsAt, duration_minutes AS durationMinutes,
+  is_archived AS isArchived, is_canceled AS isCanceled`;
+
+function readEndedPerformances(
+  storage: DurableObjectStorage,
+  now: Date,
+  timezone: string,
+  limit: number,
+): readonly RawActiveEventRow[] {
+  const ended: RawActiveEventRow[] = [];
+  let cursor: RawActiveEventRow | undefined;
+  while (ended.length < limit) {
+    const page: RawActiveEventRow[] = storage.sql
+      .exec<RawActiveEventRow>(
+        `SELECT ${activeEventColumns} FROM events
+       WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
+         AND starts_at <= ?
+         ${cursor ? "AND (starts_at < ? OR (starts_at = ? AND id < ?))" : ""}
+       ORDER BY starts_at DESC, id DESC LIMIT 100`,
+        now.toISOString(),
+        ...(cursor ? [cursor.startsAt, cursor.startsAt, cursor.id] : []),
+      )
+      .toArray();
+    for (const event of page) {
+      if (performanceHasEnded(event, now, timezone)) ended.push(event);
+      if (ended.length === limit) break;
+    }
+    if (page.length < 100) break;
+    cursor = page.at(-1);
+  }
+  return ended;
+}
+
+function readFutureRecoveryPerformance(
+  storage: DurableObjectStorage,
+  profile: StoredProfileRow,
+  now: Date,
+): RawActiveEventRow | undefined {
+  if (
+    profile.globalStatus === "Active" ||
+    profile.statusIsManual === 1 ||
+    !profile.voicePart.trim()
+  ) {
+    return undefined;
+  }
+  return storage.sql
+    .exec<RawActiveEventRow>(
+      `SELECT e.id, e.title, e.starts_at AS startsAt, e.duration_minutes AS durationMinutes,
+       e.is_archived AS isArchived, e.is_canceled AS isCanceled
+       FROM event_rosters r JOIN events e ON e.id = r.event_id
+       WHERE r.profile_id = ? AND r.rsvp = 'Yes'
+         AND e.type = 'Performance' AND e.is_archived = 0 AND e.is_canceled = 0
+         AND e.starts_at > ?
+       ORDER BY e.starts_at, e.id LIMIT 1`,
+      profile.id,
+      now.toISOString(),
+    )
+    .toArray()
+    .at(0);
+}
+
+/** Domain decisions need at most ten ended events and the earliest future Yes RSVP.
+ * Preview also needs the latest ten events. Never materialize the full roster × history.
+ */
 export function readPerformances(
   storage: DurableObjectStorage,
   profileIds?: readonly string[],
+  options: {
+    readonly now?: Date;
+    readonly timezone?: string;
+    readonly endedLimit?: number;
+    readonly includeRecent?: boolean;
+  } = {},
 ): readonly StoredPerformanceRow[] {
-  const events = storage.sql
-    .exec<RawActiveEventRow>(
-      `SELECT id, title, starts_at AS startsAt, duration_minutes AS durationMinutes,
-         is_archived AS isArchived, is_canceled AS isCanceled
-       FROM events
-       WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
-       ORDER BY starts_at DESC, id DESC`,
-    )
-    .toArray();
-  if (events.length === 0) return [];
-
+  const now = options.now ?? new Date();
+  const timezone = options.timezone ?? readTimezone(storage);
   const targetProfiles = readProfiles(storage, profileIds);
   if (targetProfiles.length === 0) return [];
-
-  const rosterMap = new Map<string, { readonly attendance: string; readonly rsvp: string }>();
-  if (profileIds) {
-    const placeholders = profileIds.map(() => "?").join(", ");
-    const rows = storage.sql
-      .exec<{
-        readonly attendance: string;
-        readonly eventId: string;
-        readonly profileId: string;
-        readonly rsvp: string;
-      }>(
-        `SELECT profile_id AS profileId, event_id AS eventId, rsvp, attendance
-         FROM event_rosters
-         WHERE profile_id IN (${placeholders})`,
-        ...profileIds,
-      )
-      .toArray();
-    for (const row of rows) {
-      rosterMap.set(`${row.profileId}:${row.eventId}`, {
-        attendance: row.attendance,
-        rsvp: row.rsvp,
-      });
-    }
-  } else {
-    const rows = storage.sql
-      .exec<{
-        readonly attendance: string;
-        readonly eventId: string;
-        readonly profileId: string;
-        readonly rsvp: string;
-      }>(
-        `SELECT r.profile_id AS profileId, r.event_id AS eventId, r.rsvp, r.attendance
-         FROM event_rosters r
-         JOIN events e ON e.id = r.event_id
-         WHERE e.type = 'Performance' AND e.is_archived = 0 AND e.is_canceled = 0`,
-      )
-      .toArray();
-    for (const row of rows) {
-      rosterMap.set(`${row.profileId}:${row.eventId}`, {
-        attendance: row.attendance,
-        rsvp: row.rsvp,
-      });
-    }
+  const events = new Map<string, RawActiveEventRow>();
+  for (const event of readEndedPerformances(storage, now, timezone, options.endedLimit ?? 10)) {
+    events.set(event.id, event);
+  }
+  if (options.includeRecent !== false) {
+    for (const event of storage.sql.exec<RawActiveEventRow>(
+      `SELECT ${activeEventColumns} FROM events
+       WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
+       ORDER BY starts_at DESC, id DESC LIMIT 10`,
+    ))
+      events.set(event.id, event);
   }
 
   const result: StoredPerformanceRow[] = [];
   for (const profile of targetProfiles) {
-    for (const event of events) {
-      const roster = rosterMap.get(`${profile.id}:${event.id}`);
+    const profileEvents = new Map(events);
+    const future = readFutureRecoveryPerformance(storage, profile, now);
+    if (future) profileEvents.set(future.id, future);
+    if (profileEvents.size === 0) continue;
+    const rosterMap = new Map(
+      storage.sql
+        .exec<{
+          readonly eventId: string;
+          readonly attendance: string;
+          readonly rsvp: string;
+        }>(
+          `SELECT event_id AS eventId, attendance, rsvp FROM event_rosters
+       WHERE profile_id = ? AND event_id IN (SELECT value FROM json_each(?))`,
+          profile.id,
+          JSON.stringify([...profileEvents.keys()]),
+        )
+        .toArray()
+        .map((row) => [row.eventId, row]),
+    );
+    for (const event of profileEvents.values()) {
+      const roster = rosterMap.get(event.id);
       result.push({
         attendance: toAttendance(roster?.attendance),
         durationMinutes: event.durationMinutes,

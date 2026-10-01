@@ -138,7 +138,9 @@ export function previewRosterAutomation(
   const timezone = readTimezone(storage);
   const profiles = readProfiles(storage);
   const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
-  const performances = performancesByProfile(readPerformances(storage));
+  const performances = performancesByProfile(
+    readPerformances(storage, undefined, { now, timezone }),
+  );
   const selected = parsed.data.profileId ? profileById.get(parsed.data.profileId) : undefined;
   const selectedPreview = selected
     ? previewProfile(

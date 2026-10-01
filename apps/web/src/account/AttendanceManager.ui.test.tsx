@@ -6,12 +6,14 @@ import {
   type OrganizationVenue,
 } from "@choir/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, renderHook, act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../api";
 import { AttendanceManager } from "./AttendanceManager";
+import { useAttendanceMutations } from "./components/AttendanceManager/hooks";
+import type { ReactNode } from "react";
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof api>();
@@ -301,4 +303,105 @@ describe("AttendanceManager section grouping and sorting UI", () => {
       ).toBeInTheDocument();
     });
   });
+});
+
+it("failed save must preserve a newer server-refetched value", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const row: OrganizationAttendanceRow = {
+    profileId: "11111111-1111-4111-8111-111111111111",
+    displayName: "Singer",
+    voicePart: "S1",
+    rsvp: "Yes",
+    attendance: "Pending",
+    updatedAt: null,
+  };
+  const eventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  let rejectSave: ((error: Error) => void) | undefined;
+  vi.mocked(api.updateOrganizationEventAttendance).mockImplementation(
+    () =>
+      new Promise((_resolve, reject) => {
+        rejectSave = reject;
+      }),
+  );
+  client.setQueryData(api.queryKeys.organization.attendance(eventId), [row]);
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result } = renderHook(() => useAttendanceMutations({ eventId, rows: [row] }), {
+    wrapper,
+  });
+  act(() => {
+    result.current.changeAttendance(row.profileId);
+  });
+  await act(async () => {
+    client.setQueryData(api.queryKeys.organization.attendance(eventId), [
+      { ...row, attendance: "Absent", updatedAt: new Date().toISOString() },
+    ]);
+    rejectSave?.(new Error("request failed"));
+    await Promise.resolve();
+  });
+  expect(
+    client.getQueryData<readonly OrganizationAttendanceRow[]>(
+      api.queryKeys.organization.attendance(eventId),
+    )?.[0]?.attendance,
+  ).toBe("Absent");
+});
+
+it("bulk failure restores only unchanged optimistic rows after a server refresh", async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const eventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const rows: readonly OrganizationAttendanceRow[] = [
+    {
+      profileId: "11111111-1111-4111-8111-111111111111",
+      displayName: "Singer A",
+      voicePart: "S1",
+      rsvp: "Yes",
+      attendance: "Pending",
+      updatedAt: null,
+    },
+    {
+      profileId: "22222222-2222-4222-8222-222222222222",
+      displayName: "Singer B",
+      voicePart: "S1",
+      rsvp: "Yes",
+      attendance: "Pending",
+      updatedAt: null,
+    },
+  ];
+  let rejectSave: ((error: Error) => void) | undefined;
+  vi.mocked(api.updateOrganizationEventAttendance).mockImplementation(
+    () =>
+      new Promise((_resolve, reject) => {
+        rejectSave = reject;
+      }),
+  );
+  client.setQueryData(api.queryKeys.organization.attendance(eventId), rows);
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result } = renderHook(() => useAttendanceMutations({ eventId, rows }), { wrapper });
+  let pending: Promise<void> | undefined;
+  act(() => {
+    pending = result.current.markRemainingPresent(rows);
+  });
+  await act(async () => {
+    client.setQueryData(
+      api.queryKeys.organization.attendance(eventId),
+      (current: readonly OrganizationAttendanceRow[] | undefined) =>
+        current?.map((row, index) =>
+          index === 0
+            ? { ...row, attendance: "Absent", updatedAt: "2026-09-30T12:00:00.000Z" }
+            : row,
+        ),
+    );
+    rejectSave?.(new Error("request failed"));
+    await pending;
+  });
+  expect(
+    client
+      .getQueryData<readonly OrganizationAttendanceRow[]>(
+        api.queryKeys.organization.attendance(eventId),
+      )
+      ?.map((row) => row.attendance),
+  ).toEqual(["Absent", "Pending"]);
 });

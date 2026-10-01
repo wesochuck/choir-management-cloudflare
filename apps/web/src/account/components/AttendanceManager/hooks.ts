@@ -191,17 +191,21 @@ export function useAttendanceMutations({
     const currentRows = queryClient.getQueryData<readonly OrganizationAttendanceRow[]>(
       queryKeys.organization.attendance(targetEventId),
     );
-    const previousAttendance =
-      currentRows?.find((candidate) => candidate.profileId === profileId)?.attendance ??
-      row.attendance;
+    const previousRow = currentRows?.find((candidate) => candidate.profileId === profileId) ?? row;
+    const optimisticRow = { ...previousRow, attendance: nextValue };
 
     queryClient.setQueryData(
       queryKeys.organization.attendance(targetEventId),
       (current: readonly OrganizationAttendanceRow[] | undefined) =>
         (current ?? []).map((candidate) =>
-          candidate.profileId === profileId ? { ...candidate, attendance: nextValue } : candidate,
+          candidate.profileId === profileId ? optimisticRow : candidate,
         ),
     );
+    const optimisticVersion = queryClient
+      .getQueryData<readonly OrganizationAttendanceRow[]>(
+        queryKeys.organization.attendance(targetEventId),
+      )
+      ?.find((candidate) => candidate.profileId === profileId);
     try {
       const saved = await updateOrganizationEventAttendance(targetEventId, [
         {
@@ -232,9 +236,10 @@ export function useAttendanceMutations({
           (current ?? []).map((candidate) => {
             if (
               candidate.profileId === profileId &&
-              mutationGenerations.current.get(profileId) === generation
+              mutationGenerations.current.get(profileId) === generation &&
+              candidate === optimisticVersion
             ) {
-              return { ...candidate, attendance: previousAttendance };
+              return previousRow;
             }
             return candidate;
           }),
@@ -296,15 +301,16 @@ export function useAttendanceMutations({
     setBulkBusy(true);
     setMessage(null);
 
-    const targetProfileIds = new Set(markableRows.map((row) => row.profileId));
     const currentRows = queryClient.getQueryData<readonly OrganizationAttendanceRow[]>(
       queryKeys.organization.attendance(targetEventId),
     );
-    const previousAttendanceMap = new Map<string, OrganizationAttendanceStatus>();
-    for (const r of markableRows) {
-      const prev =
-        currentRows?.find((c) => c.profileId === r.profileId)?.attendance ?? r.attendance;
-      previousAttendanceMap.set(r.profileId, prev);
+    const currentById = new Map((currentRows ?? []).map((row) => [row.profileId, row]));
+    const previousRows = new Map<string, OrganizationAttendanceRow>();
+    const optimisticRows = new Map<string, OrganizationAttendanceRow>();
+    for (const row of markableRows) {
+      const previous = currentById.get(row.profileId) ?? row;
+      previousRows.set(row.profileId, previous);
+      optimisticRows.set(row.profileId, { ...previous, attendance: "Present" });
     }
 
     const rowGenerations = new Map<string, number>();
@@ -317,9 +323,14 @@ export function useAttendanceMutations({
     queryClient.setQueryData(
       queryKeys.organization.attendance(targetEventId),
       (current: readonly OrganizationAttendanceRow[] | undefined) =>
-        (current ?? []).map((row) =>
-          targetProfileIds.has(row.profileId) ? { ...row, attendance: "Present" as const } : row,
-        ),
+        (current ?? []).map((row) => optimisticRows.get(row.profileId) ?? row),
+    );
+    const optimisticVersions = new Map(
+      (
+        queryClient.getQueryData<readonly OrganizationAttendanceRow[]>(
+          queryKeys.organization.attendance(targetEventId),
+        ) ?? []
+      ).map((row) => [row.profileId, row]),
     );
     try {
       const saved = await updateOrganizationEventAttendance(
@@ -347,11 +358,12 @@ export function useAttendanceMutations({
         (current: readonly OrganizationAttendanceRow[] | undefined) =>
           (current ?? []).map((row) => {
             const gen = rowGenerations.get(row.profileId);
-            if (gen !== undefined && mutationGenerations.current.get(row.profileId) === gen) {
-              const prev = previousAttendanceMap.get(row.profileId);
-              if (prev !== undefined) {
-                return { ...row, attendance: prev };
-              }
+            if (
+              gen !== undefined &&
+              mutationGenerations.current.get(row.profileId) === gen &&
+              row === optimisticVersions.get(row.profileId)
+            ) {
+              return previousRows.get(row.profileId) ?? row;
             }
             return row;
           }),

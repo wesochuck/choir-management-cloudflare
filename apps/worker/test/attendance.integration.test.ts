@@ -670,11 +670,13 @@ describe("Organization attendance", () => {
            ) p
            LEFT JOIN event_rosters r
              ON r.profile_id = p.id
-             AND r.event_id IN (?, ?)
+             AND r.event_id IN (
+               SELECT id FROM events WHERE parent_performance_id = ?
+                 AND type = 'Rehearsal' AND is_archived = 0 AND is_canceled = 0
+             )
            GROUP BY p.id
            LIMIT 500`,
-          rehearsal1.id,
-          rehearsal2.id,
+          performance.id,
         )
         .toArray();
       const planDetails = plan.map((p) => p.detail).join("\n");
@@ -682,5 +684,75 @@ describe("Organization attendance", () => {
       expect(planDetails).toContain("SEARCH r USING INDEX");
       return null;
     });
+  });
+});
+
+it("aggregates more than 100 rehearsals with one parent binding and an indexed event selection", async () => {
+  const cookie = await signIn();
+  const eventId = await runInDurableObject<OrganizationStore, string>(
+    stores.getByName("organization-alpha"),
+    (_instance, state) => {
+      const at = new Date().toISOString();
+      const id = crypto.randomUUID();
+      state.storage.sql.exec(
+        "INSERT INTO events (id, title, type, starts_at, created_at, updated_at) VALUES (?, 'Large report', 'Performance', ?, ?, ?)",
+        id,
+        at,
+        at,
+        at,
+      );
+      const profileId = crypto.randomUUID();
+      state.storage.sql.exec(
+        "INSERT INTO profiles (id, display_name, voice_part, created_at, updated_at) VALUES (?, 'Report Singer', 'S1', ?, ?)",
+        profileId,
+        at,
+        at,
+      );
+      for (let index = 0; index < 101; index += 1) {
+        const rehearsalId = crypto.randomUUID();
+        state.storage.sql.exec(
+          "INSERT INTO events (id, title, type, parent_performance_id, starts_at, created_at, updated_at) VALUES (?, ?, 'Rehearsal', ?, ?, ?, ?)",
+          rehearsalId,
+          `Rehearsal ${String(index)}`,
+          id,
+          at,
+          at,
+          at,
+        );
+        state.storage.sql.exec(
+          "INSERT INTO event_rosters (event_id, profile_id, attendance, created_at, updated_at) VALUES (?, ?, 'Present', ?, ?)",
+          rehearsalId,
+          profileId,
+          at,
+          at,
+        );
+      }
+      const plan = state.storage.sql
+        .exec<{ readonly detail: string }>(
+          `EXPLAIN QUERY PLAN SELECT id FROM events WHERE parent_performance_id = ?
+       AND type = 'Rehearsal' AND is_canceled = 0 AND is_archived = 0`,
+          id,
+        )
+        .toArray();
+      expect(
+        plan.some(
+          (row) =>
+            row.detail.includes("SEARCH") &&
+            row.detail.includes("idx_events_active_rehearsals_parent"),
+        ),
+      ).toBe(true);
+      return id;
+    },
+  );
+  const response = await exports.default.fetch(
+    api("alpha.localhost", `/api/organization/events/${eventId}/attendance-report`, cookie),
+  );
+  expect(response.status).toBe(200);
+  const report = organizationAttendanceReportResponseSchema.parse(await response.json());
+  expect(report.totalRehearsals).toBe(101);
+  expect(report.rows.find((row) => row.name === "Report Singer")).toMatchObject({
+    present: 101,
+    total: 101,
+    absences: 0,
   });
 });

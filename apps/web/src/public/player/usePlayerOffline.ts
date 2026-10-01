@@ -6,7 +6,7 @@ import type { PlayerPlaylistItem } from "./types";
 
 /**
  * Resolves the cached URL for one track, keyed by file so track switches never flash a stale
- * copy. Re-resolves when the known offline set grows, so a copy that lands just after the first
+ * copy. Re-resolves when this file becomes available offline, so a copy that lands just after the first
  * lookup (transparent auto-cache in flight) is picked up instead of streaming forever. State
  * updates happen only in async continuations, never synchronously in the effect.
  *
@@ -19,7 +19,13 @@ export function useOfflineAudioUrl(
   offlineIds: ReadonlySet<string>,
   acquireOfflineUrl?: (fileId: string) => Promise<OfflineAudioLease | null>,
 ): string | null {
-  const [activeUrl, setActiveUrl] = useState<string | null>(null);
+  const [resolved, setResolved] = useState<{
+    readonly fileId: string;
+    readonly resolver: typeof resolveOfflineUrl;
+    readonly acquirer: typeof acquireOfflineUrl;
+    readonly url: string | null;
+  } | null>(null);
+  const isAvailable = fileId !== undefined && offlineIds.has(fileId);
 
   useEffect(() => {
     if (!fileId) return;
@@ -34,15 +40,25 @@ export function useOfflineAudioUrl(
         }
         if (lease) {
           leaseToRelease = lease;
-          setActiveUrl(lease.url);
+          setResolved({
+            fileId,
+            resolver: resolveOfflineUrl,
+            acquirer: acquireOfflineUrl,
+            url: lease.url,
+          });
         } else {
-          setActiveUrl(null);
+          setResolved({
+            fileId,
+            resolver: resolveOfflineUrl,
+            acquirer: acquireOfflineUrl,
+            url: null,
+          });
         }
       });
     } else {
       void resolveOfflineUrl(fileId).then((url) => {
         if (cancelled) return;
-        setActiveUrl(url);
+        setResolved({ fileId, resolver: resolveOfflineUrl, acquirer: acquireOfflineUrl, url });
       });
     }
 
@@ -53,9 +69,14 @@ export function useOfflineAudioUrl(
         leaseToRelease = null;
       }
     };
-  }, [acquireOfflineUrl, fileId, offlineIds, resolveOfflineUrl]);
+  }, [acquireOfflineUrl, fileId, isAvailable, resolveOfflineUrl]);
 
-  return activeUrl;
+  return resolved !== null &&
+    resolved.fileId === fileId &&
+    resolved.resolver === resolveOfflineUrl &&
+    resolved.acquirer === acquireOfflineUrl
+    ? resolved.url
+    : null;
 }
 
 /**

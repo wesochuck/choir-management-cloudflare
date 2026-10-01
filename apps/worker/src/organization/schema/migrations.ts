@@ -1655,6 +1655,15 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON organization_compliance_completions(task_id, created_at)`,
     ],
   },
+  {
+    version: 100,
+    statements: [
+      // Attendance summaries count and join active rehearsals for one parent performance.
+      `CREATE INDEX idx_events_active_rehearsals_parent
+       ON events(parent_performance_id, is_archived, is_canceled, id)
+       WHERE type = 'Rehearsal'`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

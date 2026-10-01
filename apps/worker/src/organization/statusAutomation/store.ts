@@ -53,16 +53,16 @@ export function readProfiles(
 ): readonly StoredProfileRow[] {
   if (profileIds) {
     if (profileIds.length === 0) return [];
-    const placeholders = profileIds.map(() => "?").join(", ");
+    const distinctIds = [...new Set(profileIds)];
     return storage.sql
       .exec<StoredProfileRow>(
         `SELECT id, display_name AS displayName, created_at AS createdAt, voice_part AS voicePart,
            global_status AS globalStatus, status_is_manual AS statusIsManual,
            status_changed_at AS statusChangedAt, status_change_reason AS statusChangeReason
          FROM profiles
-         WHERE id IN (${placeholders})
+         WHERE id IN (SELECT value FROM json_each(?))
          ORDER BY display_name COLLATE NOCASE ASC, id ASC`,
-        ...profileIds,
+        JSON.stringify(distinctIds),
       )
       .toArray();
   }
