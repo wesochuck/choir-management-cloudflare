@@ -401,6 +401,21 @@ describe("SetListPreview multi-movement works", () => {
 
   const catalog = [sunriseMass, spheres, sunrise, sealLullaby];
 
+  it("uses uninterrupted movement timing in both the preview and exported document", () => {
+    const items: SetListItem[] = [
+      { id: "1", pieceId: spheres.id, title: spheres.title, type: "song" },
+      { id: "2", pieceId: sunrise.id, title: sunrise.title, type: "song" },
+      { id: "3", pieceId: sealLullaby.id, title: sealLullaby.title, type: "song" },
+    ];
+    render(
+      <SetListPreview event={event} items={items} music={catalog} defaultTransitionSeconds={30} />,
+    );
+    expect(screen.getByText("Estimated runtime: 10:15")).toBeVisible();
+    expect(setListDocumentText(event, items, catalog, false, 30)).toContain(
+      "Estimated runtime: 10:15",
+    );
+  });
+
   it("renders parent + movements as a grouped work with indented unnumbered movements", () => {
     const items: SetListItem[] = [
       { id: "1", pieceId: sunriseMass.id, title: "Sunrise Mass", type: "song" },

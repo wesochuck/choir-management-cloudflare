@@ -57,6 +57,58 @@ describe("set-list rules", () => {
       expect(timing.estimatedRuntime).toBe(180);
     });
 
+    it("omits transitions within a contiguous multi-movement work", () => {
+      const items = [
+        { pieceId: "first", duration: "3:00" },
+        { pieceId: "movement-1", parentPieceId: "work", duration: "4:00" },
+        { pieceId: "movement-2", parentPieceId: "work", duration: "5:00" },
+        { pieceId: "last", duration: "2:00" },
+      ];
+      expect(calculateSetListTiming(items, 30)).toMatchObject({
+        defaultTransitionCount: 2,
+        songsDuration: 840,
+        defaultTransitionDuration: 60,
+        estimatedRuntime: 900,
+      });
+    });
+
+    it("does not add pauses between a parent heading and its movements", () => {
+      const items = [
+        { pieceId: "work", duration: "0:00" },
+        { pieceId: "movement-1", parentPieceId: "work", duration: "3:00" },
+        { pieceId: "movement-2", parentPieceId: "work", duration: "4:00" },
+      ];
+      expect(calculateSetListTiming(items, 30).estimatedRuntime).toBe(420);
+    });
+
+    it.each([
+      [
+        { pieceId: "a", parentPieceId: "work-a" },
+        { pieceId: "b", parentPieceId: "work-b" },
+      ],
+      [{ pieceId: "a", parentPieceId: "work" }, { pieceId: "other" }],
+      [{ pieceId: "same" }, { pieceId: "same" }],
+      [{}, {}],
+    ])(
+      "keeps transitions for separate songs or unknown relationships (%j, %j)",
+      (first, second) => {
+        expect(calculateSetListTransitionCount([first, second])).toBe(1);
+      },
+    );
+
+    it("does not merge movements separated by another song or a Custom entry", () => {
+      const first = { pieceId: "a", parentPieceId: "work", duration: "3:00" };
+      const second = { pieceId: "b", parentPieceId: "work", duration: "4:00" };
+      expect(calculateSetListTransitionCount([first, { pieceId: "other" }, second])).toBe(2);
+      expect(
+        calculateSetListTiming([first, { type: "intermission", duration: "2:00" }, second], 30),
+      ).toMatchObject({
+        defaultTransitionCount: 0,
+        intermissionsDuration: 120,
+        estimatedRuntime: 540,
+      });
+    });
+
     it("handles two consecutive songs -> 1 transition", () => {
       const items = [
         { duration: "3:00", type: "song" },

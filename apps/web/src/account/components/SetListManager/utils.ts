@@ -310,6 +310,26 @@ export function effectiveSetListItemDurationSeconds(
   return duration ? (parseSetListDuration(duration) ?? 0) : 0;
 }
 
+/** Resolve catalog relationships once for consistent builder, preview, and export timing. */
+export function setListTiming(
+  items: readonly SetListItem[],
+  music: readonly OrganizationMusicPiece[],
+  defaultTransitionSeconds: number,
+) {
+  const musicById = new Map(music.map((piece) => [piece.id, piece]));
+  return calculateSetListTiming(
+    items.map((item) => {
+      const piece = item.pieceId ? musicById.get(item.pieceId) : undefined;
+      return {
+        ...item,
+        parentPieceId: piece?.parentId ?? undefined,
+        durationSeconds: effectiveSetListItemDurationSeconds(item, piece ? [piece] : []),
+      };
+    }),
+    defaultTransitionSeconds,
+  );
+}
+
 export function normalizeItems(items: readonly SetListItem[]): SetListItem[] {
   return items.map((item) => ({ ...item, id: item.id ?? crypto.randomUUID() }));
 }
@@ -521,9 +541,7 @@ export function setListDocumentText(
   venues?: readonly OrganizationVenue[] | string,
 ): string {
   const transitionSeconds = defaultTransitionSeconds ?? event.setListDefaultTransitionSeconds;
-  const timing = calculateSetListTiming(items, transitionSeconds, (item) =>
-    effectiveSetListItemDurationSeconds(item, music),
-  );
+  const timing = setListTiming(items, music, transitionSeconds);
   const entries = groupSetListForPresentation(items, music);
   const venue = resolveEventVenueName(event, venues);
   return [

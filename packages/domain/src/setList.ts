@@ -71,6 +71,8 @@ export function moveSetListItem<T>(
 }
 
 export interface SetListTimingItem {
+  readonly pieceId?: string | undefined;
+  readonly parentPieceId?: string | undefined;
   readonly duration?: string | undefined;
   readonly durationSeconds?: number | undefined;
   readonly type?: string | undefined;
@@ -89,15 +91,17 @@ export function isSetListSongItem(item: { readonly type?: string | undefined }):
   return item.type !== "intermission";
 }
 
-export function calculateSetListTransitionCount(
-  items: readonly { readonly type?: string | undefined }[],
-): number {
+export function calculateSetListTransitionCount(items: readonly SetListTimingItem[]): number {
   let transitionCount = 0;
   for (let index = 0; index < items.length - 1; index += 1) {
     const current = items[index];
     const next = items[index + 1];
     if (current && next && isSetListSongItem(current) && isSetListSongItem(next)) {
-      transitionCount += 1;
+      const sameWork =
+        Boolean(
+          current.parentPieceId && current.parentPieceId === (next.parentPieceId ?? next.pieceId),
+        ) || Boolean(next.parentPieceId && next.parentPieceId === current.pieceId);
+      if (!sameWork) transitionCount += 1;
     }
   }
   return transitionCount;

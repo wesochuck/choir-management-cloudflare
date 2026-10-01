@@ -4,13 +4,13 @@ import type {
   OrganizationProfile,
   OrganizationVenue,
 } from "@choir/contracts";
-import { calculateSetListTiming, formatSetListDuration } from "@choir/domain";
+import { formatSetListDuration } from "@choir/domain";
 import { useState } from "react";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { getLastName } from "../../nameFormatting";
 import type { PerformerCredit, SetListItem } from "./types";
 import {
-  effectiveSetListItemDurationSeconds,
+  setListTiming,
   formatPerformerCredits,
   groupSetListForPresentation,
   printDateOnly,
@@ -126,9 +126,7 @@ export function SetListPreview({
   readonly venues?: readonly OrganizationVenue[] | string | undefined;
 }) {
   const transitionSeconds = defaultTransitionSeconds ?? event.setListDefaultTransitionSeconds;
-  const timing = calculateSetListTiming(items, transitionSeconds, (item) =>
-    effectiveSetListItemDurationSeconds(item, music),
-  );
+  const timing = setListTiming(items, music, transitionSeconds);
   const entries = groupSetListForPresentation(items, music);
   const venue = resolveEventVenueName(event, venues);
   return (

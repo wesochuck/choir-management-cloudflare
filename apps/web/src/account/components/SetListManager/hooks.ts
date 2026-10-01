@@ -1,6 +1,5 @@
 import type { OrganizationMusicPiece } from "@choir/contracts";
 import {
-  calculateSetListTiming,
   hasSetListPiece,
   normalizeSetListDuration,
   parseSetListDuration,
@@ -8,7 +7,7 @@ import {
 } from "@choir/domain";
 import {
   durationFromSeconds,
-  effectiveSetListItemDurationSeconds,
+  setListTiming,
   emptyResources,
   eventRequestFrom,
   moveItemToIndex,
@@ -199,10 +198,7 @@ export function useSetListManagerController({
   }, [enabled, selectedEventIdForStatus]);
 
   const timing = useMemo(
-    () =>
-      calculateSetListTiming(items, defaultTransitionSeconds, (item) =>
-        effectiveSetListItemDurationSeconds(item, resources.music),
-      ),
+    () => setListTiming(items, resources.music, defaultTransitionSeconds),
     [items, defaultTransitionSeconds, resources.music],
   );
   const {

@@ -885,7 +885,8 @@ export function SetListManagerView({
                 <span className="set-list-unit">seconds</span>
               </div>
               <small className="field-help" id="set-list-transition-help">
-                Applied between consecutive songs unless a Custom entry is placed between them.
+                Applied between consecutive songs, except movements of the same work or when a
+                Custom entry is placed between them.
               </small>
             </div>
           </div>
