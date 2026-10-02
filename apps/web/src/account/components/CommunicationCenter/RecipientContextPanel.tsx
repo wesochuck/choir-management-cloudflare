@@ -55,12 +55,12 @@ function MemberFiltersDetails({
   ];
 
   return (
-    <details className="communication-progressive-disclosure">
+    <details className="communication-member-filters">
       <summary>
         <span>More member filters</span>
-        <span className="disclosure-hint">Status, sections, RSVP</span>
+        <span className="communication-member-filters__hint">Status, sections, RSVP</span>
       </summary>
-      <div className="disclosure-body">
+      <div className="communication-member-filters__panel">
         <fieldset className="field">
           <legend className="field-label">Member status</legend>
           <div className="checkbox-grid">

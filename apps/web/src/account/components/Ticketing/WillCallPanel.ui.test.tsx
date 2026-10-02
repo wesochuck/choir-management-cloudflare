@@ -79,6 +79,22 @@ const bundleOrder = ticketOrder({
   buyerName: "Bundle Buyer",
   id: "44444444-5555-4666-8777-888888888888",
 });
+const expiredOrder = ticketOrder({
+  buyerName: "Expired Buyer",
+  id: "77777777-8888-4999-8aaa-bbbbbbbbbbbb",
+  status: "expired",
+});
+const expiredBundleOrder = ticketOrder({
+  ...bundleOrder,
+  buyerName: "Expired Bundle Buyer",
+  id: "88888888-9999-4aaa-8bbb-cccccccccccc",
+  status: "expired",
+});
+const pendingOrder = ticketOrder({
+  buyerName: "Pending Buyer",
+  id: "99999999-aaaa-4bbb-8ccc-dddddddddddd",
+  status: "pending",
+});
 const refundRequestedOrder = ticketOrder({
   buyerName: "Requested Buyer",
   id: "33333333-4444-4555-8666-777777777777",
@@ -149,20 +165,37 @@ function getWillCallTable(): HTMLTableElement {
   return table;
 }
 
-describe("WillCallPanel refunded orders", () => {
-  it("hides refunded orders by default while retaining refund-requested paid orders", async () => {
+describe("WillCallPanel refunded and expired orders", () => {
+  it("hides refunded and expired purchases by default while retaining paid and pending orders", async () => {
     const user = userEvent.setup();
-    renderWillCallPanel([paidOrder, refundedOrder, refundRequestedOrder]);
+    renderWillCallPanel([
+      paidOrder,
+      refundedOrder,
+      expiredOrder,
+      expiredBundleOrder,
+      pendingOrder,
+      refundRequestedOrder,
+    ]);
 
     const table = getWillCallTable();
     expect(within(table).queryByText("Refunded Buyer")).not.toBeInTheDocument();
+    expect(within(table).queryByText("Expired Buyer")).not.toBeInTheDocument();
+    expect(within(table).queryByText("Expired Bundle Buyer")).not.toBeInTheDocument();
+    expect(within(table).getByText("Pending Buyer")).toBeInTheDocument();
     expect(within(table).getByText("Paid Buyer")).toBeInTheDocument();
     expect(within(table).getByText("Requested Buyer")).toBeInTheDocument();
     expect(within(table).getByText("Refund requested (simulation)")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("checkbox", { name: "Show refunded" }));
+    await user.click(screen.getByRole("checkbox", { name: "Show refunded and expired" }));
     expect(within(table).getByText("Refunded Buyer")).toBeInTheDocument();
     expect(within(table).getByText("Refunded (simulation)")).toBeInTheDocument();
+    expect(within(table).getByText("Expired Buyer")).toBeInTheDocument();
+    expect(within(table).getByText("Expired Bundle Buyer")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: "Show refunded and expired" }));
+    expect(within(table).queryByText("Refunded Buyer")).not.toBeInTheDocument();
+    expect(within(table).queryByText("Expired Buyer")).not.toBeInTheDocument();
+    expect(within(table).queryByText("Expired Bundle Buyer")).not.toBeInTheDocument();
   });
 
   it("shows the Bundle pill inline for bundle buyers without adding a column", () => {
@@ -186,16 +219,23 @@ describe("WillCallPanel refunded orders", () => {
     expect(within(table).queryByRole("columnheader", { name: "Bundle" })).not.toBeInTheDocument();
   });
 
-  it("distinguishes orders filtered as refunded from a performance with no orders", async () => {
-    const user = userEvent.setup();
-    renderWillCallPanel([refundedOrder]);
+  it.each([refundedOrder, expiredOrder, expiredBundleOrder])(
+    "distinguishes a hidden $status purchase from a performance with no orders",
+    async (order) => {
+      const user = userEvent.setup();
+      renderWillCallPanel([order]);
 
-    expect(screen.getByText("All matching ticket orders are refunded.")).toBeInTheDocument();
-    expect(screen.queryByText("No ticket orders yet.")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("checkbox", { name: "Show refunded" }));
-    expect(within(getWillCallTable()).getByText("Refunded Buyer")).toBeInTheDocument();
-    expect(screen.queryByText("All matching ticket orders are refunded.")).not.toBeInTheDocument();
-  });
+      expect(
+        screen.getByText("All matching ticket orders are refunded or expired."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("No ticket orders yet.")).not.toBeInTheDocument();
+      await user.click(screen.getByRole("checkbox", { name: "Show refunded and expired" }));
+      expect(within(getWillCallTable()).getByText(order.buyerName)).toBeInTheDocument();
+      expect(
+        screen.queryByText("All matching ticket orders are refunded or expired."),
+      ).not.toBeInTheDocument();
+    },
+  );
 });
 
 describe("WillCallPanel discount codes", () => {
@@ -251,13 +291,13 @@ describe("WillCallPanel discount codes", () => {
       throw new Error("Expected the active discount filter indicator.");
     }
     expect(within(activeFilter).getByText("SPRING10", { exact: true })).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Show refunded" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Show refunded and expired" })).toBeChecked();
     expect(within(getWillCallTable()).getByText("Refunded Discount Buyer")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("checkbox", { name: "Show refunded" }));
-    expect(screen.getByRole("checkbox", { name: "Show refunded" })).not.toBeChecked();
+    await user.click(screen.getByRole("checkbox", { name: "Show refunded and expired" }));
+    expect(screen.getByRole("checkbox", { name: "Show refunded and expired" })).not.toBeChecked();
     expect(screen.queryByText("Refunded Discount Buyer")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("checkbox", { name: "Show refunded" }));
+    await user.click(screen.getByRole("checkbox", { name: "Show refunded and expired" }));
     expect(screen.getAllByText("Refunded Discount Buyer").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: "Clear filter" }));

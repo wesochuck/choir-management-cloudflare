@@ -31,7 +31,7 @@ function willCallEmptyMessage({
     if (performanceOrderCount === 0) return "No ticket orders yet.";
     return "No ticket buyers match this search.";
   }
-  if (displayedOrderCount === 0) return "All matching ticket orders are refunded.";
+  if (displayedOrderCount === 0) return "All matching ticket orders are refunded or expired.";
   return null;
 }
 
@@ -155,7 +155,7 @@ export function WillCallPanel({
 }) {
   const displayedOrders = showRefunded
     ? visibleOrders
-    : visibleOrders.filter((order) => order.status !== "refunded");
+    : visibleOrders.filter((order) => order.status !== "refunded" && order.status !== "expired");
   const emptyMessage = willCallEmptyMessage({
     discountCodeFilter,
     displayedOrderCount: displayedOrders.length,
@@ -248,7 +248,7 @@ export function WillCallPanel({
               }}
               type="checkbox"
             />
-            Show refunded
+            Show refunded and expired
           </label>
         </div>
         {discountCodeFilter !== null ? (

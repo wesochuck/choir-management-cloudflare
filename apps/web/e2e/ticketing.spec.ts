@@ -765,7 +765,29 @@ test.describe("admin ticket management", () => {
     await page.route("**/api/organization/tickets/orders", async (route) => {
       await route.fulfill({
         body: JSON.stringify({
-          orders: [adminOrder, sortableAdminOrder, bundleAdminOrder],
+          orders: [
+            adminOrder,
+            sortableAdminOrder,
+            bundleAdminOrder,
+            {
+              ...sortableAdminOrder,
+              id: "77777777-8888-4999-8aaa-bbbbbbbbbbbb",
+              buyerName: "Expired Buyer",
+              status: "expired",
+            },
+            {
+              ...bundleAdminOrder,
+              id: "88888888-9999-4aaa-8bbb-cccccccccccc",
+              buyerName: "Expired Bundle Buyer",
+              status: "expired",
+            },
+            {
+              ...sortableAdminOrder,
+              id: "99999999-aaaa-4bbb-8ccc-dddddddddddd",
+              buyerName: "Refunded Buyer",
+              status: "refunded",
+            },
+          ],
           requestId,
         }),
         contentType: "application/json",
@@ -812,6 +834,18 @@ test.describe("admin ticket management", () => {
     ).toBeVisible();
 
     const orderRows = visibleOrders.locator("tbody tr, .data-table-card");
+    await expect(orderRows).toHaveCount(3);
+    const showInactive = page.getByRole("checkbox", { name: "Show refunded and expired" });
+    await expect(showInactive).not.toBeChecked();
+    await expect(visibleOrders.getByText("Expired Buyer", { exact: true })).toHaveCount(0);
+    await expect(visibleOrders.getByText("Expired Bundle Buyer", { exact: true })).toHaveCount(0);
+    await expect(visibleOrders.getByText("Refunded Buyer", { exact: true })).toHaveCount(0);
+    await showInactive.check();
+    await expect(orderRows).toHaveCount(6);
+    await expect(visibleOrders.getByText("Expired Buyer", { exact: true })).toBeVisible();
+    await expect(visibleOrders.getByText("Expired Bundle Buyer", { exact: true })).toBeVisible();
+    await expect(visibleOrders.getByText("Refunded Buyer", { exact: true })).toBeVisible();
+    await showInactive.uncheck();
     await expect(orderRows).toHaveCount(3);
     const bundleRow = orderRows.filter({ hasText: "Bundle Buyer" });
     await expect(bundleRow).toHaveCount(1);
@@ -920,7 +954,7 @@ test.describe("admin ticket management", () => {
     await expect(page.locator(".ticket-dashboard__active-filter")).toContainText(
       "Filtering by discount code: SPRING10",
     );
-    await expect(page.getByRole("checkbox", { name: "Show refunded" })).toBeChecked();
+    await expect(page.getByRole("checkbox", { name: "Show refunded and expired" })).toBeChecked();
 
     const visibleOrders = page.locator(".data-table:visible, .data-table-cards:visible");
     await expect(visibleOrders.getByText("Jane Buyer", { exact: true })).toBeVisible();
@@ -931,7 +965,9 @@ test.describe("admin ticket management", () => {
 
     await page.getByRole("button", { name: "Clear filter" }).click();
     await expect(page.locator(".ticket-dashboard__active-filter")).toHaveCount(0);
-    await expect(page.getByRole("checkbox", { name: "Show refunded" })).not.toBeChecked();
+    await expect(
+      page.getByRole("checkbox", { name: "Show refunded and expired" }),
+    ).not.toBeChecked();
     await expect(visibleOrders.getByText("Refunded Discount Buyer", { exact: true })).toHaveCount(
       0,
     );
@@ -1284,7 +1320,7 @@ test.describe("admin ticket management", () => {
 
     await expect(page.getByText("Ticket order refunded.")).toBeVisible();
     await expect(visibleOrders.getByText("Refunded (simulation)", { exact: true })).toHaveCount(0);
-    await page.getByRole("checkbox", { name: "Show refunded" }).check();
+    await page.getByRole("checkbox", { name: "Show refunded and expired" }).check();
     await expect(visibleOrders.getByText("Refunded (simulation)", { exact: true })).toBeVisible();
     expect(refundCalled).toBe(true);
   });
