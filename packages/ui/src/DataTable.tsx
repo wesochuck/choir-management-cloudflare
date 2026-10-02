@@ -1,6 +1,5 @@
 import {
   Fragment,
-  useEffect,
   useMemo,
   useState,
   type DragEvent,
@@ -230,28 +229,6 @@ export function DataTable<T>({
   const pageSize = pagination?.pageSize ?? sortedRows.length;
   const startIndex = pagination ? (currentPage - 1) * pageSize : 0;
 
-  const [pageDraft, setPageDraft] = useState(String(currentPage));
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- controlled input draft sync
-    setPageDraft(String(currentPage));
-  }, [currentPage]);
-
-  function commitPageDraft(): void {
-    if (!pagination) return;
-    const parsed = Number.parseInt(pageDraft, 10);
-    if (!Number.isFinite(parsed)) {
-      setPageDraft(String(currentPage));
-      return;
-    }
-    const clamped = Math.min(Math.max(Math.trunc(parsed), 1), Math.max(pageCount, 1));
-    if (clamped !== currentPage) {
-      pagination.onPageChange(clamped);
-    } else {
-      setPageDraft(String(clamped));
-    }
-  }
-
   function toggleSort(column: DataTableColumn<T>): void {
     if (!column.sortValue) return;
     if (pagination) {
@@ -432,86 +409,13 @@ export function DataTable<T>({
       </div>
       {showPagination ? (
         <nav aria-label="Pagination" className="data-table-pagination">
-          <div className="data-table-pagination__controls">
-            <button
-              aria-label="First page"
-              className="data-table-pagination__button"
-              disabled={currentPage === 1}
-              onClick={() => {
-                pagination.onPageChange(1);
-              }}
-              type="button"
-            >
-              «
-            </button>
-            <button
-              aria-label="Previous page"
-              className="data-table-pagination__button"
-              disabled={currentPage === 1}
-              onClick={() => {
-                pagination.onPageChange(currentPage - 1);
-              }}
-              type="button"
-            >
-              ‹
-            </button>
-            <span className="data-table-pagination__page">
-              Page
-              <input
-                aria-label="Page number"
-                className="data-table-pagination__input"
-                max={pageCount}
-                min={1}
-                onBlur={() => {
-                  commitPageDraft();
-                }}
-                onChange={(event) => {
-                  setPageDraft(event.target.value);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    commitPageDraft();
-                    const target = event.currentTarget;
-                    target.blur();
-                  }
-                }}
-                type="number"
-                value={pageDraft}
-              />
-              of {pageCount}
-            </span>
-            <button
-              aria-label="Next page"
-              className="data-table-pagination__button"
-              disabled={currentPage === pageCount}
-              onClick={() => {
-                pagination.onPageChange(currentPage + 1);
-              }}
-              type="button"
-            >
-              ›
-            </button>
-            <button
-              aria-label="Last page"
-              className="data-table-pagination__button"
-              disabled={currentPage === pageCount}
-              onClick={() => {
-                pagination.onPageChange(pageCount);
-              }}
-              type="button"
-            >
-              »
-            </button>
-          </div>
           {pagination.onPageSizeChange ? (
             <label className="data-table-pagination__size">
-              Rows per page
+              Items per page:
               <select
-                aria-label="Rows per page"
+                aria-label="Items per page"
                 onChange={(event) => {
-                  const nextSize = Number(event.target.value);
-                  pagination.onPageSizeChange?.(nextSize);
+                  pagination.onPageSizeChange?.(Number(event.target.value));
                 }}
                 value={String(pageSize)}
               >
@@ -523,6 +427,53 @@ export function DataTable<T>({
               </select>
             </label>
           ) : null}
+          <span aria-live="polite" className="data-table-pagination__range">
+            {startIndex + 1}–{startIndex + visibleRows.length} of {sortedRows.length} items
+          </span>
+          <div className="data-table-pagination__controls">
+            <label className="data-table-pagination__page">
+              <select
+                aria-label="Page number"
+                onChange={(event) => {
+                  pagination.onPageChange(Number(event.target.value));
+                }}
+                value={String(currentPage)}
+              >
+                {Array.from({ length: pageCount }, (_, index) => (
+                  <option key={index + 1} value={String(index + 1)}>
+                    {index + 1}
+                  </option>
+                ))}
+              </select>
+              of {pageCount} pages
+            </label>
+            <button
+              aria-label="Previous page"
+              className="data-table-pagination__button"
+              disabled={currentPage === 1}
+              onClick={() => {
+                pagination.onPageChange(currentPage - 1);
+              }}
+              type="button"
+            >
+              <svg aria-hidden="true" viewBox="0 0 16 16">
+                <path d="M10 3 5 8l5 5" />
+              </svg>
+            </button>
+            <button
+              aria-label="Next page"
+              className="data-table-pagination__button"
+              disabled={currentPage === pageCount}
+              onClick={() => {
+                pagination.onPageChange(currentPage + 1);
+              }}
+              type="button"
+            >
+              <svg aria-hidden="true" viewBox="0 0 16 16">
+                <path d="m6 3 5 5-5 5" />
+              </svg>
+            </button>
+          </div>
         </nav>
       ) : null}
     </div>

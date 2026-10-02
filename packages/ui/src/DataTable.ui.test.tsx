@@ -177,23 +177,23 @@ describe("DataTable interaction", () => {
     render(<PagedHarness />);
 
     const nav = screen.getByRole("navigation", { name: "Pagination" });
-    expect(within(nav).getByRole("button", { name: "First page" })).toBeDisabled();
     expect(within(nav).getByRole("button", { name: "Previous page" })).toBeDisabled();
+    expect(within(nav).getByText("1–2 of 5 items")).toBeVisible();
 
     const next = within(nav).getByRole("button", { name: "Next page" });
     next.focus();
     await user.keyboard("{Enter}");
-    expect(within(nav).getByLabelText("Page number")).toHaveValue(2);
+    expect(within(nav).getByLabelText("Page number")).toHaveValue("2");
+    expect(within(nav).getByText("3–4 of 5 items")).toBeVisible();
 
-    const last = within(nav).getByRole("button", { name: "Last page" });
-    last.focus();
+    next.focus();
     await user.keyboard("{Enter}");
-    expect(within(nav).getByLabelText("Page number")).toHaveValue(3);
+    expect(within(nav).getByLabelText("Page number")).toHaveValue("3");
     expect(within(nav).getByRole("button", { name: "Next page" })).toBeDisabled();
-    expect(within(nav).getByRole("button", { name: "Last page" })).toBeDisabled();
+    expect(within(nav).getByText("5–5 of 5 items")).toBeVisible();
   });
 
-  it("commits the page-number input on Enter", async () => {
+  it("jumps to a selected page", async () => {
     const user = userEvent.setup();
     function PagedHarness() {
       const [page, setPage] = useState(1);
@@ -216,13 +216,13 @@ describe("DataTable interaction", () => {
     render(<PagedHarness />);
 
     const nav = screen.getByRole("navigation", { name: "Pagination" });
-    const pageInput = within(nav).getByLabelText("Page number");
-    await user.clear(pageInput);
-    await user.type(pageInput, "3{Enter}");
-    expect(within(nav).getByLabelText("Page number")).toHaveValue(3);
+    const pageSelect = within(nav).getByLabelText("Page number");
+    await user.selectOptions(pageSelect, "3");
+    expect(within(nav).getByText("5–5 of 5 items")).toBeVisible();
+    expect(within(nav).getByLabelText("Page number")).toHaveValue("3");
   });
 
-  it("announces rows-per-page selection accessibly", async () => {
+  it("announces items-per-page selection accessibly", async () => {
     const user = userEvent.setup();
     const onPageSizeChange = vi.fn();
     function SizedHarness() {
@@ -248,7 +248,7 @@ describe("DataTable interaction", () => {
     }
     render(<SizedHarness />);
 
-    await user.selectOptions(screen.getByLabelText("Rows per page"), "4");
+    await user.selectOptions(screen.getByLabelText("Items per page"), "4");
     expect(onPageSizeChange).toHaveBeenCalledWith(4);
   });
 
