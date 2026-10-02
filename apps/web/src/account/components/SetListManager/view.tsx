@@ -286,6 +286,7 @@ export function SetListManagerView({
   readonly navigate?: ((href: string) => void) | undefined;
 }) {
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
+  const [expirationHintDismissed, setExpirationHintDismissed] = useState(false);
   const [dragOverBoundary, setDragOverBoundary] = useState<number | null>(null);
   const [keyboardDragIndex, setKeyboardDragIndex] = useState<number | null>(null);
   const [keyboardDragOriginItems, setKeyboardDragOriginItems] = useState<
@@ -730,14 +731,39 @@ export function SetListManagerView({
               >
                 Print &amp; Copy
               </button>
+              {practicePlayerUnavailableReason ? (
+                <p className="field-help set-list-player-help">{practicePlayerUnavailableReason}</p>
+              ) : linkStatusError || !linkStatus?.expiresAt ? (
+                <p className="field-help set-list-player-help">
+                  {linkStatusError ?? formatPracticePlayerExpiration(linkStatus)}
+                </p>
+              ) : (
+                <span
+                  className="set-list-player-expiration"
+                  tabIndex={0}
+                  aria-describedby="set-list-player-expiration-detail"
+                  data-dismissed={expirationHintDismissed}
+                  onFocus={() => {
+                    setExpirationHintDismissed(false);
+                  }}
+                  onMouseEnter={() => {
+                    setExpirationHintDismissed(false);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") setExpirationHintDismissed(true);
+                  }}
+                >
+                  {formatPracticePlayerExpiration(linkStatus, undefined, "date")}
+                  <span
+                    className="set-list-player-expiration__detail"
+                    id="set-list-player-expiration-detail"
+                    role="tooltip"
+                  >
+                    {formatPracticePlayerExpiration(linkStatus)}
+                  </span>
+                </span>
+              )}
             </div>
-            {practicePlayerUnavailableReason ? (
-              <p className="field-help set-list-player-help">{practicePlayerUnavailableReason}</p>
-            ) : (
-              <p className="field-help set-list-player-help">
-                {linkStatusError ?? formatPracticePlayerExpiration(linkStatus)}
-              </p>
-            )}
           </>
         ) : null}
       </div>
@@ -867,7 +893,7 @@ export function SetListManagerView({
             </label>
             <div className="set-list-transition-control">
               <label className="field" htmlFor="set-list-transition-seconds">
-                <span className="set-list-field-label">Default time between songs</span>
+                <span className="set-list-field-label">Between songs</span>
               </label>
               <div className="set-list-inline-control">
                 <NumberInput
@@ -885,10 +911,20 @@ export function SetListManagerView({
                 <span className="set-list-unit">seconds</span>
               </div>
             </div>
-            <small className="field-help set-list-transition-help" id="set-list-transition-help">
-              Applied between consecutive songs, except movements of the same work or when a Custom
-              entry is placed between them.
-            </small>
+            <div className="set-list-transition-help">
+              <small className="field-help" id="set-list-transition-help">
+                Between songs, except within a work or around custom entries.
+              </small>
+              <details className="set-list-help-disclosure">
+                <summary aria-label="About between-song time" title="About between-song time">
+                  ⓘ
+                </summary>
+                <p className="field-help">
+                  Applied between consecutive songs, except movements of the same work or when a
+                  Custom entry is placed between them.
+                </p>
+              </details>
+            </div>
           </div>
 
           <div className="set-list-add-panel">
@@ -957,11 +993,6 @@ export function SetListManagerView({
                     )}
                   </div>
                 ) : null}
-                <p className="field-help" aria-live="polite">
-                  {musicQuery.trim()
-                    ? `${String(filteredMusic.length)} matching piece${filteredMusic.length === 1 ? "" : "s"}${filteredMusic.length > 50 ? " · showing first 50" : ""}. Select a result to add it.`
-                    : `${String(resources.music.length)} pieces available. Start typing to search.`}
-                </p>
               </div>
               <label className="field set-list-duration-input">
                 <span className="sr-only">Duration</span>
@@ -976,7 +1007,7 @@ export function SetListManagerView({
               </label>
               <div className="set-list-add-actions">
                 <button
-                  className="button button--primary button--small"
+                  className="button button--primary button--small button--control-height"
                   type="button"
                   onClick={() => {
                     openCustomItem(musicQuery.trim(), customDuration.trim(), "song");
@@ -985,7 +1016,7 @@ export function SetListManagerView({
                   + Add new song
                 </button>
                 <button
-                  className="button button--secondary button--small"
+                  className="button button--secondary button--small button--control-height"
                   type="button"
                   onClick={() => {
                     insertCustomItem(items.length);
@@ -995,9 +1026,11 @@ export function SetListManagerView({
                 </button>
               </div>
             </div>
-            <p className="field-help set-list-add-tip">
-              Select an existing music piece from the suggestions, or add a new song. Use a Custom
-              entry for an intermission or another item that is not in the library.
+            <p className="field-help set-list-add-tip" aria-live="polite">
+              {musicQuery.trim()
+                ? `${String(filteredMusic.length)} matching piece${filteredMusic.length === 1 ? "" : "s"}${filteredMusic.length > 50 ? " · showing first 50" : ""} · Select a result or add a song.`
+                : `${String(resources.music.length)} piece${resources.music.length === 1 ? "" : "s"} · Search to select, or add a song.`}{" "}
+              Custom entries cover intermissions and other items.
             </p>
           </div>
 
@@ -1010,9 +1043,9 @@ export function SetListManagerView({
                   <dd>
                     <span>{items.length}</span>
                     <small>
-                      Recordings {coverage.songsWithRecording} of {coverage.songCount}
+                      {coverage.songsWithRecording}/{coverage.songCount} recorded
                       {coverage.songsMissingRecording > 0
-                        ? ` (${String(coverage.songsMissingRecording)} missing)`
+                        ? ` · ${String(coverage.songsMissingRecording)} missing`
                         : ""}
                     </small>
                   </dd>
@@ -1025,12 +1058,14 @@ export function SetListManagerView({
                 </div>
                 {defaultTransitionDuration > 0 ? (
                   <div>
-                    <dt>Between-song time</dt>{" "}
+                    <dt className="set-list-summary__transition-label">
+                      <span>Between-song time</span>{" "}
+                      <small>
+                        {defaultTransitionCount} transition{defaultTransitionCount === 1 ? "" : "s"}{" "}
+                        × {defaultTransitionSeconds} sec
+                      </small>
+                    </dt>{" "}
                     <dd>{formatSetListDuration(defaultTransitionDuration)}</dd>
-                    <dd className="set-list-summary__subtext">
-                      ({defaultTransitionCount} automatic transition
-                      {defaultTransitionCount === 1 ? "" : "s"} × {defaultTransitionSeconds} sec)
-                    </dd>
                   </div>
                 ) : null}
               </dl>
@@ -1097,11 +1132,16 @@ export function SetListManagerView({
             <p className="empty-state">This Performance does not have set-list items yet.</p>
           ) : (
             <>
-              <p className="field-help" aria-live="polite">
-                Drag an item to reorder it, or focus its reorder handle and press Space or Enter to
-                pick it up. Use the arrow keys to move it, then press Space or Enter to drop; Escape
-                cancels.
-              </p>
+              <div className="set-list-reorder-help field-help">
+                <span>Drag to reorder</span>
+                <details className="set-list-help-disclosure">
+                  <summary>Keyboard instructions</summary>
+                  <p>
+                    Focus an item's reorder handle and press Space or Enter to pick it up. Use the
+                    arrow keys to move it, then press Space or Enter to drop; Escape cancels.
+                  </p>
+                </details>
+              </div>
               <p className="sr-only" id="set-list-keyboard-reorder-help">
                 Press Space or Enter to pick up this item. Use Arrow Up or Arrow Down to move it.
                 Press Space or Enter to drop it, or Escape to cancel.

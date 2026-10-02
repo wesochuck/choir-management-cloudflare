@@ -385,6 +385,7 @@ export function printTimeOnly(value: string): string {
 export function formatPracticePlayerExpiration(
   status: PublicPlayerLinkStatus | null,
   locale?: string,
+  detail: "full" | "date" = "full",
 ): string {
   if (!status || status.status === "none" || !status.expiresAt) {
     return "A Practice Player link has not been created yet.";
@@ -392,13 +393,14 @@ export function formatPracticePlayerExpiration(
   const timestamp = status.expiresAt < 10_000_000_000 ? status.expiresAt * 1000 : status.expiresAt;
   const formatted = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
-    timeStyle: "short",
+    ...(detail === "full" ? { timeStyle: "short" as const } : {}),
   }).format(new Date(timestamp));
 
+  const prefix = detail === "date" ? "Link" : "Practice Player link";
   if (status.status === "expired") {
-    return `Practice Player link expired ${formatted}.`;
+    return `${prefix} expired ${formatted}.`;
   }
-  return `Practice Player link expires ${formatted}.`;
+  return `${prefix} expires ${formatted}.`;
 }
 
 function printRowsFor(

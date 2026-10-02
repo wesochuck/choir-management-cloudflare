@@ -189,7 +189,9 @@
   .set-list-toolbar {
     display: grid;
     min-width: 0;
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.25fr) minmax(0, 0.9fr) minmax(0, 0.9fr);
+    grid-template-columns:
+      minmax(12rem, 1fr) minmax(15rem, 1.2fr) repeat(2, minmax(12rem, 0.9fr))
+      auto;
     gap: var(--spacing-sm);
     align-items: end;
     padding: var(--spacing-sm);
@@ -277,13 +279,15 @@
 
   .set-list-transition-control .set-list-inline-control {
     display: flex;
+    justify-content: flex-start;
     align-items: center;
     gap: var(--spacing-xs);
   }
 
   .set-list-transition-control input[type="number"] {
-    width: 6rem;
+    width: 4.5rem;
     min-width: 0;
+    flex: 0 0 4.5rem;
   }
 
   .set-list-transition-help {
@@ -294,9 +298,96 @@
     line-height: var(--line-height-snug);
   }
 
+  .set-list-transition-help > .field-help {
+    display: inline;
+  }
+
+  .set-list-transition-help > details {
+    display: inline-block;
+    margin-left: var(--spacing-xs);
+    vertical-align: baseline;
+  }
+
+  .set-list-transition-help > details[open] {
+    display: block;
+    margin: var(--spacing-xs) 0 0;
+  }
+
   .set-list-unit {
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
+  }
+
+  .set-list-player-help {
+    margin: 0;
+  }
+
+  .set-list-player-expiration {
+    position: relative;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .set-list-player-expiration__detail {
+    display: none;
+    position: absolute;
+    inset-block-start: 100%;
+    inset-inline-end: 0;
+    z-index: 10;
+    width: max-content;
+    max-width: min(24rem, calc(100vw - 2 * var(--spacing-lg)));
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+  }
+
+  .set-list-player-expiration:not([data-dismissed="true"]):hover
+    .set-list-player-expiration__detail,
+  .set-list-player-expiration:not([data-dismissed="true"]):focus
+    .set-list-player-expiration__detail {
+    display: block;
+  }
+
+  .set-list-help-disclosure {
+    min-width: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .set-list-help-disclosure > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .set-list-help-disclosure > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .set-list-help-disclosure > summary::after {
+    content: "⌃";
+    line-height: var(--line-height-none);
+    transform: rotate(180deg);
+  }
+
+  .set-list-help-disclosure[open] > summary::after {
+    transform: rotate(0deg);
+  }
+
+  .set-list-help-disclosure p {
+    margin: var(--spacing-xs) 0 0;
+    max-width: 60ch;
+  }
+
+  .set-list-reorder-help {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--spacing-xs) var(--spacing-md);
   }
 
   /* Set list music search */
@@ -403,10 +494,6 @@
     gap: var(--spacing-xs);
   }
 
-  .set-list-add-actions .button {
-    min-height: 2.45rem;
-  }
-
   .set-list-add-tip {
     margin: 0;
   }
@@ -480,11 +567,16 @@
     font-size: var(--font-size-md);
   }
 
-  .set-list-summary dd.set-list-summary__subtext {
-    grid-column: 1 / -1;
-    color: var(--color-text-muted);
-    text-align: left;
+  .set-list-summary__transition-label {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--spacing-3xs) var(--spacing-xs);
+  }
+
+  .set-list-summary__transition-label small {
     font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-regular);
   }
 
   .set-list-summary__breakdown > .set-list-summary__counts {
@@ -552,6 +644,12 @@
   /* A pinned navigation rail can leave the editor narrower than the browser
    * viewport. Reflow against the editor's actual inline size so its controls
    * remain usable without relying on a viewport breakpoint. */
+  @container set-list-editor (max-width: 76rem) {
+    .set-list-toolbar {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   @container set-list-editor (max-width: 52rem) {
     .set-list-page-intro {
       align-items: stretch;

@@ -419,10 +419,8 @@ test("updates between-song transition time, reflects in timing breakdown, end ti
 
   // Summary breakdown should now show Between-song time: 1 transition * 45s = 0:45
   // Total estimated runtime: 6:45
-  await expect(page.locator(".set-list-summary")).toContainText("Between-song time 0:45");
-  await expect(page.locator(".set-list-summary")).toContainText(
-    "(1 automatic transition × 45 sec)",
-  );
+  await expect(page.locator(".set-list-summary__transition-label + dd")).toHaveText("0:45");
+  await expect(page.locator(".set-list-summary")).toContainText("1 transition × 45 sec");
   await expect(page.locator(".set-list-summary")).toContainText("Estimated runtime 6:45");
   await expect(page.locator(".set-list-summary")).toContainText("Remaining time 3:15");
 
@@ -677,10 +675,8 @@ test("shows recording coverage and plays inline audio previews in set list build
   await expect(page.getByRole("heading", { name: "Set lists" })).toBeVisible();
 
   // Item count and recording coverage share one row; custom entries are excluded from coverage.
-  await expect(page.locator(".set-list-summary__breakdown")).toContainText("Recordings 2 of 3");
-  await expect(page.locator(".set-list-summary__counts")).toContainText(
-    "Recordings 2 of 3 (1 missing)",
-  );
+  await expect(page.locator(".set-list-summary__breakdown")).toContainText("2/3 recorded");
+  await expect(page.locator(".set-list-summary__counts")).toContainText("2/3 recorded · 1 missing");
   await expect(
     page.locator(".set-list-summary dt").filter({ hasText: /^Recordings$/ }),
   ).toHaveCount(0);

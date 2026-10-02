@@ -101,7 +101,7 @@ describe("SetListManager default Performance selection", () => {
 
     expect(screen.getByRole("combobox", { name: "Select event" })).toHaveValue(defaultEvent.id);
     expect(screen.getByText("Today song")).toBeInTheDocument();
-    expect(screen.getByLabelText("Default time between songs")).toHaveValue(25);
+    expect(screen.getByLabelText("Between songs")).toHaveValue(25);
     expect(screen.getAllByRole("checkbox", { name: /approved/i })[0]).not.toBeChecked();
   });
 
@@ -110,7 +110,7 @@ describe("SetListManager default Performance selection", () => {
     await flushResourceLoad();
     expect(screen.getByRole("combobox", { name: "Select event" })).toHaveValue(pastEvent.id);
     expect(screen.getByText("Past song")).toBeInTheDocument();
-    expect(screen.getByLabelText("Default time between songs")).toHaveValue(40);
+    expect(screen.getByLabelText("Between songs")).toHaveValue(40);
     expect(screen.getAllByRole("checkbox", { name: /approved/i })[0]).toBeChecked();
     linked.unmount();
 
@@ -131,17 +131,17 @@ describe("SetListManager default Performance selection", () => {
     await flushResourceLoad();
     const eventSelect = screen.getByRole("combobox", { name: "Select event" });
     fireEvent.change(eventSelect, { target: { value: pastEvent.id } });
-    const transitionInput = screen.getByLabelText("Default time between songs");
+    const transitionInput = screen.getByLabelText("Between songs");
     fireEvent.change(transitionInput, { target: { value: "73" } });
     expect(screen.getByRole("combobox", { name: "Select event" })).toHaveValue(pastEvent.id);
-    expect(screen.getByLabelText("Default time between songs")).toHaveValue(73);
+    expect(screen.getByLabelText("Between songs")).toHaveValue(73);
 
     rerender(<SetListManager enabled={false} />);
     rerender(<SetListManager enabled />);
     await flushResourceLoad();
 
     expect(screen.getByRole("combobox", { name: "Select event" })).toHaveValue(pastEvent.id);
-    expect(screen.getByLabelText("Default time between songs")).toHaveValue(73);
+    expect(screen.getByLabelText("Between songs")).toHaveValue(73);
     expect(screen.getByText("Past song")).toBeInTheDocument();
     expect(api.listOrganizationEvents).toHaveBeenCalledTimes(2);
   });
