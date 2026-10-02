@@ -10,16 +10,21 @@ import { expect, test } from "@playwright/test";
 import { currentAuthSessionSchema, organizationAuthStatusResponseSchema } from "@choir/contracts";
 import {
   bootstrapFullstack,
-  FULLSTACK_ADMIN_EMAIL,
   FULLSTACK_APP_ORIGIN,
   signInWithFullstackOtp,
 } from "./fixtures/fullstack";
 
-test("signs in with a real one-time code and restores the session", async ({ page, request }) => {
-  const seed = await bootstrapFullstack(request);
-  expect(seed.email).toBe(FULLSTACK_ADMIN_EMAIL);
+test("signs in with a real one-time code and restores the session", async ({
+  page,
+  request,
+}, testInfo) => {
+  // Bootstrap resets sessions and verification codes: concurrent browser projects
+  // and repeated runs must never share an identity.
+  const email = `fullstack.auth-otp-${testInfo.project.name}-${String(testInfo.repeatEachIndex)}@example.test`;
+  const seed = await bootstrapFullstack(request, email);
+  expect(seed.email).toBe(email);
 
-  await signInWithFullstackOtp(page, request);
+  await signInWithFullstackOtp(page, request, email);
 
   // The live auth-status contract proves the session belongs to the seeded
   // tenant with an administrator role. A Worker regression that drops the
@@ -38,7 +43,7 @@ test("signs in with a real one-time code and restores the session", async ({ pag
   const session = await page.request.get(`${FULLSTACK_APP_ORIGIN}/api/auth/get-session`);
   expect(session.ok()).toBe(true);
   const sessionBody = currentAuthSessionSchema.parse(await session.json());
-  expect(sessionBody?.user.email).toBe(FULLSTACK_ADMIN_EMAIL);
+  expect(sessionBody?.user.email).toBe(email);
 
   // Session restoration: a full reload must keep the workspace, not bounce
   // back to the sign-in wall.

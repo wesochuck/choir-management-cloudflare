@@ -13,8 +13,8 @@ import { z } from "zod";
 // deterministic tenant (`organization-fullstack`, see
 // apps/worker/src/routes/localFullstackSeed.ts). That endpoint answers 404
 // unless APP_ENV === "local", so staging and production are unaffected. Each
-// spec file seeds its own `fullstack.<area>@example.test` admin identity so
-// parallel workers never delete each other's sessions; the shared
+// scenario and browser project seeds its own `fullstack.<area>@example.test`
+// admin identity so parallel workers never delete each other's sessions; the shared
 // Organization and loopback domains are inserted idempotently.
 // Operational rows created by earlier runs (events, donations) are left in
 // the test Organization's Durable Object; specs therefore create uniquely
@@ -52,7 +52,7 @@ const otpResponseSchema = z.object({
 export type FullstackBootstrap = z.infer<typeof bootstrapResponseSchema>;
 
 /**
- * Prepare the test tenant and reset one per-file admin identity.
+ * Prepare the test tenant and reset one isolated admin identity.
  * Repeatable; no manual cleanup required.
  */
 export async function bootstrapFullstack(
@@ -94,19 +94,20 @@ async function readFullstackOtpOnce(
   request: APIRequestContext,
   email: string,
 ): Promise<string | null> {
-  try {
-    const response = await request.get(
-      `${FULLSTACK_APP_ORIGIN}/api/local/fullstack-otp?email=${encodeURIComponent(email)}`,
-      { timeout: 5_000 },
-    );
-    if (response.status() === 404) return null;
-    if (!response.ok()) return null;
-    const body = otpResponseSchema.parse(await response.json());
-    expect(body.email).toBe(email);
-    return body.otp;
-  } catch {
-    return null;
+  const response = await request.get(
+    `${FULLSTACK_APP_ORIGIN}/api/local/fullstack-otp?email=${encodeURIComponent(email)}`,
+    { timeout: 5_000 },
+  );
+  if (response.status() === 404) return null;
+  if (!response.ok()) {
+    throw new Error(`Local OTP capture request failed with HTTP ${String(response.status())}.`);
   }
+  const parsed = otpResponseSchema.safeParse(await response.json());
+  // Report a shape failure without including the secret-bearing response body.
+  if (!parsed.success || parsed.data.email !== email) {
+    throw new Error("Local OTP capture returned an invalid response.");
+  }
+  return parsed.data.otp;
 }
 
 /**
@@ -117,11 +118,14 @@ async function readFullstackOtpOnce(
 export async function pollFullstackOtp(request: APIRequestContext, email: string): Promise<string> {
   const box: { otp: string | null } = { otp: null };
   await expect
-    .poll(async () => {
-      box.otp = await readFullstackOtpOnce(request, email);
-      return box.otp;
-    })
-    .toMatch(/^\d{6}$/);
+    .poll(
+      async () => {
+        box.otp = await readFullstackOtpOnce(request, email);
+        return box.otp !== null;
+      },
+      { message: `Waiting for the local sign-in code capture for ${email}` },
+    )
+    .toBe(true);
   const otp = box.otp;
   if (otp === null) throw new Error("The full-stack OTP never became available.");
   return otp;
@@ -139,7 +143,14 @@ export async function signInWithFullstackOtp(
   await page.goto(`${FULLSTACK_APP_ORIGIN}/login`);
   await expect(page.getByRole("heading", { name: "Sign in to Choir Management." })).toBeVisible();
   await page.getByLabel("Email address").fill(email);
+  const codeResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/auth/email-otp/send-verification-otp",
+  );
   await page.getByRole("button", { name: "Send sign-in code" }).click();
+  const codeResponse = await codeResponsePromise;
+  expect(codeResponse.status(), "The local sign-in code request must succeed").toBe(200);
   await expect(page.getByRole("main").getByRole("status")).toContainText(`If ${email} has access`);
   const otp = await pollFullstackOtp(request, email);
   await page.getByLabel("6-digit sign-in code").fill(otp);
