@@ -279,7 +279,9 @@ export function useCommunicationCenterController({
               sortTimestamp: s.scheduledAt,
             }));
             const merged = [...manualItems, ...scheduledItems].sort(
-              (a, b) => new Date(b.sortTimestamp).getTime() - new Date(a.sortTimestamp).getTime(),
+              (a, b) =>
+                (targetStatus === "scheduled" ? 1 : -1) *
+                (Date.parse(a.sortTimestamp) - Date.parse(b.sortTimestamp)),
             );
             const filtered = filterFallbackHistory(merged, targetStatus, targetOrigin);
             setHistoryItems(filtered.slice(0, 50));
@@ -294,6 +296,23 @@ export function useCommunicationCenterController({
     },
     [],
   );
+
+  useEffect(() => {
+    if (!enabled) return;
+    const controller = new AbortController();
+    const refresh = () => {
+      if (document.visibilityState === "visible") {
+        void loadHistoryPage(statusFilter, originFilter, null, controller.signal);
+        setCursorStack([]);
+        setCurrentCursor(null);
+      }
+    };
+    window.addEventListener("focus", refresh);
+    return () => {
+      controller.abort();
+      window.removeEventListener("focus", refresh);
+    };
+  }, [enabled, loadHistoryPage, originFilter, statusFilter]);
 
   // Load initial data
   useEffect(() => {
@@ -482,7 +501,9 @@ export function useCommunicationCenterController({
       case "draft":
         return all.filter((item) => item.status === "Draft");
       case "scheduled":
-        return all.filter((item) => item.status === "Scheduled");
+        return all
+          .filter((item) => item.status === "Scheduled")
+          .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
       case "queued":
         return all.filter((item) => item.status === "Queued");
       case "sent":

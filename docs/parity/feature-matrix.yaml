@@ -2436,6 +2436,10 @@
         "targetEvidence":
           [
             "apps/worker/src/organization/scheduler.ts",
+            "apps/worker/src/organization/communicationSchedule.ts",
+            "apps/worker/src/organization/communicationStore/upcoming.ts",
+            "apps/worker/src/organization/communicationSchedule.test.ts",
+            "docs/adr/0046-read-only-upcoming-communication-previews.md",
             "apps/worker/src/organization/schedulingStore.ts",
             "apps/worker/src/organization/OrganizationStore.ts",
             "apps/worker/src/jobs/consumer.ts",

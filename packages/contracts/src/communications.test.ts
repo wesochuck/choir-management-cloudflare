@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  communicationScheduledMessageSchema,
   COMMUNICATION_AUDIENCE_CONTACT_IDS_MAX,
   COMMUNICATION_AUDIENCE_CONTACT_LISTS_MAX,
   communicationAudienceRequestSchema,
@@ -244,5 +245,48 @@ describe("Communication recipient subjects", () => {
     expect(communicationRecipientSubjectId({ kind: "donation", donationId: DONATION_ID })).toBe(
       DONATION_ID,
     );
+  });
+});
+
+describe("upcoming communication compatibility", () => {
+  const message = {
+    eventId: null,
+    eventTitle: "Concert",
+    id: PROFILE_ID,
+    kind: "event_reminder",
+    recipientCount: 0,
+    scheduledAt: "2024-03-10T12:00:00Z",
+    status: "Scheduled",
+    subject: "Reminder",
+  };
+  it("accepts existing messages and additive projection metadata", () => {
+    expect(communicationScheduledMessageSchema.safeParse(message).success).toBe(true);
+    expect(
+      communicationScheduledMessageSchema.safeParse({
+        ...message,
+        projected: undefined,
+        timezone: undefined,
+      }).success,
+    ).toBe(true);
+    expect(
+      communicationScheduledMessageSchema.safeParse({
+        ...message,
+        id: `planned:event-reminder:${PROFILE_ID}`,
+        projected: true,
+        timezone: "America/New_York",
+      }).success,
+    ).toBe(true);
+    expect(
+      communicationScheduledMessageSchema.safeParse({ ...message, projected: false }).success,
+    ).toBe(true);
+    expect(
+      communicationScheduledMessageSchema.safeParse({ ...message, projected: null }).success,
+    ).toBe(false);
+    expect(
+      communicationScheduledMessageSchema.safeParse({ ...message, timezone: null }).success,
+    ).toBe(false);
+    expect(
+      communicationScheduledMessageSchema.safeParse({ ...message, id: "unrelated-string" }).success,
+    ).toBe(false);
   });
 });

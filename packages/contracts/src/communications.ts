@@ -280,7 +280,17 @@ export const communicationDeliverySummarySchema = z.object({
 export const communicationScheduledMessageSchema = z.object({
   eventId: z.uuid().nullable(),
   eventTitle: z.string().max(500),
-  id: z.uuid(),
+  id: z.union([
+    z.uuid(),
+    z
+      .string()
+      .max(200)
+      .regex(
+        /^planned:(?:event-reminder|rsvp-follow-up|post-event-report|ticket-reminder):[A-Za-z0-9:-]+$/,
+      ),
+  ]),
+  projected: z.boolean().optional(),
+  timezone: z.string().min(1).max(100).optional(),
   kind: z.enum([
     "attendance_report",
     "event_reminder",

@@ -124,6 +124,47 @@ function MessageCardActions({
   return null;
 }
 
+function MessageTimestamp({ item }: { readonly item: UnifiedCommunicationItem }) {
+  const timezone = item.kind === "scheduled" ? item.scheduledMessage.timezone : undefined;
+  const date = timezone
+    ? new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+        timeZone: timezone,
+      }).format(new Date(item.timestamp))
+    : displayDate(item.timestamp);
+  return (
+    <span>
+      {item.status === "Scheduled" ? "Scheduled for " : ""}
+      {date}
+      {timezone ? ` (${timezone})` : ""}
+    </span>
+  );
+}
+
+function AutomationContext({ item }: { readonly item: UnifiedCommunicationItem }) {
+  if (item.kind !== "scheduled") return null;
+  return (
+    <>
+      {item.scheduledMessage.projected ? (
+        <p className="field-help">
+          Automation preview. Recipients and eligibility are checked at send time.
+        </p>
+      ) : null}
+      <a
+        className="text-link"
+        href={
+          item.scheduledMessage.eventId
+            ? `/admin/rsvp?eventId=${encodeURIComponent(item.scheduledMessage.eventId)}`
+            : "/admin/auditions"
+        }
+      >
+        {item.scheduledMessage.eventId ? "View event" : "View auditions"}
+      </a>
+    </>
+  );
+}
+
 function MessageCard({
   busy,
   deliveryDetailsMessage,
@@ -161,7 +202,7 @@ function MessageCard({
           <div className="communication-history-entry__meta">
             <span>{item.channel}</span>
             <span>·</span>
-            <span>{displayDate(item.timestamp)}</span>
+            <MessageTimestamp item={item} />
             {item.kind === "manual" && item.recipientCount > 0 ? (
               <>
                 <span>·</span>
@@ -193,6 +234,7 @@ function MessageCard({
         </div>
       </div>
 
+      <AutomationContext item={item} />
       {isDetailsOpen ? (
         <div className="communication-message-card__details-panel">
           <CommunicationDeliveryDetails

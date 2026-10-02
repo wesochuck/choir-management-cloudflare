@@ -1664,6 +1664,17 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        WHERE type = 'Rehearsal'`,
     ],
   },
+  {
+    version: 101,
+    // The RSVP deadline column is introduced by migration 73's apply hook.
+    apply: (sql) => {
+      sql.exec(`CREATE INDEX idx_events_active_rsvp_deadline
+       ON events(rsvp_deadline_date, starts_at, id)
+       WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
+         AND rsvp_deadline_date IS NOT NULL`);
+    },
+    statements: [],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

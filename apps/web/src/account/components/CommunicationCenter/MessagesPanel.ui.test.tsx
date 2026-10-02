@@ -1,4 +1,5 @@
 import type { CommunicationMessage, CommunicationScheduledMessage } from "@choir/contracts";
+import { futureIsoDate } from "@choir/testkit";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
@@ -329,4 +330,53 @@ describe("MessagesPanel UI", () => {
     );
     expect(screen.getByText("No drafts found.")).toBeInTheDocument();
   });
+});
+
+it("labels upcoming previews with the Organization timezone and event navigation", () => {
+  const scheduledMessage: CommunicationScheduledMessage = {
+    ...automatedScheduledMsg,
+    id: `planned:event-reminder:${automatedScheduledMsg.id}`,
+    scheduledAt: futureIsoDate({ days: 10 }),
+    projected: true,
+    timezone: "America/New_York",
+    eventId: "12345678-1234-4234-8234-123456789012",
+  };
+  render(
+    <MessagesPanel
+      busy={false}
+      currentOrigin="all"
+      currentStatus="scheduled"
+      deliveryDetailsMessage={null}
+      deliverySummary={null}
+      loadingDeliveryId={null}
+      onCancelQueued={vi.fn()}
+      onDeleteDraft={vi.fn()}
+      onNewMessage={vi.fn()}
+      onOpenDeliveryDetails={vi.fn()}
+      onOriginFilterChange={vi.fn()}
+      onResumeDraft={vi.fn()}
+      onRetryDeliveries={vi.fn()}
+      onStatusFilterChange={vi.fn()}
+      unifiedMessages={[
+        {
+          automated: true,
+          channel: "Email",
+          id: scheduledMessage.id,
+          kind: "scheduled",
+          recipientCount: null,
+          scheduledMessage,
+          status: "Scheduled",
+          timestamp: scheduledMessage.scheduledAt,
+          title: scheduledMessage.subject,
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByText(/Scheduled for.*America\/New_York/)).toBeVisible();
+  expect(screen.getByText(/Automation preview. Recipients/)).toBeVisible();
+  expect(screen.getByText(/next 90 days/)).toBeVisible();
+  expect(screen.getByRole("link", { name: "View event" })).toHaveAttribute(
+    "href",
+    "/admin/rsvp?eventId=12345678-1234-4234-8234-123456789012",
+  );
 });

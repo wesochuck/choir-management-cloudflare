@@ -8,6 +8,7 @@ import {
 } from "@choir/contracts";
 import { renderCommunicationTemplate, summarizeCommunicationDeliveries } from "@choir/domain";
 import { z } from "zod";
+import { upcomingCommunications } from "./upcoming";
 
 import {
   messageColumns,
@@ -50,7 +51,7 @@ function parseHistoryCursor(cursor: string | null): HistoryCursor | null {
   const id = parts[2];
   if (!sortTimestamp || !rankStr || !id) return null;
   const sourceRank = Number(rankStr);
-  if (!Number.isInteger(sourceRank) || sourceRank < 0 || sourceRank > 3) return null;
+  if (!Number.isInteger(sourceRank) || sourceRank < 0 || sourceRank > 4) return null;
   if (id.length > 128) return null;
   if (isNaN(Date.parse(sortTimestamp))) return null;
   return { id, sortTimestamp, sourceRank };
@@ -91,6 +92,7 @@ function buildHistoryWhere(
   origin?: string | null,
   status?: string | null,
   cursor?: HistoryCursor | null,
+  ascending = false,
 ): { readonly bindings: unknown[]; readonly whereSql: string } {
   const whereClauses: string[] = [];
   const bindings: unknown[] = [];
@@ -98,7 +100,7 @@ function buildHistoryWhere(
   if (origin === "manual") {
     whereClauses.push("source_rank = 3");
   } else if (origin === "automated") {
-    whereClauses.push("source_rank < 3");
+    whereClauses.push("source_rank != 3");
   }
 
   const normalizedStatus = (status ?? "all").toLowerCase();
@@ -109,7 +111,7 @@ function buildHistoryWhere(
 
   if (cursor) {
     whereClauses.push(
-      "(sort_timestamp < ? OR (sort_timestamp = ? AND (source_rank < ? OR (source_rank = ? AND id < ?))))",
+      `(sort_timestamp ${ascending ? ">" : "<"} ? OR (sort_timestamp = ? AND (source_rank < ? OR (source_rank = ? AND id < ?))))`,
     );
     bindings.push(
       cursor.sortTimestamp,
@@ -136,7 +138,7 @@ function parseManualMessageStatus(status: string): MessageRow["status"] {
   }
 }
 
-function mapHistoryRow(row: HistoryRow) {
+function mapHistoryRow(row: HistoryRow, timezone: string) {
   const sortTimestamp = new Date(row.sortTimestamp).toISOString();
   if (row.kind === "manual") {
     const message = parseMessage({
@@ -159,6 +161,8 @@ function mapHistoryRow(row: HistoryRow) {
     };
   }
   const scheduledMessage = communicationScheduledMessageSchema.parse({
+    projected: row.id.startsWith("planned:"),
+    timezone,
     eventId: row.eventId,
     eventTitle: row.eventTitle ?? "",
     id: row.id,
@@ -189,14 +193,34 @@ export function listCommunicationHistoryFromStore(
     return Response.json({ code: "organization_not_found" }, { status: 404 });
   }
 
+  const now = new Date();
+  const timezone = storage.sql
+    .exec<{ readonly timezone: string }>("SELECT timezone FROM organization_metadata LIMIT 1")
+    .one().timezone;
+  const projected =
+    input.origin === "manual" || (input.status && !["all", "scheduled"].includes(input.status))
+      ? []
+      : upcomingCommunications(storage, input.organizationId, now);
+  const ascending = input.status === "scheduled";
   const rawLimit = Number(input.limit ?? 50);
   const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 100) : 50;
   const cursor = parseHistoryCursor(input.cursor ?? null);
-  const { bindings, whereSql } = buildHistoryWhere(input.origin, input.status, cursor);
+  const { bindings, whereSql } = buildHistoryWhere(input.origin, input.status, cursor, ascending);
   bindings.push(limit + 1);
+  bindings.unshift(JSON.stringify(projected), now.toISOString(), now.toISOString());
 
   const sql = `
     WITH combined AS (
+      SELECT 'automated' AS kind, 4 AS source_rank,
+        json_extract(value, '$.id') AS id,
+        json_extract(value, '$.scheduledAt') AS sort_timestamp,
+        'Scheduled' AS status, json_extract(value, '$.subject') AS subject,
+        'Email' AS channel, NULL AS createdAt, NULL AS updatedAt, NULL AS sentAt,
+        NULL AS canceledAt, NULL AS reachJson, NULL AS audienceJson, NULL AS contentMarkdown,
+        json_extract(value, '$.eventId') AS eventId, json_extract(value, '$.eventTitle') AS eventTitle,
+        json_extract(value, '$.kind') AS autoKind, json_extract(value, '$.recipientCount') AS recipientCount
+      FROM json_each(?)
+      UNION ALL
       SELECT
         'manual' AS kind,
         3 AS source_rank,
@@ -225,7 +249,7 @@ export function listCommunicationHistoryFromStore(
         2 AS source_rank,
         n.id,
         n.scheduled_for AS sort_timestamp,
-        CASE WHEN n.status = 'failed' THEN 'Failed' WHEN n.status IN ('sent', 'suppressed') THEN 'Sent' ELSE 'Queued' END AS status,
+        CASE WHEN n.status = 'failed' THEN 'Failed' WHEN n.status IN ('sent', 'suppressed') THEN 'Sent' WHEN n.status = 'queued' AND n.scheduled_for > ? AND NOT EXISTS (SELECT 1 FROM scheduled_job_outbox x WHERE x.idempotency_key = ('ticket-notification:' || n.id) AND x.enqueued_at IS NOT NULL) THEN 'Scheduled' ELSE 'Queued' END AS status,
         COALESCE(
           n.rendered_subject,
           CASE
@@ -261,7 +285,7 @@ export function listCommunicationHistoryFromStore(
         1 AS source_rank,
         n.id,
         n.scheduled_for AS sort_timestamp,
-        CASE WHEN n.status = 'failed' THEN 'Failed' WHEN n.status IN ('sent', 'suppressed') THEN 'Sent' ELSE 'Queued' END AS status,
+        CASE WHEN n.status = 'failed' THEN 'Failed' WHEN n.status IN ('sent', 'suppressed') THEN 'Sent' WHEN n.status = 'queued' AND n.scheduled_for > ? AND NOT EXISTS (SELECT 1 FROM scheduled_job_outbox x WHERE x.idempotency_key = ('audition-notification:' || n.id) AND x.enqueued_at IS NOT NULL) THEN 'Scheduled' ELSE 'Queued' END AS status,
         n.subject,
         'Email' AS channel,
         NULL AS createdAt,
@@ -335,14 +359,14 @@ export function listCommunicationHistoryFromStore(
       recipientCount
     FROM combined
     ${whereSql}
-    ORDER BY sort_timestamp DESC, source_rank DESC, id DESC
+    ORDER BY sort_timestamp ${ascending ? "ASC" : "DESC"}, source_rank DESC, id DESC
     LIMIT ?
   `;
 
   const rows = storage.sql.exec<HistoryRow>(sql, ...bindings).toArray();
   const hasMore = rows.length > limit;
   const pageRows = hasMore ? rows.slice(0, limit) : rows;
-  const items = pageRows.map(mapHistoryRow);
+  const items = pageRows.map((row) => mapHistoryRow(row, timezone));
 
   const lastRow = pageRows.at(-1);
   const nextCursor =
@@ -526,6 +550,7 @@ interface ScheduledTicketMessageRow {
   readonly id: string;
   readonly kind: "confirmation" | "reminder" | "refund";
   readonly scheduledAt: string;
+  readonly enqueuedAt: string | null;
   readonly status: "failed" | "processing" | "queued" | "sent" | "suppressed";
   readonly subject: string;
 }
@@ -537,6 +562,7 @@ interface ScheduledAuditionMessageRow {
   readonly kind:
     "admin_alert" | "audition_reminder" | "inquiry_confirmation" | "scheduled_confirmation";
   readonly scheduledAt: string;
+  readonly enqueuedAt: string | null;
   readonly status: "failed" | "processing" | "queued" | "sent" | "suppressed";
   readonly subject: string;
 }
@@ -549,6 +575,23 @@ interface ScheduledOutboxMessageRow {
   readonly jobId: string;
   readonly jobStatus: "claimed" | "completed" | "failed" | null;
   readonly kind: "attendance_report" | "event_reminder" | "rsvp_follow_up";
+}
+
+function notificationStatus(
+  message: {
+    readonly status: ScheduledTicketMessageRow["status"];
+    readonly scheduledAt: string;
+    readonly enqueuedAt: string | null;
+  },
+  now: Date,
+): "Failed" | "Queued" | "Scheduled" | "Sent" {
+  if (message.status === "failed") return "Failed";
+  if (message.status === "sent" || message.status === "suppressed") return "Sent";
+  return message.status === "queued" &&
+    !message.enqueuedAt &&
+    Date.parse(message.scheduledAt) > now.getTime()
+    ? "Scheduled"
+    : "Queued";
 }
 
 function scheduledJobStatus(
@@ -567,6 +610,10 @@ export function listCommunicationScheduledMessagesFromStore(
   if (!organizationId || !identityMatches(storage, organizationId)) {
     return Response.json({ code: "organization_not_found" }, { status: 404 });
   }
+  const now = new Date();
+  const timezone = storage.sql
+    .exec<{ readonly timezone: string }>("SELECT timezone FROM organization_metadata LIMIT 1")
+    .one().timezone;
   const messages: z.infer<typeof communicationScheduledMessageSchema>[] = storage.sql
     .exec<ScheduledTicketMessageRow>(
       `SELECT n.id,
@@ -580,7 +627,9 @@ export function listCommunicationScheduledMessagesFromStore(
           END
         ) AS subject,
         n.status,
-        n.scheduled_for AS scheduledAt, n.event_id AS eventId,
+        n.scheduled_for AS scheduledAt,
+        (SELECT enqueued_at FROM scheduled_job_outbox WHERE idempotency_key = ('ticket-notification:' || n.id)) AS enqueuedAt,
+        n.event_id AS eventId,
         COALESCE(NULLIF(p.bundle_title, ''), e.title, p.event_title) AS eventTitle
        FROM ticket_notifications n
        JOIN ticket_purchases p ON p.id = n.purchase_id
@@ -590,6 +639,7 @@ export function listCommunicationScheduledMessagesFromStore(
     .toArray()
     .map((row) =>
       communicationScheduledMessageSchema.parse({
+        timezone,
         eventId: row.eventId,
         eventTitle: row.eventTitle,
         id: row.id,
@@ -601,12 +651,7 @@ export function listCommunicationScheduledMessagesFromStore(
               : "ticket_confirmation",
         recipientCount: 1,
         scheduledAt: row.scheduledAt,
-        status:
-          row.status === "failed"
-            ? "Failed"
-            : row.status === "sent" || row.status === "suppressed"
-              ? "Sent"
-              : "Queued",
+        status: notificationStatus(row, now),
         subject: row.subject,
       }),
     );
@@ -614,7 +659,9 @@ export function listCommunicationScheduledMessagesFromStore(
   const auditionMessages = storage.sql
     .exec<ScheduledAuditionMessageRow>(
       `SELECT n.id, n.kind, n.subject, n.status,
-        n.scheduled_for AS scheduledAt, a.name AS auditionName
+        n.scheduled_for AS scheduledAt,
+        (SELECT enqueued_at FROM scheduled_job_outbox WHERE idempotency_key = ('audition-notification:' || n.id)) AS enqueuedAt,
+        a.name AS auditionName
        FROM audition_notifications n
        JOIN auditions a ON a.id = n.audition_id
        WHERE n.kind IN ('scheduled_confirmation', 'audition_reminder')
@@ -624,18 +671,14 @@ export function listCommunicationScheduledMessagesFromStore(
   for (const message of auditionMessages) {
     messages.push(
       communicationScheduledMessageSchema.parse({
+        timezone,
         eventId: null,
         eventTitle: `Audition: ${message.auditionName}`,
         id: message.id,
         kind: message.kind === "audition_reminder" ? "audition_reminder" : "audition_confirmation",
         recipientCount: 1,
         scheduledAt: message.scheduledAt,
-        status:
-          message.status === "failed"
-            ? "Failed"
-            : message.status === "sent" || message.status === "suppressed"
-              ? "Sent"
-              : "Queued",
+        status: notificationStatus(message, now),
         subject: message.subject,
       }),
     );
@@ -652,7 +695,8 @@ export function listCommunicationScheduledMessagesFromStore(
     )
     .toArray();
   for (const job of scheduledJobs) {
-    const eventId = job.idempotencyKey.split(":").at(-1) ?? "";
+    const parts = job.idempotencyKey.split(":");
+    const eventId = (parts.at(-2) === "retry" ? parts.at(-3) : parts.at(-1)) ?? "";
     const event = storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly title: string }>(
         "SELECT title FROM events WHERE id = ? LIMIT 1",
@@ -663,6 +707,7 @@ export function listCommunicationScheduledMessagesFromStore(
     if (!event) continue;
     messages.push(
       communicationScheduledMessageSchema.parse({
+        timezone,
         eventId,
         eventTitle: event.title,
         id: job.jobId,
@@ -679,9 +724,15 @@ export function listCommunicationScheduledMessagesFromStore(
       }),
     );
   }
-  messages.sort(
-    (left, right) => new Date(right.scheduledAt).getTime() - new Date(left.scheduledAt).getTime(),
-  );
+  messages.push(...upcomingCommunications(storage, organizationId, now));
+  messages.sort((left, right) => {
+    if (left.status === "Scheduled" && right.status !== "Scheduled") return -1;
+    if (right.status === "Scheduled" && left.status !== "Scheduled") return 1;
+    return (
+      (left.status === "Scheduled" ? 1 : -1) *
+      (Date.parse(left.scheduledAt) - Date.parse(right.scheduledAt))
+    );
+  });
   return Response.json({ messages: messages.slice(0, 200) });
 }
 

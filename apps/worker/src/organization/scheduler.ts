@@ -1,10 +1,6 @@
 import type { DeliveryJob } from "../jobs/contracts";
 import { recordDatabaseCost } from "../observability/databaseCost";
-import {
-  areAuditionDatesPassed,
-  rsvpDeadlineFromDate,
-  POLL_ARCHIVE_DELAY_DAYS,
-} from "@choir/domain";
+import { areAuditionDatesPassed, POLL_ARCHIVE_DELAY_DAYS } from "@choir/domain";
 import {
   organizationAuditionSettingsSchema,
   type OrganizationAuditionSettings,
@@ -12,6 +8,13 @@ import {
 import { readTicketMessageTemplate } from "./ticketMessageTemplates";
 import { readRosterAutomationConfiguration, runRosterAutomations } from "./statusAutomationStore";
 import { advanceComplianceReminder, findDueComplianceReminders } from "./complianceStore";
+
+import {
+  EVENT_REMINDER_LEAD_MS,
+  TICKET_REMINDER_LEAD_MS,
+  ATTENDANCE_REPORT_DELAY_MS,
+  rsvpFollowUpSchedule,
+} from "./communicationSchedule";
 
 const SCHEDULER_INTERVAL_MS = 60 * 60 * 1000;
 const OUTBOX_BATCH_SIZE = 10;
@@ -127,7 +130,7 @@ interface ReminderCandidateRow {
 }
 
 function createTicketReminderJobs(storage: DurableObjectStorage, now: Date): void {
-  const horizon = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+  const horizon = new Date(now.getTime() + TICKET_REMINDER_LEAD_MS).toISOString();
   const candidates = storage.sql
     .exec<ReminderCandidateRow>(
       `SELECT p.id AS purchaseId, p.buyer_name AS buyerName, p.buyer_email AS buyerEmail,
@@ -247,22 +250,9 @@ function createRsvpFollowUpJobs(
     )
     .toArray();
   for (const candidate of candidates) {
-    if (candidate.rsvpFollowUpMode === "disabled") continue;
-    const enabled =
-      candidate.rsvpFollowUpMode === "enabled"
-        ? candidate.rsvpFollowUpLeadHours !== null
-        : configuration.rsvpFollowUpEnabled;
-    if (!enabled) continue;
-    const leadHours =
-      candidate.rsvpFollowUpMode === "enabled"
-        ? candidate.rsvpFollowUpLeadHours
-        : configuration.rsvpFollowUpLeadHours;
-    if (leadHours === null) continue;
-    const deadline = rsvpDeadlineFromDate(candidate.rsvpDeadlineDate ?? "", timezone);
-    if (!deadline) continue;
-    const deadlineAt = new Date(deadline.deadlineAt).getTime();
-    const dueAt = deadlineAt - leadHours * 60 * 60 * 1_000;
-    if (deadlineAt <= now.getTime() || dueAt > now.getTime()) continue;
+    const schedule = rsvpFollowUpSchedule(candidate, configuration, timezone);
+    if (!schedule || schedule.deadlineAt <= now.getTime() || schedule.dueAt > now.getTime())
+      continue;
     const idempotencyKey = `rsvp-follow-up:${organizationId}:${candidate.eventId}`;
     const alreadyQueued = storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly jobId: string }>(
@@ -294,7 +284,7 @@ function createEventReminderJobs(
   organizationId: string,
   now: Date,
 ): void {
-  const leadTimeHorizon = new Date(now.getTime() + 48 * 60 * 60 * 1000).toISOString();
+  const leadTimeHorizon = new Date(now.getTime() + EVENT_REMINDER_LEAD_MS).toISOString();
   const candidates = storage.sql
     .exec<EventReminderCandidateRow>(
       `SELECT id AS eventId, title AS eventTitle, type AS eventType, starts_at AS eventStartsAt
@@ -378,7 +368,7 @@ function createPostEventReportJobs(
   organizationId: string,
   now: Date,
 ): void {
-  const dueBefore = new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString();
+  const dueBefore = new Date(now.getTime() - ATTENDANCE_REPORT_DELAY_MS).toISOString();
   const candidates = storage.sql
     .exec<PostEventReportCandidateRow>(
       `SELECT id AS eventId, title AS eventTitle, type AS eventType, starts_at AS eventStartsAt
@@ -584,13 +574,14 @@ function createComplianceReminderJobs(
   }
 }
 
-function readPendingJobs(storage: DurableObjectStorage): readonly ScheduledJobRow[] {
+function readPendingJobs(storage: DurableObjectStorage, now: Date): readonly ScheduledJobRow[] {
   const cursor = storage.sql.exec<ScheduledJobRow>(
     `SELECT job_id AS jobId, kind, idempotency_key AS idempotencyKey, due_at AS dueAt
        FROM scheduled_job_outbox
-       WHERE enqueued_at IS NULL
+       WHERE enqueued_at IS NULL AND due_at <= ?
        ORDER BY due_at, job_id
        LIMIT ?`,
+    now.toISOString(),
     OUTBOX_BATCH_SIZE,
   );
   const jobs = cursor.toArray();
@@ -618,9 +609,19 @@ async function scheduleNextAlarm(
   if (!scheduler) {
     return;
   }
+  const nextJob = storage.sql
+    .exec<{ readonly dueAt: string }>(
+      "SELECT due_at AS dueAt FROM scheduled_job_outbox WHERE enqueued_at IS NULL ORDER BY due_at, job_id LIMIT 1",
+    )
+    .toArray()
+    .at(0);
+  const nextDueAt = Math.min(
+    new Date(scheduler.nextDueAt).getTime(),
+    nextJob ? new Date(nextJob.dueAt).getTime() : Infinity,
+  );
   const scheduledTime = pendingBatchWasFull
     ? now.getTime() + 1_000
-    : Math.max(now.getTime() + 1_000, new Date(scheduler.nextDueAt).getTime());
+    : Math.max(now.getTime() + 1_000, nextDueAt);
   await storage.setAlarm(scheduledTime);
 }
 
@@ -701,7 +702,7 @@ export async function runOrganizationAlarm(
     createDueJobs(storage, organizationId, now, options.force === true);
   }
 
-  const pendingJobs = readPendingJobs(storage);
+  const pendingJobs = readPendingJobs(storage, now);
   if (pendingJobs.length === 0) {
     await scheduleNextAlarm(storage, now, false);
     return { enqueuedJobCount: 0, organizationId };

@@ -134,6 +134,12 @@ export function MessagesPanel({
         </div>
       </div>
 
+      {currentStatus === "scheduled" && currentOrigin !== "manual" ? (
+        <p className="field-help">
+          Upcoming automation previews cover the next 90 days. Existing scheduled notifications are
+          also included.
+        </p>
+      ) : null}
       {/* Message List */}
       <MessageList
         busy={busy}

@@ -1,3 +1,4 @@
+import { futureIsoDate } from "@choir/testkit";
 import { expect, test, type Route } from "@playwright/test";
 
 const requestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -1050,4 +1051,58 @@ test("filters communication messages by separate Status and Type controls", asyn
   await failedBtn.click();
   await expect(page.getByText("Failed Member Blast")).toBeVisible();
   await expect(page.getByText("Sent Rehearsal Update")).toHaveCount(0);
+});
+
+test("shows upcoming automation previews in both themes without viewport overflow", async ({
+  page,
+}, testInfo) => {
+  const scheduledAt = futureIsoDate({ days: 10 });
+  await page.route("**/api/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/api/organization/communications/history") {
+      await fulfillJson(route, {
+        items: [
+          {
+            kind: "automated",
+            sortTimestamp: scheduledAt,
+            scheduledMessage: {
+              id: `planned:event-reminder:${eventId}`,
+              eventId,
+              eventTitle: "Upcoming concert",
+              kind: "event_reminder",
+              recipientCount: 0,
+              scheduledAt,
+              status: "Scheduled",
+              subject: "Event reminder: Upcoming concert",
+              projected: true,
+              timezone: "America/New_York",
+            },
+          },
+        ],
+        nextCursor: null,
+        requestId,
+      });
+      return;
+    }
+    await handleRoute(route, []);
+  });
+  await page.goto("/admin/communications?status=scheduled");
+  await expect(page.getByText(/Scheduled for.*America\/New_York/)).toBeVisible();
+  await expect(page.getByText(/Automation preview. Recipients/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "View event" })).toHaveAttribute(
+    "href",
+    `/admin/rsvp?eventId=${eventId}`,
+  );
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((value) => {
+      document.documentElement.setAttribute("data-theme", value);
+    }, theme);
+    await expect(page.locator(".communication-message-card")).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await page.screenshot({
+      path: `/tmp/upcoming-communications-${testInfo.project.name}-${theme}.png`,
+      fullPage: true,
+    });
+  }
 });

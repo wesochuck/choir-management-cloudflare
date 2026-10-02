@@ -200,3 +200,22 @@ describe("scheduler event reminder history lookups", () => {
     });
   });
 });
+
+it("uses the pending-job index to select only jobs that are due", () => {
+  const db = seedDatabase();
+  try {
+    const duePlan = db
+      .prepare(
+        "EXPLAIN QUERY PLAN SELECT job_id FROM scheduled_job_outbox WHERE enqueued_at IS NULL AND due_at <= ? ORDER BY due_at, job_id LIMIT 10",
+      )
+      .all("2024-03-10T12:00:00Z");
+    expect(
+      duePlan.some(
+        (row) =>
+          typeof row.detail === "string" && row.detail.includes("idx_scheduled_job_outbox_pending"),
+      ),
+    ).toBe(true);
+  } finally {
+    db.close();
+  }
+});
