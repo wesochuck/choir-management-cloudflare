@@ -429,18 +429,46 @@ test("updates between-song transition time, reflects in timing breakdown, end ti
   const summary = page.locator(".set-list-summary");
   await expect(summary.getByRole("region", { name: "Set list summary" })).toBeVisible();
   await expect(summary.getByRole("region", { name: "Set list timing" })).toBeVisible();
-  for (const theme of ["light", "dark"]) {
-    await page.evaluate((value) => {
-      document.documentElement.setAttribute("data-theme", value);
-    }, theme);
-    await expect
-      .poll(() => summary.evaluate((element) => element.scrollWidth <= element.clientWidth))
-      .toBe(true);
-    await testInfo.attach(`runtime-summary-${theme}`, {
-      body: await summary.screenshot({ path: testInfo.outputPath(`runtime-summary-${theme}.png`) }),
-      contentType: "image/png",
-    });
+  const originalViewport = page.viewportSize();
+  for (const width of [1920, 1280, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate((value) => {
+        document.documentElement.setAttribute("data-theme", value);
+      }, theme);
+      await expect
+        .poll(() => summary.evaluate((element) => element.scrollWidth <= element.clientWidth))
+        .toBe(true);
+      for (const group of [".set-list-summary__breakdown", ".set-list-summary__timing"]) {
+        // Every metric shares a label column and a value edge at all viewport sizes.
+        const edges = await summary
+          .locator(`${group} > div > dd:first-of-type`)
+          .evaluateAll((values) => values.map((value) => value.getBoundingClientRect().right));
+        expect(Math.max(...edges) - Math.min(...edges)).toBeLessThanOrEqual(1);
+        const rows = await summary.locator(`${group} > div`).evaluateAll((elements) =>
+          elements.map((element) => {
+            const label = element.querySelector("dt")?.getBoundingClientRect();
+            const value = element.querySelector("dd")?.getBoundingClientRect();
+            return (
+              label &&
+              value &&
+              label.right < value.left &&
+              label.top < value.bottom &&
+              value.top < label.bottom
+            );
+          }),
+        );
+        expect(rows.every(Boolean)).toBe(true);
+      }
+      await testInfo.attach(`runtime-summary-${theme}-${String(width)}`, {
+        body: await summary.screenshot({
+          path: testInfo.outputPath(`runtime-summary-${theme}-${String(width)}.png`),
+        }),
+        contentType: "image/png",
+      });
+    }
   }
+  if (originalViewport) await page.setViewportSize(originalViewport);
 
   // Insert a custom entry after Opening Song (between the two songs)
   await page.getByRole("button", { name: "Insert custom entry after 1. Opening Song" }).click();
@@ -633,8 +661,14 @@ test("shows recording coverage and plays inline audio previews in set list build
   await page.goto("/admin/setlists");
   await expect(page.getByRole("heading", { name: "Set lists" })).toBeVisible();
 
-  // Summary breakdown displays recordings coverage: 2 of 3 with audio (1 missing), custom excluded from count
-  await expect(page.locator(".set-list-summary")).toContainText("Recordings 2 of 3 (1 missing)");
+  // Item count and recording coverage share one row; custom entries are excluded from coverage.
+  await expect(page.locator(".set-list-summary__breakdown")).toContainText("Recordings 2 of 3");
+  await expect(page.locator(".set-list-summary__counts")).toContainText(
+    "Recordings 2 of 3 (1 missing)",
+  );
+  await expect(
+    page.locator(".set-list-summary dt").filter({ hasText: /^Recordings$/ }),
+  ).toHaveCount(0);
 
   // Row 1 (Carol of the Bells) has Tutti recording
   const item1 = page.locator(".set-list-item").first();

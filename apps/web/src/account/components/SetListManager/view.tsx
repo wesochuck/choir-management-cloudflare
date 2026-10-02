@@ -1005,18 +1005,16 @@ export function SetListManagerView({
             <section className="set-list-summary__contents" aria-label="Set list summary">
               <h3>Set list</h3>
               <dl className="set-list-summary__breakdown">
-                <div>
-                  <dt>Items</dt> <dd>{items.length}</dd>
-                </div>
-                <div>
-                  <dt>Recordings</dt>{" "}
+                <div className="set-list-summary__counts">
+                  <dt>Items</dt>{" "}
                   <dd>
-                    {coverage.songsWithRecording} of {coverage.songCount}{" "}
-                    {coverage.songsMissingRecording > 0 ? (
-                      <span className="set-list-summary__warning">
-                        ({coverage.songsMissingRecording} missing)
-                      </span>
-                    ) : null}
+                    <span>{items.length}</span>
+                    <small>
+                      Recordings {coverage.songsWithRecording} of {coverage.songCount}
+                      {coverage.songsMissingRecording > 0
+                        ? ` (${String(coverage.songsMissingRecording)} missing)`
+                        : ""}
+                    </small>
                   </dd>
                 </div>
                 <div>
@@ -1028,12 +1026,10 @@ export function SetListManagerView({
                 {defaultTransitionDuration > 0 ? (
                   <div>
                     <dt>Between-song time</dt>{" "}
-                    <dd>
-                      {formatSetListDuration(defaultTransitionDuration)}
-                      <small className="set-list-summary__subtext">
-                        ({defaultTransitionCount} automatic transition
-                        {defaultTransitionCount === 1 ? "" : "s"} × {defaultTransitionSeconds} sec)
-                      </small>
+                    <dd>{formatSetListDuration(defaultTransitionDuration)}</dd>
+                    <dd className="set-list-summary__subtext">
+                      ({defaultTransitionCount} automatic transition
+                      {defaultTransitionCount === 1 ? "" : "s"} × {defaultTransitionSeconds} sec)
                     </dd>
                   </div>
                 ) : null}

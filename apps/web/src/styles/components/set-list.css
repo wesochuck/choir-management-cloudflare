@@ -422,16 +422,16 @@
 
   .set-list-summary {
     display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
-    gap: var(--spacing-lg);
-    padding: var(--spacing-md);
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm);
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
   }
 
   .set-list-summary h3 {
-    margin: 0 0 var(--spacing-sm);
+    margin: 0 0 var(--spacing-xs);
     color: var(--color-text);
     font-size: var(--font-size-md);
     font-weight: var(--font-weight-semibold);
@@ -451,59 +451,65 @@
     font-variant-numeric: tabular-nums;
   }
 
-  .set-list-summary__breakdown {
+  .set-list-summary__breakdown,
+  .set-list-summary__timing {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: var(--spacing-md);
+    gap: var(--spacing-3xs);
   }
 
-  .set-list-summary__breakdown > div {
-    grid-column: span 2;
+  .set-list-summary__breakdown > div,
+  .set-list-summary__timing > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--spacing-3xs) var(--spacing-md);
+    min-height: var(--control-height-sm);
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: var(--spacing-3xs);
   }
 
-  .set-list-summary__breakdown > div:nth-child(-n + 2) {
-    grid-column: span 3;
+  .set-list-summary__breakdown > div:last-child,
+  .set-list-summary__timing > div:last-child {
+    border-bottom-color: transparent;
   }
 
-  .set-list-summary__breakdown dd {
-    margin-top: var(--spacing-3xs);
+  .set-list-summary__breakdown dd,
+  .set-list-summary__timing dd {
+    text-align: right;
     font-size: var(--font-size-md);
   }
 
-  .set-list-summary__subtext {
-    display: block;
-    margin-top: var(--spacing-3xs);
-    font-size: var(--font-size-sm);
+  .set-list-summary dd.set-list-summary__subtext {
+    grid-column: 1 / -1;
     color: var(--color-text-muted);
+    text-align: left;
+    font-size: var(--font-size-sm);
   }
 
-  .set-list-summary__warning {
-    display: inline-block;
-    padding-inline: var(--spacing-3xs);
-    border: 1px solid var(--color-accent);
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
+  .set-list-summary__breakdown > .set-list-summary__counts {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  }
+
+  .set-list-summary__counts dd {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: var(--spacing-3xs) var(--spacing-xs);
+  }
+
+  .set-list-summary__counts small {
+    color: var(--color-text-muted);
     font-size: var(--font-size-sm);
-    color: var(--color-text);
   }
 
   .set-list-summary__totals {
     border-inline-start: 1px solid var(--color-border);
-    padding-inline-start: var(--spacing-lg);
-  }
-
-  .set-list-summary__timing {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--spacing-sm) var(--spacing-md);
-  }
-
-  .set-list-summary__estimated {
-    grid-column: 1 / -1;
+    padding-inline-start: var(--spacing-md);
   }
 
   .set-list-summary__estimated dd {
-    font-size: var(--font-size-2xl);
+    font-size: var(--font-size-xl);
     font-weight: var(--font-weight-semibold);
     line-height: var(--line-height-tight);
   }
@@ -518,7 +524,7 @@
     margin-top: calc(-1 * var(--spacing-xs));
   }
 
-  @media (max-width: 60rem) {
+  @media (max-width: 48rem) {
     .set-list-summary {
       grid-template-columns: minmax(0, 1fr);
     }
@@ -527,22 +533,7 @@
       border-inline-start: 0;
       border-top: 1px solid var(--color-border);
       padding-inline-start: 0;
-      padding-top: var(--spacing-md);
-    }
-  }
-
-  @media (max-width: 30rem) {
-    .set-list-summary__breakdown {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .set-list-summary__breakdown > div,
-    .set-list-summary__breakdown > div:nth-child(-n + 2) {
-      grid-column: auto;
-    }
-
-    .set-list-summary__breakdown > div:nth-child(5) {
-      grid-column: 1 / -1;
+      padding-top: var(--spacing-sm);
     }
   }
 
