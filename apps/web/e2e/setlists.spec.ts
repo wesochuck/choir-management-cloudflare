@@ -460,6 +460,21 @@ test("updates between-song transition time, reflects in timing breakdown, end ti
         );
         expect(rows.every(Boolean)).toBe(true);
       }
+      const transitionHelp = page.locator("#set-list-transition-help");
+      if (width >= 1280) {
+        const fitsOneLine = await transitionHelp.evaluate(
+          (element) =>
+            element.getBoundingClientRect().height <=
+            Number.parseFloat(getComputedStyle(element).lineHeight) + 1,
+        );
+        expect(fitsOneLine).toBe(true);
+      }
+      await testInfo.attach(`set-list-toolbar-${theme}-${String(width)}`, {
+        body: await page.locator(".set-list-toolbar").screenshot({
+          path: testInfo.outputPath(`set-list-toolbar-${theme}-${String(width)}.png`),
+        }),
+        contentType: "image/png",
+      });
       await testInfo.attach(`runtime-summary-${theme}-${String(width)}`, {
         body: await summary.screenshot({
           path: testInfo.outputPath(`runtime-summary-${theme}-${String(width)}.png`),
