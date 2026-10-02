@@ -1002,74 +1002,90 @@ export function SetListManagerView({
           </div>
 
           <div className="set-list-summary" aria-live="polite">
-            <div className="set-list-summary__breakdown">
-              <span>
-                <strong>Songs</strong> {formatSetListDuration(songsDuration)}
-              </span>
-              <span>
-                <strong>Custom entries</strong> {formatSetListDuration(intermissionsDuration)}
-              </span>
-              {defaultTransitionDuration > 0 ? (
-                <span>
-                  <strong>Between-song time</strong>{" "}
-                  {formatSetListDuration(defaultTransitionDuration)}
-                  <small className="set-list-summary__subtext">
-                    ({defaultTransitionCount} automatic transition
-                    {defaultTransitionCount === 1 ? "" : "s"} × {defaultTransitionSeconds} sec)
-                  </small>
-                </span>
-              ) : null}
-              <span>
-                <strong>Items</strong> {String(items.length)}
-              </span>
-              <span>
-                <strong>Recordings</strong> {coverage.songsWithRecording} of {coverage.songCount}
-                {coverage.songsMissingRecording > 0 ? (
+            <section className="set-list-summary__contents" aria-label="Set list summary">
+              <h3>Set list</h3>
+              <dl className="set-list-summary__breakdown">
+                <div>
+                  <dt>Items</dt> <dd>{items.length}</dd>
+                </div>
+                <div>
+                  <dt>Recordings</dt>{" "}
+                  <dd>
+                    {coverage.songsWithRecording} of {coverage.songCount}{" "}
+                    {coverage.songsMissingRecording > 0 ? (
+                      <span className="set-list-summary__warning">
+                        ({coverage.songsMissingRecording} missing)
+                      </span>
+                    ) : null}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Songs</dt> <dd>{formatSetListDuration(songsDuration)}</dd>
+                </div>
+                <div>
+                  <dt>Custom entries</dt> <dd>{formatSetListDuration(intermissionsDuration)}</dd>
+                </div>
+                {defaultTransitionDuration > 0 ? (
+                  <div>
+                    <dt>Between-song time</dt>{" "}
+                    <dd>
+                      {formatSetListDuration(defaultTransitionDuration)}
+                      <small className="set-list-summary__subtext">
+                        ({defaultTransitionCount} automatic transition
+                        {defaultTransitionCount === 1 ? "" : "s"} × {defaultTransitionSeconds} sec)
+                      </small>
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            </section>
+            <section className="set-list-summary__totals" aria-label="Set list timing">
+              <h3>Timing</h3>
+              <dl className="set-list-summary__timing">
+                <div className="set-list-summary__estimated">
+                  <dt>Estimated runtime</dt> <dd>{formatSetListDuration(estimatedRuntime)}</dd>
+                </div>
+                {selectedEvent.durationMinutes ? (
                   <>
-                    {" "}
-                    <small className="set-list-summary__subtext">
-                      ({coverage.songsMissingRecording} missing)
-                    </small>
+                    <div>
+                      <dt>Scheduled duration</dt>{" "}
+                      <dd>{formatSetListDuration(selectedEvent.durationMinutes * 60)}</dd>
+                    </div>
+                    {estimatedRuntime <= selectedEvent.durationMinutes * 60 ? (
+                      <div>
+                        <dt>Remaining time</dt>{" "}
+                        <dd>
+                          {formatSetListDuration(
+                            selectedEvent.durationMinutes * 60 - estimatedRuntime,
+                          )}
+                        </dd>
+                      </div>
+                    ) : (
+                      <div className="set-list-summary__overage">
+                        <dt>Over by</dt>{" "}
+                        <dd>
+                          {formatSetListDuration(
+                            estimatedRuntime - selectedEvent.durationMinutes * 60,
+                          )}
+                        </dd>
+                      </div>
+                    )}
                   </>
                 ) : null}
-              </span>
-            </div>
-            <div className="set-list-summary__totals">
-              <span className="set-list-summary__estimated">
-                <strong>Estimated runtime</strong> {formatSetListDuration(estimatedRuntime)}
-              </span>
-              {selectedEvent.durationMinutes ? (
-                <div className="set-list-summary__comparison">
-                  <span>
-                    <strong>Scheduled duration</strong>{" "}
-                    {formatSetListDuration(selectedEvent.durationMinutes * 60)}
-                  </span>
-                  {estimatedRuntime <= selectedEvent.durationMinutes * 60 ? (
-                    <span className="set-list-summary__remaining">
-                      <strong>Remaining time</strong>{" "}
-                      {formatSetListDuration(selectedEvent.durationMinutes * 60 - estimatedRuntime)}
-                    </span>
-                  ) : (
-                    <span className="set-list-summary__overage">
-                      <strong>Over by</strong>{" "}
-                      {formatSetListDuration(estimatedRuntime - selectedEvent.durationMinutes * 60)}
-                    </span>
-                  )}
-                </div>
-              ) : null}
-              {selectedEvent.startsAt && estimatedRuntime > 0 ? (
-                <div className="set-list-summary__end-time">
-                  <span>
-                    <strong>Estimated concert end:</strong>{" "}
-                    {printTimeOnly(
-                      new Date(
-                        new Date(selectedEvent.startsAt).getTime() + estimatedRuntime * 1000,
-                      ).toISOString(),
-                    )}
-                  </span>
-                </div>
-              ) : null}
-            </div>
+                {selectedEvent.startsAt && estimatedRuntime > 0 ? (
+                  <div>
+                    <dt>Estimated concert end</dt>{" "}
+                    <dd>
+                      {printTimeOnly(
+                        new Date(
+                          new Date(selectedEvent.startsAt).getTime() + estimatedRuntime * 1000,
+                        ).toISOString(),
+                      )}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            </section>
           </div>
           {missingDurationCustomCount > 0 ? (
             <p className="notice notice--warning set-list-duration-warning" role="status">

@@ -358,7 +358,7 @@ test("shows music library notes on the set list only when the announcer toggle i
 
 test("updates between-song transition time, reflects in timing breakdown, end time, and copy summary", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   const eventRef: { value: Record<string, unknown> } = {
     value: {
@@ -425,6 +425,22 @@ test("updates between-song transition time, reflects in timing breakdown, end ti
   );
   await expect(page.locator(".set-list-summary")).toContainText("Estimated runtime 6:45");
   await expect(page.locator(".set-list-summary")).toContainText("Remaining time 3:15");
+
+  const summary = page.locator(".set-list-summary");
+  await expect(summary.getByRole("region", { name: "Set list summary" })).toBeVisible();
+  await expect(summary.getByRole("region", { name: "Set list timing" })).toBeVisible();
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((value) => {
+      document.documentElement.setAttribute("data-theme", value);
+    }, theme);
+    await expect
+      .poll(() => summary.evaluate((element) => element.scrollWidth <= element.clientWidth))
+      .toBe(true);
+    await testInfo.attach(`runtime-summary-${theme}`, {
+      body: await summary.screenshot({ path: testInfo.outputPath(`runtime-summary-${theme}.png`) }),
+      contentType: "image/png",
+    });
+  }
 
   // Insert a custom entry after Opening Song (between the two songs)
   await page.getByRole("button", { name: "Insert custom entry after 1. Opening Song" }).click();
