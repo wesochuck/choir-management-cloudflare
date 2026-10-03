@@ -21,11 +21,18 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
+      const configuration = await readOrganizationSeatingConfiguration(
+        context.env,
+        authorization.organizationId,
+      );
       return context.json({
-        configuration: await readOrganizationSeatingConfiguration(
-          context.env,
-          authorization.organizationId,
-        ),
+        configuration:
+          authorization.role === "member"
+            ? {
+                defaultFormationId: configuration.defaultFormationId,
+                formations: configuration.formations,
+              }
+            : configuration,
         requestId: context.get("requestId"),
       });
     } catch {
@@ -79,7 +86,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           code: error instanceof SeatingRepositoryError ? error.code : "service_unavailable",
           message:
             status === 409
-              ? "A formation is invalid or is still used by a seating chart."
+              ? "A formation is invalid, still in use, or a template Profile no longer exists in this Organization."
               : "The Organization seating configuration could not be updated.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,

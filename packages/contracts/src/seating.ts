@@ -63,12 +63,90 @@ export const seatingFormationSchema = z
     }
   });
 
+const seatingSeatKeySchema = z.string().regex(/^(0|[1-9]\d{0,2})-(0|[1-9]\d{0,2})$/);
+const seatingTemplateChartFieldsSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  formation: seatingFormationSchema,
+  rowCounts: z.array(z.number().int().min(1).max(200)).min(1).max(50),
+  assignments: z
+    .array(
+      z.object({
+        seatKey: seatingSeatKeySchema,
+        name: z.string().trim().min(1).max(200),
+      }),
+    )
+    .max(4_000),
+});
+
+function validateTemplateSeats(
+  chart: z.infer<typeof seatingTemplateChartFieldsSchema>,
+  context: z.core.$RefinementCtx<z.infer<typeof seatingTemplateChartFieldsSchema>>,
+): void {
+  if (
+    chart.rowCounts.reduce((sum, count) => sum + count, 0) > 4_000 ||
+    new Set(chart.assignments.map(({ seatKey }) => seatKey)).size !== chart.assignments.length ||
+    chart.assignments.some(({ seatKey }) => {
+      const [row, seat] = seatKey.split("-").map(Number);
+      return row === undefined || seat === undefined || seat >= (chart.rowCounts[row] ?? 0);
+    })
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Template seats must be unique and within a layout of at most 4,000 seats.",
+    });
+  }
+}
+
+const seatingTemplateChartSchema =
+  seatingTemplateChartFieldsSchema.superRefine(validateTemplateSeats);
+export const savedSeatingTemplateSchema = seatingTemplateChartFieldsSchema
+  .extend({
+    id: z.uuid(),
+    assignments: z
+      .array(
+        z.object({
+          seatKey: seatingSeatKeySchema,
+          name: z.string().trim().min(1).max(200),
+          profileId: z.uuid().optional(),
+        }),
+      )
+      .max(4_000),
+  })
+  .superRefine((chart, context) => {
+    validateTemplateSeats(chart, context);
+    const ids = chart.assignments.flatMap(({ profileId }) => (profileId ? [profileId] : []));
+    if (new Set(ids).size !== ids.length) {
+      context.addIssue({ code: "custom", message: "A Profile may occupy only one template seat." });
+    }
+  });
+export type SavedSeatingTemplate = z.infer<typeof savedSeatingTemplateSchema>;
+
+/** Portable seating only: names deliberately replace tenant-specific record IDs. */
+export const seatingTemplateSchema = z.object({
+  format: z.literal("choir-seating-template"),
+  version: z.literal(1),
+  charts: z.array(seatingTemplateChartSchema).min(1).max(50),
+});
+export type SeatingTemplate = z.infer<typeof seatingTemplateSchema>;
+
 export const seatingConfigurationRequestSchema = z
   .object({
     defaultFormationId: z.string().trim().min(1).max(64),
     formations: z.array(seatingFormationSchema).min(1).max(50),
+    templates: z.array(savedSeatingTemplateSchema).max(20).optional(),
   })
   .superRefine((configuration, context) => {
+    const templates = configuration.templates ?? [];
+    if (
+      new Set(templates.map(({ id }) => id)).size !== templates.length ||
+      templates.reduce((count, template) => count + template.assignments.length, 0) > 20_000 ||
+      new TextEncoder().encode(JSON.stringify(configuration)).byteLength > 1_048_576
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Templates must have unique IDs and fit within 1 MB and 20,000 assignments.",
+      });
+    }
     const ids = new Set(configuration.formations.map(({ id }) => id));
     if (ids.size !== configuration.formations.length) {
       context.addIssue({ code: "custom", message: "Seating formation IDs must be unique." });
@@ -82,45 +160,6 @@ export const seatingConfigurationResponseSchema = z.object({
   configuration: seatingConfigurationRequestSchema,
   requestId: requestIdSchema,
 });
-
-const seatingSeatKeySchema = z.string().regex(/^(0|[1-9]\d{0,2})-(0|[1-9]\d{0,2})$/);
-const seatingTemplateChartSchema = z
-  .object({
-    name: z.string().trim().min(1).max(200),
-    formation: seatingFormationSchema,
-    rowCounts: z.array(z.number().int().min(1).max(200)).min(1).max(50),
-    assignments: z
-      .array(
-        z.object({
-          seatKey: seatingSeatKeySchema,
-          name: z.string().trim().min(1).max(200),
-        }),
-      )
-      .max(4_000),
-  })
-  .superRefine((chart, context) => {
-    if (
-      chart.rowCounts.reduce((sum, count) => sum + count, 0) > 4_000 ||
-      new Set(chart.assignments.map(({ seatKey }) => seatKey)).size !== chart.assignments.length ||
-      chart.assignments.some(({ seatKey }) => {
-        const [row, seat] = seatKey.split("-").map(Number);
-        return row === undefined || seat === undefined || seat >= (chart.rowCounts[row] ?? 0);
-      })
-    ) {
-      context.addIssue({
-        code: "custom",
-        message: "Template seats must be unique and within a layout of at most 4,000 seats.",
-      });
-    }
-  });
-
-/** Portable seating only: names deliberately replace tenant-specific record IDs. */
-export const seatingTemplateSchema = z.object({
-  format: z.literal("choir-seating-template"),
-  version: z.literal(1),
-  charts: z.array(seatingTemplateChartSchema).min(1).max(50),
-});
-export type SeatingTemplate = z.infer<typeof seatingTemplateSchema>;
 
 const seatingChartFieldsSchema = z.object({
   assignments: z.record(seatingSeatKeySchema, z.uuid()).default({}),

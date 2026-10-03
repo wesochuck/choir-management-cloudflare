@@ -380,4 +380,152 @@ describe("Organization seating", () => {
       "seating.configuration.updated",
     ]);
   });
+  it("stores reusable templates without attendance, retains them for old clients, and isolates private matches", async () => {
+    const cookie = await signIn();
+    const pending = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Pending Singer",
+          voicePart: "S1",
+        })
+      ).json(),
+    );
+    const nonPerformer = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Reference Singer",
+          voicePart: "",
+          globalStatus: "Idle",
+        })
+      ).json(),
+    );
+    const foreign = organizationProfileResponseSchema.parse(
+      await (
+        await write("bravo.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Foreign Singer",
+          voicePart: "T1",
+        })
+      ).json(),
+    );
+    const template = {
+      id: crypto.randomUUID(),
+      name: "Reference arrangement",
+      formation: defaultSeatingConfiguration.formations[0],
+      rowCounts: [3],
+      assignments: [
+        { seatKey: "0-0", name: pending.displayName, profileId: pending.id },
+        { seatKey: "0-1", name: nonPerformer.displayName, profileId: nonPerformer.id },
+        { seatKey: "0-2", name: "Unresolved Singer" },
+      ],
+    };
+    const path = "/api/organization/seating-configuration";
+    const saved = await write(
+      "alpha.localhost",
+      path,
+      cookie,
+      { ...defaultSeatingConfiguration, templates: [template] },
+      "PUT",
+    );
+    expect(saved.status).toBe(200);
+    const configuration = seatingConfigurationResponseSchema.parse(
+      await saved.json(),
+    ).configuration;
+    expect(configuration.templates?.[0]?.assignments).toEqual(template.assignments);
+    expect(
+      seatingConfigurationResponseSchema.parse(
+        await (await exports.default.fetch(api("bravo.localhost", path, cookie))).json(),
+      ).configuration.templates,
+    ).toBeUndefined();
+    expect(
+      await write(
+        "alpha.localhost",
+        path,
+        cookie,
+        {
+          ...configuration,
+          templates: [
+            {
+              ...template,
+              id: crypto.randomUUID(),
+              assignments: [{ seatKey: "0-0", name: "Foreign", profileId: foreign.id }],
+            },
+          ],
+        },
+        "PUT",
+      ),
+    ).toMatchObject({ status: 409 });
+    expect(
+      await write(
+        "alpha.localhost",
+        path,
+        cookie,
+        {
+          ...configuration,
+          templates: [{ ...template, assignments: [{ seatKey: "9-0", name: "Invalid" }] }],
+        },
+        "PUT",
+      ),
+    ).toMatchObject({ status: 400 });
+    const legacyWrite = await write(
+      "alpha.localhost",
+      path,
+      cookie,
+      defaultSeatingConfiguration,
+      "PUT",
+    );
+    expect(
+      seatingConfigurationResponseSchema.parse(await legacyWrite.json()).configuration.templates,
+    ).toEqual(configuration.templates);
+
+    // A previous Worker Version updates formation JSON without knowing the new column.
+    await runInDurableObject<OrganizationStore, undefined>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "UPDATE organization_metadata SET seating_configuration_json = ?",
+          JSON.stringify(defaultSeatingConfiguration),
+        );
+        return undefined;
+      },
+    );
+    const afterOldWrite = seatingConfigurationResponseSchema.parse(
+      await (await exports.default.fetch(api("alpha.localhost", path, cookie))).json(),
+    );
+    expect(afterOldWrite.configuration.templates).toEqual(configuration.templates);
+    const performance = organizationEventSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/events", cookie, {
+          title: "Template destination",
+          type: "Performance",
+          startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+          rsvpDeadlineDate: "2030-01-01",
+        })
+      ).json(),
+    );
+    expect(
+      await write(
+        "alpha.localhost",
+        `/api/organization/events/${performance.id}/seating-charts`,
+        cookie,
+        {
+          name: "Live seating",
+          formationId: defaultSeatingConfiguration.defaultFormationId,
+          rowCounts: [3],
+          assignments: { "0-0": pending.id },
+        },
+      ),
+    ).toMatchObject({ status: 409 });
+    await database
+      .prepare(
+        "UPDATE member SET role = 'member' WHERE organizationId = 'organization-alpha' AND userId = 'seating-manager'",
+      )
+      .run();
+    const memberRead = seatingConfigurationResponseSchema.parse(
+      await (await exports.default.fetch(api("alpha.localhost", path, cookie))).json(),
+    );
+    expect(memberRead.configuration.templates).toBeUndefined();
+    expect(await write("alpha.localhost", path, cookie, configuration, "PUT")).toMatchObject({
+      status: 403,
+    });
+  });
 });

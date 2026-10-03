@@ -9,7 +9,7 @@ import {
   type OrganizationSeatingChart,
   type SeatingConfiguration,
 } from "@choir/contracts";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as authApiModule from "../../../auth/api";
@@ -21,6 +21,7 @@ vi.mock("../../../auth/api", async (importOriginal) => {
   return {
     ...actual,
     createOrganizationSeatingChart: vi.fn(),
+    updateOrganizationSeatingChart: vi.fn(),
     getOrganizationCalendarSettings: vi.fn(),
     getOrganizationRosterConfiguration: vi.fn(),
     getOrganizationSeatingConfiguration: vi.fn(),
@@ -437,6 +438,47 @@ describe("Seat assignment candidate picker", () => {
     fireEvent.click(screen.getByRole("button", { name: seatLabel }));
     return screen.findByRole("dialog", { name: /^Seat \d+$/ });
   }
+
+  it("copies a reusable template using current eligibility and leaves the saved arrangement intact", async () => {
+    const template = {
+      id: "55555555-5555-4555-8555-555555555555",
+      name: "Reference arrangement",
+      formation:
+        mockSeating.formations[0] ??
+        (() => {
+          throw new Error("Expected a formation");
+        })(),
+      rowCounts: [3],
+      assignments: [
+        { seatKey: "0-0", name: alice.displayName, profileId: aliceId },
+        { seatKey: "0-1", name: dave.displayName, profileId: daveId },
+        { seatKey: "0-2", name: "Unknown Singer" },
+      ],
+    };
+    const seating = { ...mockSeating, templates: [template] };
+    vi.mocked(api.getOrganizationSeatingConfiguration).mockResolvedValue(seating);
+    vi.mocked(api.updateOrganizationSeatingChart).mockImplementation(
+      (_eventId, _chartId, request) => Promise.resolve({ ...chartA, ...request }),
+    );
+    render(<SeatingManager enabled />);
+    await flushLoad();
+    fireEvent.click(screen.getByText("Saved templates (1)"));
+    fireEvent.click(screen.getByRole("button", { name: "Use Reference arrangement" }));
+    const copy = await screen.findByRole("dialog", { name: "Copy seating chart" });
+    fireEvent.click(within(copy).getByRole("button", { name: "Copy chart" }));
+    const confirm = await screen.findByRole("dialog", { name: "Copy seating chart?" });
+    expect(confirm).toHaveTextContent("2");
+    fireEvent.click(within(confirm).getByRole("button", { name: "Copy chart" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Copy seating chart?" })).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("button", { name: /Seat 1, assigned to Alice Alto/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Seat 2, empty" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Seat 3, empty" })).toBeInTheDocument();
+    expect(seating.templates[0]?.assignments).toHaveLength(3);
+  });
 
   it("shows only unassigned eligible Profiles on an empty seat", async () => {
     render(<SeatingManager enabled />);

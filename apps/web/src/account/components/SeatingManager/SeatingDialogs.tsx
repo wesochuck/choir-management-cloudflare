@@ -7,6 +7,7 @@ import type {
   OrganizationRosterConfiguration,
   OrganizationSeatingChart,
   OrganizationSeatingChartRequest,
+  SavedSeatingTemplate,
 } from "@choir/contracts";
 import type { Dispatch, SetStateAction } from "react";
 import { setOrganizationEventRsvp } from "../../../auth/api";
@@ -143,6 +144,8 @@ function ChartDialog({
 }
 
 interface CopyChartDialogProps {
+  readonly copyError?: string | null | undefined;
+  readonly templates?: readonly SavedSeatingTemplate[] | undefined;
   readonly copyBusy: boolean;
   readonly copyChartId: string;
   readonly copyCharts: readonly OrganizationSeatingChart[];
@@ -157,6 +160,8 @@ interface CopyChartDialogProps {
 }
 
 function CopyChartDialog({
+  copyError,
+  templates,
   copyBusy,
   copyChartId,
   copyCharts,
@@ -171,7 +176,7 @@ function CopyChartDialog({
 }: CopyChartDialogProps) {
   return (
     <Dialog
-      description="Copy layout and eligible assignments from a chart using the same Venue."
+      description="Copy a reusable template or a chart using the same Venue. Only eligible singers with RSVP Yes are assigned; the source stays intact."
       onClose={() => {
         setCopyOpen(false);
       }}
@@ -188,6 +193,7 @@ function CopyChartDialog({
             value={copyPerformanceId}
           >
             <option value="">Choose a Performance</option>
+            <option value="__templates__">Saved templates</option>
             {events.map((event) => (
               <option key={event.id} value={event.id}>
                 {event.title}
@@ -206,16 +212,27 @@ function CopyChartDialog({
             value={copyChartId}
           >
             <option value="">Choose a chart</option>
-            {copyCharts.map((candidate) => (
-              <option key={candidate.id} value={candidate.id}>
-                {candidate.name}
-              </option>
-            ))}
+            {(copyPerformanceId === "__templates__" ? (templates ?? []) : copyCharts).map(
+              (candidate) => (
+                <option key={candidate.id} value={candidate.id}>
+                  {candidate.name}
+                </option>
+              ),
+            )}
           </select>
         </label>
         {copyBusy ? <p role="status">Loading source charts…</p> : null}
-        {!copyBusy && copyPerformanceId && copyCharts.length === 0 ? (
-          <p className="empty-state">No charts use this Venue.</p>
+        {copyError ? <p role="alert">{copyError}</p> : null}
+        {!copyBusy &&
+        copyPerformanceId &&
+        (copyPerformanceId === "__templates__"
+          ? (templates?.length ?? 0) === 0
+          : copyCharts.length === 0) ? (
+          <p className="empty-state">
+            {copyPerformanceId === "__templates__"
+              ? "Import a reusable template first."
+              : "No charts use this Venue."}
+          </p>
         ) : null}
         <div className="dialog__actions">
           <DialogClose asChild>
@@ -231,7 +248,7 @@ function CopyChartDialog({
           </DialogClose>
           <button
             className="button button--primary"
-            disabled={!copyChartId}
+            disabled={!copyChartId || copyBusy}
             onClick={copySelectedChart}
             type="button"
           >
@@ -585,6 +602,8 @@ export interface SeatingDialogsProps {
   readonly chartDialog: "create" | "rename" | null;
   readonly chartName: string;
   readonly confirmState: ConfirmState | null;
+  readonly copyError?: string | null | undefined;
+  readonly templates?: readonly SavedSeatingTemplate[] | undefined;
   readonly copyBusy: boolean;
   readonly copyChartId: string;
   readonly copyCharts: readonly OrganizationSeatingChart[];
@@ -637,6 +656,8 @@ export function SeatingDialogs({
   chartDialog,
   chartName,
   confirmState,
+  copyError,
+  templates,
   copyBusy,
   copyChartId,
   copyCharts,
@@ -678,6 +699,7 @@ export function SeatingDialogs({
   return (
     <>
       <ConfirmDialog
+        busy={copyBusy}
         onClose={() => {
           setConfirmState(null);
         }}
@@ -699,6 +721,8 @@ export function SeatingDialogs({
       />
 
       <CopyChartDialog
+        copyError={copyError}
+        templates={templates}
         copyBusy={copyBusy}
         copyChartId={copyChartId}
         copyCharts={copyCharts}

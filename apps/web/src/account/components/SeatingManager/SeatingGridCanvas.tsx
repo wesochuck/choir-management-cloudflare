@@ -127,6 +127,7 @@ export function SeatingGridCanvas({
                     aria-label={`Seat ${String(seatIndex + 1)}${profile ? `, assigned to ${profile.displayName}` : ", empty"}`}
                     className={`seating-seat seating-seat--canvas seating-seat--readonly${profile ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}`}
                     data-name-presentation={initialPresentation}
+                    data-seat-key={seatKey}
                     key={seatKey}
                     title={profile?.displayName}
                   >

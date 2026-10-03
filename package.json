@@ -74,7 +74,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
     "@cloudflare/vitest-pool-workers": "0.20.1",
-    "@cloudflare/workers-types": "5.20260831.1",
+    "@cloudflare/workers-types": "5.20261001.1",
     "@eslint/js": "10.0.1",
     "@playwright/test": "1.61.1",
     "@testing-library/jest-dom": "^7.0.1",
@@ -92,7 +92,7 @@
     "typescript": "6.0.2",
     "typescript-eslint": "8.65.0",
     "vitest": "4.1.11",
-    "wrangler": "4.128.0",
+    "wrangler": "4.147.0",
     "yaml": "2.9.0"
   },
   "overrides": {
@@ -109,6 +109,7 @@
     "esbuild@0.28.1": true,
     "sharp@0.35.4": true,
     "workerd@1.20260730.1": true,
+    "workerd@1.20261001.1": true,
     "fsevents@2.3.2": true,
     "fsevents@2.3.3": true
   }

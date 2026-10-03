@@ -3,6 +3,7 @@ import {
   organizationSeatingChartRequestSchema,
   organizationSeatingChartSchema,
   seatingConfigurationRequestSchema,
+  savedSeatingTemplateSchema,
   type OrganizationRosterConfiguration,
   type OrganizationSeatingChart,
   type SeatingConfiguration,
@@ -99,12 +100,14 @@ function rosterConfiguration(storage: DurableObjectStorage): OrganizationRosterC
 
 function seatingConfiguration(storage: DurableObjectStorage): SeatingConfiguration {
   const fallback = seatingConfigurationRequestSchema.parse(defaultSeatingConfiguration);
-  const raw = storage.sql
-    .exec<{ readonly configuration: string }>(
-      "SELECT seating_configuration_json AS configuration FROM organization_metadata LIMIT 1",
+  const row = storage.sql
+    .exec<{ readonly configuration: string; readonly templates: string }>(
+      "SELECT seating_configuration_json AS configuration, seating_templates_json AS templates FROM organization_metadata LIMIT 1",
     )
-    .one().configuration;
-  return parseStored(raw, seatingConfigurationRequestSchema, fallback);
+    .one();
+  const configuration = parseStored(row.configuration, seatingConfigurationRequestSchema, fallback);
+  const templates = parseStored(row.templates, z.array(savedSeatingTemplateSchema).max(20), []);
+  return templates.length > 0 ? { ...configuration, templates } : configuration;
 }
 
 function chartFromRow(row: SeatingChartRow): OrganizationSeatingChart {
@@ -471,6 +474,37 @@ function updateConfiguration(
   operation: Extract<SeatingMutation, { readonly action: "update_configuration" }>,
   occurredAt: string,
 ): Response {
+  // Older clients only send formations; retain their unrecognized template data.
+  const previous = seatingConfiguration(storage);
+  const parsed = seatingConfigurationRequestSchema.safeParse({
+    ...operation.configuration,
+    templates: operation.configuration.templates ?? previous.templates,
+  });
+  if (!parsed.success)
+    return Response.json({ code: "invalid_seating_configuration" }, { status: 409 });
+  const configuration = parsed.data;
+  const previousProfileIds = new Set(
+    (previous.templates ?? []).flatMap((template) =>
+      template.assignments.flatMap(({ profileId }) => (profileId ? [profileId] : [])),
+    ),
+  );
+  const templateProfileIds = [
+    ...new Set(
+      (configuration.templates ?? []).flatMap((template) =>
+        template.assignments.flatMap(({ profileId }) => (profileId ? [profileId] : [])),
+      ),
+    ),
+  ];
+  const addedProfileIds = templateProfileIds.filter((id) => !previousProfileIds.has(id));
+  for (let offset = 0; offset < addedProfileIds.length; offset += 100) {
+    const chunk = addedProfileIds.slice(offset, offset + 100);
+    const profiles = storage.sql
+      .exec(`SELECT id FROM profiles WHERE id IN (${chunk.map(() => "?").join(",")})`, ...chunk)
+      .toArray();
+    if (profiles.length !== chunk.length) {
+      return Response.json({ code: "invalid_template_profile" }, { status: 409 });
+    }
+  }
   if (!configurationReferencesAreValid(storage, operation.configuration)) {
     return Response.json({ code: "invalid_formation_reference" }, { status: 409 });
   }
@@ -484,8 +518,12 @@ function updateConfiguration(
   if (inUse) return Response.json({ code: "formation_in_use" }, { status: 409 });
   storage.transactionSync(() => {
     storage.sql.exec(
-      "UPDATE organization_metadata SET seating_configuration_json = ?, updated_at = ?",
-      JSON.stringify(operation.configuration),
+      "UPDATE organization_metadata SET seating_configuration_json = ?, seating_templates_json = ?, updated_at = ?",
+      JSON.stringify({
+        defaultFormationId: configuration.defaultFormationId,
+        formations: configuration.formations,
+      }),
+      JSON.stringify(configuration.templates ?? []),
       occurredAt,
     );
     insertAudit(
@@ -494,11 +532,14 @@ function updateConfiguration(
       "seating.configuration.updated",
       "organization",
       operation.organizationId,
-      { formationCount: operation.configuration.formations.length },
+      {
+        formationCount: configuration.formations.length,
+        templateCount: configuration.templates?.length ?? 0,
+      },
       occurredAt,
     );
   });
-  return Response.json({ configuration: operation.configuration });
+  return Response.json({ configuration });
 }
 
 export async function manageSeatingInStore(

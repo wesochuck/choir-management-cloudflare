@@ -147,3 +147,47 @@ describe("portable seating template validation", () => {
     expect(parsed).not.toHaveProperty("organizationId");
   });
 });
+
+describe("reusable template matching", () => {
+  it("matches names without attendance when saving and applies eligibility only when used", () => {
+    const profiles = [{ id: "p", displayName: "Álex Singer" }];
+    expect(matchSeatingTemplate(chart, profiles).assignments).toEqual({ "0-0": "p" });
+    expect(matchSeatingTemplate(chart, profiles, new Set()).assignments).toEqual({});
+    expect(matchSeatingTemplate(chart, profiles, new Set(["p"])).assignments).toEqual({
+      "0-0": "p",
+    });
+  });
+  it("honors an explicit local match for duplicate or renamed Profiles", () => {
+    const profiles = [
+      { id: "1", displayName: "Álex Singer" },
+      { id: "2", displayName: "Álex Singer" },
+    ];
+    expect(matchSeatingTemplate(chart, profiles, undefined, { "0-0": "2" }).assignments).toEqual({
+      "0-0": "2",
+    });
+    expect(
+      matchSeatingTemplate(chart, [{ id: "2", displayName: "Renamed" }], new Set(["2"]), {
+        "0-0": "2",
+      }).assignments,
+    ).toEqual({ "0-0": "2" });
+    expect(
+      matchSeatingTemplate(chart, profiles, new Set(["1"]), { "0-0": "2" }).assignments,
+    ).toEqual({});
+  });
+  it("rejects explicit matches that would seat a Profile twice or refer outside the roster", () => {
+    const twoSeats = {
+      ...chart,
+      assignments: [
+        { seatKey: "0-0", name: "Alex" },
+        { seatKey: "0-1", name: "Other" },
+      ],
+    };
+    const profiles = [{ id: "1", displayName: "Alex" }];
+    const result = matchSeatingTemplate(twoSeats, profiles, undefined, { "0-1": "1" });
+    expect(result.assignments).toEqual({});
+    expect(result.unresolved).toHaveLength(2);
+    expect(
+      matchSeatingTemplate(chart, profiles, undefined, { "0-0": "foreign" }).assignments,
+    ).toEqual({});
+  });
+});

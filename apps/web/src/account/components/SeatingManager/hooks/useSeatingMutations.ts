@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type {
   OrganizationProfile,
   OrganizationProfileRequest,
@@ -12,10 +12,14 @@ import {
   removeRow,
   removeSeat,
   unassignProfile,
+  matchSeatingTemplate,
+  importedSeatingFormation,
 } from "@choir/domain";
 import type { addRow } from "@choir/domain";
 import {
   AuthApiError,
+  getOrganizationSeatingConfiguration,
+  updateOrganizationSeatingConfiguration,
   createOrganizationProfile,
   createOrganizationSeatingChart,
   deleteOrganizationSeatingChart,
@@ -97,6 +101,7 @@ export function useSeatingMutations({
   const [copyCharts, setCopyCharts] = useState<readonly OrganizationSeatingChart[]>([]);
   const [copyChartId, setCopyChartId] = useState("");
   const [copyBusy, setCopyBusy] = useState(false);
+  const copying = useRef(false);
   const [profileDialog, setProfileDialog] = useState<"add" | "lookup" | null>(null);
   const [profileForm, setProfileForm] = useState<OrganizationProfileRequest>(emptyProfile);
   const [lookupQuery, setLookupQuery] = useState("");
@@ -202,6 +207,15 @@ export function useSeatingMutations({
   async function loadCopyCharts(nextPerformanceId: string): Promise<void> {
     setCopyPerformanceId(nextPerformanceId);
     setCopyChartId("");
+    setError(null);
+    if (!nextPerformanceId) {
+      setCopyCharts([]);
+      return;
+    }
+    if (nextPerformanceId === "__templates__") {
+      setCopyCharts([]);
+      return;
+    }
     setCopyBusy(true);
     try {
       const loaded = await listOrganizationSeatingCharts(nextPerformanceId);
@@ -213,27 +227,84 @@ export function useSeatingMutations({
     }
   }
   function copySelectedChart(): void {
-    const source = copyCharts.find(({ id }) => id === copyChartId);
+    const template =
+      copyPerformanceId === "__templates__"
+        ? resources?.seating.templates?.find(({ id }) => id === copyChartId)
+        : undefined;
+    const performanceChart =
+      copyPerformanceId === "__templates__"
+        ? undefined
+        : copyCharts.find(({ id }) => id === copyChartId);
+    const source = template ?? performanceChart;
     if (!source) return;
     const eligibleIds = new Set(eligibleProfiles.map(({ id }) => id));
-    const assignments = Object.fromEntries(
-      Object.entries(source.assignments).filter(([, profileId]) => eligibleIds.has(profileId)),
-    );
-    const skipped = Object.keys(source.assignments).length - Object.keys(assignments).length;
+    const assignments =
+      template && resources
+        ? matchSeatingTemplate(
+            template,
+            resources.profiles,
+            eligibleIds,
+            Object.fromEntries(
+              template.assignments.flatMap(({ seatKey, profileId }) =>
+                profileId ? [[seatKey, profileId]] : [],
+              ),
+            ),
+          ).assignments
+        : Object.fromEntries(
+            Object.entries(performanceChart?.assignments ?? {}).filter(([, profileId]) =>
+              eligibleIds.has(profileId),
+            ),
+          );
+
+    const skipped =
+      (template ? template.assignments.length : Object.keys(source.assignments).length) -
+      Object.keys(assignments).length;
     setConfirmState({
       title: "Copy seating chart?",
-      message: `Copy layout and assignments from “${source.name}”?${skipped > 0 ? ` ${String(skipped)} ineligible assignment(s) will remain unassigned.` : ""}`,
+      message: `Copy layout and assignments from “${source.name}”?${skipped > 0 ? ` ${String(skipped)} unresolved or ineligible assignment(s) will remain unassigned.` : ""}`,
       confirmLabel: "Copy chart",
-      onConfirm: () => {
-        applyChart({
-          ...chart,
-          assignments,
-          formationId: source.formationId,
-          rowCounts: source.rowCounts,
-          sectionSuggestions: source.sectionSuggestions,
-        });
-        setCopyOpen(false);
-        setConfirmState(null);
+      onConfirm: async () => {
+        if (copying.current) return;
+        copying.current = true;
+        setCopyBusy(true);
+        try {
+          let formationId = chart.formationId;
+          if (template) {
+            const latest = await getOrganizationSeatingConfiguration();
+            const formation = importedSeatingFormation(template.formation, latest.formations);
+            formationId = formation.id;
+            if (!latest.formations.some(({ id }) => id === formation.id)) {
+              const seating = await updateOrganizationSeatingConfiguration({
+                ...latest,
+                formations: [...latest.formations, formation],
+              });
+              setResources((current) => (current ? { ...current, seating } : current));
+            }
+          } else {
+            const copied = performanceChart;
+            if (!copied) return;
+            formationId = copied.formationId;
+          }
+          applyChart({
+            ...chart,
+            assignments,
+            formationId,
+            rowCounts: source.rowCounts,
+            sectionSuggestions: template ? {} : (performanceChart?.sectionSuggestions ?? {}),
+          });
+          setCopyOpen(false);
+          setError(null);
+        } catch (caught: unknown) {
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "The template could not be applied. Configure its sections or voice parts first.",
+          );
+        } finally {
+          copying.current = false;
+          setCopyBusy(false);
+          setConfirmState(null);
+        }
       },
     });
   }

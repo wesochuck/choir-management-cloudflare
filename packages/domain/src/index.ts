@@ -23,6 +23,7 @@ export function isPerformer(profile: { readonly voicePart: string | null }): boo
 
 export {
   matchSeatingTemplate,
+  normalizeSeatingName,
   equivalentSeatingFormation,
   importedSeatingFormation,
 } from "./seatingImport";

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   organizationProfileSchema,
+  type OrganizationProfile,
   organizationRosterConfigurationRequestSchema,
 } from "@choir/contracts";
 import { defaultRosterConfiguration, defaultSeatingConfiguration } from "@choir/domain";
@@ -57,7 +58,11 @@ async function upload(value: unknown = template) {
   Object.defineProperty(file, "text", { value: () => Promise.resolve(JSON.stringify(value)) });
   await userEvent.upload(screen.getByLabelText("Seating template (JSON)"), file);
 }
-function setup(eligible = true, importer = vi.fn().mockResolvedValue(undefined)) {
+function setup(
+  eligible = true,
+  importer = vi.fn().mockResolvedValue(undefined),
+  profiles: OrganizationProfile[] = [profile],
+) {
   const onClose = vi.fn();
   render(
     <SeatingImportDialog
@@ -68,7 +73,7 @@ function setup(eligible = true, importer = vi.fn().mockResolvedValue(undefined))
       onConfigurationSaved={vi.fn()}
       performanceName="Destination concert"
       resources={{
-        profiles: [profile],
+        profiles,
         events: [],
         roster: organizationRosterConfigurationRequestSchema.parse(defaultRosterConfiguration),
         seating: configuration,
@@ -86,6 +91,7 @@ beforeEach(() => {
 describe("seating chart import review", () => {
   it("matches names, adds a separate formation, and creates a new chart with destination IDs", async () => {
     const { importer, onClose } = setup();
+    await userEvent.selectOptions(screen.getByLabelText("Import as"), "chart");
     await upload();
     expect(
       await screen.findByText("1 rows · 2 seats · 1 matched assignments · 0 need review"),
@@ -110,6 +116,7 @@ describe("seating chart import review", () => {
   });
   it("requires explicit acceptance of empty seats for ineligible matches", async () => {
     const { importer } = setup(false);
+    await userEvent.selectOptions(screen.getByLabelText("Import as"), "chart");
     await upload();
     await userEvent.selectOptions(screen.getByLabelText("Formation"), "columns-standard");
     const button = screen.getByRole("button", { name: "Import as new chart" });
@@ -126,6 +133,7 @@ describe("seating chart import review", () => {
   });
   it("shows validation failures and keeps invalid files from creating charts", async () => {
     const { importer } = setup();
+    await userEvent.selectOptions(screen.getByLabelText("Import as"), "chart");
     await upload({ ...template, version: 2 });
     expect(await screen.findByRole("alert")).toHaveTextContent("not a valid seating template");
     expect(screen.getByRole("button", { name: "Import as new chart" })).toBeDisabled();
@@ -136,6 +144,7 @@ describe("seating chart import review", () => {
       true,
       vi.fn().mockRejectedValue(new Error("Organization MFA verification required.")),
     );
+    await userEvent.selectOptions(screen.getByLabelText("Import as"), "chart");
     await upload();
     await userEvent.selectOptions(screen.getByLabelText("Formation"), "columns-standard");
     await userEvent.click(screen.getByRole("button", { name: "Import as new chart" }));
@@ -147,10 +156,81 @@ describe("seating chart import review", () => {
   });
   it("guards keyboard dismissal of an uploaded preview", async () => {
     const { onClose } = setup();
+    await userEvent.selectOptions(screen.getByLabelText("Import as"), "chart");
     await upload();
     await screen.findByLabelText("New chart name");
     await userEvent.keyboard("{Escape}");
     expect(await screen.findByRole("dialog", { name: "Discard unsaved changes?" })).toBeVisible();
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe("reusable seating templates", () => {
+  it("saves all assignments without current attendance and preserves unresolved names", async () => {
+    const { importer, onClose } = setup(false);
+    await upload({
+      ...template,
+      charts: [
+        {
+          ...template.charts[0],
+          assignments: [
+            { seatKey: "0-0", name: "alex singer" },
+            { seatKey: "0-1", name: "Future Singer" },
+          ],
+        },
+      ],
+    });
+    expect(screen.getByLabelText("Import as")).toHaveValue("template");
+    const save = screen.getByRole("button", { name: "Save reusable template" });
+    expect(save).toBeEnabled();
+    await userEvent.click(save);
+    await waitFor(() => {
+      expect(onClose).toHaveBeenCalledOnce();
+    });
+    expect(importer).not.toHaveBeenCalled();
+    expect(updateOrganizationSeatingConfiguration).toHaveBeenCalledWith(
+      expect.objectContaining({
+        formations: configuration.formations,
+        templates: [
+          expect.objectContaining({
+            name: "America 250 (imported)",
+            formation,
+            assignments: [
+              { seatKey: "0-0", name: "alex singer", profileId: profile.id },
+              { seatKey: "0-1", name: "Future Singer" },
+            ],
+          }),
+        ],
+      }),
+    );
+  });
+  it("lets the manager resolve duplicate names without RSVP eligibility", async () => {
+    const duplicate = { ...profile, id: "22222222-2222-4222-8222-222222222222", voicePart: "B1" };
+    setup(false, vi.fn(), [profile, duplicate]);
+    await upload();
+    const select = screen.getByLabelText("Match alex singer · seat 0-0");
+    await userEvent.selectOptions(select, duplicate.id);
+    expect(select).toHaveValue(duplicate.id);
+    await userEvent.click(screen.getByRole("button", { name: "Save reusable template" }));
+    await waitFor(() => {
+      expect(updateOrganizationSeatingConfiguration).toHaveBeenCalled();
+    });
+    expect(
+      vi.mocked(updateOrganizationSeatingConfiguration).mock.calls[0]?.[0].templates?.[0]
+        ?.assignments,
+    ).toEqual([{ seatKey: "0-0", name: "alex singer", profileId: duplicate.id }]);
+  });
+  it("retains the review and names when saving is rejected", async () => {
+    const { onClose } = setup(false);
+    vi.mocked(updateOrganizationSeatingConfiguration).mockRejectedValue(
+      new Error("Organization MFA verification required."),
+    );
+    await upload();
+    await userEvent.click(screen.getByRole("button", { name: "Save reusable template" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Organization MFA verification required.",
+    );
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Save reusable template" })).toBeEnabled();
   });
 });

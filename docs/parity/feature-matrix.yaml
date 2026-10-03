@@ -3038,7 +3038,9 @@
       },
       {
         "id": "workflow.seating",
-        "workflow": "multiple charts, formations, automatic placement, mismatch, and finder",
+        "workflow":
+          "multiple charts, reusable seating templates, formations, automatic placement, mismatch,
+          and finder",
         "owner": "apps/worker",
         "milestone": 5,
         "status": "verified",
@@ -3050,6 +3052,8 @@
             "packages/domain/src/seatingAlgorithm.test.ts",
             "packages/domain/src/seatingConfiguration.ts",
             "packages/domain/src/seatingImport.test.ts",
+            "packages/contracts/src/seatingTemplates.test.ts",
+            "apps/web/src/api/seatingTemplates.test.ts",
             "apps/web/src/account/components/SeatingManager/seatingImport.ui.test.tsx",
             "apps/web/e2e/auth.seating-import.spec.ts",
             "apps/worker/src/organization/seatingStore.ts",

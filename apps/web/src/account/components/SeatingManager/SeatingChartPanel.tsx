@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { SeatingImportDialog } from "./SeatingImportDialog";
+import { SavedSeatingTemplates } from "./SavedSeatingTemplates";
 import { ChartList } from "./chartParts";
 import { SeatingCanvasView } from "./SeatingCanvasView";
 import { SeatingDialogs } from "./SeatingDialogs";
@@ -166,6 +167,19 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
 
       <ChartStatusNotice error={error} hasActiveDialog={hasActiveDialog} loading={loading} />
 
+      <SavedSeatingTemplates
+        configuration={resources.seating}
+        canUse={Boolean(editingId) && !loading}
+        onUse={(id) => {
+          void loadCopyCharts("__templates__");
+          setCopyChartId(id);
+          setCopyOpen(true);
+        }}
+        onSaved={(seating) => {
+          model.setResources((current) => (current ? { ...current, seating } : current));
+        }}
+      />
+
       {importOpen ? (
         <ImportPanel
           model={model}
@@ -197,6 +211,8 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
       {isGridView ? <SeatingCanvasView model={model} /> : null}
 
       <SeatingDialogs
+        copyError={error}
+        templates={resources.seating.templates}
         applyChart={applyChart}
         assignmentCandidates={unassignedProfiles}
         changeNewChartRowCount={changeNewChartRowCount}

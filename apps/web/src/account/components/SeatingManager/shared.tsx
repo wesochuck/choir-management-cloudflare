@@ -16,9 +16,11 @@ import type { ConfirmState } from "./types";
 export function ConfirmDialog({
   state,
   onClose,
+  busy = false,
 }: {
   readonly onClose: () => void;
   readonly state: ConfirmState | null;
+  readonly busy?: boolean;
 }) {
   const confirmedRef = useRef(false);
   const targetSeatKey = state?.seatKey;
@@ -27,7 +29,9 @@ export function ConfirmDialog({
   return (
     <Dialog
       description="This action cannot be undone."
-      onClose={onClose}
+      onClose={() => {
+        if (!busy) onClose();
+      }}
       onCloseAutoFocus={(event) => {
         if (confirmedRef.current) {
           event.preventDefault();
@@ -47,12 +51,13 @@ export function ConfirmDialog({
         <p>{state.message}</p>
         <div className="dialog__actions">
           <DialogClose asChild>
-            <button className="button button--secondary" type="button">
+            <button className="button button--secondary" disabled={busy} type="button">
               Cancel
             </button>
           </DialogClose>
           <button
             className="button button--danger"
+            disabled={busy}
             onClick={() => {
               confirmedRef.current = true;
               void state.onConfirm();
