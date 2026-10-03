@@ -119,7 +119,7 @@
   .roster-automation__preview {
     min-width: 0;
     margin: 0;
-    padding: clamp(var(--spacing-md), 2vw, var(--spacing-xl));
+    padding: var(--spacing-sm) var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface-raised);
@@ -133,13 +133,69 @@
     color: var(--color-text);
   }
 
+  .roster-automation {
+    container-type: inline-size;
+    container-name: roster-automation;
+  }
+
   .roster-automation__cards {
     display: grid;
-    gap: var(--spacing-md);
+    align-items: start;
+    gap: var(--spacing-sm);
+  }
+
+  .roster-automation__card {
+    display: grid;
+    gap: var(--spacing-xs);
+  }
+
+  .roster-automation__card .settings-grid {
+    display: block;
+  }
+
+  .roster-automation__card .field {
+    grid-template-columns: minmax(0, 1fr) 6rem;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  .roster-automation__preview-header {
+    display: grid;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  .roster-automation__preview-header .field {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  .roster-automation__preview-header .section-description {
+    margin: 0;
+  }
+
+  .roster-automation__profile-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--spacing-3xs) var(--spacing-sm);
+  }
+
+  @container roster-automation (min-width: 60rem) {
+    .roster-automation__cards {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @container roster-automation (min-width: 40rem) {
+    .roster-automation__preview-header {
+      grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+    }
   }
 
   .roster-automation__profile-preview {
-    padding: clamp(var(--spacing-md), 2vw, var(--spacing-xl));
+    padding: var(--spacing-sm) var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface-raised);

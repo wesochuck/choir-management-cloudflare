@@ -116,7 +116,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
               </label>
               <div className="settings-grid">
                 <label className="field" htmlFor="status-automation-threshold">
-                  Consecutive missed Performances
+                  <span>Consecutive missed Performances</span>
                   <NumberInput
                     id="status-automation-threshold"
                     min="1"
@@ -169,7 +169,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
                 </span>
               </label>
               <label className="field" htmlFor="on-break-timeout-days">
-                Days on Break before Inactive
+                <span>Days on Break before Inactive</span>
                 <NumberInput
                   id="on-break-timeout-days"
                   min="1"
@@ -220,7 +220,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
                 <span className="choice-field__content">Send the pending RSVP follow-up email</span>
               </label>
               <label className="field" htmlFor="rsvp-follow-up-lead-hours">
-                Hours before the RSVP deadline
+                <span>Hours before the RSVP deadline</span>
                 <NumberInput
                   id="rsvp-follow-up-lead-hours"
                   min="1"
@@ -238,7 +238,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
                 />
               </label>
               <label className="field" htmlFor="attendance-report-warning-threshold">
-                Rehearsal misses before an attendance warning
+                <span>Rehearsal misses before an attendance warning</span>
                 <NumberInput
                   id="attendance-report-warning-threshold"
                   min="1"
@@ -259,29 +259,33 @@ export function RosterAutomationSettings({ enabled }: Props) {
           </div>
           <fieldset className="roster-automation__preview">
             <legend className="roster-automation__legend">Live preview</legend>
-            <p className="section-description">{previewSummary(preview)}</p>
-            <label className="field" htmlFor="roster-automation-profile">
-              Preview Profile
-              <select
-                id="roster-automation-profile"
-                onChange={(event) => {
-                  setSelectedProfileId(event.target.value || null);
-                }}
-                value={effectiveProfileId ?? ""}
-              >
-                <option value="">Choose a Profile</option>
-                {profiles
-                  .filter((profile) => profile.voicePart.trim() !== "")
-                  .map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.displayName}
-                    </option>
-                  ))}
-              </select>
-            </label>
+            <div className="roster-automation__preview-header">
+              <p className="section-description" role="status">
+                {previewSummary(preview)}
+              </p>
+              <label className="field" htmlFor="roster-automation-profile">
+                <span>Preview Profile</span>
+                <select
+                  id="roster-automation-profile"
+                  onChange={(event) => {
+                    setSelectedProfileId(event.target.value || null);
+                  }}
+                  value={effectiveProfileId ?? ""}
+                >
+                  <option value="">Choose a Profile</option>
+                  {profiles
+                    .filter((profile) => profile.voicePart.trim() !== "")
+                    .map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.displayName}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </div>
             {selectedProfile ? (
               <div className="roster-automation__profile-preview">
-                <div>
+                <div className="roster-automation__profile-summary">
                   <strong>{selectedProfile.displayName}</strong>
                   <p className="field-help">
                     {statusLabel(selectedProfile.currentStatus)} →{" "}
