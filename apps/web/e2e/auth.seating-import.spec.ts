@@ -153,6 +153,12 @@ for (const theme of ["light", "dark"] as const) {
       "aria-label",
       /Browser Singer/,
     );
+    await expect(
+      page.locator('[data-seat-key="1-2"].seating-seat--assigned .seating-seat__suggestion'),
+    ).toHaveCount(0);
+    await expect(page.locator(".seating-seat--empty .seating-seat__suggestion").first()).toHaveText(
+      "Open",
+    );
     expect(
       seatingConfigurationRequestSchema.parse(api.seatingConfiguration.get()).templates?.[0]
         ?.assignments,

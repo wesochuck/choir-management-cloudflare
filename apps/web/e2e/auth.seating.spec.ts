@@ -1,6 +1,53 @@
 import { expect, test } from "@playwright/test";
 import { installOrganizationApi } from "./fixtures/apiMocks";
-import { buildOrganizationEvent } from "./fixtures/builders";
+import { buildOrganizationEvent, buildOrganizationProfile } from "./fixtures/builders";
+
+test("keeps unassigned singers' voice parts visible beside truncated names", async ({ page }) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  const displayName = "Alexandra Catherine Montgomery-Wellington";
+  api.profiles.set([buildOrganizationProfile({ displayName, voicePart: "S2" })]);
+  await page.goto("/admin/seating");
+  await page.getByRole("button", { name: "Create chart" }).click();
+  await page.getByLabel("Chart name").fill("Voice part visibility");
+  await page.getByRole("button", { name: "Create chart", exact: true }).click();
+  if ((page.viewportSize()?.width ?? 1000) <= 700) {
+    await page.getByRole("button", { name: "Edit anyway" }).click();
+  }
+
+  const chip = page.locator(".seating-profile-chip").first();
+  await expect(chip).toBeVisible();
+  for (const theme of ["light", "dark"] as const) {
+    const switchTheme = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await switchTheme.isVisible()) await switchTheme.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await expect(chip.locator(".seating-profile-chip__voice")).toHaveText("S2");
+    await expect(chip.locator(".seating-profile-chip__name")).toHaveAttribute("title", displayName);
+    const layout = await chip.evaluate((element) => {
+      const name = element.querySelector<HTMLElement>(".seating-profile-chip__name");
+      const voice = element.querySelector<HTMLElement>(".seating-profile-chip__voice");
+      const remove = element.querySelector("button");
+      if (!name || !voice || !remove) throw new Error("Missing singer chip content");
+      const chipBounds = element.getBoundingClientRect();
+      const voiceBounds = voice.getBoundingClientRect();
+      return {
+        nameTruncated: name.scrollWidth > name.clientWidth,
+        voiceUnclipped:
+          voice.scrollWidth === voice.clientWidth && voice.scrollHeight === voice.clientHeight,
+        voiceInside: voiceBounds.left >= chipBounds.left && voiceBounds.right <= chipBounds.right,
+        noOverlap:
+          name.getBoundingClientRect().right <= voiceBounds.left &&
+          voiceBounds.right <= remove.getBoundingClientRect().left,
+      };
+    });
+    expect(layout).toEqual({
+      nameTruncated: true,
+      voiceUnclipped: true,
+      voiceInside: true,
+      noOverlap: true,
+    });
+  }
+  api.assertNoUnexpectedRequests();
+});
 
 test("renders the focused seating canvas with structural controls", async ({ page }) => {
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });

@@ -6,7 +6,7 @@ import type {
   SeatingFormation,
 } from "@choir/contracts";
 import { type CSSProperties, useRef } from "react";
-import { SeatName, SeatTile } from "./chartParts";
+import { SeatName, SeatSuggestion, SeatTile } from "./chartParts";
 import { useSeatingNamePresentation } from "./hooks/useSeatingNamePresentation";
 
 export interface SeatingGridCanvasProps {
@@ -132,7 +132,7 @@ export function SeatingGridCanvas({
                     title={profile?.displayName}
                   >
                     <span className="seating-seat__number">Seat {seatIndex + 1}</span>
-                    <span className="seating-seat__suggestion">{suggestion ?? "Open"}</span>
+                    <SeatSuggestion occupied={Boolean(profile)} suggestion={suggestion} />
                     <SeatName displayName={profile?.displayName} />
                     {profile ? (
                       <span className="seating-seat__voice">{profile.voicePart}</span>

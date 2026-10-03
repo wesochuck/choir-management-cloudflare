@@ -62,6 +62,29 @@ function MeasurementHarness({
 }
 
 describe("Seating name presentation consistency", () => {
+  it.each([
+    { assigned: sampleProfile, suggestion: undefined, expected: null },
+    { assigned: undefined, suggestion: undefined, expected: "Open" },
+    { assigned: sampleProfile, suggestion: "S", expected: "S" },
+    { assigned: undefined, suggestion: "S", expected: "S" },
+  ])("shows the correct seat suggestion for $expected", ({ assigned, suggestion, expected }) => {
+    const { container } = render(
+      <SeatTile
+        assigned={assigned}
+        label="Seat 1"
+        mismatch={false}
+        onActivate={() => undefined}
+        onDrop={() => undefined}
+        onRemove={() => undefined}
+        seatKey="0-0"
+        suggestion={suggestion}
+      />,
+    );
+    const label = container.querySelector(".seating-seat__suggestion");
+    if (expected === null) expect(label).toBeNull();
+    else expect(label).toHaveTextContent(expected);
+  });
+
   it("renders data-name-presentation on SeatTile and preserves accessible full name label", () => {
     const { rerender } = render(
       <SeatTile

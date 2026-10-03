@@ -10,7 +10,6 @@ import { useRef, useState, type DragEvent } from "react";
 import { updateOrganizationSeatingConfiguration } from "../../../auth/api";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { normalizeFormationOrder, formationOrderOptions, moveFormationOrderItem } from "./utils";
-import { seatingProfileLabel } from "./utils";
 import type { ConfirmState } from "./types";
 
 export function ConfirmDialog({
@@ -417,7 +416,10 @@ export function UnassignedProfileChip({
         event.dataTransfer.effectAllowed = "move";
       }}
     >
-      <span>{seatingProfileLabel(profile)}</span>
+      <span className="seating-profile-chip__name" title={profile.displayName}>
+        {profile.displayName}
+      </span>
+      <span className="seating-profile-chip__voice">{profile.voicePart}</span>
       <button
         aria-label={`Mark ${profile.displayName} not attending`}
         onClick={() => {

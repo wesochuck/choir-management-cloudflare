@@ -13,6 +13,17 @@ import { seatingProfileLabel } from "./utils";
 
 import type { SeatTileProps } from "./types";
 
+export function SeatSuggestion({
+  occupied,
+  suggestion,
+}: {
+  readonly occupied: boolean;
+  readonly suggestion: string | undefined;
+}) {
+  if (!suggestion && occupied) return null;
+  return <span className="seating-seat__suggestion">{suggestion ?? "Open"}</span>;
+}
+
 export function SeatName({ displayName }: { readonly displayName: string | undefined }) {
   return (
     <strong className="seating-seat__name">
@@ -78,7 +89,7 @@ export function SeatTile({
       tabIndex={0}
     >
       <span className="seating-seat__number">{label}</span>
-      <span className="seating-seat__suggestion">{suggestion ?? "Open"}</span>
+      <SeatSuggestion occupied={Boolean(assigned)} suggestion={suggestion} />
       <SeatName displayName={assigned?.displayName} />
       {assigned ? <span className="seating-seat__voice">{assigned.voicePart}</span> : null}
       {mismatch ? <span className="seating-seat__warning">{partLabel} mismatch</span> : null}

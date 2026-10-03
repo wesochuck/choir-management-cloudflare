@@ -1014,6 +1014,7 @@
 
   .seating-profile-chip {
     display: flex;
+    min-width: 0;
     min-height: 2.25rem;
     align-items: center;
     justify-content: space-between;
@@ -1036,13 +1037,23 @@
     box-shadow: 0 0.55rem 1rem color-mix(in srgb, var(--color-text) 24%, transparent);
   }
 
-  .seating-profile-chip span {
+  .seating-profile-chip__name {
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
+  .seating-profile-chip__voice {
+    flex-shrink: 0;
+    max-width: 50%;
+    overflow-wrap: anywhere;
+    font-weight: var(--font-weight-bold);
+  }
+
   .seating-profile-chip button {
+    flex-shrink: 0;
     width: 1.4rem;
     min-height: 1.4rem;
     padding: 0;
