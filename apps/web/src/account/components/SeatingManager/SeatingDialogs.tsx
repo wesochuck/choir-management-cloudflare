@@ -171,7 +171,7 @@ function CopyChartDialog({
 }: CopyChartDialogProps) {
   return (
     <Dialog
-      description="Copy layout and eligible assignments from another Performance using the same Venue."
+      description="Copy layout and eligible assignments from a chart using the same Venue."
       onClose={() => {
         setCopyOpen(false);
       }}
@@ -188,13 +188,12 @@ function CopyChartDialog({
             value={copyPerformanceId}
           >
             <option value="">Choose a Performance</option>
-            {events
-              .filter(({ id }) => id !== eventId)
-              .map((event) => (
-                <option key={event.id} value={event.id}>
-                  {event.title}
-                </option>
-              ))}
+            {events.map((event) => (
+              <option key={event.id} value={event.id}>
+                {event.title}
+                {event.id === eventId ? " (current Performance)" : ""}
+              </option>
+            ))}
           </select>
         </label>
         <label className="field">

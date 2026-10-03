@@ -355,6 +355,21 @@ export function useSeatingMutations({
       );
     }
   }
+  async function importChart(payload: OrganizationSeatingChartRequest): Promise<void> {
+    if (!eventId || !(await flushSave())) {
+      throw new Error("Save the current chart before importing another chart.");
+    }
+    const created = await createOrganizationSeatingChart(eventId, payload);
+    setCharts((current) => [...current, created].toSorted((l, r) => l.sortOrder - r.sortOrder));
+    setEditingId(created.id);
+    editingIdRef.current = created.id;
+    const next = chartRequest(created);
+    setChart(next);
+    chartRef.current = next;
+    setError(null);
+    setSaveState("saved");
+    updateUrl(eventId, created.id);
+  }
   function renameChart(): void {
     if (!editingId || !chartName.trim()) return;
     const next = { ...chart, name: chartName.trim() };
@@ -433,6 +448,7 @@ export function useSeatingMutations({
     copyPerformanceId,
     copySelectedChart,
     createChart,
+    importChart,
     deleteChart,
     loadCopyCharts,
     lookupQuery,

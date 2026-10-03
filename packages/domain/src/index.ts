@@ -22,6 +22,12 @@ export function isPerformer(profile: { readonly voicePart: string | null }): boo
 }
 
 export {
+  matchSeatingTemplate,
+  equivalentSeatingFormation,
+  importedSeatingFormation,
+} from "./seatingImport";
+
+export {
   datePartInTimeZone,
   isValidTimeZone,
   utcToZonedLocalDateTime,

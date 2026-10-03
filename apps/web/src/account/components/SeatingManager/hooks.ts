@@ -158,6 +158,7 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
     copyPerformanceId: mut.copyPerformanceId,
     copySelectedChart: mut.copySelectedChart,
     createChart: mut.createChart,
+    importChart: mut.importChart,
     currentFormation: derived.currentFormation,
     deleteChart: mut.deleteChart,
     dragMessage: dnd.dragMessage,

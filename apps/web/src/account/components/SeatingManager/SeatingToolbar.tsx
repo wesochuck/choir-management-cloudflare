@@ -22,6 +22,7 @@ export interface SeatingToolbarProps {
   readonly flushSave: () => void;
   readonly formations: readonly SeatingFormation[];
   readonly openCreateChartDialog: () => void;
+  readonly openImportDialog: () => void;
   readonly partLabelPlural: string;
   readonly reorderCharts: (delta: -1 | 1) => void;
   readonly saveState: SaveState;
@@ -55,6 +56,7 @@ export function SeatingToolbar({
   flushSave,
   formations,
   openCreateChartDialog,
+  openImportDialog,
   partLabelPlural,
   reorderCharts,
   saveState,
@@ -276,6 +278,13 @@ export function SeatingToolbar({
             type="button"
           >
             Copy
+          </button>
+          <button
+            className="button button--secondary button--small"
+            onClick={openImportDialog}
+            type="button"
+          >
+            Import
           </button>
           <button
             className="button button--secondary button--small"

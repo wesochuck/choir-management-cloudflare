@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
+import { SeatingImportDialog } from "./SeatingImportDialog";
 import { ChartList } from "./chartParts";
 import { SeatingCanvasView } from "./SeatingCanvasView";
 import { SeatingDialogs } from "./SeatingDialogs";
@@ -33,6 +35,7 @@ function ChartStatusNotice({
 
 export function SeatingChartPanel({ model }: { readonly model: SeatingManagerModel }) {
   const { partLabel, partLabelPlural } = useOrganizationTerminology();
+  const [importOpen, setImportOpen] = useState(false);
   const {
     applyChart,
     autoSuggest,
@@ -103,12 +106,14 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
 
   if (!resources) return null;
 
-  const hasActiveDialog =
-    chartDialog !== null ||
-    copyOpen ||
-    profileDialog !== null ||
-    selectedSeat !== null ||
-    confirmState !== null;
+  const hasActiveDialog = [
+    chartDialog !== null,
+    copyOpen,
+    profileDialog !== null,
+    selectedSeat !== null,
+    confirmState !== null,
+    importOpen,
+  ].some(Boolean);
   const hasNoCharts = charts.length === 0;
   const isListView = charts.length > 0 && (viewMode === "list" || viewMode === "index");
   const isGridView = charts.length > 0 && viewMode === "grid";
@@ -136,6 +141,9 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
         }}
         formations={resources.seating.formations}
         openCreateChartDialog={openCreateChartDialog}
+        openImportDialog={() => {
+          setImportOpen(true);
+        }}
         partLabelPlural={partLabelPlural}
         reorderCharts={(delta) => {
           void reorderCharts(delta);
@@ -157,6 +165,15 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
       />
 
       <ChartStatusNotice error={error} hasActiveDialog={hasActiveDialog} loading={loading} />
+
+      {importOpen ? (
+        <ImportPanel
+          model={model}
+          onClose={() => {
+            setImportOpen(false);
+          }}
+        />
+      ) : null}
 
       {hasNoCharts ? (
         <div className="empty-state no-print">
@@ -233,5 +250,31 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
         setSelectedSeat={setSelectedSeat}
       />
     </div>
+  );
+}
+
+function ImportPanel({
+  model,
+  onClose,
+}: {
+  readonly model: SeatingManagerModel;
+  readonly onClose: () => void;
+}) {
+  const { resources, eventId, chart, charts, eligibleProfiles, importChart, setResources } = model;
+  if (!resources) return null;
+  const performance = resources.events.find(({ id }) => id === eventId);
+  return (
+    <SeatingImportDialog
+      charts={charts}
+      eligibleProfiles={eligibleProfiles}
+      importChart={importChart}
+      onClose={onClose}
+      onConfigurationSaved={(seating) => {
+        setResources((current) => (current ? { ...current, seating } : current));
+      }}
+      performanceName={performance?.title ?? "Performance"}
+      resources={resources}
+      venueId={chart.venueId ?? performance?.venueId ?? null}
+    />
   );
 }
