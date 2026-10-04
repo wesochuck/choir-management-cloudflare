@@ -52,6 +52,12 @@ test("seat fisheye supports hover, focus, themes, print, and the mobile read-onl
     const switchTheme = page.getByRole("button", { name: `Switch to ${theme} theme` });
     if (await switchTheme.isVisible()) await switchTheme.click();
     await seat.scrollIntoViewIfNeeded();
+    const restingLayout = await page.locator(".seating-seat--canvas").evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const { x, y, width, height } = node.getBoundingClientRect();
+        return { x, y, width, height };
+      }),
+    );
     const normalWidth = await seat.evaluate((node) => node.getBoundingClientRect().width);
     await page.keyboard.press("Tab");
     await seat.focus();
@@ -59,13 +65,25 @@ test("seat fisheye supports hover, focus, themes, print, and the mobile read-onl
     await expect(seat.locator(".seating-seat__name-full")).toBeVisible();
     await expect(seat.locator(".seating-seat__name-initials")).toBeHidden();
     await expect(page.getByRole("tooltip")).toHaveCount(0);
-    const lensWidth = await seat.evaluate((node) => node.getBoundingClientRect().width);
+    const lensWidth = await seat
+      .locator(".seating-seat__surface")
+      .evaluate((node) => node.getBoundingClientRect().width);
     expect(lensWidth).toBeGreaterThan(normalWidth);
     const neighbor = page.locator('[data-seat-key="0-1"]');
     const distant = page.locator('[data-seat-key="0-3"]');
-    expect(await neighbor.evaluate((node) => node.getBoundingClientRect().width)).toBeGreaterThan(
-      await distant.evaluate((node) => node.getBoundingClientRect().width),
-    );
+    expect(
+      await neighbor
+        .locator(".seating-seat__surface")
+        .evaluate((node) => node.getBoundingClientRect().width),
+    ).toBeGreaterThan(await distant.evaluate((node) => node.getBoundingClientRect().width));
+    expect(
+      await page.locator(".seating-seat--canvas").evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const { x, y, width, height } = node.getBoundingClientRect();
+          return { x, y, width, height };
+        }),
+      ),
+    ).toEqual(restingLayout);
     await page.screenshot({ path: testInfo.outputPath(`seat-fisheye-${theme}.png`) });
     await page.emulateMedia({ media: "print" });
     await expect(seat.locator(".seating-seat__name-initials")).toBeVisible();
@@ -79,6 +97,78 @@ test("seat fisheye supports hover, focus, themes, print, and the mobile read-onl
       await page.getByRole("heading", { name: "Performance seating" }).hover();
       await expect(seat).not.toHaveAttribute("data-magnified");
     }
+  }
+  api.assertNoUnexpectedRequests();
+});
+
+test("seat-shaped zoom tapers on both sides without moving rows or blocking seat controls", async ({
+  page,
+}, testInfo) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  const profiles = [
+    buildOrganizationProfile({ displayName: "Ashley Cooper" }),
+    buildOrganizationProfile({
+      id: "11111111-1111-4111-8111-111111111112",
+      displayName: "Katherine Brown",
+      voicePart: "A1",
+    }),
+    buildOrganizationProfile({
+      id: "11111111-1111-4111-8111-111111111113",
+      displayName: "Jordan Miles",
+      voicePart: "A1",
+    }),
+  ] as const;
+  api.profiles.set([...profiles]);
+  const chart = buildSeatingChart({
+    rowCounts: [10, 10, 10, 10],
+    assignments: { "1-4": profiles[0].id, "1-3": profiles[1].id, "1-5": profiles[2].id },
+    sectionSuggestions: {},
+  });
+  api.seatingCharts.set([chart]);
+  await page.goto(`/admin/seating?eventId=${chart.eventId}&chartId=${chart.id}`);
+  await expect(page.getByRole("heading", { name: "Performance seating" })).toBeVisible();
+  const lightTheme = page.getByRole("button", { name: "Switch to light theme" });
+  if (await lightTheme.isVisible()) await lightTheme.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  const seat = page.locator('[data-seat-key="1-4"]');
+  await seat.scrollIntoViewIfNeeded();
+  const normal = await seat.boundingBox();
+  if (!normal) throw new Error("Missing seat bounds");
+  await page.keyboard.press("Tab");
+  await seat.focus();
+  await expect(seat).toHaveAttribute("data-magnified", "true");
+  await expect(page.locator("[data-magnified-neighbor]")).toHaveCount(2);
+  for (const key of ["1-3", "1-5"]) {
+    const neighbor = page.locator(`[data-seat-key="${key}"]`);
+    await expect(neighbor).toHaveAttribute("data-magnified-neighbor", "true");
+    const visual = await neighbor.locator(".seating-seat__surface").boundingBox();
+    const layout = await neighbor.boundingBox();
+    if (!visual || !layout) throw new Error("Missing neighboring seat bounds");
+    expect(visual.width / layout.width).toBeCloseTo(1.15, 1);
+    expect(visual.height / layout.height).toBeCloseTo(1.15, 1);
+  }
+  const visual = await seat.locator(".seating-seat__surface").boundingBox();
+  if (!visual) throw new Error("Missing magnified surface");
+  expect(visual.width).toBeGreaterThan(normal.width * 1.6);
+  // The lens scales by 1.7 while its surface can grow to fit a wrapped full name.
+  const scale = await seat
+    .locator(".seating-seat__surface")
+    .evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).a);
+  expect(scale).toBeCloseTo(1.7, 5);
+  expect(visual.height).toBeGreaterThanOrEqual(normal.height * 1.7 - 1);
+  expect(await seat.boundingBox()).toEqual(normal);
+  await expect(seat.locator(".seating-seat__name-full")).toHaveText("Ashley Cooper");
+  await page.screenshot({ path: testInfo.outputPath("seat-shaped-zoom.png"), fullPage: true });
+  await page
+    .locator(".seating-editor-canvas")
+    .screenshot({ path: testInfo.outputPath("seat-shaped-zoom-canvas.png") });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(seat.locator(".seating-seat__surface")).toHaveCSS("transition-duration", "0s");
+  if ((page.viewportSize()?.width ?? 1000) > 700) {
+    await seat.getByRole("button", { name: "Remove Ashley Cooper from Seat 5" }).click();
+    const confirmation = page.getByRole("dialog", { name: "Clear seat assignment?" });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole("button", { name: "Cancel" }).click();
   }
   api.assertNoUnexpectedRequests();
 });

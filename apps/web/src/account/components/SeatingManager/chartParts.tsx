@@ -40,6 +40,7 @@ export function SeatTile({
   label,
   mismatch,
   magnified,
+  magnifiedNeighbor,
   onActivate,
   onDrop,
   onRemove,
@@ -57,6 +58,7 @@ export function SeatTile({
       data-name-presentation={presentation}
       data-seat-key={seatKey}
       data-magnified={magnified ? true : undefined}
+      data-magnified-neighbor={magnifiedNeighbor ? true : undefined}
       draggable={Boolean(assigned)}
       ref={(node) => {
         draggable.setNodeRef(node);
@@ -89,28 +91,30 @@ export function SeatTile({
       }}
       tabIndex={0}
     >
-      <span className="seating-seat__number">{label}</span>
-      <SeatSuggestion occupied={Boolean(assigned)} suggestion={suggestion} />
-      <SeatName displayName={assigned?.displayName} />
-      {assigned ? <span className="seating-seat__voice">{assigned.voicePart}</span> : null}
-      {mismatch ? <span className="seating-seat__warning">{partLabel} mismatch</span> : null}
-      <button
-        aria-label={
-          assigned ? `Remove ${assigned.displayName} from ${label}` : `Delete empty ${label}`
-        }
-        className="seating-seat__remove"
-        onClick={(event) => {
-          event.stopPropagation();
-          onRemove();
-        }}
-        onKeyDown={(event) => {
-          event.stopPropagation();
-        }}
-        title={assigned ? "Clear seat assignment" : "Delete empty seat"}
-        type="button"
-      >
-        ×
-      </button>
+      <div className="seating-seat__surface">
+        <span className="seating-seat__number">{label}</span>
+        <SeatSuggestion occupied={Boolean(assigned)} suggestion={suggestion} />
+        <SeatName displayName={assigned?.displayName} />
+        {assigned ? <span className="seating-seat__voice">{assigned.voicePart}</span> : null}
+        {mismatch ? <span className="seating-seat__warning">{partLabel} mismatch</span> : null}
+        <button
+          aria-label={
+            assigned ? `Remove ${assigned.displayName} from ${label}` : `Delete empty ${label}`
+          }
+          className="seating-seat__remove"
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemove();
+          }}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+          }}
+          title={assigned ? "Clear seat assignment" : "Delete empty seat"}
+          type="button"
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
 }

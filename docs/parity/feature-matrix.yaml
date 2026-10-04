@@ -3475,9 +3475,9 @@
           "test/seatingLayoutRegression.test.ts; test/seatingMismatch.test.ts;
           src/components/admin/SeatingGrid.tsx; src/components/admin/SeatingBottomDock.tsx",
         "notes":
-          "User-approved 2026-10-04: replace seat-name popups with in-place fisheye enlargement on
-          hover and keyboard focus; preserve full accessible names, print layout, and editing
-          controls.",
+          "User-approved 2026-10-04: replace seat-name popups with seat-shaped visual zoom on hover
+          and keyboard focus, gently magnify immediate left/right neighbors, and keep grid positions
+          fixed; preserve full accessible names, print layout, and editing controls.",
         "targetEvidence":
           [
             "apps/web/src/account/components/SeatingManager/controller.tsx",

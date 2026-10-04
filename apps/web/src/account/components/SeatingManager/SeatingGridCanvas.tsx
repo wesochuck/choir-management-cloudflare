@@ -30,6 +30,10 @@ function seatKeyForTarget(target: EventTarget | null): string | null {
     : null;
 }
 
+function isMagnifiedNeighbor(seatIndex: number, magnifiedIndex: number): boolean {
+  return magnifiedIndex >= 0 && Math.abs(seatIndex - magnifiedIndex) === 1;
+}
+
 export function SeatingGridCanvas({
   chart,
   currentFormation,
@@ -114,16 +118,6 @@ export function SeatingGridCanvas({
           const magnifiedIndex = magnifiedSeat?.startsWith(`${String(rowIndex)}-`)
             ? Number(magnifiedSeat.split("-")[1])
             : -1;
-          const lensColumns =
-            magnifiedIndex < 0
-              ? undefined
-              : Array.from({ length: count }, (_, index) =>
-                  index === magnifiedIndex
-                    ? "minmax(9rem, 3fr)"
-                    : Math.abs(index - magnifiedIndex) === 1
-                      ? "minmax(calc(var(--seating-base-seat-width, 3rem) * 1.35), 1.5fr)"
-                      : "minmax(var(--seating-base-seat-width, 3rem), 1fr)",
-                ).join(" ");
           const initialPresentation = count >= 15 ? "initials" : "full";
           const occupied = Array.from(
             { length: count },
@@ -137,7 +131,6 @@ export function SeatingGridCanvas({
               style={
                 {
                   "--seating-seat-count": String(count),
-                  "--seating-lens-columns": lensColumns,
                 } as CSSProperties
               }
             >
@@ -162,6 +155,7 @@ export function SeatingGridCanvas({
               ) : null}
               {Array.from({ length: count }, (_, seatIndex) => {
                 const seatKey = `${String(rowIndex)}-${String(seatIndex)}`;
+                const magnifiedNeighbor = isMagnifiedNeighbor(seatIndex, magnifiedIndex);
                 const profile = profileForSeat(seatKey);
                 const suggestion = chart.sectionSuggestions[seatKey];
                 const mismatch = currentFormation?.isVoicePartLayout
@@ -178,6 +172,7 @@ export function SeatingGridCanvas({
                     label={`Seat ${String(seatIndex + 1)}`}
                     mismatch={mismatch}
                     magnified={seatKey === magnifiedSeat}
+                    magnifiedNeighbor={magnifiedNeighbor}
                     onActivate={() => {
                       setSelectedSeat(seatKey);
                     }}
@@ -198,15 +193,18 @@ export function SeatingGridCanvas({
                     data-name-presentation={initialPresentation}
                     data-seat-key={seatKey}
                     data-magnified={seatKey === magnifiedSeat || undefined}
+                    data-magnified-neighbor={magnifiedNeighbor ? true : undefined}
                     key={seatKey}
                     tabIndex={profile ? 0 : undefined}
                   >
-                    <span className="seating-seat__number">Seat {seatIndex + 1}</span>
-                    <SeatSuggestion occupied={Boolean(profile)} suggestion={suggestion} />
-                    <SeatName displayName={profile?.displayName} />
-                    {profile ? (
-                      <span className="seating-seat__voice">{profile.voicePart}</span>
-                    ) : null}
+                    <div className="seating-seat__surface">
+                      <span className="seating-seat__number">Seat {seatIndex + 1}</span>
+                      <SeatSuggestion occupied={Boolean(profile)} suggestion={suggestion} />
+                      <SeatName displayName={profile?.displayName} />
+                      {profile ? (
+                        <span className="seating-seat__voice">{profile.voicePart}</span>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}

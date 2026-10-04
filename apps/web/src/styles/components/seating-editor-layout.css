@@ -693,30 +693,81 @@
     min-width: min-content;
   }
 
+  .seating-seat__surface {
+    display: contents;
+  }
+
   @media screen {
+    .seating-grid--canvas {
+      /* Reserve room for the visual lens at the scroll boundaries. */
+      padding: 2.5rem 3.5rem;
+    }
+
     .seating-row--canvas {
       grid-template-columns:
         3.85rem 1.45rem
-        var(
-          --seating-lens-columns,
-          repeat(var(--seating-seat-count), minmax(var(--seating-base-seat-width, 3rem), 1fr))
-        )
+        repeat(var(--seating-seat-count), minmax(var(--seating-base-seat-width, 3rem), 1fr))
         1.45rem;
     }
 
     .seating-editor-canvas--readonly .seating-row--canvas {
       grid-template-columns:
         3.85rem
-        var(
-          --seating-lens-columns,
-          repeat(var(--seating-seat-count), minmax(var(--seating-base-seat-width, 3rem), 1fr))
-        );
+        repeat(var(--seating-seat-count), minmax(var(--seating-base-seat-width, 3rem), 1fr));
+    }
+
+    .seating-seat--canvas {
+      height: clamp(4.2rem, 6vw, 6rem);
+    }
+
+    .seating-seat--canvas[data-magnified],
+    .seating-seat--canvas[data-magnified-neighbor] {
+      z-index: 2;
     }
 
     .seating-seat--canvas[data-magnified] {
-      font-size: var(--font-size-sm);
-      border-color: var(--color-accent);
+      z-index: 3;
+    }
+
+    .seating-seat--canvas[data-magnified] .seating-seat__surface,
+    .seating-seat--canvas[data-magnified-neighbor] .seating-seat__surface {
+      position: absolute;
+      top: 0;
+      left: 50%;
+      display: flex;
+      width: 100%;
+      height: 100%;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: inherit;
+      padding: inherit;
+      border: inherit;
+      border-radius: inherit;
+      color: inherit;
+      background: inherit;
+      line-height: var(--line-height-tight);
       box-shadow: var(--shadow-sm);
+      transform: translateX(-50%) scale(1.15);
+      pointer-events: none;
+    }
+
+    .seating-seat--canvas[data-magnified] .seating-seat__surface {
+      top: 50%;
+      height: auto;
+      min-height: 100%;
+      border-color: var(--color-accent);
+      box-shadow: var(--shadow-md);
+      transform: translate(-50%, -50%) scale(1.7);
+    }
+
+    .seating-seat--canvas[data-magnified] .seating-seat__remove {
+      top: -0.35rem;
+      right: -0.35rem;
+    }
+
+    .seating-seat__surface .seating-seat__remove {
+      pointer-events: auto;
     }
 
     .seating-seat--canvas[data-magnified] .seating-seat__name {

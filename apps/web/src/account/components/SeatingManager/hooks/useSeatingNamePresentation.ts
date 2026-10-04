@@ -26,8 +26,6 @@ export function useSeatingNamePresentation(
 
       const rows = canvas.querySelectorAll<HTMLElement>(".seating-row--canvas");
       for (const row of rows) {
-        // Measure the resting chart, not the temporary fisheye expansion.
-        if (row.querySelector("[data-magnified]")) continue;
         const firstSeat = row.querySelector<HTMLElement>(".seating-seat--canvas");
         if (!firstSeat) continue;
         const seatWidth = firstSeat.getBoundingClientRect().width;
