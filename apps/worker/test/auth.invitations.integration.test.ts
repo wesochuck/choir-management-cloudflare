@@ -23,6 +23,50 @@ beforeEach(async () => setupAuthIntegration());
 afterEach(async () => teardownAuthIntegration());
 
 describe("Organization invitations", () => {
+  it("excludes expired invitations before pagination for ISO and numeric dates", async () => {
+    await seedInvitedUser();
+    await seedOrganizations();
+    const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+    const now = Date.now();
+    const expiredAt = now - 60_000;
+    const activeAt = now + 60_000;
+    const rows = [
+      ...Array.from({ length: 51 }, (_, index) => ({
+        id: `expired-iso-${String(index)}`,
+        expiresAt: new Date(expiredAt).toISOString(),
+      })),
+      { id: "expired-numeric", expiresAt: expiredAt },
+      { id: "cutoff-iso", expiresAt: new Date(now).toISOString() },
+      { id: "cutoff-numeric", expiresAt: now },
+      { id: "active-iso", expiresAt: new Date(activeAt).toISOString() },
+      { id: "active-numeric", expiresAt: activeAt },
+    ];
+    await testEnv.CONTROL_DB.batch(
+      rows.map(({ id, expiresAt }) =>
+        testEnv.CONTROL_DB.prepare(
+          `INSERT INTO invitation
+            (id, organizationId, email, role, status, expiresAt, createdAt, inviterId)
+           VALUES (?, ?, ?, 'member', 'pending', ?, ?, ?)`,
+        ).bind(id, "organization-alpha", INVITED_EMAIL, expiresAt, now, "user-invited-member"),
+      ),
+    );
+    const response = await fetchWorker(
+      authRequest(
+        "/api/organization/invitations",
+        { headers: { cookie: sessionCookie } },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(response.status).toBe(200);
+    const result = organizationInvitationsResponseSchema.parse(await response.json());
+    expect(result.invitations.map(({ id }) => id).sort()).toEqual(["active-iso", "active-numeric"]);
+    expect(result.invitations.map(({ expiresAt }) => expiresAt)).toEqual([
+      new Date(activeAt).toISOString(),
+      new Date(activeAt).toISOString(),
+    ]);
+    expect(result.truncated).toBe(false);
+  });
+
   it("explains application-wide suppression before creating an invitation", async () => {
     await seedInvitedUser();
     await seedOrganizations();
@@ -320,48 +364,51 @@ describe("Organization invitations", () => {
     ).resolves.toEqual({ count: 0 });
   });
 
-  it("rejects an expired invitation without creating a membership", async () => {
-    await seedInvitedUser();
-    await seedOrganizations();
-    await testEnv.CONTROL_DB.prepare("DELETE FROM member WHERE userId = ?")
-      .bind("user-invited-member")
-      .run();
-    const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
-    await testEnv.CONTROL_DB.prepare(
-      `INSERT INTO invitation
+  it.each(["ISO", "numeric"] as const)(
+    "rejects an expired %s invitation without creating a membership",
+    async (dateFormat) => {
+      await seedInvitedUser();
+      await seedOrganizations();
+      await testEnv.CONTROL_DB.prepare("DELETE FROM member WHERE userId = ?")
+        .bind("user-invited-member")
+        .run();
+      const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+      await testEnv.CONTROL_DB.prepare(
+        `INSERT INTO invitation
         (id, organizationId, email, role, status, expiresAt, createdAt, inviterId)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-      .bind(
-        "invitation-expired",
-        "organization-alpha",
-        INVITED_EMAIL,
-        "member",
-        "pending",
-        Date.now() - 60_000,
-        Date.now() - 120_000,
-        "user-invited-member",
       )
-      .run();
+        .bind(
+          "invitation-expired",
+          "organization-alpha",
+          INVITED_EMAIL,
+          "member",
+          "pending",
+          dateFormat === "ISO" ? new Date(Date.now() - 60_000).toISOString() : Date.now() - 60_000,
+          Date.now() - 120_000,
+          "user-invited-member",
+        )
+        .run();
 
-    const response = await fetchWorker(
-      authRequest(
-        "/api/organization/invitations/invitation-expired/accept",
-        {
-          headers: { cookie: sessionCookie },
-          method: "POST",
-        },
-        ALPHA_AUTH_ORIGIN,
-      ),
-    );
+      const response = await fetchWorker(
+        authRequest(
+          "/api/organization/invitations/invitation-expired/accept",
+          {
+            headers: { cookie: sessionCookie },
+            method: "POST",
+          },
+          ALPHA_AUTH_ORIGIN,
+        ),
+      );
 
-    expect(response.status).toBeGreaterThanOrEqual(400);
-    await expect(
-      testEnv.CONTROL_DB.prepare(
-        "SELECT COUNT(*) AS count FROM member WHERE organizationId = ? AND userId = ?",
-      )
-        .bind("organization-alpha", "user-invited-member")
-        .first(),
-    ).resolves.toEqual({ count: 0 });
-  });
+      expect(response.status).toBeGreaterThanOrEqual(400);
+      await expect(
+        testEnv.CONTROL_DB.prepare(
+          "SELECT COUNT(*) AS count FROM member WHERE organizationId = ? AND userId = ?",
+        )
+          .bind("organization-alpha", "user-invited-member")
+          .first(),
+      ).resolves.toEqual({ count: 0 });
+    },
+  );
 });

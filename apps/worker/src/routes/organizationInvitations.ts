@@ -214,14 +214,21 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
 
+    const now = Date.now();
+    // Better Auth's SQLite adapter stores ISO dates; older rows/tests may use milliseconds.
+    // Compare within each representation instead of relying on SQLite's text/number ordering.
     const rows = await context.env.CONTROL_DB.prepare(
       `SELECT id, organizationId, email, role, status, expiresAt, createdAt, inviterId
      FROM invitation
-     WHERE organizationId = ? AND status = 'pending' AND expiresAt > ?
+     WHERE organizationId = ? AND status = 'pending'
+       AND CASE WHEN typeof(expiresAt) IN ('integer', 'real')
+         THEN expiresAt > ?
+         ELSE julianday(expiresAt) > julianday(?)
+       END
      ORDER BY createdAt DESC, id DESC
      LIMIT ?`,
     )
-      .bind(organizationId, Date.now(), ORGANIZATION_INVITATION_PAGE_SIZE + 1)
+      .bind(organizationId, now, new Date(now).toISOString(), ORGANIZATION_INVITATION_PAGE_SIZE + 1)
       .all<InvitationControlRow>();
     const invitations = rows.results
       .slice(0, ORGANIZATION_INVITATION_PAGE_SIZE)
