@@ -144,18 +144,24 @@ test("seat-shaped zoom tapers on both sides without moving rows or blocking seat
     const visual = await neighbor.locator(".seating-seat__surface").boundingBox();
     const layout = await neighbor.boundingBox();
     if (!visual || !layout) throw new Error("Missing neighboring seat bounds");
-    expect(visual.width / layout.width).toBeCloseTo(1.15, 1);
-    expect(visual.height / layout.height).toBeCloseTo(1.15, 1);
+    expect(visual.width / layout.width).toBeCloseTo(1.08, 2);
+    const scale = await neighbor
+      .locator(".seating-seat__surface")
+      .evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).a);
+    expect(scale).toBeCloseTo(1.08, 5);
+    expect(visual.height).toBeGreaterThanOrEqual(layout.height * 1.08 - 1);
+    await expect(neighbor.locator(".seating-seat__name-full")).toBeHidden();
+    await expect(neighbor.locator(".seating-seat__name-initials")).toBeVisible();
   }
   const visual = await seat.locator(".seating-seat__surface").boundingBox();
   if (!visual) throw new Error("Missing magnified surface");
-  expect(visual.width).toBeGreaterThan(normal.width * 1.6);
-  // The lens scales by 1.7 while its surface can grow to fit a wrapped full name.
+  expect(visual.width).toBeGreaterThan(normal.width * 1.4);
+  // The lens scales by 1.5 while its surface can grow to fit a wrapped full name.
   const scale = await seat
     .locator(".seating-seat__surface")
     .evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).a);
-  expect(scale).toBeCloseTo(1.7, 5);
-  expect(visual.height).toBeGreaterThanOrEqual(normal.height * 1.7 - 1);
+  expect(scale).toBeCloseTo(1.5, 5);
+  expect(visual.height).toBeGreaterThanOrEqual(normal.height * 1.5 - 1);
   expect(await seat.boundingBox()).toEqual(normal);
   await expect(seat.locator(".seating-seat__name-full")).toHaveText("Ashley Cooper");
   await page.screenshot({ path: testInfo.outputPath("seat-shaped-zoom.png"), fullPage: true });
@@ -169,6 +175,161 @@ test("seat-shaped zoom tapers on both sides without moving rows or blocking seat
     const confirmation = page.getByRole("dialog", { name: "Clear seat assignment?" });
     await expect(confirmation).toBeVisible();
     await confirmation.getByRole("button", { name: "Cancel" }).click();
+  }
+  api.assertNoUnexpectedRequests();
+});
+
+test("mismatch seats preserve name height at rest and as either lens seat", async ({
+  page,
+}, testInfo) => {
+  if ((page.viewportSize()?.width ?? 1000) > 700) {
+    await page.setViewportSize({ width: 1536, height: 960 });
+  }
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  const profile = buildOrganizationProfile({ displayName: "Alex Stone", voicePart: "S2" });
+  const neighbor = buildOrganizationProfile({
+    id: "11111111-1111-4111-8111-111111111114",
+    displayName: "Abby Tolliver",
+    voicePart: "A1",
+  });
+  api.profiles.set([profile, neighbor]);
+  const chart = buildSeatingChart({
+    rowCounts: [8, 10, 12],
+    assignments: { "0-3": profile.id, "0-2": neighbor.id },
+    sectionSuggestions: { "0-3": "A", "0-2": "A" },
+  });
+  api.seatingCharts.set([chart]);
+  await page.goto(`/admin/seating?eventId=${chart.eventId}&chartId=${chart.id}`);
+  const seat = page.locator('[data-seat-key="0-3"]');
+  await expect(seat).toHaveClass(/--mismatch/);
+  for (const theme of ["light", "dark"] as const) {
+    const switchTheme = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await switchTheme.isVisible()) await switchTheme.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await seat.scrollIntoViewIfNeeded();
+    const restingHeight = await seat.evaluate((node) => node.getBoundingClientRect().height);
+    for (const target of [null, "0-3", "0-2"]) {
+      await page.getByLabel("Select seating chart").focus();
+      if (target) {
+        await page.keyboard.press("Tab");
+        await page.locator(`[data-seat-key="${target}"]`).focus();
+        await expect(seat).toHaveAttribute(
+          target === "0-3" ? "data-magnified" : "data-magnified-neighbor",
+          "true",
+        );
+      }
+      const content = await seat.evaluate((node) => {
+        const name = node.querySelector<HTMLElement>(".seating-seat__name");
+        const surface = node.querySelector<HTMLElement>(".seating-seat__surface");
+        if (!name || !surface) throw new Error("Missing seat name or surface");
+        const visibleText = [...name.children].find(
+          (child) => getComputedStyle(child).display !== "none",
+        );
+        if (!visibleText) throw new Error("Missing visible seat name");
+        const range = document.createRange();
+        range.selectNodeContents(visibleText);
+        const textBounds = range.getBoundingClientRect();
+        const nameBounds = name.getBoundingClientRect();
+        const bounds =
+          getComputedStyle(surface).display === "contents"
+            ? node.getBoundingClientRect()
+            : surface.getBoundingClientRect();
+        return {
+          nameHeight: nameBounds.height,
+          textHeight: textBounds.height,
+          inside: nameBounds.top >= bounds.top && nameBounds.bottom <= bounds.bottom,
+          seatHeight: node.getBoundingClientRect().height,
+          warningHeight: node.querySelector(".seating-seat__warning")?.getBoundingClientRect()
+            .height,
+        };
+      });
+      expect(content.nameHeight).toBeGreaterThanOrEqual(content.textHeight - 1);
+      expect(content.inside).toBe(true);
+      expect(content.seatHeight).toBe(restingHeight);
+      if ((page.viewportSize()?.width ?? 1000) > 700) {
+        await expect(seat.locator(".seating-seat__name-full")).toBeVisible();
+        await expect(seat.locator(".seating-seat__warning")).toHaveText("Part mismatch");
+        expect(content.warningHeight).toBeGreaterThan(0);
+      }
+    }
+    await page
+      .locator(".seating-editor-canvas")
+      .screenshot({ path: testInfo.outputPath(`mismatch-neighbor-${theme}.png`) });
+  }
+  api.assertNoUnexpectedRequests();
+});
+
+test("hover reveals the complete name in an initials-only row and restores initials on leaving", async ({
+  page,
+}, testInfo) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  const profiles = [
+    buildOrganizationProfile({ displayName: "Alexandra Catherine Montgomery-Wellington" }),
+    buildOrganizationProfile({
+      id: "11111111-1111-4111-8111-111111111115",
+      displayName: "Katherine Brown",
+    }),
+    buildOrganizationProfile({
+      id: "11111111-1111-4111-8111-111111111116",
+      displayName: "Jordan Miles",
+    }),
+  ] as const;
+  api.profiles.set([...profiles]);
+  const chart = buildSeatingChart({
+    rowCounts: [16, 16, 16],
+    assignments: { "1-4": profiles[0].id, "1-3": profiles[1].id, "1-5": profiles[2].id },
+    sectionSuggestions: {},
+  });
+  api.seatingCharts.set([chart]);
+  await page.goto(`/admin/seating?eventId=${chart.eventId}&chartId=${chart.id}`);
+  const seat = page.locator('[data-seat-key="1-4"]');
+  await expect(seat).toBeVisible();
+  await seat.scrollIntoViewIfNeeded();
+  const height = await seat.evaluate((node) => node.getBoundingClientRect().height);
+  for (const key of ["1-3", "1-4", "1-5"]) {
+    const tile = page.locator(`[data-seat-key="${key}"]`);
+    await expect(tile.locator(".seating-seat__name-initials")).toBeVisible();
+    await expect(tile.locator(".seating-seat__name-full")).toBeHidden();
+  }
+  if ((page.viewportSize()?.width ?? 1000) > 700) {
+    await seat.hover();
+  } else {
+    await page.keyboard.press("Tab");
+    await seat.focus();
+  }
+  await expect(seat).toHaveAttribute("data-magnified", "true");
+  for (const key of ["1-4"]) {
+    const tile = page.locator(`[data-seat-key="${key}"]`);
+    await expect(tile.locator(".seating-seat__name-full")).toBeVisible();
+    await expect(tile.locator(".seating-seat__name-initials")).toBeHidden();
+    const fit = await tile.evaluate((node) => {
+      const name = node.querySelector<HTMLElement>(".seating-seat__name");
+      const surface = node.querySelector<HTMLElement>(".seating-seat__surface");
+      if (!name || !surface) throw new Error("Missing magnified name");
+      const nameBounds = name.getBoundingClientRect();
+      const surfaceBounds = surface.getBoundingClientRect();
+      return {
+        unclipped: name.scrollHeight <= name.clientHeight && name.scrollWidth <= name.clientWidth,
+        readableWidth: nameBounds.width >= 120,
+        inside: nameBounds.top >= surfaceBounds.top && nameBounds.bottom <= surfaceBounds.bottom,
+      };
+    });
+    expect(fit).toEqual({ unclipped: true, readableWidth: true, inside: true });
+  }
+  await expect(seat.locator(".seating-seat__name-full")).toHaveText(profiles[0].displayName);
+  expect(await seat.evaluate((node) => node.getBoundingClientRect().height)).toBe(height);
+  await page
+    .locator(".seating-editor-canvas")
+    .screenshot({ path: testInfo.outputPath("hover-full-names.png") });
+  if ((page.viewportSize()?.width ?? 1000) > 700) {
+    await page.getByRole("heading", { name: "Performance seating" }).hover();
+  } else {
+    await page.getByLabel("Select seating chart").focus();
+  }
+  for (const key of ["1-3", "1-4", "1-5"]) {
+    const tile = page.locator(`[data-seat-key="${key}"]`);
+    await expect(tile.locator(".seating-seat__name-initials")).toBeVisible();
+    await expect(tile.locator(".seating-seat__name-full")).toBeHidden();
   }
   api.assertNoUnexpectedRequests();
 });
