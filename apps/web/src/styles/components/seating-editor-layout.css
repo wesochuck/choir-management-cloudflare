@@ -693,6 +693,51 @@
     min-width: min-content;
   }
 
+  @media screen {
+    .seating-row--canvas {
+      grid-template-columns:
+        3.85rem 1.45rem
+        var(
+          --seating-lens-columns,
+          repeat(var(--seating-seat-count), minmax(var(--seating-base-seat-width, 3rem), 1fr))
+        )
+        1.45rem;
+    }
+
+    .seating-editor-canvas--readonly .seating-row--canvas {
+      grid-template-columns:
+        3.85rem
+        var(
+          --seating-lens-columns,
+          repeat(var(--seating-seat-count), minmax(var(--seating-base-seat-width, 3rem), 1fr))
+        );
+    }
+
+    .seating-seat--canvas[data-magnified] {
+      font-size: var(--font-size-sm);
+      border-color: var(--color-accent);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .seating-seat--canvas[data-magnified] .seating-seat__name {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      overflow: visible;
+    }
+
+    .seating-row--canvas[data-name-presentation]
+      .seating-seat--canvas[data-magnified]
+      .seating-seat__name-full {
+      display: inline;
+    }
+
+    .seating-row--canvas[data-name-presentation]
+      .seating-seat--canvas[data-magnified]
+      .seating-seat__name-initials {
+      display: none;
+    }
+  }
+
   .seating-row-label--canvas {
     display: flex;
     min-width: 0;
@@ -1359,7 +1404,7 @@
     }
 
     .seating-row--canvas {
-      grid-template-columns: 3.85rem 1.45rem repeat(var(--seating-seat-count), 4.4rem) 1.45rem;
+      --seating-base-seat-width: 4.4rem;
     }
 
     .seating-seat--canvas {

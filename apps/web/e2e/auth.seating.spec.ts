@@ -36,7 +36,7 @@ test("shows compact Grid assignment guidance and hides it in print", async ({ pa
   api.assertNoUnexpectedRequests();
 });
 
-test("seat name tooltips support hover, focus, themes, and the mobile read-only chart", async ({
+test("seat fisheye supports hover, focus, themes, print, and the mobile read-only chart", async ({
   page,
 }, testInfo) => {
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });
@@ -45,42 +45,39 @@ test("seat name tooltips support hover, focus, themes, and the mobile read-only 
   await page.goto(`/admin/seating?eventId=${chart.eventId}&chartId=${chart.id}`);
   const seat = page.locator('[data-seat-key="0-0"].seating-seat--assigned');
   await expect(seat).toBeVisible();
-  await expect(seat).not.toHaveAttribute("title");
   if ((page.viewportSize()?.width ?? 1000) <= 700) {
     await expect(page.locator(".seating-editor-canvas")).toHaveClass(/--readonly/);
   }
   for (const theme of ["light", "dark"] as const) {
     const switchTheme = page.getByRole("button", { name: `Switch to ${theme} theme` });
     if (await switchTheme.isVisible()) await switchTheme.click();
-    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
-    await seat.evaluate(async (node) => {
-      node.scrollIntoView({ behavior: "instant", block: "center" });
-      // Let the scroll event close any previous tooltip before exercising focus.
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() =>
-          requestAnimationFrame(() => {
-            resolve();
-          }),
-        ),
-      );
-    });
-    await seat.evaluate((node) => {
-      node.focus({ preventScroll: true });
-    });
-    await expect(page.getByRole("tooltip")).toHaveText("Browser Singer");
-    await expect(page.locator(".tooltip")).toBeInViewport();
-    await expect(seat).toHaveAttribute("data-state", "instant-open");
-    await page.screenshot({ path: testInfo.outputPath(`seat-tooltip-${theme}.png`) });
-    await page.keyboard.press("Escape");
+    await seat.scrollIntoViewIfNeeded();
+    const normalWidth = await seat.evaluate((node) => node.getBoundingClientRect().width);
+    await page.keyboard.press("Tab");
+    await seat.focus();
+    await expect(seat).toHaveAttribute("data-magnified", "true");
+    await expect(seat.locator(".seating-seat__name-full")).toBeVisible();
+    await expect(seat.locator(".seating-seat__name-initials")).toBeHidden();
     await expect(page.getByRole("tooltip")).toHaveCount(0);
+    const lensWidth = await seat.evaluate((node) => node.getBoundingClientRect().width);
+    expect(lensWidth).toBeGreaterThan(normalWidth);
+    const neighbor = page.locator('[data-seat-key="0-1"]');
+    const distant = page.locator('[data-seat-key="0-3"]');
+    expect(await neighbor.evaluate((node) => node.getBoundingClientRect().width)).toBeGreaterThan(
+      await distant.evaluate((node) => node.getBoundingClientRect().width),
+    );
+    await page.screenshot({ path: testInfo.outputPath(`seat-fisheye-${theme}.png`) });
+    await page.emulateMedia({ media: "print" });
+    await expect(seat.locator(".seating-seat__name-initials")).toBeVisible();
+    await page.emulateMedia({ media: "screen" });
+    await page.keyboard.press("Escape");
+    await expect(seat).not.toHaveAttribute("data-magnified");
     await page.getByLabel("Select seating chart").focus();
     if ((page.viewportSize()?.width ?? 1000) > 700) {
       await seat.hover();
-      await expect(page.getByRole("tooltip")).toHaveText("Browser Singer", { timeout: 1000 });
-      await page.locator(".tooltip").hover();
-      await expect(page.getByRole("tooltip")).toHaveText("Browser Singer");
-      await page.keyboard.press("Escape");
-      await expect(page.getByRole("tooltip")).toHaveCount(0);
+      await expect(seat).toHaveAttribute("data-magnified", "true");
+      await page.getByRole("heading", { name: "Performance seating" }).hover();
+      await expect(seat).not.toHaveAttribute("data-magnified");
     }
   }
   api.assertNoUnexpectedRequests();
@@ -258,28 +255,27 @@ test("renders the focused seating canvas with structural controls", async ({ pag
       .first();
     await expect(assignedSeat).not.toHaveAttribute("title");
     await assignedSeat.hover();
-    await expect(page.getByRole("tooltip")).toHaveText("Browser Singer", { timeout: 1000 });
+    await expect(assignedSeat).toHaveAttribute("data-magnified", "true");
+    await expect(assignedSeat.locator(".seating-seat__name-full")).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await expect(assignedSeat).not.toHaveAttribute("data-magnified");
+    await page.keyboard.press("Tab");
     await assignedSeat.focus();
-    await expect(page.getByRole("tooltip")).toHaveText("Browser Singer");
+    await expect(assignedSeat).toHaveAttribute("data-magnified", "true");
     await page.keyboard.press("Escape");
     await expect(assignedSeat.getByText("Browser Singer", { exact: true })).toBeHidden();
     await page.getByRole("button", { name: "Full Screen" }).click();
     await expect(page.locator(".seating-workspace")).toHaveClass(/seating-workspace--focus/);
-    const isFullscreen = await page.evaluate(
-      () => document.fullscreenElement === document.querySelector(".seating-workspace"),
-    );
-    expect(isFullscreen).toBe(true);
-    await assignedSeat.hover();
-    await expect(page.getByRole("tooltip")).toHaveText("Browser Singer");
     expect(
-      await page
-        .getByRole("tooltip")
-        .evaluate((tooltip) => Boolean(document.fullscreenElement?.contains(tooltip))),
+      await page.evaluate(
+        () => document.fullscreenElement === document.querySelector(".seating-workspace"),
+      ),
     ).toBe(true);
-    await page.keyboard.press("Escape");
+    await assignedSeat.hover();
+    await expect(assignedSeat).toHaveAttribute("data-magnified", "true");
+    await expect(assignedSeat.locator(".seating-seat__name-full")).toBeVisible();
     await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await page.keyboard.press("Escape");
 
     // Open confirmation in fullscreen
     await assignedSeat.getByRole("button", { name: "Remove Browser Singer from Seat 1" }).click();

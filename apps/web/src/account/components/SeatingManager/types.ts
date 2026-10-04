@@ -32,6 +32,7 @@ export interface FormationOrderOption {
 }
 
 export interface SeatTileProps {
+  readonly magnified?: boolean;
   readonly assigned: OrganizationProfile | undefined;
   readonly label: string;
   readonly mismatch: boolean;

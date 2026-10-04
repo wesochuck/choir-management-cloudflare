@@ -5,8 +5,8 @@ import type {
   OrganizationSeatingChartRequest,
   SeatingFormation,
 } from "@choir/contracts";
-import { type CSSProperties, useRef } from "react";
-import { Tooltip } from "@choir/ui";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { useDndContext } from "@dnd-kit/core";
 import { SeatName, SeatSuggestion, SeatTile } from "./chartParts";
 import { useSeatingNamePresentation } from "./hooks/useSeatingNamePresentation";
 
@@ -24,6 +24,12 @@ export interface SeatingGridCanvasProps {
   readonly updateLayout: (layout: ReturnType<typeof addRow>) => void;
 }
 
+function seatKeyForTarget(target: EventTarget | null): string | null {
+  return target instanceof Element
+    ? (target.closest<HTMLElement>("[data-seat-key]")?.dataset.seatKey ?? null)
+    : null;
+}
+
 export function SeatingGridCanvas({
   chart,
   currentFormation,
@@ -38,6 +44,23 @@ export function SeatingGridCanvas({
   updateLayout,
 }: SeatingGridCanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
+  const [hoveredSeat, setHoveredSeat] = useState<string | null>(null);
+  const [focusedSeat, setFocusedSeat] = useState<string | null>(null);
+  const dismissedHover = useRef<string | null>(null);
+  useEffect(() => {
+    const dismiss = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape") return;
+      dismissedHover.current = hoveredSeat;
+      setHoveredSeat(null);
+      setFocusedSeat(null);
+    };
+    document.addEventListener("keydown", dismiss);
+    return () => {
+      document.removeEventListener("keydown", dismiss);
+    };
+  }, [hoveredSeat]);
+  const { active } = useDndContext();
+  const magnifiedSeat = active ? null : (hoveredSeat ?? focusedSeat);
   useSeatingNamePresentation(canvasRef, chart);
   const profileForSeat = (seatKey: string) => profilesById.get(chart.assignments[seatKey] ?? "");
 
@@ -45,6 +68,32 @@ export function SeatingGridCanvas({
     <div
       aria-label="Seating chart assignments"
       className={`seating-editor-canvas${isEditing ? " seating-editor-canvas--editing" : " seating-editor-canvas--readonly"}`}
+      onPointerOver={(event) => {
+        if (event.pointerType === "touch" || event.buttons > 0) return;
+        // Directly entering a control must not move it away from the pointer.
+        if (event.target instanceof Element && event.target.closest("button")) return;
+        const seatKey = seatKeyForTarget(event.target);
+        if (seatKey === dismissedHover.current) return;
+        dismissedHover.current = null;
+        setHoveredSeat(seatKey);
+      }}
+      onPointerLeave={() => {
+        dismissedHover.current = null;
+        setHoveredSeat(null);
+      }}
+      onFocus={(event) => {
+        if (event.target instanceof Element && event.target.matches(":focus-visible")) {
+          setFocusedSeat(seatKeyForTarget(event.target));
+        }
+      }}
+      onBlur={(event) => {
+        if (seatKeyForTarget(event.target) === seatKeyForTarget(event.relatedTarget)) return;
+        setFocusedSeat(null);
+      }}
+      onDragStart={() => {
+        setHoveredSeat(null);
+        setFocusedSeat(null);
+      }}
       ref={canvasRef}
       tabIndex={-1}
     >
@@ -62,6 +111,19 @@ export function SeatingGridCanvas({
       <div className="seating-grid seating-grid--canvas">
         {rows.map((rowIndex) => {
           const count = chart.rowCounts[rowIndex] ?? 0;
+          const magnifiedIndex = magnifiedSeat?.startsWith(`${String(rowIndex)}-`)
+            ? Number(magnifiedSeat.split("-")[1])
+            : -1;
+          const lensColumns =
+            magnifiedIndex < 0
+              ? undefined
+              : Array.from({ length: count }, (_, index) =>
+                  index === magnifiedIndex
+                    ? "minmax(9rem, 3fr)"
+                    : Math.abs(index - magnifiedIndex) === 1
+                      ? "minmax(calc(var(--seating-base-seat-width, 3rem) * 1.35), 1.5fr)"
+                      : "minmax(var(--seating-base-seat-width, 3rem), 1fr)",
+                ).join(" ");
           const initialPresentation = count >= 15 ? "initials" : "full";
           const occupied = Array.from(
             { length: count },
@@ -72,7 +134,12 @@ export function SeatingGridCanvas({
               className="seating-row seating-row--canvas"
               data-name-presentation={initialPresentation}
               key={rowIndex}
-              style={{ "--seating-seat-count": String(count) } as CSSProperties}
+              style={
+                {
+                  "--seating-seat-count": String(count),
+                  "--seating-lens-columns": lensColumns,
+                } as CSSProperties
+              }
             >
               <div className="seating-row-label seating-row-label--canvas">
                 <strong>Row {rowIndex + 1}</strong>
@@ -110,6 +177,7 @@ export function SeatingGridCanvas({
                     key={seatKey}
                     label={`Seat ${String(seatIndex + 1)}`}
                     mismatch={mismatch}
+                    magnified={seatKey === magnifiedSeat}
                     onActivate={() => {
                       setSelectedSeat(seatKey);
                     }}
@@ -124,23 +192,22 @@ export function SeatingGridCanvas({
                     suggestion={suggestion}
                   />
                 ) : (
-                  <Tooltip content={profile?.displayName} key={seatKey}>
-                    <div
-                      aria-label={`Seat ${String(seatIndex + 1)}${profile ? `, assigned to ${profile.displayName}` : ", empty"}`}
-                      className={`seating-seat seating-seat--canvas seating-seat--readonly${profile ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}`}
-                      data-name-presentation={initialPresentation}
-                      data-seat-key={seatKey}
-                      key={seatKey}
-                      tabIndex={profile ? 0 : undefined}
-                    >
-                      <span className="seating-seat__number">Seat {seatIndex + 1}</span>
-                      <SeatSuggestion occupied={Boolean(profile)} suggestion={suggestion} />
-                      <SeatName displayName={profile?.displayName} />
-                      {profile ? (
-                        <span className="seating-seat__voice">{profile.voicePart}</span>
-                      ) : null}
-                    </div>
-                  </Tooltip>
+                  <div
+                    aria-label={`Seat ${String(seatIndex + 1)}${profile ? `, assigned to ${profile.displayName}` : ", empty"}`}
+                    className={`seating-seat seating-seat--canvas seating-seat--readonly${profile ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}`}
+                    data-name-presentation={initialPresentation}
+                    data-seat-key={seatKey}
+                    data-magnified={seatKey === magnifiedSeat || undefined}
+                    key={seatKey}
+                    tabIndex={profile ? 0 : undefined}
+                  >
+                    <span className="seating-seat__number">Seat {seatIndex + 1}</span>
+                    <SeatSuggestion occupied={Boolean(profile)} suggestion={suggestion} />
+                    <SeatName displayName={profile?.displayName} />
+                    {profile ? (
+                      <span className="seating-seat__voice">{profile.voicePart}</span>
+                    ) : null}
+                  </div>
                 );
               })}
               {isEditing ? (
