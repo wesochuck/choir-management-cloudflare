@@ -3,6 +3,7 @@ import {
   MUSIC_FOLDER_REPORT_MAX_EXPORT_ROWS,
 } from "@choir/contracts";
 import {
+  timestampedExportFilename,
   deriveMusicFolderStatus,
   normalizeFolderNumber,
   renderMusicFolderReportCsv,
@@ -60,7 +61,7 @@ export async function exportMusicFolderReportFromStore(
   return new Response(csv, {
     headers: {
       "cache-control": "private, no-store",
-      "content-disposition": 'attachment; filename="music_folder_report.csv"',
+      "content-disposition": `attachment; filename="${timestampedExportFilename("music_folder_report.csv", new Date())}"`,
       "content-type": "text/csv; charset=utf-8",
     },
   });

@@ -1,4 +1,5 @@
 import {
+  timestampedExportFilename,
   inspectMusicCsv,
   mapMusicCsvColumns,
   musicCsvColumnForHeader,
@@ -157,7 +158,7 @@ export function useMusicImport({
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = "music_import_errors.csv";
+    anchor.download = timestampedExportFilename("music_import_errors.csv", new Date());
     anchor.click();
     URL.revokeObjectURL(url);
   }

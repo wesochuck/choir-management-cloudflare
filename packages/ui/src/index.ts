@@ -18,6 +18,7 @@ export { DropdownMenu } from "./DropdownMenu";
 export { Autocomplete, type AutocompleteOption } from "./Autocomplete";
 export { NumberInput } from "./NumberInput";
 export { Sheet } from "./Sheet";
+export { Tooltip } from "./Tooltip";
 export { Tabs, TabsContent, TabsList, TabsTrigger } from "./Tabs";
 export { useConfirmation } from "./useConfirmation";
 export {

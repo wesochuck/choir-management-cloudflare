@@ -145,6 +145,9 @@ describe("Organization calendar management", () => {
       api("alpha.localhost", completedBody.downloadUrl ?? "/missing", cookie),
     );
     expect(downloaded.status).toBe(200);
+    expect(downloaded.headers.get("content-disposition")).toMatch(
+      /^attachment; filename="organization-export-[a-f0-9-]+_[0-9]{4}-[A-Z][a-z]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}-(AM|PM)-UTC\.json"$/,
+    );
     expect(downloaded.headers.get("cache-control")).toBe("private, no-store");
     expect(downloaded.headers.get("x-export-checksum-sha256")).toBe(completedBody.checksumSha256);
     const downloadedArchive: unknown = await downloaded.json();

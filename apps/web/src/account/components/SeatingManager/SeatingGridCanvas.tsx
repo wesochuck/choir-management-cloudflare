@@ -6,6 +6,7 @@ import type {
   SeatingFormation,
 } from "@choir/contracts";
 import { type CSSProperties, useRef } from "react";
+import { Tooltip } from "@choir/ui";
 import { SeatName, SeatSuggestion, SeatTile } from "./chartParts";
 import { useSeatingNamePresentation } from "./hooks/useSeatingNamePresentation";
 
@@ -123,21 +124,23 @@ export function SeatingGridCanvas({
                     suggestion={suggestion}
                   />
                 ) : (
-                  <div
-                    aria-label={`Seat ${String(seatIndex + 1)}${profile ? `, assigned to ${profile.displayName}` : ", empty"}`}
-                    className={`seating-seat seating-seat--canvas seating-seat--readonly${profile ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}`}
-                    data-name-presentation={initialPresentation}
-                    data-seat-key={seatKey}
-                    key={seatKey}
-                    title={profile?.displayName}
-                  >
-                    <span className="seating-seat__number">Seat {seatIndex + 1}</span>
-                    <SeatSuggestion occupied={Boolean(profile)} suggestion={suggestion} />
-                    <SeatName displayName={profile?.displayName} />
-                    {profile ? (
-                      <span className="seating-seat__voice">{profile.voicePart}</span>
-                    ) : null}
-                  </div>
+                  <Tooltip content={profile?.displayName} key={seatKey}>
+                    <div
+                      aria-label={`Seat ${String(seatIndex + 1)}${profile ? `, assigned to ${profile.displayName}` : ", empty"}`}
+                      className={`seating-seat seating-seat--canvas seating-seat--readonly${profile ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}`}
+                      data-name-presentation={initialPresentation}
+                      data-seat-key={seatKey}
+                      key={seatKey}
+                      tabIndex={profile ? 0 : undefined}
+                    >
+                      <span className="seating-seat__number">Seat {seatIndex + 1}</span>
+                      <SeatSuggestion occupied={Boolean(profile)} suggestion={suggestion} />
+                      <SeatName displayName={profile?.displayName} />
+                      {profile ? (
+                        <span className="seating-seat__voice">{profile.voicePart}</span>
+                      ) : null}
+                    </div>
+                  </Tooltip>
                 );
               })}
               {isEditing ? (

@@ -451,7 +451,9 @@ describe("Organization ticketing", () => {
     );
     expect(willCall.status).toBe(200);
     expect(willCall.headers.get("content-type")).toContain("text/csv");
-    expect(willCall.headers.get("content-disposition")).toContain("will-call-winter-tickets.csv");
+    expect(willCall.headers.get("content-disposition")).toMatch(
+      /will-call-winter-tickets_[0-9]{4}-[A-Z][a-z]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}-(AM|PM)-UTC\.csv/,
+    );
     expect(await willCall.text()).toContain('"Ticket Buyer","buyer@example.test","2"');
     expect(
       (

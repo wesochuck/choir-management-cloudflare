@@ -781,6 +781,28 @@
     box-sizing: border-box;
   }
 
+  .inline-contact-list-creator {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: end;
+    gap: var(--spacing-xs);
+  }
+
+  .inline-contact-list-creator .notice {
+    flex-basis: 100%;
+  }
+
+  .roster-bulk-actions__buttons.contacts-bulk-actions {
+    align-items: end;
+  }
+
+  .contacts-bulk-actions .button--control-height {
+    height: var(--control-height);
+    min-height: var(--control-height);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    box-sizing: border-box;
+  }
+
   /* Ticket Credential Card */
   .ticket-credential-card {
     display: flex;

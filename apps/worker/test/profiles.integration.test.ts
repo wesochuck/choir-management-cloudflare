@@ -277,8 +277,8 @@ describe("Organization Profiles", () => {
     expect(rosterExport.status).toBe(200);
     expect(rosterExport.headers.get("content-type")).toBe("text/csv; charset=utf-8");
     expect(rosterExport.headers.get("cache-control")).toBe("private, no-store");
-    expect(rosterExport.headers.get("content-disposition")).toBe(
-      'attachment; filename="choir_roster_export.csv"',
+    expect(rosterExport.headers.get("content-disposition")).toMatch(
+      /^attachment; filename="choir_roster_export_[0-9]{4}-[A-Z][a-z]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}-(AM|PM)-UTC\.csv"$/,
     );
     expect(await rosterExport.text()).toBe(
       [

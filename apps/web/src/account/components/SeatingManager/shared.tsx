@@ -5,7 +5,7 @@ import type {
   SeatingFormation,
 } from "@choir/contracts";
 import { useDraggable } from "@dnd-kit/core";
-import { Dialog, DialogClose } from "@choir/ui";
+import { Dialog, DialogClose, Tooltip } from "@choir/ui";
 import { useRef, useState, type DragEvent } from "react";
 import { updateOrganizationSeatingConfiguration } from "../../../auth/api";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
@@ -404,31 +404,31 @@ export function UnassignedProfileChip({
     setProfileNodeRef(node);
   };
   return (
-    <div
-      className={`seating-profile-chip${profileIsDragging ? " seating-profile-chip--dragging" : ""}`}
-      draggable
-      ref={attachProfileNode}
-      style={{ opacity: profileIsDragging ? 0.45 : undefined }}
-      {...dragAttributes}
-      {...dragListeners}
-      onDragStart={(event) => {
-        event.dataTransfer.setData("text/plain", `profile:${profile.id}`);
-        event.dataTransfer.effectAllowed = "move";
-      }}
-    >
-      <span className="seating-profile-chip__name" title={profile.displayName}>
-        {profile.displayName}
-      </span>
-      <span className="seating-profile-chip__voice">{profile.voicePart}</span>
-      <button
-        aria-label={`Mark ${profile.displayName} not attending`}
-        onClick={() => {
-          onRemove(profile);
+    <Tooltip content={profile.displayName} disabled={profileIsDragging}>
+      <div
+        className={`seating-profile-chip${profileIsDragging ? " seating-profile-chip--dragging" : ""}`}
+        draggable
+        ref={attachProfileNode}
+        style={{ opacity: profileIsDragging ? 0.45 : undefined }}
+        {...dragAttributes}
+        {...dragListeners}
+        onDragStart={(event) => {
+          event.dataTransfer.setData("text/plain", `profile:${profile.id}`);
+          event.dataTransfer.effectAllowed = "move";
         }}
-        type="button"
       >
-        ×
-      </button>
-    </div>
+        <span className="seating-profile-chip__name">{profile.displayName}</span>
+        <span className="seating-profile-chip__voice">{profile.voicePart}</span>
+        <button
+          aria-label={`Mark ${profile.displayName} not attending`}
+          onClick={() => {
+            onRemove(profile);
+          }}
+          type="button"
+        >
+          ×
+        </button>
+      </div>
+    </Tooltip>
   );
 }

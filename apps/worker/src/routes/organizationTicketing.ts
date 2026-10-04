@@ -1,3 +1,4 @@
+import { timestampedExportFilename } from "@choir/domain";
 import {
   discountCodeRequestSchema,
   ticketScanRequestSchema,
@@ -336,7 +337,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         authorization.organizationId,
         eventId.data,
       );
-      context.header("content-disposition", `attachment; filename="${csv.filename}"`);
+      context.header(
+        "content-disposition",
+        `attachment; filename="${timestampedExportFilename(csv.filename, new Date())}"`,
+      );
       context.header("content-type", "text/csv; charset=utf-8");
       return context.body(csv.content);
     } catch (error: unknown) {

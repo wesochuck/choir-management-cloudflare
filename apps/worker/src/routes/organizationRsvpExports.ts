@@ -1,6 +1,10 @@
 import { type ProblemDetails } from "@choir/contracts";
 import { z } from "zod";
-import { eventRsvpExportFilename, renderEventRsvpCsv } from "@choir/domain";
+import {
+  timestampedExportFilename,
+  eventRsvpExportFilename,
+  renderEventRsvpCsv,
+} from "@choir/domain";
 import {
   readOrganizationEventRsvpExport,
   readOrganizationRosterConfiguration,
@@ -55,7 +59,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       });
       return context.body(csv, 200, {
         "cache-control": "private, no-store",
-        "content-disposition": `attachment; filename="${eventRsvpExportFilename(data.eventTitle, data.eventType)}"`,
+        "content-disposition": `attachment; filename="${timestampedExportFilename(eventRsvpExportFilename(data.eventTitle, data.eventType), new Date())}"`,
         "content-type": "text/csv; charset=utf-8",
       });
     } catch {

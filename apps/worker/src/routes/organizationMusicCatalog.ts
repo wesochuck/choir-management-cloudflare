@@ -1,5 +1,5 @@
 import { type ProblemDetails } from "@choir/contracts";
-import { renderMusicCsv } from "@choir/domain";
+import { timestampedExportFilename, renderMusicCsv } from "@choir/domain";
 import { listOrganizationMusicPieces } from "../organization/organizationMusic";
 
 import type { Hono } from "hono";
@@ -46,7 +46,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const pieces = await listOrganizationMusicPieces(context.env, authorization.organizationId);
       return context.body(renderMusicCsv(pieces), 200, {
         "cache-control": "private, no-store",
-        "content-disposition": 'attachment; filename="music_library.csv"',
+        "content-disposition": `attachment; filename="${timestampedExportFilename("music_library.csv", new Date())}"`,
         "content-type": "text/csv; charset=utf-8",
       });
     } catch {

@@ -1,3 +1,4 @@
+import { timestampedExportFilename } from "@choir/domain";
 import { useEffect, useMemo, useState } from "react";
 
 import { getOrganizationPublicWebsiteSettings } from "../auth/api";
@@ -102,7 +103,7 @@ export function QRCodeShareCard({
     if (!qrCodeUrl) return;
     const link = document.createElement("a");
     link.href = qrCodeUrl;
-    link.download = `${safeFileName(title)}_qr_code.png`;
+    link.download = timestampedExportFilename(`${safeFileName(title)}_qr_code.png`, new Date());
     document.body.appendChild(link);
     link.click();
     link.remove();

@@ -1,3 +1,4 @@
+import { timestampedExportFilename } from "@choir/domain";
 import type { OrganizationEvent } from "@choir/contracts";
 import { Dialog, DialogClose } from "@choir/ui";
 import { useState } from "react";
@@ -50,7 +51,10 @@ export function PracticePlayerShareDialog({
       });
       const link = document.createElement("a");
       link.href = dataUrl;
-      link.download = `${safeFileName(event.title)}_practice_player_qr_code.png`;
+      link.download = timestampedExportFilename(
+        `${safeFileName(event.title)}_practice_player_qr_code.png`,
+        new Date(),
+      );
       document.body.appendChild(link);
       link.click();
       link.remove();

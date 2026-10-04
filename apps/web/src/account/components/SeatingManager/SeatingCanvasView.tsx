@@ -48,6 +48,11 @@ export function SeatingCanvasView({ model }: { readonly model: SeatingManagerMod
 
   return (
     <>
+      {isEditing ? (
+        <p className="seating-mode-hint no-print">
+          Drag a singer to a seat, or select a seat to assign someone.
+        </p>
+      ) : null}
       <p aria-live="polite" className={draggingToken ? "seating-drag-status" : "sr-only"}>
         {dragMessage}
       </p>

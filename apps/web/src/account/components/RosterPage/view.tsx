@@ -7,6 +7,7 @@ import {
   TabsContent,
   TabsList,
   TabsTrigger,
+  Tooltip,
 } from "@choir/ui";
 import { PerformanceHistory, VoicePartBalance } from "./shared";
 import { formatProfileTransitionDate, parseRosterStatusFilter, statusLabel } from "./utils";
@@ -188,7 +189,7 @@ export function RosterPageView({
             <div className="page-toolbar__actions">
               <a
                 className="button button--secondary"
-                download="choir_roster_export.csv"
+                download
                 href="/api/organization/profiles/export.csv"
               >
                 Export CSV
@@ -419,7 +420,23 @@ export function RosterPageView({
                   {
                     header: "Name",
                     id: "name",
-                    render: (candidate) => <strong>{candidate.displayName}</strong>,
+                    render: (candidate) => (
+                      <span className="roster-profile-name">
+                        <strong>{candidate.displayName}</strong>
+                        {candidate.isSectionLeader ? (
+                          <Tooltip content="Section leader">
+                            <span
+                              className="roster-section-leader"
+                              role="img"
+                              aria-label="Section leader"
+                              tabIndex={0}
+                            >
+                              ★
+                            </span>
+                          </Tooltip>
+                        ) : null}
+                      </span>
+                    ),
                     sortValue: (candidate) => candidate.displayName,
                   },
                   {
@@ -967,10 +984,6 @@ export function RosterPageView({
                   />
                   Receive financial alerts (ticket sales)
                 </label>
-                <p className="field-help">
-                  Sends ticket sale notifications to this member when they have a linked email and
-                  email delivery is available.
-                </p>
                 <label className="checkbox-row">
                   <input
                     checked={profile.hidden}

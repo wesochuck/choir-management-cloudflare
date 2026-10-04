@@ -338,6 +338,9 @@ describe("Music Folder Report", () => {
       }),
     );
     expect(csv.status).toBe(200);
+    expect(csv.headers.get("content-disposition")).toMatch(
+      /^attachment; filename="music_folder_report_[0-9]{4}-[A-Z][a-z]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}-(AM|PM)-UTC\.csv"$/,
+    );
     expect(await csv.text()).toContain("Folder Return Status");
     expect(
       await runInDurableObject<OrganizationStore, number>(

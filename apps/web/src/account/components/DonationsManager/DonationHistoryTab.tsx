@@ -1,4 +1,8 @@
-import { canSetDonationThankYouStatus, datePartInTimeZone } from "@choir/domain";
+import {
+  timestampedExportFilename,
+  canSetDonationThankYouStatus,
+  datePartInTimeZone,
+} from "@choir/domain";
 import type { DonationRecord } from "@choir/contracts";
 import { DataTable, type DataTableColumn } from "@choir/ui";
 import { useCallback, useMemo, useState } from "react";
@@ -346,6 +350,12 @@ export function DonationHistoryTab({
             <a
               className="button button--secondary"
               download="donations.csv"
+              onClick={(event) => {
+                event.currentTarget.download = timestampedExportFilename(
+                  "donations.csv",
+                  new Date(),
+                );
+              }}
               href={donationExportHref}
             >
               Export CSV

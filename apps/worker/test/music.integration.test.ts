@@ -570,8 +570,8 @@ describe("Organization music catalog", () => {
     );
     expect(exportResponse.status).toBe(200);
     expect(exportResponse.headers.get("cache-control")).toBe("private, no-store");
-    expect(exportResponse.headers.get("content-disposition")).toBe(
-      'attachment; filename="music_library.csv"',
+    expect(exportResponse.headers.get("content-disposition")).toMatch(
+      /^attachment; filename="music_library_[0-9]{4}-[A-Z][a-z]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}-(AM|PM)-UTC\.csv"$/,
     );
     expect(await exportResponse.text()).toContain(
       '"\'=Safe title","Handel","Doe, Jane","24","CAT-1","4:05","","S;A","Classical;Sacred","2026-05-01","Owned ""copies"""',

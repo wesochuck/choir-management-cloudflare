@@ -6,7 +6,7 @@ import {
   type ProblemDetails,
 } from "@choir/contracts";
 import { z } from "zod";
-import { renderRosterCsv } from "@choir/domain";
+import { timestampedExportFilename, renderRosterCsv } from "@choir/domain";
 import { createAuth, isCanonicalAuthHost } from "../auth/config";
 import {
   CalendarMutationError,
@@ -189,7 +189,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
       return context.body(csv, 200, {
         "cache-control": "private, no-store",
-        "content-disposition": 'attachment; filename="choir_roster_export.csv"',
+        "content-disposition": `attachment; filename="${timestampedExportFilename("choir_roster_export.csv", new Date())}"`,
         "content-type": "text/csv; charset=utf-8",
       });
     } catch {

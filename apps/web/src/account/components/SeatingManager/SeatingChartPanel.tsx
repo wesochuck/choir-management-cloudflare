@@ -199,14 +199,27 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
         </div>
       ) : null}
       {isListView ? (
-        <ChartList
-          chart={chart}
-          displayNames={seatingDisplayNames}
-          mode={viewMode === "index" ? "index" : "list"}
-          profilesById={profilesById}
-          showSeatNumbers={showSeatNumbers}
-          showVoiceParts={showVoiceParts}
-        />
+        <>
+          <p className="seating-mode-hint no-print">
+            <span>Assign or move singers in Grid mode.</span>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode("grid");
+              }}
+            >
+              Switch to Grid
+            </button>
+          </p>
+          <ChartList
+            chart={chart}
+            displayNames={seatingDisplayNames}
+            mode={viewMode === "index" ? "index" : "list"}
+            profilesById={profilesById}
+            showSeatNumbers={showSeatNumbers}
+            showVoiceParts={showVoiceParts}
+          />
+        </>
       ) : null}
       {isGridView ? <SeatingCanvasView model={model} /> : null}
 

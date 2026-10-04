@@ -1,4 +1,9 @@
-import type { Contact, ContactCommunicationStatus, OrganizationProfile } from "@choir/contracts";
+import type {
+  Contact,
+  ContactCommunicationStatus,
+  ContactList,
+  OrganizationProfile,
+} from "@choir/contracts";
 import { deriveDisplayName } from "@choir/domain";
 import { DataTable, Tabs, TabsContent, TabsList, TabsTrigger, useConfirmation } from "@choir/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,6 +35,7 @@ import {
   type ContactEditorValues,
 } from "./contactEditorUtils";
 import { ContactsListsTab } from "./ContactsPageLists";
+import { InlineContactListCreator } from "./InlineContactListCreator";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 
 type EditorState =
@@ -629,26 +635,64 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
                   <p>
                     Bulk actions change list membership only. Contacts themselves are preserved.
                   </p>
+                  <p>
+                    {lists.length === 0
+                      ? "Create a new list below to add these contacts."
+                      : "Choose a contact list to enable Add and Remove."}
+                  </p>
                 </div>
-                <div className="roster-bulk-actions__buttons">
-                  <select
-                    aria-label="Choose a contact list for the bulk action"
-                    className="contacts-bulk-select"
-                    onChange={(event) => {
-                      setBulkListId(event.target.value);
-                    }}
-                    value={bulkListId}
-                  >
-                    <option value="">Choose a list…</option>
-                    {lists.map((list) => (
-                      <option key={list.id} value={list.id}>
-                        {list.name}
+                <div className="roster-bulk-actions__buttons contacts-bulk-actions">
+                  <label className="field">
+                    <span>Contact list</span>
+                    <select
+                      aria-label="Choose a contact list for the bulk action"
+                      className="contacts-bulk-select"
+                      disabled={bulkBusy || lists.length === 0}
+                      onChange={(event) => {
+                        setBulkListId(event.target.value);
+                      }}
+                      value={bulkListId}
+                    >
+                      <option value="">
+                        {lists.length === 0 ? "No contact lists yet" : "Choose a list…"}
                       </option>
-                    ))}
-                  </select>
+                      {lists.map((list) => (
+                        <option key={list.id} value={list.id}>
+                          {list.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <InlineContactListCreator
+                    onBusyChange={setBulkBusy}
+                    disabled={bulkBusy || selectedIds.length > CONTACTS_BULK_OPERATION_MAX}
+                    onCreated={async (list) => {
+                      queryClient.setQueryData<readonly ContactList[]>(
+                        queryKeys.organization.contactLists,
+                        (current) => [...(current ?? []).filter(({ id }) => id !== list.id), list],
+                      );
+                      setBulkListId(list.id);
+                      setError(null);
+                      setSuccess(null);
+                      setBulkBusy(true);
+                      try {
+                        const result = await addContactsToContactList(list.id, selectedIds);
+                        setSuccess(
+                          `Created “${list.name}” and added ${String(result.added)} contact(s).`,
+                        );
+                        await invalidateContacts();
+                      } catch (cause: unknown) {
+                        setError(
+                          `“${list.name}” was created, but the contacts could not be added. ${contactErrorMessage(cause, "Please try again.")} Use Add to list to retry.`,
+                        );
+                      } finally {
+                        setBulkBusy(false);
+                      }
+                    }}
+                  />
                   <button
                     className="button button--secondary button--control-height"
-                    disabled={bulkBusy}
+                    disabled={bulkBusy || !listsById.has(bulkListId)}
                     onClick={() => {
                       void runBulk("add");
                     }}
@@ -658,7 +702,7 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
                   </button>
                   <button
                     className="button button--secondary button--control-height"
-                    disabled={bulkBusy}
+                    disabled={bulkBusy || !listsById.has(bulkListId)}
                     onClick={() => {
                       void runBulk("remove");
                     }}

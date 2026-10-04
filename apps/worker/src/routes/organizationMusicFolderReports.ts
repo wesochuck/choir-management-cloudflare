@@ -1,3 +1,4 @@
+import { timestampedExportFilename } from "@choir/domain";
 import {
   musicFolderNumberBatchRequestSchema,
   musicFolderReportProfileDetailResponseSchema,
@@ -236,7 +237,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
       return context.body(csv, 200, {
         "cache-control": "private, no-store",
-        "content-disposition": 'attachment; filename="music_folder_report.csv"',
+        "content-disposition": `attachment; filename="${timestampedExportFilename("music_folder_report.csv", new Date())}"`,
         "content-type": "text/csv; charset=utf-8",
       });
     } catch (error: unknown) {

@@ -342,3 +342,5 @@ export {
   type RoleChangeDecision,
   type RoleChangeFailureReason,
 } from "./organizationMemberships";
+
+export { timestampedExportFilename } from "./exportFilename";

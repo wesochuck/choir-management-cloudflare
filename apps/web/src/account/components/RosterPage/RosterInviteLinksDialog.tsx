@@ -137,14 +137,23 @@ export function RosterInviteLinksDialog({
   return (
     <>
       <Dialog
+        className="dialog--roster-invites"
         description="Create and manage reusable links that allow new members to join this roster."
+        footer={
+          <DialogClose asChild>
+            <button className="button button--secondary" type="button">
+              Done
+            </button>
+          </DialogClose>
+        }
         onClose={onClose}
         open={open}
         title="Roster invite links"
       >
-        <div className="form-stack">
+        <div className="form-stack roster-invite-links">
           <form
             autoComplete="off"
+            className="form-stack"
             noValidate
             onSubmit={(e) => {
               void handleCreate(e);
@@ -262,6 +271,7 @@ export function RosterInviteLinksDialog({
                     sortValue: (link) => link.status,
                   },
                   {
+                    className: "roster-invite-links__summary",
                     header: "Uses",
                     id: "uses",
                     render: (link) => (
@@ -272,6 +282,7 @@ export function RosterInviteLinksDialog({
                     sortValue: (link) => link.committedUses,
                   },
                   {
+                    className: "roster-invite-links__summary",
                     header: "Expires",
                     id: "expires",
                     render: (link) => new Date(link.expiresAt).toLocaleDateString(),
@@ -307,14 +318,6 @@ export function RosterInviteLinksDialog({
                 rows={links}
               />
             )}
-          </div>
-
-          <div className="dialog__actions">
-            <DialogClose asChild>
-              <button className="button button--secondary" type="button">
-                Done
-              </button>
-            </DialogClose>
           </div>
         </div>
       </Dialog>

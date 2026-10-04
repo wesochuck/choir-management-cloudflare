@@ -1,3 +1,4 @@
+import { timestampedExportFilename } from "@choir/domain";
 import {
   contactImportConfirmResponseSchema,
   contactImportErrorCsvResponseSchema,
@@ -106,7 +107,7 @@ export function downloadContactImportErrorFile(exported: ContactImportErrorCsvRe
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.setAttribute("href", url);
-  link.setAttribute("download", exported.downloadName);
+  link.setAttribute("download", timestampedExportFilename(exported.downloadName, new Date()));
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

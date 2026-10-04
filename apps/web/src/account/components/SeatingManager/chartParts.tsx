@@ -4,6 +4,7 @@ import type {
   OrganizationSeatingChartRequest,
 } from "@choir/contracts";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { Tooltip } from "@choir/ui";
 import { useMemo } from "react";
 import { getInitials, getLastName } from "../../nameFormatting";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
@@ -50,67 +51,68 @@ export function SeatTile({
   const draggable = useDraggable({ id: `seat:${seatKey}`, disabled: !assigned });
   const droppable = useDroppable({ id: `seat:${seatKey}` });
   return (
-    <div
-      aria-label={`${label}${assigned ? `, assigned to ${assigned.displayName}` : ", empty"}`}
-      className={`seating-seat seating-seat--canvas${assigned ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}${draggable.isDragging ? " seating-seat--dragging" : ""}${droppable.isOver ? " seating-seat--drop-target" : ""}`}
-      data-name-presentation={presentation}
-      data-seat-key={seatKey}
-      draggable={Boolean(assigned)}
-      ref={(node) => {
-        draggable.setNodeRef(node);
-        droppable.setNodeRef(node);
-      }}
-      style={{ opacity: draggable.isDragging ? 0.45 : undefined }}
-      {...draggable.attributes}
-      {...draggable.listeners}
-      aria-disabled={undefined}
-      title={assigned?.displayName}
-      onDragOver={(event) => {
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "move";
-      }}
-      onDragStart={(event) => {
-        event.dataTransfer.setData("text/plain", `seat:${seatKey}`);
-        event.dataTransfer.effectAllowed = "move";
-      }}
-      onDrop={(event) => {
-        event.preventDefault();
-        onDrop(event.dataTransfer.getData("text/plain"));
-      }}
-      onClick={(event) => {
-        if (event.target instanceof HTMLElement && event.target.closest("button")) return;
-        onActivate();
-      }}
-      onKeyDown={(event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        onActivate();
-      }}
-      tabIndex={0}
-    >
-      <span className="seating-seat__number">{label}</span>
-      <SeatSuggestion occupied={Boolean(assigned)} suggestion={suggestion} />
-      <SeatName displayName={assigned?.displayName} />
-      {assigned ? <span className="seating-seat__voice">{assigned.voicePart}</span> : null}
-      {mismatch ? <span className="seating-seat__warning">{partLabel} mismatch</span> : null}
-      <button
-        aria-label={
-          assigned ? `Remove ${assigned.displayName} from ${label}` : `Delete empty ${label}`
-        }
-        className="seating-seat__remove"
+    <Tooltip content={assigned?.displayName} disabled={draggable.isDragging}>
+      <div
+        aria-label={`${label}${assigned ? `, assigned to ${assigned.displayName}` : ", empty"}`}
+        className={`seating-seat seating-seat--canvas${assigned ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}${draggable.isDragging ? " seating-seat--dragging" : ""}${droppable.isOver ? " seating-seat--drop-target" : ""}`}
+        data-name-presentation={presentation}
+        data-seat-key={seatKey}
+        draggable={Boolean(assigned)}
+        ref={(node) => {
+          draggable.setNodeRef(node);
+          droppable.setNodeRef(node);
+        }}
+        style={{ opacity: draggable.isDragging ? 0.45 : undefined }}
+        {...draggable.attributes}
+        {...draggable.listeners}
+        aria-disabled={undefined}
+        onDragOver={(event) => {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+        }}
+        onDragStart={(event) => {
+          event.dataTransfer.setData("text/plain", `seat:${seatKey}`);
+          event.dataTransfer.effectAllowed = "move";
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          onDrop(event.dataTransfer.getData("text/plain"));
+        }}
         onClick={(event) => {
-          event.stopPropagation();
-          onRemove();
+          if (event.target instanceof HTMLElement && event.target.closest("button")) return;
+          onActivate();
         }}
         onKeyDown={(event) => {
-          event.stopPropagation();
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          onActivate();
         }}
-        title={assigned ? "Clear seat assignment" : "Delete empty seat"}
-        type="button"
+        tabIndex={0}
       >
-        ×
-      </button>
-    </div>
+        <span className="seating-seat__number">{label}</span>
+        <SeatSuggestion occupied={Boolean(assigned)} suggestion={suggestion} />
+        <SeatName displayName={assigned?.displayName} />
+        {assigned ? <span className="seating-seat__voice">{assigned.voicePart}</span> : null}
+        {mismatch ? <span className="seating-seat__warning">{partLabel} mismatch</span> : null}
+        <button
+          aria-label={
+            assigned ? `Remove ${assigned.displayName} from ${label}` : `Delete empty ${label}`
+          }
+          className="seating-seat__remove"
+          onClick={(event) => {
+            event.stopPropagation();
+            onRemove();
+          }}
+          onKeyDown={(event) => {
+            event.stopPropagation();
+          }}
+          title={assigned ? "Clear seat assignment" : "Delete empty seat"}
+          type="button"
+        >
+          ×
+        </button>
+      </div>
+    </Tooltip>
   );
 }
 

@@ -317,6 +317,9 @@ describe("SetListManager Practice Player sharing and link stability", () => {
     const clickSpy = vi.fn();
     const appendChildSpy = vi.spyOn(document.body, "appendChild").mockImplementation((node) => {
       if (node instanceof HTMLAnchorElement) {
+        expect(node.download).toMatch(
+          /_practice_player_qr_code_[0-9]{4}-[A-Z][a-z]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}-(AM|PM)-UTC\.png$/,
+        );
         node.click = clickSpy;
       }
       return node;

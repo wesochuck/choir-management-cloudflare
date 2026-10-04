@@ -3,7 +3,7 @@ import {
   type OrganizationPollResultsResponse,
   type OrganizationPollSummary,
 } from "@choir/contracts";
-import { defaultPollExpirationAt } from "@choir/domain";
+import { timestampedExportFilename, defaultPollExpirationAt } from "@choir/domain";
 import { DataTable, Dialog, DialogClose } from "@choir/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type SyntheticEvent } from "react";
@@ -127,7 +127,10 @@ function exportResultsCsv(results: OrganizationPollResultsResponse): void {
   const link = document.createElement("a");
   const safeTitle = results.title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   link.setAttribute("href", url);
-  link.setAttribute("download", `poll-results-${safeTitle || "export"}.csv`);
+  link.setAttribute(
+    "download",
+    timestampedExportFilename(`poll-results-${safeTitle || "export"}.csv`, new Date()),
+  );
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

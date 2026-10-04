@@ -526,3 +526,14 @@ test("supports multi-Performance history, staged edits, and immediate return upd
 
   await expect(page.getByRole("button", { name: /Mark all/ })).toHaveCount(0);
 });
+
+test("appends a readable timestamp to report download filenames", async ({ page }) => {
+  await page.goto("/admin/reports");
+  await page.getByRole("tab", { name: "Donations & Ticket Sales" }).click();
+  const downloadEvent = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export CSV", exact: true }).click();
+  const download = await downloadEvent;
+  expect(download.suggestedFilename()).toMatch(
+    /^donations-and-ticket-sales-report_[0-9]{4}-[A-Z][a-z]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}-(AM|PM)-UTC\.csv$/,
+  );
+});

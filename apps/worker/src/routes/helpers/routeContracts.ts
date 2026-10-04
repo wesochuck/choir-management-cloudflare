@@ -1,3 +1,4 @@
+import { timestampedExportFilename } from "@choir/domain";
 import {
   type PlatformOrganizationSummary,
   type PlatformJobDeadLetterSummary,
@@ -579,7 +580,7 @@ export async function downloadOrganizationExportFile(
     return new Response(object.body, {
       headers: {
         "cache-control": "private, no-store",
-        "content-disposition": `attachment; filename="organization-export-${exportId}.json"`,
+        "content-disposition": `attachment; filename="${timestampedExportFilename(`organization-export-${exportId}.json`, new Date())}"`,
         "content-length": String(object.size),
         "content-type": "application/json; charset=utf-8",
         "x-export-checksum-sha256": job.data.checksumSha256 ?? "",

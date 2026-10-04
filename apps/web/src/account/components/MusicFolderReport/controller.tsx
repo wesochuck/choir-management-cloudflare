@@ -1,3 +1,4 @@
+import { timestampedExportFilename } from "@choir/domain";
 import {
   getMusicFolderProfileDetail,
   exportMusicFolderReport,
@@ -285,7 +286,7 @@ export function useMusicFolderReportController(enabled: boolean): MusicFolderRep
       const blob = await exportMusicFolderReport(selectedEventIds);
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.download = "music_folder_report.csv";
+      link.download = timestampedExportFilename("music_folder_report.csv", new Date());
       link.href = url;
       link.click();
       window.setTimeout(() => {

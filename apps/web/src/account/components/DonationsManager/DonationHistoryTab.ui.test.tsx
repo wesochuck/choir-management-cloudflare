@@ -224,6 +224,17 @@ describe("DonationHistoryTab DataTable", () => {
 
     const exportLink = screen.getByRole("link", { name: "Export CSV" });
     expect(exportLink).toHaveAttribute("download", "donations.csv");
+    exportLink.addEventListener(
+      "click",
+      (event) => {
+        event.preventDefault();
+      },
+      { once: true },
+    );
+    await user.click(exportLink);
+    expect(exportLink.getAttribute("download")).toMatch(
+      /^donations_[0-9]{4}-[A-Z][a-z]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}-(AM|PM)-UTC\.csv$/,
+    );
     expect(exportLink.getAttribute("href")).toContain("data:text/csv");
     await user.click(screen.getByRole("checkbox", { name: "Show refunded" }));
     expect(donorNames(table)).toEqual(["Alma Archer", "Zoe Zodiac", "Bea Baker"]);

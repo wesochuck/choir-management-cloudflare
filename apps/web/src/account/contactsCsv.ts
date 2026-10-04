@@ -5,7 +5,7 @@ import {
   type ContactCommunicationPreference,
   type ContactExportResponse,
 } from "@choir/contracts";
-import { deriveDisplayName } from "@choir/domain";
+import { timestampedExportFilename, deriveDisplayName } from "@choir/domain";
 
 /**
  * Phase 4 browser-side CSV export.
@@ -119,7 +119,7 @@ export function downloadContactsExport(exported: ContactExportResponse): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.setAttribute("href", url);
-  link.setAttribute("download", exported.downloadName);
+  link.setAttribute("download", timestampedExportFilename(exported.downloadName, new Date()));
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

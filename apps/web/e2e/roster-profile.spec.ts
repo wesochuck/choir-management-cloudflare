@@ -1,4 +1,48 @@
 import { expect, test } from "@playwright/test";
+import { installOrganizationApi } from "./fixtures/apiMocks";
+
+test("marks section leaders beside their names without adding a roster column", async ({
+  page,
+}) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  await page.route("**/api/organization/members", async (route) => {
+    await route.fulfill({
+      json: {
+        memberships: [],
+        truncated: false,
+        requestId: "99999999-9999-4999-8999-999999999999",
+      },
+    });
+  });
+  const profiles = api.profiles.get();
+  api.profiles.set(
+    profiles.map((profile, index) => ({ ...profile, isSectionLeader: index === 0 })),
+  );
+  await page.goto("/admin/roster");
+  const marker = page.getByRole("img", { name: "Section leader", exact: true });
+  await expect(marker).toHaveCount(1);
+  await expect(marker.locator("..")).toContainText(profiles[0]?.displayName ?? "Browser Singer");
+  await expect(page.getByRole("columnheader", { name: /Section leader/ })).toHaveCount(0);
+  for (const theme of ["light", "dark"] as const) {
+    const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await toggle.isVisible()) await toggle.click();
+    await marker.evaluate(async (node) => {
+      node.scrollIntoView({ behavior: "instant", block: "center" });
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            resolve();
+          }),
+        ),
+      );
+      node.focus({ preventScroll: true });
+    });
+    await expect(page.getByRole("tooltip")).toHaveText("Section leader");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+  }
+  api.assertNoUnexpectedRequests();
+});
 
 const requestId = "99999999-9999-4999-8999-999999999999";
 const profileId = "11111111-1111-4111-8111-111111111111";
@@ -309,4 +353,71 @@ test("keeps the roster profile dialog open when Messages is selected", async ({ 
   await expect(newProfileFinancialAlertsCheckbox).not.toBeChecked();
   await createDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(createDialog).not.toBeVisible();
+});
+
+test("keeps roster invite fields and actions inside the dialog in both themes", async ({
+  page,
+}) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  await page.route("**/api/organization/members", async (route) => {
+    await route.fulfill({ json: { memberships: [], truncated: false, requestId } });
+  });
+  await page.route("**/api/organization/roster-invite-links", async (route) => {
+    await route.fulfill({
+      json: {
+        links: [
+          {
+            id: "invite-layout",
+            label: "Choir Roster Invite " + "x".repeat(80),
+            status: "active",
+            maxUses: null,
+            committedUses: 1,
+            activeReservations: 0,
+            createdByUserId: "user-admin",
+            organizationId: "organization-alpha",
+            createdAt: "2026-08-01T00:00:00.000Z",
+            expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+            revokedAt: null,
+          },
+        ],
+        requestId,
+      },
+    });
+  });
+  await page.goto("/admin/roster");
+  for (const theme of ["light", "dark"] as const) {
+    const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await toggle.isVisible()) await toggle.click();
+    await page.getByRole("button", { name: "Invite by link" }).click();
+    const dialog = page.getByRole("dialog", { name: "Roster invite links", exact: true });
+    await dialog.getByLabel("Link label").focus();
+    await expect(dialog.getByLabel("Link label")).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(dialog.getByLabel("Expiration")).toBeFocused();
+    await expect(dialog.getByRole("button", { name: "Done", exact: true })).toBeInViewport();
+    await expect(
+      dialog.getByRole("button", { name: "Revoke", exact: true }).filter({ visible: true }),
+    ).toBeVisible();
+    const body = dialog.locator(".dialog__body");
+    expect(await body.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    for (const label of ["Link label", "Expiration", "Max uses (optional)"]) {
+      const field = dialog.getByLabel(label);
+      const bounds = await dialog.boundingBox();
+      const fieldBounds = await field.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(fieldBounds).not.toBeNull();
+      if (!bounds || !fieldBounds) throw new Error("Missing dialog or field bounds");
+      expect(fieldBounds.x).toBeGreaterThanOrEqual(bounds.x);
+      expect(fieldBounds.x + fieldBounds.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+    }
+    await dialog
+      .getByRole("button", { name: "Create invite link", exact: true })
+      .scrollIntoViewIfNeeded();
+    await expect(
+      dialog.getByRole("button", { name: "Create invite link", exact: true }),
+    ).toBeInViewport();
+    await dialog.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+  }
+  api.assertNoUnexpectedRequests();
 });

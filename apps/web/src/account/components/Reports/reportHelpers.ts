@@ -1,3 +1,4 @@
+import { timestampedExportFilename } from "@choir/domain";
 import {
   type DonationRecord,
   type OrganizationAttendanceRow,
@@ -46,7 +47,7 @@ export function downloadCsv(
   const csv = rows.map((row) => row.map(csvCell).join(",")).join("\n");
   const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
   const link = document.createElement("a");
-  link.download = filename;
+  link.download = timestampedExportFilename(filename, new Date());
   link.href = url;
   link.click();
   URL.revokeObjectURL(url);
