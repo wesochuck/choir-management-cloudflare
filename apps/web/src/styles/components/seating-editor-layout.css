@@ -759,15 +759,15 @@
       background: inherit;
       line-height: var(--line-height-tight);
       box-shadow: var(--shadow-sm);
-      transform: translate(-50%, -50%) scale(1.08);
+      transform: translate(-50%, -50%) scale(1.04);
       pointer-events: none;
     }
 
     .seating-seat--canvas[data-magnified] .seating-seat__surface {
-      min-width: 7rem;
+      min-width: 7.5rem;
       border-color: var(--color-accent);
       box-shadow: var(--shadow-md);
-      transform: translate(-50%, -50%) scale(1.5);
+      transform: translate(-50%, -50%) scale(1.2);
     }
 
     .seating-seat--canvas[data-magnified] .seating-seat__remove {

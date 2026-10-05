@@ -158,3 +158,24 @@ final result: passed
   hit targets and entry-based updates preserve interaction and performance.
 
 final result: passed
+
+# Softer seating magnification — 2026-10-04
+
+- Reduced center scale from 1.5× to 1.2× and immediate neighbors from 1.08× to 1.04× in response to
+  the user's latest screenshot. Full names still appear on hover/focus and the grid remains
+  stationary. Center minimum surface width is 7.5rem before scaling, preserving the existing 120px
+  name readability check while reducing the minimum rendered width from 168px to 144px. Long names
+  still wrap without clipping; mismatch warnings retain their space.
+- All 18 desktop/mobile seating browser tests passed, including themes, keyboard, print, mismatch,
+  controls and initials restoration. Passed affected ESLint, formatting and the web build including
+  TypeScript, with no bundle-size warnings. Inspected the final dense-row image.
+- Initial browser startup was blocked by sandbox localhost permissions; reran with approved
+  local-server permissions. Initial 7rem minimum width failed the existing readability check;
+  corrected the surface width without weakening that check.
+- Screenshots and local assets regenerated through the focused Playwright suite and web build. Full
+  CI/release, backend integration and parity gates were skipped: isolated styling change, no routes
+  or parity-ledger edits, no push or deployment. No migrations, tenant-storage changes or external
+  effects. Rollback is a CSS/test revert. Existing intentional visual overlap remains; no animation,
+  new event handlers or additional recurring work were introduced.
+
+final result: passed

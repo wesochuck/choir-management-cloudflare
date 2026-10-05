@@ -144,24 +144,24 @@ test("seat-shaped zoom tapers on both sides without moving rows or blocking seat
     const visual = await neighbor.locator(".seating-seat__surface").boundingBox();
     const layout = await neighbor.boundingBox();
     if (!visual || !layout) throw new Error("Missing neighboring seat bounds");
-    expect(visual.width / layout.width).toBeCloseTo(1.08, 2);
+    expect(visual.width / layout.width).toBeCloseTo(1.04, 2);
     const scale = await neighbor
       .locator(".seating-seat__surface")
       .evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).a);
-    expect(scale).toBeCloseTo(1.08, 5);
-    expect(visual.height).toBeGreaterThanOrEqual(layout.height * 1.08 - 1);
+    expect(scale).toBeCloseTo(1.04, 5);
+    expect(visual.height).toBeGreaterThanOrEqual(layout.height * 1.04 - 1);
     await expect(neighbor.locator(".seating-seat__name-full")).toBeHidden();
     await expect(neighbor.locator(".seating-seat__name-initials")).toBeVisible();
   }
   const visual = await seat.locator(".seating-seat__surface").boundingBox();
   if (!visual) throw new Error("Missing magnified surface");
-  expect(visual.width).toBeGreaterThan(normal.width * 1.4);
-  // The lens scales by 1.5 while its surface can grow to fit a wrapped full name.
+  expect(visual.width).toBeGreaterThan(normal.width * 1.19);
+  // The lens scales by 1.2 while its surface can grow to fit a wrapped full name.
   const scale = await seat
     .locator(".seating-seat__surface")
     .evaluate((node) => new DOMMatrix(getComputedStyle(node).transform).a);
-  expect(scale).toBeCloseTo(1.5, 5);
-  expect(visual.height).toBeGreaterThanOrEqual(normal.height * 1.5 - 1);
+  expect(scale).toBeCloseTo(1.2, 5);
+  expect(visual.height).toBeGreaterThanOrEqual(normal.height * 1.2 - 1);
   expect(await seat.boundingBox()).toEqual(normal);
   await expect(seat.locator(".seating-seat__name-full")).toHaveText("Ashley Cooper");
   await page.screenshot({ path: testInfo.outputPath("seat-shaped-zoom.png"), fullPage: true });
