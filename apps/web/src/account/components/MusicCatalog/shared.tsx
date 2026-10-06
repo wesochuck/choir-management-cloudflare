@@ -9,11 +9,11 @@ export function GenreChip({
   onRemove,
   selected = false,
 }: {
-  readonly count?: number;
+  readonly count?: number | undefined;
   readonly genre: string;
-  readonly onClick?: () => void;
-  readonly onRemove?: () => void;
-  readonly selected?: boolean;
+  readonly onClick?: (() => void) | undefined;
+  readonly onRemove?: (() => void) | undefined;
+  readonly selected?: boolean | undefined;
 }) {
   const chipColor = genre === "No genre" ? "muted" : genreChipColor(genre);
   const className = `music-genre-chip music-genre-chip--${chipColor}${selected ? " is-selected" : ""}`;
