@@ -514,6 +514,7 @@ test("renders the focused seating canvas with structural controls", async ({ pag
     await assignedSeat.focus();
     await expect(assignedSeat).toHaveAttribute("data-magnified", "true");
     await page.keyboard.press("Escape");
+    await expect(assignedSeat).not.toHaveAttribute("data-magnified");
     await expect(assignedSeat.getByText("Browser Singer", { exact: true })).toBeHidden();
     await page.getByRole("button", { name: "Full Screen" }).click();
     await expect(page.locator(".seating-workspace")).toHaveClass(/seating-workspace--focus/);

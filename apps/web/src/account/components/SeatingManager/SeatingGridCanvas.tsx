@@ -54,7 +54,9 @@ export function SeatingGridCanvas({
   useEffect(() => {
     const dismiss = (event: KeyboardEvent): void => {
       if (event.key !== "Escape") return;
-      dismissedHover.current = hoveredSeat;
+      if (hoveredSeat) {
+        dismissedHover.current = hoveredSeat;
+      }
       setHoveredSeat(null);
       setFocusedSeat(null);
     };
