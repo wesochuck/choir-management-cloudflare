@@ -1,11 +1,12 @@
 import { type CsvColumnMapping, musicCsvColumnOptions } from "@choir/domain";
 import { Dialog, Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
 import { MusicGenreFilter, MusicGenrePicker } from "./shared";
-import { normalizeDurationInput, uniqueLabels } from "./utils";
+import { normalizeDurationInput, pieceScoreCount, uniqueLabels } from "./utils";
 import { MusicCatalogTable, SectionBuckets } from "./table";
 import { performanceContainsPiece, pieceIdsForPerformance } from "./tableUtils";
 import { MusicPiecePerformances, MusicTuttiTrackDropzone } from "./performances";
 import { MusicAudioTracks, MusicBulkEditDialog, MusicDeleteControls } from "./tracksAndBulkEdit";
+import { MusicDigitalScores } from "./MusicDigitalScores";
 import { MusicCredits } from "./credits";
 import { AddToSetListDialog } from "./AddToSetListDialog";
 import { CsvImportDialog } from "../../CsvImportDialog";
@@ -396,6 +397,17 @@ export function MusicCatalogView({
                         : ""}
                     </TabsTrigger>
                     <TabsTrigger
+                      aria-controls="music-piece-scores"
+                      disabled={!selectedPiece}
+                      id="music-piece-scores-tab"
+                      value="scores"
+                    >
+                      Digital scores
+                      {selectedPiece && pieceScoreCount(selectedPiece) > 0
+                        ? ` (${String(pieceScoreCount(selectedPiece))})`
+                        : ""}
+                    </TabsTrigger>
+                    <TabsTrigger
                       aria-controls="music-piece-performances"
                       disabled={!selectedPiece}
                       id="music-piece-performances-tab"
@@ -606,6 +618,36 @@ export function MusicCatalogView({
                   )}
                 </TabsContent>
                 <TabsContent
+                  aria-labelledby="music-piece-scores-tab"
+                  id="music-piece-scores"
+                  value="scores"
+                >
+                  {selectedPiece ? (
+                    <MusicDigitalScores
+                      configuration={roster}
+                      key={selectedPiece.id}
+                      onSaved={(saved, successMessage) => {
+                        setPieces((current) =>
+                          current.map((candidate) =>
+                            candidate.id === saved.id ? saved : candidate,
+                          ),
+                        );
+                        setEditorPiece(saved, "scores");
+                        setMessage(successMessage);
+                      }}
+                      parentPiece={
+                        selectedPiece.parentId
+                          ? (pieces.find((candidate) => candidate.id === selectedPiece.parentId) ??
+                            null)
+                          : null
+                      }
+                      piece={selectedPiece}
+                    />
+                  ) : (
+                    <p className="notice">Save the piece first, then add digital scores.</p>
+                  )}
+                </TabsContent>
+                <TabsContent
                   aria-labelledby="music-piece-performances-tab"
                   id="music-piece-performances"
                   value="performances"
@@ -626,8 +668,8 @@ export function MusicCatalogView({
               </Tabs>
               {editingId ? (
                 <p className="field-help">
-                  Learning tracks linked: {String(Object.keys(piece.trackFileIds).length)} ·
-                  Movements: {String(childCount)}
+                  Learning tracks linked: {String(Object.keys(piece.trackFileIds).length)} · Digital
+                  scores linked: {String(pieceScoreCount(piece))} · Movements: {String(childCount)}
                 </p>
               ) : null}
               <MusicDeleteControls
@@ -653,6 +695,7 @@ export function MusicCatalogView({
             </form>
           </Dialog>
           <MusicBulkEditDialog
+            availableGenres={availableGenres}
             busy={busy}
             configuration={roster}
             error={bulkError}

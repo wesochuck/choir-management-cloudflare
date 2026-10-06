@@ -99,6 +99,7 @@ export interface MusicPieceRow {
   readonly notes: string;
   readonly parentId: string | null;
   readonly purchaseDate: string | null;
+  readonly scoreFileIdsJson: string;
   readonly sectionBucketsJson: string;
   readonly title: string;
   readonly trackFileIdsJson: string;
@@ -120,6 +121,7 @@ export const musicColumns = `id, title, composer, arranger, purchase_date AS pur
   catalog_id AS catalogId, duration_seconds AS durationSeconds, notes,
   section_buckets_json AS sectionBucketsJson, genres_json AS genresJson,
   parent_id AS parentId, track_file_ids_json AS trackFileIdsJson,
+  score_file_ids_json AS scoreFileIdsJson,
   created_at AS createdAt, updated_at AS updatedAt`;
 
 export function isUnknownRecord(value: unknown): value is Record<string, unknown> {

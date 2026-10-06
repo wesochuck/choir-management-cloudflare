@@ -82,6 +82,7 @@ function mockCatalogModel(overrides: Partial<MusicCatalogModel> = {}): MusicCata
       notes: "",
       parentId: null,
       purchaseDate: null,
+      scoreFileIds: {},
       sectionBuckets: [],
       title: "",
       trackFileIds: {},

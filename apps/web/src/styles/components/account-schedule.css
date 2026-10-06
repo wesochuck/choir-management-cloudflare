@@ -119,6 +119,25 @@
     letter-spacing: 0.04em;
   }
 
+  .schedule-set-list__actions {
+    margin: var(--spacing-xs) 0 var(--spacing-sm);
+  }
+
+  .schedule-set-list__item-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xs);
+  }
+
+  .schedule-set-list__score-link {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--spacing-3xs) var(--spacing-xs);
+    font-size: var(--font-size-xs);
+    text-decoration: none;
+  }
+
   fieldset.calendar-subscription-card {
     min-width: 0;
     margin: var(--spacing-xl) 0 0;

@@ -147,18 +147,42 @@ function ScheduleEventSetList({
   if (event.setList.length === 0) {
     return null;
   }
+  const hasPieces = event.setList.some((item) => Boolean(item.pieceId));
   return (
     <fieldset className="schedule-set-list">
       <legend className="schedule-set-list__legend">Approved set list</legend>
+      {hasPieces ? (
+        <div className="schedule-set-list__actions">
+          <a
+            className="button button--secondary button--small"
+            download
+            href={`/api/singer/events/${encodeURIComponent(event.id)}/scores/bundle`}
+          >
+            Download score bundle (ZIP)
+          </a>
+        </div>
+      ) : null}
       <ol>
         {event.setList.map((item, index) => {
           const credit = performerCredit(item, performerLabelPlural);
           const duration = normalizeSetListDuration(item.duration);
           return (
             <li key={item.id ?? `${item.title}-${String(index)}`}>
-              <strong>{item.title}</strong>
-              {item.composer ? ` — ${item.composer}` : ""}
-              {duration ? ` (${duration})` : ""}
+              <div className="schedule-set-list__item-header">
+                <strong>{item.title}</strong>
+                {item.composer ? ` — ${item.composer}` : ""}
+                {duration ? ` (${duration})` : ""}
+                {item.pieceId ? (
+                  <a
+                    className="button button--secondary button--small schedule-set-list__score-link"
+                    href={`/api/singer/pieces/${encodeURIComponent(item.pieceId)}/score`}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Score (PDF)
+                  </a>
+                ) : null}
+              </div>
               {credit ? <span>{credit}</span> : null}
             </li>
           );

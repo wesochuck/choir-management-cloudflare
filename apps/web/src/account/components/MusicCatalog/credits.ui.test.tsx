@@ -25,6 +25,7 @@ function mockPiece(
     parentId: null,
     performanceCount: 0,
     purchaseDate: null,
+    scoreFileIds: {},
     sectionBuckets: [],
     title,
     trackFileIds: {},

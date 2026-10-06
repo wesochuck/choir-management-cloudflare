@@ -27,6 +27,7 @@ function piece(id: string, composer: string, arranger: string): OrganizationMusi
     parentId: null,
     performanceCount: 0,
     purchaseDate: null,
+    scoreFileIds: {},
     sectionBuckets: [],
     title: id,
     trackFileIds: {},

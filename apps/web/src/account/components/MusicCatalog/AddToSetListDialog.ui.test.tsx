@@ -22,6 +22,7 @@ const selectedPiece: OrganizationMusicPiece = {
   parentId: null,
   performanceCount: 0,
   purchaseDate: null,
+  scoreFileIds: {},
   sectionBuckets: [],
   title: "Selected song",
   trackFileIds: {},

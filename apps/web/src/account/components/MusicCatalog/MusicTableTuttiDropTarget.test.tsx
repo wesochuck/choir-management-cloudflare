@@ -19,6 +19,7 @@ function createMockPiece(overrides: Partial<OrganizationMusicPiece> = {}): Organ
     parentId: null,
     performanceCount: 0,
     purchaseDate: null,
+    scoreFileIds: {},
     sectionBuckets: [],
     title: "Test Anthem",
     trackFileIds: {},

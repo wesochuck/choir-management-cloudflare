@@ -95,6 +95,12 @@ export const musicTrackFileIdsSchema = z
     message: "Each private audio file may be assigned to only one track.",
   });
 
+export const musicScoreFileIdsSchema = z
+  .record(z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/), z.uuid())
+  .refine((mapping) => new Set(Object.values(mapping)).size === Object.keys(mapping).length, {
+    message: "Each private score file may be assigned to only one score slot.",
+  });
+
 export const organizationMusicPieceRequestSchema = z.object({
   arranger: z.string().trim().max(300).default(""),
   catalogId: z.string().trim().max(200).default(""),
@@ -105,6 +111,7 @@ export const organizationMusicPieceRequestSchema = z.object({
   notes: z.string().trim().max(100_000).default(""),
   parentId: z.uuid().nullable().default(null),
   purchaseDate: z.iso.date().nullable().default(null),
+  scoreFileIds: musicScoreFileIdsSchema.default({}),
   sectionBuckets: uniqueMusicLabelsSchema.default([]),
   title: z.string().trim().min(1).max(500),
   trackFileIds: musicTrackFileIdsSchema.default({}),
@@ -230,6 +237,7 @@ export const singerLearningTrackPieceSchema = organizationMusicPieceSchema.pick(
   durationSeconds: true,
   id: true,
   parentId: true,
+  scoreFileIds: true,
   title: true,
   trackFileIds: true,
 });

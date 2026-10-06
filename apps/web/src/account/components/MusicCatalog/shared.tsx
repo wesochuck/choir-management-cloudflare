@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { genreChipColor, genreKey, uniqueGenreLabels } from "./utils";
 
@@ -69,12 +69,16 @@ export function GenreChips({ genres }: { readonly genres: readonly string[] }) {
 
 export function MusicGenrePicker({
   availableGenres,
+  disabled = false,
   onChange,
   selected,
+  summaryLabel = "Select genres",
 }: {
   readonly availableGenres: readonly string[];
+  readonly disabled?: boolean;
   readonly onChange: (genres: string[]) => void;
   readonly selected: readonly string[];
+  readonly summaryLabel?: string;
 }) {
   const pickerRef = useRef<HTMLDetailsElement>(null);
   const [search, setSearch] = useState("");
@@ -116,18 +120,46 @@ export function MusicGenrePicker({
     setSearch("");
   }
 
+  function handleSummaryKeyDown(event: ReactKeyboardEvent<HTMLElement>): void {
+    if (disabled) {
+      event.preventDefault();
+    }
+  }
+
   return (
-    <details className="music-genre-picker" ref={pickerRef}>
-      <summary aria-label="Select genres">
+    <details
+      className="music-genre-picker"
+      ref={pickerRef}
+      aria-disabled={disabled || undefined}
+      onToggle={(event) => {
+        if (disabled) {
+          event.currentTarget.open = false;
+        }
+      }}
+    >
+      <summary
+        aria-disabled={disabled || undefined}
+        aria-label={summaryLabel}
+        onClick={(event) => {
+          if (disabled) {
+            event.preventDefault();
+          }
+        }}
+        onKeyDown={handleSummaryKeyDown}
+      >
         <span className="music-genre-picker__summary-value">
           {selected.length > 0 ? (
             selected.map((genre) => (
               <GenreChip
                 genre={genre}
                 key={genreKey(genre)}
-                onRemove={() => {
-                  toggleGenre(genre);
-                }}
+                onRemove={
+                  disabled
+                    ? undefined
+                    : () => {
+                        toggleGenre(genre);
+                      }
+                }
               />
             ))
           ) : (
@@ -148,7 +180,7 @@ export function MusicGenrePicker({
           <span>{selected.length} selected</span>
           <button
             className="text-button"
-            disabled={selected.length === 0}
+            disabled={disabled || selected.length === 0}
             type="button"
             onClick={() => {
               onChange([]);
@@ -159,6 +191,7 @@ export function MusicGenrePicker({
         </div>
         <input
           aria-label="Filter genres"
+          disabled={disabled}
           placeholder="Filter…"
           type="search"
           value={search}
@@ -168,16 +201,24 @@ export function MusicGenrePicker({
         />
         <div className="music-genre-picker__options">
           {visibleGenres.length > 0 ? (
-            visibleGenres.map((genre) => (
-              <GenreChip
-                genre={genre}
-                key={genreKey(genre)}
-                selected={selected.some((item) => genreKey(item) === genreKey(genre))}
-                onClick={() => {
-                  toggleGenre(genre);
-                }}
-              />
-            ))
+            visibleGenres.map((genre) =>
+              disabled ? (
+                <GenreChip
+                  genre={genre}
+                  key={genreKey(genre)}
+                  selected={selected.some((item) => genreKey(item) === genreKey(genre))}
+                />
+              ) : (
+                <GenreChip
+                  genre={genre}
+                  key={genreKey(genre)}
+                  selected={selected.some((item) => genreKey(item) === genreKey(genre))}
+                  onClick={() => {
+                    toggleGenre(genre);
+                  }}
+                />
+              ),
+            )
           ) : (
             <span className="music-genre-picker__empty">No matching genres.</span>
           )}
@@ -185,6 +226,7 @@ export function MusicGenrePicker({
         <div className="music-genre-picker__add">
           <input
             aria-label="New genre"
+            disabled={disabled}
             placeholder="Add new…"
             type="text"
             value={newGenre}
@@ -198,7 +240,12 @@ export function MusicGenrePicker({
               }
             }}
           />
-          <button className="button button--secondary" type="button" onClick={addNewGenre}>
+          <button
+            className="button button--secondary"
+            disabled={disabled}
+            type="button"
+            onClick={addNewGenre}
+          >
             Add
           </button>
         </div>

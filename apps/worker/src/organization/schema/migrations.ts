@@ -1681,6 +1681,12 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE organization_metadata ADD COLUMN seating_templates_json TEXT NOT NULL DEFAULT '[]'",
     ],
   },
+  {
+    version: 103,
+    statements: [
+      "ALTER TABLE music_pieces ADD COLUMN score_file_ids_json TEXT NOT NULL DEFAULT '{}'",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

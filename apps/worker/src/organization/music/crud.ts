@@ -13,9 +13,11 @@ export function parseStoredPiece(row: MusicPieceRow): OrganizationMusicPiece {
   const genres = JSON.parse(row.genresJson) as unknown;
   const sectionBuckets = JSON.parse(row.sectionBucketsJson) as unknown;
   const trackFileIds = JSON.parse(row.trackFileIdsJson) as unknown;
+  const scoreFileIds = row.scoreFileIdsJson ? (JSON.parse(row.scoreFileIdsJson) as unknown) : {};
   return organizationMusicPieceSchema.parse({
     ...row,
     genres,
+    scoreFileIds,
     sectionBuckets,
     trackFileIds,
   });
@@ -104,8 +106,8 @@ export function writePiece(
         `INSERT INTO music_pieces
           (id, title, composer, arranger, purchase_date, copies, catalog_id, duration_seconds,
            notes, section_buckets_json, genres_json, parent_id, track_file_ids_json,
-           created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           score_file_ids_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         operation.pieceId,
         piece.title,
         piece.composer,
@@ -119,6 +121,7 @@ export function writePiece(
         JSON.stringify(piece.genres),
         piece.parentId,
         JSON.stringify(piece.trackFileIds),
+        JSON.stringify(piece.scoreFileIds),
         occurredAt,
         occurredAt,
       );
@@ -127,7 +130,7 @@ export function writePiece(
         `UPDATE music_pieces
          SET title = ?, composer = ?, arranger = ?, purchase_date = ?, copies = ?, catalog_id = ?,
            duration_seconds = ?, notes = ?, section_buckets_json = ?, genres_json = ?, parent_id = ?,
-           track_file_ids_json = ?, updated_at = ?
+           track_file_ids_json = ?, score_file_ids_json = ?, updated_at = ?
          WHERE id = ?`,
         piece.title,
         piece.composer,
@@ -141,6 +144,7 @@ export function writePiece(
         JSON.stringify(piece.genres),
         piece.parentId,
         JSON.stringify(piece.trackFileIds),
+        JSON.stringify(piece.scoreFileIds),
         occurredAt,
         operation.pieceId,
       );

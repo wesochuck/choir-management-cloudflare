@@ -344,3 +344,13 @@ export {
 } from "./organizationMemberships";
 
 export { timestampedExportFilename } from "./exportFilename";
+export {
+  digitalScoreFileName,
+  resolveMemberScoreFile,
+  scoreDescription,
+  SCORE_BUNDLE_MAX_BYTES,
+  SCORE_MAX_BYTES,
+  SCORE_MIME_TYPE,
+  STANDARD_SCORE_KEYS,
+  type ResolvedPieceScore,
+} from "./digitalScore";

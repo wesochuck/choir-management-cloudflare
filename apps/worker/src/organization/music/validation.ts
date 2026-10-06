@@ -2,6 +2,7 @@ import {
   organizationRosterConfigurationRequestSchema,
   type OrganizationMusicPieceRequest,
 } from "@choir/contracts";
+import { SCORE_MAX_BYTES, SCORE_MIME_TYPE } from "@choir/domain";
 
 export function configuredSections(storage: DurableObjectStorage): ReadonlySet<string> | null {
   try {
@@ -48,6 +49,27 @@ export function validateTrackFiles(
     : Response.json({ code: "music_track_file_invalid" }, { status: 409 });
 }
 
+export function validateScoreFiles(
+  storage: DurableObjectStorage,
+  piece: OrganizationMusicPieceRequest,
+): Response | null {
+  const ids = Object.values(piece.scoreFileIds);
+  if (ids.length === 0) return null;
+  const rows = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
+      `SELECT id FROM private_files
+       WHERE id IN (${ids.map(() => "?").join(",")})
+         AND status = 'ready' AND content_type = ? AND size_bytes BETWEEN 1 AND ?`,
+      ...ids,
+      SCORE_MIME_TYPE,
+      SCORE_MAX_BYTES,
+    )
+    .toArray();
+  return rows.length === ids.length
+    ? null
+    : Response.json({ code: "music_score_file_invalid" }, { status: 409 });
+}
+
 export function validateParent(
   storage: DurableObjectStorage,
   pieceId: string,
@@ -88,6 +110,7 @@ export function validatePiece(
   return (
     validateSectionBuckets(storage, piece) ??
     validateParent(storage, pieceId, piece.parentId) ??
-    validateTrackFiles(storage, piece)
+    validateTrackFiles(storage, piece) ??
+    validateScoreFiles(storage, piece)
   );
 }

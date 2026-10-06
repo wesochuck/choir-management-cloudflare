@@ -344,16 +344,11 @@ export async function uploadPrivateOrganizationFile(
   }
 }
 
-export async function readPrivateOrganizationFile(
+export async function readPrivateOrganizationFileMetadata(
   env: PrivateFileEnv,
   organizationId: string,
   fileId: string,
-  rangeHeader: string | null = null,
-): Promise<{
-  readonly metadata: z.infer<typeof privateFileMetadataSchema>;
-  readonly object: R2ObjectBody;
-  readonly range: { readonly length: number; readonly offset: number } | null;
-} | null> {
+): Promise<z.infer<typeof privateFileMetadataSchema> | null> {
   const metadataResponse = await invokeOrganizationRpc(
     organizationStoreStub(env, organizationId),
     `https://organization.internal/internal/files/${encodeURIComponent(fileId)}`,
@@ -375,8 +370,25 @@ export async function readPrivateOrganizationFile(
   ) {
     throw new PrivateFileStorageError("unavailable", "Private file metadata scope was rejected.");
   }
-  const storageKey = metadata.data.storageKey;
-  const range = rangeHeader ? requestedRange(rangeHeader, metadata.data.sizeBytes) : null;
+  return metadata.data;
+}
+
+export async function readPrivateOrganizationFile(
+  env: PrivateFileEnv,
+  organizationId: string,
+  fileId: string,
+  rangeHeader: string | null = null,
+): Promise<{
+  readonly metadata: z.infer<typeof privateFileMetadataSchema>;
+  readonly object: R2ObjectBody;
+  readonly range: { readonly length: number; readonly offset: number } | null;
+} | null> {
+  const metadata = await readPrivateOrganizationFileMetadata(env, organizationId, fileId);
+  if (!metadata) {
+    return null;
+  }
+  const storageKey = metadata.storageKey;
+  const range = rangeHeader ? requestedRange(rangeHeader, metadata.sizeBytes) : null;
   const object = await env.ORGANIZATION_FILES.get(
     storageKey,
     range ? { range: { length: range.length, offset: range.offset } } : undefined,
@@ -385,13 +397,13 @@ export async function readPrivateOrganizationFile(
     throw new PrivateFileStorageError("unavailable", "Private file storage is unavailable.");
   }
   if (
-    object.size !== metadata.data.sizeBytes ||
+    object.size !== metadata.sizeBytes ||
     object.customMetadata?.organizationId !== organizationId ||
     object.customMetadata.fileId !== fileId
   ) {
     throw new PrivateFileStorageError("unavailable", "Private file storage is unavailable.");
   }
-  return { metadata: metadata.data, object, range };
+  return { metadata, object, range };
 }
 
 export async function reclaimPrivateOrganizationFile(

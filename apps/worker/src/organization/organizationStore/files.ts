@@ -142,6 +142,24 @@ export function privateFileIsReferenced(storage: DurableObjectStorage, fileId: s
       }
     });
   if (musicReference) return true;
+  const musicScoreReference = storage.sql
+    .exec<{ readonly scoreFileIdsJson: string }>(
+      "SELECT score_file_ids_json AS scoreFileIdsJson FROM music_pieces",
+    )
+    .toArray()
+    .some(({ scoreFileIdsJson }) => {
+      try {
+        const value: unknown = JSON.parse(scoreFileIdsJson);
+        return (
+          typeof value === "object" &&
+          value !== null &&
+          Object.values(value).some((candidate) => candidate === fileId)
+        );
+      } catch {
+        return false;
+      }
+    });
+  if (musicScoreReference) return true;
   const publicWebsiteReference = storage.sql
     .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
       `SELECT

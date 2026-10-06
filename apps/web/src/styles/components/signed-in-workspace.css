@@ -846,6 +846,33 @@
     padding-left: var(--spacing-md);
   }
 
+  .member-dashboard__set-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-2xs);
+  }
+
+  .member-dashboard__score-link {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    padding: var(--spacing-3xs) var(--spacing-xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  .member-dashboard__score-link:hover {
+    background: var(--color-surface-hover);
+    text-decoration: underline;
+  }
+
+  .member-dashboard__set-list-actions {
+    margin-top: var(--spacing-sm);
+  }
+
   fieldset.member-dashboard__widget {
     display: grid;
     align-content: start;

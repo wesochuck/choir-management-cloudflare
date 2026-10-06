@@ -15,7 +15,8 @@ import { extractAudioDuration } from "../../audioDuration";
 import { learningTrackFileName } from "../../learningTrackFilename";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 
-import { requestFrom, uniqueLabels } from "./utils";
+import { requestFrom, uniqueGenreLabels } from "./utils";
+import { MusicGenrePicker } from "./shared";
 
 import { trackKeys, trackDescription, validateAudioFile } from "./tableUtils";
 
@@ -356,6 +357,7 @@ export function MusicDeleteControls({
 
 // eslint-disable-next-line complexity -- bulk edit layout with delete/cancel/update and confirm states
 export function MusicBulkEditDialog({
+  availableGenres = [],
   busy,
   configuration,
   error,
@@ -368,6 +370,7 @@ export function MusicBulkEditDialog({
   selectedCount,
   selectedPieceIds,
 }: {
+  readonly availableGenres?: readonly string[];
   readonly busy: boolean;
   readonly configuration: OrganizationRosterConfiguration;
   readonly error: string | null;
@@ -386,7 +389,7 @@ export function MusicBulkEditDialog({
   const [changeSections, setChangeSections] = useState(false);
   const [composer, setComposer] = useState("");
   const [arranger, setArranger] = useState("");
-  const [genres, setGenres] = useState("");
+  const [genres, setGenres] = useState<readonly string[]>([]);
   const [sections, setSections] = useState<readonly string[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -415,7 +418,7 @@ export function MusicBulkEditDialog({
     const changes: OrganizationMusicBulkUpdateRequest["changes"] = {};
     if (changeComposer) changes.composer = composer.trim();
     if (changeArranger) changes.arranger = arranger.trim();
-    if (changeGenres) changes.genres = uniqueLabels(genres);
+    if (changeGenres) changes.genres = uniqueGenreLabels(genres);
     if (changeSections) changes.sectionBuckets = [...sections];
     if (Object.keys(changes).length === 0) {
       setFormError("Choose at least one field to change.");
@@ -511,15 +514,22 @@ export function MusicBulkEditDialog({
               />
               Genres
             </label>
-            <input
-              aria-label="Bulk genres"
-              disabled={!changeGenres}
-              placeholder="Comma separated; blank clears genres"
-              value={genres}
-              onChange={(event) => {
-                setGenres(event.target.value);
-              }}
-            />
+            <div>
+              <MusicGenrePicker
+                availableGenres={availableGenres}
+                disabled={!changeGenres}
+                onChange={(next) => {
+                  setGenres(next);
+                }}
+                selected={genres}
+                summaryLabel="Bulk genres"
+              />
+              <p className="field-help">
+                {changeGenres
+                  ? "Choose from existing genres or add new. Empty selection clears genres."
+                  : "Select Genres to enable editing."}
+              </p>
+            </div>
           </div>
           <div className="music-bulk-edit-field">
             <label className="checkbox-row">

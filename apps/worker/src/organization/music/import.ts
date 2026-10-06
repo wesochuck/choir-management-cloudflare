@@ -120,7 +120,7 @@ export function importPieces(
   storage.transactionSync(() => {
     for (let offset = 0; offset < goodPieces.length; offset += MUSIC_IMPORT_BATCH_SIZE) {
       const importedBatch = goodPieces.slice(offset, offset + MUSIC_IMPORT_BATCH_SIZE);
-      const values = importedBatch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+      const values = importedBatch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
       const parameters = importedBatch.flatMap((imported) => {
         const piece = imported.piece;
         return [
@@ -137,6 +137,7 @@ export function importPieces(
           JSON.stringify(piece.genres),
           piece.parentId,
           JSON.stringify(piece.trackFileIds),
+          JSON.stringify(piece.scoreFileIds),
           occurredAt,
           occurredAt,
         ];
@@ -145,7 +146,7 @@ export function importPieces(
         `INSERT INTO music_pieces
           (id, title, composer, arranger, purchase_date, copies, catalog_id, duration_seconds,
            notes, section_buckets_json, genres_json, parent_id, track_file_ids_json,
-           created_at, updated_at)
+           score_file_ids_json, created_at, updated_at)
          VALUES ${values.join(", ")}`,
         ...parameters,
       );

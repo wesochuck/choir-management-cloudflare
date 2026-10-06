@@ -72,7 +72,7 @@ export function summarizeMusicCredits(
 
 export const maximumAudioBytes = 20 * 1024 * 1024;
 
-export type MusicEditorTab = "details" | "performances" | "tracks";
+export type MusicEditorTab = "details" | "performances" | "scores" | "tracks";
 
 export const emptyPiece: OrganizationMusicPieceRequest = {
   arranger: "",
@@ -86,6 +86,7 @@ export const emptyPiece: OrganizationMusicPieceRequest = {
   purchaseDate: null,
   sectionBuckets: [],
   title: "",
+  scoreFileIds: {},
   trackFileIds: {},
 };
 
@@ -100,6 +101,7 @@ export function requestFrom(piece: OrganizationMusicPiece): OrganizationMusicPie
     notes: piece.notes,
     parentId: piece.parentId,
     purchaseDate: piece.purchaseDate,
+    scoreFileIds: piece.scoreFileIds,
     sectionBuckets: piece.sectionBuckets,
     title: piece.title,
     trackFileIds: piece.trackFileIds,
@@ -248,8 +250,8 @@ export function resolvePreferredPracticeTrack(
   };
 }
 
-export function pieceTrackCount(piece: OrganizationMusicPiece): number {
-  return Object.values(piece.trackFileIds).filter(
+export function pieceTrackCount(piece: { readonly trackFileIds?: Record<string, string> }): number {
+  return Object.values(piece.trackFileIds ?? {}).filter(
     (fileId) => typeof fileId === "string" && fileId.trim().length > 0,
   ).length;
 }
@@ -263,4 +265,21 @@ export function trackCount(
     .filter(({ parentId }) => parentId === piece.id)
     .reduce((total, movement) => total + pieceTrackCount(movement), 0);
   return directTracks + movementTracks;
+}
+
+export function pieceScoreCount(piece: { readonly scoreFileIds?: Record<string, string> }): number {
+  return Object.values(piece.scoreFileIds ?? {}).filter(
+    (fileId) => typeof fileId === "string" && fileId.trim().length > 0,
+  ).length;
+}
+
+export function scoreCount(
+  piece: OrganizationMusicPiece,
+  pieces: readonly OrganizationMusicPiece[],
+): number {
+  const directScores = pieceScoreCount(piece);
+  const movementScores = pieces
+    .filter(({ parentId }) => parentId === piece.id)
+    .reduce((total, movement) => total + pieceScoreCount(movement), 0);
+  return directScores + movementScores;
 }

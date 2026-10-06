@@ -587,6 +587,33 @@ An audio track (typically MP3) attached to a piece in the Music Library. Used by
 archive management and made available to singers for practice and learning when the piece is
 included in their set list.
 
+## Digital Score
+
+A sheet music document (typically PDF) attached to a Music Piece in the Music Library. Each piece
+retains a Primary Score and may include optional labeled supplementary scores (such as a Full Score,
+Accompaniment, or Part-specific editions), made available to active singers when the piece is
+included on an approved Set List for an event they are attending. When a movement of a Multi-Work
+Piece lacks its own score, it inherits the parent piece's Primary Score as a fallback. _Avoid_:
+Sheet music upload, PDF score, Music attachment
+
+## Primary Score
+
+The default Digital Score for a Music Piece (typically a Choral Octavo or Vocal Score) provided to
+all attending singers unless a supplementary score matching their assigned Part is selected.
+_Avoid_: Default PDF, Main sheet music
+
+## Supplementary Score
+
+An alternate or specialized Digital Score attached to a Music Piece, categorized either by Part
+(automatically matched to singers assigned to that Part) or by standard edition type (such as Full
+Score, Vocal Score, or Accompaniment). _Avoid_: Alternate PDF, Secondary score
+
+## Event Score Bundle
+
+A downloadable ZIP archive compiled for an Organization Member containing the Digital Scores
+matching their assigned Part (or Primary Scores) for all pieces on an approved Set List for an event
+they are attending. _Avoid_: Concert ZIP, Sheet music export
+
 ## Practice Player Link
 
 A signed, Organization-bound, shareable event link that lets anyone with the link open approved

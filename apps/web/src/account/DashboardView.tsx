@@ -65,14 +65,38 @@ function DashboardEventHighlights({ event }: { readonly event: DashboardEvent })
 
 function DashboardEventSetList({ event }: { readonly event: DashboardEvent }) {
   if (event.setList.length === 0) return null;
+  const hasPieces = event.setList.some((item) => Boolean(item.pieceId));
   return (
     <details className="member-dashboard__set-list">
       <summary>View set list ({String(event.setList.length)} items)</summary>
       <ul>
         {event.setList.map((item, index) => (
-          <li key={`${item.title}-${String(index)}`}>{item.title}</li>
+          <li key={`${item.title}-${String(index)}`}>
+            <span>{item.title}</span>
+            {item.pieceId ? (
+              <a
+                className="member-dashboard__score-link"
+                href={`/api/singer/pieces/${encodeURIComponent(item.pieceId)}/score`}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Score (PDF)
+              </a>
+            ) : null}
+          </li>
         ))}
       </ul>
+      {hasPieces ? (
+        <div className="member-dashboard__set-list-actions">
+          <a
+            className="button button--secondary button--small"
+            download
+            href={`/api/singer/events/${encodeURIComponent(event.id)}/scores/bundle`}
+          >
+            Download all scores (ZIP)
+          </a>
+        </div>
+      ) : null}
     </details>
   );
 }
