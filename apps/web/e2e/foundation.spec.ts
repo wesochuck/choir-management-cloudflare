@@ -16,9 +16,10 @@ test("renders the accessible foundation at desktop and mobile widths @webkit-smo
   await page.goto("/");
 
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Choir Management");
-  await expect(page.getByRole("link", { name: "Member sign in" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Upcoming performances" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Already a member?" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "For community choirs" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Member sign in" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Already a member?" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Upcoming performances." })).toBeVisible();
   await expect(page.getByRole("heading", { name: "For community choirs." })).toBeVisible();
   await expect(page.locator('a[href="/join-roster"]')).toHaveCount(0);

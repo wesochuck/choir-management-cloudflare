@@ -31,15 +31,20 @@ describe("PlatformHomeView", () => {
     });
   });
 
-  it("renders Member sign in linking to /login for anonymous users", async () => {
+  it("renders Upcoming performances and For community choirs action links for anonymous users", async () => {
     render(<PlatformHomeView signedIn={false} />);
 
-    const heroSignIn = screen.getByRole("link", { name: "Member sign in" });
-    expect(heroSignIn).toBeInTheDocument();
-    expect(heroSignIn).toHaveAttribute("href", "/login");
+    const performancesLink = screen.getByRole("link", { name: "Upcoming performances" });
+    expect(performancesLink).toBeInTheDocument();
+    expect(performancesLink).toHaveAttribute("href", "#upcoming-performances");
 
-    const alreadyMemberHeading = screen.getByRole("heading", { name: "Already a member?" });
-    expect(alreadyMemberHeading).toBeInTheDocument();
+    const choirsLink = screen.getByRole("link", { name: "For community choirs" });
+    expect(choirsLink).toBeInTheDocument();
+    expect(choirsLink).toHaveAttribute("href", "#community-choirs");
+
+    // Does not offer member sign in to anonymous visitors
+    expect(screen.queryByRole("link", { name: "Member sign in" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Already a member?" })).toBeNull();
 
     await waitFor(() => {
       expect(screen.getByText("Winter Masterworks")).toBeInTheDocument();
@@ -49,9 +54,9 @@ describe("PlatformHomeView", () => {
   it("renders Open your workspace linking to /account for authenticated users", async () => {
     render(<PlatformHomeView signedIn={true} />);
 
-    const workspaceLinks = screen.getAllByRole("link", { name: "Open your workspace" });
-    expect(workspaceLinks.length).toBeGreaterThanOrEqual(1);
-    expect(workspaceLinks[0]).toHaveAttribute("href", "/account");
+    const workspaceLink = screen.getByRole("link", { name: "Open your workspace" });
+    expect(workspaceLink).toBeInTheDocument();
+    expect(workspaceLink).toHaveAttribute("href", "/account");
 
     await waitFor(() => {
       expect(screen.getByText("Winter Masterworks")).toBeInTheDocument();
@@ -78,9 +83,6 @@ describe("PlatformHomeView", () => {
       screen.getByText(
         /Have an invitation or practice-player link\? Use the unique link provided by your choir\./i,
       ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/use the unique link sent by your choir director or administrator\./i),
     ).toBeInTheDocument();
 
     await waitFor(() => {

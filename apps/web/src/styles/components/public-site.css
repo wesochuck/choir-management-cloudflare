@@ -74,8 +74,7 @@
     justify-content: center;
     align-items: flex-start;
     max-width: 48rem;
-    min-height: calc(75vh - 8rem);
-    padding-block: 5rem 6rem;
+    padding-block: 2.5rem var(--spacing-2xl);
   }
 
   h1,
@@ -131,7 +130,7 @@
   }
 
   .foundation {
-    padding-block: 5rem 8rem;
+    padding-block: 2.5rem 3rem;
     border-top: 1px solid var(--color-border);
   }
 }

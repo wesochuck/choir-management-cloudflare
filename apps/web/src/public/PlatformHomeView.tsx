@@ -96,39 +96,30 @@ export function PlatformHomeView({ signedIn }: PlatformHomeViewProps) {
 
   return (
     <main>
-      {/* 1. Clear member-first hero */}
+      {/* 1. Platform hero */}
       <section className="hero" aria-labelledby="hero-title">
         <div className="hero__copy">
           <h1 id="hero-title">Choir Management</h1>
           <p className="hero__lede">Tools for singers, directors, and community choirs.</p>
           <div className="hero__actions">
-            <a className="button button--primary" href={signedIn ? "/account" : "/login"}>
-              {signedIn ? "Open your workspace" : "Member sign in"}
-            </a>
-            <a className="button button--secondary" href="#upcoming-performances">
+            {signedIn ? (
+              <a className="button button--primary" href="/account">
+                Open your workspace
+              </a>
+            ) : null}
+            <a
+              className={`button ${signedIn ? "button--secondary" : "button--primary"}`}
+              href="#upcoming-performances"
+            >
               Upcoming performances
+            </a>
+            <a className="button button--secondary" href="#community-choirs">
+              For community choirs
             </a>
           </div>
           <p className="hero__guidance">
             Have an invitation or practice-player link? Use the unique link provided by your choir.
           </p>
-        </div>
-      </section>
-
-      {/* 2. Compact member access block */}
-      <section className="foundation" id="member-access" aria-labelledby="member-access-title">
-        <div className="section-heading">
-          <h2 id="member-access-title">Already a member?</h2>
-          <p>
-            Sign in with the email address associated with your choir. If you’re joining a choir or
-            opening a practice player, use the unique link sent by your choir director or
-            administrator.
-          </p>
-        </div>
-        <div className="mt-4">
-          <a className="button button--secondary" href={signedIn ? "/account" : "/login"}>
-            {signedIn ? "Open your workspace" : "Sign in"}
-          </a>
         </div>
       </section>
 

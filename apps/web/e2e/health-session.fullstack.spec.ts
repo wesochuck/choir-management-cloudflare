@@ -48,7 +48,7 @@ test("serves the anonymous landing page from the real Worker @webkit-smoke", asy
 
   await page.goto(`${FULLSTACK_APP_ORIGIN}/`);
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Choir Management");
-  await expect(page.getByRole("link", { name: "Member sign in" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Upcoming performances" })).toBeVisible();
   await expect(page.getByLabel("Account").getByRole("link", { name: "Sign in" })).toBeVisible();
 });
 
