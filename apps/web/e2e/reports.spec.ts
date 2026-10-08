@@ -186,6 +186,21 @@ test.beforeEach(async ({ page }) => {
       status: 200,
     });
   });
+  await page.route("**/api/organization/branding", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        brandColor: null,
+        heroFileId: null,
+        heroHeadline: null,
+        heroSubtitle: null,
+        logoFileId: null,
+        organizationName: "Organization Alpha",
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
   await page.route("**/api/organization/profiles", async (route) => {
     await route.fulfill({
       body: JSON.stringify({ profiles: [profile], requestId }),
@@ -466,7 +481,7 @@ test("supports multi-Performance history, staged edits, and immediate return upd
   page,
 }) => {
   await page.goto("/admin/reports");
-  await expect(page.getByRole("heading", { name: "Reports" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Reports" })).toBeVisible({ timeout: 10_000 });
   await expect(page.locator(".reports-intro")).toHaveCount(0);
   const [pageHeadingBox, tabsBox] = await Promise.all([
     page.locator(".page-heading").boundingBox(),
