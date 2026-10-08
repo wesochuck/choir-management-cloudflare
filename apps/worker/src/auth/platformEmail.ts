@@ -12,7 +12,8 @@ type PlatformEmailKind =
   | "email-change-notice"
   | "email-one-time-code"
   | "organization-invitation"
-  | "password-reset";
+  | "password-reset"
+  | "platform-inquiry";
 
 export interface PlatformEmailMessage {
   readonly kind: PlatformEmailKind;

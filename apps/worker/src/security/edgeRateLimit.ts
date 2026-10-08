@@ -75,6 +75,12 @@ function getRateLimitExceededMessage(operation: string, limiterName: EdgeRateLim
   if (operation === "audition_inquiry") {
     return "Too many audition inquiries. Please try again later.";
   }
+  if (operation === "platform_inquiry") {
+    return "Too many inquiry submissions. Please try again later.";
+  }
+  if (operation === "platform_tickets") {
+    return "Too many ticket feed requests. Please try again later.";
+  }
   return "Too many checkout requests. Please try again later.";
 }
 

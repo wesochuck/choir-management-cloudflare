@@ -33,6 +33,7 @@ import { PublicAuditionView } from "./public/PublicAuditionView";
 import { PublicOrganizationSite } from "./public/PublicOrganizationSite";
 import { PublicTickets } from "./public/PublicTickets";
 import { PublicDonations } from "./public/PublicDonations";
+import { PlatformHomeView } from "./public/PlatformHomeView";
 import { SetupView } from "./setup/SetupView";
 
 const PublicPlayerView = lazy(() =>
@@ -45,66 +46,6 @@ type SessionState =
   | { readonly status: "checking" }
   | { readonly status: "error"; readonly reason: "unavailable" | "unconfirmed" }
   | { readonly session: NonNullable<CurrentAuthSession>; readonly status: "authenticated" };
-
-const moduleCards = [
-  {
-    description: "Rosters, member profiles, voice parts, directory preferences, and dues tracking.",
-    title: "People",
-  },
-  {
-    description: "Rehearsals, performances, attendance tracking, calendars, and seating charts.",
-    title: "Events",
-  },
-  {
-    description: "Music library, practice resources, communications, polls, and ticketing.",
-    title: "Programs",
-  },
-] as const;
-
-function HomeView({ signedIn }: { readonly signedIn: boolean }) {
-  return (
-    <main>
-      <section className="hero" aria-labelledby="hero-title">
-        <div className="hero__copy">
-          <h1 id="hero-title">One calm place to keep your choir moving together.</h1>
-          <p className="hero__lede">
-            A simple, secure platform for rehearsals, performances, roster coordination, and public
-            events.
-          </p>
-          <div className="hero__actions">
-            <a className="button button--primary" href={signedIn ? "/account" : "/login"}>
-              {signedIn ? "Open your account" : "Sign in"}
-            </a>
-            <a className="button button--secondary" href="#features">
-              Explore features
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <section className="foundation" id="features" aria-labelledby="features-title">
-        <div className="section-heading">
-          <h2 id="features-title">Designed for choral ensembles.</h2>
-          <p>
-            Keep your singers, music, rehearsals, and performances organized in one dedicated
-            workspace.
-          </p>
-        </div>
-        <div className="module-grid">
-          {moduleCards.map((module, index) => (
-            <article className="module-card" key={module.title}>
-              <span className="module-card__index" aria-hidden="true">
-                0{index + 1}
-              </span>
-              <h3>{module.title}</h3>
-              <p>{module.description}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-    </main>
-  );
-}
 
 function AccountLoading() {
   return (
@@ -290,7 +231,7 @@ function selectContent(
     }
     return <SignInView onSignedIn={finishSignIn} />;
   }
-  return <HomeView signedIn={sessionState.status === "authenticated"} />;
+  return <PlatformHomeView signedIn={sessionState.status === "authenticated"} />;
 }
 
 function LegacyRedirect({ href }: { readonly href: string }) {

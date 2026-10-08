@@ -10,8 +10,13 @@ import {
   publicWebsitePublishResponseSchema,
   publicWebsiteSettingsResponseSchema,
   transactionFeeSettingsResponseSchema,
+  platformHomeTicketListingsResponseSchema,
+  platformInquiryResponseSchema,
   type DonationCheckoutRequest,
   type DonationSettings,
+  type PlatformHomeTicketListing,
+  type PlatformInquiryRequest,
+  type PlatformInquiryResponse,
   type PublicAuditionDetailsResponse,
   type PublicAuditionSettings,
   type PublicDonationReceiptResponse,
@@ -210,5 +215,27 @@ export async function submitPublicAuditionUpdate(
   await request("/api/public/audition-submit", {
     body: JSON.stringify({ availabilityNotes, token, voicePart }),
     method: "POST",
+  });
+}
+
+export async function getPlatformHomeTickets(
+  signal?: AbortSignal,
+): Promise<readonly PlatformHomeTicketListing[]> {
+  const data = await requestJson(
+    "/api/public/platform/tickets",
+    platformHomeTicketListingsResponseSchema,
+    { signal: signal ?? null },
+  );
+  return data.listings;
+}
+
+export async function submitPlatformInquiry(
+  inquiry: PlatformInquiryRequest,
+  signal?: AbortSignal,
+): Promise<PlatformInquiryResponse> {
+  return requestJson("/api/public/platform/inquire", platformInquiryResponseSchema, {
+    body: JSON.stringify(inquiry),
+    method: "POST",
+    signal: signal ?? null,
   });
 }

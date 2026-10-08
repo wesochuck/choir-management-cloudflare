@@ -7,12 +7,14 @@ import { registerRoutes as registerPublicCommerceRoutes } from "../publicCommerc
 import { registerRoutes as registerPublicDonationsRoutes } from "../publicDonations";
 import { registerRoutes as registerPublicEngagementRoutes } from "../publicEngagement";
 import { registerRoutes as registerPublicRsvpPollsRoutes } from "../publicRsvpPolls";
+import { registerRoutes as registerPlatformHomeRoutes } from "../platformHome";
 import { registerRoutes as registerPublicTicketsRoutes } from "../publicTickets";
 import { registerRoutes as registerRosterInviteEnrollmentRoutes } from "../rosterInviteEnrollment";
 import { registerRoutes as registerPaymentsRoutes } from "../payments";
 
 export function registerPublicGroupRoutes(router: Hono<WorkerHonoEnvironment>): void {
   registerPublicCoreRoutes(router);
+  registerPlatformHomeRoutes(router);
   // Local-only full-stack E2E seam. The module answers 404 unless
   // APP_ENV === "local", so staging and production are unaffected.
   registerLocalFullstackSeedRoutes(router);
