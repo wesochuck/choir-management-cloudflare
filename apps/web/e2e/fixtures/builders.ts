@@ -32,6 +32,7 @@ import {
   platformContextResponseSchema,
   platformElevationRevocationResponseSchema,
   platformFleetSchemaStatusResponseSchema,
+  platformHomeTicketListingsResponseSchema,
   platformJobDeadLettersResponseSchema,
   platformMfaEnrollmentResponseSchema,
   platformMfaStatusResponseSchema,
@@ -63,6 +64,8 @@ import {
   type OrganizationProfile,
   type OrganizationVenue,
   type OrganizationSeatingChart,
+  type PlatformHomeTicketListing,
+  type PlatformHomeTicketListingsResponse,
   type SingerEvent,
 } from "@choir/contracts";
 
@@ -845,6 +848,19 @@ export function buildPlatformOrganizationsResponse() {
       requestId: "33333333-3333-4333-8333-333333333333",
     },
     (value) => platformOrganizationsResponseSchema.parse(value),
+  );
+}
+
+export function buildPlatformHomeTicketListingsResponse(
+  listings: readonly PlatformHomeTicketListing[] = [],
+  requestId = defaultFixtureRequestId,
+): PlatformHomeTicketListingsResponse {
+  return validated(
+    {
+      listings: [...listings],
+      requestId,
+    },
+    (value) => platformHomeTicketListingsResponseSchema.parse(value),
   );
 }
 

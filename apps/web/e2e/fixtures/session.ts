@@ -4,6 +4,7 @@ import {
   buildAccountSecurityResponse,
   buildHealthResponse,
   buildMemberEmailChangeResponse,
+  buildPlatformHomeTicketListingsResponse,
   buildSessionUser,
   createMutableState,
   defaultFixtureRequestId,
@@ -70,6 +71,9 @@ export async function installSessionShell(
   });
   await page.route("**/api/public/projection", async (route) => {
     await route.fulfill({ status: 404 });
+  });
+  await page.route("**/api/public/platform/tickets", async (route) => {
+    await fulfillJson(route, buildPlatformHomeTicketListingsResponse());
   });
   await page.route("**/api/auth/email-otp/send-verification-otp", async (route) => {
     await fulfillJson(route, { success: true });

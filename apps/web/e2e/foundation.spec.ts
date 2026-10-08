@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { mockAnonymousSession, mockHealth } from "./support/testWorld";
+import { buildPlatformHomeTicketListingsResponse } from "./fixtures/builders";
+import { fulfillJson, mockAnonymousSession, mockHealth } from "./support/testWorld";
 
 test("renders the accessible foundation at desktop and mobile widths @webkit-smoke", async ({
   page,
@@ -10,11 +11,7 @@ test("renders the accessible foundation at desktop and mobile widths @webkit-smo
     await route.fulfill({ status: 404 });
   });
   await page.route("**/api/public/platform/tickets", async (route) => {
-    await route.fulfill({
-      body: JSON.stringify({ listings: [], requestId: "00000000-0000-4000-8000-000000000000" }),
-      contentType: "application/json",
-      status: 200,
-    });
+    await fulfillJson(route, buildPlatformHomeTicketListingsResponse());
   });
   await page.goto("/");
 
