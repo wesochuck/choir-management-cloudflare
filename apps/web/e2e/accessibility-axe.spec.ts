@@ -96,6 +96,22 @@ test("sign-in page has no serious accessibility violations", async ({ page }) =>
   api.assertNoUnexpectedRequests();
 });
 
+test("platform home page has no serious accessibility violations @webkit-smoke", async ({
+  page,
+}) => {
+  const api = await installOrganizationApi(page, {
+    initiallySignedIn: false,
+    role: "member",
+    strict: true,
+  });
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Choir Management");
+
+  await expectNoSeriousAxeViolations(page, "platform home");
+  api.assertNoUnexpectedRequests();
+});
+
 test("member dashboard has no serious accessibility violations", async ({ page }) => {
   const api = await installOrganizationApi(page, { role: "member", strict: true });
   api.setSingerDashboard(

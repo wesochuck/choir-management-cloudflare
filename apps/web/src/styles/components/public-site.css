@@ -118,6 +118,18 @@
     margin-top: var(--spacing-2xl);
   }
 
+  .hero__guidance {
+    margin-top: var(--spacing-md);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+  }
+
+  .inquiry-form-container {
+    max-width: 48rem;
+    width: 100%;
+  }
+
   .foundation {
     padding-block: 5rem 8rem;
     border-top: 1px solid var(--color-border);

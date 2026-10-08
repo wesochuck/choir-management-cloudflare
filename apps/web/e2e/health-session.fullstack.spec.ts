@@ -47,10 +47,8 @@ test("serves the anonymous landing page from the real Worker @webkit-smoke", asy
   expect(currentAuthSessionSchema.parse(await session.json())).toBeNull();
 
   await page.goto(`${FULLSTACK_APP_ORIGIN}/`);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText(
-    "platform for community choirs",
-  );
-  await expect(page.getByRole("link", { name: "How member access works" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Choir Management");
+  await expect(page.getByRole("link", { name: "Member sign in" })).toBeVisible();
   await expect(page.getByLabel("Account").getByRole("link", { name: "Sign in" })).toBeVisible();
 });
 

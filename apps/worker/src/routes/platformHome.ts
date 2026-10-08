@@ -190,9 +190,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
        JOIN user u ON u.id = pa.user_id
        WHERE pa.revoked_at IS NULL`,
     ).all<PlatformAdminRow>();
-    const subject = `[MusicSite] Nonprofit Inquiry: ${parsed.data.organizationName}`;
+    const subject = `[Choir Management] Nonprofit Inquiry: ${parsed.data.organizationName}`;
     const textLines = [
-      "A new nonprofit inquiry was submitted on musicsite.org:",
+      "A new nonprofit inquiry was submitted on the Choir Management platform:",
       "",
       `Organization: ${parsed.data.organizationName}`,
       `Contact Name: ${parsed.data.contactName}`,
@@ -208,7 +208,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
 
     for (const admin of activeAdmins) {
       await sendPlatformEmail(context.env, {
-        fromName: "MusicSite Inquiries",
+        fromName: "Choir Management Inquiries",
         kind: "platform-inquiry",
         recipient: admin.email,
         replyTo: parsed.data.email,

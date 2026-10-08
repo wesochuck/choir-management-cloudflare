@@ -221,7 +221,7 @@ describe("Platform home routes", () => {
       kind: "platform-inquiry",
       recipient: "admin@musicsite.org",
       replyTo: "sarah@fairfieldarts.org",
-      subject: "[MusicSite] Nonprofit Inquiry: Fairfield Vocal Arts",
+      subject: "[Choir Management] Nonprofit Inquiry: Fairfield Vocal Arts",
     });
     expect(emails[0]?.text).toContain("Sarah Miller");
     expect(emails[0]?.text).toContain("Fairfield Vocal Arts");

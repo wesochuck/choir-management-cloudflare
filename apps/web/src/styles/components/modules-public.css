@@ -562,7 +562,8 @@
     }
 
     h1 {
-      font-size: clamp(3rem, 16vw, 4.6rem);
+      font-size: clamp(2.25rem, 14vw, 4.6rem);
+      overflow-wrap: break-word;
     }
 
     .hero__actions,

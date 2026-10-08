@@ -96,98 +96,50 @@ export function PlatformHomeView({ signedIn }: PlatformHomeViewProps) {
 
   return (
     <main>
-      {/* 1. Grounded platform hero without sales fluff */}
+      {/* 1. Clear member-first hero */}
       <section className="hero" aria-labelledby="hero-title">
         <div className="hero__copy">
-          <h1 id="hero-title">A calm, practical platform for community choirs.</h1>
-          <p className="hero__lede">
-            MusicSite is an independent workspace for choral ensembles — coordinating rehearsals,
-            music libraries, singer rosters, and concert tickets without sales pitches or commercial
-            clutter.
-          </p>
+          <h1 id="hero-title">Choir Management</h1>
+          <p className="hero__lede">Tools for singers, directors, and community choirs.</p>
           <div className="hero__actions">
             <a className="button button--primary" href={signedIn ? "/account" : "/login"}>
-              {signedIn ? "Open your workspace" : "Sign in"}
+              {signedIn ? "Open your workspace" : "Member sign in"}
             </a>
-            <a className="button button--secondary" href="#member-access">
-              How member access works
-            </a>
-            <a className="button button--secondary" href="#upcoming-tickets">
-              Upcoming tickets
-            </a>
-            <a className="button button--secondary" href="#nonprofit-inquiries">
-              Nonprofit inquiries
+            <a className="button button--secondary" href="#upcoming-performances">
+              Upcoming performances
             </a>
           </div>
+          <p className="hero__guidance">
+            Have an invitation or practice-player link? Use the unique link provided by your choir.
+          </p>
         </div>
       </section>
 
-      {/* 2. Member & singer access guidance */}
+      {/* 2. Compact member access block */}
       <section className="foundation" id="member-access" aria-labelledby="member-access-title">
         <div className="section-heading">
-          <h2 id="member-access-title">Accessing your choir’s workspace.</h2>
+          <h2 id="member-access-title">Already a member?</h2>
           <p>
-            MusicSite is an ensemble-first platform with no public registration. Membership and
-            permissions are granted directly by your ensemble director or administrator.
+            Sign in with the email address associated with your choir. If you’re joining a choir or
+            opening a practice player, use the unique link sent by your choir director or
+            administrator.
           </p>
         </div>
-        <div className="module-grid">
-          <article className="module-card">
-            <span className="module-card__index" aria-hidden="true">
-              01
-            </span>
-            <h3>Invitations & Rosters</h3>
-            <p>
-              Singers join when invited by their choir. If you received an invitation email, click
-              the activation link. If your choir director provided a roster invite link, you can
-              enroll directly.
-            </p>
-            <div className="pt-4">
-              <a className="button button--secondary" href="/join-roster">
-                Join with roster link
-              </a>
-            </div>
-          </article>
-
-          <article className="module-card">
-            <span className="module-card__index" aria-hidden="true">
-              02
-            </span>
-            <h3>Passwordless Sign-In</h3>
-            <p>
-              Enter your email at sign-in to receive an instant, secure 6-digit one-time code. No
-              passwords to remember or reset. Once signed in, you can register a Passkey on your
-              phone or computer.
-            </p>
-            <div className="pt-4">
-              <a className="button button--secondary" href="/login">
-                Go to sign in
-              </a>
-            </div>
-          </article>
-
-          <article className="module-card">
-            <span className="module-card__index" aria-hidden="true">
-              03
-            </span>
-            <h3>Music & Practice Tools</h3>
-            <p>
-              Active members have access to sheet music files, part-specific practice audio,
-              rehearsal calendars, attendance RSVP, and section directories for their ensemble.
-            </p>
-            <div className="pt-4">
-              <a className="button button--secondary" href="/player">
-                Practice player
-              </a>
-            </div>
-          </article>
+        <div className="mt-4">
+          <a className="button button--secondary" href={signedIn ? "/account" : "/login"}>
+            {signedIn ? "Open your workspace" : "Sign in"}
+          </a>
         </div>
       </section>
 
       {/* 3. Live upcoming concert listings & ticket links */}
-      <section className="foundation" id="upcoming-tickets" aria-labelledby="tickets-title">
+      <section
+        className="foundation"
+        id="upcoming-performances"
+        aria-labelledby="performances-title"
+      >
         <div className="section-heading">
-          <h2 id="tickets-title">Upcoming concerts & tickets.</h2>
+          <h2 id="performances-title">Upcoming performances.</h2>
           <p>
             Performances from participating choirs with online ticketing enabled. Tickets are
             purchased directly through each choir’s site.
@@ -197,11 +149,11 @@ export function PlatformHomeView({ signedIn }: PlatformHomeViewProps) {
         <div className="mt-8">
           {ticketState.status === "loading" ? (
             <p className="notice notice--info" role="status">
-              Checking for upcoming concerts…
+              Checking for upcoming performances…
             </p>
           ) : ticketState.status === "error" ? (
             <p className="notice notice--error" role="alert">
-              Ticket feed is temporarily unavailable. Check back soon.
+              Performance feed is temporarily unavailable. Check back soon.
             </p>
           ) : ticketState.listings.length === 0 ? (
             <div className="empty-state">
@@ -227,9 +179,7 @@ export function PlatformHomeView({ signedIn }: PlatformHomeViewProps) {
                         {formatPerformanceDate(listing.startsAt, listing.timezone)}
                       </p>
                       {listing.venueName ? (
-                        <p className="public-performance-location text-sm">
-                          📍 {listing.venueName}
-                        </p>
+                        <p className="public-performance-location text-sm">{listing.venueName}</p>
                       ) : null}
                     </div>
                     <div className="public-performance-card__purchase">
@@ -238,7 +188,7 @@ export function PlatformHomeView({ signedIn }: PlatformHomeViewProps) {
                         href={listing.ticketsUrl}
                         rel="noopener noreferrer"
                       >
-                        Tickets & Details
+                        Tickets &amp; details
                       </a>
                     </div>
                   </div>
@@ -249,18 +199,17 @@ export function PlatformHomeView({ signedIn }: PlatformHomeViewProps) {
         </div>
       </section>
 
-      {/* 4. Simple nonprofit inquiry form for Fairfield County, Ohio */}
-      <section className="foundation" id="nonprofit-inquiries" aria-labelledby="inquiry-title">
+      {/* 4. Simple nonprofit inquiry form for community choirs */}
+      <section className="foundation" id="community-choirs" aria-labelledby="inquiry-title">
         <div className="section-heading">
-          <h2 id="inquiry-title">Fairfield County nonprofit inquiries.</h2>
+          <h2 id="inquiry-title">For community choirs.</h2>
           <p>
-            Are you a community choir, vocal ensemble, or choral nonprofit in or around Fairfield
-            County, Ohio interested in using the platform? Tell us about your group below to get in
-            touch with the platform administrators.
+            Interested in using Choir Management for your ensemble? Choirs and choral nonprofits in
+            or around Fairfield County, Ohio can contact the platform administrators below.
           </p>
         </div>
 
-        <div className="mt-8 max-w-xl">
+        <div className="inquiry-form-container mt-8">
           {formStatus === "success" ? (
             <div className="space-y-4">
               <div className="notice notice--success" role="status">
@@ -277,16 +226,18 @@ export function PlatformHomeView({ signedIn }: PlatformHomeViewProps) {
             </div>
           ) : (
             <form
-              className="form-stack"
+              className="form-grid"
               onSubmit={(e) => {
                 e.preventDefault();
                 void handleInquirySubmit();
               }}
             >
               {formStatus === "error" && formError ? (
-                <p className="notice notice--error" role="alert">
-                  {formError}
-                </p>
+                <div className="form-grid__wide">
+                  <p className="notice notice--error" role="alert">
+                    {formError}
+                  </p>
+                </div>
               ) : null}
 
               <label className="field" htmlFor="inquiry-org-name">
@@ -354,15 +305,15 @@ export function PlatformHomeView({ signedIn }: PlatformHomeViewProps) {
                   onChange={(e) => {
                     setLocation(e.target.value);
                   }}
-                  placeholder="e.g. Lancaster, Pickerington, Pickerington North, Baltimore"
+                  placeholder="e.g. Lancaster, Pickerington, Baltimore"
                   type="text"
                   value={location}
                 />
               </label>
 
-              <label className="field" htmlFor="inquiry-message">
+              <label className="field form-grid__wide" htmlFor="inquiry-message">
                 <span className="field__label-row">
-                  <span>Message & details</span>
+                  <span>Message &amp; details</span>
                   <span className="field-help field-help--inline">(optional)</span>
                 </span>
                 <textarea
@@ -395,7 +346,7 @@ export function PlatformHomeView({ signedIn }: PlatformHomeViewProps) {
                 </label>
               </div>
 
-              <div className="pt-2">
+              <div className="form-grid__wide pt-2">
                 <button
                   className="button button--primary"
                   disabled={formStatus === "submitting"}
