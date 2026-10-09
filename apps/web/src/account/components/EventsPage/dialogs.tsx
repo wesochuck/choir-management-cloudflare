@@ -1,6 +1,13 @@
 import type { OrganizationEvent, OrganizationEventRequest } from "@choir/contracts";
 import { NumberInput, Dialog, DialogClose } from "@choir/ui";
-import { type Dispatch, type DragEvent, type SetStateAction, useState } from "react";
+import {
+  type Dispatch,
+  type DragEvent,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { dayOfPriceStartLabel } from "../../eventPricing";
 import { QRCodeShareCard } from "../../QRCodeShareCard";
 
@@ -56,6 +63,17 @@ export function EventEditorDialog({
   );
   const [graphicDragging, setGraphicDragging] = useState(false);
   const [graphicError, setGraphicError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
+    };
+  }, []);
+
   const [initialDraft] = useState(() => ({
     advancePriceDraft: currencyDraftFromCents(event.advancePriceCents),
     dayOfPriceDraft: currencyDraftFromCents(event.dayOfPriceCents),
@@ -78,21 +96,57 @@ export function EventEditorDialog({
         ? state.rsvpFollowUpLeadHours
         : null;
 
+  const allowedGraphicTypes = ["image/jpeg", "image/png", "image/webp"];
+  const maxGraphicBytes = 5 * 1024 * 1024;
+
   function handleGraphicFile(nextFile: File | null): void {
-    if (!nextFile) return;
-    if (!nextFile.type.startsWith("image/")) {
-      setGraphicError("Choose an image file for the public graphic.");
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    if (!nextFile) {
+      setPreviewUrl(null);
+      setGraphicFile(null);
       return;
     }
+    if (!allowedGraphicTypes.includes(nextFile.type)) {
+      setPreviewUrl(null);
+      setGraphicError("Choose a PNG, JPG, or WebP image.");
+      return;
+    }
+    if (nextFile.size > maxGraphicBytes) {
+      setPreviewUrl(null);
+      setGraphicError("Graphic file size must not exceed 5MB.");
+      return;
+    }
+    const nextPreview = URL.createObjectURL(nextFile);
+    previewUrlRef.current = nextPreview;
+    setPreviewUrl(nextPreview);
     setGraphicError(null);
     setGraphicFile(nextFile);
+  }
+
+  function handleRemoveGraphicFile(): void {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    setPreviewUrl(null);
+    setGraphicError(null);
+    setGraphicFile(null);
   }
 
   function handleGraphicDrop(dropEvent: DragEvent<HTMLLabelElement>): void {
     dropEvent.preventDefault();
     setGraphicDragging(false);
-    handleGraphicFile(dropEvent.dataTransfer.files.item(0));
+    handleGraphicFile(dropEvent.dataTransfer.files[0] ?? null);
   }
+
+  const activeGraphicPreviewUrl =
+    previewUrl ??
+    (event.publicGraphicFileId
+      ? `/api/organization/files/${encodeURIComponent(event.publicGraphicFileId)}`
+      : null);
 
   return (
     <Dialog
@@ -384,6 +438,15 @@ export function EventEditorDialog({
               onDrop={handleGraphicDrop}
             >
               <span className="event-graphic-dropzone__title">Public graphic</span>
+              {activeGraphicPreviewUrl ? (
+                <div className="event-graphic-dropzone__preview">
+                  <img
+                    alt="Public graphic preview"
+                    className="event-graphic-dropzone__image"
+                    src={activeGraphicPreviewUrl}
+                  />
+                </div>
+              ) : null}
               <span className="event-graphic-dropzone__label">
                 {graphicFile ? (
                   <>
@@ -402,13 +465,13 @@ export function EventEditorDialog({
                   : "PNG, JPG, or WebP images are supported."}
               </span>
               <input
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
                 aria-describedby={graphicError ? "event-graphic-error" : undefined}
                 aria-invalid={Boolean(graphicError)}
                 className="sr-only"
                 id="events-page-graphic"
                 onChange={(change) => {
-                  handleGraphicFile(change.target.files?.item(0) ?? null);
+                  handleGraphicFile(change.target.files?.[0] ?? null);
                   change.target.value = "";
                 }}
                 type="file"
@@ -420,15 +483,19 @@ export function EventEditorDialog({
               </p>
             ) : null}
             {graphicFile ? (
+              <button className="text-button" onClick={handleRemoveGraphicFile} type="button">
+                Remove selected image
+              </button>
+            ) : event.publicGraphicFileId ? (
               <button
                 className="text-button"
                 onClick={() => {
                   setGraphicError(null);
-                  setGraphicFile(null);
+                  setEvent((current) => ({ ...current, publicGraphicFileId: null }));
                 }}
                 type="button"
               >
-                Remove selected image
+                Remove saved image
               </button>
             ) : null}
           </div>

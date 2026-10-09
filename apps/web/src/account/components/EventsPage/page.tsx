@@ -211,12 +211,14 @@ export function EventsPage({
     setBusy(true);
     setError(null);
     let uploadedGraphicId: string | null = null;
-    const previousGraphicId = eventDraft.publicGraphicFileId;
+    const previousGraphicId = editingId
+      ? (state.events.find((candidate) => candidate.id === editingId)?.publicGraphicFileId ?? null)
+      : null;
     try {
       if (graphicFile) uploadedGraphicId = (await uploadPrivateOrganizationFile(graphicFile)).id;
       const request: OrganizationEventRequest = {
         ...eventDraft,
-        publicGraphicFileId: uploadedGraphicId ?? event.publicGraphicFileId,
+        publicGraphicFileId: uploadedGraphicId ?? eventDraft.publicGraphicFileId,
         startsAt,
       };
       const saved = editingId

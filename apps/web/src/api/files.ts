@@ -7,10 +7,11 @@ export async function uploadPrivateOrganizationFile(
   fileName = file.name,
 ): Promise<PrivateFileResponse> {
   const fileId = crypto.randomUUID();
+  const contentType = file.type.toLowerCase() === "image/jpg" ? "image/jpeg" : file.type;
   const response = await request(`/api/organization/files/${fileId}`, {
     body: file,
     headers: {
-      "content-type": file.type,
+      "content-type": contentType,
       "x-file-name": encodeURIComponent(fileName),
     },
     method: "PUT",

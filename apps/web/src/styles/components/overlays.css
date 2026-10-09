@@ -103,6 +103,7 @@
   }
 
   .dialog__body {
+    position: relative;
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
@@ -382,7 +383,11 @@
   }
 
   .event-editor-save-bar .dialog__actions {
+    position: static;
     margin-top: 0;
+    padding-top: 0;
+    border-top: none;
+    background: transparent;
   }
 
   @media (max-width: 48rem) {

@@ -116,8 +116,8 @@
     line-height: var(--line-height-snug);
   }
 
-  .signed-in-main input[type="file"],
-  .dialog--responsive input[type="file"] {
+  .signed-in-main input[type="file"]:not(.sr-only),
+  .dialog--responsive input[type="file"]:not(.sr-only) {
     width: auto;
     height: var(--control-height);
     min-height: var(--control-height);
@@ -127,8 +127,8 @@
     color: var(--color-text);
   }
 
-  .signed-in-main input[type="file"]::file-selector-button,
-  .dialog--responsive input[type="file"]::file-selector-button {
+  .signed-in-main input[type="file"]:not(.sr-only)::file-selector-button,
+  .dialog--responsive input[type="file"]:not(.sr-only)::file-selector-button {
     height: calc(var(--control-height) - 0.5rem);
     margin-right: var(--spacing-sm);
     padding: 0 var(--spacing-sm);

@@ -107,6 +107,14 @@ export function Dialog({
               onInput={() => {
                 setInputDirty(true);
               }}
+              onScroll={(event) => {
+                if (event.currentTarget.scrollTop !== 0) {
+                  event.currentTarget.scrollTop = 0;
+                }
+                if (event.currentTarget.scrollLeft !== 0) {
+                  event.currentTarget.scrollLeft = 0;
+                }
+              }}
             >
               <div className="dialog__header">
                 <div>
