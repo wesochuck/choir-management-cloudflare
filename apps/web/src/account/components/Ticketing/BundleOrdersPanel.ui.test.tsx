@@ -99,6 +99,7 @@ const bundles: readonly TicketBundle[] = [
     id: currentBundleId,
     isActive: true,
     priceCents: 2500,
+    publicGraphicFileId: null,
     saleEndAt: "2026-09-01T00:00:00.000Z",
     title: currentBundleTitle,
     updatedAt: "2026-07-01T00:00:00.000Z",

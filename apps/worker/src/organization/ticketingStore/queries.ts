@@ -131,6 +131,7 @@ export function listTicketBundlesFromStore(
     bundles: storage.sql
       .exec<TicketBundleRow>(
         `SELECT id, title, price_cents AS priceCents, capacity,
+          public_graphic_file_id AS publicGraphicFileId,
           sale_end_at AS saleEndAt, is_active AS isActive,
           created_at AS createdAt, updated_at AS updatedAt
          FROM ticket_bundles ORDER BY created_at DESC, id DESC LIMIT 100`,

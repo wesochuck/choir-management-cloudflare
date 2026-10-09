@@ -515,4 +515,138 @@ describe("Organization ticket bundles", () => {
     );
     expect(finalSentForSecond).toBe(2);
   });
+
+  it("persists public graphic on ticket bundles and includes it in website publication and mediaFileIds", async () => {
+    const cookie = await signIn();
+    const eventBody = {
+      advancePriceCents: 2_000,
+      callTime: "18:00",
+      dayOfPriceCents: 2_500,
+      details: "",
+      doorsOpenTime: "18:30",
+      durationMinutes: 90,
+      isTicketingEnabled: true,
+      location: "Main Hall",
+      parentPerformanceId: null,
+      publicDetails: "Concert",
+      publicGraphicFileId: null,
+      publishOnWebsite: true,
+      rsvpDeadlineDate: "2027-09-24",
+      setList: [],
+      setListApproved: false,
+      ticketCapacity: 10,
+      type: "Performance" as const,
+      venueId: null,
+    };
+    const event = organizationEventSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/events",
+          "POST",
+          { ...eventBody, startsAt: "2027-10-01T23:00:00.000Z", title: "Autumn Concert" },
+          cookie,
+        )
+      ).json(),
+    );
+
+    const graphicFileId = "44444444-4444-4444-8444-444444444444";
+    const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const uploadResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${graphicFileId}`, cookie, {
+        body: bytes,
+        headers: {
+          "content-length": String(bytes.byteLength),
+          "content-type": "image/png",
+          "x-file-name": "bundle-hero.png",
+        },
+        method: "PUT",
+      }),
+    );
+    expect(uploadResponse.status).toBe(201);
+
+    const bundle = ticketBundleSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/tickets/bundles",
+          "POST",
+          {
+            capacity: 5,
+            eventIds: [event.id],
+            isActive: true,
+            priceCents: 3_500,
+            publicGraphicFileId: graphicFileId,
+            saleEndAt: "2027-09-30T23:00:00.000Z",
+            title: "Pass With Graphic",
+          },
+          cookie,
+        )
+      ).json(),
+    );
+
+    expect(bundle.publicGraphicFileId).toBe(graphicFileId);
+
+    const bundlesList = ticketBundlesResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/tickets/bundles", cookie),
+        )
+      ).json(),
+    );
+    expect(bundlesList.bundles[0]?.publicGraphicFileId).toBe(graphicFileId);
+
+    expect(
+      (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/website/publish", cookie, { method: "POST" }),
+        )
+      ).status,
+    ).toBe(200);
+
+    const projection = publishedOrganizationProjectionSchema.parse(
+      await (
+        await exports.default.fetch(api("tickets.example.test", "/api/public/projection"))
+      ).json(),
+    );
+    expect(projection.payload.ticketBundles[0]?.graphicFileId).toBe(graphicFileId);
+    expect(projection.payload.mediaFileIds).toContain(graphicFileId);
+
+    const updatedBundle = ticketBundleSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          `/api/organization/tickets/bundles/${bundle.id}`,
+          "PUT",
+          {
+            capacity: 5,
+            eventIds: [event.id],
+            isActive: true,
+            priceCents: 3_500,
+            publicGraphicFileId: null,
+            saleEndAt: "2027-09-30T23:00:00.000Z",
+            title: "Pass Without Graphic",
+          },
+          cookie,
+        )
+      ).json(),
+    );
+    expect(updatedBundle.publicGraphicFileId).toBeNull();
+
+    expect(
+      (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/website/publish", cookie, { method: "POST" }),
+        )
+      ).status,
+    ).toBe(200);
+
+    const updatedProjection = publishedOrganizationProjectionSchema.parse(
+      await (
+        await exports.default.fetch(api("tickets.example.test", "/api/public/projection"))
+      ).json(),
+    );
+    expect(updatedProjection.payload.ticketBundles[0]?.graphicFileId).toBeNull();
+    expect(updatedProjection.payload.mediaFileIds).not.toContain(graphicFileId);
+  });
 });

@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
 import { useCallback, useEffect, useState, type SyntheticEvent } from "react";
 
 import {
+  deletePrivateOrganizationFile,
   deleteTicketBundle,
   deactivateOrganizationDiscountCode,
   reactivateOrganizationDiscountCode,
@@ -24,6 +25,7 @@ import {
   saveTicketBundle,
   saveOrganizationDiscountCode,
   updateOrganizationTicketConfirmationSettings,
+  uploadPrivateOrganizationFile,
 } from "../auth/api";
 import { BundleOrdersPanel } from "./components/Ticketing/BundleOrdersPanel";
 import { BundlePanel } from "./components/Ticketing/BundlePanel";
@@ -78,6 +80,8 @@ export function TicketingManager({
   const [bundleSaleEnd, setBundleSaleEnd] = useState("");
   const [bundleEventIds, setBundleEventIds] = useState<readonly string[]>([]);
   const [bundleIsActive, setBundleIsActive] = useState(true);
+  const [bundleGraphicFile, setBundleGraphicFile] = useState<File | null>(null);
+  const [bundleGraphicFileId, setBundleGraphicFileId] = useState<string | null>(null);
   const [confirmationDraft, setConfirmationDraft] = useState<TicketConfirmationSettings>(
     DEFAULT_TICKET_CONFIRMATION_SETTINGS,
   );
@@ -231,6 +235,8 @@ export function TicketingManager({
     setBundleSaleEnd("");
     setBundleEventIds([]);
     setBundleIsActive(true);
+    setBundleGraphicFile(null);
+    setBundleGraphicFileId(null);
   }
 
   function closeBundleDialog(): void {
@@ -252,18 +258,29 @@ export function TicketingManager({
     setBusy(true);
     clearSuccessNotice();
     setBundleError(null);
+    let uploadedGraphicId: string | null = null;
+    const previousGraphicId = editingBundleId
+      ? (bundles.find((candidate) => candidate.id === editingBundleId)?.publicGraphicFileId ?? null)
+      : null;
     try {
+      if (bundleGraphicFile) {
+        uploadedGraphicId = (await uploadPrivateOrganizationFile(bundleGraphicFile)).id;
+      }
       const saved = await saveTicketBundle(
         {
           capacity: bundleCapacity ? Number(bundleCapacity) : null,
           eventIds: [...bundleEventIds],
           isActive: bundleIsActive,
           priceCents: Math.round(Number(bundlePrice) * 100),
+          publicGraphicFileId: uploadedGraphicId ?? bundleGraphicFileId,
           saleEndAt: new Date(bundleSaleEnd).toISOString(),
           title: bundleTitle,
         },
         editingBundleId ?? undefined,
       );
+      if (previousGraphicId && previousGraphicId !== saved.publicGraphicFileId) {
+        await deletePrivateOrganizationFile(previousGraphicId).catch(() => undefined);
+      }
       setBundles((current) => [saved, ...current.filter(({ id }) => id !== saved.id)]);
       clearBundleForm();
       setBundleDialogOpen(false);
@@ -288,6 +305,8 @@ export function TicketingManager({
     );
     setBundleEventIds(bundle.eventIds);
     setBundleIsActive(bundle.isActive);
+    setBundleGraphicFile(null);
+    setBundleGraphicFileId(bundle.publicGraphicFileId ?? null);
     setBundleError(null);
     setBundleDialogOpen(true);
   }
@@ -295,9 +314,15 @@ export function TicketingManager({
   async function removeBundle(bundleId: string) {
     setBusy(true);
     clearSuccessNotice();
+    const bundleToDelete = bundles.find((b) => b.id === bundleId);
     try {
       await deleteTicketBundle(bundleId);
       setBundles((current) => current.filter(({ id }) => id !== bundleId));
+      if (bundleToDelete?.publicGraphicFileId) {
+        await deletePrivateOrganizationFile(bundleToDelete.publicGraphicFileId).catch(
+          () => undefined,
+        );
+      }
       if (editingBundleId === bundleId) {
         setBundleDialogOpen(false);
         clearBundleForm();
@@ -659,6 +684,8 @@ export function TicketingManager({
             bundleDialogOpen={bundleDialogOpen}
             bundleError={bundleError}
             bundleEventIds={bundleEventIds}
+            bundleGraphicFile={bundleGraphicFile}
+            bundleGraphicFileId={bundleGraphicFileId}
             bundleIsActive={bundleIsActive}
             bundlePrice={bundlePrice}
             bundleSaleEnd={bundleSaleEnd}
@@ -673,6 +700,8 @@ export function TicketingManager({
             saveBundle={saveBundle}
             setBundleCapacity={setBundleCapacity}
             setBundleEventIds={setBundleEventIds}
+            setBundleGraphicFile={setBundleGraphicFile}
+            setBundleGraphicFileId={setBundleGraphicFileId}
             setBundleIsActive={setBundleIsActive}
             setBundlePrice={setBundlePrice}
             setBundleSaleEnd={setBundleSaleEnd}

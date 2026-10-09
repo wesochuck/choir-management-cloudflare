@@ -257,4 +257,115 @@ describe("EventEditorDialog public graphic upload and preview", () => {
       screen.getByText(/This event will not appear on the public concert schedule/),
     ).toBeInTheDocument();
   });
+
+  it("warns admin when publishing an event without a venue and clears warning once venue is assigned", () => {
+    const publishedWithoutVenue: OrganizationEventRequest = {
+      ...emptyEvent,
+      publishOnWebsite: true,
+      venueId: null,
+    };
+
+    const { rerender } = render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-novenue-1"
+        error={null}
+        event={publishedWithoutVenue}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={{
+          ...readyState,
+          venues: [
+            {
+              address: "123 Main St",
+              createdAt: "2026-01-01T00:00:00Z",
+              id: "venue-1",
+              name: "City Concert Hall",
+              updatedAt: "2026-01-01T00:00:00Z",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        /This event is set to publish on the public website without an assigned venue/,
+      ),
+    ).toBeInTheDocument();
+
+    // Rerender with venue assigned
+    rerender(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-novenue-1"
+        error={null}
+        event={{ ...publishedWithoutVenue, venueId: "venue-1" }}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={{
+          ...readyState,
+          venues: [
+            {
+              address: "123 Main St",
+              createdAt: "2026-01-01T00:00:00Z",
+              id: "venue-1",
+              name: "City Concert Hall",
+              updatedAt: "2026-01-01T00:00:00Z",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(
+      screen.queryByText(
+        /This event is set to publish on the public website without an assigned venue/,
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("warns admin when ticket sales are enabled without an assigned venue", () => {
+    const ticketedWithoutVenue: OrganizationEventRequest = {
+      ...emptyEvent,
+      isTicketingEnabled: true,
+      publishOnWebsite: false,
+      type: "Performance",
+      venueId: null,
+    };
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-ticket-novenue"
+        error={null}
+        event={ticketedWithoutVenue}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={readyState}
+      />,
+    );
+
+    expect(
+      screen.getByText(/Ticket sales are enabled without an assigned venue/),
+    ).toBeInTheDocument();
+  });
 });

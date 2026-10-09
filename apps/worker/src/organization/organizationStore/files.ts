@@ -165,7 +165,9 @@ export function privateFileIsReferenced(storage: DurableObjectStorage, fileId: s
       `SELECT
         (SELECT COUNT(*) FROM public_website_settings
          WHERE hero_file_id = ? OR logo_file_id = ?) +
-        (SELECT COUNT(*) FROM events WHERE public_graphic_file_id = ?) AS count`,
+        (SELECT COUNT(*) FROM events WHERE public_graphic_file_id = ?) +
+        (SELECT COUNT(*) FROM ticket_bundles WHERE public_graphic_file_id = ?) AS count`,
+      fileId,
       fileId,
       fileId,
       fileId,

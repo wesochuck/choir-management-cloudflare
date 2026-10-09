@@ -50,6 +50,7 @@ const projection: PublishedOrganizationProjection = {
       {
         capacity: 50,
         eventIds: ["event-ticket-card"],
+        graphicFileId: null,
         id: "bundle-ticket-card",
         priceCents: 3000,
         saleEndAt: "2027-06-13T15:00:00Z",
@@ -174,6 +175,71 @@ describe("TicketsContent ticket card purchase areas", () => {
 
     const graphic = screen.getByAltText(basePerformance.title);
     expect(graphic).toHaveAttribute("src", "/api/public/media/3/graphic-file-xyz");
+    expect(graphic).toHaveClass("ticket-purchase-hero__image");
+  });
+
+  it("renders bundle graphic on ticket cards when graphicFileId is present", () => {
+    const baseBundle = projection.payload.ticketBundles[0];
+    if (!baseBundle) throw new Error("Expected base bundle");
+
+    const projectionWithGraphic: PublishedOrganizationProjection = {
+      ...projection,
+      payload: {
+        ...projection.payload,
+        ticketBundles: [
+          {
+            ...baseBundle,
+            graphicFileId: "bundle-graphic-xyz",
+          },
+        ],
+      },
+      version: 4,
+    };
+
+    render(
+      <TicketsContent
+        feeSettings={feeSettings}
+        nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+        pathname="/tickets"
+        projection={projectionWithGraphic}
+      />,
+    );
+
+    const graphic = screen.getByAltText(baseBundle.title);
+    expect(graphic).toHaveAttribute("src", "/api/public/media/4/bundle-graphic-xyz");
+  });
+
+  it("renders hero graphic on ticket bundle purchase page", () => {
+    const baseBundle = projection.payload.ticketBundles[0];
+    if (!baseBundle) throw new Error("Expected base bundle");
+
+    const bundleId = "33333333-3333-4333-8333-333333333333";
+    const projectionWithGraphic: PublishedOrganizationProjection = {
+      ...projection,
+      payload: {
+        ...projection.payload,
+        ticketBundles: [
+          {
+            ...baseBundle,
+            graphicFileId: "bundle-graphic-xyz",
+            id: bundleId,
+          },
+        ],
+      },
+      version: 4,
+    };
+
+    render(
+      <TicketsContent
+        feeSettings={feeSettings}
+        nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+        pathname={`/tickets/bundles/${bundleId}`}
+        projection={projectionWithGraphic}
+      />,
+    );
+
+    const graphic = screen.getByAltText(baseBundle.title);
+    expect(graphic).toHaveAttribute("src", "/api/public/media/4/bundle-graphic-xyz");
     expect(graphic).toHaveClass("ticket-purchase-hero__image");
   });
 });

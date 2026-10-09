@@ -78,6 +78,7 @@ interface MediaRow {
 interface PublicTicketBundleRow {
   readonly [column: string]: SqlStorageValue;
   readonly capacity: number | null;
+  readonly graphicFileId?: string | null;
   readonly id: string;
   readonly priceCents: number;
   readonly saleEndAt: string;
@@ -194,12 +195,14 @@ export function readPublicCommerceProjectionFromStore(
   const performanceIds = new Set(performances.map(({ id }) => id));
   const ticketBundles = storage.sql
     .exec<PublicTicketBundleRow>(
-      `SELECT id, title, price_cents AS priceCents, capacity, sale_end_at AS saleEndAt
+      `SELECT id, title, price_cents AS priceCents, capacity, sale_end_at AS saleEndAt,
+        public_graphic_file_id AS graphicFileId
        FROM ticket_bundles WHERE is_active = 1 ORDER BY created_at DESC, id DESC LIMIT 100`,
     )
     .toArray()
     .map((bundle) => ({
       ...bundle,
+      graphicFileId: bundle.graphicFileId ?? null,
       eventIds: storage.sql
         .exec<{ readonly [column: string]: SqlStorageValue; readonly eventId: string }>(
           `SELECT event_id AS eventId FROM ticket_bundle_events
@@ -232,6 +235,7 @@ export function readPublicCommerceProjectionFromStore(
         settings.heroFileId,
         ...performances.map((p) => p.graphicFileId),
         ...additionalGraphicFileIds,
+        ...ticketBundles.map((b) => b.graphicFileId),
       ].filter((id): id is string => typeof id === "string" && id.length > 0),
     ),
   );
@@ -327,12 +331,14 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
   const publicEventIds = new Set(performances.map(({ id }) => id));
   const ticketBundles = storage.sql
     .exec<PublicTicketBundleRow>(
-      `SELECT id, title, price_cents AS priceCents, capacity, sale_end_at AS saleEndAt
+      `SELECT id, title, price_cents AS priceCents, capacity, sale_end_at AS saleEndAt,
+        public_graphic_file_id AS graphicFileId
        FROM ticket_bundles WHERE is_active = 1 ORDER BY created_at DESC, id DESC LIMIT 100`,
     )
     .toArray()
     .map((bundle) => ({
       ...bundle,
+      graphicFileId: bundle.graphicFileId ?? null,
       eventIds: storage.sql
         .exec<{ readonly [column: string]: SqlStorageValue; readonly eventId: string }>(
           `SELECT event_id AS eventId FROM ticket_bundle_events
@@ -356,12 +362,20 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
     )
     .toArray()
     .map((row) => row.graphicFileId);
+  const bundleGraphicIds = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly graphicFileId: string | null }>(
+      `SELECT public_graphic_file_id AS graphicFileId FROM ticket_bundles
+       WHERE is_active = 1 AND public_graphic_file_id IS NOT NULL`,
+    )
+    .toArray()
+    .map((row) => row.graphicFileId);
   const mediaIds = new Set(
     [
       settings.heroFileId,
       effectiveLogoFileId,
       ...performances.map(({ graphicFileId }) => graphicFileId),
       ...ticketedGraphicIds,
+      ...bundleGraphicIds,
     ].filter((fileId): fileId is string => fileId !== null),
   );
   const media = [...mediaIds].map((fileId) => mediaFile(storage, fileId));

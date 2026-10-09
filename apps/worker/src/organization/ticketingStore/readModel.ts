@@ -180,6 +180,7 @@ export function bundleResult(storage: DurableObjectStorage, row: TicketBundleRow
     ...row,
     eventIds: bundleEventIds(storage, row.id),
     isActive: row.isActive === 1,
+    publicGraphicFileId: row.publicGraphicFileId ?? null,
   });
 }
 

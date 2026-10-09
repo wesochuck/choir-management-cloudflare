@@ -214,6 +214,7 @@ export interface TicketBundleRow {
   readonly id: string;
   readonly isActive: number;
   readonly priceCents: number;
+  readonly publicGraphicFileId?: string | null;
   readonly saleEndAt: string;
   readonly title: string;
   readonly updatedAt: string;

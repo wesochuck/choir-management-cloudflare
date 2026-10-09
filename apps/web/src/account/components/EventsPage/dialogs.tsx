@@ -518,6 +518,12 @@ export function EventEditorDialog({
           />
           Publish on public website
         </label>
+        {event.publishOnWebsite && !event.venueId ? (
+          <p className="notice notice--warning" role="alert">
+            <strong>Publishing without venue:</strong> This event is set to publish on the public
+            website without an assigned venue. Attendees will not see location or map details.
+          </p>
+        ) : null}
         {event.type === "Performance" ? (
           <label className="checkbox-row">
             <input
@@ -537,6 +543,13 @@ export function EventEditorDialog({
                 <strong>Ticket sales inactive:</strong> This performance date has already passed.
                 Ticket sales will remain closed to the public until the event date is set to a
                 future date and time.
+              </p>
+            ) : null}
+            {!event.venueId && !event.publishOnWebsite ? (
+              <p className="notice notice--warning form-grid__wide" role="alert">
+                <strong>No venue assigned:</strong> Ticket sales are enabled without an assigned
+                venue. Ticket buyers will not see venue address or map details on tickets and
+                receipts.
               </p>
             ) : null}
             {!event.publishOnWebsite ? (

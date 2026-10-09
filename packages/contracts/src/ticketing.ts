@@ -272,6 +272,7 @@ export const ticketBundleRequestSchema = z.object({
   eventIds: z.array(z.uuid()).min(1).max(100),
   isActive: z.boolean().default(true),
   priceCents: z.number().int().nonnegative().max(10_000_000),
+  publicGraphicFileId: z.uuid().nullable().default(null),
   saleEndAt: z.iso.datetime(),
   title: z.string().trim().min(1).max(500),
 });
@@ -290,6 +291,7 @@ export const ticketBundlesResponseSchema = z.object({
 export const publicTicketBundleSchema = z.object({
   capacity: z.number().int().positive().nullable(),
   eventIds: z.array(z.uuid()).min(1).max(100),
+  graphicFileId: z.uuid().nullable().default(null),
   id: z.uuid(),
   priceCents: z.number().int().nonnegative(),
   saleEndAt: z.iso.datetime(),

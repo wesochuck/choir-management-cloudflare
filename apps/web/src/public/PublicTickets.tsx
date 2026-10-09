@@ -756,12 +756,12 @@ function SingleTicketOrderSummary({
   return (
     <div className="panel">
       <PublicGraphicImage
-        alt={purchase.eventTitle}
+        alt={purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}
         className="ticket-receipt-graphic__image"
         src={graphicUrl}
         wrapperClassName="ticket-receipt-graphic"
       />
-      <h2>{purchase.eventTitle}</h2>
+      <h2>{purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}</h2>
       <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
       {venue.displayName ? (
         <p>
@@ -791,14 +791,22 @@ function SingleTicketOrderSummary({
 }
 
 function BundlePurchaseSummary({
+  graphicUrl,
   purchase,
   settings,
 }: {
+  readonly graphicUrl?: string | null | undefined;
   readonly purchase: PublicTicketReceipt;
   readonly settings: TicketConfirmationSettings;
 }) {
   return (
     <section aria-label="Purchase summary" className="panel ticket-purchase-summary">
+      <PublicGraphicImage
+        alt={purchase.bundleTitle}
+        className="ticket-receipt-graphic__image"
+        src={graphicUrl}
+        wrapperClassName="ticket-receipt-graphic"
+      />
       <h2>Purchase summary</h2>
       <p>
         Name on order: <strong>{purchase.buyerName}</strong>
@@ -938,7 +946,7 @@ function TicketRefundOrderDetails({
       className="ticket-refund-order-details panel"
     >
       <PublicGraphicImage
-        alt={purchase.eventTitle}
+        alt={purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}
         className="ticket-receipt-graphic__image"
         src={graphicUrl}
         wrapperClassName="ticket-receipt-graphic"
@@ -986,11 +994,71 @@ function TicketReceiptPanel({
         <SingleTicketCredentialCard purchase={purchase} settings={settings} />
       ) : null}
       {purchase.bundleId ? (
-        <BundlePurchaseSummary purchase={purchase} settings={settings} />
+        <BundlePurchaseSummary graphicUrl={graphicUrl} purchase={purchase} settings={settings} />
       ) : (
         <SingleTicketOrderSummary graphicUrl={graphicUrl} purchase={purchase} settings={settings} />
       )}
     </div>
+  );
+}
+
+function resolveReceiptGraphicUrl(
+  projection: PublishedOrganizationProjection | null | undefined,
+  purchase: PublicTicketReceipt,
+): string | null {
+  if (!projection) return null;
+  const matchingPerformance = projection.payload.performances.find(
+    (candidate) => candidate.id === purchase.eventId,
+  );
+  const matchingBundle = projection.payload.ticketBundles.find(
+    (candidate) => candidate.id === purchase.bundleId,
+  );
+  const graphicFileId = purchase.bundleId
+    ? (matchingBundle?.graphicFileId ?? null)
+    : (matchingPerformance?.graphicFileId ?? null);
+  return graphicFileId ? mediaUrl(projection, graphicFileId) : null;
+}
+
+function TicketReceiptStatusNotice({
+  isTimedOut,
+  onRefresh,
+  purchase,
+}: {
+  readonly isTimedOut: boolean;
+  readonly onRefresh: () => void;
+  readonly purchase: PublicTicketReceipt;
+}) {
+  return (
+    <>
+      {purchase.status === "pending" && isTimedOut ? (
+        <div className="notice notice--info">
+          <p>
+            We are still waiting for confirmation from the payment provider. Your order details are
+            below.
+          </p>
+          <button
+            className="button button--secondary"
+            onClick={() => {
+              onRefresh();
+            }}
+            type="button"
+          >
+            Check status again
+          </button>
+        </div>
+      ) : null}
+      {purchase.checkoutMode === "free" ? (
+        <p className="notice notice--info">Complimentary order — no payment was collected.</p>
+      ) : purchase.checkoutMode === "fake" ? (
+        <p
+          className={
+            purchase.status === "refunded" ? "notice notice--info" : "notice notice--warning"
+          }
+        >
+          Staging simulation: no payment card was charged.
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -1097,13 +1165,7 @@ function TicketReceiptContent({
     return <p className="notice notice--info">Loading ticket receipt…</p>;
   }
 
-  const matchingPerformance = projection?.payload.performances.find(
-    (candidate) => candidate.id === purchase.eventId,
-  );
-  const graphicUrl =
-    projection && matchingPerformance?.graphicFileId
-      ? mediaUrl(projection, matchingPerformance.graphicFileId)
-      : null;
+  const graphicUrl = resolveReceiptGraphicUrl(projection, purchase);
 
   return (
     <section
@@ -1114,34 +1176,11 @@ function TicketReceiptContent({
       }
     >
       <TicketReceiptStatus purchase={purchase} settings={settings} />
-      {purchase.status === "pending" && isTimedOut ? (
-        <div className="notice notice--info">
-          <p>
-            We are still waiting for confirmation from the payment provider. Your order details are
-            below.
-          </p>
-          <button
-            className="button button--secondary"
-            onClick={() => {
-              onRefresh();
-            }}
-            type="button"
-          >
-            Check status again
-          </button>
-        </div>
-      ) : null}
-      {purchase.checkoutMode === "free" ? (
-        <p className="notice notice--info">Complimentary order — no payment was collected.</p>
-      ) : purchase.checkoutMode === "fake" ? (
-        <p
-          className={
-            purchase.status === "refunded" ? "notice notice--info" : "notice notice--warning"
-          }
-        >
-          Staging simulation: no payment card was charged.
-        </p>
-      ) : null}
+      <TicketReceiptStatusNotice
+        isTimedOut={isTimedOut}
+        onRefresh={onRefresh}
+        purchase={purchase}
+      />
       <TicketReceiptPanel graphicUrl={graphicUrl} purchase={purchase} settings={settings} />
       <div className="ticket-receipt-actions">
         <a className="button button--secondary" href="/tickets">
@@ -1492,6 +1531,14 @@ export function TicketBundlePurchaseForm({
   return (
     <section className="public-section public-section--narrow">
       <a href="/tickets">← All tickets</a>
+      {bundle.graphicFileId ? (
+        <PublicGraphicImage
+          alt={bundle.title}
+          className="ticket-purchase-hero__image"
+          src={mediaUrl(projection, bundle.graphicFileId)}
+          wrapperClassName="ticket-purchase-hero"
+        />
+      ) : null}
       <h1>{bundle.title}</h1>
       <p>One pass includes admission to:</p>
       <ul className="public-bundle-event-list">
@@ -1688,6 +1735,12 @@ export function TicketsContent({
               className="public-performance-card public-performance-card--ticket"
               key={bundle.id}
             >
+              {bundle.graphicFileId ? (
+                <PublicGraphicImage
+                  alt={bundle.title}
+                  src={mediaUrl(projection, bundle.graphicFileId)}
+                />
+              ) : null}
               <div className="public-performance-card__body">
                 <div className="public-performance-card__content">
                   <p>Multi-performance pass</p>

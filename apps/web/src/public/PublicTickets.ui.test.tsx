@@ -91,6 +91,7 @@ function checkoutProjection(
         {
           capacity: 100,
           eventIds: ["11111111-1111-4111-8111-111111111111"],
+          graphicFileId: null,
           id: "22222222-2222-4222-8222-222222222222",
           priceCents: bundlePriceCents,
           saleEndAt: "2027-12-19T19:00:00Z",
@@ -220,6 +221,7 @@ describe("TicketBundlePurchaseForm", () => {
           {
             capacity: 50,
             eventIds: ["event-lullaby", "event-earth", "event-70s"],
+            graphicFileId: null,
             id: "bundle-season",
             priceCents: 3000,
             saleEndAt: "2027-06-13T15:00:00Z",
@@ -372,6 +374,7 @@ describe("TicketsContent", () => {
           {
             capacity: 50,
             eventIds: ["event-lullaby", "event-earth", "event-70s"],
+            graphicFileId: null,
             id: "bundle-season",
             priceCents: 3000,
             saleEndAt: "2027-06-13T15:00:00Z",
@@ -461,6 +464,7 @@ describe("TicketsContent", () => {
           {
             capacity: 50,
             eventIds: ["event-later"],
+            graphicFileId: null,
             id: "bundle-spring",
             priceCents: 2500,
             saleEndAt: "2027-04-01T15:00:00Z",
@@ -469,6 +473,7 @@ describe("TicketsContent", () => {
           {
             capacity: 50,
             eventIds: ["event-sooner"],
+            graphicFileId: null,
             id: "bundle-fall",
             priceCents: 2000,
             saleEndAt: "2026-09-30T15:00:00Z",
@@ -679,6 +684,7 @@ describe("TicketsContent", () => {
           {
             capacity: 50,
             eventIds: ["event-fall"],
+            graphicFileId: null,
             id: "bundle-pass",
             priceCents: 2500,
             saleEndAt: "2026-10-15T15:00:00Z",
@@ -1725,6 +1731,73 @@ describe("TicketReceipt", () => {
 
     const graphic = screen.getByAltText("Spring Concert");
     expect(graphic).toHaveAttribute("src", "/api/public/media/2/art-file-123");
+    expect(graphic).toHaveClass("ticket-receipt-graphic__image");
+  });
+
+  it("renders bundle graphic in order summary when receipt is a bundle purchase with bundle artwork", async () => {
+    const paidBundleReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      bundleId: "bundle-artwork-1",
+      bundleTitle: "Choral Subscription 2026",
+      includedEvents: [
+        {
+          id: "event-a",
+          location: "Chapel",
+          startsAt: "2026-11-01T19:00:00Z",
+          title: "Concert A",
+          venueAddress: "100 Church St",
+          venueName: "Grace Chapel",
+        },
+      ],
+      scanToken: "bundle.scan.token",
+      status: "paid",
+    };
+    vi.mocked(getPublicTicketPurchase).mockResolvedValueOnce(paidBundleReceipt);
+
+    const projectionWithArtwork: PublishedOrganizationProjection = {
+      generatedAt: "2026-10-01T00:00:00Z",
+      organizationId: "sample-org",
+      payload: {
+        mediaFileIds: ["bundle-art-file-456"],
+        organizationName: "Sample Choir",
+        performances: [],
+        settings: {
+          aboutUsText: "",
+          bodyFont: "system",
+          contactEmail: "",
+          enabledNavigation: ["tickets"],
+          headerFont: "system",
+          heroFileId: null,
+          heroHeadline: "Sample Choir",
+          heroSubtitle: "",
+          historyText: "",
+          logoFileId: null,
+          showBrandingHeaderFooter: false,
+        },
+        ticketBundles: [
+          {
+            capacity: 50,
+            eventIds: ["event-a"],
+            graphicFileId: "bundle-art-file-456",
+            id: "bundle-artwork-1",
+            priceCents: 5000,
+            saleEndAt: "2026-12-01T00:00:00Z",
+            title: "Choral Subscription 2026",
+          },
+        ],
+        timezone: "America/New_York",
+      },
+      version: 5,
+    };
+
+    render(<TicketReceipt projection={projectionWithArtwork} token="tok-bundle-art" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    const graphic = screen.getByAltText("Choral Subscription 2026");
+    expect(graphic).toHaveAttribute("src", "/api/public/media/5/bundle-art-file-456");
     expect(graphic).toHaveClass("ticket-receipt-graphic__image");
   });
 });

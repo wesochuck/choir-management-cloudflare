@@ -35,16 +35,18 @@ export function upsertTicketBundle(
   storage.transactionSync(() => {
     storage.sql.exec(
       `INSERT INTO ticket_bundles
-        (id, title, price_cents, capacity, sale_end_at, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (id, title, price_cents, capacity, public_graphic_file_id, sale_end_at, is_active, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
         title = excluded.title, price_cents = excluded.price_cents,
-        capacity = excluded.capacity, sale_end_at = excluded.sale_end_at,
+        capacity = excluded.capacity, public_graphic_file_id = excluded.public_graphic_file_id,
+        sale_end_at = excluded.sale_end_at,
         is_active = excluded.is_active, updated_at = excluded.updated_at`,
       operation.bundleId,
       operation.bundle.title,
       operation.bundle.priceCents,
       operation.bundle.capacity,
+      operation.bundle.publicGraphicFileId,
       operation.bundle.saleEndAt,
       operation.bundle.isActive ? 1 : 0,
       occurredAt,
@@ -76,6 +78,7 @@ export function upsertTicketBundle(
   const row = storage.sql
     .exec<TicketBundleRow>(
       `SELECT id, title, price_cents AS priceCents, capacity,
+        public_graphic_file_id AS publicGraphicFileId,
         sale_end_at AS saleEndAt, is_active AS isActive,
         created_at AS createdAt, updated_at AS updatedAt
        FROM ticket_bundles WHERE id = ?`,
