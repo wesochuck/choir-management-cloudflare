@@ -1765,6 +1765,75 @@ export function TicketsContent({
   );
 }
 
+function mergePerformances(
+  published:
+    readonly PublishedOrganizationProjection["payload"]["performances"][number][] | undefined,
+  commerce:
+    readonly PublishedOrganizationProjection["payload"]["performances"][number][] | undefined,
+): PublishedOrganizationProjection["payload"]["performances"][number][] {
+  const map = new Map<string, PublishedOrganizationProjection["payload"]["performances"][number]>();
+  for (const item of published ?? []) {
+    map.set(item.id, item);
+  }
+  for (const item of commerce ?? []) {
+    map.set(item.id, item);
+  }
+  return Array.from(map.values());
+}
+
+function mergeTicketBundles(
+  published:
+    readonly PublishedOrganizationProjection["payload"]["ticketBundles"][number][] | undefined,
+  commerce:
+    readonly PublishedOrganizationProjection["payload"]["ticketBundles"][number][] | undefined,
+): PublishedOrganizationProjection["payload"]["ticketBundles"][number][] {
+  const map = new Map<
+    string,
+    PublishedOrganizationProjection["payload"]["ticketBundles"][number]
+  >();
+  for (const item of published ?? []) {
+    map.set(item.id, item);
+  }
+  for (const item of commerce ?? []) {
+    map.set(item.id, item);
+  }
+  return Array.from(map.values());
+}
+
+function combineProjections(
+  published: PublishedOrganizationProjection | null,
+  commerce: PublishedOrganizationProjection | null,
+): PublishedOrganizationProjection {
+  if (!published) {
+    if (!commerce) {
+      throw new Error("Projection unavailable");
+    }
+    return commerce;
+  }
+  if (!commerce) {
+    return published;
+  }
+  const mediaFileIds = Array.from(
+    new Set([...published.payload.mediaFileIds, ...commerce.payload.mediaFileIds]),
+  );
+  return {
+    ...published,
+    payload: {
+      ...published.payload,
+      mediaFileIds,
+      performances: mergePerformances(
+        published.payload.performances,
+        commerce.payload.performances,
+      ),
+      ticketBundles: mergeTicketBundles(
+        published.payload.ticketBundles,
+        commerce.payload.ticketBundles,
+      ),
+    },
+    version: commerce.version,
+  };
+}
+
 export function PublicTickets({ pathname }: { readonly pathname: string }) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [nowMs] = useState(() => Date.now());
@@ -1779,25 +1848,7 @@ export function PublicTickets({ pathname }: { readonly pathname: string }) {
         .catch(() => null),
     ])
       .then(async ([published, commerce]) => {
-        const projection = commerce
-          ? {
-              ...commerce,
-              version: published?.version ?? commerce.version,
-              payload: {
-                ...commerce.payload,
-                mediaFileIds: Array.from(
-                  new Set([
-                    ...(published?.payload.mediaFileIds ?? []),
-                    ...commerce.payload.mediaFileIds,
-                  ]),
-                ),
-                settings: published?.payload.settings ?? commerce.payload.settings,
-              },
-            }
-          : published;
-        if (!projection) {
-          throw new Error("Projection unavailable");
-        }
+        const projection = combineProjections(published, commerce);
         const feeSettings = await getPublicTransactionFeeSettings(controller.signal).catch(
           () => DEFAULT_TRANSACTION_FEE_SETTINGS,
         );
