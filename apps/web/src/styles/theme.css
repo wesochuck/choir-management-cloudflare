@@ -48,6 +48,7 @@
 @import "./components/public-ticket-receipts.css";
 @import "./components/ticketing-donations.css";
 @import "./components/modules-public.css";
+@import "./components/platform-home.css";
 
 /* Authentication & onboarding */
 @import "./components/auth-account.css";

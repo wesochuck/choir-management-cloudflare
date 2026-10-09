@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -31,20 +31,60 @@ describe("PlatformHomeView", () => {
     });
   });
 
-  it("renders Upcoming performances and For community choirs action links for anonymous users", async () => {
+  it("renders hero, audience routing, and feature overview for anonymous users", async () => {
     render(<PlatformHomeView signedIn={false} />);
 
     const performancesLink = screen.getByRole("link", { name: "Upcoming performances" });
-    expect(performancesLink).toBeInTheDocument();
     expect(performancesLink).toHaveAttribute("href", "#upcoming-performances");
+    expect(screen.getByRole("link", { name: "How it works" })).toHaveAttribute(
+      "href",
+      "#what-it-does",
+    );
 
-    const choirsLink = screen.getByRole("link", { name: "For community choirs" });
-    expect(choirsLink).toBeInTheDocument();
-    expect(choirsLink).toHaveAttribute("href", "#community-choirs");
+    const routes = screen.getByRole("navigation", { name: "Get started" });
+    expect(within(routes).getByRole("link", { name: "How to sign in" })).toHaveAttribute(
+      "href",
+      "#signing-in",
+    );
+    expect(within(routes).getByRole("link", { name: "Find tickets" })).toHaveAttribute(
+      "href",
+      "#upcoming-performances",
+    );
+    expect(within(routes).getByRole("link", { name: "For community choirs" })).toHaveAttribute(
+      "href",
+      "#community-choirs",
+    );
 
-    // Does not offer member sign in to anonymous visitors
-    expect(screen.queryByRole("link", { name: "Member sign in" })).toBeNull();
-    expect(screen.queryByRole("heading", { name: "Already a member?" })).toBeNull();
+    expect(
+      screen.getByRole("heading", { level: 2, name: "What Choir Management does." }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Tickets & donations" })).toBeVisible();
+
+    await waitFor(() => {
+      expect(screen.getByText("Winter Masterworks")).toBeInTheDocument();
+    });
+  });
+
+  it("explains how existing account holders sign in", async () => {
+    render(<PlatformHomeView signedIn={false} />);
+
+    const section = screen
+      .getByRole("heading", { level: 2, name: "Signing in." })
+      .closest("section");
+    expect(section).not.toBeNull();
+    if (!section) return;
+
+    expect(within(section).getByRole("link", { name: "Sign in to your account" })).toHaveAttribute(
+      "href",
+      "/login",
+    );
+    expect(within(section).getByRole("link", { name: "Forgot your password?" })).toHaveAttribute(
+      "href",
+      "/forgot-password",
+    );
+    const steps = within(section).getAllByRole("listitem");
+    expect(steps).toHaveLength(3);
+    expect(within(section).getByRole("heading", { name: "Accept your invitation" })).toBeVisible();
 
     await waitFor(() => {
       expect(screen.getByText("Winter Masterworks")).toBeInTheDocument();
@@ -57,6 +97,11 @@ describe("PlatformHomeView", () => {
     const workspaceLink = screen.getByRole("link", { name: "Open your workspace" });
     expect(workspaceLink).toBeInTheDocument();
     expect(workspaceLink).toHaveAttribute("href", "/account");
+    expect(screen.getByRole("link", { name: "Go to your account" })).toHaveAttribute(
+      "href",
+      "/account",
+    );
+    expect(screen.queryByRole("link", { name: "Sign in to your account" })).toBeNull();
 
     await waitFor(() => {
       expect(screen.getByText("Winter Masterworks")).toBeInTheDocument();
