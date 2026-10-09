@@ -169,4 +169,92 @@ describe("EventEditorDialog public graphic upload and preview", () => {
 
     expect(setEvent).toHaveBeenCalled();
   });
+
+  it("warns admin when ticket sales are enabled for a past event and clears warning for future date", () => {
+    const pastPerformance: OrganizationEventRequest = {
+      ...emptyEvent,
+      isTicketingEnabled: true,
+      publishOnWebsite: true,
+      type: "Performance",
+    };
+
+    const { rerender } = render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-past-1"
+        error={null}
+        event={pastPerformance}
+        eventStart="2020-01-01T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={readyState}
+      />,
+    );
+
+    expect(
+      screen.getByText(/This performance date has already passed. Ticket sales will remain closed/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Ticket sales are currently closed for this link because the event date has passed/,
+      ),
+    ).toBeInTheDocument();
+
+    // Rerender with future date
+    rerender(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-past-1"
+        error={null}
+        event={pastPerformance}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={readyState}
+      />,
+    );
+
+    expect(screen.queryByText(/This performance date has already passed/)).not.toBeInTheDocument();
+  });
+
+  it("warns admin when ticketing is enabled but event is not published on public website", () => {
+    const unpublishedPerformance: OrganizationEventRequest = {
+      ...emptyEvent,
+      isTicketingEnabled: true,
+      publishOnWebsite: false,
+      type: "Performance",
+    };
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-unpub-1"
+        error={null}
+        event={unpublishedPerformance}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={readyState}
+      />,
+    );
+
+    expect(
+      screen.getByText(/This event will not appear on the public concert schedule/),
+    ).toBeInTheDocument();
+  });
 });

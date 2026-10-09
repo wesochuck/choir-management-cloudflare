@@ -31,12 +31,12 @@ vi.mock("../auth/api", async (importOriginal) => {
   return {
     ...actual,
     createPublicTicketCheckout: vi.fn(),
-    getPublicCommerceProjection: vi.fn(),
+    getPublicCommerceProjection: vi.fn().mockResolvedValue(null),
     getPublicTicketConfirmationSettings: vi.fn(),
     getPublicTicketDiscountAvailability: vi.fn().mockResolvedValue({ hasRedeemableCode: false }),
     getPublicTicketPurchase: vi.fn(),
     getPublicTransactionFeeSettings: vi.fn(),
-    getPublishedOrganizationProjection: vi.fn(),
+    getPublishedOrganizationProjection: vi.fn().mockResolvedValue(null),
     quotePublicTicketCheckout: vi.fn(),
   };
 });
@@ -1016,6 +1016,72 @@ describe("PublicTickets shell layout", () => {
     expect(screen.queryByRole("link", { name: "Performances" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "History" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
+  });
+
+  it("renders closed notice when event performance date is in the past", async () => {
+    const basePerformance = sampleProjection.payload.performances[0];
+    if (!basePerformance) throw new Error("Expected sample performance");
+    const pastProjection: PublishedOrganizationProjection = {
+      ...sampleProjection,
+      payload: {
+        ...sampleProjection.payload,
+        performances: [
+          {
+            ...basePerformance,
+            startsAt: "2020-01-01T19:00:00Z",
+          },
+        ],
+      },
+    };
+    vi.mocked(getPublishedOrganizationProjection).mockResolvedValue(pastProjection);
+    vi.mocked(getPublicTransactionFeeSettings).mockResolvedValue(feeSettings);
+
+    render(<PublicTickets pathname="/tickets/74e47064-75b9-47e9-97e6-c28f5430bee0" />);
+
+    expect(
+      await screen.findByText("Ticket sales are closed for this performance."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Complete ticket order" })).not.toBeInTheDocument();
+  });
+
+  it("reopens ticket sales when live commerce projection reflects a future rescheduled date even if published projection was stale/past", async () => {
+    const basePerformance = sampleProjection.payload.performances[0];
+    if (!basePerformance) throw new Error("Expected sample performance");
+    const stalePublishedProjection: PublishedOrganizationProjection = {
+      ...sampleProjection,
+      payload: {
+        ...sampleProjection.payload,
+        performances: [
+          {
+            ...basePerformance,
+            startsAt: "2020-01-01T19:00:00Z",
+          },
+        ],
+      },
+    };
+    const liveCommerceProjection: PublishedOrganizationProjection = {
+      ...sampleProjection,
+      payload: {
+        ...sampleProjection.payload,
+        performances: [
+          {
+            ...basePerformance,
+            startsAt: "2028-10-15T19:00:00Z",
+          },
+        ],
+      },
+    };
+    vi.mocked(getPublishedOrganizationProjection).mockResolvedValue(stalePublishedProjection);
+    vi.mocked(getPublicCommerceProjection).mockResolvedValue(liveCommerceProjection);
+    vi.mocked(getPublicTransactionFeeSettings).mockResolvedValue(feeSettings);
+
+    render(<PublicTickets pathname="/tickets/74e47064-75b9-47e9-97e6-c28f5430bee0" />);
+
+    expect(await screen.findByRole("heading", { name: "Spring Concert" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Complete ticket order" })).toBeInTheDocument();
+    expect(
+      screen.queryByText("Ticket sales are closed for this performance."),
+    ).not.toBeInTheDocument();
   });
 
   it("renders full organization layout with navigation when showBrandingHeaderFooter is true, marking Tickets as current", async () => {

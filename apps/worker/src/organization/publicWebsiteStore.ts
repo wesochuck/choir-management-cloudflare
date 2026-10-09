@@ -214,22 +214,25 @@ export function readPublicCommerceProjectionFromStore(
         bundle.eventIds.length > 0 &&
         bundle.eventIds.every((eventId) => performanceIds.has(eventId)),
     );
+  const row = settingsRow(storage);
+  const settings = parsedSettings(row, organization.name);
+  const effectiveLogoFileId = settings.logoFileId ?? organization.logoFileId;
+  const mediaFileIds = Array.from(
+    new Set(
+      [
+        effectiveLogoFileId,
+        settings.heroFileId,
+        ...performances.map((p) => p.graphicFileId),
+      ].filter((id): id is string => typeof id === "string" && id.length > 0),
+    ),
+  );
   const payload = publicWebsiteProjectionPayloadSchema.parse({
-    mediaFileIds: [],
+    mediaFileIds,
     organizationName: organization.name,
     performances,
     settings: {
-      aboutUsText: "",
-      bodyFont: "system",
-      contactEmail: "",
-      enabledNavigation: ["tickets", "donations"],
-      headerFont: "system",
-      heroFileId: null,
-      heroHeadline: `${organization.name} tickets`,
-      heroSubtitle: "Purchase tickets and support our organization.",
-      historyText: "",
-      logoFileId: organization.logoFileId ?? null,
-      showBrandingHeaderFooter: false,
+      ...settings,
+      logoFileId: effectiveLogoFileId,
     },
     ticketBundles,
     timezone: organization.timezone,
@@ -238,7 +241,7 @@ export function readPublicCommerceProjectionFromStore(
     generatedAt: new Date().toISOString(),
     organizationId: organization.organizationId,
     payload,
-    version: 1,
+    version: row.publicationVersion || 1,
   });
 }
 

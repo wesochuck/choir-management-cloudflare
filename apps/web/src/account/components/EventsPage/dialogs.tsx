@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { zonedLocalDateTimeToUtc } from "@choir/domain";
 import { dayOfPriceStartLabel } from "../../eventPricing";
 import { QRCodeShareCard } from "../../QRCodeShareCard";
 
@@ -95,6 +96,13 @@ export function EventEditorDialog({
       : state.status === "ready"
         ? state.rsvpFollowUpLeadHours
         : null;
+
+  const [nowMs] = useState(() => Date.now());
+  const startsAtUtc =
+    state.status === "ready" && eventStart
+      ? zonedLocalDateTimeToUtc(eventStart, state.timezone)
+      : null;
+  const isPastEvent = Boolean(startsAtUtc && new Date(startsAtUtc).getTime() <= nowMs);
 
   const allowedGraphicTypes = ["image/jpeg", "image/png", "image/webp"];
   const maxGraphicBytes = 5 * 1024 * 1024;
@@ -524,6 +532,21 @@ export function EventEditorDialog({
         ) : null}
         {event.type === "Performance" && event.isTicketingEnabled ? (
           <div className="form-grid">
+            {isPastEvent ? (
+              <p className="notice notice--warning form-grid__wide" role="alert">
+                <strong>Ticket sales inactive:</strong> This performance date has already passed.
+                Ticket sales will remain closed to the public until the event date is set to a
+                future date and time.
+              </p>
+            ) : null}
+            {!event.publishOnWebsite ? (
+              <p className="notice notice--info form-grid__wide" role="status">
+                <strong>Unpublished on public website:</strong> "Publish on public website" is
+                unchecked. This event will not appear on the public concert schedule. Buyers will
+                only be able to access tickets via direct link or QR code once ticket sales are
+                open.
+              </p>
+            ) : null}
             <div className="field">
               <label htmlFor="events-page-capacity">Ticket capacity</label>
               <input
@@ -588,11 +611,19 @@ export function EventEditorDialog({
                 programs and signs.
               </p>
               {editingId ? (
-                <QRCodeShareCard
-                  description={`Tickets for ${event.title}.`}
-                  path={`/tickets/${editingId}`}
-                  title={`${event.title} tickets`}
-                />
+                <>
+                  <QRCodeShareCard
+                    description={`Tickets for ${event.title}.`}
+                    path={`/tickets/${editingId}`}
+                    title={`${event.title} tickets`}
+                  />
+                  {isPastEvent ? (
+                    <p className="notice notice--warning" role="alert">
+                      Ticket sales are currently closed for this link because the event date has
+                      passed. Set a future date above to reopen sales.
+                    </p>
+                  ) : null}
+                </>
               ) : (
                 <p className="ticketing-price-note" role="status">
                   Save this Performance to generate its ticket page and QR code.

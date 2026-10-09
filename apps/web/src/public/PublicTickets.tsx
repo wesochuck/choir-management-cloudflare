@@ -1659,7 +1659,7 @@ export function TicketsContent({
   const eventId = /^\/tickets\/([0-9a-f-]+)$/i.exec(pathname)?.[1];
   if (eventId) {
     const event = projection.payload.performances.find((candidate) => candidate.id === eventId);
-    return event?.isTicketingEnabled ? (
+    return event?.isTicketingEnabled && new Date(event.startsAt).getTime() > nowMs ? (
       <TicketPurchaseForm
         event={event}
         feeSettings={feeSettings}
@@ -1770,9 +1770,34 @@ export function PublicTickets({ pathname }: { readonly pathname: string }) {
   const [nowMs] = useState(() => Date.now());
   useEffect(() => {
     const controller = new AbortController();
-    void getPublishedOrganizationProjection(controller.signal)
-      .then((projection) => projection ?? getPublicCommerceProjection(controller.signal))
-      .then(async (projection) => {
+    void Promise.all([
+      Promise.resolve()
+        .then(() => getPublishedOrganizationProjection(controller.signal))
+        .catch(() => null),
+      Promise.resolve()
+        .then(() => getPublicCommerceProjection(controller.signal))
+        .catch(() => null),
+    ])
+      .then(async ([published, commerce]) => {
+        const projection = commerce
+          ? {
+              ...commerce,
+              version: published?.version ?? commerce.version,
+              payload: {
+                ...commerce.payload,
+                mediaFileIds: Array.from(
+                  new Set([
+                    ...(published?.payload.mediaFileIds ?? []),
+                    ...commerce.payload.mediaFileIds,
+                  ]),
+                ),
+                settings: published?.payload.settings ?? commerce.payload.settings,
+              },
+            }
+          : published;
+        if (!projection) {
+          throw new Error("Projection unavailable");
+        }
         const feeSettings = await getPublicTransactionFeeSettings(controller.signal).catch(
           () => DEFAULT_TRANSACTION_FEE_SETTINGS,
         );
