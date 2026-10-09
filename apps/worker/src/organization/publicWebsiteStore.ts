@@ -217,12 +217,21 @@ export function readPublicCommerceProjectionFromStore(
   const row = settingsRow(storage);
   const settings = parsedSettings(row, organization.name);
   const effectiveLogoFileId = settings.logoFileId ?? organization.logoFileId;
+  const additionalGraphicFileIds = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly graphicFileId: string | null }>(
+      `SELECT public_graphic_file_id AS graphicFileId FROM events
+       WHERE is_archived = 0 AND is_canceled = 0 AND type = 'Performance'
+         AND public_graphic_file_id IS NOT NULL`,
+    )
+    .toArray()
+    .map((event) => event.graphicFileId);
   const mediaFileIds = Array.from(
     new Set(
       [
         effectiveLogoFileId,
         settings.heroFileId,
         ...performances.map((p) => p.graphicFileId),
+        ...additionalGraphicFileIds,
       ].filter((id): id is string => typeof id === "string" && id.length > 0),
     ),
   );
@@ -339,11 +348,20 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
         bundle.eventIds.every((eventId) => publicEventIds.has(eventId)),
     );
   const effectiveLogoFileId = settings.logoFileId ?? organization.logoFileId;
+  const ticketedGraphicIds = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly graphicFileId: string | null }>(
+      `SELECT public_graphic_file_id AS graphicFileId FROM events
+       WHERE is_archived = 0 AND is_canceled = 0 AND type = 'Performance'
+         AND is_ticketing_enabled = 1 AND public_graphic_file_id IS NOT NULL`,
+    )
+    .toArray()
+    .map((row) => row.graphicFileId);
   const mediaIds = new Set(
     [
       settings.heroFileId,
       effectiveLogoFileId,
       ...performances.map(({ graphicFileId }) => graphicFileId),
+      ...ticketedGraphicIds,
     ].filter((fileId): fileId is string => fileId !== null),
   );
   const media = [...mediaIds].map((fileId) => mediaFile(storage, fileId));

@@ -402,8 +402,14 @@
     margin-block: var(--spacing-sm) var(--spacing-lg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
-    background: var(--color-surface-raised);
+    background: transparent;
     box-shadow: var(--shadow-md);
+  }
+
+  .ticket-purchase-hero.is-loading {
+    border: none;
+    box-shadow: none;
+    margin: 0;
   }
 
   .ticket-purchase-hero__image {

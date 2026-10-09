@@ -27,6 +27,7 @@ import {
 } from "../auth/api";
 import { OrganizationLayout, PublicTransactionLayout } from "./PublicOrganizationSite";
 import { mediaUrl } from "./publicMedia";
+import { PublicGraphicImage } from "./PublicGraphicImage";
 import { getEventVenueDetails } from "./venueDetails";
 import { QRCodeImage } from "../shared/QRCodeImage";
 import { shouldStartNewTicketCheckoutAttempt } from "./checkoutAttempt";
@@ -754,15 +755,12 @@ function SingleTicketOrderSummary({
 
   return (
     <div className="panel">
-      {graphicUrl ? (
-        <div className="ticket-receipt-graphic">
-          <img
-            alt={purchase.eventTitle}
-            className="ticket-receipt-graphic__image"
-            src={graphicUrl}
-          />
-        </div>
-      ) : null}
+      <PublicGraphicImage
+        alt={purchase.eventTitle}
+        className="ticket-receipt-graphic__image"
+        src={graphicUrl}
+        wrapperClassName="ticket-receipt-graphic"
+      />
       <h2>{purchase.eventTitle}</h2>
       <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
       {venue.displayName ? (
@@ -939,15 +937,12 @@ function TicketRefundOrderDetails({
       aria-labelledby="ticket-refund-order-heading"
       className="ticket-refund-order-details panel"
     >
-      {graphicUrl ? (
-        <div className="ticket-receipt-graphic">
-          <img
-            alt={purchase.eventTitle}
-            className="ticket-receipt-graphic__image"
-            src={graphicUrl}
-          />
-        </div>
-      ) : null}
+      <PublicGraphicImage
+        alt={purchase.eventTitle}
+        className="ticket-receipt-graphic__image"
+        src={graphicUrl}
+        wrapperClassName="ticket-receipt-graphic"
+      />
       <h2 id="ticket-refund-order-heading">Refunded order details</h2>
       <h3>{purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}</h3>
       <TicketOrderSchedule purchase={purchase} />
@@ -1290,13 +1285,12 @@ function TicketPurchaseForm({
     <section className="public-section public-section--narrow">
       <a href="/tickets">← All tickets</a>
       {event.graphicFileId ? (
-        <div className="ticket-purchase-hero">
-          <img
-            alt={event.title}
-            className="ticket-purchase-hero__image"
-            src={mediaUrl(projection, event.graphicFileId)}
-          />
-        </div>
+        <PublicGraphicImage
+          alt={event.title}
+          className="ticket-purchase-hero__image"
+          src={mediaUrl(projection, event.graphicFileId)}
+          wrapperClassName="ticket-purchase-hero"
+        />
       ) : null}
       <h1>{event.title}</h1>
       <p>{publicDate(event.startsAt, projection.payload.timezone)}</p>
@@ -1716,9 +1710,8 @@ export function TicketsContent({
                 key={event.id}
               >
                 {event.graphicFileId ? (
-                  <img
+                  <PublicGraphicImage
                     alt={event.title}
-                    loading="lazy"
                     src={mediaUrl(projection, event.graphicFileId)}
                   />
                 ) : null}

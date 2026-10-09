@@ -284,4 +284,68 @@ describe("Organization public website", () => {
       files.head(publishedMediaKey("organization-alpha", 1, FILE_ID)),
     ).resolves.not.toBeNull();
   });
+
+  it("serves performance graphic media directly from commerce projection before website republication", async () => {
+    const COMMERCE_FILE_ID = "22222222-2222-4222-8222-222222222222";
+    const cookie = await signIn();
+
+    const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    const uploadRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${COMMERCE_FILE_ID}`, cookie, {
+        body: bytes,
+        headers: {
+          "content-length": String(bytes.byteLength),
+          "content-type": "image/png",
+          "x-file-name": "concert-poster.png",
+        },
+        method: "PUT",
+      }),
+    );
+    expect(uploadRes.status).toBe(201);
+
+    const eventRes = await jsonWrite(
+      "alpha.localhost",
+      "/api/organization/events",
+      "POST",
+      {
+        advancePriceCents: 2000,
+        callTime: "18:00",
+        dayOfPriceCents: 2500,
+        details: "Call details",
+        durationMinutes: 120,
+        isTicketingEnabled: true,
+        location: "Hall A",
+        parentPerformanceId: null,
+        publicDetails: "Fall concert info",
+        publicGraphicFileId: COMMERCE_FILE_ID,
+        publishOnWebsite: false,
+        rsvpDeadlineDate: "2030-01-01",
+        setList: [],
+        setListApproved: false,
+        startsAt: "2026-11-01T19:00:00.000Z",
+        ticketCapacity: 100,
+        title: "Fall Showcase",
+        type: "Performance",
+        venueId: null,
+      },
+      cookie,
+    );
+    expect(eventRes.status).toBe(201);
+
+    const mediaResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/media/1/${COMMERCE_FILE_ID}`),
+    );
+    expect(mediaResponse.status).toBe(200);
+    expect(mediaResponse.headers.get("content-type")).toBe("image/png");
+
+    const bravoResponse = await exports.default.fetch(
+      api("bravo.localhost", `/api/public/media/1/${COMMERCE_FILE_ID}`),
+    );
+    expect(bravoResponse.status).toBe(404);
+
+    const unknownResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/media/1/33333333-3333-4333-8333-333333333333`),
+    );
+    expect(unknownResponse.status).toBe(404);
+  });
 });

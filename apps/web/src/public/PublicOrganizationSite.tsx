@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { getPublishedOrganizationProjection } from "../auth/api";
 import { PublicOrganizationBrand } from "./PublicOrganizationBrand";
 import { mediaUrl } from "./publicMedia";
+import { PublicGraphicImage } from "./PublicGraphicImage";
 import { publicWebsiteFontStacks } from "./publicWebsiteFonts";
 
 type ProjectionState =
@@ -62,9 +63,8 @@ function PerformanceCards({
       {performances.map((performance) => (
         <article className="public-performance-card" key={performance.id}>
           {performance.graphicFileId ? (
-            <img
+            <PublicGraphicImage
               alt={performance.title}
-              loading="lazy"
               src={mediaUrl(projection, performance.graphicFileId)}
             />
           ) : null}

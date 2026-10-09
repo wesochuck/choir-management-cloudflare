@@ -1,4 +1,8 @@
-import { transactionFeeSettingsSchema, type ProblemDetails } from "@choir/contracts";
+import {
+  publishedOrganizationProjectionSchema,
+  transactionFeeSettingsSchema,
+  type ProblemDetails,
+} from "@choir/contracts";
 import type { Hono } from "hono";
 import { z } from "zod";
 
@@ -9,6 +13,7 @@ import {
 } from "../publication/publishOrganization";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
+import { privateOrganizationFileKey } from "../storage/privateFiles";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
@@ -129,12 +134,18 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         404,
       );
     }
-    const object = await readPublishedOrganizationMedia(
-      context.env,
-      resolved.value.organizationId,
-      version.data,
-      fileId.data,
-    );
+    const object =
+      (await readPublishedOrganizationMedia(
+        context.env,
+        resolved.value.organizationId,
+        version.data,
+        fileId.data,
+      )) ??
+      (await readCommerceOrganizationMedia(
+        context.env,
+        resolved.value.organizationId,
+        fileId.data,
+      ));
     if (!object) {
       return context.json(
         {
@@ -151,4 +162,36 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     context.header("content-type", object.httpMetadata?.contentType ?? "application/octet-stream");
     return context.body(object.body);
   });
+}
+
+async function readCommerceOrganizationMedia(
+  env: WorkerHonoEnvironment["Bindings"],
+  organizationId: string,
+  fileId: string,
+): Promise<R2ObjectBody | null> {
+  const stub = organizationStoreStub(env, organizationId);
+  const commerceUrl = new URL("https://organization.internal/internal/website/commerce-projection");
+  const response = await invokeOrganizationRpc(stub, commerceUrl.toString()).catch(() => null);
+  if (!response?.ok) {
+    return null;
+  }
+  const data: unknown = await response.json().catch(() => null);
+  const parsed = publishedOrganizationProjectionSchema.safeParse(data);
+  if (!parsed.success || !parsed.data.payload.mediaFileIds.includes(fileId)) {
+    return null;
+  }
+  const key = privateOrganizationFileKey(organizationId, fileId);
+  const object = await env.ORGANIZATION_FILES.get(key);
+  if (
+    !object ||
+    object.customMetadata?.organizationId !== organizationId ||
+    object.customMetadata.fileId !== fileId
+  ) {
+    return null;
+  }
+  const contentType = object.httpMetadata?.contentType;
+  if (!contentType || !["image/jpeg", "image/png", "image/webp"].includes(contentType)) {
+    return null;
+  }
+  return object;
 }
