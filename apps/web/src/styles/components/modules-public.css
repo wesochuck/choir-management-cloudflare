@@ -330,9 +330,12 @@
   }
 
   .public-performance-card > img {
+    display: block;
     width: 100%;
-    aspect-ratio: 16 / 9;
-    object-fit: cover;
+    height: auto;
+    max-height: 22rem;
+    object-fit: contain;
+    background: var(--color-surface);
   }
 
   .public-performance-card > div {
@@ -402,7 +405,7 @@
     margin-block: var(--spacing-sm) var(--spacing-lg);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
-    background: transparent;
+    background: var(--color-surface);
     box-shadow: var(--shadow-md);
   }
 
@@ -415,8 +418,9 @@
   .ticket-purchase-hero__image {
     display: block;
     width: 100%;
-    aspect-ratio: 16 / 9;
-    object-fit: cover;
+    height: auto;
+    max-height: 28rem;
+    object-fit: contain;
   }
 
   .public-copy {
