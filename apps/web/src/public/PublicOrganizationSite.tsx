@@ -3,6 +3,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 import { getPublishedOrganizationProjection } from "../auth/api";
 import { PublicOrganizationBrand } from "./PublicOrganizationBrand";
+import { mediaUrl } from "./publicMedia";
 import { publicWebsiteFontStacks } from "./publicWebsiteFonts";
 
 type ProjectionState =
@@ -22,10 +23,6 @@ function publicSiteStyle(
     "--public-body-font": publicWebsiteFontStacks[settings.bodyFont],
     "--public-heading-font": publicWebsiteFontStacks[settings.headerFont],
   };
-}
-
-function mediaUrl(projection: PublishedOrganizationProjection, fileId: string): string {
-  return `/api/public/media/${String(projection.version)}/${encodeURIComponent(fileId)}`;
 }
 
 function PublicCopy({ text }: { readonly text: string }) {

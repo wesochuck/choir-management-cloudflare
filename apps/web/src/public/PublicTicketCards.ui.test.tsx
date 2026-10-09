@@ -111,4 +111,69 @@ describe("TicketsContent ticket card purchase areas", () => {
       "https://www.google.com/maps/search/?api=1&query=Grace%20Chapel%2C%20456%20Choir%20Blvd%2C%20Columbus%2C%20OH%2043215",
     );
   });
+
+  it("renders performance graphic on ticket cards when graphicFileId is present", () => {
+    const basePerformance = projection.payload.performances[0];
+    if (!basePerformance) throw new Error("Expected base performance");
+
+    const projectionWithGraphic: PublishedOrganizationProjection = {
+      ...projection,
+      payload: {
+        ...projection.payload,
+        performances: [
+          {
+            ...basePerformance,
+            graphicFileId: "graphic-file-xyz",
+          },
+        ],
+      },
+      version: 3,
+    };
+
+    render(
+      <TicketsContent
+        feeSettings={feeSettings}
+        nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+        pathname="/tickets"
+        projection={projectionWithGraphic}
+      />,
+    );
+
+    const graphic = screen.getByAltText(basePerformance.title);
+    expect(graphic).toHaveAttribute("src", "/api/public/media/3/graphic-file-xyz");
+  });
+
+  it("renders hero graphic on single performance ticket purchase page", () => {
+    const basePerformance = projection.payload.performances[0];
+    if (!basePerformance) throw new Error("Expected base performance");
+
+    const eventId = "74e47064-75b9-47e9-97e6-c28f5430bee0";
+    const projectionWithGraphic: PublishedOrganizationProjection = {
+      ...projection,
+      payload: {
+        ...projection.payload,
+        performances: [
+          {
+            ...basePerformance,
+            graphicFileId: "graphic-file-xyz",
+            id: eventId,
+          },
+        ],
+      },
+      version: 3,
+    };
+
+    render(
+      <TicketsContent
+        feeSettings={feeSettings}
+        nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+        pathname={`/tickets/${eventId}`}
+        projection={projectionWithGraphic}
+      />,
+    );
+
+    const graphic = screen.getByAltText(basePerformance.title);
+    expect(graphic).toHaveAttribute("src", "/api/public/media/3/graphic-file-xyz");
+    expect(graphic).toHaveClass("ticket-purchase-hero__image");
+  });
 });

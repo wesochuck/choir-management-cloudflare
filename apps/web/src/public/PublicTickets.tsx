@@ -26,6 +26,7 @@ import {
   quotePublicTicketCheckout,
 } from "../auth/api";
 import { OrganizationLayout, PublicTransactionLayout } from "./PublicOrganizationSite";
+import { mediaUrl } from "./publicMedia";
 import { getEventVenueDetails } from "./venueDetails";
 import { QRCodeImage } from "../shared/QRCodeImage";
 import { shouldStartNewTicketCheckoutAttempt } from "./checkoutAttempt";
@@ -737,9 +738,11 @@ function BundlePassCredentialCard({
 }
 
 function SingleTicketOrderSummary({
+  graphicUrl,
   purchase,
   settings,
 }: {
+  readonly graphicUrl?: string | null | undefined;
   readonly purchase: PublicTicketReceipt;
   readonly settings: TicketConfirmationSettings;
 }) {
@@ -751,6 +754,15 @@ function SingleTicketOrderSummary({
 
   return (
     <div className="panel">
+      {graphicUrl ? (
+        <div className="ticket-receipt-graphic">
+          <img
+            alt={purchase.eventTitle}
+            className="ticket-receipt-graphic__image"
+            src={graphicUrl}
+          />
+        </div>
+      ) : null}
       <h2>{purchase.eventTitle}</h2>
       <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
       {venue.displayName ? (
@@ -915,12 +927,27 @@ function TicketRefundSummary({ purchase }: { readonly purchase: PublicTicketRece
   );
 }
 
-function TicketRefundOrderDetails({ purchase }: { readonly purchase: PublicTicketReceipt }) {
+function TicketRefundOrderDetails({
+  graphicUrl,
+  purchase,
+}: {
+  readonly graphicUrl?: string | null | undefined;
+  readonly purchase: PublicTicketReceipt;
+}) {
   return (
     <section
       aria-labelledby="ticket-refund-order-heading"
       className="ticket-refund-order-details panel"
     >
+      {graphicUrl ? (
+        <div className="ticket-receipt-graphic">
+          <img
+            alt={purchase.eventTitle}
+            className="ticket-receipt-graphic__image"
+            src={graphicUrl}
+          />
+        </div>
+      ) : null}
       <h2 id="ticket-refund-order-heading">Refunded order details</h2>
       <h3>{purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}</h3>
       <TicketOrderSchedule purchase={purchase} />
@@ -939,9 +966,11 @@ function TicketRefundOrderDetails({ purchase }: { readonly purchase: PublicTicke
 }
 
 function TicketReceiptPanel({
+  graphicUrl,
   purchase,
   settings,
 }: {
+  readonly graphicUrl?: string | null | undefined;
   readonly purchase: PublicTicketReceipt;
   readonly settings: TicketConfirmationSettings;
 }) {
@@ -949,7 +978,7 @@ function TicketReceiptPanel({
     return (
       <div className="ticket-refund-content">
         <TicketRefundSummary purchase={purchase} />
-        <TicketRefundOrderDetails purchase={purchase} />
+        <TicketRefundOrderDetails graphicUrl={graphicUrl} purchase={purchase} />
       </div>
     );
   }
@@ -964,7 +993,7 @@ function TicketReceiptPanel({
       {purchase.bundleId ? (
         <BundlePurchaseSummary purchase={purchase} settings={settings} />
       ) : (
-        <SingleTicketOrderSummary purchase={purchase} settings={settings} />
+        <SingleTicketOrderSummary graphicUrl={graphicUrl} purchase={purchase} settings={settings} />
       )}
     </div>
   );
@@ -972,10 +1001,12 @@ function TicketReceiptPanel({
 
 function TicketReceiptContent({
   onRefresh,
+  projection,
   settings,
   token,
 }: {
   readonly onRefresh: () => void;
+  readonly projection?: PublishedOrganizationProjection | null | undefined;
   readonly settings: TicketConfirmationSettings;
   readonly token: string;
 }) {
@@ -1071,6 +1102,14 @@ function TicketReceiptContent({
     return <p className="notice notice--info">Loading ticket receipt…</p>;
   }
 
+  const matchingPerformance = projection?.payload.performances.find(
+    (candidate) => candidate.id === purchase.eventId,
+  );
+  const graphicUrl =
+    projection && matchingPerformance?.graphicFileId
+      ? mediaUrl(projection, matchingPerformance.graphicFileId)
+      : null;
+
   return (
     <section
       className={
@@ -1108,7 +1147,7 @@ function TicketReceiptContent({
           Staging simulation: no payment card was charged.
         </p>
       ) : null}
-      <TicketReceiptPanel purchase={purchase} settings={settings} />
+      <TicketReceiptPanel graphicUrl={graphicUrl} purchase={purchase} settings={settings} />
       <div className="ticket-receipt-actions">
         <a className="button button--secondary" href="/tickets">
           Return to tickets
@@ -1118,11 +1157,21 @@ function TicketReceiptContent({
   );
 }
 
-export function TicketReceipt({ token }: { readonly token: string }) {
+export function TicketReceipt({
+  projection: initialProjection,
+  token,
+}: {
+  readonly projection?: PublishedOrganizationProjection | null | undefined;
+  readonly token: string;
+}) {
   const [confirmationSettings, setConfirmationSettings] = useState(
     DEFAULT_TICKET_CONFIRMATION_SETTINGS,
   );
+  const [fetchedProjection, setFetchedProjection] =
+    useState<PublishedOrganizationProjection | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const projection = initialProjection ?? fetchedProjection;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1133,10 +1182,21 @@ export function TicketReceipt({ token }: { readonly token: string }) {
       .catch(() => {
         // Keeps default settings
       });
+    if (!initialProjection) {
+      void getPublishedOrganizationProjection(controller.signal)
+        .then((nextProjection) => {
+          if (nextProjection) {
+            setFetchedProjection(nextProjection);
+          }
+        })
+        .catch(() => {
+          // Optional enhancement if projection not available
+        });
+    }
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [initialProjection]);
 
   if (!token) {
     return <p className="notice notice--error">This ticket receipt is unavailable.</p>;
@@ -1148,6 +1208,7 @@ export function TicketReceipt({ token }: { readonly token: string }) {
       onRefresh={() => {
         setRefreshKey((key) => key + 1);
       }}
+      projection={projection}
       settings={confirmationSettings}
       token={token}
     />
@@ -1228,6 +1289,15 @@ function TicketPurchaseForm({
   return (
     <section className="public-section public-section--narrow">
       <a href="/tickets">← All tickets</a>
+      {event.graphicFileId ? (
+        <div className="ticket-purchase-hero">
+          <img
+            alt={event.title}
+            className="ticket-purchase-hero__image"
+            src={mediaUrl(projection, event.graphicFileId)}
+          />
+        </div>
+      ) : null}
       <h1>{event.title}</h1>
       <p>{publicDate(event.startsAt, projection.payload.timezone)}</p>
       {(() => {
@@ -1576,7 +1646,7 @@ export function TicketsContent({
 }) {
   const search = new URLSearchParams(window.location.search);
   if (pathname === "/tickets/order/success")
-    return <TicketReceipt token={search.get("token") ?? ""} />;
+    return <TicketReceipt projection={projection} token={search.get("token") ?? ""} />;
   const bundleId = /^\/tickets\/bundles\/([0-9a-f-]+)$/i.exec(pathname)?.[1];
   if (bundleId) {
     const bundle = projection.payload.ticketBundles.find((candidate) => candidate.id === bundleId);
@@ -1645,6 +1715,13 @@ export function TicketsContent({
                 className="public-performance-card public-performance-card--ticket"
                 key={event.id}
               >
+                {event.graphicFileId ? (
+                  <img
+                    alt={event.title}
+                    loading="lazy"
+                    src={mediaUrl(projection, event.graphicFileId)}
+                  />
+                ) : null}
                 <div className="public-performance-card__body">
                   <div className="public-performance-card__content">
                     <p>{publicDate(event.startsAt, projection.payload.timezone)}</p>

@@ -1599,4 +1599,66 @@ describe("TicketReceipt", () => {
       within(passCard).queryByText(/This same pass QR code is valid for every included concert/),
     ).not.toBeInTheDocument();
   });
+
+  it("renders event graphic in order summary when projection contains performance artwork", async () => {
+    const paidReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      eventId: "11111111-1111-4111-8111-111111111111",
+      scanToken: "credential.token.123",
+      status: "paid",
+    };
+    vi.mocked(getPublicTicketPurchase).mockResolvedValueOnce(paidReceipt);
+
+    const projectionWithArtwork: PublishedOrganizationProjection = {
+      generatedAt: "2026-10-01T00:00:00Z",
+      organizationId: "sample-org",
+      payload: {
+        mediaFileIds: ["art-file-123"],
+        organizationName: "Sample Choir",
+        performances: [
+          {
+            advancePriceCents: 2000,
+            dayOfPriceCents: 2500,
+            doorsOpenTime: "19:00",
+            graphicFileId: "art-file-123",
+            id: "11111111-1111-4111-8111-111111111111",
+            isTicketingEnabled: true,
+            location: "Main Auditorium",
+            publicDetails: "",
+            startsAt: "2026-10-15T19:30:00Z",
+            ticketCapacity: 100,
+            title: "Spring Concert",
+            venueAddress: "",
+            venueName: "Symphony Hall",
+          },
+        ],
+        settings: {
+          aboutUsText: "",
+          bodyFont: "system",
+          contactEmail: "",
+          enabledNavigation: ["tickets"],
+          headerFont: "system",
+          heroFileId: null,
+          heroHeadline: "Sample Choir",
+          heroSubtitle: "",
+          historyText: "",
+          logoFileId: null,
+          showBrandingHeaderFooter: false,
+        },
+        ticketBundles: [],
+        timezone: "America/New_York",
+      },
+      version: 2,
+    };
+
+    render(<TicketReceipt projection={projectionWithArtwork} token="tok-art" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    const graphic = screen.getByAltText("Spring Concert");
+    expect(graphic).toHaveAttribute("src", "/api/public/media/2/art-file-123");
+    expect(graphic).toHaveClass("ticket-receipt-graphic__image");
+  });
 });
