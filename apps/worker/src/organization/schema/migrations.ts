@@ -1730,6 +1730,11 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       // restores the previous table from the _before_catalog backup only if
       // the operator retains it; forward migration drops the backup after
       // copying, so rollback requires restoring from a snapshot.
+      // Legacy rows may carry applicable values outside 0/1 (the v105 schema
+      // had no CHECK); readers treat only 1 as applicable, so the copy clamps
+      // anything else to 0. That keeps every existing read identical while
+      // satisfying the new CHECK — without it the copy throws, the migration
+      // rolls back, and the DO migration barrier fails on every request.
       "DROP INDEX IF EXISTS organization_compliance_tasks_reminder_due",
       "DROP INDEX IF EXISTS organization_compliance_completions_latest",
       "ALTER TABLE organization_compliance_tasks RENAME TO organization_compliance_tasks_before_catalog",
@@ -1758,11 +1763,11 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
          applicable, archived, recurrence_months, next_due_date,
          last_completed_date, next_reminder_at, reminder_interval_days,
          responsible_membership_id, responsible_user_id, created_at, updated_at)
-       SELECT id, kind, kind, 'builtin', title, '', NULL,
-         applicable, 0, recurrence_months, next_due_date,
-         last_completed_date, next_reminder_at, reminder_interval_days,
-         NULL, NULL, created_at, updated_at
-       FROM organization_compliance_tasks_before_catalog`,
+        SELECT id, kind, kind, 'builtin', title, '', NULL,
+          CASE WHEN applicable = 1 THEN 1 ELSE 0 END, 0, recurrence_months, next_due_date,
+          last_completed_date, next_reminder_at, reminder_interval_days,
+          NULL, NULL, created_at, updated_at
+        FROM organization_compliance_tasks_before_catalog`,
       "DROP TABLE organization_compliance_tasks_before_catalog",
       // The RENAME above retargets the completions foreign key to the
       // _before_catalog backup; rebuild completions so its task_id references
