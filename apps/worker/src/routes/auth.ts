@@ -8,42 +8,14 @@ import type { Hono } from "hono";
 
 import type { WorkerHonoEnvironment } from "./helpers";
 
-import { isAuthorizedPlatformHostname } from "./helpers";
+import { isAuthorizedPlatformHostname, requireAccountSession } from "./helpers";
 import type { AccountSessionRow } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/account/organizations", async (context) => {
-    validateStartupConfig(context.env);
-    const requestUrl = new URL(context.req.url);
-    if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
-      return context.json(
-        {
-          code: "not_found",
-          message: "Account management requires a canonical product hostname.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        404,
-      );
-    }
-
-    const auth = createAuth({
-      env: context.env,
-      requestUrl,
-      waitUntil: (promise) => {
-        context.executionCtx.waitUntil(promise);
-      },
-    });
-    const session = await auth.api.getSession({ headers: context.req.raw.headers });
-    if (!session) {
-      return context.json(
-        {
-          code: "unauthorized",
-          message: "Sign in is required.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        401,
-      );
-    }
+    const account = await requireAccountSession(context);
+    if (account instanceof Response) return account;
+    const { session } = account;
 
     return context.json({
       organizations: await listAccountOrganizations(context.env.CONTROL_DB, session.user.id),
@@ -51,36 +23,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.get("/api/account/sessions", async (context) => {
-    validateStartupConfig(context.env);
-    const requestUrl = new URL(context.req.url);
-    if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
-      return context.json(
-        {
-          code: "not_found",
-          message: "Account management requires a canonical product hostname.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        404,
-      );
-    }
-    const auth = createAuth({
-      env: context.env,
-      requestUrl,
-      waitUntil: (promise) => {
-        context.executionCtx.waitUntil(promise);
-      },
-    });
-    const session = await auth.api.getSession({ headers: context.req.raw.headers });
-    if (!session) {
-      return context.json(
-        {
-          code: "unauthorized",
-          message: "Sign in is required.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        401,
-      );
-    }
+    const account = await requireAccountSession(context);
+    if (account instanceof Response) return account;
+    const { session } = account;
     const rows = await context.env.CONTROL_DB.prepare(
       `SELECT activeOrganizationId, createdAt, expiresAt, id, ipAddress,
        updatedAt, userAgent, userId
@@ -105,36 +50,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.post("/api/account/sessions/revoke", async (context) => {
-    validateStartupConfig(context.env);
-    const requestUrl = new URL(context.req.url);
-    if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
-      return context.json(
-        {
-          code: "not_found",
-          message: "Account management requires a canonical product hostname.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        404,
-      );
-    }
-    const auth = createAuth({
-      env: context.env,
-      requestUrl,
-      waitUntil: (promise) => {
-        context.executionCtx.waitUntil(promise);
-      },
-    });
-    const session = await auth.api.getSession({ headers: context.req.raw.headers });
-    if (!session) {
-      return context.json(
-        {
-          code: "unauthorized",
-          message: "Sign in is required.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        401,
-      );
-    }
+    const account = await requireAccountSession(context);
+    if (account instanceof Response) return account;
+    const { session } = account;
     const body = z
       .object({ sessionId: z.string().trim().min(1).max(256) })
       .safeParse(await context.req.json<unknown>().catch(() => null));
@@ -167,36 +85,9 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.get("/api/account/security", async (context) => {
-    validateStartupConfig(context.env);
-    const requestUrl = new URL(context.req.url);
-    if (!(await isAuthorizedPlatformHostname(requestUrl, context.env))) {
-      return context.json(
-        {
-          code: "not_found",
-          message: "Account management requires a canonical product hostname.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        404,
-      );
-    }
-    const auth = createAuth({
-      env: context.env,
-      requestUrl,
-      waitUntil: (promise) => {
-        context.executionCtx.waitUntil(promise);
-      },
-    });
-    const session = await auth.api.getSession({ headers: context.req.raw.headers });
-    if (!session) {
-      return context.json(
-        {
-          code: "unauthorized",
-          message: "Sign in is required.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        401,
-      );
-    }
+    const account = await requireAccountSession(context);
+    if (account instanceof Response) return account;
+    const { session } = account;
     const credential = await context.env.CONTROL_DB.prepare(
       `SELECT 1 AS passwordSet
      FROM account

@@ -115,6 +115,24 @@ describe("music CSV", () => {
     expect(() => parseMusicCsv("Composer\nHandel")).toThrow('CSV must contain a "Title" column.');
   });
 
+  it("shares the common row tokenizer (escaped quotes, trailing empties, typed quote error)", () => {
+    const escaped = parseMusicCsv('Title,Composer\n"He said ""hi""",Handel\n');
+    expect(escaped[0]).toMatchObject({ composer: "Handel", title: 'He said "hi"' });
+
+    const quotedComma = parseMusicCsv('Title\n"Piece, Part Two"\n');
+    expect(quotedComma[0]?.title).toBe("Piece, Part Two");
+
+    expect(parseMusicCsv("Title\nPiece\n\n   \n")).toHaveLength(1);
+
+    try {
+      parseMusicCsv('Title\n"unterminated\n');
+      expect.unreachable("expected unterminated-quote rejection");
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(MusicCsvError);
+      expect(error instanceof Error ? error.message : "").toMatch(/unterminated quoted field/);
+    }
+  });
+
   it("enforces the import row limit during inspection", () => {
     const csv = [
       "Title",

@@ -129,6 +129,36 @@ export async function markEmailProviderRouteUnknown(
     .run();
 }
 
+/**
+ * Shared post-send route bookkeeping for both email lanes (platform
+ * transactional mail and Organization campaign mail). Attaches the accepted
+ * provider message ID to the reserved route; when the attach itself fails the
+ * route is marked unknown and a redacted error is logged (source identifiers
+ * only, never recipients, bodies, or provider secrets) without throwing, so a
+ * bookkeeping failure never masks a completed send. Raw provider errors stay
+ * with the caller's typed formatters; the send itself stays in the caller so
+ * the two lanes never merge.
+ */
+export async function attachProviderRouteResult(
+  database: D1Database,
+  input: EmailProviderRouteInput,
+  providerMessageId: string,
+): Promise<void> {
+  await attachEmailProviderMessage(database, input, providerMessageId).catch(
+    async (error: unknown) => {
+      await markEmailProviderRouteUnknown(database, input).catch(() => undefined);
+      console.error(
+        JSON.stringify({
+          errorType: error instanceof Error ? error.name : "UnknownError",
+          event: "email_provider_route_attach_failed",
+          sourceId: input.sourceId,
+          sourceKind: input.sourceKind,
+        }),
+      );
+    },
+  );
+}
+
 export async function isEmailProviderSuppressed(
   database: D1Database,
   destination: string,

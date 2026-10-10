@@ -137,6 +137,23 @@ describe("roster CSV", () => {
     expect(() => parseRosterCsv("Name\nOne\nTwo", 1)).toThrow(/at most 1/);
   });
 
+  it("shares the common row tokenizer (CRLF, trailing empties, typed quote error)", () => {
+    const crlf = parseRosterCsv('Name,Email\r\n"Smith, ""Ace""",ace@example.test\r\n');
+    expect(crlf).toEqual([
+      expect.objectContaining({ displayName: 'Smith, "Ace"', email: "ace@example.test" }),
+    ]);
+
+    expect(parseRosterCsv("Name\nAlice\n\n   \n")).toHaveLength(1);
+
+    try {
+      parseRosterCsv('Name\n"unterminated\n');
+      expect.unreachable("expected unterminated-quote rejection");
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(RosterCsvError);
+      expect(error instanceof Error ? error.message : "").toMatch(/unterminated quoted field/);
+    }
+  });
+
   it("uses the same email validator as the API contract", () => {
     const email = "singer..name@example.test";
     expect(emailAddressSchema.safeParse(email).success).toBe(false);

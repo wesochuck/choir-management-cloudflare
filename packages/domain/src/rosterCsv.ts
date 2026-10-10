@@ -1,5 +1,6 @@
 import { emailAddressSchema } from "@choir/contracts";
 import { mapCsvColumns, type CsvColumnMapping } from "./csvMapping";
+import { CsvRowsError, escapeCsvField, parseCsvRows } from "./csvRows";
 
 export interface RosterCsvProfile {
   readonly displayName: string;
@@ -68,55 +69,16 @@ export const rosterCsvColumnOptions = [
   "Notes",
   "Section Leader",
 ] as const;
-const dangerousFormulaPrefix = /^[=+\-@\t\r]/;
-
-function csvField(value: string): string {
-  const safe = dangerousFormulaPrefix.test(value) ? `'${value}` : value;
-  return `"${safe.replaceAll('"', '""')}"`;
-}
-
-function consumeQuotedCharacter(
-  csv: string,
-  index: number,
-): { readonly addition: string; readonly index: number; readonly quoted: boolean } {
-  const character = csv[index] ?? "";
-  if (character !== '"') return { addition: character, index, quoted: true };
-  return csv[index + 1] === '"'
-    ? { addition: '"', index: index + 1, quoted: true }
-    : { addition: "", index, quoted: false };
-}
 
 function parseRows(csv: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-  for (let index = 0; index < csv.length; index += 1) {
-    const character = csv[index] ?? "";
-    if (quoted) {
-      const consumed = consumeQuotedCharacter(csv, index);
-      field += consumed.addition;
-      index = consumed.index;
-      quoted = consumed.quoted;
-    } else if (character === '"' && field.length === 0) {
-      quoted = true;
-    } else if (character === ",") {
-      row.push(field.trim());
-      field = "";
-    } else if (character === "\n" || character === "\r") {
-      if (character === "\r" && csv[index + 1] === "\n") index += 1;
-      row.push(field.trim());
-      if (row.some(Boolean)) rows.push(row);
-      row = [];
-      field = "";
-    } else {
-      field += character;
+  try {
+    return parseCsvRows(csv);
+  } catch (error: unknown) {
+    if (error instanceof CsvRowsError) {
+      throw new RosterCsvError(error.message);
     }
+    throw error;
   }
-  if (quoted) throw new RosterCsvError("The CSV contains an unterminated quoted field.");
-  row.push(field.trim());
-  if (row.some(Boolean)) rows.push(row);
-  return rows;
 }
 
 export function rosterCsvColumnForHeader(
@@ -346,7 +308,7 @@ function profileRow(profile: RosterCsvProfile): string {
     profile.voicePart,
     profile.globalStatus,
   ]
-    .map(csvField)
+    .map(escapeCsvField)
     .join(",");
 }
 

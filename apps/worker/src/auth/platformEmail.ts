@@ -1,6 +1,6 @@
 import type { Env } from "../env";
 import {
-  attachEmailProviderMessage,
+  attachProviderRouteResult,
   isEmailProviderSuppressed,
   markEmailProviderRouteUnknown,
   prepareEmailProviderRoute,
@@ -126,19 +126,7 @@ export async function sendPlatformEmail(
     throw error;
   }
   if (routeInput && controlDatabase) {
-    await attachEmailProviderMessage(controlDatabase, routeInput, result.messageId).catch(
-      async (error: unknown) => {
-        await markEmailProviderRouteUnknown(controlDatabase, routeInput).catch(() => undefined);
-        console.error(
-          JSON.stringify({
-            errorType: error instanceof Error ? error.name : "UnknownError",
-            event: "email_provider_route_attach_failed",
-            sourceId: routeInput.sourceId,
-            sourceKind: routeInput.sourceKind,
-          }),
-        );
-      },
-    );
+    await attachProviderRouteResult(controlDatabase, routeInput, result.messageId);
   }
   return undefined;
 }

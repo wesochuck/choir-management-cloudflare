@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import {
-  attachEmailProviderMessage,
+  attachProviderRouteResult,
   emailProviderSourceKindSchema,
   isEmailProviderSuppressed,
   markEmailProviderRouteUnknown,
@@ -382,19 +382,7 @@ async function deliverOrganizationEmail(
     throw error;
   }
   if (routeInput && controlDatabase) {
-    await attachEmailProviderMessage(controlDatabase, routeInput, result.messageId).catch(
-      async (error: unknown) => {
-        await markEmailProviderRouteUnknown(controlDatabase, routeInput).catch(() => undefined);
-        console.error(
-          JSON.stringify({
-            errorType: error instanceof Error ? error.name : "UnknownError",
-            event: "email_provider_route_attach_failed",
-            sourceId: routeInput.sourceId,
-            sourceKind: routeInput.sourceKind,
-          }),
-        );
-      },
-    );
+    await attachProviderRouteResult(controlDatabase, routeInput, result.messageId);
   }
   return {
     failureDetail: "",

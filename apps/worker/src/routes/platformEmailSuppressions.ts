@@ -7,14 +7,12 @@ import {
   type ProblemDetails,
 } from "@choir/contracts";
 import { z } from "zod";
-import { createAuth, isProductBaseHost } from "../auth/config";
-import { authorizePlatformAdministratorSession } from "../auth/platformAdministrator";
-import { validateStartupConfig } from "../env";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 import type { Context, Hono } from "hono";
 
 import type { WorkerHonoEnvironment } from "./helpers";
+import { authorizePlatformAdministration } from "./platformAdministration/shared";
 
 type WorkerContext = Context<WorkerHonoEnvironment>;
 
@@ -49,10 +47,6 @@ interface SuppressionFilters {
   readonly cursor: readonly [string, string] | null;
   readonly query: string;
   readonly status: "active" | "all";
-}
-
-interface SuppressionAdministrator {
-  readonly userId: string;
 }
 
 function parseCursor(value: string | null): readonly [string, string] | null | undefined {
@@ -152,49 +146,6 @@ function invalidResponse(context: WorkerContext, message: string): Response {
   );
 }
 
-async function authorizeSuppressionAdministration(
-  context: WorkerContext,
-  requestUrl: URL,
-): Promise<Response | SuppressionAdministrator> {
-  const config = validateStartupConfig(context.env);
-  if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
-    return context.json(
-      {
-        code: "not_found",
-        message:
-          "Global email suppression administration is available only on the product base hostname.",
-        requestId: context.get("requestId"),
-      } satisfies ProblemDetails,
-      404,
-    );
-  }
-
-  const auth = createAuth({
-    env: context.env,
-    requestUrl,
-    waitUntil: (promise) => {
-      context.executionCtx.waitUntil(promise);
-    },
-  });
-  const session = await auth.api.getSession({ headers: context.req.raw.headers });
-  const authorization = await authorizePlatformAdministratorSession(
-    context.env.CONTROL_DB,
-    session?.session.id ?? null,
-    session?.user.id ?? null,
-  );
-  if (!authorization.ok) {
-    return context.json(
-      {
-        code: authorization.error.code,
-        message: authorization.error.message,
-        requestId: context.get("requestId"),
-      } satisfies ProblemDetails,
-      authorization.error.code === "unauthorized" ? 401 : 403,
-    );
-  }
-  return { userId: authorization.value.userId };
-}
-
 async function parseReleaseRequest(
   context: WorkerContext,
 ): Promise<ReturnType<typeof platformEmailSuppressionReleaseRequestSchema.parse> | null> {
@@ -212,7 +163,11 @@ async function parseReleaseRequest(
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/platform/email-suppressions", async (context) => {
     const requestUrl = new URL(context.req.url);
-    const authorization = await authorizeSuppressionAdministration(context, requestUrl);
+    const authorization = await authorizePlatformAdministration(
+      context,
+      requestUrl,
+      "Global email suppression administration is available only on the product base hostname.",
+    );
     if (authorization instanceof Response) return authorization;
 
     const filters = parseFilters(requestUrl);
@@ -259,7 +214,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
 
   router.post("/api/platform/email-suppressions/release", async (context) => {
     const requestUrl = new URL(context.req.url);
-    const authorization = await authorizeSuppressionAdministration(context, requestUrl);
+    const authorization = await authorizePlatformAdministration(
+      context,
+      requestUrl,
+      "Global email suppression administration is available only on the product base hostname.",
+    );
     if (authorization instanceof Response) return authorization;
 
     const releaseRequest = await parseReleaseRequest(context);
@@ -334,7 +293,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
 
   router.post("/api/platform/email-suppressions/release-local", async (context) => {
     const requestUrl = new URL(context.req.url);
-    const authorization = await authorizeSuppressionAdministration(context, requestUrl);
+    const authorization = await authorizePlatformAdministration(
+      context,
+      requestUrl,
+      "Global email suppression administration is available only on the product base hostname.",
+    );
     if (authorization instanceof Response) return authorization;
     const parsed = platformLocalEmailSuppressionReleaseRequestSchema.safeParse(
       await context.req.json<unknown>().catch(() => null),

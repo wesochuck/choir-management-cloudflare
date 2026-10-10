@@ -6,6 +6,7 @@ import {
   normalizeEmail,
   normalizePhone,
 } from "./contacts";
+import { CsvRowsError, escapeCsvField, parseCsvRows } from "./csvRows";
 
 /**
  * Phase 5 CSV contact-import engine (pure domain logic, no infrastructure).
@@ -142,62 +143,18 @@ export interface ContactImportResult extends ContactImportPreview {
   readonly rowsSkipped: number;
 }
 
-const dangerousFormulaPrefix = /^[=+\-@\t\r]/;
 const loneSurrogatePattern =
   /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
 
-function csvField(value: string): string {
-  const safe = dangerousFormulaPrefix.test(value) ? `'${value}` : value;
-  return `"${safe.replaceAll('"', '""')}"`;
-}
-
-function consumeQuotedCharacter(
-  csv: string,
-  index: number,
-): { readonly addition: string; readonly index: number; readonly quoted: boolean } {
-  const character = csv[index] ?? "";
-  if (character !== '"') return { addition: character, index, quoted: true };
-  return csv[index + 1] === '"'
-    ? { addition: '"', index: index + 1, quoted: true }
-    : { addition: "", index, quoted: false };
-}
-
 function parseRows(csv: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let quoted = false;
-  for (let index = 0; index < csv.length; index += 1) {
-    const character = csv[index] ?? "";
-    if (quoted) {
-      const consumed = consumeQuotedCharacter(csv, index);
-      field += consumed.addition;
-      index = consumed.index;
-      quoted = consumed.quoted;
-    } else if (character === '"' && field.length === 0) {
-      quoted = true;
-    } else if (character === ",") {
-      row.push(field.trim());
-      field = "";
-    } else if (character === "\n" || character === "\r") {
-      if (character === "\r" && csv[index + 1] === "\n") index += 1;
-      row.push(field.trim());
-      if (row.some(Boolean)) rows.push(row);
-      row = [];
-      field = "";
-    } else {
-      field += character;
+  try {
+    return parseCsvRows(csv);
+  } catch (error: unknown) {
+    if (error instanceof CsvRowsError) {
+      throw new ContactImportError("unterminated_quote", error.message);
     }
+    throw error;
   }
-  if (quoted) {
-    throw new ContactImportError(
-      "unterminated_quote",
-      "The CSV contains an unterminated quoted field.",
-    );
-  }
-  row.push(field.trim());
-  if (row.some(Boolean)) rows.push(row);
-  return rows;
 }
 
 function assertValidUtf8(csv: string): void {
@@ -631,9 +588,9 @@ export function renderContactImportErrorCsv(
   headers: readonly string[],
   errors: readonly ContactImportErrorRow[],
 ): string {
-  const header = ["Row", "Error", ...headers].map(csvField).join(",");
+  const header = ["Row", "Error", ...headers].map(escapeCsvField).join(",");
   const lines = errors.map((entry) =>
-    [String(entry.rowNumber), entry.error, ...entry.cells].map(csvField).join(","),
+    [String(entry.rowNumber), entry.error, ...entry.cells].map(escapeCsvField).join(","),
   );
   return [header, ...lines].join("\n");
 }

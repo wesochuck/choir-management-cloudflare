@@ -1,11 +1,8 @@
+import { escapeCsvField } from "./csvRows";
+
 export interface CsvColumnMapping {
   readonly sourceIndex: number;
   readonly targetHeader: string | null;
-}
-
-function csvField(value: string): string {
-  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-  return `"${safe.replaceAll('"', '""')}"`;
 }
 
 /**
@@ -20,12 +17,12 @@ export function mapCsvColumns(
   return rows
     .map((row, rowIndex) => {
       if (row.length === 1 && row[0]?.trim().toLowerCase() === "section leaders") {
-        return [csvField(row[0])].join(",");
+        return [escapeCsvField(row[0])].join(",");
       }
       if (rowIndex === 0) {
-        return kept.map(({ targetHeader }) => csvField(targetHeader ?? "")).join(",");
+        return kept.map(({ targetHeader }) => escapeCsvField(targetHeader ?? "")).join(",");
       }
-      return kept.map(({ sourceIndex }) => csvField(row[sourceIndex] ?? "")).join(",");
+      return kept.map(({ sourceIndex }) => escapeCsvField(row[sourceIndex] ?? "")).join(",");
     })
     .join("\n");
 }

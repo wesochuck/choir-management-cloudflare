@@ -10,13 +10,13 @@ import {
   processEmailProviderEventById,
   retryEmailProviderEvent,
 } from "../communications/emailFeedback";
-import { createAuth, isProductBaseHost } from "../auth/config";
-import { authorizePlatformAdministratorSession } from "../auth/platformAdministrator";
-import { validateStartupConfig } from "../env";
-
 import type { Context, Hono } from "hono";
 
 import type { WorkerHonoEnvironment } from "./helpers";
+import {
+  authorizePlatformAdministration,
+  type PlatformAdministratorAuthorization,
+} from "./platformAdministration/shared";
 
 type WorkerContext = Context<WorkerHonoEnvironment>;
 
@@ -30,10 +30,6 @@ const sourceKindSchema = z.enum([
   "platform_auth",
   "test_email",
 ]);
-
-interface PlatformAdministrator {
-  readonly userId: string;
-}
 
 interface ProviderEventRow {
   readonly attempts: number;
@@ -99,48 +95,6 @@ function invalidResponse(context: WorkerContext, message: string): Response {
     } satisfies ProblemDetails,
     400,
   );
-}
-
-async function authorizePlatformAdministration(
-  context: WorkerContext,
-  requestUrl: URL,
-): Promise<Response | PlatformAdministrator> {
-  const config = validateStartupConfig(context.env);
-  if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
-    return context.json(
-      {
-        code: "not_found",
-        message:
-          "Email provider feedback administration is available only on the product base hostname.",
-        requestId: context.get("requestId"),
-      } satisfies ProblemDetails,
-      404,
-    );
-  }
-  const auth = createAuth({
-    env: context.env,
-    requestUrl,
-    waitUntil: (promise) => {
-      context.executionCtx.waitUntil(promise);
-    },
-  });
-  const session = await auth.api.getSession({ headers: context.req.raw.headers });
-  const authorization = await authorizePlatformAdministratorSession(
-    context.env.CONTROL_DB,
-    session?.session.id ?? null,
-    session?.user.id ?? null,
-  );
-  if (!authorization.ok) {
-    return context.json(
-      {
-        code: authorization.error.code,
-        message: authorization.error.message,
-        requestId: context.get("requestId"),
-      } satisfies ProblemDetails,
-      authorization.error.code === "unauthorized" ? 401 : 403,
-    );
-  }
-  return { userId: authorization.value.userId };
 }
 
 async function recordOperatorAction(
@@ -280,7 +234,7 @@ async function readProviderDeadLetter(
 
 async function runEventRetry(
   context: WorkerContext,
-  authorization: PlatformAdministrator,
+  authorization: PlatformAdministratorAuthorization,
   eventId: string,
   reason: string,
   auditTarget?: {
@@ -367,7 +321,7 @@ async function runEventRetry(
 
 async function runEventAcknowledge(
   context: WorkerContext,
-  authorization: PlatformAdministrator,
+  authorization: PlatformAdministratorAuthorization,
   eventId: string,
   reason: string,
 ): Promise<Response> {
@@ -407,7 +361,11 @@ async function runEventAcknowledge(
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/platform/email-feedback/events", async (context) => {
-    const authorization = await authorizePlatformAdministration(context, new URL(context.req.url));
+    const authorization = await authorizePlatformAdministration(
+      context,
+      new URL(context.req.url),
+      "Email provider feedback administration is available only on the product base hostname.",
+    );
     if (authorization instanceof Response) return authorization;
     const url = new URL(context.req.url);
     const cursor = parseCursor(url.searchParams.get("cursor"));
@@ -450,7 +408,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.get("/api/platform/email-feedback/events/:eventId", async (context) => {
-    const authorization = await authorizePlatformAdministration(context, new URL(context.req.url));
+    const authorization = await authorizePlatformAdministration(
+      context,
+      new URL(context.req.url),
+      "Email provider feedback administration is available only on the product base hostname.",
+    );
     if (authorization instanceof Response) return authorization;
     const eventId = context.req.param("eventId");
     const event = await readProviderEvent(context.env.CONTROL_DB, eventId);
@@ -471,7 +433,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.post("/api/platform/email-feedback/events/:eventId/retry", async (context) => {
-    const authorization = await authorizePlatformAdministration(context, new URL(context.req.url));
+    const authorization = await authorizePlatformAdministration(
+      context,
+      new URL(context.req.url),
+      "Email provider feedback administration is available only on the product base hostname.",
+    );
     if (authorization instanceof Response) return authorization;
     const parsed = platformEmailFeedbackActionRequestSchema.safeParse(
       await context.req.json<unknown>().catch(() => null),
@@ -482,7 +448,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.post("/api/platform/email-feedback/events/:eventId/acknowledge", async (context) => {
-    const authorization = await authorizePlatformAdministration(context, new URL(context.req.url));
+    const authorization = await authorizePlatformAdministration(
+      context,
+      new URL(context.req.url),
+      "Email provider feedback administration is available only on the product base hostname.",
+    );
     if (authorization instanceof Response) return authorization;
     const parsed = platformEmailFeedbackActionRequestSchema.safeParse(
       await context.req.json<unknown>().catch(() => null),
@@ -501,7 +471,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.get("/api/platform/email-feedback/dead-letters", async (context) => {
-    const authorization = await authorizePlatformAdministration(context, new URL(context.req.url));
+    const authorization = await authorizePlatformAdministration(
+      context,
+      new URL(context.req.url),
+      "Email provider feedback administration is available only on the product base hostname.",
+    );
     if (authorization instanceof Response) return authorization;
     const url = new URL(context.req.url);
     const cursor = parseCursor(url.searchParams.get("cursor"));
@@ -538,7 +512,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.get("/api/platform/email-feedback/dead-letters/:deadLetterId", async (context) => {
-    const authorization = await authorizePlatformAdministration(context, new URL(context.req.url));
+    const authorization = await authorizePlatformAdministration(
+      context,
+      new URL(context.req.url),
+      "Email provider feedback administration is available only on the product base hostname.",
+    );
     if (authorization instanceof Response) return authorization;
     const deadLetter = await readProviderDeadLetter(
       context.env.CONTROL_DB,
@@ -561,7 +539,11 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   });
 
   router.post("/api/platform/email-feedback/dead-letters/:deadLetterId/retry", async (context) => {
-    const authorization = await authorizePlatformAdministration(context, new URL(context.req.url));
+    const authorization = await authorizePlatformAdministration(
+      context,
+      new URL(context.req.url),
+      "Email provider feedback administration is available only on the product base hostname.",
+    );
     if (authorization instanceof Response) return authorization;
     const parsed = platformEmailFeedbackActionRequestSchema.safeParse(
       await context.req.json<unknown>().catch(() => null),
@@ -610,6 +592,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       const authorization = await authorizePlatformAdministration(
         context,
         new URL(context.req.url),
+        "Email provider feedback administration is available only on the product base hostname.",
       );
       if (authorization instanceof Response) return authorization;
       const parsed = platformEmailFeedbackActionRequestSchema.safeParse(

@@ -1315,3 +1315,42 @@ describe("Platform Administrator MFA", () => {
     });
   });
 });
+
+describe("Platform preamble host gates", () => {
+  it("keeps route-specific product-base 404 messages on converted preambles", async () => {
+    const cases = [
+      {
+        message: "Fleet schema preparation is available only on the product base hostname.",
+        method: "GET",
+        path: "/api/platform/fleet-schema-preparation",
+      },
+      {
+        message:
+          "Global email suppression administration is available only on the product base hostname.",
+        method: "GET",
+        path: "/api/platform/email-suppressions",
+      },
+      {
+        message:
+          "Email provider feedback administration is available only on the product base hostname.",
+        method: "GET",
+        path: "/api/platform/email-feedback/events",
+      },
+      {
+        message: "Organization provisioning is available only on the product base hostname.",
+        method: "POST",
+        path: "/api/platform/organizations",
+      },
+      {
+        message: "Platform administration is available only on the product base hostname.",
+        method: "GET",
+        path: "/api/platform/job-dead-letters",
+      },
+    ] as const;
+    for (const { message, method, path } of cases) {
+      const response = await fetchWorker(authRequest(path, { method }, ALPHA_AUTH_ORIGIN));
+      expect(response.status).toBe(404);
+      await expect(response.json()).resolves.toMatchObject({ code: "not_found", message });
+    }
+  });
+});

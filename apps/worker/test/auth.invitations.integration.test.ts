@@ -411,4 +411,69 @@ describe("Organization invitations", () => {
       ).resolves.toEqual({ count: 0 });
     },
   );
+
+  it("keeps accept and reject host-bound against cross-organization replay", async () => {
+    await seedInvitedUser();
+    await seedOrganizations();
+    const recipientCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+    await testEnv.CONTROL_DB.prepare(
+      `INSERT INTO invitation
+        (id, organizationId, email, role, status, expiresAt, createdAt, inviterId)
+       VALUES (?, ?, ?, 'member', 'pending', ?, ?, ?)`,
+    )
+      .bind(
+        "invitation-alpha-replay",
+        "organization-alpha",
+        INVITED_EMAIL,
+        Date.now() + 60_000,
+        Date.now(),
+        "user-invited-member",
+      )
+      .run();
+
+    for (const action of ["accept", "reject"] as const) {
+      const replayResponse = await fetchWorker(
+        authRequest(
+          `/api/organization/invitations/invitation-alpha-replay/${action}`,
+          {
+            headers: { cookie: recipientCookie },
+            method: "POST",
+          },
+          "http://unknown.localhost",
+        ),
+      );
+      expect(replayResponse.status).toBe(404);
+      await expect(replayResponse.json()).resolves.toMatchObject({
+        code: "not_found",
+        message: "The pending Organization invitation was not found.",
+      });
+    }
+
+    const crossHostRejectResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/invitations/invitation-alpha-replay/reject",
+        { headers: { cookie: recipientCookie }, method: "POST" },
+        "http://bravo.localhost",
+      ),
+    );
+    expect(crossHostRejectResponse.status).toBe(404);
+
+    await expect(
+      testEnv.CONTROL_DB.prepare("SELECT status FROM invitation WHERE id = ?")
+        .bind("invitation-alpha-replay")
+        .first(),
+    ).resolves.toEqual({ status: "pending" });
+
+    const rejectResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/invitations/invitation-alpha-replay/reject",
+        { headers: { cookie: recipientCookie }, method: "POST" },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(rejectResponse.status).toBe(200);
+    expect(
+      organizationInvitationActionResponseSchema.parse(await rejectResponse.json()),
+    ).toMatchObject({ id: "invitation-alpha-replay", status: "rejected" });
+  });
 });

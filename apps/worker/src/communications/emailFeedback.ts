@@ -7,6 +7,7 @@ export {
   assertEmailProviderRecipientAvailable,
   assertEmailProviderRecipientsAvailable,
   attachEmailProviderMessage,
+  attachProviderRouteResult,
   backfillEmailProviderRoutes,
   EmailRecipientSuppressedError,
   isEmailProviderSuppressed,

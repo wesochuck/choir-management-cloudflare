@@ -11,6 +11,7 @@ import { validateStartupConfig } from "../../env";
 import { currentOrganizationSchemaVersion } from "../../organization/schema";
 import { resolveCanonicalOrganizationId } from "../helpers";
 import type { PlatformFleetSchemaPreparationRow } from "../helpers";
+import { authorizePlatformAdministration } from "./shared";
 
 export function registerPlatformFleetRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/platform/context", async (context) => {
@@ -68,41 +69,12 @@ export function registerPlatformFleetRoutes(router: Hono<WorkerHonoEnvironment>)
   });
 
   router.get("/api/platform/fleet-schema-preparation", async (context) => {
-    const config = validateStartupConfig(context.env);
-    const requestUrl = new URL(context.req.url);
-    if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
-      return context.json(
-        {
-          code: "not_found",
-          message: "Fleet schema preparation is available only on the product base hostname.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        404,
-      );
-    }
-    const auth = createAuth({
-      env: context.env,
-      requestUrl,
-      waitUntil: (promise) => {
-        context.executionCtx.waitUntil(promise);
-      },
-    });
-    const session = await auth.api.getSession({ headers: context.req.raw.headers });
-    const authorization = await authorizePlatformAdministratorSession(
-      context.env.CONTROL_DB,
-      session?.session.id ?? null,
-      session?.user.id ?? null,
+    const authorization = await authorizePlatformAdministration(
+      context,
+      new URL(context.req.url),
+      "Fleet schema preparation is available only on the product base hostname.",
     );
-    if (!authorization.ok) {
-      return context.json(
-        {
-          code: authorization.error.code,
-          message: authorization.error.message,
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        authorization.error.code === "unauthorized" ? 401 : 403,
-      );
-    }
+    if (authorization instanceof Response) return authorization;
     const preparation = await context.env.CONTROL_DB.prepare(
       `SELECT id AS runId, target_version AS targetVersion, status,
       processed_count AS processedCount, started_at AS startedAt,
@@ -118,44 +90,15 @@ export function registerPlatformFleetRoutes(router: Hono<WorkerHonoEnvironment>)
   });
 
   router.post("/api/platform/fleet-schema-preparation", async (context) => {
-    const config = validateStartupConfig(context.env);
-    const requestUrl = new URL(context.req.url);
-    if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
-      return context.json(
-        {
-          code: "not_found",
-          message: "Fleet schema preparation is available only on the product base hostname.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        404,
-      );
-    }
-    const auth = createAuth({
-      env: context.env,
-      requestUrl,
-      waitUntil: (promise) => {
-        context.executionCtx.waitUntil(promise);
-      },
-    });
-    const session = await auth.api.getSession({ headers: context.req.raw.headers });
-    const authorization = await authorizePlatformAdministratorSession(
-      context.env.CONTROL_DB,
-      session?.session.id ?? null,
-      session?.user.id ?? null,
+    const authorization = await authorizePlatformAdministration(
+      context,
+      new URL(context.req.url),
+      "Fleet schema preparation is available only on the product base hostname.",
     );
-    if (!authorization.ok) {
-      return context.json(
-        {
-          code: authorization.error.code,
-          message: authorization.error.message,
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        authorization.error.code === "unauthorized" ? 401 : 403,
-      );
-    }
+    if (authorization instanceof Response) return authorization;
     try {
       const started = await beginFleetSchemaPreparation(context.env, {
-        actorUserId: authorization.value.userId,
+        actorUserId: authorization.userId,
         requestId: context.get("requestId"),
       });
       return context.json(

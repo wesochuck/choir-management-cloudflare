@@ -26,30 +26,19 @@ import type { Hono } from "hono";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 import {
-  invitationIdSchema,
   normalizeInvitationRole,
   findInvitationForOrganization,
   recordInvitationAudit,
+  requireOrganizationInvitationScope,
   resolveCanonicalOrganizationId,
   verifySecondFactor,
 } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.post("/api/organization/invitations/:invitationId/reject", async (context) => {
-    validateStartupConfig(context.env);
-    const requestUrl = new URL(context.req.url);
-    const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
-    const invitationId = invitationIdSchema.safeParse(context.req.param("invitationId"));
-    if (!organizationId || !invitationId.success) {
-      return context.json(
-        {
-          code: "not_found",
-          message: "The pending Organization invitation was not found.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        404,
-      );
-    }
+    const scope = await requireOrganizationInvitationScope(context);
+    if (scope instanceof Response) return scope;
+    const { invitationId, organizationId, requestUrl } = scope;
     const auth = createAuth({
       env: context.env,
       requestUrl,
@@ -70,7 +59,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
     const invitation = await findInvitationForOrganization(
       context.env.CONTROL_DB,
-      invitationId.data,
+      invitationId,
       organizationId,
     );
     if (invitation?.status !== "pending") {
@@ -85,7 +74,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
     try {
       await auth.api.rejectInvitation({
-        body: { invitationId: invitationId.data },
+        body: { invitationId },
         headers: context.req.raw.headers,
       });
     } catch {
@@ -106,12 +95,12 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         role: normalizeInvitationRole(invitation.role) ?? "unknown",
         to: "rejected",
       },
-      invitationId: invitationId.data,
+      invitationId,
       organizationId,
       requestId: context.get("requestId"),
     });
     const response: OrganizationInvitationActionResponse = {
-      id: invitationId.data,
+      id: invitationId,
       requestId: context.get("requestId"),
       status: "rejected",
     };

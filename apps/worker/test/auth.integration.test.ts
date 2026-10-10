@@ -781,3 +781,32 @@ describe("Better Auth Worker integration", () => {
     expect(rows.results.length).toBe(2);
   });
 });
+
+describe("Account route preambles", () => {
+  it("keeps account management on authorized hosts and behind sign-in", async () => {
+    const foreignHostResponse = await fetchWorker(
+      authRequest("/api/account/organizations", undefined, "https://public.example.test"),
+    );
+    expect(foreignHostResponse.status).toBe(404);
+    await expect(foreignHostResponse.json()).resolves.toMatchObject({
+      code: "not_found",
+      message: "Account management requires a canonical product hostname.",
+    });
+
+    const unknownSubdomainResponse = await fetchWorker(
+      authRequest("/api/account/sessions", undefined, "http://unknown.localhost"),
+    );
+    expect(unknownSubdomainResponse.status).toBe(404);
+    await expect(unknownSubdomainResponse.json()).resolves.toMatchObject({
+      code: "not_found",
+      message: "Account management requires a canonical product hostname.",
+    });
+
+    const anonymousResponse = await fetchWorker(authRequest("/api/account/security"));
+    expect(anonymousResponse.status).toBe(401);
+    await expect(anonymousResponse.json()).resolves.toMatchObject({
+      code: "unauthorized",
+      message: "Sign in is required.",
+    });
+  });
+});

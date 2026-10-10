@@ -57,6 +57,7 @@ import type { Context, Hono } from "hono";
 import type { WorkerHonoEnvironment } from "./helpers";
 
 import { isAuthorizedPlatformHostname, resolveCanonicalOrganizationId } from "./helpers";
+import { authorizePlatformAdministration } from "./platformAdministration/shared";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import {
   reconciliationReportSchema,
@@ -629,42 +630,12 @@ async function readAndMergeReconciliationReport(
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.post("/api/platform/organizations", async (context) => {
-    const config = validateStartupConfig(context.env);
-    const requestUrl = new URL(context.req.url);
-    if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
-      return context.json(
-        {
-          code: "not_found",
-          message: "Organization provisioning is available only on the product base hostname.",
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        404,
-      );
-    }
-
-    const auth = createAuth({
-      env: context.env,
-      requestUrl,
-      waitUntil: (promise) => {
-        context.executionCtx.waitUntil(promise);
-      },
-    });
-    const session = await auth.api.getSession({ headers: context.req.raw.headers });
-    const authorization = await authorizePlatformAdministratorSession(
-      context.env.CONTROL_DB,
-      session?.session.id ?? null,
-      session?.user.id ?? null,
+    const authorization = await authorizePlatformAdministration(
+      context,
+      new URL(context.req.url),
+      "Organization provisioning is available only on the product base hostname.",
     );
-    if (!authorization.ok) {
-      return context.json(
-        {
-          code: authorization.error.code,
-          message: authorization.error.message,
-          requestId: context.get("requestId"),
-        } satisfies ProblemDetails,
-        authorization.error.code === "unauthorized" ? 401 : 403,
-      );
-    }
+    if (authorization instanceof Response) return authorization;
 
     const parsedBody = organizationProvisionRequestSchema.safeParse(
       await context.req.json<unknown>().catch(() => null),
@@ -683,7 +654,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     try {
       const started = await beginOrganizationProvisioning(context.env, {
         ...parsedBody.data,
-        actorUserId: authorization.value.userId,
+        actorUserId: authorization.userId,
         requestId: context.get("requestId"),
       });
       const response: OrganizationProvisionResponse = {

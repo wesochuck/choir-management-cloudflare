@@ -46,13 +46,14 @@ export interface PlatformDeadLetterRecordRow {
 export async function authorizePlatformAdministration(
   context: PlatformAdministrationContext,
   requestUrl: URL,
+  notFoundMessage = "Platform administration is available only on the product base hostname.",
 ): Promise<Response | PlatformAdministratorAuthorization> {
   const config = validateStartupConfig(context.env);
   if (!isProductBaseHost(requestUrl.hostname, config.PRODUCT_BASE_DOMAIN)) {
     return context.json(
       {
         code: "not_found",
-        message: "Platform administration is available only on the product base hostname.",
+        message: notFoundMessage,
         requestId: context.get("requestId"),
       } satisfies ProblemDetails,
       404,
