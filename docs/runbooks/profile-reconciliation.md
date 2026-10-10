@@ -45,11 +45,11 @@ conflicts:
 
 ### Blockers (Prevent Consolidation)
 
-- **Contradictory Event Records:** Both profiles have non-pending, conflicting records for the same
-  event (e.g., Target is RSVP "Yes" / Present while Source is RSVP "No" / Absent, or both profiles
-  hold conflicting non-empty folder numbers for the same performance). _Resolution:_ An
+- **Contradictory Event Records:** Both profiles have non-pending, conflicting attendance (Present
+  vs Absent) or conflicting non-empty folder numbers for the same performance. _Resolution:_ An
   administrator must inspect the event rosters and resolve the discrepancy manually on one of the
-  profiles before re-running the merge.
+  profiles before re-running the merge. RSVP Yes-vs-No conflicts do not block: a Yes response is
+  always preserved over No (see Warnings).
 - **Poll Response Collisions:** Both profiles cast votes on the same poll. _Resolution:_ Because
   votes cannot be merged or deleted without corrupting poll integrity, these profiles cannot be
   reconciled automatically.
@@ -62,6 +62,9 @@ conflicts:
 
 - **Pending vs Confirmed Event State:** When one profile has a confirmed status and the other is
   "Pending", the confirmed status is automatically preserved.
+- **RSVP Yes-vs-No:** When one profile answered Yes and the other answered No for the same event,
+  Yes is always preserved. The preview lists each affected event as a warning with both responses
+  shown, and the admin's same-person confirmation authorizes that outcome.
 - **Phone Number Differences:** The administrator can choose whether to keep the Target phone or
   overwrite it with the Source phone.
 - **Notes Differences:** The administrator can choose whether to keep Target notes, overwrite with

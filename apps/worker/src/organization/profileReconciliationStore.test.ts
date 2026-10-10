@@ -376,7 +376,7 @@ describe("Profile Reconciliation DO Store", () => {
     expect(evt2.folder_number).toBe("F-42");
   });
 
-  it("blocks reconciliation when both profiles have conflicting RSVPs for the same event", () => {
+  it("preserves Yes over No when RSVPs conflict and commits Yes", () => {
     const { db, storage } = createRealSqliteStorage(orgId);
     const targetId = "11111111-1111-4111-8111-111111111111";
     const sourceId = "22222222-2222-4222-8222-222222222222";
@@ -389,7 +389,7 @@ describe("Profile Reconciliation DO Store", () => {
       "INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, 'B', ?, ?)",
     ).run(sourceId, now, now);
 
-    // Event 1: target is Yes, source is No
+    // Event 1: target is Yes, source is No — Yes wins, no block
     db.prepare(
       "INSERT INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at) VALUES ('evt-1', ?, 'Yes', 'Pending', ?, ?)",
     ).run(targetId, now, now);
@@ -409,14 +409,90 @@ describe("Profile Reconciliation DO Store", () => {
     });
 
     expect(preview.ok).toBe(true);
-    expect(preview.preview?.canReconcile).toBe(false);
-    expect(preview.preview?.status).toBe("blocked");
+    expect(preview.preview?.canReconcile).toBe(true);
     expect(preview.preview?.conflictInventory.eventRosterConflicts.length).toBe(1);
-    expect(
-      preview.preview?.conflictInventory.blockers.some((b) =>
-        b.includes("Conflicting event records"),
-      ),
-    ).toBe(true);
+    expect(preview.preview?.conflictInventory.warnings.some((w) => w.includes("RSVP Yes"))).toBe(
+      true,
+    );
+    if (!preview.preview) throw new Error("Expected preview");
+
+    const commit = commitProfileReconciliationInStore(storage, {
+      actorUserId: "usr-admin",
+      expectedSourceProfileId: sourceId,
+      fieldChoices: { notes: "keep_target", phone: "keep_target" },
+      idempotencyKey: "idem-yes-wins",
+      membershipId: "mem-1",
+      organizationId: orgId,
+      previewRevision: preview.preview.previewRevision,
+      reconciliationId: "rec-yes-wins",
+      requestId: "req-1",
+      targetProfileId: targetId,
+    });
+    expect(commit.ok).toBe(true);
+    const merged = db
+      .prepare(
+        "SELECT rsvp, attendance, folder_number FROM event_rosters WHERE event_id = 'evt-1' AND profile_id = ?",
+      )
+      .get(targetId);
+    if (!isEventRosterCheckRow(merged)) throw new Error("Expected EventRosterCheckRow");
+    expect(merged.rsvp).toBe("Yes");
+  });
+
+  it("preserves source Yes over target No when RSVPs conflict", () => {
+    const { db, storage } = createRealSqliteStorage(orgId);
+    const targetId = "11111111-1111-4111-8111-111111111111";
+    const sourceId = "22222222-2222-4222-8222-222222222222";
+    const now = "2026-01-01T00:00:00.000Z";
+
+    db.prepare(
+      "INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, 'A', ?, ?)",
+    ).run(targetId, now, now);
+    db.prepare(
+      "INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, 'B', ?, ?)",
+    ).run(sourceId, now, now);
+
+    db.prepare(
+      "INSERT INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at) VALUES ('evt-1', ?, 'No', 'Pending', ?, ?)",
+    ).run(targetId, now, now);
+    db.prepare(
+      "INSERT INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at) VALUES ('evt-1', ?, 'Yes', 'Pending', ?, ?)",
+    ).run(sourceId, now, now);
+
+    const preview = previewProfileReconciliationInStore(storage, {
+      membershipEmail: "test@example.test",
+      membershipId: "mem-1",
+      memberName: "Test",
+      memberRole: "member",
+      organizationId: orgId,
+      requestId: "req-1",
+      sourceProfileId: sourceId,
+      targetProfileId: targetId,
+    });
+
+    expect(preview.ok).toBe(true);
+    expect(preview.preview?.canReconcile).toBe(true);
+    if (!preview.preview) throw new Error("Expected preview");
+
+    const commit = commitProfileReconciliationInStore(storage, {
+      actorUserId: "usr-admin",
+      expectedSourceProfileId: sourceId,
+      fieldChoices: { notes: "keep_target", phone: "keep_target" },
+      idempotencyKey: "idem-yes-wins-source",
+      membershipId: "mem-1",
+      organizationId: orgId,
+      previewRevision: preview.preview.previewRevision,
+      reconciliationId: "rec-yes-wins-source",
+      requestId: "req-1",
+      targetProfileId: targetId,
+    });
+    expect(commit.ok).toBe(true);
+    const merged = db
+      .prepare(
+        "SELECT rsvp, attendance, folder_number FROM event_rosters WHERE event_id = 'evt-1' AND profile_id = ?",
+      )
+      .get(targetId);
+    if (!isEventRosterCheckRow(merged)) throw new Error("Expected EventRosterCheckRow");
+    expect(merged.rsvp).toBe("Yes");
   });
 
   it("blocks reconciliation when both profiles voted on the same poll", () => {

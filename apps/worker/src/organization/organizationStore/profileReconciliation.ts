@@ -309,9 +309,6 @@ function checkEventRosterBlocker(
   blockers: string[],
   conflicts: ProfileReconciliationConflictInventory["eventRosterConflicts"],
 ): boolean {
-  const rsvpConflict =
-    sRoster.rsvp !== "Pending" && tRoster.rsvp !== "Pending" && sRoster.rsvp !== tRoster.rsvp;
-
   const attendanceConflict =
     sRoster.attendance !== "Pending" &&
     tRoster.attendance !== "Pending" &&
@@ -322,12 +319,11 @@ function checkEventRosterBlocker(
     tRoster.folder_number !== "" &&
     sRoster.folder_number.toLowerCase() !== tRoster.folder_number.toLowerCase();
 
-  if (!rsvpConflict && !attendanceConflict && !folderConflict) {
+  if (!attendanceConflict && !folderConflict) {
     return false;
   }
 
   const reasons: string[] = [];
-  if (rsvpConflict) reasons.push(`RSVP (${sRoster.rsvp} vs ${tRoster.rsvp})`);
   if (attendanceConflict) {
     reasons.push(`Attendance (${sRoster.attendance} vs ${tRoster.attendance})`);
   }
@@ -347,12 +343,41 @@ function checkEventRosterBlocker(
   return true;
 }
 
+function checkEventRsvpYesWins(
+  sRoster: EventRosterRow,
+  tRoster: EventRosterRow,
+  blockers: string[],
+  warnings: string[],
+  conflicts: ProfileReconciliationConflictInventory["eventRosterConflicts"],
+): void {
+  if (sRoster.rsvp === tRoster.rsvp || sRoster.rsvp === "Pending" || tRoster.rsvp === "Pending") {
+    return;
+  }
+  const hasYes = sRoster.rsvp === "Yes" || tRoster.rsvp === "Yes";
+  const reason = hasYes
+    ? `RSVP Yes (${sRoster.rsvp} vs ${tRoster.rsvp}) will be preserved over the other response.`
+    : `RSVP (${sRoster.rsvp} vs ${tRoster.rsvp}) differs with no Yes response; manual coordination required.`;
+  if (hasYes) {
+    warnings.push(`Event ${sRoster.event_id}: ${reason}`);
+  } else {
+    blockers.push(`Event ${sRoster.event_id}: ${reason}`);
+  }
+  conflicts.push({
+    eventId: sRoster.event_id,
+    reason,
+    sourceAttendance: sRoster.attendance,
+    sourceRsvp: sRoster.rsvp,
+    targetAttendance: tRoster.attendance,
+    targetRsvp: tRoster.rsvp,
+  });
+}
+
 function checkEventRosterWarnings(
   sRoster: EventRosterRow,
   tRoster: EventRosterRow,
   warnings: string[],
 ): void {
-  if (sRoster.rsvp !== tRoster.rsvp) {
+  if (sRoster.rsvp !== tRoster.rsvp && (sRoster.rsvp === "Pending" || tRoster.rsvp === "Pending")) {
     const chosen = sRoster.rsvp !== "Pending" ? sRoster.rsvp : tRoster.rsvp;
     warnings.push(
       `Event ${sRoster.event_id}: Non-pending RSVP '${chosen}' will be selected over Pending.`,
@@ -374,6 +399,7 @@ function evaluateEventRosterPair(
   conflicts: ProfileReconciliationConflictInventory["eventRosterConflicts"],
 ): void {
   const isBlocked = checkEventRosterBlocker(sRoster, tRoster, blockers, conflicts);
+  checkEventRsvpYesWins(sRoster, tRoster, blockers, warnings, conflicts);
   if (!isBlocked) {
     checkEventRosterWarnings(sRoster, tRoster, warnings);
   }
@@ -865,7 +891,12 @@ function combineEventRosters(
       .at(0);
 
     if (tRoster) {
-      const rsvp = tRoster.rsvp !== "Pending" ? tRoster.rsvp : sRoster.rsvp;
+      const rsvp =
+        tRoster.rsvp === "Yes" || sRoster.rsvp === "Yes"
+          ? "Yes"
+          : tRoster.rsvp !== "Pending"
+            ? tRoster.rsvp
+            : sRoster.rsvp;
       const attendance = tRoster.attendance !== "Pending" ? tRoster.attendance : sRoster.attendance;
       const folderNumber =
         tRoster.folder_number !== "" ? tRoster.folder_number : sRoster.folder_number;
