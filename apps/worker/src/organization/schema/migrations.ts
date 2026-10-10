@@ -1768,11 +1768,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
           last_completed_date, next_reminder_at, reminder_interval_days,
           NULL, NULL, created_at, updated_at
         FROM organization_compliance_tasks_before_catalog`,
-      "DROP TABLE organization_compliance_tasks_before_catalog",
-      // The RENAME above retargets the completions foreign key to the
-      // _before_catalog backup; rebuild completions so its task_id references
-      // the new catalog table again. No history is lost; the copy preserves
-      // every completion row.
+      // Rebuild completions before dropping the tasks backup: renaming tasks above
+      // caused completions' foreign key to follow the rename and reference
+      // organization_compliance_tasks_before_catalog. Dropping the backup while
+      // completions still references it violates SQLite foreign key constraints
+      // whenever completions exist. Rebuilding completions first retargets its
+      // foreign key to the new catalog table and drops the completions backup,
+      // leaving zero foreign references pointing at tasks_before_catalog.
       "ALTER TABLE organization_compliance_completions RENAME TO organization_compliance_completions_before_catalog",
       `CREATE TABLE IF NOT EXISTS organization_compliance_completions (
         id TEXT PRIMARY KEY,
@@ -1787,6 +1789,7 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        SELECT id, task_id, cycle_due_date, completed_date, completed_by_user_id, created_at
        FROM organization_compliance_completions_before_catalog`,
       "DROP TABLE organization_compliance_completions_before_catalog",
+      "DROP TABLE organization_compliance_tasks_before_catalog",
       `CREATE INDEX IF NOT EXISTS organization_compliance_completions_latest
        ON organization_compliance_completions(task_id, created_at)`,
       // Recurring scheduler lookup filters applicable + archived + due date;

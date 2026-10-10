@@ -71,4 +71,28 @@ describe("organization schema migrations", () => {
     expect(readTaskApplicable(adapter, "legacy-dirty")).toBe(0);
     expect(readTaskApplicable(adapter, "legacy-clean")).toBe(1);
   });
+
+  it("v106 succeeds when tasks have existing completions under enforced foreign keys", () => {
+    const adapter = setupThrough(105);
+    adapter.db.exec("PRAGMA foreign_keys = ON");
+    adapter.storage.sql.exec(
+      `INSERT INTO organization_compliance_tasks
+        (id, kind, title, applicable, recurrence_months, next_due_date,
+         last_completed_date, next_reminder_at, reminder_interval_days,
+         created_at, updated_at)
+       VALUES
+         ('task-1', 'kind_1', 'Task 1', 1, 12, NULL, NULL, NULL, 7,
+           '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
+    );
+    adapter.storage.sql.exec(
+      `INSERT INTO organization_compliance_completions
+        (id, task_id, cycle_due_date, completed_date, completed_by_user_id, created_at)
+       VALUES
+         ('comp-1', 'task-1', '2026-01-01', '2026-01-01', 'user-1', '2026-01-01T00:00:00Z')`,
+    );
+
+    expect(() => {
+      applyVersion(adapter, 106);
+    }).not.toThrow();
+  });
 });
