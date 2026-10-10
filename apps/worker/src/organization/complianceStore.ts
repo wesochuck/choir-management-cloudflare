@@ -133,7 +133,7 @@ function rowToTask(row: ComplianceTaskRow): NonprofitComplianceTask {
   };
 }
 
-function readNonprofitEnabled(storage: ComplianceStoreStorage): boolean {
+function readNonprofitEnabled(storage: Pick<ComplianceStoreStorage, "sql">): boolean {
   const row = storage.sql
     .exec<{ readonly nonprofit_enabled: number }>(
       "SELECT nonprofit_enabled FROM organization_metadata LIMIT 1",
@@ -178,7 +178,7 @@ function readComplianceTaskRow(storage: ComplianceStoreStorage, taskId: string) 
     .at(0);
 }
 
-function readOrganizationTimezone(storage: ComplianceStoreStorage): string {
+function readOrganizationTimezone(storage: Pick<ComplianceStoreStorage, "sql">): string {
   const row = storage.sql
     .exec<{ readonly timezone: string }>("SELECT timezone FROM organization_metadata LIMIT 1")
     .toArray()
@@ -368,6 +368,48 @@ function seedBuiltinTasks(storage: ComplianceStoreStorage, occurredAt: string): 
       );
     }
   }
+}
+
+/**
+ * Idempotent backfill for Organizations that enabled nonprofit tracking before
+ * the Ohio unclaimed-funds built-in existed (issue #132). Inserts only the
+ * missing fourth built-in with a future conservative October 31 suggestion and
+ * NULL next_reminder_at, so there is no retroactive notification blast.
+ * Existing rows are never touched: INSERT OR IGNORE on the kind/template_key
+ * uniques preserves IDs, dates, applicability (including Not Applicable
+ * opt-outs), assignees, custom tasks, and completion history. Organizations
+ * that never enabled tracking, or are currently disabled, are skipped and
+ * continue to seed through the enable path.
+ */
+export function backfillMissingBuiltinTasks(
+  storage: Pick<ComplianceStoreStorage, "sql">,
+  occurredAt: string,
+): void {
+  if (!readNonprofitEnabled(storage)) return;
+  const seed = DEFAULT_COMPLIANCE_TASKS.find((entry) => entry.kind === OHIO_UNCLAIMED_FUNDS_KIND);
+  if (!seed) return;
+  const dueDate = suggestedOhioUnclaimedFundsDueDate(
+    readOrganizationTimezone(storage),
+    new Date(occurredAt),
+  );
+  storage.sql.exec(
+    `INSERT OR IGNORE INTO organization_compliance_tasks
+      (id, kind, template_key, source, title, description, reference_url,
+       applicable, archived, recurrence_months, next_due_date,
+       last_completed_date, next_reminder_at, reminder_interval_days,
+       responsible_membership_id, responsible_user_id, created_at, updated_at)
+     VALUES (?, ?, ?, 'builtin', ?, ?, ?, 1, 0, ?, ?, NULL, NULL, 7, NULL, NULL, ?, ?)`,
+    crypto.randomUUID(),
+    seed.kind,
+    seed.kind,
+    seed.title,
+    seed.description,
+    seed.referenceUrl,
+    seed.recurrenceMonths,
+    dueDate,
+    occurredAt,
+    occurredAt,
+  );
 }
 
 export function readNonprofitComplianceFromStore(storage: ComplianceStoreStorage): {

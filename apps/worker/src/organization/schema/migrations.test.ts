@@ -50,6 +50,14 @@ function readTaskApplicable(
 }
 
 describe("organization schema migrations", () => {
+  it("v107 carries the Ohio backfill on the migration path", () => {
+    const versions = organizationSchemaMigrations.map((entry) => entry.version);
+    expect(versions).toEqual([...versions].sort((left, right) => left - right));
+    const v107 = organizationSchemaMigrations.find((entry) => entry.version === 107);
+    expect(v107?.statements).toEqual([]);
+    expect(typeof v107?.apply).toBe("function");
+  });
+
   it("v106 clamps legacy applicable values outside 0/1 instead of failing the DO barrier", () => {
     const adapter = setupThrough(105);
     adapter.storage.sql.exec(

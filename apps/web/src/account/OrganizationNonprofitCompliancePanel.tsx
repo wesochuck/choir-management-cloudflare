@@ -1,5 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { NumberInput, Dialog, DialogClose, useConfirmation } from "@choir/ui";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  NumberInput,
+  DataTable,
+  Dialog,
+  DialogClose,
+  useConfirmation,
+  type DataTableColumn,
+} from "@choir/ui";
 import { usePersistedDraft } from "../persistence";
 import type {
   ComplianceAssignee,
@@ -83,12 +90,50 @@ function isCustomTask(task: NonprofitComplianceTask): boolean {
   return task.source === "custom";
 }
 
-function taskDueLabel(task: NonprofitComplianceTask): string {
-  return task.nextDueDate ?? "Not set";
+function formatDateOnlyLocal(value: string, timezone: string): string {
+  const date = new Date(`${value}T12:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return value;
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      day: "numeric",
+      month: "short",
+      timeZone: timezone,
+      year: "numeric",
+    }).format(date);
+  } catch {
+    return value;
+  }
+}
+
+function taskDueDisplay(task: NonprofitComplianceTask, timezone: string): string {
+  if (!task.nextDueDate) return "Not set";
+  return formatDateOnlyLocal(task.nextDueDate, timezone);
+}
+
+function lastCompletedDisplay(task: NonprofitComplianceTask, timezone: string): string {
+  if (!task.lastCompletedDate) return "None recorded";
+  return formatDateOnlyLocal(task.lastCompletedDate, timezone);
 }
 
 function recurrenceLabel(task: NonprofitComplianceTask): string {
   return `Every ${String(task.recurrenceMonths)} months`;
+}
+
+const STATUS_SEVERITY: Record<ReturnType<typeof complianceTaskStatus>, number> = {
+  overdue: 0,
+  due: 1,
+  upcoming: 2,
+  scheduled: 3,
+  completed: 4,
+  not_scheduled: 5,
+  not_applicable: 6,
+};
+
+function statusSortValue(task: NonprofitComplianceTask, today: string): string {
+  const key = complianceTaskStatus(task, today);
+  // Severity first so overdue/soonest surface; ISO dates sort chronologically
+  // within a status. DataTable's stable sort preserves API order on ties.
+  return `${String(STATUS_SEVERITY[key])}:${task.nextDueDate ?? ""}`;
 }
 
 interface TaskCardActions {
@@ -146,36 +191,21 @@ function TaskActionButtons({
   );
 }
 
-function TaskStatusHeader({
-  status,
-  task,
-}: {
-  readonly status: ComplianceStatus;
-  readonly task: NonprofitComplianceTask;
-}): React.JSX.Element {
+function RequirementCell({ task }: { readonly task: NonprofitComplianceTask }): React.JSX.Element {
   const custom = isCustomTask(task);
   return (
     <div>
       <strong style={{ display: "block", fontSize: "1rem" }}>{task.title}</strong>
-      <span style={{ display: "flex", gap: "0.375rem", marginTop: "0.25rem" }}>
-        <span
-          aria-label={`Status: ${status.label}`}
-          className={`status-pill status-pill--${status.tone}`}
-          style={{ display: "inline-block", fontSize: "0.8125rem", fontWeight: 600 }}
-        >
-          Status: {status.label}
-        </span>
-        <span
-          className="status-pill"
-          style={{ fontSize: "0.75rem" }}
-          title={
-            custom
-              ? "Organization-defined custom reminder"
-              : "Built-in filing template with Organization-specific dates"
-          }
-        >
-          {custom ? "Custom" : "Built-in"}
-        </span>
+      <span
+        className="status-pill"
+        style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}
+        title={
+          custom
+            ? "Organization-defined custom reminder"
+            : "Built-in filing template with Organization-specific dates"
+        }
+      >
+        {custom ? "Custom" : "Built-in"}
       </span>
       {task.kind === "ohio_unclaimed_funds_annual_report" ? (
         <span className="field__hint" style={{ display: "block", marginTop: "0.375rem" }}>
@@ -202,63 +232,15 @@ function TaskStatusHeader({
   );
 }
 
-function TaskViewer({
-  assignees,
-  task,
-}: {
-  readonly assignees: readonly ComplianceAssignee[];
-  readonly task: NonprofitComplianceTask;
-}): React.JSX.Element {
+function StatusCell({ status }: { readonly status: ComplianceStatus }): React.JSX.Element {
   return (
-    <div>
-      <div
-        style={{
-          display: "grid",
-          fontSize: "0.875rem",
-          gap: "0.5rem",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-        }}
-      >
-        <div>
-          <span style={{ color: "var(--color-text-subtle)", display: "block" }}>Next due:</span>
-          <span>{taskDueLabel(task)}</span>
-        </div>
-        <div>
-          <span style={{ color: "var(--color-text-subtle)", display: "block" }}>Recurrence:</span>
-          <span>{recurrenceLabel(task)}</span>
-        </div>
-        <div>
-          <span style={{ color: "var(--color-text-subtle)", display: "block" }}>
-            Responsible administrator:
-          </span>
-          <span>{responsibleDisplay(task, assignees)}</span>
-        </div>
-        <div>
-          <span style={{ color: "var(--color-text-subtle)", display: "block" }}>
-            Last completed:
-          </span>
-          <span>{task.lastCompletedDate ?? "None recorded"}</span>
-          {task.lastCompletedDate ? (
-            <span style={{ display: "block" }}>
-              By {task.lastCompletedByName ?? "Name unavailable"}
-            </span>
-          ) : null}
-        </div>
-      </div>
-      {task.description ? (
-        <p className="field__hint" style={{ marginTop: "0.5rem" }}>
-          {task.description}
-        </p>
-      ) : null}
-      {task.referenceUrl ? (
-        <p className="field__hint">
-          Reference:{" "}
-          <a href={task.referenceUrl} rel="noreferrer" target="_blank">
-            {task.referenceUrl}
-          </a>
-        </p>
-      ) : null}
-    </div>
+    <span
+      aria-label={`Status: ${status.label}`}
+      className={`status-pill status-pill--${status.tone}`}
+      style={{ display: "inline-block", fontSize: "0.8125rem", fontWeight: 600 }}
+    >
+      Status: {status.label}
+    </span>
   );
 }
 
@@ -395,6 +377,7 @@ function TaskEditor(props: TaskEditorProps): React.JSX.Element {
       <div className="field">
         <label htmlFor={`task-responsible-${task.id}`}>Responsible administrator</label>
         <select
+          aria-describedby={`task-responsible-hint-${task.id}`}
           id={`task-responsible-${task.id}`}
           onChange={(e) => {
             onField("responsibleMembershipId", e.target.value);
@@ -408,8 +391,9 @@ function TaskEditor(props: TaskEditorProps): React.JSX.Element {
             </option>
           ))}
         </select>
-        <span className="field__hint">
-          Accountability only — every reminder still goes to all Owners and Administrators.
+        <span className="field__hint" id={`task-responsible-hint-${task.id}`}>
+          This assignment is for accountability only. Reminder emails go to all Organization Owners
+          and Administrators, not just the selected person.
           {task.responsibleNeedsReassignment ? " Previous assignee needs reassignment." : ""}
         </span>
       </div>
@@ -435,75 +419,6 @@ function TaskEditor(props: TaskEditorProps): React.JSX.Element {
           Cancel
         </button>
       </div>
-    </div>
-  );
-}
-
-interface TaskCardProps {
-  readonly actions: TaskCardActions;
-  readonly assignees: readonly ComplianceAssignee[];
-  readonly draft: ComplianceDraft | null;
-  readonly isEditing: boolean;
-  readonly onCancel: () => void;
-  readonly onField: (field: keyof ComplianceDraft, value: string | number | boolean) => void;
-  readonly onSave: () => void;
-  readonly operationBusy: boolean;
-  readonly task: NonprofitComplianceTask;
-  readonly today: string;
-}
-
-function ComplianceTaskCard(props: TaskCardProps): React.JSX.Element {
-  const {
-    actions,
-    assignees,
-    draft,
-    isEditing,
-    onCancel,
-    onField,
-    onSave,
-    operationBusy,
-    task,
-    today,
-  } = props;
-  const status = calculateTaskStatus(task, today);
-  return (
-    <div
-      className="surface-card"
-      style={{
-        backgroundColor: "var(--color-surface-subtle)",
-        border: "1px solid var(--color-border-subtle)",
-        borderRadius: "var(--radius-md)",
-        padding: "1rem",
-      }}
-    >
-      <div
-        style={{
-          alignItems: "flex-start",
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "0.5rem",
-          justifyContent: "space-between",
-          marginBottom: "0.75rem",
-        }}
-      >
-        <TaskStatusHeader status={status} task={task} />
-        {isEditing ? null : (
-          <TaskActionButtons actions={actions} operationBusy={operationBusy} task={task} />
-        )}
-      </div>
-      {isEditing ? (
-        <TaskEditor
-          assignees={assignees}
-          draft={draft}
-          onCancel={onCancel}
-          onField={onField}
-          onSave={onSave}
-          operationBusy={operationBusy}
-          task={task}
-        />
-      ) : (
-        <TaskViewer assignees={assignees} task={task} />
-      )}
     </div>
   );
 }
@@ -603,7 +518,7 @@ function AddReminderDialog({
     <Dialog
       open
       title="Add compliance reminder"
-      description="Create a custom Organization reminder. Reminders go to all Owners and Administrators."
+      description="Create a custom Organization reminder."
       dirty={dirty}
       onClose={() => {
         if (!operationBusy) onCancel();
@@ -693,6 +608,7 @@ function AddReminderDialog({
         <div className="field">
           <label htmlFor="new-reminder-responsible">Responsible administrator</label>
           <select
+            aria-describedby="new-reminder-responsible-hint"
             id="new-reminder-responsible"
             onChange={(e) => {
               onChange({ responsible: e.target.value });
@@ -706,6 +622,10 @@ function AddReminderDialog({
               </option>
             ))}
           </select>
+          <span className="field__hint" id="new-reminder-responsible-hint">
+            This assignment is for accountability only. Reminder emails go to all Organization
+            Owners and Administrators, not just the selected person.
+          </span>
         </div>
       </div>
       <div className="dialog__actions">
@@ -823,6 +743,7 @@ function ComplianceCatalogView({
   onToggle,
   operationBusy,
   settings,
+  timezone,
   today,
 }: {
   readonly actions: TaskCardActions;
@@ -837,6 +758,7 @@ function ComplianceCatalogView({
   readonly onToggle: (enabled: boolean) => void;
   readonly operationBusy: boolean;
   readonly settings: NonprofitComplianceSettingsResponse;
+  readonly timezone: string;
   readonly today: string;
 }): React.JSX.Element {
   const activeTasks = settings.tasks.filter((task) => !task.archived);
@@ -844,6 +766,64 @@ function ComplianceCatalogView({
   const atCap = settings.tasks.length >= MAX_COMPLIANCE_TASKS;
   const builtinCount = activeTasks.filter((t) => t.source === "builtin").length;
   const customCount = activeTasks.filter((t) => t.source === "custom").length;
+  const columns: readonly DataTableColumn<NonprofitComplianceTask>[] = useMemo(
+    () => [
+      {
+        header: "Requirement",
+        id: "requirement",
+        render: (task) => <RequirementCell task={task} />,
+        sortValue: (task) => task.title,
+      },
+      {
+        header: "Status",
+        id: "status",
+        render: (task) => <StatusCell status={calculateTaskStatus(task, today)} />,
+        sortValue: (task) => statusSortValue(task, today),
+      },
+      {
+        header: "Next due",
+        id: "nextDue",
+        render: (task) => taskDueDisplay(task, timezone),
+        sortValue: (task) => task.nextDueDate,
+      },
+      {
+        header: "Recurrence",
+        id: "recurrence",
+        render: (task) => recurrenceLabel(task),
+        sortValue: (task) => task.recurrenceMonths,
+      },
+      {
+        header: "Responsible administrator",
+        id: "responsible",
+        render: (task) => responsibleDisplay(task, assignees),
+        sortValue: (task) => responsibleDisplay(task, assignees),
+      },
+      {
+        header: "Last completed",
+        id: "lastCompleted",
+        render: (task) => (
+          <span>
+            <span style={{ display: "block" }}>{lastCompletedDisplay(task, timezone)}</span>
+            {task.lastCompletedDate ? (
+              <span className="field__hint" style={{ display: "block" }}>
+                By {task.lastCompletedByName ?? "Name unavailable"}
+              </span>
+            ) : null}
+          </span>
+        ),
+        sortValue: (task) => task.lastCompletedDate,
+      },
+      {
+        header: "Actions",
+        id: "actions",
+        render: (task) =>
+          editingTaskId === task.id ? null : (
+            <TaskActionButtons actions={actions} operationBusy={operationBusy} task={task} />
+          ),
+      },
+    ],
+    [actions, assignees, editingTaskId, operationBusy, timezone, today],
+  );
   return (
     <div className="form-stack settings-form">
       <div className="field-checkbox">
@@ -915,23 +895,28 @@ function ComplianceCatalogView({
             </p>
           </div>
         ) : null}
-        <div className="compliance-tasks-list" style={{ display: "grid", gap: "1rem" }}>
-          {activeTasks.map((task) => (
-            <ComplianceTaskCard
-              key={task.id}
-              actions={actions}
-              assignees={assignees}
-              draft={editingTaskId === task.id ? draft : null}
-              isEditing={editingTaskId === task.id}
-              onCancel={onCancelEdit}
-              onField={onField}
-              onSave={onSave}
-              operationBusy={operationBusy}
-              task={task}
-              today={today}
-            />
-          ))}
-        </div>
+        {activeTasks.length > 0 ? (
+          <DataTable
+            columns={columns}
+            emptyMessage="No active compliance requirements."
+            expandedRowId={editingTaskId}
+            initialSort={{ columnId: "status", direction: "asc" }}
+            keySelector={(task) => task.id}
+            renderExpandedRow={(task) => (
+              <TaskEditor
+                assignees={assignees}
+                draft={editingTaskId === task.id ? draft : null}
+                onCancel={onCancelEdit}
+                onField={onField}
+                onSave={onSave}
+                operationBusy={operationBusy}
+                task={task}
+              />
+            )}
+            rowLabel={(task) => task.title}
+            rows={activeTasks}
+          />
+        ) : null}
         <ArchivedTasks onRestore={onRestore} operationBusy={operationBusy} tasks={archivedTasks} />
       </div>
     </div>
@@ -1264,6 +1249,7 @@ export function OrganizationNonprofitCompliancePanel({
           }}
           operationBusy={operationBusy}
           settings={settings}
+          timezone={effectiveTimezone}
           today={today}
         />
       ) : null}

@@ -17,8 +17,12 @@ vi.mock("../api/organization", () => ({
   archiveComplianceTask: vi.fn(),
   restoreComplianceTask: vi.fn(),
 }));
+function table(): HTMLElement {
+  return screen.getByRole("table");
+}
+
 function firstButton(name: string): HTMLElement {
-  const button = screen.getAllByRole("button", { name })[0];
+  const button = within(table()).getAllByRole("button", { name })[0];
   if (!button) throw new Error(`Missing ${name} button`);
   return button;
 }
@@ -92,7 +96,8 @@ async function setup() {
       <Navigate onLeave={onLeave} />
     </SaveCoordinatorProvider>,
   );
-  await screen.findByText("IRS annual return");
+  await screen.findByRole("table");
+  await within(table()).findByText("IRS annual return");
   return { user: userEvent.setup(), onLeave };
 }
 beforeEach(() => {
@@ -131,7 +136,7 @@ it.each(["Jordan Smith", null, undefined])(
       })),
     });
     await setup();
-    expect(screen.getAllByText(`By ${name ?? "Name unavailable"}`)).toHaveLength(2);
+    expect(within(table()).getAllByText(`By ${name ?? "Name unavailable"}`)).toHaveLength(2);
   },
 );
 
@@ -155,7 +160,7 @@ it.each([
       })),
     });
     await setup();
-    const pills = screen.getAllByLabelText(`Status: ${label}`);
+    const pills = within(table()).getAllByLabelText(`Status: ${label}`);
     expect(pills).toHaveLength(2);
     for (const pill of pills) expect(pill).toHaveClass(`status-pill--${tone}`);
   },
@@ -164,11 +169,13 @@ it.each([
 it("guards task switching and navigation, and saves through the shared SaveBar", async () => {
   const { user, onLeave } = await setup();
   await user.click(firstButton("Edit"));
-  fireEvent.change(screen.getByLabelText("Recurrence (months)"), { target: { value: "24" } });
+  fireEvent.change(within(table()).getByLabelText("Recurrence (months)"), {
+    target: { value: "24" },
+  });
   expect(screen.getByRole("region", { name: "Unsaved changes" })).toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Edit" }));
+  await user.click(within(table()).getByRole("button", { name: "Edit" }));
   await user.click(screen.getByRole("button", { name: "Cancel" }));
-  expect(screen.getByLabelText("Recurrence (months)")).toHaveValue(24);
+  expect(within(table()).getByLabelText("Recurrence (months)")).toHaveValue(24);
   await user.click(screen.getByRole("button", { name: "Navigate away" }));
   expect(onLeave).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "Cancel" }));
@@ -187,8 +194,8 @@ it("guards task switching and navigation, and saves through the shared SaveBar",
   await waitFor(() =>
     expect(screen.queryByRole("region", { name: "Unsaved changes" })).not.toBeInTheDocument(),
   );
-  await user.click(screen.getByRole("button", { name: "Edit" }));
-  expect(screen.getByLabelText("Recurrence (months)")).toHaveValue(12);
+  await user.click(within(table()).getByRole("button", { name: "Edit" }));
+  expect(within(table()).getByLabelText("Recurrence (months)")).toHaveValue(12);
 });
 
 it("keeps newer edits dirty when a previous save finishes", async () => {
@@ -201,13 +208,17 @@ it("keeps newer edits dirty when a previous save finishes", async () => {
       }),
   );
   await user.click(firstButton("Edit"));
-  fireEvent.change(screen.getByLabelText("Recurrence (months)"), { target: { value: "24" } });
+  fireEvent.change(within(table()).getByLabelText("Recurrence (months)"), {
+    target: { value: "24" },
+  });
   await user.click(
     within(screen.getByRole("region", { name: "Unsaved changes" })).getByRole("button", {
       name: "Save changes",
     }),
   );
-  fireEvent.change(screen.getByLabelText("Recurrence (months)"), { target: { value: "36" } });
+  fireEvent.change(within(table()).getByLabelText("Recurrence (months)"), {
+    target: { value: "36" },
+  });
   await act(async () => {
     resolveSave?.({
       ...settings,
@@ -217,14 +228,14 @@ it("keeps newer edits dirty when a previous save finishes", async () => {
     });
     await Promise.resolve();
   });
-  expect(screen.getByLabelText("Recurrence (months)")).toHaveValue(36);
+  expect(within(table()).getByLabelText("Recurrence (months)")).toHaveValue(36);
   expect(screen.getByRole("region", { name: "Unsaved changes" })).toBeInTheDocument();
 });
 
 it("allows clearing recurrence and saves the replacement without a leading zero", async () => {
   const { user } = await setup();
   await user.click(firstButton("Edit"));
-  const input = screen.getByLabelText("Recurrence (months)");
+  const input = within(table()).getByLabelText("Recurrence (months)");
   await user.clear(input);
   expect(input).toHaveValue(null);
   expect(api.updateComplianceTask).not.toHaveBeenCalled();
@@ -264,4 +275,117 @@ it("uses a focus-trapped completion dialog with guarded dismissal and focus rest
   await user.click(screen.getByRole("button", { name: "Discard changes" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   expect(api.completeComplianceTask).not.toHaveBeenCalled();
+});
+
+it("renders tasks in a sortable table with the expected columns", async () => {
+  const { user } = await setup();
+  for (const header of [
+    "Requirement",
+    "Status",
+    "Next due",
+    "Recurrence",
+    "Responsible administrator",
+    "Last completed",
+    "Actions",
+  ]) {
+    expect(
+      within(table()).getByRole("columnheader", { name: new RegExp(`^${header}`) }),
+    ).toBeInTheDocument();
+  }
+  expect(within(table()).getByRole("button", { name: "Sort by Next due" })).toBeInTheDocument();
+  const bodyRows = () =>
+    Array.from(table().querySelectorAll("tbody tr:not(.data-table__expanded-row)")).map(
+      (row) => row.textContent,
+    );
+  // Default status order keeps API order for equal upcoming statuses.
+  expect(bodyRows()[0]).toContain("IRS annual return");
+  await user.click(within(table()).getByRole("button", { name: "Sort by Requirement" }));
+  await user.click(within(table()).getByRole("button", { name: "Sort by Requirement" }));
+  expect(bodyRows()[0]).toContain("Ohio annual report");
+});
+
+it("orders overdue and soonest first by default and responds to header sorting", async () => {
+  vi.mocked(api.getNonprofitComplianceSettings).mockResolvedValue({
+    ...settings,
+    tasks: settings.tasks.map((task, index) => ({
+      ...task,
+      nextDueDate: relativeDate({ days: index === 0 ? 30 : 10 })
+        .toISOString()
+        .slice(0, 10),
+    })),
+  });
+  const { user } = await setup();
+  const bodyRows = () =>
+    Array.from(table().querySelectorAll("tbody tr:not(.data-table__expanded-row)")).map(
+      (row) => row.textContent,
+    );
+  // Default status order surfaces the sooner due date first within Upcoming.
+  expect(bodyRows()[0]).toContain("Ohio annual report");
+  await user.click(within(table()).getByRole("button", { name: "Sort by Requirement" }));
+  expect(bodyRows()[0]).toContain("IRS annual return");
+  expect(bodyRows()[1]).toContain("Ohio annual report");
+});
+
+it("shows the short Add dialog intro with the recipient policy under Responsible administrator", async () => {
+  const { user } = await setup();
+  await user.click(screen.getByRole("button", { name: "Add reminder" }));
+  const dialog = screen.getByRole("dialog", { name: "Add compliance reminder" });
+  expect(within(dialog).getByText("Create a custom Organization reminder.")).toBeInTheDocument();
+  expect(
+    within(dialog).queryByText(/Reminders go to all Owners and Administrators\.$/),
+  ).not.toBeInTheDocument();
+  const select = within(dialog).getByLabelText("Responsible administrator");
+  const hintId = select.getAttribute("aria-describedby");
+  expect(hintId).toBe("new-reminder-responsible-hint");
+  const hint = document.getElementById(hintId ?? "");
+  expect(hint).toHaveTextContent(
+    "This assignment is for accountability only. Reminder emails go to all Organization Owners and Administrators, not just the selected person.",
+  );
+});
+
+it("keeps the aligned recipient policy under Responsible administrator when editing", async () => {
+  const { user } = await setup();
+  await user.click(firstButton("Edit"));
+  const select = within(table()).getByLabelText("Responsible administrator");
+  const hint = document.getElementById(select.getAttribute("aria-describedby") ?? "");
+  expect(hint).toHaveTextContent(
+    "This assignment is for accountability only. Reminder emails go to all Organization Owners and Administrators, not just the selected person.",
+  );
+});
+
+it("renders all four built-ins including the Ohio suggested date and count", async () => {
+  const template = settings.tasks[0];
+  if (!template) throw new Error("Missing fixture task");
+  vi.mocked(api.getNonprofitComplianceSettings).mockResolvedValue({
+    ...settings,
+    tasks: [
+      ...settings.tasks,
+      {
+        ...template,
+        description: "Review unclaimed funds annually.",
+        id: "44444444-4444-4444-8444-444444444444",
+        kind: "ohio_unclaimed_funds_annual_report",
+        nextDueDate: futureDateString({ days: 60 }),
+        referenceUrl: "https://unclaimedfunds.ohio.gov/app/submit-a-report",
+        templateKey: "ohio_unclaimed_funds_annual_report",
+        title: "Ohio Annual Unclaimed Funds Report (including negative reports)",
+      },
+      {
+        ...template,
+        id: "55555555-5555-4555-8555-555555555555",
+        kind: "ohio_continued_existence",
+        nextDueDate: futureDateString({ days: 90 }),
+        recurrenceMonths: 60,
+        templateKey: "ohio_continued_existence",
+        title: "Ohio Secretary of State Statement of Continued Existence",
+      },
+    ],
+  });
+  await setup();
+  expect(screen.getByText("4 built-in · 0 custom · 0 archived")).toBeInTheDocument();
+  expect(
+    within(table()).getByText("Ohio Annual Unclaimed Funds Report (including negative reports)"),
+  ).toBeInTheDocument();
+  expect(within(table()).getByText(/Suggested date only/)).toBeInTheDocument();
+  expect(within(table()).getByRole("link", { name: "Ohio holder reporting" })).toBeInTheDocument();
 });

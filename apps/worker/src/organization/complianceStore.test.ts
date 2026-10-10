@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   advanceComplianceReminder,
   archiveComplianceTaskInStore,
+  backfillMissingBuiltinTasks,
   completeComplianceTaskInStore,
   createComplianceTaskInStore,
   findDueComplianceReminders,
@@ -421,6 +422,91 @@ describe("Nonprofit Compliance Store", () => {
     expect(createComplianceTaskInStore(storage, testActor, { title: "Over cap" }).code).toBe(
       "task_limit_reached",
     );
+  });
+
+  it("backfills the fourth builtin for old enabled Organizations without touching state", () => {
+    const { storage } = setupTestDatabase();
+    const enabled = setNonprofitEnabledInStore(storage, testActor, true);
+    const irsId = enabled.tasks.find((t) => t.kind === "irs_annual_return")?.id ?? "";
+    const agId = enabled.tasks.find((t) => t.kind === "ohio_ag_annual_report")?.id ?? "";
+    // Simulate the pre-#120 Organization: only the original three builtins,
+    // with an edited deadline, a Not Applicable opt-out, completion history,
+    // an assigned administrator, and a custom reminder.
+    storage.sql.exec(
+      "DELETE FROM organization_compliance_tasks WHERE kind = ?",
+      "ohio_unclaimed_funds_annual_report",
+    );
+    updateComplianceTaskInStore(storage, testActor, irsId, { nextDueDate: "2026-05-15" });
+    completeComplianceTaskInStore(
+      storage,
+      testActor,
+      irsId,
+      "2026-05-10",
+      new Date("2026-05-10T12:00:00Z"),
+    );
+    updateComplianceTaskInStore(storage, testActor, agId, { applicable: false });
+    updateComplianceTaskInStore(storage, testActor, irsId, {
+      responsibleMembershipId: "member-assigned-1",
+    });
+    const custom = createComplianceTaskInStore(storage, testActor, {
+      nextDueDate: "2026-09-15",
+      title: "Ohio Annual Unclaimed Funds Report follow-up",
+    });
+    expect(custom.ok).toBe(true);
+
+    backfillMissingBuiltinTasks(storage, "2026-09-01T00:00:00.000Z");
+
+    const after = readNonprofitComplianceFromStore(storage);
+    expect(after.enabled).toBe(true);
+    expect(after.tasks.filter((t) => t.source === "builtin")).toHaveLength(4);
+    const ohio = after.tasks.find((t) => t.kind === "ohio_unclaimed_funds_annual_report");
+    expect(ohio).toMatchObject({
+      applicable: true,
+      nextDueDate: "2026-10-31",
+      nextReminderAt: null,
+      recurrenceMonths: 12,
+      source: "builtin",
+    });
+    expect(ohio?.title).toContain("Unclaimed Funds");
+    // Original rows keep IDs and all metadata.
+    expect(after.tasks.find((t) => t.id === irsId)).toMatchObject({
+      lastCompletedDate: "2026-05-10",
+      nextDueDate: "2027-05-15",
+      responsibleMembershipId: "member-assigned-1",
+    });
+    expect(after.tasks.find((t) => t.id === agId)?.applicable).toBe(false);
+    expect(after.tasks.filter((t) => t.source === "custom")).toHaveLength(1);
+
+    // Repeating the backfill creates no fifth task and preserves opt-outs.
+    backfillMissingBuiltinTasks(storage, "2026-09-02T00:00:00.000Z");
+    const repeated = readNonprofitComplianceFromStore(storage);
+    expect(repeated.tasks.filter((t) => t.source === "builtin")).toHaveLength(4);
+    expect(repeated.tasks.find((t) => t.id === agId)?.applicable).toBe(false);
+  });
+
+  it("backfill skips never-enabled, disabled, and already-complete Organizations", () => {
+    const neverEnabled = setupTestDatabase();
+    backfillMissingBuiltinTasks(neverEnabled.storage, "2026-09-01T00:00:00.000Z");
+    const stillOff = readNonprofitComplianceFromStore(neverEnabled.storage);
+    expect(stillOff.enabled).toBe(false);
+    expect(stillOff.tasks).toHaveLength(0);
+
+    const disabled = setupTestDatabase();
+    setNonprofitEnabledInStore(disabled.storage, testActor, true);
+    setNonprofitEnabledInStore(disabled.storage, testActor, false);
+    backfillMissingBuiltinTasks(disabled.storage, "2026-09-01T00:00:00.000Z");
+    const stillDisabled = readNonprofitComplianceFromStore(disabled.storage);
+    expect(stillDisabled.enabled).toBe(false);
+    expect(stillDisabled.tasks.filter((t) => t.source === "builtin")).toHaveLength(4);
+
+    const complete = setupTestDatabase();
+    setNonprofitEnabledInStore(complete.storage, testActor, true);
+    backfillMissingBuiltinTasks(complete.storage, "2026-09-01T00:00:00.000Z");
+    expect(
+      readNonprofitComplianceFromStore(complete.storage).tasks.filter(
+        (t) => t.source === "builtin",
+      ),
+    ).toHaveLength(4);
   });
 
   it("uses selective indexes for the recurring scheduler scan", () => {

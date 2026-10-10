@@ -8,6 +8,7 @@ import {
 } from "@choir/domain";
 import { z } from "zod";
 
+import { backfillMissingBuiltinTasks } from "../complianceStore";
 import {
   refreshUnmodifiedDonationConfirmationTemplate,
   refreshUnmodifiedPaymentMessageTemplates,
@@ -1804,6 +1805,19 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON organization_compliance_tasks(next_due_date, next_reminder_at)
        WHERE applicable = 1 AND archived = 0 AND next_due_date IS NOT NULL`,
     ],
+  },
+  {
+    version: 107,
+    statements: [],
+    // Backfill the Ohio unclaimed-funds built-in for Organizations that
+    // enabled nonprofit tracking before it existed (issue #132). Idempotent
+    // INSERT OR IGNORE inside the migration transaction: only the missing
+    // fourth row is inserted, with a future October 31 suggestion and no
+    // reminder armed, so there is no notification blast. Never-enabled and
+    // currently-disabled Organizations are skipped.
+    apply: (sql) => {
+      backfillMissingBuiltinTasks({ sql }, new Date().toISOString());
+    },
   },
 ] as const;
 
