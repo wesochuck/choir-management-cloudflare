@@ -27,13 +27,76 @@ export async function complianceResponseWithNames(
       if (name) names.set(row.id, name);
     }
   }
+
+  const membershipIds = [
+    ...new Set(
+      settings.tasks.flatMap((task) =>
+        task.responsibleMembershipId ? [task.responsibleMembershipId] : [],
+      ),
+    ),
+  ];
+  const eligibleAssignees = new Map<
+    string,
+    { readonly email: string; readonly name: string; readonly userId: string }
+  >();
+  if (membershipIds.length > 0) {
+    const result = await env.CONTROL_DB.prepare(
+      `SELECT m.id AS membershipId, m.userId AS userId, u.name AS name, u.email AS email
+       FROM member m
+       JOIN user u ON u.id = m.userId
+       WHERE m.organizationId = ?
+         AND m.role IN ('owner', 'admin')
+         AND m.id IN (${membershipIds.map(() => "?").join(",")})`,
+    )
+      .bind(organizationId, ...membershipIds)
+      .all<{
+        readonly email: string;
+        readonly membershipId: string;
+        readonly name: string | null;
+        readonly userId: string;
+      }>();
+    for (const row of result.results) {
+      const name = row.name?.trim();
+      const email = row.email.trim();
+      if (name && email) {
+        eligibleAssignees.set(row.membershipId, { email, name, userId: row.userId });
+      }
+    }
+  }
+
   return {
     ...settings,
-    tasks: settings.tasks.map((task) => ({
-      ...task,
-      lastCompletedByName: task.lastCompletedByUserId
+    tasks: settings.tasks.map((task) => {
+      const lastCompletedByName = task.lastCompletedByUserId
         ? (names.get(task.lastCompletedByUserId) ?? null)
-        : null,
-    })),
+        : null;
+      if (!task.responsibleMembershipId) {
+        return {
+          ...task,
+          lastCompletedByName,
+          responsibleEmail: null,
+          responsibleName: null,
+          responsibleNeedsReassignment: false,
+        };
+      }
+      const eligible = eligibleAssignees.get(task.responsibleMembershipId);
+      if (eligible) {
+        return {
+          ...task,
+          lastCompletedByName,
+          responsibleEmail: eligible.email,
+          responsibleName: eligible.name,
+          responsibleNeedsReassignment: false,
+          responsibleUserId: eligible.userId,
+        };
+      }
+      return {
+        ...task,
+        lastCompletedByName,
+        responsibleEmail: null,
+        responsibleName: null,
+        responsibleNeedsReassignment: true,
+      };
+    }),
   };
 }

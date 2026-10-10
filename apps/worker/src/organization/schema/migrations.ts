@@ -1717,6 +1717,86 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
        ON profile_reconciliations(target_profile_id)`,
     ],
   },
+  {
+    version: 106,
+    statements: [
+      // Expand the compliance tracker into a generic organization catalog
+      // (issue #120) without resetting IDs, dates, completions, or reminder
+      // state. The rebuild preserves every existing row while adding
+      // source/templateKey, description/reference, archived flag, and
+      // responsible-assignee columns. Custom tasks use NULL kind/templateKey;
+      // SQLite UNIQUE permits multiple NULLs, so builtin uniqueness is kept
+      // while custom rows stay distinct by stable UUID. Rollback to v105
+      // restores the previous table from the _before_catalog backup only if
+      // the operator retains it; forward migration drops the backup after
+      // copying, so rollback requires restoring from a snapshot.
+      "DROP INDEX IF EXISTS organization_compliance_tasks_reminder_due",
+      "DROP INDEX IF EXISTS organization_compliance_completions_latest",
+      "ALTER TABLE organization_compliance_tasks RENAME TO organization_compliance_tasks_before_catalog",
+      `CREATE TABLE IF NOT EXISTS organization_compliance_tasks (
+        id TEXT PRIMARY KEY,
+        kind TEXT UNIQUE,
+        template_key TEXT UNIQUE,
+        source TEXT NOT NULL DEFAULT 'builtin' CHECK (source IN ('builtin', 'custom')),
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        reference_url TEXT,
+        applicable INTEGER NOT NULL DEFAULT 1 CHECK (applicable IN (0, 1)),
+        archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
+        recurrence_months INTEGER NOT NULL,
+        next_due_date TEXT,
+        last_completed_date TEXT,
+        next_reminder_at TEXT,
+        reminder_interval_days INTEGER NOT NULL DEFAULT 7,
+        responsible_membership_id TEXT,
+        responsible_user_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `INSERT INTO organization_compliance_tasks
+        (id, kind, template_key, source, title, description, reference_url,
+         applicable, archived, recurrence_months, next_due_date,
+         last_completed_date, next_reminder_at, reminder_interval_days,
+         responsible_membership_id, responsible_user_id, created_at, updated_at)
+       SELECT id, kind, kind, 'builtin', title, '', NULL,
+         applicable, 0, recurrence_months, next_due_date,
+         last_completed_date, next_reminder_at, reminder_interval_days,
+         NULL, NULL, created_at, updated_at
+       FROM organization_compliance_tasks_before_catalog`,
+      "DROP TABLE organization_compliance_tasks_before_catalog",
+      // The RENAME above retargets the completions foreign key to the
+      // _before_catalog backup; rebuild completions so its task_id references
+      // the new catalog table again. No history is lost; the copy preserves
+      // every completion row.
+      "ALTER TABLE organization_compliance_completions RENAME TO organization_compliance_completions_before_catalog",
+      `CREATE TABLE IF NOT EXISTS organization_compliance_completions (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL REFERENCES organization_compliance_tasks(id),
+        cycle_due_date TEXT NOT NULL,
+        completed_date TEXT NOT NULL,
+        completed_by_user_id TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      `INSERT INTO organization_compliance_completions
+        (id, task_id, cycle_due_date, completed_date, completed_by_user_id, created_at)
+       SELECT id, task_id, cycle_due_date, completed_date, completed_by_user_id, created_at
+       FROM organization_compliance_completions_before_catalog`,
+      "DROP TABLE organization_compliance_completions_before_catalog",
+      `CREATE INDEX IF NOT EXISTS organization_compliance_completions_latest
+       ON organization_compliance_completions(task_id, created_at)`,
+      // Recurring scheduler lookup filters applicable + archived + due date;
+      // the partial index keeps the weekly scan selective and excludes
+      // historical archived rows.
+      `CREATE INDEX IF NOT EXISTS organization_compliance_tasks_reminder_due
+       ON organization_compliance_tasks(next_reminder_at)
+       WHERE applicable = 1 AND archived = 0 AND next_reminder_at IS NOT NULL`,
+      // Scheduler due scan (applicable, not archived, dated) runs on every
+      // alarm; the partial index bounds it to schedulable rows only.
+      `CREATE INDEX IF NOT EXISTS organization_compliance_tasks_active_due
+       ON organization_compliance_tasks(next_due_date, next_reminder_at)
+       WHERE applicable = 1 AND archived = 0 AND next_due_date IS NOT NULL`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

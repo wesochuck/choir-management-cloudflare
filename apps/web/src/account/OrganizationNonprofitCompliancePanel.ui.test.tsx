@@ -9,9 +9,13 @@ import { OrganizationNonprofitCompliancePanel } from "./OrganizationNonprofitCom
 
 vi.mock("../api/organization", () => ({
   getNonprofitComplianceSettings: vi.fn(),
+  getComplianceAssignees: vi.fn(),
   updateComplianceTask: vi.fn(),
   completeComplianceTask: vi.fn(),
   toggleNonprofitCompliance: vi.fn(),
+  createComplianceTask: vi.fn(),
+  archiveComplianceTask: vi.fn(),
+  restoreComplianceTask: vi.fn(),
 }));
 function firstButton(name: string): HTMLElement {
   const button = screen.getAllByRole("button", { name })[0];
@@ -26,24 +30,44 @@ const settings: NonprofitComplianceSettingsResponse = {
     {
       id: "22222222-2222-4222-8222-222222222222",
       kind: "irs_annual_return",
+      source: "builtin",
+      templateKey: "irs_annual_return",
       title: "IRS annual return",
+      description: "",
+      referenceUrl: null,
       applicable: true,
+      archived: false,
       recurrenceMonths: 12,
       nextDueDate: date,
       lastCompletedDate: null,
       nextReminderAt: null,
       reminderIntervalDays: 7,
+      responsibleMembershipId: null,
+      responsibleUserId: null,
+      responsibleName: null,
+      responsibleEmail: null,
+      responsibleNeedsReassignment: false,
     },
     {
       id: "33333333-3333-4333-8333-333333333333",
       kind: "ohio_ag_annual_report",
+      source: "builtin",
+      templateKey: "ohio_ag_annual_report",
       title: "Ohio annual report",
+      description: "",
+      referenceUrl: null,
       applicable: true,
+      archived: false,
       recurrenceMonths: 12,
       nextDueDate: date,
       lastCompletedDate: null,
       nextReminderAt: null,
       reminderIntervalDays: 7,
+      responsibleMembershipId: null,
+      responsibleUserId: null,
+      responsibleName: null,
+      responsibleEmail: null,
+      responsibleNeedsReassignment: false,
     },
   ],
 };
@@ -74,6 +98,10 @@ async function setup() {
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(api.getNonprofitComplianceSettings).mockResolvedValue(settings);
+  vi.mocked(api.getComplianceAssignees).mockResolvedValue({
+    assignees: [],
+    requestId: "11111111-1111-4111-8111-111111111111",
+  });
   vi.mocked(api.updateComplianceTask).mockImplementation((taskId, update) =>
     Promise.resolve({
       ...settings,

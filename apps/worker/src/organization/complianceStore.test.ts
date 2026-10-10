@@ -3,9 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   advanceComplianceReminder,
+  archiveComplianceTaskInStore,
   completeComplianceTaskInStore,
+  createComplianceTaskInStore,
   findDueComplianceReminders,
   readNonprofitComplianceFromStore,
+  restoreComplianceTaskInStore,
   setNonprofitEnabledInStore,
   updateComplianceTaskInStore,
 } from "./complianceStore";
@@ -50,11 +53,11 @@ describe("Nonprofit Compliance Store", () => {
     expect(compliance.tasks).toHaveLength(0);
   });
 
-  it("enabling seeds the three default obligations with correct recurrence and titles", () => {
+  it("enabling seeds the four default obligations with correct recurrence and titles", () => {
     const { storage } = setupTestDatabase();
     const enabled = setNonprofitEnabledInStore(storage, testActor, true);
     expect(enabled.enabled).toBe(true);
-    expect(enabled.tasks).toHaveLength(3);
+    expect(enabled.tasks).toHaveLength(4);
 
     const irs = enabled.tasks.find((t) => t.kind === "irs_annual_return");
     expect(irs).toBeDefined();
@@ -63,6 +66,7 @@ describe("Nonprofit Compliance Store", () => {
     expect(irs?.applicable).toBe(true);
     expect(irs?.nextDueDate).toBeNull();
     expect(irs?.lastCompletedDate).toBeNull();
+    expect(irs?.source).toBe("builtin");
 
     const ohioAg = enabled.tasks.find((t) => t.kind === "ohio_ag_annual_report");
     expect(ohioAg).toBeDefined();
@@ -71,6 +75,15 @@ describe("Nonprofit Compliance Store", () => {
     const ohioSos = enabled.tasks.find((t) => t.kind === "ohio_continued_existence");
     expect(ohioSos).toBeDefined();
     expect(ohioSos?.recurrenceMonths).toBe(60);
+
+    const ohioUnclaimed = enabled.tasks.find(
+      (t) => t.kind === "ohio_unclaimed_funds_annual_report",
+    );
+    expect(ohioUnclaimed).toBeDefined();
+    expect(ohioUnclaimed?.recurrenceMonths).toBe(12);
+    expect(ohioUnclaimed?.source).toBe("builtin");
+    expect(ohioUnclaimed?.title).toContain("Unclaimed Funds");
+    expect(ohioUnclaimed?.nextDueDate).toMatch(/^\d{4}-10-31$/);
   });
 
   it("disabling pauses without deleting tasks or configuration", () => {
@@ -85,13 +98,13 @@ describe("Nonprofit Compliance Store", () => {
 
     const disabled = setNonprofitEnabledInStore(storage, testActor, false);
     expect(disabled.enabled).toBe(false);
-    expect(disabled.tasks).toHaveLength(3);
+    expect(disabled.tasks).toHaveLength(4);
     const taskAfterDisable = disabled.tasks.find((t) => t.id === irsTaskId);
     expect(taskAfterDisable?.nextDueDate).toBe("2026-05-15");
 
     const reEnabled = setNonprofitEnabledInStore(storage, testActor, true);
     expect(reEnabled.enabled).toBe(true);
-    expect(reEnabled.tasks).toHaveLength(3);
+    expect(reEnabled.tasks).toHaveLength(4);
     const taskAfterReEnable = reEnabled.tasks.find((t) => t.id === irsTaskId);
     expect(taskAfterReEnable?.nextDueDate).toBe("2026-05-15");
   });
@@ -245,5 +258,184 @@ describe("Nonprofit Compliance Store", () => {
 
     setNonprofitEnabledInStore(storage, testActor, false);
     expect(findDueComplianceReminders(storage, now)).toHaveLength(0);
+  });
+
+  it("creates custom reminders with stable IDs distinct from titles", () => {
+    const { storage } = setupTestDatabase();
+    setNonprofitEnabledInStore(storage, testActor, true);
+    const first = createComplianceTaskInStore(storage, testActor, {
+      nextDueDate: "2026-09-15",
+      title: "Yearly filing",
+    });
+    const second = createComplianceTaskInStore(storage, testActor, {
+      nextDueDate: "2026-09-15",
+      title: "Yearly filing",
+    });
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    expect(first.task?.id).not.toBe(second.task?.id);
+    expect(first.task?.source).toBe("custom");
+    expect(first.task?.kind).toBeNull();
+    expect(second.task?.source).toBe("custom");
+  });
+
+  it("edits custom identity fields but protects builtin titles", () => {
+    const { storage } = setupTestDatabase();
+    setNonprofitEnabledInStore(storage, testActor, true);
+    const initial = readNonprofitComplianceFromStore(storage);
+    const builtin = initial.tasks.find((t) => t.kind === "irs_annual_return");
+    if (!builtin) throw new Error("Missing builtin task.");
+    expect(
+      updateComplianceTaskInStore(storage, testActor, builtin.id, { title: "Renamed" }).ok,
+    ).toBe(false);
+    expect(
+      updateComplianceTaskInStore(storage, testActor, builtin.id, { description: "Notes" }).ok,
+    ).toBe(false);
+
+    const created = createComplianceTaskInStore(storage, testActor, {
+      nextDueDate: "2026-09-15",
+      title: "Custom",
+    });
+    if (!created.ok || !created.task) throw new Error("Custom creation failed.");
+    const updated = updateComplianceTaskInStore(storage, testActor, created.task.id, {
+      description: "Notes",
+      referenceUrl: "https://example.test/reference",
+      title: "Custom renamed",
+    });
+    expect(updated.ok).toBe(true);
+    expect(updated.task).toMatchObject({
+      description: "Notes",
+      referenceUrl: "https://example.test/reference",
+      title: "Custom renamed",
+    });
+    expect(
+      updateComplianceTaskInStore(storage, testActor, created.task.id, {
+        referenceUrl: "javascript:alert(1)",
+      }).ok,
+    ).toBe(false);
+  });
+
+  it("archives and restores custom tasks without losing history", () => {
+    const { storage } = setupTestDatabase();
+    setNonprofitEnabledInStore(storage, testActor, true);
+    const created = createComplianceTaskInStore(storage, testActor, {
+      nextDueDate: "2026-05-15",
+      title: "Archivable",
+    });
+    if (!created.ok || !created.task) throw new Error("Custom creation failed.");
+    const completion = completeComplianceTaskInStore(
+      storage,
+      testActor,
+      created.task.id,
+      "2026-05-10",
+      new Date("2026-05-10T12:00:00Z"),
+    );
+    expect(completion.ok).toBe(true);
+
+    const archived = archiveComplianceTaskInStore(storage, testActor, created.task.id);
+    expect(archived.ok).toBe(true);
+    expect(archived.task?.archived).toBe(true);
+    const now = new Date("2026-05-16T12:00:00Z");
+    expect(
+      findDueComplianceReminders(storage, now).some((r) => r.task.id === created.task?.id),
+    ).toBe(false);
+    // Archived rows remain readable for history.
+    expect(
+      readNonprofitComplianceFromStore(storage).tasks.some((t) => t.id === created.task?.id),
+    ).toBe(true);
+
+    const builtin = readNonprofitComplianceFromStore(storage).tasks.find(
+      (t) => t.kind === "irs_annual_return",
+    );
+    if (!builtin) throw new Error("Missing builtin.");
+    expect(archiveComplianceTaskInStore(storage, testActor, builtin.id).ok).toBe(false);
+
+    const restored = restoreComplianceTaskInStore(storage, testActor, created.task.id);
+    expect(restored.ok).toBe(true);
+    expect(restored.task?.archived).toBe(false);
+  });
+
+  it("schedules custom tasks while nonprofit tracking is disabled", () => {
+    const { storage } = setupTestDatabase();
+    setNonprofitEnabledInStore(storage, testActor, true);
+    const builtin = readNonprofitComplianceFromStore(storage).tasks.find(
+      (t) => t.kind === "irs_annual_return",
+    );
+    if (!builtin) throw new Error("Missing builtin.");
+    updateComplianceTaskInStore(storage, testActor, builtin.id, { nextDueDate: "2026-05-15" });
+    const custom = createComplianceTaskInStore(storage, testActor, {
+      nextDueDate: "2026-05-15",
+      title: "Custom while disabled",
+    });
+    if (!custom.ok || !custom.task) throw new Error("Custom creation failed.");
+    setNonprofitEnabledInStore(storage, testActor, false);
+    const now = new Date("2026-05-16T12:00:00Z");
+    const due = findDueComplianceReminders(storage, now);
+    expect(due.some((r) => r.task.id === builtin.id)).toBe(false);
+    expect(due.some((r) => r.task.id === custom.task?.id)).toBe(true);
+  });
+
+  it("seeds Ohio unclaimed-funds exactly once and never reactivates Not Applicable", () => {
+    const { storage } = setupTestDatabase();
+    const first = setNonprofitEnabledInStore(storage, testActor, true);
+    const ohio = first.tasks.find((t) => t.kind === "ohio_unclaimed_funds_annual_report");
+    expect(ohio).toBeDefined();
+    const ohioId = ohio?.id ?? "";
+    updateComplianceTaskInStore(storage, testActor, ohioId, { applicable: false });
+    const second = setNonprofitEnabledInStore(storage, testActor, true);
+    expect(
+      second.tasks.filter((t) => t.kind === "ohio_unclaimed_funds_annual_report"),
+    ).toHaveLength(1);
+    expect(second.tasks.find((t) => t.id === ohioId)?.applicable).toBe(false);
+    // Concurrent enablement stays idempotent.
+    setNonprofitEnabledInStore(storage, testActor, true);
+    expect(
+      readNonprofitComplianceFromStore(storage).tasks.filter(
+        (t) => t.kind === "ohio_unclaimed_funds_annual_report",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("suggests a future October 31 for Ohio without a retroactive blast", () => {
+    const { storage } = setupTestDatabase("UTC");
+    setNonprofitEnabledInStore(storage, testActor, true);
+    const ohio = readNonprofitComplianceFromStore(storage).tasks.find(
+      (t) => t.kind === "ohio_unclaimed_funds_annual_report",
+    );
+    expect(ohio?.nextDueDate).toMatch(/^\d{4}-10-31$/);
+    // Seeded with no pending reminder pointer, so no immediate burst.
+    expect(ohio?.nextReminderAt).toBeNull();
+  });
+
+  it("enforces the bounded catalog cap", () => {
+    const { storage } = setupTestDatabase();
+    setNonprofitEnabledInStore(storage, testActor, true);
+    const initialCount = readNonprofitComplianceFromStore(storage).tasks.length;
+    for (let index = 0; index < 50 - initialCount; index += 1) {
+      const created = createComplianceTaskInStore(storage, testActor, {
+        title: `Custom ${String(index)}`,
+      });
+      expect(created.ok).toBe(true);
+    }
+    expect(readNonprofitComplianceFromStore(storage).tasks).toHaveLength(50);
+    expect(createComplianceTaskInStore(storage, testActor, { title: "Over cap" }).code).toBe(
+      "task_limit_reached",
+    );
+  });
+
+  it("uses selective indexes for the recurring scheduler scan", () => {
+    const { storage } = setupTestDatabase();
+    const plan = storage.sql
+      .exec<{ readonly detail: string }>(
+        `EXPLAIN QUERY PLAN SELECT * FROM organization_compliance_tasks task
+         WHERE task.applicable = 1 AND task.archived = 0
+           AND task.next_due_date IS NOT NULL
+           AND task.next_due_date <= '2026-05-15'
+           AND (task.next_reminder_at IS NULL OR task.next_reminder_at <= '2026-05-16T12:00:00.000Z')`,
+      )
+      .toArray();
+    const detail = plan.map((row) => row.detail).join(" ");
+    expect(detail).toContain("organization_compliance_tasks_active_due");
+    expect(detail).not.toContain("SCAN task");
   });
 });

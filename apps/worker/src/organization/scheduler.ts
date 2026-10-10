@@ -547,7 +547,7 @@ function createComplianceReminderJobs(
 ): void {
   const reminders = findDueComplianceReminders(storage, now);
   for (const reminder of reminders) {
-    const idempotencyKey = `nonprofit-compliance:${organizationId}:${reminder.task.kind}:${reminder.cycleDueDate}:${reminder.occurrenceDate}`;
+    const idempotencyKey = `nonprofit-compliance:${organizationId}:${reminder.task.id}:${reminder.cycleDueDate}:${reminder.occurrenceDate}`;
     const nowIso = now.toISOString();
     const existing = storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(

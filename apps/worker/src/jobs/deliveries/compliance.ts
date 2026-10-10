@@ -9,10 +9,48 @@ import {
 } from "./shared";
 
 interface DueComplianceTask {
+  readonly description: string;
   readonly id: string;
   readonly lastCompletedDate: string | null;
   readonly nextDueDate: string;
+  readonly referenceUrl: string | null;
+  readonly responsibleEmail: string | null;
+  readonly responsibleName: string | null;
+  readonly responsibleNeedsReassignment: boolean;
+  readonly source: string;
   readonly title: string;
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveResponsibleDisplay(
+  env: JobConsumerEnv,
+  organizationId: string,
+  membershipId: string | null,
+): Promise<{
+  readonly email: string | null;
+  readonly name: string | null;
+  readonly needsReassignment: boolean;
+}> {
+  if (!membershipId) return { email: null, name: null, needsReassignment: false };
+  if (!env.CONTROL_DB) {
+    throw new Error("CONTROL_DB is required for nonprofit compliance notification delivery.");
+  }
+  const row = await env.CONTROL_DB.prepare(
+    `SELECT u.email AS email, u.name AS name, m.role AS role
+     FROM member m
+     JOIN user u ON u.id = m.userId
+     WHERE m.id = ? AND m.organizationId = ? LIMIT 1`,
+  )
+    .bind(membershipId, organizationId)
+    .first<{ readonly email: string; readonly name: string | null; readonly role: string }>();
+  if (!row || (row.role !== "owner" && row.role !== "admin")) {
+    return { email: null, name: null, needsReassignment: true };
+  }
+  const name = row.name?.trim();
+  const email = row.email.trim();
+  if (!name || !email) return { email: null, name: null, needsReassignment: true };
+  return { email, name, needsReassignment: false };
 }
 
 async function resolveEligibleComplianceTask(
@@ -20,24 +58,45 @@ async function resolveEligibleComplianceTask(
   job: DeliveryJob,
 ): Promise<DueComplianceTask | null> {
   const parts = job.idempotencyKey.split(":");
-  const taskKind = parts[2];
+  // New: nonprofit-compliance:{org}:{taskId}:{due}:{occurrence}
+  // Legacy: nonprofit-compliance:{org}:{kind}:{due}:{occurrence}
+  const taskIdOrKind = parts[2];
   const cycleDueDate = parts[3];
+  if (!taskIdOrKind || !cycleDueDate) return null;
 
   const stub = organizationStoreStub(env, job.organizationId);
   const compliance = await stub.readNonprofitCompliance();
-  if (!compliance.enabled) {
-    return null;
-  }
 
-  const task = compliance.tasks.find((candidate) => candidate.kind === taskKind);
+  const isUuid = UUID_PATTERN.test(taskIdOrKind);
+  const task = isUuid
+    ? compliance.tasks.find((candidate) => candidate.id === taskIdOrKind)
+    : compliance.tasks.find((candidate) => candidate.kind === taskIdOrKind);
+
   if (!task || !task.applicable || !task.nextDueDate || task.nextDueDate !== cycleDueDate) {
     return null;
   }
+  if (task.archived) return null;
+  const source = task.source;
+  if (source !== "custom" && !compliance.enabled) {
+    return null;
+  }
+
+  const responsible = await resolveResponsibleDisplay(
+    env,
+    job.organizationId,
+    task.responsibleMembershipId,
+  );
 
   return {
+    description: task.description,
     id: task.id,
     lastCompletedDate: task.lastCompletedDate,
     nextDueDate: task.nextDueDate,
+    referenceUrl: task.referenceUrl,
+    responsibleEmail: responsible.email,
+    responsibleName: responsible.name,
+    responsibleNeedsReassignment: responsible.needsReassignment,
+    source,
     title: task.title,
   };
 }
@@ -78,18 +137,41 @@ function buildComplianceReminderMarkdown(
   organizationName: string,
   task: DueComplianceTask,
 ): string {
-  return [
-    `## Nonprofit compliance filing due`,
-    "",
-    `**${organizationName}** has a nonprofit compliance filing that still needs to be completed.`,
-    "",
+  const responsibleLine = task.responsibleNeedsReassignment
+    ? `Needs reassignment (previously assigned administrator is no longer eligible)`
+    : task.responsibleName && task.responsibleEmail
+      ? `${task.responsibleName} (${task.responsibleEmail})`
+      : `Unassigned`;
+  const lines = [
+    `## Compliance reminder due`,
+    ``,
+    `**${organizationName}** has a compliance reminder that still needs to be completed.`,
+    ``,
     `- **Requirement:** ${task.title}`,
     `- **Due date:** ${task.nextDueDate}`,
     `- **Last completed:** ${task.lastCompletedDate ?? "Not recorded"}`,
+    `- **Responsible:** ${responsibleLine}`,
     `- **Reminder cadence:** Weekly until marked complete`,
-    "",
-    `Open Organization Settings → Nonprofit compliance to mark the filing complete or update its due date according to the date stored in Choir Management.`,
-  ].join("\n");
+  ];
+  if (task.responsibleNeedsReassignment) {
+    lines.push(
+      ``,
+      `The designated responsible administrator is no longer an eligible Owner or Administrator. ` +
+        `Please assign a current Owner or Administrator. This reminder was still sent to all currently eligible Owners and Administrators.`,
+    );
+  }
+  if (task.description && task.description.trim().length > 0) {
+    lines.push(``, `**Notes:** ${task.description.trim()}`);
+  }
+  if (task.referenceUrl && task.referenceUrl.trim().length > 0) {
+    lines.push(``, `**Reference:** ${task.referenceUrl.trim()}`);
+  }
+  lines.push(
+    ``,
+    `Open Organization Settings → Compliance & deadlines to mark the filing complete or update its due date according to the date stored in Choir Management. ` +
+      `The app tracks Organization-entered deadlines; it does not determine whether a filing is legally required.`,
+  );
+  return lines.join("\n");
 }
 
 export async function deliverComplianceReminderJob(

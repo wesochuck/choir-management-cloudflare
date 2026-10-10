@@ -22,6 +22,7 @@ const stores = binding(env.ORGANIZATION_STORE);
 const organizationId = "compliance-delivery";
 const actor = { actorUserId: "owner", organizationId, requestId: crypto.randomUUID() };
 const dueDate = pastDateString({ days: 30 });
+let taskId = "";
 
 beforeEach(async () => {
   await applyD1Migrations(database, [...inject("controlMigrations")]);
@@ -52,20 +53,21 @@ beforeEach(async () => {
   const settings = await stub.setNonprofitEnabled({ ...actor, enabled: true });
   const task = settings.tasks.find(({ kind }) => kind === "irs_annual_return");
   if (!task) throw new Error("Missing seeded task");
+  taskId = task.id;
   await stub.updateComplianceTask({ ...actor, taskId: task.id, nextDueDate: dueDate });
 });
 afterEach(async () => {
   await reset();
 });
 
-function job(occurrence: string): DeliveryJob {
+function job(occurrence: string, key?: string): DeliveryJob {
   return {
     attempt: 1,
     version: 1,
     jobId: crypto.randomUUID(),
     organizationId,
     kind: "compliance_reminder",
-    idempotencyKey: `nonprofit-compliance:${organizationId}:irs_annual_return:${dueDate}:${occurrence}`,
+    idempotencyKey: `nonprofit-compliance:${organizationId}:${key ?? taskId}:${dueDate}:${occurrence}`,
   };
 }
 
@@ -116,6 +118,117 @@ it("sends to each administrator once per occurrence, with replay and tenant isol
     job(relativeDate({ days: -16 }).toISOString().slice(0, 10)),
   );
   expect(send).toHaveBeenCalledTimes(4);
+});
+
+it("delivers legacy kind-keyed jobs until old queue entries drain", async () => {
+  const send = vi.fn<(message: EmailMessage | EmailMessageBuilder) => Promise<EmailSendResult>>(
+    () => Promise.resolve({ messageId: crypto.randomUUID() }),
+  );
+  const deliveryEnv: JobConsumerEnv = {
+    ...env,
+    EXTERNAL_EFFECTS_MODE: "sandbox",
+    PLATFORM_EMAIL_MODE: "sandbox",
+    PLATFORM_EMAIL_FROM: "notifications@example.test",
+    PLATFORM_EMAIL_ALLOWED_RECIPIENTS: "",
+    PLATFORM_EMAIL: { send },
+  };
+  await deliverComplianceReminderJob(deliveryEnv, job(dueDate, "irs_annual_return"));
+  expect(send).toHaveBeenCalledTimes(2);
+});
+
+it("keeps all-admin fanout when a responsible administrator is assigned", async () => {
+  const stub = stores.getByName(organizationId);
+  await stub.updateComplianceTask({
+    ...actor,
+    responsibleMembershipId: "compliance-admin",
+    responsibleUserId: "admin",
+    taskId,
+  });
+  const send = vi.fn<(message: EmailMessage | EmailMessageBuilder) => Promise<EmailSendResult>>(
+    () => Promise.resolve({ messageId: crypto.randomUUID() }),
+  );
+  const deliveryEnv: JobConsumerEnv = {
+    ...env,
+    EXTERNAL_EFFECTS_MODE: "sandbox",
+    PLATFORM_EMAIL_MODE: "sandbox",
+    PLATFORM_EMAIL_FROM: "notifications@example.test",
+    PLATFORM_EMAIL_ALLOWED_RECIPIENTS: "",
+    PLATFORM_EMAIL: { send },
+  };
+  await deliverComplianceReminderJob(deliveryEnv, job(dueDate));
+  // Assignee receives one copy like every other admin; ordinary members receive none.
+  expect(send).toHaveBeenCalledTimes(2);
+  expect(send.mock.calls.map(([message]) => message.to).sort()).toEqual([
+    "admin@example.test",
+    "owner@example.test",
+  ]);
+});
+
+it("delivers custom reminders while nonprofit tracking is disabled", async () => {
+  const stub = stores.getByName(organizationId);
+  const created = await stub.createComplianceTask({
+    ...actor,
+    nextDueDate: dueDate,
+    title: "Custom deadline",
+  });
+  if (!created.ok || !created.task) throw new Error("Custom creation failed.");
+  await stub.setNonprofitEnabled({ ...actor, enabled: false });
+  const send = vi.fn<(message: EmailMessage | EmailMessageBuilder) => Promise<EmailSendResult>>(
+    () => Promise.resolve({ messageId: crypto.randomUUID() }),
+  );
+  const deliveryEnv: JobConsumerEnv = {
+    ...env,
+    EXTERNAL_EFFECTS_MODE: "sandbox",
+    PLATFORM_EMAIL_MODE: "sandbox",
+    PLATFORM_EMAIL_FROM: "notifications@example.test",
+    PLATFORM_EMAIL_ALLOWED_RECIPIENTS: "",
+    PLATFORM_EMAIL: { send },
+  };
+  const customJob: DeliveryJob = {
+    attempt: 1,
+    version: 1,
+    jobId: crypto.randomUUID(),
+    organizationId,
+    kind: "compliance_reminder",
+    idempotencyKey: `nonprofit-compliance:${organizationId}:${created.task.id}:${dueDate}:${dueDate}`,
+  };
+  await deliverComplianceReminderJob(deliveryEnv, customJob);
+  expect(send).toHaveBeenCalledTimes(2);
+  // Builtin stops while disabled.
+  await deliverComplianceReminderJob(deliveryEnv, job(dueDate));
+  expect(send).toHaveBeenCalledTimes(2);
+});
+
+it("drops archived tasks without sending", async () => {
+  const stub = stores.getByName(organizationId);
+  const created = await stub.createComplianceTask({
+    ...actor,
+    nextDueDate: dueDate,
+    title: "Archivable",
+  });
+  if (!created.ok || !created.task) throw new Error("Custom creation failed.");
+  await stub.archiveComplianceTask({ ...actor, taskId: created.task.id });
+  const send = vi.fn<(message: EmailMessage | EmailMessageBuilder) => Promise<EmailSendResult>>(
+    () => Promise.resolve({ messageId: crypto.randomUUID() }),
+  );
+  const deliveryEnv: JobConsumerEnv = {
+    ...env,
+    EXTERNAL_EFFECTS_MODE: "sandbox",
+    PLATFORM_EMAIL_MODE: "sandbox",
+    PLATFORM_EMAIL_FROM: "notifications@example.test",
+    PLATFORM_EMAIL_ALLOWED_RECIPIENTS: "",
+    PLATFORM_EMAIL: { send },
+  };
+  const archivedJob: DeliveryJob = {
+    attempt: 1,
+    version: 1,
+    jobId: crypto.randomUUID(),
+    organizationId,
+    kind: "compliance_reminder",
+    idempotencyKey: `nonprofit-compliance:${organizationId}:${created.task.id}:${dueDate}:${dueDate}`,
+  };
+  await deliverComplianceReminderJob(deliveryEnv, archivedJob);
+  expect(send).not.toHaveBeenCalled();
 });
 
 it("processes compliance bounces through the global suppression ledger", async () => {

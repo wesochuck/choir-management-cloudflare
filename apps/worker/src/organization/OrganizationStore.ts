@@ -53,8 +53,11 @@ import {
   type ApplyHistoricalStripeReconciliationInput,
 } from "./stripePaymentReconciliationStore";
 import {
+  archiveComplianceTaskInStore,
   completeComplianceTaskInStore,
+  createComplianceTaskInStore,
   readNonprofitComplianceFromStore,
+  restoreComplianceTaskInStore,
   setNonprofitEnabledInStore,
   updateComplianceTaskInStore,
 } from "./complianceStore";
@@ -390,17 +393,78 @@ export class OrganizationStore extends DurableObject {
   updateComplianceTask(input: {
     readonly actorUserId: string;
     readonly applicable?: boolean | undefined;
+    readonly description?: string | undefined;
     readonly nextDueDate?: string | null | undefined;
     readonly organizationId: string;
     readonly recurrenceMonths?: number | undefined;
+    readonly referenceUrl?: string | null | undefined;
+    readonly responsibleMembershipId?: string | null | undefined;
+    readonly responsibleUserId?: string | null | undefined;
     readonly requestId: string;
     readonly taskId: string;
+    readonly title?: string | undefined;
   }) {
     return updateComplianceTaskInStore(this.ctx.storage, input, input.taskId, {
       ...(input.applicable !== undefined ? { applicable: input.applicable } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.nextDueDate !== undefined ? { nextDueDate: input.nextDueDate } : {}),
       ...(input.recurrenceMonths !== undefined ? { recurrenceMonths: input.recurrenceMonths } : {}),
+      ...(input.referenceUrl !== undefined ? { referenceUrl: input.referenceUrl } : {}),
+      ...(input.responsibleMembershipId !== undefined
+        ? { responsibleMembershipId: input.responsibleMembershipId }
+        : {}),
+      ...(input.responsibleUserId !== undefined
+        ? { responsibleUserId: input.responsibleUserId }
+        : {}),
+      ...(input.title !== undefined ? { title: input.title } : {}),
     });
+  }
+
+  createComplianceTask(input: {
+    readonly actorUserId: string;
+    readonly applicable?: boolean | undefined;
+    readonly description?: string | undefined;
+    readonly nextDueDate?: string | null | undefined;
+    readonly organizationId: string;
+    readonly recurrenceMonths?: number | undefined;
+    readonly referenceUrl?: string | null | undefined;
+    readonly requestId: string;
+    readonly responsibleMembershipId?: string | null | undefined;
+    readonly responsibleUserId?: string | null | undefined;
+    readonly title: string;
+  }) {
+    return createComplianceTaskInStore(this.ctx.storage, input, {
+      ...(input.applicable !== undefined ? { applicable: input.applicable } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.nextDueDate !== undefined ? { nextDueDate: input.nextDueDate } : {}),
+      ...(input.recurrenceMonths !== undefined ? { recurrenceMonths: input.recurrenceMonths } : {}),
+      ...(input.referenceUrl !== undefined ? { referenceUrl: input.referenceUrl } : {}),
+      ...(input.responsibleMembershipId !== undefined
+        ? { responsibleMembershipId: input.responsibleMembershipId }
+        : {}),
+      ...(input.responsibleUserId !== undefined
+        ? { responsibleUserId: input.responsibleUserId }
+        : {}),
+      title: input.title,
+    });
+  }
+
+  archiveComplianceTask(input: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+    readonly taskId: string;
+  }) {
+    return archiveComplianceTaskInStore(this.ctx.storage, input, input.taskId);
+  }
+
+  restoreComplianceTask(input: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+    readonly taskId: string;
+  }) {
+    return restoreComplianceTaskInStore(this.ctx.storage, input, input.taskId);
   }
 
   completeComplianceTask(input: {

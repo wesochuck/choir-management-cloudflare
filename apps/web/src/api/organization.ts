@@ -36,6 +36,9 @@ import {
   type OrganizationExportStatusResponse,
   moduleStatesResponseSchema,
   nonprofitComplianceSettingsResponseSchema,
+  complianceAssigneesResponseSchema,
+  type ComplianceAssigneesResponse,
+  type ComplianceTaskCreateRequest,
   type ModuleState,
   type NonprofitComplianceSettingsResponse,
 } from "@choir/contracts";
@@ -346,8 +349,12 @@ export async function updateComplianceTask(
   taskId: string,
   update: {
     readonly applicable?: boolean;
+    readonly description?: string;
     readonly nextDueDate?: string | null;
     readonly recurrenceMonths?: number;
+    readonly referenceUrl?: string | null;
+    readonly responsibleMembershipId?: string | null;
+    readonly title?: string;
   },
 ): Promise<NonprofitComplianceSettingsResponse> {
   const response = await request(
@@ -358,6 +365,51 @@ export async function updateComplianceTask(
     },
   );
   return nonprofitComplianceSettingsResponseSchema.parse(await response.json());
+}
+
+export async function createComplianceTask(
+  create: ComplianceTaskCreateRequest,
+): Promise<NonprofitComplianceSettingsResponse> {
+  const response = await request("/api/organization/compliance/tasks", {
+    body: JSON.stringify(create),
+    method: "POST",
+  });
+  return nonprofitComplianceSettingsResponseSchema.parse(await response.json());
+}
+
+export async function archiveComplianceTask(
+  taskId: string,
+): Promise<NonprofitComplianceSettingsResponse> {
+  const response = await request(
+    `/api/organization/compliance/tasks/${encodeURIComponent(taskId)}/archive`,
+    {
+      body: JSON.stringify({ taskId }),
+      method: "POST",
+    },
+  );
+  return nonprofitComplianceSettingsResponseSchema.parse(await response.json());
+}
+
+export async function restoreComplianceTask(
+  taskId: string,
+): Promise<NonprofitComplianceSettingsResponse> {
+  const response = await request(
+    `/api/organization/compliance/tasks/${encodeURIComponent(taskId)}/restore`,
+    {
+      body: JSON.stringify({ taskId }),
+      method: "POST",
+    },
+  );
+  return nonprofitComplianceSettingsResponseSchema.parse(await response.json());
+}
+
+export async function getComplianceAssignees(
+  signal?: AbortSignal,
+): Promise<ComplianceAssigneesResponse> {
+  const response = await request("/api/organization/compliance/assignees", {
+    signal: signal ?? null,
+  });
+  return complianceAssigneesResponseSchema.parse(await response.json());
 }
 
 export async function completeComplianceTask(

@@ -134,6 +134,16 @@ describe("Organization scheduler", () => {
       taskId: ohio.id,
       nextDueDate: futureDateString({ days: 29 }),
     });
+    // Park the remaining builtins outside the 28-day lead window so only IRS queues.
+    for (const task of settings.tasks) {
+      if (task.id !== irs.id && task.id !== ohio.id) {
+        await stub.updateComplianceTask({
+          ...actor,
+          taskId: task.id,
+          nextDueDate: futureDateString({ days: 90 }),
+        });
+      }
+    }
     await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
       state.storage.sql.exec("UPDATE organization_metadata SET timezone = 'UTC'");
       state.storage.sql.exec(
@@ -148,7 +158,7 @@ describe("Organization scheduler", () => {
     );
     expect(first).toHaveLength(1);
     expect(first[0]?.idempotencyKey).toContain(
-      `nonprofit-compliance:organization-scheduler:irs_annual_return:${dueDate}:`,
+      `nonprofit-compliance:organization-scheduler:${irs.id}:${dueDate}:`,
     );
     expect(first[0]?.enqueuedAt).toEqual(expect.any(String));
     const refreshed = await stub.readNonprofitCompliance();
