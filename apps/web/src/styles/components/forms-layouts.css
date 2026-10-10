@@ -964,3 +964,38 @@
     }
   }
 }
+
+.ticket-checkout-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+
+.ticket-checkout-footer__note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-xs);
+  margin: 0;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+}
+
+.ticket-checkout-footer__icon {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: var(--spacing-3xs);
+}
+
+@media (max-width: 40rem) {
+  .ticket-checkout-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ticket-checkout-footer .button {
+    width: 100%;
+  }
+}

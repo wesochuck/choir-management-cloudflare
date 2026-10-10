@@ -10,11 +10,14 @@ import type {
 import type * as AuthApiModule from "../auth/api";
 import {
   AuthApiError,
+  createPublicTicketCheckout,
   getPublicCommerceProjection,
   getPublicTicketConfirmationSettings,
+  getPublicTicketDiscountAvailability,
   getPublicTicketPurchase,
   getPublicTransactionFeeSettings,
   getPublishedOrganizationProjection,
+  quotePublicTicketCheckout,
 } from "../auth/api";
 import {
   PublicTickets,
@@ -121,7 +124,7 @@ describe("TicketBundlePurchaseForm", () => {
       await Promise.resolve();
     });
     expect(screen.getByRole("alert")).toHaveTextContent("Card payments must total at least $0.50");
-    expect(screen.getByRole("button", { name: "Complete bundle order" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continue to secure payment" })).toBeDisabled();
 
     const complimentary = checkoutProjection(500, 0);
     const complimentaryBundle = complimentary.payload.ticketBundles[0];
@@ -134,7 +137,7 @@ describe("TicketBundlePurchaseForm", () => {
         projection={complimentary}
       />,
     );
-    expect(screen.getByRole("button", { name: "Complete bundle order" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Confirm free order" })).toBeEnabled();
 
     const boundary = checkoutProjection(500, 19);
     const boundaryBundle = boundary.payload.ticketBundles[0];
@@ -147,7 +150,7 @@ describe("TicketBundlePurchaseForm", () => {
         projection={boundary}
       />,
     );
-    expect(screen.getByRole("button", { name: "Complete bundle order" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Continue to secure payment" })).toBeEnabled();
   });
 
   it("renders included concerts in chronological order with the soonest at the top in a bulleted list", async () => {
@@ -278,7 +281,7 @@ describe("TicketsContent", () => {
       await Promise.resolve();
     });
     expect(screen.getByRole("alert")).toHaveTextContent("Card payments must total at least $0.50");
-    expect(screen.getByRole("button", { name: "Complete ticket order" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Continue to secure payment" })).toBeDisabled();
 
     const complimentary = checkoutProjection(0, 500);
     rerender(
@@ -289,7 +292,7 @@ describe("TicketsContent", () => {
         projection={complimentary}
       />,
     );
-    expect(screen.getByRole("button", { name: "Complete ticket order" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Confirm free order" })).toBeEnabled();
 
     const boundary = checkoutProjection(19, 500);
     rerender(
@@ -300,7 +303,7 @@ describe("TicketsContent", () => {
         projection={boundary}
       />,
     );
-    expect(screen.getByRole("button", { name: "Complete ticket order" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Continue to secure payment" })).toBeEnabled();
   });
 
   it("displays bundles first, then concerts in chronological order with the closest concert to today after the bundles", () => {
@@ -1015,7 +1018,7 @@ describe("PublicTickets shell layout", () => {
 
     expect(await screen.findByRole("heading", { name: "Spring Concert" })).toBeInTheDocument();
     expect(screen.getByText("Lancaster Community Chorus")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Complete ticket order" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue to secure payment" })).toBeInTheDocument();
 
     // Standalone shell on detail page does not show general navigation
     expect(screen.queryByRole("navigation", { name: "Public website" })).not.toBeInTheDocument();
@@ -1047,7 +1050,9 @@ describe("PublicTickets shell layout", () => {
     expect(
       await screen.findByText("Ticket sales are closed for this performance."),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Complete ticket order" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Continue to secure payment" }),
+    ).not.toBeInTheDocument();
   });
 
   it("reopens ticket sales when live commerce projection reflects a future rescheduled date even if published projection was stale/past", async () => {
@@ -1084,7 +1089,7 @@ describe("PublicTickets shell layout", () => {
     render(<PublicTickets pathname="/tickets/74e47064-75b9-47e9-97e6-c28f5430bee0" />);
 
     expect(await screen.findByRole("heading", { name: "Spring Concert" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Complete ticket order" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue to secure payment" })).toBeInTheDocument();
     expect(
       screen.queryByText("Ticket sales are closed for this performance."),
     ).not.toBeInTheDocument();
@@ -1799,5 +1804,150 @@ describe("TicketReceipt", () => {
     const graphic = screen.getByAltText("Choral Subscription 2026");
     expect(graphic).toHaveAttribute("src", "/api/public/media/5/bundle-art-file-456");
     expect(graphic).toHaveClass("ticket-receipt-graphic__image");
+  });
+});
+
+describe("TicketCheckoutFooter", () => {
+  const freeQuote = {
+    discountAmountCents: 2000,
+    discountCode: "FREE100",
+    discountType: "percentage",
+    discountValue: 100,
+    discountedSubtotalCents: 0,
+    feeCents: 0,
+    originalSubtotalCents: 2000,
+    originalUnitPriceCents: 2000,
+    quantity: 1,
+    totalCents: 0,
+  } as const;
+
+  function singleForm(eventPriceCents: number) {
+    const projection = checkoutProjection(eventPriceCents, 500);
+    render(
+      <TicketsContent
+        feeSettings={feeSettings}
+        nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+        pathname="/tickets/11111111-1111-4111-8111-111111111111"
+        projection={projection}
+      />,
+    );
+  }
+
+  function bundleForm(bundlePriceCents: number) {
+    const projection = checkoutProjection(500, bundlePriceCents);
+    const bundle = projection.payload.ticketBundles[0];
+    if (!bundle) throw new Error("Expected checkout test bundle");
+    render(
+      <TicketBundlePurchaseForm
+        bundle={bundle}
+        feeSettings={feeSettings}
+        projection={projection}
+      />,
+    );
+  }
+
+  it("reassures paid single-performance buyers about the Stripe next step", async () => {
+    singleForm(2000);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByText("You won't be charged yet.")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "You'll review and confirm your payment securely with Stripe on the next page.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue to secure payment" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Confirm free order" })).not.toBeInTheDocument();
+  });
+
+  it("reassures paid bundle buyers about the Stripe next step", async () => {
+    bundleForm(2000);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByText("You won't be charged yet.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Continue to secure payment" })).toBeEnabled();
+  });
+
+  it("confirms free orders inside Choir Manager without promising Stripe", async () => {
+    const projection = checkoutProjection(0, 0);
+    const bundle = projection.payload.ticketBundles[0];
+    if (!bundle) throw new Error("Expected checkout test bundle");
+    const { rerender } = render(
+      <TicketsContent
+        feeSettings={feeSettings}
+        nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+        pathname="/tickets/11111111-1111-4111-8111-111111111111"
+        projection={projection}
+      />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByText("No payment required.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your free order will be confirmed when you continue."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm free order" })).toBeEnabled();
+    expect(screen.queryByText(/Stripe on the next page/)).not.toBeInTheDocument();
+
+    rerender(
+      <TicketBundlePurchaseForm
+        bundle={bundle}
+        feeSettings={feeSettings}
+        projection={projection}
+      />,
+    );
+    expect(screen.getByText("No payment required.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm free order" })).toBeEnabled();
+  });
+
+  it("updates the CTA when applying and removing a 100 percent discount", async () => {
+    const user = userEvent.setup();
+    vi.mocked(getPublicTicketDiscountAvailability).mockResolvedValue(true);
+    vi.mocked(quotePublicTicketCheckout).mockResolvedValue({ ...freeQuote });
+    try {
+      singleForm(2000);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(
+        screen.getByRole("button", { name: "Continue to secure payment" }),
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Have a discount code?" }));
+      await user.type(screen.getByLabelText("Discount code (optional)"), "FREE100");
+      await user.click(screen.getByRole("button", { name: "Apply code" }));
+      expect(await screen.findByRole("button", { name: "Confirm free order" })).toBeEnabled();
+      expect(screen.getByText("No payment required.")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Remove" }));
+      expect(
+        await screen.findByRole("button", { name: "Continue to secure payment" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("No payment required.")).not.toBeInTheDocument();
+    } finally {
+      vi.mocked(getPublicTicketDiscountAvailability).mockResolvedValue(false);
+      vi.mocked(quotePublicTicketCheckout).mockReset();
+    }
+  });
+
+  it("labels submission in progress for the actual paid action", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createPublicTicketCheckout).mockImplementation(() => new Promise(() => undefined));
+    try {
+      singleForm(2000);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      await user.type(screen.getByLabelText("Name on order"), "Casey Buyer");
+      await user.type(screen.getByLabelText("Email"), "casey@example.test");
+      await user.type(screen.getByLabelText("Confirm email"), "casey@example.test");
+      await user.click(screen.getByRole("button", { name: "Continue to secure payment" }));
+      expect(await screen.findByRole("button", { name: "Continuing to payment…" })).toBeDisabled();
+    } finally {
+      vi.mocked(createPublicTicketCheckout).mockReset();
+    }
   });
 });
