@@ -18,6 +18,7 @@ import {
 import {
   buildAttendanceRow,
   buildCalendarSettingsResponse,
+  buildComplianceAssigneesResponse,
   buildDirectoryAltoProfile,
   buildDonation,
   buildMemberProfile,
@@ -341,6 +342,13 @@ export async function installOrganizationApi(
       return;
     }
     await fulfillJson(route, buildNonprofitComplianceSettingsResponse());
+  });
+  await page.route("**/api/organization/compliance/assignees", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await fulfillJson(route, buildComplianceAssigneesResponse());
   });
   await page.route("**/api/organization/roster-configuration", async (route) => {
     const configuration =

@@ -45,6 +45,7 @@ import {
   singerEventsResponseSchema,
   singerSeatingResponseSchema,
   moduleStatesResponseSchema,
+  complianceAssigneesResponseSchema,
   nonprofitComplianceSettingsResponseSchema,
   organizationSeatingChartsResponseSchema,
   setupStatusSchema,
@@ -484,6 +485,12 @@ export function buildCalendarSettingsResponse(timezone = "America/New_York") {
 export function buildNonprofitComplianceSettingsResponse(enabled = false) {
   return validated({ enabled, requestId: defaultFixtureRequestId, tasks: [] }, (value) =>
     nonprofitComplianceSettingsResponseSchema.parse(value),
+  );
+}
+
+export function buildComplianceAssigneesResponse() {
+  return validated({ assignees: [], requestId: defaultFixtureRequestId }, (value) =>
+    complianceAssigneesResponseSchema.parse(value),
   );
 }
 
