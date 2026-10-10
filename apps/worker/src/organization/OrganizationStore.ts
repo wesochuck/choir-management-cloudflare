@@ -58,6 +58,17 @@ import {
   setNonprofitEnabledInStore,
   updateComplianceTaskInStore,
 } from "./complianceStore";
+import {
+  commitProfileReconciliationInStore,
+  findReconciliationCandidatesInStore,
+  getProfileReconciliationStatusInStore,
+  prepareProfileReconciliationInStore,
+  previewProfileReconciliationInStore,
+  resolveCanonicalProfileId,
+  type CommitProfileReconciliationInput,
+  type PrepareProfileReconciliationInput,
+  type PreviewProfileReconciliationInput,
+} from "./organizationStore/profileReconciliation";
 import { migrateOrganization } from "./migrations";
 import { runOrganizationAlarm, wakeOrganizationAlarm } from "./scheduler";
 import { dispatchPostRequest } from "./organizationStore/post";
@@ -458,6 +469,35 @@ export class OrganizationStore extends DurableObject {
     readonly organizationId: string;
   }) {
     return getRosterInviteEnrollmentResultInStore(this.ctx.storage, input);
+  }
+
+  // Profile reconciliation / duplicate resolution: strongly typed Durable Object RPC methods.
+  // Call via `stub.methodName(...)`; no internal fetch routing.
+  previewProfileReconciliation(input: PreviewProfileReconciliationInput) {
+    return previewProfileReconciliationInStore(this.ctx.storage, input);
+  }
+
+  prepareProfileReconciliation(input: PrepareProfileReconciliationInput) {
+    return prepareProfileReconciliationInStore(this.ctx.storage, input);
+  }
+
+  commitProfileReconciliation(input: CommitProfileReconciliationInput) {
+    return commitProfileReconciliationInStore(this.ctx.storage, input);
+  }
+
+  findReconciliationCandidates(input: {
+    readonly query?: string | undefined;
+    readonly sourceProfileId: string;
+  }) {
+    return findReconciliationCandidatesInStore(this.ctx.storage, input);
+  }
+
+  getProfileReconciliationStatus(reconciliationId: string) {
+    return getProfileReconciliationStatusInStore(this.ctx.storage, reconciliationId);
+  }
+
+  resolveCanonicalProfileId(profileId: string) {
+    return resolveCanonicalProfileId(this.ctx.storage, profileId);
   }
 
   // Email-domain DNS verification: strongly typed Durable Object RPC methods.

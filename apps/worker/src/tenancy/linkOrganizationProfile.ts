@@ -60,6 +60,28 @@ export async function linkOrganizationProfile(
     return failure("conflict", "This Organization Profile is already linked to a Membership.");
   }
 
+  const activeReconciliation = await env.CONTROL_DB.prepare(
+    `SELECT id FROM organization_profile_reconciliations
+     WHERE organization_id = ? AND (membership_id = ? OR source_profile_id = ? OR target_profile_id = ?)
+       AND state IN ('reserved', 'prepared', 'relinked', 'needs_repair')
+     LIMIT 1`,
+  )
+    .bind(input.organizationId, input.membershipId, input.profileId, input.profileId)
+    .first<{ id: string }>();
+
+  if (activeReconciliation) {
+    return failure(
+      "conflict",
+      "This Profile or Membership is currently involved in an active profile reconciliation.",
+    );
+  }
+
+  const stub = organizationStoreStub(env, input.organizationId);
+  const canonicalProfileId = await stub.resolveCanonicalProfileId(input.profileId);
+  if (canonicalProfileId !== input.profileId) {
+    return failure("conflict", "This Profile has been retired into an alias.");
+  }
+
   const occurredAt = now.toISOString();
   try {
     await env.CONTROL_DB.batch([

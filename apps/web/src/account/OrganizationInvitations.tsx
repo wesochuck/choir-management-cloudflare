@@ -23,6 +23,7 @@ import {
   updateOrganizationMemberRole,
 } from "../auth/api";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
+import { ResolveDuplicateDialog } from "./ResolveDuplicateDialog";
 
 function displayDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
@@ -251,6 +252,7 @@ function MembershipProfileLinkList({
   currentUserEmail,
   currentUserId,
   onLink,
+  onOpenResolveDuplicate,
   onOpenRoleChange,
   onSelectedProfile,
   selectedProfiles,
@@ -261,6 +263,7 @@ function MembershipProfileLinkList({
   readonly currentUserEmail?: string | undefined;
   readonly currentUserId?: string | undefined;
   readonly onLink: (membership: OrganizationMembershipSummary) => void;
+  readonly onOpenResolveDuplicate?: (membership: OrganizationMembershipSummary) => void;
   readonly onOpenRoleChange: (membership: OrganizationMembershipSummary) => void;
   readonly onSelectedProfile: (membershipId: string, profileId: string) => void;
   readonly selectedProfiles: Readonly<Record<string, string>>;
@@ -301,6 +304,19 @@ function MembershipProfileLinkList({
                     type="button"
                   >
                     Change role
+                  </button>
+                ) : null}
+                {onOpenResolveDuplicate && membership.profileId ? (
+                  <button
+                    aria-label={`Resolve duplicate for ${membership.name}`}
+                    className="button button--secondary"
+                    disabled={busyMembershipId !== null}
+                    onClick={() => {
+                      onOpenResolveDuplicate(membership);
+                    }}
+                    type="button"
+                  >
+                    Resolve duplicate
                   </button>
                 ) : null}
                 <label className="field">
@@ -366,7 +382,36 @@ function MembershipProfileLinks({ context }: { readonly context: OrganizationAut
   const [currentUser, setCurrentUser] = useState<CurrentAuthSession | null>(null);
   const [roleDialogMembership, setRoleDialogMembership] =
     useState<OrganizationMembershipSummary | null>(null);
+  const [resolveDuplicateMembership, setResolveDuplicateMembership] =
+    useState<OrganizationMembershipSummary | null>(null);
   const mfaBlocked = context.mfaRequired && !context.mfaSatisfied;
+
+  async function reloadMembershipLinks() {
+    try {
+      const [membershipResult, profiles] = await Promise.all([
+        listOrganizationMemberships(),
+        listOrganizationProfiles(),
+      ]);
+      setState({
+        memberships: membershipResult.memberships,
+        profiles,
+        status: "ready",
+        truncated: membershipResult.truncated,
+      });
+      setSelectedProfiles(
+        Object.fromEntries(
+          membershipResult.memberships.map((membership) => [
+            membership.id,
+            membership.profileId ?? "",
+          ]),
+        ),
+      );
+    } catch (error: unknown) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        setState({ status: "error" });
+      }
+    }
+  }
 
   useEffect(() => {
     if (context.role === "member" || mfaBlocked) return;
@@ -489,6 +534,9 @@ function MembershipProfileLinks({ context }: { readonly context: OrganizationAut
             onLink={(membership) => {
               void linkProfile(membership);
             }}
+            onOpenResolveDuplicate={(membership) => {
+              setResolveDuplicateMembership(membership);
+            }}
             onOpenRoleChange={(membership) => {
               setRoleDialogMembership(membership);
             }}
@@ -509,6 +557,29 @@ function MembershipProfileLinks({ context }: { readonly context: OrganizationAut
                 setRoleDialogMembership(null);
               }}
               onRoleUpdated={handleRoleUpdated}
+            />
+          ) : null}
+          {resolveDuplicateMembership?.profileId ? (
+            <ResolveDuplicateDialog
+              allProfiles={state.profiles}
+              linkedProfileIds={
+                new Set(state.memberships.flatMap((m) => (m.profileId ? [m.profileId] : [])))
+              }
+              membershipEmail={resolveDuplicateMembership.email}
+              membershipId={resolveDuplicateMembership.id}
+              membershipName={resolveDuplicateMembership.name}
+              onClose={() => {
+                setResolveDuplicateMembership(null);
+              }}
+              onReconciled={() => {
+                setResolveDuplicateMembership(null);
+                setMessage(
+                  `Successfully resolved duplicate Profile for ${resolveDuplicateMembership.email}.`,
+                );
+                void reloadMembershipLinks();
+              }}
+              open={true}
+              sourceProfileId={resolveDuplicateMembership.profileId}
             />
           ) : null}
         </>

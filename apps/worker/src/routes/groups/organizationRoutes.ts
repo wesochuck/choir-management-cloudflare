@@ -38,6 +38,7 @@ import { registerRoutes as registerOrganizationPollsRoutes } from "../organizati
 import { registerRoutes as registerOrganizationProfileDeliveriesRoutes } from "../organizationProfileDeliveries";
 import { registerRoutes as registerOrganizationProfileMutationsRoutes } from "../organizationProfileMutations";
 import { registerRoutes as registerOrganizationProfilePhotosRoutes } from "../organizationProfilePhotos";
+import { registerRoutes as registerOrganizationProfileReconciliationsRoutes } from "../organizationProfileReconciliations";
 import { registerRoutes as registerOrganizationProfileRecordsRoutes } from "../organizationProfileRecords";
 import { registerRoutes as registerOrganizationProfilesRoutes } from "../organizationProfiles";
 import { registerRoutes as registerOrganizationResourcesRoutes } from "../organizationResources";
@@ -89,6 +90,7 @@ export function registerOrganizationGroupRoutes(router: Hono<WorkerHonoEnvironme
   registerOrganizationProfileDeliveriesRoutes(router);
   registerOrganizationProfileMutationsRoutes(router);
   registerOrganizationProfilePhotosRoutes(router);
+  registerOrganizationProfileReconciliationsRoutes(router);
   registerOrganizationProfileRecordsRoutes(router);
   registerOrganizationProfilesRoutes(router);
   registerOrganizationResourcesRoutes(router);

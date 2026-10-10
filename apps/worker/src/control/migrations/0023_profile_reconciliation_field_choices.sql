@@ -1,0 +1,1 @@
+ALTER TABLE organization_profile_reconciliations ADD COLUMN field_choices_json TEXT;

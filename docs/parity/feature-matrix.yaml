@@ -2339,6 +2339,74 @@
             "apps/worker/test/musicFolderReport.integration.test.ts",
           ],
       },
+      {
+        "id": "api.organization.profile-reconciliations.preview",
+        "method": "POST",
+        "path": "/api/organization/profile-reconciliations/preview",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "verified",
+        "baselineEvidence":
+          "Target-only profile reconciliation preview replacing manual destructive PocketBase
+          member/profile edits.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationProfileReconciliations.ts",
+            "apps/worker/src/organization/organizationStore/profileReconciliation.ts",
+            "apps/worker/test/profileReconciliation.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.organization.profile-reconciliations.execute",
+        "method": "POST",
+        "path": "/api/organization/profile-reconciliations",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "verified",
+        "baselineEvidence":
+          "Target-only profile reconciliation execute replacing manual destructive PocketBase
+          member/profile edits.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationProfileReconciliations.ts",
+            "apps/worker/src/control/profileReconciliationService.ts",
+            "apps/worker/src/organization/organizationStore/profileReconciliation.ts",
+            "apps/worker/test/profileReconciliation.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.organization.profile-reconciliations.candidates",
+        "method": "GET",
+        "path": "/api/organization/profile-reconciliations/candidates",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "verified",
+        "baselineEvidence":
+          "Target-only duplicate profile candidate discovery scanning unlinked profiles in the
+          organization DO.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationProfileReconciliations.ts",
+            "apps/worker/src/organization/organizationStore/profileReconciliation.ts",
+            "apps/worker/test/profileReconciliation.integration.test.ts",
+          ],
+      },
+      {
+        "id": "api.organization.profile-reconciliations.get",
+        "method": "GET",
+        "path": "/api/organization/profile-reconciliations/:id",
+        "owner": "apps/worker",
+        "milestone": 5,
+        "status": "verified",
+        "baselineEvidence":
+          "Target-only profile reconciliation status and audit query in control-plane D1.",
+        "targetEvidence":
+          [
+            "apps/worker/src/routes/organizationProfileReconciliations.ts",
+            "apps/worker/src/control/profileReconciliationService.ts",
+            "apps/worker/test/profileReconciliation.integration.test.ts",
+          ],
+      },
     ],
   "recordHooks":
     [

@@ -1691,6 +1691,32 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     version: 104,
     statements: ["ALTER TABLE ticket_bundles ADD COLUMN public_graphic_file_id TEXT"],
   },
+  {
+    version: 105,
+    statements: [
+      "ALTER TABLE profiles ADD COLUMN merged_into_profile_id TEXT",
+      `CREATE INDEX IF NOT EXISTS idx_profiles_unmerged_candidates
+       ON profiles(hidden, merged_into_profile_id)
+       WHERE hidden = 0 AND merged_into_profile_id IS NULL`,
+      `CREATE TABLE IF NOT EXISTS profile_reconciliations (
+        id TEXT PRIMARY KEY,
+        source_profile_id TEXT NOT NULL,
+        target_profile_id TEXT NOT NULL,
+        membership_id TEXT NOT NULL,
+        actor_user_id TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('prepared', 'completed', 'failed')),
+        preview_revision TEXT NOT NULL,
+        field_choices_json TEXT NOT NULL DEFAULT '{}',
+        conflict_summary_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        completed_at TEXT
+      ) STRICT`,
+      `CREATE INDEX IF NOT EXISTS idx_profile_reconciliations_source
+       ON profile_reconciliations(source_profile_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_profile_reconciliations_target
+       ON profile_reconciliations(target_profile_id)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

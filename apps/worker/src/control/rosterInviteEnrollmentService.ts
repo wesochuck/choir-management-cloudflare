@@ -32,6 +32,7 @@ export interface RosterInviteLinkRow {
 
 export interface RosterInviteEnrollmentRow {
   readonly [column: string]: unknown;
+  readonly canonical_profile_id?: string | null | undefined;
   readonly created_at: number;
   readonly fencing_version: number;
   readonly id: string;
@@ -391,12 +392,13 @@ export async function redeemRosterInvite(
     .first<RosterInviteEnrollmentRow>();
 
   if (enrollment?.state === "completed" && enrollment.membership_id) {
+    const effectiveProfileId = enrollment.canonical_profile_id ?? enrollment.profile_id;
     return {
       ok: true,
       value: {
         enrollmentId: enrollment.id,
         membershipId: enrollment.membership_id,
-        profileId: enrollment.profile_id,
+        profileId: effectiveProfileId,
         status: "completed",
       },
     };
@@ -629,11 +631,19 @@ export async function getRosterInviteEnrollmentStatus(
     readonly organizationId: string;
   },
 ): Promise<RosterInviteEnrollmentRow | null> {
-  return database
+  const row = await database
     .prepare(
       `SELECT * FROM organization_roster_invite_enrollments
        WHERE id = ? AND organization_id = ? AND user_id = ? LIMIT 1`,
     )
     .bind(input.enrollmentId, input.organizationId, input.actorUserId)
     .first<RosterInviteEnrollmentRow>();
+  if (!row) return null;
+  if (row.canonical_profile_id) {
+    return {
+      ...row,
+      profile_id: row.canonical_profile_id,
+    };
+  }
+  return row;
 }

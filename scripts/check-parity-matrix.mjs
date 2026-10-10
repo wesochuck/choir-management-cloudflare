@@ -89,6 +89,10 @@ const expectedApiRoutes = [
   "PUT /api/organization/reports/music-folders/folder-numbers",
   "PUT /api/organization/profiles/:profileId/folder-numbers/:eventId/return-status",
   "POST /api/organization/reports/music-folders/export.csv",
+  "POST /api/organization/profile-reconciliations/preview",
+  "POST /api/organization/profile-reconciliations",
+  "GET /api/organization/profile-reconciliations/candidates",
+  "GET /api/organization/profile-reconciliations/:id",
 ];
 const expectedBrowserRoutes = [
   "/",

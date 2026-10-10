@@ -20,6 +20,7 @@ import { RosterConfiguration } from "../../RosterConfiguration";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { RosterConfigurationDraftProvider } from "../../RosterConfigurationDraftProvider";
+import { ResolveDuplicateDialog } from "../../ResolveDuplicateDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { startOrganizationImpersonation } from "../../../api";
 import type { RosterPageModel } from "./hooks";
@@ -37,6 +38,7 @@ export function RosterPageView({
   const { partLabel } = useOrganizationTerminology();
   const [activeTab, setActiveTab] = useState<RosterSection>(initialSection);
   const [inviteLinksDialogOpen, setInviteLinksDialogOpen] = useState(false);
+  const [resolveDuplicateOpen, setResolveDuplicateOpen] = useState(false);
   const {
     busy,
     bulkBusy,
@@ -109,6 +111,10 @@ export function RosterPageView({
       roster.memberships.map((membership) => [membership.profileId, { email: membership.email }]),
     );
   }, [roster]);
+  const linkedMembership = useMemo(() => {
+    if (roster.status !== "ready" || !editingId) return undefined;
+    return roster.memberships.find((membership) => membership.profileId === editingId);
+  }, [editingId, roster]);
   const selectAllVisibleRef = useRef<HTMLInputElement>(null);
   const [rosterPage, setRosterPage] = useState(1);
   const [rosterPageSize, setRosterPageSize] = useState(50);
@@ -1025,6 +1031,18 @@ export function RosterPageView({
                       Impersonate
                     </button>
                   ) : null}
+                  {editingId && linkedMembership ? (
+                    <button
+                      className="button button--secondary"
+                      disabled={busy}
+                      onClick={() => {
+                        setResolveDuplicateOpen(true);
+                      }}
+                      type="button"
+                    >
+                      Resolve duplicate
+                    </button>
+                  ) : null}
                   <DialogClose asChild>
                     <button className="button button--secondary" type="button">
                       Cancel
@@ -1039,6 +1057,28 @@ export function RosterPageView({
           </div>
         </Tabs>
       </Dialog>
+      {editingId && linkedMembership && roster.status === "ready" ? (
+        <ResolveDuplicateDialog
+          allProfiles={roster.profiles}
+          linkedProfileIds={
+            new Set(roster.memberships.flatMap((m) => (m.profileId ? [m.profileId] : [])))
+          }
+          membershipEmail={linkedMembership.email}
+          membershipId={linkedMembership.id}
+          membershipName={profile.displayName || linkedMembership.name}
+          onClose={() => {
+            setResolveDuplicateOpen(false);
+          }}
+          onReconciled={() => {
+            setResolveDuplicateOpen(false);
+            closeDialog();
+            setSuccess("Duplicate Profile successfully resolved and merged.");
+            void model.refreshRoster();
+          }}
+          open={resolveDuplicateOpen}
+          sourceProfileId={editingId}
+        />
+      ) : null}
       <CsvImportDialog
         busy={busy || rosterImportInspecting}
         columnMappings={rosterImportMappings.map((mapping) => ({

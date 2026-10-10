@@ -1,5 +1,6 @@
 import { organizationRosterConfigurationRequestSchema } from "@choir/contracts";
 import { organizationIdentity } from "./organizationStore/storeShared";
+import { resolveCanonicalProfileId } from "./organizationStore/profileReconciliation";
 
 export interface PrepareRosterInviteEnrollmentInput {
   readonly actorUserId: string;
@@ -130,10 +131,11 @@ export function getRosterInviteOptionsInStore(
       .toArray()
       .at(0);
     if (committedRow) {
+      const canonicalProfileId = resolveCanonicalProfileId(storage, committedRow.profile_id);
       const profileRow = storage.sql
         .exec<{ readonly display_name: string; readonly voice_part: string }>(
           `SELECT display_name, voice_part FROM profiles WHERE id = ? LIMIT 1`,
-          committedRow.profile_id,
+          canonicalProfileId,
         )
         .toArray()
         .at(0);
@@ -195,14 +197,15 @@ export function prepareRosterInviteEnrollmentInStore(
 
     const now = new Date().toISOString();
     if (existing) {
+      const canonicalProfileId = resolveCanonicalProfileId(storage, existing.profile_id);
       if (existing.status === "committed") {
-        return { ok: true, profileId: existing.profile_id };
+        return { ok: true, profileId: canonicalProfileId };
       }
       if (existing.status === "prepared") {
         // Return existing prepared profile ID
-        return { ok: true, profileId: existing.profile_id };
+        return { ok: true, profileId: canonicalProfileId };
       }
-      return { code: "enrollment_canceled", ok: false, profileId: existing.profile_id };
+      return { code: "enrollment_canceled", ok: false, profileId: canonicalProfileId };
     }
 
     storage.sql.exec(
@@ -252,7 +255,8 @@ export function commitRosterInviteEnrollmentInStore(
     }
 
     if (prepared.status === "committed") {
-      return { ok: true, profileId: prepared.profile_id };
+      const canonicalProfileId = resolveCanonicalProfileId(storage, prepared.profile_id);
+      return { ok: true, profileId: canonicalProfileId };
     }
 
     if (prepared.status === "canceled") {
@@ -382,9 +386,10 @@ export function getRosterInviteEnrollmentResultInStore(
     return { exists: false };
   }
 
+  const canonicalProfileId = resolveCanonicalProfileId(storage, row.profile_id);
   return {
     exists: true,
-    profileId: row.profile_id,
+    profileId: canonicalProfileId,
     status: row.status,
   };
 }

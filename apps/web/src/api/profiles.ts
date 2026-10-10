@@ -13,6 +13,14 @@ import {
   organizationProfileStatusHistoryResponseSchema,
   organizationMemberRoleUpdateResponseSchema,
   organizationImpersonationStatusResponseSchema,
+  profileReconciliationCandidatesResponseSchema,
+  profileReconciliationPreviewResponseSchema,
+  profileReconciliationResponseSchema,
+  type ProfileReconciliationCandidatesResponse,
+  type ProfileReconciliationPreviewRequest,
+  type ProfileReconciliationPreviewResponse,
+  type ProfileReconciliationExecuteRequest,
+  type ProfileReconciliationResponse,
   type OrganizationInvitationRole,
   type OrganizationMemberRoleUpdateResponse,
   type OrganizationImpersonationStatusResponse,
@@ -230,4 +238,43 @@ export async function stopOrganizationImpersonation(): Promise<OrganizationImper
     method: "POST",
   });
   return organizationImpersonationStatusResponseSchema.parse(await response.json());
+}
+
+export async function getProfileReconciliationCandidates(
+  membershipId: string,
+  query?: string,
+  signal?: AbortSignal,
+): Promise<ProfileReconciliationCandidatesResponse> {
+  const params = new URLSearchParams();
+  params.set("membershipId", membershipId);
+  if (query) params.set("q", query);
+  const response = await request(
+    `/api/organization/profile-reconciliations/candidates?${params.toString()}`,
+    {
+      signal: signal ?? null,
+    },
+  );
+  return profileReconciliationCandidatesResponseSchema.parse(await response.json());
+}
+
+export async function previewProfileReconciliation(
+  input: ProfileReconciliationPreviewRequest,
+  signal?: AbortSignal,
+): Promise<ProfileReconciliationPreviewResponse> {
+  const response = await request("/api/organization/profile-reconciliations/preview", {
+    body: JSON.stringify(input),
+    method: "POST",
+    signal: signal ?? null,
+  });
+  return profileReconciliationPreviewResponseSchema.parse(await response.json());
+}
+
+export async function executeProfileReconciliation(
+  input: ProfileReconciliationExecuteRequest,
+): Promise<ProfileReconciliationResponse> {
+  const response = await request("/api/organization/profile-reconciliations", {
+    body: JSON.stringify(input),
+    method: "POST",
+  });
+  return profileReconciliationResponseSchema.parse(await response.json());
 }

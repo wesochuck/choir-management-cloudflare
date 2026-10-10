@@ -23,4 +23,5 @@ export * from "./search";
 export * from "./contacts";
 export * from "./contactImports";
 export * from "./rosterInvites";
+export * from "./profileReconciliation";
 export * from "./platformHome";

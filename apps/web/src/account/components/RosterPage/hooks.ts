@@ -595,6 +595,22 @@ export function useRosterPageController({
     editingId && roster.status === "ready"
       ? (roster.profiles.find((candidate) => candidate.id === editingId) ?? null)
       : null;
+  async function refreshRoster() {
+    try {
+      const [profiles, memberships] = await Promise.all([
+        listOrganizationProfiles(),
+        listOrganizationMemberships(),
+      ]);
+      setRoster((current) =>
+        current.status === "ready"
+          ? { ...current, memberships: memberships.memberships, profiles }
+          : current,
+      );
+    } catch {
+      // Preserve current roster state if refetch fails
+    }
+  }
+
   return {
     busy,
     bulkBusy,
@@ -626,6 +642,7 @@ export function useRosterPageController({
     profileStatusHistory,
     profileTab,
     query,
+    refreshRoster,
     resetFeedback,
     resettingProfileId,
     roster,

@@ -4,6 +4,7 @@ import {
   reconcileEmailProviderEvents,
 } from "./communications/emailFeedback";
 import { reconcileEmailChangeNotifications } from "./auth/emailChange";
+import { repairPendingProfileReconciliations } from "./control/profileReconciliationService";
 import { processDeadLetterBatch, processDeliveryBatch } from "./jobs/consumer";
 import { OrganizationStore } from "./organization/OrganizationStore";
 import { router, setSecurityHeaders } from "./router";
@@ -63,6 +64,7 @@ const worker = {
         return Promise.all([
           reconcileEmailChangeNotifications(env),
           reconcileEmailProviderEvents(env),
+          repairPendingProfileReconciliations(env),
         ]).then(() => {
           console.info(
             JSON.stringify({
