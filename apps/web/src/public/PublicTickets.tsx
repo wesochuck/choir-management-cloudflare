@@ -1793,7 +1793,7 @@ export function TicketsContent({
       return diff !== 0 ? diff : a.title.localeCompare(b.title);
     });
   return (
-    <section className="public-section">
+    <section className="public-section public-section--tickets">
       <h1>Tickets</h1>
       {events.length === 0 && bundles.length === 0 ? (
         <p>No tickets are currently available.</p>
@@ -1817,7 +1817,10 @@ export function TicketsContent({
                 </div>
                 <div className="public-performance-card__purchase">
                   <p>{money(bundle.priceCents)} per pass</p>
-                  <a className="button button--primary" href={`/tickets/bundles/${bundle.id}`}>
+                  <a
+                    className="button button--primary ticket-card__link"
+                    href={`/tickets/bundles/${bundle.id}`}
+                  >
                     Buy pass
                   </a>
                 </div>
@@ -1866,7 +1869,10 @@ export function TicketsContent({
                   </div>
                   <div className="public-performance-card__purchase">
                     <p>From {money(event.advancePriceCents)}</p>
-                    <a className="button button--primary" href={`/tickets/${event.id}`}>
+                    <a
+                      className="button button--primary ticket-card__link"
+                      href={`/tickets/${event.id}`}
+                    >
                       Buy tickets
                     </a>
                   </div>

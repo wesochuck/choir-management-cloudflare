@@ -243,3 +243,57 @@ describe("TicketsContent ticket card purchase areas", () => {
     expect(graphic).toHaveClass("ticket-purchase-hero__image");
   });
 });
+
+describe("TicketsContent whole-card purchase navigation", () => {
+  function renderCards() {
+    render(
+      <TicketsContent
+        feeSettings={feeSettings}
+        nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+        pathname="/tickets"
+        projection={projection}
+      />,
+    );
+    const cards = screen.getAllByRole("article");
+    expect(cards).toHaveLength(2);
+    const [bundleCard, performanceCard] = cards;
+    if (!bundleCard || !performanceCard) throw new Error("Expected both ticket cards");
+    return { bundleCard, performanceCard };
+  }
+
+  it("anchors the stretched purchase link on each card without nesting interactives", () => {
+    const { bundleCard, performanceCard } = renderCards();
+
+    const bundleLink = within(bundleCard).getByRole("link", { name: "Buy pass" });
+    expect(bundleLink).toHaveAttribute("href", "/tickets/bundles/bundle-ticket-card");
+    expect(bundleLink).toHaveClass("ticket-card__link");
+
+    const performanceLink = within(performanceCard).getByRole("link", {
+      name: "Buy tickets",
+    });
+    expect(performanceLink).toHaveAttribute("href", "/tickets/event-ticket-card");
+    expect(performanceLink).toHaveClass("ticket-card__link");
+
+    for (const card of [bundleCard, performanceCard]) {
+      const nested = card.querySelectorAll("a a, a button, button a");
+      expect(nested).toHaveLength(0);
+    }
+  });
+
+  it("keeps the map link independent with its own destination and stacking", () => {
+    const { bundleCard, performanceCard } = renderCards();
+
+    const mapLink = within(performanceCard).getByRole("link", {
+      name: "View on Google Maps",
+    });
+    expect(mapLink).toHaveAttribute(
+      "href",
+      "https://www.google.com/maps/search/?api=1&query=Grace%20Chapel%2C%20456%20Choir%20Blvd%2C%20Columbus%2C%20OH%2043215",
+    );
+    expect(mapLink).toHaveAttribute("target", "_blank");
+    expect(mapLink).not.toHaveClass("ticket-card__link");
+    expect(
+      within(bundleCard).queryByRole("link", { name: "View on Google Maps" }),
+    ).not.toBeInTheDocument();
+  });
+});

@@ -173,3 +173,89 @@ test.describe("public ticket card layout", () => {
     expect(overflow).toBe(false);
   });
 });
+
+test.describe("public ticket card purchase navigation", () => {
+  test("clicking card regions follows the card purchase link", async ({ page }) => {
+    await mockTicketCardPage(page);
+    await page.setViewportSize({ height: 900, width: 1280 });
+    await page.goto("/tickets");
+
+    const bundleCard = page.locator("article", { hasText: "Season Pass" });
+    await bundleCard.click();
+    await expect(page).toHaveURL(/\/tickets\/bundles\/33333333-3333-4333-8333-333333333333$/);
+
+    await page.goto("/tickets");
+    const eventTitle = page.getByRole("heading", { name: "Spring Concert" });
+    // The stretched purchase overlay intentionally receives the pointer, so
+    // bypass actionability and assert the resulting navigation instead.
+    await eventTitle.click({ force: true });
+    await expect(page).toHaveURL(/\/tickets\/11111111-1111-4111-8111-111111111111$/);
+  });
+
+  test("keyboard users can activate the purchase link with visible card focus", async ({
+    page,
+  }) => {
+    await mockTicketCardPage(page);
+    await page.setViewportSize({ height: 900, width: 1280 });
+    await page.goto("/tickets");
+
+    const buyLink = page.getByRole("link", { name: "Buy pass" });
+    await buyLink.focus();
+    await expect(buyLink).toBeFocused();
+    const cardOutline = await page
+      .locator("article", { hasText: "Season Pass" })
+      .evaluate((card) => window.getComputedStyle(card).outlineStyle);
+    expect(cardOutline).not.toBe("none");
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/tickets\/bundles\/33333333-3333-4333-8333-333333333333$/);
+  });
+
+  test("map link keeps its own destination and does not trigger purchase navigation", async ({
+    page,
+  }) => {
+    await mockTicketCardPage(page);
+    await page.setViewportSize({ height: 900, width: 1280 });
+    await page.goto("/tickets");
+
+    const mapLink = page.getByRole("link", { name: "View on Google Maps" });
+    await expect(mapLink).toHaveAttribute("href", /google\.com\/maps/);
+    await expect(mapLink).toHaveAttribute("target", "_blank");
+    await mapLink.click();
+    await expect(page).toHaveURL(/\/tickets$/);
+  });
+
+  test("keeps less space above the title than below it on desktop and mobile", async ({ page }) => {
+    await mockTicketCardPage(page);
+    for (const viewport of [
+      { height: 900, width: 1280 },
+      { height: 844, width: 390 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/tickets");
+      await expect(page.getByRole("heading", { name: "Tickets" })).toBeVisible();
+      const spacing = await page.evaluate(() => {
+        const header = document.querySelector(".public-site-header");
+        const title = document.querySelector(".public-section--tickets > h1");
+        const grid = document.querySelector(".public-performance-grid");
+        if (
+          !(header instanceof HTMLElement) ||
+          !(title instanceof HTMLElement) ||
+          !(grid instanceof HTMLElement)
+        ) {
+          throw new Error(
+            `Missing tickets list landmarks: header=${header?.constructor.name ?? "none"} title=${title?.constructor.name ?? "none"} grid=${grid?.constructor.name ?? "none"}`,
+          );
+        }
+        const headerBox = header.getBoundingClientRect();
+        const titleBox = title.getBoundingClientRect();
+        const gridBox = grid.getBoundingClientRect();
+        return {
+          above: titleBox.top - headerBox.bottom,
+          below: gridBox.top - titleBox.bottom,
+        };
+      });
+      expect(spacing.below).toBeGreaterThanOrEqual(20);
+      expect(spacing.above).toBeLessThan(spacing.below);
+    }
+  });
+});

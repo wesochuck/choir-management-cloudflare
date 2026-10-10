@@ -289,6 +289,16 @@
     padding-block: 4rem;
   }
 
+  /* Tickets list view only: less air above the title than the default
+     section padding, and a deliberate margin below it before the grid. */
+  .public-section--tickets {
+    padding-block-start: var(--spacing-lg);
+  }
+
+  .public-section--tickets > h1 {
+    margin-bottom: var(--spacing-xl);
+  }
+
   .public-section--narrow {
     max-width: 48rem;
   }
@@ -345,6 +355,41 @@
   .public-performance-card--ticket {
     display: flex;
     flex-direction: column;
+  }
+
+  /* Whole-card purchase navigation via a stretched native link: clicking the
+     image, title, details, price, or empty background follows the card's Buy
+     action with normal link behavior (keyboard, new tab, copy link). The
+     overlay adds no layout, so card-height alignment is preserved. */
+  .public-performance-card--ticket {
+    position: relative;
+  }
+
+  .public-performance-card--ticket:hover {
+    border-color: var(--color-primary);
+    cursor: pointer;
+  }
+
+  .ticket-card__link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+  }
+
+  .ticket-card__link:focus-visible {
+    outline: none;
+  }
+
+  .public-performance-card--ticket:has(.ticket-card__link:focus-visible) {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  /* Independent embedded links stay above the stretched overlay and keep
+     their own behavior and focus. */
+  .public-performance-card--ticket .public-performance-map-link {
+    position: relative;
+    z-index: 1;
   }
 
   .public-performance-card--ticket > .public-performance-card__body {
