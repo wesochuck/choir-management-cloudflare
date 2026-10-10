@@ -575,3 +575,23 @@
     border-radius: var(--radius-sm);
   }
 }
+
+/* Compliance catalog table: keep short headers and values on one line and
+   contact details readable without mid-token breaks. */
+.compliance-tasks-table .data-table th,
+.compliance-tasks-table .data-table__sort-button {
+  white-space: nowrap;
+}
+
+.compliance-tasks-table .compliance-cell--nowrap {
+  white-space: nowrap;
+}
+
+.compliance-tasks-table .compliance-cell--actions-wide {
+  min-width: 11rem;
+}
+
+.compliance-tasks-table .compliance-contact-email {
+  display: block;
+  overflow-wrap: anywhere;
+}

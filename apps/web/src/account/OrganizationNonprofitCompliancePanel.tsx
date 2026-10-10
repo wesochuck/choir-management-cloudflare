@@ -86,6 +86,38 @@ function responsibleDisplay(
   return "Unassigned";
 }
 
+function ResponsibleCell({
+  assignees,
+  task,
+}: {
+  readonly assignees: readonly ComplianceAssignee[];
+  readonly task: NonprofitComplianceTask;
+}): React.JSX.Element {
+  if (task.responsibleNeedsReassignment) return <span>Needs reassignment</span>;
+  const direct =
+    task.responsibleName && task.responsibleEmail
+      ? { email: task.responsibleEmail, name: task.responsibleName }
+      : null;
+  const assigned = task.responsibleMembershipId
+    ? assignees.find((a) => a.membershipId === task.responsibleMembershipId)
+    : undefined;
+  const contact = direct ?? (assigned ? { email: assigned.email, name: assigned.name } : null);
+  if (!contact) {
+    return <span>{task.responsibleMembershipId ? "Needs reassignment" : "Unassigned"}</span>;
+  }
+  return (
+    <span>
+      <span style={{ display: "block" }}>{contact.name}</span>
+      <span
+        className="field__hint compliance-contact-email"
+        style={{ display: "block", marginTop: "0.125rem" }}
+      >
+        {contact.email}
+      </span>
+    </span>
+  );
+}
+
 function isCustomTask(task: NonprofitComplianceTask): boolean {
   return task.source === "custom";
 }
@@ -775,18 +807,21 @@ function ComplianceCatalogView({
         sortValue: (task) => task.title,
       },
       {
+        className: "compliance-cell--nowrap",
         header: "Status",
         id: "status",
         render: (task) => <StatusCell status={calculateTaskStatus(task, today)} />,
         sortValue: (task) => statusSortValue(task, today),
       },
       {
+        className: "compliance-cell--nowrap",
         header: "Next due",
         id: "nextDue",
         render: (task) => taskDueDisplay(task, timezone),
         sortValue: (task) => task.nextDueDate,
       },
       {
+        className: "compliance-cell--nowrap",
         header: "Recurrence",
         id: "recurrence",
         render: (task) => recurrenceLabel(task),
@@ -795,10 +830,11 @@ function ComplianceCatalogView({
       {
         header: "Responsible administrator",
         id: "responsible",
-        render: (task) => responsibleDisplay(task, assignees),
+        render: (task) => <ResponsibleCell assignees={assignees} task={task} />,
         sortValue: (task) => responsibleDisplay(task, assignees),
       },
       {
+        className: "compliance-cell--nowrap",
         header: "Last completed",
         id: "lastCompleted",
         render: (task) => (
@@ -814,6 +850,7 @@ function ComplianceCatalogView({
         sortValue: (task) => task.lastCompletedDate,
       },
       {
+        className: "compliance-cell--nowrap compliance-cell--actions-wide",
         header: "Actions",
         id: "actions",
         render: (task) =>
@@ -896,26 +933,28 @@ function ComplianceCatalogView({
           </div>
         ) : null}
         {activeTasks.length > 0 ? (
-          <DataTable
-            columns={columns}
-            emptyMessage="No active compliance requirements."
-            expandedRowId={editingTaskId}
-            initialSort={{ columnId: "status", direction: "asc" }}
-            keySelector={(task) => task.id}
-            renderExpandedRow={(task) => (
-              <TaskEditor
-                assignees={assignees}
-                draft={editingTaskId === task.id ? draft : null}
-                onCancel={onCancelEdit}
-                onField={onField}
-                onSave={onSave}
-                operationBusy={operationBusy}
-                task={task}
-              />
-            )}
-            rowLabel={(task) => task.title}
-            rows={activeTasks}
-          />
+          <div className="compliance-tasks-table">
+            <DataTable
+              columns={columns}
+              emptyMessage="No active compliance requirements."
+              expandedRowId={editingTaskId}
+              initialSort={{ columnId: "status", direction: "asc" }}
+              keySelector={(task) => task.id}
+              renderExpandedRow={(task) => (
+                <TaskEditor
+                  assignees={assignees}
+                  draft={editingTaskId === task.id ? draft : null}
+                  onCancel={onCancelEdit}
+                  onField={onField}
+                  onSave={onSave}
+                  operationBusy={operationBusy}
+                  task={task}
+                />
+              )}
+              rowLabel={(task) => task.title}
+              rows={activeTasks}
+            />
+          </div>
         ) : null}
         <ArchivedTasks onRestore={onRestore} operationBusy={operationBusy} tasks={archivedTasks} />
       </div>
