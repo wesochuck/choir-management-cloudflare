@@ -144,19 +144,20 @@ test("rejects a discounted sub-fifty-cent ticket before checkout and permits a c
   await page.getByRole("button", { name: "Apply code" }).click();
 
   await expect(page.getByText("MIN43 applied")).toBeVisible();
+  await expect(page.getByText("You won't be charged yet.")).toBeVisible();
   await expect(page.getByRole("alert")).toContainText("Card payments must total at least $0.50");
-  await expect(page.getByRole("button", { name: "Complete ticket order" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Continue to secure payment" })).toBeDisabled();
   expect(checkoutCalls).toBe(0);
   await expect(page).toHaveURL(new RegExp(`/tickets/${eventId}$`));
 
   await page.getByRole("button", { name: "Remove" }).click();
   await expect(page.getByRole("alert")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Complete ticket order" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Continue to secure payment" })).toBeEnabled();
 
   await page.getByLabel("Name on order").fill("Minimum Buyer");
   await page.getByLabel("Email", { exact: true }).fill("minimum@example.test");
   await page.getByLabel("Confirm email").fill("minimum@example.test");
-  await page.getByRole("button", { name: "Complete ticket order" }).click();
+  await page.getByRole("button", { name: "Continue to secure payment" }).click();
 
   await page.waitForURL("**/tickets/order/success?token=public-ticket-checkout-token");
   expect(checkoutCalls).toBe(1);

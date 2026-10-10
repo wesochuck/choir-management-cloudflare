@@ -466,7 +466,8 @@ test.describe("public ticket pages", () => {
     await page
       .getByLabel("I would like to receive updates about future events and programs")
       .check();
-    await page.getByRole("button", { name: "Complete ticket order" }).click();
+    await expect(page.getByText("You won't be charged yet.")).toBeVisible();
+    await page.getByRole("button", { name: "Continue to secure payment" }).click();
 
     await page.waitForURL("**/tickets/order/success*");
     expect(checkoutBody).toBeTruthy();
@@ -513,7 +514,7 @@ test.describe("public ticket pages", () => {
     await page.getByLabel("Name on order").fill("Bundle Buyer");
     await page.getByLabel("Email", { exact: true }).fill("bundle@example.test");
     await page.getByLabel("Confirm email").fill("bundle@example.test");
-    await page.getByRole("button", { name: "Complete bundle order" }).click();
+    await page.getByRole("button", { name: "Continue to secure payment" }).click();
 
     await page.waitForURL("**/tickets/order/success*");
   });
@@ -575,7 +576,7 @@ test.describe("public ticket pages", () => {
     await page.getByLabel("Name on order").fill("Discount Buyer");
     await page.getByLabel("Email", { exact: true }).fill("discount@example.test");
     await page.getByLabel("Confirm email").fill("discount@example.test");
-    await page.getByRole("button", { name: "Complete ticket order" }).click();
+    await page.getByRole("button", { name: "Continue to secure payment" }).click();
     await page.waitForURL("**/tickets/order/success*");
     expect(checkoutBody).toMatchObject({ discountCode: "spring10" });
   });
