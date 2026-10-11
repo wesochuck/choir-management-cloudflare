@@ -33,33 +33,43 @@ export function useOfflineAudioUrl(
     let leaseToRelease: OfflineAudioLease | null = null;
 
     if (acquireOfflineUrl) {
-      void acquireOfflineUrl(fileId).then((lease) => {
-        if (cancelled) {
-          lease?.release();
-          return;
-        }
-        if (lease) {
-          leaseToRelease = lease;
-          setResolved({
-            fileId,
-            resolver: resolveOfflineUrl,
-            acquirer: acquireOfflineUrl,
-            url: lease.url,
-          });
-        } else {
-          setResolved({
-            fileId,
-            resolver: resolveOfflineUrl,
-            acquirer: acquireOfflineUrl,
-            url: null,
-          });
-        }
-      });
+      void acquireOfflineUrl(fileId).then(
+        (lease) => {
+          if (cancelled) {
+            lease?.release();
+            return;
+          }
+          if (lease) {
+            leaseToRelease = lease;
+            setResolved({
+              fileId,
+              resolver: resolveOfflineUrl,
+              acquirer: acquireOfflineUrl,
+              url: lease.url,
+            });
+          } else {
+            setResolved({
+              fileId,
+              resolver: resolveOfflineUrl,
+              acquirer: acquireOfflineUrl,
+              url: null,
+            });
+          }
+        },
+        () => {
+          // Storage may be unavailable (private mode); streaming still works online.
+        },
+      );
     } else {
-      void resolveOfflineUrl(fileId).then((url) => {
-        if (cancelled) return;
-        setResolved({ fileId, resolver: resolveOfflineUrl, acquirer: acquireOfflineUrl, url });
-      });
+      void resolveOfflineUrl(fileId).then(
+        (url) => {
+          if (cancelled) return;
+          setResolved({ fileId, resolver: resolveOfflineUrl, acquirer: acquireOfflineUrl, url });
+        },
+        () => {
+          // Storage may be unavailable (private mode); streaming still works online.
+        },
+      );
     }
 
     return () => {
