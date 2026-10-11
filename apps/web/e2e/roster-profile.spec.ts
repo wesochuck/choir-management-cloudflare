@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { installOrganizationApi } from "./fixtures/apiMocks";
 import { buildOrganizationProfile } from "./fixtures/builders";
@@ -17,6 +17,72 @@ async function expectNoSeriousAxeViolations(page: Page, context: string): Promis
       ),
     );
   expect(blocking, `axe violations found for ${context}`).toEqual([]);
+}
+
+type ProfileTabKey = "dues" | "email" | "folders" | "info" | "messages" | "performance";
+
+async function selectProfileTab(
+  dialog: Locator,
+  tabLabel: string,
+  tabValue: ProfileTabKey,
+): Promise<void> {
+  const sectionSelect = dialog.getByLabel("Profile section", { exact: true });
+  if (await sectionSelect.isVisible()) {
+    await sectionSelect.selectOption(tabValue);
+  } else {
+    await dialog.getByRole("tab", { name: tabLabel }).click();
+  }
+}
+
+async function expectActiveProfileTab(
+  dialog: Locator,
+  tabLabel: string,
+  tabValue: ProfileTabKey,
+): Promise<void> {
+  const sectionSelect = dialog.getByLabel("Profile section", { exact: true });
+  if (await sectionSelect.isVisible()) {
+    await expect(sectionSelect).toHaveValue(tabValue);
+  } else {
+    await expect(dialog.getByRole("tab", { name: tabLabel })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  }
+}
+
+async function expectProfileTabCount(dialog: Locator, expectedCount: number): Promise<void> {
+  const sectionSelect = dialog.getByLabel("Profile section", { exact: true });
+  if (await sectionSelect.isVisible()) {
+    await expect(sectionSelect.locator("option")).toHaveCount(expectedCount);
+  } else {
+    await expect(dialog.getByRole("tab")).toHaveCount(expectedCount);
+  }
+}
+
+async function expectProfileTabVisible(
+  dialog: Locator,
+  tabLabel: string,
+  tabValue: ProfileTabKey,
+): Promise<void> {
+  const sectionSelect = dialog.getByLabel("Profile section", { exact: true });
+  if (await sectionSelect.isVisible()) {
+    await expect(sectionSelect.locator(`option[value="${tabValue}"]`)).toHaveCount(1);
+  } else {
+    await expect(dialog.getByRole("tab", { name: tabLabel })).toBeVisible();
+  }
+}
+
+async function expectProfileTabHidden(
+  dialog: Locator,
+  tabLabel: string,
+  tabValue: ProfileTabKey,
+): Promise<void> {
+  const sectionSelect = dialog.getByLabel("Profile section", { exact: true });
+  if (await sectionSelect.isVisible()) {
+    await expect(sectionSelect.locator(`option[value="${tabValue}"]`)).toHaveCount(0);
+  } else {
+    await expect(dialog.getByRole("tab", { name: tabLabel })).toHaveCount(0);
+  }
 }
 
 test("marks section leaders beside their names without adding a roster column", async ({
@@ -337,26 +403,21 @@ test("keeps the roster profile dialog open when Messages is selected", async ({ 
   await expect(profileDialog).toBeVisible();
   await profileDialog.getByLabel("Display name").fill("Unsaved browser singer");
 
-  await profileDialog.getByRole("tab", { name: "Email & Notifications" }).click();
+  await selectProfileTab(profileDialog, "Email & Notifications", "email");
 
-  const financialAlertsCheckbox = profileDialog.getByLabel(
-    "Receive financial alerts (ticket sales)",
-  );
+  const financialAlertsCheckbox = profileDialog.getByLabel(/Financial alerts/);
   await expect(financialAlertsCheckbox).toBeVisible();
   await expect(financialAlertsCheckbox).not.toBeChecked();
   await financialAlertsCheckbox.check();
   await expect(financialAlertsCheckbox).toBeChecked();
 
-  await profileDialog.getByRole("tab", { name: "Messages" }).click();
+  await selectProfileTab(profileDialog, "Messages", "messages");
 
   await expect(profileDialog).toBeVisible();
-  await expect(profileDialog.getByRole("tab", { name: "Messages" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expectActiveProfileTab(profileDialog, "Messages", "messages");
   await expect(profileDialog.getByText("Welcome")).toBeVisible();
 
-  await profileDialog.getByRole("tab", { name: "Profile Info" }).click();
+  await selectProfileTab(profileDialog, "Profile Info", "info");
   await profileDialog.getByRole("button", { name: "Save Profile" }).click();
   await expect(profileDialog).not.toBeVisible();
   expect(savedProfilePayload).toMatchObject({
@@ -367,13 +428,11 @@ test("keeps the roster profile dialog open when Messages is selected", async ({ 
   await rosterPage.getByRole("button", { name: "Add Profile" }).click();
   const createDialog = page.getByRole("dialog", { name: "Add Profile" });
   await expect(createDialog).toBeVisible();
-  await expect(createDialog.getByRole("tab", { name: "Profile Info" })).toBeVisible();
-  await expect(createDialog.getByRole("tab", { name: "Email & Notifications" })).toBeVisible();
-  await expect(createDialog.getByRole("tab", { name: "Performance RSVPs" })).toHaveCount(0);
-  await createDialog.getByRole("tab", { name: "Email & Notifications" }).click();
-  const newProfileFinancialAlertsCheckbox = createDialog.getByLabel(
-    "Receive financial alerts (ticket sales)",
-  );
+  await expectProfileTabVisible(createDialog, "Profile Info", "info");
+  await expectProfileTabVisible(createDialog, "Email & Notifications", "email");
+  await expectProfileTabHidden(createDialog, "Performance RSVPs", "performance");
+  await selectProfileTab(createDialog, "Email & Notifications", "email");
+  const newProfileFinancialAlertsCheckbox = createDialog.getByLabel(/Financial alerts/);
   await expect(newProfileFinancialAlertsCheckbox).toBeVisible();
   await expect(newProfileFinancialAlertsCheckbox).not.toBeChecked();
   await createDialog.getByRole("button", { name: "Cancel" }).click();
@@ -508,27 +567,23 @@ test("Email & Notifications tab: four existing flags, suppression text, and #126
   await expect(profileDialog).toBeVisible();
 
   // Verify all 6 tabs exist in Edit Profile
-  await expect(profileDialog.getByRole("tab", { name: "Profile Info" })).toBeVisible();
-  await expect(profileDialog.getByRole("tab", { name: "Email & Notifications" })).toBeVisible();
-  await expect(profileDialog.getByRole("tab", { name: "Performance RSVPs" })).toBeVisible();
-  await expect(profileDialog.getByRole("tab", { name: "Dues" })).toBeVisible();
-  await expect(profileDialog.getByRole("tab", { name: "Folder numbers" })).toBeVisible();
-  await expect(profileDialog.getByRole("tab", { name: "Messages" })).toBeVisible();
+  await expectProfileTabCount(profileDialog, 6);
+  await expectProfileTabVisible(profileDialog, "Profile Info", "info");
+  await expectProfileTabVisible(profileDialog, "Email & Notifications", "email");
+  await expectProfileTabVisible(profileDialog, "Performance RSVPs", "performance");
+  await expectProfileTabVisible(profileDialog, "Dues", "dues");
+  await expectProfileTabVisible(profileDialog, "Folder numbers", "folders");
+  await expectProfileTabVisible(profileDialog, "Messages", "messages");
 
-  // Click Email & Notifications tab
-  await profileDialog.getByRole("tab", { name: "Email & Notifications" }).click();
-  await expect(profileDialog.getByRole("tab", { name: "Email & Notifications" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  // Select Email & Notifications tab
+  await selectProfileTab(profileDialog, "Email & Notifications", "email");
+  await expectActiveProfileTab(profileDialog, "Email & Notifications", "email");
 
   // Four existing checkboxes are present
   const doNotEmail = profileDialog.getByLabel("Do not email");
-  const adminNotices = profileDialog.getByLabel(
-    "Receive administrator notifications, including audition emails",
-  );
-  const rsvpDecline = profileDialog.getByLabel("Receive RSVP decline notices");
-  const financialAlerts = profileDialog.getByLabel("Receive financial alerts (ticket sales)");
+  const adminNotices = profileDialog.getByLabel(/Administrator notifications/);
+  const rsvpDecline = profileDialog.getByLabel(/RSVP decline notices/);
+  const financialAlerts = profileDialog.getByLabel(/Financial alerts/);
 
   await expect(doNotEmail).toBeVisible();
   await expect(adminNotices).toBeVisible();
@@ -548,9 +603,9 @@ test("Email & Notifications tab: four existing flags, suppression text, and #126
     profileDialog.getByText(/currently scheduled about 48 hours before an event/),
   ).toBeVisible();
 
-  const rehearsalReminders = profileDialog.getByLabel(/Rehearsal reminders/);
-  const performanceReminders = profileDialog.getByLabel(/Performance reminders/);
-  const otherEventReminders = profileDialog.getByLabel(/Other Event reminders/);
+  const rehearsalReminders = profileDialog.getByLabel(/Rehearsals/);
+  const performanceReminders = profileDialog.getByLabel(/Performances/);
+  const otherEventReminders = profileDialog.getByLabel(/Other events/);
 
   await expect(rehearsalReminders).toBeChecked();
   await expect(performanceReminders).toBeChecked();
@@ -606,44 +661,39 @@ test("Add Profile two-tab layout, default values, unsaved changes across tabs, a
   await expect(createDialog).toBeVisible();
 
   // Exactly two tabs in Add Profile
-  const tabTriggers = createDialog.getByRole("tab");
-  await expect(tabTriggers).toHaveCount(2);
-  await expect(createDialog.getByRole("tab", { name: "Profile Info" })).toBeVisible();
-  await expect(createDialog.getByRole("tab", { name: "Email & Notifications" })).toBeVisible();
-  await expect(createDialog.getByRole("tab", { name: "Messages" })).toHaveCount(0);
-  await expect(createDialog.getByRole("tab", { name: "Performance RSVPs" })).toHaveCount(0);
+  await expectProfileTabCount(createDialog, 2);
+  await expectProfileTabVisible(createDialog, "Profile Info", "info");
+  await expectProfileTabVisible(createDialog, "Email & Notifications", "email");
+  await expectProfileTabHidden(createDialog, "Messages", "messages");
+  await expectProfileTabHidden(createDialog, "Performance RSVPs", "performance");
 
   // Fill in display name on Profile Info tab
   await createDialog.getByLabel("Display name").fill("Brand New Singer");
 
   // Switch to Email & Notifications tab
-  await createDialog.getByRole("tab", { name: "Email & Notifications" }).click();
+  await selectProfileTab(createDialog, "Email & Notifications", "email");
 
   // Verify defaults
   await expect(createDialog.getByLabel("Do not email")).not.toBeChecked();
-  await expect(
-    createDialog.getByLabel("Receive administrator notifications, including audition emails"),
-  ).not.toBeChecked();
-  await expect(createDialog.getByLabel("Receive RSVP decline notices")).not.toBeChecked();
-  await expect(
-    createDialog.getByLabel("Receive financial alerts (ticket sales)"),
-  ).not.toBeChecked();
-  await expect(createDialog.getByLabel(/Rehearsal reminders/)).toBeChecked();
-  await expect(createDialog.getByLabel(/Performance reminders/)).toBeChecked();
-  await expect(createDialog.getByLabel(/Other Event reminders/)).toBeChecked();
+  await expect(createDialog.getByLabel(/Administrator notifications/)).not.toBeChecked();
+  await expect(createDialog.getByLabel(/RSVP decline notices/)).not.toBeChecked();
+  await expect(createDialog.getByLabel(/Financial alerts/)).not.toBeChecked();
+  await expect(createDialog.getByLabel(/Rehearsals/)).toBeChecked();
+  await expect(createDialog.getByLabel(/Performances/)).toBeChecked();
+  await expect(createDialog.getByLabel(/Other events/)).toBeChecked();
 
   // Toggle values on Email & Notifications tab
-  await createDialog.getByLabel("Receive financial alerts (ticket sales)").check();
-  await createDialog.getByLabel(/Rehearsal reminders/).uncheck();
+  await createDialog.getByLabel(/Financial alerts/).check();
+  await createDialog.getByLabel(/Rehearsals/).uncheck();
 
   // Switch back to Profile Info tab and verify display name survived tab switch
-  await createDialog.getByRole("tab", { name: "Profile Info" }).click();
+  await selectProfileTab(createDialog, "Profile Info", "info");
   await expect(createDialog.getByLabel("Display name")).toHaveValue("Brand New Singer");
 
   // Switch back to Email & Notifications and verify toggled checkboxes survived
-  await createDialog.getByRole("tab", { name: "Email & Notifications" }).click();
-  await expect(createDialog.getByLabel("Receive financial alerts (ticket sales)")).toBeChecked();
-  await expect(createDialog.getByLabel(/Rehearsal reminders/)).not.toBeChecked();
+  await selectProfileTab(createDialog, "Email & Notifications", "email");
+  await expect(createDialog.getByLabel(/Financial alerts/)).toBeChecked();
+  await expect(createDialog.getByLabel(/Rehearsals/)).not.toBeChecked();
 
   // Click Create Profile from Email & Notifications tab
   await createDialog.getByRole("button", { name: "Create Profile" }).click();
@@ -671,11 +721,8 @@ test("Info validation when saving from Email & Notifications tab", async ({ page
   await expect(createDialog).toBeVisible();
 
   // Immediately switch to Email & Notifications tab without entering Display name
-  await createDialog.getByRole("tab", { name: "Email & Notifications" }).click();
-  await expect(createDialog.getByRole("tab", { name: "Email & Notifications" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await selectProfileTab(createDialog, "Email & Notifications", "email");
+  await expectActiveProfileTab(createDialog, "Email & Notifications", "email");
 
   // Click Create Profile
   await createDialog.getByRole("button", { name: "Create Profile" }).click();
@@ -684,10 +731,7 @@ test("Info validation when saving from Email & Notifications tab", async ({ page
   await expect(createDialog).toBeVisible();
 
   // Tab switches automatically back to Profile Info
-  await expect(createDialog.getByRole("tab", { name: "Profile Info" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expectActiveProfileTab(createDialog, "Profile Info", "info");
 
   // Error alert is visible
   await expect(createDialog.getByRole("alert")).toHaveText("Enter a display name.");
@@ -706,16 +750,15 @@ test("supports deep linking directly to Email & Notifications tab", async ({ pag
   await page.goto(`/admin/roster?profileId=${profileId}&tab=email`);
   const profileDialog = page.getByRole("dialog", { name: "Edit Profile" });
   await expect(profileDialog).toBeVisible();
-  await expect(profileDialog.getByRole("tab", { name: "Email & Notifications" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expectActiveProfileTab(profileDialog, "Email & Notifications", "email");
   await expect(profileDialog.getByLabel("Do not email")).toBeVisible();
-  await expect(profileDialog.getByLabel(/Rehearsal reminders/)).toBeVisible();
+  await expect(profileDialog.getByLabel(/Rehearsals/)).toBeVisible();
   api.assertNoUnexpectedRequests();
 });
 
-test("narrow-screen tab accessibility and axe compliance in Edit Profile", async ({ page }) => {
+test("narrow-screen section selector accessibility and axe compliance in Edit Profile", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 375, height: 667 });
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });
   await page.route("**/api/organization/members", async (route) => {
@@ -727,38 +770,190 @@ test("narrow-screen tab accessibility and axe compliance in Edit Profile", async
   const profileDialog = page.getByRole("dialog", { name: "Edit Profile" });
   await expect(profileDialog).toBeVisible();
 
-  // All 6 tabs exist
+  // On narrow screens, native section selector is visible and has all 6 options
+  const sectionSelect = profileDialog.getByLabel("Profile section", { exact: true });
+  await expect(sectionSelect).toBeVisible();
+  await expect(sectionSelect.locator("option")).toHaveCount(6);
+
+  // Desktop rail is hidden from accessibility tree on mobile viewport
+  await expect(profileDialog.getByRole("tab")).toHaveCount(0);
+
+  // Selecting section via native select switches active panel
+  await sectionSelect.selectOption("email");
+  await expect(profileDialog.getByLabel("Do not email")).toBeVisible();
+
+  await sectionSelect.selectOption("info");
+  await expect(profileDialog.getByLabel("Display name")).toBeVisible();
+
+  // Run axe scan on the dialog
+  await expectNoSeriousAxeViolations(page, "Edit Profile dialog");
+
+  api.assertNoUnexpectedRequests();
+});
+
+test("desktop vertical section rail keyboard navigation in Edit Profile", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name.includes("mobile"), "Desktop vertical rail only");
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  await page.route("**/api/organization/members", async (route) => {
+    await route.fulfill({ json: { memberships: [], truncated: false, requestId } });
+  });
+
+  await page.goto("/admin/roster");
+  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  const profileDialog = page.getByRole("dialog", { name: "Edit Profile" });
+  await expect(profileDialog).toBeVisible();
+
+  // All 6 tabs exist on desktop
   const tabs = profileDialog.getByRole("tab");
   await expect(tabs).toHaveCount(6);
 
-  // Tablist is scrollable on narrow viewport and does not overflow dialog width
-  const tablist = profileDialog.getByRole("tablist");
-  const tablistBounds = await tablist.boundingBox();
-  const dialogBounds = await profileDialog.boundingBox();
-  expect(tablistBounds).not.toBeNull();
-  expect(dialogBounds).not.toBeNull();
-  if (tablistBounds && dialogBounds) {
-    expect(tablistBounds.x).toBeGreaterThanOrEqual(dialogBounds.x);
-    expect(tablistBounds.x + tablistBounds.width).toBeLessThanOrEqual(
-      dialogBounds.x + dialogBounds.width + 1,
-    );
-  }
-
-  // Keyboard navigation through tabs
+  // Keyboard navigation through vertical tabs
   const infoTab = profileDialog.getByRole("tab", { name: "Profile Info" });
   await infoTab.focus();
   await expect(infoTab).toBeFocused();
-  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowDown");
   const emailTab = profileDialog.getByRole("tab", { name: "Email & Notifications" });
   await expect(emailTab).toBeFocused();
   await expect(emailTab).toHaveAttribute("aria-selected", "true");
 
-  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowUp");
   await expect(infoTab).toBeFocused();
   await expect(infoTab).toHaveAttribute("aria-selected", "true");
 
-  // Run axe scan on the dialog
-  await expectNoSeriousAxeViolations(page, "Edit Profile dialog");
+  api.assertNoUnexpectedRequests();
+});
+
+test("photo controls, honest Add header, and truthful dirty footer", async ({ page }) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  await page.route("**/api/organization/members", async (route) => {
+    await route.fulfill({ json: { memberships: [], truncated: false, requestId } });
+  });
+
+  await page.goto("/admin/roster");
+  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  const profileDialog = page.getByRole("dialog", { name: "Edit Profile" });
+  await expect(profileDialog).toBeVisible();
+
+  // Photo editor remains in Profile Info with all controls and validation hint.
+  await expect(profileDialog.getByText("Profile photo", { exact: true })).toBeVisible();
+  await expect(profileDialog.getByText("Choose photo")).toBeVisible();
+  await expect(profileDialog.getByText("Take photo")).toBeVisible();
+  await expect(profileDialog.getByText("Upload photo")).toBeVisible();
+  await expect(profileDialog.getByText(/JPEG, PNG, or WebP; up to 5 MB/)).toBeVisible();
+
+  // Footer starts pristine.
+  await expect(profileDialog.getByText("No unsaved changes")).toBeVisible();
+
+  // Dirty on edit, pristine again on revert.
+  const nameField = profileDialog.getByLabel("Display name");
+  const originalName = await nameField.inputValue();
+  await nameField.fill(`${originalName} edited`);
+  await expect(profileDialog.getByText("Unsaved changes")).toBeVisible();
+  await nameField.fill(originalName);
+  await expect(profileDialog.getByText("No unsaved changes")).toBeVisible();
+
+  // Email badge uses honest local-only language.
+  await selectProfileTab(profileDialog, "Email & Notifications", "email");
+  await expect(profileDialog.getByText("Not blocked")).toBeVisible();
+  await expect(profileDialog.getByText("Email allowed")).toHaveCount(0);
+
+  await profileDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(profileDialog).not.toBeVisible();
+
+  // Add mode keeps an honest placeholder even after typing a name.
+  await page.getByRole("button", { name: "Add Profile" }).click();
+  const createDialog = page.getByRole("dialog", { name: "Add Profile" });
+  await expect(createDialog).toBeVisible();
+  await expect(createDialog.getByRole("heading", { name: "Add Profile" })).toBeVisible();
+  await expect(
+    createDialog.getByText("Save the Profile before adding a profile photo."),
+  ).toBeVisible();
+  await createDialog.getByLabel("Display name").fill("Typed Before Create");
+  await expect(createDialog.getByRole("heading", { name: "Add Profile" })).toBeVisible();
+  await expect(createDialog.getByText("Create a new choir member profile")).toBeVisible();
+  await createDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(createDialog).not.toBeVisible();
+
+  api.assertNoUnexpectedRequests();
+});
+
+test("independent tabs do not implicitly save pristine drafts", async ({ page }) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  await page.route("**/api/organization/members", async (route) => {
+    await route.fulfill({ json: { memberships: [], truncated: false, requestId } });
+  });
+
+  let putCount = 0;
+  await page.route("**/api/organization/profiles/*", async (route) => {
+    if (route.request().method() === "PUT") {
+      putCount += 1;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/admin/roster");
+  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  const profileDialog = page.getByRole("dialog", { name: "Edit Profile" });
+  await expect(profileDialog).toBeVisible();
+
+  // Pristine draft on an independent tab: footer save is disabled with guidance.
+  await selectProfileTab(profileDialog, "Messages", "messages");
+  const saveButton = profileDialog.getByRole("button", { name: "Save Profile" });
+  await expect(saveButton).toBeDisabled();
+  await expect(saveButton).toHaveAttribute("title", "No pending profile draft changes to save");
+
+  // Enter on a pristine independent tab must not issue a save.
+  await profileDialog.press("Enter");
+  expect(putCount).toBe(0);
+
+  // Dirty draft stays saveable from the independent tab.
+  await selectProfileTab(profileDialog, "Profile Info", "info");
+  const nameField = profileDialog.getByLabel("Display name");
+  const originalName = await nameField.inputValue();
+  await nameField.fill(`${originalName} dirty`);
+  await selectProfileTab(profileDialog, "Messages", "messages");
+  await expect(profileDialog.getByText("Unsaved changes")).toBeVisible();
+  await expect(profileDialog.getByRole("button", { name: "Save Profile" })).toBeEnabled();
+
+  api.assertNoUnexpectedRequests();
+});
+
+test("More actions gates impersonate and resolve duplicate", async ({ page }) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  const profiles = api.profiles.get();
+  const baseProfile = profiles[0] ?? buildOrganizationProfile({});
+  api.profiles.set([{ ...baseProfile, id: profileId }]);
+  await page.route("**/api/organization/members", async (route) => {
+    await route.fulfill({
+      json: {
+        memberships: [
+          {
+            email: "browser.singer@example.test",
+            id: "membership-1",
+            name: "Browser Singer",
+            profileId,
+            role: "member",
+          },
+        ],
+        truncated: false,
+        requestId,
+      },
+    });
+  });
+
+  await page.goto("/admin/roster");
+  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  const profileDialog = page.getByRole("dialog", { name: "Edit Profile" });
+  await expect(profileDialog).toBeVisible();
+
+  const moreActions = profileDialog.getByRole("button", { name: "More actions" });
+  await expect(moreActions).toBeVisible();
+  await moreActions.click();
+  await expect(page.getByRole("menuitem", { name: "Impersonate" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Resolve duplicate" })).toBeVisible();
+  await page.keyboard.press("Escape");
 
   api.assertNoUnexpectedRequests();
 });

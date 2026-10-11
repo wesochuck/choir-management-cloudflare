@@ -1,6 +1,7 @@
 import { createContext, useContext } from "react";
 
 export interface OrganizationTerminology {
+  readonly organizationName?: string | undefined;
   readonly partLabel: string;
   readonly partLabelPlural: string;
   readonly performerLabel: string;

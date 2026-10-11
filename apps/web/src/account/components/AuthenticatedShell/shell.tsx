@@ -732,6 +732,7 @@ export function AuthenticatedShell({
             ) : null}
             <OrganizationTerminologyProvider
               onLabelChange={setOrganizationPerformerLabel}
+              organizationName={organizationName}
               performerLabel={organizationPerformerLabel}
             >
               <Suspense fallback={<WorkspacePageLoading />}>

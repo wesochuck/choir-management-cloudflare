@@ -16,21 +16,24 @@ function pluralizePerformerLabel(label: string): string {
 export function OrganizationTerminologyProvider({
   children,
   onLabelChange,
+  organizationName,
   performerLabel,
 }: {
   readonly children: ReactNode;
   readonly onLabelChange: (label: string) => void;
+  readonly organizationName?: string;
   readonly performerLabel: string;
 }) {
   const value = useMemo(
     () => ({
+      organizationName,
       partLabel: "Part",
       partLabelPlural: "Parts",
       performerLabel: normalizePerformerLabel(performerLabel),
       performerLabelPlural: pluralizePerformerLabel(normalizePerformerLabel(performerLabel)),
       setPerformerLabel: onLabelChange,
     }),
-    [onLabelChange, performerLabel],
+    [onLabelChange, organizationName, performerLabel],
   );
 
   return (

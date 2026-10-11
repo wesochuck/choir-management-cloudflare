@@ -1,20 +1,10 @@
 import { rosterCsvColumnOptions } from "@choir/domain";
-import {
-  DataTable,
-  Dialog,
-  DialogClose,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-  Tooltip,
-} from "@choir/ui";
-import { PerformanceHistory, VoicePartBalance } from "./shared";
-import { formatProfileTransitionDate, parseRosterStatusFilter, statusLabel } from "./utils";
-import { ProfileDues, ProfileFolderNumbers, ProfileMessages } from "./profileDetails";
+import { DataTable, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from "@choir/ui";
+import { VoicePartBalance } from "./shared";
+import { parseRosterStatusFilter, statusLabel } from "./utils";
+import { ProfileEditorDialog } from "../ProfileEditor";
 import { RosterInviteLinksDialog } from "./RosterInviteLinksDialog";
 import { CsvImportDialog } from "../../CsvImportDialog";
-import { ProfilePhotoEditor } from "../../MemberProfileDirectory";
 import { RosterAutomationSettings } from "../../RosterAutomationSettings";
 import { RosterConfiguration } from "../../RosterConfiguration";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
@@ -60,7 +50,6 @@ export function RosterPageView({
     openCreate,
     openEdit,
     performanceHistory,
-    performerLabel,
     profile,
     profileDeliveries,
     profileDues,
@@ -118,7 +107,6 @@ export function RosterPageView({
   const selectAllVisibleRef = useRef<HTMLInputElement>(null);
   const [rosterPage, setRosterPage] = useState(1);
   const [rosterPageSize, setRosterPageSize] = useState(50);
-  const [photoPending, setPhotoPending] = useState(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset page on filter change
@@ -132,24 +120,11 @@ export function RosterPageView({
   const allVisibleSelected =
     visibleProfileIds.length > 0 && selectedVisibleCount === visibleProfileIds.length;
   const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
-  // The linked Membership email is the read-only source for the field; the
-  // draft value must not gate editability or the input locks after one key.
-  const linkedProfileEmail =
-    editingProfileRecord === null || roster.status !== "ready"
-      ? ""
-      : (roster.memberships.find(({ profileId }) => profileId === editingProfileRecord.id)?.email ??
-        "");
   useEffect(() => {
     if (selectAllVisibleRef.current) {
       selectAllVisibleRef.current.indeterminate = someVisibleSelected;
     }
   }, [someVisibleSelected]);
-  useEffect(() => {
-    if (!dialogOpen) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pending photo guard when the edit dialog closes.
-      setPhotoPending(false);
-    }
-  }, [dialogOpen]);
   if (!enabled) {
     return <OrganizationMfaPrompt message="Verify Organization MFA to manage the roster." />;
   }
@@ -584,600 +559,66 @@ export function RosterPageView({
         </TabsContent>
       </Tabs>
 
-      <Dialog
-        description="Profile details and roster attributes belong only to this Organization."
+      <ProfileEditorDialog
+        busy={busy}
+        editingId={editingId}
+        editingProfileRecord={editingProfileRecord}
+        error={error}
+        linkedMembership={linkedMembership}
         onClose={closeDialog}
-        open={dialogOpen}
-        title={editingId ? "Edit Profile" : "Add Profile"}
-        {...(photoPending ? { dirty: true as const } : {})}
-      >
-        <Tabs
-          onValueChange={(nextTab) => {
-            if (nextTab === "performance") {
-              setPerformanceHistory({ status: "loading" });
-            } else if (nextTab === "dues") {
-              setProfileDues({ status: "loading" });
-            } else if (nextTab === "folders") {
-              setProfileFolderNumbers({ status: "loading" });
-            } else if (nextTab === "messages") {
-              setProfileDeliveries({ status: "loading" });
+        onImpersonate={() => {
+          if (!editingId) return;
+          void (async () => {
+            try {
+              await startOrganizationImpersonation(editingId);
+              window.location.href = "/dashboard";
+            } catch (err: unknown) {
+              setError(err instanceof Error ? err.message : "Could not begin impersonation.");
             }
-            setProfileTab(nextTab);
-          }}
-          value={profileTab}
-        >
-          <div
-            onPointerDown={(event) => {
-              // Keep profile navigation inside the Radix dialog's dismissable layer while the
-              // selected panel replaces the editable form below it.
-              event.stopPropagation();
-            }}
-          >
-            <TabsList aria-label="Profile sections" className="roster-profile-tabs">
-              <TabsTrigger
-                aria-controls="roster-profile-info-panel"
-                id="roster-profile-info-tab"
-                value="info"
-              >
-                Profile Info
-              </TabsTrigger>
-              <TabsTrigger
-                aria-controls="roster-profile-email-panel"
-                id="roster-profile-email-tab"
-                value="email"
-              >
-                Email & Notifications
-              </TabsTrigger>
-              {editingId ? (
-                <>
-                  <TabsTrigger
-                    aria-controls="roster-profile-performance-panel"
-                    id="roster-profile-performance-tab"
-                    value="performance"
-                  >
-                    Performance RSVPs
-                  </TabsTrigger>
-                  <TabsTrigger
-                    aria-controls="roster-profile-dues-panel"
-                    id="roster-profile-dues-tab"
-                    value="dues"
-                  >
-                    Dues
-                  </TabsTrigger>
-                  <TabsTrigger
-                    aria-controls="roster-profile-folders-panel"
-                    id="roster-profile-folders-tab"
-                    value="folders"
-                  >
-                    Folder numbers
-                  </TabsTrigger>
-                  <TabsTrigger
-                    aria-controls="roster-profile-messages-panel"
-                    id="roster-profile-messages-tab"
-                    value="messages"
-                  >
-                    Messages
-                  </TabsTrigger>
-                </>
-              ) : null}
-            </TabsList>
-          </div>
-          {editingId && profileTab === "performance" ? (
-            <div
-              aria-labelledby="roster-profile-performance-tab"
-              className="roster-profile-tab-panel"
-              id="roster-profile-performance-panel"
-              role="tabpanel"
-            >
-              <PerformanceHistory
-                onRsvpChanged={(updated) => {
-                  setPerformanceHistory((current) => {
-                    if (current.status !== "ready") return current;
-                    const updateRows = (rows: typeof current.data.upcoming) =>
-                      rows.map((performance) =>
-                        performance.id === updated.eventId
-                          ? { ...performance, rsvp: updated.rsvp }
-                          : performance,
-                      );
-                    return {
-                      ...current,
-                      data: {
-                        ...current.data,
-                        past: updateRows(current.data.past),
-                        upcoming: updateRows(current.data.upcoming),
-                      },
-                    };
-                  });
-                }}
-                profileId={editingId}
-                state={performanceHistory}
-              />
-            </div>
-          ) : editingId && profileTab === "folders" ? (
-            <div
-              aria-labelledby="roster-profile-folders-tab"
-              className="roster-profile-tab-panel"
-              id="roster-profile-folders-panel"
-              role="tabpanel"
-            >
-              <ProfileFolderNumbers
-                onFolderNumberChanged={(updated) => {
-                  setProfileFolderNumbers((current) => {
-                    if (current.status !== "ready") return current;
-                    return {
-                      ...current,
-                      folderNumbers: current.folderNumbers.map((folder) =>
-                        folder.eventId === updated.eventId ? updated : folder,
-                      ),
-                    };
-                  });
-                }}
-                profileId={editingId}
-                state={profileFolderNumbers}
-              />
-            </div>
-          ) : editingId && profileTab === "messages" ? (
-            <div
-              aria-labelledby="roster-profile-messages-tab"
-              className="roster-profile-tab-panel"
-              id="roster-profile-messages-panel"
-              role="tabpanel"
-            >
-              <ProfileMessages state={profileDeliveries} />
-            </div>
-          ) : editingId && profileTab === "dues" ? (
-            <div
-              aria-labelledby="roster-profile-dues-tab"
-              className="roster-profile-tab-panel"
-              id="roster-profile-dues-panel"
-              role="tabpanel"
-            >
-              <ProfileDues
-                onCashPaymentMarked={(record) => {
-                  setProfileDues((current) => {
-                    if (current.status !== "ready") return current;
-                    const existing = current.dues.some((candidate) => candidate.id === record.id);
-                    return {
-                      ...current,
-                      dues: existing
-                        ? current.dues.map((candidate) =>
-                            candidate.id === record.id ? record : candidate,
-                          )
-                        : [...current.dues, record],
-                    };
-                  });
-                }}
-                profileId={editingId}
-                state={profileDues}
-              />
-            </div>
-          ) : (
-            <form
-              className="form-stack"
-              noValidate
-              onSubmit={(event) => {
-                event.preventDefault();
-                void saveProfile();
-              }}
-            >
-              <div
-                aria-labelledby={`roster-profile-${profileTab}-tab`}
-                className="roster-profile-tab-panel"
-                id={`roster-profile-${profileTab}-panel`}
-                role="tabpanel"
-              >
-                {error ? (
-                  <p className="notice notice--error" role="alert">
-                    {error}
-                  </p>
-                ) : null}
-                {profileTab === "info" ? (
-                  <>
-                    {editingId ? (
-                      <ProfilePhotoEditor
-                        onChanged={(fileId) => {
-                          setProfilePhotoFileId(fileId);
-                          setRoster((current) =>
-                            current.status === "ready"
-                              ? {
-                                  ...current,
-                                  profiles: current.profiles.map((candidate) =>
-                                    candidate.id === editingId
-                                      ? { ...candidate, photoFileId: fileId }
-                                      : candidate,
-                                  ),
-                                }
-                              : current,
-                          );
-                        }}
-                        onPendingChange={setPhotoPending}
-                        profile={{
-                          displayName: profile.displayName,
-                          id: editingId,
-                          photoFileId: profilePhotoFileId,
-                        }}
-                      />
-                    ) : (
-                      <p className="field-help">Save the Profile before adding a profile photo.</p>
-                    )}
-                    <div className="field">
-                      <label htmlFor="roster-profile-name">Display name</label>
-                      <input
-                        id="roster-profile-name"
-                        maxLength={200}
-                        onChange={(event) => {
-                          setProfile((current) => ({
-                            ...current,
-                            displayName: event.target.value,
-                          }));
-                        }}
-                        required
-                        value={profile.displayName}
-                      />
-                    </div>
-                    <div className="field">
-                      <label htmlFor="roster-profile-phone">Phone</label>
-                      <input
-                        id="roster-profile-phone"
-                        maxLength={50}
-                        onChange={(event) => {
-                          setProfile((current) => ({ ...current, phone: event.target.value }));
-                        }}
-                        value={profile.phone}
-                      />
-                    </div>
-                    <div className="field">
-                      <label htmlFor="roster-profile-email">Email address</label>
-                      <input
-                        id="roster-profile-email"
-                        onChange={(event) => {
-                          setProfileEmail(event.target.value);
-                        }}
-                        placeholder={`Enter an email to invite this ${performerLabel.toLowerCase()}`}
-                        readOnly={Boolean(linkedProfileEmail)}
-                        type="email"
-                        value={profileEmail}
-                      />
-                      <p className="field-help">
-                        Linked account emails are managed through Membership invitations.
-                      </p>
-                      {linkedProfileEmail ? (
-                        <button
-                          className="button button--secondary button--small"
-                          disabled={busy || resettingProfileId !== null}
-                          onClick={() => {
-                            void sendPasswordReset();
-                          }}
-                          type="button"
-                        >
-                          {resettingProfileId ? "Sending reset email…" : "Send password reset"}
-                        </button>
-                      ) : null}
-                      {resetFeedback ? (
-                        <p className="notice notice--info" role="status">
-                          {resetFeedback}
-                        </p>
-                      ) : null}
-                    </div>
-                    <div className="field">
-                      <label htmlFor="roster-profile-voice-part">{partLabel}</label>
-                      <select
-                        id="roster-profile-voice-part"
-                        onChange={(event) => {
-                          setProfile((current) => ({ ...current, voicePart: event.target.value }));
-                        }}
-                        value={profile.voicePart}
-                      >
-                        <option value="">No {partLabel.toLowerCase()}</option>
-                        {roster.status === "ready"
-                          ? roster.configuration.voiceParts.map(({ fullName, label }) => (
-                              <option key={label} value={label}>
-                                {fullName} ({label})
-                              </option>
-                            ))
-                          : null}
-                      </select>
-                    </div>
-                    <div className="field">
-                      <label htmlFor="roster-profile-status">Status</label>
-                      <select
-                        id="roster-profile-status"
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setProfile((current) => ({
-                            ...current,
-                            globalStatus:
-                              value === "Idle" || value === "Inactive" ? value : "Active",
-                          }));
-                        }}
-                        value={profile.globalStatus}
-                      >
-                        <option value="Active">Active</option>
-                        <option value="Idle">On Break</option>
-                        <option value="Inactive">Inactive</option>
-                      </select>
-                      <p className="field-help">
-                        Selecting a status does not turn automation off. The Profile may be updated
-                        by the roster rules until you explicitly manage status manually.
-                      </p>
-                    </div>
-                    <label className="checkbox-row">
-                      <input
-                        checked={profile.statusIsManual}
-                        onChange={(event) => {
-                          setProfile((current) => ({
-                            ...current,
-                            statusIsManual: event.target.checked,
-                          }));
-                        }}
-                        type="checkbox"
-                      />
-                      Manage status manually (opt out of automatic status changes)
-                    </label>
-                    {profile.globalStatus === "Idle" ? (
-                      <p className="notice notice--info">
-                        {profile.statusIsManual
-                          ? "Manual status control is on, so this Profile has no automatic On Break transition date."
-                          : editingProfileRecord
-                            ? `On Break ${formatProfileTransitionDate(editingProfileRecord.onBreakInactiveAt)}`
-                            : "The On Break transition date will be calculated after this Profile is saved."}
-                      </p>
-                    ) : null}
-                    {editingId && profileStatusHistory.status === "ready" ? (
-                      <div className="profile-status-history">
-                        <p className="field-label">Profile Status History</p>
-                        {profileStatusHistory.data.entries.length === 0 ? (
-                          <p className="field-help">
-                            No automatic or manual status changes recorded yet.
-                          </p>
-                        ) : (
-                          <ul className="compact-list">
-                            {profileStatusHistory.data.entries.slice(0, 5).map((entry) => (
-                              <li key={`${entry.occurredAt}-${entry.triggerType}`}>
-                                <strong>{statusLabel(entry.newStatus)}</strong> · {entry.reason}{" "}
-                                <span className="field-help">
-                                  {new Intl.DateTimeFormat(undefined, {
-                                    dateStyle: "medium",
-                                    timeStyle: "short",
-                                  }).format(new Date(entry.occurredAt))}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                    ) : null}
-                    <div className="field">
-                      <label htmlFor="roster-profile-notes">Notes</label>
-                      <textarea
-                        id="roster-profile-notes"
-                        maxLength={100000}
-                        onChange={(event) => {
-                          setProfile((current) => ({ ...current, notes: event.target.value }));
-                        }}
-                        rows={4}
-                        value={profile.notes}
-                      />
-                    </div>
-                    <label className="checkbox-row">
-                      <input
-                        checked={profile.showInDirectory}
-                        onChange={(event) => {
-                          setProfile((current) => ({
-                            ...current,
-                            showInDirectory: event.target.checked,
-                          }));
-                        }}
-                        type="checkbox"
-                      />
-                      Show in directory
-                    </label>
-                    <label className="checkbox-row">
-                      <input
-                        checked={profile.isSectionLeader}
-                        onChange={(event) => {
-                          setProfile((current) => ({
-                            ...current,
-                            isSectionLeader: event.target.checked,
-                          }));
-                        }}
-                        type="checkbox"
-                      />
-                      Section leader
-                    </label>
-                    <label className="checkbox-row">
-                      <input
-                        checked={profile.hidden}
-                        onChange={(event) => {
-                          setProfile((current) => ({
-                            ...current,
-                            hidden: event.target.checked,
-                          }));
-                        }}
-                        type="checkbox"
-                      />
-                      Hide profile (hide from default roster view and search results)
-                    </label>
-                  </>
-                ) : (
-                  <>
-                    <fieldset className="field" disabled={busy}>
-                      <legend>Email delivery / suppression</legend>
-                      <p className="field-help">
-                        Do not email takes precedence over the subscription checkboxes below.
-                      </p>
-                      <label className="checkbox-row">
-                        <input
-                          checked={profile.doNotEmail}
-                          onChange={(event) => {
-                            setProfile((current) => ({
-                              ...current,
-                              doNotEmail: event.target.checked,
-                            }));
-                          }}
-                          type="checkbox"
-                        />
-                        Do not email
-                      </label>
-                      {editingProfileRecord?.providerEmailSuppressed ? (
-                        <p className="field-help" role="status">
-                          Provider suppression is active for this profile. Changing “Do not email”
-                          does not release it; a Platform Administrator must review and release the
-                          local provider suppression after the account issue is resolved.
-                          Cloudflare-managed suppression may still block delivery.
-                        </p>
-                      ) : null}
-                    </fieldset>
-                    <fieldset className="field" disabled={busy}>
-                      <legend>Administrator and operational alerts</legend>
-                      <label className="checkbox-row">
-                        <input
-                          checked={profile.receiveAdminNotifications}
-                          onChange={(event) => {
-                            setProfile((current) => ({
-                              ...current,
-                              receiveAdminNotifications: event.target.checked,
-                            }));
-                          }}
-                          type="checkbox"
-                        />
-                        Receive administrator notifications, including audition emails
-                      </label>
-                      <label className="checkbox-row">
-                        <input
-                          checked={profile.receiveRsvpDeclineNotices}
-                          onChange={(event) => {
-                            setProfile((current) => ({
-                              ...current,
-                              receiveRsvpDeclineNotices: event.target.checked,
-                            }));
-                          }}
-                          type="checkbox"
-                        />
-                        Receive RSVP decline notices
-                      </label>
-                      <label className="checkbox-row">
-                        <input
-                          checked={profile.receiveFinancialAlerts}
-                          onChange={(event) => {
-                            setProfile((current) => ({
-                              ...current,
-                              receiveFinancialAlerts: event.target.checked,
-                            }));
-                          }}
-                          type="checkbox"
-                        />
-                        Receive financial alerts (ticket sales)
-                      </label>
-                    </fieldset>
-                    <fieldset className="field" disabled={busy}>
-                      <legend>Email reminder preferences</legend>
-                      <p className="field-help" id="roster-reminder-preferences-help">
-                        Choose which automatic event reminders you receive, currently scheduled
-                        about 48 hours before an event. Turning off a reminder does not change your
-                        RSVP or remove the event from your schedule. Organization-wide opt-outs,
-                        suppressions, and email bounces still take precedence.
-                      </p>
-                      <label className="checkbox-row">
-                        <input
-                          aria-describedby="roster-reminder-preferences-help"
-                          checked={profile.receiveRehearsalReminders ?? true}
-                          onChange={(event) => {
-                            setProfile((current) => ({
-                              ...current,
-                              receiveRehearsalReminders: event.target.checked,
-                            }));
-                          }}
-                          type="checkbox"
-                        />
-                        Rehearsal reminders — Email me before upcoming rehearsals.
-                      </label>
-                      <label className="checkbox-row">
-                        <input
-                          aria-describedby="roster-reminder-preferences-help"
-                          checked={profile.receivePerformanceReminders ?? true}
-                          onChange={(event) => {
-                            setProfile((current) => ({
-                              ...current,
-                              receivePerformanceReminders: event.target.checked,
-                            }));
-                          }}
-                          type="checkbox"
-                        />
-                        Performance reminders — Email me before upcoming concerts and performances.
-                      </label>
-                      <label className="checkbox-row">
-                        <input
-                          aria-describedby="roster-reminder-preferences-help"
-                          checked={profile.receiveOtherEventReminders ?? true}
-                          onChange={(event) => {
-                            setProfile((current) => ({
-                              ...current,
-                              receiveOtherEventReminders: event.target.checked,
-                            }));
-                          }}
-                          type="checkbox"
-                        />
-                        Other Event reminders — Email me about Other Events where I am invited to
-                        respond or have volunteered.
-                      </label>
-                    </fieldset>
-                  </>
-                )}
-                <div className="dialog__actions">
-                  {editingId &&
-                  roster.status === "ready" &&
-                  !roster.memberships.some(
-                    (membership) =>
-                      membership.profileId === editingId &&
-                      (membership.role === "administrator" || membership.role === "owner"),
-                  ) ? (
-                    <button
-                      className="button button--secondary"
-                      disabled={busy}
-                      onClick={() => {
-                        void (async () => {
-                          try {
-                            await startOrganizationImpersonation(editingId);
-                            window.location.href = "/dashboard";
-                          } catch (err: unknown) {
-                            setError(
-                              err instanceof Error ? err.message : "Could not begin impersonation.",
-                            );
-                          }
-                        })();
-                      }}
-                      type="button"
-                    >
-                      Impersonate
-                    </button>
-                  ) : null}
-                  {editingId && linkedMembership ? (
-                    <button
-                      className="button button--secondary"
-                      disabled={busy}
-                      onClick={() => {
-                        setResolveDuplicateOpen(true);
-                      }}
-                      type="button"
-                    >
-                      Resolve duplicate
-                    </button>
-                  ) : null}
-                  <DialogClose asChild>
-                    <button className="button button--secondary" type="button">
-                      Cancel
-                    </button>
-                  </DialogClose>
-                  <button className="button button--primary" disabled={busy} type="submit">
-                    {busy ? "Saving…" : editingId ? "Save Profile" : "Create Profile"}
-                  </button>
-                </div>
-              </div>
-            </form>
-          )}
-        </Tabs>
-      </Dialog>
+          })();
+        }}
+        onPhotoChanged={(fileId) => {
+          setProfilePhotoFileId(fileId);
+          setRoster((current) =>
+            current.status === "ready"
+              ? {
+                  ...current,
+                  profiles: current.profiles.map((candidate) =>
+                    candidate.id === editingId ? { ...candidate, photoFileId: fileId } : candidate,
+                  ),
+                }
+              : current,
+          );
+        }}
+        onResolveDuplicate={() => {
+          setResolveDuplicateOpen(true);
+        }}
+        open={dialogOpen}
+        performanceHistory={performanceHistory}
+        profile={profile}
+        profileDeliveries={profileDeliveries}
+        profileDues={profileDues}
+        profileEmail={profileEmail}
+        profileFolderNumbers={profileFolderNumbers}
+        profilePhotoFileId={profilePhotoFileId}
+        profileStatusHistory={profileStatusHistory}
+        profileTab={profileTab}
+        resetFeedback={resetFeedback}
+        resettingProfileId={resettingProfileId}
+        rosterConfiguration={roster.status === "ready" ? roster.configuration : undefined}
+        rosterMemberships={roster.status === "ready" ? roster.memberships : []}
+        rosterReady={roster.status === "ready"}
+        saveProfile={saveProfile}
+        sendPasswordReset={sendPasswordReset}
+        setPerformanceHistory={setPerformanceHistory}
+        setProfile={setProfile}
+        setProfileDeliveries={setProfileDeliveries}
+        setProfileDues={setProfileDues}
+        setProfileEmail={setProfileEmail}
+        setProfileFolderNumbers={setProfileFolderNumbers}
+        setProfilePhotoFileId={setProfilePhotoFileId}
+        setProfileTab={setProfileTab}
+      />
       {editingId && linkedMembership && roster.status === "ready" ? (
         <ResolveDuplicateDialog
           allProfiles={roster.profiles}

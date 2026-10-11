@@ -5,12 +5,14 @@ import { usePortalContainer } from "./usePortalContainer";
 import { useConfirmation } from "./useConfirmation";
 
 export interface DialogProps {
+  readonly bodyClassName?: string;
   readonly children: ReactNode;
   readonly className?: string;
   readonly container?: HTMLElement | null;
   readonly description?: string;
   readonly dirty?: boolean;
   readonly footer?: ReactNode;
+  readonly header?: ReactNode;
   readonly onClose: () => void;
   readonly onCloseAutoFocus?: (event: Event) => void;
   readonly open: boolean;
@@ -43,12 +45,14 @@ export function DialogFooter({
 }
 
 export function Dialog({
+  bodyClassName,
   children,
   className,
   container: explicitContainer,
   description,
   dirty,
   footer,
+  header,
   onClose,
   onCloseAutoFocus,
   open,
@@ -116,22 +120,34 @@ export function Dialog({
                 }
               }}
             >
-              <div className="dialog__header">
-                <div>
-                  <DialogPrimitive.Title className="dialog__title">{title}</DialogPrimitive.Title>
+              {header ? (
+                <div className="dialog__header dialog__header--custom">
+                  <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
                   {description ? (
-                    <DialogPrimitive.Description className="dialog__description">
+                    <DialogPrimitive.Description className="sr-only">
                       {description}
                     </DialogPrimitive.Description>
                   ) : null}
+                  {header}
                 </div>
-                <DialogPrimitive.Close asChild>
-                  <button className="dialog__close" type="button" aria-label="Close">
-                    &times;
-                  </button>
-                </DialogPrimitive.Close>
-              </div>
-              <div className="dialog__body">{children}</div>
+              ) : (
+                <div className="dialog__header">
+                  <div>
+                    <DialogPrimitive.Title className="dialog__title">{title}</DialogPrimitive.Title>
+                    {description ? (
+                      <DialogPrimitive.Description className="dialog__description">
+                        {description}
+                      </DialogPrimitive.Description>
+                    ) : null}
+                  </div>
+                  <DialogPrimitive.Close asChild>
+                    <button className="dialog__close" type="button" aria-label="Close">
+                      &times;
+                    </button>
+                  </DialogPrimitive.Close>
+                </div>
+              )}
+              <div className={`dialog__body ${bodyClassName ?? ""}`.trim()}>{children}</div>
               {footer ? <div className="dialog__actions dialog__footer">{footer}</div> : null}
             </DialogPrimitive.Content>
           </DialogPrimitive.Portal>
