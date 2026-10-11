@@ -31,7 +31,7 @@ describe("renderDonationCsv", () => {
     const csv = renderDonationCsv([]);
     const lines = csv.split("\r\n");
     expect(lines[0]).toBe(
-      '"ID","Donor Name","Donor Email","Amount","Payment Method","Reference","Tribute","Tribute Name","Anonymous","Status","Thank You Status","Thank You Sent At","Date"',
+      '"ID","Donor Name","Last Name","Donor Email","Amount","Payment Method","Reference","Tribute","Tribute Name","Anonymous","Status","Thank You Status","Thank You Sent At","Date"',
     );
     expect(lines[1]).toBe("");
   });
@@ -41,7 +41,7 @@ describe("renderDonationCsv", () => {
     const lines = csv.split("\r\n");
     expect(lines[0]).toContain('"ID"');
     expect(lines[1]).toBe(
-      '"don-1","Alice Anderson","alice@example.test","25.00","stripe","","none","","No","paid","Pending","","2026-01-15T12:34:56.000Z"',
+      '"don-1","Alice Anderson","Anderson","alice@example.test","25.00","stripe","","none","","No","paid","Pending","","2026-01-15T12:34:56.000Z"',
     );
   });
 
@@ -63,7 +63,7 @@ describe("renderDonationCsv", () => {
     const csv = renderDonationCsv([manualRow]);
     const lines = csv.split("\r\n");
     expect(lines[1]).toBe(
-      '"don-manual","Bob Builder","bob@example.test","150.00","check","Check #1042","none","","No","paid","Sent","2026-01-19T14:30:00.000Z","2026-01-18T10:00:00.000Z"',
+      '"don-manual","Bob Builder","Builder","bob@example.test","150.00","check","Check #1042","none","","No","paid","Sent","2026-01-19T14:30:00.000Z","2026-01-18T10:00:00.000Z"',
     );
   });
 
@@ -87,13 +87,34 @@ describe("renderDonationCsv", () => {
     expect(dataLines[2]).toContain('"don-old"');
   });
 
-  it("separates anonymous donations behind an ANONYMOUS DONORS row", () => {
+  it("separates anonymous donations behind an ANONYMOUS DONORS row with uniform 14 columns", () => {
     const csv = renderDonationCsv([baseNamed, baseAnonymous]);
     const lines = csv.split("\r\n");
     expect(lines[1]).toContain('"don-1"');
-    expect(lines[2]).toBe('"","ANONYMOUS DONORS","","","","","","","","","","",""');
-    expect(lines[3]).toContain('"don-2"');
+    expect(lines[2]).toBe('"","ANONYMOUS DONORS","","","","","","","","","","","",""');
+    expect(lines[3]).toContain('"don-2","Anonymous","Anonymous"');
     expect(lines[4]).toBe(""); // trailing
+    const nonEmptyLines = lines.filter(Boolean);
+    for (const line of nonEmptyLines) {
+      expect(line.split(",").length).toBe(14);
+    }
+  });
+
+  it("emits compound surnames and keeps anonymous donors protected", () => {
+    const csv = renderDonationCsv([
+      {
+        ...baseNamed,
+        donorName: "Sarah Van Dyke",
+        id: "don-compound",
+      },
+      {
+        ...baseAnonymous,
+        donorName: "Anonymous",
+        id: "don-anon",
+      },
+    ]);
+    expect(csv).toContain('"don-compound","Sarah Van Dyke","Van Dyke"');
+    expect(csv).toContain('"don-anon","Anonymous","Anonymous"');
   });
 
   it("does not add the ANONYMOUS separator when there are no anonymous rows", () => {

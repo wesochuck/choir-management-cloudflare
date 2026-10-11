@@ -1,3 +1,5 @@
+import { getLastName, lastNameSortKey } from "./name";
+
 export interface TicketPriceInput {
   readonly advancePriceCents: number;
   readonly dayOfPriceCents: number;
@@ -179,14 +181,14 @@ function csvCell(value: string | number): string {
 }
 
 function buyerSortKey(name: string): readonly [string, string] {
-  const parts = name.trim().split(/\s+/);
-  return [(parts.at(-1) ?? "").toLowerCase(), parts.slice(0, -1).join(" ").toLowerCase()];
+  return [lastNameSortKey(name), name.trim().toLowerCase()];
 }
 
 export function renderTicketWillCallCsv(rows: readonly TicketWillCallRow[]): string {
   const header = [
     "ID",
     "Buyer Name",
+    "Last Name",
     "Buyer Email",
     "Quantity",
     "Paid",
@@ -208,6 +210,7 @@ export function renderTicketWillCallCsv(rows: readonly TicketWillCallRow[]): str
     ...sorted.map((row) => [
       row.id,
       row.buyerName,
+      getLastName(row.buyerName),
       row.buyerEmail,
       row.quantity,
       (row.amountPaidCents / 100).toFixed(2),

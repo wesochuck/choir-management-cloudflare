@@ -1,52 +1,165 @@
-const nameSuffixes = new Set(["jr", "sr", "ii", "iii", "iv", "v"]);
+const nameSuffixes = new Set([
+  "jr",
+  "jr.",
+  "sr",
+  "sr.",
+  "ii",
+  "iii",
+  "iv",
+  "v",
+  "vi",
+  "vii",
+  "viii",
+  "ix",
+  "x",
+  "esq",
+  "esq.",
+  "phd",
+  "ph.d.",
+  "md",
+  "m.d.",
+]);
 
-/**
- * Returns the stable, locale-independent key used by Organization exports when
- * sorting people by surname. The same rule is shared by RSVP and donation CSVs.
- */
-export function lastNameSortKey(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "";
-  const lastPart = parts.at(-1) ?? "";
-  const normalizedLastPart = lastPart.replace(/\.$/, "").toLowerCase();
-  if (nameSuffixes.has(normalizedLastPart)) {
-    return `${parts.at(-2) ?? ""} ${lastPart}`.trim().toLowerCase();
-  }
-  return (parts.length >= 3 ? `${parts.at(-2) ?? ""} ${lastPart}` : lastPart).toLowerCase();
+const surnameParticles = new Set([
+  // Dutch / German / Afrikaans
+  "van",
+  "von",
+  "der",
+  "den",
+  "ter",
+  "ten",
+  "te",
+  "zu",
+  "zum",
+  "zur",
+  "am",
+  "vom",
+  // Romance (French, Spanish, Italian, Portuguese)
+  "de",
+  "del",
+  "della",
+  "delle",
+  "dello",
+  "dei",
+  "degli",
+  "da",
+  "das",
+  "do",
+  "dos",
+  "du",
+  "des",
+  "di",
+  "la",
+  "le",
+  "les",
+  "lo",
+  "li",
+  // Saints / Spanish / Catalan
+  "st",
+  "st.",
+  "ste",
+  "ste.",
+  "saint",
+  "sainte",
+  "san",
+  "santa",
+  // Celtic / Arabic / Hebrew
+  "fitz",
+  "mac",
+  "mc",
+  "al",
+  "el",
+  "ben",
+  "bin",
+  "ibn",
+  "bar",
+]);
+
+function cleanTokenForSuffixCheck(token: string): string {
+  return token
+    .replace(/^["'([{]+/, "")
+    .replace(/["')\]},;]+$/, "")
+    .toLowerCase()
+    .replace(/\.$/, "");
+}
+
+function cleanTokenForParticleCheck(token: string): string {
+  return token
+    .replace(/^["'([{]+/, "")
+    .replace(/["')\]},;]+$/, "")
+    .toLowerCase()
+    .replace(/\.$/, "");
 }
 
 /**
- * Parse a display name using the convention used by the legacy seating list.
- * Names with three or more parts keep the final two words together so names
- * such as "Ron Van Dyke" remain recognizable.
+ * Returns the stable, locale-independent key used by Organization exports when
+ * sorting people by surname. The same canonical surname logic is shared across
+ * exports and UI surname sorting.
+ */
+export function lastNameSortKey(name: string): string {
+  return getLastName(name).toLowerCase();
+}
+
+function stripTrailingSuffixes(tokens: string[]): void {
+  while (tokens.length > 1) {
+    const lastToken = tokens[tokens.length - 1] ?? "";
+    const normalized = cleanTokenForSuffixCheck(lastToken);
+    if (!nameSuffixes.has(normalized)) {
+      break;
+    }
+    tokens.pop();
+    const prev = tokens[tokens.length - 1];
+    if (prev?.endsWith(",")) {
+      tokens[tokens.length - 1] = prev.slice(0, -1);
+    }
+  }
+}
+
+function findCompoundSurnameStartIndex(tokens: readonly string[]): number {
+  const lastIndex = tokens.length - 1;
+  let startIndex = lastIndex;
+
+  for (let i = lastIndex - 1; i >= 0; i--) {
+    const token = tokens[i] ?? "";
+    const particleCandidate = cleanTokenForParticleCheck(token);
+    if (!surnameParticles.has(particleCandidate)) {
+      break;
+    }
+    if (i > 0) {
+      startIndex = i;
+    } else if (startIndex < lastIndex || token === token.toLowerCase()) {
+      // i === 0: the first token of the entire name.
+      // Include if it's a particle and either part of an already extended compound
+      // (e.g. "De la Cruz") or lowercase (e.g. "van Beethoven").
+      startIndex = 0;
+    }
+  }
+
+  return startIndex;
+}
+
+/**
+ * Parse a display name into a canonical surname/last-name string.
+ * Handles common compound surname particles (e.g. "Van Dyke", "van Beethoven",
+ * "de la Cruz"), generational/academic suffixes (e.g. "Jr.", "III", "MD"),
+ * middle names ("Mary Ann Smith" -> "Smith"), and single-token names ("Cher" -> "Cher").
  */
 export function getLastName(fullName: string): string {
   if (!fullName) return "";
-  const parts = fullName.trim().split(/\s+/);
-  const length = parts.length;
-  if (length <= 1) return parts[0] ?? "";
+  const trimmed = fullName.trim();
+  if (!trimmed) return "";
 
-  const suffixes = new Set(["Jr", "Sr", "II", "III", "IV", "V", "Jr.", "Sr."]);
-  const lastPart = parts[length - 1] ?? "";
-  if (suffixes.has(lastPart)) {
-    const namePartCount = length - 1;
-    if (namePartCount >= 3) {
-      const thirdLastPart = parts[length - 3] ?? "";
-      const secondLastPart = parts[length - 2] ?? "";
-      return `${thirdLastPart} ${secondLastPart} ${lastPart}`;
-    }
-    if (namePartCount === 2) {
-      const secondLastPart = parts[length - 2] ?? "";
-      return `${secondLastPart} ${lastPart}`;
-    }
-    return lastPart;
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return "";
+  if (tokens.length === 1) return tokens[0] ?? "";
+
+  stripTrailingSuffixes(tokens);
+  if (tokens.length <= 1) {
+    return tokens[0] ?? "";
   }
 
-  if (length >= 3) {
-    const secondLastPart = parts[length - 2] ?? "";
-    return `${secondLastPart} ${lastPart}`;
-  }
-  return lastPart;
+  const startIndex = findCompoundSurnameStartIndex(tokens);
+  return tokens.slice(startIndex).join(" ");
 }
 
 export function getFirstName(fullName: string): string {
@@ -54,7 +167,7 @@ export function getFirstName(fullName: string): string {
   const trimmed = fullName.trim();
   const lastName = getLastName(trimmed);
   if (!lastName || trimmed === lastName) return "";
-  const index = trimmed.lastIndexOf(lastName);
+  const index = trimmed.indexOf(lastName);
   return index === -1 ? "" : trimmed.substring(0, index).trim();
 }
 

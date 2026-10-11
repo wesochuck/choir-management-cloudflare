@@ -65,6 +65,37 @@ describe("contacts CSV export (flow: export to CSV)", () => {
     expect(exported.csv).toContain('"Concert Audience; Newsletter"');
   });
 
+  it("prefers the stored Last Name field over parsing the display name", () => {
+    expect(CONTACT_EXPORT_COLUMNS.indexOf("Last Name")).toBe(
+      CONTACT_EXPORT_COLUMNS.indexOf("Display Name") + 2,
+    );
+    const compound = contactFixture({
+      displayName: "Sarah Van Dyke",
+      firstName: "Sarah",
+      lastName: "Van Dyke",
+    });
+    const compoundRow = contactExportRow({
+      contact: compound,
+      emailStatus: "unknown",
+      listNames: [],
+      smsStatus: "unknown",
+    });
+    expect(compoundRow).toContain('"Sarah Van Dyke","Sarah","Van Dyke"');
+    const stored = contactFixture({
+      displayName: "Mary Ann Smith",
+      firstName: "Mary Ann",
+      lastName: "Custom-Surname",
+    });
+    const storedRow = contactExportRow({
+      contact: stored,
+      emailStatus: "unknown",
+      listNames: [],
+      smsStatus: "unknown",
+    });
+    expect(storedRow).toContain('"Mary Ann Smith","Mary Ann","Custom-Surname"');
+    expect(storedRow).not.toContain('"Mary Ann Smith","Mary Ann","Smith"');
+  });
+
   it("neutralizes spreadsheet formula prefixes in exported fields", () => {
     const malicious = contactFixture({
       displayName: "=cmd|' /C calc'!A0",

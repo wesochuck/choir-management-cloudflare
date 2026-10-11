@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateAttendance,
   commerceRowGrossAmount,
+  commerceRowLastName,
   commerceRowNetProceeds,
   commerceRowProcessorFee,
   commerceRowRefundAmount,
@@ -98,6 +99,25 @@ describe("Commerce report helpers", () => {
     expect(commerceRowRefundAmount(row)).toBe(0);
     expect(commerceRowProcessorFee(row)).toBe(175);
     expect(commerceRowNetProceeds(row)).toBe(5180 - 0 - 175); // 5005
+  });
+
+  it("extracts compound last name for ticket and donation rows, protecting anonymous donors", () => {
+    const ticketRow: CommerceRow = {
+      kind: "ticket",
+      record: mockTicketOrder({ buyerName: "Sarah Van Dyke" }),
+    };
+    const donationRow: CommerceRow = {
+      kind: "donation",
+      record: mockDonation({ anonymous: false, buyerName: "Mary Ann Smith" }),
+    };
+    const anonDonationRow: CommerceRow = {
+      kind: "donation",
+      record: mockDonation({ anonymous: true, buyerName: "Secret Person" }),
+    };
+
+    expect(commerceRowLastName(ticketRow)).toBe("Van Dyke");
+    expect(commerceRowLastName(donationRow)).toBe("Smith");
+    expect(commerceRowLastName(anonDonationRow)).toBe("Anonymous");
   });
 
   it("calculates gross, refund, processor fee, and negative net proceeds for refunded Stripe ticket", () => {

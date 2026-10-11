@@ -16,8 +16,11 @@ export function mapCsvColumns(
   const kept = mappings.filter(({ targetHeader }) => targetHeader !== null);
   return rows
     .map((row, rowIndex) => {
-      if (row.length === 1 && row[0]?.trim().toLowerCase() === "section leaders") {
-        return [escapeCsvField(row[0])].join(",");
+      if (
+        row[0]?.trim().toLowerCase() === "section leaders" &&
+        (row.length === 1 || row.slice(1).every((cell) => cell.trim() === ""))
+      ) {
+        return kept.map((_, i) => (i === 0 ? escapeCsvField(row[0] ?? "") : "")).join(",");
       }
       if (rowIndex === 0) {
         return kept.map(({ targetHeader }) => escapeCsvField(targetHeader ?? "")).join(",");

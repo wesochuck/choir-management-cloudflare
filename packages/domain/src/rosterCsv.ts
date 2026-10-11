@@ -1,6 +1,7 @@
 import { emailAddressSchema } from "@choir/contracts";
 import { mapCsvColumns, type CsvColumnMapping } from "./csvMapping";
 import { CsvRowsError, escapeCsvField, parseCsvRows } from "./csvRows";
+import { getLastName } from "./name";
 
 export interface RosterCsvProfile {
   readonly displayName: string;
@@ -62,6 +63,7 @@ export class RosterCsvError extends Error {
 
 export const rosterCsvColumnOptions = [
   "Name",
+  "Last Name",
   "Email",
   "Phone",
   "Voice Part",
@@ -89,6 +91,7 @@ export function rosterCsvColumnForHeader(
   const normalizedPerformerLabel = performerLabel.trim().toLowerCase();
   if (normalizedPerformerLabel && normalized === normalizedPerformerLabel) return "Voice Part";
   if (["name", "singer", "singer name", "full name"].includes(normalized)) return "Name";
+  if (["last name", "last_name", "surname"].includes(normalized)) return "Last Name";
   if (["email", "e-mail", "email address"].includes(normalized)) return "Email";
   if (["phone", "cell", "mobile", "telephone"].includes(normalized)) return "Phone";
   if (["voice part", "voice", "part", "section"].includes(normalized)) return "Voice Part";
@@ -120,6 +123,13 @@ function profileKey(name: string, email: string): string {
   return `${name.toLowerCase()}\0${email.toLowerCase()}`;
 }
 
+function isSectionLeaderMarkerRow(row: readonly string[]): boolean {
+  return (
+    row[0]?.trim().toLowerCase() === "section leaders" &&
+    (row.length === 1 || row.slice(1).every((cell) => cell.trim() === ""))
+  );
+}
+
 export function parseRosterCsv(
   csv: string,
   maximumRows = 500,
@@ -138,9 +148,7 @@ export function parseRosterCsv(
   const statusIndex = columnIndex(headers, "Status", performerLabel);
   const notesIndex = columnIndex(headers, "Notes", performerLabel);
   const leaderIndex = columnIndex(headers, "Section Leader", performerLabel);
-  const sectionLeaderMarker = remaining.findIndex(
-    (row) => row.length === 1 && row[0]?.toLowerCase() === "section leaders",
-  );
+  const sectionLeaderMarker = remaining.findIndex(isSectionLeaderMarkerRow);
   const profileRows = sectionLeaderMarker < 0 ? remaining : remaining.slice(0, sectionLeaderMarker);
   const leaderRows = sectionLeaderMarker < 0 ? [] : remaining.slice(sectionLeaderMarker + 2);
   if (profileRows.length > maximumRows) {
@@ -244,9 +252,7 @@ export function inspectRosterCsv(
     const headers = headerRow.map((value) => value.trim());
     const normalizedHeaders = headers.map((value) => value.toLowerCase());
     const nameIndex = columnIndex(normalizedHeaders, "Name", performerLabel);
-    const sectionLeaderMarker = remaining.findIndex(
-      (row) => row.length === 1 && row[0]?.toLowerCase() === "section leaders",
-    );
+    const sectionLeaderMarker = remaining.findIndex(isSectionLeaderMarkerRow);
     const profileRows =
       sectionLeaderMarker < 0 ? remaining : remaining.slice(0, sectionLeaderMarker);
     const warnings: RosterCsvColumnWarning[] = headers.flatMap((header, sourceIndex) =>
@@ -303,6 +309,7 @@ export function mapRosterCsvColumns(csv: string, mappings: readonly CsvColumnMap
 function profileRow(profile: RosterCsvProfile): string {
   return [
     profile.displayName,
+    getLastName(profile.displayName),
     profile.email,
     profile.phone,
     profile.voicePart,
@@ -316,10 +323,11 @@ export function renderRosterCsv(
   profiles: readonly RosterCsvProfile[],
   performerLabel = "Performer",
 ): string {
-  const header = `Name,Email,Phone,${performerLabel},Status`;
+  const header = `Name,Last Name,Email,Phone,${performerLabel},Status`;
   const rows = profiles.map(profileRow);
   const leaders = profiles.filter(({ isSectionLeader }) => isSectionLeader).map(profileRow);
+  const leaderSectionHeader = ["Section Leaders", "", "", "", "", ""].map(escapeCsvField).join(",");
   return leaders.length === 0
     ? [header, ...rows].join("\n")
-    : [header, ...rows, "", "Section Leaders", header, ...leaders].join("\n");
+    : [header, ...rows, "", leaderSectionHeader, header, ...leaders].join("\n");
 }

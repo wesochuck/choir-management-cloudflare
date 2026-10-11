@@ -4,6 +4,7 @@ import { DataTable } from "@choir/ui";
 import { getOrganizationEventAttendanceReport } from "../../../auth/api";
 import { EventPicker, Status, type LoadState, type SingerAttendance } from "./shared";
 import { downloadCsv, reportEvents } from "./reportHelpers";
+import { getLastName } from "../../nameFormatting";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 export function AttendanceReport({
   events,
@@ -79,6 +80,7 @@ export function AttendanceReport({
             downloadCsv("attendance-report.csv", [
               [
                 "Name",
+                "Last Name",
                 performerLabel,
                 "Absences",
                 "Present",
@@ -87,6 +89,7 @@ export function AttendanceReport({
               ],
               ...rows.map((row) => [
                 row.name,
+                getLastName(row.name),
                 row.voicePart,
                 row.absences,
                 row.present,

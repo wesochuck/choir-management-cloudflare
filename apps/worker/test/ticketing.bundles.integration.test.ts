@@ -192,7 +192,9 @@ describe("Organization ticket bundles", () => {
         cookie,
       ),
     );
-    expect(await winterWillCall.text()).toContain('"Season Buyer","season@example.test","2"');
+    expect(await winterWillCall.text()).toContain(
+      '"Season Buyer","Buyer","season@example.test","2"',
+    );
     const bundleRefund = await jsonWrite(
       "alpha.localhost",
       `/api/organization/tickets/${encodeURIComponent(checkout.purchase.id)}/refund`,

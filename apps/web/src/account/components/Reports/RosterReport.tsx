@@ -3,6 +3,7 @@ import { useState } from "react";
 import { DataTable } from "@choir/ui";
 import { Status } from "./shared";
 import { downloadCsv } from "./reportHelpers";
+import { getLastName } from "../../nameFormatting";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 export function RosterReport({
   profiles,
@@ -36,9 +37,10 @@ export function RosterReport({
           disabled={!filtered.length}
           onClick={() => {
             downloadCsv("roster-report.csv", [
-              ["Name", performerLabel, "Status", "Phone", "Directory"],
+              ["Name", "Last Name", performerLabel, "Status", "Phone", "Directory"],
               ...filtered.map((profile) => [
                 profile.displayName,
+                getLastName(profile.displayName),
                 profile.voicePart,
                 profile.globalStatus,
                 profile.phone,

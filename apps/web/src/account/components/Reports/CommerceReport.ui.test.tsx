@@ -4,10 +4,11 @@ import {
   organizationTicketOrderSchema,
   type OrganizationTicketOrder,
 } from "@choir/contracts";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CommerceReport } from "./CommerceReport";
+import * as reportHelpers from "./reportHelpers";
 
 function mockTicketOrder(
   overrides: Partial<OrganizationTicketOrder> = {},
@@ -129,6 +130,54 @@ describe("CommerceReport financial reconciliation and donations", () => {
     expect(within(getKpiCard("Stripe fees")).getByText("-$1.75")).toBeInTheDocument();
     // Net proceeds: -$1.75 (negative equal to retained Stripe fee)
     expect(within(getKpiCard("Net proceeds")).getByText("-$1.75")).toBeInTheDocument();
+  });
+
+  it("exports Last Name adjacent to Donor / buyer with anonymous protection", () => {
+    const downloadCsvSpy = vi
+      .spyOn(reportHelpers, "downloadCsv")
+      .mockImplementation(() => undefined);
+    const ticket = mockTicketOrder({ buyerName: "Sarah Van Dyke" });
+    const donation = mockDonation({ anonymous: false, buyerName: "Mary Ann Smith" });
+    const anonymousDonation = mockDonation({
+      anonymous: true,
+      buyerName: "Secret Person",
+    });
+
+    render(
+      <CommerceReport
+        donations={[donation, anonymousDonation]}
+        state="ready"
+        ticketOrders={[ticket]}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Export CSV"));
+
+    expect(downloadCsvSpy).toHaveBeenCalledOnce();
+    const call = downloadCsvSpy.mock.calls.at(0);
+    expect(call).toBeDefined();
+    if (!call) return;
+    const [filename, rows] = call;
+    expect(filename).toBe("donations-and-ticket-sales-report.csv");
+    const header = rows.at(0);
+    expect(header).toEqual(expect.arrayContaining(["Donor / buyer", "Last Name", "Email"]));
+    if (!header) return;
+    expect(header.indexOf("Last Name")).toBe(header.indexOf("Donor / buyer") + 1);
+    const ticketRow = rows.find((row) => row.includes("Sarah Van Dyke"));
+    expect(ticketRow).toBeDefined();
+    expect(ticketRow).toContain("Van Dyke");
+    const donationRow = rows.find((row) => row.includes("Mary Ann Smith"));
+    expect(donationRow).toBeDefined();
+    expect(donationRow).toContain("Smith");
+    const anonymousRow = rows.find(
+      (row) => row.includes("Anonymous") && !row.includes("Secret Person"),
+    );
+    expect(anonymousRow).toBeDefined();
+    expect(anonymousRow).toContain("Anonymous");
+    expect(anonymousRow).not.toContain("Secret Person");
+    for (const row of rows) {
+      expect(row).toHaveLength(13);
+    }
   });
 
   it("prioritizes Pending for Stripe fees when mixed reconciled and unreconciled orders are present", () => {

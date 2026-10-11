@@ -1,5 +1,5 @@
 import type { DonationStatus, DonationTributeType } from "./donations";
-import { lastNameSortKey } from "./name";
+import { getLastName, lastNameSortKey } from "./name";
 
 export interface DonationExportRow {
   readonly amountPaidCents: number;
@@ -29,15 +29,17 @@ function formatAmount(cents: number): string {
 }
 
 function anonymousSeparatorRow(): string {
-  return ["", "ANONYMOUS DONORS", "", "", "", "", "", "", "", "", "", "", ""]
+  return ["", "ANONYMOUS DONORS", "", "", "", "", "", "", "", "", "", "", "", ""]
     .map((cell) => csvField(cell))
     .join(",");
 }
 
 function donationRow(row: DonationExportRow): string {
+  const lastName = row.anonymous ? "Anonymous" : getLastName(row.donorName);
   return [
     row.id,
     row.donorName,
+    lastName,
     row.donorEmail,
     formatAmount(row.amountPaidCents),
     row.paymentMethod ?? "stripe",
@@ -76,6 +78,7 @@ export function renderDonationCsv(rows: readonly DonationExportRow[]): string {
   const header = [
     "ID",
     "Donor Name",
+    "Last Name",
     "Donor Email",
     "Amount",
     "Payment Method",

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { parseCsvRows } from "./csvRows";
 import {
   calculateMusicFolderCounts,
   deriveMusicFolderStatus,
@@ -50,33 +51,39 @@ describe("music folder report domain rules", () => {
     ).toEqual(["2", "1", "3"]);
   });
 
-  it("renders formula-safe, ordered CSV", () => {
-    expect(
-      renderMusicFolderReportCsv([
-        {
-          eventTitle: "Spring, Gala",
-          folderNumber: "=12",
-          isArchived: false,
-          isCanceled: false,
-          profileName: "Zoe Adams",
-          returnedAt: null,
-          startsAt: "2026-05-01T00:00:00.000Z",
-          status: "outstanding",
-        },
-        {
-          eventTitle: "Winter",
-          folderNumber: "A-1",
-          isArchived: false,
-          isCanceled: false,
-          profileName: "Amy Smith",
-          returnedAt: "2026-01-02T00:00:00.000Z",
-          startsAt: "2026-01-02T00:00:00.000Z",
-          status: "returned",
-        },
-      ]),
-    ).toContain('"\'=12"');
+  it("renders formula-safe, ordered CSV with Last Name column", () => {
+    const csv = renderMusicFolderReportCsv([
+      {
+        eventTitle: "Spring, Gala",
+        folderNumber: "=12",
+        isArchived: false,
+        isCanceled: false,
+        profileName: "Sarah Van Dyke",
+        returnedAt: null,
+        startsAt: "2026-05-01T00:00:00.000Z",
+        status: "outstanding",
+      },
+      {
+        eventTitle: "Winter",
+        folderNumber: "A-1",
+        isArchived: false,
+        isCanceled: false,
+        profileName: "Mary Ann Smith",
+        returnedAt: "2026-01-02T00:00:00.000Z",
+        startsAt: "2026-01-02T00:00:00.000Z",
+        status: "returned",
+      },
+    ]);
+    expect(csv).toContain('"\'=12"');
+    expect(csv).toContain('"Sarah Van Dyke","Van Dyke"');
+    expect(csv).toContain('"Mary Ann Smith","Smith"');
     expect(renderMusicFolderReportCsv([])).toBe(
-      '"Profile","Performance","Performance Start","Performance State","Folder Number","Folder Return Status","Returned At"\r\n',
+      '"Profile","Last Name","Performance","Performance Start","Performance State","Folder Number","Folder Return Status","Returned At"\r\n',
     );
+    const parsedRows = parseCsvRows(csv);
+    expect(parsedRows.length).toBe(3); // header + 2 data rows
+    for (const row of parsedRows) {
+      expect(row.length).toBe(8);
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { lastNameSortKey } from "./name";
+import { getLastName, lastNameSortKey } from "./name";
 
 export type MusicFolderReportStatus =
   "not_applicable" | "not_assigned" | "outstanding" | "returned";
@@ -113,6 +113,7 @@ export function renderMusicFolderReportCsv(rows: readonly MusicFolderCsvRow[]): 
   const lines = [
     [
       "Profile",
+      "Last Name",
       "Performance",
       "Performance Start",
       "Performance State",
@@ -136,6 +137,7 @@ export function renderMusicFolderReportCsv(rows: readonly MusicFolderCsvRow[]): 
     lines.push(
       [
         row.profileName,
+        getLastName(row.profileName),
         row.eventTitle,
         row.startsAt,
         performanceState(row),

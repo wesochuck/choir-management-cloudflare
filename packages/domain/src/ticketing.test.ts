@@ -141,7 +141,7 @@ describe("ticketing rules", () => {
     expect(canTransitionTicketPurchase("refunded", "paid")).toBe(false);
   });
 
-  it("renders stable last-name-sorted will-call CSV without spreadsheet formulas", () => {
+  it("renders stable last-name-sorted will-call CSV with Last Name column without spreadsheet formulas", () => {
     const csv = renderTicketWillCallCsv([
       {
         amountPaidCents: 5000,
@@ -161,13 +161,28 @@ describe("ticketing rules", () => {
         quantity: 1,
         status: "paid",
       },
+      {
+        amountPaidCents: 3000,
+        buyerEmail: "sarah@example.test",
+        buyerName: "Sarah Van Dyke",
+        createdAt: "2026-07-23T00:00:00.000Z",
+        id: "order-c",
+        quantity: 1,
+        status: "paid",
+      },
     ]);
     expect(csv).toContain('"\'=IMPORTXML(example.test)"');
     expect(csv).toContain('"\'=Danger Adams"');
+    expect(csv).toContain('"Sarah Van Dyke","Van Dyke"');
     expect(csv.indexOf("=Danger Adams")).toBeLessThan(csv.indexOf("Zoe Baker"));
+    expect(csv.indexOf("Zoe Baker")).toBeLessThan(csv.indexOf("Sarah Van Dyke"));
     expect(ticketWillCallFilename("Winter Concert!", "event-id")).toBe(
       "will-call-winter-concert.csv",
     );
+    const lines = csv.split("\r\n").filter(Boolean);
+    for (const line of lines) {
+      expect(line.split(",").length).toBe(9);
+    }
   });
 
   describe("calculatePaymentFinancialSummary", () => {

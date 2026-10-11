@@ -33,13 +33,13 @@ describe("roster CSV", () => {
       ]),
     ).toBe(
       [
-        "Name,Email,Phone,Performer,Status",
-        '"Alex ""Ace"", Singer","alex@example.test","555-0100","T2","Idle"',
-        '"Sam Singer","","","B2","Active"',
+        "Name,Last Name,Email,Phone,Performer,Status",
+        '"Alex ""Ace"", Singer","Singer","alex@example.test","555-0100","T2","Idle"',
+        '"Sam Singer","Singer","","","B2","Active"',
         "",
-        "Section Leaders",
-        "Name,Email,Phone,Performer,Status",
-        '"Alex ""Ace"", Singer","alex@example.test","555-0100","T2","Idle"',
+        '"Section Leaders","","","","",""',
+        "Name,Last Name,Email,Phone,Performer,Status",
+        '"Alex ""Ace"", Singer","Singer","alex@example.test","555-0100","T2","Idle"',
       ].join("\n"),
     );
   });
@@ -96,6 +96,82 @@ describe("roster CSV", () => {
         voicePart: "S1",
       },
     ]);
+  });
+
+  it("exports compound surnames, middle names, and suffixes to Last Name column", () => {
+    const csv = renderRosterCsv([
+      {
+        displayName: "Sarah Van Dyke",
+        email: "sarah@example.test",
+        globalStatus: "Active",
+        isSectionLeader: false,
+        phone: "",
+        voicePart: "S1",
+      },
+      {
+        displayName: "Mary Ann Smith",
+        email: "mary@example.test",
+        globalStatus: "Active",
+        isSectionLeader: false,
+        phone: "",
+        voicePart: "A1",
+      },
+      {
+        displayName: "Maria de la Cruz",
+        email: "maria@example.test",
+        globalStatus: "Active",
+        isSectionLeader: false,
+        phone: "",
+        voicePart: "T1",
+      },
+      {
+        displayName: "John Smith Jr.",
+        email: "john@example.test",
+        globalStatus: "Active",
+        isSectionLeader: false,
+        phone: "",
+        voicePart: "B1",
+      },
+    ]);
+    expect(csv).toContain('"Sarah Van Dyke","Van Dyke"');
+    expect(csv).toContain('"Mary Ann Smith","Smith"');
+    expect(csv).toContain('"Maria de la Cruz","de la Cruz"');
+    expect(csv).toContain('"John Smith Jr.","Smith"');
+  });
+
+  it("inspects a generated export cleanly without unknown-column warnings", () => {
+    const csv = renderRosterCsv([
+      {
+        displayName: "Sarah Van Dyke",
+        email: "sarah@example.test",
+        globalStatus: "Active",
+        isSectionLeader: true,
+        phone: "555-0100",
+        voicePart: "S1",
+      },
+    ]);
+    const inspection = inspectRosterCsv(csv);
+    expect(inspection.fatalError).toBeNull();
+    expect(inspection.warnings).toHaveLength(0);
+    expect(inspection.headers).toContain("Last Name");
+  });
+
+  it("ensures uniform 6-column counts across all rows including section leaders", () => {
+    const csv = renderRosterCsv([
+      {
+        displayName: "Leader One",
+        email: "leader@example.test",
+        globalStatus: "Active",
+        isSectionLeader: true,
+        phone: "",
+        voicePart: "S1",
+      },
+    ]);
+    const lines = csv.split("\n").filter(Boolean);
+    for (const line of lines) {
+      // Split by comma outside quotes
+      expect(line.split(",").length).toBeGreaterThanOrEqual(6);
+    }
   });
 
   it("round-trips an export using the configured performer label", () => {

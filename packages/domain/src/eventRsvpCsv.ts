@@ -1,4 +1,4 @@
-import { lastNameSortKey } from "./name";
+import { getLastName, lastNameSortKey } from "./name";
 
 export type EventRsvpStatus = "No" | "Pending" | "Yes";
 export type EventRsvpExportSort = "lastName" | "section";
@@ -60,6 +60,7 @@ function renderSinger(singer: EventRsvpExportSinger, input: RenderEventRsvpCsvIn
     : "Unassigned";
   return [
     quoteCsvValue(singer.displayName),
+    quoteCsvValue(getLastName(singer.displayName)),
     quoteCsvValue(sectionName),
     quoteCsvValue(singer.voicePart || "Not sure"),
     quoteCsvValue(input.eventTitle || "Event"),
@@ -94,7 +95,7 @@ export function eventRsvpExportFilename(eventTitle: string, eventType: string): 
 }
 
 export function renderEventRsvpCsv(input: RenderEventRsvpCsvInput): string {
-  const header = `Name,Section,${input.performerLabel ?? "Performer"},Event Title,RSVP Status`;
+  const header = `Name,Last Name,Section,${input.performerLabel ?? "Performer"},Event Title,RSVP Status`;
   const lines = [header];
   let firstGroup = true;
   for (const status of ["Yes", "No", "Pending"] as const) {
@@ -102,12 +103,12 @@ export function renderEventRsvpCsv(input: RenderEventRsvpCsvInput): string {
     if (singers.length === 0) continue;
     if (!firstGroup) lines.push("");
     firstGroup = false;
-    lines.push(`${quoteCsvValue(groupLabel(status))},,,,`);
+    lines.push(`${quoteCsvValue(groupLabel(status))},,,,,`);
     lines.push(...sortSingers(singers, input).map((singer) => renderSinger(singer, input)));
   }
   const leaders = input.singers.filter(({ isSectionLeader }) => isSectionLeader);
   if (leaders.length > 0) {
-    lines.push("", "Section Leaders", header);
+    lines.push("", "Section Leaders,,,,,", header);
     lines.push(...sortSingers(leaders, input).map((singer) => renderSinger(singer, input)));
   }
   return lines.join("\n");

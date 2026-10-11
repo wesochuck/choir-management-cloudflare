@@ -6,7 +6,9 @@ describe("seating name formatting", () => {
   it("keeps compound surnames and suffixes together", () => {
     expect(getLastName("  Ron   Van Dyke ")).toBe("Van Dyke");
     expect(getFirstName("Ron Van Dyke")).toBe("Ron");
-    expect(getLastName("Martin Luther King Jr.")).toBe("Luther King Jr.");
+    expect(getLastName("Martin Luther King Jr.")).toBe("King");
+    expect(getLastName("Mary Ann Smith")).toBe("Smith");
+    expect(getLastName("Maria de la Cruz")).toBe("de la Cruz");
   });
 
   it("renders compact initials for narrow seating tiles", () => {

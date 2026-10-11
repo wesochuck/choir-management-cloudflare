@@ -17,6 +17,7 @@ import {
   saveOrganizationCommunicationDraft,
   updateOrganizationPoll,
 } from "../api";
+import { buildPollResultsCsvRows } from "./pollResultsCsv";
 
 type Poll = OrganizationPollSummary;
 
@@ -83,42 +84,7 @@ function formatSubmissionDate(value: string): string {
 }
 
 function exportResultsCsv(results: OrganizationPollResultsResponse): void {
-  const rows = [
-    [
-      "Poll Title",
-      "Option",
-      "Votes",
-      "Percentage",
-      "Respondent Name",
-      "Voice Part",
-      "Responded At",
-    ],
-  ];
-  for (const opt of results.options) {
-    if (opt.respondents.length === 0) {
-      rows.push([
-        results.title,
-        opt.label,
-        String(opt.count),
-        `${String(opt.percentage)}%`,
-        "",
-        "",
-        "",
-      ]);
-    } else {
-      for (const resp of opt.respondents) {
-        rows.push([
-          results.title,
-          opt.label,
-          String(opt.count),
-          `${String(opt.percentage)}%`,
-          resp.profileName,
-          resp.voicePart,
-          resp.respondedAt,
-        ]);
-      }
-    }
-  }
+  const rows = buildPollResultsCsvRows(results);
   const csvContent = rows
     .map((row) => row.map((field) => `"${field.replaceAll('"', '""')}"`).join(","))
     .join("\n");

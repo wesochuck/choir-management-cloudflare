@@ -12,14 +12,35 @@ describe("name domain logic", () => {
   it("computes surname sort keys correctly", () => {
     expect(lastNameSortKey("")).toBe("");
     expect(lastNameSortKey("Alice Smith")).toBe("smith");
-    expect(lastNameSortKey("Martin Luther King Jr.")).toBe("king jr.");
+    expect(lastNameSortKey("Sarah Van Dyke")).toBe("van dyke");
+    expect(lastNameSortKey("Mary Ann Smith")).toBe("smith");
+    expect(lastNameSortKey("Maria de la Cruz")).toBe("de la cruz");
+    expect(lastNameSortKey("John Smith Jr.")).toBe("smith");
+    expect(lastNameSortKey("Martin Luther King Jr.")).toBe("king");
     expect(lastNameSortKey("Ludwig van Beethoven")).toBe("van beethoven");
+    expect(lastNameSortKey("Cher")).toBe("cher");
   });
 
-  it("keeps compound surnames and suffixes together", () => {
+  it("extracts canonical surnames and handles compound surnames, middle names, and suffixes", () => {
     expect(getLastName("  Ron   Van Dyke ")).toBe("Van Dyke");
     expect(getFirstName("Ron Van Dyke")).toBe("Ron");
-    expect(getLastName("Martin Luther King Jr.")).toBe("Luther King Jr.");
+    expect(getLastName("Sarah Van Dyke")).toBe("Van Dyke");
+    expect(getLastName("Mary Ann Smith")).toBe("Smith");
+    expect(getFirstName("Mary Ann Smith")).toBe("Mary Ann");
+    expect(getLastName("Maria de la Cruz")).toBe("de la Cruz");
+    expect(getLastName("John Smith Jr.")).toBe("Smith");
+    expect(getLastName("John Smith, Jr.")).toBe("Smith");
+    expect(getLastName("John Smith, III")).toBe("Smith");
+    expect(getLastName("John Smith, MD")).toBe("Smith");
+    expect(getLastName("Jane Doe, Esq.")).toBe("Doe");
+    expect(getLastName("Martin Luther King Jr.")).toBe("King");
+    expect(getFirstName("Martin Luther King Jr.")).toBe("Martin Luther");
+    expect(getLastName("Ursula von der Leyen")).toBe("von der Leyen");
+    expect(getLastName("Leonardo da Vinci")).toBe("da Vinci");
+    expect(getLastName("Mary Smith-Jones")).toBe("Smith-Jones");
+    expect(getLastName("Sarah D'Angelo")).toBe("D'Angelo");
+    expect(getLastName("Mary O'Connor")).toBe("O'Connor");
+    expect(getLastName("Cher")).toBe("Cher");
     expect(getLastName("")).toBe("");
     expect(getFirstName("")).toBe("");
   });

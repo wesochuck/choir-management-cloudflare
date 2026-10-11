@@ -276,9 +276,17 @@ describe("AttendanceReport UI", () => {
     expect(downloadCsvSpy).toHaveBeenCalledWith(
       "attendance-report.csv",
       expect.arrayContaining([
-        ["Name", "Singer", "Absences", "Present", "Total rehearsals", "Attendance rate"],
-        ["Bob Singer", "Tenor", 2, 0, 2, "0.0%"],
-        ["Alice Singer", "Soprano", 0, 2, 2, "100.0%"],
+        [
+          "Name",
+          "Last Name",
+          "Singer",
+          "Absences",
+          "Present",
+          "Total rehearsals",
+          "Attendance rate",
+        ],
+        ["Bob Singer", "Singer", "Tenor", 2, 0, 2, "0.0%"],
+        ["Alice Singer", "Singer", "Soprano", 0, 2, 2, "100.0%"],
       ]),
     );
   });

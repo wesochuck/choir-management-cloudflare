@@ -24,19 +24,19 @@ describe("event RSVP CSV", () => {
     });
     expect(csv).toBe(
       [
-        "Name,Section,Performer,Event Title,RSVP Status",
-        '"Attending (Yes)",,,,',
-        '"John Doe","Sopranos","S1","Spring Concert 2026!","Yes"',
+        "Name,Last Name,Section,Performer,Event Title,RSVP Status",
+        '"Attending (Yes)",,,,,',
+        '"John Doe","Doe","Sopranos","S1","Spring Concert 2026!","Yes"',
         "",
-        '"Declined (No)",,,,',
-        '"\'=Alice Smith","Altos","A1","Spring Concert 2026!","No"',
+        '"Declined (No)",,,,,',
+        '"\'=Alice Smith","Smith","Altos","A1","Spring Concert 2026!","No"',
         "",
-        '"No Response (Pending)",,,,',
-        '"No Voice","Unassigned","Not sure","Spring Concert 2026!","Pending"',
+        '"No Response (Pending)",,,,,',
+        '"No Voice","Voice","Unassigned","Not sure","Spring Concert 2026!","Pending"',
         "",
-        "Section Leaders",
-        "Name,Section,Performer,Event Title,RSVP Status",
-        '"John Doe","Sopranos","S1","Spring Concert 2026!","Yes"',
+        "Section Leaders,,,,,",
+        "Name,Last Name,Section,Performer,Event Title,RSVP Status",
+        '"John Doe","Doe","Sopranos","S1","Spring Concert 2026!","Yes"',
       ].join("\n"),
     );
     expect(eventRsvpExportFilename("Spring Concert 2026!", "Performance")).toBe(
@@ -53,11 +53,31 @@ describe("event RSVP CSV", () => {
         sort: "lastName",
         voiceParts: [],
       }),
-    ).toBe("Name,Section,Performer,Event Title,RSVP Status");
+    ).toBe("Name,Last Name,Section,Performer,Event Title,RSVP Status");
   });
 
   it("normalizes compound surnames and suffixes with the shared export rule", () => {
     expect(lastNameSortKey("Mary Van Dyke")).toBe("van dyke");
-    expect(lastNameSortKey("John Smith Jr.")).toBe("smith jr.");
+    expect(lastNameSortKey("Sarah Van Dyke")).toBe("van dyke");
+    expect(lastNameSortKey("Mary Ann Smith")).toBe("smith");
+    expect(lastNameSortKey("Maria de la Cruz")).toBe("de la cruz");
+    expect(lastNameSortKey("John Smith Jr.")).toBe("smith");
+  });
+
+  it("ensures uniform 6-column counts across all rows including separators", () => {
+    const csv = renderEventRsvpCsv({
+      eventTitle: "Spring Concert",
+      sections: [{ code: "S", name: "Sopranos" }],
+      singers: [
+        { displayName: "Sarah Van Dyke", isSectionLeader: true, rsvp: "Yes", voicePart: "S1" },
+        { displayName: "Mary Ann Smith", isSectionLeader: false, rsvp: "No", voicePart: "S1" },
+      ],
+      sort: "lastName",
+      voiceParts: [{ label: "S1", sectionCode: "S" }],
+    });
+    const lines = csv.split("\n").filter(Boolean);
+    for (const line of lines) {
+      expect(line.split(",").length).toBeGreaterThanOrEqual(6);
+    }
   });
 });

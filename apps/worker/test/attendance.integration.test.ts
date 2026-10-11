@@ -289,19 +289,19 @@ describe("Organization attendance", () => {
     );
     expect(await rsvpExport.text()).toBe(
       [
-        "Name,Section,Performer,Event Title,RSVP Status",
-        '"Attending (Yes)",,,,',
-        '"John Doe","Sopranos","S1","Attendance Rehearsal","Yes"',
+        "Name,Last Name,Section,Performer,Event Title,RSVP Status",
+        '"Attending (Yes)",,,,,',
+        '"John Doe","Doe","Sopranos","S1","Attendance Rehearsal","Yes"',
         "",
-        '"Declined (No)",,,,',
-        '"Alice Smith","Altos","A1","Attendance Rehearsal","No"',
+        '"Declined (No)",,,,,',
+        '"Alice Smith","Smith","Altos","A1","Attendance Rehearsal","No"',
         "",
-        '"No Response (Pending)",,,,',
-        '"Unassigned Profile","Unassigned","Not sure","Attendance Rehearsal","Pending"',
+        '"No Response (Pending)",,,,,',
+        '"Unassigned Profile","Profile","Unassigned","Not sure","Attendance Rehearsal","Pending"',
         "",
-        "Section Leaders",
-        "Name,Section,Performer,Event Title,RSVP Status",
-        '"John Doe","Sopranos","S1","Attendance Rehearsal","Yes"',
+        "Section Leaders,,,,,",
+        "Name,Last Name,Section,Performer,Event Title,RSVP Status",
+        '"John Doe","Doe","Sopranos","S1","Attendance Rehearsal","Yes"',
       ].join("\n"),
     );
     expect(

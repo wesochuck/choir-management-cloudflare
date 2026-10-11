@@ -1,3 +1,5 @@
+import { getLastName, lastNameSortKey } from "./name";
+
 export type AttendanceExportSort = "absences" | "name";
 
 export interface AttendanceReportSinger {
@@ -28,7 +30,7 @@ function attendanceRate(rate: number): string {
 }
 
 /**
- * Sort by absences descending, then name ascending (case-insensitive).
+ * Sort by absences descending, then surname ascending (case-insensitive).
  * This mirrors the baseline reportService sort, which is independent of any UI
  * sort selection.
  */
@@ -37,9 +39,15 @@ function sortSingers(
   sort: AttendanceExportSort = "absences",
 ): readonly AttendanceReportSinger[] {
   return [...singers].sort((left, right) => {
-    if (sort === "name") return left.name.localeCompare(right.name);
+    if (sort === "name") {
+      const surnameDiff = lastNameSortKey(left.name).localeCompare(lastNameSortKey(right.name));
+      if (surnameDiff !== 0) return surnameDiff;
+      return left.name.localeCompare(right.name);
+    }
     const absDiff = right.absences - left.absences;
     if (absDiff !== 0) return absDiff;
+    const surnameDiff = lastNameSortKey(left.name).localeCompare(lastNameSortKey(right.name));
+    if (surnameDiff !== 0) return surnameDiff;
     return left.name.localeCompare(right.name);
   });
 }
@@ -52,6 +60,7 @@ export function attendanceReportFilename(performanceTitle: string): string {
 export function renderAttendanceReportCsv(input: AttendanceReportInput): string {
   const header = [
     "Name",
+    "Last Name",
     input.performerLabel,
     "Absences",
     "Presence Count",
@@ -71,6 +80,7 @@ export function renderAttendanceReportCsv(input: AttendanceReportInput): string 
     lines.push(
       [
         singer.name,
+        getLastName(singer.name),
         singer.voicePart,
         singer.absences,
         singer.presenceCount,

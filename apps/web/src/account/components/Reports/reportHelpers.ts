@@ -1,4 +1,4 @@
-import { timestampedExportFilename } from "@choir/domain";
+import { getLastName, timestampedExportFilename } from "@choir/domain";
 import {
   type DonationRecord,
   type OrganizationAttendanceRow,
@@ -115,6 +115,13 @@ export function commerceRowFee(row: CommerceRow): number {
 
 export function commerceRowName(row: CommerceRow): string {
   return row.kind === "donation" && row.record.anonymous ? "Anonymous" : row.record.buyerName;
+}
+
+export function commerceRowLastName(row: CommerceRow): string {
+  if (row.kind === "donation" && row.record.anonymous) {
+    return "Anonymous";
+  }
+  return getLastName(row.record.buyerName);
 }
 
 export function commerceRowQuantity(row: CommerceRow): number | null {

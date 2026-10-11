@@ -10,6 +10,7 @@ import {
   commerceRowEmail,
   commerceRowFee,
   commerceRowGrossAmount,
+  commerceRowLastName,
   commerceRowName,
   commerceRowNetProceeds,
   commerceRowProcessorFee,
@@ -104,6 +105,7 @@ export function CommerceReport({
               [
                 "Type",
                 "Donor / buyer",
+                "Last Name",
                 "Email",
                 "Event / tribute",
                 "Quantity",
@@ -122,6 +124,7 @@ export function CommerceReport({
                 return [
                   commerceRowType(row),
                   commerceRowName(row),
+                  commerceRowLastName(row),
                   commerceRowEmail(row),
                   commerceRowDetails(row),
                   commerceRowQuantity(row) ?? "",

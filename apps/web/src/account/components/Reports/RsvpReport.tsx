@@ -4,6 +4,7 @@ import { DataTable } from "@choir/ui";
 import { listOrganizationEventAttendance } from "../../../auth/api";
 import { EventPicker, Status, type LoadState } from "./shared";
 import { downloadCsv, reportEvents } from "./reportHelpers";
+import { getLastName } from "../../nameFormatting";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 export function RsvpReport({
   events,
@@ -59,8 +60,14 @@ export function RsvpReport({
           disabled={!selected || rows.length === 0}
           onClick={() => {
             downloadCsv("rsvp-report.csv", [
-              ["Name", performerLabel, "RSVP", "Attendance"],
-              ...rows.map((row) => [row.displayName, row.voicePart, row.rsvp, row.attendance]),
+              ["Name", "Last Name", performerLabel, "RSVP", "Attendance"],
+              ...rows.map((row) => [
+                row.displayName,
+                getLastName(row.displayName),
+                row.voicePart,
+                row.rsvp,
+                row.attendance,
+              ]),
             ]);
           }}
           type="button"

@@ -282,12 +282,12 @@ describe("Organization Profiles", () => {
     );
     expect(await rosterExport.text()).toBe(
       [
-        "Name,Email,Phone,Performer,Status",
-        '"Alpha ""Ace"", Singer","profile.manager@example.test","555-0100","S1","Idle"',
+        "Name,Last Name,Email,Phone,Performer,Status",
+        '"Alpha ""Ace"", Singer","Singer","profile.manager@example.test","555-0100","S1","Idle"',
         "",
-        "Section Leaders",
-        "Name,Email,Phone,Performer,Status",
-        '"Alpha ""Ace"", Singer","profile.manager@example.test","555-0100","S1","Idle"',
+        '"Section Leaders","","","","",""',
+        "Name,Last Name,Email,Phone,Performer,Status",
+        '"Alpha ""Ace"", Singer","Singer","profile.manager@example.test","555-0100","S1","Idle"',
       ].join("\n"),
     );
     expect(

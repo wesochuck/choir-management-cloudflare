@@ -23,7 +23,7 @@ describe("renderAttendanceReportCsv", () => {
     });
     const lines = csv.split("\r\n");
     expect(lines[0]).toBe(
-      '"Name","Performer","Absences","Presence Count","Total Rehearsals","Attendance Rate %"',
+      '"Name","Last Name","Performer","Absences","Presence Count","Total Rehearsals","Attendance Rate %"',
     );
     expect(lines[1]).toBe("");
   });
@@ -34,7 +34,7 @@ describe("renderAttendanceReportCsv", () => {
       singers: [baseSinger],
     });
     expect(csv.split("\r\n")[0]).toBe(
-      '"Name","Singer","Absences","Presence Count","Total Rehearsals","Attendance Rate %"',
+      '"Name","Last Name","Singer","Absences","Presence Count","Total Rehearsals","Attendance Rate %"',
     );
   });
 
@@ -44,10 +44,10 @@ describe("renderAttendanceReportCsv", () => {
       singers: [baseSinger],
     });
     const lines = csv.split("\r\n");
-    expect(lines[1]).toBe('"Alice Anderson","Soprano 1","1","5","6","83.3"');
+    expect(lines[1]).toBe('"Alice Anderson","Anderson","Soprano 1","1","5","6","83.3"');
   });
 
-  it("sorts by absences descending then name ascending", () => {
+  it("sorts by absences descending then surname ascending", () => {
     const highAbsences: AttendanceReportSinger = {
       ...baseSinger,
       absences: 5,
@@ -68,27 +68,41 @@ describe("renderAttendanceReportCsv", () => {
       singers: [lowAbsences, highAbsences, baseSinger, midAbsences],
     });
     const dataLines = csv.split("\r\n").slice(1, -1);
-    // absences 5 group, name ascending: Alice Adams, Zoe Zulu
-    expect(dataLines[0]).toContain('"Alice Adams"');
-    expect(dataLines[1]).toContain('"Zoe Zulu"');
+    // absences 5 group, surname ascending: Alice Adams, Zoe Zulu
+    expect(dataLines[0]).toContain('"Alice Adams","Adams"');
+    expect(dataLines[1]).toContain('"Zoe Zulu","Zulu"');
     // absences 1: Alice Anderson
-    expect(dataLines[2]).toContain('"Alice Anderson"');
+    expect(dataLines[2]).toContain('"Alice Anderson","Anderson"');
     // absences 0: Bob Brown
-    expect(dataLines[3]).toContain('"Bob Brown"');
+    expect(dataLines[3]).toContain('"Bob Brown","Brown"');
   });
 
-  it("honors the requested name sort", () => {
+  it("honors the requested name sort by canonical surname", () => {
     const csv = renderAttendanceReportCsv({
       performerLabel: "Performer",
       singers: [
-        { ...baseSinger, name: "Zoe Zulu", absences: 0 },
-        { ...baseSinger, name: "Alice Adams", absences: 5 },
+        { ...baseSinger, absences: 0, name: "Sarah Van Dyke" },
+        { ...baseSinger, absences: 0, name: "Mary Ann Smith" },
+        { ...baseSinger, absences: 5, name: "Alice Adams" },
       ],
       sort: "name",
     });
     const dataLines = csv.split("\r\n").slice(1, -1);
-    expect(dataLines[0]).toContain('"Alice Adams"');
-    expect(dataLines[1]).toContain('"Zoe Zulu"');
+    // Adams -> Smith -> Van Dyke
+    expect(dataLines[0]).toContain('"Alice Adams","Adams"');
+    expect(dataLines[1]).toContain('"Mary Ann Smith","Smith"');
+    expect(dataLines[2]).toContain('"Sarah Van Dyke","Van Dyke"');
+  });
+
+  it("ensures uniform 7-column counts across all rows", () => {
+    const csv = renderAttendanceReportCsv({
+      performerLabel: "Performer",
+      singers: [baseSinger],
+    });
+    const lines = csv.split("\r\n").filter(Boolean);
+    for (const line of lines) {
+      expect(line.split(",").length).toBe(7);
+    }
   });
 
   it("escapes commas and quotes in singer name", () => {
