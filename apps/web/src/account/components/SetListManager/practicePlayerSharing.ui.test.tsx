@@ -8,7 +8,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../../../auth/api";
-import { copyRichLink } from "../../../shared/clipboard";
+import { copyPlainTextUrl } from "../../../shared/clipboard";
 import * as qrCodeModule from "../../../shared/qrCode";
 import { SetListManager } from "./controller";
 
@@ -29,7 +29,7 @@ vi.mock("../../../auth/api", async (importOriginal) => {
 });
 
 vi.mock("../../../shared/clipboard", () => ({
-  copyRichLink: vi.fn().mockResolvedValue(undefined),
+  copyPlainTextUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../../../shared/qrCode", () => ({
@@ -190,11 +190,10 @@ describe("SetListManager Practice Player sharing and link stability", () => {
     expect(api.generatePublicPlayerToken).toHaveBeenCalledTimes(1);
     expect(api.generatePublicPlayerToken).toHaveBeenCalledWith(testEvent.id);
     expect(api.rotatePublicPlayerToken).not.toHaveBeenCalled();
-    expect(copyRichLink).toHaveBeenCalledTimes(1);
-    expect(copyRichLink).toHaveBeenCalledWith({
-      label: "Practice Player – Fall Concert",
-      url: "http://localhost:3000/player?mode=set-list&token=token-stable-123",
-    });
+    expect(copyPlainTextUrl).toHaveBeenCalledTimes(1);
+    expect(copyPlainTextUrl).toHaveBeenCalledWith(
+      "http://localhost:3000/player?mode=set-list&token=token-stable-123",
+    );
 
     // 2. Click Practice Player (open)
     const openButton = screen.getByRole("button", { name: "Practice Player" });

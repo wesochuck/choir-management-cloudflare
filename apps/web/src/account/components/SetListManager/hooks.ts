@@ -32,7 +32,7 @@ import {
   type PublicPlayerLinkStatus,
   updateOrganizationEvent,
 } from "../../../auth/api";
-import { copyRichLink } from "../../../shared/clipboard";
+import { copyPlainTextUrl } from "../../../shared/clipboard";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 
 export function useSetListManagerController({
@@ -499,9 +499,8 @@ export function useSetListManagerController({
     try {
       const link = await ensureActiveLink();
       if (!link) return;
-      const label = `Practice Player \u2013 ${selectedEvent.title}`;
       const absoluteUrl = new URL(link.url, window.location.origin).toString();
-      await copyRichLink({ label, url: absoluteUrl });
+      await copyPlainTextUrl(absoluteUrl);
       setMessage("Practice player link copied.");
     } catch (caught: unknown) {
       setError(
