@@ -11,6 +11,9 @@ export const organizationProfileRequestSchema = z.object({
   receiveAdminNotifications: z.boolean().default(false),
   receiveAttendanceReports: z.boolean().default(true),
   receiveFinancialAlerts: z.boolean().default(false),
+  receiveOtherEventReminders: z.boolean().optional(),
+  receivePerformanceReminders: z.boolean().optional(),
+  receiveRehearsalReminders: z.boolean().optional(),
   receiveRsvpDeclineNotices: z.boolean().default(false),
   showInDirectory: z.boolean().default(true),
   statusIsManual: z.boolean().default(false),
@@ -25,6 +28,9 @@ export const organizationProfileSchema = organizationProfileRequestSchema.extend
   onBreakInactiveAt: z.iso.datetime().nullable().default(null),
   photoFileId: z.uuid().nullable().default(null),
   providerEmailSuppressed: z.boolean().default(false),
+  receiveOtherEventReminders: z.boolean().default(true),
+  receivePerformanceReminders: z.boolean().default(true),
+  receiveRehearsalReminders: z.boolean().default(true),
   statusChangedAt: z.iso.datetime().default("1970-01-01T00:00:00.000Z"),
   statusChangeReason: z.string().max(500).default("Initial status"),
   updatedAt: z.iso.datetime(),
@@ -53,6 +59,9 @@ export type OrganizationProfilesResponse = z.infer<typeof organizationProfilesRe
 export const memberProfileUpdateRequestSchema = z.object({
   displayName: z.string().trim().min(1).max(200),
   phone: z.string().trim().max(50).default(""),
+  receiveOtherEventReminders: z.boolean().optional(),
+  receivePerformanceReminders: z.boolean().optional(),
+  receiveRehearsalReminders: z.boolean().optional(),
   showInDirectory: z.boolean().default(true),
 });
 
@@ -61,6 +70,9 @@ export const memberProfileSchema = memberProfileUpdateRequestSchema.extend({
   globalStatus: z.enum(["Active", "Idle", "Inactive"]),
   id: z.uuid(),
   photoFileId: z.uuid().nullable().default(null),
+  receiveOtherEventReminders: z.boolean().default(true),
+  receivePerformanceReminders: z.boolean().default(true),
+  receiveRehearsalReminders: z.boolean().default(true),
   voicePart: z.string().max(100),
 });
 

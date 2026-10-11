@@ -88,6 +88,14 @@ export async function deliverScheduledEventCommunication(
       requestId: job.jobId,
     },
     {
+      automation:
+        kind === "event_reminder"
+          ? {
+              eventId: scheduled.eventId,
+              eventType: scheduled.event.type,
+              kind: "event_reminder",
+            }
+          : undefined,
       contentMarkdown: template.contentMarkdown,
       eventId: scheduled.eventId,
       recipients,

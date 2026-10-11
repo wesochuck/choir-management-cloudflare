@@ -1206,6 +1206,33 @@ export function readCommunicationJobFromStore(
              WHERE c.id = communication_deliveries.profile_id
                AND s.channel = 'email' AND s.active = 1
            )
+           OR EXISTS (
+             SELECT 1 FROM communication_messages m, profiles p
+             WHERE m.id = communication_deliveries.message_id
+               AND p.id IN (
+                 communication_deliveries.profile_id,
+                 (
+                   SELECT linked_contact.profile_id
+                   FROM contacts linked_contact
+                   WHERE linked_contact.id = communication_deliveries.profile_id
+                 )
+               )
+               AND json_extract(m.automation_json, '$.kind') = 'event_reminder'
+               AND (
+                 (
+                   json_extract(m.automation_json, '$.eventType') = 'Rehearsal'
+                   AND p.receive_rehearsal_reminders = 0
+                 )
+                 OR (
+                   json_extract(m.automation_json, '$.eventType') = 'Performance'
+                   AND p.receive_performance_reminders = 0
+                 )
+                 OR (
+                   json_extract(m.automation_json, '$.eventType') NOT IN ('Rehearsal', 'Performance')
+                   AND p.receive_other_event_reminders = 0
+                 )
+               )
+           )
          )`,
       now,
       messageId,

@@ -441,6 +441,9 @@ export function ProfilePhotoEditor({
 interface ProfileDraft {
   displayName: string;
   phone: string;
+  receiveOtherEventReminders: boolean;
+  receivePerformanceReminders: boolean;
+  receiveRehearsalReminders: boolean;
   showInDirectory: boolean;
 }
 
@@ -475,6 +478,9 @@ function MemberProfileEditor({
                 ...current.profile,
                 displayName: saved.displayName,
                 phone: saved.phone,
+                receiveOtherEventReminders: saved.receiveOtherEventReminders,
+                receivePerformanceReminders: saved.receivePerformanceReminders,
+                receiveRehearsalReminders: saved.receiveRehearsalReminders,
                 showInDirectory: saved.showInDirectory,
               },
               status: "ready",
@@ -490,6 +496,9 @@ function MemberProfileEditor({
       return {
         displayName: updated.displayName,
         phone: updated.phone,
+        receiveOtherEventReminders: updated.receiveOtherEventReminders,
+        receivePerformanceReminders: updated.receivePerformanceReminders,
+        receiveRehearsalReminders: updated.receiveRehearsalReminders,
         showInDirectory: updated.showInDirectory,
       };
     },
@@ -505,6 +514,9 @@ function MemberProfileEditor({
         setInitialDraft({
           displayName: profile.displayName,
           phone: profile.phone,
+          receiveOtherEventReminders: profile.receiveOtherEventReminders,
+          receivePerformanceReminders: profile.receivePerformanceReminders,
+          receiveRehearsalReminders: profile.receiveRehearsalReminders,
           showInDirectory: profile.showInDirectory,
         });
       })
@@ -648,6 +660,49 @@ function MemberProfileEditor({
             />
             Show me in the Organization directory
           </label>
+          <fieldset className="field" disabled={busy}>
+            <legend>Email reminder preferences</legend>
+            <p className="field-help" id="reminder-preferences-help">
+              Choose which automatic event reminders you receive, currently scheduled about 48 hours
+              before an event. Turning off a reminder does not change your RSVP or remove the event
+              from your schedule. Organization-wide opt-outs, suppressions, and email bounces still
+              take precedence.
+            </p>
+            <label className="checkbox-row">
+              <input
+                aria-describedby="reminder-preferences-help"
+                checked={draft.receiveRehearsalReminders}
+                type="checkbox"
+                onChange={(event) => {
+                  updateField("receiveRehearsalReminders", event.target.checked);
+                }}
+              />
+              Rehearsal reminders — Email me before upcoming rehearsals.
+            </label>
+            <label className="checkbox-row">
+              <input
+                aria-describedby="reminder-preferences-help"
+                checked={draft.receivePerformanceReminders}
+                type="checkbox"
+                onChange={(event) => {
+                  updateField("receivePerformanceReminders", event.target.checked);
+                }}
+              />
+              Performance reminders — Email me before upcoming concerts and performances.
+            </label>
+            <label className="checkbox-row">
+              <input
+                aria-describedby="reminder-preferences-help"
+                checked={draft.receiveOtherEventReminders}
+                type="checkbox"
+                onChange={(event) => {
+                  updateField("receiveOtherEventReminders", event.target.checked);
+                }}
+              />
+              Other Event reminders — Email me about Other Events where I am invited to respond or
+              have volunteered.
+            </label>
+          </fieldset>
           <p className="field-help">
             Organization managers control {partLabel.toLowerCase()} assignments and lifecycle
             status.

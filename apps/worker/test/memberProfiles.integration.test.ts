@@ -211,6 +211,137 @@ describe("linked-member Profile and directory", () => {
     expect(persisted).toEqual({ auditCount: 2, globalStatus: "Idle", notes: "Manager-only note" });
   });
 
+  it("lets singers toggle reminder preferences without touching other fields or orgs", async () => {
+    const cookie = await signIn();
+    const created = organizationProfileResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Reminder Singer",
+          phone: "555-0300",
+          voicePart: "S1",
+        })
+      ).json(),
+    );
+    await database
+      .prepare(
+        `UPDATE member SET profileId = ?, role = 'member'
+         WHERE organizationId = 'organization-alpha' AND userId = 'member-profile-user'`,
+      )
+      .bind(created.id)
+      .run();
+
+    const fetchProfile = async () =>
+      memberProfileResponseSchema.parse(
+        await (
+          await exports.default.fetch(api("alpha.localhost", "/api/singer/profile", cookie))
+        ).json(),
+      );
+    // New profiles default to all reminders on, preserving today's behavior.
+    await expect(fetchProfile()).resolves.toMatchObject({
+      receiveOtherEventReminders: true,
+      receivePerformanceReminders: true,
+      receiveRehearsalReminders: true,
+    });
+
+    const toggled = memberProfileResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          "/api/singer/profile",
+          cookie,
+          {
+            displayName: "Reminder Singer",
+            receivePerformanceReminders: false,
+            receiveRehearsalReminders: false,
+          },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(toggled).toMatchObject({
+      receiveOtherEventReminders: true,
+      receivePerformanceReminders: false,
+      receiveRehearsalReminders: false,
+    });
+    // An older payload that omits the flags preserves saved values.
+    const preserved = memberProfileResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          "/api/singer/profile",
+          cookie,
+          { displayName: "Reminder Singer", phone: "555-0301", showInDirectory: true },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(preserved).toMatchObject({
+      phone: "555-0301",
+      receiveOtherEventReminders: true,
+      receivePerformanceReminders: false,
+      receiveRehearsalReminders: false,
+    });
+    // Preference changes are captured in the self-update audit trail.
+    const audits = await runInDurableObject<OrganizationStore, { readonly summaries: string[] }>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => ({
+        summaries: state.storage.sql
+          .exec<{ readonly summary: string }>(
+            `SELECT change_summary AS summary FROM audit_events
+             WHERE action = 'profile.self_updated' AND target_id = ?`,
+            created.id,
+          )
+          .toArray()
+          .map((row) => row.summary),
+      }),
+    );
+    const toggleAudit = audits.summaries
+      .map((summary): unknown => JSON.parse(summary))
+      .find(
+        (summary): summary is { readonly receiveRehearsalReminders?: unknown } =>
+          typeof summary === "object" && summary !== null && "receiveRehearsalReminders" in summary,
+      );
+    expect(toggleAudit).toMatchObject({
+      receivePerformanceReminders: false,
+      receiveRehearsalReminders: false,
+    });
+
+    // Another Organization cannot touch this profile's flags.
+    expect(
+      await exports.default.fetch(api("bravo.localhost", "/api/singer/profile", cookie)),
+    ).toMatchObject({ status: 404 });
+
+    // Organization-admin roster edits without the flags preserve them.
+    await database
+      .prepare(
+        `UPDATE member SET role = 'owner'
+         WHERE organizationId = 'organization-alpha' AND userId = 'member-profile-user'`,
+      )
+      .run();
+    const adminEdited = organizationProfileResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          `/api/organization/profiles/${created.id}`,
+          cookie,
+          {
+            displayName: "Reminder Singer Admin Edit",
+            globalStatus: created.globalStatus,
+            phone: created.phone,
+            showInDirectory: created.showInDirectory,
+            voicePart: created.voicePart,
+          },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(adminEdited).toMatchObject({
+      displayName: "Reminder Singer Admin Edit",
+      receivePerformanceReminders: false,
+      receiveRehearsalReminders: false,
+    });
+  });
+
   it("requires new-email confirmation, notifies both addresses, and binds the link to its host", async () => {
     const cookie = await signIn();
     const profile = organizationProfileResponseSchema.parse(

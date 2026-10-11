@@ -1819,6 +1819,30 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       backfillMissingBuiltinTasks({ sql }, new Date().toISOString());
     },
   },
+  {
+    version: 108,
+    statements: [
+      // Singer-owned automated event-reminder preferences (issue #126).
+      // Existing and new profiles default to enabled, preserving today's
+      // delivery behavior; opt-outs are stored per profile afterwards.
+      `ALTER TABLE profiles ADD COLUMN receive_rehearsal_reminders INTEGER NOT NULL DEFAULT 1
+       CHECK (receive_rehearsal_reminders IN (0, 1))`,
+      `ALTER TABLE profiles ADD COLUMN receive_performance_reminders INTEGER NOT NULL DEFAULT 1
+       CHECK (receive_performance_reminders IN (0, 1))`,
+      `ALTER TABLE profiles ADD COLUMN receive_other_event_reminders INTEGER NOT NULL DEFAULT 1
+       CHECK (receive_other_event_reminders IN (0, 1))`,
+    ],
+  },
+  {
+    version: 109,
+    statements: [
+      // Typed provenance for automated event reminders (issue #126): lets the
+      // pre-delivery suppression recheck distinguish queued automatic event
+      // reminders (with their event type) from manual event communications,
+      // which also carry an eventId. NULL for every other message.
+      `ALTER TABLE communication_messages ADD COLUMN automation_json TEXT`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

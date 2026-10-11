@@ -57,12 +57,15 @@ export function listProfiles(
   const profiles = storage.sql
     .exec<OrganizationProfileRow>(
       `SELECT id, display_name AS displayName, phone, voice_part AS voicePart,
-         global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
-         do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
-         receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
-         receive_admin_notifications AS receiveAdminNotifications,
-         receive_financial_alerts AS receiveFinancialAlerts,
-         is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
+          global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
+          do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
+          receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
+          receive_admin_notifications AS receiveAdminNotifications,
+          receive_financial_alerts AS receiveFinancialAlerts,
+          receive_rehearsal_reminders AS receiveRehearsalReminders,
+          receive_performance_reminders AS receivePerformanceReminders,
+          receive_other_event_reminders AS receiveOtherEventReminders,
+          is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
          last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason,
          provider_email_suppressed AS providerEmailSuppressed,
          status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
@@ -92,12 +95,15 @@ function readProfile(storage: DurableObjectStorage, profileId: string) {
   const row = storage.sql
     .exec<OrganizationProfileRow>(
       `SELECT id, display_name AS displayName, phone, voice_part AS voicePart,
-         global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
-         do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
-         receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
-         receive_admin_notifications AS receiveAdminNotifications,
-         receive_financial_alerts AS receiveFinancialAlerts,
-         is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
+          global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
+          do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
+          receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
+          receive_admin_notifications AS receiveAdminNotifications,
+          receive_financial_alerts AS receiveFinancialAlerts,
+          receive_rehearsal_reminders AS receiveRehearsalReminders,
+          receive_performance_reminders AS receivePerformanceReminders,
+          receive_other_event_reminders AS receiveOtherEventReminders,
+          is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
          last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason,
          provider_email_suppressed AS providerEmailSuppressed,
          status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
@@ -253,8 +259,10 @@ export async function createProfile(
         (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
          do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
          receive_admin_notifications, receive_financial_alerts, is_section_leader,
+         receive_rehearsal_reminders, receive_performance_reminders,
+         receive_other_event_reminders,
          status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       parsed.data.profileId,
       profile.displayName,
       profile.phone,
@@ -268,6 +276,9 @@ export async function createProfile(
       profile.receiveAdminNotifications ? 1 : 0,
       profile.receiveFinancialAlerts ? 1 : 0,
       profile.isSectionLeader ? 1 : 0,
+      toSqlBit(profile.receiveRehearsalReminders ?? true),
+      toSqlBit(profile.receivePerformanceReminders ?? true),
+      toSqlBit(profile.receiveOtherEventReminders ?? true),
       profile.statusIsManual ? 1 : 0,
       occurredAt,
       "Initial status",
@@ -332,8 +343,10 @@ export async function importProfiles(
           (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
            do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
            receive_admin_notifications, receive_financial_alerts, is_section_leader,
+           receive_rehearsal_reminders, receive_performance_reminders,
+           receive_other_event_reminders,
            status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         profileId,
         profile.displayName,
         profile.phone,
@@ -347,6 +360,9 @@ export async function importProfiles(
         profile.receiveAdminNotifications ? 1 : 0,
         profile.receiveFinancialAlerts ? 1 : 0,
         profile.isSectionLeader ? 1 : 0,
+        toSqlBit(profile.receiveRehearsalReminders ?? true),
+        toSqlBit(profile.receivePerformanceReminders ?? true),
+        toSqlBit(profile.receiveOtherEventReminders ?? true),
         profile.statusIsManual ? 1 : 0,
         occurredAt,
         "Initial status",
@@ -430,11 +446,30 @@ export async function updateProfile(
         triggerType: "manual_status_selection",
       });
     }
+    // Singer-owned reminder preferences are only overwritten when the caller
+    // explicitly provides them, so older payloads and unrelated edits preserve
+    // saved values.
+    const preferenceUpdates: string[] = [];
+    const preferenceBindings: number[] = [];
+    if (profile.receiveRehearsalReminders !== undefined) {
+      preferenceUpdates.push("receive_rehearsal_reminders = ?");
+      preferenceBindings.push(toSqlBit(profile.receiveRehearsalReminders));
+    }
+    if (profile.receivePerformanceReminders !== undefined) {
+      preferenceUpdates.push("receive_performance_reminders = ?");
+      preferenceBindings.push(toSqlBit(profile.receivePerformanceReminders));
+    }
+    if (profile.receiveOtherEventReminders !== undefined) {
+      preferenceUpdates.push("receive_other_event_reminders = ?");
+      preferenceBindings.push(toSqlBit(profile.receiveOtherEventReminders));
+    }
     storage.sql.exec(
       `UPDATE profiles SET display_name = ?, phone = ?, voice_part = ?, global_status = ?, status_is_manual = ?,
          notes = ?, show_in_directory = ?, do_not_email = ?, receive_attendance_reports = ?,
          receive_rsvp_decline_notices = ?, receive_admin_notifications = ?,
-         receive_financial_alerts = ?, is_section_leader = ?, hidden = ?, updated_at = ? WHERE id = ?`,
+         receive_financial_alerts = ?, is_section_leader = ?, hidden = ?, updated_at = ?${
+           preferenceUpdates.length > 0 ? `, ${preferenceUpdates.join(", ")}` : ""
+         } WHERE id = ?`,
       profile.displayName,
       profile.phone,
       canonicalVoicePart,
@@ -450,6 +485,7 @@ export async function updateProfile(
       toSqlBit(profile.isSectionLeader),
       toSqlBit(profile.hidden),
       occurredAt,
+      ...preferenceBindings,
       parsed.data.profileId,
     );
     if (
@@ -588,22 +624,45 @@ export async function updateMemberProfile(
     return Response.json({ code: "profile_not_found" }, { status: 404 });
   }
   const occurredAt = new Date().toISOString();
+  // Singer-owned reminder preferences are only overwritten when explicitly
+  // provided, so older payloads preserve saved values.
+  const selfPreferenceFields = [
+    { column: "receive_other_event_reminders", key: "receiveOtherEventReminders" },
+    { column: "receive_performance_reminders", key: "receivePerformanceReminders" },
+    { column: "receive_rehearsal_reminders", key: "receiveRehearsalReminders" },
+  ] as const;
+  const selfPreferences: {
+    readonly column: string;
+    readonly key: string;
+    readonly value: boolean;
+  }[] = [];
+  for (const { column, key } of selfPreferenceFields) {
+    const value = parsed.data.profile[key];
+    if (value !== undefined) selfPreferences.push({ column, key, value });
+  }
+  const selfPreferenceSummary: Record<string, boolean> = {};
+  for (const { key, value } of selfPreferences) selfPreferenceSummary[key] = value;
   storage.transactionSync(() => {
     storage.sql.exec(
       `UPDATE profiles
-       SET display_name = ?, phone = ?, show_in_directory = ?, updated_at = ?
+       SET display_name = ?, phone = ?, show_in_directory = ?, updated_at = ?${
+         selfPreferences.length > 0
+           ? `, ${selfPreferences.map(({ column }) => `${column} = ?`).join(", ")}`
+           : ""
+       }
        WHERE id = ?`,
       parsed.data.profile.displayName,
       parsed.data.profile.phone,
       parsed.data.profile.showInDirectory ? 1 : 0,
       occurredAt,
+      ...selfPreferences.map(({ value }) => (value ? 1 : 0)),
       parsed.data.profileId,
     );
     storage.sql.exec(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
          request_id, change_summary, occurred_at)
-       VALUES (?, 'organization_member', ?, 'profile.self_updated', 'profile', ?, ?, ?, ?)`,
+        VALUES (?, 'organization_member', ?, 'profile.self_updated', 'profile', ?, ?, ?, ?)`,
       crypto.randomUUID(),
       parsed.data.actorUserId,
       parsed.data.profileId,
@@ -611,6 +670,7 @@ export async function updateMemberProfile(
       JSON.stringify({
         displayName: parsed.data.profile.displayName,
         showInDirectory: parsed.data.profile.showInDirectory,
+        ...selfPreferenceSummary,
       }),
       occurredAt,
     );

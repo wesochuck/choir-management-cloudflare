@@ -1,3 +1,4 @@
+import { eventReminderPreferenceKind, type EventReminderPreferenceKind } from "@choir/domain";
 import { z } from "zod";
 
 import { readRosterAutomationConfiguration } from "./statusAutomationStore";
@@ -31,10 +32,17 @@ interface RecipientRow {
   readonly recipientName: string;
 }
 
+function reminderPreferenceColumn(kind: EventReminderPreferenceKind): string {
+  if (kind === "rehearsal") return "receive_rehearsal_reminders";
+  if (kind === "performance") return "receive_performance_reminders";
+  return "receive_other_event_reminders";
+}
+
 function readRsvpYesRecipients(
   storage: DurableObjectStorage,
   eventId: string,
   rsvp: "Pending" | "Yes",
+  reminderPreference: EventReminderPreferenceKind | null,
 ): readonly RecipientRow[] {
   const targetEventId =
     storage.sql
@@ -47,6 +55,10 @@ function readRsvpYesRecipients(
       )
       .toArray()
       .at(0)?.parentPerformanceId ?? eventId;
+  // Singer-owned reminder preferences apply only to automatic event reminders.
+  // RSVP follow-ups never filter on these preferences.
+  const preferenceClause =
+    reminderPreference === null ? "" : `AND ${reminderPreferenceColumn(reminderPreference)} = 1`;
   return storage.sql
     .exec<RecipientRow>(
       `SELECT p.id AS profileId, p.display_name AS recipientName,
@@ -54,7 +66,7 @@ function readRsvpYesRecipients(
        FROM event_rosters r
        JOIN profiles p ON p.id = r.profile_id
        WHERE r.event_id = ? AND r.rsvp = ? AND p.global_status = 'Active'
-         AND p.voice_part <> '' AND p.do_not_email = 0
+         AND p.voice_part <> '' AND p.do_not_email = 0 ${preferenceClause}
          AND NOT EXISTS (
            SELECT 1 FROM communication_suppressions s
            WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
@@ -137,7 +149,15 @@ function readEventCommunicationJobFromStore(
   if (!event) {
     return Response.json({ code: `${kind}_job_not_found` }, { status: 404 });
   }
-  const recipients = readRsvpYesRecipients(storage, eventId, rsvp);
+  // The applicable preference follows the reminder's own event type: a linked
+  // Rehearsal honors the rehearsal preference even though its roster
+  // eligibility is inherited from the parent Performance.
+  const recipients = readRsvpYesRecipients(
+    storage,
+    eventId,
+    rsvp,
+    kind === "event_reminder" ? eventReminderPreferenceKind(event.type) : null,
+  );
   return Response.json({
     event: {
       callTime: event.callTime,

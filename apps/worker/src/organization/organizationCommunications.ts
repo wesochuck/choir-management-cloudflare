@@ -61,7 +61,7 @@ const candidateResponseSchema = z.object({
   ),
 });
 const EMAIL_SUPPRESSION_LOOKUP_BATCH_SIZE = 500;
-const deliveryJobResponseSchema = z.object({
+export const deliveryJobResponseSchema = z.object({
   contentMarkdown: z.string().max(100_000),
   ticketServiceNotice: z.boolean().default(false),
   context: z
@@ -408,6 +408,13 @@ export async function queueAutomatedOrganizationCommunication(
   env: AutomatedCommunicationEnv,
   context: ActorContext & { readonly organizationOrigin: string },
   input: {
+    readonly automation?:
+      | {
+          readonly eventId: string;
+          readonly eventType: string;
+          readonly kind: "event_reminder";
+        }
+      | undefined;
     readonly contentMarkdown: string;
     readonly dedupeKey?: string;
     readonly eventId: string | null;
@@ -444,6 +451,7 @@ export async function queueAutomatedOrganizationCommunication(
     action: "send",
     actorType: "organization_system",
     ...context,
+    automation: input.automation,
     dedupeKey: input.dedupeKey,
     jobId: crypto.randomUUID(),
     message: {

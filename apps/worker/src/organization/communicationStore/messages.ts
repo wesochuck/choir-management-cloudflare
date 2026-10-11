@@ -100,8 +100,8 @@ export async function sendMessage(
     storage.sql.exec(
       `INSERT${operation.dedupeKey ? " OR IGNORE" : ""} INTO communication_messages
         (id, channel, status, subject, content_markdown, audience_json, reach_json,
-         created_by, created_at, updated_at, queued_at, dedupe_key)
-       VALUES (?, ?, 'Queued', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         created_by, created_at, updated_at, queued_at, dedupe_key, automation_json)
+       VALUES (?, ?, 'Queued', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       operation.messageId,
       operation.message.channel,
       operation.message.subject,
@@ -113,6 +113,7 @@ export async function sendMessage(
       now,
       now,
       operation.dedupeKey ?? null,
+      operation.automation ? JSON.stringify(operation.automation) : null,
     );
     const persisted = storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(

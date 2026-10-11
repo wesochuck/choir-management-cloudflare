@@ -68,6 +68,13 @@ export const sendOperationSchema = contextSchema
     actorType: z
       .enum(["organization_member", "organization_system"])
       .default("organization_member"),
+    automation: z
+      .object({
+        eventId: z.string().min(1).max(128),
+        eventType: z.string().min(1).max(64),
+        kind: z.literal("event_reminder"),
+      })
+      .optional(),
     jobId: z.uuid(),
     dedupeKey: z.string().trim().min(1).max(256).optional(),
     message: communicationSendRequestSchema,

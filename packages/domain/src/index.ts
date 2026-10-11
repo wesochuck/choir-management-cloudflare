@@ -298,6 +298,10 @@ export {
   POLL_EXPIRATION_DEFAULT_DAYS,
 } from "./polls";
 export {
+  eventReminderPreferenceKind,
+  type EventReminderPreferenceKind,
+} from "./reminderPreferences";
+export {
   canSetDonationThankYouStatus,
   canTransitionDonation,
   type DonationInput,
