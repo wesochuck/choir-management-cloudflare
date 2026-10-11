@@ -730,3 +730,143 @@ test("shows recording coverage and plays inline audio previews in set list build
   ).toBeVisible();
   await expect(item1.getByRole("button", { name: /Pause Tutti/ })).not.toBeVisible();
 });
+
+test("keeps song rows compact while insert zones stay usable", async ({ page }) => {
+  const denseSetList = Array.from({ length: 20 }, (_, index) => ({
+    composer: `Composer ${String(index + 1)}`,
+    id: `dense-item-${String(index + 1)}`,
+    pieceId: musicId,
+    title:
+      index === 4
+        ? "A Deliberately Long Song Title That Wraps Across Lines for Layout Coverage"
+        : `Song ${String(index + 1)}`,
+    type: "song",
+  }));
+  const eventRef: { value: Record<string, unknown> } = {
+    value: {
+      advancePriceCents: 0,
+      callTime: "18:00",
+      dayOfPriceCents: 0,
+      details: "",
+      doorsOpenTime: "",
+      durationMinutes: 120,
+      id: eventId,
+      isTicketingEnabled: false,
+      location: "Main Hall",
+      parentPerformanceId: null,
+      publicDetails: "",
+      publicGraphicFileId: null,
+      publishOnWebsite: false,
+      setList: denseSetList,
+      setListApproved: false,
+      startsAt: "2026-08-20T23:00:00.000Z",
+      ticketCapacity: null,
+      title: "Browser Performance",
+      type: "Performance",
+      venueId: null,
+      createdAt: "2026-07-20T20:00:00.000Z",
+      updatedAt: "2026-07-20T20:00:00.000Z",
+    },
+  };
+  await page.route("**/api/**", async (route) => {
+    if (await handleShellRoute(route)) return;
+    if (await handleDataRoute(route, eventRef)) return;
+    await fulfillJson(route, { requestId });
+  });
+
+  await page.setViewportSize({ height: 1000, width: 1280 });
+  await page.goto("/admin/setlists");
+  await expect(page.getByRole("heading", { name: "Set lists" })).toBeVisible();
+  await expect(page.locator(".set-list-item")).toHaveCount(20);
+  await expect(page.locator(".set-list-insert-zone")).toHaveCount(19);
+
+  const metrics = await page
+    .locator(".set-list-item")
+    .first()
+    .evaluate((item) => {
+      const rootFont = Number.parseFloat(
+        getComputedStyle(document.documentElement).fontSize.replace("px", ""),
+      );
+      const token = getComputedStyle(document.documentElement)
+        .getPropertyValue("--font-size-md")
+        .trim();
+      const list = item.closest(".set-list-items");
+      const title = item.querySelector(".set-list-item-title strong");
+      const summary = item.querySelector(".set-list-item-summary");
+      const heading = item.querySelector<HTMLElement>(".set-list-item-heading");
+      const itemStyle = getComputedStyle(item);
+      return {
+        expectedSummaryFont: `${String(Number.parseFloat(token) * rootFont)}px`,
+        headingMarginBottom: heading ? getComputedStyle(heading).marginBottom : null,
+        itemHeight: item.getBoundingClientRect().height,
+        itemPaddingTop: itemStyle.paddingTop,
+        listFont: list ? getComputedStyle(list).fontSize : null,
+        summaryFont: summary ? getComputedStyle(summary).fontSize : null,
+        titleFont: title ? getComputedStyle(title).fontSize : null,
+      };
+    });
+  // Inside-card density: 8px block padding with a 6px heading gap, while text
+  // keeps its inherited sizes (title at the list base size, summary at the
+  // --font-size-md token).
+  expect(metrics.itemPaddingTop).toBe("8px");
+  expect(metrics.headingMarginBottom).toBe("6px");
+  expect(metrics.titleFont).toBe(metrics.listFont);
+  expect(metrics.summaryFont).toBe(metrics.expectedSummaryFont);
+  expect(metrics.itemHeight).toBeLessThan(110);
+
+  const zoneMetrics = await page
+    .locator(".set-list-insert-zone")
+    .first()
+    .evaluate((zone) => {
+      const button = zone.querySelector("button");
+      return {
+        buttonHeight: button?.getBoundingClientRect().height ?? 0,
+        zoneHeight: zone.getBoundingClientRect().height,
+      };
+    });
+  expect(zoneMetrics.zoneHeight).toBeGreaterThanOrEqual(18);
+  expect(zoneMetrics.buttonHeight).toBeGreaterThanOrEqual(16);
+
+  // Hover reveals the insert action without shifting any card.
+  const topsBefore = await page
+    .locator(".set-list-item")
+    .evaluateAll((items) => items.map((item) => item.getBoundingClientRect().top));
+  const firstZone = page.locator(".set-list-insert-zone").first();
+  await firstZone.hover();
+  await expect(
+    firstZone.getByRole("button", { name: "Insert custom entry after 1. Song 1" }),
+  ).toBeVisible();
+  const topsAfter = await page
+    .locator(".set-list-item")
+    .evaluateAll((items) => items.map((item) => item.getBoundingClientRect().top));
+  expect(topsAfter).toEqual(topsBefore);
+
+  // Clicking inserts exactly at that boundary and opens the new entry editor.
+  await firstZone.getByRole("button", { name: "Insert custom entry after 1. Song 1" }).click();
+  await expect(page.locator(".set-list-item")).toHaveCount(21);
+  await expect(page.locator(".set-list-item").nth(1)).toContainText("Intermission");
+  await page.keyboard.press("Escape");
+
+  // Keyboard focus reaches the next boundary and Enter inserts there.
+  const secondZoneButton = page
+    .locator(".set-list-insert-zone")
+    .nth(1)
+    .getByRole("button", { name: "Insert custom entry after Intermission" });
+  await secondZoneButton.focus();
+  await expect(secondZoneButton).toBeFocused();
+  await expect(secondZoneButton).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".set-list-item")).toHaveCount(22);
+  await expect(page.locator(".set-list-item").nth(2)).toContainText("Intermission");
+  await page.keyboard.press("Escape");
+
+  // Touch-style tap on a zone inserts without hover.
+  await page.setViewportSize({ height: 844, width: 390 });
+  await page.locator(".set-list-insert-zone").first().click({ force: true });
+  await expect(page.locator(".set-list-item")).toHaveCount(23);
+
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth,
+  );
+  expect(overflow).toBe(false);
+});

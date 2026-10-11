@@ -17,10 +17,13 @@
     border-color: color-mix(in srgb, var(--color-accent) 48%, var(--color-border));
   }
 
+  /* Compact rows: card padding already sits at the 8px target, so the
+     inside-card saving comes from this heading-to-metadata gap (8px to the
+     6px token). Between-song insert zones are intentionally untouched. */
   .set-list-item-heading {
     min-width: 0;
     align-items: center;
-    margin-bottom: var(--spacing-xs);
+    margin-bottom: var(--spacing-2xs);
   }
 
   .set-list-item-title {
