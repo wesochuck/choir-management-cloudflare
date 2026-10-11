@@ -780,6 +780,11 @@ test.describe("public donation checkout", () => {
 
     await page.goto("/donate");
     await expect(page.getByRole("heading", { name: "Support our Music" })).toBeVisible();
+    // Gate on mock-specific copy: the heading matches built-in defaults too, so
+    // interacting earlier races the mocked settings load and its layout shift.
+    await expect(
+      page.getByText("Your gift sustains our artistic and education programs."),
+    ).toBeVisible();
 
     // Tribute starts with No tribute
     await expect(page.getByLabel("Honoree name")).not.toBeVisible();
@@ -804,7 +809,15 @@ test.describe("public donation checkout", () => {
       .check();
 
     // Complete donation
+    // Wait for the mocked checkout round-trip: the route handler captures the
+    // payload before fulfilling, so response receipt guarantees it is set.
+    const checkoutResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/api/public/donations/checkout"),
+    );
     await page.getByRole("button", { name: "Complete donation" }).click();
+    await checkoutResponsePromise;
 
     expect(checkoutPayload).toMatchObject({
       amountCents: 2500,
