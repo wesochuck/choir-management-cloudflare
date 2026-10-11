@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="960" viewBox="0 0 1500 960" role="img" aria-labelledby="ticketMockTitle ticketMockDescription"><title id="ticketMockTitle">Ticketing guidance redesign: Set Up Ticket Sales and Edit Ticket Settings</title><desc id="ticketMockDescription">Desktop concept showing a lightweight help panel just below the Ticketing heading and an Edit Ticket Settings button alongside the chosen performance on the Concert Will Call tab. Existing sales metrics, tabs, scan tickets and will-call orders remain.</desc>
+<rect x="0" y="0" width="1500" height="960" rx="0" fill="#F4F7FB"/>
+<rect x="0" y="0" width="1500" height="60" rx="0" fill="#F9FAFC"/>
+<line x1="0" y1="60" x2="1500" y2="60" stroke="#DFE5ED" stroke-width="1"/>
+<rect x="0" y="61" width="265" height="899" rx="0" fill="#FFF"/>
+<line x1="265" y1="61" x2="265" y2="960" stroke="#DFE5ED" stroke-width="1"/>
+<rect x="23" y="16" width="40" height="30" rx="5" fill="#F5F0E9"/>
+<text x="30" y="36" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#4B5563" font-weight="800" >LCC</text>
+<text x="74" y="38" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#17223A" font-weight="700" >Lancaster Community Chorus</text>
+<rect x="1290" y="12" width="155" height="38" rx="8" fill="#FFFFFF" stroke="#DBE3EC" stroke-width="1"/>
+<text x="1307" y="37" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#243852" font-weight="700" >Organization Admin</text>
+<text x="20" y="105" font-family="Arial,Helvetica,sans-serif" font-size="24" fill="#19253F" font-weight="800" >Organization</text>
+<text x="20" y="134" font-family="Arial,Helvetica,sans-serif" font-size="24" fill="#19253F" font-weight="800" >Admin</text>
+<text x="20" y="160" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#728198" font-weight="400" >Lancaster Community Chorus</text>
+<rect x="18" y="188" width="227" height="39" rx="9" fill="#F8FAFC" stroke="#E3E7EE" stroke-width="1"/>
+<text x="36" y="212" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#9AA7B6" font-weight="400" >Search navigation...</text>
+<text x="24" y="280" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#8492A5" font-weight="800" >EVENTS</text>
+<text x="28" y="321" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#42516C" font-weight="600" >Events</text>
+<text x="28" y="364" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#42516C" font-weight="600" >Venues</text>
+<text x="28" y="407" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#42516C" font-weight="600" >RSVPs</text>
+<text x="28" y="450" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#42516C" font-weight="600" >Attendance</text>
+<text x="28" y="493" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#42516C" font-weight="600" >Seating</text>
+<text x="24" y="553" font-family="Arial,Helvetica,sans-serif" font-size="10" fill="#8492A5" font-weight="800" >COMMUNICATIONS &amp; FINANCE</text>
+<text x="28" y="593" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#42516C" font-weight="600" >Communications</text>
+<rect x="10" y="611" width="242" height="41" rx="7" fill="#E5EAF0"/>
+<rect x="10" y="611" width="4" height="41" rx="3" fill="#E85C20"/>
+<text x="28" y="636" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#18253F" font-weight="800" >Ticketing</text>
+<text x="28" y="679" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#42516C" font-weight="600" >Donations &amp; giving</text>
+<text x="28" y="722" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#42516C" font-weight="600" >Reports</text>
+<text x="335" y="136" font-family="Arial,Helvetica,sans-serif" font-size="39" fill="#16243E" font-weight="800" >Ticketing</text>
+<text x="335" y="169" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#70819B" font-weight="400" >Manage ticket sales, bundles, and check-in.</text>
+<rect x="1294" y="115" width="144" height="43" rx="8" fill="#243F65" stroke="#243F65" stroke-width="1"/>
+<text x="1311" y="141.5" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#FFFFFF" font-weight="700" >Scan tickets</text>
+<rect x="335" y="203" width="1103" height="108" rx="11" fill="#FAFBFD" stroke="#D6DEE8" stroke-width="1.3"/>
+<rect x="352" y="223" width="50" height="50" rx="11" fill="#EBF1F7"/>
+<path d="M366 241h22v18h-22zM370 236h14M374 263h5" fill="none" stroke="#426184" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="418" y="230" font-family="Arial,Helvetica,sans-serif" font-size="18" fill="#1A2945" font-weight="800" >Want to sell tickets for a concert?</text>
+<text x="418" y="255" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#5C708C" font-weight="400" >Ticket sales are configured under Events when creating or editing a Performance.</text>
+<text x="418" y="277" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#5C708C" font-weight="400" >Once enabled, manage purchases, will call, and check-in here.</text>
+<rect x="1191" y="232" width="222" height="48" rx="8" fill="#FFFFFF" stroke="#CED8E5" stroke-width="1"/>
+<text x="1208" y="261" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#243F65" font-weight="700" >Set Up Ticket Sales  →</text>
+<rect x="1348" y="210" width="72" height="22" rx="11" fill="#FFF0E8"/>
+<text x="1360" y="225" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#A8401F" font-weight="800" >NEW</text>
+<text x="344" y="360" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#192641" font-weight="800" >Concert Will Call</text>
+<text x="525" y="360" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#6D7C94" font-weight="650" >Season Bundles</text>
+<text x="671" y="360" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#6D7C94" font-weight="650" >Bundle Orders</text>
+<text x="806" y="360" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#6D7C94" font-weight="650" >Discount Codes</text>
+<text x="955" y="360" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#6D7C94" font-weight="650" >Share &amp; QR Codes</text>
+<text x="1132" y="360" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#6D7C94" font-weight="650" >Confirmations</text>
+<line x1="336" y1="374" x2="1438" y2="374" stroke="#DCE3ED" stroke-width="1"/>
+<rect x="336" y="372" width="168" height="3" rx="1" fill="#E86225"/>
+<rect x="335" y="399" width="1103" height="264" rx="12" fill="#FFFFFF" stroke="#D5DFEA" stroke-width="1"/>
+<rect x="350" y="391" width="188" height="19" rx="1" fill="#F4F7FB"/>
+<text x="356" y="407" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#202D45" font-weight="800" >Performance summary</text>
+<text x="354" y="443" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#697B94" font-weight="400" >Choose a performance to review ticket sales, revenue, and will-call activity.</text>
+<text x="931" y="441" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#17253F" font-weight="750" >Select performance</text>
+<rect x="927" y="453" width="330" height="45" rx="8" fill="#FFF" stroke="#CBD5E3" stroke-width="1"/>
+<text x="941" y="481" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#23334B" font-weight="500" >Earth and Sky and Sea</text>
+<text x="1238" y="482" font-family="Arial,Helvetica,sans-serif" font-size="18" fill="#566784" font-weight="500" >⌄</text>
+<rect x="1269" y="453" width="150" height="45" rx="8" fill="#FFFFFF" stroke="#CED8E5" stroke-width="1"/>
+<text x="1286" y="480.5" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#243F65" font-weight="700" >Edit ticket settings →</text>
+<rect x="1262" y="448" width="165" height="55" rx="10" fill="none" stroke="#ED824C" stroke-width="2"/>
+<text x="931" y="515" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#73829A" font-weight="400" >Edit the selected performance's ticket capacity and pricing.</text>
+<rect x="354" y="534" width="164" height="116" rx="10" fill="#FDF3EF" stroke="#E6E9EF" stroke-width="1"/>
+<text x="369" y="562" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#66788F" font-weight="700" >TICKETS SOLD</text>
+<text x="369" y="603" font-family="Arial,Helvetica,sans-serif" font-size="29" fill="#14223C" font-weight="800" >5/100</text>
+<text x="369" y="631" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#63748C" font-weight="400" >Earth and Sky</text>
+<rect x="534" y="534" width="164" height="116" rx="10" fill="#FDF3EF" stroke="#E6E9EF" stroke-width="1"/>
+<text x="549" y="562" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#66788F" font-weight="700" >GROSS CHARGED</text>
+<text x="549" y="603" font-family="Arial,Helvetica,sans-serif" font-size="29" fill="#14223C" font-weight="800" >$96.08</text>
+<text x="549" y="631" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#63748C" font-weight="400" >Original charges</text>
+<rect x="714" y="534" width="164" height="116" rx="10" fill="#FDF3EF" stroke="#E6E9EF" stroke-width="1"/>
+<text x="729" y="562" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#66788F" font-weight="700" >REFUNDS</text>
+<text x="729" y="603" font-family="Arial,Helvetica,sans-serif" font-size="29" fill="#14223C" font-weight="800" >-$0.62</text>
+<text x="729" y="631" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#63748C" font-weight="400" >Returned to buyers</text>
+<rect x="894" y="534" width="164" height="116" rx="10" fill="#FDF3EF" stroke="#E6E9EF" stroke-width="1"/>
+<text x="909" y="562" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#66788F" font-weight="700" >CUSTOMER FEES</text>
+<text x="909" y="603" font-family="Arial,Helvetica,sans-serif" font-size="29" fill="#14223C" font-weight="800" >$4.28</text>
+<text x="909" y="631" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#63748C" font-weight="400" >Service fees</text>
+<rect x="1074" y="534" width="164" height="116" rx="10" fill="#FDF3EF" stroke="#E6E9EF" stroke-width="1"/>
+<text x="1089" y="562" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#66788F" font-weight="700" >STRIPE FEES</text>
+<text x="1089" y="603" font-family="Arial,Helvetica,sans-serif" font-size="29" fill="#14223C" font-weight="800" >-$4.28</text>
+<text x="1089" y="631" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#63748C" font-weight="400" >Processing fees</text>
+<rect x="1254" y="534" width="164" height="116" rx="10" fill="#FDF3EF" stroke="#E6E9EF" stroke-width="1"/>
+<text x="1269" y="562" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#66788F" font-weight="700" >NET PROCEEDS</text>
+<text x="1269" y="603" font-family="Arial,Helvetica,sans-serif" font-size="29" fill="#14223C" font-weight="800" >$91.18</text>
+<text x="1269" y="631" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#63748C" font-weight="400" >After fees</text>
+<rect x="335" y="680" width="1103" height="228" rx="12" fill="#FFFFFF" stroke="#D5DFEA" stroke-width="1"/>
+<rect x="349" y="673" width="155" height="19" rx="0" fill="#F4F7FB"/>
+<text x="356" y="689" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#202D45" font-weight="800" >Will call checklist</text>
+<text x="354" y="728" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#697B94" font-weight="400" >Search buyers, confirm payment status, and process refunds.</text>
+<rect x="1237" y="706" width="182" height="40" rx="8" fill="#FFFFFF" stroke="#CED8E5" stroke-width="1"/>
+<text x="1254" y="731" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#243F65" font-weight="700" >Refresh status</text>
+<rect x="354" y="749" width="1065" height="56" rx="8" fill="#F8FAFC" stroke="#E1E6EE" stroke-width="1"/>
+<text x="366" y="772" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#23334B" font-weight="700" >Search</text>
+<rect x="366" y="779" width="1041" height="17" rx="4" fill="#FFF" stroke="#DBE3EC" stroke-width="1"/>
+<text x="377" y="792" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#8493A8" font-weight="400" >Search buyer name or email...</text>
+<text x="366" y="833" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#5E718B" font-weight="700" >Buyer name</text>
+<text x="697" y="833" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#5E718B" font-weight="700" >Sale date</text>
+<text x="951" y="833" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#5E718B" font-weight="700" >Amount</text>
+<text x="1130" y="833" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#5E718B" font-weight="700" >Status</text>
+<text x="1313" y="833" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#5E718B" font-weight="700" >Actions</text>
+<line x1="354" y1="843" x2="1419" y2="843" stroke="#DFE5ED" stroke-width="1"/>
+<text x="366" y="875" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#1F2B45" font-weight="700" >Sample ticket buyer</text>
+<text x="697" y="875" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#4D5E76" font-weight="400" >10/9/2026</text>
+<text x="951" y="875" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#4D5E76" font-weight="400" >$62.10</text>
+<text x="1130" y="875" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#4D5E76" font-weight="400" >Paid</text>
+<text x="335" y="944" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#69809B" font-weight="400" >ILLUSTRATIVE MOCKUP · The highlighted guidance and settings shortcut are new; existing Ticketing functionality remains.</text>
+</svg>
