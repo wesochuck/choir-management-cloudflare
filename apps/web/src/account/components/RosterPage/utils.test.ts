@@ -7,6 +7,9 @@ describe("RosterPage emptyProfile", () => {
     expect(emptyProfile.receiveAdminNotifications).toBe(false);
     expect(emptyProfile.receiveFinancialAlerts).toBe(false);
     expect(emptyProfile.receiveAttendanceReports).toBe(true);
+    expect(emptyProfile.receiveOtherEventReminders).toBe(true);
+    expect(emptyProfile.receivePerformanceReminders).toBe(true);
+    expect(emptyProfile.receiveRehearsalReminders).toBe(true);
     expect(emptyProfile.showInDirectory).toBe(true);
     expect(emptyProfile.doNotEmail).toBe(false);
     expect(emptyProfile.isSectionLeader).toBe(false);

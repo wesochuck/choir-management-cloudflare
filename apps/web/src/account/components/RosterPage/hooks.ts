@@ -474,6 +474,14 @@ export function useRosterPageController({
 
   // eslint-disable-next-line complexity -- profile save coordinates linked membership and roster updates.
   async function saveProfile() {
+    if (!profile.displayName.trim()) {
+      setProfileTab("info");
+      setError("Enter a display name.");
+      setTimeout(() => {
+        document.getElementById("roster-profile-name")?.focus();
+      }, 0);
+      return;
+    }
     const normalizedEmail = profileEmail.trim().toLowerCase();
     const linkedEmail =
       editingId && roster.status === "ready" ? (emailByProfileId.get(editingId) ?? "") : "";
@@ -483,7 +491,11 @@ export function useRosterPageController({
         role: "member",
       });
       if (!parsedInvitation.success) {
+        setProfileTab("info");
         setError("Enter a valid email address.");
+        setTimeout(() => {
+          document.getElementById("roster-profile-email")?.focus();
+        }, 0);
         return;
       }
     }

@@ -1,5 +1,23 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import { installOrganizationApi } from "./fixtures/apiMocks";
+import { buildOrganizationProfile } from "./fixtures/builders";
+
+async function expectNoSeriousAxeViolations(page: Page, context: string): Promise<void> {
+  const results = await new AxeBuilder({ page })
+    .include('[role="dialog"]')
+    .withTags(["wcag2a", "wcag2aa"])
+    .analyze();
+  const blocking = results.violations
+    .filter((violation) => violation.impact === "serious" || violation.impact === "critical")
+    .flatMap((violation) =>
+      violation.nodes.map(
+        (node) =>
+          `${violation.id} (${violation.impact ?? "unknown"}): ${node.target.join(" ")} — ${violation.helpUrl}`,
+      ),
+    );
+  expect(blocking, `axe violations found for ${context}`).toEqual([]);
+}
 
 test("marks section leaders beside their names without adding a roster column", async ({
   page,
@@ -319,6 +337,8 @@ test("keeps the roster profile dialog open when Messages is selected", async ({ 
   await expect(profileDialog).toBeVisible();
   await profileDialog.getByLabel("Display name").fill("Unsaved browser singer");
 
+  await profileDialog.getByRole("tab", { name: "Email & Notifications" }).click();
+
   const financialAlertsCheckbox = profileDialog.getByLabel(
     "Receive financial alerts (ticket sales)",
   );
@@ -336,16 +356,21 @@ test("keeps the roster profile dialog open when Messages is selected", async ({ 
   );
   await expect(profileDialog.getByText("Welcome")).toBeVisible();
 
-  await profileDialog.getByRole("tab", { name: "Info" }).click();
+  await profileDialog.getByRole("tab", { name: "Profile Info" }).click();
   await profileDialog.getByRole("button", { name: "Save Profile" }).click();
   await expect(profileDialog).not.toBeVisible();
   expect(savedProfilePayload).toMatchObject({
+    displayName: "Unsaved browser singer",
     receiveFinancialAlerts: true,
   });
 
   await rosterPage.getByRole("button", { name: "Add Profile" }).click();
   const createDialog = page.getByRole("dialog", { name: "Add Profile" });
   await expect(createDialog).toBeVisible();
+  await expect(createDialog.getByRole("tab", { name: "Profile Info" })).toBeVisible();
+  await expect(createDialog.getByRole("tab", { name: "Email & Notifications" })).toBeVisible();
+  await expect(createDialog.getByRole("tab", { name: "Performance RSVPs" })).toHaveCount(0);
+  await createDialog.getByRole("tab", { name: "Email & Notifications" }).click();
   const newProfileFinancialAlertsCheckbox = createDialog.getByLabel(
     "Receive financial alerts (ticket sales)",
   );
@@ -419,5 +444,321 @@ test("keeps roster invite fields and actions inside the dialog in both themes", 
     await dialog.getByRole("button", { name: "Done", exact: true }).click();
     await expect(dialog).toHaveCount(0);
   }
+  api.assertNoUnexpectedRequests();
+});
+
+test("Email & Notifications tab: four existing flags, suppression text, and #126 reminder preferences round-trip", async ({
+  page,
+}) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  await page.route("**/api/organization/members", async (route) => {
+    await route.fulfill({
+      json: {
+        memberships: [
+          {
+            email: "browser.singer@example.test",
+            id: "membership-1",
+            name: "Browser Singer",
+            profileId,
+            role: "member",
+          },
+        ],
+        truncated: false,
+        requestId,
+      },
+    });
+  });
+  const profiles = api.profiles.get();
+  const baseProfile = profiles[0] ?? buildOrganizationProfile({});
+  api.profiles.set([
+    {
+      ...baseProfile,
+      id: profileId,
+      providerEmailSuppressed: true,
+      doNotEmail: false,
+      receiveAdminNotifications: false,
+      receiveRsvpDeclineNotices: false,
+      receiveFinancialAlerts: false,
+      receiveRehearsalReminders: true,
+      receivePerformanceReminders: true,
+      receiveOtherEventReminders: true,
+    },
+  ]);
+
+  let updatedPayload: Record<string, unknown> | null = null;
+  await page.route(`**/api/organization/profiles/${profileId}`, async (route) => {
+    if (route.request().method() === "PUT") {
+      updatedPayload = JSON.parse(route.request().postData() ?? "{}");
+      await route.fulfill({
+        json: {
+          ...baseProfile,
+          ...updatedPayload,
+          id: profileId,
+          requestId,
+        },
+      });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/admin/roster");
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  const profileDialog = page.getByRole("dialog", { name: "Edit Profile" });
+  await expect(profileDialog).toBeVisible();
+
+  // Verify all 6 tabs exist in Edit Profile
+  await expect(profileDialog.getByRole("tab", { name: "Profile Info" })).toBeVisible();
+  await expect(profileDialog.getByRole("tab", { name: "Email & Notifications" })).toBeVisible();
+  await expect(profileDialog.getByRole("tab", { name: "Performance RSVPs" })).toBeVisible();
+  await expect(profileDialog.getByRole("tab", { name: "Dues" })).toBeVisible();
+  await expect(profileDialog.getByRole("tab", { name: "Folder numbers" })).toBeVisible();
+  await expect(profileDialog.getByRole("tab", { name: "Messages" })).toBeVisible();
+
+  // Click Email & Notifications tab
+  await profileDialog.getByRole("tab", { name: "Email & Notifications" }).click();
+  await expect(profileDialog.getByRole("tab", { name: "Email & Notifications" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+
+  // Four existing checkboxes are present
+  const doNotEmail = profileDialog.getByLabel("Do not email");
+  const adminNotices = profileDialog.getByLabel(
+    "Receive administrator notifications, including audition emails",
+  );
+  const rsvpDecline = profileDialog.getByLabel("Receive RSVP decline notices");
+  const financialAlerts = profileDialog.getByLabel("Receive financial alerts (ticket sales)");
+
+  await expect(doNotEmail).toBeVisible();
+  await expect(adminNotices).toBeVisible();
+  await expect(rsvpDecline).toBeVisible();
+  await expect(financialAlerts).toBeVisible();
+
+  // Suppression message is present
+  await expect(
+    profileDialog.getByText(/Provider suppression is active for this profile/),
+  ).toBeVisible();
+
+  // #126 grouping and reminder preferences are present
+  await expect(
+    profileDialog.getByRole("group", { name: "Email reminder preferences" }),
+  ).toBeVisible();
+  await expect(
+    profileDialog.getByText(/currently scheduled about 48 hours before an event/),
+  ).toBeVisible();
+
+  const rehearsalReminders = profileDialog.getByLabel(/Rehearsal reminders/);
+  const performanceReminders = profileDialog.getByLabel(/Performance reminders/);
+  const otherEventReminders = profileDialog.getByLabel(/Other Event reminders/);
+
+  await expect(rehearsalReminders).toBeChecked();
+  await expect(performanceReminders).toBeChecked();
+  await expect(otherEventReminders).toBeChecked();
+
+  // Toggle controls
+  await adminNotices.check();
+  await performanceReminders.uncheck();
+
+  // Save directly from Email & Notifications tab
+  await profileDialog.getByRole("button", { name: "Save Profile" }).click();
+  await expect(profileDialog).not.toBeVisible();
+
+  expect(updatedPayload).toMatchObject({
+    receiveAdminNotifications: true,
+    receivePerformanceReminders: false,
+    receiveRehearsalReminders: true,
+    receiveOtherEventReminders: true,
+  });
+  api.assertNoUnexpectedRequests();
+});
+
+test("Add Profile two-tab layout, default values, unsaved changes across tabs, and save", async ({
+  page,
+}) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  await page.route("**/api/organization/members", async (route) => {
+    await route.fulfill({ json: { memberships: [], truncated: false, requestId } });
+  });
+
+  let createdPayload: Record<string, unknown> | null = null;
+  await page.route("**/api/organization/profiles", async (route) => {
+    if (route.request().method() === "POST") {
+      createdPayload = JSON.parse(route.request().postData() ?? "{}");
+      const newProfile = buildOrganizationProfile({
+        ...createdPayload,
+        id: crypto.randomUUID(),
+      });
+      await route.fulfill({
+        json: {
+          ...newProfile,
+          requestId,
+        },
+      });
+      return;
+    }
+    await route.fallback();
+  });
+
+  await page.goto("/admin/roster");
+  await page.getByRole("button", { name: "Add Profile" }).click();
+  const createDialog = page.getByRole("dialog", { name: "Add Profile" });
+  await expect(createDialog).toBeVisible();
+
+  // Exactly two tabs in Add Profile
+  const tabTriggers = createDialog.getByRole("tab");
+  await expect(tabTriggers).toHaveCount(2);
+  await expect(createDialog.getByRole("tab", { name: "Profile Info" })).toBeVisible();
+  await expect(createDialog.getByRole("tab", { name: "Email & Notifications" })).toBeVisible();
+  await expect(createDialog.getByRole("tab", { name: "Messages" })).toHaveCount(0);
+  await expect(createDialog.getByRole("tab", { name: "Performance RSVPs" })).toHaveCount(0);
+
+  // Fill in display name on Profile Info tab
+  await createDialog.getByLabel("Display name").fill("Brand New Singer");
+
+  // Switch to Email & Notifications tab
+  await createDialog.getByRole("tab", { name: "Email & Notifications" }).click();
+
+  // Verify defaults
+  await expect(createDialog.getByLabel("Do not email")).not.toBeChecked();
+  await expect(
+    createDialog.getByLabel("Receive administrator notifications, including audition emails"),
+  ).not.toBeChecked();
+  await expect(createDialog.getByLabel("Receive RSVP decline notices")).not.toBeChecked();
+  await expect(
+    createDialog.getByLabel("Receive financial alerts (ticket sales)"),
+  ).not.toBeChecked();
+  await expect(createDialog.getByLabel(/Rehearsal reminders/)).toBeChecked();
+  await expect(createDialog.getByLabel(/Performance reminders/)).toBeChecked();
+  await expect(createDialog.getByLabel(/Other Event reminders/)).toBeChecked();
+
+  // Toggle values on Email & Notifications tab
+  await createDialog.getByLabel("Receive financial alerts (ticket sales)").check();
+  await createDialog.getByLabel(/Rehearsal reminders/).uncheck();
+
+  // Switch back to Profile Info tab and verify display name survived tab switch
+  await createDialog.getByRole("tab", { name: "Profile Info" }).click();
+  await expect(createDialog.getByLabel("Display name")).toHaveValue("Brand New Singer");
+
+  // Switch back to Email & Notifications and verify toggled checkboxes survived
+  await createDialog.getByRole("tab", { name: "Email & Notifications" }).click();
+  await expect(createDialog.getByLabel("Receive financial alerts (ticket sales)")).toBeChecked();
+  await expect(createDialog.getByLabel(/Rehearsal reminders/)).not.toBeChecked();
+
+  // Click Create Profile from Email & Notifications tab
+  await createDialog.getByRole("button", { name: "Create Profile" }).click();
+  await expect(createDialog).not.toBeVisible();
+
+  expect(createdPayload).toMatchObject({
+    displayName: "Brand New Singer",
+    receiveFinancialAlerts: true,
+    receiveRehearsalReminders: false,
+    receivePerformanceReminders: true,
+    receiveOtherEventReminders: true,
+  });
+  api.assertNoUnexpectedRequests();
+});
+
+test("Info validation when saving from Email & Notifications tab", async ({ page }) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  await page.route("**/api/organization/members", async (route) => {
+    await route.fulfill({ json: { memberships: [], truncated: false, requestId } });
+  });
+
+  await page.goto("/admin/roster");
+  await page.getByRole("button", { name: "Add Profile" }).click();
+  const createDialog = page.getByRole("dialog", { name: "Add Profile" });
+  await expect(createDialog).toBeVisible();
+
+  // Immediately switch to Email & Notifications tab without entering Display name
+  await createDialog.getByRole("tab", { name: "Email & Notifications" }).click();
+  await expect(createDialog.getByRole("tab", { name: "Email & Notifications" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+
+  // Click Create Profile
+  await createDialog.getByRole("button", { name: "Create Profile" }).click();
+
+  // Dialog must stay open
+  await expect(createDialog).toBeVisible();
+
+  // Tab switches automatically back to Profile Info
+  await expect(createDialog.getByRole("tab", { name: "Profile Info" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+
+  // Error alert is visible
+  await expect(createDialog.getByRole("alert")).toHaveText("Enter a display name.");
+
+  // Display name input is focused
+  await expect(createDialog.getByLabel("Display name")).toBeFocused();
+  api.assertNoUnexpectedRequests();
+});
+
+test("supports deep linking directly to Email & Notifications tab", async ({ page }) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  await page.route("**/api/organization/members", async (route) => {
+    await route.fulfill({ json: { memberships: [], truncated: false, requestId } });
+  });
+
+  await page.goto(`/admin/roster?profileId=${profileId}&tab=email`);
+  const profileDialog = page.getByRole("dialog", { name: "Edit Profile" });
+  await expect(profileDialog).toBeVisible();
+  await expect(profileDialog.getByRole("tab", { name: "Email & Notifications" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(profileDialog.getByLabel("Do not email")).toBeVisible();
+  await expect(profileDialog.getByLabel(/Rehearsal reminders/)).toBeVisible();
+  api.assertNoUnexpectedRequests();
+});
+
+test("narrow-screen tab accessibility and axe compliance in Edit Profile", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  await page.route("**/api/organization/members", async (route) => {
+    await route.fulfill({ json: { memberships: [], truncated: false, requestId } });
+  });
+
+  await page.goto("/admin/roster");
+  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  const profileDialog = page.getByRole("dialog", { name: "Edit Profile" });
+  await expect(profileDialog).toBeVisible();
+
+  // All 6 tabs exist
+  const tabs = profileDialog.getByRole("tab");
+  await expect(tabs).toHaveCount(6);
+
+  // Tablist is scrollable on narrow viewport and does not overflow dialog width
+  const tablist = profileDialog.getByRole("tablist");
+  const tablistBounds = await tablist.boundingBox();
+  const dialogBounds = await profileDialog.boundingBox();
+  expect(tablistBounds).not.toBeNull();
+  expect(dialogBounds).not.toBeNull();
+  if (tablistBounds && dialogBounds) {
+    expect(tablistBounds.x).toBeGreaterThanOrEqual(dialogBounds.x);
+    expect(tablistBounds.x + tablistBounds.width).toBeLessThanOrEqual(
+      dialogBounds.x + dialogBounds.width + 1,
+    );
+  }
+
+  // Keyboard navigation through tabs
+  const infoTab = profileDialog.getByRole("tab", { name: "Profile Info" });
+  await infoTab.focus();
+  await expect(infoTab).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  const emailTab = profileDialog.getByRole("tab", { name: "Email & Notifications" });
+  await expect(emailTab).toBeFocused();
+  await expect(emailTab).toHaveAttribute("aria-selected", "true");
+
+  await page.keyboard.press("ArrowLeft");
+  await expect(infoTab).toBeFocused();
+  await expect(infoTab).toHaveAttribute("aria-selected", "true");
+
+  // Run axe scan on the dialog
+  await expectNoSeriousAxeViolations(page, "Edit Profile dialog");
+
   api.assertNoUnexpectedRequests();
 });

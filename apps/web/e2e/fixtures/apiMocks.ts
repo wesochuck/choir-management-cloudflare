@@ -223,6 +223,17 @@ export async function installOrganizationApi(
   });
 
   await page.route("**/api/organization/profiles", async (route) => {
+    if (route.request().method() === "POST") {
+      const body: unknown = route.request().postDataJSON();
+      const profileData = typeof body === "object" && body !== null ? body : {};
+      const newProfile = buildOrganizationProfile({
+        ...profileData,
+        id: crypto.randomUUID(),
+      });
+      profiles.set([...profiles.get(), newProfile]);
+      await fulfillJson(route, { ...newProfile, requestId });
+      return;
+    }
     const base = profiles.get();
     await fulfillJson(route, {
       profiles: page.url().includes("/admin/rsvp") ? [...base, buildUnassignedProfile()] : base,
@@ -230,14 +241,37 @@ export async function installOrganizationApi(
     });
   });
   await page.route("**/api/organization/profiles/*", async (route) => {
+    const url = route.request().url();
+    const id = url.split("/").pop()?.split("?")[0] ?? fixtureIds.browserProfileId;
     const body: unknown = route.request().postDataJSON();
+    const update = typeof body === "object" && body !== null ? body : {};
+    profiles.set(
+      profiles
+        .get()
+        .map((candidate) => (candidate.id === id ? { ...candidate, ...update } : candidate)),
+    );
+    const existing = profiles.get().find((candidate) => candidate.id === id);
     await fulfillJson(route, {
-      ...(typeof body === "object" && body !== null ? body : {}),
+      ...(existing ?? update),
       createdAt: "2026-07-20T20:00:00.000Z",
-      id: fixtureIds.browserProfileId,
+      id,
       requestId,
       updatedAt: "2026-07-20T20:15:00.000Z",
     });
+  });
+  await page.route("**/api/organization/profiles/*/status-history", async (route) => {
+    const url = route.request().url();
+    const parts = url.split("/");
+    const idIndex = parts.indexOf("profiles");
+    const rawId = idIndex >= 0 ? parts[idIndex + 1] : undefined;
+    const profileId =
+      rawId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId)
+        ? rawId
+        : fixtureIds.browserProfileId;
+    await fulfillJson(route, { entries: [], profileId, requestId });
+  });
+  await page.route("**/api/organization/profiles/*/deliveries", async (route) => {
+    await fulfillJson(route, { deliveries: [], requestId });
   });
   await page.route("**/api/singer/profile", async (route) => {
     if (route.request().method() === "PUT") {

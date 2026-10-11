@@ -28,7 +28,13 @@ export function applyTheme(preference: ThemePreference): void {
 
 export function rosterProfileTabFromSearch(search: string): RosterProfileTab {
   const tab = new URLSearchParams(search).get("tab");
-  return tab === "dues" || tab === "folders" || tab === "performance" ? tab : "info";
+  return tab === "dues" ||
+    tab === "email" ||
+    tab === "folders" ||
+    tab === "messages" ||
+    tab === "performance"
+    ? tab
+    : "info";
 }
 
 export const accountGroups: readonly NavigationGroup[] = [

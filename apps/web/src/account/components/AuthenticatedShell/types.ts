@@ -9,7 +9,7 @@ export interface RouteState {
   readonly search: string;
 }
 
-export type RosterProfileTab = "dues" | "folders" | "info" | "performance";
+export type RosterProfileTab = "dues" | "email" | "folders" | "info" | "messages" | "performance";
 
 export type AccessState =
   | { readonly status: "loading" }

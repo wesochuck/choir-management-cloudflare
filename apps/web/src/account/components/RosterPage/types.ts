@@ -22,7 +22,7 @@ export type RosterState =
 
 export type RosterStatusFilter = "all" | OrganizationProfile["globalStatus"];
 
-export type ProfileTab = "dues" | "folders" | "info" | "messages" | "performance";
+export type ProfileTab = "dues" | "email" | "folders" | "info" | "messages" | "performance";
 
 export type ProfileStatusHistoryState =
   | { readonly status: "error" | "idle" | "loading" }

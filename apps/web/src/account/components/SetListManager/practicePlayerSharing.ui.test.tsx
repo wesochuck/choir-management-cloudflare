@@ -91,6 +91,8 @@ describe("SetListManager Practice Player sharing and link stability", () => {
   const activeIssuedAt = new Date("2026-10-04T13:30:00.000Z").getTime();
 
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-04T13:30:00.000Z"));
     vi.clearAllMocks();
     vi.mocked(api.listOrganizationEvents).mockResolvedValue([testEvent]);
     vi.mocked(api.listOrganizationMusic).mockResolvedValue([musicPiece]);
@@ -104,6 +106,7 @@ describe("SetListManager Practice Player sharing and link stability", () => {
   const originalLocation = window.location;
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
     Object.defineProperty(window, "location", {
       configurable: true,
