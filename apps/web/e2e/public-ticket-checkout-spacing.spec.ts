@@ -95,7 +95,7 @@ test.describe("public ticket checkout top spacing", () => {
     { height: 900, width: 1280 },
     { height: 844, width: 390 },
   ]) {
-    test(`keeps a compact header gap on event and bundle pages at ${viewport.width}px`, async ({
+    test(`keeps a compact header gap on event and bundle pages at ${String(viewport.width)}px`, async ({
       page,
     }) => {
       await mockSpacingPage(page);
