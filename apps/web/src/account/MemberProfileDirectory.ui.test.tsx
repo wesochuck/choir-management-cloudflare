@@ -49,6 +49,29 @@ beforeEach(() => {
   vi.mocked(profilesApi.updateMemberProfile).mockImplementation((draft) =>
     Promise.resolve(memberProfileSchema.parse({ ...memberProfile, ...draft })),
   );
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-photo");
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+});
+
+describe("MemberProfileDirectory profile photo dirty state", () => {
+  it("treats a selected photo as unsaved changes until it is uploaded or discarded", async () => {
+    const user = await setup();
+    expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
+
+    const file = new File(["photo"], "profile-photo.jpg", { type: "image/jpeg" });
+    const fileInput = document.querySelector('input[type="file"]');
+    expect(fileInput instanceof HTMLInputElement).toBe(true);
+    if (fileInput instanceof HTMLInputElement) {
+      await user.upload(fileInput, file);
+    }
+
+    expect(await screen.findByText(/Ready to upload: profile-photo\.jpg/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Unsaved changes")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Discard" }));
+    expect(screen.queryByText(/Ready to upload/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
+  });
 });
 
 describe("MemberProfileDirectory reminder preferences", () => {

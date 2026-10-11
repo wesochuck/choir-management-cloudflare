@@ -14,7 +14,7 @@ import {
   uploadPrivateOrganizationFile,
 } from "../api";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
-import { usePersistedDraft } from "../persistence";
+import { usePersistedDraft, useSaveRegistration } from "../persistence";
 
 type ProfilePhotoTarget = Pick<MemberProfile, "displayName" | "id" | "photoFileId">;
 
@@ -31,9 +31,11 @@ type DirectoryState =
 // eslint-disable-next-line complexity -- this editor coordinates upload, camera, preview, and removal states.
 export function ProfilePhotoEditor({
   onChanged,
+  onPendingChange,
   profile,
 }: {
   readonly onChanged: (fileId: string | null) => void;
+  readonly onPendingChange?: (hasPending: boolean) => void;
   readonly profile: ProfilePhotoTarget;
 }) {
   const { confirm, confirmationDialog } = useConfirmation();
@@ -67,6 +69,14 @@ export function ProfilePhotoEditor({
     setFile(nextFile);
     setPendingPreview(nextPreview);
   }, []);
+
+  const profileId = profile.id;
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pending photo when the target Profile changes.
+    setPendingFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setMessage(null);
+  }, [profileId, setPendingFile]);
 
   useEffect(() => {
     if (!cameraOpen) {
@@ -176,15 +186,15 @@ export function ProfilePhotoEditor({
     };
   }, []);
 
-  async function savePhoto(): Promise<void> {
-    if (!file) return;
+  async function savePhoto(): Promise<boolean> {
+    if (!file) return true;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       setMessage("Choose a JPEG, PNG, or WebP image.");
-      return;
+      return false;
     }
     if (file.size > 5 * 1024 * 1024) {
       setMessage("Profile photos may not exceed 5 MB.");
-      return;
+      return false;
     }
     setBusy(true);
     setMessage(null);
@@ -196,6 +206,7 @@ export function ProfilePhotoEditor({
       if (fileInputRef.current) fileInputRef.current.value = "";
       setMessage("Profile photo was updated.");
       onChanged(uploadedFileId);
+      return true;
     } catch (error: unknown) {
       if (uploadedFileId) {
         await deletePrivateOrganizationFile(uploadedFileId).catch(() => undefined);
@@ -203,10 +214,30 @@ export function ProfilePhotoEditor({
       setMessage(
         error instanceof AuthApiError ? error.message : "The Profile photo could not be updated.",
       );
+      return false;
     } finally {
       setBusy(false);
     }
   }
+
+  const hasPendingPhoto = file !== null;
+
+  useEffect(() => {
+    onPendingChange?.(hasPendingPhoto);
+  }, [hasPendingPhoto, onPendingChange]);
+
+  useSaveRegistration({
+    busy,
+    dirty: hasPendingPhoto,
+    discard: () => {
+      setPendingFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setMessage(null);
+    },
+    id: `member-profile-photo-${profile.id}`,
+    resourceKey: `member-profile-photo-${profile.id}`,
+    save: () => savePhoto(),
+  });
 
   async function capturePhoto(): Promise<void> {
     const video = videoRef.current;

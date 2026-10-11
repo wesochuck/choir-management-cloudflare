@@ -118,6 +118,7 @@ export function RosterPageView({
   const selectAllVisibleRef = useRef<HTMLInputElement>(null);
   const [rosterPage, setRosterPage] = useState(1);
   const [rosterPageSize, setRosterPageSize] = useState(50);
+  const [photoPending, setPhotoPending] = useState(false);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset page on filter change
@@ -143,6 +144,12 @@ export function RosterPageView({
       selectAllVisibleRef.current.indeterminate = someVisibleSelected;
     }
   }, [someVisibleSelected]);
+  useEffect(() => {
+    if (!dialogOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset pending photo guard when the edit dialog closes.
+      setPhotoPending(false);
+    }
+  }, [dialogOpen]);
   if (!enabled) {
     return <OrganizationMfaPrompt message="Verify Organization MFA to manage the roster." />;
   }
@@ -582,6 +589,7 @@ export function RosterPageView({
         onClose={closeDialog}
         open={dialogOpen}
         title={editingId ? "Edit Profile" : "Add Profile"}
+        {...(photoPending ? { dirty: true as const } : {})}
       >
         <Tabs
           onValueChange={(nextTab) => {
@@ -742,6 +750,7 @@ export function RosterPageView({
                           : current,
                       );
                     }}
+                    onPendingChange={setPhotoPending}
                     profile={{
                       displayName: profile.displayName,
                       id: editingId,
