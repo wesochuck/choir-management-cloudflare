@@ -1,5 +1,6 @@
 interface QuickSearchTriggerProps {
   readonly className?: string;
+  readonly hideTitle?: boolean;
   readonly onClick: () => void;
   readonly placeholder?: string;
   readonly variant?: "header" | "hero" | "sidebar";
@@ -17,6 +18,7 @@ function isApplePlatform(): boolean {
 
 export function QuickSearchTrigger({
   className = "",
+  hideTitle = false,
   onClick,
   placeholder,
   variant = "sidebar",
@@ -27,7 +29,7 @@ export function QuickSearchTrigger({
   if (variant === "hero") {
     return (
       <div className={`quick-search-hero-container ${className}`}>
-        <h2 className="quick-search-hero-title">Ready when you are.</h2>
+        {!hideTitle ? <h2 className="quick-search-hero-title">Ready when you are.</h2> : null}
         <button
           aria-keyshortcuts="Control+K Meta+K"
           aria-label="Open command palette"

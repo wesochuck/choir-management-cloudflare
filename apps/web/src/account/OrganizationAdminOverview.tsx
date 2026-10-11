@@ -24,6 +24,7 @@ interface OverviewCard {
 
 interface OverviewSection {
   readonly cards: readonly OverviewCard[];
+  readonly description: string;
   readonly label: string;
   readonly tone: OverviewTone;
 }
@@ -67,6 +68,7 @@ function buildOverviewSections(
   return [
     {
       label: "People & membership",
+      description: "Profiles, communications, and supporter relationships",
       tone: "green",
       cards: [
         {
@@ -129,6 +131,7 @@ function buildOverviewSections(
     },
     {
       label: "Events & attendance",
+      description: "Plan performances, manage ticketing, and check in members",
       tone: "amber",
       cards: [
         {
@@ -183,6 +186,7 @@ function buildOverviewSections(
     },
     {
       label: "Music & performance",
+      description: "Scores, programs, and materials for performers",
       tone: "cyan",
       cards: [
         {
@@ -213,6 +217,7 @@ function buildOverviewSections(
     },
     {
       label: "Admin",
+      description: "System configuration, website, and global preferences",
       tone: "slate",
       cards: [
         {
@@ -237,15 +242,18 @@ function buildOverviewSections(
 
 function DashboardLink({
   children,
+  className,
   href,
   onNavigate,
 }: {
   readonly children: ReactNode;
+  readonly className?: string;
   readonly href: string;
   readonly onNavigate: (href: string) => void;
 }) {
   return (
     <a
+      className={className}
       href={href}
       onClick={(event) => {
         if (
@@ -304,48 +312,74 @@ function OverviewBanner({
 
   return (
     <section className="admin-overview__banner" aria-labelledby="admin-overview-greeting">
-      <div className="admin-overview__banner-inner">
+      <div className="admin-overview__hero-intro">
         <h1 id="admin-overview-greeting">{greeting}</h1>
-        {hasEnabledStats ? (
-          <div className="admin-overview__stats" aria-label="Organization summary">
-            {moduleIsEnabled(modules, "people") ? (
-              <DashboardLink href="/admin/roster" onNavigate={navigate}>
-                <span>Active {performerLabelPlural}</span>
-                <strong>{displayCount(activeProfileCount)}</strong>
-              </DashboardLink>
-            ) : null}
-            {moduleIsEnabled(modules, "events") ? (
-              <DashboardLink href="/admin/events" onNavigate={navigate}>
-                <span>Upcoming Events</span>
-                <strong>{displayCount(upcomingEventCount)}</strong>
-              </DashboardLink>
-            ) : null}
-            {moduleIsEnabled(modules, "people") ? (
-              <DashboardLink href="/admin/auditions" onNavigate={navigate}>
-                <span>Pending Inquiries</span>
-                <strong>{displayCount(pendingAuditionCount)}</strong>
-              </DashboardLink>
-            ) : null}
-            {moduleIsEnabled(modules, "people") ? (
-              <DashboardLink href="/admin/roster" onNavigate={navigate}>
-                <span>Recent Email Bounces</span>
-                <strong>{displayCount(recentBounceCount)}</strong>
-              </DashboardLink>
-            ) : null}
-            {moduleIsEnabled(modules, "people") ? (
-              <DashboardLink href="/admin/roster" onNavigate={navigate}>
-                <span>Email Disabled</span>
-                <strong>{displayCount(doNotEmailCount)}</strong>
-              </DashboardLink>
-            ) : null}
-          </div>
-        ) : (
-          <p className="admin-overview__banner-welcome">
-            Welcome to your organization workspace. Follow the next steps below to finish setting up
-            your organization and unlock all management tools.
-          </p>
-        )}
+        <p className="admin-overview__hero-subtitle">
+          A quick view of your organization, with the tools you use most just below.
+        </p>
       </div>
+      {hasEnabledStats ? (
+        <div
+          className="admin-overview__stats admin-overview__kpi-grid"
+          aria-label="Organization at a glance"
+        >
+          {moduleIsEnabled(modules, "people") ? (
+            <DashboardLink
+              className="admin-overview__kpi"
+              href="/admin/roster"
+              onNavigate={navigate}
+            >
+              <strong>{displayCount(activeProfileCount)}</strong>
+              <span>Active {performerLabelPlural}</span>
+            </DashboardLink>
+          ) : null}
+          {moduleIsEnabled(modules, "events") ? (
+            <DashboardLink
+              className="admin-overview__kpi"
+              href="/admin/events"
+              onNavigate={navigate}
+            >
+              <strong>{displayCount(upcomingEventCount)}</strong>
+              <span>Upcoming Events</span>
+            </DashboardLink>
+          ) : null}
+          {moduleIsEnabled(modules, "people") ? (
+            <DashboardLink
+              className="admin-overview__kpi"
+              href="/admin/auditions"
+              onNavigate={navigate}
+            >
+              <strong>{displayCount(pendingAuditionCount)}</strong>
+              <span>Pending Inquiries</span>
+            </DashboardLink>
+          ) : null}
+          {moduleIsEnabled(modules, "people") ? (
+            <DashboardLink
+              className="admin-overview__kpi"
+              href="/admin/roster"
+              onNavigate={navigate}
+            >
+              <strong>{displayCount(recentBounceCount)}</strong>
+              <span>Recent Email Bounces</span>
+            </DashboardLink>
+          ) : null}
+          {moduleIsEnabled(modules, "people") ? (
+            <DashboardLink
+              className="admin-overview__kpi"
+              href="/admin/roster"
+              onNavigate={navigate}
+            >
+              <strong>{displayCount(doNotEmailCount)}</strong>
+              <span>Email Disabled</span>
+            </DashboardLink>
+          ) : null}
+        </div>
+      ) : (
+        <p className="admin-overview__banner-welcome">
+          Welcome to your organization workspace. Follow the next steps below to finish setting up
+          your organization and unlock all management tools.
+        </p>
+      )}
     </section>
   );
 }
@@ -363,12 +397,21 @@ function QuickActionsSection({
 }) {
   return (
     <section className="admin-overview__quick-actions" aria-labelledby="admin-quick-actions-title">
-      <p id="admin-quick-actions-title">{title}</p>
-      <div>
+      <span id="admin-quick-actions-title" className="admin-overview__quick-actions-title">
+        {title}
+      </span>
+      <div className="admin-overview__quick-actions-list">
         {actions.map((action) => (
-          <DashboardLink href={action.href} key={action.href} onNavigate={navigate}>
-            <span aria-hidden="true">{action.icon}</span>
-            {action.label === "Add performer" ? `Add ${performerLabel}` : action.label}
+          <DashboardLink
+            className="admin-overview__quick-btn"
+            href={action.href}
+            key={action.href}
+            onNavigate={navigate}
+          >
+            <span aria-hidden="true" className="admin-overview__quick-btn-icon">
+              {action.icon}
+            </span>
+            <span>{action.label === "Add performer" ? `Add ${performerLabel}` : action.label}</span>
           </DashboardLink>
         ))}
       </div>
@@ -549,13 +592,26 @@ export function OrganizationAdminOverview({
         upcomingEventCount={upcomingEventCount}
       />
 
-      <QuickSearchTrigger
-        onClick={() => {
-          onOpenCommandPalette?.();
-        }}
-        placeholder="Search products, pages, and features..."
-        variant="hero"
-      />
+      <div className="admin-overview__command-bar">
+        <QuickSearchTrigger
+          className="admin-overview__search-trigger"
+          hideTitle
+          onClick={() => {
+            onOpenCommandPalette?.();
+          }}
+          placeholder="Search pages, tools, and features..."
+          variant="hero"
+        />
+
+        {visibleQuickActions.length > 0 ? (
+          <QuickActionsSection
+            actions={visibleQuickActions}
+            navigate={navigate}
+            performerLabel={performerLabel}
+            title="Quick actions"
+          />
+        ) : null}
+      </div>
 
       {summaryError ? (
         <p className="admin-overview__error" role="status">
@@ -564,31 +620,40 @@ export function OrganizationAdminOverview({
         </p>
       ) : null}
 
-      {visibleQuickActions.length > 0 ? (
-        <QuickActionsSection
-          actions={visibleQuickActions}
-          navigate={navigate}
-          performerLabel={performerLabel}
-          title="Quick actions"
-        />
-      ) : null}
-
       {isNewOrgOrSetupPending ? (
         <GettingStartedGuide navigate={navigate} performerLabelPlural={performerLabelPlural} />
       ) : null}
 
       <div className="admin-overview__sections">
         {sections.map((section) => (
-          <section className="admin-overview__section" key={section.label}>
-            <h2
-              className={`admin-overview__section-heading admin-overview__section-heading--${section.tone}`}
-            >
-              <span aria-hidden="true" />
-              {section.label}
-            </h2>
+          <section
+            className={`admin-overview__section admin-overview__section--${section.tone}`}
+            key={section.label}
+            aria-labelledby={`admin-section-${section.tone}`}
+          >
+            <div className="admin-overview__section-heading">
+              <div>
+                <h2
+                  className={`admin-overview__section-title admin-overview__section-heading--${section.tone}`}
+                  id={`admin-section-${section.tone}`}
+                >
+                  <span aria-hidden="true" className="admin-overview__section-dot" />
+                  {section.label}
+                </h2>
+                <p className="admin-overview__section-note">{section.description}</p>
+              </div>
+              <div className="admin-overview__section-count">
+                {section.cards.length} {section.cards.length === 1 ? "tool" : "tools"}
+              </div>
+            </div>
             <div className="admin-overview__cards">
               {section.cards.map((card) => (
-                <DashboardLink href={card.href} key={card.href} onNavigate={navigate}>
+                <DashboardLink
+                  className="admin-overview__card"
+                  href={card.href}
+                  key={card.href}
+                  onNavigate={navigate}
+                >
                   <span
                     aria-hidden="true"
                     className={`admin-overview__card-icon admin-overview__card-icon--${card.tone}`}
@@ -596,11 +661,21 @@ export function OrganizationAdminOverview({
                     {card.icon}
                   </span>
                   <span className="admin-overview__card-copy">
-                    <strong>{card.label}</strong>
-                    <small>{card.description}</small>
+                    <strong className="admin-overview__card-title">{card.label}</strong>
+                    <small className="admin-overview__card-description">{card.description}</small>
                   </span>
                   <span aria-hidden="true" className="admin-overview__card-arrow">
-                    →
+                    <svg
+                      aria-hidden="true"
+                      fill="none"
+                      height="18"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                      width="18"
+                    >
+                      <path d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
                   </span>
                 </DashboardLink>
               ))}
