@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { futureDateString, futureIsoDate, pastIsoDate } from "@choir/testkit";
+import { buildRosterConfigurationResponse } from "./fixtures/builders";
 
 const requestId = "1f2e3d4c-5b6a-4789-8901-234567890abc";
 
@@ -1875,5 +1876,269 @@ test.describe("admin ticket management", () => {
     await expect(rowInactive.getByRole("button", { name: "Reactivate" })).toHaveCount(0);
     // Edit remains suppressed because terms are still locked
     await expect(rowInactive.getByRole("button", { name: "Edit" })).toHaveCount(0);
+  });
+
+  test("guides admins from ticketing setup guide to events and provides edit ticket settings shortcut", async ({
+    page,
+  }) => {
+    await routeHealth(page);
+    await routeAdminAuth(page);
+    await page.route("**/api/public/projection", async (route) => {
+      await route.fulfill({ status: 404 });
+    });
+    await page.route("**/api/organization/tickets/orders", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          orders: [adminOrder],
+          requestId,
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/events", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ events: [adminEvent], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/venues", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ requestId, venues: [] }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/calendar-settings", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ requestId, timezone: "America/New_York" }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/roster-configuration", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(buildRosterConfigurationResponse()),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/tickets/bundles", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ bundles: [adminBundle], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto("/admin/tickets");
+
+    // 1. Verify Ticketing Setup Guide is rendered above tabs
+    const setupGuide = page.locator(".ticketing-setup-guide");
+    await expect(setupGuide).toBeVisible();
+    await expect(setupGuide.getByText("Want to sell tickets for a concert?")).toBeVisible();
+    const setupGuideLink = setupGuide.getByRole("link", { name: "Set Up Ticket Sales →" });
+    await expect(setupGuideLink).toBeVisible();
+    await expect(setupGuideLink).toHaveAttribute(
+      "href",
+      "/admin/events?type=Performance&returnTo=%2Fadmin%2Ftickets",
+    );
+    await setupGuideLink.click();
+    await expect(page).toHaveURL("/admin/events?type=Performance&returnTo=%2Fadmin%2Ftickets");
+    const returnToTicketingLink = page.getByRole("link", { name: "← Back to Ticketing" });
+    await expect(returnToTicketingLink).toBeVisible();
+    await returnToTicketingLink.click();
+    await expect(page).toHaveURL("/admin/tickets");
+
+    // 2. Will Call shortcut: by default, the first performance (Spring Concert) is selected
+    const editSettingsButton = page.getByRole("link", { name: "Edit ticket settings →" });
+    await expect(editSettingsButton).toBeVisible();
+    await expect(editSettingsButton).toHaveAttribute(
+      "href",
+      `/admin/events?eventId=${eventId}&section=tickets&returnTo=%2Fadmin%2Ftickets%3FeventId%3D${eventId}`,
+    );
+
+    // 3. When 'All ticketed performances' is selected, the shortcut is hidden
+    await page.getByLabel("Select performance").selectOption("all");
+    await expect(editSettingsButton).toHaveCount(0);
+
+    // 4. Select the performance again and click 'Edit ticket settings →'
+    await page.getByLabel("Select performance").selectOption(eventId);
+    await expect(editSettingsButton).toBeVisible();
+    await editSettingsButton.click();
+
+    // 5. Verify we are on /admin/events, EventEditorDialog is opened for this event,
+    // Ticket Sales section is present and capacity field is focused
+    await expect(page).toHaveURL(
+      new RegExp(`/admin/events\\?eventId=${eventId}&section=tickets&returnTo=`),
+    );
+    const eventEditor = page.getByRole("dialog", { name: "Edit event" });
+    await expect(eventEditor).toBeVisible();
+    const ticketSalesSection = eventEditor.locator("#event-editor-section-tickets");
+    await expect(ticketSalesSection).toBeVisible();
+    await expect(ticketSalesSection.getByRole("heading", { name: "Ticket Sales" })).toBeVisible();
+    await expect(eventEditor.locator("#events-page-capacity")).toBeFocused();
+
+    // 6. Verify 'Back to Ticketing' button is visible when dialog is not dirty
+    const backToTicketingButton = eventEditor.getByRole("button", { name: "Back to Ticketing" });
+    await expect(backToTicketingButton).toBeVisible();
+
+    // 7. Click 'Back to Ticketing' and verify we return to /admin/tickets?eventId=... with the performance still selected
+    await backToTicketingButton.click();
+    await expect(eventEditor).not.toBeVisible();
+    await expect(page).toHaveURL(`/admin/tickets?eventId=${eventId}`);
+    await expect(page.getByLabel("Select performance")).toHaveValue(eventId);
+  });
+
+  test("returns to ticketing with selection restored after saving ticket settings", async ({
+    page,
+  }) => {
+    await routeHealth(page);
+    await routeAdminAuth(page);
+    await page.route("**/api/public/projection", async (route) => {
+      await route.fulfill({ status: 404 });
+    });
+    await page.route("**/api/organization/tickets/orders", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          orders: [adminOrder],
+          requestId,
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/events", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ events: [adminEvent], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/venues", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ requestId, venues: [] }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/calendar-settings", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ requestId, timezone: "America/New_York" }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/roster-configuration", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(buildRosterConfigurationResponse()),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/tickets/bundles", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ bundles: [adminBundle], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route(`**/api/organization/events/${eventId}`, async (route) => {
+      if (route.request().method() === "PUT") {
+        await route.fulfill({
+          body: JSON.stringify({ ...adminEvent, ticketCapacity: 250 }),
+          contentType: "application/json",
+          status: 200,
+        });
+        return;
+      }
+      await route.fallback();
+    });
+
+    await page.goto("/admin/tickets");
+    await page.getByRole("link", { name: "Edit ticket settings →" }).click();
+
+    const eventEditor = page.getByRole("dialog", { name: "Edit event" });
+    await expect(eventEditor).toBeVisible();
+
+    await eventEditor.locator("#events-page-capacity").fill("250");
+    await eventEditor.locator("#events-page-rsvp-deadline").fill(futureDateString({ days: 280 }));
+    await eventEditor.getByRole("button", { name: "Save event" }).click();
+
+    await expect(eventEditor).not.toBeVisible();
+    await expect(page).toHaveURL(`/admin/tickets?eventId=${eventId}`);
+    await expect(page.getByLabel("Select performance")).toHaveValue(eventId);
+  });
+
+  test("handles invalid deep-link event IDs and unticketed return selections safely", async ({
+    page,
+  }) => {
+    await routeHealth(page);
+    await routeAdminAuth(page);
+    await page.route("**/api/public/projection", async (route) => {
+      await route.fulfill({ status: 404 });
+    });
+    await page.route("**/api/organization/tickets/orders", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          orders: [adminOrder],
+          requestId,
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/events", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ events: [adminEvent], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/venues", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ requestId, venues: [] }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/calendar-settings", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ requestId, timezone: "America/New_York" }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/roster-configuration", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(buildRosterConfigurationResponse()),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/tickets/bundles", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ bundles: [adminBundle], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    // Unknown event ID: recoverable error, no dialog opens for a different event.
+    await page.goto(
+      "/admin/events?eventId=00000000-0000-4000-8000-000000000000&section=tickets&returnTo=%2Fadmin%2Ftickets",
+    );
+    await expect(page.getByRole("alert")).toContainText("could not be found");
+    await expect(page.getByRole("dialog", { name: "Edit event" })).toHaveCount(0);
+    const backLink = page.getByRole("link", { name: "← Back to Ticketing" });
+    await expect(backLink).toBeVisible();
+    await backLink.click();
+    await expect(page).toHaveURL("/admin/tickets");
+
+    // Return selection for a no-longer-ticketed event: coherent fallback with notice.
+    await page.goto(`/admin/tickets?eventId=${secondPerformanceId}`);
+    await expect(page.getByLabel("Select performance")).toHaveValue("all");
+    await expect(page.getByText("does not have ticketing enabled")).toBeVisible();
   });
 });

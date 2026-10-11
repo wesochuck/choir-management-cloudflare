@@ -35,8 +35,10 @@ export function EventEditorDialog({
   event,
   eventStart,
   graphicFile,
+  initialSection = null,
   onClose,
   onSubmit,
+  returnTo = null,
   setEvent,
   setEventStart,
   setGraphicFile,
@@ -49,8 +51,10 @@ export function EventEditorDialog({
   readonly event: OrganizationEventRequest;
   readonly eventStart: string;
   readonly graphicFile: File | null;
+  readonly initialSection?: string | null | undefined;
   readonly onClose: () => void;
   readonly onSubmit: (event: OrganizationEventRequest) => void;
+  readonly returnTo?: string | null | undefined;
   readonly setEvent: Dispatch<SetStateAction<OrganizationEventRequest>>;
   readonly setEventStart: (value: string) => void;
   readonly setGraphicFile: (file: File | null) => void;
@@ -103,6 +107,31 @@ export function EventEditorDialog({
       ? zonedLocalDateTimeToUtc(eventStart, state.timezone)
       : null;
   const isPastEvent = Boolean(startsAtUtc && new Date(startsAtUtc).getTime() <= nowMs);
+
+  useEffect(() => {
+    if (!dialogOpen || initialSection !== "tickets") return;
+    const focusTimer = window.setTimeout(() => {
+      const targetElement =
+        document.getElementById("events-page-capacity") ??
+        document.getElementById("events-page-enable-ticketing") ??
+        document.getElementById("event-editor-section-tickets");
+      if (targetElement) {
+        if (targetElement instanceof HTMLElement && typeof targetElement.focus === "function") {
+          targetElement.focus({ preventScroll: true });
+        }
+        const prefersReducedMotion =
+          typeof window.matchMedia === "function" &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        targetElement.scrollIntoView({
+          behavior: prefersReducedMotion ? "auto" : "smooth",
+          block: "center",
+        });
+      }
+    }, 60);
+    return () => {
+      window.clearTimeout(focusTimer);
+    };
+  }, [dialogOpen, initialSection]);
 
   const allowedGraphicTypes = ["image/jpeg", "image/png", "image/webp"];
   const maxGraphicBytes = 5 * 1024 * 1024;
@@ -525,125 +554,140 @@ export function EventEditorDialog({
           </p>
         ) : null}
         {event.type === "Performance" ? (
-          <label className="checkbox-row">
-            <input
-              checked={event.isTicketingEnabled}
-              onChange={(change) => {
-                setEvent((current) => ({ ...current, isTicketingEnabled: change.target.checked }));
-              }}
-              type="checkbox"
-            />
-            Enable ticket sales
-          </label>
-        ) : null}
-        {event.type === "Performance" && event.isTicketingEnabled ? (
-          <div className="form-grid">
-            {isPastEvent ? (
-              <p className="notice notice--warning form-grid__wide" role="alert">
-                <strong>Ticket sales inactive:</strong> This performance date has already passed.
-                Ticket sales will remain closed to the public until the event date is set to a
-                future date and time.
-              </p>
-            ) : null}
-            {!event.venueId && !event.publishOnWebsite ? (
-              <p className="notice notice--warning form-grid__wide" role="alert">
-                <strong>No venue assigned:</strong> Ticket sales are enabled without an assigned
-                venue. Ticket buyers will not see venue address or map details on tickets and
-                receipts.
-              </p>
-            ) : null}
-            {!event.publishOnWebsite ? (
-              <p className="notice notice--info form-grid__wide" role="status">
-                <strong>Unpublished on public website:</strong> "Publish on public website" is
-                unchecked. This event will not appear on the public concert schedule. Buyers will
-                only be able to access tickets via direct link or QR code once ticket sales are
-                open.
-              </p>
-            ) : null}
-            <div className="field">
-              <label htmlFor="events-page-capacity">Ticket capacity</label>
+          <section
+            aria-labelledby="events-section-tickets-heading"
+            className="event-editor-section event-editor-section--tickets"
+            data-section="tickets"
+            id="event-editor-section-tickets"
+            tabIndex={-1}
+          >
+            <h3 className="event-editor-section__title" id="events-section-tickets-heading">
+              Ticket Sales
+            </h3>
+            <label className="checkbox-row">
               <input
-                id="events-page-capacity"
-                min={1}
+                checked={event.isTicketingEnabled}
+                id="events-page-enable-ticketing"
                 onChange={(change) => {
                   setEvent((current) => ({
                     ...current,
-                    ticketCapacity: optionalInteger(change.target.value),
+                    isTicketingEnabled: change.target.checked,
                   }));
                 }}
-                type="number"
-                value={event.ticketCapacity ?? ""}
+                type="checkbox"
               />
-            </div>
-            <div className="field">
-              <label htmlFor="events-page-advance-price">Advance price (USD)</label>
-              <input
-                id="events-page-advance-price"
-                inputMode="decimal"
-                onChange={(change) => {
-                  setAdvancePriceDraft(change.target.value);
-                }}
-                onBlur={() => {
-                  const cents = currencyCentsFromDraft(advancePriceDraft);
-                  setAdvancePriceDraft(currencyDraftFromCents(cents));
-                  setEvent((current) => ({ ...current, advancePriceCents: cents }));
-                }}
-                step="0.01"
-                type="text"
-                value={advancePriceDraft}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="events-page-day-price">Day-of price (USD)</label>
-              <input
-                id="events-page-day-price"
-                inputMode="decimal"
-                onChange={(change) => {
-                  setDayOfPriceDraft(change.target.value);
-                }}
-                onBlur={() => {
-                  const cents = currencyCentsFromDraft(dayOfPriceDraft);
-                  setDayOfPriceDraft(currencyDraftFromCents(cents));
-                  setEvent((current) => ({ ...current, dayOfPriceCents: cents }));
-                }}
-                step="0.01"
-                type="text"
-                value={dayOfPriceDraft}
-              />
-            </div>
-            {state.status === "ready" ? (
-              <p className="ticketing-price-note" role="status">
-                {dayOfPriceStartLabel(eventStart, state.timezone) ??
-                  "Choose an event start to confirm when day-of pricing begins."}
-              </p>
-            ) : null}
-            <fieldset className="event-ticketing-links">
-              <legend>Ticket page and QR code</legend>
-              <p className="field-help">
-                Share the ticket page with your audience or download its QR code for printed
-                programs and signs.
-              </p>
-              {editingId ? (
-                <>
-                  <QRCodeShareCard
-                    description={`Tickets for ${event.title}.`}
-                    path={`/tickets/${editingId}`}
-                    title={`${event.title} tickets`}
+              Enable ticket sales
+            </label>
+            {event.isTicketingEnabled ? (
+              <div className="form-grid">
+                {isPastEvent ? (
+                  <p className="notice notice--warning form-grid__wide" role="alert">
+                    <strong>Ticket sales inactive:</strong> This performance date has already
+                    passed. Ticket sales will remain closed to the public until the event date is
+                    set to a future date and time.
+                  </p>
+                ) : null}
+                {!event.venueId && !event.publishOnWebsite ? (
+                  <p className="notice notice--warning form-grid__wide" role="alert">
+                    <strong>No venue assigned:</strong> Ticket sales are enabled without an assigned
+                    venue. Ticket buyers will not see venue address or map details on tickets and
+                    receipts.
+                  </p>
+                ) : null}
+                {!event.publishOnWebsite ? (
+                  <p className="notice notice--info form-grid__wide" role="status">
+                    <strong>Unpublished on public website:</strong> "Publish on public website" is
+                    unchecked. This event will not appear on the public concert schedule. Buyers
+                    will only be able to access tickets via direct link or QR code once ticket sales
+                    are open.
+                  </p>
+                ) : null}
+                <div className="field">
+                  <label htmlFor="events-page-capacity">Ticket capacity</label>
+                  <input
+                    id="events-page-capacity"
+                    min={1}
+                    onChange={(change) => {
+                      setEvent((current) => ({
+                        ...current,
+                        ticketCapacity: optionalInteger(change.target.value),
+                      }));
+                    }}
+                    type="number"
+                    value={event.ticketCapacity ?? ""}
                   />
-                  {isPastEvent ? (
-                    <p className="notice notice--warning" role="alert">
-                      Ticket sales are currently closed for this link because the event date has
-                      passed. Set a future date above to reopen sales.
+                </div>
+                <div className="field">
+                  <label htmlFor="events-page-advance-price">Advance price (USD)</label>
+                  <input
+                    id="events-page-advance-price"
+                    inputMode="decimal"
+                    onChange={(change) => {
+                      setAdvancePriceDraft(change.target.value);
+                    }}
+                    onBlur={() => {
+                      const cents = currencyCentsFromDraft(advancePriceDraft);
+                      setAdvancePriceDraft(currencyDraftFromCents(cents));
+                      setEvent((current) => ({ ...current, advancePriceCents: cents }));
+                    }}
+                    step="0.01"
+                    type="text"
+                    value={advancePriceDraft}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="events-page-day-price">Day-of price (USD)</label>
+                  <input
+                    id="events-page-day-price"
+                    inputMode="decimal"
+                    onChange={(change) => {
+                      setDayOfPriceDraft(change.target.value);
+                    }}
+                    onBlur={() => {
+                      const cents = currencyCentsFromDraft(dayOfPriceDraft);
+                      setDayOfPriceDraft(currencyDraftFromCents(cents));
+                      setEvent((current) => ({ ...current, dayOfPriceCents: cents }));
+                    }}
+                    step="0.01"
+                    type="text"
+                    value={dayOfPriceDraft}
+                  />
+                </div>
+                {state.status === "ready" ? (
+                  <p className="ticketing-price-note" role="status">
+                    {dayOfPriceStartLabel(eventStart, state.timezone) ??
+                      "Choose an event start to confirm when day-of pricing begins."}
+                  </p>
+                ) : null}
+                <fieldset className="event-ticketing-links">
+                  <legend>Ticket page and QR code</legend>
+                  <p className="field-help">
+                    Share the ticket page with your audience or download its QR code for printed
+                    programs and signs.
+                  </p>
+                  {editingId ? (
+                    <>
+                      <QRCodeShareCard
+                        description={`Tickets for ${event.title}.`}
+                        path={`/tickets/${editingId}`}
+                        title={`${event.title} tickets`}
+                      />
+                      {isPastEvent ? (
+                        <p className="notice notice--warning" role="alert">
+                          Ticket sales are currently closed for this link because the event date has
+                          passed. Set a future date above to reopen sales.
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className="ticketing-price-note" role="status">
+                      Save this Performance to generate its ticket page and QR code.
                     </p>
-                  ) : null}
-                </>
-              ) : (
-                <p className="ticketing-price-note" role="status">
-                  Save this Performance to generate its ticket page and QR code.
-                </p>
-              )}
-            </fieldset>
-          </div>
+                  )}
+                </fieldset>
+              </div>
+            ) : null}
+          </section>
         ) : null}
         {dirty ? (
           <div className="event-editor-save-bar" role="region" aria-label="Unsaved event changes">
@@ -658,6 +702,13 @@ export function EventEditorDialog({
                 {eventSaveLabel(busy, editingId)}
               </button>
             </div>
+          </div>
+        ) : returnTo &&
+          (returnTo.startsWith("/admin/tickets") || returnTo.startsWith("/admin/ticketing")) ? (
+          <div className="dialog__actions event-editor-dialog__actions">
+            <button className="button button--secondary" onClick={onClose} type="button">
+              Back to Ticketing
+            </button>
           </div>
         ) : null}
       </form>

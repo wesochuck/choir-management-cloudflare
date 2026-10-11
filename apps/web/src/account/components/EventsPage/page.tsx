@@ -34,21 +34,38 @@ import { EventEditorDialog, ArchiveEventDialog, CancelEventDialog } from "./dial
 import { BulkRehearsalDialog } from "./bulkRehearsals";
 
 function buildEventReturnUrl(returnTo: string, eventId: string): string {
-  return returnTo.includes("?")
-    ? `${returnTo}&eventId=${encodeURIComponent(eventId)}`
-    : `${returnTo}?eventId=${encodeURIComponent(eventId)}`;
+  const [pathname = "", search] = returnTo.split("?");
+  const searchParams = new URLSearchParams(search ?? "");
+  searchParams.set("eventId", eventId);
+  const queryString = searchParams.toString();
+  return queryString ? `${pathname}?${queryString}` : pathname;
+}
+
+function isTicketingReturnTo(returnTo: string): boolean {
+  return (
+    returnTo === "/admin/tickets" ||
+    returnTo === "/admin/ticketing" ||
+    returnTo.startsWith("/admin/tickets?") ||
+    returnTo.startsWith("/admin/tickets/") ||
+    returnTo.startsWith("/admin/ticketing?") ||
+    returnTo.startsWith("/admin/ticketing/")
+  );
 }
 
 // eslint-disable-next-line complexity -- the main events manager screen coordinates multiple modals, bulk actions, and filters.
 export function EventsPage({
   enabled,
   initialAction = null,
+  initialEventId = null,
+  initialSection = null,
   initialType = null,
   navigate,
   returnTo = null,
 }: {
   readonly enabled: boolean;
   readonly initialAction?: "create" | null | undefined;
+  readonly initialEventId?: string | null | undefined;
+  readonly initialSection?: string | null | undefined;
   readonly initialType?: "Performance" | "Rehearsal" | null | undefined;
   readonly navigate?: ((href: string) => void) | undefined;
   readonly returnTo?: string | null | undefined;
@@ -94,8 +111,11 @@ export function EventsPage({
       getOrganizationRosterConfiguration(controller.signal),
     ])
       .then(([events, venues, settings, rosterConfiguration]) => {
+        const sortedEvents = events.toSorted((left, right) =>
+          left.startsAt.localeCompare(right.startsAt),
+        );
         setState({
-          events: events.toSorted((left, right) => left.startsAt.localeCompare(right.startsAt)),
+          events: sortedEvents,
           rsvpFollowUpEnabled: rosterConfiguration.rsvpFollowUpEnabled,
           rsvpFollowUpLeadHours: rosterConfiguration.rsvpFollowUpLeadHours,
           rsvpExpiryEnabled: rosterConfiguration.rsvpExpiryEnabled,
@@ -103,6 +123,25 @@ export function EventsPage({
           timezone: settings.timezone,
           venues,
         });
+        if (initialEventId) {
+          const candidate = sortedEvents.find((entry) => entry.id === initialEventId);
+          if (!candidate) {
+            setError(
+              "The requested performance could not be found. It may have been deleted or archived.",
+            );
+          } else if (candidate.type !== "Performance") {
+            setError("The requested event is not a performance.");
+          } else {
+            setEventTab("performances");
+            setEditingId(candidate.id);
+            setEvent(eventRequestFrom(candidate));
+            setEventStart(utcToZonedLocalDateTime(candidate.startsAt, settings.timezone) ?? "");
+            setGraphicFile(null);
+            setError(null);
+            setSuccess(null);
+            setDialogOpen(true);
+          }
+        }
       })
       .catch((loadError: unknown) => {
         if (!(loadError instanceof DOMException && loadError.name === "AbortError")) {
@@ -112,7 +151,7 @@ export function EventsPage({
     return () => {
       controller.abort();
     };
-  }, [enabled]);
+  }, [enabled, initialEventId]);
 
   const filteredEvents = useMemo(() => {
     if (state.status !== "ready") return [];
@@ -143,6 +182,9 @@ export function EventsPage({
     setEventStart("");
     setGraphicFile(null);
     setError(null);
+    if (initialEventId && returnTo && navigate) {
+      navigate(returnTo);
+    }
   }
 
   function openCreate() {
@@ -244,7 +286,10 @@ export function EventsPage({
       setEvent(emptyEvent);
       setEventStart("");
       setGraphicFile(null);
-      if (returnTo && !editingId && navigate) {
+      // Create flows return for every returnTo origin (legacy behavior).
+      // Edit-save auto-return applies only to Ticketing deep-links so existing
+      // seating/setlist edit flows keep their stay-in-editor behavior.
+      if (returnTo && navigate && (!editingId || isTicketingReturnTo(returnTo))) {
         navigate(buildEventReturnUrl(returnTo, saved.id));
       }
     } catch (saveError: unknown) {
@@ -412,7 +457,9 @@ export function EventsPage({
               ? "← Back to set lists"
               : returnTo.startsWith("/admin/seating")
                 ? "← Back to seating"
-                : "← Back"}
+                : returnTo.startsWith("/admin/tickets") || returnTo.startsWith("/admin/ticketing")
+                  ? "← Back to Ticketing"
+                  : "← Back"}
           </AppLink>
         </div>
       ) : null}
@@ -536,11 +583,13 @@ export function EventsPage({
         event={event}
         eventStart={eventStart}
         graphicFile={graphicFile}
+        initialSection={initialSection}
         key={`${dialogOpen ? "open" : "closed"}:${editingId ?? "new"}`}
         onClose={closeDialog}
         onSubmit={(eventDraft) => {
           void saveEvent(eventDraft);
         }}
+        returnTo={returnTo}
         setEvent={setEvent}
         setEventStart={setEventStart}
         setGraphicFile={setGraphicFile}

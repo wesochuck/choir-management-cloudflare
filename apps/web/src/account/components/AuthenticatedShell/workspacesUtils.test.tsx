@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { renderOrganizationPage } from "./workspacesUtils";
+import {
+  eventsPagePropsFromSearch,
+  renderOrganizationPage,
+  sanitizeEventsReturnTo,
+  ticketingTabFromSearch,
+} from "./workspacesUtils";
 import { staticNavigationItems } from "../CommandPalette/navigationIndex";
 
 describe("renderOrganizationPage routing and aliases", () => {
@@ -107,5 +112,50 @@ describe("renderOrganizationPage routing and aliases", () => {
         expect(result).not.toBe(notFoundMarker);
       }
     }
+  });
+
+  it("parses events deep-link query parameters including eventId, section, and sanitized returnTo", () => {
+    const props = eventsPagePropsFromSearch(
+      "?eventId=event-456&section=tickets&type=Performance&returnTo=%2Fadmin%2Ftickets%3FeventId%3Devent-456",
+    );
+    expect(props).toEqual({
+      initialAction: null,
+      initialEventId: "event-456",
+      initialSection: "tickets",
+      initialType: "Performance",
+      returnTo: "/admin/tickets?eventId=event-456",
+    });
+  });
+
+  it("sanitizes returnTo to recognized internal routes and rejects open redirects", () => {
+    expect(sanitizeEventsReturnTo("/admin/tickets")).toBe("/admin/tickets");
+    expect(sanitizeEventsReturnTo("/admin/ticketing?eventId=123")).toBe(
+      "/admin/ticketing?eventId=123",
+    );
+    expect(sanitizeEventsReturnTo("/admin/setlists")).toBe("/admin/setlists");
+    expect(sanitizeEventsReturnTo("/admin/seating")).toBe("/admin/seating");
+
+    // Rejects external/open-redirect attempts
+    expect(sanitizeEventsReturnTo("https://evil.com")).toBeNull();
+    expect(sanitizeEventsReturnTo("//evil.com")).toBeNull();
+    expect(sanitizeEventsReturnTo("/\\evil.com")).toBeNull();
+    expect(sanitizeEventsReturnTo("/admin/other")).toBeNull();
+    expect(sanitizeEventsReturnTo("")).toBeNull();
+    expect(sanitizeEventsReturnTo(null)).toBeNull();
+  });
+
+  it("normalizes invalid or unknown sections and event types", () => {
+    const props = eventsPagePropsFromSearch("?eventId=%20%20&section=unknown&type=Audition");
+    expect(props.initialEventId).toBeNull();
+    expect(props.initialSection).toBeNull();
+    expect(props.initialType).toBeNull();
+  });
+
+  it("parses allowlisted ticketing tabs and rejects unknown values", () => {
+    expect(ticketingTabFromSearch("?eventId=abc&tab=discounts")).toBe("discounts");
+    expect(ticketingTabFromSearch("?tab=orders")).toBe("orders");
+    expect(ticketingTabFromSearch("?tab=willcall")).toBe("willcall");
+    expect(ticketingTabFromSearch("?tab=auditions")).toBeNull();
+    expect(ticketingTabFromSearch("")).toBeNull();
   });
 });

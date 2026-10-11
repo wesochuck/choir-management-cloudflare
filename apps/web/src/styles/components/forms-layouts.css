@@ -284,6 +284,30 @@
     margin: 0;
   }
 
+  .event-editor-section--tickets {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .event-editor-section__title {
+    margin: 0;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text);
+  }
+
+  .event-editor-dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-md);
+    border-top: 1px solid var(--color-border);
+  }
+
   /* Ticketing manager */
 
   .ticketing-page-header {
@@ -306,6 +330,90 @@
   .ticketing-page-header p {
     margin-top: var(--spacing-2xs);
     color: var(--color-text-muted);
+  }
+
+  /* Ticketing setup guidance */
+
+  .ticketing-setup-guide {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card, 0.75rem);
+  }
+
+  .ticketing-setup-guide__main {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .ticketing-setup-guide__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    flex-shrink: 0;
+    border-radius: var(--radius-control, 0.5rem);
+    background: var(--color-surface-raised, rgba(0, 0, 0, 0.04));
+    color: var(--color-accent);
+  }
+
+  .ticketing-setup-guide__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3xs);
+    min-width: 0;
+  }
+
+  .ticketing-setup-guide__title {
+    margin: 0;
+    font-size: var(--font-size-md, 1rem);
+    font-weight: var(--font-weight-bold, 700);
+    color: var(--color-text);
+  }
+
+  .ticketing-setup-guide__description {
+    margin: 0;
+    font-size: var(--font-size-sm, 0.875rem);
+    color: var(--color-text-muted);
+    line-height: var(--line-height-normal, 1.45);
+  }
+
+  .ticketing-setup-guide__actions {
+    flex-shrink: 0;
+  }
+
+  .ticketing-setup-guide__action {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 768px) {
+    .ticketing-setup-guide {
+      flex-direction: column;
+      align-items: stretch;
+      padding: var(--spacing-md);
+    }
+
+    .ticketing-setup-guide__main {
+      align-items: flex-start;
+    }
+
+    .ticketing-setup-guide__actions {
+      width: 100%;
+    }
+
+    .ticketing-setup-guide__action {
+      width: 100%;
+      text-align: center;
+    }
   }
 
   .ticketing-tabs {
@@ -589,6 +697,28 @@
   .ticket-dashboard__intro .field {
     width: min(100%, 24rem);
     flex: 0 1 24rem;
+  }
+
+  .ticket-dashboard__intro .field.ticket-dashboard__performance-field {
+    width: min(100%, 36rem);
+    flex: 0 1 36rem;
+  }
+
+  .ticket-dashboard__performance-control-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-wrap: wrap;
+  }
+
+  .ticket-dashboard__performance-control-row select {
+    flex: 1 1 16rem;
+    min-width: 0;
+  }
+
+  .ticket-dashboard__edit-settings-button {
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
   .ticket-dashboard__metrics {

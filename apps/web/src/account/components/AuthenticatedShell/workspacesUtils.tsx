@@ -1,6 +1,7 @@
 import type { CurrentAuthSession } from "@choir/contracts";
 import type { ReactNode } from "react";
 import type { ReportTab } from "../Reports/shared";
+import type { TicketingTab } from "../Ticketing/shared";
 
 import {
   AccountSecurity,
@@ -56,19 +57,76 @@ export function renderAccountPage(
   return <AccountView currentSession={session} onSignedOut={onSignedOut} section="overview" />;
 }
 
-function eventsPagePropsFromSearch(search: string) {
+const ALLOWED_RETURN_PREFIXES = [
+  "/admin/tickets",
+  "/admin/ticketing",
+  "/admin/setlists",
+  "/admin/seating",
+] as const;
+
+export function sanitizeEventsReturnTo(returnTo: string | null | undefined): string | null {
+  if (!returnTo) return null;
+  if (!returnTo.startsWith("/") || returnTo.startsWith("//") || returnTo.includes("\\")) {
+    return null;
+  }
+  const isAllowed = ALLOWED_RETURN_PREFIXES.some(
+    (prefix) =>
+      returnTo === prefix || returnTo.startsWith(`${prefix}?`) || returnTo.startsWith(`${prefix}/`),
+  );
+  return isAllowed ? returnTo : null;
+}
+
+const TICKETING_TABS: readonly TicketingTab[] = [
+  "willcall",
+  "bundles",
+  "orders",
+  "share",
+  "confirmation",
+  "discounts",
+];
+
+export function ticketingTabFromSearch(search: string): TicketingTab | null {
+  const tabParam = new URLSearchParams(search).get("tab")?.trim();
+  return TICKETING_TABS.find((tab) => tab === tabParam) ?? null;
+}
+
+function ticketingManagerPage(
+  alias: "tickets" | "ticketing",
+  focusedEnabled: boolean,
+  initialEventId: string | null,
+  initialTab: TicketingTab | null,
+  navigate: (href: string) => void,
+): ReactNode {
+  return (
+    <TicketingManager
+      enabled={focusedEnabled}
+      initialEventId={initialEventId}
+      initialTab={initialTab ?? undefined}
+      key={`${alias}:${initialEventId ?? "all"}:${initialTab ?? "default"}`}
+      navigate={navigate}
+    />
+  );
+}
+
+export function eventsPagePropsFromSearch(search: string) {
   const routeParams = new URLSearchParams(search);
   const eventsAction = routeParams.get("action");
   const eventsTypeParam = routeParams.get("type");
+  const rawEventId = routeParams.get("eventId")?.trim();
+  const eventIdParam = rawEventId && rawEventId.length > 0 ? rawEventId : null;
+  const sectionParam = routeParams.get("section")?.trim() ?? null;
   const initialType: "Performance" | "Rehearsal" | null =
     eventsTypeParam === "Performance" || eventsTypeParam === "Rehearsal" ? eventsTypeParam : null;
+  const initialSection: "tickets" | null = sectionParam === "tickets" ? "tickets" : null;
   return {
     initialAction:
       eventsAction === "create" || routeParams.get("create") === "true"
         ? ("create" as const)
         : null,
+    initialEventId: eventIdParam,
+    initialSection,
     initialType,
-    returnTo: routeParams.get("returnTo"),
+    returnTo: sanitizeEventsReturnTo(routeParams.get("returnTo")),
   };
 }
 
@@ -153,6 +211,7 @@ export function renderOrganizationPage(
   const musicPieceId = routeParams.get("pieceId");
   const musicCatalogView = routeParams.get("view") === "credits" ? "credits" : "catalog";
   const rsvpEventId = routeParams.get("eventId");
+  const ticketingTab = ticketingTabFromSearch(routeState.search);
   const eventsProps = eventsPagePropsFromSearch(routeState.search);
   const reportTab = reportTabFromSearch(routeState.search);
   const route =
@@ -206,17 +265,33 @@ export function renderOrganizationPage(
     "/admin/setlists": (
       <SetListManager enabled={focusedEnabled} initialEventId={rsvpEventId} navigate={navigate} />
     ),
-    "/admin/tickets": <TicketingManager enabled={focusedEnabled} />,
-    "/admin/ticketing": <TicketingManager enabled={focusedEnabled} />,
-    "/admin/tickets/scan": <TicketingManager enabled={focusedEnabled} scanOnly />,
+    "/admin/tickets": ticketingManagerPage(
+      "tickets",
+      focusedEnabled,
+      rsvpEventId,
+      ticketingTab,
+      navigate,
+    ),
+    "/admin/ticketing": ticketingManagerPage(
+      "ticketing",
+      focusedEnabled,
+      rsvpEventId,
+      ticketingTab,
+      navigate,
+    ),
+    "/admin/tickets/scan": (
+      <TicketingManager enabled={focusedEnabled} navigate={navigate} scanOnly />
+    ),
     "/admin/venues": <VenuesPage enabled={focusedEnabled} />,
     "/admin/website": <PublicWebsiteManager enabled={focusedEnabled} />,
     "/admin/events": (
       <EventsPage
         enabled={focusedEnabled}
         initialAction={eventsProps.initialAction}
+        initialEventId={eventsProps.initialEventId}
+        initialSection={eventsProps.initialSection}
         initialType={eventsProps.initialType}
-        key={`events:${eventsProps.initialAction ?? "list"}:${eventsProps.initialType ?? "default"}`}
+        key={`events:${eventsProps.initialAction ?? "list"}:${eventsProps.initialEventId ?? "none"}:${eventsProps.initialType ?? "default"}:${eventsProps.initialSection ?? "default"}`}
         navigate={navigate}
         returnTo={eventsProps.returnTo}
       />

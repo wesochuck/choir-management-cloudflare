@@ -8,7 +8,9 @@ import {
   money,
   ticketOrderStatusDisplay,
   type OrderState,
+  type TicketingTab,
 } from "./shared";
+import { AppLink } from "../AuthenticatedShell/navigation";
 
 function willCallEmptyMessage({
   discountCodeFilter,
@@ -104,12 +106,92 @@ function WillCallPerformanceMetrics({
   );
 }
 
+function WillCallPerformanceSelector({
+  activeTab,
+  navigate,
+  selectedPerformance,
+  selectedPerformanceId,
+  setSelectedPerformanceId,
+  ticketEvents,
+}: {
+  readonly activeTab: TicketingTab;
+  readonly navigate?: ((href: string) => void) | undefined;
+  readonly selectedPerformance: OrganizationEvent | undefined;
+  readonly selectedPerformanceId: string;
+  readonly setSelectedPerformanceId: Dispatch<SetStateAction<string>>;
+  readonly ticketEvents: readonly OrganizationEvent[];
+}) {
+  const returnToPath =
+    typeof window !== "undefined" && window.location.pathname.startsWith("/admin/ticketing")
+      ? "/admin/ticketing"
+      : "/admin/tickets";
+  // Preserve the originating tab across the Events round trip so the admin
+  // lands back where they started. Transient Will-Call search/filter text is
+  // intentionally not serialized (it can contain buyer PII).
+  const returnToParams = new URLSearchParams({ eventId: selectedPerformance?.id ?? "" });
+  if (!selectedPerformance) returnToParams.delete("eventId");
+  if (activeTab !== "willcall") returnToParams.set("tab", activeTab);
+  const returnToUrl = selectedPerformance
+    ? `${returnToPath}?${returnToParams.toString()}`
+    : returnToPath;
+  const editTicketSettingsHref = selectedPerformance
+    ? `/admin/events?${new URLSearchParams({
+        eventId: selectedPerformance.id,
+        section: "tickets",
+        returnTo: returnToUrl,
+      }).toString()}`
+    : "";
+
+  return (
+    <div className="field ticket-dashboard__performance-field">
+      <label htmlFor="will-call-select-performance">Select performance</label>
+      <div className="ticket-dashboard__performance-control-row">
+        <select
+          id="will-call-select-performance"
+          onChange={(event) => {
+            setSelectedPerformanceId(event.target.value);
+          }}
+          value={selectedPerformanceId}
+        >
+          <option value="all">All ticketed performances</option>
+          {ticketEvents.map((event) => (
+            <option key={event.id} value={event.id}>
+              {event.title}
+            </option>
+          ))}
+        </select>
+        {selectedPerformance ? (
+          <AppLink
+            className="button button--secondary button--control-height ticket-dashboard__edit-settings-button"
+            href={editTicketSettingsHref}
+            onNavigate={
+              navigate ??
+              ((href) => {
+                window.location.assign(href);
+              })
+            }
+          >
+            Edit ticket settings →
+          </AppLink>
+        ) : null}
+      </div>
+      {selectedPerformance ? (
+        <span className="field-help">
+          Edit the selected performance&apos;s ticket capacity and pricing.
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 export function WillCallPanel({
+  activeTab,
   busy,
   clearDiscountCodeFilter,
   discountCodeFilter,
   financialSummary,
   lastOrderRefreshAt,
+  navigate,
   performanceOrders,
   refreshOrders,
   refreshingOrders,
@@ -129,11 +211,13 @@ export function WillCallPanel({
   visibleOrders,
   willCallSearch,
 }: {
+  readonly activeTab: TicketingTab;
   readonly busy: boolean;
   readonly clearDiscountCodeFilter: () => void;
   readonly discountCodeFilter: string | null;
   readonly financialSummary: PaymentFinancialSummary;
   readonly lastOrderRefreshAt: Date | null;
+  readonly navigate?: ((href: string) => void) | undefined;
   readonly performanceOrders: readonly OrganizationTicketOrder[];
   readonly refreshOrders: () => Promise<void>;
   readonly refreshingOrders: boolean;
@@ -178,23 +262,14 @@ export function WillCallPanel({
             <div>
               <p>Choose a performance to view ticket sales, revenue, and will-call activity.</p>
             </div>
-            <div className="field">
-              <label htmlFor="will-call-select-performance">Select performance</label>
-              <select
-                id="will-call-select-performance"
-                onChange={(event) => {
-                  setSelectedPerformanceId(event.target.value);
-                }}
-                value={selectedPerformanceId}
-              >
-                <option value="all">All ticketed performances</option>
-                {ticketEvents.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.title}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <WillCallPerformanceSelector
+              activeTab={activeTab}
+              navigate={navigate}
+              selectedPerformance={selectedPerformance}
+              selectedPerformanceId={selectedPerformanceId}
+              setSelectedPerformanceId={setSelectedPerformanceId}
+              ticketEvents={ticketEvents}
+            />
           </div>
           <WillCallPerformanceMetrics
             financialSummary={financialSummary}

@@ -32,6 +32,7 @@ import { BundlePanel } from "./components/Ticketing/BundlePanel";
 import { ConfirmationPanel } from "./components/Ticketing/ConfirmationPanel";
 import { DiscountCodesPanel } from "./components/Ticketing/DiscountCodesPanel";
 import { SharePanel } from "./components/Ticketing/SharePanel";
+import { TicketingSetupGuide } from "./components/Ticketing/TicketingSetupGuide";
 import { WillCallPanel } from "./components/Ticketing/WillCallPanel";
 import {
   getVisibleTicketingNotice,
@@ -55,9 +56,15 @@ function normalizeDiscountCode(code: string | null): string {
 // This component coordinates three intentionally co-located manager tools and their shared state.
 export function TicketingManager({
   enabled,
+  initialEventId,
+  initialTab = "willcall",
+  navigate,
   scanOnly = false,
 }: {
   readonly enabled: boolean;
+  readonly initialEventId?: string | null | undefined;
+  readonly initialTab?: TicketingTab | undefined;
+  readonly navigate?: ((href: string) => void) | undefined;
   readonly scanOnly?: boolean;
 }) {
   const [state, setState] = useState<OrderState>({ status: "loading" });
@@ -88,7 +95,7 @@ export function TicketingManager({
   const [confirmationLoaded, setConfirmationLoaded] = useState(false);
   const [confirmationLoadError, setConfirmationLoadError] = useState<string | null>(null);
   const [confirmationSaving, setConfirmationSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<TicketingTab>("willcall");
+  const [activeTab, setActiveTab] = useState<TicketingTab>(initialTab);
   const [discountCodes, setDiscountCodes] = useState<readonly DiscountCode[]>([]);
   const [discountCodesLoading, setDiscountCodesLoading] = useState(false);
   const [discountCodesLoadError, setDiscountCodesLoadError] = useState<string | null>(null);
@@ -143,17 +150,26 @@ export function TicketingManager({
           });
         setTicketEvents(ticketedEvents);
         const queryEventId =
-          typeof window !== "undefined"
+          initialEventId ??
+          (typeof window !== "undefined"
             ? new URLSearchParams(window.location.search).get("eventId")
-            : null;
-        const matchingQueryEvent = queryEventId
-          ? ticketedEvents.find((event) => event.id === queryEventId)
-          : undefined;
-        const closestTicketedEvent = matchingQueryEvent ?? findClosestEvent(ticketedEvents);
-        if (closestTicketedEvent)
-          setSelectedPerformanceId((current) =>
-            current === "all" ? closestTicketedEvent.id : current,
-          );
+            : null);
+        if (queryEventId) {
+          const matchingQueryEvent = ticketedEvents.find((event) => event.id === queryEventId);
+          if (matchingQueryEvent) {
+            setSelectedPerformanceId(matchingQueryEvent.id);
+          } else {
+            setSelectedPerformanceId("all");
+            showNotice("The selected performance does not have ticketing enabled.", "info");
+          }
+        } else {
+          const closestTicketedEvent = findClosestEvent(ticketedEvents);
+          if (closestTicketedEvent) {
+            setSelectedPerformanceId((current) =>
+              current === "all" ? closestTicketedEvent.id : current,
+            );
+          }
+        }
       }
       if (bundlesResult.status === "fulfilled") setBundles(bundlesResult.value);
       if (confirmationResult.status === "fulfilled") {
@@ -170,7 +186,7 @@ export function TicketingManager({
     return () => {
       controller.abort();
     };
-  }, [enabled, scanOnly]);
+  }, [enabled, initialEventId, scanOnly, showNotice]);
 
   useEffect(() => {
     if (!enabled || scanOnly || activeTab !== "discounts") return;
@@ -566,6 +582,7 @@ export function TicketingManager({
           Scan tickets
         </a>
       </header>
+      <TicketingSetupGuide navigate={navigate} />
       <Tabs onValueChange={selectTicketingTab} value={activeTab}>
         <TabsList aria-label="Ticketing sections" as="nav" className="ticketing-tabs">
           {(
@@ -649,11 +666,13 @@ export function TicketingManager({
           value="willcall"
         >
           <WillCallPanel
+            activeTab={activeTab}
             busy={busy}
             clearDiscountCodeFilter={clearWillCallDiscountCode}
             discountCodeFilter={willCallDiscountCode}
             financialSummary={financialSummary}
             lastOrderRefreshAt={lastOrderRefreshAt}
+            navigate={navigate}
             performanceOrders={performanceOrders}
             refreshOrders={refreshOrders}
             refreshingOrders={refreshingOrders}

@@ -102,8 +102,12 @@ const refundRequestedOrder = ticketOrder({
 });
 
 interface WillCallPanelTestOptions {
+  readonly activeTab?: "willcall" | "bundles" | "orders" | "share" | "confirmation" | "discounts";
   readonly clearDiscountCodeFilter?: () => void;
   readonly discountCodeFilter?: string | null;
+  readonly navigate?: (href: string) => void;
+  readonly selectedPerformance?: OrganizationEvent | undefined;
+  readonly selectedPerformanceId?: string;
   readonly showRefunded?: boolean;
 }
 
@@ -120,19 +124,21 @@ function WillCallPanelHarness({
   const resolvedSummary = financialSummary ?? calculatePaymentFinancialSummary(orders);
   return (
     <WillCallPanel
+      activeTab={options.activeTab ?? "willcall"}
       busy={false}
       clearDiscountCodeFilter={options.clearDiscountCodeFilter ?? vi.fn()}
       discountCodeFilter={options.discountCodeFilter ?? null}
       financialSummary={resolvedSummary}
       lastOrderRefreshAt={new Date("2026-07-23T15:00:00.000Z")}
+      navigate={options.navigate}
       performanceOrders={orders}
       refreshOrders={vi.fn(() => Promise.resolve())}
       refreshingOrders={false}
       refund={vi.fn(() => Promise.resolve())}
       refundId={null}
       resendConfirmation={vi.fn(() => Promise.resolve())}
-      selectedPerformance={event}
-      selectedPerformanceId={eventId}
+      selectedPerformance={"selectedPerformance" in options ? options.selectedPerformance : event}
+      selectedPerformanceId={options.selectedPerformanceId ?? eventId}
       setRefundId={vi.fn()}
       setSelectedPerformanceId={vi.fn()}
       setShowRefunded={setShowRefunded}
@@ -438,5 +444,68 @@ describe("WillCallPanel financial KPI cards and fee reconciliation", () => {
 
     expect(screen.getByText("Stripe fee reconciliation pending")).toBeInTheDocument();
     expect(screen.getByText("Pending Stripe fees")).toBeInTheDocument();
+  });
+});
+
+describe("WillCallPanel edit ticket settings navigation", () => {
+  it("renders Edit ticket settings link when a specific performance is selected", () => {
+    renderWillCallPanel([], {
+      selectedPerformance: event,
+      selectedPerformanceId: eventId,
+    });
+
+    const link = screen.getByRole("link", { name: /Edit ticket settings/i });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute(
+      "href",
+      `/admin/events?eventId=${eventId}&section=tickets&returnTo=%2Fadmin%2Ftickets%3FeventId%3D${eventId}`,
+    );
+    expect(
+      screen.getByText("Edit the selected performance's ticket capacity and pricing."),
+    ).toBeInTheDocument();
+  });
+
+  it("does not render Edit ticket settings link when all performances are selected", () => {
+    renderWillCallPanel([], {
+      selectedPerformance: undefined,
+      selectedPerformanceId: "all",
+    });
+
+    expect(screen.queryByRole("link", { name: /Edit ticket settings/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Edit the selected performance's ticket capacity and pricing."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("preserves a non-default tab in the returnTo URL", () => {
+    renderWillCallPanel([], {
+      activeTab: "discounts",
+      selectedPerformance: event,
+      selectedPerformanceId: eventId,
+    });
+
+    const link = screen.getByRole("link", { name: /Edit ticket settings/i });
+    expect(link).toHaveAttribute(
+      "href",
+      `/admin/events?eventId=${eventId}&section=tickets&returnTo=%2Fadmin%2Ftickets%3FeventId%3D${eventId}%26tab%3Ddiscounts`,
+    );
+  });
+
+  it("calls navigate when Edit ticket settings link is clicked", async () => {
+    const user = userEvent.setup();
+    const navigate = vi.fn();
+
+    renderWillCallPanel([], {
+      navigate,
+      selectedPerformance: event,
+      selectedPerformanceId: eventId,
+    });
+
+    const link = screen.getByRole("link", { name: /Edit ticket settings/i });
+    await user.click(link);
+
+    expect(navigate).toHaveBeenCalledWith(
+      `/admin/events?eventId=${eventId}&section=tickets&returnTo=%2Fadmin%2Ftickets%3FeventId%3D${eventId}`,
+    );
   });
 });

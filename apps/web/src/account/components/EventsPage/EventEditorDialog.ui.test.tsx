@@ -369,3 +369,165 @@ describe("EventEditorDialog public graphic upload and preview", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("EventEditorDialog ticketing section and returnTo navigation", () => {
+  it("renders ticket sales section with heading for Performance events", () => {
+    const performanceEvent: OrganizationEventRequest = {
+      ...emptyEvent,
+      isTicketingEnabled: true,
+      type: "Performance",
+    };
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-perf-1"
+        error={null}
+        event={performanceEvent}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={readyState}
+      />,
+    );
+
+    const section = document.getElementById("event-editor-section-tickets");
+    expect(section).toBeInTheDocument();
+    expect(section).toHaveAttribute("data-section", "tickets");
+    expect(screen.getByRole("heading", { level: 3, name: "Ticket Sales" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Ticket capacity")).toBeInTheDocument();
+    expect(screen.getByLabelText("Advance price (USD)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Day-of price (USD)")).toBeInTheDocument();
+  });
+
+  it("renders Back to Ticketing button when clean and returnTo points to ticketing", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const performanceEvent: OrganizationEventRequest = {
+      ...emptyEvent,
+      isTicketingEnabled: true,
+      type: "Performance",
+    };
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-perf-1"
+        error={null}
+        event={performanceEvent}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        onClose={onClose}
+        onSubmit={vi.fn()}
+        returnTo="/admin/tickets?eventId=event-perf-1"
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={readyState}
+      />,
+    );
+
+    const backButton = screen.getByRole("button", { name: "Back to Ticketing" });
+    expect(backButton).toBeInTheDocument();
+
+    await user.click(backButton);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders save bar instead of Back to Ticketing when form has unsaved changes", () => {
+    const initialEvent: OrganizationEventRequest = {
+      ...emptyEvent,
+      title: "Initial Title",
+      type: "Performance",
+    };
+    const modifiedEvent: OrganizationEventRequest = {
+      ...initialEvent,
+      title: "Changed Title",
+    };
+
+    const { rerender } = render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-perf-1"
+        error={null}
+        event={initialEvent}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        returnTo="/admin/tickets?eventId=event-perf-1"
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={readyState}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Back to Ticketing" })).toBeInTheDocument();
+
+    rerender(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-perf-1"
+        error={null}
+        event={modifiedEvent}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        returnTo="/admin/tickets?eventId=event-perf-1"
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={readyState}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Back to Ticketing" })).not.toBeInTheDocument();
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save event" })).toBeInTheDocument();
+  });
+
+  it("focuses ticketing controls when initialSection is tickets", () => {
+    vi.useFakeTimers();
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    const performanceEvent: OrganizationEventRequest = {
+      ...emptyEvent,
+      isTicketingEnabled: true,
+      type: "Performance",
+    };
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-perf-1"
+        error={null}
+        event={performanceEvent}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        initialSection="tickets"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={readyState}
+      />,
+    );
+
+    vi.advanceTimersByTime(100);
+
+    const capacityInput = document.getElementById("events-page-capacity");
+    expect(document.activeElement).toBe(capacityInput);
+    vi.useRealTimers();
+  });
+});
