@@ -299,6 +299,13 @@
     margin-bottom: var(--spacing-xl);
   }
 
+  /* Ticket and pass checkout pages only: match the landing page's tighter
+     top spacing so the breadcrumb sits closer to the Organization header.
+     Bottom padding and all in-form spacing stay exactly as before. */
+  .public-section--ticket-checkout {
+    padding-block-start: var(--spacing-lg);
+  }
+
   .public-section--narrow {
     max-width: 48rem;
   }

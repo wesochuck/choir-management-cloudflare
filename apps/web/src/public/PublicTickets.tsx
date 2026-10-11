@@ -1394,7 +1394,7 @@ function TicketPurchaseForm({
   }
 
   return (
-    <section className="public-section public-section--narrow">
+    <section className="public-section public-section--narrow public-section--ticket-checkout">
       <a href="/tickets">← All tickets</a>
       {event.graphicFileId ? (
         <PublicGraphicImage
@@ -1600,7 +1600,7 @@ export function TicketBundlePurchaseForm({
   }
 
   return (
-    <section className="public-section public-section--narrow">
+    <section className="public-section public-section--narrow public-section--ticket-checkout">
       <a href="/tickets">← All tickets</a>
       {bundle.graphicFileId ? (
         <PublicGraphicImage
