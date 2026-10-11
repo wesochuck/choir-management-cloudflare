@@ -182,7 +182,7 @@ test.describe("Normalized Responsive Breakpoints (Issue #80)", () => {
       const cardsGrid = page.locator(".admin-overview__cards").first();
       await expect(cardsGrid).toBeVisible();
 
-      // 1. Desktop (> 40rem = 640px, test at 1280px / 80rem)
+      // 1. Desktop (> 48rem = 768px, test at 1280px / 80rem, approved 3-column layout #141)
       await page.setViewportSize({ width: 1280, height: 900 });
       await page.waitForTimeout(100);
 
@@ -190,7 +190,7 @@ test.describe("Normalized Responsive Breakpoints (Issue #80)", () => {
         await cardsGrid.evaluate(
           (el) => window.getComputedStyle(el).gridTemplateColumns.trim().split(/\s+/).length,
         ),
-      ).toBe(4);
+      ).toBe(3);
 
       let hasOverflow = await page.evaluate(
         () => document.documentElement.scrollWidth > window.innerWidth,
