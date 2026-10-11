@@ -58,6 +58,8 @@
     "knip": "knip --reporter compact",
     "release:artifact:create": "node scripts/release-artifact.mjs create",
     "release:artifact:verify": "node scripts/release-artifact.mjs verify",
+    "release:staging": "node scripts/release-staging.mjs",
+    "release:promote": "node scripts/release-promote.mjs",
     "test": "npm run test:unit && npm run test:ui",
     "test:unit": "vitest run --config vitest.config.ts",
     "test:ui": "vitest run --config vitest.ui.config.ts",

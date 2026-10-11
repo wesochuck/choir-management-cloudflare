@@ -1,14 +1,30 @@
 #!/usr/bin/env node
 
-import { spawnSync } from "node:child_process";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createReleaseManifest, verifyReleaseManifest } from "./release-artifact.mjs";
+import {
+  activeVersionId as sharedActiveVersionId,
+  artifactDirForSha,
+  assertReleaseCheckout as sharedAssertReleaseCheckout,
+  createStagingReceipt,
+  deployTriggers as sharedDeployTriggers,
+  deployVersion as sharedDeployVersion,
+  persistStagingArtifact,
+  readManifestHashes,
+  run as sharedRun,
+  sanitizeExternalOutput as sharedSanitize,
+  stagingReceiptPath,
+  uploadedVersionId as sharedUploadedVersionId,
+  verifyPersistedArtifact,
+  WORKER_CONFIG,
+  writeReceiptAtomic,
+} from "./release-shared.mjs";
 
-const workerConfig = "apps/worker/wrangler.jsonc";
+const workerConfig = WORKER_CONFIG;
 const stagingWorkerUrl =
   "https://choir-management-cloudflare-staging.wes-osborn-account.workers.dev";
 const emailFeedbackQueue = "choir-management-email-events-staging";
@@ -21,52 +37,19 @@ const expectedEmailEvents = new Set([
   "message.complained",
 ]);
 
-export function sanitizeExternalOutput(value) {
-  return String(value)
-    .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/gu, "[redacted-email]")
-    .replace(/(bearer|token|secret)(\s*[:=]\s*)\S+/giu, "$1$2[redacted]");
-}
+export const sanitizeExternalOutput = sharedSanitize;
+export const uploadedVersionId = sharedUploadedVersionId;
 
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, {
-    cwd: options.cwd ?? process.cwd(),
-    encoding: "utf8",
-    env: { ...process.env, ...options.env },
-    stdio: options.capture ? "pipe" : "inherit",
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    const output = options.capture
-      ? sanitizeExternalOutput(`${result.stdout ?? ""}\n${result.stderr ?? ""}`.trim())
-      : "See the command output above.";
-    throw new Error(`${command} ${args.join(" ")} failed. ${output}`);
-  }
-  return options.capture ? String(result.stdout ?? "") : "";
+  return sharedRun(command, args, options);
 }
 
 function git(...args) {
   return run("git", args, { capture: true }).trim();
 }
 
-export function assertReleaseCheckout({ branch, status, head, originMain }) {
-  if (branch !== "main") throw new Error("Staging releases must run from the main branch.");
-  if (status !== "") throw new Error("Staging releases require a clean working tree.");
-  if (head !== originMain) {
-    throw new Error("Local main must exactly match origin/main before staging deployment.");
-  }
-  if (!/^[0-9a-f]{40}$/u.test(head)) throw new Error("The release commit SHA is invalid.");
-}
-
-function verifyCheckout() {
-  run("git", ["fetch", "origin", "main", "--quiet"]);
-  const state = {
-    branch: git("branch", "--show-current"),
-    status: git("status", "--porcelain"),
-    head: git("rev-parse", "HEAD"),
-    originMain: git("rev-parse", "origin/main"),
-  };
-  assertReleaseCheckout(state);
-  return state.head;
+export function assertReleaseCheckout(state) {
+  return sharedAssertReleaseCheckout(state, "staging");
 }
 
 export function assertEmailSendingEnabled(output, domain) {
@@ -100,30 +83,7 @@ export function assertEmailFeedbackSubscription(subscriptions) {
 }
 
 export function activeVersionId(status) {
-  const version = status?.versions?.find((candidate) => candidate.percentage === 100);
-  if (typeof version?.version_id !== "string" || version.version_id === "") {
-    throw new Error("No Worker version currently serves 100% of staging traffic.");
-  }
-  return version.version_id;
-}
-
-export function uploadedVersionId(output) {
-  const records = String(output)
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .flatMap((line) => {
-      try {
-        return [JSON.parse(line)];
-      } catch {
-        return [];
-      }
-    });
-  const result = records.find(
-    (record) => record && typeof record === "object" && typeof record.version_id === "string",
-  );
-  if (!result) throw new Error("Wrangler did not report an uploaded Worker version ID.");
-  return result.version_id;
+  return sharedActiveVersionId(status, "staging");
 }
 
 function wrangler(args, options = {}) {
@@ -151,80 +111,11 @@ function stagingStatus() {
 }
 
 export async function deployVersion(versionId, message, options = {}) {
-  const attempts = options.attempts ?? 6;
-  const retryDelayMs = options.retryDelayMs ?? 2000;
-  const runner = options.runner ?? wrangler;
-  const sleeper = options.sleeper ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
-
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      const output = runner(
-        [
-          "versions",
-          "deploy",
-          `${versionId}@100%`,
-          "--yes",
-          "--config",
-          workerConfig,
-          "--env",
-          "staging",
-          "--message",
-          message,
-        ],
-        { capture: true },
-      );
-      if (output && typeof output === "string" && output.trim().length > 0) {
-        console.log(output.trim());
-      }
-      return;
-    } catch (error) {
-      const messageText = error instanceof Error ? error.message : String(error);
-      const isVersionNotFound =
-        messageText.includes("100146") || messageText.includes("could not be found");
-      if (isVersionNotFound && attempt < attempts) {
-        console.warn(
-          `Worker version ${versionId} is not yet visible on Cloudflare (attempt ${attempt}/${attempts}); retrying in ${retryDelayMs}ms...`,
-        );
-        await sleeper(retryDelayMs);
-        continue;
-      }
-      throw error;
-    }
-  }
+  return sharedDeployVersion(versionId, message, { env: "staging", ...options });
 }
 
 export async function deployTriggers(envName, options = {}) {
-  const attempts = options.attempts ?? 4;
-  const retryDelayMs = options.retryDelayMs ?? 2000;
-  const runner = options.runner ?? wrangler;
-  const sleeper = options.sleeper ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
-
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      const output = runner(["triggers", "deploy", "--config", workerConfig, "--env", envName], {
-        capture: true,
-      });
-      if (output && typeof output === "string" && output.trim().length > 0) {
-        console.log(output.trim());
-      }
-      return;
-    } catch (error) {
-      const messageText = error instanceof Error ? error.message : String(error);
-      const isRetriableTriggerError =
-        messageText.includes("10013") ||
-        messageText.includes("only partially updated") ||
-        messageText.includes("rate limit") ||
-        messageText.includes("429");
-      if (isRetriableTriggerError && attempt < attempts) {
-        console.warn(
-          `Trigger deployment for '${envName}' encountered transient Cloudflare error (attempt ${attempt}/${attempts}); retrying in ${retryDelayMs}ms...`,
-        );
-        await sleeper(retryDelayMs);
-        continue;
-      }
-      throw error;
-    }
-  }
+  return sharedDeployTriggers(envName, options);
 }
 
 export async function qualifyDeployment(commitSha, options = {}) {
@@ -267,20 +158,50 @@ export async function qualifyDeployment(commitSha, options = {}) {
   }
 }
 
-async function recordProvenance(record) {
-  const directory = resolve(".wrangler", "releases");
-  await mkdir(directory, { recursive: true });
-  await writeFile(
-    join(directory, `${record.commitSha}.json`),
-    `${JSON.stringify(record, undefined, 2)}\n`,
-    "utf8",
-  );
+async function recordStagingProvenance({
+  artifactDir,
+  commitSha,
+  deploymentId,
+  previousWorkerVersionId,
+  releasesDir,
+  uploadedId,
+}) {
+  const artifactOptions = releasesDir ? { releasesDir } : {};
+  const persistentDir = artifactDir ?? artifactDirForSha(commitSha, artifactOptions);
+  const { lockfileSha256, manifestSha256 } = await readManifestHashes(persistentDir);
+  await verifyPersistedArtifact(persistentDir, commitSha);
+  const record = createStagingReceipt({
+    artifactDir: persistentDir,
+    artifactManifestSha256: manifestSha256,
+    buildVersion: commitSha,
+    commitSha,
+    deploymentId: typeof deploymentId === "string" ? deploymentId : null,
+    lockfileSha256,
+    previousWorkerVersionId,
+    qualifiedAt: new Date().toISOString(),
+    releaseGate: "check:release",
+    workerVersionId: uploadedId,
+  });
+  await writeReceiptAtomic(stagingReceiptPath(commitSha, artifactOptions), record);
+  return { persistentDir, record };
 }
 
 export function runReleaseGate(options = {}) {
   const runner = options.runner ?? run;
   runner("npx", ["playwright", "install", "chromium"]);
   runner("npm", ["run", "check:release"]);
+}
+
+function verifyCheckout() {
+  run("git", ["fetch", "origin", "main", "--quiet"]);
+  const state = {
+    branch: git("branch", "--show-current"),
+    status: git("status", "--porcelain"),
+    head: git("rev-parse", "HEAD"),
+    originMain: git("rev-parse", "origin/main"),
+  };
+  assertReleaseCheckout(state);
+  return state.head;
 }
 
 export async function deployStaging(options = {}) {
@@ -307,22 +228,31 @@ export async function deployStaging(options = {}) {
   let trafficShifted = false;
   try {
     console.log("Creating and verifying the immutable local release artifact...");
-    await prepareArtifact(releaseRoot, commitSha);
+    const prepare = options.prepareArtifact ?? prepareArtifact;
+    await prepare(releaseRoot, commitSha);
 
-    wrangler(["whoami"], { capture: true });
-    const emailSendingList = wrangler(["email", "sending", "list"], { capture: true });
+    const wranglerRunner = options.wrangler ?? wrangler;
+    const statusRunner = options.stagingStatus ?? stagingStatus;
+    const deployVersionRunner = options.deployVersion ?? deployVersion;
+    const deployTriggersRunner = options.deployTriggers ?? deployTriggers;
+    const qualifyRunner = options.qualifyDeployment ?? qualifyDeployment;
+    const persistRunner = options.persistArtifact ?? persistStagingArtifact;
+    const recordRunner = options.recordProvenance ?? recordStagingProvenance;
+
+    wranglerRunner(["whoami"], { capture: true });
+    const emailSendingList = wranglerRunner(["email", "sending", "list"], { capture: true });
     assertEmailSendingEnabled(emailSendingList, "mail.staging.musicsite.org");
 
     const subscriptions = JSON.parse(
-      wrangler(["queues", "subscription", "list", emailFeedbackQueue, "--json"], {
+      wranglerRunner(["queues", "subscription", "list", emailFeedbackQueue, "--json"], {
         capture: true,
       }),
     );
     assertEmailFeedbackSubscription(subscriptions);
-    previousVersionId = activeVersionId(stagingStatus());
+    previousVersionId = activeVersionId(statusRunner());
 
     console.log("Applying forward-only staging migrations and version-external triggers...");
-    wrangler([
+    wranglerRunner([
       "d1",
       "migrations",
       "apply",
@@ -333,11 +263,11 @@ export async function deployStaging(options = {}) {
       "staging",
       "--remote",
     ]);
-    await deployTriggers("staging");
+    await deployTriggersRunner("staging");
 
     console.log("Uploading the verified artifact as an inactive Worker version...");
     const uploadOutputPath = join(releaseRoot, "version-upload.json");
-    wrangler(
+    wranglerRunner(
       [
         "versions",
         "upload",
@@ -361,35 +291,46 @@ export async function deployStaging(options = {}) {
     uploadedId = uploadedVersionId(await readFile(uploadOutputPath, "utf8"));
 
     console.log(`Promoting Worker version ${uploadedId} to 100% of staging traffic...`);
-    await deployVersion(uploadedId, `Staging release ${commitSha}`);
+    await deployVersionRunner(uploadedId, `Staging release ${commitSha}`);
     trafficShifted = true;
 
     console.log("Qualifying the exact deployed build...");
-    await qualifyDeployment(commitSha);
+    await qualifyRunner(commitSha);
 
-    const finalStatus = stagingStatus();
+    const finalStatus = statusRunner();
     if (activeVersionId(finalStatus) !== uploadedId) {
       throw new Error("The uploaded Worker version does not serve 100% of staging traffic.");
     }
     const deploymentId =
       typeof finalStatus.id === "string" ? finalStatus.id : finalStatus.deployment_id;
-    await recordProvenance({
-      schemaVersion: 1,
-      environment: "staging",
+
+    console.log("Persisting the qualified artifact for promotion...");
+    const releasesDirOption = options.releasesDir ? { releasesDir: options.releasesDir } : {};
+    const persistentDir =
+      options.persistedArtifactDir ??
+      (await persistRunner(releaseRoot, commitSha, releasesDirOption));
+    const { record } = await recordRunner({
+      artifactDir: persistentDir,
       commitSha,
-      workerVersionId: uploadedId,
+      deploymentId,
       previousWorkerVersionId: previousVersionId,
-      deploymentId: typeof deploymentId === "string" ? deploymentId : null,
-      qualifiedAt: new Date().toISOString(),
+      releasesDir: options.releasesDir,
+      uploadedId,
     });
     console.log(`Staging release complete: ${commitSha} → ${uploadedId}.`);
+    console.log(`Qualified artifact retained at ${persistentDir}.`);
+    console.log(`Staging receipt: ${stagingReceiptPath(commitSha, releasesDirOption)}.`);
+    console.log(
+      `Promote later without rebuilding: npm run release:promote -- --sha ${commitSha} --yes (artifact manifest ${record.artifactManifestSha256.slice(0, 12)}).`,
+    );
   } catch (error) {
     if (trafficShifted && previousVersionId) {
       console.error(
         "Staging qualification failed; restoring the captured previous Worker version...",
       );
       try {
-        await deployVersion(previousVersionId, `Automatic local rollback from ${commitSha}`);
+        const deployVersionRunner = options.deployVersion ?? deployVersion;
+        await deployVersionRunner(previousVersionId, `Automatic local rollback from ${commitSha}`);
       } catch (rollbackError) {
         throw new AggregateError(
           [error, rollbackError],
@@ -406,7 +347,7 @@ export async function deployStaging(options = {}) {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   deployStaging().catch((error) => {
-    console.error(sanitizeExternalOutput(error instanceof Error ? error.message : String(error)));
+    console.error(sharedSanitize(error instanceof Error ? error.message : String(error)));
     process.exitCode = 1;
   });
 }

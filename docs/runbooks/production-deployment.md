@@ -115,22 +115,53 @@ node scripts/bootstrap-staging-platform-admin.mjs --env production --email <admi
 
 ---
 
-## 6. Immutable Artifact Promotion
+## 6. Build-Once Promotion of the Staging-Qualified Artifact
 
-Promote the exact staging-qualified commit SHA and lockfile hash:
+Build and qualify once on staging, then promote those exact bytes. Staging success never promotes
+production automatically; production requires its own explicit approval after manual staging review.
 
-1. Build the immutable release artifact locally:
+1. Qualify staging once and retain its bytes:
+
    ```bash
-   npm run check:release
+   npm run release:staging -- --yes
+   # Review staging / conduct any manual acceptance tests.
    ```
-2. Upload the inactive Worker version to production:
+
+   This runs the full `npm run check:release` gate a single time, uploads the verified Worker bundle
+   plus `apps/web/dist` to staging, qualifies the exact `BUILD_VERSION`, and retains the immutable
+   artifact under `.wrangler/releases/artifacts/<sha>/` with a separate staging receipt
+   `.wrangler/releases/staging-<sha>.json`.
+
+2. Promote the qualified artifact without rebuilding:
+
    ```bash
-   npx wrangler versions upload --config apps/worker/wrangler.jsonc --env production
+   npm run release:promote -- --yes
+   # Or, when several staging receipts exist: npm run release:promote -- --sha <full-sha> --yes
    ```
-3. Deploy the uploaded Worker version at 100% traffic:
-   ```bash
-   npx wrangler versions deploy <version-id>@100% --config apps/worker/wrangler.jsonc --env production
-   ```
+
+   The promotion command never runs a fresh build or the full release suite when all preconditions
+   are met. It refuses missing/failed/rolled-back/stale qualification, a changed or missing
+   artifact, an incorrect commit or lockfile, an ambiguous SHA, or an unexpected staging Worker
+   version. A new commit pushed to `main` after qualification cannot be substituted silently: the
+   command promotes the receipt's SHA explicitly and warns when local `HEAD` differs. `--yes` is
+   intentional approval, not a bypass for integrity or qualification checks.
+
+   On success it applies forward-only production D1 migrations and version-external triggers,
+   uploads the exact staged `index.js` plus static-asset bytes with production bindings, secrets,
+   domains, queues, and `BUILD_VERSION`, shifts production traffic only after the upload, qualifies
+   production health/readiness and the exact deployed SHA at 100%, and writes a separate production
+   receipt `.wrangler/releases/production-<sha>.json` recording the source staging receipt and
+   artifact hashes. The production Worker version ID differs from staging by design.
+
+   A failed production smoke check restores the captured prior production Worker code. That rollback
+   does not reverse already-applied D1 migrations, trigger/route/schedule changes, or external
+   provider effects; keep those changes backward compatible and follow `docs/runbooks/rollback.md`
+   for manual recovery.
+
+Legacy `npm run deploy:production -- --yes` remains available for exceptional independent rebuilds
+(it still runs `check:ci` plus E2E, rebuilds, and now writes `production-<sha>.json` so it can never
+overwrite a staging receipt), but build-once `release:promote` is the preferred path. There is no
+`--skip-checks` or `--force-unqualified` bypass; do not add one.
 
 ---
 

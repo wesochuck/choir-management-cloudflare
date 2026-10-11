@@ -12,20 +12,28 @@ does not authorize a production deployment.
 3. Run:
 
    ```bash
-   npm run deploy:staging -- --yes
+   npm run release:staging -- --yes
    ```
 
+   `npm run deploy:staging -- --yes` remains an alias for the same implementation.
+
 The command refuses a dirty tree, a branch other than `main`, or a local commit that differs from
-`origin/main`. It runs the complete local CI mirror and Chromium E2E suite, builds and hashes one
-immutable release artifact in a temporary directory, verifies the staging email-feedback
-subscription, captures the active rollback version, applies forward-only D1 migrations and
-version-external triggers, uploads an inactive Worker Version, and only then shifts staging traffic.
+`origin/main`. It runs the complete local release gate (`npm run check:release`: browser-free CI
+plus the Chromium E2E suite), builds and hashes one immutable release artifact, verifies the staging
+email-feedback subscription, captures the active rollback version, applies forward-only D1
+migrations and version-external triggers, uploads an inactive Worker Version, and only then shifts
+staging traffic.
 
 After promotion it qualifies the exact `BUILD_VERSION`, direct Worker health and readiness, both
 seeded Organization hosts, and the safe anonymous API boundary. A real qualification failure shifts
-traffic back to the captured Worker Version. The temporary artifact is removed afterward. A
-non-sensitive local provenance record is written under `.wrangler/releases/`, which is ignored by
-Git.
+traffic back to the captured Worker Version. Only a complete success retains the qualified bytes
+under `.wrangler/releases/artifacts/<sha>/` and writes a separate staging receipt
+`.wrangler/releases/staging-<sha>.json` tying together the commit SHA, lockfile hash, artifact
+manifest hash, staging Worker version and deployment IDs, `BUILD_VERSION`, release-gate evidence,
+and qualification time. Failed or rolled-back attempts never create a promotable receipt, and a
+second staging run for the same SHA replaces the persistent artifact only after its own successful
+qualification. The temporary build directory is removed afterward. All release records under
+`.wrangler/releases/` are ignored by Git and must never contain secrets.
 
 `npm run check:ci` is the browser-free subset of qualification. `npm run check:release` is the full
 standalone release qualification command (check:ci plus the Playwright Chromium E2E suite); run it
@@ -36,8 +44,9 @@ rollback cannot revert those settings. Keep trigger changes backward compatible 
 `docs/runbooks/rollback.md` if a trigger change is the source of an incident.
 
 Do not use `wrangler deploy` for promotion. Do not point the local command at the production
-environment. Production requires its separate approval contract and a separately designed release
-path.
+environment. Production promotion reuses the retained staging artifact via
+`npm run release:promote -- --yes` (see `docs/runbooks/production-deployment.md`) and never
+rebuilds; staging success alone never promotes production automatically.
 
 ## Authentication cookie compatibility
 
