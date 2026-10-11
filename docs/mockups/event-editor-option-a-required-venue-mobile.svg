@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="470" height="965" viewBox="0 0 470 965" role="img" aria-labelledby="mobileTitle mobileDescription"><title id="mobileTitle">Responsive mobile Event Editor design with selected TBD venue</title><desc id="mobileDescription">Illustration of mobile full-screen event editor. Instead of desktop sidebar there is an Event section selector. Schedule and Venue shows venue TBD selected with a non-blocking reminder and accessible fixed Save and Cancel footer.</desc>
+<rect x="0" y="0" width="470" height="965" rx="0" fill="#EDF2F7"/>
+<rect x="16" y="14" width="438" height="934" rx="16" fill="#fff" stroke="#CAD5E1" stroke-width="1.2"/>
+<rect x="17" y="15" width="436" height="126" rx="14" fill="#fff"/>
+<rect x="34" y="39" width="42" height="47" rx="10" fill="#F1F5F9" stroke="#DCE4EC" stroke-width="1"/>
+<text x="55" y="56" font-family="Arial,Helvetica,sans-serif" font-size="9" fill="#667992" font-weight="700" text-anchor="middle">NOV</text>
+<text x="55" y="76" font-family="Arial,Helvetica,sans-serif" font-size="22" fill="#213955" font-weight="800" text-anchor="middle">15</text>
+<text x="88" y="39" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#6D8098" font-weight="800" >EDIT PERFORMANCE</text>
+<text x="88" y="66" font-family="Arial,Helvetica,sans-serif" font-size="21" fill="#152642" font-weight="800" >Earth and Sky and Sea</text>
+<text x="88" y="86" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#60748F" font-weight="400" >Sun, Nov 15, 2026 · 3:00 PM</text>
+<rect x="393" y="33" width="43" height="44" rx="10" fill="#F7F8FB" stroke="#D8E1EA" stroke-width="1"/>
+<text x="415" y="61" font-family="Arial,Helvetica,sans-serif" font-size="27" fill="#3A5371" font-weight="500" text-anchor="middle">×</text>
+<rect x="33" y="99" width="120" height="24" rx="12" fill="#FFF3E8"/>
+<text x="93" y="115" font-family="Arial,Helvetica,sans-serif" font-size="11" fill="#925021" font-weight="700" text-anchor="middle">Unsaved changes</text>
+<line x1="17" y1="142" x2="454" y2="142" stroke="#DEE6EE" stroke-width="1"/>
+<rect x="17" y="143" width="436" height="768" rx="0" fill="#FBFCFD"/>
+<text x="34" y="178" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#485F7D" font-weight="800" letter-spacing="0.9">EVENT SECTION</text>
+<rect x="34" y="190" width="403" height="50" rx="9" fill="#fff" stroke="#CAD5E1" stroke-width="1"/>
+<text x="49" y="222" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#223653" font-weight="700" >02  Schedule &amp; venue</text>
+<text x="417" y="222" font-family="Arial,Helvetica,sans-serif" font-size="19" fill="#597392" font-weight="500" text-anchor="middle">⌄</text>
+<text x="34" y="278" font-family="Arial,Helvetica,sans-serif" font-size="25" fill="#172942" font-weight="800" >Schedule &amp; venue</text>
+<text x="34" y="302" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#657D97" font-weight="400" >Enter times in America/New_York.</text>
+<text x="34" y="340" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#1D3049" font-weight="700" >Start date &amp; time *</text>
+<rect x="34" y="354" width="403" height="51" rx="8" fill="#FFF" stroke="#CAD6E2" stroke-width="1"/>
+<text x="49" y="386" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#273A53" font-weight="400" >11/15/2026 · 3:00 PM</text>
+<text x="34" y="444" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#1D3049" font-weight="700" >Call time</text>
+<rect x="34" y="457" width="403" height="51" rx="8" fill="#fff" stroke="#CAD6E2" stroke-width="1"/>
+<text x="49" y="489" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#273A53" font-weight="400" >2:00 PM</text>
+<text x="34" y="548" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#1D3049" font-weight="700" >Duration (minutes)</text>
+<rect x="34" y="560" width="403" height="51" rx="8" fill="#fff" stroke="#CAD6E2" stroke-width="1"/>
+<text x="49" y="592" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#273A53" font-weight="400" >90</text>
+<text x="34" y="645" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#1D3049" font-weight="700" >Saved venue *</text>
+<rect x="34" y="659" width="403" height="51" rx="8" fill="#fff" stroke="#739D82" stroke-width="1.5"/>
+<text x="49" y="692" font-family="Arial,Helvetica,sans-serif" font-size="17" fill="#1B5940" font-weight="700" >TBD</text>
+<text x="415" y="692" font-family="Arial,Helvetica,sans-serif" font-size="18" fill="#60738C" font-weight="500" text-anchor="middle">⌄</text>
+<rect x="34" y="734" width="403" height="91" rx="10" fill="#F0F8F3" stroke="#A9D2B8" stroke-width="1"/>
+<text x="49" y="760" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#225E3F" font-weight="800" >Venue to be confirmed</text>
+<text x="49" y="784" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#4B7761" font-weight="400" >TBD satisfies the venue requirement.</text>
+<text x="49" y="804" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#4B7761" font-weight="400" >Select the actual venue when known.</text>
+<line x1="17" y1="842" x2="454" y2="842" stroke="#DEE6EE" stroke-width="1"/>
+<rect x="17" y="843" width="436" height="104" rx="0" fill="#fff"/>
+<text x="34" y="871" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#A14F27" font-weight="700" >Unsaved changes</text>
+<rect x="34" y="885" width="185" height="46" rx="9" fill="#fff" stroke="#C7D5E3" stroke-width="1"/>
+<text x="126" y="914" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#294262" font-weight="800" text-anchor="middle">Cancel</text>
+<rect x="229" y="885" width="208" height="46" rx="9" fill="#213E68"/>
+<text x="333" y="914" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#fff" font-weight="800" text-anchor="middle">Save event</text>
+</svg>
