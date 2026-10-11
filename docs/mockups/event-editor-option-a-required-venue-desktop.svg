@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1450" height="950" viewBox="0 0 1450 950" role="img" aria-labelledby="mainTitle mainDescription"><title id="mainTitle">Approved Option A events editor: section sidebar with required Venue and TBD helper</title><desc id="mainDescription">Proposed wide Edit Performance modal with a left navigation rail, required and one-to-fix labels, a Schedule and venue pane showing title, timing fields, a missing required venue and Create or select TBD shortcut, and a pinned Save footer. Other sections remain accessible.</desc>
+<rect x="0" y="0" width="1450" height="950" rx="0" fill="#EDF2F7"/>
+<rect x="29" y="30" width="1392" height="885" rx="19" fill="#fff" stroke="#C9D4E2" stroke-width="1.5"/>
+<rect x="30" y="31" width="1390" height="118" rx="18" fill="#fff"/>
+<rect x="55" y="59" width="65" height="66" rx="11" fill="#F1F5F9" stroke="#D4DDE9" stroke-width="1"/>
+<text x="87" y="79" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#60718B" font-weight="800" text-anchor="middle">NOV</text>
+<text x="87" y="111" font-family="Arial,Helvetica,sans-serif" font-size="32" fill="#1E3454" font-weight="800" text-anchor="middle">15</text>
+<text x="142" y="64" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#637895" font-weight="800" letter-spacing="1">EDIT EVENT  /  PERFORMANCE</text>
+<text x="142" y="103" font-family="Arial,Helvetica,sans-serif" font-size="31" fill="#17253F" font-weight="800" >Earth and Sky and Sea</text>
+<text x="143" y="131" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#6A7A91" font-weight="400" >Lancaster Community Chorus   •   Sun, Nov 15, 2026, 3:00 PM   •   America/New_York</text>
+<rect x="1058" y="74" width="123" height="28" rx="14" fill="#FFF3E8"/>
+<text x="1119.5" y="93" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#9E531D" font-weight="700" text-anchor="middle">Unsaved changes</text>
+<rect x="1194" y="65" width="160" height="44" rx="9" fill="#FFFFFF" stroke="#C8D4E1" stroke-width="1"/>
+<text x="1211" y="92" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#334B6D" font-weight="700" >More actions  •••</text>
+<rect x="1367" y="65" width="42" height="44" rx="9" fill="#F5F7FB" stroke="#D6DEE9" stroke-width="1"/>
+<text x="1388" y="94" font-family="Arial,Helvetica,sans-serif" font-size="28" fill="#344967" font-weight="500" text-anchor="middle">×</text>
+<line x1="30" y1="150" x2="1420" y2="150" stroke="#D9E2EC" stroke-width="1"/>
+<rect x="30" y="151" width="1390" height="58" rx="0" fill="#FCFDFE"/>
+<rect x="55" y="165" width="170" height="28" rx="14" fill="#EFF3F8"/>
+<text x="140" y="184" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#526782" font-weight="700" text-anchor="middle">Nov 15 · 3:00 PM</text>
+<rect x="235" y="165" width="166" height="28" rx="14" fill="#EFF3F8"/>
+<text x="318" y="184" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#526782" font-weight="700" text-anchor="middle">RSVP deadline set</text>
+<rect x="411" y="165" width="122" height="28" rx="14" fill="#EFF3F8"/>
+<text x="472" y="184" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#526782" font-weight="700" text-anchor="middle">Tickets on</text>
+<rect x="544" y="165" width="151" height="28" rx="14" fill="#EFF3F8"/>
+<text x="619.5" y="184" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#526782" font-weight="700" text-anchor="middle">Website on</text>
+<text x="1246" y="184" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#74859C" font-weight="600" >All changes are drafts</text>
+<line x1="30" y1="209" x2="1420" y2="209" stroke="#D9E2EC" stroke-width="1"/>
+<rect x="30" y="210" width="310" height="619" rx="0" fill="#F8FAFD"/>
+<line x1="340" y1="210" x2="340" y2="830" stroke="#D9E2EC" stroke-width="1"/>
+<text x="56" y="251" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#63758E" font-weight="800" letter-spacing="1.2">EVENT SECTIONS</text>
+<text x="62" y="300" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#8795A8" font-weight="700" >01</text>
+<text x="95" y="301" font-family="Arial,Helvetica,sans-serif" font-size="17" fill="#253750" font-weight="700" >Basics</text>
+<text x="95" y="325" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#6E819C" font-weight="400" >Title and internal notes</text>
+<rect x="235" y="273" width="77" height="28" rx="14" fill="#EFF3F8"/>
+<text x="273.5" y="292" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#526782" font-weight="700" text-anchor="middle">Required</text>
+<rect x="47" y="356" width="277" height="73" rx="9" fill="#FFF3EC" stroke="#E9B49E" stroke-width="1"/>
+<rect x="47" y="356" width="5" height="73" rx="3" fill="#DC6430"/>
+<text x="62" y="385" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#A64820" font-weight="700" >02</text>
+<text x="95" y="386" font-family="Arial,Helvetica,sans-serif" font-size="17" fill="#913D1E" font-weight="800" >Schedule &amp; venue</text>
+<text x="95" y="410" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#6E819C" font-weight="400" >Time and required location</text>
+<rect x="228" y="358" width="87" height="28" rx="14" fill="#FFF0EC"/>
+<text x="271.5" y="377" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#A63A24" font-weight="700" text-anchor="middle">1 to fix</text>
+<text x="62" y="471" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#8795A8" font-weight="700" >03</text>
+<text x="95" y="472" font-family="Arial,Helvetica,sans-serif" font-size="17" fill="#253750" font-weight="700" >RSVPs &amp; reminders</text>
+<text x="95" y="496" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#6E819C" font-weight="400" >Deadline and follow-up</text>
+<rect x="235" y="444" width="77" height="28" rx="14" fill="#EFF3F8"/>
+<text x="273.5" y="463" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#526782" font-weight="700" text-anchor="middle">Required</text>
+<text x="62" y="557" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#8795A8" font-weight="700" >04</text>
+<text x="95" y="558" font-family="Arial,Helvetica,sans-serif" font-size="17" fill="#253750" font-weight="700" >Ticket sales</text>
+<text x="95" y="582" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#6E819C" font-weight="400" >Prices, capacity, QR</text>
+<rect x="247" y="530" width="65" height="28" rx="14" fill="#EFF3F8"/>
+<text x="279.5" y="549" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#526782" font-weight="700" text-anchor="middle">Optional</text>
+<text x="62" y="643" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#8795A8" font-weight="700" >05</text>
+<text x="95" y="644" font-family="Arial,Helvetica,sans-serif" font-size="17" fill="#253750" font-weight="700" >Public content</text>
+<text x="95" y="668" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#6E819C" font-weight="400" >Description and graphic</text>
+<rect x="247" y="616" width="65" height="28" rx="14" fill="#EFF3F8"/>
+<text x="279.5" y="635" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#526782" font-weight="700" text-anchor="middle">Optional</text>
+<line x1="57" y1="711" x2="318" y2="711" stroke="#D9E2EC" stroke-width="1"/>
+<text x="60" y="736" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#526580" font-weight="400" >Required = needed before save</text>
+<text x="60" y="758" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#A9412D" font-weight="600" >1 to fix = missing or invalid field</text>
+<text x="60" y="784" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#6C7F98" font-weight="400" >Warnings never block saving.</text>
+<text x="379" y="260" font-family="Arial,Helvetica,sans-serif" font-size="30" fill="#182843" font-weight="800" >Schedule &amp; venue</text>
+<text x="379" y="289" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#667892" font-weight="400" >Configure the event's timing and location. Times use America/New_York.</text>
+<rect x="1230" y="238" width="146" height="28" rx="14" fill="#EFF3F8"/>
+<text x="1303" y="257" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#526782" font-weight="700" text-anchor="middle">REQUIRED SECTION</text>
+<line x1="380" y1="311" x2="1380" y2="311" stroke="#D9E2EC" stroke-width="1"/>
+<text x="380" y="352" font-family="Arial,Helvetica,sans-serif" font-size="17" fill="#1A2941" font-weight="700" >Start date &amp; time *</text>
+<rect x="380" y="367" width="474" height="52" rx="8" fill="#FFF" stroke="#CAD5E2" stroke-width="1"/>
+<text x="394" y="400" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#25364F" font-weight="500" >11/15/2026   03:00 PM</text>
+<text x="881" y="352" font-family="Arial,Helvetica,sans-serif" font-size="17" fill="#1A2941" font-weight="700" >Call time</text>
+<rect x="881" y="367" width="495" height="52" rx="8" fill="#FFF" stroke="#CAD5E2" stroke-width="1"/>
+<text x="895" y="400" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#25364F" font-weight="500" >02:00 PM</text>
+<text x="380" y="459" font-family="Arial,Helvetica,sans-serif" font-size="17" fill="#1A2941" font-weight="700" >Duration (minutes)</text>
+<rect x="380" y="474" width="474" height="52" rx="8" fill="#FFF" stroke="#CAD5E2" stroke-width="1"/>
+<text x="394" y="507" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#25364F" font-weight="500" >90</text>
+<text x="881" y="459" font-family="Arial,Helvetica,sans-serif" font-size="17" fill="#1A2941" font-weight="700" >Rehearsal linkage</text>
+<rect x="881" y="474" width="495" height="52" rx="8" fill="#FFF" stroke="#CAD5E2" stroke-width="1"/>
+<text x="895" y="507" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#8F9AAF" font-weight="400" >Not applicable to a Performance</text>
+<text x="380" y="575" font-family="Arial,Helvetica,sans-serif" font-size="17" fill="#1A2941" font-weight="700" >Saved venue *</text>
+<rect x="380" y="590" width="997" height="52" rx="8" fill="#FFFCFA" stroke="#BE5C44" stroke-width="2"/>
+<text x="394" y="623" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#8F9AAF" font-weight="400" >Select a venue…</text>
+<text x="1349" y="623" font-family="Arial,Helvetica,sans-serif" font-size="19" fill="#536B8B" font-weight="400" >⌄</text>
+<text x="386" y="667" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#A13B29" font-weight="700" >!  Select a saved venue before saving this event.</text>
+<rect x="378" y="692" width="998" height="113" rx="11" fill="#F7FAFE" stroke="#CCD9E7" stroke-width="1"/>
+<rect x="396" y="714" width="45" height="45" rx="10" fill="#E6EFF9"/>
+<text x="418" y="746" font-family="Arial,Helvetica,sans-serif" font-size="25" fill="#315A83" font-weight="700" text-anchor="middle">?</text>
+<text x="460" y="727" font-family="Arial,Helvetica,sans-serif" font-size="17" fill="#1F3552" font-weight="800" >Location not yet confirmed?</text>
+<text x="460" y="754" font-family="Arial,Helvetica,sans-serif" font-size="14" fill="#566D89" font-weight="400" >Select an existing TBD venue, or create a shared TBD venue with no address.</text>
+<text x="460" y="780" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#71839B" font-weight="400" >Later, change this event's venue; do not rename the shared TBD record.</text>
+<rect x="1136" y="719" width="219" height="49" rx="9" fill="#fff" stroke="#8DA7C3" stroke-width="1.3"/>
+<text x="1245" y="749" font-family="Arial,Helvetica,sans-serif" font-size="15" fill="#284867" font-weight="700" text-anchor="middle">Create or select TBD</text>
+<rect x="30" y="830" width="1390" height="85" rx="0" fill="#fff"/>
+<line x1="30" y1="830" x2="1420" y2="830" stroke="#D9E2EC" stroke-width="1"/>
+<rect x="55" y="853" width="24" height="24" rx="12" fill="#FCEBE7"/>
+<text x="67" y="871" font-family="Arial,Helvetica,sans-serif" font-size="17" fill="#B43C28" font-weight="800" text-anchor="middle">!</text>
+<text x="89" y="861" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#913A2C" font-weight="800" >1 required field missing</text>
+<text x="89" y="884" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#647991" font-weight="400" >Save will take you to the first missing field.</text>
+<rect x="1178" y="851" width="91" height="47" rx="9" fill="#fff" stroke="#CAD6E3" stroke-width="1"/>
+<text x="1223" y="879" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#284362" font-weight="700" text-anchor="middle">Cancel</text>
+<rect x="1281" y="851" width="116" height="47" rx="9" fill="#213F69"/>
+<text x="1339" y="879" font-family="Arial,Helvetica,sans-serif" font-size="16" fill="#fff" font-weight="800" text-anchor="middle">Save event</text>
+<text x="36" y="937" font-family="Arial,Helvetica,sans-serif" font-size="12" fill="#6C7E94" font-weight="700" >ILLUSTRATIVE DESKTOP MOCKUP  •  OPTION A  •  ALL EXISTING EVENT FIELDS AND ACTIONS ARE TO BE PRESERVED</text>
+</svg>
