@@ -863,15 +863,17 @@ test("photo controls, honest Add header, and truthful dirty footer", async ({ pa
   await expect(profileDialog).not.toBeVisible();
 
   // Add mode keeps an honest placeholder even after typing a name.
+  // NB: the dialog accessible name ("Add Profile" via sr-only Radix Title)
+  // duplicates the visible header text, so target the visible header class.
   await page.getByRole("button", { name: "Add Profile" }).click();
   const createDialog = page.getByRole("dialog", { name: "Add Profile" });
   await expect(createDialog).toBeVisible();
-  await expect(createDialog.getByRole("heading", { name: "Add Profile" })).toBeVisible();
+  await expect(createDialog.locator(".profile-editor-header__name")).toHaveText("Add Profile");
   await expect(
     createDialog.getByText("Save the Profile before adding a profile photo."),
   ).toBeVisible();
   await createDialog.getByLabel("Display name").fill("Typed Before Create");
-  await expect(createDialog.getByRole("heading", { name: "Add Profile" })).toBeVisible();
+  await expect(createDialog.locator(".profile-editor-header__name")).toHaveText("Add Profile");
   await expect(createDialog.getByText("Create a new choir member profile")).toBeVisible();
   await createDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(createDialog).not.toBeVisible();

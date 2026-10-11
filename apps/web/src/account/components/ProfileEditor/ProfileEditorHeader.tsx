@@ -193,6 +193,7 @@ export function ProfileEditorHeader({
         {moreActionsItems.length > 0 ? (
           <DropdownMenu
             accessibleLabel="More actions"
+            disablePortal
             items={moreActionsItems}
             trigger={
               <button

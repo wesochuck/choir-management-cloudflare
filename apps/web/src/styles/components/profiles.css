@@ -580,6 +580,7 @@
   align-items: center;
   gap: var(--spacing-xs);
   flex-shrink: 0;
+  position: relative;
 }
 
 .profile-editor-header__more-btn {
