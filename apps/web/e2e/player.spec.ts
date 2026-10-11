@@ -349,3 +349,76 @@ test("mobile Set List is a full-screen picker with a revealed active track", asy
   const primaryBounds = await activeButton.boundingBox();
   expect(primaryBounds?.height).toBeGreaterThanOrEqual(44);
 });
+
+test("shows each event's own artwork in set-list mode without stale carryover", async ({
+  page,
+}) => {
+  const playlistResponse = (suffix: string, title: string) => ({
+    event: {
+      artworkFileId: `art-file-${suffix}`,
+      date: futureIsoDate({ days: 60 }),
+      id: `event-${suffix}`,
+      title,
+    },
+    organizationName: "Ticket Card Choir",
+    pieces: [
+      {
+        composer: "Composer Name",
+        durationSeconds: 180,
+        pieceId: `piece-${suffix}`,
+        title: `Song ${suffix.toUpperCase()}`,
+        trackFileIds: { tutti: `file-tutti-${suffix}` },
+      },
+    ],
+    requestId,
+  });
+  await page.route("**/api/public/player/playlist**", async (route) => {
+    const token = new URL(route.request().url()).searchParams.get("token") ?? "";
+    const suffix = token === "token-event-b" ? "b" : "a";
+    const title = suffix === "b" ? "Event B" : "Event A";
+    await route.fulfill({
+      body: JSON.stringify(playlistResponse(suffix, title)),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/player?mode=set-list&token=token-event-a");
+  const artworkA = page.getByAltText("Event A artwork");
+  await expect(artworkA).toBeVisible();
+  await expect(artworkA).toHaveAttribute(
+    "src",
+    "/api/public/player/media/art-file-a?token=token-event-a",
+  );
+
+  await page
+    .locator(".public-player__now-playing-card")
+    .getByRole("button", { name: "Play" })
+    .click();
+  const metadata = await page.evaluate(() => {
+    const current = navigator.mediaSession.metadata;
+    if (!current) return null;
+    return {
+      album: current.album,
+      artwork: current.artwork.map((entry) => ({
+        sizes: entry.sizes,
+        src: entry.src,
+        type: entry.type,
+      })),
+    };
+  });
+  expect(metadata?.album).toBe("Event A");
+  expect(metadata?.artwork).toHaveLength(1);
+  expect(metadata?.artwork[0]?.src).toContain("art-file-a?token=token-event-a");
+  expect(metadata?.artwork[0]?.type ?? "").toBe("");
+  expect(metadata?.artwork[0]?.sizes ?? "").toBe("");
+
+  await page.goto("/player?mode=set-list&token=token-event-b");
+  const artworkB = page.getByAltText("Event B artwork");
+  await expect(artworkB).toBeVisible();
+  await expect(artworkB).toHaveAttribute(
+    "src",
+    "/api/public/player/media/art-file-b?token=token-event-b",
+  );
+  await expect(page.getByAltText("Event A artwork")).toHaveCount(0);
+});

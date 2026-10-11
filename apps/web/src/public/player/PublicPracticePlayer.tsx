@@ -342,9 +342,9 @@ export function PublicPracticePlayer({
   useEffect(() => {
     if (!currentItem || !("mediaSession" in navigator)) return;
     try {
-      const artwork = eventArtworkUrl
-        ? [{ sizes: "512x512", src: eventArtworkUrl, type: "image/jpeg" }]
-        : [];
+      // Only src is reliable: event images may be PNG or other sizes, so no
+      // MIME or dimension descriptors are declared.
+      const artwork = eventArtworkUrl ? [{ src: eventArtworkUrl }] : [];
       navigator.mediaSession.metadata = new MediaMetadata({
         album: details.eventTitle,
         artist: currentItem.composer ?? currentItem.arranger ?? details.performerLabel ?? "",

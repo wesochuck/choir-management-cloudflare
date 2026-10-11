@@ -25,6 +25,7 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
   const source = useMemo(() => createSessionTrackSource(), []);
   const [pieces, setPieces] = useState<readonly SingerLearningTrackPiece[]>([]);
   const [eventTitle, setEventTitle] = useState<string | null>(null);
+  const [eventArtworkFileId, setEventArtworkFileId] = useState<string | null>(null);
   const [focusedPieceIds, setFocusedPieceIds] = useState<ReadonlySet<string> | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +55,7 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
           const event = eventsResult.value.find(({ id }) => id === eventId);
           if (event) {
             setEventTitle(event.title);
+            setEventArtworkFileId(event.publicGraphicFileId);
             setFocusedPieceIds(pieceIdsForEvent(event));
           }
         }
@@ -71,12 +73,13 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
   );
   const details: PlayerDetails = useMemo(
     () => ({
+      eventArtworkFileId,
       eventId: eventId ?? "",
       eventStartsAt: "",
       eventTitle: eventTitle ?? "Practice library",
       items,
     }),
-    [eventId, eventTitle, items],
+    [eventArtworkFileId, eventId, eventTitle, items],
   );
 
   if (!enabled) return null;
