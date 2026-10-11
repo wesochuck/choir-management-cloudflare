@@ -242,4 +242,86 @@ test.describe("Organization Admin Overview", () => {
     await expect(page.getByText("Configure Modules", { exact: true })).toBeVisible();
     await expect(page.getByText("Complete Setup Checklist")).toBeVisible();
   });
+
+  test("passes axe and keeps key visuals in dark theme", async ({ page }) => {
+    await mockAdminOverviewApis(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/admin");
+    await expect(page.locator("#admin-overview-greeting")).toBeVisible();
+    await expect(page.locator(".admin-overview__kpi-grid")).toBeVisible();
+
+    await page.evaluate(() => {
+      document.documentElement.setAttribute("data-theme", "dark");
+    });
+
+    // Hero keeps readable text on the dark gradient
+    const banner = page.locator(".admin-overview__banner");
+    await expect(banner).toBeVisible();
+    await expect(banner).toHaveCSS(
+      "background-image",
+      /linear-gradient.*rgb\(24, 66, 50\).*rgb\(35, 84, 64\)/i,
+    );
+    await expect(page.locator(".admin-overview__kpi-grid")).toBeVisible();
+    await expect(
+      page.locator(".admin-overview__section--green .admin-overview__card").first(),
+    ).toBeVisible();
+
+    const axe = new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]);
+    const results = await axe.analyze();
+    const blocking = results.violations.flatMap((violation) =>
+      violation.nodes
+        .filter(
+          (node) =>
+            (violation.impact === "serious" || violation.impact === "critical") &&
+            !(
+              violation.id === "color-contrast" &&
+              `${node.target.join(" ")} ${node.html}`.includes("quick-search-kbd")
+            ),
+        )
+        .map(
+          (node) => `${violation.id} (${violation.impact ?? "unknown"}): ${node.target.join(" ")}`,
+        ),
+    );
+    expect(blocking).toHaveLength(0);
+  });
+
+  test("wraps long display names and survives 125% root text scaling", async ({ page }) => {
+    await installOrganizationApi(page, {
+      modules: ["events", "people", "programs"],
+      role: "administrator",
+      user: { name: "Alexandria Constantopoulos Papadopoulos-Smith" },
+    });
+    await page.route("**/api/organization/dashboard-summary", async (route) => {
+      await fulfillJson(route, {
+        activeProfileCount: 88,
+        doNotEmailCount: 1,
+        nextEvents: [],
+        recentBounceCount: 0,
+        requestId: REQUEST_ID,
+        upcomingEventCount: 8,
+      });
+    });
+    await page.route("**/api/organization/auditions", async (route) => {
+      await fulfillJson(route, { auditions: [], requestId: REQUEST_ID });
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/admin");
+
+    const heading = page.locator("#admin-overview-greeting");
+    await expect(heading).toContainText("Alexandria Constantopoulos Papadopoulos-Smith");
+    // Metrics stay visible alongside the long greeting without overlap
+    await expect(page.locator(".admin-overview__kpi-grid")).toBeVisible();
+
+    // Simulate 125% browser text scaling via root font size
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "20px";
+    });
+    await page.waitForTimeout(100);
+    const overflow = await page.evaluate(() => {
+      return document.documentElement.scrollWidth > window.innerWidth + 1;
+    });
+    expect(overflow, "Horizontal overflow at 125% root text scaling").toBe(false);
+    await expect(heading).toBeVisible();
+    await expect(page.locator(".admin-overview__kpi-grid")).toBeVisible();
+  });
 });

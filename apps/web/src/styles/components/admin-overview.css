@@ -16,9 +16,20 @@
 
   /* === Welcome Hero Banner === */
   .admin-overview__banner {
+    /* Component-scoped hero tokens; dark mode redefines the tokens below
+     * instead of restating raw colors in every rule. */
+    --admin-overview-hero-start: #225c45;
+    --admin-overview-hero-end: #367e5c;
+    --admin-overview-hero-text: #fff;
+    --admin-overview-hero-muted: #e1f1e9;
+    --admin-overview-hero-kpi-label: #e2f1e9;
     border-radius: var(--radius-xl);
-    background: linear-gradient(115deg, #225c45, #367e5c);
-    color: #fff;
+    background: linear-gradient(
+      115deg,
+      var(--admin-overview-hero-start),
+      var(--admin-overview-hero-end)
+    );
+    color: var(--admin-overview-hero-text);
     padding: var(--spacing-lg) var(--spacing-xl);
     display: flex;
     align-items: center;
@@ -30,7 +41,8 @@
   }
 
   [data-theme="dark"] .admin-overview__banner {
-    background: linear-gradient(115deg, #184232, #235440);
+    --admin-overview-hero-start: #184232;
+    --admin-overview-hero-end: #235440;
     border: 1px solid rgb(255 255 255 / 12%);
     box-shadow: 0 4px 14px rgb(0 0 0 / 30%);
   }
@@ -42,7 +54,7 @@
 
   .admin-overview__hero-intro h1 {
     margin: 0;
-    color: #fff;
+    color: var(--admin-overview-hero-text);
     font-size: clamp(1.5rem, 2.1vw, 2rem);
     font-weight: var(--font-weight-black);
     letter-spacing: -0.035em;
@@ -51,7 +63,7 @@
 
   .admin-overview__hero-subtitle {
     margin: var(--spacing-xs) 0 0;
-    color: #e1f1e9;
+    color: var(--admin-overview-hero-muted);
     font-size: 0.9375rem;
     line-height: var(--line-height-normal);
     max-width: 34rem;
@@ -59,7 +71,7 @@
 
   .admin-overview__banner-welcome {
     margin: 0;
-    color: #e1f1e9;
+    color: var(--admin-overview-hero-muted);
     font-size: var(--font-size-sm);
     line-height: var(--line-height-normal);
   }
@@ -85,7 +97,7 @@
     background: rgb(255 255 255 / 12%);
     padding: var(--spacing-xs) var(--spacing-xs);
     min-height: 3.875rem;
-    color: #fff;
+    color: var(--admin-overview-hero-text);
     text-decoration: none;
     transition:
       background 140ms ease,
@@ -103,7 +115,7 @@
   .admin-overview__kpi strong,
   .admin-overview__stats strong {
     display: block;
-    color: #fff;
+    color: var(--admin-overview-hero-text);
     font-size: 1.45rem;
     line-height: 1.15;
     letter-spacing: -0.015em;
@@ -115,11 +127,11 @@
   .admin-overview__stats span {
     display: block;
     margin-top: var(--spacing-3xs);
-    font-size: 0.72rem;
+    font-size: 0.75rem; /* 12px spec floor for metric labels */
     font-weight: var(--font-weight-extrabold);
     letter-spacing: 0.03em;
     text-transform: uppercase;
-    color: #e2f1e9;
+    color: var(--admin-overview-hero-kpi-label);
     line-height: 1.25;
   }
 
@@ -640,7 +652,7 @@
 
     .admin-overview__kpi span,
     .admin-overview__stats span {
-      font-size: 0.65rem;
+      font-size: 0.75rem; /* 12px floor preserved on mobile */
     }
 
     .admin-overview__command-bar {

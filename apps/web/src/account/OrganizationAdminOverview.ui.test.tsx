@@ -137,6 +137,26 @@ describe("OrganizationAdminOverview", () => {
     expect(navigate).toHaveBeenCalledWith("/admin/roster");
   });
 
+  it("renders long display names without dropping metrics", async () => {
+    render(
+      <OrganizationAdminOverview
+        context={null}
+        displayName="Alexandria Constantopoulos Papadopoulos-Smith"
+        modules={allModulesEnabled}
+        navigate={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: /Alexandria Constantopoulos Papadopoulos-Smith/,
+      }),
+    ).toBeVisible();
+    expect(await screen.findByText("88")).toBeVisible();
+    expect(screen.getByText("Active Performers")).toBeVisible();
+  });
+
   it("dynamically adapts to organization terminology", async () => {
     render(
       <organizationTerminologyContext.Provider
