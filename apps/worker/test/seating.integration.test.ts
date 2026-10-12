@@ -98,6 +98,14 @@ describe("Organization seating", () => {
         })
       ).json(),
     );
+    const venue = organizationVenueSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/venues", cookie, {
+          address: "13 Seating Lane",
+          name: "Seating Hall",
+        })
+      ).json(),
+    );
     const performance = organizationEventSchema.parse(
       await (
         await write("alpha.localhost", "/api/organization/events", cookie, {
@@ -105,14 +113,7 @@ describe("Organization seating", () => {
           title: "Seating Concert",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
-        })
-      ).json(),
-    );
-    const venue = organizationVenueSchema.parse(
-      await (
-        await write("alpha.localhost", "/api/organization/venues", cookie, {
-          address: "13 Seating Lane",
-          name: "Seating Hall",
+          venueId: venue.id,
         })
       ).json(),
     );
@@ -492,6 +493,14 @@ describe("Organization seating", () => {
       await (await exports.default.fetch(api("alpha.localhost", path, cookie))).json(),
     );
     expect(afterOldWrite.configuration.templates).toEqual(configuration.templates);
+    const venue = organizationVenueSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/venues", cookie, {
+          address: "14 Template Way",
+          name: "Template Hall",
+        })
+      ).json(),
+    );
     const performance = organizationEventSchema.parse(
       await (
         await write("alpha.localhost", "/api/organization/events", cookie, {
@@ -499,6 +508,7 @@ describe("Organization seating", () => {
           type: "Performance",
           startsAt: new Date(Date.now() + 86_400_000).toISOString(),
           rsvpDeadlineDate: "2030-01-01",
+          venueId: venue.id,
         })
       ).json(),
     );

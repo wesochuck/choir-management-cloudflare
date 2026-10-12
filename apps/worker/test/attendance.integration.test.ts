@@ -6,6 +6,7 @@ import {
   organizationProfileFolderNumbersResponseSchema,
   organizationProfileResponseSchema,
   organizationRsvpSchema,
+  organizationVenueSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import {
@@ -38,6 +39,14 @@ const stores = requireBinding(env.ORGANIZATION_STORE, "ORGANIZATION_STORE");
 const write = (host: string, path: string, cookie: string, body: unknown, method = "POST") =>
   writeJson(exports.default, host, path, cookie, body, method);
 const api = organizationRequest;
+
+async function createVenue(cookie: string, host = "alpha.localhost"): Promise<string> {
+  const response = await write(host, "/api/organization/venues", cookie, {
+    address: "1 Test Way",
+    name: "Test Hall",
+  });
+  return organizationVenueSchema.parse(await response.json()).id;
+}
 
 const provision = (id: string, slug: string) =>
   provisionOrganization(database, stores, { id, slug, userId: "attendance-manager" });
@@ -93,12 +102,14 @@ describe("Organization attendance", () => {
         })
       ).json(),
     );
+    const venueId = await createVenue(cookie);
     const event = organizationEventSchema.parse(
       await (
         await write("alpha.localhost", "/api/organization/events", cookie, {
           startsAt: new Date(Date.now() + 86_400_000).toISOString(),
           title: "Attendance Rehearsal",
           type: "Rehearsal",
+          venueId,
         })
       ).json(),
     );
@@ -203,6 +214,7 @@ describe("Organization attendance", () => {
           title: "Folder Performance",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId,
         })
       ).json(),
     );
@@ -213,6 +225,7 @@ describe("Organization attendance", () => {
           startsAt: new Date(Date.now() + 259_200_000).toISOString(),
           title: "Folder Rehearsal",
           type: "Rehearsal",
+          venueId,
         })
       ).json(),
     );
@@ -354,6 +367,7 @@ describe("Organization attendance", () => {
     const inheritedNoProfile = await createProfile("Inherited No");
     const directYesProfile = await createProfile("Direct Yes");
     const pendingProfile = await createProfile("No RSVP");
+    const venueId = await createVenue(cookie);
     const performance = organizationEventSchema.parse(
       await (
         await write("alpha.localhost", "/api/organization/events", cookie, {
@@ -361,6 +375,7 @@ describe("Organization attendance", () => {
           title: "Linked Performance",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId,
         })
       ).json(),
     );
@@ -371,6 +386,7 @@ describe("Organization attendance", () => {
           startsAt: new Date(Date.now() + 172_800_000).toISOString(),
           title: "Linked Rehearsal",
           type: "Rehearsal",
+          venueId,
         })
       ).json(),
     );
@@ -426,6 +442,7 @@ describe("Organization attendance", () => {
   it("aggregates attendance report server-side across linked rehearsals with tenant isolation and index use", async () => {
     const cookie = await signIn();
 
+    const venueId = await createVenue(cookie);
     // 1. Create a performance with no rehearsals -> reports 0 totalRehearsals and empty rows
     const emptyPerf = organizationEventSchema.parse(
       await (
@@ -435,6 +452,7 @@ describe("Organization attendance", () => {
           startsAt: "2026-10-15T19:00:00Z",
           title: "Empty Performance",
           type: "Performance",
+          venueId,
         })
       ).json(),
     );
@@ -463,6 +481,7 @@ describe("Organization attendance", () => {
           startsAt: "2026-11-15T19:00:00Z",
           title: "Main Performance",
           type: "Performance",
+          venueId,
         })
       ).json(),
     );
@@ -475,6 +494,7 @@ describe("Organization attendance", () => {
           startsAt: "2026-11-01T19:00:00Z",
           title: "Rehearsal 1",
           type: "Rehearsal",
+          venueId,
         })
       ).json(),
     );
@@ -487,6 +507,7 @@ describe("Organization attendance", () => {
           startsAt: "2026-11-08T19:00:00Z",
           title: "Rehearsal 2",
           type: "Rehearsal",
+          venueId,
         })
       ).json(),
     );
@@ -500,6 +521,7 @@ describe("Organization attendance", () => {
           startsAt: "2026-11-05T19:00:00Z",
           title: "Canceled Rehearsal",
           type: "Rehearsal",
+          venueId,
         })
       ).json(),
     );
@@ -519,6 +541,7 @@ describe("Organization attendance", () => {
           startsAt: "2026-12-15T19:00:00Z",
           title: "Other Performance",
           type: "Performance",
+          venueId,
         })
       ).json(),
     );
@@ -528,6 +551,7 @@ describe("Organization attendance", () => {
       startsAt: "2026-12-01T19:00:00Z",
       title: "Other Rehearsal",
       type: "Rehearsal",
+      venueId,
     });
 
     // Create 3 singers:

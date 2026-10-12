@@ -5,6 +5,7 @@ import {
   musicFolderReturnStatusResponseSchema,
   organizationEventSchema,
   organizationProfileResponseSchema,
+  organizationVenueSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import {
@@ -82,6 +83,14 @@ describe("Music Folder Report", () => {
         })
       ).json(),
     );
+    const venue = organizationVenueSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/venues", cookie, {
+          address: "1 Folder Way",
+          name: "Folder Hall",
+        })
+      ).json(),
+    );
     const firstPerformance = organizationEventSchema.parse(
       await (
         await write("alpha.localhost", "/api/organization/events", cookie, {
@@ -89,6 +98,7 @@ describe("Music Folder Report", () => {
           title: "Winter Concert",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId: venue.id,
         })
       ).json(),
     );
@@ -99,6 +109,7 @@ describe("Music Folder Report", () => {
           title: "Spring Concert",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId: venue.id,
         })
       ).json(),
     );
@@ -109,6 +120,7 @@ describe("Music Folder Report", () => {
           title: "Canceled Concert",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId: venue.id,
         })
       ).json(),
     );

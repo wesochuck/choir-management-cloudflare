@@ -6,6 +6,7 @@ import {
   organizationMusicLibrarySettingsResponseSchema,
   organizationMusicPieceResponseSchema,
   organizationMusicPiecesResponseSchema,
+  organizationVenueSchema,
   privateFileResponseSchema,
   singerLearningTrackPiecesResponseSchema,
   type OrganizationMusicPiece,
@@ -43,6 +44,14 @@ function requireBinding<T>(binding: T | undefined, name: string): T {
 const write = (host: string, path: string, cookie: string, body: unknown, method = "POST") =>
   writeJson(exports.default, host, path, cookie, body, method);
 const api = organizationRequest;
+
+async function createVenue(cookie: string, host = "alpha.localhost"): Promise<string> {
+  const response = await write(host, "/api/organization/venues", cookie, {
+    address: "1 Music Way",
+    name: "Music Hall",
+  });
+  return organizationVenueSchema.parse(await response.json()).id;
+}
 
 const provision = (id: string, slug: string) =>
   provisionOrganization(database, stores, { id, slug, userId: "music-manager" });
@@ -780,6 +789,7 @@ describe("Organization music catalog", () => {
         })
       ).json(),
     );
+    const venueId = await createVenue(cookie);
     const crossOrganizationReference = await write(
       "alpha.localhost",
       "/api/organization/events",
@@ -790,6 +800,7 @@ describe("Organization music catalog", () => {
         title: "Invalid Cross-Organization Set List",
         type: "Performance",
         rsvpDeadlineDate: "2030-01-01",
+        venueId,
       },
     );
     expect(crossOrganizationReference.status).toBe(409);
@@ -818,6 +829,7 @@ describe("Organization music catalog", () => {
         title: "Invalid Profile Credit",
         type: "Performance",
         rsvpDeadlineDate: "2030-01-01",
+        venueId,
       },
     );
     expect(missingProfileReference.status).toBe(409);
@@ -832,6 +844,7 @@ describe("Organization music catalog", () => {
           title: "Music Concert",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId,
         })
       ).json(),
     );
@@ -971,6 +984,7 @@ describe("Organization music catalog", () => {
         })
       ).json(),
     );
+    const venueId = await createVenue(cookie);
     const event = organizationEventSchema.parse(
       await (
         await write("alpha.localhost", "/api/organization/events", cookie, {
@@ -979,6 +993,7 @@ describe("Organization music catalog", () => {
           title: "Bulk Concert",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId,
         })
       ).json(),
     );
@@ -1233,6 +1248,7 @@ describe("Organization music catalog", () => {
     );
     expect(updatedParent.scoreFileIds).toEqual({ primary: scoreFileId });
 
+    const venueId = await createVenue(cookie);
     // 4. Create an event with approved set list containing movement
     const eventRes = await write("alpha.localhost", "/api/organization/events", cookie, {
       rsvpDeadlineDate: "2030-01-01",
@@ -1247,6 +1263,7 @@ describe("Organization music catalog", () => {
       startsAt: "2026-11-01T19:00:00.000Z",
       title: "Fall Concert",
       type: "Performance",
+      venueId,
     });
     const event = organizationEventSchema.parse(await eventRes.json());
 
@@ -1328,6 +1345,7 @@ describe("Organization music catalog", () => {
       "PUT",
     );
 
+    const venueId = await createVenue(adminCookie);
     const draftEvent = await write("alpha.localhost", "/api/organization/events", adminCookie, {
       rsvpDeadlineDate: "2030-01-01",
       setList: [{ composer: "Anon", pieceId: piece.id, title: "Unapproved Anthem" }],
@@ -1335,6 +1353,7 @@ describe("Organization music catalog", () => {
       startsAt: "2026-12-01T19:00:00.000Z",
       title: "Draft Concert",
       type: "Performance",
+      venueId,
     });
     const event = organizationEventSchema.parse(await draftEvent.json());
 
@@ -1477,6 +1496,7 @@ describe("Organization music catalog", () => {
       expect(attached.status).toBe(200);
     }
 
+    const venueId = await createVenue(adminCookie);
     const draftEvent = await write("alpha.localhost", "/api/organization/events", adminCookie, {
       rsvpDeadlineDate: "2030-01-01",
       setList: pieceIds.map((pieceId, index) => ({
@@ -1488,6 +1508,7 @@ describe("Organization music catalog", () => {
       startsAt: "2026-12-01T19:00:00.000Z",
       title: "Heavy Concert",
       type: "Performance",
+      venueId,
     });
     const event = organizationEventSchema.parse(await draftEvent.json());
 

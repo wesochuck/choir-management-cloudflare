@@ -9,6 +9,7 @@ import {
   organizationRosterAutomationPreviewResponseSchema,
   organizationRosterConfigurationResponseSchema,
   organizationRsvpSchema,
+  organizationVenueSchema,
 } from "@choir/contracts";
 import {
   organizationRequest,
@@ -63,6 +64,14 @@ const signIn = () =>
 const write = (host: string, path: string, cookie: string, body: unknown, method = "POST") =>
   writeJson(exports.default, host, path, cookie, body, method);
 
+async function createVenue(cookie: string, host = "alpha.localhost"): Promise<string> {
+  const response = await write(host, "/api/organization/venues", cookie, {
+    address: "1 Automation Way",
+    name: "Automation Hall",
+  });
+  return organizationVenueSchema.parse(await response.json()).id;
+}
+
 beforeEach(async () => {
   await applyD1Migrations(database, [...inject("controlMigrations")]);
   clearCapturedPlatformEmailsForTest();
@@ -102,6 +111,7 @@ describe("roster status automation", () => {
     );
     expect(profile.id).toBeTruthy();
 
+    const venueId = await createVenue(cookie);
     const pastPerformanceIds: string[] = [];
     for (let index = 1; index <= 3; index += 1) {
       const event = organizationEventSchema.parse(
@@ -112,6 +122,7 @@ describe("roster status automation", () => {
             title: `Missed Performance ${String(index)}`,
             type: "Performance",
             rsvpDeadlineDate: "2030-01-01",
+            venueId,
           })
         ).json(),
       );
@@ -179,6 +190,7 @@ describe("roster status automation", () => {
           title: "Recovery Performance",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId,
         })
       ).json(),
     );
@@ -228,6 +240,7 @@ describe("roster status automation", () => {
           title: "Expiry Performance",
           type: "Performance",
           rsvpDeadlineDate: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
+          venueId,
         })
       ).json(),
     );
@@ -274,6 +287,7 @@ describe("roster status automation", () => {
           title: "Past Pending Performance",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId,
         })
       ).json(),
     );
@@ -306,6 +320,7 @@ describe("roster status automation", () => {
           title: "Linked Performance",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId,
         })
       ).json(),
     );
@@ -316,6 +331,7 @@ describe("roster status automation", () => {
           startsAt: new Date(Date.now() + 35 * 86_400_000).toISOString(),
           title: "Linked Rehearsal",
           type: "Rehearsal",
+          venueId,
         })
       ).json(),
     );
@@ -363,6 +379,7 @@ describe("roster status automation", () => {
           title: "Canceled Performance",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId,
         })
       ).json(),
     );
@@ -373,6 +390,7 @@ describe("roster status automation", () => {
           startsAt: new Date(Date.now() + 2 * 86_400_000).toISOString(),
           title: "Canceled Rehearsal",
           type: "Rehearsal",
+          venueId,
         })
       ).json(),
     );
@@ -745,6 +763,7 @@ describe("roster status automation", () => {
         })
       ).json(),
     );
+    const venueId = await createVenue(cookie);
     for (let index = 1; index <= 3; index += 1) {
       const event = organizationEventSchema.parse(
         await (
@@ -753,6 +772,7 @@ describe("roster status automation", () => {
             title: `Staff Missed Performance ${String(index)}`,
             type: "Performance",
             rsvpDeadlineDate: "2030-01-01",
+            venueId,
           })
         ).json(),
       );
@@ -814,6 +834,7 @@ describe("roster status automation", () => {
       "PUT",
     );
     expect(saved.status).toBe(200);
+    const venueId = await createVenue(cookie);
     const future = organizationEventSchema.parse(
       await (
         await write("alpha.localhost", "/api/organization/events", cookie, {
@@ -821,6 +842,7 @@ describe("roster status automation", () => {
           title: "Expiry Disabled Performance",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId,
         })
       ).json(),
     );
@@ -866,6 +888,7 @@ describe("roster status automation", () => {
       "PUT",
     );
     expect(saved.status).toBe(200);
+    const venueId = await createVenue(cookie);
     for (let index = 1; index <= 3; index += 1) {
       const event = organizationEventSchema.parse(
         await (
@@ -874,6 +897,7 @@ describe("roster status automation", () => {
             title: `Disabled Missed Performance ${String(index)}`,
             type: "Performance",
             rsvpDeadlineDate: "2030-01-01",
+            venueId,
           })
         ).json(),
       );
@@ -910,6 +934,7 @@ describe("roster status automation", () => {
         })
       ).json(),
     );
+    const venueId = await createVenue(cookie);
     for (let index = 1; index <= 3; index += 1) {
       const event = organizationEventSchema.parse(
         await (
@@ -918,6 +943,7 @@ describe("roster status automation", () => {
             title: `Absent Performance ${String(index)}`,
             type: "Performance",
             rsvpDeadlineDate: "2030-01-01",
+            venueId,
           })
         ).json(),
       );
@@ -967,6 +993,7 @@ describe("roster status automation", () => {
         })
       ).json(),
     );
+    const venueId = await createVenue(cookie);
     const missedEventIds: string[] = [];
     for (let index = 1; index <= 3; index += 1) {
       const event = organizationEventSchema.parse(
@@ -976,6 +1003,7 @@ describe("roster status automation", () => {
             title: `Preview Missed Performance ${String(index)}`,
             type: "Performance",
             rsvpDeadlineDate: "2030-01-01",
+            venueId,
           })
         ).json(),
       );
@@ -1010,6 +1038,7 @@ describe("roster status automation", () => {
       title: "Preview Expiry Performance",
       type: "Performance",
       rsvpDeadlineDate: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
+      venueId,
     });
     const roster = organizationRosterConfigurationResponseSchema.parse(
       await (
@@ -1091,6 +1120,7 @@ describe("roster status automation", () => {
         })
       ).json(),
     );
+    const venueId = await createVenue(cookie);
     for (let index = 1; index <= 3; index += 1) {
       const event = organizationEventSchema.parse(
         await (
@@ -1099,6 +1129,7 @@ describe("roster status automation", () => {
             title: `Audit Missed Performance ${String(index)}`,
             type: "Performance",
             rsvpDeadlineDate: "2030-01-01",
+            venueId,
           })
         ).json(),
       );
@@ -1115,6 +1146,7 @@ describe("roster status automation", () => {
       title: "Audit Expiry Performance",
       type: "Performance",
       rsvpDeadlineDate: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
+      venueId,
     });
     await runInDurableObject<OrganizationStore, null>(
       stores.get(stores.idFromName("organization-alpha")),
@@ -1174,6 +1206,7 @@ describe("roster status automation", () => {
     );
 
     // Create 3 past performance events and record "Absent" attendance for both profiles
+    const venueId = await createVenue(cookie);
     const now = Date.now();
     const eventIds: string[] = [];
     for (let i = 1; i <= 3; i++) {
@@ -1185,6 +1218,7 @@ describe("roster status automation", () => {
             startsAt: new Date(now - (4 - i) * 86_400_000).toISOString(),
             title: `Past Performance ${String(i)}`,
             type: "Performance",
+            venueId,
           })
         ).json(),
       );
@@ -1263,6 +1297,7 @@ describe("roster status automation", () => {
       ).json(),
     );
 
+    const venueId = await createVenue(cookie);
     const now = Date.now();
     // Create an event whose RSVP deadline has passed
     const event = organizationEventSchema.parse(
@@ -1273,6 +1308,7 @@ describe("roster status automation", () => {
           startsAt: new Date(now + 3 * 86_400_000).toISOString(),
           title: "Continuation Performance",
           type: "Performance",
+          venueId,
         })
       ).json(),
     );
