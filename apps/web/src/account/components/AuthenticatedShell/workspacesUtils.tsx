@@ -201,6 +201,7 @@ export function renderOrganizationPage(
   manager: boolean,
   navigate: (href: string) => void,
   notFoundPage: (navigate: (href: string) => void) => ReactNode,
+  canEditProfiles = true,
 ) {
   const focusedEnabled = enabled && manager;
   const { pathname } = routeState;
@@ -304,7 +305,13 @@ export function renderOrganizationPage(
         initialProfileTab={rosterProfileTabFromSearch(routeState.search)}
       />
     ),
-    "/admin/rsvp": <RsvpManagerPage enabled={focusedEnabled} eventId={rsvpEventId} />,
+    "/admin/rsvp": (
+      <RsvpManagerPage
+        canEditProfiles={canEditProfiles}
+        enabled={focusedEnabled}
+        eventId={rsvpEventId}
+      />
+    ),
     "/admin/settings": <OrganizationSettingsPage enabled={focusedEnabled} />,
     "/admin/invitations": <OrganizationAccess section="invitations" />,
     "/admin/settings/invitations": <OrganizationAccess section="invitations" />,
@@ -313,7 +320,13 @@ export function renderOrganizationPage(
     "/admin/settings/setup-checklist": <SetupChecklistView />,
   };
   if (route === "event-roster") {
-    return <RsvpManagerPage enabled={focusedEnabled} eventId={pathname.split("/")[3] ?? null} />;
+    return (
+      <RsvpManagerPage
+        canEditProfiles={canEditProfiles}
+        enabled={focusedEnabled}
+        eventId={pathname.split("/")[3] ?? null}
+      />
+    );
   }
   if (pathname === "/admin") return null;
   return pages[pathname] ?? notFoundPage(navigate);

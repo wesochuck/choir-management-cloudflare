@@ -1,8 +1,11 @@
 import type { OrganizationAttendanceRow } from "@choir/contracts";
 import { DataTable, useConfirmation, type DataTableColumn } from "@choir/ui";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AuthApiError } from "../api";
+import { queryKeys } from "../api/queryKeys";
+import { ProfileEditorDialog, useProfileEditor } from "./components/ProfileEditor";
 import {
   RsvpHistoryTable,
   RsvpManagerFilters,
@@ -31,9 +34,11 @@ import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 // eslint-disable-next-line complexity -- the RSVP manager coordinates filters, per-row updates, and bulk selection in one screen state.
 export function RsvpManagerPage({
+  canEditProfiles = true,
   enabled,
   eventId: initialEventId = null,
 }: {
+  readonly canEditProfiles?: boolean;
   readonly enabled: boolean;
   readonly eventId?: string | null;
 }) {
@@ -113,6 +118,58 @@ export function RsvpManagerPage({
       ),
     [state],
   );
+  const queryClient = useQueryClient();
+  const profileOpenerRef = useRef<HTMLElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [profileOpenError, setProfileOpenError] = useState<string | null>(null);
+
+  const invalidateRsvpForEvent = (targetEventId: string) => {
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.organization.attendance(targetEventId),
+    });
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.organization.rsvpHistory(targetEventId),
+    });
+  };
+
+  const profileEditor = useProfileEditor({
+    onRsvpChanged: (changedEventId) => {
+      invalidateRsvpForEvent(changedEventId);
+      if (eventId && changedEventId !== eventId) invalidateRsvpForEvent(eventId);
+    },
+    onSaved: () => {
+      setFeedback("Profile updated.");
+      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.rsvpBootstrap });
+      if (eventId) invalidateRsvpForEvent(eventId);
+    },
+    rosterConfiguration: state.status === "ready" ? state.roster : undefined,
+  });
+
+  const handleProfileCloseAutoFocus = (closeEvent: Event) => {
+    closeEvent.preventDefault();
+    const opener = profileOpenerRef.current;
+    if (opener && document.contains(opener)) {
+      opener.focus({ preventScroll: true });
+      return;
+    }
+    // Edited singer left the filtered list (e.g. status change): fall back to
+    // the RSVP search input rather than focusing an unmounted element.
+    searchInputRef.current?.focus({ preventScroll: true });
+  };
+
+  const openProfileFromRow = (row: OrganizationAttendanceRow, opener: HTMLElement) => {
+    const record = profileById.get(row.profileId);
+    if (!record) {
+      setProfileOpenError(
+        "That Profile could not be found. It may have been removed — refresh the RSVP list and try again.",
+      );
+      return;
+    }
+    setProfileOpenError(null);
+    setFeedback(null);
+    profileOpenerRef.current = opener;
+    profileEditor.openProfile(record);
+  };
   const activeRows = useMemo(
     () => rows.filter((row) => profileById.get(row.profileId)?.globalStatus === "Active"),
     [profileById, rows],
@@ -335,7 +392,22 @@ export function RsvpManagerPage({
     {
       header: "Name",
       id: "name",
-      render: (row) => <strong>{row.displayName}</strong>,
+      render: (row) =>
+        canEditProfiles ? (
+          <button
+            aria-label={`Open profile for ${row.displayName}`}
+            className="rsvp-profile-link"
+            onClick={(clickEvent) => {
+              clickEvent.stopPropagation();
+              openProfileFromRow(row, clickEvent.currentTarget);
+            }}
+            type="button"
+          >
+            <strong>{row.displayName}</strong>
+          </button>
+        ) : (
+          <strong>{row.displayName}</strong>
+        ),
       sortValue: (row) => lastName(row.displayName),
     },
     {
@@ -428,6 +500,20 @@ export function RsvpManagerPage({
           {feedback}
         </p>
       ) : null}
+      {profileOpenError ? (
+        <p className="notice notice--error" role="alert">
+          {profileOpenError}{" "}
+          <button
+            className="text-button"
+            onClick={() => {
+              setProfileOpenError(null);
+            }}
+            type="button"
+          >
+            Dismiss
+          </button>
+        </p>
+      ) : null}
       <RsvpManagerFilters
         assignmentFilter={assignmentFilter}
         counts={counts}
@@ -465,6 +551,7 @@ export function RsvpManagerPage({
                   setQuery(event.target.value);
                 }}
                 placeholder={`Name or ${partLabel.toLowerCase()}`}
+                ref={searchInputRef}
                 value={query}
               />
             </label>
@@ -549,6 +636,15 @@ export function RsvpManagerPage({
           view={view}
         />
       </>
+      {canEditProfiles ? (
+        <ProfileEditorDialog
+          {...profileEditor.dialogProps}
+          onClose={profileEditor.closeProfile}
+          onCloseAutoFocus={handleProfileCloseAutoFocus}
+          open={profileEditor.open}
+          saveLabel="Save & Return to RSVPs"
+        />
+      ) : null}
       {confirmationDialog}
     </div>
   );

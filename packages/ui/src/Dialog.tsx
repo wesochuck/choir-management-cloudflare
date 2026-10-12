@@ -14,7 +14,7 @@ export interface DialogProps {
   readonly footer?: ReactNode;
   readonly header?: ReactNode;
   readonly onClose: () => void;
-  readonly onCloseAutoFocus?: (event: Event) => void;
+  readonly onCloseAutoFocus?: ((event: Event) => void) | undefined;
   readonly open: boolean;
   readonly title: string;
   readonly variant?: "default" | "confirmation";

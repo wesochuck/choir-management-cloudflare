@@ -68,9 +68,11 @@ export function ProfileEditorDialog({
   error,
   linkedMembership,
   onClose,
+  onCloseAutoFocus,
   onImpersonate,
   onPhotoChanged,
   onResolveDuplicate,
+  onRsvpChanged,
   open,
   performanceHistory,
   profile,
@@ -179,6 +181,7 @@ export function ProfileEditorDialog({
         />
       }
       onClose={onClose}
+      onCloseAutoFocus={onCloseAutoFocus}
       open={open}
       title={editingId ? "Edit Profile" : "Add Profile"}
     >
@@ -260,6 +263,7 @@ export function ProfileEditorDialog({
                   >
                     <PerformanceHistory
                       onRsvpChanged={(updated) => {
+                        onRsvpChanged?.(updated.eventId);
                         setPerformanceHistory((current) => {
                           if (current.status !== "ready") return current;
                           const updateRows = (rows: typeof current.data.upcoming) =>

@@ -61,8 +61,11 @@ export interface ProfileEditorDialogProps {
   readonly error: string | null;
   readonly linkedMembership?: OrganizationMembershipSummary | null | undefined;
   readonly onClose: () => void;
+  readonly onCloseAutoFocus?: ((event: Event) => void) | undefined;
   readonly onImpersonate?: (() => void) | undefined;
   readonly onPhotoChanged?: ((fileId: string | null) => void) | undefined;
+  /** Notified when the Performance RSVPs tab changes an RSVP (issue #137). */
+  readonly onRsvpChanged?: ((eventId: string) => void) | undefined;
   readonly onResolveDuplicate?: (() => void) | undefined;
   readonly open: boolean;
   readonly performanceHistory: PerformanceHistoryState;

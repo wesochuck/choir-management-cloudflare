@@ -17,6 +17,11 @@ import {
 } from "./workspacesUtils";
 import type { AccessState, RouteState, Workspace } from "./types";
 
+function rosterEditingEnabled(access: AccessState): boolean {
+  if (access.status !== "ready") return false;
+  return access.modules.find((module) => module.id === "roster")?.enabled ?? true;
+}
+
 function OverviewPage({
   context,
   displayName,
@@ -199,9 +204,15 @@ function OrganizationWorkspacePage({
   ) {
     return <AccessDeniedPage workspace={`${requiredModule} module`} />;
   }
-  const page = renderOrganizationPage(route, enabled, manager, navigate, (nextNavigate) => (
-    <NotFoundPage navigate={nextNavigate} />
-  ));
+  const canEditProfiles = rosterEditingEnabled(access);
+  const page = renderOrganizationPage(
+    route,
+    enabled,
+    manager,
+    navigate,
+    (nextNavigate) => <NotFoundPage navigate={nextNavigate} />,
+    canEditProfiles,
+  );
   return (
     page ?? (
       <OverviewPage
