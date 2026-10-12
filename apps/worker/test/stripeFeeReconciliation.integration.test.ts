@@ -2,6 +2,7 @@ import {
   donationRecordsResponseSchema,
   organizationEventSchema,
   organizationTicketOrdersResponseSchema,
+  organizationVenueSchema,
 } from "@choir/contracts";
 import { calculatePaymentFinancialSummary } from "@choir/domain";
 import { createExecutionContext, createMessageBatch, getQueueResult } from "cloudflare:test";
@@ -31,6 +32,18 @@ describe("Stripe processor fee reconciliation and refund-aware financials", () =
   it("reconciles Stripe processor fee, persists balance transaction ID, preserves fees on refund, and is idempotent", async () => {
     const cookie = await signIn();
 
+    const venue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "1 Test Way", name: "Test Hall Reconciliation" },
+          cookie,
+        )
+      ).json(),
+    );
+
     // 1. Create an event
     const event = organizationEventSchema.parse(
       await (
@@ -59,7 +72,7 @@ describe("Stripe processor fee reconciliation and refund-aware financials", () =
             ticketCapacity: 100,
             title: "Financial Reconciliation Concert",
             type: "Performance",
-            venueId: null,
+            venueId: venue.id,
           },
           cookie,
         )
@@ -267,6 +280,17 @@ describe("Stripe processor fee reconciliation and refund-aware financials", () =
 
   it("handles duplicate webhook completion idempotently without corrupting reconciled fees", async () => {
     const cookie = await signIn();
+    const venue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "1 Test Way", name: "Test Hall Idempotency" },
+          cookie,
+        )
+      ).json(),
+    );
     const event = organizationEventSchema.parse(
       await (
         await jsonWrite(
@@ -294,7 +318,7 @@ describe("Stripe processor fee reconciliation and refund-aware financials", () =
             ticketCapacity: 50,
             title: "Idempotency Concert",
             type: "Performance",
-            venueId: null,
+            venueId: venue.id,
           },
           cookie,
         )
@@ -403,6 +427,18 @@ describe("Stripe processor fee reconciliation and refund-aware financials", () =
       .bind(nowIso, nowIso)
       .run();
 
+    const venue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "1 Test Way", name: "Test Hall Retry" },
+          cookie,
+        )
+      ).json(),
+    );
+
     // Create an event & pending ticket purchase
     const event = organizationEventSchema.parse(
       await (
@@ -431,7 +467,7 @@ describe("Stripe processor fee reconciliation and refund-aware financials", () =
             ticketCapacity: 50,
             title: "Reconciliation Retry Concert",
             type: "Performance",
-            venueId: null,
+            venueId: venue.id,
           },
           cookie,
         )

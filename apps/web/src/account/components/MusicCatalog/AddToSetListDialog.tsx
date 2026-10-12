@@ -79,11 +79,17 @@ export function AddToSetListDialog({
         setFormError("Enter a valid concert date and time.");
         return;
       }
+      if (!newVenueId) {
+        setFormError(
+          "Select a saved venue before creating this concert. Use TBD when the location is unknown.",
+        );
+        return;
+      }
       onApply({
         mode: "new",
         startsAt,
         title,
-        venueId: newVenueId || null,
+        venueId: newVenueId,
       });
     }
   }
@@ -198,14 +204,15 @@ export function AddToSetListDialog({
                 <span className="field-help">Time in {timezone}</span>
               </label>
               <label className="field">
-                Venue (optional)
+                Venue *
                 <select
+                  required
                   value={newVenueId}
                   onChange={(event) => {
                     setNewVenueId(event.target.value);
                   }}
                 >
-                  <option value="">No venue</option>
+                  <option value="">Select a venue…</option>
                   {venues.map((venue) => (
                     <option key={venue.id} value={venue.id}>
                       {venue.name}

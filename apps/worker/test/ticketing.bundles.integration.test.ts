@@ -1,5 +1,6 @@
 import {
   organizationEventSchema,
+  organizationVenueSchema,
   publicTicketPurchaseResponseSchema,
   publishedOrganizationProjectionSchema,
   ticketBundleSchema,
@@ -40,6 +41,17 @@ afterEach(async () => teardownTicketingIntegration());
 describe("Organization ticket bundles", () => {
   it("publishes capacity-safe bundle passes that validate at every included performance", async () => {
     const cookie = await signIn();
+    const venue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "1 Stage Road", name: "Main Hall" },
+          cookie,
+        )
+      ).json(),
+    );
     const eventBody = {
       advancePriceCents: 2_000,
       callTime: "18:00",
@@ -58,7 +70,7 @@ describe("Organization ticket bundles", () => {
       ticketCapacity: 2,
       rsvpDeadlineDate: "2027-09-24",
       type: "Performance" as const,
-      venueId: null,
+      venueId: venue.id,
     };
     const firstEvent = organizationEventSchema.parse(
       await (
@@ -219,6 +231,17 @@ describe("Organization ticket bundles", () => {
 
   it("generates concert-specific reminder notifications for each included performance in a bundle and supports rescheduling", async () => {
     const cookie = await signIn();
+    const venue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "1 Stage Road", name: "Symphony Hall" },
+          cookie,
+        )
+      ).json(),
+    );
     const eventBody = {
       advancePriceCents: 2_000,
       callTime: "18:00",
@@ -237,7 +260,7 @@ describe("Organization ticket bundles", () => {
       ticketCapacity: 10,
       rsvpDeadlineDate: "2030-01-01",
       type: "Performance" as const,
-      venueId: null,
+      venueId: venue.id,
     };
     const now = Date.now();
     const firstStartsAt = new Date(now + 10 * 60 * 60 * 1000).toISOString();
@@ -520,6 +543,17 @@ describe("Organization ticket bundles", () => {
 
   it("persists public graphic on ticket bundles and includes it in website publication and mediaFileIds", async () => {
     const cookie = await signIn();
+    const venue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "1 Stage Road", name: "Main Hall" },
+          cookie,
+        )
+      ).json(),
+    );
     const eventBody = {
       advancePriceCents: 2_000,
       callTime: "18:00",
@@ -538,7 +572,7 @@ describe("Organization ticket bundles", () => {
       setListApproved: false,
       ticketCapacity: 10,
       type: "Performance" as const,
-      venueId: null,
+      venueId: venue.id,
     };
     const event = organizationEventSchema.parse(
       await (

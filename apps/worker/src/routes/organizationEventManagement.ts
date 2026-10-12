@@ -75,6 +75,16 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           404,
         );
       }
+      if (error instanceof CalendarMutationError && error.status === 400) {
+        return context.json(
+          {
+            code: error.code,
+            message: calendarMutationMessage(error.code),
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          400,
+        );
+      }
       return context.json(
         {
           code: "service_unavailable",
@@ -139,6 +149,16 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
             requestId: context.get("requestId"),
           } satisfies ProblemDetails,
           404,
+        );
+      }
+      if (error instanceof CalendarMutationError && error.status === 400) {
+        return context.json(
+          {
+            code: error.code,
+            message: calendarMutationMessage(error.code),
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          400,
         );
       }
       return context.json(

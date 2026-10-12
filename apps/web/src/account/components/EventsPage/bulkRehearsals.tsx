@@ -1,7 +1,10 @@
 import type { OrganizationEvent, OrganizationVenue } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
+import { useState } from "react";
+import { createOrganizationVenue, listOrganizationVenues } from "../../../auth/api";
 
 import { DAYS_OF_WEEK } from "./utils";
+import { ensureTbdVenue, findTbdVenue } from "./tbdVenue";
 
 export function BulkRehearsalDialog({
   busy,
@@ -10,6 +13,7 @@ export function BulkRehearsalDialog({
   error,
   onClose,
   onSubmit,
+  onVenueCreated,
   open,
   performanceId,
   performances,
@@ -28,6 +32,7 @@ export function BulkRehearsalDialog({
   readonly error: string | null;
   readonly onClose: () => void;
   readonly onSubmit: () => void;
+  readonly onVenueCreated?: ((venue: OrganizationVenue) => void) | undefined;
   readonly open: boolean;
   readonly performanceId: string;
   readonly performances: readonly OrganizationEvent[];
@@ -40,6 +45,31 @@ export function BulkRehearsalDialog({
   readonly venueId: string;
   readonly venues: readonly OrganizationVenue[];
 }) {
+  const [tbdBusy, setTbdBusy] = useState(false);
+  const [tbdError, setTbdError] = useState<string | null>(null);
+  const existingTbd = findTbdVenue(venues);
+
+  async function handleEnsureTbd(): Promise<void> {
+    if (tbdBusy || busy) return;
+    setTbdBusy(true);
+    setTbdError(null);
+    try {
+      const venue = await ensureTbdVenue({
+        createVenue: (name, address) => createOrganizationVenue(name, address),
+        listVenues: () => listOrganizationVenues(),
+        venues,
+      });
+      setVenueId(venue.id);
+      if (onVenueCreated) onVenueCreated(venue);
+    } catch {
+      setTbdError(
+        "The shared TBD venue could not be created. Check your connection and try again.",
+      );
+    } finally {
+      setTbdBusy(false);
+    }
+  }
+
   return (
     <Dialog
       description="Quickly generate a series of weekly rehearsals leading up to a performance."
@@ -78,22 +108,55 @@ export function BulkRehearsalDialog({
             ))}
           </select>
         </label>
-        <label className="field">
-          Rehearsal venue
+        <div className="field">
+          <label htmlFor="bulk-rehearsal-venue">Rehearsal venue *</label>
           <select
+            id="bulk-rehearsal-venue"
+            required
             value={venueId}
             onChange={(event) => {
               setVenueId(event.target.value);
+              setTbdError(null);
             }}
           >
-            <option value="">No saved venue</option>
+            <option disabled value="">
+              Select a venue…
+            </option>
             {venues.map((venue) => (
               <option key={venue.id} value={venue.id}>
                 {venue.name}
               </option>
             ))}
           </select>
-        </label>
+          {!venueId ? (
+            <div className="event-editor-tbd">
+              <div className="event-editor-tbd__text">
+                <strong>Location not yet confirmed?</strong>
+                <p>Select an existing TBD venue, or create a shared TBD venue with no address.</p>
+              </div>
+              <button
+                className="button button--secondary button--small"
+                disabled={tbdBusy || busy}
+                onClick={() => {
+                  void handleEnsureTbd();
+                }}
+                type="button"
+              >
+                {tbdBusy ? "Working…" : "Create or select TBD"}
+              </button>
+            </div>
+          ) : null}
+          {existingTbd && !venueId ? (
+            <p className="field-help">
+              Prefer to pick manually? Choose “{existingTbd.name}” in the venue list.
+            </p>
+          ) : null}
+          {tbdError ? (
+            <p className="notice notice--error" role="alert">
+              {tbdError}
+            </p>
+          ) : null}
+        </div>
         <div className="bulk-rehearsal-form__split">
           <label className="field">
             Count

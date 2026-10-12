@@ -428,6 +428,7 @@ describe("Organization calendar management", () => {
           title: "Audition Performance",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId: auditionVenue.id,
         })
       ).json(),
     );
@@ -1387,6 +1388,7 @@ describe("Organization calendar management", () => {
         title: "Invalid Performance Parent",
         type: "Performance",
         rsvpDeadlineDate: "2030-01-01",
+        venueId: venue.id,
       },
     );
     expect(invalidPerformanceParent.status).toBe(400);
@@ -1398,6 +1400,7 @@ describe("Organization calendar management", () => {
           title: "API Rehearsal",
           type: "Rehearsal",
           parentPerformanceId: performance.id,
+          venueId: venue.id,
         })
       ).json(),
     );
@@ -1437,6 +1440,7 @@ describe("Organization calendar management", () => {
           title: "Archive Me",
           type: "Performance",
           rsvpDeadlineDate: "2030-01-01",
+          venueId: venue.id,
         })
       ).json(),
     );
@@ -1445,6 +1449,7 @@ describe("Organization calendar management", () => {
       startsAt: new Date(new Date(startsAt).getTime() + 72 * 60 * 60 * 1_000).toISOString(),
       title: "Archive Child",
       type: "Rehearsal",
+      venueId: venue.id,
     });
     const archiveResponse = await exports.default.fetch(
       api("alpha.localhost", `/api/organization/events/${archivedCandidate.id}`, cookie, {
@@ -1568,11 +1573,20 @@ describe("Organization calendar management", () => {
 
   it("requires an explicit Performance RSVP deadline and honors past and edited dates", async () => {
     const cookie = await signIn();
+    const venue = organizationVenueSchema.parse(
+      await (
+        await post("alpha.localhost", "/api/organization/venues", cookie, {
+          address: "123 RSVP St",
+          name: "RSVP Hall",
+        })
+      ).json(),
+    );
     const startsAt = new Date(Date.now() + 30 * 86_400_000).toISOString();
     const missingDeadline = await post("alpha.localhost", "/api/organization/events", cookie, {
       startsAt,
       title: "No Deadline Performance",
       type: "Performance",
+      venueId: venue.id,
     });
     expect(missingDeadline.status).toBe(400);
 
@@ -1584,6 +1598,7 @@ describe("Organization calendar management", () => {
           startsAt,
           title: "Past Deadline Performance",
           type: "Performance",
+          venueId: venue.id,
         })
       ).json(),
     );
@@ -1601,6 +1616,7 @@ describe("Organization calendar management", () => {
               startsAt: created.startsAt,
               title: created.title,
               type: created.type,
+              venueId: created.venueId,
             }),
             headers: { "content-type": "application/json" },
             method: "PUT",
@@ -1617,12 +1633,21 @@ describe("Organization calendar management", () => {
       startsAt: created.startsAt,
       title: "Rehearsal With Deadline",
       type: "Rehearsal",
+      venueId: venue.id,
     });
     expect(rehearsal.status).toBe(400);
   });
 
   it("persists, round-trips, and defaults setListDefaultTransitionSeconds for performances", async () => {
     const cookie = await signIn();
+    const venue = organizationVenueSchema.parse(
+      await (
+        await post("alpha.localhost", "/api/organization/venues", cookie, {
+          address: "123 Setlist St",
+          name: "Setlist Hall",
+        })
+      ).json(),
+    );
     const created = organizationEventSchema.parse(
       await (
         await exports.default.fetch(
@@ -1633,6 +1658,7 @@ describe("Organization calendar management", () => {
               startsAt: "2026-10-15T19:30:00.000Z",
               title: "Performance with Transitions",
               type: "Performance",
+              venueId: venue.id,
             }),
             headers: { "content-type": "application/json" },
             method: "POST",
@@ -1660,6 +1686,7 @@ describe("Organization calendar management", () => {
               startsAt: created.startsAt,
               title: created.title,
               type: created.type,
+              venueId: created.venueId,
             }),
             headers: { "content-type": "application/json" },
             method: "PUT",
@@ -1679,6 +1706,7 @@ describe("Organization calendar management", () => {
               startsAt: "2026-10-20T19:30:00.000Z",
               title: "Default Transition Performance",
               type: "Performance",
+              venueId: venue.id,
             }),
             headers: { "content-type": "application/json" },
             method: "POST",

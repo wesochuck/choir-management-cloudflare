@@ -577,6 +577,17 @@ describe("Organization ticketing", () => {
   it("queues one confirmation and one 24-hour reminder through the durable ticket outbox", async () => {
     const cookie = await signIn();
     const startsAt = new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString();
+    const reminderVenue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "2 Reminder Road", name: "Reminder Hall" },
+          cookie,
+        )
+      ).json(),
+    );
     const event = organizationEventSchema.parse(
       await (
         await jsonWrite(
@@ -603,7 +614,7 @@ describe("Organization ticketing", () => {
             title: "Tomorrow Concert",
             type: "Performance",
             rsvpDeadlineDate: "2030-01-01",
-            venueId: null,
+            venueId: reminderVenue.id,
           },
           cookie,
         )
@@ -660,6 +671,17 @@ describe("Organization ticketing", () => {
 
   it("handles receipt lifecycle across pending, paid, refunded, and expired states with scanToken invariants", async () => {
     const cookie = await signIn();
+    const receiptVenue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "3 Receipt Way", name: "Receipt Hall" },
+          cookie,
+        )
+      ).json(),
+    );
     const event = organizationEventSchema.parse(
       await (
         await jsonWrite(
@@ -688,7 +710,7 @@ describe("Organization ticketing", () => {
             ticketCapacity: 50,
             title: "Receipt Invariant Concert",
             type: "Performance",
-            venueId: null,
+            venueId: receiptVenue.id,
           },
           cookie,
         )
@@ -899,6 +921,17 @@ describe("Organization ticketing", () => {
 
   it("wakes the Organization scheduler promptly on Stripe ticket completion and enqueues confirmation", async () => {
     const cookie = await signIn();
+    const fulfillmentVenue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "4 Fulfillment Road", name: "Fulfillment Hall" },
+          cookie,
+        )
+      ).json(),
+    );
     const event = organizationEventSchema.parse(
       await (
         await jsonWrite(
@@ -927,7 +960,7 @@ describe("Organization ticketing", () => {
             ticketCapacity: 50,
             title: "Stripe Fulfillment Event",
             type: "Performance",
-            venueId: null,
+            venueId: fulfillmentVenue.id,
           },
           cookie,
         )
@@ -1146,6 +1179,17 @@ describe("Organization ticketing", () => {
 
   it("handles ticket reminder creation and delivery when performances are rescheduled before or after reminders exist", async () => {
     const cookie = await signIn();
+    const rescheduleVenue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "5 Reschedule Road", name: "Reschedule Hall" },
+          cookie,
+        )
+      ).json(),
+    );
     const eventBody = {
       advancePriceCents: 1_500,
       callTime: "",
@@ -1165,7 +1209,7 @@ describe("Organization ticketing", () => {
       title: "Reschedule Test Concert",
       type: "Performance" as const,
       rsvpDeadlineDate: "2030-01-01",
-      venueId: null,
+      venueId: rescheduleVenue.id,
     };
     const now = Date.now();
 
@@ -1521,6 +1565,17 @@ describe("Organization ticketing", () => {
 
   it("suppresses queued reminders when an event is canceled or archived", async () => {
     const cookie = await signIn();
+    const cancelVenue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "6 Cancel Road", name: "Cancel Hall" },
+          cookie,
+        )
+      ).json(),
+    );
     const eventBody = {
       advancePriceCents: 1_500,
       callTime: "",
@@ -1540,7 +1595,7 @@ describe("Organization ticketing", () => {
       title: "Cancellation Test Concert",
       type: "Performance" as const,
       rsvpDeadlineDate: "2030-01-01",
-      venueId: null,
+      venueId: cancelVenue.id,
     };
     const now = Date.now();
     const startsAt = new Date(now + 12 * 60 * 60 * 1000).toISOString();

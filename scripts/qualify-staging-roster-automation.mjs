@@ -371,6 +371,22 @@ async function readRosterConfiguration(cookie) {
   return configuration;
 }
 
+let cachedVenueId = null;
+async function ensureQualificationVenue(cookie) {
+  if (cachedVenueId) return cachedVenueId;
+  const result = await request(`${organizationHost}/api/organization/venues`, "POST", cookie, {
+    address: "",
+    name: "TBD",
+  });
+  if (result.response.status !== 201 || typeof result.body?.id !== "string") {
+    throw new Error(
+      `Qualification venue creation failed with ${requestFailure(result.response.status, result.body)}.`,
+    );
+  }
+  cachedVenueId = result.body.id;
+  return cachedVenueId;
+}
+
 function eventRequest(title, startsAt, options = {}) {
   return {
     advancePriceCents: 0,
@@ -393,16 +409,17 @@ function eventRequest(title, startsAt, options = {}) {
     ticketCapacity: null,
     title,
     type: options.type ?? "Performance",
-    venueId: null,
+    venueId: options.venueId ?? null,
   };
 }
 
 async function createEvent(cookie, title, startsAt, options = {}) {
+  const venueId = options.venueId ?? (await ensureQualificationVenue(cookie));
   const result = await request(
     `${organizationHost}/api/organization/events`,
     "POST",
     cookie,
-    eventRequest(title, startsAt, options),
+    eventRequest(title, startsAt, { ...options, venueId }),
   );
   if (result.response.status !== 201 || typeof result.body?.id !== "string") {
     throw new Error(
