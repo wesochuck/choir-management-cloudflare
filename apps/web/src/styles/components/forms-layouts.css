@@ -308,13 +308,21 @@
     border-top: 1px solid var(--color-border);
   }
 
-  /* === Redesigned Event Editor (Option A) === */
+  /* === Redesigned Event Editor === */
 
-  .dialog--event-editor {
+  .dialog--event-editor,
+  .dialog.dialog--event-editor,
+  .dialog--responsive.dialog--event-editor {
     width: min(72rem, calc(100% - 2rem));
     max-width: min(72rem, calc(100% - 2rem));
     height: min(90dvh, 56rem);
     max-height: min(90dvh, 56rem);
+  }
+
+  .dialog--event-editor .dialog__header--custom {
+    padding: 0;
+    display: block;
+    border-bottom: 1px solid var(--color-border);
   }
 
   .dialog--event-editor .dialog__body {
@@ -347,9 +355,7 @@
     justify-content: space-between;
     gap: var(--spacing-md);
     padding: var(--spacing-md) var(--spacing-lg);
-    border-bottom: 1px solid var(--color-border);
     background: var(--color-surface);
-    flex-shrink: 0;
     width: 100%;
     box-sizing: border-box;
   }
@@ -389,6 +395,13 @@
     white-space: nowrap;
   }
 
+  .event-editor-header__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-shrink: 0;
+  }
+
   .event-editor-header__status {
     display: flex;
     align-items: center;
@@ -406,7 +419,7 @@
   }
 
   .event-editor__rail {
-    width: 15rem;
+    width: 17rem;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
@@ -434,7 +447,7 @@
   .event-editor__rail-trigger {
     display: flex;
     align-items: flex-start;
-    gap: var(--spacing-xs);
+    gap: var(--spacing-sm);
     width: 100%;
     padding: var(--spacing-xs) var(--spacing-sm);
     border: none;
@@ -444,6 +457,7 @@
     text-align: left;
     cursor: pointer;
     box-sizing: border-box;
+    transition: all 0.15s ease;
   }
 
   .event-editor__rail-trigger:hover {
@@ -474,6 +488,11 @@
     margin-top: 2px;
   }
 
+  .event-editor__rail-trigger.is-active .event-editor__rail-index,
+  .event-editor__rail-trigger[data-state="active"] .event-editor__rail-index {
+    color: var(--color-accent);
+  }
+
   .event-editor__rail-text {
     display: flex;
     flex-direction: column;
@@ -486,13 +505,22 @@
     font-size: var(--font-size-sm);
     font-weight: var(--font-weight-semibold);
     color: var(--color-text);
-    overflow-wrap: anywhere;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .event-editor__rail-trigger.is-active .event-editor__rail-label,
+  .event-editor__rail-trigger[data-state="active"] .event-editor__rail-label {
+    color: var(--color-accent);
   }
 
   .event-editor__rail-desc {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
-    overflow-wrap: anywhere;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .event-editor__badge {
@@ -565,17 +593,17 @@
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: var(--spacing-lg);
+    padding: var(--spacing-lg) var(--spacing-xl);
     -webkit-overflow-scrolling: touch;
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-lg);
   }
 
   .event-editor-panel {
     display: flex;
     flex-direction: column;
-    gap: var(--spacing-md);
+    gap: var(--spacing-lg);
   }
 
   .event-editor-panel__header {
@@ -639,7 +667,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--spacing-sm) var(--spacing-lg);
+    padding: var(--spacing-sm) var(--spacing-xl);
     border-top: 1px solid var(--color-border);
     background: var(--color-surface);
     flex-shrink: 0;
@@ -650,7 +678,27 @@
   .event-editor-footer__status {
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2xs);
     overflow-wrap: anywhere;
+  }
+
+  .event-editor-footer__dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    flex-shrink: 0;
+  }
+
+  .event-editor-footer__dot--dirty {
+    background: var(--color-warning, #d97706);
+  }
+
+  .event-editor-footer__dot--pristine {
+    background: var(--color-text-muted);
+    opacity: 0.6;
   }
 
   .event-editor-footer__actions {
@@ -697,7 +745,9 @@
       box-sizing: border-box;
     }
 
-    .dialog--event-editor {
+    .dialog--event-editor,
+    .dialog.dialog--event-editor,
+    .dialog--responsive.dialog--event-editor {
       width: 100vw;
       max-width: 100vw;
       height: 100dvh;

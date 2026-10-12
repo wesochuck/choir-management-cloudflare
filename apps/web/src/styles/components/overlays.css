@@ -45,6 +45,14 @@
     box-sizing: border-box;
   }
 
+  .dialog--responsive.dialog--event-editor,
+  .dialog--responsive.dialog--profile-editor {
+    width: min(72rem, calc(100% - 2rem));
+    max-width: min(72rem, calc(100% - 2rem));
+    height: min(90dvh, 56rem);
+    max-height: min(90dvh, 56rem);
+  }
+
   .dialog__header {
     flex: 0 0 auto;
     display: flex;

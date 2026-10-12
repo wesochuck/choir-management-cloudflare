@@ -69,6 +69,52 @@ function isEventEditorSection(value: string): value is EventEditorSection {
   );
 }
 
+export function EventEditorHeader({
+  dirty,
+  editingId,
+  eventStart,
+  eventTitle,
+  eventType,
+  timezoneLabel,
+}: {
+  readonly dirty: boolean;
+  readonly editingId: string | null;
+  readonly eventStart: string;
+  readonly eventTitle: string;
+  readonly eventType: OrganizationEventRequest["type"];
+  readonly timezoneLabel: string | null;
+}) {
+  const displayTitle = eventTitle.trim() ? eventTitle : editingId ? "Edit event" : "Create event";
+
+  return (
+    <div className="event-editor-header">
+      <div className="event-editor-header__identity">
+        <div className="event-editor-header__details">
+          <h2 className="event-editor-header__title">
+            {displayTitle} · {eventType}
+          </h2>
+          <p className="event-editor-header__subtext">
+            {eventStart ? eventStart.replace("T", " · ") : "No start time yet"}
+            {timezoneLabel ? ` · ${timezoneLabel}` : ""}
+          </p>
+        </div>
+      </div>
+      <div className="event-editor-header__actions">
+        {dirty ? (
+          <span className="status-pill status-pill--warning">Unsaved changes</span>
+        ) : (
+          <span className="status-pill status-pill--neutral">No unsaved changes</span>
+        )}
+        <DialogClose asChild>
+          <button aria-label="Close" className="dialog__close" type="button">
+            &times;
+          </button>
+        </DialogClose>
+      </div>
+    </div>
+  );
+}
+
 // eslint-disable-next-line complexity -- the editor keeps the event form's cross-field controls together.
 export function EventEditorDialog({
   busy,
@@ -363,6 +409,16 @@ export function EventEditorDialog({
       className="dialog--event-editor"
       description={eventDialogDescription(state)}
       dirty={dirty}
+      header={
+        <EventEditorHeader
+          dirty={dirty}
+          editingId={editingId}
+          eventStart={eventStart}
+          eventTitle={event.title}
+          eventType={event.type}
+          timezoneLabel={timezoneLabel}
+        />
+      }
       onClose={onClose}
       open={dialogOpen}
       title={eventDialogTitle(editingId, event.title)}
@@ -376,28 +432,6 @@ export function EventEditorDialog({
         value={activeSection}
       >
         <div className="event-editor-layout">
-          <div className="event-editor-header">
-            <div className="event-editor-header__identity">
-              <div className="event-editor-header__details">
-                <h2 className="event-editor-header__title">
-                  {event.title.trim() ? event.title : editingId ? "Edit event" : "Create event"} ·{" "}
-                  {event.type}
-                </h2>
-                <p className="event-editor-header__subtext">
-                  {eventStart ? eventStart.replace("T", " · ") : "No start time yet"}
-                  {timezoneLabel ? ` · ${timezoneLabel}` : ""}
-                </p>
-              </div>
-            </div>
-            <div className="event-editor-header__status">
-              {dirty ? (
-                <span className="status-pill status-pill--warning">Unsaved changes</span>
-              ) : (
-                <span className="status-pill status-pill--neutral">No unsaved changes</span>
-              )}
-            </div>
-          </div>
-
           <div className="event-editor-body">
             <div className="event-editor__mobile-nav">
               <label
@@ -1175,6 +1209,10 @@ export function EventEditorDialog({
 
               <div className="event-editor-footer" role="region" aria-label="Event editor save bar">
                 <span className="event-editor-footer__status" role="status">
+                  <span
+                    aria-hidden="true"
+                    className={`event-editor-footer__dot ${dirty ? "event-editor-footer__dot--dirty" : "event-editor-footer__dot--pristine"}`}
+                  />
                   {footerStatus}
                 </span>
                 <div className="event-editor-footer__actions">
