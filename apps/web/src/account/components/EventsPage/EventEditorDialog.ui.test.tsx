@@ -1,6 +1,7 @@
 import type { OrganizationEventRequest, OrganizationVenue } from "@choir/contracts";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { SetStateAction } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { EventEditorDialog } from "./dialogs";
 import type { EventsState } from "./types";
@@ -18,7 +19,7 @@ vi.mock("../../../auth/api", async (importOriginal) => {
 
 import { createOrganizationVenue, listOrganizationVenues } from "../../../auth/api";
 
-const readyState: EventsState = {
+const readyState: Extract<EventsState, { status: "ready" }> = {
   events: [],
   rsvpExpiryEnabled: false,
   rsvpFollowUpEnabled: false,
@@ -197,11 +198,13 @@ describe("EventEditorDialog venue requirement and TBD", () => {
       type: "Rehearsal",
       venueId: null,
     };
-    const setEvent = vi.fn(
-      (updater: (current: OrganizationEventRequest) => OrganizationEventRequest) => {
-        if (typeof updater === "function") draft = updater(draft);
-      },
-    );
+    const setEvent = vi.fn((updater: SetStateAction<OrganizationEventRequest>) => {
+      if (typeof updater === "function") {
+        draft = updater(draft);
+      } else {
+        draft = updater;
+      }
+    });
     const onVenueCreated = vi.fn();
     vi.mocked(listOrganizationVenues).mockResolvedValue([]);
     vi.mocked(createOrganizationVenue).mockResolvedValue(tbdVenue);

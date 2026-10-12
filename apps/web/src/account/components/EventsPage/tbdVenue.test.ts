@@ -62,7 +62,6 @@ describe("tbdVenue helpers", () => {
     });
     const options = {
       createVenue,
-      listVenues: undefined,
       venues: [venue("Hall", "hall")],
     };
     const [first, second] = await Promise.all([ensureTbdVenue(options), ensureTbdVenue(options)]);
