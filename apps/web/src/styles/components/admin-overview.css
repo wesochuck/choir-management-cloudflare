@@ -469,11 +469,11 @@
   .admin-overview__card,
   .admin-overview__cards > a {
     position: relative;
-    min-height: 7.375rem; /* ~118px */
+    min-height: 5.5rem; /* ~88px */
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
-    padding: var(--spacing-md) 2.75rem var(--spacing-md) var(--spacing-md);
+    padding: var(--spacing-md);
     display: flex;
     align-items: flex-start;
     gap: var(--spacing-sm);
@@ -567,27 +567,6 @@
     color: var(--color-text-muted);
     font-size: 0.9125rem; /* 14.6px */
     line-height: var(--line-height-normal);
-  }
-
-  .admin-overview__card-arrow {
-    position: absolute;
-    bottom: var(--spacing-sm);
-    right: var(--spacing-sm);
-    width: 1.125rem;
-    height: 1.125rem;
-    color: var(--color-text-muted);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition:
-      color 140ms ease,
-      transform 140ms ease;
-  }
-
-  .admin-overview__card:hover .admin-overview__card-arrow,
-  .admin-overview__cards > a:hover .admin-overview__card-arrow {
-    color: var(--color-primary);
-    transform: translateX(2px);
   }
 
   /* === Responsive Layouts (Desktop -> Tablet -> Mobile) === */
@@ -691,8 +670,8 @@
 
     .admin-overview__card,
     .admin-overview__cards > a {
-      min-height: 5.75rem;
-      padding: var(--spacing-sm) 2.25rem var(--spacing-sm) var(--spacing-sm);
+      min-height: 5rem;
+      padding: var(--spacing-sm);
       gap: var(--spacing-sm);
     }
 
@@ -742,7 +721,6 @@
     .admin-overview__kpi,
     .admin-overview__quick-btn,
     .admin-overview__card,
-    .admin-overview__card-arrow,
     .admin-overview__guide-step {
       transition: none !important;
       transform: none !important;
