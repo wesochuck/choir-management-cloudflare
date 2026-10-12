@@ -44,7 +44,7 @@ describe("tbdVenue helpers", () => {
     const createVenue = vi.fn();
     const result = await ensureTbdVenue({
       createVenue,
-      listVenues: async () => [],
+      listVenues: () => Promise.resolve([]),
       venues: [venue("Hall", "hall"), existing],
     });
     expect(result.id).toBe("existing-tbd");
@@ -79,7 +79,7 @@ describe("tbdVenue helpers", () => {
     const createVenue = vi.fn();
     const result = await ensureTbdVenue({
       createVenue,
-      listVenues: async () => [fresh],
+      listVenues: () => Promise.resolve([fresh]),
       venues: [],
     });
     expect(result.id).toBe("fresh-tbd");

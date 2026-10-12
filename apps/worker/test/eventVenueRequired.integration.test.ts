@@ -1,4 +1,8 @@
-import { organizationEventSchema, organizationVenueSchema } from "@choir/contracts";
+import {
+  organizationEventSchema,
+  organizationVenueSchema,
+  organizationVenuesResponseSchema,
+} from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import {
   organizationRequest,
@@ -171,7 +175,7 @@ describe("Organization event venue requirement", () => {
     const venuesResponse = await exports.default.fetch(
       api("alpha.localhost", "/api/organization/venues", cookie),
     );
-    const venues = (await venuesResponse.json()) as { venues: { id: string; name: string }[] };
+    const venues = organizationVenuesResponseSchema.parse(await venuesResponse.json());
     expect(
       venues.venues.filter((candidate) => candidate.name.trim().toLowerCase() === "tbd"),
     ).toHaveLength(1);
