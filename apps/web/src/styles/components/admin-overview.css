@@ -544,7 +544,6 @@
   .admin-overview__card-copy {
     min-width: 0;
     flex: 1;
-    align-self: center;
   }
 
   .admin-overview__card-title,
