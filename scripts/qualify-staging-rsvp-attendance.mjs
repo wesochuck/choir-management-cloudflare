@@ -190,7 +190,23 @@ async function resolveProfile(cookie) {
   return { ...candidate, id: uuid(candidate.id, "RSVP Profile ID") };
 }
 
-function eventRequest(title) {
+let cachedVenueId = null;
+async function ensureQualificationVenue(cookie) {
+  if (cachedVenueId) return cachedVenueId;
+  const result = await jsonRequest(`${organizationHost}/api/organization/venues`, "POST", cookie, {
+    address: "",
+    name: "TBD",
+  });
+  if (result.response.status !== 201 || typeof result.body?.id !== "string") {
+    throw new Error(
+      `Qualification venue creation failed with ${requestFailure(result.response.status, result.body)}.`,
+    );
+  }
+  cachedVenueId = result.body.id;
+  return cachedVenueId;
+}
+
+function eventRequest(title, options = {}) {
   return {
     advancePriceCents: 0,
     callTime: "",
@@ -213,16 +229,17 @@ function eventRequest(title) {
     title,
     rsvpDeadlineDate: new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
     type: "Performance",
-    venueId: null,
+    venueId: options.venueId ?? null,
   };
 }
 
-async function createEvent(cookie, title) {
+async function createEvent(cookie, title, options = {}) {
+  const venueId = options.venueId ?? (await ensureQualificationVenue(cookie));
   const result = await jsonRequest(
     `${organizationHost}/api/organization/events`,
     "POST",
     cookie,
-    eventRequest(title),
+    eventRequest(title, { ...options, venueId }),
   );
   if (result.response.status !== 201 || typeof result.body?.id !== "string") {
     throw new Error(

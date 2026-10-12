@@ -145,7 +145,24 @@ async function resolveTargetProfile(cookie) {
   return uuid(matches[0].id, "qualification Profile");
 }
 
-async function createPerformance(cookie, title) {
+let cachedVenueId = null;
+async function ensureQualificationVenue(cookie) {
+  if (cachedVenueId) return cachedVenueId;
+  const result = await jsonRequest(`${organizationHost}/api/organization/venues`, "POST", cookie, {
+    address: "",
+    name: "TBD",
+  });
+  if (result.response.status !== 201 || typeof result.body?.id !== "string") {
+    throw new Error(
+      `Qualification venue creation failed with HTTP ${String(result.response.status)}.`,
+    );
+  }
+  cachedVenueId = result.body.id;
+  return cachedVenueId;
+}
+
+async function createPerformance(cookie, title, options = {}) {
+  const venueId = options.venueId ?? (await ensureQualificationVenue(cookie));
   const { body, response } = await jsonRequest(
     `${organizationHost}/api/organization/events`,
     "POST",
@@ -173,7 +190,7 @@ async function createPerformance(cookie, title) {
       title,
       rsvpDeadlineDate: new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
       type: "Performance",
-      venueId: null,
+      venueId,
     },
   );
   if (response.status !== 201 || typeof body?.id !== "string") {

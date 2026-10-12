@@ -43,6 +43,10 @@ test("creates an event that survives a reload against the real store", async ({
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("Title").fill(title);
   await dialog.getByLabel("Start").fill(futureLocalDateTime());
+  // Venue is mandatory; use the shared TBD venue when the location is unknown.
+  await dialog.getByRole("tab", { name: /Schedule & venue/ }).click();
+  await dialog.getByRole("button", { name: /Create or select TBD/ }).click();
+  await expect(dialog.getByText(/Venue to be confirmed/)).toBeVisible();
 
   const createRequest = page.waitForRequest(
     (entry) => entry.method() === "POST" && entry.url().includes("/api/organization/events"),

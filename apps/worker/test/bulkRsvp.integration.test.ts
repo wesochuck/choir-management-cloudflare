@@ -3,6 +3,7 @@ import {
   organizationEventRsvpHistoryResponseSchema,
   organizationEventSchema,
   organizationProfileResponseSchema,
+  organizationVenueSchema,
 } from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import {
@@ -58,6 +59,12 @@ async function createProfile(
 }
 
 async function createPerformance(cookie: string): Promise<string> {
+  const venueResponse = await write("alpha.localhost", "/api/organization/venues", cookie, {
+    address: "1 Test Way",
+    name: "Test Hall",
+  });
+  expect(venueResponse.status).toBe(201);
+  const venueId = organizationVenueSchema.parse(await venueResponse.json()).id;
   const response = await write("alpha.localhost", "/api/organization/events", cookie, {
     advancePriceCents: 0,
     callTime: "",
@@ -80,7 +87,7 @@ async function createPerformance(cookie: string): Promise<string> {
     title: PERFORMANCE_TITLE,
     type: "Performance",
     rsvpDeadlineDate: "2030-01-01",
-    venueId: null,
+    venueId,
   });
   expect(response.status).toBe(201);
   return organizationEventSchema.parse(await response.json()).id;

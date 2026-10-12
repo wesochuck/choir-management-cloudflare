@@ -303,6 +303,17 @@ describe("Organization public website", () => {
     );
     expect(uploadRes.status).toBe(201);
 
+    const commerceVenue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { address: "2 Commerce Way", name: "Commerce Hall" },
+          cookie,
+        )
+      ).json(),
+    );
     const eventRes = await jsonWrite(
       "alpha.localhost",
       "/api/organization/events",
@@ -326,7 +337,7 @@ describe("Organization public website", () => {
         ticketCapacity: 100,
         title: "Fall Showcase",
         type: "Performance",
-        venueId: null,
+        venueId: commerceVenue.id,
       },
       cookie,
     );

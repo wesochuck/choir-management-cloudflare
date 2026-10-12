@@ -44,7 +44,10 @@ function eventReferenceError(
 ): Response | null {
   const ticketError = ticketConfigurationError(storage, event);
   if (ticketError) return ticketError;
-  if (event.venueId && !recordExists(storage, "venues", event.venueId)) {
+  if (!event.venueId) {
+    return Response.json({ code: "venue_required" }, { status: 400 });
+  }
+  if (!recordExists(storage, "venues", event.venueId)) {
     return Response.json({ code: "venue_not_found" }, { status: 404 });
   }
   if (event.parentPerformanceId && event.type !== "Rehearsal") {
@@ -277,7 +280,43 @@ export function writeVenue(
 ): Response {
   if (operation.action === "create_venue") {
     const venue = operation.venue;
+    if (venue.name.trim().toLowerCase() === "tbd") {
+      const existingTbd = storage.sql
+        .exec<{
+          readonly [column: string]: SqlStorageValue;
+          readonly address: string;
+          readonly createdAt: string;
+          readonly id: string;
+          readonly name: string;
+          readonly updatedAt: string;
+        }>(
+          `SELECT id, name, address, created_at AS createdAt, updated_at AS updatedAt
+           FROM venues WHERE lower(trim(name)) = 'tbd' ORDER BY created_at ASC, id ASC LIMIT 1`,
+        )
+        .toArray()
+        .at(0);
+      if (existingTbd) {
+        return Response.json({
+          address: existingTbd.address,
+          createdAt: existingTbd.createdAt,
+          id: existingTbd.id,
+          name: existingTbd.name,
+          updatedAt: existingTbd.updatedAt,
+        });
+      }
+    }
     storage.transactionSync(() => {
+      // Re-check inside the transaction so concurrent TBD creates in the same
+      // Organization serialize to a single shared record.
+      if (venue.name.trim().toLowerCase() === "tbd") {
+        const raced = storage.sql
+          .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
+            `SELECT id FROM venues WHERE lower(trim(name)) = 'tbd' LIMIT 1`,
+          )
+          .toArray()
+          .at(0);
+        if (raced) return;
+      }
       storage.sql.exec(
         "INSERT INTO venues (id, name, address, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
         venue.id,
@@ -288,6 +327,30 @@ export function writeVenue(
       );
       insertAudit(storage, operation, "venue.created", "venue", venue.id, venue, occurredAt);
     });
+    const racedWinner = storage.sql
+      .exec<{
+        readonly [column: string]: SqlStorageValue;
+        readonly address: string;
+        readonly createdAt: string;
+        readonly id: string;
+        readonly name: string;
+        readonly updatedAt: string;
+      }>(
+        `SELECT id, name, address, created_at AS createdAt, updated_at AS updatedAt
+         FROM venues WHERE lower(trim(name)) = 'tbd' AND id != ? ORDER BY created_at ASC LIMIT 1`,
+        venue.id,
+      )
+      .toArray()
+      .at(0);
+    if (venue.name.trim().toLowerCase() === "tbd" && racedWinner) {
+      return Response.json({
+        address: racedWinner.address,
+        createdAt: racedWinner.createdAt,
+        id: racedWinner.id,
+        name: racedWinner.name,
+        updatedAt: racedWinner.updatedAt,
+      });
+    }
     return Response.json({ ...venue, createdAt: occurredAt, updatedAt: occurredAt });
   }
   if (operation.action === "update_venue") {

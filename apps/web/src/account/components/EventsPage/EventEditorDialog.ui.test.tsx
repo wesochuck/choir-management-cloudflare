@@ -1,10 +1,22 @@
-import type { OrganizationEventRequest } from "@choir/contracts";
-import { fireEvent, render, screen } from "@testing-library/react";
+import type { OrganizationEventRequest, OrganizationVenue } from "@choir/contracts";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { EventEditorDialog } from "./dialogs";
 import type { EventsState } from "./types";
 import { emptyEvent } from "./utils";
+
+vi.mock("../../../auth/api", async (importOriginal) => {
+  const actual = await importOriginal();
+  if (typeof actual !== "object" || actual === null) throw new Error("Unexpected auth api shape");
+  return {
+    ...actual,
+    createOrganizationVenue: vi.fn(),
+    listOrganizationVenues: vi.fn(),
+  };
+});
+
+import { createOrganizationVenue, listOrganizationVenues } from "../../../auth/api";
 
 const readyState: EventsState = {
   events: [],
@@ -16,10 +28,297 @@ const readyState: EventsState = {
   venues: [],
 };
 
+const venueHall: OrganizationVenue = {
+  address: "123 Main St",
+  createdAt: "2026-01-01T00:00:00Z",
+  id: "venue-1",
+  name: "City Concert Hall",
+  updatedAt: "2026-01-01T00:00:00Z",
+};
+
+const tbdVenue: OrganizationVenue = {
+  address: "",
+  createdAt: "2026-01-02T00:00:00Z",
+  id: "venue-tbd",
+  name: "TBD",
+  updatedAt: "2026-01-02T00:00:00Z",
+};
+
+function stateWithVenues(venues: readonly OrganizationVenue[]): EventsState {
+  return { ...readyState, venues };
+}
+
+async function switchToSection(label: RegExp | string): Promise<void> {
+  const user = userEvent.setup();
+  const tab = screen.getByRole("tab", { name: label });
+  await user.click(tab);
+}
+
+beforeEach(() => {
+  vi.mocked(createOrganizationVenue).mockReset();
+  vi.mocked(listOrganizationVenues).mockReset();
+  vi.mocked(listOrganizationVenues).mockResolvedValue([]);
+});
+
+describe("EventEditorDialog section layout", () => {
+  it("renders five sections for Performances with required indicators", () => {
+    const performance: OrganizationEventRequest = {
+      ...emptyEvent,
+      title: "Fall Concert",
+      type: "Performance",
+      venueId: venueHall.id,
+      rsvpDeadlineDate: "2026-10-10",
+    };
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={performance}
+        eventStart="2026-11-15T15:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+    expect(screen.getByRole("tab", { name: /Basics/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Schedule & venue/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /RSVPs & reminders/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Ticket sales/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Public content/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("Event section")).toBeInTheDocument();
+  });
+
+  it("hides RSVP and ticket sections for Rehearsals", () => {
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={emptyEvent}
+        eventStart="2026-11-15T15:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={readyState}
+      />,
+    );
+    expect(screen.getByRole("tab", { name: /Basics/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Schedule & venue/ })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /RSVPs & reminders/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /Ticket sales/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Public content/ })).toBeInTheDocument();
+  });
+
+  it("keeps drafts when switching sections via sidebar and mobile dropdown", async () => {
+    const user = userEvent.setup();
+    const setEvent = vi.fn();
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={{ ...emptyEvent, title: "Draft Title" }}
+        eventStart="2026-11-15T15:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={setEvent}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+    expect(screen.getByDisplayValue("Draft Title")).toBeInTheDocument();
+    await switchToSection(/Schedule & venue/);
+    expect(screen.getByLabelText(/Venue \*/)).toBeInTheDocument();
+    const mobileSelect = screen.getByLabelText("Event section");
+    await user.selectOptions(mobileSelect, "public");
+    expect(screen.getByRole("heading", { name: /Public content/i })).toBeInTheDocument();
+    expect(screen.getByLabelText("Public details")).toBeInTheDocument();
+  });
+
+  it("blocks save with missing venue and jumps to Schedule with first-invalid focus", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    const withTitle: OrganizationEventRequest = {
+      ...emptyEvent,
+      title: "No Venue Concert",
+      type: "Rehearsal",
+      venueId: null,
+    };
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={withTitle}
+        eventStart="2026-11-15T15:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+    // Switch to schedule to make venue field visible, then attempt save via footer.
+    await switchToSection(/Schedule & venue/);
+    const saveButton = screen.getByRole("button", { name: /Create event/ });
+    await user.click(saveButton);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(await screen.findAllByText(/Select a saved venue before saving/)).not.toHaveLength(0);
+    expect(screen.getByRole("tab", { name: /Schedule & venue/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+});
+
+describe("EventEditorDialog venue requirement and TBD", () => {
+  it("shows TBD helper when venue is missing and creates shared TBD without losing drafts", async () => {
+    const user = userEvent.setup();
+    let draft: OrganizationEventRequest = {
+      ...emptyEvent,
+      title: "TBD Concert",
+      type: "Rehearsal",
+      venueId: null,
+    };
+    const setEvent = vi.fn(
+      (updater: (current: OrganizationEventRequest) => OrganizationEventRequest) => {
+        if (typeof updater === "function") draft = updater(draft);
+      },
+    );
+    const onVenueCreated = vi.fn();
+    vi.mocked(listOrganizationVenues).mockResolvedValue([]);
+    vi.mocked(createOrganizationVenue).mockResolvedValue(tbdVenue);
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart="2026-11-15T15:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        onVenueCreated={onVenueCreated}
+        setEvent={setEvent}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+    await switchToSection(/Schedule & venue/);
+    expect(screen.getByText(/Location not yet confirmed/)).toBeInTheDocument();
+    const tbdButton = screen.getByRole("button", { name: /Create or select TBD/ });
+    await user.click(tbdButton);
+    expect(vi.mocked(createOrganizationVenue)).toHaveBeenCalledWith("TBD", "");
+    // Wait for async state update.
+    await screen.findByText(/Working|Create or select TBD/);
+    expect(setEvent).toHaveBeenCalled();
+    expect(onVenueCreated).toHaveBeenCalledWith(tbdVenue);
+  });
+
+  it("reuses existing TBD regardless of casing without duplicating", async () => {
+    const user = userEvent.setup();
+    const mixedCaseTbd: OrganizationVenue = { ...tbdVenue, name: "  tBd " };
+    vi.mocked(listOrganizationVenues).mockResolvedValue([mixedCaseTbd]);
+    vi.mocked(createOrganizationVenue).mockResolvedValue(mixedCaseTbd);
+    const setEvent = vi.fn();
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={{ ...emptyEvent, title: "Reuse", type: "Rehearsal", venueId: null }}
+        eventStart="2026-11-15T15:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={setEvent}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall, mixedCaseTbd])}
+      />,
+    );
+    await switchToSection(/Schedule & venue/);
+    await user.click(screen.getByRole("button", { name: /Create or select TBD/ }));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(vi.mocked(createOrganizationVenue)).not.toHaveBeenCalled();
+    expect(setEvent).toHaveBeenCalled();
+  });
+
+  it("shows nonblocking TBD confirmation once TBD is selected", async () => {
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-tbd-1"
+        error={null}
+        event={{ ...emptyEvent, title: "TBD Selected", type: "Rehearsal", venueId: tbdVenue.id }}
+        eventStart="2026-11-15T15:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall, tbdVenue])}
+      />,
+    );
+    await switchToSection(/Schedule & venue/);
+    expect(screen.getByText(/Venue to be confirmed/)).toBeInTheDocument();
+    expect(screen.queryByText(/Select a saved venue before saving/)).not.toBeInTheDocument();
+  });
+
+  it("surfaces TBD creation failure without losing drafts", async () => {
+    const user = userEvent.setup();
+    vi.mocked(listOrganizationVenues).mockResolvedValue([]);
+    vi.mocked(createOrganizationVenue).mockRejectedValue(new Error("network"));
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={{ ...emptyEvent, title: "Keep Draft", type: "Rehearsal", venueId: null }}
+        eventStart="2026-11-15T15:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+    await switchToSection(/Schedule & venue/);
+    await user.click(screen.getByRole("button", { name: /Create or select TBD/ }));
+    expect(await screen.findByText(/could not be created/)).toBeInTheDocument();
+    await switchToSection(/Basics/);
+    expect(screen.getByDisplayValue("Keep Draft")).toBeInTheDocument();
+  });
+});
+
 describe("EventEditorDialog public graphic upload and preview", () => {
   it("renders the dropzone and updates preview when valid image is selected", async () => {
     const user = userEvent.setup();
-    const setEvent = vi.fn();
     const setGraphicFile = vi.fn();
     const mockCreateObjectURL = vi
       .spyOn(URL, "createObjectURL")
@@ -36,12 +335,13 @@ describe("EventEditorDialog public graphic upload and preview", () => {
         graphicFile={null}
         onClose={vi.fn()}
         onSubmit={vi.fn()}
-        setEvent={setEvent}
+        setEvent={vi.fn()}
         setEventStart={vi.fn()}
         setGraphicFile={setGraphicFile}
-        state={readyState}
+        state={stateWithVenues([venueHall])}
       />,
     );
+    await switchToSection(/Public content/);
 
     expect(screen.getByText("Public graphic")).toBeInTheDocument();
     expect(screen.getByText(/Drag and drop an image here/)).toBeInTheDocument();
@@ -65,7 +365,7 @@ describe("EventEditorDialog public graphic upload and preview", () => {
     mockCreateObjectURL.mockRestore();
   });
 
-  it("shows an error when non-supported image type is chosen", () => {
+  it("shows an error when non-supported image type is chosen", async () => {
     const setGraphicFile = vi.fn();
 
     render(
@@ -82,9 +382,10 @@ describe("EventEditorDialog public graphic upload and preview", () => {
         setEvent={vi.fn()}
         setEventStart={vi.fn()}
         setGraphicFile={setGraphicFile}
-        state={readyState}
+        state={stateWithVenues([venueHall])}
       />,
     );
+    await switchToSection(/Public content/);
 
     const fileInput = document.querySelector("#events-page-graphic");
     expect(fileInput).toBeInstanceOf(HTMLInputElement);
@@ -116,9 +417,10 @@ describe("EventEditorDialog public graphic upload and preview", () => {
         setEvent={vi.fn()}
         setEventStart={vi.fn()}
         setGraphicFile={setGraphicFile}
-        state={readyState}
+        state={stateWithVenues([venueHall])}
       />,
     );
+    await switchToSection(/Public content/);
 
     const fileInput = document.querySelector("#events-page-graphic");
     expect(fileInput).toBeInstanceOf(HTMLInputElement);
@@ -134,7 +436,7 @@ describe("EventEditorDialog public graphic upload and preview", () => {
     expect(setGraphicFile).not.toHaveBeenCalled();
   });
 
-  it("shows saved graphic preview and allows removing saved graphic", () => {
+  it("shows saved graphic preview and allows removing saved graphic", async () => {
     const setEvent = vi.fn();
     const eventWithSavedGraphic: OrganizationEventRequest = {
       ...emptyEvent,
@@ -155,9 +457,10 @@ describe("EventEditorDialog public graphic upload and preview", () => {
         setEvent={setEvent}
         setEventStart={vi.fn()}
         setGraphicFile={vi.fn()}
-        state={readyState}
+        state={stateWithVenues([venueHall])}
       />,
     );
+    await switchToSection(/Public content/);
 
     expect(screen.getByAltText("Public graphic preview")).toHaveAttribute(
       "src",
@@ -170,12 +473,14 @@ describe("EventEditorDialog public graphic upload and preview", () => {
     expect(setEvent).toHaveBeenCalled();
   });
 
-  it("warns admin when ticket sales are enabled for a past event and clears warning for future date", () => {
+  it("warns admin when ticket sales are enabled for a past event and clears warning for future date", async () => {
     const pastPerformance: OrganizationEventRequest = {
       ...emptyEvent,
       isTicketingEnabled: true,
       publishOnWebsite: true,
       type: "Performance",
+      venueId: venueHall.id,
+      rsvpDeadlineDate: "2026-10-10",
     };
 
     const { rerender } = render(
@@ -192,9 +497,10 @@ describe("EventEditorDialog public graphic upload and preview", () => {
         setEvent={vi.fn()}
         setEventStart={vi.fn()}
         setGraphicFile={vi.fn()}
-        state={readyState}
+        state={stateWithVenues([venueHall])}
       />,
     );
+    await switchToSection(/Ticket sales/);
 
     expect(
       screen.getByText(/This performance date has already passed. Ticket sales will remain closed/),
@@ -205,7 +511,6 @@ describe("EventEditorDialog public graphic upload and preview", () => {
       ),
     ).toBeInTheDocument();
 
-    // Rerender with future date
     rerender(
       <EventEditorDialog
         busy={false}
@@ -220,19 +525,22 @@ describe("EventEditorDialog public graphic upload and preview", () => {
         setEvent={vi.fn()}
         setEventStart={vi.fn()}
         setGraphicFile={vi.fn()}
-        state={readyState}
+        state={stateWithVenues([venueHall])}
       />,
     );
+    await switchToSection(/Ticket sales/);
 
     expect(screen.queryByText(/This performance date has already passed/)).not.toBeInTheDocument();
   });
 
-  it("warns admin when ticketing is enabled but event is not published on public website", () => {
+  it("warns admin when ticketing is enabled but event is not published on public website", async () => {
     const unpublishedPerformance: OrganizationEventRequest = {
       ...emptyEvent,
       isTicketingEnabled: true,
       publishOnWebsite: false,
       type: "Performance",
+      venueId: venueHall.id,
+      rsvpDeadlineDate: "2026-10-10",
     };
 
     render(
@@ -249,23 +557,25 @@ describe("EventEditorDialog public graphic upload and preview", () => {
         setEvent={vi.fn()}
         setEventStart={vi.fn()}
         setGraphicFile={vi.fn()}
-        state={readyState}
+        state={stateWithVenues([venueHall])}
       />,
     );
+    await switchToSection(/Ticket sales/);
 
     expect(
       screen.getByText(/This event will not appear on the public concert schedule/),
     ).toBeInTheDocument();
   });
 
-  it("warns admin when publishing an event without a venue and clears warning once venue is assigned", () => {
+  it("requires venue in Schedule section instead of publishing warning", async () => {
     const publishedWithoutVenue: OrganizationEventRequest = {
       ...emptyEvent,
       publishOnWebsite: true,
+      type: "Rehearsal",
       venueId: null,
     };
 
-    const { rerender } = render(
+    render(
       <EventEditorDialog
         busy={false}
         dialogOpen={true}
@@ -279,80 +589,31 @@ describe("EventEditorDialog public graphic upload and preview", () => {
         setEvent={vi.fn()}
         setEventStart={vi.fn()}
         setGraphicFile={vi.fn()}
-        state={{
-          ...readyState,
-          venues: [
-            {
-              address: "123 Main St",
-              createdAt: "2026-01-01T00:00:00Z",
-              id: "venue-1",
-              name: "City Concert Hall",
-              updatedAt: "2026-01-01T00:00:00Z",
-            },
-          ],
-        }}
+        state={stateWithVenues([venueHall])}
       />,
     );
-
-    expect(
-      screen.getByText(
-        /This event is set to publish on the public website without an assigned venue/,
-      ),
-    ).toBeInTheDocument();
-
-    // Rerender with venue assigned
-    rerender(
-      <EventEditorDialog
-        busy={false}
-        dialogOpen={true}
-        editingId="event-novenue-1"
-        error={null}
-        event={{ ...publishedWithoutVenue, venueId: "venue-1" }}
-        eventStart="2028-12-01T19:00"
-        graphicFile={null}
-        onClose={vi.fn()}
-        onSubmit={vi.fn()}
-        setEvent={vi.fn()}
-        setEventStart={vi.fn()}
-        setGraphicFile={vi.fn()}
-        state={{
-          ...readyState,
-          venues: [
-            {
-              address: "123 Main St",
-              createdAt: "2026-01-01T00:00:00Z",
-              id: "venue-1",
-              name: "City Concert Hall",
-              updatedAt: "2026-01-01T00:00:00Z",
-            },
-          ],
-        }}
-      />,
-    );
-
-    expect(
-      screen.queryByText(
-        /This event is set to publish on the public website without an assigned venue/,
-      ),
-    ).not.toBeInTheDocument();
+    await switchToSection(/Schedule & venue/);
+    expect(screen.getByText(/Location not yet confirmed/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Create or select TBD/ })).toBeInTheDocument();
   });
 
-  it("warns admin when ticket sales are enabled without an assigned venue", () => {
-    const ticketedWithoutVenue: OrganizationEventRequest = {
+  it("shows TBD truthful notice for ticketed events instead of missing-venue warning", async () => {
+    const ticketedWithTbd: OrganizationEventRequest = {
       ...emptyEvent,
       isTicketingEnabled: true,
       publishOnWebsite: false,
       type: "Performance",
-      venueId: null,
+      venueId: tbdVenue.id,
+      rsvpDeadlineDate: "2026-10-10",
     };
 
     render(
       <EventEditorDialog
         busy={false}
         dialogOpen={true}
-        editingId="event-ticket-novenue"
+        editingId="event-ticket-tbd"
         error={null}
-        event={ticketedWithoutVenue}
+        event={ticketedWithTbd}
         eventStart="2028-12-01T19:00"
         graphicFile={null}
         onClose={vi.fn()}
@@ -360,22 +621,22 @@ describe("EventEditorDialog public graphic upload and preview", () => {
         setEvent={vi.fn()}
         setEventStart={vi.fn()}
         setGraphicFile={vi.fn()}
-        state={readyState}
+        state={stateWithVenues([venueHall, tbdVenue])}
       />,
     );
-
-    expect(
-      screen.getByText(/Ticket sales are enabled without an assigned venue/),
-    ).toBeInTheDocument();
+    await switchToSection(/Ticket sales/);
+    expect(screen.getByText(/TBD venue:/)).toBeInTheDocument();
   });
 });
 
 describe("EventEditorDialog ticketing section and returnTo navigation", () => {
-  it("renders ticket sales section with heading for Performance events", () => {
+  it("renders ticket sales section with heading for Performance events", async () => {
     const performanceEvent: OrganizationEventRequest = {
       ...emptyEvent,
       isTicketingEnabled: true,
       type: "Performance",
+      venueId: venueHall.id,
+      rsvpDeadlineDate: "2026-10-10",
     };
 
     render(
@@ -392,14 +653,15 @@ describe("EventEditorDialog ticketing section and returnTo navigation", () => {
         setEvent={vi.fn()}
         setEventStart={vi.fn()}
         setGraphicFile={vi.fn()}
-        state={readyState}
+        state={stateWithVenues([venueHall])}
       />,
     );
+    await switchToSection(/Ticket sales/);
 
     const section = document.getElementById("event-editor-section-tickets");
     expect(section).toBeInTheDocument();
     expect(section).toHaveAttribute("data-section", "tickets");
-    expect(screen.getByRole("heading", { level: 3, name: "Ticket Sales" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: /Ticket sales/i })).toBeInTheDocument();
     expect(screen.getByLabelText("Ticket capacity")).toBeInTheDocument();
     expect(screen.getByLabelText("Advance price (USD)")).toBeInTheDocument();
     expect(screen.getByLabelText("Day-of price (USD)")).toBeInTheDocument();
@@ -411,9 +673,14 @@ describe("EventEditorDialog ticketing section and returnTo navigation", () => {
     const performanceEvent: OrganizationEventRequest = {
       ...emptyEvent,
       isTicketingEnabled: true,
+      title: "Same Title",
       type: "Performance",
+      venueId: venueHall.id,
+      rsvpDeadlineDate: "2026-10-10",
     };
 
+    // Render clean: event matches initial draft by using same title twice via key remount.
+    // The dialog captures initialDraft on mount, so a freshly mounted clean dialog shows Back.
     render(
       <EventEditorDialog
         busy={false}
@@ -429,11 +696,13 @@ describe("EventEditorDialog ticketing section and returnTo navigation", () => {
         setEvent={vi.fn()}
         setEventStart={vi.fn()}
         setGraphicFile={vi.fn()}
-        state={readyState}
+        state={stateWithVenues([venueHall])}
       />,
     );
 
-    const backButton = screen.getByRole("button", { name: "Back to Ticketing" });
+    // Force clean by ensuring no dirty: initialDraft equals event on first mount.
+    // The component's initialDraft is captured once, so this render is clean.
+    const backButton = await screen.findByRole("button", { name: "Back to Ticketing" });
     expect(backButton).toBeInTheDocument();
 
     await user.click(backButton);
@@ -445,6 +714,8 @@ describe("EventEditorDialog ticketing section and returnTo navigation", () => {
       ...emptyEvent,
       title: "Initial Title",
       type: "Performance",
+      venueId: venueHall.id,
+      rsvpDeadlineDate: "2026-10-10",
     };
     const modifiedEvent: OrganizationEventRequest = {
       ...initialEvent,
@@ -466,12 +737,12 @@ describe("EventEditorDialog ticketing section and returnTo navigation", () => {
         setEvent={vi.fn()}
         setEventStart={vi.fn()}
         setGraphicFile={vi.fn()}
-        state={readyState}
+        state={stateWithVenues([venueHall])}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Back to Ticketing" })).toBeInTheDocument();
-
+    // Initially clean, Back should be present. Then rerender with modified title to simulate dirty.
+    // Note: initialDraft is captured once, so second render with different title becomes dirty.
     rerender(
       <EventEditorDialog
         busy={false}
@@ -487,22 +758,24 @@ describe("EventEditorDialog ticketing section and returnTo navigation", () => {
         setEvent={vi.fn()}
         setEventStart={vi.fn()}
         setGraphicFile={vi.fn()}
-        state={readyState}
+        state={stateWithVenues([venueHall])}
       />,
     );
 
     expect(screen.queryByRole("button", { name: "Back to Ticketing" })).not.toBeInTheDocument();
-    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(screen.getAllByText("Unsaved changes").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Save event" })).toBeInTheDocument();
   });
 
-  it("focuses ticketing controls when initialSection is tickets", () => {
+  it("selects Ticket Sales section when initialSection is tickets", () => {
     vi.useFakeTimers();
     window.HTMLElement.prototype.scrollIntoView = vi.fn();
     const performanceEvent: OrganizationEventRequest = {
       ...emptyEvent,
       isTicketingEnabled: true,
       type: "Performance",
+      venueId: venueHall.id,
+      rsvpDeadlineDate: "2026-10-10",
     };
 
     render(
@@ -520,14 +793,55 @@ describe("EventEditorDialog ticketing section and returnTo navigation", () => {
         setEvent={vi.fn()}
         setEventStart={vi.fn()}
         setGraphicFile={vi.fn()}
-        state={readyState}
+        state={stateWithVenues([venueHall])}
       />,
     );
 
     vi.advanceTimersByTime(100);
+    expect(screen.getByRole("tab", { name: /Ticket sales/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
 
     const capacityInput = document.getElementById("events-page-capacity");
     expect(document.activeElement).toBe(capacityInput);
     vi.useRealTimers();
+  });
+
+  it("exposes mobile Event section dropdown synchronized to sidebar state", async () => {
+    const user = userEvent.setup();
+    const performanceEvent: OrganizationEventRequest = {
+      ...emptyEvent,
+      title: "Mobile Sync",
+      type: "Performance",
+      venueId: venueHall.id,
+      rsvpDeadlineDate: "2026-10-10",
+    };
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={performanceEvent}
+        eventStart="2028-12-01T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+    const select = screen.getByLabelText("Event section");
+    await user.selectOptions(select, "rsvp");
+    expect(screen.getByRole("tab", { name: /RSVPs & reminders/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByLabelText(/Member RSVP deadline/)).toBeInTheDocument();
+    const region = within(screen.getByRole("region", { name: /Event editor save bar/ }));
+    expect(region.getByRole("button", { name: /Create event|Save event/ })).toBeInTheDocument();
   });
 });

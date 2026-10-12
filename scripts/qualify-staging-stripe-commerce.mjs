@@ -200,10 +200,27 @@ async function verifyStripeAccountReady(cookie) {
   return parsed;
 }
 
-async function createTicketedPerformance(cookie, priceCents = 0) {
+let cachedVenueId = null;
+async function ensureQualificationVenue(cookie) {
+  if (cachedVenueId) return cachedVenueId;
+  const result = await request(`${organizationHost}/api/organization/venues`, "POST", cookie, {
+    address: "",
+    name: "TBD",
+  });
+  if (result.response.status !== 201 || typeof result.body?.id !== "string") {
+    throw new Error(
+      `Qualification venue creation failed with ${requestFailure(result.response.status, result.body)}.`,
+    );
+  }
+  cachedVenueId = result.body.id;
+  return cachedVenueId;
+}
+
+async function createTicketedPerformance(cookie, priceCents = 0, options = {}) {
   const now = new Date();
   const startsAt = new Date(now.getTime() + 6 * 60 * 60 * 1000).toISOString();
   const title = `QUAL-${now.toISOString().slice(0, 10)} Commerce ${crypto.randomUUID().slice(0, 8)}`;
+  const venueId = options.venueId ?? (await ensureQualificationVenue(cookie));
   const result = await request(`${organizationHost}/api/organization/events`, "POST", cookie, {
     advancePriceCents: priceCents,
     callTime: "",
@@ -226,7 +243,7 @@ async function createTicketedPerformance(cookie, priceCents = 0) {
     title,
     rsvpDeadlineDate: new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
     type: "Performance",
-    venueId: null,
+    venueId,
   });
   if (result.response.status !== 201 || typeof result.body?.id !== "string") {
     throw new Error(

@@ -286,6 +286,8 @@ export function calendarMutationMessage(code: string): string {
     return "Every credited Profile must exist in this Organization.";
   }
   if (code === "venue_not_found") return "The selected venue was not found in this Organization.";
+  if (code === "venue_required")
+    return "A saved venue is required. Select a venue or create a shared TBD venue.";
   if (code === "parent_performance_not_found") {
     return "The selected parent performance was not found in this Organization.";
   }

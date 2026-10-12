@@ -197,12 +197,32 @@ export function EventsPage({
     setDialogOpen(true);
   }
 
+  function handleVenueCreated(venue: {
+    readonly id: string;
+    readonly name: string;
+    readonly address: string;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+  }): void {
+    setState((current) => {
+      if (current.status !== "ready") return current;
+      if (current.venues.some((candidate) => candidate.id === venue.id)) return current;
+      return {
+        ...current,
+        venues: [...current.venues, venue].toSorted((left, right) =>
+          left.name.localeCompare(right.name),
+        ),
+      };
+    });
+  }
+
   function openBulkRehearsals() {
     if (state.status !== "ready") return;
     const performances = state.events.filter((candidate) => candidate.type === "Performance");
     const target = performances[0];
+    const tbd = state.venues.find((venue) => venue.name.trim().toLocaleLowerCase() === "tbd");
     setBulkRehearsalPerformanceId(target?.id ?? "");
-    setBulkRehearsalVenueId(state.venues[0]?.id ?? "");
+    setBulkRehearsalVenueId(tbd?.id ?? "");
     setBulkRehearsalDay("");
     setBulkRehearsalCount("8");
     setBulkRehearsalTime("19:00");
@@ -248,6 +268,16 @@ export function EventsPage({
     const startsAt = zonedLocalDateTimeToUtc(eventStart, state.timezone);
     if (!startsAt) {
       setError("Enter a valid date and time.");
+      return;
+    }
+    if (!eventDraft.venueId) {
+      setError(
+        "Select a saved venue before saving this event. Use TBD when the location is unknown.",
+      );
+      return;
+    }
+    if (!state.venues.some((venue) => venue.id === eventDraft.venueId)) {
+      setError("The selected venue is no longer available. Choose another venue.");
       return;
     }
     setBusy(true);
@@ -364,27 +394,47 @@ export function EventsPage({
     }
   }
 
-  async function bulkAddRehearsals() {
-    if (state.status !== "ready") return;
+  function validateBulkRehearsals(): {
+    readonly count: number;
+    readonly dayOfWeek: number;
+    readonly target: OrganizationEvent;
+  } | null {
+    if (state.status !== "ready") return null;
     const target = state.events.find(({ id }) => id === bulkRehearsalPerformanceId);
     const count = Number.parseInt(bulkRehearsalCount, 10);
     const dayOfWeek = Number.parseInt(bulkRehearsalDay, 10);
     if (target?.type !== "Performance") {
       setError("Choose a target Performance.");
-      return;
+      return null;
+    }
+    if (!bulkRehearsalVenueId) {
+      setError("Select a rehearsal venue before generating. Use TBD when the location is unknown.");
+      return null;
+    }
+    if (!state.venues.some((venue) => venue.id === bulkRehearsalVenueId)) {
+      setError("The selected rehearsal venue is no longer available. Choose another venue.");
+      return null;
     }
     if (!Number.isInteger(count) || count < 1 || count > 52) {
       setError("Choose between 1 and 52 rehearsals.");
-      return;
+      return null;
     }
     if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
       setError("Choose a day of the week.");
-      return;
+      return null;
     }
     if (!/^\d{2}:\d{2}$/.test(bulkRehearsalTime)) {
       setError("Enter a valid rehearsal time.");
-      return;
+      return null;
     }
+    return { count, dayOfWeek, target };
+  }
+
+  async function bulkAddRehearsals() {
+    if (state.status !== "ready") return;
+    const validated = validateBulkRehearsals();
+    if (!validated) return;
+    const { count, dayOfWeek, target } = validated;
     const startsAt = rehearsalDatesBeforePerformance(
       target,
       count,
@@ -407,7 +457,7 @@ export function EventsPage({
             startsAt: start,
             title: `${target.title} rehearsal`,
             type: "Rehearsal",
-            venueId: bulkRehearsalVenueId || null,
+            venueId: bulkRehearsalVenueId,
           }),
         ),
       );
@@ -589,6 +639,7 @@ export function EventsPage({
         onSubmit={(eventDraft) => {
           void saveEvent(eventDraft);
         }}
+        onVenueCreated={handleVenueCreated}
         returnTo={returnTo}
         setEvent={setEvent}
         setEventStart={setEventStart}
@@ -628,6 +679,7 @@ export function EventsPage({
         onSubmit={() => {
           void bulkAddRehearsals();
         }}
+        onVenueCreated={handleVenueCreated}
         open={bulkRehearsalOpen}
         performanceId={bulkRehearsalPerformanceId}
         performances={

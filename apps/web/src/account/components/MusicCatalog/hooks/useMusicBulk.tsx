@@ -199,6 +199,11 @@ export function useMusicBulk({
           </>
         );
       } else {
+        if (!payload.venueId) {
+          throw new Error(
+            "Select a saved venue before creating this concert. Use TBD when the location is unknown.",
+          );
+        }
         targetEvent = await createOrganizationEvent({
           advancePriceCents: 0,
           callTime: "",
@@ -224,7 +229,7 @@ export function useMusicBulk({
           ticketCapacity: null,
           title: payload.title,
           type: "Performance",
-          venueId: payload.venueId ?? null,
+          venueId: payload.venueId,
         });
         actionNotice = (
           <>

@@ -87,6 +87,12 @@ export function MusicPiecePerformances({
       setError("Enter a performance title and a valid date and time.");
       return;
     }
+    if (!quickVenueId) {
+      setError(
+        "Select a saved venue before creating this performance. Use TBD when the location is unknown.",
+      );
+      return;
+    }
     setBusyId("quick-add");
     setError(null);
     try {
@@ -220,14 +226,15 @@ export function MusicPiecePerformances({
               />
             </label>
             <label className="field">
-              Venue (optional)
+              Venue *
               <select
+                required
                 value={quickVenueId}
                 onChange={(event) => {
                   setQuickVenueId(event.target.value);
                 }}
               >
-                <option value="">No venue</option>
+                <option value="">Select a venue…</option>
                 {venues.map((venue) => (
                   <option key={venue.id} value={venue.id}>
                     {venue.name}

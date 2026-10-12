@@ -57,6 +57,13 @@ export const organizationEventFieldsSchema = z.object({
 
 export const organizationEventRequestSchema = organizationEventFieldsSchema.superRefine(
   (event, context) => {
+    if (event.venueId === null) {
+      context.addIssue({
+        code: "custom",
+        message: "A saved venue is required. Select a venue or create a shared TBD venue.",
+        path: ["venueId"],
+      });
+    }
     if (event.type !== "Rehearsal" && event.parentPerformanceId !== null) {
       context.addIssue({
         code: "custom",

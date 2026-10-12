@@ -1905,7 +1905,18 @@ test.describe("admin ticket management", () => {
     });
     await page.route("**/api/organization/venues", async (route) => {
       await route.fulfill({
-        body: JSON.stringify({ requestId, venues: [] }),
+        body: JSON.stringify({
+          requestId,
+          venues: [
+            {
+              address: "1 Hall Way",
+              createdAt: "2026-01-01T00:00:00.000Z",
+              id: adminEvent.venueId,
+              name: "City Concert Hall",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        }),
         contentType: "application/json",
         status: 200,
       });
@@ -2018,7 +2029,18 @@ test.describe("admin ticket management", () => {
     });
     await page.route("**/api/organization/venues", async (route) => {
       await route.fulfill({
-        body: JSON.stringify({ requestId, venues: [] }),
+        body: JSON.stringify({
+          requestId,
+          venues: [
+            {
+              address: "1 Hall Way",
+              createdAt: "2026-01-01T00:00:00.000Z",
+              id: adminEvent.venueId,
+              name: "City Concert Hall",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        }),
         contentType: "application/json",
         status: 200,
       });
@@ -2063,7 +2085,9 @@ test.describe("admin ticket management", () => {
     await expect(eventEditor).toBeVisible();
 
     await eventEditor.locator("#events-page-capacity").fill("250");
+    await eventEditor.getByRole("tab", { name: /RSVPs & reminders/ }).click();
     await eventEditor.locator("#events-page-rsvp-deadline").fill(futureDateString({ days: 280 }));
+    await eventEditor.getByRole("tab", { name: /Ticket sales/ }).click();
     await eventEditor.getByRole("button", { name: "Save event" }).click();
 
     await expect(eventEditor).not.toBeVisible();
