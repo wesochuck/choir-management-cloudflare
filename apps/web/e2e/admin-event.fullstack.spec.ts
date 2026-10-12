@@ -15,6 +15,7 @@ import {
   signInWithFullstackOtp,
   uniqueFullstackName,
 } from "./fixtures/fullstack";
+import { selectEventEditorSection } from "./support/eventEditor";
 
 const problemSchema = z.object({
   code: z.string().min(1),
@@ -41,10 +42,11 @@ test("creates an event that survives a reload against the real store", async ({
   await page.getByRole("button", { name: "Single event" }).click();
   const dialog = page.getByRole("dialog", { name: "Create event" });
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Title").fill(title);
-  await dialog.getByLabel("Start").fill(futureLocalDateTime());
+  await dialog.getByRole("textbox", { name: /Title/ }).fill(title);
   // Venue is mandatory; use the shared TBD venue when the location is unknown.
-  await dialog.getByRole("tab", { name: /Schedule & venue/ }).click();
+  // Start and venue are located in Schedule & venue.
+  await selectEventEditorSection(dialog, "schedule");
+  await dialog.getByLabel(/Start date/i).fill(futureLocalDateTime());
   await dialog.getByRole("button", { name: /Create or select TBD/ }).click();
   await expect(dialog.getByText(/Venue to be confirmed/)).toBeVisible();
 
@@ -54,8 +56,8 @@ test("creates an event that survives a reload against the real store", async ({
   await dialog.getByRole("button", { name: "Create event" }).click();
   await createRequest;
 
-  await expect(page.getByRole("status")).toContainText("Event created.");
   await expect(dialog).toBeHidden();
+  await expect(page.getByRole("status").filter({ hasText: "Event created." })).toBeVisible();
   // The title renders in both the desktop table and the mobile cards (the
   // hidden viewport variant stays in the DOM), so match only visible text.
   await expect(page.getByText(title).filter({ visible: true }).first()).toBeVisible();

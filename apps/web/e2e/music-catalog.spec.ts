@@ -51,11 +51,20 @@ function isCreditRenameRequest(
   );
 }
 
+const mockVenue = {
+  address: "1 Concert Way",
+  createdAt: "2026-08-17T00:00:00.000Z",
+  id: "77777777-7777-4777-8777-777777777777",
+  name: "Main Hall",
+  updatedAt: "2026-08-17T00:00:00.000Z",
+};
+
 function mockEvent(
   id: string,
   title: string,
   startsAt: string,
   setList: OrganizationEvent["setList"] = [],
+  venueId: string | null = mockVenue.id,
 ): OrganizationEvent {
   return {
     advancePriceCents: 0,
@@ -87,7 +96,7 @@ function mockEvent(
     title,
     type: "Performance",
     updatedAt: "2026-08-17T00:00:00.000Z",
-    venueId: null,
+    venueId,
   };
 }
 
@@ -150,6 +159,7 @@ async function handleEventDynamicRoute(
         parsed.data.title,
         parsed.data.startsAt,
         parsed.data.setList,
+        parsed.data.venueId,
       );
       setEvents([...events, newEvent]);
       await fulfill(route, newEvent);
@@ -306,7 +316,7 @@ async function installRoutes(page: Page): Promise<void> {
         statusAutomationRecoveryEnabled: true,
         voiceParts: [{ fullName: "Soprano 1", label: "S1", sectionCode: "S" }],
       },
-      "/api/organization/venues": { requestId, venues: [] },
+      "/api/organization/venues": { requestId, venues: [mockVenue] },
       "/api/platform/mfa/status": {
         activePlatformAdministrator: false,
         enrollmentComplete: false,
@@ -407,6 +417,7 @@ test("multi-selects pieces in music catalog and adds them to existing and new co
   await page.getByLabel("Create new concert").click();
   await page.getByLabel("Concert / Performance title").fill("Winter Concert 2026");
   await page.getByLabel("Date and time").fill("2026-12-10T19:30");
+  await page.getByLabel("Venue *").selectOption(mockVenue.id);
   await page.getByRole("button", { name: "Create concert & add set list" }).click();
 
   await expect(

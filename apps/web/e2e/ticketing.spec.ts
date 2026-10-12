@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { futureDateString, futureIsoDate, pastIsoDate } from "@choir/testkit";
 import { buildRosterConfigurationResponse } from "./fixtures/builders";
+import { selectEventEditorSection } from "./support/eventEditor";
 
 const requestId = "1f2e3d4c-5b6a-4789-8901-234567890abc";
 
@@ -284,7 +285,7 @@ const adminEvent = {
   title: "Spring Concert",
   type: "Performance",
   updatedAt: "2026-07-01T00:00:00.000Z",
-  venueId: null,
+  venueId: "33333333-3333-4333-8333-333333333333",
 };
 
 const secondAdminEvent = {
@@ -1988,7 +1989,7 @@ test.describe("admin ticket management", () => {
     await expect(eventEditor).toBeVisible();
     const ticketSalesSection = eventEditor.locator("#event-editor-section-tickets");
     await expect(ticketSalesSection).toBeVisible();
-    await expect(ticketSalesSection.getByRole("heading", { name: "Ticket Sales" })).toBeVisible();
+    await expect(eventEditor.getByRole("heading", { name: /Ticket sales/i })).toBeVisible();
     await expect(eventEditor.locator("#events-page-capacity")).toBeFocused();
 
     // 6. Verify 'Back to Ticketing' button is visible when dialog is not dirty
@@ -2085,9 +2086,9 @@ test.describe("admin ticket management", () => {
     await expect(eventEditor).toBeVisible();
 
     await eventEditor.locator("#events-page-capacity").fill("250");
-    await eventEditor.getByRole("tab", { name: /RSVPs & reminders/ }).click();
+    await selectEventEditorSection(eventEditor, "rsvp");
     await eventEditor.locator("#events-page-rsvp-deadline").fill(futureDateString({ days: 280 }));
-    await eventEditor.getByRole("tab", { name: /Ticket sales/ }).click();
+    await selectEventEditorSection(eventEditor, "tickets");
     await eventEditor.getByRole("button", { name: "Save event" }).click();
 
     await expect(eventEditor).not.toBeVisible();

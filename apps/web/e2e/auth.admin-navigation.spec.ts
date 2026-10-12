@@ -6,6 +6,7 @@ import {
   buildInvitationSummary,
 } from "./fixtures/builders";
 import { fulfillJson } from "./fixtures/session";
+import { selectEventEditorSection } from "./support/eventEditor";
 
 const invitationRequestId = "55555555-5555-4555-8555-555555555555";
 
@@ -157,7 +158,10 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   );
   await browserConcertEdit.getByRole("button", { name: "Edit", exact: true }).click();
   const eventEditor = page.getByRole("dialog", { name: "Edit event" });
+  await expect(eventEditor).toBeVisible();
+  await selectEventEditorSection(eventEditor, "rsvp");
   await expect(eventEditor.getByLabel("Member RSVP deadline")).toHaveValue("2027-08-13");
+  await selectEventEditorSection(eventEditor, "tickets");
   await expect(eventEditor.getByText("Ticket page and QR code")).toBeVisible();
   const ticketPageLink = eventEditor.locator(
     'a[href$="/tickets/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]',
@@ -165,6 +169,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(ticketPageLink).toBeVisible();
   await expect(ticketPageLink).toHaveAttribute("target", "_blank");
   await expect(eventEditor.getByRole("button", { name: "Download QR code" })).toBeVisible();
+  await selectEventEditorSection(eventEditor, "public");
   await expect(eventEditor.locator(".event-graphic-dropzone")).toContainText(
     "Drag and drop an image here",
   );
@@ -186,14 +191,21 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   });
   await expect(eventEditor.getByText("Selected: dropped-concert.png")).toBeVisible();
   await eventEditor.getByRole("button", { name: "Remove selected image" }).click();
-  await expect(eventEditor.getByRole("region", { name: "Unsaved event changes" })).toHaveCount(0);
-  await eventEditor.getByLabel("Title").fill("Browser Concert draft");
-  const eventSaveBar = eventEditor.getByRole("region", { name: "Unsaved event changes" });
+  const eventSaveBar = eventEditor.getByRole("region", { name: "Event editor save bar" });
+  await expect(eventSaveBar.getByText("No unsaved changes")).toBeVisible();
+  await expect(
+    eventSaveBar.getByRole("button", { name: "Save event", exact: true }),
+  ).toBeDisabled();
+  await selectEventEditorSection(eventEditor, "basics");
+  await eventEditor.getByRole("textbox", { name: /Title/ }).fill("Browser Concert draft");
   await expect(eventSaveBar).toBeVisible();
   await expect(eventSaveBar.getByText("Unsaved changes")).toBeVisible();
-  await expect(eventSaveBar.getByRole("button", { name: "Save event", exact: true })).toBeVisible();
-  await eventEditor.getByLabel("Title").fill("Browser Concert");
-  await expect(eventSaveBar).toHaveCount(0);
+  await expect(eventSaveBar.getByRole("button", { name: "Save event", exact: true })).toBeEnabled();
+  await eventEditor.getByRole("textbox", { name: /Title/ }).fill("Browser Concert");
+  await expect(eventSaveBar.getByText("No unsaved changes")).toBeVisible();
+  await expect(
+    eventSaveBar.getByRole("button", { name: "Save event", exact: true }),
+  ).toBeDisabled();
   await page.getByRole("button", { name: "Close" }).click();
   await expect(eventEditor).toHaveCount(0);
   await page.goto("/admin/attendance");

@@ -412,7 +412,7 @@ export function buildOrganizationEvent(
     title: "Browser Concert",
     type: "Performance",
     updatedAt: "2026-07-20T20:00:00.000Z",
-    venueId: null,
+    venueId: fixtureIds.venueId,
     ...overrides,
   };
   return validated(event, (value) =>
