@@ -130,7 +130,15 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     .locator("tr, .data-table-card")
     .filter({ hasText: "Unassigned Singer" });
   await expect(unassignedRsvpEntry).toContainText("Assign a part before managing RSVP.");
-  await expect(unassignedRsvpEntry.getByRole("button")).toHaveCount(0);
+  // No RSVP action buttons for an unassigned singer; the only button is the
+  // Open Profile name control (issue #137), which lets an admin assign a part.
+  await expect(unassignedRsvpEntry.getByRole("button")).toHaveCount(1);
+  await expect(
+    unassignedRsvpEntry.getByRole("button", { name: "Open profile for Unassigned Singer" }),
+  ).toHaveCount(1);
+  await expect(unassignedRsvpEntry.getByRole("button", { name: "Attending" })).toHaveCount(0);
+  await expect(unassignedRsvpEntry.getByRole("button", { name: "Declined" })).toHaveCount(0);
+  await expect(unassignedRsvpEntry.getByRole("button", { name: "Reset" })).toHaveCount(0);
   await page.goto("/admin/events");
   const eventsPageAfterRsvp = page.getByRole("main");
   await expect(eventsPageAfterRsvp.getByRole("heading", { name: "Events" })).toBeVisible();
