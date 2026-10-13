@@ -699,8 +699,9 @@
 
   @media screen {
     .seating-grid--canvas {
-      /* Reserve room for the visual lens at the scroll boundaries. */
-      padding: 2.5rem 3.5rem;
+      /* Keep the visual lens clear while retaining a compact outer buffer. */
+      padding-block: var(--spacing-md);
+      padding-inline: 3.5rem;
     }
 
     .seating-row--canvas {
@@ -767,12 +768,33 @@
       min-width: 7.5rem;
       border-color: var(--color-accent);
       box-shadow: var(--shadow-md);
-      transform: translate(-50%, -50%) scale(1.2);
+      transform: translate(-50%, calc(-50% + var(--seating-seat-lens-y-offset, 0px))) scale(1.2);
+    }
+
+    .seating-row--canvas:first-child .seating-seat--canvas[data-magnified] .seating-seat__surface,
+    .seating-row--canvas:last-child .seating-seat--canvas[data-magnified] .seating-seat__surface {
+      /* Give full names enough width to fit within the compact scroll-boundary clearance. */
+      width: max-content;
+      max-width: 12rem;
+    }
+
+    .seating-row--canvas:first-child .seating-seat--canvas[data-magnified] {
+      --seating-seat-lens-y-offset: var(--spacing-3xs);
+    }
+
+    .seating-row--canvas:last-child .seating-seat--canvas[data-magnified] {
+      --seating-seat-lens-y-offset: calc(0px - var(--spacing-3xs));
     }
 
     .seating-seat--canvas[data-magnified] .seating-seat__remove {
       top: -0.35rem;
       right: -0.35rem;
+    }
+
+    .seating-row--canvas:first-child .seating-seat--canvas[data-magnified] .seating-seat__remove,
+    .seating-row--canvas:last-child .seating-seat--canvas[data-magnified] .seating-seat__remove {
+      top: 0.2rem;
+      right: 0.2rem;
     }
 
     .seating-seat__surface .seating-seat__remove {
