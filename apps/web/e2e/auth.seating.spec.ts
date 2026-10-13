@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { installOrganizationApi } from "./fixtures/apiMocks";
 import {
+  buildAttendanceRow,
   buildOrganizationEvent,
   buildOrganizationProfile,
   buildSeatingChart,
@@ -714,5 +715,113 @@ test("defaults Seating to closest upcoming Performance and honors explicit deep 
   await expect(performanceSelect).toHaveValue(pastConcertId);
   await expect(page).toHaveURL(new RegExp(`eventId=${pastConcertId}`));
 
+  api.assertNoUnexpectedRequests();
+});
+
+test("explains RSVP eligibility and broadens a failed seating search in both themes", async ({
+  page,
+}, testInfo) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  const chart = buildSeatingChart({ assignments: {}, rowCounts: [3] });
+  const attending = buildOrganizationProfile({ displayName: "Available Singer" });
+  const missing = buildOrganizationProfile({
+    id: "77777777-7777-4777-8777-777777777777",
+    displayName: "Missing Singer",
+  });
+  api.profiles.set([attending, missing]);
+  api.seatingCharts.set([chart]);
+  api.attendanceRows.set(
+    new Map([
+      [
+        attending.id,
+        buildAttendanceRow({ profileId: attending.id, displayName: attending.displayName }),
+      ],
+    ]),
+  );
+  let mutations = 0;
+  await page.route("**/api/organization/events/*/rsvp", async (route) => {
+    expect(route.request().method()).toBe("PUT");
+    expect(route.request().postDataJSON()).toEqual({
+      profileId: missing.id,
+      rsvp: "Yes",
+      rsvpNote: "",
+    });
+    expect(new URL(route.request().url()).pathname).toBe(
+      `/api/organization/events/${chart.eventId}/rsvp`,
+    );
+    mutations += 1;
+    await route.fulfill({
+      json: {
+        eventId: chart.eventId,
+        profileId: missing.id,
+        rsvp: "Yes",
+        rsvpNote: "",
+        updatedAt: "2026-07-20T20:00:00.000Z",
+      },
+    });
+  });
+  await page.goto(`/admin/seating?eventId=${chart.eventId}&chartId=${chart.id}`);
+  if ((page.viewportSize()?.width ?? 1000) <= 700)
+    await page.getByRole("button", { name: "Edit anyway" }).click();
+  const tray = page.getByRole("region", { name: "Unassigned Profiles" });
+  await expect(tray).toContainText(
+    "Only active singers with a voice part who have RSVP'd Attending for this performance",
+  );
+  await expect(tray.getByRole("button", { name: "Review Event RSVPs" })).toBeVisible();
+  const search = tray.getByRole("searchbox");
+  await search.fill(" Missing ");
+  await expect(tray).toContainText("No unassigned attending singers match your search.");
+  for (const theme of ["light", "dark"] as const) {
+    const switchTheme = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await switchTheme.isVisible()) await switchTheme.click();
+    const broaden = tray.getByRole("button", { name: "Search entire roster" });
+    await broaden.focus();
+    await page.keyboard.press("Enter");
+    const lookup = page.getByRole("dialog", { name: "Profile lookup" });
+    await expect(lookup.getByRole("searchbox")).toHaveValue(" Missing ");
+    await expect(lookup).toContainText("Not RSVP'd Attending");
+    await expect(
+      lookup.getByRole("button", { name: "Mark Missing Singer Attending" }),
+    ).toBeVisible();
+    await lookup.screenshot({ path: testInfo.outputPath(`roster-lookup-${theme}.png`) });
+    await page.keyboard.press("Escape");
+    await expect(lookup).toBeHidden();
+    await expect(search).toHaveValue(" Missing ");
+  }
+  expect(mutations).toBe(0);
+  await tray.getByRole("button", { name: "Search entire roster" }).click();
+  await page.getByRole("button", { name: "Mark Missing Singer Attending" }).click();
+  await expect(page.getByRole("dialog", { name: "Profile lookup" })).toBeHidden();
+  expect(mutations).toBe(1);
+  await expect(search).toHaveValue(" Missing ");
+  await expect(tray).toContainText("Missing Singer");
+  await page.getByRole("button", { name: "Seat 1, empty", exact: true }).click();
+  const seat = page.getByRole("dialog", { name: "Seat 1", exact: true });
+  await expect(seat).toContainText("have RSVP'd Attending for this performance");
+  await expect(seat.getByRole("button", { name: /Missing Singer/ })).toBeVisible();
+  api.assertNoUnexpectedRequests();
+});
+
+test("hides the seating RSVP shortcut when the RSVP module is disabled", async ({ page }) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  const chart = buildSeatingChart();
+  api.seatingCharts.set([chart]);
+  await page.route("**/api/organization/module-state", async (route) => {
+    await route.fulfill({
+      json: {
+        modules: [
+          { id: "rsvp", enabled: false },
+          { id: "seating", enabled: true },
+        ],
+      },
+    });
+  });
+  await page.goto(`/admin/seating?eventId=${chart.eventId}&chartId=${chart.id}`);
+  if ((page.viewportSize()?.width ?? 1000) <= 700)
+    await page.getByRole("button", { name: "Edit anyway" }).click();
+  const tray = page.getByRole("region", { name: "Unassigned Profiles" });
+  await expect(tray).toBeVisible();
+  await expect(tray.getByRole("button", { name: "Review Event RSVPs" })).toHaveCount(0);
+  await expect(tray.getByRole("button", { name: "Lookup", exact: true })).toBeVisible();
   api.assertNoUnexpectedRequests();
 });

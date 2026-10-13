@@ -1395,6 +1395,24 @@
     cursor: pointer;
   }
 
+  .seating-roster-result {
+    grid-template-columns: minmax(0, 1fr) auto;
+    cursor: default;
+  }
+
+  .seating-roster-result p {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    overflow-wrap: anywhere;
+  }
+
+  .seating-roster-result button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
   .seating-lookup-row:hover,
   .seating-lookup-row:focus-visible {
     border-color: var(--color-accent);

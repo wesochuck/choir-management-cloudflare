@@ -26,6 +26,7 @@ export function useSeatingCharts({
 }: Args) {
   const chartRef = useRef<OrganizationSeatingChartRequest | null>(null);
   const editingIdRef = useRef<string | null>(null);
+  const [loadedEventId, setLoadedEventId] = useState<string | null>(null);
   const [charts, setCharts] = useState<readonly OrganizationSeatingChart[]>([]);
   const [attendance, setAttendance] = useState<
     readonly { readonly profileId: string; readonly rsvp: "No" | "Pending" | "Yes" }[]
@@ -43,6 +44,7 @@ export function useSeatingCharts({
     ])
       .then(([nextCharts, nextAttendance]) => {
         if (controller.signal.aborted) return;
+        setLoadedEventId(eventId);
         setCharts(nextCharts);
         setAttendance(nextAttendance);
         const requestedChart = new URLSearchParams(window.location.search).get("chartId");
@@ -87,6 +89,7 @@ export function useSeatingCharts({
     charts,
     editingId,
     editingIdRef,
+    loadedEventId,
     setAttendance,
     setChart,
     setCharts,

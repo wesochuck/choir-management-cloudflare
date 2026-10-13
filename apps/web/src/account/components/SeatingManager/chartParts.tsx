@@ -1,3 +1,4 @@
+import { seatingEmptyMessage } from "./utils";
 import type {
   OrganizationProfile,
   OrganizationRosterConfiguration,
@@ -124,6 +125,10 @@ export function UnassignedTray({
   roster,
   onAdd,
   onLookup,
+  onSearchRoster,
+  onReviewRsvps,
+  eligibleCount,
+  rsvpYesCount,
   onRemoveRsvp,
   onDrop,
   query,
@@ -131,6 +136,10 @@ export function UnassignedTray({
 }: {
   readonly onAdd: () => void;
   readonly onLookup: () => void;
+  readonly onSearchRoster: () => void;
+  readonly onReviewRsvps?: (() => void) | undefined;
+  readonly eligibleCount: number;
+  readonly rsvpYesCount: number;
   readonly onRemoveRsvp: (profile: OrganizationProfile) => void;
   readonly onDrop: (token: string) => void;
   readonly profiles: readonly OrganizationProfile[];
@@ -153,6 +162,7 @@ export function UnassignedTray({
       roster.voiceParts.map(({ label, sectionCode }) => [label, sectionCode]),
     );
     const sectionDetails = new Map(roster.sections.map((section) => [section.code, section]));
+    const sectionOrder = new Map(roster.sections.map(({ code }, index) => [code, index]));
     const grouped = new Map<string, OrganizationProfile[]>();
     filtered.forEach((profile) => {
       const key = voicePartSections.get(profile.voicePart) ?? "__other";
@@ -173,8 +183,8 @@ export function UnassignedTray({
       .sort((left, right) => {
         if (left.code === "__other") return 1;
         if (right.code === "__other") return -1;
-        const leftIndex = roster.sections.findIndex(({ code }) => code === left.code);
-        const rightIndex = roster.sections.findIndex(({ code }) => code === right.code);
+        const leftIndex = sectionOrder.get(left.code) ?? -1;
+        const rightIndex = sectionOrder.get(right.code) ?? -1;
         return leftIndex - rightIndex;
       });
   }, [profiles, query, roster]);
@@ -199,6 +209,20 @@ export function UnassignedTray({
         </div>
         <span className="status-pill">{profiles.length}</span>
       </div>
+      <p className="seating-assignment-picker__hint">
+        Only active singers with a voice part who have RSVP'd Attending for this performance and
+        have not yet been assigned a seat appear here. Use Lookup to mark an existing singer
+        attending.
+      </p>
+      {onReviewRsvps ? (
+        <button
+          className="button button--secondary button--small"
+          onClick={onReviewRsvps}
+          type="button"
+        >
+          Review Event RSVPs
+        </button>
+      ) : null}
       <div className="seating-tray__actions">
         <input
           aria-label="Search unassigned Profiles"
@@ -230,7 +254,38 @@ export function UnassignedTray({
           </div>
         ))}
         {groups.length === 0 ? (
-          <p className="empty-state">All eligible Profiles are assigned.</p>
+          <div aria-live="polite" className="empty-state">
+            <p>
+              {profiles.length === 0
+                ? seatingEmptyMessage(rsvpYesCount, eligibleCount)
+                : "No unassigned attending singers match your search."}
+            </p>
+            {profiles.length > 0 ? (
+              <>
+                <p>
+                  The singer you're looking for may not have RSVP'd Attending for this performance.
+                </p>
+                <div className="button-row">
+                  <button
+                    className="button button--secondary button--small"
+                    onClick={onSearchRoster}
+                    type="button"
+                  >
+                    Search entire roster
+                  </button>
+                  <button
+                    className="button button--secondary button--small"
+                    onClick={() => {
+                      setQuery("");
+                    }}
+                    type="button"
+                  >
+                    Clear search
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </section>

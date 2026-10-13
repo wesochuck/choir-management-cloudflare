@@ -34,7 +34,15 @@ function ChartStatusNotice({
   return null;
 }
 
-export function SeatingChartPanel({ model }: { readonly model: SeatingManagerModel }) {
+export function SeatingChartPanel({
+  model,
+  navigate,
+  canReviewRsvps,
+}: {
+  readonly model: SeatingManagerModel;
+  readonly navigate?: ((href: string) => void) | undefined;
+  readonly canReviewRsvps: boolean;
+}) {
   const { partLabel, partLabelPlural } = useOrganizationTerminology();
   const [importOpen, setImportOpen] = useState(false);
   const {
@@ -115,6 +123,7 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
     confirmState !== null,
     importOpen,
   ].some(Boolean);
+  const eventIsLoaded = model.loadedEventId === eventId && !loading;
   const hasNoCharts = charts.length === 0;
   const isListView = charts.length > 0 && (viewMode === "list" || viewMode === "index");
   const isGridView = charts.length > 0 && viewMode === "grid";
@@ -221,64 +230,101 @@ export function SeatingChartPanel({ model }: { readonly model: SeatingManagerMod
           />
         </>
       ) : null}
-      {isGridView ? <SeatingCanvasView model={model} /> : null}
+      {isGridView ? (
+        <SeatingCanvasPanel model={model} navigate={navigate} canReviewRsvps={canReviewRsvps} />
+      ) : null}
 
-      <SeatingDialogs
-        copyError={error}
-        templates={resources.seating.templates}
-        applyChart={applyChart}
-        assignmentCandidates={unassignedProfiles}
-        changeNewChartRowCount={changeNewChartRowCount}
-        changeNewChartSingerCount={changeNewChartSingerCount}
-        chart={chart}
-        chartDialog={chartDialog}
-        chartName={chartName}
-        confirmState={confirmState}
-        copyBusy={copyBusy}
-        copyChartId={copyChartId}
-        copyCharts={copyCharts}
-        copyOpen={copyOpen}
-        copyPerformanceId={copyPerformanceId}
-        copySelectedChart={copySelectedChart}
-        createChart={() => {
-          void createChart();
-        }}
-        eventId={eventId}
-        events={resources.events}
-        isVoicePartLayout={currentFormation?.isVoicePartLayout ?? false}
-        loadCopyCharts={(id) => {
-          void loadCopyCharts(id);
-        }}
-        lookupProfiles={lookupProfiles}
-        lookupQuery={lookupQuery}
-        newChartRowCount={newChartRowCount}
-        newChartSingerCount={newChartSingerCount}
-        partLabel={partLabel}
-        profileBusy={profileBusy}
-        profileDialog={profileDialog}
-        profileForm={profileForm}
-        profileMessage={profileMessage}
-        profilesById={profilesById}
-        renameChart={renameChart}
-        requestRemoveSeat={requestRemoveSeat}
-        roster={resources.roster}
-        rsvpYesCount={rsvpYesCount}
-        saveProfile={() => {
-          void saveProfile();
-        }}
-        selectedSeat={selectedSeat}
-        setAttendance={setAttendance}
-        setChartDialog={setChartDialog}
-        setChartName={setChartName}
-        setConfirmState={setConfirmState}
-        setCopyChartId={setCopyChartId}
-        setCopyOpen={setCopyOpen}
-        setLookupQuery={setLookupQuery}
-        setProfileDialog={setProfileDialog}
-        setProfileForm={setProfileForm}
-        setSelectedSeat={setSelectedSeat}
-      />
+      {eventIsLoaded ? (
+        <SeatingDialogs
+          eligibleCount={model.eligibleProfiles.length}
+          assignedIds={model.assignedIds}
+          attendingIds={model.attendingIds}
+          copyError={error}
+          templates={resources.seating.templates}
+          applyChart={applyChart}
+          assignmentCandidates={unassignedProfiles}
+          changeNewChartRowCount={changeNewChartRowCount}
+          changeNewChartSingerCount={changeNewChartSingerCount}
+          chart={chart}
+          chartDialog={chartDialog}
+          chartName={chartName}
+          confirmState={confirmState}
+          copyBusy={copyBusy}
+          copyChartId={copyChartId}
+          copyCharts={copyCharts}
+          copyOpen={copyOpen}
+          copyPerformanceId={copyPerformanceId}
+          copySelectedChart={copySelectedChart}
+          createChart={() => {
+            void createChart();
+          }}
+          eventId={eventId}
+          events={resources.events}
+          isVoicePartLayout={currentFormation?.isVoicePartLayout ?? false}
+          loadCopyCharts={(id) => {
+            void loadCopyCharts(id);
+          }}
+          lookupProfiles={lookupProfiles}
+          lookupQuery={lookupQuery}
+          newChartRowCount={newChartRowCount}
+          newChartSingerCount={newChartSingerCount}
+          partLabel={partLabel}
+          profileBusy={profileBusy}
+          profileDialog={profileDialog}
+          profileForm={profileForm}
+          profileMessage={profileMessage}
+          profilesById={profilesById}
+          renameChart={renameChart}
+          requestRemoveSeat={requestRemoveSeat}
+          roster={resources.roster}
+          rsvpYesCount={rsvpYesCount}
+          saveProfile={() => {
+            void saveProfile();
+          }}
+          selectedSeat={selectedSeat}
+          setAttendance={setAttendance}
+          setChartDialog={setChartDialog}
+          setChartName={setChartName}
+          setConfirmState={setConfirmState}
+          setCopyChartId={setCopyChartId}
+          setCopyOpen={setCopyOpen}
+          setLookupQuery={setLookupQuery}
+          setProfileDialog={setProfileDialog}
+          setProfileForm={setProfileForm}
+          setSelectedSeat={setSelectedSeat}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function SeatingCanvasPanel({
+  model,
+  navigate,
+  canReviewRsvps,
+}: {
+  readonly model: SeatingManagerModel;
+  readonly navigate?: ((href: string) => void) | undefined;
+  readonly canReviewRsvps: boolean;
+}) {
+  if (model.loading || model.loadedEventId !== model.eventId) return null;
+  return (
+    <SeatingCanvasView
+      model={model}
+      onReviewRsvps={
+        canReviewRsvps && model.eventId
+          ? () => {
+              void model.flushSave().then((saved) => {
+                if (saved) {
+                  const href = `/admin/rsvp?eventId=${encodeURIComponent(model.eventId)}`;
+                  if (navigate) navigate(href);
+                  else window.location.assign(href);
+                }
+              });
+            }
+          : undefined
+      }
+    />
   );
 }
 

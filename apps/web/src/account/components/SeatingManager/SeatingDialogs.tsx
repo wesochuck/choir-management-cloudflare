@@ -10,10 +10,10 @@ import type {
   SavedSeatingTemplate,
 } from "@choir/contracts";
 import type { Dispatch, SetStateAction } from "react";
-import { setOrganizationEventRsvp } from "../../../auth/api";
+import { ProfileLookupDialog } from "./ProfileLookupDialog";
 import { ConfirmDialog } from "./shared";
 import type { ConfirmState } from "./types";
-import { groupSeatAssignmentProfiles, seatingRowSummary, statusLabel } from "./utils";
+import { groupSeatAssignmentProfiles, seatingRowSummary, seatingEmptyMessage } from "./utils";
 
 interface ChartDialogProps {
   readonly changeNewChartRowCount: (value: number) => void;
@@ -372,92 +372,11 @@ function AddProfileDialog({
   );
 }
 
-interface ProfileLookupDialogProps {
-  readonly eventId: string;
-  readonly lookupProfiles: readonly OrganizationProfile[];
-  readonly lookupQuery: string;
-  readonly partLabel: string;
-  readonly profileDialog: "add" | "lookup" | null;
-  readonly setAttendance: Dispatch<
-    SetStateAction<
-      readonly { readonly profileId: string; readonly rsvp: "No" | "Pending" | "Yes" }[]
-    >
-  >;
-  readonly setLookupQuery: (query: string) => void;
-  readonly setProfileDialog: (dialog: "add" | "lookup" | null) => void;
-}
-
-function ProfileLookupDialog({
-  eventId,
-  lookupProfiles,
-  lookupQuery,
-  partLabel,
-  profileDialog,
-  setAttendance,
-  setLookupQuery,
-  setProfileDialog,
-}: ProfileLookupDialogProps) {
-  return (
-    <Dialog
-      description="Choose an existing Organization Profile to mark attending for this Performance."
-      onClose={() => {
-        setProfileDialog(null);
-      }}
-      open={profileDialog === "lookup"}
-      title="Profile lookup"
-    >
-      <div className="form-stack">
-        <label className="field">
-          Search Profiles
-          <input
-            onChange={(event) => {
-              setLookupQuery(event.target.value);
-            }}
-            placeholder={`Name or ${partLabel.toLowerCase()}`}
-            type="search"
-            value={lookupQuery}
-          />
-        </label>
-        <div className="seating-lookup-list">
-          {lookupProfiles
-            .filter((profile) => {
-              const normalized = lookupQuery.trim().toLocaleLowerCase();
-              return (
-                !normalized ||
-                `${profile.displayName} ${profile.voicePart}`
-                  .toLocaleLowerCase()
-                  .includes(normalized)
-              );
-            })
-            .map((profile) => (
-              <button
-                className="seating-lookup-row"
-                key={profile.id}
-                onClick={() => {
-                  void setOrganizationEventRsvp(eventId, profile.id, "Yes").then(() => {
-                    setAttendance((current) => [
-                      ...current.filter(({ profileId }) => profileId !== profile.id),
-                      { profileId: profile.id, rsvp: "Yes" },
-                    ]);
-                    setProfileDialog(null);
-                  });
-                }}
-                type="button"
-              >
-                <strong>{profile.displayName}</strong>
-                <span>{profile.voicePart || `No ${partLabel.toLowerCase()}`}</span>
-                <em>{statusLabel(profile.globalStatus)}</em>
-              </button>
-            ))}
-        </div>
-      </div>
-    </Dialog>
-  );
-}
-
 interface SeatDetailDialogProps {
   readonly applyChart: (chart: OrganizationSeatingChartRequest) => void;
   readonly assignmentCandidates: readonly OrganizationProfile[];
+  readonly eligibleCount: number;
+  readonly rsvpYesCount: number;
   readonly chart: OrganizationSeatingChartRequest;
   readonly isVoicePartLayout: boolean;
   readonly partLabel: string;
@@ -471,6 +390,8 @@ interface SeatDetailDialogProps {
 function SeatDetailDialog({
   applyChart,
   assignmentCandidates,
+  eligibleCount,
+  rsvpYesCount,
   chart,
   isVoicePartLayout,
   partLabel,
@@ -509,6 +430,10 @@ function SeatDetailDialog({
             ? `Assigned to ${profilesById.get(assignedProfileId)?.displayName ?? "Profile"}.`
             : "This seat is empty."}
         </p>
+        <p className="seating-assignment-picker__hint">
+          Available singers must have an active Profile and a voice part, have RSVP'd Attending for
+          this performance, and must not already be seated.
+        </p>
         {suggestion ? (
           <p className="seating-assignment-picker__hint">
             Candidates matching {suggestion} are shown first, followed by the other sections in
@@ -517,7 +442,9 @@ function SeatDetailDialog({
         ) : null}
         <div className="seating-assignment-picker">
           {groups.length === 0 ? (
-            <p className="notice">All eligible attending Profiles are already assigned to seats.</p>
+            <p aria-live="polite" className="notice">
+              {seatingEmptyMessage(rsvpYesCount, eligibleCount)}
+            </p>
           ) : null}
           {groups.map((group) => (
             <section className="seating-assignment-group" key={group.key}>
@@ -596,6 +523,9 @@ function SeatDetailDialog({
 export interface SeatingDialogsProps {
   readonly applyChart: (chart: OrganizationSeatingChartRequest) => void;
   readonly assignmentCandidates: readonly OrganizationProfile[];
+  readonly eligibleCount: number;
+  readonly assignedIds: ReadonlySet<string>;
+  readonly attendingIds: ReadonlySet<string>;
   readonly changeNewChartRowCount: (value: number) => void;
   readonly changeNewChartSingerCount: (value: number) => void;
   readonly chart: OrganizationSeatingChartRequest;
@@ -650,6 +580,9 @@ export interface SeatingDialogsProps {
 export function SeatingDialogs({
   applyChart,
   assignmentCandidates,
+  eligibleCount,
+  assignedIds,
+  attendingIds,
   changeNewChartRowCount,
   changeNewChartSingerCount,
   chart,
@@ -748,18 +681,24 @@ export function SeatingDialogs({
         setProfileForm={setProfileForm}
       />
 
-      <ProfileLookupDialog
-        eventId={eventId}
-        lookupProfiles={lookupProfiles}
-        lookupQuery={lookupQuery}
-        partLabel={partLabel}
-        profileDialog={profileDialog}
-        setAttendance={setAttendance}
-        setLookupQuery={setLookupQuery}
-        setProfileDialog={setProfileDialog}
-      />
+      {profileDialog === "lookup" ? (
+        <ProfileLookupDialog
+          key={eventId}
+          assignedIds={assignedIds}
+          attendingIds={attendingIds}
+          eventId={eventId}
+          lookupProfiles={lookupProfiles}
+          lookupQuery={lookupQuery}
+          partLabel={partLabel}
+          setAttendance={setAttendance}
+          setLookupQuery={setLookupQuery}
+          setProfileDialog={setProfileDialog}
+        />
+      ) : null}
 
       <SeatDetailDialog
+        eligibleCount={eligibleCount}
+        rsvpYesCount={rsvpYesCount}
         applyChart={applyChart}
         assignmentCandidates={assignmentCandidates}
         chart={chart}

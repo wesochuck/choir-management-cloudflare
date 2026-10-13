@@ -20,6 +20,7 @@ vi.mock("../../../auth/api", async (importOriginal) => {
   const actual = await importOriginal<typeof authApiModule>();
   return {
     ...actual,
+    setOrganizationEventRsvp: vi.fn(),
     createOrganizationSeatingChart: vi.fn(),
     updateOrganizationSeatingChart: vi.fn(),
     getOrganizationCalendarSettings: vi.fn(),
@@ -524,7 +525,7 @@ describe("Seat assignment candidate picker", () => {
     const dialog = await openSeat(/Seat 1, assigned to Alice Alto/);
     expect(within(dialog).queryByRole("button", { name: /Carol Caller/ })).not.toBeInTheDocument();
     expect(
-      within(dialog).getByText("All eligible attending Profiles are already assigned to seats."),
+      within(dialog).getByText("All eligible attending singers have been assigned seats."),
     ).toBeInTheDocument();
   });
 
@@ -544,5 +545,188 @@ describe("Seat assignment candidate picker", () => {
     });
     const dialogB = await openSeat("Seat 3, empty");
     expect(within(dialogB).getByRole("button", { name: /Alice Alto/ })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["no attending RSVPs", [], "No singers have RSVP'd Attending for this performance yet."],
+    [
+      "attending but ineligible",
+      [attending(dave, "Yes")],
+      "No attending singers are eligible for seating yet. A singer must have an active Profile and a voice part.",
+    ],
+    [
+      "all eligible seated",
+      [attending(alice, "Yes"), attending(bob, "Yes")],
+      "All eligible attending singers have been assigned seats.",
+    ],
+  ])("explains %s in both the tray and seat dialog", async (_scenario, rows, message) => {
+    vi.mocked(api.listOrganizationProfiles).mockResolvedValue([
+      alice,
+      bob,
+      { ...dave, globalStatus: "Inactive", voicePart: "" },
+    ]);
+    vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue(rows);
+    render(<SeatingManager enabled />);
+    await flushLoad();
+    const tray = screen.getByRole("region", { name: "Unassigned Profiles" });
+    expect(within(tray).getByText(message)).toBeInTheDocument();
+    expect(tray).toHaveTextContent("Only active singers with a voice part");
+    const dialog = await openSeat("Seat 3, empty");
+    expect(within(dialog).getByText(message)).toBeInTheDocument();
+    expect(dialog).toHaveTextContent("have RSVP'd Attending");
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeEnabled();
+  });
+
+  it("broadens a failed search with the exact query and refreshes candidates after Mark Attending", async () => {
+    vi.mocked(api.setOrganizationEventRsvp).mockResolvedValue({
+      eventId: pickerEventId,
+      profileId: daveId,
+      rsvp: "Yes",
+      rsvpNote: "",
+      updatedAt: "2025-01-01T00:00:00.000Z",
+    });
+    render(<SeatingManager enabled />);
+    await flushLoad();
+    const search = screen.getByRole("searchbox", { name: "Search unassigned Profiles" });
+    fireEvent.change(search, { target: { value: " Dave " } });
+    expect(
+      screen.getByText("No unassigned attending singers match your search."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Search entire roster" }));
+    const lookup = await screen.findByRole("dialog", { name: "Profile lookup" });
+    expect(within(lookup).getByRole("searchbox")).toHaveValue(" Dave ");
+    expect(lookup).toHaveTextContent("Not RSVP'd Attending");
+    expect(api.setOrganizationEventRsvp).not.toHaveBeenCalled();
+    fireEvent.click(within(lookup).getByRole("button", { name: "Mark Dave Doe Attending" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Profile lookup" })).not.toBeInTheDocument();
+    });
+    expect(api.setOrganizationEventRsvp).toHaveBeenCalledExactlyOnceWith(
+      pickerEventId,
+      daveId,
+      "Yes",
+    );
+    expect(search).toHaveValue(" Dave ");
+    expect(screen.getByRole("region", { name: "Unassigned Profiles" })).toHaveTextContent(
+      "Dave Doe",
+    );
+    const dialog = await openSeat("Seat 3, empty");
+    expect(within(dialog).getByRole("button", { name: /Dave Doe/ })).toBeInTheDocument();
+  });
+
+  it("shows the entire roster with seated and ineligible reasons without offering invalid RSVP actions", async () => {
+    vi.mocked(api.listOrganizationProfiles).mockResolvedValue([
+      alice,
+      bob,
+      carol,
+      { ...dave, globalStatus: "Idle", voicePart: "" },
+    ]);
+    render(<SeatingManager enabled />);
+    await flushLoad();
+    fireEvent.click(screen.getByRole("button", { name: "Lookup" }));
+    const lookup = await screen.findByRole("dialog", { name: "Profile lookup" });
+    expect(within(lookup).getByRole("searchbox")).toHaveValue("");
+    for (const profile of [alice, bob, carol, dave])
+      expect(within(lookup).getByText(profile.displayName)).toBeInTheDocument();
+    expect(within(lookup).getAllByText(/Already seated/)).toHaveLength(2);
+    expect(lookup).toHaveTextContent("Eligible but unassigned");
+    expect(lookup).toHaveTextContent("Ineligible: Profile is On Break; No part.");
+    expect(
+      within(lookup).queryByRole("button", { name: /^Mark .* Attending$/ }),
+    ).not.toBeInTheDocument();
+    expect(api.setOrganizationEventRsvp).not.toHaveBeenCalled();
+  });
+
+  it("clears only the tray search", async () => {
+    render(<SeatingManager enabled />);
+    await flushLoad();
+    const search = screen.getByRole("searchbox", { name: "Search unassigned Profiles" });
+    fireEvent.change(search, { target: { value: "missing" } });
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(search).toHaveValue("");
+    expect(screen.getByRole("region", { name: "Unassigned Profiles" })).toHaveTextContent(
+      "Carol Caller",
+    );
+    expect(api.setOrganizationEventRsvp).not.toHaveBeenCalled();
+  });
+
+  it("keeps the lookup and original search on RSVP failure and permits retry", async () => {
+    vi.mocked(api.setOrganizationEventRsvp).mockRejectedValueOnce(new Error("RSVP update denied"));
+    render(<SeatingManager enabled />);
+    await flushLoad();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search unassigned Profiles" }), {
+      target: { value: "Dave" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Search entire roster" }));
+    const lookup = await screen.findByRole("dialog", { name: "Profile lookup" });
+    fireEvent.click(within(lookup).getByRole("button", { name: "Mark Dave Doe Attending" }));
+    expect(await within(lookup).findByRole("alert")).toHaveTextContent("RSVP update denied");
+    expect(within(lookup).getByRole("searchbox")).toHaveValue("Dave");
+    expect(within(lookup).getByRole("button", { name: "Mark Dave Doe Attending" })).toBeEnabled();
+  });
+
+  it("updates hints for the selected performance instead of retaining another event's RSVPs", async () => {
+    const nextEvent = performance(
+      "11111111-1111-4111-8111-111111111111",
+      "Next Concert",
+      "2025-06-02T19:00:00.000Z",
+    );
+    vi.mocked(api.listOrganizationEvents).mockResolvedValue([pickerEvent, nextEvent]);
+    window.history.replaceState({}, "", `/?eventId=${pickerEventId}`);
+    vi.mocked(api.listOrganizationEventAttendance).mockImplementation((id) =>
+      Promise.resolve(id === pickerEventId ? [attending(carol, "Yes")] : []),
+    );
+    vi.mocked(api.listOrganizationSeatingCharts).mockImplementation((id) =>
+      Promise.resolve([chart("chart-current", id, "Current Chart")]),
+    );
+    render(<SeatingManager enabled />);
+    await flushLoad();
+    expect(screen.getByRole("region", { name: "Unassigned Profiles" })).toHaveTextContent(
+      "Carol Caller",
+    );
+    fireEvent.change(screen.getByLabelText("Seating Performance"), {
+      target: { value: nextEvent.id },
+    });
+    await flushLoad();
+    expect(screen.getByRole("region", { name: "Unassigned Profiles" })).toHaveTextContent(
+      "No singers have RSVP'd Attending for this performance yet.",
+    );
+  });
+
+  it("gates the RSVP shortcut and navigates to the selected event only after saving chart edits", async () => {
+    const navigate = vi.fn();
+    vi.mocked(api.updateOrganizationSeatingChart).mockImplementation(
+      (_eventId, _chartId, request) => Promise.resolve({ ...chartA, ...request }),
+    );
+    const { rerender } = render(<SeatingManager enabled navigate={navigate} />);
+    await flushLoad();
+    expect(screen.queryByRole("button", { name: "Review Event RSVPs" })).not.toBeInTheDocument();
+    rerender(<SeatingManager enabled canReviewRsvps navigate={navigate} />);
+    const dialog = await openSeat("Seat 3, empty");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Carol Caller/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Review Event RSVPs" }));
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith(`/admin/rsvp?eventId=${pickerEventId}`);
+    });
+    expect(api.updateOrganizationSeatingChart).toHaveBeenCalledWith(
+      pickerEventId,
+      "chart-a",
+      expect.objectContaining({ assignments: { "0-0": aliceId, "0-1": bobId, "0-2": carolId } }),
+    );
+  });
+
+  it("stays on the chart when saving before RSVP navigation fails", async () => {
+    const navigate = vi.fn();
+    vi.mocked(api.updateOrganizationSeatingChart).mockRejectedValue(new Error("Chart save failed"));
+    render(<SeatingManager enabled canReviewRsvps navigate={navigate} />);
+    await flushLoad();
+    const dialog = await openSeat("Seat 3, empty");
+    fireEvent.click(within(dialog).getByRole("button", { name: /Carol Caller/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Review Event RSVPs" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Chart save failed");
+    expect(navigate).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: /Seat 3, assigned to Carol Caller/ }),
+    ).toBeInTheDocument();
   });
 });

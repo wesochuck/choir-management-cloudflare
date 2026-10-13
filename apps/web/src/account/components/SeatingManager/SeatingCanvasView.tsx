@@ -5,7 +5,13 @@ import { SeatingGridCanvas } from "./SeatingGridCanvas";
 import type { SeatingManagerModel } from "./hooks";
 import { emptyProfile, resolveDraggingProfile, seatingProfileLabel } from "./utils";
 
-export function SeatingCanvasView({ model }: { readonly model: SeatingManagerModel }) {
+export function SeatingCanvasView({
+  model,
+  onReviewRsvps,
+}: {
+  readonly model: SeatingManagerModel;
+  readonly onReviewRsvps?: (() => void) | undefined;
+}) {
   const { partLabel } = useOrganizationTerminology();
   const {
     chart,
@@ -94,6 +100,13 @@ export function SeatingCanvasView({ model }: { readonly model: SeatingManagerMod
             }}
             onRemoveRsvp={(profile) => {
               markNotAttending(profile);
+            }}
+            eligibleCount={model.eligibleProfiles.length}
+            rsvpYesCount={model.rsvpYesCount}
+            onReviewRsvps={onReviewRsvps}
+            onSearchRoster={() => {
+              setLookupQuery(query);
+              setProfileDialog("lookup");
             }}
             profiles={unassignedProfiles}
             query={query}

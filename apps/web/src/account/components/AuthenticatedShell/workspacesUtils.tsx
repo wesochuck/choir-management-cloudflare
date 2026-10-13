@@ -202,6 +202,7 @@ export function renderOrganizationPage(
   navigate: (href: string) => void,
   notFoundPage: (navigate: (href: string) => void) => ReactNode,
   canEditProfiles = true,
+  canReviewRsvps = false,
 ) {
   const focusedEnabled = enabled && manager;
   const { pathname } = routeState;
@@ -262,7 +263,13 @@ export function renderOrganizationPage(
         }}
       />
     ),
-    "/admin/seating": <SeatingManager enabled={focusedEnabled} navigate={navigate} />,
+    "/admin/seating": (
+      <SeatingManager
+        enabled={focusedEnabled}
+        navigate={navigate}
+        canReviewRsvps={canReviewRsvps}
+      />
+    ),
     "/admin/setlists": (
       <SetListManager enabled={focusedEnabled} initialEventId={rsvpEventId} navigate={navigate} />
     ),

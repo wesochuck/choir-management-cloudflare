@@ -212,6 +212,7 @@ function OrganizationWorkspacePage({
     navigate,
     (nextNavigate) => <NotFoundPage navigate={nextNavigate} />,
     canEditProfiles,
+    access.status === "ready" && routeHasModule({ module: "rsvp" }, access.modules),
   );
   return (
     page ?? (

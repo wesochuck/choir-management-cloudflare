@@ -13,18 +13,20 @@ interface Args {
 }
 
 export function useSeatingDerived({ attendance, chart, resources }: Args) {
+  const attendingIds = useMemo(
+    () =>
+      new Set(attendance.filter(({ rsvp }) => rsvp === "Yes").map(({ profileId }) => profileId)),
+    [attendance],
+  );
   const eligibleProfiles = useMemo(() => {
     if (!resources) return [];
-    const attending = new Set(
-      attendance.filter(({ rsvp }) => rsvp === "Yes").map(({ profileId }) => profileId),
-    );
     return resources.profiles.filter(
       (profile) =>
         profile.globalStatus === "Active" &&
         Boolean(profile.voicePart.trim()) &&
-        attending.has(profile.id),
+        attendingIds.has(profile.id),
     );
-  }, [attendance, resources]);
+  }, [attendingIds, resources]);
 
   const rsvpYesCount = useMemo(
     () => attendance.filter(({ rsvp }) => rsvp === "Yes").length,
@@ -57,10 +59,7 @@ export function useSeatingDerived({ attendance, chart, resources }: Args) {
     [assignedIds, eligibleProfiles],
   );
 
-  const lookupProfiles = useMemo(() => {
-    const presentIds = new Set([...unassignedProfiles.map(({ id }) => id), ...assignedIds]);
-    return (resources?.profiles ?? []).filter(({ id }) => !presentIds.has(id));
-  }, [assignedIds, resources?.profiles, unassignedProfiles]);
+  const lookupProfiles = resources?.profiles ?? [];
 
   const currentFormation = useMemo(() => {
     const found = resources?.seating.formations.find(({ id }) => id === chart.formationId);
@@ -69,6 +68,7 @@ export function useSeatingDerived({ attendance, chart, resources }: Args) {
 
   return {
     assignedIds,
+    attendingIds,
     assignedProfiles,
     currentFormation,
     eligibleProfiles,

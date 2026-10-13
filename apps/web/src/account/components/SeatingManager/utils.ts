@@ -255,3 +255,10 @@ export function resolveDraggingProfile(
   const fallbackName = token.startsWith("profile:") ? "Profile" : "Assigned Profile";
   return { profile, fallbackName };
 }
+
+export function seatingEmptyMessage(rsvpYesCount: number, eligibleCount: number): string {
+  if (rsvpYesCount === 0) return "No singers have RSVP'd Attending for this performance yet.";
+  if (eligibleCount === 0)
+    return "No attending singers are eligible for seating yet. A singer must have an active Profile and a voice part.";
+  return "All eligible attending singers have been assigned seats.";
+}

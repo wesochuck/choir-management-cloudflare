@@ -10,8 +10,10 @@ import type { SeatingManagerModel } from "./hooks";
 export function SeatingManagerView({
   model,
   navigate,
+  canReviewRsvps,
 }: {
   readonly model: SeatingManagerModel;
+  readonly canReviewRsvps: boolean;
   readonly navigate?: ((href: string) => void) | undefined;
 }) {
   const {
@@ -124,7 +126,7 @@ export function SeatingManagerView({
             id="seating-chart-panel"
             value="chart"
           >
-            <SeatingChartPanel model={model} />
+            <SeatingChartPanel model={model} navigate={navigate} canReviewRsvps={canReviewRsvps} />
           </TabsContent>
         </Tabs>
         <PortalContainerHost className="seating-portal-host" />

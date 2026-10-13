@@ -143,6 +143,8 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
 
   return {
     applyChart: persist.applyChart,
+    assignedIds: derived.assignedIds,
+    attendingIds: derived.attendingIds,
     autoSuggest: mut.autoSuggest,
     changeEvent: mut.changeEvent,
     changeFormation: mut.changeFormation,
@@ -180,6 +182,7 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
     isNarrow,
     loadCopyCharts: mut.loadCopyCharts,
     loading: res.loading,
+    loadedEventId: ch.loadedEventId,
     lookupProfiles: derived.lookupProfiles,
     lookupQuery: mut.lookupQuery,
     markNotAttending: mut.markNotAttending,
