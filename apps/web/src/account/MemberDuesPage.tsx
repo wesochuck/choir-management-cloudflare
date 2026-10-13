@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AuthApiError, createMyDuesCheckout, getMyDues } from "../auth/api";
 import type { DuesRecord, Season, TransactionFeeSettings } from "@choir/contracts";
 
+import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
+
 type DuesState =
   | { readonly status: "error" | "loading" }
   | {
@@ -37,7 +39,15 @@ function statusLabel(record: DuesRecord | undefined): string {
   return "Payment processing";
 }
 
-export function MemberDuesPage({ enabled }: { readonly enabled: boolean }) {
+export function MemberDuesPage({
+  accessStatus = "ready",
+  enabled,
+  mfaRequired = false,
+}: {
+  readonly accessStatus?: "error" | "loading" | "none" | "platform-scoped" | "ready" | undefined;
+  readonly enabled: boolean;
+  readonly mfaRequired?: boolean | undefined;
+}) {
   const [state, setState] = useState<DuesState>({ status: "loading" });
   const [busySeasonId, setBusySeasonId] = useState<string | null>(null);
   const checkoutRequestIds = useRef(new Map<string, string>());
@@ -105,21 +115,31 @@ export function MemberDuesPage({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
-  if (!enabled) {
+  if (mfaRequired) {
+    return <OrganizationMfaPrompt message="Verify Organization MFA to view your dues." />;
+  }
+
+  if (accessStatus === "loading") {
+    return <p className="notice">Loading season dues…</p>;
+  }
+
+  if (accessStatus === "none" || !enabled) {
     return (
       <p className="notice notice--warning" role="status">
         Your member workspace is not available yet.
       </p>
     );
   }
-  if (state.status === "loading") return <p className="notice">Loading season dues…</p>;
-  if (state.status === "error") {
+
+  if (accessStatus === "error" || state.status === "error") {
     return (
       <p className="notice notice--error" role="alert">
         Season dues could not be loaded. Please try again later.
       </p>
     );
   }
+
+  if (state.status === "loading") return <p className="notice">Loading season dues…</p>;
   if (!isReadyDuesState(state)) return null;
   const readyState = state;
 

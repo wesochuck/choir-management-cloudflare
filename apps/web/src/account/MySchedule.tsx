@@ -347,7 +347,68 @@ function DeclineRehearsalDialog({
   );
 }
 
-export function MySchedule({ enabled }: { readonly enabled: boolean }) {
+function ScheduleStatusNotice({
+  accessStatus,
+  enabled,
+  mfaRequired,
+  scheduleState,
+}: {
+  readonly accessStatus: "error" | "loading" | "none" | "platform-scoped" | "ready";
+  readonly enabled: boolean;
+  readonly mfaRequired: boolean;
+  readonly scheduleState: ScheduleState;
+}) {
+  if (mfaRequired) {
+    return <OrganizationMfaPrompt message="Verify Organization MFA to view your schedule." />;
+  }
+  if (accessStatus === "loading") {
+    return <p>Loading your schedule…</p>;
+  }
+  if (accessStatus === "none") {
+    return (
+      <p className="empty-state">
+        Link this Membership to an Organization Profile to manage personal RSVPs.
+      </p>
+    );
+  }
+  if (accessStatus === "error") {
+    return (
+      <p className="notice notice--error" role="alert">
+        Your schedule could not be loaded.
+      </p>
+    );
+  }
+  if (accessStatus === "ready" && enabled) {
+    if (scheduleState.status === "loading") {
+      return <p>Loading your schedule…</p>;
+    }
+    if (scheduleState.status === "missing") {
+      return (
+        <p className="empty-state">
+          Link this Membership to an Organization Profile to manage personal RSVPs.
+        </p>
+      );
+    }
+    if (scheduleState.status === "error") {
+      return (
+        <p className="notice notice--error" role="alert">
+          Your schedule could not be loaded.
+        </p>
+      );
+    }
+  }
+  return null;
+}
+
+export function MySchedule({
+  accessStatus = "ready",
+  enabled,
+  mfaRequired = false,
+}: {
+  readonly accessStatus?: "error" | "loading" | "none" | "platform-scoped" | "ready" | undefined;
+  readonly enabled: boolean;
+  readonly mfaRequired?: boolean | undefined;
+}) {
   const { performerLabelPlural } = useOrganizationTerminology();
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -446,20 +507,12 @@ export function MySchedule({ enabled }: { readonly enabled: boolean }) {
           Show past events
         </label>
       </div>
-      {!enabled ? (
-        <OrganizationMfaPrompt message="Verify Organization MFA to view your schedule." />
-      ) : null}
-      {enabled && state.status === "loading" ? <p>Loading your schedule…</p> : null}
-      {enabled && state.status === "missing" ? (
-        <p className="empty-state">
-          Link this Membership to an Organization Profile to manage personal RSVPs.
-        </p>
-      ) : null}
-      {enabled && state.status === "error" ? (
-        <p className="notice notice--error" role="alert">
-          Your schedule could not be loaded.
-        </p>
-      ) : null}
+      <ScheduleStatusNotice
+        accessStatus={accessStatus}
+        enabled={enabled}
+        mfaRequired={mfaRequired}
+        scheduleState={state}
+      />
       {feedback ? (
         <p
           className={

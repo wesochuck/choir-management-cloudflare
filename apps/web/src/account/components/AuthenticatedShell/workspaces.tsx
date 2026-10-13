@@ -402,8 +402,13 @@ export function WorkspacePage({
   ) {
     return <AccessDeniedPage workspace={`${requiredModule} module`} />;
   }
+  const isMfaRequired =
+    access.status === "ready" &&
+    access.context.mfaRequired &&
+    !access.context.mfaSatisfied &&
+    !access.context.mfaVerifiedUntil;
   return (
-    renderMemberPage(route.pathname, memberEnabled, navigate, access.status) ?? (
+    renderMemberPage(route.pathname, memberEnabled, navigate, access.status, isMfaRequired) ?? (
       <OverviewPage
         context={access.status === "ready" ? access.context : null}
         navigate={navigate}
