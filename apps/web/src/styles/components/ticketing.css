@@ -1,0 +1,510 @@
+/* === Ticketing manager, setup guidance, and dashboard ===
+ * Split from forms-layouts.css; imported in order from theme.css so the
+ * cascade is unchanged.
+ */
+@layer components {
+  /* Ticketing manager */
+
+  .ticketing-page-header {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-lg);
+  }
+
+  .ticketing-page-header > :only-child {
+    margin-left: auto;
+  }
+
+  .ticketing-page-header h2,
+  .ticketing-page-header p {
+    margin: 0;
+  }
+
+  .ticketing-page-header p {
+    margin-top: var(--spacing-2xs);
+    color: var(--color-text-muted);
+  }
+
+  /* Ticketing setup guidance */
+
+  .ticketing-setup-guide {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    margin-bottom: var(--spacing-lg);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card, 0.75rem);
+  }
+
+  .ticketing-setup-guide__main {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .ticketing-setup-guide__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    flex-shrink: 0;
+    border-radius: var(--radius-control, 0.5rem);
+    background: var(--color-surface-raised, rgba(0, 0, 0, 0.04));
+    color: var(--color-accent);
+  }
+
+  .ticketing-setup-guide__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-3xs);
+    min-width: 0;
+  }
+
+  .ticketing-setup-guide__title {
+    margin: 0;
+    font-size: var(--font-size-md, 1rem);
+    font-weight: var(--font-weight-bold, 700);
+    color: var(--color-text);
+  }
+
+  .ticketing-setup-guide__description {
+    margin: 0;
+    font-size: var(--font-size-sm, 0.875rem);
+    color: var(--color-text-muted);
+    line-height: var(--line-height-normal, 1.45);
+  }
+
+  .ticketing-setup-guide__actions {
+    flex-shrink: 0;
+  }
+
+  .ticketing-setup-guide__action {
+    white-space: nowrap;
+  }
+
+  @media (max-width: 768px) {
+    .ticketing-setup-guide {
+      flex-direction: column;
+      align-items: stretch;
+      padding: var(--spacing-md);
+    }
+
+    .ticketing-setup-guide__main {
+      align-items: flex-start;
+    }
+
+    .ticketing-setup-guide__actions {
+      width: 100%;
+    }
+
+    .ticketing-setup-guide__action {
+      width: 100%;
+      text-align: center;
+    }
+  }
+
+  .ticketing-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-3xs) var(--spacing-2xs);
+    margin-bottom: var(--spacing-lg);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .ticketing-tabs button {
+    min-height: 2.7rem;
+    padding: var(--spacing-sm) var(--spacing-sm);
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .ticketing-tabs button:hover,
+  .ticketing-tabs button.is-active {
+    border-bottom-color: var(--color-accent);
+    color: var(--color-text);
+  }
+
+  .ticketing-tabs.seasons-manager-tabs {
+    border-bottom: 0;
+  }
+
+  .event-manager-tabs {
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .event-manager-toolbar {
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .event-manager-toolbar__past {
+    white-space: nowrap;
+  }
+
+  .event-manager-search {
+    margin-bottom: var(--spacing-md);
+  }
+
+  .ticketing-tab-panel {
+    display: grid;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+  }
+
+  .ticketing-bundle-order-pill {
+    display: inline-flex;
+    align-items: center;
+    margin-inline-start: var(--spacing-xs);
+    padding: var(--spacing-3xs) var(--spacing-xs);
+    line-height: var(--line-height-tight);
+    vertical-align: middle;
+  }
+
+  .ticketing-tab-panel h3 {
+    margin: 0;
+  }
+
+  .ticketing-tab-panel > div > p {
+    margin: var(--spacing-2xs) 0 0;
+    color: var(--color-text-muted);
+  }
+
+  .ticketing-share-grid {
+    display: grid;
+    /* Share cards are data-driven. Let a lone public link use the available
+     width instead of reserving an empty second column; add columns only when
+     multiple cards can fit comfortably. */
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 32rem), 1fr));
+    gap: var(--spacing-md);
+    min-width: 0;
+  }
+
+  .ticketing-share-grid .public-link-share {
+    min-width: 0;
+    margin: 0;
+  }
+
+  .ticket-confirmation-settings {
+    display: grid;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+  }
+
+  .ticket-confirmation-settings__fieldset {
+    display: grid;
+    gap: var(--spacing-md);
+    min-width: 0;
+    margin: 0;
+    padding: clamp(var(--spacing-md), 2vw, var(--spacing-lg));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+  }
+
+  .ticket-confirmation-settings__fieldset legend,
+  fieldset.compact-card legend {
+    padding-inline: var(--spacing-2xs);
+    color: var(--color-text);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  fieldset.compact-card {
+    min-width: 0;
+    margin: 0;
+    padding: clamp(var(--spacing-sm), 2vw, var(--spacing-md));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+  }
+
+  .ticket-confirmation-settings__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-sm);
+  }
+
+  .ticket-confirmation-settings textarea {
+    min-height: 5.5rem;
+  }
+
+  .ticket-template-list {
+    display: grid;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+  }
+
+  .ticket-template-card {
+    display: grid;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-subtle);
+  }
+
+  .ticket-template-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+  }
+
+  .ticket-template-card__header h4 {
+    margin: 0;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .ticket-template-card__subject {
+    margin: var(--spacing-3xs) 0 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-subtle);
+  }
+
+  .ticket-template-card__preview {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    white-space: pre-wrap;
+    line-break: anywhere;
+  }
+
+  .ticket-template-card__preview p {
+    margin: 0;
+  }
+
+  .ticket-template-placeholders {
+    margin-top: var(--spacing-md);
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-subtle);
+  }
+
+  .ticket-template-placeholders h5 {
+    margin: 0 0 var(--spacing-2xs);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .ticket-template-placeholders__hint {
+    margin: 0 0 var(--spacing-xs);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-subtle);
+  }
+
+  .ticket-template-placeholders__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--spacing-2xs);
+    max-height: 12rem;
+    overflow-y: auto;
+  }
+
+  .ticket-placeholder-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding: var(--spacing-2xs) var(--spacing-xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xs);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--font-size-xs);
+    text-align: left;
+    cursor: pointer;
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast);
+  }
+
+  .ticket-placeholder-chip:hover {
+    background: var(--color-surface-hover);
+    border-color: var(--color-border-hover);
+  }
+
+  .ticket-placeholder-chip code {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-primary);
+  }
+
+  .ticket-dashboard,
+  .ticket-dashboard__will-call {
+    display: grid;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+    min-width: 0;
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    width: 100%;
+  }
+
+  .ticket-dashboard legend,
+  .ticket-dashboard__will-call legend {
+    padding-inline: var(--spacing-2xs);
+    color: var(--color-text);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .ticket-dashboard__intro,
+  .ticket-dashboard__section-heading {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+  }
+
+  .ticket-dashboard__section-heading h3 {
+    margin: 0;
+  }
+
+  .ticket-dashboard__intro p,
+  .ticket-dashboard__section-heading p {
+    margin: var(--spacing-2xs) 0 0;
+    color: var(--color-text-muted);
+  }
+
+  .ticket-dashboard__intro .field {
+    width: min(100%, 24rem);
+    flex: 0 1 24rem;
+  }
+
+  .ticket-dashboard__intro .field.ticket-dashboard__performance-field {
+    width: min(100%, 36rem);
+    flex: 0 1 36rem;
+  }
+
+  .ticket-dashboard__performance-control-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    flex-wrap: wrap;
+  }
+
+  .ticket-dashboard__performance-control-row select {
+    flex: 1 1 16rem;
+    min-width: 0;
+  }
+
+  .ticket-dashboard__edit-settings-button {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .ticket-dashboard__metrics {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: var(--spacing-sm);
+  }
+
+  .ticket-dashboard__metric {
+    border-top: 0.25rem solid var(--color-accent);
+  }
+
+  .ticket-dashboard__metric strong {
+    color: var(--color-text);
+  }
+
+  .ticket-dashboard__metric--sales,
+  .ticket-dashboard__metric--gross {
+    border-top-color: #ec4899;
+  }
+
+  .ticket-dashboard__metric--refunds {
+    border-top-color: #ef4444;
+  }
+
+  .ticket-dashboard__metric--fees {
+    border-top-color: #f59e0b;
+  }
+
+  .ticket-dashboard__metric--processor-fees {
+    border-top-color: #6366f1;
+  }
+
+  .ticket-dashboard__metric--revenue,
+  .ticket-dashboard__metric--net {
+    border-top-color: #10b981;
+  }
+
+  .ticket-dashboard__helper-text {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: var(--spacing-xs) 0 0;
+  }
+
+  /* Six metrics become too narrow for ticket counts and currency values
+   * once the pinned navigation reduces the content column. */
+  @media (max-width: 64rem) {
+    .ticket-dashboard:not(.donation-dashboard) .ticket-dashboard__metrics {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .ticket-dashboard:not(.donation-dashboard) .ticket-dashboard__metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .ticket-dashboard__filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(12rem, 16rem);
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-surface-raised) 72%, transparent);
+  }
+
+  .ticket-dashboard__filters .field {
+    min-width: 0;
+  }
+
+  .ticket-dashboard__filters--search {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ticket-dashboard__active-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface-raised));
+  }
+
+  .ticket-dashboard__active-filter strong {
+    color: var(--color-text);
+  }
+
+  .ticket-dashboard__will-call .table-scroll {
+    margin: 0;
+  }
+
+  .ticket-dashboard__will-call table {
+    min-width: 58rem;
+  }
+
+  .ticket-dashboard__will-call td:last-child,
+  .ticket-dashboard__will-call th:last-child {
+    min-width: 10rem;
+  }
+}

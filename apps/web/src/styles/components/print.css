@@ -323,7 +323,7 @@
       padding: var(--spacing-2xs) 0;
     }
 
-    /* 7. Ticket Passes, Receipts & Orders (Consolidated from forms-layouts.css) */
+    /* 7. Ticket Passes, Receipts & Orders (Consolidated from ticket-credentials.css) */
     .ticket-pass-card,
     .ticket-purchase-summary {
       border-color: #777;
