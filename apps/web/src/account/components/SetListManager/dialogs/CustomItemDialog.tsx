@@ -4,6 +4,8 @@ import type { SyntheticEvent } from "react";
 export function CustomItemDialog({
   addCustomItem,
   customComposer,
+  customCueInstruction,
+  customCueKind,
   customDuration,
   customNotes,
   customTitle,
@@ -11,6 +13,8 @@ export function CustomItemDialog({
   onClose,
   open,
   setCustomComposer,
+  setCustomCueInstruction,
+  setCustomCueKind,
   setCustomDuration,
   setCustomNotes,
   setCustomTitle,
@@ -18,6 +22,8 @@ export function CustomItemDialog({
 }: {
   readonly addCustomItem: () => void;
   readonly customComposer: string;
+  readonly customCueInstruction: string;
+  readonly customCueKind: "timed" | "quick";
   readonly customDuration: string;
   readonly customNotes: string;
   readonly customTitle: string;
@@ -25,6 +31,8 @@ export function CustomItemDialog({
   readonly onClose: () => void;
   readonly open: boolean;
   readonly setCustomComposer: (value: string) => void;
+  readonly setCustomCueInstruction: (value: string) => void;
+  readonly setCustomCueKind: (value: "timed" | "quick") => void;
   readonly setCustomDuration: (value: string) => void;
   readonly setCustomNotes: (value: string) => void;
   readonly setCustomTitle: (value: string) => void;
@@ -51,8 +59,11 @@ export function CustomItemDialog({
             onChange={(event) => {
               const nextType = event.target.value === "intermission" ? "intermission" : "song";
               setCustomType(nextType);
-              if (nextType === "intermission" && !customTitle.trim()) {
-                setCustomTitle("Intermission");
+              if (nextType === "intermission") {
+                setCustomCueKind("timed");
+                if (!customTitle.trim()) {
+                  setCustomTitle("Intermission");
+                }
               }
             }}
           >
@@ -60,6 +71,37 @@ export function CustomItemDialog({
             <option value="intermission">Custom entry</option>
           </select>
         </label>
+        {customType === "intermission" ? (
+          <fieldset className="field set-list-cue-kind-field">
+            <legend className="set-list-field-label">Entry style</legend>
+            <div className="radio-group-inline">
+              <label className="choice-field">
+                <input
+                  checked={customCueKind === "timed"}
+                  name="customCueKind"
+                  type="radio"
+                  value="timed"
+                  onChange={() => {
+                    setCustomCueKind("timed");
+                  }}
+                />
+                Timed cue
+              </label>
+              <label className="choice-field">
+                <input
+                  checked={customCueKind === "quick"}
+                  name="customCueKind"
+                  type="radio"
+                  value="quick"
+                  onChange={() => {
+                    setCustomCueKind("quick");
+                  }}
+                />
+                Quick cue
+              </label>
+            </div>
+          </fieldset>
+        ) : null}
         <label className="field">
           Title
           <input
@@ -84,17 +126,31 @@ export function CustomItemDialog({
             />
           </label>
         ) : null}
-        <label className="field">
-          Duration
-          <input
-            maxLength={20}
-            placeholder="4:05"
-            value={customDuration}
-            onChange={(event) => {
-              setCustomDuration(event.target.value);
-            }}
-          />
-        </label>
+        {customType === "intermission" && customCueKind === "quick" ? (
+          <label className="field">
+            Instruction (optional)
+            <input
+              maxLength={1_000}
+              placeholder="Proceed directly into Silent Night."
+              value={customCueInstruction}
+              onChange={(event) => {
+                setCustomCueInstruction(event.target.value);
+              }}
+            />
+          </label>
+        ) : (
+          <label className="field">
+            Duration
+            <input
+              maxLength={20}
+              placeholder="4:05"
+              value={customDuration}
+              onChange={(event) => {
+                setCustomDuration(event.target.value);
+              }}
+            />
+          </label>
+        )}
         <label className="field">
           Notes
           <textarea

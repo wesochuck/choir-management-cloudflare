@@ -9,6 +9,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import {
+  displayEvent,
   effectiveSetListItemArranger,
   effectiveSetListItemComposer,
   effectiveSetListItemDuration,
@@ -20,6 +21,7 @@ import {
   resolveSetListPreferredPracticeTrack,
   setListBuilderCredit,
   setListDocumentText,
+  setListItemEditError,
   setListItemForEdit,
   setListItemRecordingStatus,
   setListPreviewRows,
@@ -971,5 +973,177 @@ describe("setListDocumentText multi-movement works", () => {
     expect(text).toContain(
       "1. Sunrise Mass ~ Ola Gjeilo\n   The Spheres ~ arr. Dan Forrest\n   Sunrise",
     );
+  });
+});
+
+describe("displayEvent", () => {
+  it("formats date-first with middle dot separator", () => {
+    const event = organizationEventSchema.parse({
+      createdAt: "2026-08-01T12:00:00.000Z",
+      id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e61",
+      location: "Main Sanctuary",
+      setList: [],
+      startsAt: "2026-12-13T19:00:00.000Z",
+      title: "Downtown Christmas Stroll",
+      type: "Performance",
+      updatedAt: "2026-08-01T12:00:00.000Z",
+    });
+
+    const expectedDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
+      new Date("2026-12-13T19:00:00.000Z"),
+    );
+    expect(displayEvent(event)).toBe(`${expectedDate} · Downtown Christmas Stroll`);
+  });
+
+  it("formats single-digit days correctly date-first", () => {
+    const event = organizationEventSchema.parse({
+      createdAt: "2026-08-01T12:00:00.000Z",
+      id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e62",
+      location: "Town Hall",
+      setList: [],
+      startsAt: "2026-12-05T14:30:00.000Z",
+      title: "Winter Concert",
+      type: "Performance",
+      updatedAt: "2026-08-01T12:00:00.000Z",
+    });
+
+    const expectedDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
+      new Date("2026-12-05T14:30:00.000Z"),
+    );
+    expect(displayEvent(event)).toBe(`${expectedDate} · Winter Concert`);
+  });
+});
+
+describe("Quick cues in setListItemForEdit and setListItemEditError", () => {
+  it("normalizes Quick cue: preserves cueKind and cueInstruction, strips duration", () => {
+    const item: SetListItem = {
+      cueInstruction: "  Welcome guests and introduce soloists  ",
+      cueKind: "quick",
+      duration: "5:00",
+      id: "cue-1",
+      notes: "Speaker: Jane Doe",
+      title: "  Director Welcome  ",
+      type: "intermission",
+    };
+
+    const normalized = setListItemForEdit(item, []);
+    expect(normalized.title).toBe("Director Welcome");
+    expect(normalized.cueKind).toBe("quick");
+    expect(normalized.cueInstruction).toBe("Welcome guests and introduce soloists");
+    expect(normalized.duration).toBeUndefined();
+    expect(normalized.notes).toBe("Speaker: Jane Doe");
+  });
+
+  it("normalizes Timed cue: defaults cueKind to timed and keeps duration", () => {
+    const item: SetListItem = {
+      duration: "10:00",
+      id: "cue-2",
+      title: "Intermission",
+      type: "intermission",
+    };
+
+    const normalized = setListItemForEdit(item, []);
+    expect(normalized.cueKind).toBe("timed");
+    expect(normalized.duration).toBe("10:00");
+    expect(normalized.cueInstruction).toBeUndefined();
+  });
+
+  it("validates Quick cue without duration requirement", () => {
+    const validQuick: SetListItem = {
+      cueInstruction: "Stand up",
+      cueKind: "quick",
+      id: "cue-3",
+      title: "Choir Enters",
+      type: "intermission",
+    };
+    expect(setListItemEditError(validQuick, [])).toBeUndefined();
+
+    const emptyTitleQuick: SetListItem = {
+      cueKind: "quick",
+      id: "cue-4",
+      title: "   ",
+      type: "intermission",
+    };
+    expect(setListItemEditError(emptyTitleQuick, [])).toBe("Enter a title for the set-list item.");
+  });
+
+  it("validates Timed cue requiring valid duration format if provided", () => {
+    const invalidTimed: SetListItem = {
+      cueKind: "timed",
+      duration: "not-a-time",
+      id: "cue-5",
+      title: "Intermission",
+      type: "intermission",
+    };
+    expect(setListItemEditError(invalidTimed, [])).toBe(
+      "Duration must be minutes, minutes:seconds, hours:minutes:seconds, or named units.",
+    );
+  });
+});
+
+describe("Quick cue effective duration", () => {
+  it("returns 0:00 and 0 seconds for Quick cues regardless of stale duration", () => {
+    const quickCue: SetListItem = {
+      cueKind: "quick",
+      duration: "12:34",
+      id: "cue-1",
+      title: "Reading",
+      type: "intermission",
+    };
+
+    expect(effectiveSetListItemDuration(quickCue, [])).toBe("0:00");
+    expect(effectiveSetListItemDurationSeconds(quickCue, [])).toBe(0);
+  });
+
+  it("returns normalized duration and seconds for Timed cues", () => {
+    const timedCue: SetListItem = {
+      cueKind: "timed",
+      duration: "15:00",
+      id: "cue-2",
+      title: "Intermission",
+      type: "intermission",
+    };
+
+    expect(effectiveSetListItemDuration(timedCue, [])).toBe("15:00");
+    expect(effectiveSetListItemDurationSeconds(timedCue, [])).toBe(900);
+  });
+});
+
+describe("Quick cue formatting in setListDocumentText and print preview", () => {
+  const event = organizationEventSchema.parse({
+    createdAt: "2026-08-01T12:00:00.000Z",
+    id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e63",
+    location: "Auditorium",
+    setList: [],
+    startsAt: "2026-12-13T19:00:00.000Z",
+    title: "Gala Concert",
+    type: "Performance",
+    updatedAt: "2026-08-01T12:00:00.000Z",
+  });
+
+  it("renders Quick cue unnumbered with title and instruction", () => {
+    const items: SetListItem[] = [
+      { id: "1", pieceId, title: "A Holiday Road of Carols", type: "song" },
+      {
+        cueInstruction: "Acknowledge the sponsors and introduce next piece",
+        cueKind: "quick",
+        id: "2",
+        title: "Remarks",
+        type: "intermission",
+      },
+      { id: "3", pieceId, title: "A Holiday Road of Carols", type: "song" },
+    ];
+
+    const text = setListDocumentText(event, items, music);
+    expect(text).toContain("1. A Holiday Road of Carols");
+    expect(text).toContain("Remarks — Acknowledge the sponsors and introduce next piece");
+    expect(text).not.toContain("2. Remarks");
+    expect(text).toContain("2. A Holiday Road of Carols");
+
+    const rows = setListPreviewRows(items, music);
+    expect(rows[0]?.number).toBe(1);
+    expect(rows[1]?.number).toBeNull();
+    expect(rows[1]?.title).toBe("Remarks — Acknowledge the sponsors and introduce next piece");
+    expect(rows[2]?.number).toBe(2);
   });
 });

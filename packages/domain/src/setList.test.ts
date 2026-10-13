@@ -9,6 +9,7 @@ import {
   moveSetListItem,
   normalizeSetListDuration,
   parseSetListDuration,
+  type SetListTimingItem,
 } from "./setList";
 
 describe("set-list rules", () => {
@@ -204,6 +205,171 @@ describe("set-list rules", () => {
       const timing = calculateSetListTiming(items, 30);
       expect(timing.missingDurationCustomCount).toBe(2);
       expect(timing.intermissionsDuration).toBe(300);
+    });
+
+    it("handles Song / Quick cue / Song -> 0 automatic transitions and 0 cue duration", () => {
+      const items = [
+        { duration: "3:00", type: "song" },
+        { cueKind: "quick" as const, duration: "", type: "intermission" },
+        { duration: "4:00", type: "song" },
+      ];
+      expect(calculateSetListTransitionCount(items)).toBe(0);
+      const timing = calculateSetListTiming(items, 30);
+      expect(timing.defaultTransitionCount).toBe(0);
+      expect(timing.defaultTransitionDuration).toBe(0);
+      expect(timing.songsDuration).toBe(420);
+      expect(timing.intermissionsDuration).toBe(0);
+      expect(timing.quickCueCount).toBe(1);
+      expect(timing.missingDurationCustomCount).toBe(0);
+      expect(timing.estimatedRuntime).toBe(420);
+    });
+
+    it("handles Quick cues at beginning and end of a set list", () => {
+      const items = [
+        { cueKind: "quick" as const, type: "intermission" }, // Welcome
+        { duration: "3:00", type: "song" },
+        { duration: "4:00", type: "song" },
+        { cueKind: "quick" as const, type: "intermission" }, // Dismissal
+      ];
+      expect(calculateSetListTransitionCount(items)).toBe(1);
+      const timing = calculateSetListTiming(items, 30);
+      expect(timing.defaultTransitionCount).toBe(1);
+      expect(timing.defaultTransitionDuration).toBe(30);
+      expect(timing.songsDuration).toBe(420);
+      expect(timing.intermissionsDuration).toBe(0);
+      expect(timing.quickCueCount).toBe(2);
+      expect(timing.missingDurationCustomCount).toBe(0);
+      expect(timing.estimatedRuntime).toBe(450);
+    });
+
+    it("handles consecutive cues (Song -> Quick -> Timed -> Song)", () => {
+      const items = [
+        { duration: "3:00", type: "song" },
+        { cueKind: "quick" as const, type: "intermission" },
+        { cueKind: "timed" as const, duration: "10:00", type: "intermission" },
+        { duration: "4:00", type: "song" },
+      ];
+      expect(calculateSetListTransitionCount(items)).toBe(0);
+      const timing = calculateSetListTiming(items, 30);
+      expect(timing.defaultTransitionCount).toBe(0);
+      expect(timing.defaultTransitionDuration).toBe(0);
+      expect(timing.songsDuration).toBe(420);
+      expect(timing.intermissionsDuration).toBe(600);
+      expect(timing.quickCueCount).toBe(1);
+      expect(timing.missingDurationCustomCount).toBe(0);
+      expect(timing.estimatedRuntime).toBe(1_020);
+    });
+
+    it("ignores stale duration on Quick cue and does not report missing duration", () => {
+      const items = [
+        { duration: "3:00", type: "song" },
+        { cueKind: "quick" as const, duration: "5:00", type: "intermission" }, // stale duration ignored!
+        { duration: "4:00", type: "song" },
+      ];
+      const timing = calculateSetListTiming(items, 30);
+      expect(timing.intermissionsDuration).toBe(0);
+      expect(timing.quickCueCount).toBe(1);
+      expect(timing.missingDurationCustomCount).toBe(0);
+      expect(timing.estimatedRuntime).toBe(420);
+    });
+
+    it("matches acceptance example: 5 songs, transitions, quick cue, and timed cue", () => {
+      // 5 songs totaling 15:13 = 913 seconds
+      const songs: readonly [
+        SetListTimingItem,
+        SetListTimingItem,
+        SetListTimingItem,
+        SetListTimingItem,
+        SetListTimingItem,
+      ] = [
+        { duration: "3:00", type: "song" },
+        { duration: "3:00", type: "song" },
+        { duration: "3:00", type: "song" },
+        { duration: "3:00", type: "song" },
+        { duration: "3:13", type: "song" },
+      ];
+
+      // 1. Initially: 5 adjacent songs, 30s default -> 4 transitions (2:00) -> 17:13 (1033s)
+      const initial = calculateSetListTiming(songs, 30);
+      expect(initial.songsDuration).toBe(913);
+      expect(initial.defaultTransitionCount).toBe(4);
+      expect(initial.defaultTransitionDuration).toBe(120);
+      expect(initial.intermissionsDuration).toBe(0);
+      expect(initial.quickCueCount).toBe(0);
+      expect(initial.estimatedRuntime).toBe(1_033);
+
+      // 2. Insert Quick cue between song 1 and 2:
+      // 3 transitions = 90s, 0s cue -> 16:43 (1003s)
+      const withQuick = calculateSetListTiming(
+        [
+          songs[0],
+          { cueKind: "quick" as const, type: "intermission" },
+          songs[1],
+          songs[2],
+          songs[3],
+          songs[4],
+        ],
+        30,
+      );
+      expect(withQuick.songsDuration).toBe(913);
+      expect(withQuick.defaultTransitionCount).toBe(3);
+      expect(withQuick.defaultTransitionDuration).toBe(90);
+      expect(withQuick.intermissionsDuration).toBe(0);
+      expect(withQuick.quickCueCount).toBe(1);
+      expect(withQuick.missingDurationCustomCount).toBe(0);
+      expect(withQuick.estimatedRuntime).toBe(1_003);
+
+      // 3. Change that entry to a Timed cue of 1:15 (75s):
+      // 3 transitions = 90s, 75s cue -> 17:58 (1078s)
+      const withTimed = calculateSetListTiming(
+        [
+          songs[0],
+          { cueKind: "timed" as const, duration: "1:15", type: "intermission" },
+          songs[1],
+          songs[2],
+          songs[3],
+          songs[4],
+        ],
+        30,
+      );
+      expect(withTimed.songsDuration).toBe(913);
+      expect(withTimed.defaultTransitionCount).toBe(3);
+      expect(withTimed.defaultTransitionDuration).toBe(90);
+      expect(withTimed.intermissionsDuration).toBe(75);
+      expect(withTimed.quickCueCount).toBe(0);
+      expect(withTimed.missingDurationCustomCount).toBe(0);
+      expect(withTimed.estimatedRuntime).toBe(1_078);
+    });
+
+    it("tracks conversion timed -> quick -> timed cleanly", () => {
+      const songA = { duration: "2:00", type: "song" };
+      const songB = { duration: "3:00", type: "song" };
+
+      // Timed with missing duration -> missingDurationCustomCount: 1
+      const initialTimed = { cueKind: "timed" as const, duration: "", type: "intermission" };
+      const timing1 = calculateSetListTiming([songA, initialTimed, songB], 30);
+      expect(timing1.missingDurationCustomCount).toBe(1);
+      expect(timing1.intermissionsDuration).toBe(0);
+      expect(timing1.quickCueCount).toBe(0);
+
+      // Convert to quick -> missingDurationCustomCount: 0, quickCueCount: 1
+      const convertedQuick = {
+        cueKind: "quick" as const,
+        duration: undefined,
+        type: "intermission",
+      };
+      const timing2 = calculateSetListTiming([songA, convertedQuick, songB], 30);
+      expect(timing2.missingDurationCustomCount).toBe(0);
+      expect(timing2.intermissionsDuration).toBe(0);
+      expect(timing2.quickCueCount).toBe(1);
+
+      // Convert to timed with duration "2:00" -> intermissionsDuration: 120, missingDurationCustomCount: 0
+      const convertedTimed = { cueKind: "timed" as const, duration: "2:00", type: "intermission" };
+      const timing3 = calculateSetListTiming([songA, convertedTimed, songB], 30);
+      expect(timing3.missingDurationCustomCount).toBe(0);
+      expect(timing3.intermissionsDuration).toBe(120);
+      expect(timing3.quickCueCount).toBe(0);
+      expect(timing3.estimatedRuntime).toBe(420);
     });
 
     it("supports custom duration resolver", () => {

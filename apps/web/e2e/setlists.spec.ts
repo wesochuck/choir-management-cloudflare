@@ -870,3 +870,145 @@ test("keeps song rows compact while insert zones stay usable", async ({ page }) 
   );
   expect(overflow).toBe(false);
 });
+
+test("creates, edits, and prints Quick cues with compact layout, 0:00 duration, and date-first event options", async ({
+  page,
+}) => {
+  const eventRef: { value: Record<string, unknown> } = {
+    value: {
+      advancePriceCents: 0,
+      callTime: "18:00",
+      dayOfPriceCents: 0,
+      details: "",
+      doorsOpenTime: "",
+      durationMinutes: 120,
+      id: eventId,
+      isTicketingEnabled: false,
+      location: "Main Hall",
+      parentPerformanceId: null,
+      publicDetails: "",
+      publicGraphicFileId: null,
+      publishOnWebsite: false,
+      setList: [
+        {
+          composer: "Composer A",
+          id: "item-a",
+          pieceId: musicId,
+          title: "Opening Song",
+          type: "song",
+        },
+        { composer: "Composer B", id: "item-b", pieceId: musicId, title: "Finale", type: "song" },
+      ],
+      setListApproved: false,
+      startsAt: "2026-12-13T19:00:00.000Z",
+      ticketCapacity: null,
+      title: "Holiday Stroll",
+      type: "Performance",
+      venueId: null,
+      createdAt: "2026-07-20T20:00:00.000Z",
+      updatedAt: "2026-07-20T20:00:00.000Z",
+    },
+  };
+  await page.route("**/api/**", async (route) => {
+    if (await handleShellRoute(route)) return;
+    if (await handleDataRoute(route, eventRef)) return;
+    await fulfillJson(route, { requestId });
+  });
+
+  await page.setViewportSize({ height: 1000, width: 1280 });
+  await page.goto("/admin/setlists");
+  await expect(page.getByRole("heading", { name: "Set lists" })).toBeVisible();
+
+  // 1. Event selector formats date-first: "Dec 13, 2026 · Holiday Stroll"
+  const selectOption = page.locator('select option[value="' + eventId + '"]').first();
+  await expect(selectOption).toContainText("Dec 13, 2026 · Holiday Stroll");
+
+  // 2. Click "+ Insert Custom entry" which inserts a custom item and opens the Edit dialog
+  await page.getByRole("button", { name: "+ Insert Custom entry" }).click();
+  const editDialog = page.getByRole("dialog", { name: "Edit set-list item" });
+  await expect(editDialog).toBeVisible();
+
+  // Timed cue is default
+  const timedRadio = editDialog.getByRole("radio", { name: "Timed cue" });
+  const quickRadio = editDialog.getByRole("radio", { name: "Quick cue" });
+  await expect(timedRadio).toBeChecked();
+  await expect(editDialog.getByLabel("Duration")).toBeVisible();
+
+  // Switch to Quick cue: duration input disappears, instruction input appears
+  await quickRadio.check();
+  await expect(quickRadio).toBeChecked();
+  await expect(editDialog.getByLabel("Duration")).toHaveCount(0);
+  await expect(editDialog.getByLabel("Instruction (optional)")).toBeVisible();
+
+  // Fill in Quick cue fields
+  await editDialog.getByLabel("Title").fill("Director Welcome");
+  await editDialog
+    .getByLabel("Instruction (optional)")
+    .fill("Welcome guests and introduce guest soloist");
+  await editDialog.getByRole("button", { name: "Save item" }).click();
+  await expect(editDialog).not.toBeVisible();
+
+  // 3. Verify compact Quick cue row in list
+  const quickCueRow = page.locator(".set-list-item--quick-cue");
+  await expect(quickCueRow).toBeVisible();
+  await expect(quickCueRow).toContainText("Director Welcome");
+  await expect(quickCueRow).toContainText("Quick cue");
+  await expect(quickCueRow).toContainText("Welcome guests and introduce guest soloist");
+  await expect(quickCueRow.locator(".set-list-item-duration")).toHaveText("0:00");
+
+  // Verify Quick cue row height is compact (~40-48px)
+  const cueHeight = await quickCueRow.evaluate((el) => el.getBoundingClientRect().height);
+  expect(cueHeight).toBeLessThan(60);
+
+  // Quick cue does not produce missing duration warning
+  await expect(page.locator(".set-list-duration-warning")).toHaveCount(0);
+
+  // Summary breakdown displays Quick cues count
+  await expect(page.locator(".set-list-summary__breakdown")).toContainText("Quick cues 1");
+
+  // 4. Edit Quick cue
+  await quickCueRow.getByRole("button", { name: "Edit" }).click();
+  await expect(editDialog).toBeVisible();
+  await expect(editDialog.getByRole("radio", { name: "Quick cue" })).toBeChecked();
+  await expect(editDialog.getByLabel("Duration")).toHaveCount(0);
+  await expect(editDialog.getByLabel("Instruction (optional)")).toHaveValue(
+    "Welcome guests and introduce guest soloist",
+  );
+
+  // Update instruction
+  await editDialog
+    .getByLabel("Instruction (optional)")
+    .fill("Updated: Welcome guests and announce intermission");
+  await editDialog.getByRole("button", { name: "Save item" }).click();
+  await expect(editDialog).not.toBeVisible();
+
+  await expect(quickCueRow).toContainText("Updated: Welcome guests and announce intermission");
+
+  // 5. Test CustomItemDialog (via "+ Add new song" -> change type to Custom entry)
+  await page.getByRole("button", { name: "+ Add new song" }).click();
+  const customDialog = page.getByRole("dialog", { name: "Add custom item" });
+  await expect(customDialog).toBeVisible();
+  await customDialog.getByLabel("Type").selectOption("intermission");
+  await expect(customDialog.getByRole("radio", { name: "Timed cue" })).toBeChecked();
+  await customDialog.getByRole("radio", { name: "Quick cue" }).check();
+  await expect(customDialog.getByLabel("Duration")).toHaveCount(0);
+  await expect(customDialog.getByLabel("Instruction (optional)")).toBeVisible();
+  await customDialog.getByLabel("Title").fill("Closing Cue");
+  await customDialog.getByLabel("Instruction (optional)").fill("Direct applause to choir");
+  await customDialog.getByRole("button", { name: "Add item" }).click();
+  await expect(customDialog).not.toBeVisible();
+
+  // Summary breakdown displays Quick cues count of 2
+  await expect(page.locator(".set-list-summary__breakdown")).toContainText("Quick cues 2");
+
+  // 6. Print & Copy includes Quick cues unnumbered with instruction
+  await page.getByRole("button", { name: "Print & Copy" }).click();
+  const printDialog = page.getByRole("dialog", { name: "Printable Set List" });
+  await expect(printDialog).toBeVisible();
+  await expect(printDialog).toContainText(
+    "Director Welcome — Updated: Welcome guests and announce intermission",
+  );
+  await expect(printDialog).toContainText("Closing Cue — Direct applause to choir");
+  await page.keyboard.press("Escape");
+  await expect(printDialog).not.toBeVisible();
+});

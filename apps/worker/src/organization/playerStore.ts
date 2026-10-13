@@ -6,6 +6,8 @@ import { z } from "zod";
 
 const setListItemSchema = z.object({
   composer: z.string().optional(),
+  cueInstruction: z.string().optional(),
+  cueKind: z.enum(["timed", "quick"]).optional(),
   duration: z.string().optional(),
   id: z.string().optional(),
   isFeaturedNumber: z.boolean().optional(),

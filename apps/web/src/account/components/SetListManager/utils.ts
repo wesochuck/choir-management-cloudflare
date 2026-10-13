@@ -259,7 +259,13 @@ export function setListItemEditError(
 ): string | undefined {
   const linkedMusicPiece = musicPieceForSetListItem(item, music);
   if (!linkedMusicPiece && !item.title.trim()) return "Enter a title for the set-list item.";
-  if (!linkedMusicPiece && item.duration && parseSetListDuration(item.duration) === null) {
+  const isQuick = item.type === "intermission" && item.cueKind === "quick";
+  if (
+    !isQuick &&
+    !linkedMusicPiece &&
+    item.duration &&
+    parseSetListDuration(item.duration) === null
+  ) {
     return "Duration must be minutes, minutes:seconds, hours:minutes:seconds, or named units.";
   }
   return undefined;
@@ -270,17 +276,24 @@ export function setListItemForEdit(
   music: readonly OrganizationMusicPiece[],
 ): SetListItem {
   const linkedMusicPiece = musicPieceForSetListItem(item, music);
+  const isIntermission = item.type === "intermission";
+  const cueKind = isIntermission ? (item.cueKind ?? "timed") : undefined;
+  const isQuick = isIntermission && cueKind === "quick";
   return {
     ...item,
+    cueInstruction: isQuick ? trimmedOrUndefined(item.cueInstruction) : undefined,
+    cueKind,
     title: linkedMusicPiece?.title ?? item.title.trim(),
     composer:
       itemType(item) === "song"
         ? (trimmedOrUndefined(linkedMusicPiece?.composer) ?? trimmedOrUndefined(item.composer))
         : undefined,
-    duration: linkedMusicPiece
-      ? (durationFromSeconds(linkedMusicPiece.durationSeconds) ??
-        normalizeSetListDuration(item.duration))
-      : normalizeSetListDuration(item.duration),
+    duration: isQuick
+      ? undefined
+      : linkedMusicPiece
+        ? (durationFromSeconds(linkedMusicPiece.durationSeconds) ??
+          normalizeSetListDuration(item.duration))
+        : normalizeSetListDuration(item.duration),
     notes: trimmedOrUndefined(item.notes),
   };
 }
@@ -295,6 +308,9 @@ export function effectiveSetListItemDuration(
   item: SetListItem,
   music: readonly OrganizationMusicPiece[],
 ): string | undefined {
+  if (item.type === "intermission" && item.cueKind === "quick") {
+    return "0:00";
+  }
   const itemDuration = normalizeSetListDuration(item.duration);
   if (itemDuration) return itemDuration;
   const linkedPiece = musicPieceForSetListItem(item, music);
@@ -306,6 +322,9 @@ export function effectiveSetListItemDurationSeconds(
   item: SetListItem,
   music: readonly OrganizationMusicPiece[],
 ): number {
+  if (item.type === "intermission" && item.cueKind === "quick") {
+    return 0;
+  }
   const duration = effectiveSetListItemDuration(item, music);
   return duration ? (parseSetListDuration(duration) ?? 0) : 0;
 }
@@ -363,7 +382,10 @@ export function moveItemToIndex(
 }
 
 export function displayEvent(event: OrganizationEvent): string {
-  return `${event.title} — ${new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(event.startsAt))}`;
+  const formattedDate = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(
+    new Date(event.startsAt),
+  );
+  return `${formattedDate} · ${event.title}`;
 }
 
 export function printDateOnly(value: string): string {
@@ -403,24 +425,42 @@ export function formatPracticePlayerExpiration(
   return `${prefix} expires ${formatted}.`;
 }
 
+function resolvePrintRowTitle(item: SetListItem): string {
+  if (item.type === "intermission" && item.cueKind === "quick") {
+    const instruction = item.cueInstruction?.trim();
+    if (instruction) return `${item.title} — ${instruction}`;
+  }
+  return item.title;
+}
+
+function resolvePrintRowPerformers(item: SetListItem): string {
+  const isFeatured = item.isFeaturedNumber ?? item.soloSmallGroup ?? false;
+  if (!isFeatured || !item.performerCredits) return "";
+  return item.performerCredits.map(({ displayName }) => displayName).join(", ");
+}
+
+function printRowForItem(
+  item: SetListItem,
+  music: readonly OrganizationMusicPiece[],
+  musicById: ReadonlyMap<string, OrganizationMusicPiece>,
+): SetListPrintRow {
+  const piece = item.pieceId ? musicById.get(item.pieceId) : undefined;
+  const customComposer = trimmedOrUndefined(item.composer);
+  return {
+    arranger: piece?.arranger ?? "",
+    composer: customComposer ?? piece?.composer ?? "",
+    notes: effectiveSetListItemNotes(item, music),
+    performers: resolvePrintRowPerformers(item),
+    title: resolvePrintRowTitle(item),
+  };
+}
+
 function printRowsFor(
   items: readonly SetListItem[],
   music: readonly OrganizationMusicPiece[],
 ): SetListPrintRow[] {
   const musicById = new Map(music.map((piece) => [piece.id, piece]));
-  return items.map((item) => {
-    const piece = item.pieceId ? musicById.get(item.pieceId) : undefined;
-    const isFeaturedNumber = item.isFeaturedNumber ?? item.soloSmallGroup ?? false;
-    return {
-      arranger: piece?.arranger ?? "",
-      composer: item.composer?.trim() ? item.composer : (piece?.composer ?? ""),
-      notes: effectiveSetListItemNotes(item, music),
-      performers: isFeaturedNumber
-        ? (item.performerCredits ?? []).map(({ displayName }) => displayName).join(", ")
-        : "",
-      title: item.title,
-    };
-  });
+  return items.map((item) => printRowForItem(item, music, musicById));
 }
 
 export function setListPreviewRows(
@@ -474,7 +514,10 @@ function formatIntermissionLines(
   entry: PresentationIntermissionEntry,
   showNotes: boolean,
 ): string[] {
-  return [entry.item.title, ...(showNotes && entry.notes ? indentedNoteLines(entry.notes) : [])];
+  const isQuick = entry.item.cueKind === "quick";
+  const instruction = isQuick ? entry.item.cueInstruction?.trim() : undefined;
+  const titleLine = instruction ? `${entry.item.title} — ${instruction}` : entry.item.title;
+  return [titleLine, ...(showNotes && entry.notes ? indentedNoteLines(entry.notes) : [])];
 }
 
 function formatStandaloneLines(entry: PresentationStandaloneEntry, showNotes: boolean): string[] {

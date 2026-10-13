@@ -380,7 +380,6 @@
 
   .set-list-help-disclosure p {
     margin: var(--spacing-xs) 0 0;
-    max-width: 60ch;
   }
 
   .set-list-reorder-help {

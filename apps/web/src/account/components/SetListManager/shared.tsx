@@ -23,9 +23,12 @@ import {
 } from "./utils";
 
 function renderIntermissionPreview(entry: PresentationIntermissionEntry, showNotes: boolean) {
+  const isQuick = entry.item.cueKind === "quick";
+  const instruction = isQuick ? entry.item.cueInstruction?.trim() : undefined;
   return (
     <li className="set-list-preview__intermission" key={`intermission-${String(entry.flatIndex)}`}>
       {entry.item.title}
+      {instruction ? <span className="set-list-preview__instruction"> — {instruction}</span> : null}
       {showNotes && entry.notes ? (
         <div className="set-list-preview__note">{entry.notes}</div>
       ) : null}

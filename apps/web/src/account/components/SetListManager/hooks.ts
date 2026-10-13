@@ -54,6 +54,8 @@ export function useSetListManagerController({
   const [customTitle, setCustomTitle] = useState("");
   const [customComposer, setCustomComposer] = useState("");
   const [customDuration, setCustomDuration] = useState("");
+  const [customCueKind, setCustomCueKind] = useState<"timed" | "quick">("timed");
+  const [customCueInstruction, setCustomCueInstruction] = useState("");
   const [customNotes, setCustomNotes] = useState("");
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
@@ -208,6 +210,7 @@ export function useSetListManagerController({
     defaultTransitionDuration,
     estimatedRuntime,
     missingDurationCustomCount,
+    quickCueCount,
   } = timing;
   const totalDuration = estimatedRuntime;
 
@@ -261,7 +264,9 @@ export function useSetListManagerController({
       setError("Enter a title for the set-list item.");
       return;
     }
-    if (customDuration.trim() && parseSetListDuration(customDuration) === null) {
+    const isIntermission = customType === "intermission";
+    const isQuick = isIntermission && customCueKind === "quick";
+    if (!isQuick && customDuration.trim() && parseSetListDuration(customDuration) === null) {
       setError("Duration must be minutes, minutes:seconds, hours:minutes:seconds, or named units.");
       return;
     }
@@ -269,7 +274,9 @@ export function useSetListManagerController({
       ...current,
       {
         composer: customType === "song" ? customComposer.trim() || undefined : undefined,
-        duration: normalizeSetListDuration(customDuration),
+        cueInstruction: isQuick ? customCueInstruction.trim() || undefined : undefined,
+        cueKind: isIntermission ? customCueKind : undefined,
+        duration: isQuick ? undefined : normalizeSetListDuration(customDuration),
         id: crypto.randomUUID(),
         notes: customNotes.trim() || undefined,
         title: customTitle.trim(),
@@ -280,6 +287,8 @@ export function useSetListManagerController({
     setCustomComposer("");
     setCustomDuration("");
     setCustomNotes("");
+    setCustomCueInstruction("");
+    setCustomCueKind("timed");
     setError(null);
     setCustomDialogOpen(false);
   }
@@ -290,12 +299,15 @@ export function useSetListManagerController({
     setCustomComposer("");
     setCustomDuration(duration);
     setCustomNotes("");
+    setCustomCueKind("timed");
+    setCustomCueInstruction("");
     setError(null);
     setCustomDialogOpen(true);
   }
 
   function insertCustomItem(index: number): void {
     const item: SetListItem = {
+      cueKind: "timed",
       id: crypto.randomUUID(),
       title: "Intermission",
       type: "intermission",
@@ -581,6 +593,8 @@ export function useSetListManagerController({
     copyListText,
     copyMissingItems,
     customComposer,
+    customCueInstruction,
+    customCueKind,
     customDialogOpen,
     customDuration,
     customNotes,
@@ -618,6 +632,7 @@ export function useSetListManagerController({
     playerBusy: playerAction !== null,
     qrDialogOpen,
     qrUrl,
+    quickCueCount,
     renewPracticePlayerLink,
     resources,
     save,
@@ -627,6 +642,8 @@ export function useSetListManagerController({
     setApproved,
     setCopyEventId,
     setCustomComposer,
+    setCustomCueInstruction,
+    setCustomCueKind,
     setCustomDialogOpen,
     setCustomDuration,
     setCustomNotes,

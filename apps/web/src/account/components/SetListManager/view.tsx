@@ -183,6 +183,7 @@ function buildItemRowClassName({
   isIntermission,
   isMovement,
   isParent,
+  isQuickCue,
   isRecentlyMoved,
 }: {
   readonly dropAfter: boolean;
@@ -191,6 +192,7 @@ function buildItemRowClassName({
   readonly isIntermission: boolean;
   readonly isMovement: boolean;
   readonly isParent: boolean;
+  readonly isQuickCue?: boolean | undefined;
   readonly isRecentlyMoved: boolean;
 }): string {
   const classes = ["set-list-item"];
@@ -198,6 +200,7 @@ function buildItemRowClassName({
   if (isParent) classes.push("set-list-item--group-parent");
   if (isDragging) classes.push("set-list-item--dragging");
   if (isIntermission) classes.push("set-list-item--intermission");
+  if (isQuickCue) classes.push("set-list-item--quick-cue");
   if (dropBefore) classes.push("set-list-item--drop-before");
   if (dropAfter) classes.push("set-list-item--drop-after");
   if (isRecentlyMoved) classes.push("set-list-item--moved");
@@ -311,6 +314,8 @@ export function SetListManagerView({
     copyListText,
     copyMissingItems,
     customComposer,
+    customCueInstruction,
+    customCueKind,
     customDialogOpen,
     customDuration,
     customNotes,
@@ -347,6 +352,7 @@ export function SetListManagerView({
     playerAction,
     qrDialogOpen,
     qrUrl,
+    quickCueCount,
     renewPracticePlayerLink,
     resources,
     setQrDialogOpen,
@@ -357,6 +363,8 @@ export function SetListManagerView({
     setApproved,
     setCopyEventId,
     setCustomComposer,
+    setCustomCueInstruction,
+    setCustomCueKind,
     setCustomDialogOpen,
     setCustomDuration,
     setCustomNotes,
@@ -512,6 +520,7 @@ export function SetListManagerView({
     const itemDragging = setListItemIsDragging(index, dragIndex, keyboardDragIndex);
     const recordingStatus = setListItemRecordingStatus(item, resources.music);
 
+    const isQuickCue = item.type === "intermission" && item.cueKind === "quick";
     const className = buildItemRowClassName({
       dropAfter: dropState.after,
       dropBefore: dropState.before,
@@ -519,6 +528,7 @@ export function SetListManagerView({
       isIntermission: item.type === "intermission",
       isMovement,
       isParent: movementCount !== undefined,
+      isQuickCue,
       isRecentlyMoved: recentlyMovedItemId === item.id,
     });
     const ariaLabel =
@@ -586,55 +596,114 @@ export function SetListManagerView({
             }
           }}
         >
-          <div className="set-list-item-heading">
-            <div className="set-list-item-title">
-              <button
-                aria-describedby="set-list-keyboard-reorder-help"
-                aria-label={reorderHandleLabel(item.title, index, items.length, keyboardDragging)}
-                aria-pressed={keyboardDragging}
-                aria-controls="set-list-items"
-                className="set-list-drag-handle"
-                onKeyDown={(event) => {
-                  handleKeyboardReorderKeyDown(index, event);
-                }}
-                title="Drag to reorder, or press Space or Enter for keyboard control"
-                type="button"
-              >
-                <span aria-hidden="true" />
-              </button>
-              {renderItemLeadingIndicator(isMovement, programNumber)}
-              <strong>{item.title}</strong>
-              {item.type === "intermission" ? (
-                <span className="set-list-item-type">Custom entry</span>
-              ) : null}
+          {isQuickCue ? (
+            <div className="set-list-item-heading set-list-item-heading--quick-cue">
+              <div className="set-list-item-title set-list-item-title--quick-cue">
+                <button
+                  aria-describedby="set-list-keyboard-reorder-help"
+                  aria-label={reorderHandleLabel(item.title, index, items.length, keyboardDragging)}
+                  aria-pressed={keyboardDragging}
+                  aria-controls="set-list-items"
+                  className="set-list-drag-handle"
+                  onKeyDown={(event) => {
+                    handleKeyboardReorderKeyDown(index, event);
+                  }}
+                  title="Drag to reorder, or press Space or Enter for keyboard control"
+                  type="button"
+                >
+                  <span aria-hidden="true" />
+                </button>
+                <span aria-hidden="true" className="set-list-item-movement-indicator">
+                  ↳
+                </span>
+                <strong>{item.title}</strong>
+                <span className="set-list-item-type set-list-item-type--quick-cue">Quick cue</span>
+                {item.cueInstruction ? (
+                  <span className="set-list-item-instruction">{item.cueInstruction}</span>
+                ) : null}
+              </div>
+              <div className="set-list-item-actions set-list-item-actions--quick-cue">
+                <span className="set-list-item-duration">0:00</span>
+                <button
+                  className="text-button"
+                  type="button"
+                  onClick={() => {
+                    openItemEditor(index);
+                  }}
+                >
+                  Edit
+                </button>
+                <button
+                  className="text-button text-button--danger"
+                  type="button"
+                  onClick={() => {
+                    updateDraftItems((current) =>
+                      current.filter((_, itemIndex) => itemIndex !== index),
+                    );
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
             </div>
-            <SetListItemRowActions
-              item={item}
-              onEdit={() => {
-                openItemEditor(index);
-              }}
-              onRemove={() => {
-                updateDraftItems((current) =>
-                  current.filter((_, itemIndex) => itemIndex !== index),
-                );
-              }}
-              recordingStatus={recordingStatus}
-            />
-          </div>
-          <div className="set-list-item-summary">
-            <SetListItemSummaryText
-              arranger={effectiveSetListItemArranger(item, resources.music)}
-              composer={effectiveSetListItemComposer(item, resources.music)}
-              displayCredit={displayCredit}
-              duration={effectiveSetListItemDuration(item, resources.music)}
-              isSong={itemType(item) === "song"}
-              itemNotes={itemNotes}
-              movementCount={movementCount}
-              parentWorkTitle={parentWorkTitle}
-              recordingStatus={recordingStatus}
-            />
-            {item.isFeaturedNumber ? <span className="status-pill">Featured</span> : null}
-          </div>
+          ) : (
+            <>
+              <div className="set-list-item-heading">
+                <div className="set-list-item-title">
+                  <button
+                    aria-describedby="set-list-keyboard-reorder-help"
+                    aria-label={reorderHandleLabel(
+                      item.title,
+                      index,
+                      items.length,
+                      keyboardDragging,
+                    )}
+                    aria-pressed={keyboardDragging}
+                    aria-controls="set-list-items"
+                    className="set-list-drag-handle"
+                    onKeyDown={(event) => {
+                      handleKeyboardReorderKeyDown(index, event);
+                    }}
+                    title="Drag to reorder, or press Space or Enter for keyboard control"
+                    type="button"
+                  >
+                    <span aria-hidden="true" />
+                  </button>
+                  {renderItemLeadingIndicator(isMovement, programNumber)}
+                  <strong>{item.title}</strong>
+                  {item.type === "intermission" ? (
+                    <span className="set-list-item-type">Custom entry</span>
+                  ) : null}
+                </div>
+                <SetListItemRowActions
+                  item={item}
+                  onEdit={() => {
+                    openItemEditor(index);
+                  }}
+                  onRemove={() => {
+                    updateDraftItems((current) =>
+                      current.filter((_, itemIndex) => itemIndex !== index),
+                    );
+                  }}
+                  recordingStatus={recordingStatus}
+                />
+              </div>
+              <div className="set-list-item-summary">
+                <SetListItemSummaryText
+                  arranger={effectiveSetListItemArranger(item, resources.music)}
+                  composer={effectiveSetListItemComposer(item, resources.music)}
+                  displayCredit={displayCredit}
+                  duration={effectiveSetListItemDuration(item, resources.music)}
+                  isSong={itemType(item) === "song"}
+                  itemNotes={itemNotes}
+                  movementCount={movementCount}
+                  parentWorkTitle={parentWorkTitle}
+                  recordingStatus={recordingStatus}
+                />
+                {item.isFeaturedNumber ? <span className="status-pill">Featured</span> : null}
+              </div>
+            </>
+          )}
           <SetListItemNotes notes={itemNotes} showNotes={showNotes} />
         </li>
         {index < items.length - 1 ? (
@@ -830,7 +899,11 @@ export function SetListManagerView({
                 }}
               >
                 {performances.map((performance) => (
-                  <option key={performance.id} value={performance.id}>
+                  <option
+                    key={performance.id}
+                    title={displayEvent(performance)}
+                    value={performance.id}
+                  >
                     {displayEvent(performance)}
                   </option>
                 ))}
@@ -849,7 +922,11 @@ export function SetListManagerView({
                   {performances
                     .filter(({ id }) => id !== selectedEvent.id)
                     .map((performance) => (
-                      <option key={performance.id} value={performance.id}>
+                      <option
+                        key={performance.id}
+                        title={displayEvent(performance)}
+                        value={performance.id}
+                      >
                         {displayEvent(performance)}
                       </option>
                     ))}
@@ -920,8 +997,7 @@ export function SetListManagerView({
                   ⓘ
                 </summary>
                 <p className="field-help">
-                  Applied between consecutive songs, except movements of the same work or when a
-                  Custom entry is placed between them.
+                  Applied between consecutive songs; omitted within a work or around custom entries.
                 </p>
               </details>
             </div>
@@ -1056,6 +1132,11 @@ export function SetListManagerView({
                 <div>
                   <dt>Custom entries</dt> <dd>{formatSetListDuration(intermissionsDuration)}</dd>
                 </div>
+                {quickCueCount > 0 ? (
+                  <div>
+                    <dt>Quick cues</dt> <dd>{quickCueCount}</dd>
+                  </div>
+                ) : null}
                 {defaultTransitionDuration > 0 ? (
                   <div>
                     <dt className="set-list-summary__transition-label">
@@ -1136,10 +1217,7 @@ export function SetListManagerView({
                 <span>Drag to reorder</span>
                 <details className="set-list-help-disclosure">
                   <summary>Keyboard instructions</summary>
-                  <p>
-                    Focus an item's reorder handle and press Space or Enter to pick it up. Use the
-                    arrow keys to move it, then press Space or Enter to drop; Escape cancels.
-                  </p>
+                  <p>Space/Enter: pick up or drop · ↑/↓: move · Esc: cancel.</p>
                 </details>
               </div>
               <p className="sr-only" id="set-list-keyboard-reorder-help">
@@ -1216,6 +1294,8 @@ export function SetListManagerView({
           <CustomItemDialog
             addCustomItem={addCustomItem}
             customComposer={customComposer}
+            customCueInstruction={customCueInstruction}
+            customCueKind={customCueKind}
             customDuration={customDuration}
             customNotes={customNotes}
             customTitle={customTitle}
@@ -1225,6 +1305,8 @@ export function SetListManagerView({
             }}
             open={customDialogOpen}
             setCustomComposer={setCustomComposer}
+            setCustomCueInstruction={setCustomCueInstruction}
+            setCustomCueKind={setCustomCueKind}
             setCustomDuration={setCustomDuration}
             setCustomNotes={setCustomNotes}
             setCustomTitle={setCustomTitle}

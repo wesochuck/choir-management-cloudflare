@@ -1,6 +1,8 @@
 import { z } from "zod";
 export const organizationSetListItemSchema = z.object({
   composer: z.string().trim().max(300).optional(),
+  cueInstruction: z.string().trim().max(1_000).optional(),
+  cueKind: z.enum(["timed", "quick"]).optional(),
   duration: z.string().trim().max(20).optional(),
   id: z.string().trim().min(1).max(128).optional(),
   isFeaturedNumber: z.boolean().optional(),

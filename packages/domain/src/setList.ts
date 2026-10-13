@@ -71,10 +71,11 @@ export function moveSetListItem<T>(
 }
 
 export interface SetListTimingItem {
-  readonly pieceId?: string | undefined;
-  readonly parentPieceId?: string | undefined;
+  readonly cueKind?: "timed" | "quick" | undefined;
   readonly duration?: string | undefined;
   readonly durationSeconds?: number | undefined;
+  readonly parentPieceId?: string | undefined;
+  readonly pieceId?: string | undefined;
   readonly type?: string | undefined;
 }
 
@@ -84,6 +85,7 @@ export interface SetListTimingBreakdown {
   readonly estimatedRuntime: number;
   readonly intermissionsDuration: number;
   readonly missingDurationCustomCount: number;
+  readonly quickCueCount: number;
   readonly songsDuration: number;
 }
 
@@ -115,15 +117,20 @@ export function calculateSetListTiming<T extends SetListTimingItem>(
   let songsDuration = 0;
   let intermissionsDuration = 0;
   let missingDurationCustomCount = 0;
+  let quickCueCount = 0;
 
   for (const item of items) {
-    const seconds = resolveDurationSeconds
-      ? resolveDurationSeconds(item)
-      : (item.durationSeconds ?? parseSetListDuration(item.duration) ?? 0);
-
     if (isSetListSongItem(item)) {
+      const seconds = resolveDurationSeconds
+        ? resolveDurationSeconds(item)
+        : (item.durationSeconds ?? parseSetListDuration(item.duration) ?? 0);
       songsDuration += seconds;
+    } else if (item.cueKind === "quick") {
+      quickCueCount += 1;
     } else {
+      const seconds = resolveDurationSeconds
+        ? resolveDurationSeconds(item)
+        : (item.durationSeconds ?? parseSetListDuration(item.duration) ?? 0);
       intermissionsDuration += seconds;
       if (seconds <= 0) {
         missingDurationCustomCount += 1;
@@ -142,6 +149,7 @@ export function calculateSetListTiming<T extends SetListTimingItem>(
     estimatedRuntime,
     intermissionsDuration,
     missingDurationCustomCount,
+    quickCueCount,
     songsDuration,
   };
 }

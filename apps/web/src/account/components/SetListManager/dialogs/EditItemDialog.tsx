@@ -81,6 +81,45 @@ export function EditItemDialog({
             ) : null}
           </section>
         ) : null}
+        {itemType(editingItem) === "intermission" ? (
+          <fieldset className="field set-list-cue-kind-field">
+            <legend className="set-list-field-label">Entry style</legend>
+            <div className="radio-group-inline">
+              <label className="choice-field">
+                <input
+                  checked={(editingItem.cueKind ?? "timed") === "timed"}
+                  name="cueKind"
+                  type="radio"
+                  value="timed"
+                  onChange={() => {
+                    setEditingItem({
+                      ...editingItem,
+                      cueKind: "timed",
+                      duration: "",
+                    });
+                  }}
+                />
+                Timed cue
+              </label>
+              <label className="choice-field">
+                <input
+                  checked={editingItem.cueKind === "quick"}
+                  name="cueKind"
+                  type="radio"
+                  value="quick"
+                  onChange={() => {
+                    setEditingItem({
+                      ...editingItem,
+                      cueKind: "quick",
+                      duration: undefined,
+                    });
+                  }}
+                />
+                Quick cue
+              </label>
+            </div>
+          </fieldset>
+        ) : null}
         <label className="field">
           Title
           <input
@@ -111,22 +150,37 @@ export function EditItemDialog({
             />
           </label>
         ) : null}
-        <label className="field">
-          Duration
-          <input
-            aria-invalid={
-              Boolean(editingItem.duration) && parseSetListDuration(editingItem.duration) === null
-            }
-            maxLength={20}
-            readOnly={editingItemIsLinked}
-            value={editingDuration}
-            onChange={(event) => {
-              if (!editingItemIsLinked) {
-                setEditingItem({ ...editingItem, duration: event.target.value });
+        {itemType(editingItem) === "intermission" && editingItem.cueKind === "quick" ? (
+          <label className="field">
+            Instruction (optional)
+            <input
+              maxLength={1_000}
+              placeholder="Proceed directly into Silent Night."
+              value={editingItem.cueInstruction ?? ""}
+              onChange={(event) => {
+                setEditingItem({ ...editingItem, cueInstruction: event.target.value });
+              }}
+            />
+          </label>
+        ) : (
+          <label className="field">
+            Duration
+            <input
+              aria-invalid={
+                Boolean(editingItem.duration) && parseSetListDuration(editingItem.duration) === null
               }
-            }}
-          />
-        </label>
+              maxLength={20}
+              placeholder={itemType(editingItem) === "song" ? undefined : "4:05"}
+              readOnly={editingItemIsLinked}
+              value={editingDuration}
+              onChange={(event) => {
+                if (!editingItemIsLinked) {
+                  setEditingItem({ ...editingItem, duration: event.target.value });
+                }
+              }}
+            />
+          </label>
+        )}
         <label className="field">
           Notes
           <textarea
