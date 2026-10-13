@@ -393,9 +393,10 @@ export function AuthenticatedShell({
   );
 
   const workspaceOptions = availableWorkspaces(canManage, platformAvailable);
+  const canAccessPalette = access.status === "ready" || access.status === "platform-scoped";
 
   useEffect(() => {
-    if (!canManage && !platformAvailable) return;
+    if (!canAccessPalette) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -410,7 +411,7 @@ export function AuthenticatedShell({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [canManage, commandPaletteOpen, platformAvailable]);
+  }, [canAccessPalette, commandPaletteOpen]);
 
   // Phase 2 gap 5: closing the palette restores focus to the element that
   // opened it when still visible, including the drawer-to-palette handoff
@@ -607,7 +608,7 @@ export function AuthenticatedShell({
             </AppLink>
           </div>
           <div className="signed-in-header__actions">
-            {canManage || platformAvailable ? (
+            {canAccessPalette ? (
               <QuickSearchTrigger
                 className="header-quick-search-trigger"
                 onClick={openPaletteFromHeader}
@@ -837,7 +838,7 @@ export function AuthenticatedShell({
             />
           </div>
         </Sheet>
-        {canManage || platformAvailable ? (
+        {canAccessPalette ? (
           <CommandPaletteModal
             isOwner={
               access.status === "ready" && (access.context.role === "owner" || platformAvailable)
@@ -846,12 +847,29 @@ export function AuthenticatedShell({
             onClose={closePalette}
             onNavigate={(path) => {
               closePalette();
+              const targetWorkspace = workspaceForPath(path);
+              if (
+                targetWorkspace !== selectedWorkspace &&
+                (targetWorkspace !== "organization" || canManage) &&
+                (targetWorkspace !== "platform" || platformAvailable)
+              ) {
+                setSelectedWorkspace(targetWorkspace);
+                try {
+                  window.localStorage.setItem(
+                    `choir-workspace:${window.location.hostname}`,
+                    targetWorkspace,
+                  );
+                } catch {
+                  // Restricted storage
+                }
+              }
               void navigate(path);
             }}
             onToggleTheme={() => {
               setThemePreference((current) => (current === "dark" ? "light" : "dark"));
             }}
             open={commandPaletteOpen}
+            selectedWorkspace={selectedWorkspace}
           />
         ) : null}
       </div>

@@ -41,6 +41,7 @@ export function CommandPaletteModal({
   onNavigate,
   onToggleTheme,
   open,
+  selectedWorkspace = "organization",
 }: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -62,6 +63,7 @@ export function CommandPaletteModal({
     hostname,
     isOwner,
     modules,
+    workspace: selectedWorkspace,
   });
 
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -100,15 +102,19 @@ export function CommandPaletteModal({
 
   const handleSelectItem = (item: RecentItem | SearchResultItem) => {
     // Save to recents
-    addRecentSearch(hostname, {
-      actionId: item.actionId,
-      badge: item.badge,
-      category: item.category,
-      href: item.href,
-      id: item.id,
-      subtitle: item.subtitle,
-      title: item.title,
-    });
+    addRecentSearch(
+      hostname,
+      {
+        actionId: item.actionId,
+        badge: item.badge,
+        category: item.category,
+        href: item.href,
+        id: item.id,
+        subtitle: item.subtitle,
+        title: item.title,
+      },
+      selectedWorkspace,
+    );
 
     onClose();
 
@@ -176,7 +182,7 @@ export function CommandPaletteModal({
             inputRef.current?.focus();
           }}
         >
-          <DialogPrimitive.Title className="sr-only">Admin Command Palette</DialogPrimitive.Title>
+          <DialogPrimitive.Title className="sr-only">Command Palette</DialogPrimitive.Title>
 
           <div className="command-palette-header">
             <span aria-hidden="true" className="command-palette-search-icon">
@@ -203,13 +209,21 @@ export function CommandPaletteModal({
               aria-controls={searchId}
               aria-expanded="true"
               className="command-palette-input"
-              id="admin-command-palette-input"
+              id={
+                selectedWorkspace === "member"
+                  ? "member-command-palette-input"
+                  : "admin-command-palette-input"
+              }
               onChange={(e) => {
                 setQuery(e.target.value);
                 setSelectedIndex(0);
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Search products, pages, and features..."
+              placeholder={
+                selectedWorkspace === "member"
+                  ? "Search member pages and actions..."
+                  : "Search products, pages, and features..."
+              }
               ref={inputRef}
               role="combobox"
               type="text"
@@ -299,27 +313,29 @@ export function CommandPaletteModal({
                   </div>
                 ) : null}
 
-                <div className="command-palette-group">
-                  <div className="command-palette-group-header">
-                    <span>Search tips</span>
+                {selectedWorkspace === "organization" ? (
+                  <div className="command-palette-group">
+                    <div className="command-palette-group-header">
+                      <span>Search tips</span>
+                    </div>
+                    <div className="command-palette-tips-list">
+                      {SEARCH_TIPS.map((tip) => (
+                        <button
+                          className="command-palette-tip-item"
+                          key={tip.prefix}
+                          onClick={() => {
+                            setQuery(tip.prefix + " ");
+                            inputRef.current?.focus();
+                          }}
+                          type="button"
+                        >
+                          <span className="command-palette-tip-prefix">{tip.prefix}</span>
+                          <span className="command-palette-tip-desc">{tip.label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="command-palette-tips-list">
-                    {SEARCH_TIPS.map((tip) => (
-                      <button
-                        className="command-palette-tip-item"
-                        key={tip.prefix}
-                        onClick={() => {
-                          setQuery(tip.prefix + " ");
-                          inputRef.current?.focus();
-                        }}
-                        type="button"
-                      >
-                        <span className="command-palette-tip-prefix">{tip.prefix}</span>
-                        <span className="command-palette-tip-desc">{tip.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                ) : null}
               </>
             ) : results.length > 0 ? (
               groupedResults.map((group) => (
@@ -456,16 +472,18 @@ export function CommandPaletteModal({
           </div>
 
           <div className="command-palette-footer">
-            <label className="command-palette-hidden-toggle">
-              <input
-                checked={includeHidden}
-                onChange={(e) => {
-                  setIncludeHidden(e.target.checked);
-                }}
-                type="checkbox"
-              />
-              <span>Show hidden profiles</span>
-            </label>
+            {selectedWorkspace === "organization" ? (
+              <label className="command-palette-hidden-toggle">
+                <input
+                  checked={includeHidden}
+                  onChange={(e) => {
+                    setIncludeHidden(e.target.checked);
+                  }}
+                  type="checkbox"
+                />
+                <span>Show hidden profiles</span>
+              </label>
+            ) : null}
             <div className="command-palette-footer-shortcuts">
               <span className="command-palette-shortcut">
                 <kbd className="command-palette-kbd">↑</kbd>

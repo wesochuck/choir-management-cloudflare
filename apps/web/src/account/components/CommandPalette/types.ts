@@ -1,5 +1,7 @@
 import type { SearchCategory } from "@choir/contracts";
 
+export type CommandPaletteWorkspace = "account" | "member" | "organization" | "platform";
+
 export interface CommandPaletteAction {
   readonly actionId?: string | undefined;
   readonly badge?: string | undefined;
@@ -12,6 +14,7 @@ export interface CommandPaletteAction {
   readonly requiredModule?: string | undefined;
   readonly subtitle?: string | undefined;
   readonly title: string;
+  readonly workspaces?: readonly CommandPaletteWorkspace[] | undefined;
 }
 
 export interface RecentItem {
@@ -35,4 +38,5 @@ export interface CommandPaletteProps {
   readonly onNavigate: (path: string) => void;
   readonly onToggleTheme: () => void;
   readonly open: boolean;
+  readonly selectedWorkspace?: CommandPaletteWorkspace | undefined;
 }
