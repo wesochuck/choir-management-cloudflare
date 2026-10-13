@@ -5,7 +5,7 @@ import { searchOrganization } from "../../../api/search";
 
 import { staticNavigationItems } from "./navigationIndex";
 import { clearRecentSearches, getRecentSearches } from "./recents";
-import type { PrefixKeyword, RecentItem } from "./types";
+import type { CommandPaletteWorkspace, PrefixKeyword, RecentItem } from "./types";
 
 export interface ParsedSearchQuery {
   readonly cleanTerm: string;
@@ -47,26 +47,30 @@ export function useAdminSearch({
   hostname,
   isOwner,
   modules,
+  workspace = "organization",
 }: {
   readonly hostname: string;
   readonly isOwner: boolean;
   readonly modules: readonly string[];
+  readonly workspace?: CommandPaletteWorkspace | undefined;
 }) {
   const [query, setQuery] = useState("");
   const [serverResults, setServerResults] = useState<readonly SearchResultItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [includeHidden, setIncludeHidden] = useState(false);
-  const [recents, setRecents] = useState<readonly RecentItem[]>(() => getRecentSearches(hostname));
+  const [recents, setRecents] = useState<readonly RecentItem[]>(() =>
+    getRecentSearches(hostname, workspace),
+  );
 
   const parsed = useMemo(() => parseQuery(query), [query]);
 
-  // Refresh recents on mount or when hostname changes
+  // Refresh recents on mount or when hostname/workspace changes
   const refreshRecents = () => {
-    setRecents(getRecentSearches(hostname));
+    setRecents(getRecentSearches(hostname, workspace));
   };
 
   const handleClearRecents = () => {
-    clearRecentSearches(hostname);
+    clearRecentSearches(hostname, workspace);
     setRecents([]);
   };
 
@@ -76,9 +80,14 @@ export function useAdminSearch({
 
     const enabledModules = new Set(modules);
     const searchTerms = parsed.cleanTerm.toLowerCase().split(/\s+/).filter(Boolean);
+    const activeWorkspace = workspace;
 
     return staticNavigationItems
       .filter((item) => {
+        const itemWorkspaces =
+          item.workspaces ??
+          (item.href?.startsWith("/admin") ? ["organization"] : ["organization"]);
+        if (!itemWorkspaces.includes(activeWorkspace)) return false;
         if (item.requiredModule && !enabledModules.has(item.requiredModule)) return false;
         if (item.ownerOnly && !isOwner) return false;
         if (parsed.scopedCategory && item.category !== parsed.scopedCategory) return false;
@@ -96,7 +105,7 @@ export function useAdminSearch({
         subtitle: item.subtitle,
         title: item.title,
       }));
-  }, [parsed.cleanTerm, parsed.scopedCategory, modules, isOwner]);
+  }, [parsed.cleanTerm, parsed.scopedCategory, modules, isOwner, workspace]);
 
   // Server-side debounced entity search
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -109,8 +118,13 @@ export function useAdminSearch({
       return;
     }
 
-    // Skip server call if explicitly filtering purely for settings or actions
-    if (parsed.scopedCategory === "settings" || parsed.scopedCategory === "actions") {
+    // Skip server call if in member workspace (members cannot query /api/organization/search)
+    // or if explicitly filtering purely for settings or actions
+    if (
+      workspace === "member" ||
+      parsed.scopedCategory === "settings" ||
+      parsed.scopedCategory === "actions"
+    ) {
       setServerResults([]);
       setIsSearching(false);
       return;
@@ -149,7 +163,7 @@ export function useAdminSearch({
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [includeHidden, parsed.cleanTerm, parsed.scopedCategory]);
+  }, [includeHidden, parsed.cleanTerm, parsed.scopedCategory, workspace]);
 
   const combinedResults = useMemo((): readonly SearchResultItem[] => {
     if (!parsed.cleanTerm && !parsed.scopedCategory) return [];

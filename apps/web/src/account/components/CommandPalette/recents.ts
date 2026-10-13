@@ -1,7 +1,7 @@
 import { searchCategorySchema, type SearchCategory } from "@choir/contracts";
 import { z } from "zod";
 
-import type { RecentItem } from "./types";
+import type { CommandPaletteWorkspace, RecentItem } from "./types";
 
 const MAX_RECENTS = 6;
 
@@ -16,14 +16,20 @@ const recentItemSchema = z.object({
   title: z.string(),
 });
 
-function recentsStorageKey(hostname: string): string {
-  return `choir-admin-search-recents:${hostname}`;
+function recentsStorageKey(
+  hostname: string,
+  workspace: CommandPaletteWorkspace = "organization",
+): string {
+  return `choir-admin-search-recents:${hostname}:${workspace}`;
 }
 
-export function getRecentSearches(hostname: string): readonly RecentItem[] {
+export function getRecentSearches(
+  hostname: string,
+  workspace: CommandPaletteWorkspace = "organization",
+): readonly RecentItem[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(recentsStorageKey(hostname));
+    const raw = window.localStorage.getItem(recentsStorageKey(hostname, workspace));
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -60,10 +66,11 @@ export function addRecentSearch(
     readonly subtitle?: string | undefined;
     readonly title: string;
   },
+  workspace: CommandPaletteWorkspace = "organization",
 ): void {
   if (typeof window === "undefined") return;
   try {
-    const existing = getRecentSearches(hostname);
+    const existing = getRecentSearches(hostname, workspace);
     const filtered = existing.filter((r) => r.id !== item.id && r.title !== item.title);
     const next: RecentItem[] = [
       {
@@ -78,16 +85,19 @@ export function addRecentSearch(
       },
       ...filtered,
     ].slice(0, MAX_RECENTS);
-    window.localStorage.setItem(recentsStorageKey(hostname), JSON.stringify(next));
+    window.localStorage.setItem(recentsStorageKey(hostname, workspace), JSON.stringify(next));
   } catch {
     // Ignore restricted storage
   }
 }
 
-export function clearRecentSearches(hostname: string): void {
+export function clearRecentSearches(
+  hostname: string,
+  workspace: CommandPaletteWorkspace = "organization",
+): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(recentsStorageKey(hostname));
+    window.localStorage.removeItem(recentsStorageKey(hostname, workspace));
   } catch {
     // Ignore restricted storage
   }

@@ -88,4 +88,41 @@ describe("Command Palette Recents", () => {
     clearRecentSearches(hostname);
     expect(getRecentSearches(hostname)).toEqual([]);
   });
+
+  it("isolates recents between workspaces", () => {
+    addRecentSearch(
+      hostname,
+      {
+        category: "navigation",
+        href: "/admin/tickets",
+        id: "nav-ticketing",
+        title: "Ticket Sales & Orders",
+      },
+      "organization",
+    );
+
+    addRecentSearch(
+      hostname,
+      {
+        category: "navigation",
+        href: "/schedule",
+        id: "nav-member-schedule",
+        title: "My Schedule",
+      },
+      "member",
+    );
+
+    const adminRecents = getRecentSearches(hostname, "organization");
+    expect(adminRecents).toHaveLength(1);
+    expect(adminRecents[0]?.title).toBe("Ticket Sales & Orders");
+
+    const memberRecents = getRecentSearches(hostname, "member");
+    expect(memberRecents).toHaveLength(1);
+    expect(memberRecents[0]?.title).toBe("My Schedule");
+
+    // Clearing member recents does not affect admin recents
+    clearRecentSearches(hostname, "member");
+    expect(getRecentSearches(hostname, "member")).toEqual([]);
+    expect(getRecentSearches(hostname, "organization")).toHaveLength(1);
+  });
 });
