@@ -18,7 +18,7 @@ import {
   type CsvColumnMapping,
   type RosterCsvInspection,
 } from "@choir/domain";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthApiError,
   createOrganizationProfile,
@@ -70,6 +70,8 @@ export function useRosterPageController({
   const [profile, setProfile] = useState<OrganizationProfileRequest>(emptyProfile);
   const [profileEmail, setProfileEmail] = useState("");
   const [profilePhotoFileId, setProfilePhotoFileId] = useState<string | null>(null);
+  const [photoPending, setPhotoPending] = useState(false);
+  const photoSaveFnRef = useRef<(() => Promise<boolean>) | null>(null);
   const [profileTab, setProfileTab] = useState<ProfileTab>("info");
   const [performanceHistory, setPerformanceHistory] = useState<PerformanceHistoryState>({
     status: "idle",
@@ -360,6 +362,8 @@ export function useRosterPageController({
     setProfile(emptyProfile);
     setProfileEmail("");
     setProfilePhotoFileId(null);
+    setPhotoPending(false);
+    photoSaveFnRef.current = null;
     setProfileTab("info");
     setPerformanceHistory({ status: "idle" });
     setProfileStatusHistory({ status: "idle" });
@@ -449,6 +453,8 @@ export function useRosterPageController({
     setProfile(emptyProfile);
     setProfileEmail("");
     setProfilePhotoFileId(null);
+    setPhotoPending(false);
+    photoSaveFnRef.current = null;
     setResetFeedback(null);
     setError(null);
     setSuccess(null);
@@ -465,6 +471,8 @@ export function useRosterPageController({
     setProfileDeliveries({ status: "idle" });
     setProfile(profileRequestFrom(candidate));
     setProfilePhotoFileId(candidate.photoFileId);
+    setPhotoPending(false);
+    photoSaveFnRef.current = null;
     setProfileEmail(roster.status === "ready" ? (emailByProfileId.get(candidate.id) ?? "") : "");
     setResetFeedback(null);
     setError(null);
@@ -524,6 +532,13 @@ export function useRosterPageController({
               : " The Profile was saved, but the membership invitation could not be created.";
         }
       }
+      let photoSaveFailed = false;
+      if (photoPending && photoSaveFnRef.current) {
+        const photoOk = await photoSaveFnRef.current();
+        if (!photoOk) {
+          photoSaveFailed = true;
+        }
+      }
       setRoster((current) =>
         current.status === "ready"
           ? {
@@ -538,12 +553,18 @@ export function useRosterPageController({
             }
           : current,
       );
+      if (photoSaveFailed) {
+        setError("Profile details saved, but photo upload failed. Retry photo upload.");
+        return;
+      }
       setSuccess(`${editingId ? "Profile updated." : "Profile created."}${invitationNote}`);
       setDialogOpen(false);
       setEditingId(null);
       setProfile(emptyProfile);
       setProfileEmail("");
       setProfilePhotoFileId(null);
+      setPhotoPending(false);
+      photoSaveFnRef.current = null;
       setResetFeedback(null);
     } catch (saveError: unknown) {
       setError(
@@ -555,6 +576,14 @@ export function useRosterPageController({
       setBusy(false);
     }
   }
+
+  const onPhotoPendingChange = useCallback((pending: boolean) => {
+    setPhotoPending(pending);
+  }, []);
+
+  const onRegisterPhotoSave = useCallback((saveFn: (() => Promise<boolean>) | null) => {
+    photoSaveFnRef.current = saveFn;
+  }, []);
 
   async function sendPasswordReset() {
     if (!editingId || !profileEmail) return;
@@ -641,6 +670,8 @@ export function useRosterPageController({
     importDialogOpen,
     importFile,
     importRoster,
+    onPhotoPendingChange,
+    onRegisterPhotoSave,
     openCreate,
     openEdit,
     performanceHistory,

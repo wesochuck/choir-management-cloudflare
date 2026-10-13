@@ -64,6 +64,8 @@ export interface ProfileEditorDialogProps {
   readonly onCloseAutoFocus?: ((event: Event) => void) | undefined;
   readonly onImpersonate?: (() => void) | undefined;
   readonly onPhotoChanged?: ((fileId: string | null) => void) | undefined;
+  readonly onPhotoPendingChange?: ((pending: boolean) => void) | undefined;
+  readonly onRegisterPhotoSave?: ((saveFn: (() => Promise<boolean>) | null) => void) | undefined;
   /** Notified when the Performance RSVPs tab changes an RSVP (issue #137). */
   readonly onRsvpChanged?: ((eventId: string) => void) | undefined;
   readonly onResolveDuplicate?: (() => void) | undefined;
