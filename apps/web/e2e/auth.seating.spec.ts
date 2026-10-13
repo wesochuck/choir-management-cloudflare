@@ -260,6 +260,256 @@ test("mismatch seats preserve name height at rest and as either lens seat", asyn
   api.assertNoUnexpectedRequests();
 });
 
+test("keeps Grid outer gaps compact and edge lens content unclipped", async ({
+  page,
+}, testInfo) => {
+  if ((page.viewportSize()?.width ?? 1000) > 700) {
+    await page.setViewportSize({ width: 1536, height: 960 });
+  }
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  const profiles = [
+    buildOrganizationProfile({
+      displayName: "Alexandria Elizabeth Robertson-Smythe",
+      voicePart: "S2",
+    }),
+    buildOrganizationProfile({
+      id: "11111111-1111-4111-8111-111111111117",
+      displayName: "Katherine Alexandra Bellingham-Montgomery",
+      voicePart: "A1",
+    }),
+  ] as const;
+  api.profiles.set([...profiles]);
+  const chart = buildSeatingChart({
+    assignments: { "0-4": profiles[0].id, "3-4": profiles[1].id },
+    rowCounts: [10, 10, 10, 10],
+    sectionSuggestions: { "0-4": "A", "3-4": "A" },
+  });
+  api.seatingCharts.set([chart]);
+  await page.goto(`/admin/seating?eventId=${chart.eventId}&chartId=${chart.id}`);
+
+  const isNarrow = (page.viewportSize()?.width ?? 1000) <= 700;
+  const canvas = page.locator(".seating-editor-canvas");
+  const grid = page.locator(".seating-grid--canvas");
+  const addBack = page.getByRole("button", { name: "+ Add row to back" });
+  const addFront = page.getByRole("button", { name: "+ Add row to front" });
+
+  const measureLayout = async () =>
+    page.evaluate(() => {
+      const bounds = (element: Element | undefined) => {
+        if (!(element instanceof HTMLElement)) throw new Error("Missing seating layout element");
+        const rect = element.getBoundingClientRect();
+        return {
+          bottom: rect.bottom + window.scrollY,
+          height: rect.height,
+          top: rect.top + window.scrollY,
+        };
+      };
+      const buttons = [...document.querySelectorAll(".seating-editor-canvas > button")];
+      const rows = [...document.querySelectorAll(".seating-row--canvas")];
+      const gridElement = document.querySelector(".seating-grid--canvas");
+      if (buttons.length !== 2 || rows.length !== 4 || !gridElement) {
+        throw new Error("Missing four-row editable seating grid");
+      }
+      return {
+        addBack: bounds(buttons[0]),
+        addFront: bounds(buttons[1]),
+        rows: rows.map((row) => bounds(row)),
+        topSeat: bounds(document.querySelector('[data-seat-key="3-4"]') ?? undefined),
+        bottomSeat: bounds(document.querySelector('[data-seat-key="0-4"]') ?? undefined),
+      };
+    });
+
+  const expectCompactGaps = async () => {
+    const layout = await measureLayout();
+    const topGap = layout.topSeat.top - layout.addBack.bottom;
+    const bottomGap = layout.addFront.top - layout.bottomSeat.bottom;
+    expect(topGap).toBeGreaterThanOrEqual(16);
+    expect(topGap).toBeLessThanOrEqual(24);
+    expect(bottomGap).toBeGreaterThanOrEqual(16);
+    expect(bottomGap).toBeLessThanOrEqual(24);
+    expect(Math.abs(topGap - bottomGap)).toBeLessThanOrEqual(1);
+    for (let index = 0; index < layout.rows.length - 1; index += 1) {
+      const currentRow = layout.rows[index];
+      const nextRow = layout.rows[index + 1];
+      if (!currentRow || !nextRow) throw new Error("Missing adjacent seating row bounds");
+      expect(nextRow.top - currentRow.bottom).toBeCloseTo(6, 1);
+    }
+    return layout;
+  };
+
+  if (isNarrow) {
+    await expect(canvas).toHaveClass(/--readonly/);
+    await expect(grid).toHaveCSS("padding-top", "16px");
+    await expect(
+      grid.evaluate((element) => element.scrollWidth > element.clientWidth),
+    ).resolves.toBe(true);
+    for (const seatKey of ["0-4", "3-4"]) {
+      const seat = page.locator(`[data-seat-key="${seatKey}"]`);
+      await page.keyboard.press("Tab");
+      await seat.focus();
+      await expect(seat).toHaveAttribute("data-magnified", "true");
+      const visible = await page.evaluate((key) => {
+        const seatElement = document.querySelector(`[data-seat-key="${key}"]`);
+        const gridElement = document.querySelector(".seating-grid--canvas");
+        const surface = seatElement?.querySelector(".seating-seat__surface");
+        if (!(gridElement instanceof HTMLElement) || !(surface instanceof HTMLElement)) {
+          throw new Error("Missing read-only seat lens");
+        }
+        const gridRect = gridElement.getBoundingClientRect();
+        const surfaceRect = surface.getBoundingClientRect();
+        return {
+          grid: {
+            bottom: gridRect.bottom,
+            left: gridRect.left,
+            right: gridRect.right,
+            top: gridRect.top,
+          },
+          surface: {
+            bottom: surfaceRect.bottom,
+            left: surfaceRect.left,
+            right: surfaceRect.right,
+            top: surfaceRect.top,
+          },
+          withinGrid:
+            surfaceRect.top >= gridRect.top &&
+            surfaceRect.bottom <= gridRect.bottom &&
+            surfaceRect.left >= gridRect.left &&
+            surfaceRect.right <= gridRect.right,
+        };
+      }, seatKey);
+      expect(visible.withinGrid, `${seatKey}: ${JSON.stringify(visible)}`).toBe(true);
+      await page.getByLabel("Select seating chart").focus();
+    }
+    await page.getByRole("button", { name: "Edit anyway" }).click();
+  }
+
+  await expect(canvas).not.toHaveClass(/--readonly/);
+  await expect(addBack).toBeVisible();
+  await expect(addFront).toBeVisible();
+  const restingLayout = await expectCompactGaps();
+
+  const inspectEdgeSeat = async (
+    seatKey: "0-4" | "3-4",
+    displayName: string,
+    edge: "top" | "bottom",
+    mismatch: boolean,
+    baselineLayout = restingLayout,
+  ) => {
+    const seat = page.locator(`[data-seat-key="${seatKey}"]`);
+    const remove = seat.getByRole("button", { name: `Remove ${displayName} from Seat 5` });
+    await page.keyboard.press("Tab");
+    await seat.focus();
+    await expect(seat).toHaveAttribute("data-magnified", "true");
+    await expect(seat.locator(".seating-seat__name-full")).toHaveText(displayName);
+    await expect(seat.locator(".seating-seat__name-full")).toBeVisible();
+    if (mismatch) await expect(seat.locator(".seating-seat__warning")).toHaveText("Part mismatch");
+    await expect(remove).toBeVisible();
+    await remove.focus();
+    await expect(remove).toBeFocused();
+
+    const lens = await page.evaluate((key) => {
+      const rect = (element: Element | null) => {
+        if (!(element instanceof HTMLElement)) throw new Error("Missing lens measurement target");
+        const box = element.getBoundingClientRect();
+        return {
+          bottom: box.bottom + window.scrollY,
+          left: box.left,
+          right: box.right,
+          top: box.top + window.scrollY,
+        };
+      };
+      const seatElement = document.querySelector(`[data-seat-key="${key}"]`);
+      const surface = seatElement?.querySelector(".seating-seat__surface") ?? null;
+      const name = seatElement?.querySelector(".seating-seat__name-full");
+      const removeButton = seatElement?.querySelector(".seating-seat__remove") ?? null;
+      const gridElement = document.querySelector(".seating-grid--canvas");
+      const controls = [...document.querySelectorAll(".seating-editor-canvas > button")];
+      const marker = document.querySelector(".seating-stage-marker");
+      if (!(name instanceof HTMLElement) || !gridElement || controls.length !== 2 || !marker) {
+        throw new Error("Missing edge lens content");
+      }
+      const range = document.createRange();
+      range.selectNodeContents(name);
+      const textRect = range.getBoundingClientRect();
+      return {
+        addBack: rect(controls[0] ?? null),
+        addFront: rect(controls[1] ?? null),
+        grid: rect(gridElement),
+        marker: rect(marker),
+        name: {
+          bottom: textRect.bottom + window.scrollY,
+          top: textRect.top + window.scrollY,
+        },
+        remove: rect(removeButton),
+        surface: rect(surface),
+      };
+    }, seatKey);
+    expect(lens.surface.top).toBeGreaterThanOrEqual(lens.grid.top);
+    expect(lens.surface.bottom).toBeLessThanOrEqual(lens.grid.bottom);
+    expect(lens.surface.left).toBeGreaterThanOrEqual(lens.grid.left);
+    expect(lens.surface.right).toBeLessThanOrEqual(lens.grid.right);
+    expect(lens.remove.top).toBeGreaterThanOrEqual(lens.grid.top);
+    expect(lens.remove.bottom).toBeLessThanOrEqual(lens.grid.bottom);
+    expect(lens.name.top).toBeGreaterThanOrEqual(lens.surface.top - 1);
+    expect(lens.name.bottom).toBeLessThanOrEqual(lens.surface.bottom + 1);
+    if (edge === "top") {
+      expect(lens.remove.top).toBeGreaterThan(lens.addBack.bottom);
+      expect(lens.surface.top).toBeGreaterThan(lens.addBack.bottom);
+    } else {
+      expect(lens.remove.bottom).toBeLessThan(lens.addFront.top);
+      expect(lens.surface.bottom).toBeLessThan(lens.addFront.top);
+      expect(lens.marker.top).toBeGreaterThanOrEqual(lens.addFront.bottom);
+    }
+    expect((await measureLayout()).rows).toEqual(baselineLayout.rows);
+
+    if (!isNarrow) {
+      await page.getByLabel("Select seating chart").focus();
+      await seat.hover();
+      await expect(seat).toHaveAttribute("data-magnified", "true");
+      await expect(remove).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath(`edge-lens-${seatKey}.png`) });
+      await page.getByRole("heading", { name: "Performance seating" }).hover();
+      await expect(seat).not.toHaveAttribute("data-magnified");
+    } else {
+      await page.getByLabel("Select seating chart").focus();
+    }
+  };
+
+  await inspectEdgeSeat("3-4", profiles[1].displayName, "top", false);
+  await inspectEdgeSeat("0-4", profiles[0].displayName, "bottom", true);
+
+  await page.emulateMedia({ media: "print" });
+  await expect(grid).toHaveCSS("padding-top", "0px");
+  await page.emulateMedia({ media: "screen" });
+
+  if (!isNarrow) {
+    await page.getByRole("button", { name: "Full Screen" }).click();
+    await expect(page.getByRole("button", { name: "Exit full screen" })).toBeVisible();
+    const fullScreenLayout = await expectCompactGaps();
+    expect(fullScreenLayout.rows).toHaveLength(4);
+    await inspectEdgeSeat("3-4", profiles[1].displayName, "top", false, fullScreenLayout);
+    await page.getByRole("button", { name: "Exit full screen" }).click();
+    await expect(page.locator(".seating-workspace")).not.toHaveClass(/seating-workspace--focus/);
+
+    await page.evaluate(() => {
+      Element.prototype.requestFullscreen = () =>
+        Promise.reject(new Error("Fullscreen API rejected"));
+    });
+    await page.getByRole("button", { name: "Full Screen" }).click();
+    await expect(page.locator(".seating-workspace")).toHaveClass(
+      /seating-workspace--fallback-focus/,
+    );
+    const fallbackLayout = await expectCompactGaps();
+    await inspectEdgeSeat("0-4", profiles[0].displayName, "bottom", true, fallbackLayout);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".seating-workspace")).not.toHaveClass(
+      /seating-workspace--fallback-focus/,
+    );
+  }
+
+  api.assertNoUnexpectedRequests();
+});
+
 test("hover reveals the complete name in an initials-only row and restores initials on leaving", async ({
   page,
 }, testInfo) => {
