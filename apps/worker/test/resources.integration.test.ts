@@ -212,4 +212,123 @@ describe("Organization resources", () => {
       ]),
     );
   });
+
+  it("reliably serves admin-created resources to a separate member session with correct authorization", async () => {
+    const adminCookie = await signIn();
+
+    const memberEmail = "resource.member@example.test";
+    await seedAuthUser(database, "resource-member-user", memberEmail, "Resource Member");
+    await database
+      .prepare(
+        `INSERT INTO member (id, organizationId, userId, role, createdAt)
+         VALUES (?, ?, ?, 'member', ?)`,
+      )
+      .bind("member-alpha-user", "organization-alpha", "resource-member-user", Date.now())
+      .run();
+
+    const memberCookie = await signInWithOtp(
+      exports.default,
+      "alpha.localhost",
+      memberEmail,
+      (recipient) => readEmailOneTimeCode(readCapturedPlatformEmailsForTest(), recipient),
+    );
+
+    // Unauthenticated request receives 401
+    const unauthResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/resources"),
+    );
+    expect(unauthResponse.status).toBe(401);
+
+    // Initial read by member is empty
+    const initialList = organizationResourcesResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/resources", memberCookie),
+        )
+      ).json(),
+    );
+    expect(initialList.resources).toEqual([]);
+
+    // Admin creates three resources with similar/duplicate titles
+    const titles = ["Warmup Exercise", "Warmup Exercise", "Warmup Exercise"];
+    const createdResources = [];
+    for (let i = 0; i < titles.length; i++) {
+      const title = titles[i];
+      if (!title) {
+        throw new Error("Expected title");
+      }
+      const res = organizationResourceResponseSchema.parse(
+        await (
+          await json("alpha.localhost", "/api/organization/resources", adminCookie, {
+            fileId: null,
+            sortOrder: i,
+            title,
+            url: `https://example.test/warmup-${String(i + 1)}`,
+          })
+        ).json(),
+      );
+      createdResources.push(res);
+    }
+
+    // Separate member immediately GETs and sees all three resources with distinct IDs and proper ordering
+    const memberList = organizationResourcesResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/resources", memberCookie),
+        )
+      ).json(),
+    );
+    expect(memberList.resources).toHaveLength(3);
+    expect(memberList.resources.map((r) => r.id)).toEqual(createdResources.map((r) => r.id));
+    expect(memberList.resources.map((r) => r.url)).toEqual([
+      "https://example.test/warmup-1",
+      "https://example.test/warmup-2",
+      "https://example.test/warmup-3",
+    ]);
+
+    const firstCreated = createdResources[0];
+    const secondCreated = createdResources[1];
+    const thirdCreated = createdResources[2];
+    if (!firstCreated || !secondCreated || !thirdCreated) {
+      throw new Error("Expected 3 created resources");
+    }
+
+    // Member is forbidden from mutating resources
+    const memberPost = await json("alpha.localhost", "/api/organization/resources", memberCookie, {
+      fileId: null,
+      title: "Member Created",
+      url: "https://example.test/member",
+    });
+    expect(memberPost.status).toBe(403);
+
+    const memberPut = await json(
+      "alpha.localhost",
+      `/api/organization/resources/${firstCreated.id}`,
+      memberCookie,
+      {
+        fileId: null,
+        sortOrder: 0,
+        title: "Member Updated",
+        url: "https://example.test/updated",
+      },
+      "PUT",
+    );
+    expect(memberPut.status).toBe(403);
+
+    const memberReorder = await json(
+      "alpha.localhost",
+      "/api/organization/resources/order",
+      memberCookie,
+      { resourceIds: [thirdCreated.id, secondCreated.id, firstCreated.id] },
+      "PUT",
+    );
+    expect(memberReorder.status).toBe(403);
+
+    const memberDelete = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/resources/${firstCreated.id}`, memberCookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(memberDelete.status).toBe(403);
+  });
 });

@@ -89,6 +89,7 @@ export function OrganizationResources({
   readonly manager: boolean;
 }) {
   const [resources, setResources] = useState<readonly OrganizationResource[]>([]);
+  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingResource, setEditingResource] = useState<OrganizationResource | null>(null);
   const [title, setTitle] = useState("");
@@ -118,6 +119,7 @@ export function OrganizationResources({
     if (busy) return;
     setDialogOpen(false);
     resetForm();
+    setError(null);
   }
 
   function openAdd(): void {
@@ -141,9 +143,15 @@ export function OrganizationResources({
     if (!enabled) return;
     const controller = new AbortController();
     listOrganizationResources(controller.signal)
-      .then(setResources)
+      .then((items) => {
+        setResources(items);
+        setLoading(false);
+      })
       .catch((failure: unknown) => {
-        if (!controller.signal.aborted) setError(message(failure));
+        if (!controller.signal.aborted) {
+          setError(message(failure));
+          setLoading(false);
+        }
       });
     return () => {
       controller.abort();
@@ -187,11 +195,16 @@ export function OrganizationResources({
             url: uploadedFileId ? null : normalizedUrl ? normalizedUrl : editingResource.url,
           })
         : await createOrganizationResource(request);
-      setResources((current) =>
-        editingResource
-          ? current.map((item) => (item.id === saved.id ? saved : item))
-          : [...current, saved],
-      );
+      try {
+        const refreshed = await listOrganizationResources();
+        setResources(refreshed);
+      } catch {
+        setResources((current) =>
+          editingResource
+            ? current.map((item) => (item.id === saved.id ? saved : item))
+            : [...current, saved],
+        );
+      }
       setDialogOpen(false);
       resetForm();
       setSuccess(editingResource ? "Resource updated." : "Resource added.");
@@ -216,7 +229,13 @@ export function OrganizationResources({
     setError(null);
     try {
       await deleteOrganizationResource(resource.id);
-      setResources((current) => current.filter(({ id }) => id !== resource.id));
+      try {
+        const refreshed = await listOrganizationResources();
+        setResources(refreshed);
+      } catch {
+        setResources((current) => current.filter(({ id }) => id !== resource.id));
+      }
+      setSuccess("Resource deleted.");
     } catch (failure: unknown) {
       setError(message(failure));
     } finally {
@@ -252,7 +271,12 @@ export function OrganizationResources({
     setSuccess(null);
     try {
       await reorderOrganizationResources(next.map(({ id }) => id));
-      setResources(next.map((item, sortOrder) => ({ ...item, sortOrder })));
+      try {
+        const refreshed = await listOrganizationResources();
+        setResources(refreshed);
+      } catch {
+        setResources(next.map((item, sortOrder) => ({ ...item, sortOrder })));
+      }
       if (movedResourceId) flashMovedResource(movedResourceId);
     } catch (failure: unknown) {
       if (rollbackResources) setResources(rollbackResources);
@@ -389,8 +413,12 @@ export function OrganizationResources({
           {success}
         </p>
       ) : null}
-      {resources.length === 0 ? (
-        <p>No resources have been shared yet.</p>
+      {loading ? (
+        <p role="status">Loading resources…</p>
+      ) : resources.length === 0 ? (
+        error ? null : (
+          <p>No resources have been shared yet.</p>
+        )
       ) : (
         <>
           {manager ? (
