@@ -184,6 +184,7 @@ async function handleRoute(
         },
       ],
     },
+    "/api/organization/calendar-settings": { requestId, timezone: "America/New_York" },
     "/api/organization/events": {
       events: [
         {
@@ -402,36 +403,41 @@ test("starts each toolbar list item on a new line", async ({ page }) => {
   await expect(message).toHaveValue("- one\n- text\n- text");
 });
 
-test("populates communication placeholders in the live message preview", async ({ page }) => {
-  const previewBodies: unknown[] = [];
-  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
+test.describe("Organization timezone previews", () => {
+  test.use({ timezoneId: "Asia/Tokyo" });
+  test("populates communication placeholders in the live message preview", async ({ page }) => {
+    const previewBodies: unknown[] = [];
+    await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
 
-  await page.goto("/admin/communications?tab=compose");
-  await page.getByLabel("Event (optional)").selectOption(eventId);
+    await page.goto("/admin/communications?tab=compose");
+    await page.getByLabel("Event (optional)").selectOption(eventId);
 
-  const message = page.getByRole("textbox", { name: "Message body" });
-  await message.fill(
-    "Hi {singerName},\n{eventTitle} ({eventType}) on {eventDate} at {eventLocation}.",
-  );
+    const message = page.getByRole("textbox", { name: "Message body" });
+    await message.fill(
+      "Hi {singerName},\n{eventTitle} ({eventType}) on {eventDate} at {eventLocation}.",
+    );
 
-  // Check 2-column live preview panel
-  const preview = page.locator(".communication-composer-preview-col .preview-body");
-  await expect(preview).toContainText("Alex Morgan");
-  await expect(preview).toContainText("Browser Performance");
-  await expect(preview).toContainText("Performance");
-  await expect(preview).toContainText("Main Hall");
-  await expect(preview).not.toContainText("{singerName}");
-  await expect(preview).not.toContainText("{eventTitle}");
-  await expect(preview).not.toContainText("{eventDate}");
+    // Check 2-column live preview panel
+    const preview = page.locator(".communication-composer-preview-col .preview-body");
+    await expect(preview).toContainText("Alex Morgan");
+    await expect(preview).toContainText("Browser Performance");
+    await expect(preview).toContainText("Performance");
+    await expect(preview).toContainText("Main Hall");
+    await expect(preview).toContainText("August 20, 2026 at 7:00 PM");
+    await expect(preview).not.toContainText("{singerName}");
+    await expect(preview).not.toContainText("{eventTitle}");
+    await expect(preview).not.toContainText("{eventDate}");
 
-  await page.getByLabel("Subject").fill("Rehearsal update");
-  await page.getByRole("button", { name: "Review & send" }).click();
+    await page.getByLabel("Subject").fill("Rehearsal update on {eventDate}");
+    await page.getByRole("button", { name: "Review & send" }).click();
 
-  const finalPreview = page.getByRole("dialog", { name: "Review message" });
-  await expect(finalPreview).toContainText("Alex Morgan");
-  await expect(finalPreview).toContainText("Browser Performance");
-  await expect(finalPreview).not.toContainText("{singerName}");
-  await expect(finalPreview).not.toContainText("{eventTitle}");
+    const finalPreview = page.getByRole("dialog", { name: "Review message" });
+    await expect(finalPreview).toContainText("Alex Morgan");
+    await expect(finalPreview).toContainText("Rehearsal update on August 20, 2026 at 7:00 PM");
+    await expect(finalPreview).toContainText("Browser Performance");
+    await expect(finalPreview).not.toContainText("{singerName}");
+    await expect(finalPreview).not.toContainText("{eventTitle}");
+  });
 });
 
 test("uses the same recipient name placeholder for ticket buyers and mixed audiences", async ({

@@ -7,8 +7,12 @@ import {
   reset,
   runInDurableObject,
 } from "cloudflare:test";
-import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, inject, it, vi } from "vitest";
 import { z } from "zod";
+
+import * as communicationProvider from "../src/communications/provider";
+import { listMemberBulletinsFromStore } from "../src/organization/communicationStore/queries";
+import { scheduledEventTemplateIds } from "../src/jobs/deliveries/shared";
 
 import { processDeadLetterBatch, processDeliveryBatch } from "../src/jobs/consumer";
 import type { DeliveryJob } from "../src/jobs/contracts";
@@ -531,6 +535,174 @@ describe("Organization queue delivery", () => {
     expect(stored.messageCount).toBe(3);
     expect(stored.reminderSentAt).toEqual(expect.any(String));
   });
+
+  it.each([
+    [
+      "America/New_York",
+      "2026-10-11T22:30:00.000Z",
+      "October 11, 2026 at 6:30 PM",
+      "Rehearsal",
+      "event_reminder",
+    ],
+    [
+      "America/New_York",
+      "2026-11-08T23:30:00.000Z",
+      "November 8, 2026 at 6:30 PM",
+      "Rehearsal",
+      "event_reminder",
+    ],
+    [
+      "America/New_York",
+      "2026-10-12T01:30:00.000Z",
+      "October 11, 2026 at 9:30 PM",
+      "Rehearsal",
+      "event_reminder",
+    ],
+    [
+      "America/Los_Angeles",
+      "2026-10-11T22:30:00.000Z",
+      "October 11, 2026 at 3:30 PM",
+      "Rehearsal",
+      "event_reminder",
+    ],
+    [
+      "UTC",
+      "2026-10-11T22:30:00.000Z",
+      "October 11, 2026 at 10:30 PM",
+      "Rehearsal",
+      "event_reminder",
+    ],
+    [
+      "America/New_York",
+      "2026-10-11T22:30:00.000Z",
+      "October 11, 2026 at 6:30 PM",
+      "Performance",
+      "event_reminder",
+    ],
+    [
+      "America/New_York",
+      "2026-10-11T22:30:00.000Z",
+      "October 11, 2026 at 6:30 PM",
+      "Performance",
+      "rsvp_follow_up",
+    ],
+  ] as const)(
+    "renders %s %s in automated %s %s %s emails and bulletins",
+    async (timezone, startsAt, expectedDate, eventType, kind) => {
+      // Fixed snapshots reproduce the reported EDT instant, winter offset, and local-day rollover.
+      const stub = await provisionScheduledCommunicationFixture();
+      const isFollowUp = kind === "rsvp_follow_up";
+      const eventId = isFollowUp
+        ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaf"
+        : "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaac";
+      const jobId = isFollowUp
+        ? "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10"
+        : "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaae";
+      const templateId = isFollowUp
+        ? scheduledEventTemplateIds.eventRsvpFollowUp
+        : eventType === "Rehearsal"
+          ? scheduledEventTemplateIds.rehearsalReminder
+          : scheduledEventTemplateIds.performanceReminder;
+      await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+        state.storage.sql.exec("UPDATE organization_metadata SET timezone = ?", timezone);
+        state.storage.sql.exec(
+          "UPDATE events SET starts_at = ?, type = ? WHERE id = ?",
+          startsAt,
+          eventType,
+          eventId,
+        );
+        // Retain the seeded template body; exercise the optional eventDate subject placeholder too.
+        state.storage.sql.exec(
+          "UPDATE communication_templates SET subject = subject || ' on {eventDate}' WHERE id = ?",
+          templateId,
+        );
+      });
+      const captured: Parameters<SendEmail["send"]>[0][] = [];
+      const realDeliver = communicationProvider.deliverOrganizationCommunication;
+      const providerSpy = vi
+        .spyOn(communicationProvider, "deliverOrganizationCommunication")
+        .mockImplementation(async (config, input) => {
+          expect(config.EXTERNAL_EFFECTS_MODE).toBe("fake");
+          // Render actual provider HTML/text into a local fake binding, with no external I/O.
+          await realDeliver(
+            {
+              ...config,
+              CONTROL_DB: undefined,
+              EXTERNAL_EFFECTS_MODE: "sandbox",
+              PLATFORM_EMAIL_FROM: "reminders@example.test",
+              PLATFORM_EMAIL: {
+                send: (message) => {
+                  if (!("subject" in message))
+                    throw new Error("Expected a structured email message");
+                  captured.push(message);
+                  return Promise.resolve({ messageId: "fake-rendered-email" });
+                },
+              },
+            },
+            input,
+          );
+          return realDeliver(config, input);
+        });
+      const outerJob: DeliveryJob = {
+        attempt: 1,
+        idempotencyKey: `${isFollowUp ? "rsvp-follow-up" : "event-reminder"}:organization-scheduled:${eventId}`,
+        jobId,
+        kind,
+        organizationId: "organization-scheduled",
+        version: 1,
+      };
+      try {
+        expect(
+          (await processBatch(outerJob, 1, "timezone-outer", "fake", true)).explicitAcks,
+        ).toEqual(["timezone-outer"]);
+        const communicationJobs = await readCommunicationOutboxJobs(stub);
+        expect(communicationJobs).toHaveLength(1);
+        const queued = communicationJobs[0];
+        if (!queued) throw new Error("Expected communication outbox job");
+        const innerJob: DeliveryJob = { ...outerJob, ...queued, kind: "communication_delivery" };
+        expect(
+          (await processBatch(innerJob, 1, "timezone-inner", "fake", true)).explicitAcks,
+        ).toEqual(["timezone-inner"]);
+        expect(captured).toHaveLength(1);
+        expect(captured[0]?.subject).toContain(expectedDate);
+        expect(captured[0]?.html).toContain(expectedDate);
+        expect(captured[0]?.text).toContain(expectedDate);
+        expect(captured[0]?.text).toContain("Scheduled Singer");
+        expect(captured[0]?.text).toContain(isFollowUp ? "Hall" : "Studio");
+        expect(captured[0]?.html).toContain("/rsvp?token=");
+        expect(captured[0]?.text).not.toContain("{eventDate}");
+        await processBatch(outerJob, 2, "timezone-outer-replay", "fake", true);
+        await processBatch(innerJob, 2, "timezone-inner-replay", "fake", true);
+        expect(captured).toHaveLength(1);
+        const stored = await runInDurableObject<
+          OrganizationStore,
+          { startsAt: string; bulletin: unknown }
+        >(stub, async (_instance, state) => ({
+          startsAt: state.storage.sql
+            .exec<{ startsAt: string }>(
+              "SELECT starts_at AS startsAt FROM events WHERE id = ?",
+              eventId,
+            )
+            .one().startsAt,
+          bulletin: await listMemberBulletinsFromStore(state.storage, {
+            organizationId: "organization-scheduled",
+            profileId: "99999999-9999-4999-8999-999999999999",
+          }).json(),
+        }));
+        expect(stored.startsAt).toBe(startsAt);
+        expect(stored.bulletin).toMatchObject({
+          bulletins: [
+            {
+              subject: expect.stringContaining(expectedDate),
+              contentMarkdown: expect.stringContaining(expectedDate),
+            },
+          ],
+        });
+      } finally {
+        providerSpy.mockRestore();
+      }
+    },
+  );
 
   it("processes multi-organization batches concurrently and isolates independent lanes", async () => {
     const alphaJob1: DeliveryJob = {

@@ -124,6 +124,7 @@ export interface CommunicationCenterControllerModel {
   readonly subject: string;
   readonly successNotice: string | null;
   readonly templates: readonly CommunicationTemplate[];
+  readonly timezone: string | null;
   readonly unifiedMessages: readonly UnifiedCommunicationItem[];
   readonly updateAudience: (
     updater: (current: CommunicationMessage["audience"]) => CommunicationMessage["audience"],

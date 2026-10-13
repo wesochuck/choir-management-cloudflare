@@ -9,6 +9,7 @@ const mockEvent = {
   durationMinutes: 120,
   id: "evt-123",
   location: "Main Sanctuary",
+  timezone: "America/New_York",
   startsAt: "2026-09-10T19:00:00Z",
   title: "Weekly Rehearsal",
   type: "Rehearsal",

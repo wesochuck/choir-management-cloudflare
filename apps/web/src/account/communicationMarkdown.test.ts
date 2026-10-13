@@ -25,7 +25,10 @@ describe("renderCommunicationMarkdownPreview", () => {
 
   it("populates preview placeholders without changing the source", () => {
     const source = "Hi {recipientName}, {eventTitle}. {{RSVP_LINKS}}";
-    const rendered = renderCommunicationMarkdownPreview(source, communicationPreviewValues(null));
+    const rendered = renderCommunicationMarkdownPreview(
+      source,
+      communicationPreviewValues(null, "UTC"),
+    );
 
     expect(rendered).toContain("Alex Morgan");
     expect(rendered).toContain("Example Performance");
@@ -37,7 +40,7 @@ describe("renderCommunicationMarkdownPreview", () => {
   it("previews canonical recipient placeholders written with double braces", () => {
     const rendered = renderCommunicationMarkdownPreview(
       "Hi {{recipientName}}, {{eventTitle}}.",
-      communicationPreviewValues(null),
+      communicationPreviewValues(null, "UTC"),
     );
 
     expect(rendered).toContain("Alex Morgan");
@@ -49,7 +52,7 @@ describe("renderCommunicationMarkdownPreview", () => {
   it("continues to preview legacy recipient aliases in both brace styles", () => {
     const rendered = renderCommunicationMarkdownPreview(
       "Hi {singerName}, {{singerName}}, {buyerName}, and {{buyerName}}.",
-      communicationPreviewValues(null),
+      communicationPreviewValues(null, "UTC"),
     );
 
     expect(rendered.match(/Alex Morgan/g)).toHaveLength(4);
@@ -59,7 +62,7 @@ describe("renderCommunicationMarkdownPreview", () => {
   it("populates refund placeholders and the order details link", () => {
     const rendered = renderCommunicationMarkdownPreview(
       "Refunded {refundAmount} on {refundDate}. {{TICKET_ORDER_LINK}}",
-      communicationPreviewValues(null),
+      communicationPreviewValues(null, "UTC"),
     );
 
     expect(rendered).toContain("$25.00");

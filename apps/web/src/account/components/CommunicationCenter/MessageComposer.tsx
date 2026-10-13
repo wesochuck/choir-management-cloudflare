@@ -17,6 +17,7 @@ import { useConfirmation } from "@choir/ui";
 import { useRef, useState } from "react";
 import {
   communicationPreviewValues,
+  populateCommunicationPreview,
   renderCommunicationMarkdownPreview,
 } from "../../communicationMarkdown";
 import { RecipientContextPanel } from "./RecipientContextPanel";
@@ -49,6 +50,7 @@ interface MessageComposerProps {
   readonly rosterConfiguration: OrganizationRosterConfiguration | null;
   readonly selectedEvent: OrganizationEvent | null;
   readonly subject: string;
+  readonly timezone: string | null;
   readonly templates: readonly CommunicationTemplate[];
 }
 
@@ -411,6 +413,7 @@ export function MessageComposer({
   recipientsExpanded,
   rosterConfiguration,
   selectedEvent,
+  timezone,
   subject,
   templates,
 }: MessageComposerProps) {
@@ -424,7 +427,7 @@ export function MessageComposer({
       !template.isSystem && templateMatchesCommunicationContext(template, audience, channel),
   );
 
-  const previewValues = communicationPreviewValues(selectedEvent);
+  const previewValues = communicationPreviewValues(selectedEvent, timezone);
   const placeholders = visibleCommunicationPlaceholders(
     audience,
     channel,
@@ -647,7 +650,7 @@ export function MessageComposer({
             </div>
             {subject && channel !== "SMS" ? (
               <div className="preview-subject">
-                <strong>Subject:</strong> {subject}
+                <strong>Subject:</strong> {populateCommunicationPreview(subject, previewValues)}
               </div>
             ) : null}
             <div

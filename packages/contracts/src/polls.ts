@@ -9,6 +9,19 @@ export const publicRsvpDetailsResponseSchema = z.object({
     id: z.uuid(),
     location: z.string(),
     startsAt: z.iso.datetime(),
+    // Required: older servers fail parsing instead of displaying a misleading UTC fallback.
+    timezone: z
+      .string()
+      .min(1)
+      .max(100)
+      .refine((timezone) => {
+        try {
+          new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+          return true;
+        } catch {
+          return false;
+        }
+      }, "Invalid IANA timezone"),
     title: z.string(),
     type: z.enum(["Performance", "Rehearsal"]),
     venueAddress: z.string(),

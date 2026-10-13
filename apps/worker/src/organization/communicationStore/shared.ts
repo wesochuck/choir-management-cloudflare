@@ -89,13 +89,16 @@ export function eventCommunicationContext(
     .toArray()
     .at(0);
   if (!event) return null;
+  const timezone = storage.sql
+    .exec<{ readonly timezone: string }>("SELECT timezone FROM organization_metadata LIMIT 1")
+    .one().timezone;
   return {
     eventId,
     eventCallTime: event.callTime,
     eventDate: new Intl.DateTimeFormat("en-US", {
       dateStyle: "long",
       timeStyle: "short",
-      timeZone: "UTC",
+      timeZone: timezone,
     }).format(new Date(event.eventDate)),
     eventDetails: event.details,
     eventLocation: event.eventLocation,

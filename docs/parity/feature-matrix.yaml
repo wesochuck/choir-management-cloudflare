@@ -83,6 +83,7 @@
             "apps/web/src/App.tsx",
             "apps/web/src/public/PublicRsvpView.tsx",
             "apps/worker/test/publicRsvp.integration.test.ts",
+            "apps/web/e2e/public-rsvp-timezone.spec.ts",
           ],
       },
       {
@@ -1189,6 +1190,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationRsvpLinks.ts",
             "apps/worker/test/publicRsvp.integration.test.ts",
+            "apps/web/e2e/public-rsvp-timezone.spec.ts",
             "apps/web/src/public/PublicRsvpView.tsx",
           ],
       },

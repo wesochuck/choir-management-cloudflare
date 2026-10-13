@@ -56,6 +56,9 @@ describe("useCommunicationCenterController filters", () => {
         nextCursor: null,
         requestId: "req-1",
       });
+    vi.spyOn(apiModule, "getOrganizationCalendarSettings").mockResolvedValue({
+      timezone: "America/New_York",
+    });
     vi.spyOn(apiModule, "listOrganizationEvents").mockResolvedValue([]);
     vi.spyOn(apiModule, "listOrganizationCommunicationTemplates").mockResolvedValue([]);
     vi.spyOn(apiModule, "getOrganizationProviderStatus").mockResolvedValue(mockProviderStatus);
@@ -80,6 +83,9 @@ describe("useCommunicationCenterController filters", () => {
         nextCursor: "cursor-2",
         requestId: "req-1",
       });
+    vi.spyOn(apiModule, "getOrganizationCalendarSettings").mockResolvedValue({
+      timezone: "America/New_York",
+    });
     vi.spyOn(apiModule, "listOrganizationEvents").mockResolvedValue([]);
     vi.spyOn(apiModule, "listOrganizationCommunicationTemplates").mockResolvedValue([]);
     vi.spyOn(apiModule, "getOrganizationProviderStatus").mockResolvedValue(mockProviderStatus);
