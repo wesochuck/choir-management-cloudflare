@@ -247,6 +247,7 @@ export function readProfileEventRsvpFromStore(
     rsvpNote: row.rsvpNote,
     rsvpSelfServiceOpen: rsvpDeadline.rsvpSelfServiceOpen,
     startsAt: row.startsAt,
+    timezone,
     title: row.title,
     type: row.type,
     venueAddress: row.venueAddress,

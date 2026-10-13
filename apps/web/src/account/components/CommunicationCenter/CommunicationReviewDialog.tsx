@@ -8,6 +8,7 @@ import type {
 import { Dialog, DialogClose } from "@choir/ui";
 import {
   communicationPreviewValues,
+  populateCommunicationPreview,
   renderCommunicationMarkdownPreview,
 } from "../../communicationMarkdown";
 import type { CommunicationReachState } from "./types";
@@ -32,6 +33,7 @@ interface CommunicationReviewDialogProps {
   readonly rosterConfiguration: OrganizationRosterConfiguration | null;
   readonly selectedEvent: OrganizationEvent | null;
   readonly subject: string;
+  readonly timezone: string | null;
 }
 
 export function CommunicationReviewDialog({
@@ -47,6 +49,7 @@ export function CommunicationReviewDialog({
   reachState,
   rosterConfiguration,
   selectedEvent,
+  timezone,
   subject,
 }: CommunicationReviewDialogProps) {
   const recipientSummary = recipientTypeSummary(audience);
@@ -59,7 +62,7 @@ export function CommunicationReviewDialog({
   const filterSummary = [memberSummary, contactSummary].filter(Boolean).join(" · ");
 
   const totalCount = reachState.data?.total ?? 0;
-  const previewValues = communicationPreviewValues(selectedEvent);
+  const previewValues = communicationPreviewValues(selectedEvent, timezone);
 
   return (
     <Dialog
@@ -110,7 +113,7 @@ export function CommunicationReviewDialog({
           {channel !== "SMS" && subject ? (
             <div>
               <dt>Subject</dt>
-              <dd>{subject}</dd>
+              <dd>{populateCommunicationPreview(subject, previewValues)}</dd>
             </div>
           ) : null}
         </dl>

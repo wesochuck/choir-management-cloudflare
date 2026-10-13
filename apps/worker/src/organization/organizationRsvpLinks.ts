@@ -41,6 +41,7 @@ interface EventRsvpDetails {
   readonly rsvpNote: string;
   readonly rsvpSelfServiceOpen: boolean;
   readonly startsAt: string;
+  readonly timezone: string;
   readonly title: string;
   readonly type: string;
   readonly venueAddress: string;
@@ -94,6 +95,7 @@ export async function resolveRsvpDetails(
         readonly id: string;
         readonly location: string;
         readonly startsAt: string;
+        readonly timezone: string;
         readonly title: string;
         readonly type: string;
         readonly venueAddress: string;
@@ -127,6 +129,7 @@ export async function resolveRsvpDetails(
       id: details.id,
       location: details.location,
       startsAt: details.startsAt,
+      timezone: details.timezone,
       title: details.title,
       type: details.type,
       venueAddress: details.venueAddress,

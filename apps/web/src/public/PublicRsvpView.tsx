@@ -8,6 +8,7 @@ interface EventDetails {
   readonly id: string;
   readonly location: string;
   readonly startsAt: string;
+  readonly timezone: string;
   readonly title: string;
   readonly type: string;
   readonly venueAddress: string;
@@ -32,20 +33,25 @@ type PageStatus =
   | { type: "submit_error"; details: RsvpDetails }
   | { type: "submitted"; details: RsvpDetails };
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, timezone: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString(undefined, {
     day: "numeric",
     month: "long",
-    timeZone: "UTC",
+    timeZone: timezone,
     weekday: "long",
     year: "numeric",
   });
 }
 
-function formatTime(iso: string): string {
+function formatTime(iso: string, timezone: string): string {
   const d = new Date(iso);
-  return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
+  return d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timezone,
+    timeZoneName: "short",
+  });
 }
 
 async function fetchRsvpDetails(token: string): Promise<RsvpDetails> {
@@ -273,8 +279,8 @@ function RsvpEventBody({ details }: { readonly details: RsvpDetails }) {
     <>
       <h1 id="rsvp-title">{details.event.title}</h1>
       <p className="text-sm text-muted-foreground">
-        {details.event.type} &middot; {formatDate(details.event.startsAt)} at{" "}
-        {formatTime(details.event.startsAt)}
+        {details.event.type} &middot; {formatDate(details.event.startsAt, details.event.timezone)}{" "}
+        at {formatTime(details.event.startsAt, details.event.timezone)}
       </p>
       {details.event.venueName && (
         <p className="text-sm text-muted-foreground">

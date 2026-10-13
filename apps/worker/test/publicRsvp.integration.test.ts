@@ -3,6 +3,8 @@ import { organizationRequest, provisionOrganization, seedAuthUser } from "@choir
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
+import { publicRsvpDetailsResponseSchema } from "@choir/contracts";
+
 import { issueSignedLink } from "../src/security/signedLinks";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 
@@ -131,6 +133,56 @@ describe("public RSVP signed flow", () => {
       rsvp: "Pending",
     });
   });
+
+  it.each(["America/New_York", "America/Los_Angeles", "UTC"])(
+    "returns only the matching Organization timezone (%s)",
+    async (timezone) => {
+      const stub = stores.get(stores.idFromName("organization-alpha"));
+      await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+        state.storage.sql.exec("UPDATE organization_metadata SET timezone = ?", timezone);
+        state.storage.sql.exec(
+          "UPDATE events SET starts_at = ? WHERE id = ?",
+          "2026-10-11T22:30:00.000Z",
+          ALPHA_EVENT,
+        );
+      });
+      const token = await issueRsvpToken("organization-alpha", ALPHA_EVENT, ALPHA_PROFILE);
+      const response = await exports.default.fetch(
+        api("alpha.localhost", "/api/public/rsvp-details", {
+          body: JSON.stringify({ token }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+      expect(response.status).toBe(200);
+      const parsed = publicRsvpDetailsResponseSchema.parse(await response.json());
+      expect(parsed.event.timezone).toBe(timezone);
+      expect(parsed.event.startsAt).toBe("2026-10-11T22:30:00.000Z");
+      expect(
+        publicRsvpDetailsResponseSchema.safeParse({
+          ...parsed,
+          event: { ...parsed.event, timezone: undefined },
+        }).success,
+      ).toBe(false);
+      for (const invalidTimezone of [null, "", "Invalid/Timezone"]) {
+        expect(
+          publicRsvpDetailsResponseSchema.safeParse({
+            ...parsed,
+            event: { ...parsed.event, timezone: invalidTimezone },
+          }).success,
+        ).toBe(false);
+      }
+      const bravoToken = await issueRsvpToken("organization-bravo", BRAVO_EVENT, BRAVO_PROFILE);
+      const bravo = await exports.default.fetch(
+        api("bravo.localhost", "/api/public/rsvp-details", {
+          body: JSON.stringify({ token: bravoToken }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
+        }),
+      );
+      expect(publicRsvpDetailsResponseSchema.parse(await bravo.json()).event.timezone).toBe("UTC");
+    },
+  );
 
   it("rejects a token used on the wrong hostname", async () => {
     const token = await issueRsvpToken("organization-alpha", ALPHA_EVENT, ALPHA_PROFILE);

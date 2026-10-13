@@ -22,6 +22,7 @@ import {
   getOrganizationCommunicationDeliverySummary,
   getOrganizationCommunicationHistory,
   getOrganizationEmailSettings,
+  getOrganizationCalendarSettings,
   getOrganizationProviderStatus,
   getOrganizationRosterConfiguration,
   listOrganizationCommunicationTemplates,
@@ -156,6 +157,7 @@ export function useCommunicationCenterController({
   const [loadingHistory, setLoadingHistory] = useState(true);
 
   const [templates, setTemplates] = useState<readonly CommunicationTemplate[]>([]);
+  const [timezone, setTimezone] = useState<string | null>(null);
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [contactLists, setContactLists] = useState<readonly ContactList[]>([]);
   const [providerStatus, setProviderStatus] = useState<OrganizationProviderStatusResponse | null>(
@@ -330,6 +332,7 @@ export function useCommunicationCenterController({
     });
 
     Promise.all([
+      getOrganizationCalendarSettings(controller.signal),
       listOrganizationEvents(controller.signal),
       listOrganizationCommunicationTemplates(controller.signal),
       getOrganizationProviderStatus(controller.signal),
@@ -339,6 +342,7 @@ export function useCommunicationCenterController({
     ])
       .then(
         ([
+          loadedCalendarSettings,
           loadedEvents,
           loadedTemplates,
           loadedStatus,
@@ -346,6 +350,7 @@ export function useCommunicationCenterController({
           loadedRosterConfig,
           loadedContactLists,
         ]) => {
+          setTimezone(loadedCalendarSettings.timezone);
           setEvents(loadedEvents);
           setTemplates(loadedTemplates);
           setProviderStatus(loadedStatus);
@@ -902,6 +907,7 @@ export function useCommunicationCenterController({
     subject,
     successNotice,
     templates,
+    timezone,
     unifiedMessages,
     updateAudience,
     voiceParts,

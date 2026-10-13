@@ -48,11 +48,15 @@ function renderInline(value: string): string {
   return formatted.replace(/@@LINK_(\d+)@@/g, (_, index: string) => links[Number(index)] ?? "");
 }
 
-function formatPreviewDate(value: string): string {
+function formatPreviewDate(value: string, timezone: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? "August 20, 2026 at 7:00 PM"
-    : new Intl.DateTimeFormat(undefined, { dateStyle: "long", timeStyle: "short" }).format(date);
+    : new Intl.DateTimeFormat("en-US", {
+        dateStyle: "long",
+        timeStyle: "short",
+        timeZone: timezone,
+      }).format(date);
 }
 
 function formatPreviewTime(value: string): string {
@@ -69,10 +73,15 @@ function previewText(value: string | undefined, fallback: string): string {
 
 export function communicationPreviewValues(
   event: OrganizationEvent | null,
+  timezone: string | null,
 ): Readonly<Record<string, string>> {
   const eventTitle = event?.title ?? "Example Performance";
   const eventType = event?.type ?? "Performance";
-  const eventDate = event ? formatPreviewDate(event.startsAt) : "August 20, 2026 at 7:00 PM";
+  const eventDate = event
+    ? timezone
+      ? formatPreviewDate(event.startsAt, timezone)
+      : "Loading Organization timezone…"
+    : "August 20, 2026 at 7:00 PM";
   const eventLocation = previewText(event?.location, "Main Hall");
   const eventDetails = previewText(event?.details, "Event details will appear here.");
   const setlist = previewText(
@@ -121,17 +130,23 @@ export function communicationPreviewValues(
   };
 }
 
-export function renderCommunicationMarkdownPreview(
+export function populateCommunicationPreview(
   value: string,
-  replacements: Readonly<Record<string, string>> = {},
+  replacements: Readonly<Record<string, string>>,
 ): string {
-  const populatedValue = Object.entries(replacements).reduce((message, [tag, replacement]) => {
+  return Object.entries(replacements).reduce((message, [tag, replacement]) => {
     const scalarTag = /^\{([^{}]+)\}$/.exec(tag)?.[1];
     return (scalarTag ? message.split(`{{${scalarTag}}}`).join(replacement) : message)
       .split(tag)
       .join(replacement);
   }, value);
-  return populatedValue
+}
+
+export function renderCommunicationMarkdownPreview(
+  value: string,
+  replacements: Readonly<Record<string, string>> = {},
+): string {
+  return populateCommunicationPreview(value, replacements)
     .split("\n")
     .map((line) => {
       const trimmed = line.trim();
