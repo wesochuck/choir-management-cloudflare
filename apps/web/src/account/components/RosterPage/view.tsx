@@ -47,6 +47,8 @@ export function RosterPageView({
     importDialogOpen,
     importFile,
     importRoster,
+    onPhotoPendingChange,
+    onRegisterPhotoSave,
     openCreate,
     openEdit,
     performanceHistory,
@@ -590,6 +592,8 @@ export function RosterPageView({
               : current,
           );
         }}
+        onPhotoPendingChange={onPhotoPendingChange}
+        onRegisterPhotoSave={onRegisterPhotoSave}
         onResolveDuplicate={() => {
           setResolveDuplicateOpen(true);
         }}

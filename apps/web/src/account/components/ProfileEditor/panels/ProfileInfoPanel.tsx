@@ -14,6 +14,7 @@ export interface ProfileInfoPanelProps {
   readonly linkedProfileEmail?: string | undefined;
   readonly onPhotoChanged?: ((fileId: string | null) => void) | undefined;
   readonly onPhotoPendingChange: (pending: boolean) => void;
+  readonly onRegisterPhotoSave?: ((saveFn: (() => Promise<boolean>) | null) => void) | undefined;
   readonly partLabel: string;
   readonly performerLabel: string;
   readonly profile: OrganizationProfileRequest;
@@ -35,6 +36,7 @@ export function ProfileInfoPanel({
   linkedProfileEmail,
   onPhotoChanged,
   onPhotoPendingChange,
+  onRegisterPhotoSave,
   partLabel,
   performerLabel,
   profile,
@@ -54,6 +56,7 @@ export function ProfileInfoPanel({
         <ProfilePhotoEditor
           onChanged={onPhotoChanged ?? (() => undefined)}
           onPendingChange={onPhotoPendingChange}
+          onRegisterSave={onRegisterPhotoSave}
           profile={{
             displayName: profile.displayName,
             id: editingId,

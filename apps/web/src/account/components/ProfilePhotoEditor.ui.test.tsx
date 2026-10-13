@@ -208,4 +208,58 @@ describe("ProfilePhotoEditor", () => {
     });
     expect(revokeObjectURLSpy).toHaveBeenCalled();
   });
+
+  it("registers savePhoto callback via onRegisterSave and unregisters on unmount", async () => {
+    const user = userEvent.setup();
+    const holder: { saveFn?: (() => Promise<boolean>) | null } = {};
+    const onRegisterSave = vi.fn((fn: (() => Promise<boolean>) | null) => {
+      holder.saveFn = fn;
+    });
+    const onChanged = vi.fn();
+
+    vi.mocked(filesApi.uploadPrivateOrganizationFile).mockResolvedValue({
+      contentType: "image/jpeg",
+      fileName: "registered.jpg",
+      id: "file-reg-1",
+      requestId: "req-reg",
+      sizeBytes: 1024,
+      uploadedAt: new Date().toISOString(),
+    });
+    vi.mocked(profilesApi.setOrganizationProfilePhoto).mockResolvedValue(undefined);
+
+    const { unmount } = render(
+      <ProfilePhotoEditor
+        onChanged={onChanged}
+        onRegisterSave={onRegisterSave}
+        profile={defaultProfile}
+      />,
+    );
+
+    expect(onRegisterSave).toHaveBeenCalled();
+    expect(typeof holder.saveFn).toBe("function");
+
+    const fileInput = document.querySelector('input[type="file"]');
+    expect(fileInput instanceof HTMLInputElement).toBe(true);
+    if (!fileInput || !(fileInput instanceof HTMLInputElement)) return;
+
+    const validFile = new File(["photo bytes"], "registered.jpg", { type: "image/jpeg" });
+    await user.upload(fileInput, validFile);
+
+    const saveFn = holder.saveFn;
+    if (!saveFn) throw new Error("saveFn was not registered");
+    let saveResult = false;
+    await act(async () => {
+      saveResult = await saveFn();
+    });
+    expect(saveResult).toBe(true);
+    expect(filesApi.uploadPrivateOrganizationFile).toHaveBeenCalledWith(validFile);
+    expect(profilesApi.setOrganizationProfilePhoto).toHaveBeenCalledWith(
+      defaultProfile.id,
+      "file-reg-1",
+    );
+    expect(onChanged).toHaveBeenCalledWith("file-reg-1");
+
+    unmount();
+    expect(onRegisterSave).toHaveBeenLastCalledWith(null);
+  });
 });

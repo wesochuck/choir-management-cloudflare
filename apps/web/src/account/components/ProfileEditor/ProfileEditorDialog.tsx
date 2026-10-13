@@ -71,6 +71,8 @@ export function ProfileEditorDialog({
   onCloseAutoFocus,
   onImpersonate,
   onPhotoChanged,
+  onPhotoPendingChange,
+  onRegisterPhotoSave,
   onResolveDuplicate,
   onRsvpChanged,
   open,
@@ -103,6 +105,11 @@ export function ProfileEditorDialog({
   const { organizationName, partLabel, performerLabel } = useOrganizationTerminology();
   const [photoPending, setPhotoPending] = useState(false);
 
+  const handlePhotoPendingChange = (pending: boolean) => {
+    setPhotoPending(pending);
+    onPhotoPendingChange?.(pending);
+  };
+
   const baselineProfile = useMemo(() => {
     return editingProfileRecord ? profileRequestFrom(editingProfileRecord) : emptyProfile;
   }, [editingProfileRecord]);
@@ -123,7 +130,7 @@ export function ProfileEditorDialog({
 
   function handleProfileSubmit(event: React.SyntheticEvent): void {
     event.preventDefault();
-    if (INDEPENDENT_TABS.includes(profileTab) && !isDirty) {
+    if (INDEPENDENT_TABS.includes(profileTab) && !isDirty && !photoPending) {
       return;
     }
     void saveProfile();
@@ -214,6 +221,7 @@ export function ProfileEditorDialog({
               <TabsContent
                 aria-labelledby="roster-profile-info-tab"
                 className="roster-profile-tab-panel"
+                forceMount={true}
                 id="roster-profile-info-panel"
                 value="info"
               >
@@ -223,7 +231,8 @@ export function ProfileEditorDialog({
                   editingProfileRecord={editingProfileRecord}
                   linkedProfileEmail={linkedProfileEmail}
                   onPhotoChanged={handlePhotoChanged}
-                  onPhotoPendingChange={setPhotoPending}
+                  onPhotoPendingChange={handlePhotoPendingChange}
+                  onRegisterPhotoSave={onRegisterPhotoSave}
                   partLabel={partLabel}
                   performerLabel={performerLabel}
                   profile={profile}
@@ -354,7 +363,7 @@ export function ProfileEditorDialog({
               activeTab={profileTab}
               busy={busy}
               editingId={editingId}
-              isDirty={isDirty}
+              isDirty={isDirty || photoPending}
               saveLabel={saveLabel}
             />
           </form>

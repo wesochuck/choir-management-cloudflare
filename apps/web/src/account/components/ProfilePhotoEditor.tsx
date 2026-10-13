@@ -13,9 +13,14 @@ import { useSaveRegistration } from "../../persistence";
 
 export type ProfilePhotoTarget = Pick<MemberProfile, "displayName" | "id" | "photoFileId">;
 
+export interface ProfilePhotoEditorHandle {
+  readonly savePhoto: () => Promise<boolean>;
+}
+
 export interface ProfilePhotoEditorProps {
   readonly onChanged: (fileId: string | null) => void;
-  readonly onPendingChange?: (hasPending: boolean) => void;
+  readonly onPendingChange?: ((hasPending: boolean) => void) | undefined;
+  readonly onRegisterSave?: ((saveFn: (() => Promise<boolean>) | null) => void) | undefined;
   readonly profile: ProfilePhotoTarget;
 }
 
@@ -23,6 +28,7 @@ export interface ProfilePhotoEditorProps {
 export function ProfilePhotoEditor({
   onChanged,
   onPendingChange,
+  onRegisterSave,
   profile,
 }: ProfilePhotoEditorProps) {
   const { confirm, confirmationDialog } = useConfirmation();
@@ -173,7 +179,7 @@ export function ProfilePhotoEditor({
     };
   }, []);
 
-  async function savePhoto(): Promise<boolean> {
+  const savePhoto = useCallback(async (): Promise<boolean> => {
     if (!file) return true;
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       setMessage("Choose a JPEG, PNG, or WebP image.");
@@ -205,13 +211,22 @@ export function ProfilePhotoEditor({
     } finally {
       setBusy(false);
     }
-  }
+  }, [file, onChanged, profile.id, setPendingFile]);
 
   const hasPendingPhoto = file !== null;
 
   useEffect(() => {
     onPendingChange?.(hasPendingPhoto);
   }, [hasPendingPhoto, onPendingChange]);
+
+  useEffect(() => {
+    if (onRegisterSave) {
+      onRegisterSave(savePhoto);
+      return () => {
+        onRegisterSave(null);
+      };
+    }
+  }, [onRegisterSave, savePhoto]);
 
   useSaveRegistration({
     busy,
@@ -268,7 +283,7 @@ export function ProfilePhotoEditor({
     setCameraReady(false);
     setCameraOpen(false);
     setCameraError(null);
-    setMessage("Photo captured. Upload it to save the Profile photo.");
+    setMessage("Photo ready. Select Upload photo or Save Profile to save it.");
   }
 
   function closeCamera(): void {

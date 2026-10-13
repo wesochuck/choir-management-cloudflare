@@ -5,7 +5,7 @@ import type {
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { organizationInvitationRequestSchema } from "@choir/contracts";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AuthApiError,
   createOrganizationInvitation,
@@ -69,6 +69,8 @@ export function useProfileEditor({
     status: "idle",
   });
   const [profilePhotoFileId, setProfilePhotoFileId] = useState<string | null>(null);
+  const [photoPending, setPhotoPending] = useState(false);
+  const photoSaveFnRef = useRef<(() => Promise<boolean>) | null>(null);
   const [profileStatusHistory, setProfileStatusHistory] = useState<ProfileStatusHistoryState>({
     status: "idle",
   });
@@ -86,6 +88,8 @@ export function useProfileEditor({
     setProfile(profileRequestFrom(record));
     setProfilePhotoFileId(record.photoFileId);
     setProfileEmail(emailByProfileId.get(record.id) ?? "");
+    setPhotoPending(false);
+    photoSaveFnRef.current = null;
     setProfileTab("info");
     setPerformanceHistory({ status: "idle" });
     setProfileStatusHistory({ status: "loading" });
@@ -106,6 +110,8 @@ export function useProfileEditor({
     setProfile(emptyProfile);
     setProfileEmail("");
     setProfilePhotoFileId(null);
+    setPhotoPending(false);
+    photoSaveFnRef.current = null;
     setProfileTab("info");
     setPerformanceHistory({ status: "idle" });
     setProfileStatusHistory({ status: "idle" });
@@ -231,6 +237,7 @@ export function useProfileEditor({
     };
   }, [editingId, open, profileTab]);
 
+  // eslint-disable-next-line complexity -- profile save coordinates photo upload, linked membership invitations, and editor state.
   async function saveProfile() {
     if (!editingId) return;
     if (!profile.displayName.trim()) {
@@ -273,6 +280,19 @@ export function useProfileEditor({
           // blocking the save (host shows generic saved feedback).
         }
       }
+      let photoSaveFailed = false;
+      if (photoPending && photoSaveFnRef.current) {
+        const photoOk = await photoSaveFnRef.current();
+        if (!photoOk) {
+          photoSaveFailed = true;
+        }
+      }
+      if (photoSaveFailed) {
+        setError("Profile details saved, but photo upload failed. Retry photo upload.");
+        onSaved?.(saved);
+        setEditingProfileRecord(saved);
+        return;
+      }
       onSaved?.(saved);
       setBusy(false);
       // Close directly (bypass busy guard above which would early-return).
@@ -282,6 +302,8 @@ export function useProfileEditor({
       setProfile(emptyProfile);
       setProfileEmail("");
       setProfilePhotoFileId(null);
+      setPhotoPending(false);
+      photoSaveFnRef.current = null;
       setResetFeedback(null);
     } catch (saveError: unknown) {
       setError(
@@ -321,6 +343,12 @@ export function useProfileEditor({
       setEditingProfileRecord((current) =>
         current ? { ...current, photoFileId: fileId } : current,
       );
+    },
+    onPhotoPendingChange: (pending) => {
+      setPhotoPending(pending);
+    },
+    onRegisterPhotoSave: (saveFn) => {
+      photoSaveFnRef.current = saveFn;
     },
     onRsvpChanged,
     performanceHistory,
