@@ -60,3 +60,22 @@ it("keeps dues amounts and payment eligibility correct for paid, expired, and mi
   ).toBeVisible();
   expect(screen.getAllByRole("button", { name: "Pay dues" })).toHaveLength(2);
 });
+
+it("renders loading notice without showing false MFA prompt or unavailable warning while access is loading", () => {
+  render(<MemberDuesPage accessStatus="loading" enabled={false} mfaRequired={false} />);
+  expect(screen.getByText("Loading season dues…")).toBeVisible();
+  expect(screen.queryByText(/Verify Organization MFA/i)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Your member workspace is not available yet/i)).not.toBeInTheDocument();
+});
+
+it("renders MFA prompt only when mfaRequired is true", () => {
+  render(<MemberDuesPage accessStatus="ready" enabled={false} mfaRequired={true} />);
+  expect(screen.getByText(/Verify Organization MFA to view your dues/i)).toBeVisible();
+  expect(screen.queryByText("Loading season dues…")).not.toBeInTheDocument();
+});
+
+it("renders workspace not available only when accessStatus is none and MFA is not required", () => {
+  render(<MemberDuesPage accessStatus="none" enabled={false} mfaRequired={false} />);
+  expect(screen.getByText("Your member workspace is not available yet.")).toBeVisible();
+  expect(screen.queryByText(/Verify Organization MFA/i)).not.toBeInTheDocument();
+});

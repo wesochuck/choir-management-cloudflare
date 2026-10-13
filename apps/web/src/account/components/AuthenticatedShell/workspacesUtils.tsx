@@ -395,16 +395,23 @@ export function renderMemberPage(
   enabled: boolean,
   navigate: (href: string) => void,
   accessStatus: AccessState["status"],
+  mfaRequired = false,
 ): ReactNode {
   const pages: Record<string, ReactNode> = {
     "/directory": <MemberProfileDirectory enabled={enabled} view="directory" />,
     "/member/resources": <OrganizationResources enabled={enabled} manager={false} />,
     "/practice": <MemberPracticeView enabled={enabled} />,
     "/profile": <MemberProfileDirectory enabled={enabled} view="profile" />,
-    "/dues": <MemberDuesPage enabled={enabled} />,
-    "/schedule": <MySchedule enabled={enabled} />,
+    "/dues": (
+      <MemberDuesPage accessStatus={accessStatus} enabled={enabled} mfaRequired={mfaRequired} />
+    ),
+    "/schedule": (
+      <MySchedule accessStatus={accessStatus} enabled={enabled} mfaRequired={mfaRequired} />
+    ),
     // Keep the former deep link working while the subscription controls live on My schedule.
-    "/calendar": <MySchedule enabled={enabled} />,
+    "/calendar": (
+      <MySchedule accessStatus={accessStatus} enabled={enabled} mfaRequired={mfaRequired} />
+    ),
   };
   if (pathname === "/dashboard") {
     return <DashboardView accessStatus={accessStatus} enabled={enabled} navigate={navigate} />;

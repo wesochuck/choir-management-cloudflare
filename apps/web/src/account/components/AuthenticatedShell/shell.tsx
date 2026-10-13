@@ -309,7 +309,7 @@ export function AuthenticatedShell({
     return () => {
       controller.abort();
     };
-  }, [route.pathname]);
+  }, []);
 
   // Platform administration is served from the product base hostname, except
   // for scoped Organization access. That page must remain on the validated
