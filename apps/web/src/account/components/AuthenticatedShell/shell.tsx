@@ -15,6 +15,7 @@ import {
   getOrganizationModuleState,
   getOrganizationRosterConfiguration,
   getPlatformMfaStatus,
+  getPlatformOrganizationContext,
   getSetupStatus,
   stopOrganizationImpersonation,
 } from "../../../api";
@@ -60,6 +61,10 @@ import {
   workspaceHome,
   workspaceNavigation,
 } from "./workspacesUtils";
+
+function isSignalAborted(signal: AbortSignal): boolean {
+  return signal.aborted;
+}
 
 function sidebarPinnedStorageKey(): string {
   return `choir-sidebar-pinned:${window.location.hostname}`;
@@ -260,10 +265,26 @@ export function AuthenticatedShell({
         .then((health) => health.baseHostname ?? null)
         .catch(() => null),
     ])
-      .then(([context, modules, organizationName, hasPlatformAccess, baseHostname]) => {
+      .then(async ([context, modules, organizationName, hasPlatformAccess, baseHostname]) => {
+        if (isSignalAborted(controller.signal)) return;
+        const platformContext = hasPlatformAccess
+          ? await getPlatformOrganizationContext(controller.signal).catch(() => null)
+          : null;
+        if (isSignalAborted(controller.signal)) return;
         setBaseHostname(baseHostname);
         setPlatformAvailable(hasPlatformAccess);
         if (!context) {
+          // Not an Organization member on this host: a verified Platform
+          // Administrator may still have scoped access to this Organization.
+          if (platformContext) {
+            setAccess({
+              modules,
+              organizationName,
+              platformContext,
+              status: "platform-scoped",
+            });
+            return;
+          }
           setAccess({ status: "none" });
           void Promise.allSettled([
             purgeOfflineAudioForSource(window.location.host, "session"),
@@ -273,7 +294,13 @@ export function AuthenticatedShell({
           });
           return;
         }
-        setAccess({ context, modules, organizationName, status: "ready" });
+        setAccess({
+          context,
+          modules,
+          organizationName,
+          ...(platformContext ? { platformContext } : {}),
+          status: "ready",
+        });
       })
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === "AbortError"))
@@ -282,7 +309,7 @@ export function AuthenticatedShell({
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [route.pathname]);
 
   // Platform administration is served from the product base hostname, except
   // for scoped Organization access. That page must remain on the validated
@@ -324,23 +351,35 @@ export function AuthenticatedShell({
 
   const workspace = workspaceForPath(route.pathname);
 
-  const canManage = access.status === "ready" && access.context.role !== "member";
+  const scopedPlatformOverview =
+    access.status === "platform-scoped" ||
+    (access.status === "ready" &&
+      access.context.role === "member" &&
+      Boolean(access.platformContext));
+  const canManage =
+    (access.status === "ready" && access.context.role !== "member") || scopedPlatformOverview;
   const organizationEnabled =
     access.status === "ready" &&
     (!access.context.mfaRequired ||
       access.context.mfaSatisfied ||
       Boolean(access.context.mfaVerifiedUntil));
   const memberEnabled = organizationEnabled;
-  const modules = useMemo(() => (access.status === "ready" ? access.modules : []), [access]);
+  const modules = useMemo(
+    () => (access.status === "ready" || access.status === "platform-scoped" ? access.modules : []),
+    [access],
+  );
   const visibleOrganizationGroups = useMemo(
     () =>
-      organizationGroups
+      (scopedPlatformOverview
+        ? [{ label: "Organization", items: [{ href: "/admin", label: "Overview" }] }]
+        : organizationGroups
+      )
         .map((group) => ({
           ...group,
           items: group.items.filter((item) => routeHasModule(item, modules)),
         }))
         .filter((group) => group.items.length > 0),
-    [modules],
+    [modules, scopedPlatformOverview],
   );
   const visibleMemberGroups = useMemo(
     () =>
@@ -560,7 +599,9 @@ export function AuthenticatedShell({
               )}
               <span>
                 {branding?.organizationName ??
-                  (access.status === "ready" ? access.organizationName : null) ??
+                  (access.status === "ready" || access.status === "platform-scoped"
+                    ? access.organizationName
+                    : null) ??
                   "Choir Management"}
               </span>
             </AppLink>

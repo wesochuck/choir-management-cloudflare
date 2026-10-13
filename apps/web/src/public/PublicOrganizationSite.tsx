@@ -132,7 +132,7 @@ export function OrganizationLayout({
             );
           })}
           {signedIn ? (
-            <a className="back-to-workspace" href="/dashboard">
+            <a className="back-to-workspace" href="/login">
               ← Workspace
             </a>
           ) : (

@@ -1,6 +1,16 @@
-import type { OrganizationAuthStatusResponse } from "@choir/contracts";
+import type {
+  AccountOrganization,
+  HealthResponse,
+  ModuleState,
+  OrganizationAuthStatusResponse,
+  PlatformMfaStatusResponse,
+  PlatformOrganizationContextResponse,
+} from "@choir/contracts";
 
-import { getOrganizationAuthStatus } from "../api/organization";
+import { listAccountOrganizations } from "../api/account";
+import { getHealth } from "../api/health";
+import { getOrganizationModuleState, getOrganizationAuthStatus } from "../api/organization";
+import { getPlatformMfaStatus, getPlatformOrganizationContext } from "../api/platform";
 
 export const authenticatedRoutePrefixes = [
   "/seating/",
@@ -46,12 +56,41 @@ export function isPrivilegedRoute(pathname: string): boolean {
   );
 }
 
+/**
+ * Typed post-sign-in landing outcome (issue #147). Callers must not collapse
+ * `no_access` / `unavailable` into a generic member dashboard: the former
+ * needs a clear choose-an-Organization recovery, the latter a retry.
+ */
+export type PostSignInLanding =
+  | { readonly kind: "navigate"; readonly path: string }
+  | { readonly kind: "no_access" }
+  | { readonly kind: "unavailable" }
+  | { readonly kind: "verification"; readonly path: string };
+
 export interface DeterminePostSignInPathOptions {
   readonly currentPathname: string;
+  readonly getAccountOrganizations?: (
+    signal?: AbortSignal,
+  ) => Promise<readonly AccountOrganization[]>;
+  readonly getHealth?: (signal?: AbortSignal) => Promise<HealthResponse>;
+  readonly hostname?: string;
+  readonly getModuleState?: (signal?: AbortSignal) => Promise<readonly ModuleState[]>;
   readonly getAuthStatus?: (signal?: AbortSignal) => Promise<OrganizationAuthStatusResponse>;
+  readonly getPlatformMfaStatus?: (signal?: AbortSignal) => Promise<PlatformMfaStatusResponse>;
+  readonly getPlatformOrganizationContext?: (
+    signal?: AbortSignal,
+  ) => Promise<PlatformOrganizationContextResponse>;
   readonly isAuthenticatedRoute?: (pathname: string) => boolean;
   readonly search?: string;
   readonly signal?: AbortSignal;
+}
+
+function errorStatus(error: unknown): number | null {
+  if (typeof error === "object" && error !== null && "status" in error) {
+    const status = (error as { readonly status: unknown }).status;
+    return typeof status === "number" ? status : null;
+  }
+  return null;
 }
 
 function isSafeRelativeRedirect(url: string): boolean {
@@ -91,6 +130,10 @@ function parseReturnTo(
   }
 }
 
+function pathOf(url: string): string {
+  return url.split(/[?#]/)[0] ?? url;
+}
+
 function isPreservedPath(
   pathname: string,
   isAuthenticatedRoute: (pathname: string) => boolean,
@@ -103,34 +146,247 @@ function isPreservedPath(
   );
 }
 
-export async function determinePostSignInPath({
-  currentPathname,
-  getAuthStatus = getOrganizationAuthStatus,
-  isAuthenticatedRoute = isKnownAuthenticatedRoute,
-  search = "",
-  signal,
-}: DeterminePostSignInPathOptions): Promise<string> {
-  let isAdmin = false;
+export function safePlatformContinuation(value: string): string | null {
+  const target = parseReturnTo(`?returnTo=${encodeURIComponent(value)}`, isKnownAuthenticatedRoute);
+  return target && pathOf(target) === "/admin" ? target : null;
+}
+
+function verificationLanding(intendedPath: string): PostSignInLanding {
+  const intended = safePlatformContinuation(intendedPath) ?? "/admin";
+  return {
+    kind: "verification",
+    path: `/platform/access?returnTo=${encodeURIComponent(intended)}`,
+  };
+}
+
+interface LandingDeps {
+  readonly getAccountOrganizations: NonNullable<
+    DeterminePostSignInPathOptions["getAccountOrganizations"]
+  >;
+  readonly getPlatformMfaStatus: NonNullable<
+    DeterminePostSignInPathOptions["getPlatformMfaStatus"]
+  >;
+  readonly getPlatformOrganizationContext: NonNullable<
+    DeterminePostSignInPathOptions["getPlatformOrganizationContext"]
+  >;
+}
+
+async function resolvePlatformFallback(
+  deps: LandingDeps,
+  returnTo: string | null,
+  signal?: AbortSignal,
+): Promise<PostSignInLanding> {
   try {
-    const authStatus = await getAuthStatus(signal);
-    isAdmin = authStatus.role === "administrator" || authStatus.role === "owner";
+    await deps.getPlatformOrganizationContext(signal);
+  } catch (platformError: unknown) {
+    const platformStatus = errorStatus(platformError);
+    if (platformStatus === 401 || platformStatus === 403) {
+      try {
+        const mfaStatus = await deps.getPlatformMfaStatus(signal);
+        if (mfaStatus.activePlatformAdministrator) {
+          return verificationLanding(returnTo ?? "/admin");
+        }
+      } catch {
+        return { kind: "unavailable" };
+      }
+      return { kind: "no_access" };
+    }
+    if (platformStatus === 404) {
+      return { kind: "no_access" };
+    }
+    return { kind: "unavailable" };
+  }
+  // Scoped overview access does not authorize arbitrary operational admin pages.
+  if (returnTo && pathOf(returnTo) === "/admin") {
+    return { kind: "navigate", path: returnTo };
+  }
+  return { kind: "navigate", path: "/admin" };
+}
+
+function isRosterModuleEnabled(modules: readonly ModuleState[]): boolean {
+  const roster = modules.find((module) => module.id === "roster");
+  if (roster !== undefined) return roster.enabled;
+  const people = modules.find((module) => module.id === "people");
+  if (people !== undefined) return people.enabled;
+  return false;
+}
+
+async function resolveMemberLanding(
+  deps: LandingDeps,
+  authStatus: OrganizationAuthStatusResponse,
+  options: DeterminePostSignInPathOptions,
+): Promise<PostSignInLanding> {
+  const signal = options.signal;
+  let organizations: readonly AccountOrganization[];
+  try {
+    organizations = await deps.getAccountOrganizations(signal);
   } catch {
-    // Non-tenant host, unauthenticated session, request failure, or aborted timeout.
+    return { kind: "unavailable" };
   }
+  const linkedProfileId =
+    organizations.find((organization) => organization.organizationId === authStatus.organizationId)
+      ?.profileId ?? null;
+  if (!linkedProfileId) return { kind: "navigate", path: "/dashboard" };
+  try {
+    const modules = await (options.getModuleState ?? getOrganizationModuleState)(signal);
+    return {
+      kind: "navigate",
+      path: isRosterModuleEnabled(modules) ? "/profile" : "/dashboard",
+    };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
 
-  const returnTo = parseReturnTo(search, isAuthenticatedRoute);
-  if (returnTo) {
-    const returnToPath = returnTo.split(/[?#]/)[0] ?? returnTo;
-    if (!isPrivilegedRoute(returnToPath) || isAdmin) {
-      return returnTo;
+function resolveNonTenantLanding(
+  returnTo: string | null,
+  currentPathname: string,
+  checkRoute: (pathname: string) => boolean,
+): PostSignInLanding {
+  if (returnTo && !isPrivilegedRoute(pathOf(returnTo))) {
+    return { kind: "navigate", path: returnTo };
+  }
+  if (isPreservedPath(currentPathname, checkRoute) && !isPrivilegedRoute(currentPathname)) {
+    return { kind: "navigate", path: currentPathname };
+  }
+  return { kind: "navigate", path: "/dashboard" };
+}
+
+type AuthAttempt =
+  | { readonly authStatus: OrganizationAuthStatusResponse; readonly ok: true }
+  | { readonly landing: PostSignInLanding; readonly ok: false };
+
+async function attemptAuthStatus(
+  deps: LandingDeps,
+  options: DeterminePostSignInPathOptions,
+  returnTo: string | null,
+): Promise<AuthAttempt> {
+  const getAuthStatus = options.getAuthStatus ?? getOrganizationAuthStatus;
+  try {
+    return { authStatus: await getAuthStatus(options.signal), ok: true };
+  } catch (authError: unknown) {
+    const status = errorStatus(authError);
+    if (status === 404) {
+      try {
+        const health = await (options.getHealth ?? getHealth)(options.signal);
+        if (health.baseHostname !== (options.hostname ?? window.location.hostname)) {
+          return { landing: { kind: "no_access" }, ok: false };
+        }
+      } catch {
+        return { landing: { kind: "unavailable" }, ok: false };
+      }
+      return {
+        landing: resolveNonTenantLanding(
+          returnTo,
+          options.currentPathname,
+          options.isAuthenticatedRoute ?? isKnownAuthenticatedRoute,
+        ),
+        ok: false,
+      };
     }
-  }
-
-  if (isPreservedPath(currentPathname, isAuthenticatedRoute)) {
-    if (!isPrivilegedRoute(currentPathname) || isAdmin) {
-      return currentPathname;
+    if (status !== 403) {
+      return { landing: { kind: "unavailable" }, ok: false };
     }
+    return {
+      landing: await resolvePlatformFallback(deps, returnTo, options.signal),
+      ok: false,
+    };
+  }
+}
+
+function createLandingDeps(options: DeterminePostSignInPathOptions): LandingDeps {
+  return {
+    getAccountOrganizations: options.getAccountOrganizations ?? listAccountOrganizations,
+    getPlatformMfaStatus: options.getPlatformMfaStatus ?? getPlatformMfaStatus,
+    getPlatformOrganizationContext:
+      options.getPlatformOrganizationContext ?? getPlatformOrganizationContext,
+  };
+}
+
+async function attemptPlatformAdminLanding(
+  deps: LandingDeps,
+  requestedPath: string | null,
+  signal?: AbortSignal,
+): Promise<PostSignInLanding | null> {
+  try {
+    const status = await deps.getPlatformMfaStatus(signal);
+    if (!status.activePlatformAdministrator) return null;
+    const platformLanding = await resolvePlatformFallback(deps, requestedPath, signal);
+    if (requestedPath && !isPrivilegedRoute(pathOf(requestedPath))) {
+      return { kind: "navigate", path: requestedPath };
+    }
+    return platformLanding;
+  } catch {
+    return { kind: "unavailable" };
+  }
+}
+
+function resolvePreservedPath(
+  path: string | null,
+  isOrganizationAdmin: boolean,
+): PostSignInLanding | null {
+  if (!path) return null;
+  const privileged = isPrivilegedRoute(pathOf(path));
+  if (!privileged) {
+    return { kind: "navigate", path };
+  }
+  if (isOrganizationAdmin && !pathOf(path).startsWith("/platform")) {
+    return { kind: "navigate", path };
+  }
+  return null;
+}
+
+export async function resolvePostSignInLanding(
+  options: DeterminePostSignInPathOptions,
+): Promise<PostSignInLanding> {
+  const deps = createLandingDeps(options);
+  const checkRoute = options.isAuthenticatedRoute ?? isKnownAuthenticatedRoute;
+  const returnTo = parseReturnTo(options.search ?? "", checkRoute);
+
+  const attempt = await attemptAuthStatus(deps, options, returnTo);
+  if (!attempt.ok) {
+    return attempt.landing;
+  }
+  const { authStatus } = attempt;
+  const isOrganizationAdmin = authStatus.role === "administrator" || authStatus.role === "owner";
+
+  const currentPreserved = isPreservedPath(options.currentPathname, checkRoute)
+    ? options.currentPathname
+    : null;
+  const requestedPath = returnTo ?? currentPreserved;
+
+  if (!isOrganizationAdmin || requestedPath?.startsWith("/platform")) {
+    const platformLanding = await attemptPlatformAdminLanding(deps, requestedPath, options.signal);
+    if (platformLanding) return platformLanding;
   }
 
-  return isAdmin ? "/admin" : "/dashboard";
+  const preservedLanding =
+    resolvePreservedPath(returnTo, isOrganizationAdmin) ??
+    resolvePreservedPath(currentPreserved, isOrganizationAdmin);
+  if (preservedLanding) return preservedLanding;
+
+  if (isOrganizationAdmin) {
+    return { kind: "navigate", path: "/admin" };
+  }
+  return resolveMemberLanding(deps, authStatus, options);
+}
+
+/**
+ * String-returning compatibility wrapper. `no_access` maps to the
+ * choose-an-Organization recovery and `unavailable` to the retry entry
+ * for legacy callers; new code should use `resolvePostSignInLanding`.
+ */
+export async function determinePostSignInPath(
+  options: DeterminePostSignInPathOptions,
+): Promise<string> {
+  const landing = await resolvePostSignInLanding(options);
+  switch (landing.kind) {
+    case "navigate":
+    case "verification":
+      return landing.path;
+    case "no_access":
+      return "/account/organizations";
+    case "unavailable":
+      return "/login";
+  }
 }

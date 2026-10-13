@@ -22,7 +22,11 @@ import { ForgotPasswordView } from "./auth/ForgotPasswordView";
 import { EmailChangeConfirmationView } from "./auth/EmailChangeConfirmationView";
 import { getCurrentSession, getPublishedOrganizationProjection } from "./auth/api";
 import { readOAuthCompletionState, type OAuthCompletionState } from "./auth/googleAuth";
-import { determinePostSignInPath, isAuthenticatedRoute } from "./auth/postSignIn";
+import {
+  resolvePostSignInLanding,
+  isAuthenticatedRoute,
+  type PostSignInLanding,
+} from "./auth/postSignIn";
 import { ResetPasswordView } from "./auth/ResetPasswordView";
 import { SignInView } from "./auth/SignInView";
 import { purgeCachedPlayerMetadata, purgeOfflineAudioForSource } from "./offline/mediaStore";
@@ -90,29 +94,27 @@ interface AlreadySignedInProps {
 }
 
 function AlreadySignedIn({ isOAuthComplete, search, session }: AlreadySignedInProps) {
-  const [targetHref, setTargetHref] = useState<string | null>(null);
+  const [landing, setLanding] = useState<PostSignInLanding | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    void determinePostSignInPath({
+    void resolvePostSignInLanding({
       currentPathname: window.location.pathname,
       search,
       signal: controller.signal,
     })
-      .then((path) => {
-        if (!controller.signal.aborted) {
-          setTargetHref(path);
-          if (isOAuthComplete) {
-            window.location.replace(path);
-          }
+      .then((resolved) => {
+        if (controller.signal.aborted) return;
+        setLanding(resolved);
+        // Every already-signed-in visit to /login (plain or OAuth completion)
+        // enters the resolved workspace directly; no interstitial click.
+        if (resolved.kind === "navigate" || resolved.kind === "verification") {
+          window.location.replace(resolved.path);
         }
       })
       .catch(() => {
         if (!controller.signal.aborted) {
-          setTargetHref("/dashboard");
-          if (isOAuthComplete) {
-            window.location.replace("/dashboard");
-          }
+          setLanding({ kind: "unavailable" });
         }
       });
     return () => {
@@ -120,23 +122,53 @@ function AlreadySignedIn({ isOAuthComplete, search, session }: AlreadySignedInPr
     };
   }, [isOAuthComplete, search]);
 
-  const href = targetHref ?? "/dashboard";
-  const isAdmin = targetHref === "/admin" || targetHref?.startsWith("/admin/") === true;
-  const targetLabel =
-    targetHref === null
-      ? "Open your workspace"
-      : isAdmin
-        ? "Open admin dashboard"
-        : "Open your workspace";
+  if (landing?.kind === "no_access") {
+    return (
+      <main className="auth-layout">
+        <section className="auth-card" aria-labelledby="already-signed-in-title">
+          <h1 id="already-signed-in-title">No access to this Organization.</h1>
+          <p className="auth-card__intro">
+            You are signed in as {session.user.email}, but that identity does not have access to
+            this Organization. Choose an Organization you belong to instead.
+          </p>
+          <a className="button button--primary" href="/account/organizations">
+            Choose an Organization
+          </a>
+          <a className="button button--secondary" href="/">
+            Visit the public website
+          </a>
+        </section>
+      </main>
+    );
+  }
+
+  if (landing?.kind === "unavailable") {
+    return (
+      <main className="auth-layout">
+        <section className="auth-card" aria-labelledby="already-signed-in-title">
+          <h1 id="already-signed-in-title">We couldn’t confirm your workspace.</h1>
+          <p className="auth-card__intro">Continue as {session.user.email}.</p>
+          <button
+            className="button button--primary"
+            onClick={() => {
+              window.location.reload();
+            }}
+            type="button"
+          >
+            Retry
+          </button>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="auth-layout">
       <section className="auth-card" aria-labelledby="already-signed-in-title">
         <h1 id="already-signed-in-title">You are already signed in.</h1>
-        <p className="auth-card__intro">Continue as {session.user.email}.</p>
-        <a className="button button--primary" href={href}>
-          {targetLabel}
-        </a>
+        <p className="auth-card__intro" role="status">
+          Continue as {session.user.email}. Opening your workspace…
+        </p>
       </section>
     </main>
   );
@@ -373,14 +405,22 @@ export function App() {
           setSessionState({ reason: "unconfirmed", status: "error" });
           return;
         }
-        const nextPath =
-          destination ??
-          (await determinePostSignInPath({
-            currentPathname: pathname,
-            search: window.location.search,
-            signal: controller.signal,
-          }));
-        window.location.assign(nextPath);
+        if (destination) {
+          window.location.assign(destination);
+          return;
+        }
+        const landing = await resolvePostSignInLanding({
+          currentPathname: pathname,
+          search: window.location.search,
+          signal: controller.signal,
+        });
+        if (landing.kind === "navigate" || landing.kind === "verification") {
+          window.location.assign(landing.path);
+        } else if (landing.kind === "no_access") {
+          window.location.assign("/account/organizations");
+        } else {
+          setSessionState({ reason: "unavailable", status: "error" });
+        }
       } catch {
         setSessionState({ reason: "unavailable", status: "error" });
       } finally {

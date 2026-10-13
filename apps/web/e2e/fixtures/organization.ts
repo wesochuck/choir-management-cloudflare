@@ -133,7 +133,10 @@ export async function installOrganizationShell(
     },
   };
   const moduleState = createMutableState<readonly { enabled: boolean; id: string }[]>(
-    (options.modules ?? ["events", "people", "programs"]).map((id) => ({ enabled: true, id })),
+    (options.modules ?? ["events", "people", "programs", "roster"]).map((id) => ({
+      enabled: true,
+      id,
+    })),
   );
   const memberships = options.memberships ?? [buildAccountMembership({ organizationId, role })];
 

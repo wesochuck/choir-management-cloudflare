@@ -505,18 +505,127 @@ function GettingStartedGuide({
   );
 }
 
+function OverviewCardItem({
+  card,
+  navigate,
+  platformReadOnly,
+}: {
+  readonly card: OverviewCard;
+  readonly navigate: (href: string) => void;
+  readonly platformReadOnly: boolean;
+}) {
+  const icon = (
+    <span
+      aria-hidden="true"
+      className={`admin-overview__card-icon admin-overview__card-icon--${card.tone}`}
+    >
+      {card.icon}
+    </span>
+  );
+  const copy = (
+    <span className="admin-overview__card-copy">
+      <strong className="admin-overview__card-title">{card.label}</strong>
+      <small className="admin-overview__card-description">
+        {card.description}
+        {platformReadOnly ? " Unavailable in read-only Platform access." : ""}
+      </small>
+    </span>
+  );
+  if (platformReadOnly) {
+    return (
+      <div
+        aria-disabled="true"
+        className="admin-overview__card"
+        title="Unavailable in read-only Platform access"
+      >
+        {icon}
+        {copy}
+      </div>
+    );
+  }
+  return (
+    <DashboardLink className="admin-overview__card" href={card.href} onNavigate={navigate}>
+      {icon}
+      {copy}
+    </DashboardLink>
+  );
+}
+
+function OverviewCommandBar({
+  navigate,
+  onOpenCommandPalette,
+  performerLabel,
+  platformReadOnly,
+  visibleQuickActions,
+}: {
+  readonly navigate: (href: string) => void;
+  readonly onOpenCommandPalette?: (() => void) | undefined;
+  readonly performerLabel: string;
+  readonly platformReadOnly: boolean;
+  readonly visibleQuickActions: readonly QuickAction[];
+}) {
+  if (platformReadOnly) return null;
+  return (
+    <div className="admin-overview__command-bar">
+      <QuickSearchTrigger
+        className="admin-overview__search-trigger"
+        hideTitle
+        onClick={() => {
+          onOpenCommandPalette?.();
+        }}
+        placeholder="Search pages, tools, and features..."
+        variant="hero"
+      />
+      {visibleQuickActions.length > 0 ? (
+        <QuickActionsSection
+          actions={visibleQuickActions}
+          navigate={navigate}
+          performerLabel={performerLabel}
+          title="Quick actions"
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function PlatformAccessBanner({
+  platformCanEdit,
+  platformReadOnly,
+}: {
+  readonly platformCanEdit: boolean;
+  readonly platformReadOnly: boolean;
+}) {
+  if (!platformReadOnly && !platformCanEdit) return null;
+  return (
+    <p className="notice notice--warning" role="status">
+      <strong>
+        {platformReadOnly ? "Read-only Platform access." : "Platform elevation active."}
+      </strong>{" "}
+      You are viewing this Organization as a Platform Administrator, not as an Organization member.{" "}
+      {platformReadOnly
+        ? "Operational shortcuts are unavailable in this overview. Manage permitted edits through Platform access with an explicit, timed elevation."
+        : "Edits remain scoped to this Organization and expire automatically."}{" "}
+      <a href="/platform/access">Manage Platform access</a>
+    </p>
+  );
+}
+
 export function OrganizationAdminOverview({
   context,
   displayName,
   modules,
   navigate,
   onOpenCommandPalette,
+  platformCanEdit = false,
+  platformReadOnly = false,
 }: {
   readonly context: OrganizationAuthStatusResponse | null;
   readonly displayName: string;
   readonly modules: readonly ModuleState[];
   readonly navigate: (href: string) => void;
   readonly onOpenCommandPalette?: (() => void) | undefined;
+  readonly platformCanEdit?: boolean;
+  readonly platformReadOnly?: boolean;
 }) {
   const { performerLabel, performerLabelPlural } = useOrganizationTerminology();
   const [summary, setSummary] = useState<SummaryState>({ status: "loading" });
@@ -534,7 +643,7 @@ export function OrganizationAdminOverview({
         }
       });
 
-    if (moduleIsEnabled(modules, "people")) {
+    if (moduleIsEnabled(modules, "people") && !platformReadOnly) {
       listOrganizationAuditions(controller.signal)
         .then((auditions) => {
           if (!controller.signal.aborted) {
@@ -553,7 +662,7 @@ export function OrganizationAdminOverview({
     return () => {
       controller.abort();
     };
-  }, [modules]);
+  }, [modules, platformReadOnly]);
 
   const sections = useMemo(
     () =>
@@ -580,6 +689,7 @@ export function OrganizationAdminOverview({
 
   return (
     <div className="admin-overview">
+      <PlatformAccessBanner platformCanEdit={platformCanEdit} platformReadOnly={platformReadOnly} />
       <OverviewBanner
         activeProfileCount={activeProfileCount}
         displayName={displayName}
@@ -592,26 +702,13 @@ export function OrganizationAdminOverview({
         upcomingEventCount={upcomingEventCount}
       />
 
-      <div className="admin-overview__command-bar">
-        <QuickSearchTrigger
-          className="admin-overview__search-trigger"
-          hideTitle
-          onClick={() => {
-            onOpenCommandPalette?.();
-          }}
-          placeholder="Search pages, tools, and features..."
-          variant="hero"
-        />
-
-        {visibleQuickActions.length > 0 ? (
-          <QuickActionsSection
-            actions={visibleQuickActions}
-            navigate={navigate}
-            performerLabel={performerLabel}
-            title="Quick actions"
-          />
-        ) : null}
-      </div>
+      <OverviewCommandBar
+        navigate={navigate}
+        onOpenCommandPalette={onOpenCommandPalette}
+        performerLabel={performerLabel}
+        platformReadOnly={platformReadOnly}
+        visibleQuickActions={visibleQuickActions}
+      />
 
       {summaryError ? (
         <p className="admin-overview__error" role="status">
@@ -620,7 +717,7 @@ export function OrganizationAdminOverview({
         </p>
       ) : null}
 
-      {isNewOrgOrSetupPending ? (
+      {isNewOrgOrSetupPending && !platformReadOnly ? (
         <GettingStartedGuide navigate={navigate} performerLabelPlural={performerLabelPlural} />
       ) : null}
 
@@ -648,23 +745,12 @@ export function OrganizationAdminOverview({
             </div>
             <div className="admin-overview__cards">
               {section.cards.map((card) => (
-                <DashboardLink
-                  className="admin-overview__card"
-                  href={card.href}
+                <OverviewCardItem
+                  card={card}
                   key={card.href}
-                  onNavigate={navigate}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`admin-overview__card-icon admin-overview__card-icon--${card.tone}`}
-                  >
-                    {card.icon}
-                  </span>
-                  <span className="admin-overview__card-copy">
-                    <strong className="admin-overview__card-title">{card.label}</strong>
-                    <small className="admin-overview__card-description">{card.description}</small>
-                  </span>
-                </DashboardLink>
+                  navigate={navigate}
+                  platformReadOnly={platformReadOnly}
+                />
               ))}
             </div>
           </section>

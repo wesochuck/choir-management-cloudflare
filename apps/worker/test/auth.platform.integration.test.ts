@@ -565,6 +565,69 @@ describe("Platform Administrator MFA", () => {
     });
   });
 
+  it("allows scoped Platform reads on an Organization without membership but denies writes (issue #147)", async () => {
+    await seedInvitedUser();
+    // Bravo has no membership for this user; Alpha membership must not leak.
+    await seedOrganizations();
+    const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+    await grantPlatformAdministratorForCurrentSession();
+    const bravoOrigin = "http://bravo.localhost";
+
+    // Initialize Bravo's Durable Object identity (this fixture seeds the D1
+    // registry only; provisioning normally writes organization_metadata).
+    const bravoStub = testEnv.ORGANIZATION_STORE.get(
+      testEnv.ORGANIZATION_STORE.idFromName("organization-bravo"),
+    );
+    await runInDurableObject(bravoStub, (_instance, state) => {
+      const now = new Date().toISOString();
+      state.storage.sql.exec(
+        `INSERT OR REPLACE INTO organization_metadata
+           (organization_id, name, slug, lifecycle_state, created_at, updated_at)
+         VALUES (?, ?, ?, 'active', ?, ?)`,
+        "organization-bravo",
+        "Organization Bravo",
+        "bravo",
+        now,
+        now,
+      );
+      return null;
+    });
+
+    const summaryResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/dashboard-summary",
+        { headers: { cookie: sessionCookie } },
+        bravoOrigin,
+      ),
+    );
+    expect(summaryResponse.status).toBe(200);
+    await expect(summaryResponse.json()).resolves.toMatchObject({
+      activeProfileCount: expect.any(Number),
+    });
+
+    const modulesResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/module-state",
+        { headers: { cookie: sessionCookie } },
+        bravoOrigin,
+      ),
+    );
+    expect(modulesResponse.status).toBe(200);
+
+    const writeResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/events",
+        {
+          body: JSON.stringify({}),
+          headers: { cookie: sessionCookie },
+          method: "POST",
+        },
+        bravoOrigin,
+      ),
+    );
+    expect([401, 403]).toContain(writeResponse.status);
+  });
+
   it("recovers an unadministered launched Organization through scoped Platform MFA", async () => {
     await seedInvitedUser();
     await seedOrganizations();

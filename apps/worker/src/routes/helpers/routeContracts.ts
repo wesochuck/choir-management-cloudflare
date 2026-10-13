@@ -406,6 +406,56 @@ export async function authorizeCalendarRoute(
   };
 }
 
+/**
+ * Narrow Platform Administrator scoped-read authorization (issue #147).
+ * Returns the hostname-resolved Organization ID only when the caller is a
+ * verified Platform Administrator (active grant, completed MFA enrollment,
+ * fresh session-bound assertion) for that canonical host. Grants no
+ * membership, impersonation, or write capability; callers must only use it
+ * for bounded read endpoints and must keep writes membership/elevation gated.
+ */
+export async function authorizePlatformScopedRead(
+  context: Context<WorkerHonoEnvironment>,
+): Promise<string | null> {
+  validateStartupConfig(context.env);
+  const requestUrl = new URL(context.req.url);
+  const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
+  if (!organizationId) {
+    return null;
+  }
+  const auth = createAuth({
+    env: context.env,
+    requestUrl,
+    waitUntil: (promise) => {
+      context.executionCtx.waitUntil(promise);
+    },
+  });
+  const session = await auth.api.getSession({ headers: context.req.raw.headers });
+  const authorization = await authorizePlatformAdministratorSession(
+    context.env.CONTROL_DB,
+    session?.session.id ?? null,
+    session?.user.id ?? null,
+  );
+  if (!authorization.ok) return null;
+  await context.env.CONTROL_DB.prepare(
+    `INSERT INTO platform_audit_events
+       (id, actor_user_id, organization_id, action, target_type, target_id,
+        request_id, change_summary, occurred_at)
+     VALUES (?, ?, ?, 'organization.overview.read', 'organization', ?, ?, ?, ?)`,
+  )
+    .bind(
+      crypto.randomUUID(),
+      authorization.value.userId,
+      organizationId,
+      organizationId,
+      context.get("requestId"),
+      JSON.stringify({ path: requestUrl.pathname }),
+      Date.now(),
+    )
+    .run();
+  return organizationId;
+}
+
 export type ExportAuthorization =
   | {
       readonly actorType: "owner" | "platform_administrator";

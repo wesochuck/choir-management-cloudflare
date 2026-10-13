@@ -28,7 +28,10 @@ function displayDate(value: number | string): string {
 
 function organizationHref(hostname: string): string {
   const protocol = hostname === "localhost" || hostname.endsWith(".localhost") ? "http:" : "https:";
-  return `${protocol}//${hostname}`;
+  // Explicit workspace entry on the Organization host (issue #147): /login
+  // with an existing session resolves to that Organization's workspace
+  // instead of landing on the public home page.
+  return `${protocol}//${hostname}/login`;
 }
 
 function organizationRoleLabel(role: AccountOrganization["role"]): string {

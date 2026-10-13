@@ -8,6 +8,7 @@ import { OrganizationAdminOverview } from "../../OrganizationAdminOverview";
 import { AppLink } from "./navigation";
 import { PlatformAccess, PlatformDesignSystem, PlatformSetupMonitor } from "./lazyComponents";
 
+import { safePlatformContinuation } from "../../../auth/postSignIn";
 import { routeHasModule, routeModule, workspaceLabel } from "./utils";
 import {
   renderAccountPage,
@@ -28,6 +29,8 @@ function OverviewPage({
   modules,
   navigate,
   onOpenCommandPalette,
+  platformCanEdit = false,
+  platformReadOnly = false,
   workspace,
 }: {
   readonly context: OrganizationAuthStatusResponse | null;
@@ -35,6 +38,8 @@ function OverviewPage({
   readonly modules?: readonly ModuleState[];
   readonly navigate: (href: string) => void;
   readonly onOpenCommandPalette?: (() => void) | undefined;
+  readonly platformCanEdit?: boolean;
+  readonly platformReadOnly?: boolean;
   readonly workspace: Workspace;
 }) {
   const platform = workspace === "platform";
@@ -46,6 +51,8 @@ function OverviewPage({
         modules={modules ?? []}
         navigate={navigate}
         onOpenCommandPalette={onOpenCommandPalette}
+        platformCanEdit={platformCanEdit}
+        platformReadOnly={platformReadOnly}
       />
     );
   }
@@ -171,6 +178,69 @@ export function WorkspacePageLoading() {
   );
 }
 
+type PlatformScopedAccess = Extract<AccessState, { status: "platform-scoped" }>;
+
+function PlatformScopedWorkspacePage({
+  access,
+  displayName,
+  navigate,
+  onOpenCommandPalette,
+  route,
+}: {
+  readonly access: PlatformScopedAccess;
+  readonly displayName: string;
+  readonly navigate: (href: string) => void;
+  readonly onOpenCommandPalette?: (() => void) | undefined;
+  readonly route: RouteState;
+}) {
+  // Only the /admin overview is available, read-only unless elevated. Other
+  // admin routes are clearly marked unavailable instead of dead 403 links.
+  if (route.pathname !== "/admin") {
+    return (
+      <section className="surface-card empty-page" aria-labelledby="platform-scoped-title">
+        <h1 id="platform-scoped-title">Not available in read-only Platform access.</h1>
+        <p>
+          You are viewing this Organization as a Platform Administrator without Organization
+          Membership. Operational pages require membership or an explicit, timed Platform elevation.
+        </p>
+        <p>
+          <a className="button button--primary" href="/admin">
+            Return to Organization overview
+          </a>{" "}
+          <a className="button button--secondary" href="/platform/access">
+            Manage Platform access
+          </a>
+        </p>
+      </section>
+    );
+  }
+  return (
+    <OverviewPage
+      context={null}
+      displayName={displayName}
+      modules={access.modules}
+      navigate={navigate}
+      onOpenCommandPalette={onOpenCommandPalette}
+      platformCanEdit={access.platformContext.canEdit}
+      platformReadOnly
+      workspace="organization"
+    />
+  );
+}
+
+function readyAccessFlags(access: AccessState): {
+  readonly enabled: boolean;
+  readonly manager: boolean;
+  readonly moduleDenied: boolean;
+} {
+  if (access.status !== "ready") return { enabled: false, manager: false, moduleDenied: false };
+  const enabled =
+    !access.context.mfaRequired ||
+    access.context.mfaSatisfied ||
+    Boolean(access.context.mfaVerifiedUntil);
+  return { enabled, manager: access.context.role !== "member", moduleDenied: false };
+}
+
 function OrganizationWorkspacePage({
   access,
   displayName,
@@ -187,15 +257,32 @@ function OrganizationWorkspacePage({
   if (access.status === "none") {
     return <AccessDeniedPage workspace="Organization" />;
   }
+  if (access.status === "platform-scoped") {
+    return (
+      <PlatformScopedWorkspacePage
+        access={access}
+        displayName={displayName}
+        navigate={navigate}
+        onOpenCommandPalette={onOpenCommandPalette}
+        route={route}
+      />
+    );
+  }
+  if (access.status === "ready" && access.context.role === "member" && access.platformContext) {
+    return (
+      <PlatformScopedWorkspacePage
+        access={{ ...access, platformContext: access.platformContext, status: "platform-scoped" }}
+        displayName={displayName}
+        navigate={navigate}
+        onOpenCommandPalette={onOpenCommandPalette}
+        route={route}
+      />
+    );
+  }
   if (access.status === "ready" && access.context.role === "member") {
     return <AccessDeniedPage workspace="Organization Admin" />;
   }
-  const enabled =
-    access.status === "ready" &&
-    (!access.context.mfaRequired ||
-      access.context.mfaSatisfied ||
-      Boolean(access.context.mfaVerifiedUntil));
-  const manager = access.status === "ready" && access.context.role !== "member";
+  const { enabled, manager } = readyAccessFlags(access);
   const requiredModule = routeModule(route.pathname);
   if (
     access.status === "ready" &&
@@ -232,10 +319,12 @@ function PlatformWorkspacePage({
   navigate,
   platformAvailable,
   pathname,
+  search = "",
 }: {
   readonly navigate: (href: string) => void;
   readonly platformAvailable: boolean;
   readonly pathname: string;
+  readonly search?: string;
 }) {
   if (!platformAvailable) return <AccessDeniedPage workspace="Platform Admin" />;
   if (pathname === "/platform") {
@@ -245,7 +334,9 @@ function PlatformWorkspacePage({
     return <PlatformAccess view="organizations" />;
   }
   if (pathname === "/platform/access") {
-    return <PlatformAccess view="access" />;
+    const rawReturnTo = new URLSearchParams(search).get("returnTo") ?? "";
+    const returnTo = safePlatformContinuation(rawReturnTo) ?? undefined;
+    return <PlatformAccess returnTo={returnTo} view="access" />;
   }
   if (pathname === "/platform/dead-letters") {
     return <PlatformAccess view="dead-letters" />;
@@ -288,6 +379,7 @@ export function WorkspacePage({
         navigate={navigate}
         platformAvailable={platformAvailable}
         pathname={route.pathname}
+        search={route.search}
       />
     );
   }

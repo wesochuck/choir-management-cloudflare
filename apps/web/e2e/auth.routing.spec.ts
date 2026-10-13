@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { installOrganizationApi } from "./fixtures/apiMocks";
+import { buildAccountMembership, fixtureIds, organizationAlphaId } from "./fixtures/builders";
 import { fulfillJson } from "./fixtures/session";
 
 // Login routing asserts only the destination URL, so these suites stay non-strict: the landing
@@ -151,7 +152,7 @@ test("google oauth callback rejects unsafe returnTo and falls back to role desti
   await expect(page).toHaveURL(/:\/\/[^/]+\/admin$/);
 });
 
-test("already signed in administrator visiting plain /login sees interstitial without forced redirect", async ({
+test("already signed in administrator visiting plain /login is routed directly to /admin (issue #147)", async ({
   page,
 }) => {
   await installOrganizationApi(page, {
@@ -166,12 +167,96 @@ test("already signed in administrator visiting plain /login sees interstitial wi
   });
 
   await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "You are already signed in." })).toBeVisible();
-  await expect(page.getByText("Continue as org.admin@example.test.")).toBeVisible();
-  const continueButton = page.getByRole("link", { name: "Open admin dashboard" });
-  await expect(continueButton).toBeVisible();
-  await continueButton.click();
   await expect(page).toHaveURL(/:\/\/[^/]+\/admin$/);
+});
+
+test("member with a linked Profile is routed to /profile upon login (issue #147)", async ({
+  page,
+}) => {
+  await installOrganizationApi(page, {
+    initiallySignedIn: false,
+    memberships: [
+      buildAccountMembership({
+        organizationId: organizationAlphaId,
+        profileId: fixtureIds.browserProfileId,
+        role: "member",
+      }),
+    ],
+    role: "member",
+    user: {
+      email: "org.member@example.test",
+      name: "Org Member",
+      sessionId: "session-member-1",
+      userId: "user-member-1",
+    },
+  });
+
+  await page.goto("/login");
+  await page.getByLabel("Email address").fill("org.member@example.test");
+  await page.getByRole("button", { name: "Send sign-in code" }).click();
+  await page.getByLabel("6-digit sign-in code").fill("123456");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+
+  await expect(page).toHaveURL(/:\/\/[^/]+\/profile$/);
+});
+
+test("verified Platform Administrator without membership lands on read-only /admin (issue #147)", async ({
+  page,
+}) => {
+  await installOrganizationApi(page, {
+    initiallySignedIn: true,
+    role: "administrator",
+    user: {
+      email: "platform.admin@example.test",
+      name: "Platform Admin",
+      sessionId: "session-platform-1",
+      userId: "user-platform-1",
+    },
+  });
+  await page.route("**/api/organization/auth-status", async (route) => {
+    await fulfillJson(
+      route,
+      {
+        code: "forbidden",
+        message: "This identity is not an active member of this Organization.",
+        requestId: "11111111-1111-4111-8111-111111111111",
+      },
+      403,
+    );
+  });
+  await page.route("**/api/platform/organization-context", async (route) => {
+    await fulfillJson(route, {
+      canEdit: false,
+      elevationExpiresAt: null,
+      elevationId: null,
+      organizationId: organizationAlphaId,
+      requestId: "11111111-1111-4111-8111-111111111111",
+      userId: "user-platform-1",
+    });
+  });
+  await page.route("**/api/platform/mfa/status", async (route) => {
+    await fulfillJson(route, {
+      activePlatformAdministrator: true,
+      enrollmentComplete: true,
+      hasPasskey: false,
+      requestId: "11111111-1111-4111-8111-111111111111",
+      twoFactorEnabled: true,
+    });
+  });
+  await page.route("**/api/organization/dashboard-summary", async (route) => {
+    await fulfillJson(route, {
+      activeProfileCount: 3,
+      doNotEmailCount: 0,
+      nextEvents: [],
+      recentBounceCount: 0,
+      requestId: "11111111-1111-4111-8111-111111111111",
+      upcomingEventCount: 1,
+    });
+  });
+
+  await page.goto("/login");
+  await expect(page).toHaveURL(/:\/\/[^/]+\/admin$/);
+  await expect(page.getByText("Read-only Platform access.", { exact: true })).toBeVisible();
 });
 
 test("oauth cancellation or error callback displays mapped message and sanitizes visible URL", async ({

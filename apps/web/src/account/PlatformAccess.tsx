@@ -319,6 +319,8 @@ type PlatformAccessView =
   "access" | "dead-letters" | "email-suppressions" | "organizations" | "security";
 
 interface PlatformAccessProps {
+  /** Safe local continuation (e.g. /admin) after MFA verification, issue #147. */
+  readonly returnTo?: string | undefined;
   readonly view?: PlatformAccessView;
 }
 
@@ -338,7 +340,7 @@ function viewTitle(view: PlatformAccessView): string {
   return "Platform Administrator access";
 }
 
-export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
+export function PlatformAccess({ returnTo, view = "security" }: PlatformAccessProps) {
   const title = viewTitle(view);
   const [accessState, setAccessState] = useState<AccessState>({ status: "loading" });
   const [acknowledgedRecoveryCodes, setAcknowledgedRecoveryCodes] = useState(false);
@@ -370,6 +372,10 @@ export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
       abortController.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (returnTo && accessState.status === "ready") window.location.replace(returnTo);
+  }, [accessState.status, returnTo]);
 
   async function refreshAccess() {
     try {
@@ -517,6 +523,13 @@ export function PlatformAccess({ view = "security" }: PlatformAccessProps) {
           <strong>Platform access is ready.</strong> Verified with {accessState.context.mfaMethod};
           expires {displayDate(accessState.context.mfaVerifiedUntil)}.
         </div>
+        {returnTo ? (
+          <p>
+            <a className="button button--primary" href={returnTo}>
+              Continue to Organization admin
+            </a>
+          </p>
+        ) : null}
         {view === "security" ? null : view === "email-suppressions" ? (
           <PlatformEmailSuppressions />
         ) : (
