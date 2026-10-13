@@ -23,6 +23,7 @@ import { EmailChangeConfirmationView } from "./auth/EmailChangeConfirmationView"
 import { getCurrentSession, getPublishedOrganizationProjection } from "./auth/api";
 import { readOAuthCompletionState, type OAuthCompletionState } from "./auth/googleAuth";
 import {
+  isOrganizationHost,
   resolvePostSignInLanding,
   isAuthenticatedRoute,
   type PostSignInLanding,
@@ -216,6 +217,25 @@ function sessionBoundary(
   return null;
 }
 
+function organizationFallbackContent(
+  sessionState: SessionState,
+  oauthCompletion: OAuthCompletionState,
+  finishSignIn: () => void,
+): ReactNode {
+  if (sessionState.status === "checking") return <AccountLoading />;
+  if (sessionState.status === "error") return <SessionCheckError reason={sessionState.reason} />;
+  if (sessionState.status === "authenticated") {
+    return (
+      <AlreadySignedIn
+        isOAuthComplete={oauthCompletion.isOAuthComplete}
+        search={oauthCompletion.search}
+        session={sessionState.session}
+      />
+    );
+  }
+  return <SignInView onSignedIn={finishSignIn} />;
+}
+
 function selectContent(
   pathname: string,
   resetLocation: PasswordResetLocation,
@@ -224,6 +244,7 @@ function selectContent(
   finishSignIn: () => void,
   finishSignOut: () => void,
   finishInvitationSignIn: () => void,
+  isOrganization: boolean,
 ): ReactNode {
   const utilityRoute = publicUtilityRoute(pathname, resetLocation);
   if (utilityRoute) return utilityRoute;
@@ -262,6 +283,9 @@ function selectContent(
       );
     }
     return <SignInView onSignedIn={finishSignIn} />;
+  }
+  if (isOrganization) {
+    return organizationFallbackContent(sessionState, oauthCompletion, finishSignIn);
   }
   return <PlatformHomeView signedIn={sessionState.status === "authenticated"} />;
 }
@@ -331,6 +355,7 @@ function renderPublicOrProductRoute(pathname: string, productShell: ReactNode, s
 export function App() {
   const [serviceState, setServiceState] = useState<ServiceState>("checking");
   const [sessionState, setSessionState] = useState<SessionState>({ status: "checking" });
+  const [baseHostname, setBaseHostname] = useState<string | null>(null);
   const [organizationName, setOrganizationName] = useState<string | null>(null);
   const [logoFileId, setLogoFileId] = useState<string | null>(null);
   const [projectionVersion, setProjectionVersion] = useState<number>(1);
@@ -345,8 +370,9 @@ export function App() {
 
     async function checkService() {
       try {
-        await getHealth(abortController.signal);
+        const health = await getHealth(abortController.signal);
         setServiceState("ready");
+        setBaseHostname(health.baseHostname ?? null);
       } catch (error: unknown) {
         if (error instanceof DOMException && error.name === "AbortError") {
           return;
@@ -445,6 +471,11 @@ export function App() {
     finishSignIn(`/accept-invitation${window.location.search}`);
   }
 
+  const isOrganization = isOrganizationHost(
+    typeof window !== "undefined" ? window.location.hostname : "",
+    baseHostname,
+  );
+
   const content = selectContent(
     pathname,
     resetLocation,
@@ -453,6 +484,7 @@ export function App() {
     finishSignIn,
     finishSignOut,
     finishInvitationSignIn,
+    isOrganization,
   );
 
   const displayName = organizationName ?? "Choir Management";
@@ -490,8 +522,20 @@ export function App() {
             </span>
           ) : null}
           <nav aria-label="Account">
-            <a href={sessionState.status === "authenticated" ? "/account" : "/login"}>
-              {sessionState.status === "authenticated" ? "Account" : "Sign in"}
+            <a
+              href={
+                isOrganization
+                  ? "/login"
+                  : sessionState.status === "authenticated"
+                    ? "/account"
+                    : "/login"
+              }
+            >
+              {sessionState.status === "authenticated"
+                ? isOrganization
+                  ? "Workspace"
+                  : "Account"
+                : "Sign in"}
             </a>
           </nav>
         </div>

@@ -271,3 +271,59 @@ test("oauth cancellation or error callback displays mapped message and sanitizes
   await expect(page.getByRole("alert")).toContainText("Google sign-in was canceled.");
   await expect(page).toHaveURL(/:\/\/[^/]+\/login$/);
 });
+
+test("already-signed-in administrator visiting / on an organization host lands directly on /admin", async ({
+  page,
+}) => {
+  await installOrganizationApi(page, {
+    initiallySignedIn: true,
+    role: "administrator",
+    user: {
+      email: "org.admin@example.test",
+      name: "Org Admin",
+      sessionId: "session-admin-1",
+      userId: "user-admin-1",
+    },
+  });
+  await page.route("**/api/health", async (route) => {
+    await fulfillJson(route, {
+      baseHostname: "musicsite.test",
+      environment: "local",
+      requestId: "99999999-9999-4999-8999-999999999999",
+      service: "choir-management-cloudflare",
+      status: "ok",
+      version: "browser-test",
+    });
+  });
+  await page.route("**/api/public/projection", async (route) => {
+    await route.fulfill({ status: 404 });
+  });
+
+  await page.goto("/");
+  await expect(page).toHaveURL(/:\/\/[^/]+\/admin$/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
+
+test("anonymous visitor visiting / on an organization host without published website lands on sign-in", async ({
+  page,
+}) => {
+  await installOrganizationApi(page, {
+    initiallySignedIn: false,
+  });
+  await page.route("**/api/health", async (route) => {
+    await fulfillJson(route, {
+      baseHostname: "musicsite.test",
+      environment: "local",
+      requestId: "99999999-9999-4999-8999-999999999999",
+      service: "choir-management-cloudflare",
+      status: "ok",
+      version: "browser-test",
+    });
+  });
+  await page.route("**/api/public/projection", async (route) => {
+    await route.fulfill({ status: 404 });
+  });
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Sign in to Choir Management." })).toBeVisible();
+});

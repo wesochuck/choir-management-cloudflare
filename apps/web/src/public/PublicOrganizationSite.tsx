@@ -321,7 +321,9 @@ export function PublicOrganizationSite({
       </main>
     );
   }
-  if (state.status === "ready" && state.projection === null && pathname === "/") return fallback;
+  if ((state.status === "error" || state.projection === null) && pathname === "/") {
+    return fallback;
+  }
   if (state.status === "error" || state.projection === null) {
     return (
       <main className="auth-layout">

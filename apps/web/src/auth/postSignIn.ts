@@ -56,6 +56,24 @@ export function isPrivilegedRoute(pathname: string): boolean {
   );
 }
 
+export function isOrganizationHost(
+  hostname: string,
+  baseHostname: string | null | undefined,
+): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  if (baseHostname) {
+    return normalized !== baseHostname.trim().toLowerCase();
+  }
+  if (normalized.endsWith(".localhost")) {
+    return true;
+  }
+  if (normalized === "localhost" || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(normalized)) {
+    return false;
+  }
+  const parts = normalized.split(".");
+  return parts.length > 2;
+}
+
 /**
  * Typed post-sign-in landing outcome (issue #147). Callers must not collapse
  * `no_access` / `unavailable` into a generic member dashboard: the former
@@ -269,7 +287,7 @@ async function attemptAuthStatus(
     if (status === 404) {
       try {
         const health = await (options.getHealth ?? getHealth)(options.signal);
-        if (health.baseHostname !== (options.hostname ?? window.location.hostname)) {
+        if (isOrganizationHost(options.hostname ?? window.location.hostname, health.baseHostname)) {
           return { landing: { kind: "no_access" }, ok: false };
         }
       } catch {

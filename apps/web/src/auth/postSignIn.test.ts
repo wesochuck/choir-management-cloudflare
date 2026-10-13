@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   determinePostSignInPath,
+  isOrganizationHost,
   safePlatformContinuation,
   isAuthenticatedRoute,
   isKnownAuthenticatedRoute,
@@ -566,5 +567,34 @@ describe("landing authorization failures", () => {
     expect(safePlatformContinuation("/admin?tab=overview#summary")).toBe(
       "/admin?tab=overview#summary",
     );
+  });
+});
+
+describe("isOrganizationHost", () => {
+  it("recognizes organization subdomains when baseHostname is configured", () => {
+    expect(isOrganizationHost("lmc.musicsite.org", "musicsite.org")).toBe(true);
+    expect(isOrganizationHost("lmc.staging.musicsite.org", "staging.musicsite.org")).toBe(true);
+    expect(isOrganizationHost("alpha.localhost", "localhost")).toBe(true);
+    expect(isOrganizationHost("custom.choir.org", "musicsite.org")).toBe(true);
+  });
+
+  it("recognizes baseHostname as non-organization host", () => {
+    expect(isOrganizationHost("musicsite.org", "musicsite.org")).toBe(false);
+    expect(isOrganizationHost("staging.musicsite.org", "staging.musicsite.org")).toBe(false);
+    expect(isOrganizationHost("localhost", "localhost")).toBe(false);
+    expect(isOrganizationHost("127.0.0.1", "127.0.0.1")).toBe(false);
+  });
+
+  it("handles case-insensitivity in host comparison", () => {
+    expect(isOrganizationHost("LMC.MusicSite.Org", "musicsite.org")).toBe(true);
+    expect(isOrganizationHost("MusicSite.Org", "musicsite.org")).toBe(false);
+  });
+
+  it("falls back to subdomain heuristics when baseHostname is unavailable", () => {
+    expect(isOrganizationHost("alpha.localhost", null)).toBe(true);
+    expect(isOrganizationHost("localhost", null)).toBe(false);
+    expect(isOrganizationHost("127.0.0.1", null)).toBe(false);
+    expect(isOrganizationHost("lmc.musicsite.org", null)).toBe(true);
+    expect(isOrganizationHost("musicsite.org", null)).toBe(false);
   });
 });
