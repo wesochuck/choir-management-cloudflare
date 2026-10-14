@@ -56,6 +56,9 @@ describe("route staging qualification and evidence plan", () => {
       ["POST", "/api/account/email-change/confirm"],
       ["GET", "/api/platform/reconciliation-report"],
       ["GET", "/api/platform/maintenance/run"],
+      ["GET", "/api/platform/organization-context"],
+      ["POST", "/api/platform/elevations"],
+      ["DELETE", "/api/platform/elevations/:elevationId"],
     ]) {
       expect(usesOrganizationHost(rowFor(method, path)), `${method} ${path}`).toBe(true);
     }
@@ -87,6 +90,30 @@ describe("route staging qualification and evidence plan", () => {
       isExpectedAnonymousBoundary(
         { route: "/api/webhook/stripe" },
         { status: 400, code: "invalid_webhook_signature" },
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedAnonymousBoundary(
+        { route: "/api/public/logo" },
+        { status: 404, code: "not_found" },
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedAnonymousBoundary(
+        { route: "/api/public/donation-receipt" },
+        { status: 404, code: "donation_receipt_not_found" },
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedAnonymousBoundary(
+        { route: "/api/public/tickets/order" },
+        { status: 404, code: "not_found" },
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedAnonymousBoundary(
+        { route: "/api/local/fullstack-bootstrap" },
+        { status: 404, code: "not_found" },
       ),
     ).toBe(true);
     expect(

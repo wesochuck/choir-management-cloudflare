@@ -89,6 +89,9 @@ export const probePlan = new Map([
     "POST /api/platform/organizations/:organizationId/stripe-reconciliation/apply",
     { kind: "skip-elevation" },
   ],
+  ["GET /api/platform/organization-context", { kind: "skip-elevation" }],
+  ["POST /api/platform/elevations", { kind: "skip-elevation" }],
+  ["DELETE /api/platform/elevations/:elevationId", { kind: "skip-elevation" }],
 
   // Require seeded data, a signed token, a parameterized fixture, or mutate state
   ["GET /api/calendar/feed", { kind: "skip-fixture" }],
@@ -122,6 +125,13 @@ export const probePlan = new Map([
   ["POST /api/organization/export", { kind: "skip-fixture" }],
   ["GET /api/organization/export/:exportId", { kind: "skip-fixture" }],
   ["GET /api/organization/profile-reconciliations/:id", { kind: "skip-fixture" }],
+  ["POST /api/platform/maintenance/status-automation-fixture", { kind: "skip-fixture" }],
+  ["POST /api/local/fullstack-bootstrap", { kind: "skip-fixture" }],
+  ["GET /api/local/fullstack-otp", { kind: "skip-fixture" }],
+  ["GET /api/public/logo", { kind: "skip-fixture" }],
+  ["GET /api/public/media/:version/:fileId", { kind: "skip-fixture" }],
+  ["GET /api/public/donation-receipt", { kind: "skip-fixture" }],
+  ["GET /api/public/tickets/order", { kind: "skip-fixture" }],
 ]);
 
 export function isExpectedAnonymousBoundary(row, result) {
@@ -136,7 +146,17 @@ export function isExpectedAnonymousBoundary(row, result) {
   if (route === "/api/public/player/playlist") {
     return result.status === 404 && result.code === "invalid_link";
   }
-  if (route === "/api/calendar/feed") {
+  if (route === "/api/public/donation-receipt") {
+    return result.status === 404 && result.code === "donation_receipt_not_found";
+  }
+  if (
+    route === "/api/calendar/feed" ||
+    route === "/api/public/logo" ||
+    route.startsWith("/api/public/media/") ||
+    route === "/api/public/tickets/order" ||
+    route.startsWith("/api/local/") ||
+    route === "/api/platform/maintenance/status-automation-fixture"
+  ) {
     return result.status === 404 && result.code === "not_found";
   }
   if (result.status === 200) return true;
@@ -161,7 +181,11 @@ export function usesOrganizationHost(row) {
     row.id === "api.platform.reconciliation-report" ||
     row.id === "api.maintenance" ||
     route === "/api/platform/reconciliation-report" ||
-    route === "/api/platform/maintenance/run"
+    route === "/api/platform/maintenance/run" ||
+    route === "/api/platform/maintenance/status-automation-fixture" ||
+    route === "/api/platform/organization-context" ||
+    route === "/api/platform/elevations" ||
+    route.startsWith("/api/platform/elevations/")
   );
 }
 
