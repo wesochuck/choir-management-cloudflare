@@ -26,8 +26,8 @@ function publicSiteStyle(
   };
 }
 
-function PublicCopy({ text }: { readonly text: string }) {
-  if (!text.trim()) return null;
+function PublicCopy({ text }: { readonly text?: string | null | undefined }) {
+  if (!text?.trim()) return null;
   return (
     <div className="public-copy">
       {text
@@ -95,10 +95,13 @@ export function OrganizationLayout({
   readonly projection: PublishedOrganizationProjection;
   readonly signedIn?: boolean | undefined;
 }) {
-  const { settings } = projection.payload;
+  const { performances, settings } = projection.payload;
+  const hasPerformances = performances.length > 0;
+  const hasHistory = Boolean(settings.historyText.trim());
+
   const navigation = [
-    { href: "/performances", label: "Performances" },
-    { href: "/history", label: "History" },
+    ...(hasPerformances ? [{ href: "/performances", label: "Performances" }] : []),
+    ...(hasHistory ? [{ href: "/history", label: "History" }] : []),
     ...(settings.enabledNavigation.includes("tickets")
       ? [{ href: "/tickets", label: "Tickets" }]
       : []),
@@ -219,7 +222,7 @@ function OrganizationHome({
         </section>
       ) : null}
       {settings.aboutUsText ? (
-        <section className="public-section public-section--narrow">
+        <section className="public-section public-section--narrow" id="about-us">
           <h2>About Us</h2>
           <PublicCopy text={settings.aboutUsText} />
         </section>
@@ -231,6 +234,19 @@ function OrganizationHome({
             <a href="/performances">See all</a>
           </div>
           <PerformanceCards performances={past} projection={projection} />
+        </section>
+      ) : null}
+      {upcoming.length === 0 && past.length === 0 && !settings.aboutUsText ? (
+        <section className="public-section public-section--narrow">
+          <div className="empty-state">
+            <p>Welcome! Our public schedule and choir story are currently being updated.</p>
+            {settings.contactEmail ? (
+              <p>
+                Interested in getting in touch?{" "}
+                <a href={`mailto:${settings.contactEmail}`}>Contact us directly</a>.
+              </p>
+            ) : null}
+          </div>
         </section>
       ) : null}
     </OrganizationLayout>
@@ -246,14 +262,36 @@ function OrganizationHistory({
   readonly projection: PublishedOrganizationProjection;
   readonly signedIn?: boolean | undefined;
 }) {
+  const historyText = projection.payload.settings.historyText.trim();
+  const { aboutUsText, contactEmail } = projection.payload.settings;
+
   return (
     <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
       <section className="public-section public-section--narrow">
         <h1>Our History</h1>
-        {projection.payload.settings.historyText ? (
-          <PublicCopy text={projection.payload.settings.historyText} />
+        {historyText ? (
+          <PublicCopy text={historyText} />
         ) : (
-          <p>No history has been published yet.</p>
+          <div className="empty-state" aria-label="Unpublished history notice">
+            <p>Our history has not been published yet.</p>
+            {aboutUsText.trim() ? (
+              <p>
+                Learn more about our mission and choir on the{" "}
+                <a href="/#about-us">About Us section</a> of our home page.
+              </p>
+            ) : null}
+            {contactEmail ? (
+              <p>
+                Have questions or stories to share?{" "}
+                <a href={`mailto:${contactEmail}`}>Contact us directly</a>.
+              </p>
+            ) : null}
+            <div className="button-row">
+              <a className="button button--secondary" href="/">
+                Return to home page
+              </a>
+            </div>
+          </div>
         )}
       </section>
     </OrganizationLayout>
@@ -269,17 +307,39 @@ function OrganizationPerformances({
   readonly projection: PublishedOrganizationProjection;
   readonly signedIn?: boolean | undefined;
 }) {
+  const hasPerformances = projection.payload.performances.length > 0;
+  const { contactEmail, enabledNavigation } = projection.payload.settings;
+
   return (
     <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
       <section className="public-section">
         <h1>Performances</h1>
-        {projection.payload.performances.length > 0 ? (
+        {hasPerformances ? (
           <PerformanceCards
             performances={projection.payload.performances}
             projection={projection}
           />
         ) : (
-          <p>No performances have been published yet.</p>
+          <div className="empty-state" aria-label="No published performances notice">
+            <p>No performances are currently published on our schedule.</p>
+            <p>Check back soon for upcoming concerts, appearances, and season announcements.</p>
+            {enabledNavigation.includes("tickets") ? (
+              <p>
+                Browse available tickets or passes on our <a href="/tickets">Tickets page</a>.
+              </p>
+            ) : null}
+            {contactEmail ? (
+              <p>
+                For booking inquiries or performance questions,{" "}
+                <a href={`mailto:${contactEmail}`}>reach out to our team</a>.
+              </p>
+            ) : null}
+            <div className="button-row">
+              <a className="button button--secondary" href="/">
+                Return to home page
+              </a>
+            </div>
+          </div>
         )}
       </section>
     </OrganizationLayout>
