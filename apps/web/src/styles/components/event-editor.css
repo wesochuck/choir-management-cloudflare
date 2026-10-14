@@ -522,6 +522,43 @@
     flex-shrink: 0;
   }
 
+  /* Ensure datetime-local and time inputs have sufficient space and do not clip native controls */
+  .dialog--event-editor input[type="datetime-local"],
+  .dialog--event-editor input[type="time"],
+  .event-editor-panel input[type="datetime-local"],
+  .event-editor-panel input[type="time"] {
+    min-height: 2.75rem;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+  }
+
+  .dialog--event-editor input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  .event-editor-panel input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.85;
+    padding: var(--spacing-3xs);
+    border-radius: var(--radius-sm);
+    transition: opacity 0.15s ease;
+  }
+
+  .dialog--event-editor input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+  .dialog--event-editor
+    input[type="datetime-local"]::-webkit-calendar-picker-indicator:focus-visible,
+  .event-editor-panel input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+  .event-editor-panel
+    input[type="datetime-local"]::-webkit-calendar-picker-indicator:focus-visible {
+    opacity: 1;
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+  }
+
+  .event-editor-panel .form-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  }
+
   @media (max-width: 53.125rem) {
     .event-editor-body {
       flex-direction: column;

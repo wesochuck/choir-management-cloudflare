@@ -70,6 +70,96 @@ function VenueTbdHelper({
   );
 }
 
+function ScheduleTimingFields({
+  event,
+  eventStart,
+  performanceCandidates,
+  setEvent,
+  setEventStart,
+  showErrorBadges,
+  startError,
+}: {
+  readonly event: OrganizationEventRequest;
+  readonly eventStart: string;
+  readonly performanceCandidates: readonly { readonly id: string; readonly title: string }[];
+  readonly setEvent: Dispatch<SetStateAction<OrganizationEventRequest>>;
+  readonly setEventStart: (value: string) => void;
+  readonly showErrorBadges: boolean;
+  readonly startError: string | undefined;
+}) {
+  return (
+    <div className="form-grid">
+      <div className="field">
+        <label htmlFor="events-page-start">Start date &amp; time *</label>
+        <input
+          aria-describedby={startError && showErrorBadges ? "events-page-start-error" : undefined}
+          aria-invalid={Boolean(startError && showErrorBadges)}
+          id="events-page-start"
+          onChange={(change) => {
+            setEventStart(change.target.value);
+          }}
+          required
+          type="datetime-local"
+          value={eventStart}
+        />
+        {startError && showErrorBadges ? (
+          <p className="notice notice--error" id="events-page-start-error" role="alert">
+            {startError}
+          </p>
+        ) : null}
+      </div>
+      <div className="field">
+        <label htmlFor="events-page-call">Call time</label>
+        <input
+          id="events-page-call"
+          onChange={(change) => {
+            setEvent((current) => ({ ...current, callTime: change.target.value }));
+          }}
+          type="time"
+          value={event.callTime}
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="events-page-duration">Duration (minutes)</label>
+        <input
+          id="events-page-duration"
+          min={1}
+          onChange={(change) => {
+            setEvent((current) => ({
+              ...current,
+              durationMinutes: optionalInteger(change.target.value),
+            }));
+          }}
+          type="number"
+          value={event.durationMinutes ?? ""}
+        />
+      </div>
+      {event.type === "Rehearsal" ? (
+        <div className="field">
+          <label htmlFor="events-page-parent">Parent performance</label>
+          <select
+            id="events-page-parent"
+            onChange={(change) => {
+              setEvent((current) => ({
+                ...current,
+                parentPerformanceId: change.target.value || null,
+              }));
+            }}
+            value={event.parentPerformanceId ?? ""}
+          >
+            <option value="">None</option>
+            {performanceCandidates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function ScheduleSection({
   busy,
   event,
@@ -108,6 +198,14 @@ export function ScheduleSection({
       ? state.events.filter((candidate) => candidate.type === "Performance")
       : [];
 
+  const startError = sectionErrors.schedule.find((err) =>
+    err.toLowerCase().includes("start date and time"),
+  );
+  const venueError = sectionErrors.schedule.find(
+    (err) => err.toLowerCase().includes("venue") || err.toLowerCase().includes("location"),
+  );
+  const otherError = sectionErrors.schedule.find((err) => err !== startError && err !== venueError);
+
   return (
     <TabsContent
       aria-labelledby="event-editor-schedule-tab"
@@ -127,75 +225,28 @@ export function ScheduleSection({
           {timezoneLabel ? ` Times use ${timezoneLabel}.` : ""}
         </p>
       </div>
-      <div className="form-grid">
-        <div className="field">
-          <label htmlFor="events-page-start">Start date &amp; time *</label>
-          <input
-            id="events-page-start"
-            onChange={(change) => {
-              setEventStart(change.target.value);
-            }}
-            required
-            type="datetime-local"
-            value={eventStart}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="events-page-call">Call time</label>
-          <input
-            id="events-page-call"
-            onChange={(change) => {
-              setEvent((current) => ({ ...current, callTime: change.target.value }));
-            }}
-            type="time"
-            value={event.callTime}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="events-page-duration">Duration (minutes)</label>
-          <input
-            id="events-page-duration"
-            min={1}
-            onChange={(change) => {
-              setEvent((current) => ({
-                ...current,
-                durationMinutes: optionalInteger(change.target.value),
-              }));
-            }}
-            type="number"
-            value={event.durationMinutes ?? ""}
-          />
-        </div>
-        {event.type === "Rehearsal" ? (
-          <div className="field">
-            <label htmlFor="events-page-parent">Parent performance</label>
-            <select
-              id="events-page-parent"
-              onChange={(change) => {
-                setEvent((current) => ({
-                  ...current,
-                  parentPerformanceId: change.target.value || null,
-                }));
-              }}
-              value={event.parentPerformanceId ?? ""}
-            >
-              <option value="">None</option>
-              {performanceCandidates.map((candidate) => (
-                <option key={candidate.id} value={candidate.id}>
-                  {candidate.title}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-      </div>
+      <ScheduleTimingFields
+        event={event}
+        eventStart={eventStart}
+        performanceCandidates={performanceCandidates}
+        setEvent={setEvent}
+        setEventStart={setEventStart}
+        showErrorBadges={showErrorBadges}
+        startError={startError}
+      />
       <div className="field">
         <label htmlFor="events-page-venue">Venue *</label>
         <select
           aria-describedby={
-            !event.venueId ? "venue-tbd-helper" : tbdInfo.isTbd ? "venue-tbd-notice" : undefined
+            venueError && showErrorBadges
+              ? "events-page-venue-error"
+              : !event.venueId
+                ? "venue-tbd-helper"
+                : tbdInfo.isTbd
+                  ? "venue-tbd-notice"
+                  : undefined
           }
-          aria-invalid={sectionErrors.schedule.length > 0}
+          aria-invalid={Boolean(venueError && showErrorBadges)}
           id="events-page-venue"
           onChange={(change) => {
             setEvent((current) => ({
@@ -218,6 +269,11 @@ export function ScheduleSection({
               ))
             : null}
         </select>
+        {venueError && showErrorBadges ? (
+          <p className="notice notice--error" id="events-page-venue-error" role="alert">
+            {venueError}
+          </p>
+        ) : null}
       </div>
       <VenueTbdHelper
         busy={busy}
@@ -228,9 +284,9 @@ export function ScheduleSection({
         tbdError={tbdError}
         tbdInfo={tbdInfo}
       />
-      {sectionErrors.schedule.length > 0 && showErrorBadges ? (
+      {otherError && showErrorBadges ? (
         <p className="notice notice--error" role="alert">
-          {sectionErrors.schedule[0]}
+          {otherError}
         </p>
       ) : null}
     </TabsContent>
