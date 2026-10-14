@@ -1,7 +1,9 @@
 import type {
   Contact,
+  ContactCommunicationPreference,
   ContactCommunicationStatus,
   ContactList,
+  ContactListMembership,
   OrganizationProfile,
 } from "@choir/contracts";
 import { deriveDisplayName } from "@choir/domain";
@@ -24,6 +26,7 @@ import {
   removeContactsFromContactList,
   updateOrganizationContact,
   type ContactDetail,
+  type ContactsListResult,
 } from "../api";
 import { buildContactsExportCsv, downloadContactsExport } from "./contactsCsv";
 import { ContactDetailDialog } from "./ContactsPageDetail";
@@ -253,7 +256,10 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
   }, [someVisibleSelected]);
 
   const handleImported = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ["organization", "contacts"] });
+    void queryClient.invalidateQueries({
+      queryKey: ["organization", "contacts"],
+      refetchType: "active",
+    });
   }, [queryClient]);
 
   if (!enabled) {
@@ -262,8 +268,14 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
 
   function invalidateContacts(): Promise<unknown> {
     return Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["organization", "contacts"] }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.organization.contactLists }),
+      queryClient.invalidateQueries({
+        queryKey: ["organization", "contacts"],
+        refetchType: "active",
+      }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.contactLists,
+        refetchType: "active",
+      }),
     ]);
   }
 
@@ -358,9 +370,43 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
         });
         await syncMemberships(created.id, [], values.listIds);
         setSuccess("Contact created.");
+        queryClient.setQueriesData<ContactsListResult>(
+          { queryKey: ["organization", "contacts", "list"] },
+          (current) => {
+            if (!current) return current;
+            if (current.contacts.some((candidate) => candidate.id === created.id)) return current;
+            const newMemberships: ContactListMembership[] = values.listIds.map((listId) => ({
+              contactId: created.id,
+              createdAt: created.createdAt,
+              listId,
+            }));
+            const newPrefs: ContactCommunicationPreference[] = [
+              {
+                channel: "email",
+                contactId: created.id,
+                observedAt: created.createdAt,
+                source: null,
+                status: values.emailStatus,
+              },
+              {
+                channel: "sms",
+                contactId: created.id,
+                observedAt: created.createdAt,
+                source: null,
+                status: values.smsStatus,
+              },
+            ];
+            return {
+              ...current,
+              contacts: [created, ...current.contacts],
+              memberships: [...current.memberships, ...newMemberships],
+              preferences: [...current.preferences, ...newPrefs],
+            };
+          },
+        );
       } else if (editorState.kind === "edit") {
         const baseline = detailQuery.data ? detailToInitial(detailQuery.data) : null;
-        await updateOrganizationContact(editorState.contactId, {
+        const updated = await updateOrganizationContact(editorState.contactId, {
           displayName: nullIfBlank(values.displayName),
           email: nullIfBlank(values.email),
           ...(baseline?.emailStatus !== values.emailStatus
@@ -375,6 +421,18 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
         });
         await syncMemberships(editorState.contactId, baseline?.listIds ?? [], values.listIds);
         setSuccess("Contact updated.");
+        queryClient.setQueriesData<ContactsListResult>(
+          { queryKey: ["organization", "contacts", "list"] },
+          (current) => {
+            if (!current) return current;
+            return {
+              ...current,
+              contacts: current.contacts.map((candidate) =>
+                candidate.id === updated.id ? updated : candidate,
+              ),
+            };
+          },
+        );
       }
       setEditorState({ kind: "closed" });
       await invalidateContacts();
@@ -405,9 +463,22 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
       await deleteOrganizationContact(contact.id);
       setSelectedIds((current) => current.filter((candidate) => candidate !== contact.id));
       setSuccess("Contact deleted.");
+      queryClient.setQueriesData<ContactsListResult>(
+        { queryKey: ["organization", "contacts", "list"] },
+        (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            contacts: current.contacts.filter((candidate) => candidate.id !== contact.id),
+            memberships: current.memberships.filter((m) => m.contactId !== contact.id),
+            preferences: current.preferences.filter((p) => p.contactId !== contact.id),
+          };
+        },
+      );
       await invalidateContacts();
     } catch (deleteError: unknown) {
       setError(contactErrorMessage(deleteError, "The contact could not be deleted."));
+      await invalidateContacts();
     }
   }
 

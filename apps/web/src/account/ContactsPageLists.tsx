@@ -265,8 +265,14 @@ export function ContactsListsTab({ enabled }: { readonly enabled: boolean }) {
 
   function invalidate(): Promise<unknown> {
     return Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.organization.contactLists }),
-      queryClient.invalidateQueries({ queryKey: ["organization", "contacts"] }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.contactLists,
+        refetchType: "active",
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["organization", "contacts"],
+        refetchType: "active",
+      }),
     ]);
   }
 
