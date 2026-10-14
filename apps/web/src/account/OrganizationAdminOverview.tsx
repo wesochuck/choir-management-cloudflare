@@ -120,7 +120,7 @@ function buildOverviewSections(
           tone: "pink",
         },
         {
-          href: "/admin/patrons",
+          href: "/admin/donations?view=patrons",
           icon: "💎",
           label: "Patrons Dashboard",
           description: "View donor/buyer LTV and message patrons",

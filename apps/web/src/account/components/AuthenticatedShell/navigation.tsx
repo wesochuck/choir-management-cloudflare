@@ -79,15 +79,24 @@ export function Navigation({
   readonly pathname: string;
 }) {
   const navigationItems = groups.flatMap((group) => group.items);
-  const matchingItems = navigationItems.filter(
-    (item) =>
-      pathname === item.href || (item.href !== "/admin" && pathname.startsWith(`${item.href}/`)),
-  );
+  const matchingItems = navigationItems.filter((item) => {
+    const itemPath = item.href.split("?")[0] ?? item.href;
+    return (
+      pathname === itemPath ||
+      (pathname === "/admin/patrons" && itemPath === "/admin/donations") ||
+      (itemPath !== "/admin" && pathname.startsWith(`${itemPath}/`))
+    );
+  });
   // Prefer an exact route, then the most specific parent route. This prevents a
   // parent such as `/admin/settings` from remaining active alongside one of its
   // more specific pages such as `/admin/settings/modules`.
   const currentHref =
-    matchingItems.find((item) => item.href === pathname)?.href ??
+    matchingItems.find((item) => {
+      const itemPath = item.href.split("?")[0] ?? item.href;
+      return (
+        itemPath === pathname || (pathname === "/admin/patrons" && itemPath === "/admin/donations")
+      );
+    })?.href ??
     matchingItems.toSorted((left, right) => right.href.length - left.href.length)[0]?.href;
 
   return (

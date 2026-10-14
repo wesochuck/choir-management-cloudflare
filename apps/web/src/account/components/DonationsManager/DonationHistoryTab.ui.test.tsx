@@ -596,4 +596,17 @@ describe("DonationHistoryTab DataTable", () => {
       ),
     ).toEqual(summary);
   });
+
+  it("opens patron summaries section automatically when ?view=patrons query param is present (#180)", () => {
+    const originalSearch = window.location.search;
+    try {
+      window.history.replaceState(null, "", "?view=patrons");
+      renderHistory();
+      const details = document.querySelector<HTMLDetailsElement>("details.donation-patrons");
+      expect(details).not.toBeNull();
+      expect(details?.open).toBe(true);
+    } finally {
+      window.history.replaceState(null, "", originalSearch || "/");
+    }
+  });
 });

@@ -108,6 +108,11 @@ export function DonationHistoryTab({
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [patronsOpen, setPatronsOpen] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("view") === "patrons",
+  );
   const [showRefunded, setShowRefunded] = useState(false);
   const [thankYouFilter, setThankYouFilter] = useState<"all" | "pending" | "sent">("all");
   const [paymentSourceFilter, setPaymentSourceFilter] = useState<"all" | "online" | "manual">(
@@ -460,7 +465,13 @@ export function DonationHistoryTab({
           rows={filteredDonations}
         />
       </fieldset>
-      <details className="donation-patrons">
+      <details
+        className="donation-patrons"
+        onToggle={(event) => {
+          setPatronsOpen(event.currentTarget.open);
+        }}
+        open={patronsOpen}
+      >
         <summary>
           Patron summaries ({patronState.status === "ready" ? patronState.patrons.length : "…"})
         </summary>
