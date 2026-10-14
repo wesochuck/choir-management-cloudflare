@@ -388,6 +388,7 @@ function MemberWorkspacePage({
       access.status,
       isMfaRequired,
       adminReturnTo,
+      route.search,
     ) ?? (
       <OverviewPage
         context={access.status === "ready" ? access.context : null}

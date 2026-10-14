@@ -15,6 +15,7 @@ import {
   DonationsManager,
   EventsPage,
   MemberDuesPage,
+  MemberPollVoteView,
   MemberPracticeView,
   MemberProfileDirectory,
   ModuleSettingsView,
@@ -431,6 +432,7 @@ export function renderMemberPage(
   accessStatus: AccessState["status"],
   mfaRequired = false,
   adminReturnTo?: string | null,
+  search?: string,
 ): ReactNode {
   const pages: Record<string, ReactNode> = {
     "/directory": (
@@ -459,5 +461,16 @@ export function renderMemberPage(
     return <DashboardView accessStatus={accessStatus} enabled={enabled} navigate={navigate} />;
   }
   if (pathname.startsWith("/seating/")) return <SeatingFinder enabled={enabled} />;
+  if (pathname.startsWith("/member/polls/")) {
+    const pollId = pathname.slice("/member/polls/".length).split("/")[0] ?? "";
+    return (
+      <MemberPollVoteView
+        enabled={enabled}
+        navigate={navigate}
+        pollId={pollId}
+        search={search ?? ""}
+      />
+    );
+  }
   return pages[pathname] ?? null;
 }

@@ -48,6 +48,12 @@ export const EventsPage = lazy(() =>
   import("../EventsPage/page").then(({ EventsPage: component }) => ({ default: component })),
 );
 
+export const MemberPollVoteView = lazy(() =>
+  import("../../MemberPollVoteView").then(({ MemberPollVoteView: component }) => ({
+    default: component,
+  })),
+);
+
 export const MemberPracticeView = lazy(() =>
   import("../../MemberPracticeView").then(({ MemberPracticeView: component }) => ({
     default: component,
