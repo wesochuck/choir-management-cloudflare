@@ -8,12 +8,67 @@ import {
   saveOrganizationCommunicationTemplate,
   updateOrganizationCommunicationTemplate,
 } from "../../../auth/api";
+import {
+  extractCommunicationPlaceholders,
+  findCommunicationPlaceholderDefinition,
+  isPlaceholderCompatibleWithChannel,
+} from "../../communicationPlaceholders";
 import { SystemTemplateResetAction } from "../SystemTemplateResetAction";
 import { CommunicationPagination } from "./CommunicationPagination";
 import { channelFromValue, failureMessage } from "./utils";
 
 type TemplateChannelFilter = CommunicationChannel | "All";
 type TemplateTypeFilter = "all" | "custom" | "system";
+
+function getTemplatePlaceholderIssues(
+  subject: string,
+  content: string,
+  channel: CommunicationChannel,
+): readonly string[] {
+  const fullText = `${subject}\n${content}`;
+  const usedTags = extractCommunicationPlaceholders(fullText);
+  const issues: string[] = [];
+  const eventTags: string[] = [];
+
+  for (const tag of usedTags) {
+    const def = findCommunicationPlaceholderDefinition(tag);
+    if (!def) continue;
+
+    if (!isPlaceholderCompatibleWithChannel(def, channel)) {
+      issues.push(
+        `${def.label} (${tag}) is only available for ${def.channels?.join(" or ") ?? "specific"} delivery.`,
+      );
+    }
+    if (def.requiresEvent) {
+      eventTags.push(tag);
+    }
+  }
+
+  if (eventTags.length > 0) {
+    issues.push(
+      `Event variables (${[...new Set(eventTags)].join(", ")}) require an associated event and will only resolve during event-related sends or reminders.`,
+    );
+  }
+
+  return issues;
+}
+function TemplatePlaceholderGuidance({ issues }: { readonly issues: readonly string[] }) {
+  if (issues.length === 0) return null;
+  return (
+    <aside
+      aria-label="Template placeholder guidance"
+      className="notice notice--warning"
+      role="note"
+    >
+      <strong>Placeholder guidance</strong>
+      <ul>
+        {issues.map((issue) => (
+          <li key={issue}>{issue}</li>
+        ))}
+      </ul>
+    </aside>
+  );
+}
 
 function templateChannelFilterFromValue(value: string): TemplateChannelFilter {
   return value === "Email" || value === "SMS" || value === "Both" ? value : "All";
@@ -38,6 +93,258 @@ function templateMatchesFilters(
   const typeMatches =
     typeFilter === "all" || (typeFilter === "system" ? template.isSystem : !template.isSystem);
   return searchMatches && channelMatches && typeMatches;
+}
+function TemplateCard({
+  busy,
+  onDelete,
+  onEdit,
+  template,
+}: {
+  readonly busy: boolean;
+  readonly onDelete: (template: CommunicationTemplate) => void;
+  readonly onEdit: (template: CommunicationTemplate) => void;
+  readonly template: CommunicationTemplate;
+}) {
+  return (
+    <article aria-label={template.title} className="communication-template-card">
+      <div className="communication-template-card__header">
+        <div>
+          <div className="communication-template-card__title-row">
+            <h3>{template.title}</h3>
+            {template.isSystem ? (
+              <span className="status-pill status-pill--automated">System</span>
+            ) : (
+              <span className="status-pill status-pill--custom">Custom</span>
+            )}
+          </div>
+          <p className="communication-template-card__meta">
+            <span>{template.channel}</span>
+            {template.subject ? <span> · Subject: {template.subject}</span> : null}
+          </p>
+        </div>
+        <div className="communication-template-card__actions">
+          <button
+            className="button button--secondary button--sm"
+            onClick={() => {
+              onEdit(template);
+            }}
+            type="button"
+          >
+            Edit wording
+          </button>
+          {!template.isSystem ? (
+            <button
+              className="button button--danger button--sm"
+              disabled={busy}
+              onClick={() => {
+                onDelete(template);
+              }}
+              type="button"
+            >
+              Delete
+            </button>
+          ) : null}
+        </div>
+      </div>
+      <div className="communication-template-card__preview">
+        <p>
+          {template.contentMarkdown.slice(0, 180)}
+          {template.contentMarkdown.length > 180 ? "…" : ""}
+        </p>
+      </div>
+    </article>
+  );
+}
+
+interface CreateTemplateDialogContentProps {
+  readonly busy: boolean;
+  readonly newChannel: CommunicationChannel;
+  readonly newContent: string;
+  readonly newSubject: string;
+  readonly newTemplateIssues: readonly string[];
+  readonly newTitle: string;
+  readonly onChannelChange: (channel: CommunicationChannel) => void;
+  readonly onContentChange: (content: string) => void;
+  readonly onSubmit: (event: React.SyntheticEvent) => void;
+  readonly onSubjectChange: (subject: string) => void;
+  readonly onTitleChange: (title: string) => void;
+}
+
+function CreateTemplateDialogContent({
+  busy,
+  newChannel,
+  newContent,
+  newSubject,
+  newTemplateIssues,
+  newTitle,
+  onChannelChange,
+  onContentChange,
+  onSubmit,
+  onSubjectChange,
+  onTitleChange,
+}: CreateTemplateDialogContentProps) {
+  return (
+    <form onSubmit={onSubmit}>
+      <div className="field">
+        <label htmlFor="new-template-title">Template name</label>
+        <input
+          id="new-template-title"
+          maxLength={200}
+          onChange={(e) => {
+            onTitleChange(e.target.value);
+          }}
+          placeholder="e.g. Audition Callback Invitation"
+          required
+          value={newTitle}
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="new-template-channel">Delivery channel</label>
+        <select
+          id="new-template-channel"
+          onChange={(e) => {
+            onChannelChange(channelFromValue(e.target.value));
+          }}
+          value={newChannel}
+        >
+          <option value="Email">Email</option>
+          <option value="SMS">SMS</option>
+          <option value="Both">Both (Email &amp; SMS)</option>
+        </select>
+      </div>
+      {newChannel !== "SMS" ? (
+        <div className="field">
+          <label htmlFor="new-template-subject">Subject</label>
+          <input
+            id="new-template-subject"
+            maxLength={300}
+            onChange={(e) => {
+              onSubjectChange(e.target.value);
+            }}
+            placeholder="Template subject…"
+            required
+            value={newSubject}
+          />
+        </div>
+      ) : null}
+      <div className="field">
+        <label htmlFor="new-template-content">Message</label>
+        <textarea
+          id="new-template-content"
+          maxLength={100_000}
+          onChange={(e) => {
+            onContentChange(e.target.value);
+          }}
+          placeholder="Template message content with placeholders…"
+          required
+          rows={8}
+          value={newContent}
+        />
+      </div>
+      <TemplatePlaceholderGuidance issues={newTemplateIssues} />
+      <div className="dialog__actions">
+        <DialogClose asChild>
+          <button className="button button--secondary" disabled={busy} type="button">
+            Cancel
+          </button>
+        </DialogClose>
+        <button
+          className="button button--primary"
+          disabled={busy || !newTitle.trim() || !newContent.trim()}
+          type="submit"
+        >
+          {busy ? "Saving…" : "Save template"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+interface EditTemplateDialogContentProps {
+  readonly busy: boolean;
+  readonly editingContent: string;
+  readonly editingSubject: string;
+  readonly editingTemplate: CommunicationTemplate;
+  readonly editingTemplateIssues: readonly string[];
+  readonly editingTitle: string;
+  readonly onContentChange: (content: string) => void;
+  readonly onReset: (template: CommunicationTemplate) => void;
+  readonly onSubmit: (event: React.SyntheticEvent) => void;
+  readonly onSubjectChange: (subject: string) => void;
+  readonly onTitleChange: (title: string) => void;
+}
+
+function EditTemplateDialogContent({
+  busy,
+  editingContent,
+  editingSubject,
+  editingTemplate,
+  editingTemplateIssues,
+  editingTitle,
+  onContentChange,
+  onReset,
+  onSubmit,
+  onSubjectChange,
+  onTitleChange,
+}: EditTemplateDialogContentProps) {
+  return (
+    <form onSubmit={onSubmit}>
+      <div className="field">
+        <label htmlFor="edit-template-title">Template name</label>
+        <input
+          id="edit-template-title"
+          maxLength={200}
+          onChange={(e) => {
+            onTitleChange(e.target.value);
+          }}
+          required
+          value={editingTitle}
+        />
+      </div>
+      {editingTemplate.channel !== "SMS" ? (
+        <div className="field">
+          <label htmlFor="edit-template-subject">Subject</label>
+          <input
+            id="edit-template-subject"
+            maxLength={300}
+            onChange={(e) => {
+              onSubjectChange(e.target.value);
+            }}
+            value={editingSubject}
+          />
+        </div>
+      ) : null}
+      <div className="field">
+        <label htmlFor="edit-template-content">Message</label>
+        <textarea
+          id="edit-template-content"
+          maxLength={100_000}
+          onChange={(e) => {
+            onContentChange(e.target.value);
+          }}
+          required
+          rows={8}
+          value={editingContent}
+        />
+      </div>
+      <TemplatePlaceholderGuidance issues={editingTemplateIssues} />
+      <SystemTemplateResetAction disabled={busy} onReset={onReset} template={editingTemplate} />
+      <div className="dialog__actions">
+        <DialogClose asChild>
+          <button className="button button--secondary" disabled={busy} type="button">
+            Cancel
+          </button>
+        </DialogClose>
+        <button
+          className="button button--primary"
+          disabled={busy || !editingTitle.trim() || !editingContent.trim()}
+          type="submit"
+        >
+          {busy ? "Saving…" : "Save template"}
+        </button>
+      </div>
+    </form>
+  );
 }
 
 export function TemplatesPanel() {
@@ -125,6 +432,11 @@ export function TemplatesPanel() {
   const visibleTemplates = templates.filter((template) =>
     templateMatchesFilters(template, normalizedSearch, channelFilter, typeFilter),
   );
+
+  const newTemplateIssues = getTemplatePlaceholderIssues(newSubject, newContent, newChannel);
+  const editingTemplateIssues = editingTemplate
+    ? getTemplatePlaceholderIssues(editingSubject, editingContent, editingTemplate.channel)
+    : [];
 
   async function handleCreateTemplate(event: React.SyntheticEvent) {
     event.preventDefault();
@@ -303,55 +615,13 @@ export function TemplatesPanel() {
           </div>
         ) : (
           visibleTemplates.map((template) => (
-            <article
-              aria-label={template.title}
-              className="communication-template-card"
+            <TemplateCard
+              busy={busy}
               key={template.id}
-            >
-              <div className="communication-template-card__header">
-                <div>
-                  <div className="communication-template-card__title-row">
-                    <h3>{template.title}</h3>
-                    {template.isSystem ? (
-                      <span className="status-pill status-pill--automated">System</span>
-                    ) : (
-                      <span className="status-pill status-pill--custom">Custom</span>
-                    )}
-                  </div>
-                  <p className="communication-template-card__meta">
-                    <span>{template.channel}</span>
-                    {template.subject ? <span> · Subject: {template.subject}</span> : null}
-                  </p>
-                </div>
-                <div className="communication-template-card__actions">
-                  <button
-                    className="button button--secondary button--sm"
-                    onClick={() => {
-                      startEdit(template);
-                    }}
-                    type="button"
-                  >
-                    Edit wording
-                  </button>
-                  {!template.isSystem ? (
-                    <button
-                      className="button button--danger button--sm"
-                      disabled={busy}
-                      onClick={() => void handleDelete(template)}
-                      type="button"
-                    >
-                      Delete
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-              <div className="communication-template-card__preview">
-                <p>
-                  {template.contentMarkdown.slice(0, 180)}
-                  {template.contentMarkdown.length > 180 ? "…" : ""}
-                </p>
-              </div>
-            </article>
+              onDelete={(tmpl) => void handleDelete(tmpl)}
+              onEdit={startEdit}
+              template={template}
+            />
           ))
         )}
       </div>
@@ -377,78 +647,21 @@ export function TemplatesPanel() {
         open={isCreating}
         title="New template"
       >
-        <form onSubmit={(e) => void handleCreateTemplate(e)}>
-          <div className="field">
-            <label htmlFor="new-template-title">Template name</label>
-            <input
-              id="new-template-title"
-              maxLength={200}
-              onChange={(e) => {
-                setNewTitle(e.target.value);
-              }}
-              placeholder="e.g. Audition Callback Invitation"
-              required
-              value={newTitle}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="new-template-channel">Delivery channel</label>
-            <select
-              id="new-template-channel"
-              onChange={(e) => {
-                setNewChannel(channelFromValue(e.target.value));
-              }}
-              value={newChannel}
-            >
-              <option value="Email">Email</option>
-              <option value="SMS">SMS</option>
-              <option value="Both">Both (Email &amp; SMS)</option>
-            </select>
-          </div>
-          {newChannel !== "SMS" ? (
-            <div className="field">
-              <label htmlFor="new-template-subject">Subject</label>
-              <input
-                id="new-template-subject"
-                maxLength={300}
-                onChange={(e) => {
-                  setNewSubject(e.target.value);
-                }}
-                placeholder="Template subject…"
-                required
-                value={newSubject}
-              />
-            </div>
-          ) : null}
-          <div className="field">
-            <label htmlFor="new-template-content">Message</label>
-            <textarea
-              id="new-template-content"
-              maxLength={100_000}
-              onChange={(e) => {
-                setNewContent(e.target.value);
-              }}
-              placeholder="Template message content with placeholders…"
-              required
-              rows={8}
-              value={newContent}
-            />
-          </div>
-          <div className="dialog__actions">
-            <DialogClose asChild>
-              <button className="button button--secondary" disabled={busy} type="button">
-                Cancel
-              </button>
-            </DialogClose>
-            <button
-              className="button button--primary"
-              disabled={busy || !newTitle.trim() || !newContent.trim()}
-              type="submit"
-            >
-              {busy ? "Saving…" : "Save template"}
-            </button>
-          </div>
-        </form>
+        <CreateTemplateDialogContent
+          busy={busy}
+          newChannel={newChannel}
+          newContent={newContent}
+          newSubject={newSubject}
+          newTemplateIssues={newTemplateIssues}
+          newTitle={newTitle}
+          onChannelChange={setNewChannel}
+          onContentChange={setNewContent}
+          onSubmit={(e) => {
+            void handleCreateTemplate(e);
+          }}
+          onSubjectChange={setNewSubject}
+          onTitleChange={setNewTitle}
+        />
       </Dialog>
 
       {/* Edit Template Dialog */}
@@ -461,68 +674,23 @@ export function TemplatesPanel() {
         title="Edit template wording"
       >
         {editingTemplate ? (
-          <form onSubmit={(e) => void handleSaveEdit(e)}>
-            <div className="field">
-              <label htmlFor="edit-template-title">Template name</label>
-              <input
-                id="edit-template-title"
-                maxLength={200}
-                onChange={(e) => {
-                  setEditingTitle(e.target.value);
-                }}
-                required
-                value={editingTitle}
-              />
-            </div>
-            {editingTemplate.channel !== "SMS" ? (
-              <div className="field">
-                <label htmlFor="edit-template-subject">Subject</label>
-                <input
-                  id="edit-template-subject"
-                  maxLength={300}
-                  onChange={(e) => {
-                    setEditingSubject(e.target.value);
-                  }}
-                  value={editingSubject}
-                />
-              </div>
-            ) : null}
-            <div className="field">
-              <label htmlFor="edit-template-content">Message</label>
-              <textarea
-                id="edit-template-content"
-                maxLength={100_000}
-                onChange={(e) => {
-                  setEditingContent(e.target.value);
-                }}
-                required
-                rows={8}
-                value={editingContent}
-              />
-            </div>
-            <SystemTemplateResetAction
-              disabled={busy}
-              onReset={handleTemplateReset}
-              template={editingTemplate}
-            />
-            <div className="dialog__actions">
-              <DialogClose asChild>
-                <button className="button button--secondary" disabled={busy} type="button">
-                  Cancel
-                </button>
-              </DialogClose>
-              <button
-                className="button button--primary"
-                disabled={busy || !editingTitle.trim() || !editingContent.trim()}
-                type="submit"
-              >
-                {busy ? "Saving…" : "Save template"}
-              </button>
-            </div>
-          </form>
+          <EditTemplateDialogContent
+            busy={busy}
+            editingContent={editingContent}
+            editingSubject={editingSubject}
+            editingTemplate={editingTemplate}
+            editingTemplateIssues={editingTemplateIssues}
+            editingTitle={editingTitle}
+            onContentChange={setEditingContent}
+            onReset={handleTemplateReset}
+            onSubmit={(e) => {
+              void handleSaveEdit(e);
+            }}
+            onSubjectChange={setEditingSubject}
+            onTitleChange={setEditingTitle}
+          />
         ) : null}
       </Dialog>
-
       {confirmationDialog}
     </div>
   );

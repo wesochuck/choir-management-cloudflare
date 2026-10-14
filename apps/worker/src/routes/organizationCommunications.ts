@@ -9,6 +9,7 @@ import {
   type ProblemDetails,
 } from "@choir/contracts";
 import {
+  extractCommunicationPlaceholders,
   renderCommunicationTemplate,
   renderOrganizationLogoPlaceholder,
   validateCommunicationContext,
@@ -158,6 +159,17 @@ async function handleTestEmailDelivery(
     fromName: senderConfig.fromName,
     subject: data.subject,
   });
+
+  const unresolvedSubjectPlaceholders = extractCommunicationPlaceholders(templatedSubject);
+  const unresolvedContentPlaceholders = extractCommunicationPlaceholders(templatedContent);
+  const unresolved = [
+    ...new Set([...unresolvedSubjectPlaceholders, ...unresolvedContentPlaceholders]),
+  ];
+  if (unresolved.length > 0) {
+    throw new Error(
+      `Cannot send test email due to unresolvable placeholders: ${unresolved.join(", ")}`,
+    );
+  }
 
   const delivery = await deliverOrganizationCommunication(env, {
     channel: "email",

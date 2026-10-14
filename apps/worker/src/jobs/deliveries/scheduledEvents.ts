@@ -79,6 +79,32 @@ export async function deliverScheduledEventCommunication(
   const template = await readOrganizationCommunicationTemplate(env, job.organizationId, templateId);
   const recipients = await automatedRecipients(env, job.organizationId, scheduled.recipients);
   if (recipients.length === 0) return;
+  const eventDateFormatted = new Intl.DateTimeFormat("en-US", {
+    dateStyle: "long",
+    timeStyle: "short",
+    timeZone: scheduled.event.timezone,
+  }).format(new Date(scheduled.event.startsAt));
+
+  const eventValues: Record<string, string> = {
+    eventCallTime: scheduled.event.callTime,
+    eventDate: eventDateFormatted,
+    eventDetails: scheduled.event.details,
+    eventLocation: scheduled.event.location || scheduled.event.venueName,
+    eventTitle: scheduled.event.title,
+    eventType: scheduled.event.type,
+  };
+
+  const renderedSubject = renderCommunicationTemplate(
+    template.subject,
+    "{recipientName}",
+    eventValues,
+  );
+  const renderedContent = renderCommunicationTemplate(
+    template.contentMarkdown,
+    "{recipientName}",
+    eventValues,
+  );
+
   await queueAutomatedOrganizationCommunication(
     env,
     {
@@ -96,10 +122,10 @@ export async function deliverScheduledEventCommunication(
               kind: "event_reminder",
             }
           : undefined,
-      contentMarkdown: template.contentMarkdown,
+      contentMarkdown: renderedContent,
       eventId: scheduled.eventId,
       recipients,
-      subject: template.subject,
+      subject: renderedSubject,
     },
   );
 }
