@@ -1,7 +1,12 @@
 import { type CsvColumnMapping, musicCsvColumnOptions } from "@choir/domain";
 import { Dialog, Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
 import { MusicGenreFilter, MusicGenrePicker } from "./shared";
-import { normalizeDurationInput, pieceScoreCount, uniqueLabels } from "./utils";
+import {
+  formatParentWorkOption,
+  normalizeDurationInput,
+  pieceScoreCount,
+  uniqueLabels,
+} from "./utils";
 import { MusicCatalogTable, SectionBuckets } from "./table";
 import { performanceContainsPiece, pieceIdsForPerformance } from "./tableUtils";
 import { MusicPiecePerformances, MusicTuttiTrackDropzone } from "./performances";
@@ -560,7 +565,7 @@ export function MusicCatalogView({
                         <option value="">Top-level work</option>
                         {topLevelPieces.map((parent) => (
                           <option key={parent.id} value={parent.id}>
-                            {parent.title}
+                            {formatParentWorkOption(parent, topLevelPieces)}
                           </option>
                         ))}
                       </select>

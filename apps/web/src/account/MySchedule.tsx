@@ -55,11 +55,13 @@ function ScheduleRsvpButtons({
   event,
   onDeclineRehearsal,
   onRsvp,
+  pendingStatus,
 }: {
   readonly busy: boolean;
   readonly event: SingerEvent;
   readonly onDeclineRehearsal: (event: SingerEvent) => void;
   readonly onRsvp: (event: SingerEvent, rsvp: "No" | "Yes") => void;
+  readonly pendingStatus?: "No" | "Yes" | null | undefined;
 }) {
   const isSelectedYes = event.resolvedRsvp === "Yes";
   const isSelectedNo = event.resolvedRsvp === "No";
@@ -67,7 +69,7 @@ function ScheduleRsvpButtons({
   return (
     <div className="schedule-rsvp__buttons">
       <button
-        aria-busy={busy}
+        aria-busy={busy && pendingStatus === "Yes"}
         className={isSelectedYes ? "button button--primary" : "button button--secondary"}
         disabled={busy || !event.rsvpSelfServiceOpen}
         onClick={() => {
@@ -75,10 +77,10 @@ function ScheduleRsvpButtons({
         }}
         type="button"
       >
-        {busy && isSelectedYes ? "Updating…" : "Yes"}
+        {busy && pendingStatus === "Yes" ? "Saving…" : "Yes"}
       </button>
       <button
-        aria-busy={busy}
+        aria-busy={busy && pendingStatus === "No"}
         className={isSelectedNo ? "button button--danger" : "button button--secondary"}
         disabled={busy || !event.rsvpSelfServiceOpen}
         onClick={() => {
@@ -90,7 +92,7 @@ function ScheduleRsvpButtons({
         }}
         type="button"
       >
-        {busy && isSelectedNo ? "Updating…" : "No"}
+        {busy && pendingStatus === "No" ? "Saving…" : "No"}
       </button>
     </div>
   );
@@ -197,6 +199,7 @@ function ScheduleEventCard({
   event,
   onDeclineRehearsal,
   onRsvp,
+  pendingStatus,
   performerLabelPlural,
   timezone,
 }: {
@@ -204,6 +207,7 @@ function ScheduleEventCard({
   readonly event: SingerEvent;
   readonly onDeclineRehearsal: (event: SingerEvent) => void;
   readonly onRsvp: (event: SingerEvent, rsvp: "No" | "Yes") => void;
+  readonly pendingStatus?: "No" | "Yes" | null | undefined;
   readonly performerLabelPlural: string;
   readonly timezone: string;
 }) {
@@ -263,6 +267,7 @@ function ScheduleEventCard({
             event={event}
             onDeclineRehearsal={onDeclineRehearsal}
             onRsvp={onRsvp}
+            pendingStatus={pendingStatus}
           />
         </div>
       </fieldset>
@@ -411,7 +416,14 @@ export function MySchedule({
 }) {
   const { performerLabelPlural } = useOrganizationTerminology();
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [pendingRsvp, setPendingRsvp] = useState<{
+    eventId: string;
+    status: "No" | "Yes";
+  } | null>(null);
+  const [feedback, setFeedback] = useState<{
+    type: "error" | "success";
+    message: string;
+  } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [declineEvent, setDeclineEvent] = useState<SingerEvent | null>(null);
   const [declineNote, setDeclineNote] = useState("");
@@ -462,20 +474,25 @@ export function MySchedule({
     rsvp: "No" | "Pending" | "Yes",
     rsvpNote: string,
   ): Promise<boolean> {
+    if (rsvp === "Yes" || rsvp === "No") {
+      setPendingRsvp({ eventId, status: rsvp });
+    }
     setBusyEventId(eventId);
     setFeedback(null);
     try {
       await setMyEventRsvp(eventId, rsvp, rsvpNote);
       await loadSchedule(showPastEvents);
-      setFeedback("Your RSVP was updated.");
+      setFeedback({ type: "success", message: "Your RSVP was updated." });
       return true;
     } catch (error: unknown) {
-      setFeedback(
-        error instanceof AuthApiError ? error.message : "Your RSVP could not be updated.",
-      );
+      setFeedback({
+        type: "error",
+        message: error instanceof AuthApiError ? error.message : "Your RSVP could not be updated.",
+      });
       return false;
     } finally {
       setBusyEventId(null);
+      setPendingRsvp(null);
     }
   }
 
@@ -507,6 +524,9 @@ export function MySchedule({
           Show past events
         </label>
       </div>
+      <div aria-live="polite" aria-atomic="true" className="sr-only">
+        {pendingRsvp ? "Saving your RSVP…" : ""}
+      </div>
       <ScheduleStatusNotice
         accessStatus={accessStatus}
         enabled={enabled}
@@ -516,11 +536,11 @@ export function MySchedule({
       {feedback ? (
         <p
           className={
-            feedback.includes("updated") ? "notice notice--success" : "notice notice--error"
+            feedback.type === "success" ? "notice notice--success" : "notice notice--error"
           }
-          role="status"
+          role={feedback.type === "error" ? "alert" : "status"}
         >
-          {feedback}
+          {feedback.message}
         </p>
       ) : null}
       {enabled && state.status === "ready" ? (
@@ -543,6 +563,7 @@ export function MySchedule({
                 onRsvp={(targetEvent, rsvp) => {
                   void changeRsvp(targetEvent.id, rsvp, "");
                 }}
+                pendingStatus={pendingRsvp?.eventId === event.id ? pendingRsvp.status : null}
                 performerLabelPlural={performerLabelPlural}
                 timezone={state.timezone}
               />

@@ -49,12 +49,23 @@ describe("OrganizationSettingsPage fee formatting (#181)", () => {
         webhookConfigured: true,
       },
       requestId: "req-test-1",
-      stripe: { accountId: null, status: "not_started" },
+      stripe: {
+        accountId: null,
+        chargesEnabled: false,
+        detailsSubmitted: false,
+        payoutsEnabled: false,
+        requirementsDue: [],
+        status: "not_started",
+      },
     });
     vi.mocked(getOrganizationExportStatus).mockResolvedValue({
-      status: "idle",
-      lastExportAt: null,
+      byteCount: null,
+      checksumSha256: null,
       downloadUrl: null,
+      errorCode: null,
+      exportId: "00000000-0000-4000-8000-000000000001",
+      requestId: "req-test-1",
+      status: "completed",
     });
   });
 
