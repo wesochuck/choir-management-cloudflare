@@ -1,5 +1,6 @@
 import {
   organizationPollRequestSchema,
+  type OrganizationPollResultOption,
   type OrganizationPollResultsResponse,
   type OrganizationPollSummary,
 } from "@choir/contracts";
@@ -9,6 +10,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, type SyntheticEvent } from "react";
 
 import {
+  archiveOrganizationPoll,
   createOrganizationPoll,
   getOrganizationPoll,
   getOrganizationPollResults,
@@ -128,8 +130,194 @@ function copyRespondentSummary(
   });
 }
 
-function PollResultsDialog({
+function PollArchiveConfirmation({
+  archiving,
+  onCancel,
+  onConfirm,
+}: {
+  readonly archiving: boolean;
+  readonly onCancel: () => void;
+  readonly onConfirm: () => void;
+}) {
+  return (
+    <div className="danger-confirmation" role="group" aria-label="Confirm archiving poll">
+      <p>Archive this poll? Voting will close immediately while preserving all responses.</p>
+      <div className="form-actions">
+        <button
+          className="button button--secondary button--small"
+          disabled={archiving}
+          onClick={onCancel}
+          type="button"
+        >
+          Cancel
+        </button>
+        <button
+          className="button button--danger button--small"
+          disabled={archiving}
+          onClick={onConfirm}
+          type="button"
+        >
+          {archiving ? "Archiving…" : "Confirm archive"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PollOptionResultsList({
+  options,
+}: {
+  readonly options: readonly OrganizationPollResultOption[];
+}) {
+  return (
+    <div className="poll-options-results-list">
+      {options.map((opt) => (
+        <div key={opt.id} className="poll-option-result-card">
+          <div className="poll-option-result-header">
+            <span className="poll-option-result-title">{opt.label}</span>
+            <span className="poll-option-result-stats">
+              {String(opt.count)} {opt.count === 1 ? "vote" : "votes"} ({String(opt.percentage)}%)
+            </span>
+          </div>
+          <div className="poll-progress-track">
+            <div
+              className="poll-progress-fill"
+              style={{ width: `${String(Math.max(0, Math.min(100, opt.percentage)))}%` }}
+            />
+          </div>
+
+          <div className="poll-respondents-section">
+            <div className="poll-respondents-heading">
+              Respondents ({String(opt.respondents.length)})
+            </div>
+            {opt.respondents.length === 0 ? (
+              <p className="poll-respondents-empty">No respondents selected this option.</p>
+            ) : (
+              <ul className="poll-respondents-list">
+                {opt.respondents.map((resp) => (
+                  <li key={resp.profileId} className="poll-respondent-item">
+                    <div className="poll-respondent-identity">
+                      <span className="poll-respondent-name">{resp.profileName}</span>
+                      {resp.voicePart ? (
+                        <span className="poll-respondent-voice-part">{resp.voicePart}</span>
+                      ) : null}
+                    </div>
+                    <time className="poll-respondent-time" title={resp.respondedAt}>
+                      {formatSubmissionDate(resp.respondedAt)}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PollResultsBody({
+  archiving,
+  confirmingArchive,
   copyFeedback,
+  onArchive,
+  onCancelArchive,
+  onClose,
+  onConfirmArchive,
+  onCopyFeedback,
+  onRequestArchive,
+  resultsData,
+}: {
+  readonly archiving: boolean;
+  readonly confirmingArchive: boolean;
+  readonly copyFeedback: string | null;
+  readonly onArchive?: ((pollId: string) => Promise<void>) | undefined;
+  readonly onCancelArchive: () => void;
+  readonly onClose: () => void;
+  readonly onConfirmArchive: () => void;
+  readonly onCopyFeedback: (msg: string | null) => void;
+  readonly onRequestArchive: () => void;
+  readonly resultsData: OrganizationPollResultsResponse;
+}) {
+  const canArchive = Boolean(!resultsData.archivedAt && onArchive && !confirmingArchive);
+  return (
+    <div className="poll-results-container">
+      {resultsData.description ? (
+        <p className="notice notice--info">{resultsData.description}</p>
+      ) : null}
+
+      <div className="poll-results-header">
+        <div className="poll-results-meta">
+          <span>{resultsData.multipleChoice ? "Multiple choice" : "Single choice"}</span>
+          {resultsData.archivedAt ? <span className="badge badge--warning">Archived</span> : null}
+        </div>
+        <div className="poll-results-actions">
+          <button
+            className="button button--secondary button--small"
+            onClick={() => {
+              copyRespondentSummary(resultsData, (msg) => {
+                onCopyFeedback(msg);
+                setTimeout(() => {
+                  onCopyFeedback(null);
+                }, 3000);
+              });
+            }}
+            type="button"
+          >
+            {copyFeedback ?? "Copy summary"}
+          </button>
+          <button
+            className="button button--secondary button--small"
+            onClick={() => {
+              exportResultsCsv(resultsData);
+            }}
+            type="button"
+          >
+            Export CSV
+          </button>
+          {canArchive ? (
+            <button
+              className="button button--secondary button--small"
+              disabled={archiving}
+              onClick={onRequestArchive}
+              type="button"
+            >
+              Archive poll
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {confirmingArchive && onArchive ? (
+        <PollArchiveConfirmation
+          archiving={archiving}
+          onCancel={onCancelArchive}
+          onConfirm={onConfirmArchive}
+        />
+      ) : null}
+
+      {resultsData.totalResponses === 0 ? (
+        <p className="notice">
+          No responses have been submitted yet. Use <strong>Share with members</strong> to
+          distribute voting links.
+        </p>
+      ) : (
+        <PollOptionResultsList options={resultsData.options} />
+      )}
+
+      <div className="dialog__actions">
+        <button className="button button--secondary" onClick={onClose} type="button">
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PollResultsDialog({
+  archiving = false,
+  copyFeedback,
+  onArchive,
   onClose,
   onCopyFeedback,
   open,
@@ -137,7 +325,9 @@ function PollResultsDialog({
   resultsError,
   resultsLoading,
 }: {
+  readonly archiving?: boolean | undefined;
   readonly copyFeedback: string | null;
+  readonly onArchive?: ((pollId: string) => Promise<void>) | undefined;
   readonly onClose: () => void;
   readonly onCopyFeedback: (msg: string | null) => void;
   readonly open: boolean;
@@ -145,14 +335,20 @@ function PollResultsDialog({
   readonly resultsError: string | null;
   readonly resultsLoading: boolean;
 }) {
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
   const descriptionText = resultsData
     ? `${String(resultsData.totalResponses)} ${resultsData.totalResponses === 1 ? "response" : "responses"} recorded • Expires: ${formatExpiry(resultsData.expiresAt)}`
     : "Review voter responses and option totals.";
 
+  function handleClose(): void {
+    setConfirmingArchive(false);
+    onClose();
+  }
+
   return (
     <Dialog
       description={descriptionText}
-      onClose={onClose}
+      onClose={handleClose}
       open={open}
       title={resultsData ? `Results: ${resultsData.title}` : "Poll results"}
     >
@@ -163,114 +359,187 @@ function PollResultsDialog({
           {resultsError}
         </p>
       ) : resultsData ? (
-        <div className="poll-results-container">
-          {resultsData.description ? (
-            <p className="notice notice--info">{resultsData.description}</p>
-          ) : null}
-
-          <div className="poll-results-header">
-            <div className="poll-results-meta">
-              <span>{resultsData.multipleChoice ? "Multiple choice" : "Single choice"}</span>
-              {resultsData.archivedAt ? (
-                <span className="badge badge--warning">Archived</span>
-              ) : null}
-            </div>
-            <div className="poll-results-actions">
-              <button
-                className="button button--secondary button--small"
-                onClick={() => {
-                  copyRespondentSummary(resultsData, (msg) => {
-                    onCopyFeedback(msg);
-                    setTimeout(() => {
-                      onCopyFeedback(null);
-                    }, 3000);
-                  });
-                }}
-                type="button"
-              >
-                {copyFeedback ?? "Copy summary"}
-              </button>
-              <button
-                className="button button--secondary button--small"
-                onClick={() => {
-                  exportResultsCsv(resultsData);
-                }}
-                type="button"
-              >
-                Export CSV
-              </button>
-            </div>
-          </div>
-
-          {resultsData.totalResponses === 0 ? (
-            <p className="notice">
-              No responses have been submitted yet. Use <strong>Share with members</strong> to
-              distribute voting links.
-            </p>
-          ) : (
-            <div className="poll-options-results-list">
-              {resultsData.options.map((opt) => (
-                <div key={opt.id} className="poll-option-result-card">
-                  <div className="poll-option-result-header">
-                    <span className="poll-option-result-title">{opt.label}</span>
-                    <span className="poll-option-result-stats">
-                      {String(opt.count)} {opt.count === 1 ? "vote" : "votes"} (
-                      {String(opt.percentage)}%)
-                    </span>
-                  </div>
-                  <div className="poll-progress-track">
-                    <div
-                      className="poll-progress-fill"
-                      style={{ width: `${String(Math.max(0, Math.min(100, opt.percentage)))}%` }}
-                    />
-                  </div>
-
-                  <div className="poll-respondents-section">
-                    <div className="poll-respondents-heading">
-                      Respondents ({String(opt.respondents.length)})
-                    </div>
-                    {opt.respondents.length === 0 ? (
-                      <p className="poll-respondents-empty">No respondents selected this option.</p>
-                    ) : (
-                      <ul className="poll-respondents-list">
-                        {opt.respondents.map((resp) => (
-                          <li key={resp.profileId} className="poll-respondent-item">
-                            <div className="poll-respondent-identity">
-                              <span className="poll-respondent-name">{resp.profileName}</span>
-                              {resp.voicePart ? (
-                                <span className="poll-respondent-voice-part">{resp.voicePart}</span>
-                              ) : null}
-                            </div>
-                            <time className="poll-respondent-time" title={resp.respondedAt}>
-                              {formatSubmissionDate(resp.respondedAt)}
-                            </time>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="dialog__actions">
-            <button className="button button--secondary" onClick={onClose} type="button">
-              Close
-            </button>
-          </div>
-        </div>
+        <PollResultsBody
+          archiving={archiving}
+          confirmingArchive={confirmingArchive}
+          copyFeedback={copyFeedback}
+          onArchive={onArchive}
+          onCancelArchive={() => {
+            setConfirmingArchive(false);
+          }}
+          onClose={onClose}
+          onConfirmArchive={() => {
+            void onArchive?.(resultsData.pollId).then(() => {
+              setConfirmingArchive(false);
+            });
+          }}
+          onCopyFeedback={onCopyFeedback}
+          onRequestArchive={() => {
+            setConfirmingArchive(true);
+          }}
+          resultsData={resultsData}
+        />
       ) : null}
     </Dialog>
   );
 }
 
+function PollOptionsFieldset({
+  editingPollHasResponses,
+  error,
+  onOptionsChange,
+  options,
+}: {
+  readonly editingPollHasResponses: boolean;
+  readonly error?: string | null | undefined;
+  readonly onOptionsChange: (val: string[]) => void;
+  readonly options: readonly string[];
+}) {
+  return (
+    <fieldset>
+      <legend>Options</legend>
+      {options.map((option, index) => (
+        <label key={index}>
+          Option {String(index + 1)}
+          <input
+            aria-describedby={error ? "poll-dialog-error" : undefined}
+            aria-invalid={Boolean(error)}
+            disabled={editingPollHasResponses}
+            onChange={(event) => {
+              onOptionsChange(
+                options.map((value, optionIndex) =>
+                  optionIndex === index ? event.target.value : value,
+                ),
+              );
+            }}
+            required
+            value={option}
+          />
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+function PollEditFormFields({
+  description,
+  error,
+  expiresAt,
+  onDescriptionChange,
+  onExpiresAtChange,
+  onTitleChange,
+  title,
+}: {
+  readonly description: string;
+  readonly error?: string | null | undefined;
+  readonly expiresAt: string;
+  readonly onDescriptionChange: (val: string) => void;
+  readonly onExpiresAtChange: (val: string) => void;
+  readonly onTitleChange: (val: string) => void;
+  readonly title: string;
+}) {
+  const errorId = error ? "poll-dialog-error" : undefined;
+  const isInvalid = Boolean(error);
+  return (
+    <>
+      <label>
+        Title
+        <input
+          aria-describedby={errorId}
+          aria-invalid={isInvalid}
+          onChange={(event) => {
+            onTitleChange(event.target.value);
+          }}
+          required
+          value={title}
+        />
+      </label>
+      <label>
+        Description
+        <textarea
+          aria-describedby={errorId}
+          aria-invalid={isInvalid}
+          onChange={(event) => {
+            onDescriptionChange(event.target.value);
+          }}
+          value={description}
+        />
+      </label>
+      <label>
+        Expiration date and time
+        <input
+          aria-describedby={errorId}
+          aria-invalid={isInvalid}
+          onChange={(event) => {
+            onExpiresAtChange(event.target.value);
+          }}
+          required
+          type="datetime-local"
+          value={expiresAt}
+        />
+        <span className="field-help">Responses will no longer be accepted after this time.</span>
+      </label>
+    </>
+  );
+}
+
+function PollEditDialogActions({
+  archivedAt,
+  archiving,
+  confirmingArchive,
+  editingPollId,
+  onArchive,
+  onRequestArchive,
+  saving,
+}: {
+  readonly archivedAt: string;
+  readonly archiving: boolean;
+  readonly confirmingArchive: boolean;
+  readonly editingPollId: string | null;
+  readonly onArchive?: ((pollId: string) => Promise<void>) | undefined;
+  readonly onRequestArchive: () => void;
+  readonly saving: boolean;
+}) {
+  const canArchive = Boolean(editingPollId && !archivedAt && onArchive && !confirmingArchive);
+  const saveLabel = saving ? "Saving…" : editingPollId ? "Save changes" : "Create poll";
+  return (
+    <div className="dialog__actions">
+      <DialogClose asChild>
+        <button className="button button--secondary" disabled={saving || archiving} type="button">
+          Cancel
+        </button>
+      </DialogClose>
+      {canArchive ? (
+        <button
+          className="button button--secondary"
+          disabled={saving || archiving}
+          onClick={onRequestArchive}
+          type="button"
+        >
+          Archive poll
+        </button>
+      ) : null}
+      <button
+        aria-busy={saving}
+        className="button button--primary"
+        disabled={saving || archiving || confirmingArchive}
+        type="submit"
+      >
+        {saveLabel}
+      </button>
+    </div>
+  );
+}
+
 export function PollEditDialog({
+  archivedAt = "",
+  archiving = false,
   description,
   editingPollHasResponses,
   editingPollId,
   error,
   expiresAt,
+  onArchive,
   onClose,
   onDescriptionChange,
   onExpiresAtChange,
@@ -282,11 +551,14 @@ export function PollEditDialog({
   saving,
   title,
 }: {
+  readonly archivedAt?: string | undefined;
+  readonly archiving?: boolean | undefined;
   readonly description: string;
   readonly editingPollHasResponses: boolean;
   readonly editingPollId: string | null;
-  readonly error?: string | null;
+  readonly error?: string | null | undefined;
   readonly expiresAt: string;
+  readonly onArchive?: ((pollId: string) => Promise<void>) | undefined;
   readonly onClose: () => void;
   readonly onDescriptionChange: (val: string) => void;
   readonly onExpiresAtChange: (val: string) => void;
@@ -298,10 +570,17 @@ export function PollEditDialog({
   readonly saving: boolean;
   readonly title: string;
 }) {
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
+
+  function handleClose(): void {
+    setConfirmingArchive(false);
+    onClose();
+  }
+
   return (
     <Dialog
       description="Ask a question with exactly two response options (Yes and No by default)."
-      onClose={onClose}
+      onClose={handleClose}
       open={open}
       title={editingPollId ? "Edit poll" : "Create poll"}
     >
@@ -317,80 +596,48 @@ export function PollEditDialog({
             integrity. You can still update the title, description, and expiration date.
           </p>
         ) : null}
-        <label>
-          Title
-          <input
-            aria-describedby={error ? "poll-dialog-error" : undefined}
-            aria-invalid={Boolean(error)}
-            onChange={(event) => {
-              onTitleChange(event.target.value);
+        <PollEditFormFields
+          description={description}
+          error={error}
+          expiresAt={expiresAt}
+          onDescriptionChange={onDescriptionChange}
+          onExpiresAtChange={onExpiresAtChange}
+          onTitleChange={onTitleChange}
+          title={title}
+        />
+        <PollOptionsFieldset
+          editingPollHasResponses={editingPollHasResponses}
+          error={error}
+          onOptionsChange={onOptionsChange}
+          options={options}
+        />
+
+        {confirmingArchive && editingPollId && onArchive ? (
+          <PollArchiveConfirmation
+            archiving={archiving}
+            onCancel={() => {
+              setConfirmingArchive(false);
             }}
-            required
-            value={title}
-          />
-        </label>
-        <label>
-          Description
-          <textarea
-            aria-describedby={error ? "poll-dialog-error" : undefined}
-            aria-invalid={Boolean(error)}
-            onChange={(event) => {
-              onDescriptionChange(event.target.value);
+            onConfirm={() => {
+              void onArchive(editingPollId).then(() => {
+                setConfirmingArchive(false);
+                onClose();
+              });
             }}
-            value={description}
           />
-        </label>
-        <label>
-          Expiration date and time
-          <input
-            aria-describedby={error ? "poll-dialog-error" : undefined}
-            aria-invalid={Boolean(error)}
-            onChange={(event) => {
-              onExpiresAtChange(event.target.value);
-            }}
-            required
-            type="datetime-local"
-            value={expiresAt}
-          />
-          <span className="field-help">Responses will no longer be accepted after this time.</span>
-        </label>
-        <fieldset>
-          <legend>Options</legend>
-          {options.map((option, index) => (
-            <label key={index}>
-              Option {String(index + 1)}
-              <input
-                aria-describedby={error ? "poll-dialog-error" : undefined}
-                aria-invalid={Boolean(error)}
-                disabled={editingPollHasResponses}
-                onChange={(event) => {
-                  onOptionsChange(
-                    options.map((value, optionIndex) =>
-                      optionIndex === index ? event.target.value : value,
-                    ),
-                  );
-                }}
-                required
-                value={option}
-              />
-            </label>
-          ))}
-        </fieldset>
-        <div className="dialog__actions">
-          <DialogClose asChild>
-            <button className="button button--secondary" disabled={saving} type="button">
-              Cancel
-            </button>
-          </DialogClose>
-          <button
-            aria-busy={saving}
-            className="button button--primary"
-            disabled={saving}
-            type="submit"
-          >
-            {saving ? "Saving…" : editingPollId ? "Save changes" : "Create poll"}
-          </button>
-        </div>
+        ) : null}
+
+        <PollEditDialogActions
+          archivedAt={archivedAt}
+          archiving={archiving}
+          confirmingArchive={confirmingArchive}
+          editingPollId={editingPollId}
+          onArchive={onArchive}
+          onRequestArchive={() => {
+            setConfirmingArchive(true);
+          }}
+          saving={saving}
+        />
       </form>
     </Dialog>
   );
@@ -422,6 +669,8 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
   const [loadingPollId, setLoadingPollId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [sharingPollId, setSharingPollId] = useState<string | null>(null);
+  const [archivingPollId, setArchivingPollId] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState(false);
   const [communicationsDraftId, setCommunicationsDraftId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -575,6 +824,26 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  async function handleArchivePoll(pollId: string): Promise<void> {
+    setArchiving(true);
+    setMessage(null);
+    try {
+      const result = await archiveOrganizationPoll(pollId);
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.organization.polls(showArchived),
+      });
+      setArchivingPollId(null);
+      setMessage("Poll archived.");
+      if (resultsData?.pollId === pollId) {
+        setResultsData({ ...resultsData, archivedAt: result.archivedAt });
+      }
+    } catch {
+      setMessage("The poll could not be archived. Try again.");
+    } finally {
+      setArchiving(false);
+    }
+  }
+
   if (!enabled) {
     return (
       <p className="notice notice--warning">
@@ -661,38 +930,90 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
             header: "Actions",
             id: "actions",
             mobileLabel: "Manage",
-            render: (poll: Poll) => (
-              <div className="table-actions">
-                <button
-                  className="button button--secondary button--small"
-                  onClick={() => {
-                    void openResultsDialog(poll);
-                  }}
-                  type="button"
+            render: (poll: Poll) =>
+              archivingPollId === poll.id ? (
+                <div
+                  className="danger-confirmation"
+                  role="group"
+                  aria-label={`Confirm archiving ${poll.title}`}
                 >
-                  View results
-                </button>
-                <button
-                  className="button button--secondary button--small"
-                  disabled={sharingPollId === poll.id}
-                  onClick={() => {
-                    void sharePoll(poll);
-                  }}
-                  type="button"
-                >
-                  {sharingPollId === poll.id ? "Preparing…" : "Share with members"}
-                </button>
-                <button
-                  disabled={loadingPollId === poll.id}
-                  onClick={() => {
-                    void openEditDialog(poll);
-                  }}
-                  type="button"
-                >
-                  {loadingPollId === poll.id ? "Loading…" : "Edit"}
-                </button>
-              </div>
-            ),
+                  <p>Archive this poll?</p>
+                  <div className="form-actions">
+                    <button
+                      className="button button--secondary button--small"
+                      disabled={archiving}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setArchivingPollId(null);
+                      }}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="button button--danger button--small"
+                      disabled={archiving}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleArchivePoll(poll.id);
+                      }}
+                      type="button"
+                    >
+                      {archiving ? "Archiving…" : "Confirm archive"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="table-actions">
+                  <button
+                    className="button button--secondary button--small"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void openResultsDialog(poll);
+                    }}
+                    type="button"
+                  >
+                    View results
+                  </button>
+                  {!poll.archivedAt ? (
+                    <>
+                      <button
+                        className="button button--secondary button--small"
+                        disabled={sharingPollId === poll.id}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void sharePoll(poll);
+                        }}
+                        type="button"
+                      >
+                        {sharingPollId === poll.id ? "Preparing…" : "Share with members"}
+                      </button>
+                      <button
+                        disabled={loadingPollId === poll.id}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void openEditDialog(poll);
+                        }}
+                        type="button"
+                      >
+                        {loadingPollId === poll.id ? "Loading…" : "Edit"}
+                      </button>
+                      <button
+                        className="button button--secondary button--small"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setArchivingPollId(poll.id);
+                        }}
+                        type="button"
+                      >
+                        Archive
+                      </button>
+                    </>
+                  ) : (
+                    <span className="badge badge--warning">Archived</span>
+                  )}
+                </div>
+              ),
           },
         ]}
         emptyMessage={
@@ -709,7 +1030,9 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
       />
 
       <PollResultsDialog
+        archiving={archiving}
         copyFeedback={copyFeedback}
+        onArchive={handleArchivePoll}
         onClose={() => {
           setResultsDialogOpen(false);
         }}
@@ -723,11 +1046,14 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
       />
 
       <PollEditDialog
+        archivedAt={formData.archivedAt}
+        archiving={archiving}
         description={formData.description}
         editingPollHasResponses={formData.editingPollHasResponses}
         editingPollId={formData.editingPollId}
         error={dialogError}
         expiresAt={formData.expiresAt}
+        onArchive={handleArchivePoll}
         onClose={() => {
           setDialogOpen(false);
         }}
