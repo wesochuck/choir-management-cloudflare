@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AuthApiError } from "../api";
 import * as filesApi from "../api/files";
 import * as profilesApi from "../api/profiles";
 import { SaveBar, SaveCoordinatorProvider } from "../persistence";
@@ -23,6 +24,7 @@ vi.mock("../api/profiles", async (importOriginal) => {
     ...actual,
     getMemberProfile: vi.fn(),
     listOrganizationDirectory: vi.fn(),
+    requestMemberEmailChange: vi.fn(),
     setOrganizationProfilePhoto: vi.fn(),
     updateMemberProfile: vi.fn(),
   };
@@ -277,5 +279,111 @@ describe("MemberProfileDirectory part filter coverage and privacy (#197)", () =>
     expect(screen.queryByText("Alice Soprano")).toBeNull();
     expect(screen.getByText("Bob Alto")).toBeInTheDocument();
     expect(screen.queryByText("Charlie Tenor")).toBeNull();
+  });
+});
+
+describe("MemberProfileDirectory email-change verification (#198)", () => {
+  beforeEach(() => {
+    vi.mocked(profilesApi.getMemberProfile).mockResolvedValue(memberProfile);
+    vi.mocked(profilesApi.requestMemberEmailChange).mockReset();
+  });
+
+  it("associates field help with aria-describedby and describes verification expectations", async () => {
+    await setup();
+
+    const emailInput = await screen.findByLabelText("New sign-in email");
+    expect(emailInput).toHaveAttribute("aria-describedby", "member-email-help");
+
+    const help = screen.getByText(
+      /We'll send a confirmation link there and a security notice to your current address/i,
+    );
+    expect(help).toBeInTheDocument();
+    expect(help).toHaveAttribute("id", "member-email-help");
+    expect(help).toHaveTextContent(/stays on your current address until confirmed/i);
+    expect(help).toHaveTextContent(/updates where you receive choir communications/i);
+  });
+
+  it("validates empty email or missing @ with an alert before submitting", async () => {
+    const user = userEvent.setup();
+    await setup();
+
+    const emailInput = await screen.findByLabelText("New sign-in email");
+    await user.clear(emailInput);
+
+    const changeButton = screen.getByRole("button", { name: "Change email" });
+    await user.click(changeButton);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Enter a valid new email address.");
+    expect(profilesApi.requestMemberEmailChange).not.toHaveBeenCalled();
+  });
+
+  it("prevents requesting a change to the existing sign-in email address", async () => {
+    const user = userEvent.setup();
+    await setup();
+
+    const emailInput = await screen.findByLabelText("New sign-in email");
+    expect(emailInput).toHaveValue(memberProfile.email);
+
+    const changeButton = screen.getByRole("button", { name: "Change email" });
+    await user.click(changeButton);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Choose a different email address before requesting a change.");
+    expect(profilesApi.requestMemberEmailChange).not.toHaveBeenCalled();
+  });
+
+  it("successfully requests email change, displays destination details, and disables duplicate submission", async () => {
+    const user = userEvent.setup();
+    const newAddress = "casey.new@example.test";
+    vi.mocked(profilesApi.requestMemberEmailChange).mockResolvedValue(newAddress);
+
+    await setup();
+
+    const emailInput = await screen.findByLabelText("New sign-in email");
+    await user.clear(emailInput);
+    await user.type(emailInput, newAddress);
+
+    const changeButton = screen.getByRole("button", { name: "Change email" });
+    await user.click(changeButton);
+
+    expect(profilesApi.requestMemberEmailChange).toHaveBeenCalledWith(newAddress);
+
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent(`We sent a confirmation link to ${newAddress}`);
+    expect(status).toHaveTextContent("within 30 minutes");
+    expect(status).toHaveTextContent("Your current sign-in remains active until confirmed");
+    expect(status).toHaveTextContent("enter a different address above or let the link expire");
+
+    // Button updates and is disabled to avoid repeated submissions for the pending address
+    const sentButton = screen.getByRole("button", { name: "Confirmation link sent" });
+    expect(sentButton).toBeDisabled();
+
+    // Changing the input resets the button back to enabled "Change email"
+    await user.type(emailInput, "2");
+    expect(screen.getByRole("button", { name: "Change email" })).not.toBeDisabled();
+  });
+
+  it("displays server error message when request fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(profilesApi.requestMemberEmailChange).mockRejectedValue(
+      new AuthApiError(
+        "That email address is already in use by another account.",
+        409,
+        "email_in_use",
+      ),
+    );
+
+    await setup();
+
+    const emailInput = await screen.findByLabelText("New sign-in email");
+    await user.clear(emailInput);
+    await user.type(emailInput, "taken@example.test");
+
+    const changeButton = screen.getByRole("button", { name: "Change email" });
+    await user.click(changeButton);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("That email address is already in use by another account.");
   });
 });

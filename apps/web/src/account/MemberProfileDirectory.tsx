@@ -19,7 +19,11 @@ type ProfileState =
   | { readonly status: "error" | "loading" | "missing" }
   | { readonly profile: MemberProfile; readonly status: "ready" };
 
-type EmailChangeMessage = { readonly status: "error" | "success"; readonly text: string } | null;
+type EmailChangeMessage = {
+  readonly status: "error" | "success";
+  readonly targetEmail?: string;
+  readonly text: string;
+} | null;
 
 type DirectoryState =
   | { readonly status: "error" | "loading" }
@@ -121,13 +125,30 @@ function MemberProfileEditor({
   }, [enabled]);
 
   async function requestEmailChange(): Promise<void> {
+    if (state.status !== "ready") return;
+    const trimmed = email.trim();
+    if (!trimmed.includes("@")) {
+      setEmailMessage({
+        status: "error",
+        text: "Enter a valid new email address.",
+      });
+      return;
+    }
+    if (trimmed.toLowerCase() === state.profile.email.toLowerCase()) {
+      setEmailMessage({
+        status: "error",
+        text: "Choose a different email address before requesting a change.",
+      });
+      return;
+    }
     setEmailBusy(true);
     setEmailMessage(null);
     try {
-      await requestMemberEmailChange(email);
+      const requestedEmail = await requestMemberEmailChange(trimmed);
       setEmailMessage({
         status: "success",
-        text: "We sent a confirmation link to the new address and an alert to your current address.",
+        targetEmail: requestedEmail,
+        text: `We sent a confirmation link to ${requestedEmail}. Open that email and click the confirmation link within 30 minutes to complete the change. Your current sign-in remains active until confirmed. If you made a mistake or want to cancel, enter a different address above or let the link expire.`,
       });
     } catch (error: unknown) {
       setEmailMessage({
@@ -184,6 +205,9 @@ function MemberProfileEditor({
           <div className="field">
             <label htmlFor="member-email">New sign-in email</label>
             <input
+              aria-describedby={
+                emailMessage ? "member-email-help member-email-status" : "member-email-help"
+              }
               autoComplete="email"
               id="member-email"
               maxLength={320}
@@ -192,22 +216,39 @@ function MemberProfileEditor({
               value={email}
               onChange={(event) => {
                 setEmail(event.target.value);
+                if (emailMessage?.status === "error") {
+                  setEmailMessage(null);
+                }
               }}
             />
-            <p className="field-help">
-              We will email the new address a confirmation link and notify your current address. The
-              change takes effect only after the new address confirms.
+            <p className="field-help" id="member-email-help">
+              Enter your new sign-in address. We'll send a confirmation link there and a security
+              notice to your current address. Your sign-in stays on your current address until
+              confirmed. Once confirmed, this also updates where you receive choir communications.
             </p>
             <button
               className="button button--secondary"
-              disabled={emailBusy}
+              disabled={
+                emailBusy ||
+                (emailMessage?.status === "success" &&
+                  emailMessage.targetEmail?.toLowerCase() === email.trim().toLowerCase())
+              }
               onClick={() => void requestEmailChange()}
               type="button"
             >
-              {emailBusy ? "Sending confirmation…" : "Change email"}
+              {emailBusy
+                ? "Sending confirmation…"
+                : emailMessage?.status === "success" &&
+                    emailMessage.targetEmail?.toLowerCase() === email.trim().toLowerCase()
+                  ? "Confirmation link sent"
+                  : "Change email"}
             </button>
             {emailMessage ? (
-              <p className={`notice notice--${emailMessage.status}`} role="status">
+              <p
+                className={`notice notice--${emailMessage.status}`}
+                id="member-email-status"
+                role={emailMessage.status === "error" ? "alert" : "status"}
+              >
                 {emailMessage.text}
               </p>
             ) : null}
