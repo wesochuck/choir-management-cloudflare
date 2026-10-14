@@ -1,5 +1,5 @@
 import { organizationProfileSchema, type OrganizationProfile } from "@choir/contracts";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -172,5 +172,30 @@ describe("ProfileEditorDialog photo save coordination", () => {
     // Dialog remains open for retry
     expect(screen.getByRole("dialog", { name: "Edit Profile" })).toBeInTheDocument();
     expect(screen.getByText("Ready to upload: chosen-photo.jpg")).toBeInTheDocument();
+  });
+
+  it("renders status automation policy text and sticky footer actions (#178)", async () => {
+    const user = userEvent.setup();
+    render(<ProfileEditorHarness />);
+
+    await user.click(screen.getByRole("button", { name: "Open Editor" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit Profile" });
+    expect(dialog).toBeInTheDocument();
+
+    // Critical instructions and status automation policy text must be fully present in the document
+    expect(
+      screen.getByText(
+        /Selecting a status does not turn automation off\. The Profile may be updated by the roster rules until you explicitly manage status manually\./,
+      ),
+    ).toBeInTheDocument();
+
+    // Dialog footer must provide cancel and submit action buttons
+    const footer = dialog.querySelector(".profile-editor-footer");
+    expect(footer).not.toBeNull();
+    expect(footer instanceof HTMLElement).toBe(true);
+    if (!footer || !(footer instanceof HTMLElement)) return;
+
+    expect(within(footer).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(within(footer).getByRole("button", { name: "Save Profile" })).toBeInTheDocument();
   });
 });

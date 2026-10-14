@@ -1400,6 +1400,9 @@
     margin: 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
   }
 
   .seating-lookup-row {

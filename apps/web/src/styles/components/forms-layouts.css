@@ -27,6 +27,11 @@
     display: block;
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
+    text-overflow: clip;
+    max-width: 100%;
   }
 
   .field-help--inline,

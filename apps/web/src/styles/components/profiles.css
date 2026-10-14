@@ -750,6 +750,20 @@
     max-height: 100dvh;
     border-radius: 0;
   }
+
+  .profile-editor-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-xs);
+  }
+
+  .profile-editor-footer__actions-col {
+    justify-content: stretch;
+  }
+
+  .profile-editor-footer__actions-col .button {
+    flex: 1;
+  }
 }
 
 /* Main scrollable content pane */
@@ -991,6 +1005,13 @@
   line-height: var(--line-height-normal);
 }
 
+.dialog--profile-editor .field-help {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  text-overflow: clip;
+}
+
 /* Footer */
 
 .profile-editor-footer {
@@ -1003,6 +1024,9 @@
   flex-shrink: 0;
   box-sizing: border-box;
   gap: var(--spacing-md);
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
 }
 
 .profile-editor-footer__status {
