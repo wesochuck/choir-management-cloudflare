@@ -118,6 +118,18 @@ describe("route staging qualification and evidence plan", () => {
     ).toBe(true);
     expect(
       isExpectedAnonymousBoundary(
+        { route: "/api/platform/maintenance/status-automation-fixture" },
+        { status: 401, code: "unauthorized" },
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedAnonymousBoundary(
+        { route: "/api/platform/maintenance/status-automation-fixture" },
+        { status: 404, code: "not_found" },
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedAnonymousBoundary(
         { route: "/api/public/rsvp-details" },
         { status: 404, code: "not_found" },
       ),
