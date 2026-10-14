@@ -13,10 +13,8 @@ Read these files before feature work:
 1. `AGENTS.md`
 2. `docs/goal/GOAL.md`
 3. `docs/goal/READINESS.md`
-4. `docs/2026-07-20-cloudflare-multitenant-rebuild-plan.md`
-5. `CONTEXT.md`
-6. `docs/adr/0003-*.md` through `docs/adr/0015-*.md`
-7. `docs/parity/feature-matrix.yaml`
+4. `CONTEXT.md`
+5. Architecture records in `docs/adr/`
 
 ## Local setup
 
@@ -46,7 +44,7 @@ npm run typecheck
 npm test
 npm run test:integration
 npm run test:e2e
-npm run check:parity
+npm run check:routes
 npm run build
 npm audit --audit-level=high
 ```

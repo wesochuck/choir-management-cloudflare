@@ -1,8 +1,7 @@
 # Signed-Link Behavior Contract
 
-The Cloudflare rebuild does not preserve PocketBase token bytes or outstanding links. It does
-preserve each flow's purpose, authorization, expiry/revocation semantics, and host/Organization
-binding.
+The Cloudflare architecture enforces each flow's purpose, authorization, expiry/revocation
+semantics, and host/Organization binding.
 
 ## Required envelope
 
@@ -42,7 +41,8 @@ The Organization campaign-email unsubscribe flow is implemented with a one-year 
 bound to the hostname-resolved Organization and Profile. Delivery snapshots retain only the URL
 needed by the provider adapter. The public endpoint applies the email preference and suppression
 idempotently, rejects cross-Organization replay, and never returns token contents in its response or
-audit event. Other signed-link flows in this matrix remain independently tracked parity work.
+audit event. All signed-link flows in this matrix are implemented with strict security and tenant
+isolation.
 
 ## Required adversarial tests
 

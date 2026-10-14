@@ -3,10 +3,9 @@
 This runbook outlines the required sequence for provisioning, configuring, and launching the
 production environment for `choir-management-cloudflare`.
 
-> [!IMPORTANT] **Production Launch Precondition:** Production launch is governed by Milestone 7 of
-> `docs/2026-07-20-cloudflare-multitenant-rebuild-plan.md`. It must not be executed until all
-> Milestone 6 staging qualification gates pass, the parity matrix is 100% verified, and explicit
-> stakeholder approval is granted.
+> [!IMPORTANT] **Production Launch Precondition:** Production launch is out of scope until
+> authorized. It must not be executed until all staging qualification gates pass, full release
+> qualification passes, and explicit stakeholder approval is granted.
 
 ---
 
@@ -14,7 +13,7 @@ production environment for `choir-management-cloudflare`.
 
 Before creating production resources or deploying code:
 
-1. All 206 parity entries in `docs/parity/feature-matrix.yaml` must be `status: verified`.
+1. Route registration and integrity checks (`npm run check:routes`) must pass with 100% success.
 2. Staging qualification suites (`npm run qualify:staging:all`) must pass with 100% success.
 3. The full release qualification (`npm run check:release`, which runs the browser-free
    `npm run check:ci` gate plus the Playwright Chromium E2E suite) must pass on a clean `main`

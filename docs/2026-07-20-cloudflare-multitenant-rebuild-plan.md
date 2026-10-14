@@ -1,9 +1,11 @@
 # Cloudflare Multitenant Rebuild Plan
 
-**Status:** Approved architecture; ready to seed the new repository **Parity baseline:**
-`choir-management-tool` commit `6874d43a3c3698ae53218a44d17649bc454ca9ac` **Target repository:**
-`choir-management-cloudflare` **Production rule:** Internal milestones may be deployed to staging,
-but production does not launch until the complete parity matrix passes.
+> [!NOTE] **Historical Archive:** This document represents the original migration and rebuild plan
+> from July 20, 2026. Milestones 0 through 6 have been completed, and legacy parity tracking has
+> been retired per
+> [ADR 0049](file:///Users/wesosborn/Downloads/choir-management-cloudflare/docs/adr/0049-retire-legacy-parity-tracking-and-adopt-cloudflare-source-of-truth.md).
+> Current operational and architectural truth resides in `AGENTS.md`, `docs/goal/GOAL.md`, accepted
+> ADRs under `docs/adr/`, and active application code and tests.
 
 ## Objective
 

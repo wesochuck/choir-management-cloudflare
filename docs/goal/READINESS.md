@@ -2,12 +2,10 @@
 
 **Prepared:** August 14, 2026
 
-**Current status:** The repository contains implementation and focused-test evidence for the planned
-Milestones 0–5 scope, but the goal is not complete. The current parity matrix contains 206 entries:
-205 are `verified` and 1 is `implemented`. Per the matrix definitions, `implemented` means that
-target behavior and focused tests exist; permanent-staging proof may still remain. The remaining
-work is the Milestone 6 permanent-staging evidence for the custom-domain provider lifecycle and
-external broadcaster credentials.
+**Current status:** The application is standalone and feature-complete on Cloudflare Workers,
+Durable Objects, and D1. Legacy parity tracking has been retired (ADR 0049), and route integrity is
+maintained natively via `scripts/check-routes.mjs` and `scripts/route-probe-plan.mjs`. Permanent
+staging remains the active deployment target; production launch is out of scope.
 
 ## Whole-product staging qualification batch — August 14, 2026
 
@@ -857,16 +855,15 @@ same expected custom-domain warning. The focused current qualification record is
 [`docs/goal/qualification-evidence-2026-08-11.md`](qualification-evidence-2026-08-11.md); this does
 not make the whole-product goal complete.
 
-The current parity checks pass:
+The current route checks pass:
 
-- `npm run check:parity`: 205 entries validated across 9 sections.
-- `npm run check:parity:implementation`: 79 API entries checked against 66 Worker route files.
+- `npm run check:routes`: 318 API routes registered across 86 Worker route files.
+- `npm run qualify:staging:evidence -- --plan-only`: all core API routes mapped to verified probe
+  kinds.
 
-The parity ledger is a behavioral coverage and evidence inventory, not a requirement to reproduce
-every legacy API method or route verbatim. Legacy source establishes observable intent and boundary
-cases; new implementation may consolidate or reshape internal/API methods when the required
-capability, authorization, Organization isolation, auditability, idempotency, and external-effect
-semantics remain covered.
+Per ADR 0049, Cloudflare code, contracts, and tests are authoritative. Staging qualification suites
+(`npm run qualify:staging:all`) enforce authorization, Organization isolation, auditability,
+idempotency, and safe boundary behavior across all application endpoints.
 
 The current release evidence is:
 

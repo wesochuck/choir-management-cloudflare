@@ -1,10 +1,9 @@
 # Cloudflare Rebuild Handoff
 
-**Prepared:** July 20, 2026 **Current repository:** `choir-management-tool` **Current branch:**
-`main` **Parity baseline:** `6874d43a3c3698ae53218a44d17649bc454ca9ac` **Planned repository:**
-`choir-management-cloudflare` **Current state:** Architecture and plan are complete; the local
-target repository and immutable parity worktree are prepared; implementation has not started; no
-Codex goal is active.
+> [!NOTE] **Historical Archive:** This document is the original rebuild handoff from July 20, 2026.
+> Implementation has been completed and legacy parity tracking has been retired per
+> [ADR 0049](file:///Users/wesosborn/Downloads/choir-management-cloudflare/docs/adr/0049-retire-legacy-parity-tracking-and-adopt-cloudflare-source-of-truth.md).
+> Refer to `docs/goal/READINESS.md` and `docs/goal/GOAL.md` for current operating readiness.
 
 This document is the self-contained restart point for continuing the Cloudflare multitenant rebuild
 on another machine. It intentionally contains no secrets.
