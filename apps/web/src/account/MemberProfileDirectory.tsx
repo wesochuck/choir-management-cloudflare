@@ -8,6 +8,7 @@ import {
   requestMemberEmailChange,
   updateMemberProfile,
 } from "../api";
+import { AppLink } from "./components/AuthenticatedShell/navigation";
 import { ProfilePhotoEditor, type ProfilePhotoTarget } from "./components/ProfilePhotoEditor";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 import { usePersistedDraft } from "../persistence";
@@ -312,16 +313,25 @@ function MemberProfileEditor({
 }
 
 function Directory({
+  adminReturnTo,
   enabled,
+  navigate,
   revision,
 }: {
+  readonly adminReturnTo?: string | null | undefined;
   readonly enabled: boolean;
+  readonly navigate?: ((href: string) => void) | undefined;
   readonly revision: number;
 }) {
   const { partLabel, partLabelPlural } = useOrganizationTerminology();
   const [state, setState] = useState<DirectoryState>({ status: "loading" });
   const [search, setSearch] = useState("");
   const [voicePart, setVoicePart] = useState("");
+  const handleNavigate =
+    navigate ??
+    ((href: string) => {
+      window.location.assign(href);
+    });
 
   useEffect(() => {
     if (!enabled) return;
@@ -364,6 +374,25 @@ function Directory({
 
   return (
     <section className="account-section" aria-label="Organization directory">
+      {adminReturnTo ? (
+        <aside
+          aria-label="Admin navigation context"
+          className="admin-return-bar notice notice--info"
+        >
+          <span className="admin-return-bar__text">Viewing member Directory</span>
+          <span aria-hidden="true" className="admin-return-bar__separator">
+            {" "}
+            ·{" "}
+          </span>
+          <AppLink
+            className="button button--secondary button--small admin-return-bar__action"
+            href={adminReturnTo}
+            onNavigate={handleNavigate}
+          >
+            Back to Admin
+          </AppLink>
+        </aside>
+      ) : null}
       {!enabled || state.status === "loading" ? <p>Loading the directory…</p> : null}
       {enabled && state.status === "error" ? (
         <p className="notice notice--error" role="alert">
@@ -448,10 +477,14 @@ function Directory({
 }
 
 export function MemberProfileDirectory({
+  adminReturnTo,
   enabled,
+  navigate,
   view = "both",
 }: {
+  readonly adminReturnTo?: string | null | undefined;
   readonly enabled: boolean;
+  readonly navigate?: ((href: string) => void) | undefined;
   readonly view?: "both" | "directory" | "profile";
 }) {
   const [revision, setRevision] = useState(0);
@@ -465,7 +498,14 @@ export function MemberProfileDirectory({
           }}
         />
       ) : null}
-      {view !== "profile" ? <Directory enabled={enabled} revision={revision} /> : null}
+      {view !== "profile" ? (
+        <Directory
+          adminReturnTo={adminReturnTo}
+          enabled={enabled}
+          navigate={navigate}
+          revision={revision}
+        />
+      ) : null}
     </>
   );
 }
