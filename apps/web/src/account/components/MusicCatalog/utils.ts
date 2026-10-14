@@ -283,3 +283,26 @@ export function scoreCount(
     .reduce((total, movement) => total + pieceScoreCount(movement), 0);
   return directScores + movementScores;
 }
+
+export function formatParentWorkOption(
+  parent: Pick<OrganizationMusicPiece, "id" | "title" | "composer" | "arranger" | "catalogId">,
+  allParents: readonly Pick<OrganizationMusicPiece, "id" | "title">[],
+): string {
+  const isDuplicate =
+    allParents.filter(
+      (candidate) => candidate.title.trim().toLowerCase() === parent.title.trim().toLowerCase(),
+    ).length > 1;
+
+  if (!isDuplicate) {
+    return parent.title;
+  }
+
+  const disambiguation =
+    parent.arranger.trim() ||
+    parent.composer.trim() ||
+    (parent.catalogId.trim()
+      ? `Catalog ID: ${parent.catalogId.trim()}`
+      : `Catalog ID: ${parent.id.slice(0, 8)}`);
+
+  return `${parent.title} — ${disambiguation}`;
+}

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { OrganizationMusicPiece } from "@choir/contracts";
 
 import {
+  formatParentWorkOption,
   normalizeDurationInput,
   parseCreditFilterFromSearch,
   parseDuration,
@@ -221,5 +222,51 @@ describe("credit filter parsing", () => {
     expect(parseCreditFilterFromSearch("")).toBeNull();
     expect(parseCreditFilterFromSearch("?creditRole=composer")).toBeNull();
     expect(parseCreditFilterFromSearch("?credit=%20%20")).toBeNull();
+  });
+});
+
+describe("formatParentWorkOption", () => {
+  it("returns title unchanged when unique", () => {
+    const p1 = { id: "1", title: "Gloria", composer: "Vivaldi", arranger: "", catalogId: "" };
+    const p2 = { id: "2", title: "Sanctus", composer: "Faure", arranger: "", catalogId: "" };
+    const pieces = [p1, p2];
+    expect(formatParentWorkOption(p1, pieces)).toBe("Gloria");
+  });
+
+  it("disambiguates duplicate titles using arranger, composer, catalogId, or short id", () => {
+    const p1 = {
+      id: "p1-uuid-1234",
+      title: "Ave Maria",
+      composer: "Schubert",
+      arranger: "",
+      catalogId: "",
+    };
+    const p2 = {
+      id: "p2-uuid-5678",
+      title: "Ave Maria",
+      composer: "Bach/Gounod",
+      arranger: "Hayes",
+      catalogId: "",
+    };
+    const p3 = {
+      id: "p3-uuid-9999",
+      title: "Ave Maria",
+      composer: "",
+      arranger: "",
+      catalogId: "CAT-101",
+    };
+    const p4 = {
+      id: "p4-uuid-0000",
+      title: "Ave Maria",
+      composer: "",
+      arranger: "",
+      catalogId: "",
+    };
+    const pieces = [p1, p2, p3, p4];
+
+    expect(formatParentWorkOption(p1, pieces)).toBe("Ave Maria — Schubert");
+    expect(formatParentWorkOption(p2, pieces)).toBe("Ave Maria — Hayes");
+    expect(formatParentWorkOption(p3, pieces)).toBe("Ave Maria — Catalog ID: CAT-101");
+    expect(formatParentWorkOption(p4, pieces)).toBe("Ave Maria — Catalog ID: p4-uuid-");
   });
 });
