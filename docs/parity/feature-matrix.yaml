@@ -1269,7 +1269,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationCommunications.ts",
             "apps/worker/src/organization/communicationStore.ts",
-            "apps/worker/test/communications.integration.test.ts",
+            "apps/worker/test/communicationsUnsubscribe.integration.test.ts",
           ],
       },
       {
@@ -2423,7 +2423,7 @@
           [
             "apps/worker/src/organization/communicationStore.ts",
             "apps/worker/src/organization/scheduler.ts",
-            "apps/worker/test/communications.integration.test.ts",
+            "apps/worker/test/communicationsDelivery.integration.test.ts",
           ],
       },
       {
@@ -2436,7 +2436,7 @@
         "targetEvidence":
           [
             "apps/worker/src/organization/communicationStore.ts",
-            "apps/worker/test/communications.integration.test.ts",
+            "apps/worker/test/communicationsDelivery.integration.test.ts",
           ],
       },
       {
@@ -2489,7 +2489,7 @@
             "apps/worker/src/jobs/consumer.ts",
             "apps/worker/src/communications/provider.ts",
             "apps/worker/src/organization/communicationStore.ts",
-            "apps/worker/test/communications.integration.test.ts",
+            "apps/worker/test/communicationsDelivery.integration.test.ts",
             "apps/worker/test/jobs.integration.test.ts",
             "apps/web/src/account/PlatformOperations.tsx",
             "scripts/qualify-staging-message-queue.mjs",
@@ -2766,7 +2766,7 @@
             "apps/worker/src/security/signedLinks.ts",
             "apps/worker/src/organization/organizationCommunications.ts",
             "apps/worker/src/router.ts",
-            "apps/worker/test/communications.integration.test.ts",
+            "apps/worker/test/communicationsUnsubscribe.integration.test.ts",
             "scripts/qualify-staging-signed-unsubscribe.mjs",
             "docs/goal/qualification-evidence-2026-08-11.md",
           ],
@@ -3149,7 +3149,7 @@
             "apps/worker/src/organization/communicationStore.ts",
             "apps/worker/src/organization/organizationCommunications.ts",
             "apps/worker/src/jobs/consumer.ts",
-            "apps/worker/test/communications.integration.test.ts",
+            "apps/worker/test/communicationsDelivery.integration.test.ts",
             "apps/web/src/account/components/CommunicationCenter/controller.tsx",
             "scripts/qualify-staging-scheduler.mjs",
             "scripts/qualify-staging-scheduler.test.mjs",
