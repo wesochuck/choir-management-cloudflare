@@ -31,7 +31,7 @@ export async function discoverWorkerRoutes() {
       (fileName) =>
         fileName !== "routes/helpers.ts" &&
         !fileName.startsWith("routes/helpers/") &&
-        fileName !== "routes/platformAdministration/shared.ts",
+        !fileName.endsWith("/shared.ts"),
     )
     .map((fileName) => ({
       fileName,
