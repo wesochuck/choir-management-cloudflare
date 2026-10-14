@@ -21,12 +21,12 @@ typed target handlers and focused local evidence.
 
 ### Closed gaps and evidence
 
-| Area                | Closed behavior and evidence                                                                                                                                                                                                                                           |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Auditions           | Public settings/slot/closed/scheduled states, admin lifecycle routes, token atomicity, tenant isolation, and browser coverage are now represented by `auditions.spec.ts`, `publicAudition.integration.test.ts`, and `calendarManagement.integration.test.ts`.          |
-| Music and set lists | Recency/count projections, atomic event persistence, keyboard and touch ordering, copy, print, mobile cards, and light-theme switching are covered by `music.integration.test.ts` and `setlists.spec.ts`.                                                              |
-| Organization export | Typed queued/processing/completed/failed contracts, bounded R2 archive generation, checksum manifest, owner/elevated-platform authorization, replay-safe completion, download verification, and audit records are covered by `calendarManagement.integration.test.ts`. |
-| Mobile shell focus  | Staging exposed a drawer focus-return regression; the Radix Sheet now restores focus to the trigger on Escape/close, with mobile browser coverage in `auth.spec.ts`.                                                                                                   |
+| Area                | Closed behavior and evidence                                                                                                                                                                                                                                            |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Auditions           | Public settings/slot/closed/scheduled states, admin lifecycle routes, token atomicity, tenant isolation, and browser coverage are now represented by `auditions.spec.ts`, `publicAudition.integration.test.ts`, and `auditions.integration.test.ts`.                    |
+| Music and set lists | Recency/count projections, atomic event persistence, keyboard and touch ordering, copy, print, mobile cards, and light-theme switching are covered by `music.integration.test.ts` and `setlists.spec.ts`.                                                               |
+| Organization export | Typed queued/processing/completed/failed contracts, bounded R2 archive generation, checksum manifest, owner/elevated-platform authorization, replay-safe completion, download verification, and audit records are covered by `organizationExports.integration.test.ts`. |
+| Mobile shell focus  | Staging exposed a drawer focus-return regression; the Radix Sheet now restores focus to the trigger on Escape/close, with mobile browser coverage in `auth.spec.ts`.                                                                                                    |
 
 ### Open work across the remaining entries
 

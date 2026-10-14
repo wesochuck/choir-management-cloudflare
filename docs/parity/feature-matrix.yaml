@@ -620,7 +620,7 @@
             "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/components/EventsPage/page.tsx",
             "apps/worker/src/router.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/calendarEventsRsvp.integration.test.ts",
           ],
       },
       {
@@ -635,7 +635,7 @@
             "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/RsvpManagerPage.tsx",
             "apps/worker/src/router.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/calendarEventsRsvp.integration.test.ts",
           ],
       },
       {
@@ -664,7 +664,7 @@
             "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/VenuesPage.tsx",
             "apps/worker/src/router.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/calendarEventsRsvp.integration.test.ts",
           ],
       },
       {
@@ -743,7 +743,7 @@
             "apps/web/src/account/components/AuthenticatedShell/shell.tsx",
             "apps/web/src/account/components/AuditionManager/page.tsx",
             "apps/web/e2e/auditions.spec.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/auditions.integration.test.ts",
           ],
       },
       {
@@ -962,7 +962,7 @@
             "apps/worker/src/calendar/organizationCalendar.ts",
             "apps/worker/src/organization/calendarManagementStore.ts",
             "packages/contracts/src/index.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/calendarEventsRsvp.integration.test.ts",
           ],
       },
       {
@@ -977,7 +977,7 @@
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSeasons.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationFinancials.integration.test.ts",
             "scripts/qualify-staging-stripe-commerce.mjs",
             "scripts/qualify-staging-stripe-commerce.test.mjs",
             "docs/goal/READINESS.md",
@@ -1006,7 +1006,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationDonations.ts",
             "apps/worker/src/organization/donationStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationFinancials.integration.test.ts",
           ],
       },
       {
@@ -1022,7 +1022,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSeasons.ts",
             "apps/worker/src/organization/seasonStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationFinancials.integration.test.ts",
           ],
       },
       {
@@ -1038,7 +1038,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationDonations.ts",
             "apps/worker/src/organization/donationStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationFinancials.integration.test.ts",
           ],
       },
       {
@@ -1054,7 +1054,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSeasons.ts",
             "apps/worker/src/organization/seasonStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationFinancials.integration.test.ts",
           ],
       },
       {
@@ -1070,7 +1070,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/setupStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationSetup.integration.test.ts",
           ],
       },
       {
@@ -1086,7 +1086,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/setupStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationSetup.integration.test.ts",
           ],
       },
       {
@@ -1102,7 +1102,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/setupStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationSetup.integration.test.ts",
             "scripts/qualify-staging-setup-maintenance.mjs",
             "scripts/qualify-staging-setup-maintenance.test.mjs",
             "docs/goal/READINESS.md",
@@ -1121,7 +1121,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/setupStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationSetup.integration.test.ts",
           ],
       },
       {
@@ -1137,7 +1137,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationSetup.ts",
             "apps/worker/src/organization/setupStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationSetup.integration.test.ts",
             "scripts/qualify-staging-setup-maintenance.mjs",
             "scripts/qualify-staging-setup-maintenance.test.mjs",
             "docs/goal/READINESS.md",
@@ -1625,7 +1625,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationDonations.ts",
             "apps/worker/src/organization/donationStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationFinancials.integration.test.ts",
           ],
       },
       {
@@ -1688,7 +1688,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationDonations.ts",
             "apps/worker/src/organization/donationStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationFinancials.integration.test.ts",
             "scripts/qualify-staging-stripe-commerce.mjs",
             "scripts/qualify-staging-stripe-commerce.test.mjs",
             "docs/goal/READINESS.md",
@@ -1707,7 +1707,7 @@
             "apps/worker/src/routes/organizationDonations.ts",
             "apps/worker/src/organization/organizationDonations.ts",
             "apps/worker/src/organization/donationStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationFinancials.integration.test.ts",
           ],
       },
       {
@@ -1723,7 +1723,7 @@
             "apps/worker/src/routes/organizationDonations.ts",
             "apps/worker/src/organization/organizationDonations.ts",
             "apps/worker/src/organization/donationStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationFinancials.integration.test.ts",
           ],
       },
       {
@@ -1898,7 +1898,7 @@
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/organizationPollLinks.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationPolls.integration.test.ts",
           ],
       },
       {
@@ -1914,7 +1914,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/pollStore.ts",
             "apps/worker/src/organization/OrganizationStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationPolls.integration.test.ts",
           ],
       },
       {
@@ -1929,7 +1929,7 @@
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/pollStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationPolls.integration.test.ts",
           ],
       },
       {
@@ -1944,7 +1944,7 @@
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/pollStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationPolls.integration.test.ts",
           ],
       },
       {
@@ -1959,7 +1959,7 @@
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/pollStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationPolls.integration.test.ts",
           ],
       },
       {
@@ -1975,7 +1975,7 @@
             "packages/contracts/src/index.ts",
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/exportStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationExports.integration.test.ts",
             "apps/web/src/auth/api.ts",
             "apps/web/src/account/OrganizationSettingsPage.tsx",
           ],
@@ -1993,7 +1993,7 @@
             "packages/contracts/src/index.ts",
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/exportStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationExports.integration.test.ts",
             "apps/web/src/auth/api.ts",
             "apps/web/src/account/OrganizationSettingsPage.tsx",
           ],
@@ -2011,7 +2011,7 @@
             "packages/contracts/src/index.ts",
             "apps/worker/src/router.ts",
             "apps/worker/src/jobs/consumer.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationExports.integration.test.ts",
           ],
       },
       {
@@ -2027,7 +2027,7 @@
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/auditions.integration.test.ts",
             "apps/web/src/public/PublicAuditionView.tsx",
             "apps/web/e2e/auditions.spec.ts",
             "docs/goal/READINESS.md",
@@ -2098,7 +2098,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
             "apps/web/src/account/components/AuditionManager/page.tsx",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/auditions.integration.test.ts",
           ],
       },
       {
@@ -2115,7 +2115,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
             "apps/web/src/account/components/AuditionManager/page.tsx",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/auditions.integration.test.ts",
           ],
       },
       {
@@ -2131,7 +2131,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
             "apps/web/src/account/components/AuditionManager/page.tsx",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/auditions.integration.test.ts",
           ],
       },
       {
@@ -2147,7 +2147,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
             "apps/worker/test/publicAudition.integration.test.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/auditions.integration.test.ts",
           ],
       },
       {
@@ -2163,7 +2163,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
             "apps/web/src/account/components/AuditionManager/page.tsx",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/auditions.integration.test.ts",
           ],
       },
       {
@@ -2179,7 +2179,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
             "apps/web/src/account/components/AuditionManager/page.tsx",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/auditions.integration.test.ts",
           ],
       },
       {
@@ -2195,7 +2195,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/auditionStore.ts",
             "apps/worker/test/publicAudition.integration.test.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/auditions.integration.test.ts",
           ],
       },
       {
@@ -2787,7 +2787,7 @@
             "apps/worker/src/organization/schema.ts",
             "apps/worker/src/router.ts",
             "apps/worker/test/publicPoll.integration.test.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationPolls.integration.test.ts",
             "apps/web/src/public/PublicPollView.tsx",
             "apps/web/e2e/polls.spec.ts",
           ],
@@ -2878,7 +2878,7 @@
             "apps/web/src/setup/SetupView.tsx",
             "apps/web/src/setup/SetupDataImportStep.tsx",
             "apps/web/src/account/SetupChecklistView.tsx",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationSetup.integration.test.ts",
             "apps/worker/src/organization/schema.ts",
             "docs/goal/READINESS.md",
           ],
@@ -3018,7 +3018,7 @@
         "targetEvidence":
           [
             "apps/worker/src/calendar/organizationCalendar.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/calendarEventsRsvp.integration.test.ts",
             "apps/worker/test/selfServiceRsvp.integration.test.ts",
             "apps/worker/test/attendance.integration.test.ts",
             "apps/web/src/account/AttendanceManager.tsx",
@@ -3174,7 +3174,7 @@
             "apps/worker/src/organization/organizationPollLinks.ts",
             "apps/worker/src/router.ts",
             "apps/worker/test/publicPoll.integration.test.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationPolls.integration.test.ts",
             "apps/web/src/public/PublicPollView.tsx",
           ],
       },
@@ -3198,7 +3198,7 @@
             "apps/web/src/public/PublicAuditionView.tsx",
             "apps/web/src/account/components/AuditionManager/page.tsx",
             "apps/web/e2e/auditions.spec.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/auditions.integration.test.ts",
           ],
       },
       {
@@ -3291,7 +3291,7 @@
             "apps/worker/src/organization/organizationExport.ts",
             "apps/worker/src/jobs/consumer.ts",
             "apps/worker/src/router.ts",
-            "apps/worker/test/calendarManagement.integration.test.ts",
+            "apps/worker/test/organizationExports.integration.test.ts",
             "apps/web/src/account/OrganizationSettingsPage.tsx",
           ],
       },
