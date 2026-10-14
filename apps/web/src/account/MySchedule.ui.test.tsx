@@ -162,3 +162,135 @@ describe("MySchedule RSVP pending state (#196)", () => {
     expect(parentP?.textContent).toMatch(/Rehearsal\s+•\s+/);
   });
 });
+
+describe("MySchedule event details and seating link (#192)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("renders expandable accordion revealing call time, duration, venue notes, directions, and attire", async () => {
+    const event = createSampleEvent({
+      callTime: "17:15",
+      details: "Concert black attire. Enter through stage door B.",
+      durationMinutes: 120,
+      venueAddress: "123 Symphony Way",
+      venueName: "Symphony Hall",
+    });
+
+    vi.mocked(getMySchedule).mockResolvedValueOnce({
+      events: [event],
+      profileId: "00000000-0000-4000-8000-000000000001",
+      requestId: "req-test-1",
+      timezone: "America/New_York",
+    });
+
+    render(<MySchedule enabled />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Summer Concert")).toBeInTheDocument();
+    });
+
+    // Accordion toggle summary is present
+    const summary = screen.getByText("Event details");
+    expect(summary).toBeInTheDocument();
+
+    // Accordion contents
+    expect(screen.getByText("Call time:")).toBeInTheDocument();
+    expect(screen.getByText("17:15")).toBeInTheDocument();
+    expect(screen.getByText("Duration:")).toBeInTheDocument();
+    expect(screen.getByText("120 minutes")).toBeInTheDocument();
+    expect(screen.getByText("Venue & directions:")).toBeInTheDocument();
+    expect(screen.getByText(/Symphony Hall — 123 Symphony Way/)).toBeInTheDocument();
+    expect(screen.getByText("Notes & attire:")).toBeInTheDocument();
+    expect(
+      screen.getByText("Concert black attire. Enter through stage door B."),
+    ).toBeInTheDocument();
+  });
+
+  it("displays seating link when seating chart is published for a performance", async () => {
+    const event = createSampleEvent({
+      id: "event-perf-1",
+      seating: { status: "available" },
+      type: "Performance",
+    });
+
+    vi.mocked(getMySchedule).mockResolvedValueOnce({
+      events: [event],
+      profileId: "00000000-0000-4000-8000-000000000001",
+      requestId: "req-test-1",
+      timezone: "America/New_York",
+    });
+
+    const navigate = vi.fn();
+    render(<MySchedule enabled navigate={navigate} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Summer Concert")).toBeInTheDocument();
+    });
+
+    const seatingLink = screen.getByRole("link", { name: "View assigned seat" });
+    expect(seatingLink).toBeInTheDocument();
+    expect(seatingLink).toHaveAttribute("href", "/seating/event-perf-1");
+  });
+
+  it("does not display seating link when seating is not published or for rehearsal", async () => {
+    const perfEvent = createSampleEvent({
+      id: "event-perf-2",
+      seating: { status: "not_published" },
+      title: "Unpublished Seating Performance",
+      type: "Performance",
+    });
+    const rehearsalEvent = createSampleEvent({
+      id: "event-rehearsal-1",
+      seating: { status: "available" },
+      title: "Weekly Rehearsal",
+      type: "Rehearsal",
+    });
+
+    vi.mocked(getMySchedule).mockResolvedValueOnce({
+      events: [perfEvent, rehearsalEvent],
+      profileId: "00000000-0000-4000-8000-000000000001",
+      requestId: "req-test-1",
+      timezone: "America/New_York",
+    });
+
+    render(<MySchedule enabled />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Unpublished Seating Performance")).toBeInTheDocument();
+    });
+
+    expect(
+      screen.queryByRole("link", { name: /View assigned seat|Seat not assigned/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("auto-opens accordion when eventId query param matches", async () => {
+    const event = createSampleEvent({
+      id: "target-event-123",
+      title: "Featured Performance",
+    });
+
+    vi.mocked(getMySchedule).mockResolvedValueOnce({
+      events: [event],
+      profileId: "00000000-0000-4000-8000-000000000001",
+      requestId: "req-test-1",
+      timezone: "America/New_York",
+    });
+
+    window.history.pushState({}, "", "/schedule?eventId=target-event-123");
+
+    try {
+      render(<MySchedule enabled />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Featured Performance")).toBeInTheDocument();
+      });
+
+      const detailsElement = screen.getByText("Event details").closest("details");
+      expect(detailsElement).toHaveAttribute("open");
+    } finally {
+      window.history.pushState({}, "", "/schedule");
+    }
+  });
+});
