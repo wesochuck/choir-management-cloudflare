@@ -1,4 +1,4 @@
-import { contactSchema, type ContactList } from "@choir/contracts";
+import { contactCreateRequestSchema, contactSchema, type ContactList } from "@choir/contracts";
 import { expect, test } from "@playwright/test";
 import { installOrganizationApi } from "./fixtures/apiMocks";
 
@@ -73,5 +73,123 @@ test("creates an inline list with selected contacts in both themes", async ({ pa
   ).toHaveValue(listId);
   expect(added).toBe(true);
   expect(lists).toHaveLength(1);
+  api.assertNoUnexpectedRequests();
+});
+
+test("creates and deletes contact with immediate table and count synchronization (#168)", async ({
+  page,
+}) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  interface MockContact {
+    readonly id: string;
+    readonly displayName: string | null;
+    readonly firstName: string | null;
+    readonly lastName: string | null;
+    readonly email: string | null;
+    readonly phone: string | null;
+    readonly source: string | null;
+    readonly normalizedEmail: string | null;
+    readonly normalizedPhone: string | null;
+    readonly profileId: string | null;
+    readonly createdAt: string;
+    readonly updatedAt: string;
+  }
+  const contacts: MockContact[] = [];
+  let nextId = 1;
+
+  await page.route("**/api/organization/contacts?*", async (route) => {
+    await route.fulfill({
+      json: {
+        contacts,
+        hasMore: false,
+        memberships: [],
+        nextCursor: null,
+        preferences: [],
+        requestId,
+      },
+    });
+  });
+
+  await page.route("**/api/organization/contact-lists", async (route) => {
+    await route.fulfill({ json: { lists: [], requestId } });
+  });
+
+  await page.route("**/api/organization/profiles", async (route) => {
+    await route.fulfill({ json: { profiles: [], requestId } });
+  });
+
+  await page.route("**/api/organization/contacts", async (route) => {
+    if (route.request().method() === "POST") {
+      const parsed = contactCreateRequestSchema.safeParse(route.request().postDataJSON());
+      const data = parsed.success ? parsed.data : {};
+      const id = `11111111-1111-4111-8111-${String(nextId++).padStart(12, "0")}`;
+      const newContact: MockContact = {
+        createdAt: timestamp,
+        displayName: data.displayName ?? null,
+        email: data.email ?? null,
+        firstName: data.firstName ?? null,
+        id,
+        lastName: data.lastName ?? null,
+        normalizedEmail: data.email?.toLowerCase() ?? null,
+        normalizedPhone: null,
+        phone: data.phone ?? null,
+        profileId: null,
+        source: data.source ?? null,
+        updatedAt: timestamp,
+      };
+      contacts.push(newContact);
+      await route.fulfill({ json: { contact: newContact, requestId } });
+    } else {
+      await route.fallback();
+    }
+  });
+
+  await page.route("**/api/organization/contacts/*", async (route) => {
+    if (route.request().method() === "DELETE") {
+      const url = route.request().url();
+      const contactId = url.split("/").pop();
+      const index = contacts.findIndex((candidate) => candidate.id === contactId);
+      if (index !== -1) {
+        contacts.splice(index, 1);
+      }
+      await route.fulfill({ json: { contactId, requestId, status: "deleted" } });
+    } else {
+      await route.fallback();
+    }
+  });
+
+  await page.goto("/admin/contacts");
+  await expect(page.getByText("0 shown")).toBeVisible();
+  await expect(page.getByText("No contacts yet")).toBeVisible();
+
+  // Create contact
+  await page.getByRole("button", { name: "Add contact" }).click();
+  const dialog = page.getByRole("dialog", { name: "Add contact" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("First name").fill("Sarah");
+  await dialog.getByLabel("Last name").fill("Connor");
+  await dialog.getByLabel("Email").fill("sarah@example.test");
+  await dialog.getByRole("button", { name: "Create contact" }).click();
+
+  // Verify dialog closed and table updated immediately without page reload
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByText("Contact created.")).toBeVisible();
+  await expect(page.getByText("1 shown")).toBeVisible();
+  await expect(page.getByText("Sarah Connor").first()).toBeVisible();
+  await expect(page.getByText("No contacts yet")).not.toBeVisible();
+
+  // Delete contact
+  await page.getByRole("button", { name: "Delete Sarah Connor" }).first().click();
+  const deleteDialog = page.getByRole("dialog", { name: "Delete contact?" });
+  await expect(deleteDialog).toBeVisible();
+  await deleteDialog.getByRole("button", { name: "Delete contact" }).click();
+
+  // Verify dialog closed and table updated immediately without page reload
+  await expect(deleteDialog).not.toBeVisible();
+  await expect(page.getByText("Contact deleted.")).toBeVisible();
+  await expect(page.getByText("0 shown")).toBeVisible();
+  await expect(page.getByText("Sarah Connor")).not.toBeVisible();
+  await expect(page.getByText("No contacts yet")).toBeVisible();
+
   api.assertNoUnexpectedRequests();
 });
