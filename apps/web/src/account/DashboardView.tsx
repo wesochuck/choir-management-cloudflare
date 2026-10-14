@@ -226,9 +226,8 @@ function DashboardEventCard({
         </span>
       </legend>
       <p className="member-dashboard__event-date">
-        <span className="member-dashboard__event-type">{eventTypeLabel(event)}</span>
-        <span aria-hidden="true"> • </span>
-        <span>{formatDate(event.startsAt, timezone)}</span>
+        <span className="member-dashboard__event-type">{eventTypeLabel(event)}</span>{" "}
+        <span aria-hidden="true">•</span> <span>{formatDate(event.startsAt, timezone)}</span>
       </p>
       <div className="member-dashboard__event-details">
         <span>{event.venueName || event.location || "Location to be announced"}</span>

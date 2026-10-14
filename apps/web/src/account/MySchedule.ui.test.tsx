@@ -144,4 +144,21 @@ describe("MySchedule RSVP pending state (#196)", () => {
     expect(screen.getByRole("button", { name: "Yes" })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: "No" })).not.toBeDisabled();
   });
+
+  it("renders event type and date with accessible spacing (#177)", async () => {
+    const event = createSampleEvent({ type: "Rehearsal" });
+    vi.mocked(getMySchedule).mockResolvedValueOnce({
+      events: [event],
+      profileId: "00000000-0000-4000-8000-000000000001",
+      requestId: "req-test-1",
+      timezone: "America/New_York",
+    });
+
+    render(<MySchedule enabled />);
+
+    const dateParagraph = await screen.findByText("Rehearsal");
+    const parentP = dateParagraph.closest("p");
+    expect(parentP).not.toBeNull();
+    expect(parentP?.textContent).toMatch(/Rehearsal\s+•\s+/);
+  });
 });

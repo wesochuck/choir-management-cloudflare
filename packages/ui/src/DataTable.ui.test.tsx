@@ -248,6 +248,11 @@ describe("DataTable interaction", () => {
     }
     render(<SizedHarness />);
 
+    const sizeLabel = screen.getByText(/Items per page:/);
+    expect(sizeLabel.textContent).toContain("Items per page: ");
+    const pageLabel = screen.getByText(/of 2 pages/);
+    expect(pageLabel.textContent).toContain(" of 2 pages");
+
     await user.selectOptions(screen.getByLabelText("Items per page"), "4");
     expect(onPageSizeChange).toHaveBeenCalledWith(4);
   });
