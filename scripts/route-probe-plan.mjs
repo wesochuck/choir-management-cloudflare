@@ -143,6 +143,14 @@ export function isExpectedAnonymousBoundary(row, result) {
       (result.status === 503 && result.code === "stripe_webhook_unavailable")
     );
   }
+  if (result.status === 200) return true;
+  if (
+    [400, 401, 403, 405, 409, 422, 429].includes(result.status) &&
+    typeof result.code === "string" &&
+    result.code.length > 0
+  ) {
+    return true;
+  }
   if (route === "/api/public/player/playlist") {
     return result.status === 404 && result.code === "invalid_link";
   }
@@ -159,12 +167,7 @@ export function isExpectedAnonymousBoundary(row, result) {
   ) {
     return result.status === 404 && result.code === "not_found";
   }
-  if (result.status === 200) return true;
-  return (
-    [400, 401, 403, 405, 409, 422, 429].includes(result.status) &&
-    typeof result.code === "string" &&
-    result.code.length > 0
-  );
+  return false;
 }
 
 export function usesOrganizationHost(row) {
