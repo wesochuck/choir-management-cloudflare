@@ -236,8 +236,8 @@ function ScheduleEventCard({
         </legend>
 
         <p className="schedule-card__date">
-          <span className="schedule-card__type">{event.type}</span>
-          <span aria-hidden="true"> • </span>
+          <span className="schedule-card__type">{event.type}</span>{" "}
+          <span aria-hidden="true">•</span>{" "}
           <span>
             {displayDate(event.startsAt, timezone)} ({timezone})
           </span>

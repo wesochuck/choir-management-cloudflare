@@ -411,7 +411,7 @@ export function DataTable<T>({
         <nav aria-label="Pagination" className="data-table-pagination">
           {pagination.onPageSizeChange ? (
             <label className="data-table-pagination__size">
-              Items per page:
+              Items per page:{" "}
               <select
                 aria-label="Items per page"
                 onChange={(event) => {
@@ -444,7 +444,7 @@ export function DataTable<T>({
                     {index + 1}
                   </option>
                 ))}
-              </select>
+              </select>{" "}
               of {pageCount} pages
             </label>
             <button

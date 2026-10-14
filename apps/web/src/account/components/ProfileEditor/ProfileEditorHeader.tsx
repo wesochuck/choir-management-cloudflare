@@ -166,17 +166,19 @@ export function ProfileEditorHeader({
               <span className={`status-pill ${statusClass}`}>{statusLabel(globalStatus)}</span>
               {voicePartDisplay ? (
                 <>
+                  {" "}
                   <span aria-hidden="true" className="profile-editor-header__meta-sep">
                     ·
-                  </span>
+                  </span>{" "}
                   <span className="profile-editor-header__part">{voicePartDisplay}</span>
                 </>
               ) : null}
               {organizationName ? (
                 <>
+                  {" "}
                   <span aria-hidden="true" className="profile-editor-header__meta-sep">
                     ·
-                  </span>
+                  </span>{" "}
                   <span className="profile-editor-header__org" title={organizationName}>
                     {organizationName}
                   </span>
