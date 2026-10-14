@@ -106,6 +106,7 @@ interface WillCallPanelTestOptions {
   readonly clearDiscountCodeFilter?: () => void;
   readonly discountCodeFilter?: string | null;
   readonly navigate?: (href: string) => void;
+  readonly refund?: (purchaseId: string) => Promise<void>;
   readonly selectedPerformance?: OrganizationEvent | undefined;
   readonly selectedPerformanceId?: string;
   readonly showRefunded?: boolean;
@@ -134,12 +135,10 @@ function WillCallPanelHarness({
       performanceOrders={orders}
       refreshOrders={vi.fn(() => Promise.resolve())}
       refreshingOrders={false}
-      refund={vi.fn(() => Promise.resolve())}
-      refundId={null}
+      refund={options.refund ?? vi.fn(() => Promise.resolve())}
       resendConfirmation={vi.fn(() => Promise.resolve())}
       selectedPerformance={"selectedPerformance" in options ? options.selectedPerformance : event}
       selectedPerformanceId={options.selectedPerformanceId ?? eventId}
-      setRefundId={vi.fn()}
       setSelectedPerformanceId={vi.fn()}
       setShowRefunded={setShowRefunded}
       setWillCallSearch={vi.fn()}
@@ -507,5 +506,45 @@ describe("WillCallPanel edit ticket settings navigation", () => {
     expect(navigate).toHaveBeenCalledWith(
       `/admin/events?eventId=${eventId}&section=tickets&returnTo=%2Fadmin%2Ftickets%3FeventId%3D${eventId}`,
     );
+  });
+});
+
+describe("WillCallPanel refund confirmation dialog", () => {
+  it("opens modal confirmation dialog before refunding and honors cancel", async () => {
+    const user = userEvent.setup();
+    const refundMock = vi.fn(() => Promise.resolve());
+    renderWillCallPanel([paidOrder], { refund: refundMock });
+
+    const refundButton = screen.getAllByRole("button", { name: "Refund" })[0];
+    if (!refundButton) throw new Error("Expected refund button");
+    await user.click(refundButton);
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText("Refund ticket order?")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/Refund \$25\.00 to Paid Buyer for Autumn Concert\?/),
+    ).toBeInTheDocument();
+
+    const cancelButton = within(dialog).getByRole("button", { name: "Cancel" });
+    await user.click(cancelButton);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(refundMock).not.toHaveBeenCalled();
+  });
+
+  it("calls refund when confirmed in modal dialog", async () => {
+    const user = userEvent.setup();
+    const refundMock = vi.fn(() => Promise.resolve());
+    renderWillCallPanel([paidOrder], { refund: refundMock });
+
+    const refundButton = screen.getAllByRole("button", { name: "Refund" })[0];
+    if (!refundButton) throw new Error("Expected refund button");
+    await user.click(refundButton);
+    const dialog = screen.getByRole("dialog");
+    const confirmButton = within(dialog).getByRole("button", { name: "Refund order" });
+    await user.click(confirmButton);
+
+    expect(refundMock).toHaveBeenCalledWith(paidOrder.id);
   });
 });

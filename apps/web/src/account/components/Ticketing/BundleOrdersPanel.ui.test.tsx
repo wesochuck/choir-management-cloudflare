@@ -117,9 +117,7 @@ describe("BundleOrdersPanel", () => {
         refreshOrders={vi.fn(() => Promise.resolve())}
         refreshingOrders={false}
         refund={vi.fn(() => Promise.resolve())}
-        refundId={null}
         resendConfirmation={vi.fn(() => Promise.resolve())}
-        setRefundId={vi.fn()}
         state={{ orders: [], status: "ready" }}
       />,
     );
@@ -146,9 +144,7 @@ describe("BundleOrdersPanel", () => {
         refreshOrders={vi.fn(() => Promise.resolve())}
         refreshingOrders={false}
         refund={vi.fn(() => Promise.resolve())}
-        refundId={null}
         resendConfirmation={vi.fn(() => Promise.resolve())}
-        setRefundId={vi.fn()}
         state={{ orders: [], status: "ready" }}
       />,
     );
@@ -173,9 +169,7 @@ describe("BundleOrdersPanel", () => {
         refreshOrders={vi.fn(() => Promise.resolve())}
         refreshingOrders={false}
         refund={vi.fn(() => Promise.resolve())}
-        refundId={null}
         resendConfirmation={vi.fn(() => Promise.resolve())}
-        setRefundId={vi.fn()}
         state={{ orders: bundleOrders, status: "ready" }}
       />,
     );
@@ -239,5 +233,47 @@ describe("BundleOrdersPanel", () => {
     await user.click(scopedTable.getByRole("button", { name: "Sort by Buyer" }));
     expect(table.querySelector("th[aria-sort='ascending']")).toHaveTextContent("Buyer");
     expect(scopedTable.getAllByRole("row")[1]?.textContent).toContain("Zara Anderson");
+  });
+
+  it("opens modal confirmation dialog before refunding bundle order and triggers refund on confirm", async () => {
+    const user = userEvent.setup();
+    const refundMock = vi.fn(() => Promise.resolve());
+    render(
+      <BundleOrdersPanel
+        bundleOrders={bundleOrders}
+        bundles={bundles}
+        busy={false}
+        refreshOrders={vi.fn(() => Promise.resolve())}
+        refreshingOrders={false}
+        refund={refundMock}
+        resendConfirmation={vi.fn(() => Promise.resolve())}
+        state={{ orders: bundleOrders, status: "ready" }}
+      />,
+    );
+
+    const refundButtons = screen.getAllByRole("button", { name: "Refund" });
+    expect(refundButtons.length).toBeGreaterThan(0);
+    const refundButton = refundButtons[0];
+    if (!refundButton) throw new Error("Expected at least one refund button");
+    await user.click(refundButton);
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText("Refund bundle order?")).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/This financial refund cannot be undone\./),
+    ).toBeInTheDocument();
+
+    const cancelButton = within(dialog).getByRole("button", { name: "Cancel" });
+    await user.click(cancelButton);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(refundMock).not.toHaveBeenCalled();
+
+    // Now click and confirm
+    await user.click(refundButton);
+    const confirmDialog = screen.getByRole("dialog");
+    const confirmButton = within(confirmDialog).getByRole("button", { name: "Refund order" });
+    await user.click(confirmButton);
+    expect(refundMock).toHaveBeenCalled();
   });
 });

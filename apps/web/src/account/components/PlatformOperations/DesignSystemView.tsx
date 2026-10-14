@@ -67,6 +67,8 @@ export function DesignSystemView() {
   const [tableAction, setTableAction] = useState("Select View on any table row.");
   const { confirm, confirmationDialog } = useConfirmation();
   const [confirmMessage, setConfirmMessage] = useState("No confirmation requested yet.");
+  const [inlineConfirmActive, setInlineConfirmActive] = useState(false);
+  const [inlineConfirmMessage, setInlineConfirmMessage] = useState("No inline action taken yet.");
 
   const autocompleteOptions = useMemo(
     () => filterAutocompleteOptions(autocompleteValue),
@@ -577,19 +579,89 @@ export function DesignSystemView() {
         </Dialog>
 
         <h3>Confirmation</h3>
-        <p role="status">{confirmMessage}</p>
-        <div className="button-row">
-          <button
-            className="button button--danger"
-            onClick={() => {
-              void handleDestructiveConfirm();
-            }}
-            type="button"
-          >
-            Request destructive confirmation
-          </button>
+        <p>
+          Confirmation UX is standardized by action risk tier across all administrative and member
+          workflows:
+        </p>
+        <ul>
+          <li>
+            <strong>Tier 1 — Modal dialog (blocking):</strong> For irreversible financial or
+            data-loss operations (ticket refunds, permanent profile deletions, calendar token
+            resets, unpublishing public websites). Uses the repository-owned{" "}
+            <code>useConfirmation</code> hook.
+          </li>
+          <li>
+            <strong>Tier 2 — Inline 2-step confirmation (non-blocking):</strong> For reversible
+            operations (archiving profiles, archiving polls, toggling feature modules, deactivating
+            discount codes, canceling invitations, discarding form drafts) without interrupting user
+            focus.
+          </li>
+        </ul>
+        <div className="design-system__row">
+          <div>
+            <p>
+              <strong>Tier 1: Modal confirmation (irreversible)</strong>
+            </p>
+            <p role="status">{confirmMessage}</p>
+            <div className="button-row">
+              <button
+                className="button button--danger"
+                onClick={() => {
+                  void handleDestructiveConfirm();
+                }}
+                type="button"
+              >
+                Request destructive confirmation
+              </button>
+            </div>
+            {confirmationDialog}
+          </div>
+          <div>
+            <p>
+              <strong>Tier 2: Inline 2-step confirmation (reversible)</strong>
+            </p>
+            <p role="status">{inlineConfirmMessage}</p>
+            <div className="button-row">
+              {inlineConfirmActive ? (
+                <div className="danger-confirmation">
+                  <p>Deactivate this sample discount code?</p>
+                  <div className="form-actions">
+                    <button
+                      className="button button--secondary"
+                      onClick={() => {
+                        setInlineConfirmActive(false);
+                        setInlineConfirmMessage("Inline deactivation cancelled.");
+                      }}
+                      type="button"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="button button--danger"
+                      onClick={() => {
+                        setInlineConfirmActive(false);
+                        setInlineConfirmMessage("Sample discount code deactivated.");
+                      }}
+                      type="button"
+                    >
+                      Confirm deactivation
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  className="button button--secondary"
+                  onClick={() => {
+                    setInlineConfirmActive(true);
+                  }}
+                  type="button"
+                >
+                  Deactivate discount code
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-        {confirmationDialog}
 
         <h3>Data table</h3>
         <p role="status">{tableAction}</p>

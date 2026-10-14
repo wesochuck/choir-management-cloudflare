@@ -68,7 +68,6 @@ export function TicketingManager({
   readonly scanOnly?: boolean;
 }) {
   const [state, setState] = useState<OrderState>({ status: "loading" });
-  const [refundId, setRefundId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { clearScopedNoticeWhenLeavingTab, clearSuccessNotice, notice, showNotice } =
     useTicketingNotice();
@@ -364,7 +363,6 @@ export function TicketingManager({
             }
           : current,
       );
-      setRefundId(null);
       if (refunded.status === "refunded") {
         showNotice("Ticket order refunded.", "success");
       } else if (refunded.refundRequested) {
@@ -677,11 +675,9 @@ export function TicketingManager({
             refreshOrders={refreshOrders}
             refreshingOrders={refreshingOrders}
             refund={refund}
-            refundId={refundId}
             resendConfirmation={resendConfirmation}
             selectedPerformance={selectedPerformance}
             selectedPerformanceId={selectedPerformanceId}
-            setRefundId={setRefundId}
             setSelectedPerformanceId={setSelectedPerformanceId}
             setShowRefunded={setWillCallShowRefunded}
             setWillCallSearch={setWillCallSearch}
@@ -740,9 +736,7 @@ export function TicketingManager({
             refreshOrders={refreshOrders}
             refreshingOrders={refreshingOrders}
             refund={refund}
-            refundId={refundId}
             resendConfirmation={resendConfirmation}
-            setRefundId={setRefundId}
             state={state}
           />
         </TabsContent>

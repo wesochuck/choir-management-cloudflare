@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it } from "vitest";
 
@@ -199,5 +200,69 @@ describe("DesignSystemView action rows", () => {
     const saveBtn = within(dialog).getByRole("button", { name: "Save sample" });
     const dialogActions = saveBtn.closest(".dialog__actions");
     expect(dialogActions).not.toBeNull();
+  });
+});
+
+describe("DesignSystemView tiered confirmation UX", () => {
+  it("handles Tier 1 modal confirmation with confirm and cancel flows", async () => {
+    const user = userEvent.setup();
+    render(<DesignSystemView />);
+    const primitivesSection = within(screen.getByRole("region", { name: "UI primitives" }));
+
+    const triggerBtn = primitivesSection.getByRole("button", {
+      name: "Request destructive confirmation",
+    });
+    await user.click(triggerBtn);
+
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText("Archive design-system sample?")).toBeInTheDocument();
+
+    // Cancel flow
+    const cancelBtn = within(dialog).getByRole("button", { name: "Cancel" });
+    await user.click(cancelBtn);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(primitivesSection.getByText("Archive cancelled.")).toBeInTheDocument();
+
+    // Confirm flow
+    await user.click(triggerBtn);
+    const confirmDialog = screen.getByRole("dialog");
+    const confirmBtn = within(confirmDialog).getByRole("button", { name: "Archive sample" });
+    await user.click(confirmBtn);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(primitivesSection.getByText("Sample archived.")).toBeInTheDocument();
+  });
+
+  it("handles Tier 2 inline 2-step confirmation with cancel and confirm flows", async () => {
+    const user = userEvent.setup();
+    render(<DesignSystemView />);
+    const primitivesSection = within(screen.getByRole("region", { name: "UI primitives" }));
+
+    const triggerBtn = primitivesSection.getByRole("button", { name: "Deactivate discount code" });
+    await user.click(triggerBtn);
+
+    expect(
+      primitivesSection.getByText("Deactivate this sample discount code?"),
+    ).toBeInTheDocument();
+    const cancelBtn = primitivesSection.getByRole("button", { name: "Cancel" });
+    await user.click(cancelBtn);
+
+    expect(
+      primitivesSection.queryByText("Deactivate this sample discount code?"),
+    ).not.toBeInTheDocument();
+    expect(primitivesSection.getByText("Inline deactivation cancelled.")).toBeInTheDocument();
+
+    // Trigger again and confirm
+    const retriggerBtn = primitivesSection.getByRole("button", {
+      name: "Deactivate discount code",
+    });
+    await user.click(retriggerBtn);
+    const confirmBtn = primitivesSection.getByRole("button", { name: "Confirm deactivation" });
+    await user.click(confirmBtn);
+
+    expect(
+      primitivesSection.queryByText("Deactivate this sample discount code?"),
+    ).not.toBeInTheDocument();
+    expect(primitivesSection.getByText("Sample discount code deactivated.")).toBeInTheDocument();
   });
 });
