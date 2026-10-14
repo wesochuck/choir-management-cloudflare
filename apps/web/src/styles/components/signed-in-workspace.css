@@ -216,6 +216,15 @@
     margin-top: var(--spacing-sm);
   }
 
+  .roster-automation__preview-alert {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+  }
+
   .roster-automation__profile-preview {
     display: grid;
     gap: var(--spacing-xs);

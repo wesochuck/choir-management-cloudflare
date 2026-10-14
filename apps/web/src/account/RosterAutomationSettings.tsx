@@ -1,12 +1,13 @@
 import { NumberInput } from "@choir/ui";
-import type {
-  OrganizationProfile,
-  OrganizationRosterAutomationPreviewResponse,
-} from "@choir/contracts";
-import { useEffect, useMemo, useState } from "react";
+import type { OrganizationProfile } from "@choir/contracts";
+import { useMemo, useState } from "react";
 
-import { previewOrganizationRosterAutomation } from "../auth/api";
 import { useRosterConfigurationDraft } from "./rosterConfigurationDraftContext";
+import {
+  previewSummary,
+  useRosterAutomationPreview,
+  type RosterPreviewState,
+} from "./rosterAutomationPreview";
 
 interface Props {
   readonly enabled: boolean;
@@ -32,11 +33,107 @@ function formatDateTime(value: string): string {
   );
 }
 
-function previewSummary(preview: OrganizationRosterAutomationPreviewResponse | null): string {
-  if (!preview) return "Previewing the current roster…";
-  if (preview.affectedProfileCount === 0)
-    return "No existing Profiles would change under these settings.";
-  return `${String(preview.affectedProfileCount)} Profile${preview.affectedProfileCount === 1 ? "" : "s"} affected · ${String(preview.statusChangeCount)} status change${preview.statusChangeCount === 1 ? "" : "s"} · ${String(preview.rsvpExpiryCount)} RSVP expiry${preview.rsvpExpiryCount === 1 ? "" : "ies"}`;
+interface LivePreviewProps {
+  readonly effectiveProfileId: string | null;
+  readonly onProfileSelect: (id: string | null) => void;
+  readonly onRetry: () => void;
+  readonly previewState: RosterPreviewState;
+  readonly profiles: readonly OrganizationProfile[];
+}
+
+function RosterAutomationLivePreview({
+  effectiveProfileId,
+  onProfileSelect,
+  onRetry,
+  previewState,
+  profiles,
+}: LivePreviewProps) {
+  const selectedProfile = useMemo(
+    () => ("preview" in previewState ? (previewState.preview?.selectedProfile ?? null) : null),
+    [previewState],
+  );
+
+  return (
+    <fieldset className="roster-automation__preview">
+      <legend className="roster-automation__legend">Live preview</legend>
+      <div className="roster-automation__preview-header">
+        <p className="section-description" role="status">
+          {previewSummary(previewState)}
+        </p>
+        <label className="field" htmlFor="roster-automation-profile">
+          <span>Preview Profile</span>
+          <select
+            id="roster-automation-profile"
+            onChange={(event) => {
+              onProfileSelect(event.target.value || null);
+            }}
+            value={effectiveProfileId ?? ""}
+          >
+            <option value="">Choose a Profile</option>
+            {profiles
+              .filter((profile) => profile.voicePart.trim() !== "")
+              .map((profile) => (
+                <option key={profile.id} value={profile.id}>
+                  {profile.displayName}
+                </option>
+              ))}
+          </select>
+        </label>
+      </div>
+      {previewState.status === "error" ? (
+        <div className="notice notice--error roster-automation__preview-alert" role="alert">
+          <span>{previewState.error}</span>
+          <button
+            className="button button--secondary button--small"
+            onClick={onRetry}
+            type="button"
+          >
+            Retry preview
+          </button>
+        </div>
+      ) : null}
+      {previewState.status === "loading" && previewState.isSlow ? (
+        <div className="notice notice--warning roster-automation__preview-alert" role="status">
+          <span>Preview is taking longer than expected.</span>
+          <button
+            className="button button--secondary button--small"
+            onClick={onRetry}
+            type="button"
+          >
+            Retry preview
+          </button>
+        </div>
+      ) : null}
+      {selectedProfile ? (
+        <div className="roster-automation__profile-preview">
+          <div className="roster-automation__profile-summary">
+            <strong>{selectedProfile.displayName}</strong>
+            <p className="field-help">
+              {statusLabel(selectedProfile.currentStatus)} →{" "}
+              {statusLabel(selectedProfile.nextStatus)} · {selectedProfile.nextStatusReason}
+            </p>
+          </div>
+          <p className="field-help">
+            {selectedProfile.currentStatus === "Idle"
+              ? `On Break transition: ${formatDate(selectedProfile.onBreakInactiveDate)}`
+              : "No On Break transition scheduled."}
+          </p>
+          {selectedProfile.recentPerformances.length > 0 ? (
+            <div className="roster-automation__recent">
+              {selectedProfile.recentPerformances.slice(0, 3).map((performance) => (
+                <span key={performance.id} className="status-pill">
+                  {formatDateTime(performance.startsAt)} · {performance.rsvp} /{" "}
+                  {performance.attendance}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="field-help">No Performance roster history yet.</p>
+          )}
+        </div>
+      ) : null}
+    </fieldset>
+  );
 }
 
 export function RosterAutomationSettings({ enabled }: Props) {
@@ -49,7 +146,6 @@ export function RosterAutomationSettings({ enabled }: Props) {
   } = useRosterConfigurationDraft();
 
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
-  const [preview, setPreview] = useState<OrganizationRosterAutomationPreviewResponse | null>(null);
 
   const error = contextError ?? draftReturn.error;
   const setConfiguration = draftReturn.setDraft;
@@ -61,25 +157,11 @@ export function RosterAutomationSettings({ enabled }: Props) {
   );
   const effectiveProfileId = selectedProfileId ?? candidateProfileId;
 
-  useEffect(() => {
-    if (!configuration || !enabled) return;
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      void previewOrganizationRosterAutomation(configuration, effectiveProfileId)
-        .then((nextPreview) => {
-          if (!cancelled) setPreview(nextPreview);
-        })
-        .catch(() => {
-          if (!cancelled) setPreview(null);
-        });
-    }, 250);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [configuration, effectiveProfileId, enabled]);
-
-  const selectedProfile = useMemo(() => preview?.selectedProfile ?? null, [preview]);
+  const { handleRetry, previewState } = useRosterAutomationPreview(
+    configuration,
+    effectiveProfileId,
+    enabled,
+  );
 
   if (!enabled) return null;
 
@@ -119,8 +201,8 @@ export function RosterAutomationSettings({ enabled }: Props) {
                   <span>Consecutive missed Performances</span>
                   <NumberInput
                     id="status-automation-threshold"
-                    min="1"
                     max="10"
+                    min="1"
                     onChange={(event) => {
                       setConfiguration({
                         ...configuration,
@@ -172,8 +254,8 @@ export function RosterAutomationSettings({ enabled }: Props) {
                 <span>Days on Break before Inactive</span>
                 <NumberInput
                   id="on-break-timeout-days"
-                  min="1"
                   max="3650"
+                  min="1"
                   onChange={(event) => {
                     setConfiguration({
                       ...configuration,
@@ -223,8 +305,8 @@ export function RosterAutomationSettings({ enabled }: Props) {
                 <span>Hours before the RSVP deadline</span>
                 <NumberInput
                   id="rsvp-follow-up-lead-hours"
-                  min="1"
                   max="720"
+                  min="1"
                   onChange={(event) => {
                     setConfiguration({
                       ...configuration,
@@ -241,8 +323,8 @@ export function RosterAutomationSettings({ enabled }: Props) {
                 <span>Rehearsal misses before an attendance warning</span>
                 <NumberInput
                   id="attendance-report-warning-threshold"
-                  min="1"
                   max="10"
+                  min="1"
                   onChange={(event) => {
                     setConfiguration({
                       ...configuration,
@@ -257,61 +339,13 @@ export function RosterAutomationSettings({ enabled }: Props) {
               </label>
             </fieldset>
           </div>
-          <fieldset className="roster-automation__preview">
-            <legend className="roster-automation__legend">Live preview</legend>
-            <div className="roster-automation__preview-header">
-              <p className="section-description" role="status">
-                {previewSummary(preview)}
-              </p>
-              <label className="field" htmlFor="roster-automation-profile">
-                <span>Preview Profile</span>
-                <select
-                  id="roster-automation-profile"
-                  onChange={(event) => {
-                    setSelectedProfileId(event.target.value || null);
-                  }}
-                  value={effectiveProfileId ?? ""}
-                >
-                  <option value="">Choose a Profile</option>
-                  {profiles
-                    .filter((profile) => profile.voicePart.trim() !== "")
-                    .map((profile) => (
-                      <option key={profile.id} value={profile.id}>
-                        {profile.displayName}
-                      </option>
-                    ))}
-                </select>
-              </label>
-            </div>
-            {selectedProfile ? (
-              <div className="roster-automation__profile-preview">
-                <div className="roster-automation__profile-summary">
-                  <strong>{selectedProfile.displayName}</strong>
-                  <p className="field-help">
-                    {statusLabel(selectedProfile.currentStatus)} →{" "}
-                    {statusLabel(selectedProfile.nextStatus)} · {selectedProfile.nextStatusReason}
-                  </p>
-                </div>
-                <p className="field-help">
-                  {selectedProfile.currentStatus === "Idle"
-                    ? `On Break transition: ${formatDate(selectedProfile.onBreakInactiveDate)}`
-                    : "No On Break transition scheduled."}
-                </p>
-                {selectedProfile.recentPerformances.length > 0 ? (
-                  <div className="roster-automation__recent">
-                    {selectedProfile.recentPerformances.slice(0, 3).map((performance) => (
-                      <span key={performance.id} className="status-pill">
-                        {formatDateTime(performance.startsAt)} · {performance.rsvp} /{" "}
-                        {performance.attendance}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="field-help">No Performance roster history yet.</p>
-                )}
-              </div>
-            ) : null}
-          </fieldset>
+          <RosterAutomationLivePreview
+            effectiveProfileId={effectiveProfileId}
+            onProfileSelect={setSelectedProfileId}
+            onRetry={handleRetry}
+            previewState={previewState}
+            profiles={profiles}
+          />
         </>
       ) : null}
     </section>
