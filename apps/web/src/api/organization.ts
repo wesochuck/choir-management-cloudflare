@@ -123,10 +123,12 @@ export async function updateOrganizationRosterConfiguration(
 export async function previewOrganizationRosterAutomation(
   configuration: OrganizationRosterConfiguration,
   profileId: string | null,
+  signal?: AbortSignal,
 ): Promise<OrganizationRosterAutomationPreviewResponse> {
   const response = await request("/api/organization/roster-configuration/preview", {
     body: JSON.stringify({ configuration, profileId }),
     method: "POST",
+    signal: signal ?? null,
   });
   return organizationRosterAutomationPreviewResponseSchema.parse(await response.json());
 }
