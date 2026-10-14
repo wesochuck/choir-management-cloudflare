@@ -12,9 +12,12 @@ import {
   createMessageBatch,
   getQueueResult,
   reset,
+  runDurableObjectAlarm,
   runInDurableObject,
 } from "cloudflare:test";
 import { expect, inject } from "vitest";
+
+export { env, exports };
 
 import {
   clearCapturedPlatformEmailsForTest,
@@ -123,4 +126,17 @@ export async function setupTicketingIntegration(): Promise<void> {
 
 export async function teardownTicketingIntegration(): Promise<void> {
   await reset();
+}
+
+export async function triggerScheduler(stub: DurableObjectStub<OrganizationStore>): Promise<void> {
+  const overdueAt = new Date(Date.now() - 1_000).toISOString();
+  await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+    state.storage.sql.exec(
+      "UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1",
+      overdueAt,
+      overdueAt,
+    );
+    return state.storage.setAlarm(Date.now() + 60_000).then(() => undefined);
+  });
+  await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
 }
