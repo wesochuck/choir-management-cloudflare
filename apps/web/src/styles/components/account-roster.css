@@ -208,10 +208,15 @@
   }
 
   .calendar-feed-url-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--spacing-sm);
+  }
+
+  .calendar-feed-url-row input {
+    flex: 1 1 14rem;
+    min-width: 0;
   }
 
   .calendar-feed-url-row .button {
