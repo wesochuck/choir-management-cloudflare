@@ -356,7 +356,20 @@
     justify-content: flex-start;
   }
 
-  /* Directory filters and grid */
+  /* Directory filters, return bar, and grid */
+
+  .admin-return-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs) var(--spacing-sm);
+    margin-block: 0 var(--spacing-md);
+  }
+
+  .admin-return-bar__action {
+    display: inline-flex;
+    align-items: center;
+  }
 
   .directory-filters {
     display: grid;

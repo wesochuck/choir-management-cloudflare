@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   eventsPagePropsFromSearch,
+  renderMemberPage,
   renderOrganizationPage,
+  safeAdminReturnPath,
   sanitizeEventsReturnTo,
   ticketingTabFromSearch,
 } from "./workspacesUtils";
@@ -157,5 +159,64 @@ describe("renderOrganizationPage routing and aliases", () => {
     expect(ticketingTabFromSearch("?tab=willcall")).toBe("willcall");
     expect(ticketingTabFromSearch("?tab=auditions")).toBeNull();
     expect(ticketingTabFromSearch("")).toBeNull();
+  });
+
+  it("resolves safe admin return paths and rejects non-admin routes and open redirects", () => {
+    // Default admin return path when arriving from admin sidebar
+    expect(safeAdminReturnPath("?from=admin")).toBe("/admin/roster");
+
+    // Specific admin return destinations
+    expect(safeAdminReturnPath("?from=admin&returnTo=%2Fadmin%2Fevents")).toBe("/admin/events");
+    expect(safeAdminReturnPath("?returnTo=/admin/settings")).toBe("/admin/settings");
+    expect(safeAdminReturnPath("?returnTo=/admin/roster?filter=soprano#top")).toBe(
+      "/admin/roster?filter=soprano#top",
+    );
+
+    // Rejects external/open-redirect attempts and non-admin routes
+    expect(safeAdminReturnPath("?returnTo=https://evil.com")).toBeNull();
+    expect(safeAdminReturnPath("?returnTo=//evil.com")).toBeNull();
+    expect(safeAdminReturnPath("?returnTo=/\\evil.com")).toBeNull();
+    expect(safeAdminReturnPath("?returnTo=%2F%5Cevil.com")).toBeNull();
+    expect(safeAdminReturnPath("?returnTo=/member/schedule")).toBeNull();
+    expect(safeAdminReturnPath("?returnTo=/dashboard")).toBeNull();
+    expect(safeAdminReturnPath("?from=admin&returnTo=https://evil.com")).toBeNull();
+    expect(safeAdminReturnPath("")).toBeNull();
+    expect(safeAdminReturnPath("?search=test")).toBeNull();
+  });
+
+  it("passes adminReturnTo to MemberProfileDirectory when rendering /directory", () => {
+    const navigate = vi.fn();
+    const hasDirectoryProps = (
+      value: unknown,
+    ): value is {
+      readonly props: { readonly adminReturnTo?: string | null; readonly view?: string };
+    } => typeof value === "object" && value !== null && "props" in value;
+
+    const elementWithAdminReturn = renderMemberPage(
+      "/directory",
+      true,
+      navigate,
+      "ready",
+      false,
+      "/admin/roster",
+    );
+    expect(hasDirectoryProps(elementWithAdminReturn)).toBe(true);
+    if (hasDirectoryProps(elementWithAdminReturn)) {
+      expect(elementWithAdminReturn.props.adminReturnTo).toBe("/admin/roster");
+      expect(elementWithAdminReturn.props.view).toBe("directory");
+    }
+
+    const elementWithoutAdminReturn = renderMemberPage(
+      "/directory",
+      true,
+      navigate,
+      "ready",
+      false,
+    );
+    expect(hasDirectoryProps(elementWithoutAdminReturn)).toBe(true);
+    if (hasDirectoryProps(elementWithoutAdminReturn)) {
+      expect(elementWithoutAdminReturn.props.adminReturnTo).toBeUndefined();
+      expect(elementWithoutAdminReturn.props.view).toBe("directory");
+    }
   });
 });

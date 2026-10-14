@@ -80,7 +80,7 @@ export const organizationGroups: readonly NavigationGroup[] = [
       { href: "/admin/roster", label: "Roster", module: "roster" },
       { href: "/admin/contacts", label: "Contacts" },
       { href: "/admin/settings/invitations", label: "Membership invitations", module: "roster" },
-      { href: "/directory", label: "Directory", module: "directory" },
+      { href: "/directory?from=admin", label: "Directory", module: "directory" },
       { href: "/admin/auditions", label: "Auditions & Inquiries", module: "auditions" },
     ],
   },

@@ -76,6 +76,39 @@ export function sanitizeEventsReturnTo(returnTo: string | null | undefined): str
   return isAllowed ? returnTo : null;
 }
 
+export function safeAdminReturnPath(search: string): string | null {
+  const params = new URLSearchParams(search);
+  const rawReturnTo = params.get("returnTo");
+  if (rawReturnTo) {
+    if (
+      !rawReturnTo.startsWith("/") ||
+      rawReturnTo.startsWith("//") ||
+      rawReturnTo.includes("\\") ||
+      rawReturnTo.toLowerCase().includes("%5c")
+    ) {
+      return null;
+    }
+    // eslint-disable-next-line no-control-regex
+    if (/[\x00-\x1f\x7f]/.test(rawReturnTo)) {
+      return null;
+    }
+    try {
+      const parsed = new URL(rawReturnTo, "https://local.test");
+      if (parsed.origin !== "https://local.test") return null;
+      if (parsed.pathname === "/admin" || parsed.pathname.startsWith("/admin/")) {
+        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+  if (params.get("from") === "admin") {
+    return "/admin/roster";
+  }
+  return null;
+}
+
 const TICKETING_TABS: readonly TicketingTab[] = [
   "willcall",
   "bundles",
@@ -396,9 +429,17 @@ export function renderMemberPage(
   navigate: (href: string) => void,
   accessStatus: AccessState["status"],
   mfaRequired = false,
+  adminReturnTo?: string | null,
 ): ReactNode {
   const pages: Record<string, ReactNode> = {
-    "/directory": <MemberProfileDirectory enabled={enabled} view="directory" />,
+    "/directory": (
+      <MemberProfileDirectory
+        adminReturnTo={adminReturnTo}
+        enabled={enabled}
+        navigate={navigate}
+        view="directory"
+      />
+    ),
     "/member/resources": <OrganizationResources enabled={enabled} manager={false} />,
     "/practice": <MemberPracticeView enabled={enabled} />,
     "/profile": <MemberProfileDirectory enabled={enabled} view="profile" />,

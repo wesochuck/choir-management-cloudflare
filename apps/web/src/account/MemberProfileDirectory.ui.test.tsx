@@ -164,3 +164,50 @@ describe("MemberProfileDirectory reminder preferences", () => {
     ).not.toBeChecked();
   });
 });
+
+describe("MemberProfileDirectory admin return banner", () => {
+  beforeEach(() => {
+    vi.mocked(profilesApi.listOrganizationDirectory).mockResolvedValue([
+      {
+        displayName: "Casey Singer",
+        email: "casey@example.test",
+        id: "1",
+        phone: "555-0100",
+        photoFileId: null,
+        voicePart: "S1",
+      },
+    ]);
+  });
+
+  it("renders admin return banner when adminReturnTo is provided and navigates on click", async () => {
+    const navigate = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <MemberProfileDirectory
+        adminReturnTo="/admin/roster"
+        enabled
+        navigate={navigate}
+        view="directory"
+      />,
+    );
+
+    const banner = await screen.findByRole("complementary", { name: "Admin navigation context" });
+    expect(banner).toBeInTheDocument();
+    expect(banner).toHaveTextContent("Viewing member Directory");
+    expect(banner).toHaveTextContent("Back to Admin");
+
+    const returnLink = within(banner).getByRole("link", { name: "Back to Admin" });
+    expect(returnLink).toHaveAttribute("href", "/admin/roster");
+
+    await user.click(returnLink);
+    expect(navigate).toHaveBeenCalledWith("/admin/roster");
+  });
+
+  it("does not render admin return banner when adminReturnTo is omitted or null", async () => {
+    render(<MemberProfileDirectory enabled view="directory" />);
+
+    await screen.findByRole("region", { name: "Organization directory" });
+    expect(screen.queryByRole("complementary", { name: "Admin navigation context" })).toBeNull();
+    expect(screen.queryByText("Back to Admin")).toBeNull();
+  });
+});

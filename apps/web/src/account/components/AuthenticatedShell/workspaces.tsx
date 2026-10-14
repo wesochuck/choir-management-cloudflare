@@ -14,6 +14,7 @@ import {
   renderAccountPage,
   renderMemberPage,
   renderOrganizationPage,
+  safeAdminReturnPath,
   sessionDisplayName,
 } from "./workspacesUtils";
 import type { AccessState, RouteState, Workspace } from "./types";
@@ -350,6 +351,53 @@ function PlatformWorkspacePage({
   return <PlatformAccess view="security" />;
 }
 
+function MemberWorkspacePage({
+  access,
+  memberEnabled,
+  navigate,
+  route,
+}: {
+  readonly access: AccessState;
+  readonly memberEnabled: boolean;
+  readonly navigate: (href: string) => void;
+  readonly route: RouteState;
+}) {
+  const requiredModule = routeModule(route.pathname);
+  if (
+    access.status === "ready" &&
+    requiredModule !== undefined &&
+    !routeHasModule({ module: requiredModule }, access.modules)
+  ) {
+    return <AccessDeniedPage workspace={`${requiredModule} module`} />;
+  }
+  const isMfaRequired =
+    access.status === "ready" &&
+    access.context.mfaRequired &&
+    !access.context.mfaSatisfied &&
+    !access.context.mfaVerifiedUntil;
+  const hasAdminAccess =
+    (access.status === "ready" &&
+      (access.context.role === "owner" || access.context.role === "administrator")) ||
+    access.status === "platform-scoped";
+  const adminReturnTo = hasAdminAccess ? safeAdminReturnPath(route.search) : null;
+  return (
+    renderMemberPage(
+      route.pathname,
+      memberEnabled,
+      navigate,
+      access.status,
+      isMfaRequired,
+      adminReturnTo,
+    ) ?? (
+      <OverviewPage
+        context={access.status === "ready" ? access.context : null}
+        navigate={navigate}
+        workspace="member"
+      />
+    )
+  );
+}
+
 export function WorkspacePage({
   access,
   currentSession,
@@ -394,26 +442,12 @@ export function WorkspacePage({
       />
     );
   }
-  const requiredModule = routeModule(route.pathname);
-  if (
-    access.status === "ready" &&
-    requiredModule !== undefined &&
-    !routeHasModule({ module: requiredModule }, access.modules)
-  ) {
-    return <AccessDeniedPage workspace={`${requiredModule} module`} />;
-  }
-  const isMfaRequired =
-    access.status === "ready" &&
-    access.context.mfaRequired &&
-    !access.context.mfaSatisfied &&
-    !access.context.mfaVerifiedUntil;
   return (
-    renderMemberPage(route.pathname, memberEnabled, navigate, access.status, isMfaRequired) ?? (
-      <OverviewPage
-        context={access.status === "ready" ? access.context : null}
-        navigate={navigate}
-        workspace="member"
-      />
-    )
+    <MemberWorkspacePage
+      access={access}
+      memberEnabled={memberEnabled}
+      navigate={navigate}
+      route={route}
+    />
   );
 }
