@@ -168,18 +168,19 @@ test("creates and deletes contact with immediate table and count synchronization
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("First name").fill("Sarah");
   await dialog.getByLabel("Last name").fill("Connor");
-  await dialog.getByLabel("Email").fill("sarah@example.test");
+  await dialog.getByLabel("Email", { exact: true }).fill("sarah@example.test");
   await dialog.getByRole("button", { name: "Create contact" }).click();
 
   // Verify dialog closed and table updated immediately without page reload
   await expect(dialog).not.toBeVisible();
   await expect(page.getByText("Contact created.")).toBeVisible();
   await expect(page.getByText("1 shown")).toBeVisible();
-  await expect(page.getByText("Sarah Connor").first()).toBeVisible();
+  const visibleContacts = page.locator(".data-table:visible, .data-table-cards:visible");
+  await expect(visibleContacts.getByText("Sarah Connor")).toBeVisible();
   await expect(page.getByText("No contacts yet")).not.toBeVisible();
 
   // Delete contact
-  await page.getByRole("button", { name: "Delete Sarah Connor" }).first().click();
+  await visibleContacts.getByRole("button", { name: "Delete Sarah Connor" }).click();
   const deleteDialog = page.getByRole("dialog", { name: "Delete contact?" });
   await expect(deleteDialog).toBeVisible();
   await deleteDialog.getByRole("button", { name: "Delete contact" }).click();
@@ -188,7 +189,7 @@ test("creates and deletes contact with immediate table and count synchronization
   await expect(deleteDialog).not.toBeVisible();
   await expect(page.getByText("Contact deleted.")).toBeVisible();
   await expect(page.getByText("0 shown")).toBeVisible();
-  await expect(page.getByText("Sarah Connor")).not.toBeVisible();
+  await expect(visibleContacts.getByText("Sarah Connor")).not.toBeVisible();
   await expect(page.getByText("No contacts yet")).toBeVisible();
 
   api.assertNoUnexpectedRequests();
