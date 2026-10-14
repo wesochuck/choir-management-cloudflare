@@ -547,4 +547,19 @@ describe("WillCallPanel refund confirmation dialog", () => {
 
     expect(refundMock).toHaveBeenCalledWith(paidOrder.id);
   });
+
+  it("renders row action buttons within the direct action wrapper", () => {
+    renderWillCallPanel([paidOrder]);
+    const actionsCell = screen
+      .getAllByRole("cell")
+      .find((cell) => cell.classList.contains("data-table__cell--actions"));
+    expect(actionsCell).toBeDefined();
+    const actionWrapper = actionsCell?.querySelector(".form-actions");
+    expect(actionWrapper instanceof HTMLElement).toBe(true);
+    if (!(actionWrapper instanceof HTMLElement)) {
+      throw new Error("Expected actionWrapper to be an HTMLElement");
+    }
+    expect(within(actionWrapper).getByRole("button", { name: "Resend" })).toBeInTheDocument();
+    expect(within(actionWrapper).getByRole("button", { name: "Refund" })).toBeInTheDocument();
+  });
 });
