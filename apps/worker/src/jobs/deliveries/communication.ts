@@ -1,4 +1,8 @@
-import { renderCommunicationTemplate, renderOrganizationLogoPlaceholder } from "@choir/domain";
+import {
+  extractCommunicationPlaceholders,
+  renderCommunicationTemplate,
+  renderOrganizationLogoPlaceholder,
+} from "@choir/domain";
 import { deliverOrganizationCommunication } from "../../communications/provider";
 import {
   readCommunicationDeliveryJob,
@@ -15,6 +19,61 @@ import {
   renderRsvpLinks,
   resolveCanonicalOrigin,
 } from "./shared";
+async function renderDeliveryContent(
+  env: JobConsumerEnv,
+  job: DeliveryJob,
+  deliveryJob: Awaited<ReturnType<typeof readCommunicationDeliveryJob>>,
+  delivery: Awaited<ReturnType<typeof readCommunicationDeliveryJob>>["deliveries"][number],
+  orgName: string,
+  logoUrl: string | null,
+  canonicalOrigin: string | null,
+): Promise<string> {
+  const logoPlaceholder = renderOrganizationLogoPlaceholder({
+    channel: delivery.channel,
+    logoUrl,
+    organizationName: orgName,
+  });
+  const templatedContent = renderCommunicationTemplate(
+    deliveryJob.contentMarkdown,
+    delivery.recipientName,
+    {
+      organizationLogo: logoPlaceholder,
+      organizationName: orgName,
+      ...(deliveryJob.context ?? {}),
+    },
+  );
+  const contentWithRsvpLinks = await renderRsvpLinks(
+    env,
+    job.organizationId,
+    templatedContent,
+    deliveryJob.context?.eventId ?? null,
+    delivery,
+    canonicalOrigin,
+  );
+  const contentWithPlayerLinks = await renderPlayerLinks(
+    env,
+    job.organizationId,
+    contentWithRsvpLinks,
+    deliveryJob.context?.eventId ?? null,
+    delivery,
+    canonicalOrigin,
+  );
+  return renderPollLinks(
+    env,
+    job.organizationId,
+    contentWithPlayerLinks,
+    delivery,
+    canonicalOrigin,
+  );
+}
+
+function checkUnresolvedPlaceholders(subject: string, content: string): string | null {
+  const unresolvedSubject = extractCommunicationPlaceholders(subject);
+  const unresolvedContent = extractCommunicationPlaceholders(content);
+  const unresolved = [...new Set([...unresolvedSubject, ...unresolvedContent])];
+  if (unresolved.length === 0) return null;
+  return `unresolved_placeholders: Cannot deliver communication due to unresolvable placeholders: ${unresolved.join(", ")}`;
+}
 
 export async function deliverCommunicationJob(
   env: JobConsumerEnv,
@@ -36,43 +95,41 @@ export async function deliverCommunicationJob(
   const logoUrl = branding.logoFileId ? `${origin}/api/public/logo` : null;
 
   for (const delivery of deliveryJob.deliveries) {
-    const logoPlaceholder = renderOrganizationLogoPlaceholder({
-      channel: delivery.channel,
+    const renderedContent = await renderDeliveryContent(
+      env,
+      job,
+      deliveryJob,
+      delivery,
+      orgName,
       logoUrl,
-      organizationName: orgName,
-    });
-    const templatedContent = renderCommunicationTemplate(
-      deliveryJob.contentMarkdown,
+      canonicalOrigin,
+    );
+    const renderedSubject = renderCommunicationTemplate(
+      deliveryJob.subject,
       delivery.recipientName,
       {
-        organizationLogo: logoPlaceholder,
         organizationName: orgName,
         ...(deliveryJob.context ?? {}),
       },
     );
-    const contentWithRsvpLinks = await renderRsvpLinks(
-      env,
-      job.organizationId,
-      templatedContent,
-      deliveryJob.context?.eventId ?? null,
-      delivery,
-      canonicalOrigin,
-    );
-    const contentWithPlayerLinks = await renderPlayerLinks(
-      env,
-      job.organizationId,
-      contentWithRsvpLinks,
-      deliveryJob.context?.eventId ?? null,
-      delivery,
-      canonicalOrigin,
-    );
-    const renderedContent = await renderPollLinks(
-      env,
-      job.organizationId,
-      contentWithPlayerLinks,
-      delivery,
-      canonicalOrigin,
-    );
+
+    const failureDetail = checkUnresolvedPlaceholders(renderedSubject, renderedContent);
+    if (failureDetail) {
+      await recordCommunicationDeliveryResults(env, {
+        jobId: job.jobId,
+        organizationId: job.organizationId,
+        results: [
+          {
+            deliveryId: delivery.id,
+            failureDetail,
+            providerMessageId: null,
+            status: "failed",
+          },
+        ],
+      });
+      continue;
+    }
+
     const result = await deliverOrganizationCommunication(env, {
       channel: delivery.channel,
       contentMarkdown: renderedContent,
@@ -90,10 +147,7 @@ export async function deliverCommunicationJob(
       sourceId: delivery.id,
       sourceKind: delivery.channel === "email" ? "communication_delivery" : undefined,
       ticketServiceNotice: deliveryJob.ticketServiceNotice,
-      subject: renderCommunicationTemplate(deliveryJob.subject, delivery.recipientName, {
-        organizationName: orgName,
-        ...(deliveryJob.context ?? {}),
-      }),
+      subject: renderedSubject,
       unsubscribeUrl: delivery.unsubscribeUrl,
     });
     // Persist each result before moving on so a worker crash cannot cause all

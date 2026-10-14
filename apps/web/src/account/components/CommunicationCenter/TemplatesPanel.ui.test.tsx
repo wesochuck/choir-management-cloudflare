@@ -115,4 +115,37 @@ describe("TemplatesPanel", () => {
     expect(nextButton).toBeDisabled();
     expect(prevButton).toBeEnabled();
   });
+
+  it("displays placeholder guidance when templates contain event-required placeholders", async () => {
+    const user = userEvent.setup();
+    const eventReminderTemplate: CommunicationTemplate = {
+      channel: "Email",
+      contentMarkdown: "Reminder: we have rehearsal coming up. Don't forget your music!",
+      createdAt: "2026-01-01T00:00:00Z",
+      id: "7ad6f60b-d383-4b0c-8fa8-3bc22b0f1499",
+      isSystem: false,
+      subject: "Rehearsal reminder: {eventTitle}",
+      title: "Event Reminder Custom",
+      updatedAt: "2026-01-02T00:00:00Z",
+    };
+    vi.spyOn(apiModule, "listOrganizationCommunicationTemplates").mockResolvedValue([
+      eventReminderTemplate,
+    ]);
+
+    render(<TemplatesPanel />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("article", { name: eventReminderTemplate.title }),
+      ).toBeInTheDocument();
+    });
+
+    const card = screen.getByRole("article", { name: eventReminderTemplate.title });
+    await user.click(within(card).getByRole("button", { name: "Edit wording" }));
+
+    const guidance = screen.getByRole("note", { name: "Template placeholder guidance" });
+    expect(guidance).toBeInTheDocument();
+    expect(guidance).toHaveTextContent(
+      "Event variables ({eventTitle}) require an associated event and will only resolve during event-related sends or reminders.",
+    );
+  });
 });

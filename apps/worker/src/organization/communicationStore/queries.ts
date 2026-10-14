@@ -224,23 +224,28 @@ export function listCommunicationHistoryFromStore(
       SELECT
         'manual' AS kind,
         3 AS source_rank,
-        id,
-        COALESCE(sent_at, created_at) AS sort_timestamp,
-        CASE WHEN canceled_at IS NOT NULL THEN 'Canceled' ELSE status END AS status,
-        subject,
-        channel,
-        created_at AS createdAt,
-        updated_at AS updatedAt,
-        sent_at AS sentAt,
-        canceled_at AS canceledAt,
-        reach_json AS reachJson,
-        audience_json AS audienceJson,
-        content_markdown AS contentMarkdown,
-        NULL AS eventId,
-        NULL AS eventTitle,
-        NULL AS autoKind,
+        m.id,
+        COALESCE(m.sent_at, m.created_at) AS sort_timestamp,
+        CASE WHEN m.canceled_at IS NOT NULL THEN 'Canceled' ELSE m.status END AS status,
+        CASE
+          WHEN m.subject LIKE '%{eventTitle}%' AND e.title IS NOT NULL AND e.title <> ''
+          THEN REPLACE(REPLACE(m.subject, '{eventTitle}', e.title), '{eventType}', COALESCE(e.type, ''))
+          ELSE m.subject
+        END AS subject,
+        m.channel,
+        m.created_at AS createdAt,
+        m.updated_at AS updatedAt,
+        m.sent_at AS sentAt,
+        m.canceled_at AS canceledAt,
+        m.reach_json AS reachJson,
+        m.audience_json AS audienceJson,
+        m.content_markdown AS contentMarkdown,
+        COALESCE(json_extract(m.automation_json, '$.eventId'), json_extract(m.audience_json, '$.eventId')) AS eventId,
+        e.title AS eventTitle,
+        json_extract(m.automation_json, '$.kind') AS autoKind,
         NULL AS recipientCount
-      FROM communication_messages
+      FROM communication_messages m
+      LEFT JOIN events e ON e.id = COALESCE(json_extract(m.automation_json, '$.eventId'), json_extract(m.audience_json, '$.eventId'))
 
       UNION ALL
 

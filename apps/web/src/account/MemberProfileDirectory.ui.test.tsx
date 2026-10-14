@@ -1,5 +1,5 @@
 import { memberProfileSchema, type MemberProfile } from "@choir/contracts";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -121,7 +121,9 @@ describe("MemberProfileDirectory profile photo dirty state", () => {
       memberProfile.id,
       "uploaded-photo-file-id",
     );
-    expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
+    });
   });
 });
 
