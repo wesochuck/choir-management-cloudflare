@@ -10,6 +10,7 @@ import {
 import { useRosterPart } from "../public/player/useRosterPart";
 import {
   filterLibraryPieces,
+  isPiecePlayableForPart,
   pieceIdsForEvent,
   singerPiecesToPlaylistItems,
 } from "./memberPracticeLibrary";
@@ -30,6 +31,7 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [playableOnly, setPlayableOnly] = useState(false);
 
   useEffect(() => {
     if (!enabled) return;
@@ -67,10 +69,27 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
     };
   }, [enabled, eventId]);
 
-  const items = useMemo(
-    () => singerPiecesToPlaylistItems(filterLibraryPieces(pieces, query, focusedPieceIds, pieceId)),
+  const scopedPieces = useMemo(
+    () => filterLibraryPieces(pieces, query, focusedPieceIds, pieceId, false),
     [focusedPieceIds, pieceId, pieces, query],
   );
+
+  const playableCount = useMemo(
+    () => scopedPieces.filter((piece) => isPiecePlayableForPart(piece, rosterPart)).length,
+    [rosterPart, scopedPieces],
+  );
+
+  const totalCount = scopedPieces.length;
+
+  const filteredPieces = useMemo(
+    () =>
+      playableOnly
+        ? scopedPieces.filter((piece) => isPiecePlayableForPart(piece, rosterPart))
+        : scopedPieces,
+    [playableOnly, rosterPart, scopedPieces],
+  );
+
+  const items = useMemo(() => singerPiecesToPlaylistItems(filteredPieces), [filteredPieces]);
   const details: PlayerDetails = useMemo(
     () => ({
       eventArtworkFileId,
@@ -103,20 +122,39 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
       {loaded && pieces.length > 0 ? (
         <>
           <div className="practice-player__filters">
-            <label className="field">
-              Search tracks
-              <input
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                }}
-                placeholder="Search title or composer"
-                type="search"
-                value={query}
-              />
-            </label>
+            <div className="practice-player__filters-row">
+              <label className="field">
+                Search tracks
+                <input
+                  onChange={(event) => {
+                    setQuery(event.target.value);
+                  }}
+                  placeholder="Search title or composer"
+                  type="search"
+                  value={query}
+                />
+              </label>
+              <label className="field-checkbox practice-player__playable-toggle">
+                <input
+                  checked={playableOnly}
+                  onChange={(event) => {
+                    setPlayableOnly(event.target.checked);
+                  }}
+                  type="checkbox"
+                />
+                <span>Playable only</span>
+              </label>
+            </div>
+            <div aria-live="polite" className="practice-player__count-badge" role="status">
+              Showing {playableCount} playable of {totalCount} total pieces
+            </div>
           </div>
           {items.length === 0 ? (
-            <p className="empty-state">No tracks match the current search.</p>
+            <p className="empty-state">
+              {playableOnly
+                ? "No playable tracks match the current filters."
+                : "No tracks match the current search."}
+            </p>
           ) : (
             <PublicPracticePlayer
               details={details}

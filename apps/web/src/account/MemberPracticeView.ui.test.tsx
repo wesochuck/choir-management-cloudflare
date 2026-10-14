@@ -165,11 +165,81 @@ describe("MemberPracticeView event artwork", () => {
       ]);
     } finally {
       vi.unstubAllGlobals();
-      Object.defineProperty(navigator, "mediaSession", {
-        configurable: true,
-        value: undefined,
-        writable: true,
-      });
+      Reflect.deleteProperty(navigator, "mediaSession");
     }
+  });
+});
+
+describe("MemberPracticeView playable-only filter", () => {
+  it("renders the playable-only toggle and count badge", async () => {
+    vi.mocked(api.listSingerLearningTracks).mockResolvedValue([
+      trackPiece(PIECE_ONE_ID, "Alleluia"),
+      trackPiece(PIECE_TWO_ID, "Ave Verum"),
+      {
+        arranger: "",
+        composer: "Mozart",
+        durationSeconds: 180,
+        id: "piece-no-audio",
+        parentId: null,
+        scoreFileIds: {},
+        title: "Lacrimosa",
+        trackFileIds: {},
+      },
+    ]);
+    renderWithEvent(null);
+    await screen.findByText("Showing 2 playable of 3 total pieces");
+    const toggle = screen.getByRole("checkbox", { name: "Playable only" });
+    expect(toggle).not.toBeChecked();
+    expect(screen.getByText("Lacrimosa")).toBeInTheDocument();
+  });
+
+  it("filters out unplayable tracks when toggled on", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.listSingerLearningTracks).mockResolvedValue([
+      trackPiece(PIECE_ONE_ID, "Alleluia"),
+      {
+        arranger: "",
+        composer: "Mozart",
+        durationSeconds: 180,
+        id: "piece-no-audio",
+        parentId: null,
+        scoreFileIds: {},
+        title: "Lacrimosa",
+        trackFileIds: {},
+      },
+    ]);
+    renderWithEvent(null);
+    await screen.findByText("Showing 1 playable of 2 total pieces");
+    expect(screen.getByText("Lacrimosa")).toBeInTheDocument();
+
+    const toggle = screen.getByRole("checkbox", { name: "Playable only" });
+    await user.click(toggle);
+    expect(toggle).toBeChecked();
+
+    expect(screen.queryByText("Lacrimosa")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Alleluia" })).toBeInTheDocument();
+  });
+
+  it("shows empty state when no tracks match playable filter", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.listSingerLearningTracks).mockResolvedValue([
+      {
+        arranger: "",
+        composer: "Mozart",
+        durationSeconds: 180,
+        id: "piece-no-audio",
+        parentId: null,
+        scoreFileIds: {},
+        title: "Lacrimosa",
+        trackFileIds: {},
+      },
+    ]);
+    renderWithEvent(null);
+    await screen.findByText("Showing 0 playable of 1 total pieces");
+
+    const toggle = screen.getByRole("checkbox", { name: "Playable only" });
+    await user.click(toggle);
+
+    expect(screen.getByText("No playable tracks match the current filters.")).toBeInTheDocument();
   });
 });

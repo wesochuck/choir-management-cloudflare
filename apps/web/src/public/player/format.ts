@@ -45,14 +45,14 @@ export function resolveTrackKey(trackKeys: readonly string[], requestedKey: stri
   return trackKeys.find((key) => normalizeKey(key) === requestedNorm) ?? null;
 }
 
-function normalizeKey(key: string): string {
+export function normalizeKey(key: string): string {
   return key
     .trim()
     .toLowerCase()
     .replace(/[\s_-]+/g, "");
 }
 
-function isFullMixKey(key: string): boolean {
+export function isFullMixKey(key: string): boolean {
   const norm = normalizeKey(key);
   return (
     norm === "tutti" ||
@@ -63,7 +63,7 @@ function isFullMixKey(key: string): boolean {
   );
 }
 
-function getSectionCandidates(requestedKey: string): {
+export function getSectionCandidates(requestedKey: string): {
   readonly isSectionRequest: boolean;
   readonly pureSectionKeys: string[];
 } {
