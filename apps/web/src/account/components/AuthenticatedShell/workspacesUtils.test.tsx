@@ -43,6 +43,26 @@ describe("renderOrganizationPage routing and aliases", () => {
     expect(creditFilterResult).not.toBe(notFoundMarker);
   });
 
+  it("resolves /admin/donations and /admin/patrons to valid pages (#180)", () => {
+    const donationsResult = renderOrganizationPage(
+      { pathname: "/admin/donations", search: "" },
+      true,
+      true,
+      navigate,
+      notFoundPage,
+    );
+    expect(donationsResult).not.toBe(notFoundMarker);
+
+    const patronsResult = renderOrganizationPage(
+      { pathname: "/admin/patrons", search: "?tab=levels" },
+      true,
+      true,
+      navigate,
+      notFoundPage,
+    );
+    expect(patronsResult).not.toBe(notFoundMarker);
+  });
+
   it("resolves /admin/music settings variants to valid pages", () => {
     const settingsSubroute = renderOrganizationPage(
       { pathname: "/admin/music/settings", search: "" },

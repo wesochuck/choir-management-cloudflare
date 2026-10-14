@@ -6,7 +6,7 @@ import type { ModuleState } from "@choir/contracts";
 import { AppLink, Navigation, SidebarWorkspaceHeading } from "./navigation";
 import type { NavigationGroup } from "./types";
 import { organizationGroups, pageDescription, routeHasModule } from "./utils";
-import { workspaceNavigation } from "./workspacesUtils";
+import { renderOrganizationPage, workspaceNavigation } from "./workspacesUtils";
 
 const groups: readonly NavigationGroup[] = [
   {
@@ -93,6 +93,19 @@ describe("sidebar navigation behavior", () => {
     expect(currentLinks().map((link) => link.getAttribute("href"))).toEqual(["/admin/roster"]);
   });
 
+  it("marks /admin/donations active when viewing /admin/patrons alias (#180)", () => {
+    const donationsGroups: readonly NavigationGroup[] = [
+      {
+        label: "Communications & finance",
+        items: [{ href: "/admin/donations", label: "Donations & giving", module: "donations" }],
+      },
+    ];
+    render(
+      <Navigation groups={donationsGroups} navigate={() => undefined} pathname="/admin/patrons" />,
+    );
+    expect(currentLinks().map((link) => link.getAttribute("href"))).toEqual(["/admin/donations"]);
+  });
+
   it("renders text-first navigation without repetitive dots", () => {
     const { container } = render(
       <Navigation groups={groups} navigate={() => undefined} pathname="/admin" />,
@@ -177,5 +190,21 @@ describe("sidebar navigation behavior", () => {
     expect(pageDescription("/admin/settings/setup-checklist")).toBe(
       "Review configuration steps to prepare your organization for launch.",
     );
+  });
+
+  it("redirects /admin/patrons to canonical /admin/donations preserving query parameters (#180)", () => {
+    const navigate = vi.fn();
+    const notFound = () => null;
+    const page = renderOrganizationPage(
+      { pathname: "/admin/patrons", search: "?tab=levels&view=patrons" },
+      true,
+      true,
+      navigate,
+      notFound,
+    );
+    render(<>{page}</>);
+    expect(navigate).toHaveBeenCalledWith("/admin/donations?tab=levels&view=patrons", {
+      replace: true,
+    });
   });
 });

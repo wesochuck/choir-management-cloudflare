@@ -3,7 +3,12 @@ import { requestGlobalLeave } from "../../../persistence";
 import { readRoute } from "./utils";
 import type { RouteState } from "./types";
 
-export function useRoute(): [RouteState, (href: string) => Promise<boolean>] {
+export type NavigateFn = (
+  href: string,
+  options?: { readonly replace?: boolean },
+) => Promise<boolean>;
+
+export function useRoute(): [RouteState, NavigateFn] {
   const [route, setRoute] = useState<RouteState>(readRoute);
   const routeRef = useRef(route);
   useEffect(() => {
@@ -30,7 +35,7 @@ export function useRoute(): [RouteState, (href: string) => Promise<boolean>] {
     };
   }, []);
 
-  function navigate(href: string): Promise<boolean> {
+  function navigate(href: string, options?: { readonly replace?: boolean }): Promise<boolean> {
     const target = new URL(href, window.location.origin);
     return requestGlobalLeave({
       action: () => {
@@ -38,7 +43,11 @@ export function useRoute(): [RouteState, (href: string) => Promise<boolean>] {
           window.location.assign(target.href);
           return;
         }
-        window.history.pushState(null, "", `${target.pathname}${target.search}${target.hash}`);
+        if (options?.replace) {
+          window.history.replaceState(null, "", `${target.pathname}${target.search}${target.hash}`);
+        } else {
+          window.history.pushState(null, "", `${target.pathname}${target.search}${target.hash}`);
+        }
         setRoute(readRoute());
         const reduceMotion =
           typeof window !== "undefined" &&

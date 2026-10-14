@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { ReportTab } from "../Reports/shared";
 import type { TicketingTab } from "../Ticketing/shared";
 
+import { AdminPatronsRedirect } from "./AdminPatronsRedirect";
 import {
   AccountSecurity,
   AccountView,
@@ -232,7 +233,7 @@ export function renderOrganizationPage(
   routeState: RouteState,
   enabled: boolean,
   manager: boolean,
-  navigate: (href: string) => void,
+  navigate: (href: string, options?: { readonly replace?: boolean }) => void,
   notFoundPage: (navigate: (href: string) => void) => ReactNode,
   canEditProfiles = true,
   canReviewRsvps = false,
@@ -259,7 +260,7 @@ export function renderOrganizationPage(
     "/admin/communications": <CommunicationCenter enabled={focusedEnabled} />,
     "/admin/contacts": <ContactsPage enabled={focusedEnabled} />,
     "/admin/donations": <DonationsManager enabled={focusedEnabled} />,
-    "/admin/patrons": <DonationsManager enabled={focusedEnabled} />,
+    "/admin/patrons": <AdminPatronsRedirect navigate={navigate} search={routeState.search} />,
     "/admin/library": renderMusicPage({
       focusedEnabled,
       musicCatalogView,
