@@ -31,6 +31,7 @@
   .data-table td {
     padding: var(--spacing-sm);
     text-align: left;
+    vertical-align: middle;
     border-bottom: 1px solid var(--border);
   }
 
@@ -84,6 +85,7 @@
   .data-table td.data-table__cell--actions > .form-actions,
   .data-table td.data-table__cell--actions > .rsvp-row-actions {
     justify-content: flex-end;
+    margin-top: 0;
     margin-left: auto;
   }
 
@@ -216,6 +218,11 @@
     }
   }
 
+  .table--actions th,
+  .table--actions td {
+    vertical-align: middle;
+  }
+
   .table--actions th:last-child,
   .table--actions td:last-child {
     text-align: right;
@@ -225,6 +232,7 @@
   .table--actions td:last-child > .form-actions,
   .table--actions td:last-child > .table-actions {
     justify-content: flex-end;
+    margin-top: 0;
   }
 
   .table--actions td:last-child .text-button {
@@ -319,6 +327,13 @@
       flex-wrap: wrap;
       justify-content: flex-end;
       gap: var(--spacing-xs);
+    }
+
+    .data-table-card__field--actions .data-table-card__value > .form-actions,
+    .data-table-card__field--actions .data-table-card__value > .table-actions,
+    .data-table-card__field--actions .data-table-card__value > .button-row {
+      margin-top: 0;
+      justify-content: flex-end;
     }
 
     .data-table-card__field--center .data-table-card__value {
