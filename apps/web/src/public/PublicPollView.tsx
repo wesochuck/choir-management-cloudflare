@@ -130,9 +130,15 @@ function PollOptionItem({
 function ClosedPollView({
   details,
   hasExistingVote,
+  onBack,
+  backLabel = "Return to the Organization site",
+  backHref = "/",
 }: {
   readonly details: PollDetails;
   readonly hasExistingVote: boolean;
+  readonly onBack?: (() => void) | undefined;
+  readonly backLabel?: string | undefined;
+  readonly backHref?: string | undefined;
 }) {
   return (
     <div className="mt-4 space-y-3">
@@ -154,9 +160,42 @@ function ClosedPollView({
             ))}
         </div>
       )}
-      <a className="button button--secondary w-full" href="/">
-        Return to the Organization site
-      </a>
+      {onBack ? (
+        <button className="button button--secondary w-full" onClick={onBack} type="button">
+          {backLabel}
+        </button>
+      ) : (
+        <a className="button button--secondary w-full" href={backHref}>
+          {backLabel}
+        </a>
+      )}
+    </div>
+  );
+}
+
+function EmptyPollView({
+  onBack,
+  backLabel = "Return to the Organization site",
+  backHref = "/",
+}: {
+  readonly onBack?: (() => void) | undefined;
+  readonly backLabel?: string | undefined;
+  readonly backHref?: string | undefined;
+}) {
+  return (
+    <div className="mt-4 space-y-3">
+      <p className="notice notice--info" role="status">
+        No options are available for this poll.
+      </p>
+      {onBack ? (
+        <button className="button button--secondary w-full" onClick={onBack} type="button">
+          {backLabel}
+        </button>
+      ) : (
+        <a className="button button--secondary w-full" href={backHref}>
+          {backLabel}
+        </a>
+      )}
     </div>
   );
 }
@@ -171,10 +210,16 @@ export function PollForm({
   details,
   busy,
   onSubmit,
+  onBack,
+  backLabel = "Return to the Organization site",
+  backHref = "/",
 }: {
   readonly busy: boolean;
   readonly details: PollDetails;
   readonly onSubmit: (optionIds: string[]) => void;
+  readonly onBack?: (() => void) | undefined;
+  readonly backLabel?: string | undefined;
+  readonly backHref?: string | undefined;
 }) {
   const [selected, setSelected] = useState<string[]>(details.responseOptionIds);
 
@@ -221,20 +266,19 @@ export function PollForm({
   };
 
   if (details.options.length === 0) {
-    return (
-      <div className="mt-4 space-y-3">
-        <p className="notice notice--info" role="status">
-          No options are available for this poll.
-        </p>
-        <a className="button button--secondary w-full" href="/">
-          Return to the Organization site
-        </a>
-      </div>
-    );
+    return <EmptyPollView backHref={backHref} backLabel={backLabel} onBack={onBack} />;
   }
 
   if (!details.canSubmit) {
-    return <ClosedPollView details={details} hasExistingVote={hasExistingVote} />;
+    return (
+      <ClosedPollView
+        backHref={backHref}
+        backLabel={backLabel}
+        details={details}
+        hasExistingVote={hasExistingVote}
+        onBack={onBack}
+      />
+    );
   }
 
   const isSubmitDisabled = busy || selected.length === 0;

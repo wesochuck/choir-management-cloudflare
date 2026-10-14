@@ -352,7 +352,12 @@ function DashboardWidgets({
           <ul className="member-dashboard__link-list">
             {dashboard.polls.map((poll) => (
               <li key={poll.id}>
-                <a href={`/poll?token=${encodeURIComponent(poll.linkToken)}`}>{poll.title}</a>
+                <AppLink
+                  href={`/member/polls/${encodeURIComponent(poll.id)}?token=${encodeURIComponent(poll.linkToken)}`}
+                  onNavigate={navigate}
+                >
+                  {poll.title}
+                </AppLink>
               </li>
             ))}
           </ul>
