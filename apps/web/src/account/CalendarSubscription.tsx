@@ -1,8 +1,10 @@
+import { ConfirmDialog } from "@choir/ui";
 import type { CalendarFeedUrlsResponse } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
 import { getCalendarFeedUrls, resetCalendarFeedUrls } from "../auth/api";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
+import { maskCalendarUrl } from "./calendarFeedUtils";
 
 type CalendarState =
   | { readonly status: "error" }
@@ -10,10 +12,104 @@ type CalendarState =
   | { readonly status: "missing" }
   | { readonly status: "ready"; readonly urls: CalendarFeedUrlsResponse };
 
+interface ReadyContentProps {
+  readonly busy: boolean;
+  readonly confirmReset: boolean;
+  readonly copyState: "idle" | "copied" | "error";
+  readonly onCancelReset: () => void;
+  readonly onConfirmReset: () => void;
+  readonly onCopy: () => void;
+  readonly onRequestReset: () => void;
+  readonly resetNotice: string | null;
+  readonly urls: CalendarFeedUrlsResponse;
+}
+
+function CalendarFeedReadyContent({
+  busy,
+  confirmReset,
+  copyState,
+  onCancelReset,
+  onConfirmReset,
+  onCopy,
+  onRequestReset,
+  resetNotice,
+  urls,
+}: ReadyContentProps) {
+  const [revealed, setRevealed] = useState(false);
+
+  return (
+    <>
+      <p>
+        Subscribe from a calendar app or copy the HTTPS address. Resetting immediately revokes the
+        current address on every device.
+      </p>
+      <div className="form-stack">
+        <a className="button button--primary" href={urls.webcalUrl}>
+          Subscribe in calendar app
+        </a>
+        <label htmlFor="calendar-feed-url">HTTPS calendar address</label>
+        <div className="calendar-feed-url-row">
+          <input
+            id="calendar-feed-url"
+            readOnly
+            type="text"
+            value={revealed ? urls.httpsUrl : maskCalendarUrl(urls.httpsUrl)}
+          />
+          <button
+            className="button button--secondary"
+            onClick={() => {
+              setRevealed((prev) => !prev);
+            }}
+            type="button"
+          >
+            {revealed ? "Hide address" : "Reveal address"}
+          </button>
+          <button className="button button--secondary" onClick={onCopy} type="button">
+            {copyState === "copied" ? "✓ Copied!" : "Copy address"}
+          </button>
+        </div>
+        {copyState === "copied" ? (
+          <span className="sr-only" role="status">
+            Calendar address copied to clipboard.
+          </span>
+        ) : null}
+        <p className="field-help">Anyone with this link can view your calendar. Do not share it.</p>
+        <p className="field-help">
+          In Google Calendar, choose <strong>Other calendars</strong> → <strong>From URL</strong>{" "}
+          and paste this address. Use the Subscribe button for calendar apps that support webcal.
+        </p>
+        {copyState === "error" ? (
+          <p className="notice notice--warning" role="status">
+            Copy was blocked by the browser. Select the address and copy it manually.
+          </p>
+        ) : null}
+        {resetNotice ? (
+          <p className="notice notice--success" role="status">
+            {resetNotice}
+          </p>
+        ) : null}
+      </div>
+      <button className="button button--secondary" onClick={onRequestReset} type="button">
+        Reset calendar address
+      </button>
+      <ConfirmDialog
+        confirmLabel={busy ? "Resetting…" : "Reset address"}
+        description="Existing calendar subscriptions on all your devices will stop updating immediately until updated with the new address."
+        destructive
+        onCancel={onCancelReset}
+        onConfirm={onConfirmReset}
+        open={confirmReset}
+        title="Reset calendar address?"
+      />
+    </>
+  );
+}
+
 export function CalendarSubscription({ enabled }: { readonly enabled: boolean }) {
   const [busy, setBusy] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+  const [resetNotice, setResetNotice] = useState<string | null>(null);
   const [state, setState] = useState<CalendarState>({ status: "loading" });
 
   useEffect(() => {
@@ -41,8 +137,13 @@ export function CalendarSubscription({ enabled }: { readonly enabled: boolean })
   async function resetCredential() {
     setBusy(true);
     try {
-      setState({ status: "ready", urls: await resetCalendarFeedUrls() });
+      const urls = await resetCalendarFeedUrls();
+      setState({ status: "ready", urls });
       setConfirmReset(false);
+      setResetNotice("Calendar subscription address reset. New link is ready.");
+      window.setTimeout(() => {
+        setResetNotice(null);
+      }, 5_000);
     } catch {
       setState({ status: "error" });
     } finally {
@@ -81,77 +182,25 @@ export function CalendarSubscription({ enabled }: { readonly enabled: boolean })
         </p>
       ) : null}
       {enabled && state.status === "ready" ? (
-        <>
-          <p>
-            Subscribe from a calendar app or copy the HTTPS address. Resetting immediately revokes
-            the current address on every device.
-          </p>
-          <div className="form-stack">
-            <a className="button button--primary" href={state.urls.webcalUrl}>
-              Subscribe in calendar app
-            </a>
-            <label htmlFor="calendar-feed-url">HTTPS calendar address</label>
-            <div className="calendar-feed-url-row">
-              <input id="calendar-feed-url" readOnly type="url" value={state.urls.httpsUrl} />
-              <button
-                className="button button--secondary"
-                onClick={() => {
-                  void copyCalendarAddress();
-                }}
-                type="button"
-              >
-                {copyState === "copied" ? "✓ Copied!" : "Copy address"}
-              </button>
-            </div>
-            <p className="field-help">
-              In Google Calendar, choose <strong>Other calendars</strong> →{" "}
-              <strong>From URL</strong> and paste this address. Use the Subscribe button for
-              calendar apps that support webcal.
-            </p>
-            {copyState === "error" ? (
-              <p className="notice notice--warning" role="status">
-                Copy was blocked by the browser. Select the address and copy it manually.
-              </p>
-            ) : null}
-          </div>
-          {!confirmReset ? (
-            <button
-              className="button button--secondary"
-              onClick={() => {
-                setConfirmReset(true);
-              }}
-              type="button"
-            >
-              Reset calendar address
-            </button>
-          ) : (
-            <div className="confirmation-panel" role="alert">
-              <p>Reset now? Existing calendar subscriptions will stop updating immediately.</p>
-              <div className="button-row">
-                <button
-                  className="button button--danger"
-                  disabled={busy}
-                  onClick={() => {
-                    void resetCredential();
-                  }}
-                  type="button"
-                >
-                  {busy ? "Resetting…" : "Reset address"}
-                </button>
-                <button
-                  className="button button--secondary"
-                  disabled={busy}
-                  onClick={() => {
-                    setConfirmReset(false);
-                  }}
-                  type="button"
-                >
-                  Keep current address
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+        <CalendarFeedReadyContent
+          busy={busy}
+          confirmReset={confirmReset}
+          copyState={copyState}
+          onCancelReset={() => {
+            setConfirmReset(false);
+          }}
+          onConfirmReset={() => {
+            void resetCredential();
+          }}
+          onCopy={() => {
+            void copyCalendarAddress();
+          }}
+          onRequestReset={() => {
+            setConfirmReset(true);
+          }}
+          resetNotice={resetNotice}
+          urls={state.urls}
+        />
       ) : null}
     </fieldset>
   );

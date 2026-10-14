@@ -213,11 +213,19 @@
     }
 
     .calendar-feed-url-row {
-      grid-template-columns: 1fr;
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--spacing-sm);
+    }
+
+    .calendar-feed-url-row input {
+      flex: 1 1 100%;
+      width: 100%;
     }
 
     .calendar-feed-url-row .button {
-      width: 100%;
+      flex: 1 1 auto;
+      width: auto;
     }
   }
 
