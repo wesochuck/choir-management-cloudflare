@@ -293,4 +293,30 @@ describe("Dialog interaction", () => {
     expect(hostB.contains(dialogB)).toBe(true);
     expect(hostB.contains(dialogA)).toBe(false);
   });
+
+  it("preserves accessible dialog naming without duplicate headings when custom header is used", () => {
+    render(
+      <Dialog
+        description="Supplemental details for screen readers"
+        header={
+          <div className="custom-header">
+            <h2 className="custom-title">Visible Header Title</h2>
+          </div>
+        }
+        onClose={vi.fn()}
+        open
+        title="Authoritative Dialog Name"
+      >
+        <div>Body content</div>
+      </Dialog>,
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Authoritative Dialog Name" });
+    expect(dialog).toBeInTheDocument();
+    expect(dialog).toHaveAccessibleDescription("Supplemental details for screen readers");
+
+    const headings = within(dialog).getAllByRole("heading");
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveTextContent("Visible Header Title");
+  });
 });

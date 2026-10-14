@@ -122,7 +122,9 @@ export function Dialog({
             >
               {header ? (
                 <div className="dialog__header dialog__header--custom">
-                  <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
+                  <DialogPrimitive.Title asChild>
+                    <span className="sr-only">{title}</span>
+                  </DialogPrimitive.Title>
                   {description ? (
                     <DialogPrimitive.Description className="sr-only">
                       {description}
