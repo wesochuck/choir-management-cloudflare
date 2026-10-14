@@ -21,7 +21,7 @@ import type {
   TransactionFeeSettings,
 } from "@choir/contracts";
 import { transactionProcessingFeeCents } from "@choir/domain";
-import { NumberInput, useConfirmation } from "@choir/ui";
+import { useConfirmation } from "@choir/ui";
 import { usePersistedDraft } from "../persistence";
 
 const fallbackTimeZones = [
@@ -61,6 +61,18 @@ function currencyCentsFromDraft(value: string): number {
   if (!/^\d*(?:\.\d*)?$/.test(trimmed)) return 0;
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed * 100) : 0;
+}
+
+function percentageDraftFromValue(percentage: number): string {
+  return Number.isFinite(percentage) ? percentage.toFixed(2) : "0.00";
+}
+
+function percentageValueFromDraft(value: string): number {
+  const trimmed = value.trim();
+  if (!/^\d*(?:\.\d*)?$/.test(trimmed)) return 0;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.min(Math.round(parsed * 100) / 100, 99.99);
 }
 
 function transactionFeeSettingsEqual(left: TransactionFeeSettings, right: TransactionFeeSettings) {
@@ -366,7 +378,9 @@ function TransactionFeeSettingsSection({
   feeError,
   feeSuccess,
   fixedFeeDraft,
+  percentageDraft,
   setFixedFeeDraft,
+  setPercentageDraft,
   setTransactionFeeSettings,
   settingsLoaded,
   transactionFeeSettings,
@@ -374,7 +388,9 @@ function TransactionFeeSettingsSection({
   readonly feeError: string | null;
   readonly feeSuccess: string | null;
   readonly fixedFeeDraft: string;
+  readonly percentageDraft: string;
   readonly setFixedFeeDraft: (val: string) => void;
+  readonly setPercentageDraft: (val: string) => void;
   readonly setTransactionFeeSettings: (
     updater: TransactionFeeSettings | ((current: TransactionFeeSettings) => TransactionFeeSettings),
   ) => void;
@@ -413,18 +429,25 @@ function TransactionFeeSettingsSection({
           <div className="settings-grid">
             <div className="field">
               <label htmlFor="transaction-fee-percentage">Percentage (%)</label>
-              <NumberInput
+              <input
                 id="transaction-fee-percentage"
+                inputMode="decimal"
                 max="99.99"
                 min="0"
-                onChange={(event) => {
+                onBlur={() => {
+                  const val = percentageValueFromDraft(percentageDraft);
+                  setPercentageDraft(percentageDraftFromValue(val));
                   setTransactionFeeSettings((current) => ({
                     ...current,
-                    percentage: Number(event.target.value) || 0,
+                    percentage: val,
                   }));
                 }}
+                onChange={(event) => {
+                  setPercentageDraft(event.target.value);
+                }}
                 step="0.01"
-                value={transactionFeeSettings.percentage}
+                type="text"
+                value={percentageDraft}
               />
             </div>
             <div className="field">
@@ -485,6 +508,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
 
   const [initialTimezone, setInitialTimezone] = useState<string | null>(null);
   const [initialFeeSettings, setInitialFeeSettings] = useState<TransactionFeeSettings | null>(null);
+  const [percentageDraft, setPercentageDraft] = useState("2.90");
   const [fixedFeeDraft, setFixedFeeDraft] = useState("0.30");
 
   const {
@@ -509,6 +533,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
     initialValue: initialFeeSettings,
     onSaveSuccess: (saved) => {
       setFixedFeeDraft(currencyDraftFromCents(saved.fixedCents));
+      setPercentageDraft(percentageDraftFromValue(saved.percentage));
       setFeeSuccess("Transaction fee settings updated.");
     },
     resourceKey: "organization-transaction-fees",
@@ -526,6 +551,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
         setInitialTimezone(calendarSettings.timezone);
         setInitialFeeSettings(feeSettings);
         setFixedFeeDraft(currencyDraftFromCents(feeSettings.fixedCents));
+        setPercentageDraft(percentageDraftFromValue(feeSettings.percentage));
         setSettingsLoaded(true);
         setLoading(false);
       })
@@ -558,7 +584,9 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
         feeError={feeError}
         feeSuccess={feeSuccess}
         fixedFeeDraft={fixedFeeDraft}
+        percentageDraft={percentageDraft}
         setFixedFeeDraft={setFixedFeeDraft}
+        setPercentageDraft={setPercentageDraft}
         setTransactionFeeSettings={setTransactionFeeSettings}
         settingsLoaded={settingsLoaded}
         transactionFeeSettings={transactionFeeSettings}

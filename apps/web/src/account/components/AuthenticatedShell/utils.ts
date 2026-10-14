@@ -254,11 +254,18 @@ export function pageDescription(pathname: string, search = ""): string | null {
   if (pathname === "/admin/library/settings" || pathname === "/admin/music/settings") {
     return "Configure publisher catalog links and the expiry period for public practice-player links.";
   }
-  return (
-    staticPageDescriptions.find(
-      ([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-    )?.[1] ?? null
-  );
+  const exactMatch = staticPageDescriptions.find(([prefix]) => pathname === prefix);
+  if (exactMatch) return exactMatch[1];
+
+  let longestMatch: (typeof staticPageDescriptions)[number] | null = null;
+  for (const entry of staticPageDescriptions) {
+    if (pathname.startsWith(`${entry[0]}/`)) {
+      if (!longestMatch || entry[0].length > longestMatch[0].length) {
+        longestMatch = entry;
+      }
+    }
+  }
+  return longestMatch?.[1] ?? null;
 }
 
 export function pageTitle(pathname: string): string {
