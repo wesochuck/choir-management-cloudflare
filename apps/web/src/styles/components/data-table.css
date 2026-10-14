@@ -591,22 +591,153 @@
   }
 }
 
-/* Compliance catalog table: keep short headers and values on one line and
-   contact details readable without mid-token breaks. */
+/* Compliance catalog table: align cell content to the top on desktop so
+   requirement details, status pills, dates, assignees, and actions start along
+   the same vertical axis. */
+.compliance-tasks-table .data-table th,
+.compliance-tasks-table .data-table td {
+  vertical-align: top;
+}
+
+/* Protect expanded row and nested editor dialogs from forced top alignment */
+.compliance-tasks-table .data-table .data-table__expanded-cell {
+  vertical-align: inherit;
+}
+
 .compliance-tasks-table .data-table th,
 .compliance-tasks-table .data-table__sort-button {
   white-space: nowrap;
 }
 
-.compliance-tasks-table .compliance-cell--nowrap {
+/* Scope nowrap to desktop table cells so mobile cards can wrap naturally */
+.compliance-tasks-table .data-table td.compliance-cell--nowrap {
   white-space: nowrap;
 }
 
-.compliance-tasks-table .compliance-cell--actions-wide {
-  min-width: 11rem;
+.compliance-tasks-table .data-table td.compliance-cell--actions-wide {
+  min-width: 10rem;
 }
 
 .compliance-tasks-table .compliance-contact-email {
   display: block;
   overflow-wrap: anywhere;
+}
+
+/* Action group inside compliance table */
+.compliance-task-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  align-items: stretch;
+}
+
+.compliance-task-actions .button {
+  width: 100%;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+/* On mobile cards, arrange action buttons horizontally */
+.data-table-card__field--actions .compliance-task-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.data-table-card__field--actions .compliance-task-actions .button {
+  width: auto;
+}
+
+/* Compact requirement cell and disclosure styling */
+.compliance-requirement {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3xs);
+}
+
+.compliance-requirement__title {
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-snug);
+  color: var(--color-text);
+}
+
+.compliance-requirement__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.compliance-requirement__meta .status-pill {
+  font-size: 0.75rem;
+}
+
+.compliance-requirement__details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2xs);
+  margin-top: var(--spacing-3xs);
+}
+
+.compliance-requirement__cue {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  line-height: var(--line-height-normal);
+}
+
+.compliance-requirement__disclosure {
+  margin-top: var(--spacing-2xs);
+}
+
+.compliance-requirement__summary {
+  font-size: var(--font-size-xs);
+  color: var(--color-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.compliance-requirement__summary:hover {
+  text-decoration: underline;
+}
+
+.compliance-requirement__guidance {
+  padding-top: var(--spacing-2xs);
+  font-size: var(--font-size-xs);
+}
+
+.compliance-requirement__guidance p {
+  margin: 0 0 var(--spacing-2xs) 0;
+}
+
+.compliance-requirement__links {
+  font-size: var(--font-size-xs);
+}
+
+.compliance-responsible {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3xs);
+}
+
+.compliance-responsible__name {
+  display: block;
+}
+
+.compliance-last-completed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3xs);
+}
+
+.compliance-last-completed__date {
+  display: block;
+}
+
+.compliance-last-completed__by {
+  display: block;
+}
+
+.compliance-status-pill {
+  display: inline-block;
+  font-size: 0.8125rem;
+  font-weight: 600;
 }

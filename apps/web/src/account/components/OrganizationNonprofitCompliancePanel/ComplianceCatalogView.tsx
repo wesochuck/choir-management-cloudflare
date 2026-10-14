@@ -78,14 +78,14 @@ export function ComplianceCatalogView({
         className: "compliance-cell--nowrap",
         header: "Next due",
         id: "nextDue",
-        render: (task) => taskDueDisplay(task, timezone),
+        render: (task) => <span>{taskDueDisplay(task, timezone)}</span>,
         sortValue: (task) => task.nextDueDate,
       },
       {
         className: "compliance-cell--nowrap",
         header: "Recurrence",
         id: "recurrence",
-        render: (task) => recurrenceLabel(task),
+        render: (task) => <span>{recurrenceLabel(task)}</span>,
         sortValue: (task) => task.recurrenceMonths,
       },
       {
@@ -99,14 +99,16 @@ export function ComplianceCatalogView({
         header: "Last completed",
         id: "lastCompleted",
         render: (task) => (
-          <span>
-            <span style={{ display: "block" }}>{lastCompletedDisplay(task, timezone)}</span>
+          <div className="compliance-last-completed">
+            <span className="compliance-last-completed__date">
+              {lastCompletedDisplay(task, timezone)}
+            </span>
             {task.lastCompletedDate ? (
-              <span className="field__hint" style={{ display: "block" }}>
+              <span className="field__hint compliance-last-completed__by">
                 By {task.lastCompletedByName ?? "Name unavailable"}
               </span>
             ) : null}
-          </span>
+          </div>
         ),
         sortValue: (task) => task.lastCompletedDate,
       },
