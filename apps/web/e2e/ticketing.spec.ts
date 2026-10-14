@@ -397,6 +397,7 @@ test.describe("public ticket pages", () => {
             settings: {
               ...ticketingProjection.payload.settings,
               enabledNavigation: ["tickets"],
+              historyText: "Lancaster Community Chorus was founded in 1995.",
               showBrandingHeaderFooter: true,
             },
           },
@@ -1190,19 +1191,15 @@ test.describe("admin ticket management", () => {
     expect(resendCalled).toBe(true);
 
     await visibleOrders.getByRole("button", { name: "Refund" }).click();
-    await expect(
-      visibleOrders.getByText("Refund this complete order?", { exact: true }),
-    ).toBeVisible();
-    await visibleOrders.getByRole("button", { name: "Cancel" }).click();
-    await expect(
-      visibleOrders.getByText("Refund this complete order?", { exact: true }),
-    ).not.toBeVisible();
+    const refundDialog = page.getByRole("dialog");
+    await expect(refundDialog).toBeVisible();
+    await expect(refundDialog.getByText("Refund bundle order?")).toBeVisible();
+    await refundDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(refundDialog).not.toBeVisible();
 
     await visibleOrders.getByRole("button", { name: "Refund" }).click();
-    await expect(
-      visibleOrders.getByText("Refund this complete order?", { exact: true }),
-    ).toBeVisible();
-    await visibleOrders.getByRole("button", { name: "Confirm refund" }).click();
+    await expect(refundDialog).toBeVisible();
+    await refundDialog.getByRole("button", { name: "Refund order" }).click();
 
     await expect(page.getByText("Ticket order refunded.")).toBeVisible();
     await expect(visibleOrders.getByText("Refunded (simulation)", { exact: true })).toHaveCount(0);
@@ -1307,19 +1304,15 @@ test.describe("admin ticket management", () => {
     await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
     const visibleOrders = page.locator(".data-table:visible, .data-table-cards:visible");
     await visibleOrders.getByRole("button", { name: "Refund" }).click({ force: true });
-    await expect(
-      visibleOrders.getByText("Refund this complete order?", { exact: true }),
-    ).toBeVisible();
-    await visibleOrders.getByRole("button", { name: "Cancel" }).click({ force: true });
-    await expect(
-      visibleOrders.getByText("Refund this complete order?", { exact: true }),
-    ).not.toBeVisible();
+    const refundDialog = page.getByRole("dialog");
+    await expect(refundDialog).toBeVisible();
+    await expect(refundDialog.getByText("Refund ticket order?")).toBeVisible();
+    await refundDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(refundDialog).not.toBeVisible();
 
     await visibleOrders.getByRole("button", { name: "Refund" }).click({ force: true });
-    await expect(
-      visibleOrders.getByText("Refund this complete order?", { exact: true }),
-    ).toBeVisible();
-    await visibleOrders.getByRole("button", { name: "Confirm refund" }).click({ force: true });
+    await expect(refundDialog).toBeVisible();
+    await refundDialog.getByRole("button", { name: "Refund order" }).click();
 
     await expect(page.getByText("Ticket order refunded.")).toBeVisible();
     await expect(visibleOrders.getByText("Refunded (simulation)", { exact: true })).toHaveCount(0);
