@@ -1103,6 +1103,7 @@ describe("PublicTickets shell layout", () => {
         settings: {
           ...sampleProjection.payload.settings,
           enabledNavigation: ["tickets"],
+          historyText: "Lancaster Community Chorus was founded in 1995.",
           showBrandingHeaderFooter: true,
         },
       },
