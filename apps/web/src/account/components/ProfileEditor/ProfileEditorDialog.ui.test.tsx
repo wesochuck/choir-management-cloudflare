@@ -1,10 +1,16 @@
-import { organizationProfileSchema, type OrganizationProfile } from "@choir/contracts";
+import {
+  organizationProfileSchema,
+  type OrganizationProfile,
+  type OrganizationProfileRequest,
+} from "@choir/contracts";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../../../api";
+import { emptyProfile } from "../RosterPage/utils";
 import { ProfileEditorDialog } from "./ProfileEditorDialog";
 import { useProfileEditor } from "./useProfileEditor";
 
@@ -40,6 +46,8 @@ function ProfileEditorHarness({
   const editor = useProfileEditor({
     onSaved,
   });
+  const [addOpen, setAddOpen] = useState(false);
+  const [addProfile, setAddProfile] = useState<OrganizationProfileRequest>(emptyProfile);
 
   return (
     <div>
@@ -51,11 +59,29 @@ function ProfileEditorHarness({
       >
         Open Editor
       </button>
+      <button
+        onClick={() => {
+          setAddOpen(true);
+        }}
+        type="button"
+      >
+        Open Add Profile
+      </button>
       <ProfileEditorDialog
         {...editor.dialogProps}
-        onClose={editor.closeProfile}
-        open={editor.open}
+        editingId={addOpen ? null : editor.editingId}
+        editingProfileRecord={addOpen ? null : editor.dialogProps.editingProfileRecord}
+        onClose={
+          addOpen
+            ? () => {
+                setAddOpen(false);
+              }
+            : editor.closeProfile
+        }
+        open={addOpen || editor.open}
+        profile={addOpen ? addProfile : editor.dialogProps.profile}
         saveLabel={saveLabel}
+        setProfile={addOpen ? setAddProfile : editor.dialogProps.setProfile}
       />
     </div>
   );
@@ -197,5 +223,44 @@ describe("ProfileEditorDialog photo save coordination", () => {
 
     expect(within(footer).getByRole("button", { name: "Cancel" })).toBeInTheDocument();
     expect(within(footer).getByRole("button", { name: "Save Profile" })).toBeInTheDocument();
+  });
+
+  it("announces single authoritative heading and preserves dialog accessible name in Add and Edit modes (#184)", async () => {
+    const user = userEvent.setup();
+    render(<ProfileEditorHarness />);
+
+    // Test Add Profile mode
+    await user.click(screen.getByRole("button", { name: "Open Add Profile" }));
+    const addDialog = screen.getByRole("dialog", { name: "Add Profile" });
+    expect(addDialog).toBeInTheDocument();
+    expect(addDialog).toHaveAccessibleDescription(
+      "Profile details and roster attributes belong only to this Organization.",
+    );
+
+    // Verify there is exactly one level-2 heading in the dialog header
+    const headerDetails = addDialog.querySelector(".profile-editor-header__details");
+    expect(headerDetails).toBeInstanceOf(HTMLElement);
+    if (!(headerDetails instanceof HTMLElement)) return;
+    const addHeadings = within(headerDetails).getAllByRole("heading", { level: 2 });
+    expect(addHeadings).toHaveLength(1);
+    expect(addHeadings[0]).toHaveTextContent("Add Profile");
+
+    // Close Add Profile dialog
+    const cancelButton = within(addDialog).getByRole("button", { name: "Cancel" });
+    await user.click(cancelButton);
+
+    // Test Edit Profile mode
+    await user.click(screen.getByRole("button", { name: "Open Editor" }));
+    const editDialog = screen.getByRole("dialog", { name: "Edit Profile" });
+    expect(editDialog).toBeInTheDocument();
+
+    const editHeaderDetails = editDialog.querySelector(".profile-editor-header__details");
+    expect(editHeaderDetails).toBeInstanceOf(HTMLElement);
+    if (!(editHeaderDetails instanceof HTMLElement)) return;
+    const editHeadings = within(editHeaderDetails).getAllByRole("heading", {
+      level: 2,
+    });
+    expect(editHeadings).toHaveLength(1);
+    expect(editHeadings[0]).toHaveTextContent("Alex Rivera");
   });
 });
