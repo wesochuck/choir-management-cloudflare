@@ -410,10 +410,10 @@ is required before claiming permanent-staging evidence for `api.resend-ticket`.
 
 Ticket reminder scheduling and rescheduling behavior is qualified in automated integration tests
 (`apps/worker/test/ticketing.bundles.integration.test.ts` and
-`apps/worker/test/ticketing.integration.test.ts`): bundled purchases generate one concert-specific
-reminder per performance; performance rescheduling updates the reminder deduplication key to allow a
-new reminder for the revised date, preserves historical sent reminder records, and suppresses stale
-queued reminders upon event update or delivery preflight.
+`apps/worker/test/ticketing.notifications.integration.test.ts`): bundled purchases generate one
+concert-specific reminder per performance; performance rescheduling updates the reminder
+deduplication key to allow a new reminder for the revised date, preserves historical sent reminder
+records, and suppresses stale queued reminders upon event update or delivery preflight.
 
 ## Prior staging release and deployment path — August 12, 2026
 

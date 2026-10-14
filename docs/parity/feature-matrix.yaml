@@ -153,7 +153,7 @@
         "targetEvidence":
           [
             "apps/web/src/public/PublicTickets.tsx",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.configuration.integration.test.ts",
             "apps/web/e2e/ticketing.spec.ts",
           ],
       },
@@ -167,7 +167,7 @@
         "targetEvidence":
           [
             "apps/web/src/public/PublicTickets.tsx",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.lifecycle.integration.test.ts",
             "apps/web/e2e/ticketing.spec.ts",
           ],
       },
@@ -181,7 +181,7 @@
         "targetEvidence":
           [
             "apps/web/src/public/PublicTickets.tsx",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.bundles.integration.test.ts",
             "apps/web/e2e/ticketing.spec.ts",
           ],
       },
@@ -195,7 +195,7 @@
         "targetEvidence":
           [
             "apps/web/src/public/PublicTickets.tsx",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.lifecycle.integration.test.ts",
             "apps/web/e2e/ticketing.spec.ts",
           ],
       },
@@ -884,7 +884,7 @@
         "targetEvidence":
           [
             "apps/web/src/account/TicketingManager.tsx",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.lifecycle.integration.test.ts",
             "apps/web/e2e/ticketing.spec.ts",
           ],
       },
@@ -898,7 +898,7 @@
         "targetEvidence":
           [
             "apps/web/src/account/TicketingManager.tsx",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.lifecycle.integration.test.ts",
             "apps/web/e2e/ticketing.spec.ts",
           ],
       },
@@ -1174,7 +1174,7 @@
           [
             "apps/worker/src/router.ts",
             "apps/worker/src/index.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.lifecycle.integration.test.ts",
           ],
       },
       {
@@ -1472,7 +1472,7 @@
           [
             "apps/worker/src/organization/organizationTicketing.ts",
             "apps/worker/src/payments/ticketCheckout.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.lifecycle.integration.test.ts",
             "apps/web/e2e/ticketing.spec.ts",
           ],
       },
@@ -1509,7 +1509,7 @@
             "apps/worker/src/routes/publicCommerce.ts",
             "apps/worker/src/organization/organizationTicketing.ts",
             "apps/worker/src/organization/ticketingStore.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.lifecycle.integration.test.ts",
             "apps/worker/test/ticketing.discounts.integration.test.ts",
           ],
       },
@@ -1527,7 +1527,7 @@
             "apps/worker/src/routes/organizationTicketing.ts",
             "apps/worker/src/organization/organizationTicketing.ts",
             "apps/worker/src/organization/ticketingStore.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.discounts.integration.test.ts",
           ],
       },
       {
@@ -1543,7 +1543,7 @@
           [
             "apps/worker/src/routes/organizationTicketing.ts",
             "apps/worker/src/organization/ticketingStore.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.discounts.integration.test.ts",
           ],
       },
       {
@@ -1559,7 +1559,7 @@
           [
             "apps/worker/src/routes/organizationTicketing.ts",
             "apps/worker/src/organization/ticketingStore.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.discounts.integration.test.ts",
           ],
       },
       {
@@ -1576,7 +1576,7 @@
             "apps/worker/src/routes/organizationTicketing.ts",
             "apps/worker/src/organization/organizationTicketing.ts",
             "apps/worker/src/organization/ticketingStore.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.discounts.integration.test.ts",
           ],
       },
       {
@@ -1654,7 +1654,7 @@
             "apps/worker/src/organization/paymentMessageTemplates.ts",
             "apps/worker/src/payments/stripeConnect.test.ts",
             "apps/worker/test/stripeWebhook.test.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.notifications.integration.test.ts",
           ],
       },
       {
@@ -1668,7 +1668,7 @@
         "targetEvidence":
           [
             "apps/worker/src/organization/organizationTicketing.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.refunds.integration.test.ts",
             "apps/web/e2e/ticketing.spec.ts",
             "scripts/qualify-staging-stripe-commerce.mjs",
             "scripts/qualify-staging-stripe-commerce.test.mjs",
@@ -1738,7 +1738,7 @@
           [
             "apps/worker/src/organization/ticketingStore.ts",
             "apps/worker/src/jobs/consumer.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.notifications.integration.test.ts",
             "apps/web/e2e/ticketing.spec.ts",
             "scripts/qualify-staging-stripe-commerce.mjs",
             "scripts/qualify-staging-stripe-commerce.test.mjs",
@@ -1757,7 +1757,7 @@
           [
             "apps/worker/src/organization/organizationTicketing.ts",
             "apps/worker/src/organization/ticketingStore.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.lifecycle.integration.test.ts",
           ],
       },
       {
@@ -1850,7 +1850,7 @@
             "apps/worker/src/router.ts",
             "apps/worker/src/organization/OrganizationStore.ts",
             "apps/worker/src/organization/scheduler.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.lifecycle.integration.test.ts",
           ],
       },
       {
@@ -2556,7 +2556,7 @@
           [
             "apps/worker/src/organization/scheduler.ts",
             "apps/worker/src/jobs/consumer.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.notifications.integration.test.ts",
             "scripts/qualify-staging-ticket-reminder.mjs",
             "scripts/qualify-staging-ticket-reminder.test.mjs",
           ],
@@ -2675,7 +2675,7 @@
           [
             "packages/domain/src/ticketing.ts",
             "packages/domain/src/ticketing.test.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.lifecycle.integration.test.ts",
           ],
       },
       {
@@ -2817,7 +2817,7 @@
           [
             "apps/worker/src/security/signedLinks.ts",
             "apps/worker/src/organization/organizationTicketing.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.lifecycle.integration.test.ts",
           ],
       },
       {
@@ -2942,7 +2942,7 @@
             "packages/domain/src/seasons.ts",
             "apps/worker/src/organization/seasonStore.ts",
             "apps/worker/src/organization/organizationSeasons.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.configuration.integration.test.ts",
             "apps/worker/test/dues.integration.test.ts",
             "apps/web/src/account/SeasonsManager.tsx",
             "scripts/qualify-staging-stripe-commerce.mjs",
@@ -3229,7 +3229,7 @@
           [
             "packages/domain/src/ticketing.ts",
             "apps/worker/src/organization/ticketingStore.ts",
-            "apps/worker/test/ticketing.integration.test.ts",
+            "apps/worker/test/ticketing.lifecycle.integration.test.ts",
             "apps/web/src/public/PublicTickets.tsx",
             "apps/web/src/account/TicketingManager.tsx",
             "apps/web/e2e/ticketing.spec.ts",
