@@ -265,7 +265,7 @@ function PollResultsDialog({
   );
 }
 
-function PollEditDialog({
+export function PollEditDialog({
   description,
   editingPollHasResponses,
   editingPollId,
@@ -300,7 +300,7 @@ function PollEditDialog({
 }) {
   return (
     <Dialog
-      description="Ask a focused question with two or more response options."
+      description="Ask a question with exactly two response options (Yes and No by default)."
       onClose={onClose}
       open={open}
       title={editingPollId ? "Edit poll" : "Create poll"}
@@ -514,7 +514,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
     });
     if (!request.success) {
       setSaving(false);
-      setDialogError("Add a title, expiration date, and at least two poll options.");
+      setDialogError("Add a title, expiration date, and exactly two poll options.");
       return;
     }
     try {
