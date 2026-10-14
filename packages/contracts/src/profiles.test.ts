@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   memberProfileSchema,
   memberProfileUpdateRequestSchema,
+  organizationProfileDeleteResponseSchema,
   organizationProfileRequestSchema,
 } from "./profiles";
 
@@ -41,5 +42,17 @@ describe("reminder preferences", () => {
       receivePerformanceReminders: true,
       receiveRehearsalReminders: true,
     });
+  });
+});
+
+describe("organizationProfileDeleteResponseSchema", () => {
+  it("validates successful profile deletion response", () => {
+    const parsed = organizationProfileDeleteResponseSchema.parse({
+      deleted: true,
+      profileId: "11111111-1111-4111-8111-111111111111",
+      requestId: "22222222-2222-4222-8222-222222222222",
+    });
+    expect(parsed.deleted).toBe(true);
+    expect(parsed.profileId).toBe("11111111-1111-4111-8111-111111111111");
   });
 });

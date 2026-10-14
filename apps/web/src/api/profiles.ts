@@ -5,6 +5,7 @@ import {
   organizationDirectoryResponseSchema,
   organizationMembershipsResponseSchema,
   organizationProfileResponseSchema,
+  organizationProfileDeleteResponseSchema,
   organizationProfilesResponseSchema,
   organizationProfileImportResponseSchema,
   organizationProfileFolderNumberSchema,
@@ -16,6 +17,7 @@ import {
   profileReconciliationCandidatesResponseSchema,
   profileReconciliationPreviewResponseSchema,
   profileReconciliationResponseSchema,
+  type OrganizationProfileDeleteResponse,
   type ProfileReconciliationCandidatesResponse,
   type ProfileReconciliationPreviewRequest,
   type ProfileReconciliationPreviewResponse,
@@ -110,6 +112,15 @@ export async function updateOrganizationProfile(
     method: "PUT",
   });
   return organizationProfileResponseSchema.parse(await response.json());
+}
+
+export async function deleteOrganizationProfile(
+  profileId: string,
+): Promise<OrganizationProfileDeleteResponse> {
+  const response = await request(`/api/organization/profiles/${encodeURIComponent(profileId)}`, {
+    method: "DELETE",
+  });
+  return organizationProfileDeleteResponseSchema.parse(await response.json());
 }
 
 export async function getOrganizationProfilePerformanceHistory(

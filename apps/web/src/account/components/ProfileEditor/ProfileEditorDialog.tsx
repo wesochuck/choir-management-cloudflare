@@ -67,13 +67,16 @@ export function ProfileEditorDialog({
   editingProfileRecord,
   error,
   linkedMembership,
+  onArchive,
   onClose,
   onCloseAutoFocus,
+  onDeletePermanently,
   onImpersonate,
   onPhotoChanged,
   onPhotoPendingChange,
   onRegisterPhotoSave,
   onResolveDuplicate,
+  onRestore,
   onRsvpChanged,
   open,
   performanceHistory,
@@ -179,8 +182,12 @@ export function ProfileEditorDialog({
           displayName={profile.displayName}
           editingId={editingId}
           globalStatus={profile.globalStatus}
+          isHidden={profile.hidden}
+          onArchive={onArchive}
+          onDeletePermanently={onDeletePermanently}
           onImpersonate={onImpersonate}
           onResolveDuplicate={onResolveDuplicate}
+          onRestore={onRestore}
           organizationName={organizationName}
           profilePhotoFileId={profilePhotoFileId}
           rosterConfiguration={rosterConfiguration}

@@ -9,8 +9,12 @@ export interface ProfileEditorHeaderProps {
   readonly displayName: string;
   readonly editingId: string | null;
   readonly globalStatus: "Active" | "Idle" | "Inactive";
+  readonly isHidden?: boolean | undefined;
+  readonly onArchive?: (() => void) | undefined;
+  readonly onDeletePermanently?: (() => void) | undefined;
   readonly onImpersonate?: (() => void) | undefined;
   readonly onResolveDuplicate?: (() => void) | undefined;
+  readonly onRestore?: (() => void) | undefined;
   readonly organizationName?: string | undefined;
   readonly profilePhotoFileId: string | null;
   readonly rosterConfiguration?: OrganizationRosterConfiguration | undefined;
@@ -94,13 +98,30 @@ function ProfileAvatar({
   );
 }
 
-function buildMoreActions(
-  canImpersonate: boolean,
-  onImpersonate: (() => void) | undefined,
-  canResolveDuplicate: boolean,
-  onResolveDuplicate: (() => void) | undefined,
-  busy = false,
-) {
+interface BuildMoreActionsOptions {
+  readonly busy?: boolean | undefined;
+  readonly canImpersonate: boolean;
+  readonly canResolveDuplicate: boolean;
+  readonly isHidden?: boolean | undefined;
+  readonly onArchive?: (() => void) | undefined;
+  readonly onDeletePermanently?: (() => void) | undefined;
+  readonly onImpersonate?: (() => void) | undefined;
+  readonly onResolveDuplicate?: (() => void) | undefined;
+  readonly onRestore?: (() => void) | undefined;
+}
+
+function buildMoreActions(options: BuildMoreActionsOptions) {
+  const {
+    busy = false,
+    canImpersonate,
+    canResolveDuplicate,
+    isHidden = false,
+    onArchive,
+    onDeletePermanently,
+    onImpersonate,
+    onResolveDuplicate,
+    onRestore,
+  } = options;
   const items = [];
   if (canImpersonate && onImpersonate) {
     items.push({
@@ -116,6 +137,26 @@ function buildMoreActions(
       onSelect: onResolveDuplicate,
     });
   }
+  if (isHidden && onRestore) {
+    items.push({
+      disabled: busy,
+      label: "Restore profile",
+      onSelect: onRestore,
+    });
+  } else if (!isHidden && onArchive) {
+    items.push({
+      disabled: busy,
+      label: "Archive profile",
+      onSelect: onArchive,
+    });
+  }
+  if (onDeletePermanently) {
+    items.push({
+      disabled: busy,
+      label: "Delete profile",
+      onSelect: onDeletePermanently,
+    });
+  }
   return items;
 }
 
@@ -126,8 +167,12 @@ export function ProfileEditorHeader({
   displayName,
   editingId,
   globalStatus,
+  isHidden = false,
+  onArchive,
+  onDeletePermanently,
   onImpersonate,
   onResolveDuplicate,
+  onRestore,
   organizationName,
   profilePhotoFileId,
   rosterConfiguration,
@@ -139,13 +184,17 @@ export function ProfileEditorHeader({
   const trimmedName = displayName.trim();
   const headerName = isEdit ? trimmedName || "Untitled profile" : "Add Profile";
   const voicePartDisplay = getVoicePartDisplay(voicePart, rosterConfiguration);
-  const moreActionsItems = buildMoreActions(
-    canImpersonate,
-    onImpersonate,
-    canResolveDuplicate,
-    onResolveDuplicate,
+  const moreActionsItems = buildMoreActions({
     busy,
-  );
+    canImpersonate,
+    canResolveDuplicate,
+    isHidden,
+    onArchive,
+    onDeletePermanently,
+    onImpersonate,
+    onResolveDuplicate,
+    onRestore,
+  });
   const statusClass = getStatusClass(globalStatus);
 
   return (
