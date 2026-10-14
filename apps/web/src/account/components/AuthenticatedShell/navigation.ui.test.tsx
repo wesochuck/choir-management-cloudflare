@@ -5,7 +5,7 @@ import type { ModuleState } from "@choir/contracts";
 
 import { AppLink, Navigation, SidebarWorkspaceHeading } from "./navigation";
 import type { NavigationGroup } from "./types";
-import { organizationGroups, routeHasModule } from "./utils";
+import { organizationGroups, pageDescription, routeHasModule } from "./utils";
 import { workspaceNavigation } from "./workspacesUtils";
 
 const groups: readonly NavigationGroup[] = [
@@ -158,6 +158,24 @@ describe("sidebar navigation behavior", () => {
     );
     expect(account.flatMap((group) => group.items.map((item) => item.href))).not.toContain(
       "/admin/roster",
+    );
+  });
+
+  it("resolves route-specific settings subtitles instead of falling back to generic settings (#173)", () => {
+    expect(pageDescription("/admin/settings")).toBe(
+      "Manage organization preferences, terminology, and defaults.",
+    );
+    expect(pageDescription("/admin/settings/security")).toBe(
+      "Manage two-factor authentication and organization security policies.",
+    );
+    expect(pageDescription("/admin/settings/invitations")).toBe(
+      "Invite new members, managers, and administrators to the organization.",
+    );
+    expect(pageDescription("/admin/settings/modules")).toBe(
+      "Enable or disable feature modules for your organization.",
+    );
+    expect(pageDescription("/admin/settings/setup-checklist")).toBe(
+      "Review configuration steps to prepare your organization for launch.",
     );
   });
 });
