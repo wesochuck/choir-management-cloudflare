@@ -430,7 +430,7 @@ export function RosterPageView({
                     sortValue: (candidate) => candidate.displayName,
                   },
                   {
-                    header: "Email",
+                    header: "Email address",
                     id: "email",
                     render: (candidate) => {
                       const email = membershipByProfileId.get(candidate.id)?.email;
@@ -459,28 +459,37 @@ export function RosterPageView({
                       `${candidate.hidden ? "1" : "0"}-${statusLabel(candidate.globalStatus)}`,
                   },
                   {
-                    header: "Email",
+                    header: "Delivery status",
                     id: "delivery",
-                    render: (candidate) =>
-                      candidate.doNotEmail || candidate.providerEmailSuppressed ? (
-                        <span
-                          className="roster-delivery-indicator"
-                          role="img"
-                          title={
-                            candidate.providerEmailSuppressed
-                              ? "Provider suppression is active. Contact a Platform Administrator to release local provider suppression after the address issue is resolved."
-                              : `Email delivery disabled${candidate.bounceReason ? `: ${candidate.bounceReason}` : ""}`
-                          }
-                        >
-                          ⚠
-                        </span>
-                      ) : (
-                        <span className="roster-delivery-indicator roster-delivery-indicator--ok">
-                          —
-                        </span>
-                      ),
+                    render: (candidate) => {
+                      if (candidate.providerEmailSuppressed) {
+                        return (
+                          <span
+                            className="status-pill status-pill--suppressed"
+                            title="Provider suppression is active. Contact a Platform Administrator to release local provider suppression after the address issue is resolved."
+                          >
+                            Suppressed
+                          </span>
+                        );
+                      }
+                      if (candidate.doNotEmail) {
+                        return (
+                          <span
+                            className="status-pill status-pill--warning"
+                            title={`Email delivery disabled${candidate.bounceReason ? `: ${candidate.bounceReason}` : ""}`}
+                          >
+                            Blocked
+                          </span>
+                        );
+                      }
+                      return <span className="status-pill status-pill--success">Allowed</span>;
+                    },
                     sortValue: (candidate) =>
-                      candidate.doNotEmail || candidate.providerEmailSuppressed,
+                      candidate.providerEmailSuppressed
+                        ? "Suppressed"
+                        : candidate.doNotEmail
+                          ? "Blocked"
+                          : "Allowed",
                   },
                   {
                     header: "Directory",
