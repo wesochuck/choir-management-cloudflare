@@ -239,7 +239,16 @@ export function listCommunicationHistoryFromStore(
         2 AS source_rank,
         n.id,
         n.scheduled_for AS sort_timestamp,
-        CASE WHEN n.status = 'failed' THEN 'Failed' WHEN n.status IN ('sent', 'suppressed') THEN 'Sent' WHEN n.status = 'queued' AND n.scheduled_for > ? AND NOT EXISTS (SELECT 1 FROM scheduled_job_outbox x WHERE x.idempotency_key = ('ticket-notification:' || n.id) AND x.enqueued_at IS NOT NULL) THEN 'Scheduled' ELSE 'Queued' END AS status,
+        CASE
+          WHEN n.status = 'failed' THEN 'Failed'
+          WHEN n.status IN ('sent', 'suppressed') THEN 'Sent'
+          WHEN n.status = 'queued' AND n.scheduled_for > ? AND NOT EXISTS (
+            SELECT 1 FROM scheduled_job_outbox x
+            WHERE x.idempotency_key = ('ticket-notification:' || n.id)
+              AND x.enqueued_at IS NOT NULL
+          ) THEN 'Scheduled'
+          ELSE 'Queued'
+        END AS status,
         COALESCE(
           n.rendered_subject,
           CASE
@@ -275,7 +284,16 @@ export function listCommunicationHistoryFromStore(
         1 AS source_rank,
         n.id,
         n.scheduled_for AS sort_timestamp,
-        CASE WHEN n.status = 'failed' THEN 'Failed' WHEN n.status IN ('sent', 'suppressed') THEN 'Sent' WHEN n.status = 'queued' AND n.scheduled_for > ? AND NOT EXISTS (SELECT 1 FROM scheduled_job_outbox x WHERE x.idempotency_key = ('audition-notification:' || n.id) AND x.enqueued_at IS NOT NULL) THEN 'Scheduled' ELSE 'Queued' END AS status,
+        CASE
+          WHEN n.status = 'failed' THEN 'Failed'
+          WHEN n.status IN ('sent', 'suppressed') THEN 'Sent'
+          WHEN n.status = 'queued' AND n.scheduled_for > ? AND NOT EXISTS (
+            SELECT 1 FROM scheduled_job_outbox x
+            WHERE x.idempotency_key = ('audition-notification:' || n.id)
+              AND x.enqueued_at IS NOT NULL
+          ) THEN 'Scheduled'
+          ELSE 'Queued'
+        END AS status,
         n.subject,
         'Email' AS channel,
         NULL AS createdAt,

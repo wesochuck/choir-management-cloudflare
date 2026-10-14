@@ -71,6 +71,20 @@ export function ConfirmDialog({
   );
 }
 
+function formationOrderItemClassName(options: {
+  readonly isDragging: boolean;
+  readonly isDropAfter: boolean;
+  readonly isDropBefore: boolean;
+  readonly isUnknown: boolean;
+}): string {
+  const classes = ["formation-order-item"];
+  if (options.isDragging) classes.push("formation-order-item--dragging");
+  if (options.isDropBefore) classes.push("formation-order-item--drop-before");
+  if (options.isDropAfter) classes.push("formation-order-item--drop-after");
+  if (options.isUnknown) classes.push("formation-order-item--unknown");
+  return classes.join(" ");
+}
+
 function FormationOrderEditor({
   formation,
   onChange,
@@ -117,7 +131,12 @@ function FormationOrderEditor({
           return (
             <div
               aria-label={`${option?.label ?? `Unknown item ${value}`}, position ${String(index + 1)}`}
-              className={`formation-order-item${draggingIndex === index ? " formation-order-item--dragging" : ""}${dropTargetIndex === index ? " formation-order-item--drop-before" : ""}${dropTargetIndex === index + 1 ? " formation-order-item--drop-after" : ""}${option ? "" : " formation-order-item--unknown"}`}
+              className={formationOrderItemClassName({
+                isDragging: draggingIndex === index,
+                isDropBefore: dropTargetIndex === index,
+                isDropAfter: dropTargetIndex === index + 1,
+                isUnknown: !option,
+              })}
               draggable
               key={`${value}-${String(index)}`}
               onDragEnd={() => {

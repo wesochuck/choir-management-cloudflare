@@ -81,6 +81,20 @@ function reorderHandleLabel(
   return `${keyboardDragging ? "Reordering" : "Reorder"} ${title}, position ${String(index + 1)} of ${String(resourceCount)}`;
 }
 
+function resourceRowClassName(options: {
+  readonly dropAfter: boolean;
+  readonly dropBefore: boolean;
+  readonly isDragging: boolean;
+  readonly recentlyMoved: boolean;
+}): string {
+  const classes = ["organization-resource-row"];
+  if (options.isDragging) classes.push("organization-resource-row--dragging");
+  if (options.dropBefore) classes.push("organization-resource-row--drop-before");
+  if (options.dropAfter) classes.push("organization-resource-row--drop-after");
+  if (options.recentlyMoved) classes.push("organization-resource-row--moved");
+  return classes.join(" ");
+}
+
 export function OrganizationResources({
   enabled,
   manager,
@@ -450,7 +464,12 @@ export function OrganizationResources({
                       dragOverBoundary === index + 1 && canDropAtBoundary(index + 1, dragIndex);
                     const recentlyMoved = recentlyMovedResourceId === _resource.id;
                     return {
-                      className: `organization-resource-row${isDragging ? " organization-resource-row--dragging" : ""}${dropBefore ? " organization-resource-row--drop-before" : ""}${dropAfter ? " organization-resource-row--drop-after" : ""}${recentlyMoved ? " organization-resource-row--moved" : ""}`,
+                      className: resourceRowClassName({
+                        dropAfter,
+                        dropBefore,
+                        isDragging,
+                        recentlyMoved,
+                      }),
                       onDragEnd: () => {
                         clearPointerReorder();
                       },

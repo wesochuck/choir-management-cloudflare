@@ -6,6 +6,7 @@ import type {
   PlatformJobDeadLetterSummary,
   PlatformOrganizationContextResponse,
   PlatformOrganizationSummary,
+  PlatformStripeReconciliationApplyResponse,
   PublicDomainResponse,
 } from "@choir/contracts";
 
@@ -178,4 +179,21 @@ export function emailFeedbackActionLabel(action: EmailFeedbackActionTarget["acti
 
 export function providerEventStatusLabel(event: PlatformEmailProviderEvent): string {
   return `${event.eventType} · ${event.state} · ${event.operatorStatus}`;
+}
+
+export function pluralize(count: number, singular: string, plural = `${singular}s`): string {
+  return `${String(count)} ${count === 1 ? singular : plural}`;
+}
+
+export function formatApplySuccessMessage(
+  result: Pick<
+    PlatformStripeReconciliationApplyResponse,
+    "appliedCount" | "feeBackfilledCount" | "paidCount" | "refundedCount"
+  >,
+): string {
+  const records = pluralize(result.appliedCount, "record");
+  const tickets = pluralize(result.paidCount, "ticket");
+  const refunds = pluralize(result.refundedCount, "refund");
+  const fees = pluralize(result.feeBackfilledCount, "fee");
+  return `Applied reconciliation repairs: ${records} updated (${tickets} restored, ${refunds}, ${fees} backfilled).`;
 }

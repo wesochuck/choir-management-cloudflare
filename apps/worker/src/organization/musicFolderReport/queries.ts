@@ -26,9 +26,15 @@ export function selectedPerformanceRows(
   if (eventIds.length === 0) return [];
   return storage.sql
     .exec<PerformanceRow>(
-      "SELECT id AS eventId, title AS eventTitle, starts_at AS startsAt, is_canceled AS isCanceled, is_archived AS isArchived FROM events WHERE type = 'Performance' AND id IN (" +
-        placeholders(eventIds) +
-        ") ORDER BY starts_at DESC, id DESC",
+      `SELECT
+         id AS eventId,
+         title AS eventTitle,
+         starts_at AS startsAt,
+         is_canceled AS isCanceled,
+         is_archived AS isArchived
+       FROM events
+       WHERE type = 'Performance' AND id IN (${placeholders(eventIds)})
+       ORDER BY starts_at DESC, id DESC`,
       ...eventIds,
     )
     .toArray();
@@ -38,8 +44,23 @@ export function selectedPerformanceOptions(
 ): readonly PerformanceOptionRow[] {
   return storage.sql
     .exec<PerformanceOptionRow>(
-      "SELECT e.id, e.title, e.starts_at AS startsAt, e.is_canceled AS isCanceled, e.is_archived AS isArchived, COALESCE(folder_counts.assignedFolderCount, 0) AS assignedFolderCount FROM events e LEFT JOIN (SELECT event_id, COUNT(*) AS assignedFolderCount FROM event_rosters WHERE trim(folder_number) <> '' GROUP BY event_id) folder_counts ON folder_counts.event_id = e.id WHERE e.type = 'Performance' ORDER BY e.starts_at DESC, e.id DESC LIMIT " +
-        String(MUSIC_FOLDER_REPORT_MAX_PERFORMANCES),
+      `SELECT
+         e.id,
+         e.title,
+         e.starts_at AS startsAt,
+         e.is_canceled AS isCanceled,
+         e.is_archived AS isArchived,
+         COALESCE(folder_counts.assignedFolderCount, 0) AS assignedFolderCount
+       FROM events e
+       LEFT JOIN (
+         SELECT event_id, COUNT(*) AS assignedFolderCount
+         FROM event_rosters
+         WHERE trim(folder_number) <> ''
+         GROUP BY event_id
+       ) folder_counts ON folder_counts.event_id = e.id
+       WHERE e.type = 'Performance'
+       ORDER BY e.starts_at DESC, e.id DESC
+       LIMIT ${String(MUSIC_FOLDER_REPORT_MAX_PERFORMANCES)}`,
     )
     .toArray();
 }
@@ -50,9 +71,26 @@ export function folderRowsForEvents(
   if (eventIds.length === 0) return [];
   return storage.sql
     .exec<FolderStorageRow>(
-      "SELECT e.id AS eventId, e.title AS eventTitle, e.starts_at AS startsAt, e.is_canceled AS isCanceled, e.is_archived AS isArchived, p.id AS profileId, p.display_name AS displayName, p.global_status AS globalStatus, COALESCE(r.folder_number, '') AS folderNumber, COALESCE(r.folder_returned, 0) AS folderReturned, CASE WHEN COALESCE(r.folder_returned, 0) = 1 THEN COALESCE(r.folder_returned_at, r.updated_at) ELSE NULL END AS returnedAt, r.updated_at AS updatedAt FROM event_rosters r JOIN events e ON e.id = r.event_id AND e.type = 'Performance' JOIN profiles p ON p.id = r.profile_id WHERE e.id IN (" +
-        placeholders(eventIds) +
-        ")",
+      `SELECT
+         e.id AS eventId,
+         e.title AS eventTitle,
+         e.starts_at AS startsAt,
+         e.is_canceled AS isCanceled,
+         e.is_archived AS isArchived,
+         p.id AS profileId,
+         p.display_name AS displayName,
+         p.global_status AS globalStatus,
+         COALESCE(r.folder_number, '') AS folderNumber,
+         COALESCE(r.folder_returned, 0) AS folderReturned,
+         CASE
+           WHEN COALESCE(r.folder_returned, 0) = 1 THEN COALESCE(r.folder_returned_at, r.updated_at)
+           ELSE NULL
+         END AS returnedAt,
+         r.updated_at AS updatedAt
+       FROM event_rosters r
+       JOIN events e ON e.id = r.event_id AND e.type = 'Performance'
+       JOIN profiles p ON p.id = r.profile_id
+       WHERE e.id IN (${placeholders(eventIds)})`,
       ...eventIds,
     )
     .toArray();
@@ -142,9 +180,18 @@ export function currentFolderRows(
   if (eventIds.length === 0) return [];
   return storage.sql
     .exec<CurrentFolderRow>(
-      "SELECT event_id AS eventId, profile_id AS profileId, COALESCE(folder_number, '') AS folderNumber, COALESCE(folder_returned, 0) AS folderReturned, CASE WHEN COALESCE(folder_returned, 0) = 1 THEN COALESCE(folder_returned_at, updated_at) ELSE NULL END AS returnedAt, updated_at AS updatedAt FROM event_rosters WHERE event_id IN (" +
-        placeholders(eventIds) +
-        ")",
+      `SELECT
+         event_id AS eventId,
+         profile_id AS profileId,
+         COALESCE(folder_number, '') AS folderNumber,
+         COALESCE(folder_returned, 0) AS folderReturned,
+         CASE
+           WHEN COALESCE(folder_returned, 0) = 1 THEN COALESCE(folder_returned_at, updated_at)
+           ELSE NULL
+         END AS returnedAt,
+         updated_at AS updatedAt
+       FROM event_rosters
+       WHERE event_id IN (${placeholders(eventIds)})`,
       ...eventIds,
     )
     .toArray();
