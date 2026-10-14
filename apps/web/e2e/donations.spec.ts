@@ -872,4 +872,27 @@ test.describe("public donation checkout", () => {
     );
     expect(levelColumns).toBe(1);
   });
+
+  test("aligns donation KPI value baselines across desktop and mobile", async ({ page }) => {
+    await page.goto("/admin/donations");
+    const metrics = page.locator(".donation-dashboard__metrics .summary-card strong");
+    await expect(metrics).toHaveCount(3);
+
+    // Desktop (3 columns)
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const desktopTops = await metrics.evaluateAll((elements) =>
+      elements.map((el) => Math.round(el.getBoundingClientRect().top)),
+    );
+    expect(Math.max(...desktopTops) - Math.min(...desktopTops)).toBeLessThanOrEqual(2);
+
+    // Mobile (2 columns + 1 wrapped)
+    await page.setViewportSize({ width: 390, height: 844 });
+    const mobileTops = await metrics.evaluateAll((elements) =>
+      elements.map((el) => Math.round(el.getBoundingClientRect().top)),
+    );
+    // Row 1 (cards 0 and 1) must align
+    const firstTop = mobileTops[0] ?? 0;
+    const secondTop = mobileTops[1] ?? 0;
+    expect(Math.abs(firstTop - secondTop)).toBeLessThanOrEqual(2);
+  });
 });

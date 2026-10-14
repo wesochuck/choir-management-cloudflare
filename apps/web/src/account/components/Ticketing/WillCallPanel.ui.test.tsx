@@ -361,6 +361,13 @@ describe("WillCallPanel financial KPI cards and fee reconciliation", () => {
     expect(within(netCard).getByText("Net Organization proceeds")).toBeInTheDocument();
     expect(within(netCard).getByText("$24.95")).toBeInTheDocument();
 
+    const cards = [soldCard, grossCard, refundsCard, feesCard, processorCard, netCard];
+    for (const card of cards) {
+      expect(card.querySelector(".summary-card__label")).not.toBeNull();
+      expect(card.querySelector("strong")).not.toBeNull();
+      expect(card.querySelector("small")).not.toBeNull();
+    }
+
     // Helper text
     expect(
       screen.getByText(
