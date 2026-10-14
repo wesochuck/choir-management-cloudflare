@@ -848,3 +848,77 @@ describe("EventEditorDialog ticketing section and returnTo navigation", () => {
     expect(region.getByRole("button", { name: /Create event|Save event/ })).toBeInTheDocument();
   });
 });
+
+describe("EventEditorDialog start date/time keyboard access and validation (#174)", () => {
+  it("shows actionable validation alert and aria-invalid on empty start date & time", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={{ ...emptyEvent, title: "Valid Title", type: "Rehearsal", venueId: venueHall.id }}
+        eventStart=""
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    await switchToSection(/Schedule & venue/);
+    const startInput = screen.getByLabelText<HTMLInputElement>("Start date & time *");
+    expect(startInput).toBeInTheDocument();
+    expect(startInput).toHaveAttribute("type", "datetime-local");
+    expect(startInput).not.toHaveAttribute("aria-invalid", "true");
+
+    // Click Create event
+    const saveButton = screen.getByRole("button", { name: /Create event/ });
+    await user.click(saveButton);
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(startInput).toHaveAttribute("aria-invalid", "true");
+    expect(startInput).toHaveAttribute("aria-describedby", "events-page-start-error");
+    expect(
+      screen.getByText("Enter a valid start date and time.", {
+        selector: "#events-page-start-error",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("updates start date/time via keyboard input and clears validation alert", async () => {
+    const setEventStart = vi.fn();
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={{ ...emptyEvent, title: "Valid Title", type: "Rehearsal", venueId: venueHall.id }}
+        eventStart="2026-10-15T19:30"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={setEventStart}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    await switchToSection(/Schedule & venue/);
+    const startInput = screen.getByLabelText<HTMLInputElement>("Start date & time *");
+    expect(startInput.value).toBe("2026-10-15T19:30");
+
+    fireEvent.change(startInput, { target: { value: "2026-10-16T20:00" } });
+    expect(setEventStart).toHaveBeenCalledWith("2026-10-16T20:00");
+  });
+});
