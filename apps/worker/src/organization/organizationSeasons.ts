@@ -94,6 +94,71 @@ async function mutateSeason(
   return response;
 }
 
+export async function isOnlineDuesPaymentsAvailable(
+  env: Pick<
+    Env,
+    | "APP_ENV"
+    | "EXTERNAL_EFFECTS_MODE"
+    | "ORGANIZATION_STORE"
+    | "STRIPE_PAYMENTS_ENABLED"
+    | "STRIPE_SECRET_KEY"
+  >,
+  organizationId: string,
+): Promise<boolean> {
+  let checkoutMode: "fake" | "stripe";
+  try {
+    checkoutMode = ticketCheckoutMode(env);
+  } catch {
+    return false;
+  }
+
+  try {
+    const paymentSettings = await readOrganizationPaymentActivations(env, organizationId);
+    if (!paymentSettings.activations.dues) {
+      return false;
+    }
+
+    if (checkoutMode === "fake") {
+      return true;
+    }
+
+    const secretKey = env.STRIPE_SECRET_KEY?.trim() ?? "";
+    if (!secretKey) {
+      return false;
+    }
+
+    const stripeResponse = await invokeOrganizationRpc(
+      organizationStoreStub(env, organizationId),
+      `https://organization.internal/internal/stripe-connect?organizationId=${encodeURIComponent(organizationId)}`,
+    );
+    if (!stripeResponse.ok) {
+      return false;
+    }
+
+    const stripeStatus = z
+      .object({
+        accountId: z
+          .string()
+          .regex(/^acct_[A-Za-z0-9]+$/)
+          .nullable(),
+        status: z.enum(["not_started", "onboarding", "restricted", "ready"]),
+      })
+      .safeParse(await stripeResponse.json().catch(() => null));
+
+    if (
+      !stripeStatus.success ||
+      stripeStatus.data.status !== "ready" ||
+      !stripeStatus.data.accountId
+    ) {
+      return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // eslint-disable-next-line complexity -- this coordinates fake and Stripe Connect checkout paths.
 export async function createDuesCheckoutSession(
   env: Pick<
@@ -118,6 +183,14 @@ export async function createDuesCheckoutSession(
     checkoutMode = ticketCheckoutMode(env);
   } catch {
     throw new SeasonError("dues_disabled", 501, "Online dues are disabled.");
+  }
+  const paymentSettings = await readOrganizationPaymentActivations(env, organizationId);
+  if (!paymentSettings.activations.dues) {
+    throw new SeasonError(
+      "payments_not_activated",
+      409,
+      "Online dues payments are not enabled for this Organization.",
+    );
   }
   if (checkoutMode === "fake") {
     const response = await invokeOrganizationRpc(
@@ -171,14 +244,6 @@ export async function createDuesCheckoutSession(
   );
   if (!feeResponse.ok || !feeSettings.success) {
     throw new SeasonError("transaction_fees_unavailable", 503, "Transaction fees are unavailable.");
-  }
-  const paymentSettings = await readOrganizationPaymentActivations(env, organizationId);
-  if (!paymentSettings.activations.dues) {
-    throw new SeasonError(
-      "payments_not_activated",
-      409,
-      "Online dues payments are not enabled for this Organization.",
-    );
   }
   const stripeStatus = z
     .object({

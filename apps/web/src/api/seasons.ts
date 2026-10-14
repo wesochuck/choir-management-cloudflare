@@ -61,6 +61,7 @@ export async function listOrganizationDues(signal?: AbortSignal): Promise<readon
 
 export async function getMyDues(signal?: AbortSignal): Promise<{
   readonly dues: readonly DuesRecord[];
+  readonly onlineDuesPaymentsAvailable: boolean;
   readonly seasons: readonly Season[];
   readonly transactionFeeSettings: TransactionFeeSettings;
 }> {
@@ -68,6 +69,7 @@ export async function getMyDues(signal?: AbortSignal): Promise<{
   const result = memberDuesResponseSchema.parse(await response.json());
   return {
     dues: result.dues,
+    onlineDuesPaymentsAvailable: result.onlineDuesPaymentsAvailable,
     seasons: result.seasons,
     transactionFeeSettings: result.transactionFeeSettings,
   };
