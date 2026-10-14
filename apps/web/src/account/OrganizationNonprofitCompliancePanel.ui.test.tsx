@@ -386,6 +386,64 @@ it("renders all four built-ins including the Ohio suggested date and count", asy
   expect(
     within(table()).getByText("Ohio Annual Unclaimed Funds Report (including negative reports)"),
   ).toBeInTheDocument();
+  expect(
+    within(table()).getByText("Oct 31 is a suggested date — confirm applicability."),
+  ).toBeInTheDocument();
+  expect(within(table()).getByText("Filing guidance and references")).toBeInTheDocument();
   expect(within(table()).getByText(/Suggested date only/)).toBeInTheDocument();
   expect(within(table()).getByRole("link", { name: "Ohio holder reporting" })).toBeInTheDocument();
+  expect(within(table()).getByRole("link", { name: "ORC 169.03" })).toBeInTheDocument();
+});
+
+it("arranges action buttons consistently and supports custom task archive", async () => {
+  const template = settings.tasks[0];
+  if (!template) throw new Error("Missing fixture task");
+  vi.mocked(api.getNonprofitComplianceSettings).mockResolvedValue({
+    ...settings,
+    tasks: [
+      {
+        ...template,
+        applicable: true,
+        id: "11111111-2222-4333-8444-555555555555",
+        kind: "irs_annual_return",
+        source: "builtin",
+        title: "IRS annual return",
+      },
+      {
+        ...template,
+        applicable: true,
+        id: "22222222-3333-4444-8555-666666666666",
+        kind: null,
+        responsibleEmail: "treasurer@example.test",
+        responsibleName: "Terry Treasurer",
+        source: "custom",
+        templateKey: null,
+        title: "Custom Insurance Task",
+      },
+    ],
+  });
+  await setup();
+
+  // Builtin row action buttons: Mark completed, Edit
+  const rows = within(table()).getAllByRole("row").slice(1);
+  expect(rows).toHaveLength(2);
+
+  const builtinRow = rows[0];
+  if (!builtinRow) throw new Error("Missing builtin row");
+  const builtinActions = within(builtinRow).getAllByRole("button");
+  expect(builtinActions.map((btn) => btn.textContent)).toEqual(["Mark completed", "Edit"]);
+
+  // Custom row action buttons: Mark completed, Edit, Archive
+  const customRow = rows[1];
+  if (!customRow) throw new Error("Missing custom row");
+  const customActions = within(customRow).getAllByRole("button");
+  expect(customActions.map((btn) => btn.textContent)).toEqual([
+    "Mark completed",
+    "Edit",
+    "Archive",
+  ]);
+
+  // Responsible administrator name and email
+  expect(within(customRow).getByText("Terry Treasurer")).toBeInTheDocument();
+  expect(within(customRow).getByText("treasurer@example.test")).toBeInTheDocument();
 });
