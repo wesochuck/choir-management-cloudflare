@@ -4,14 +4,8 @@ Mandatory instructions for AI coding agents working in this repository.
 
 ## 1. Current Mission and Scope
 
-- The user's current request defines the immediate task scope. The rebuild plan governs how in-scope
-  work is implemented; it does not authorize unrelated milestone work.
-- The Cloudflare rebuild is nearing completion. Treat legacy parity as a focused source for the
-  remaining documented gaps, not as a reason to restart broad legacy discovery or rebuild completed
-  areas.
-- Execute the applicable work in milestones 0–6 of
-  `docs/2026-07-20-cloudflare-multitenant-rebuild-plan.md`. Milestone 7, production launch, is out
-  of scope unless the user explicitly authorizes it and the goal contract is updated.
+- The user's current request defines the immediate task scope. The Cloudflare application is
+  standalone; legacy parity tracking has been retired (ADR 0049).
 - The active deployment target is permanent staging. Do not launch or modify production.
 - Treat `docs/goal/GOAL.md` as the durable goal contract and `docs/goal/READINESS.md` as the
   machine/environment handoff.
@@ -25,15 +19,17 @@ Within repository evidence, apply this order:
 1. Current security, tenancy, architecture, and environment decisions in this file,
    `docs/goal/GOAL.md`, and applicable accepted, non-superseded architectural decision records under
    `docs/adr/`.
-2. Current executable contracts, code, tests, migrations, and parity gates.
-3. For unresolved behavioral-parity questions only, legacy commit
-   `6874d43a3c3698ae53218a44d17649bc454ca9ac` in the read-only sibling Parity Bridge.
-4. `CONTEXT.md` for product language and historical plans for supporting intent.
+2. Current executable contracts (`packages/contracts`), application code, automated tests,
+   migrations, and verification gates.
+3. Active architecture contracts under `docs/architecture/` (e.g., `signed-link-behavior.md`,
+   `csv-contracts.md`, `data-model.md`).
+4. `CONTEXT.md` for product language and domain concepts.
 
-An explicit current decision may intentionally supersede legacy behavior. Record that outcome in the
-parity ledger or an ADR instead of reproducing unsafe or obsolete behavior. An executable
-implementation cannot silently override an explicit current architectural decision, nor should
-historical documents override current code.
+The legacy PocketBase repository and pinned commit are historical reference only, never a feature
+requirement or default agent research step. An explicit current decision supersedes legacy behavior.
+Record architectural decisions in an ADR under `docs/adr/` instead of reproducing obsolete behavior.
+An executable implementation cannot silently override an explicit current architectural decision,
+nor should historical documents override current code.
 
 ## 3. Scoped Instructions
 
@@ -69,8 +65,8 @@ provider instructions against current authoritative documentation before changin
   user-visible output.
 - Prevent O(N^2) bottlenecks. Do not run linear scans inside tight loops or sort comparators;
   precompute `Map` or `Set` lookups.
-- Do not weaken a quality, size, security, isolation, accessibility, parity, or migration gate
-  merely to make it pass.
+- Do not weaken a quality, size, security, isolation, accessibility, or migration gate merely to
+  make it pass.
 - Do not introduce eyebrow kickers into the web design system. Headings carry their own context;
   `npm run check:no-eyebrows` enforces this.
 - Avoid recurring, unbounded table scans in metered storage (D1 queries, scheduled tasks, queue
@@ -94,7 +90,7 @@ provider instructions against current authoritative documentation before changin
   places them in scope.
 - Preserve unrelated modifications and untracked files. Never discard, rewrite, stage, or commit
   unrelated work merely to obtain a clean tree.
-- Group a change with its regression tests and required parity evidence in one cohesive commit.
+- Group a change with its regression tests and required verification in one cohesive commit.
 - Always stage `package-lock.json` with a `package.json` change. The pre-commit hook and local
   verification gate enforce lockfile synchronization.
 - Do not use destructive Git or filesystem commands unless the user explicitly requests the exact
@@ -121,8 +117,8 @@ Three clearly differentiated verification levels govern local work:
    (`npm run lint`, `npm run typecheck`, or focused vitest runs) while modifying code.
 2. **Browser-free comprehensive check:** Run `npm run check:ci`. This is the canonical browser-free
    local verification gate. It runs dependency audits, lockfile verification, DO runtime checks,
-   formatting, lint, Knip, contracts, parity checks, unit tests, artifact packaging verification,
-   and workerd integration tests without launching browser processes.
+   formatting, lint, Knip, contracts, route checks, unit tests, artifact packaging verification, and
+   workerd integration tests without launching browser processes.
 3. **Complete release qualification:** Run `npm run check:release`. This is the canonical
    pre-promotion release gate required before pushing `main` or promoting to staging. It runs
    `npm run check:ci`, followed by the full Chromium desktop and mobile E2E suites with
@@ -147,8 +143,7 @@ Additional rules:
 - In automated scripts or test environments, use `npm ci`, not `npm install`, after the lockfile
   exists.
 - Run focused checks while iterating.
-- After any route or parity-ledger change, run both `npm run check:parity` and
-  `npm run check:parity:implementation`.
+- After any route change, run `npm run check:routes`.
 - Build the deployable artifact before `npm run test:integration:prepared`.
 - Before pushing `main` or promoting to staging, run `npm run check:release`. Do not manually
   reproduce release qualification with separate ad-hoc commands.
@@ -157,28 +152,25 @@ Additional rules:
 
 Before finishing a material or release-bound change, report:
 
-- what changed and which goal, plan, or parity entries it satisfies;
+- what changed and which goal or architectural requirements it satisfies;
 - checks run, results, and exact reasons for any skipped check;
 - migration and rollback implications;
 - tenant-isolation, external-effect, accessibility, and performance risks;
 - generated artifacts and how they were regenerated;
 - remaining milestone work only when the task is part of active milestone execution.
 
-## 7. Plan and Parity Maintenance
+## 7. Plan and Route Maintenance
 
 - Update the plan's File Responsibility Map when milestone work introduces a responsibility not
   represented there. Routine fixes do not require map edits unless ownership changes.
-- Maintain `docs/parity/feature-matrix.yaml` as executable evidence, not a prose checklist.
-- Every remaining baseline route, public or signed flow, service workflow, export, file behavior,
-  scheduled task, responsive state, and accessibility-critical interaction needs parity evidence.
-- When a Worker route is renamed or removed, update the parity matrix, route inventory, and
-  route-level tests atomically.
-- A historical plan is not proof of behavior. Confirm it against executable evidence and classify it
-  as implemented, partial, proposed, superseded, or irrelevant.
-- Copy only approved contracts, fixtures, screenshots, CSV specifications, glossary entries, and
-  ADRs from the Parity Bridge.
-- New signed-link bytes need not match PocketBase, but purpose, authorization, Organization binding,
-  expiry, revocation, and constant-time verification must be covered.
+- When a Worker route is added, renamed, or removed, verify route module registrations with
+  `npm run check:routes`.
+- Maintain route-level tests and safe boundary coverage (`npm run qualify:staging:evidence`) when
+  changing endpoints.
+- New signed-link flows must satisfy the requirements in
+  `docs/architecture/signed-link-behavior.md`: purpose, authorization, Organization binding, expiry,
+  revocation, and constant-time verification.
+- CSV import and export flows must satisfy the requirements in `docs/architecture/csv-contracts.md`.
 
 ## 8. Staging Deployment Contract
 

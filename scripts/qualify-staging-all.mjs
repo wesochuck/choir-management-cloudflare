@@ -25,8 +25,8 @@ const PHASES = [
   },
   {
     args: ["scripts/qualify-staging-evidence.mjs"],
-    label: "Parity Probes & Safe Boundary Evidence",
-    name: "parity-probes",
+    label: "Route Probes & Safe Boundary Evidence",
+    name: "route-probes",
   },
   {
     args: ["scripts/qualify-staging-roster.mjs"],

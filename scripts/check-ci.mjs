@@ -60,15 +60,9 @@ const steps = [
   },
   {
     job: "contracts",
-    label: "Validate parity ledger",
+    label: "Check Worker route registrations",
     command: "npm",
-    args: ["run", "check:parity"],
-  },
-  {
-    job: "contracts",
-    label: "Audit parity implementation",
-    command: "npm",
-    args: ["run", "check:parity:implementation"],
+    args: ["run", "check:routes"],
   },
   { job: "unit", label: "Run unit tests", command: "npm", args: ["test"] },
   {

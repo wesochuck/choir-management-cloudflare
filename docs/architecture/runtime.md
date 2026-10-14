@@ -49,5 +49,5 @@ Workers static assets, has real isolated staging bindings, and keeps external ef
 fake/capture mode. Provisioned Organization stores schedule their own alarm, create at most one
 stable cleanup job per due interval in a bounded SQLite outbox, and re-enqueue the same job identity
 when delivery acknowledgment is uncertain. The consumer's per-Organization idempotency ledger
-prevents another logical effect. Domain-specific cleanup behavior remains partial until its parity
-wave; all status remains tracked in `docs/parity/feature-matrix.yaml`.
+prevents another logical effect. Domain-specific cleanup behavior is implemented across domain
+modules; route and workflow verification is maintained natively.

@@ -1,5 +1,8 @@
 # Require Whole-Product Parity Before the Cloudflare Release
 
+**Status:** Superseded by
+[ADR 0049](file:///Users/wesosborn/Downloads/choir-management-cloudflare/docs/adr/0049-retire-legacy-parity-tracking-and-adopt-cloudflare-source-of-truth.md)
+
 The first production Cloudflare release must include every current module and all current
 user-visible functionality and visual character in Parity Baseline commit
 `6874d43a3c3698ae53218a44d17649bc454ca9ac`. Work may be implemented and verified in

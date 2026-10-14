@@ -299,20 +299,18 @@ establish implemented behavior; non-PocketBase `AGENTS.md` rules remain normativ
 plan documents provide intent and acceptance details but are not by themselves proof that a proposed
 feature exists. _Avoid_: Moving target, treating every historical plan as implemented scope
 
-## Parity Bridge
+## Parity Bridge (Historical)
 
-The development-only, read-only relationship between the new `choir-management-cloudflare`
-repository and the Parity Baseline repository. Local AI tools may inspect both sibling repositories,
-while approved contracts, fixtures, screenshots, CSV formats, glossary entries, and ADRs are copied
-into the new repository so its tests, builds, deployments, and runtime never depend on legacy source
-availability. _Avoid_: Runtime cross-repository import, production dependency, mutable legacy
-reference
+The development-only, read-only reference relationship between the Cloudflare repository and the
+legacy PocketBase repository during the initial migration. Per ADR 0049, legacy parity tracking has
+been retired; current Cloudflare application code, typed contracts, tests, and accepted ADRs are the
+authoritative sources of truth. _Avoid_: Treating legacy repositories as active feature requirements
 
 ## Environment Promotion
 
 The release process in which one commit and lockfile deploy automatically to an isolated permanent
-staging environment, passes integration and parity gates, and is then approved for deployment with
-production bindings. Staging and production never use separate code branches or manual file
+staging environment, passes integration and qualification gates, and is then approved for deployment
+with production bindings. Staging and production never use separate code branches or manual file
 transfer, and production retains a known-good Worker version for rollback. _Avoid_: Staging branch,
 cherry-picked production release, shared staging/production data
 

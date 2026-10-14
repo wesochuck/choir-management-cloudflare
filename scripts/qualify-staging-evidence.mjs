@@ -1,12 +1,11 @@
-import { readFile } from "node:fs/promises";
-import { parse } from "yaml";
 import {
   buildAnonymousProbeRows,
   buildProbePlan,
+  getApplicationRoutes,
   isExpectedAnonymousBoundary,
   materializeRoutePath,
   usesOrganizationHost,
-} from "./parity-evidence-plan.mjs";
+} from "./route-probe-plan.mjs";
 
 const productUrl = (process.env.STAGING_PRODUCT_URL ?? "https://staging.musicsite.org").replace(
   /\/$/,
@@ -38,9 +37,6 @@ if (anonymous && organizationSlugs.length === 0) {
   console.error("Set STAGING_ORG_SLUGS to at least one seeded Organization slug for --anonymous.");
   process.exit(2);
 }
-
-const matrixUrl = new URL("../docs/parity/feature-matrix.yaml", import.meta.url);
-const matrix = parse(await readFile(matrixUrl, "utf8"));
 
 function hostFor(row, organizationSlug = organizationSlugs[0]) {
   if (usesOrganizationHost(row)) {
@@ -82,7 +78,8 @@ async function request(url, method, cookie) {
 }
 
 if (anonymous) {
-  const rows = buildAnonymousProbeRows(matrix, organizationSlugs);
+  const routes = await getApplicationRoutes();
+  const rows = buildAnonymousProbeRows(routes, organizationSlugs);
   const statusCounts = new Map();
   let failed = 0;
   for (const row of rows) {
@@ -99,7 +96,7 @@ if (anonymous) {
     if (!passed) failed += 1;
   }
   console.log(
-    `\nAnonymous staging boundary: ${String(matrix.apiRoutes.length)} API entries across ${String(organizationSlugs.length)} seeded Organization host(s); ${String(rows.length)} safe requests; statuses ${[
+    `\nAnonymous staging boundary: ${String(routes.length)} API routes across ${String(organizationSlugs.length)} seeded Organization host(s); ${String(rows.length)} safe requests; statuses ${[
       ...statusCounts.entries(),
     ]
       .sort(([left], [right]) => Number(left) - Number(right))
@@ -108,9 +105,8 @@ if (anonymous) {
   );
   if (failed > 0) process.exitCode = 1;
 } else {
-  const probeAll = process.argv.includes("--all") || !process.argv.includes("--implemented-only");
-  const rows = buildProbePlan(matrix, { all: probeAll });
-  const summary = { pass: 0, fail: 0, skip: 0 };
+  const rows = buildProbePlan();
+  const summary = { fail: 0, pass: 0, skip: 0 };
   let failed = 0;
 
   for (const row of rows) {
@@ -148,7 +144,7 @@ if (anonymous) {
   }
   if (!planOnly) {
     console.log(
-      `\nParity staging evidence: ${String(summary.pass)} passed, ${String(summary.fail)} failed, ${String(summary.skip)} skipped across ${String(rows.length)} implemented API entries.`,
+      `\nStaging route evidence: ${String(summary.pass)} passed, ${String(summary.fail)} failed, ${String(summary.skip)} skipped across ${String(rows.length)} qualified API routes.`,
     );
   }
   if (failed > 0) process.exitCode = 1;
