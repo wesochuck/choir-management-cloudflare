@@ -11,6 +11,7 @@ import {
 } from "../organization/profiles";
 import {
   createDuesCheckoutSession,
+  isOnlineDuesPaymentsAvailable,
   listSeasons,
   listDues,
   SeasonError,
@@ -95,17 +96,19 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     try {
-      const [seasons, dues, feeResponse] = await Promise.all([
+      const [seasons, dues, feeResponse, onlineDuesPaymentsAvailable] = await Promise.all([
         listSeasons(context.env, authorization.organizationId),
         listDues(context.env, authorization.organizationId),
         invokeOrganizationRpc(
           organizationStoreStub(context.env, authorization.organizationId),
           `https://organization.internal/internal/transaction-fee-settings?organizationId=${encodeURIComponent(authorization.organizationId)}`,
         ),
+        isOnlineDuesPaymentsAvailable(context.env, authorization.organizationId),
       ]);
       const transactionFeeSettings = transactionFeeSettingsSchema.parse(await feeResponse.json());
       return context.json({
         dues: dues.filter((record) => record.profileId === profileId),
+        onlineDuesPaymentsAvailable,
         requestId: context.get("requestId"),
         seasons,
         transactionFeeSettings,

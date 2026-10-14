@@ -1,5 +1,10 @@
-import { duesCheckoutResponseSchema, duesRecordSchema } from "@choir/contracts";
+import {
+  duesCheckoutResponseSchema,
+  duesRecordSchema,
+  memberDuesResponseSchema,
+} from "@choir/contracts";
 import { runInDurableObject } from "cloudflare:test";
+import { exports } from "cloudflare:workers";
 import { requestOrganizationProviderRefund } from "../src/payments/refundRequest";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
@@ -10,6 +15,7 @@ import {
   stores,
   jsonWrite,
   signIn,
+  api,
 } from "./ticketing.integration.fixture";
 beforeEach(async () => setupTicketingIntegration());
 afterEach(async () => teardownTicketingIntegration());
@@ -47,6 +53,41 @@ describe("Organization dues and ticket payment transitions", () => {
       .run();
 
     const requestBody = { checkoutRequestId, seasonId };
+
+    // When dues payment is inactive, dues list reports unavailable and checkout is rejected with 409
+    const duesBefore = await exports.default.fetch(
+      api("alpha.localhost", "/api/singer/dues", cookie),
+    );
+    expect(duesBefore.status).toBe(200);
+    const duesBeforeData = memberDuesResponseSchema.parse(await duesBefore.json());
+    expect(duesBeforeData.onlineDuesPaymentsAvailable).toBe(false);
+
+    const rejectedCheckout = await jsonWrite(
+      "alpha.localhost",
+      "/api/singer/dues/checkout",
+      "POST",
+      requestBody,
+      cookie,
+    );
+    expect(rejectedCheckout.status).toBe(409);
+
+    // Activate dues payments for organization-alpha
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `UPDATE organization_metadata
+         SET payment_activation_json = '{"tickets":true,"donations":true,"dues":true}'
+         WHERE organization_id = ?`,
+        "organization-alpha",
+      );
+    });
+
+    const duesAfter = await exports.default.fetch(
+      api("alpha.localhost", "/api/singer/dues", cookie),
+    );
+    expect(duesAfter.status).toBe(200);
+    const duesAfterData = memberDuesResponseSchema.parse(await duesAfter.json());
+    expect(duesAfterData.onlineDuesPaymentsAvailable).toBe(true);
+
     const created = await jsonWrite(
       "alpha.localhost",
       "/api/singer/dues/checkout",

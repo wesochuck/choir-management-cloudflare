@@ -72,6 +72,7 @@ export const duesCheckoutResponseSchema = z.object({
 
 export const memberDuesResponseSchema = z.object({
   dues: z.array(duesRecordSchema).max(500),
+  onlineDuesPaymentsAvailable: z.boolean().default(false),
   requestId: requestIdSchema,
   seasons: z.array(seasonSchema).max(500),
   transactionFeeSettings: transactionFeeSettingsSchema,
