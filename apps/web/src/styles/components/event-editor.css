@@ -13,6 +13,8 @@
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
     line-height: var(--line-height-normal);
+    white-space: normal;
+    overflow-wrap: break-word;
   }
 
   .event-graphic-dropzone {

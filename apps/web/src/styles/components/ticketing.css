@@ -445,6 +445,9 @@
     font-size: var(--font-size-sm);
     color: var(--color-text-muted);
     margin: var(--spacing-xs) 0 0;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: normal;
   }
 
   /* Six metrics become too narrow for ticket counts and currency values
