@@ -104,6 +104,68 @@ function validateImage(file: File | null): string | null {
   return file.size <= 5 * 1024 * 1024 ? null : "Public images must be 5 MB or smaller.";
 }
 
+function WebsiteReadinessChecklist({
+  dirty,
+  draft,
+  settings,
+}: {
+  readonly dirty: boolean;
+  readonly draft: PublicWebsiteSettingsRequest;
+  readonly settings: PublicWebsiteSettings;
+}) {
+  const versionText =
+    settings.publicationVersion === 0
+      ? "Your public website is not published yet. Visitors see default placeholder information until you publish."
+      : `Live version ${String(settings.publicationVersion)}${
+          settings.publishedAt
+            ? ` (published ${new Date(settings.publishedAt).toLocaleDateString()})`
+            : ""
+        }.`;
+
+  const navigationSummary =
+    draft.enabledNavigation.length > 0
+      ? draft.enabledNavigation
+          .map((m) => (m === "tickets" ? "Tickets" : m === "donations" ? "Donate" : "Auditions"))
+          .join(", ")
+      : "Standard (Performances & History appear when published)";
+
+  return (
+    <section className="panel" aria-label="Website publication readiness">
+      <h2>Website publication readiness</h2>
+      <p className="field-help">
+        {versionText}
+        {dirty ? " You have unsaved changes in your draft." : ""}
+      </p>
+      <ul className="bullet-list">
+        <li>
+          <strong>About Us:</strong>{" "}
+          {draft.aboutUsText.trim() ? "Draft ready" : "Empty (omitted from home page)"}
+        </li>
+        <li>
+          <strong>Our History:</strong>{" "}
+          {draft.historyText.trim()
+            ? "Draft ready (History page appears in navigation)"
+            : "Empty (History link stays hidden from navigation until published)"}
+        </li>
+        <li>
+          <strong>Contact email:</strong>{" "}
+          {draft.contactEmail.trim()
+            ? `Configured (${draft.contactEmail.trim()})`
+            : "Not configured (no contact link in footer)"}
+        </li>
+        <li>
+          <strong>Navigation:</strong> {navigationSummary}
+        </li>
+      </ul>
+      <p className="field-help">
+        Saving updates your administrative draft. Edits do not appear on your public website until
+        you click <strong>Publish saved draft</strong>. Public navigation links (Performances and
+        History) are hidden automatically whenever no published content exists for that section.
+      </p>
+    </section>
+  );
+}
+
 export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean }) {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [draft, setDraft] = useState<PublicWebsiteSettingsRequest | null>(null);
@@ -271,226 +333,239 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     );
   }
   return (
-    <section className="panel public-website-settings" aria-label="Public website settings">
-      {error ? (
-        <p className="notice notice--error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {success ? (
-        <p className="notice notice--success" role="status">
-          {success}
-        </p>
-      ) : null}
-      <div className="form-stack">
-        <div className="field">
-          <label htmlFor="website-hero-headline">Hero headline</label>
-          <input
-            id="website-hero-headline"
-            maxLength={300}
-            onChange={(event) => {
-              change("heroHeadline", event.target.value);
-            }}
-            value={draft.heroHeadline}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="website-hero-subtitle">Hero subtitle</label>
-          <textarea
-            id="website-hero-subtitle"
-            maxLength={1_000}
-            onChange={(event) => {
-              change("heroSubtitle", event.target.value);
-            }}
-            rows={2}
-            value={draft.heroSubtitle}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="website-about">About Us (Markdown)</label>
-          <textarea
-            id="website-about"
-            maxLength={100_000}
-            onChange={(event) => {
-              change("aboutUsText", event.target.value);
-            }}
-            rows={8}
-            value={draft.aboutUsText}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="website-history">Our History (Markdown)</label>
-          <textarea
-            id="website-history"
-            maxLength={100_000}
-            onChange={(event) => {
-              change("historyText", event.target.value);
-            }}
-            rows={8}
-            value={draft.historyText}
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="website-contact-email">Contact email</label>
-          <input
-            id="website-contact-email"
-            maxLength={320}
-            onChange={(event) => {
-              change("contactEmail", event.target.value);
-            }}
-            type="email"
-            value={draft.contactEmail}
-          />
-        </div>
-        <div className="settings-grid">
+    <div className="settings-stack">
+      <WebsiteReadinessChecklist dirty={dirty} draft={draft} settings={loadState.settings} />
+      <section className="panel public-website-settings" aria-label="Public website settings">
+        {error ? (
+          <p className="notice notice--error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {success ? (
+          <p className="notice notice--success" role="status">
+            {success}
+          </p>
+        ) : null}
+        <div className="form-stack">
           <div className="field">
-            <label htmlFor="website-header-font">Heading font</label>
-            <select
-              id="website-header-font"
-              onChange={(event) => {
-                const font = websiteFonts.find((candidate) => candidate === event.target.value);
-                if (font) change("headerFont", font);
-              }}
-              style={{ fontFamily: publicWebsiteFontStacks[draft.headerFont] }}
-              value={draft.headerFont}
-            >
-              {websiteFonts.map((font) => (
-                <option
-                  key={font}
-                  style={{ fontFamily: publicWebsiteFontStacks[font] }}
-                  value={font}
-                >
-                  {fontLabel(font)}
-                </option>
-              ))}
-            </select>
-            <FontPreview font={draft.headerFont} />
-          </div>
-          <div className="field">
-            <label htmlFor="website-body-font">Body font</label>
-            <select
-              id="website-body-font"
-              onChange={(event) => {
-                const font = websiteFonts.find((candidate) => candidate === event.target.value);
-                if (font) change("bodyFont", font);
-              }}
-              style={{ fontFamily: publicWebsiteFontStacks[draft.bodyFont] }}
-              value={draft.bodyFont}
-            >
-              {websiteFonts.map((font) => (
-                <option
-                  key={font}
-                  style={{ fontFamily: publicWebsiteFontStacks[font] }}
-                  value={font}
-                >
-                  {fontLabel(font)}
-                </option>
-              ))}
-            </select>
-            <FontPreview font={draft.bodyFont} />
-          </div>
-          <div className="field">
-            <label htmlFor="website-logo">Organization logo</label>
+            <label htmlFor="website-hero-headline">Hero headline</label>
             <input
-              accept="image/jpeg,image/png,image/webp"
-              id="website-logo"
+              id="website-hero-headline"
+              maxLength={300}
               onChange={(event) => {
-                draftRevisionRef.current += 1;
-                setLogoFile(event.target.files?.item(0) ?? null);
+                change("heroHeadline", event.target.value);
               }}
-              type="file"
+              value={draft.heroHeadline}
             />
-            {draft.logoFileId ? (
-              <button
-                className="text-button"
-                onClick={() => {
-                  change("logoFileId", null);
-                  setLogoFile(null);
-                }}
-                type="button"
-              >
-                Remove current logo
-              </button>
-            ) : null}
           </div>
           <div className="field">
-            <label htmlFor="website-hero-image">Hero image</label>
-            <input
-              accept="image/jpeg,image/png,image/webp"
-              id="website-hero-image"
+            <label htmlFor="website-hero-subtitle">Hero subtitle</label>
+            <textarea
+              id="website-hero-subtitle"
+              maxLength={1_000}
               onChange={(event) => {
-                draftRevisionRef.current += 1;
-                setHeroFile(event.target.files?.item(0) ?? null);
+                change("heroSubtitle", event.target.value);
               }}
-              type="file"
+              rows={2}
+              value={draft.heroSubtitle}
             />
-            {draft.heroFileId ? (
-              <button
-                className="text-button"
-                onClick={() => {
-                  change("heroFileId", null);
-                  setHeroFile(null);
-                }}
-                type="button"
-              >
-                Remove current hero image
-              </button>
-            ) : null}
           </div>
-        </div>
-        <fieldset>
-          <legend>Public navigation</legend>
-          {(["tickets", "donations", "auditions"] as const).map((item) => (
-            <label className="choice-field" key={item}>
-              <input
-                checked={draft.enabledNavigation.includes(item)}
+          <div className="field">
+            <label htmlFor="website-about">About Us (Markdown)</label>
+            <textarea
+              id="website-about"
+              maxLength={100_000}
+              onChange={(event) => {
+                change("aboutUsText", event.target.value);
+              }}
+              rows={8}
+              value={draft.aboutUsText}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="website-history">Our History (Markdown)</label>
+            <textarea
+              id="website-history"
+              maxLength={100_000}
+              onChange={(event) => {
+                change("historyText", event.target.value);
+              }}
+              rows={8}
+              value={draft.historyText}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="website-contact-email">Contact email</label>
+            <input
+              id="website-contact-email"
+              maxLength={320}
+              onChange={(event) => {
+                change("contactEmail", event.target.value);
+              }}
+              type="email"
+              value={draft.contactEmail}
+            />
+          </div>
+          <div className="settings-grid">
+            <div className="field">
+              <label htmlFor="website-header-font">Heading font</label>
+              <select
+                id="website-header-font"
                 onChange={(event) => {
-                  change(
-                    "enabledNavigation",
-                    event.target.checked
-                      ? [...new Set([...draft.enabledNavigation, item])]
-                      : draft.enabledNavigation.filter((candidate) => candidate !== item),
-                  );
+                  const font = websiteFonts.find((candidate) => candidate === event.target.value);
+                  if (font) change("headerFont", font);
                 }}
-                type="checkbox"
+                style={{ fontFamily: publicWebsiteFontStacks[draft.headerFont] }}
+                value={draft.headerFont}
+              >
+                {websiteFonts.map((font) => (
+                  <option
+                    key={font}
+                    style={{ fontFamily: publicWebsiteFontStacks[font] }}
+                    value={font}
+                  >
+                    {fontLabel(font)}
+                  </option>
+                ))}
+              </select>
+              <FontPreview font={draft.headerFont} />
+            </div>
+            <div className="field">
+              <label htmlFor="website-body-font">Body font</label>
+              <select
+                id="website-body-font"
+                onChange={(event) => {
+                  const font = websiteFonts.find((candidate) => candidate === event.target.value);
+                  if (font) change("bodyFont", font);
+                }}
+                style={{ fontFamily: publicWebsiteFontStacks[draft.bodyFont] }}
+                value={draft.bodyFont}
+              >
+                {websiteFonts.map((font) => (
+                  <option
+                    key={font}
+                    style={{ fontFamily: publicWebsiteFontStacks[font] }}
+                    value={font}
+                  >
+                    {fontLabel(font)}
+                  </option>
+                ))}
+              </select>
+              <FontPreview font={draft.bodyFont} />
+            </div>
+            <div className="field">
+              <label htmlFor="website-logo">Organization logo</label>
+              <input
+                accept="image/jpeg,image/png,image/webp"
+                id="website-logo"
+                onChange={(event) => {
+                  draftRevisionRef.current += 1;
+                  setLogoFile(event.target.files?.item(0) ?? null);
+                }}
+                type="file"
               />
-              <span className="choice-field__content">
-                {item === "tickets"
-                  ? "Tickets"
-                  : item === "donations"
-                    ? "Donate"
-                    : "Auditions & Inquiries"}
-              </span>
-            </label>
-          ))}
-          <p className="field-help">Enable links only after the matching public module is ready.</p>
-        </fieldset>
-        <label className="choice-field">
-          <input
-            checked={draft.showBrandingHeaderFooter}
-            onChange={(event) => {
-              change("showBrandingHeaderFooter", event.target.checked);
-            }}
-            type="checkbox"
-          />
-          <span className="choice-field__content">
-            Use this header and footer on public transaction pages
-          </span>
-        </label>
-        <div className="form-actions">
-          <button className="button button--secondary" disabled={busy} onClick={() => void save()}>
-            {busy ? "Working…" : "Save draft"}
-          </button>
-          <button className="button button--primary" disabled={busy} onClick={() => void publish()}>
-            Publish saved draft
-          </button>
-          {loadState.settings.publicationVersion > 0 ? (
-            <a className="button button--secondary" href="/" target="_blank">
-              View live website
-            </a>
-          ) : null}
+              {draft.logoFileId ? (
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    change("logoFileId", null);
+                    setLogoFile(null);
+                  }}
+                  type="button"
+                >
+                  Remove current logo
+                </button>
+              ) : null}
+            </div>
+            <div className="field">
+              <label htmlFor="website-hero-image">Hero image</label>
+              <input
+                accept="image/jpeg,image/png,image/webp"
+                id="website-hero-image"
+                onChange={(event) => {
+                  draftRevisionRef.current += 1;
+                  setHeroFile(event.target.files?.item(0) ?? null);
+                }}
+                type="file"
+              />
+              {draft.heroFileId ? (
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    change("heroFileId", null);
+                    setHeroFile(null);
+                  }}
+                  type="button"
+                >
+                  Remove current hero image
+                </button>
+              ) : null}
+            </div>
+          </div>
+          <fieldset>
+            <legend>Public navigation</legend>
+            {(["tickets", "donations", "auditions"] as const).map((item) => (
+              <label className="choice-field" key={item}>
+                <input
+                  checked={draft.enabledNavigation.includes(item)}
+                  onChange={(event) => {
+                    change(
+                      "enabledNavigation",
+                      event.target.checked
+                        ? [...new Set([...draft.enabledNavigation, item])]
+                        : draft.enabledNavigation.filter((candidate) => candidate !== item),
+                    );
+                  }}
+                  type="checkbox"
+                />
+                <span className="choice-field__content">
+                  {item === "tickets"
+                    ? "Tickets"
+                    : item === "donations"
+                      ? "Donate"
+                      : "Auditions & Inquiries"}
+                </span>
+              </label>
+            ))}
+            <p className="field-help">
+              Enable links only after the matching public module is ready.
+            </p>
+          </fieldset>
+          <label className="choice-field">
+            <input
+              checked={draft.showBrandingHeaderFooter}
+              onChange={(event) => {
+                change("showBrandingHeaderFooter", event.target.checked);
+              }}
+              type="checkbox"
+            />
+            <span className="choice-field__content">
+              Use this header and footer on public transaction pages
+            </span>
+          </label>
+          <div className="form-actions">
+            <button
+              className="button button--secondary"
+              disabled={busy}
+              onClick={() => void save()}
+            >
+              {busy ? "Working…" : "Save draft"}
+            </button>
+            <button
+              className="button button--primary"
+              disabled={busy}
+              onClick={() => void publish()}
+            >
+              Publish saved draft
+            </button>
+            {loadState.settings.publicationVersion > 0 ? (
+              <a className="button button--secondary" href="/" target="_blank">
+                View live website
+              </a>
+            ) : null}
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   );
 }
