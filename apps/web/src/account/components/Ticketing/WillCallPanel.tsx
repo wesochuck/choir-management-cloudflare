@@ -1,6 +1,6 @@
 import type { OrganizationEvent, OrganizationTicketOrder } from "@choir/contracts";
 import type { PaymentFinancialSummary } from "@choir/domain";
-import { DataTable } from "@choir/ui";
+import { DataTable, useConfirmation } from "@choir/ui";
 import type { Dispatch, SetStateAction } from "react";
 import {
   buyerLastName,
@@ -196,11 +196,9 @@ export function WillCallPanel({
   refreshOrders,
   refreshingOrders,
   refund,
-  refundId,
   resendConfirmation,
   selectedPerformance,
   selectedPerformanceId,
-  setRefundId,
   setSelectedPerformanceId,
   setShowRefunded,
   setWillCallSearch,
@@ -222,11 +220,9 @@ export function WillCallPanel({
   readonly refreshOrders: () => Promise<void>;
   readonly refreshingOrders: boolean;
   readonly refund: (purchaseId: string) => Promise<void>;
-  readonly refundId: string | null;
   readonly resendConfirmation: (purchaseId: string) => Promise<void>;
   readonly selectedPerformance: OrganizationEvent | undefined;
   readonly selectedPerformanceId: string;
-  readonly setRefundId: Dispatch<SetStateAction<string | null>>;
   readonly setSelectedPerformanceId: Dispatch<SetStateAction<string>>;
   readonly setShowRefunded: Dispatch<SetStateAction<boolean>>;
   readonly setWillCallSearch: Dispatch<SetStateAction<string>>;
@@ -237,6 +233,21 @@ export function WillCallPanel({
   readonly willCallSearch: string;
   readonly showRefunded: boolean;
 }) {
+  const { confirm, confirmationDialog } = useConfirmation();
+
+  async function handleRefundClick(order: OrganizationTicketOrder) {
+    const formattedAmount = money(order.amountPaidCents);
+    const itemTitle = order.eventTitle || order.bundleTitle || "this ticket order";
+    const confirmed = await confirm({
+      confirmLabel: "Refund order",
+      description: `Refund ${formattedAmount} to ${order.buyerName} for ${itemTitle}? This financial refund cannot be undone.`,
+      destructive: true,
+      title: "Refund ticket order?",
+    });
+    if (!confirmed) return;
+    await refund(order.id);
+  }
+
   const displayedOrders = showRefunded
     ? visibleOrders
     : visibleOrders.filter((order) => order.status !== "refunded" && order.status !== "expired");
@@ -250,6 +261,7 @@ export function WillCallPanel({
 
   return (
     <>
+      {confirmationDialog}
       <div
         aria-labelledby="ticketing-willcall-tab"
         className="ticket-dashboard__tabpanel"
@@ -430,31 +442,7 @@ export function WillCallPanel({
                 header: "Actions",
                 id: "actions",
                 render: (order) =>
-                  refundId === order.id ? (
-                    <div className="danger-confirmation">
-                      <p>Refund this complete order?</p>
-                      <div className="form-actions">
-                        <button
-                          className="button button--secondary"
-                          disabled={busy}
-                          onClick={() => {
-                            setRefundId(null);
-                          }}
-                          type="button"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          className="button button--danger"
-                          disabled={busy}
-                          onClick={() => void refund(order.id)}
-                          type="button"
-                        >
-                          {busy ? "Refunding…" : "Confirm refund"}
-                        </button>
-                      </div>
-                    </div>
-                  ) : order.status === "paid" ? (
+                  order.status === "paid" ? (
                     <div className="form-actions">
                       <button
                         className="text-button"
@@ -466,10 +454,10 @@ export function WillCallPanel({
                       </button>
                       {canRefundTicketOrder(order) ? (
                         <button
-                          className="text-button"
+                          className="text-button text-button--danger"
                           disabled={busy}
                           onClick={() => {
-                            setRefundId(order.id);
+                            void handleRefundClick(order);
                           }}
                           type="button"
                         >
