@@ -211,3 +211,71 @@ describe("MemberProfileDirectory admin return banner", () => {
     expect(screen.queryByText("Back to Admin")).toBeNull();
   });
 });
+
+describe("MemberProfileDirectory part filter coverage and privacy (#197)", () => {
+  beforeEach(() => {
+    vi.mocked(profilesApi.listOrganizationDirectory).mockResolvedValue([
+      {
+        displayName: "Alice Soprano",
+        email: "alice@example.test",
+        id: "1",
+        phone: "555-0101",
+        photoFileId: null,
+        voicePart: "S2",
+      },
+      {
+        displayName: "Bob Alto",
+        email: "bob@example.test",
+        id: "2",
+        phone: "555-0102",
+        photoFileId: null,
+        voicePart: "A2",
+      },
+      {
+        displayName: "Charlie Tenor",
+        email: "charlie@example.test",
+        id: "3",
+        phone: "555-0103",
+        photoFileId: null,
+        voicePart: "T2",
+      },
+    ]);
+  });
+
+  it("lists only voice parts with visible members and displays explanatory field help", async () => {
+    render(<MemberProfileDirectory enabled view="directory" />);
+
+    const select = await screen.findByRole("combobox", { name: /^Part$/i });
+    expect(select).toBeInTheDocument();
+    expect(select).toHaveAttribute("aria-describedby", "directory-part-filter-help");
+    expect(select).toBeInstanceOf(HTMLSelectElement);
+    if (!(select instanceof HTMLSelectElement)) {
+      throw new Error("Expected HTMLSelectElement");
+    }
+
+    const help = screen.getByText("Only parts with listed members appear.");
+    expect(help).toBeInTheDocument();
+    expect(help).toHaveAttribute("id", "directory-part-filter-help");
+
+    const options = Array.from(select.options).map((opt) => opt.value);
+    expect(options).toEqual(["", "A2", "S2", "T2"]);
+    expect(options).not.toContain("S1");
+    expect(options).not.toContain("B1");
+  });
+
+  it("filters directory profiles when a voice part is selected", async () => {
+    const user = userEvent.setup();
+    render(<MemberProfileDirectory enabled view="directory" />);
+
+    const select = await screen.findByRole("combobox", { name: /^Part$/i });
+    expect(screen.getByText("Alice Soprano")).toBeInTheDocument();
+    expect(screen.getByText("Bob Alto")).toBeInTheDocument();
+    expect(screen.getByText("Charlie Tenor")).toBeInTheDocument();
+
+    await user.selectOptions(select, "A2");
+
+    expect(screen.queryByText("Alice Soprano")).toBeNull();
+    expect(screen.getByText("Bob Alto")).toBeInTheDocument();
+    expect(screen.queryByText("Charlie Tenor")).toBeNull();
+  });
+});

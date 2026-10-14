@@ -416,6 +416,8 @@ function Directory({
             <label className="field">
               {partLabel}
               <select
+                aria-describedby="directory-part-filter-help"
+                aria-label={partLabel}
                 value={voicePart}
                 onChange={(event) => {
                   setVoicePart(event.target.value);
@@ -428,6 +430,9 @@ function Directory({
                   </option>
                 ))}
               </select>
+              <span className="field-help" id="directory-part-filter-help">
+                Only {partLabelPlural.toLowerCase()} with listed members appear.
+              </span>
             </label>
           </div>
           {profiles.length === 0 ? (
