@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AuthApiError, getMySchedule, setMyEventRsvp } from "../auth/api";
 import { CalendarSubscription } from "./CalendarSubscription";
+import { AppLink } from "./components/AuthenticatedShell/navigation";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
@@ -194,21 +195,137 @@ function ScheduleEventSetList({
   );
 }
 
+function seatingLabel(event: SingerEvent): string {
+  if (event.seating.status === "available") return "View assigned seat";
+  return "Seat not assigned";
+}
+
+function ScheduleEventTimingAndVenue({
+  callTime,
+  durationMinutes,
+  venueAddress,
+  venueName,
+}: {
+  readonly callTime: string;
+  readonly durationMinutes: number | null;
+  readonly venueAddress: string;
+  readonly venueName: string;
+}) {
+  const hasVenue = venueName.length > 0 || venueAddress.length > 0;
+  return (
+    <>
+      {callTime ? (
+        <p className="schedule-event-accordion__item">
+          <strong>Call time:</strong> <span>{callTime}</span>
+        </p>
+      ) : null}
+      {durationMinutes ? (
+        <p className="schedule-event-accordion__item">
+          <strong>Duration:</strong> <span>{durationMinutes} minutes</span>
+        </p>
+      ) : null}
+      {hasVenue ? (
+        <p className="schedule-event-accordion__item">
+          <strong>Venue & directions:</strong>{" "}
+          <span>
+            {venueName}
+            {venueAddress ? ` — ${venueAddress}` : ""}
+          </span>
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function ScheduleEventAccordion({
+  event,
+  navigate,
+  performerLabelPlural,
+  targetEventId,
+}: {
+  readonly event: SingerEvent;
+  readonly navigate?: ((href: string) => void) | undefined;
+  readonly performerLabelPlural: string;
+  readonly targetEventId?: string | null | undefined;
+}) {
+  const seatingEnabled =
+    event.type === "Performance" &&
+    event.seating.status !== "not_published" &&
+    event.seating.status !== "declined";
+
+  const hasDetails =
+    Boolean(event.callTime) ||
+    Boolean(event.durationMinutes) ||
+    event.venueName.length > 0 ||
+    event.venueAddress.length > 0 ||
+    Boolean(event.details) ||
+    seatingEnabled ||
+    event.setList.length > 0;
+
+  return (
+    <details
+      className="schedule-event-accordion"
+      open={targetEventId === event.id ? true : undefined}
+    >
+      <summary className="schedule-event-accordion__toggle">Event details</summary>
+      <div className="schedule-event-accordion__content">
+        <ScheduleEventTimingAndVenue
+          callTime={event.callTime}
+          durationMinutes={event.durationMinutes}
+          venueAddress={event.venueAddress}
+          venueName={event.venueName}
+        />
+        {event.details ? (
+          <div className="schedule-event-accordion__item schedule-event-accordion__item--block">
+            <strong>Notes & attire:</strong>
+            <div className="schedule-card__notes">{event.details}</div>
+          </div>
+        ) : null}
+        {seatingEnabled ? (
+          <div className="schedule-event-accordion__item schedule-event-accordion__seating">
+            <strong>Seating:</strong>
+            <AppLink
+              className="button button--secondary button--small"
+              href={`/seating/${event.id}`}
+              onNavigate={
+                navigate ??
+                ((href) => {
+                  window.location.assign(href);
+                })
+              }
+            >
+              {seatingLabel(event)}
+            </AppLink>
+          </div>
+        ) : null}
+        <ScheduleEventSetList event={event} performerLabelPlural={performerLabelPlural} />
+        {!hasDetails ? (
+          <p className="empty-state">No additional details published for this event.</p>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
 function ScheduleEventCard({
   busy,
   event,
+  navigate,
   onDeclineRehearsal,
   onRsvp,
   pendingStatus,
   performerLabelPlural,
+  targetEventId,
   timezone,
 }: {
   readonly busy: boolean;
   readonly event: SingerEvent;
+  readonly navigate?: ((href: string) => void) | undefined;
   readonly onDeclineRehearsal: (event: SingerEvent) => void;
   readonly onRsvp: (event: SingerEvent, rsvp: "No" | "Yes") => void;
   readonly pendingStatus?: "No" | "Yes" | null | undefined;
   readonly performerLabelPlural: string;
+  readonly targetEventId?: string | null | undefined;
   readonly timezone: string;
 }) {
   const location = eventLocation(event);
@@ -245,13 +362,16 @@ function ScheduleEventCard({
 
         <div className="schedule-card__details">
           <span>{location || "Location to be announced"}</span>
-          {event.callTime ? <span>Call {event.callTime}</span> : null}
-          {event.durationMinutes ? <span>{event.durationMinutes} minutes</span> : null}
-          {event.details ? <div className="schedule-card__notes">{event.details}</div> : null}
         </div>
 
         <ScheduleEventDeadline event={event} timezone={timezone} />
-        <ScheduleEventSetList event={event} performerLabelPlural={performerLabelPlural} />
+
+        <ScheduleEventAccordion
+          event={event}
+          navigate={navigate}
+          performerLabelPlural={performerLabelPlural}
+          targetEventId={targetEventId}
+        />
 
         <div className="schedule-card__actions">
           <div className="schedule-card__actions-left">
@@ -409,10 +529,12 @@ export function MySchedule({
   accessStatus = "ready",
   enabled,
   mfaRequired = false,
+  navigate,
 }: {
   readonly accessStatus?: "error" | "loading" | "none" | "platform-scoped" | "ready" | undefined;
   readonly enabled: boolean;
   readonly mfaRequired?: boolean | undefined;
+  readonly navigate?: ((href: string) => void) | undefined;
 }) {
   const { performerLabelPlural } = useOrganizationTerminology();
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
@@ -429,6 +551,10 @@ export function MySchedule({
   const [declineNote, setDeclineNote] = useState("");
   const [state, setState] = useState<ScheduleState>({ status: "loading" });
   const [showPastEvents, setShowPastEvents] = useState(false);
+  const targetEventId =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("eventId")
+      : null;
 
   const loadSchedule = useCallback(
     async (past = showPastEvents): Promise<void> => {
@@ -555,6 +681,7 @@ export function MySchedule({
                 busy={busyEventId === event.id}
                 event={event}
                 key={event.id}
+                navigate={navigate}
                 onDeclineRehearsal={(targetEvent) => {
                   setDeclineEvent(targetEvent);
                   setDeclineNote(targetEvent.rsvpNote || "");
@@ -565,6 +692,7 @@ export function MySchedule({
                 }}
                 pendingStatus={pendingRsvp?.eventId === event.id ? pendingRsvp.status : null}
                 performerLabelPlural={performerLabelPlural}
+                targetEventId={targetEventId}
                 timezone={state.timezone}
               />
             ))}

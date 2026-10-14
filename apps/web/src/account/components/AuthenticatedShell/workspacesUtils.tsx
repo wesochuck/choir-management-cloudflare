@@ -450,11 +450,21 @@ export function renderMemberPage(
       <MemberDuesPage accessStatus={accessStatus} enabled={enabled} mfaRequired={mfaRequired} />
     ),
     "/schedule": (
-      <MySchedule accessStatus={accessStatus} enabled={enabled} mfaRequired={mfaRequired} />
+      <MySchedule
+        accessStatus={accessStatus}
+        enabled={enabled}
+        mfaRequired={mfaRequired}
+        navigate={navigate}
+      />
     ),
     // Keep the former deep link working while the subscription controls live on My schedule.
     "/calendar": (
-      <MySchedule accessStatus={accessStatus} enabled={enabled} mfaRequired={mfaRequired} />
+      <MySchedule
+        accessStatus={accessStatus}
+        enabled={enabled}
+        mfaRequired={mfaRequired}
+        navigate={navigate}
+      />
     ),
   };
   if (pathname === "/dashboard") {
