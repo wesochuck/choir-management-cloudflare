@@ -1,13 +1,15 @@
 import {
+  organizationPollArchiveResponseSchema,
   organizationPollResultsResponseSchema,
   organizationPollSchema,
   organizationPollSummariesResponseSchema,
   type OrganizationPoll,
+  type OrganizationPollArchiveResponse,
   type OrganizationPollRequest,
   type OrganizationPollResultsResponse,
   type OrganizationPollSummary,
 } from "@choir/contracts";
-import { request, requestJson } from "./client";
+import { requestJson } from "./client";
 
 export async function listOrganizationPolls(
   showArchived = false,
@@ -67,8 +69,14 @@ export async function updateOrganizationPoll(
   );
 }
 
-export async function deleteOrganizationPoll(pollId: string): Promise<void> {
-  await request(`/api/organization/polls/${encodeURIComponent(pollId)}`, {
-    method: "DELETE",
-  });
+export async function archiveOrganizationPoll(
+  pollId: string,
+): Promise<OrganizationPollArchiveResponse> {
+  return requestJson(
+    `/api/organization/polls/${encodeURIComponent(pollId)}/archive`,
+    organizationPollArchiveResponseSchema,
+    {
+      method: "POST",
+    },
+  );
 }

@@ -112,6 +112,14 @@ export type OrganizationPollSummariesResponse = z.infer<
   typeof organizationPollSummariesResponseSchema
 >;
 
+export const organizationPollArchiveResponseSchema = z.object({
+  archivedAt: z.iso.datetime(),
+  id: z.uuid(),
+  requestId: requestIdSchema.optional(),
+});
+
+export type OrganizationPollArchiveResponse = z.infer<typeof organizationPollArchiveResponseSchema>;
+
 export const organizationPollRespondentSchema = z.object({
   profileId: z.uuid(),
   profileName: z.string(),

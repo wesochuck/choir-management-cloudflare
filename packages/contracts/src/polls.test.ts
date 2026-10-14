@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  organizationPollArchiveResponseSchema,
   organizationPollRequestSchema,
   organizationPollResultsResponseSchema,
   organizationPollSummarySchema,
@@ -85,5 +86,14 @@ describe("organization poll results", () => {
       title: "Poll title",
     };
     expect(organizationPollSummarySchema.safeParse(summary).success).toBe(true);
+  });
+
+  it("validates poll archive response", () => {
+    const archiveResponse = {
+      archivedAt: "2026-08-11T12:34:56.000Z",
+      id: "c0000000-0000-4000-8000-000000000001",
+      requestId: "d0000000-0000-4000-8000-000000000001",
+    };
+    expect(organizationPollArchiveResponseSchema.safeParse(archiveResponse).success).toBe(true);
   });
 });
