@@ -23,6 +23,7 @@ import {
   AuthApiError,
   createOrganizationProfile,
   createOrganizationInvitation,
+  deleteOrganizationProfile,
   getOrganizationRosterConfiguration,
   getOrganizationProfileDeliveries,
   getOrganizationProfilePerformanceHistory,
@@ -599,6 +600,104 @@ export function useRosterPageController({
     }
   }
 
+  async function archiveProfile(profileId: string): Promise<void> {
+    const candidate =
+      roster.status === "ready" ? roster.profiles.find((p) => p.id === profileId) : undefined;
+    if (!candidate) return;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const updated = await updateOrganizationProfile(profileId, {
+        ...profileRequestFrom(candidate),
+        globalStatus: "Inactive",
+        hidden: true,
+        statusIsManual: true,
+      });
+      setRoster((current) =>
+        current.status === "ready"
+          ? {
+              ...current,
+              profiles: current.profiles.map((p) => (p.id === updated.id ? updated : p)),
+            }
+          : current,
+      );
+      setSuccess(`${updated.displayName} has been archived.`);
+      if (editingId === profileId) {
+        setDialogOpen(false);
+        setEditingId(null);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof AuthApiError ? err.message : "The Profile could not be archived.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restoreProfile(profileId: string): Promise<void> {
+    const candidate =
+      roster.status === "ready" ? roster.profiles.find((p) => p.id === profileId) : undefined;
+    if (!candidate) return;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const updated = await updateOrganizationProfile(profileId, {
+        ...profileRequestFrom(candidate),
+        globalStatus: "Active",
+        hidden: false,
+        statusIsManual: true,
+      });
+      setRoster((current) =>
+        current.status === "ready"
+          ? {
+              ...current,
+              profiles: current.profiles.map((p) => (p.id === updated.id ? updated : p)),
+            }
+          : current,
+      );
+      setSuccess(`${updated.displayName} has been restored.`);
+      if (editingId === profileId) {
+        setDialogOpen(false);
+        setEditingId(null);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof AuthApiError ? err.message : "The Profile could not be restored.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteProfilePermanently(profileId: string): Promise<void> {
+    const candidate =
+      roster.status === "ready" ? roster.profiles.find((p) => p.id === profileId) : undefined;
+    if (!candidate) return;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await deleteOrganizationProfile(profileId);
+      setRoster((current) =>
+        current.status === "ready"
+          ? {
+              ...current,
+              profiles: current.profiles.filter((p) => p.id !== profileId),
+            }
+          : current,
+      );
+      setSelectedProfileIds((current) => current.filter((id) => id !== profileId));
+      setSuccess(`${candidate.displayName} has been permanently deleted.`);
+      if (editingId === profileId) {
+        setDialogOpen(false);
+        setEditingId(null);
+      }
+    } catch (err: unknown) {
+      setError(err instanceof AuthApiError ? err.message : "The Profile could not be deleted.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function importRoster() {
     if (!importFile) return;
     setBusy(true);
@@ -653,12 +752,14 @@ export function useRosterPageController({
   }
 
   return {
+    archiveProfile,
     busy,
     bulkBusy,
     bulkUpdateProfiles,
     clearRosterFilters,
     closeDialog,
     closeImportDialog,
+    deleteProfilePermanently,
     dialogOpen,
     editingId,
     editingProfileRecord,
@@ -688,6 +789,7 @@ export function useRosterPageController({
     refreshRoster,
     resetFeedback,
     resettingProfileId,
+    restoreProfile,
     roster,
     rosterImportConfirmed,
     rosterImportHeaders,

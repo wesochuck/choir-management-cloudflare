@@ -1,6 +1,7 @@
 import {
   organizationProfileSchema,
   organizationProfileResponseSchema,
+  organizationProfileDeleteResponseSchema,
   organizationProfileImportResponseSchema,
   organizationProfileDeliveriesResponseSchema,
   organizationProfilesResponseSchema,
@@ -332,6 +333,217 @@ describe("Organization Profiles", () => {
           .one().count,
     );
     expect(auditCount).toBe(2);
+  });
+
+  it("deletes safe unreferenced Profiles and rejects non-admin, IDOR, self-removal, and historical records", async () => {
+    const adminCookie = await signIn();
+
+    // 1. Create a safe unreferenced profile in Alpha
+    const createRes = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", adminCookie, {
+        body: JSON.stringify({ displayName: "Safe Profile" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(createRes.status).toBe(201);
+    const createdProfile = organizationProfileResponseSchema.parse(await createRes.json());
+    const safeProfileId = createdProfile.id;
+
+    // 2. Reject non-admin role (member on alpha trying to delete)
+    clearCapturedPlatformEmailsForTest();
+    await seedAuthUser(
+      controlDatabase,
+      "member-only-user",
+      "member.only@example.test",
+      "Member Only",
+    );
+    await controlDatabase
+      .prepare(
+        "INSERT INTO member (id, organizationId, userId, role, createdAt) VALUES ('member-alpha-1', 'organization-alpha', 'member-only-user', 'member', ?)",
+      )
+      .bind(new Date().toISOString())
+      .run();
+    const memberCookie = await signInWithOtp(
+      exports.default,
+      "alpha.localhost",
+      "member.only@example.test",
+      (email) => readEmailOneTimeCode(readCapturedPlatformEmailsForTest(), email),
+    );
+    const nonAdminDeleteRes = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${safeProfileId}`, memberCookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(nonAdminDeleteRes.status).toBe(403);
+
+    // 3. Reject cross-tenant IDOR: admin on alpha trying to delete on bravo host
+    const crossTenantRes = await exports.default.fetch(
+      apiRequest("bravo.localhost", `/api/organization/profiles/${safeProfileId}`, adminCookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(crossTenantRes.status).toBe(403);
+
+    // 4. Reject self-removal: link caller's admin membership to a profile
+    const selfProfileRes = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", adminCookie, {
+        body: JSON.stringify({ displayName: "Admin Profile" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(selfProfileRes.status).toBe(201);
+    const selfProfileId = organizationProfileResponseSchema.parse(await selfProfileRes.json()).id;
+    await controlDatabase
+      .prepare(
+        "UPDATE member SET profileId = ? WHERE organizationId = 'organization-alpha' AND userId = 'profile-manager'",
+      )
+      .bind(selfProfileId)
+      .run();
+
+    const selfDeleteRes = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${selfProfileId}`, adminCookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(selfDeleteRes.status).toBe(409);
+    expect(await selfDeleteRes.json()).toMatchObject({ code: "cannot_delete_own_profile" });
+
+    // 5. Reject profile attached to active membership
+    const memberProfileRes = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", adminCookie, {
+        body: JSON.stringify({ displayName: "Member Profile" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    const memberProfileId = organizationProfileResponseSchema.parse(
+      await memberProfileRes.json(),
+    ).id;
+    await seedAuthUser(controlDatabase, "other-user", "other.user@example.test", "Other User");
+    await controlDatabase
+      .prepare(
+        "INSERT INTO member (id, organizationId, userId, role, profileId, createdAt) VALUES (?, ?, ?, ?, ?, ?)",
+      )
+      .bind(
+        "member-row-2",
+        "organization-alpha",
+        "other-user",
+        "member",
+        memberProfileId,
+        new Date().toISOString(),
+      )
+      .run();
+
+    const memberDeleteRes = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${memberProfileId}`, adminCookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(memberDeleteRes.status).toBe(409);
+    expect(await memberDeleteRes.json()).toMatchObject({ code: "profile_has_active_membership" });
+
+    // 6. Reject profile with event attendance / roster history
+    const eventProfileRes = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", adminCookie, {
+        body: JSON.stringify({ displayName: "Event Profile" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    const eventProfileId = organizationProfileResponseSchema.parse(await eventProfileRes.json()).id;
+
+    const alphaStub = organizationStore.get(organizationStore.idFromName("organization-alpha"));
+    await runInDurableObject<OrganizationStore, undefined>(alphaStub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO event_rosters (event_id, profile_id, rsvp, attendance, folder_number, folder_returned, created_at, updated_at)
+         VALUES ('event-1', ?, 'Yes', 'Present', '', 0, '2026-08-01T00:00:00.000Z', '2026-08-01T00:00:00.000Z')`,
+        eventProfileId,
+      );
+    });
+
+    const eventDeleteRes = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${eventProfileId}`, adminCookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(eventDeleteRes.status).toBe(409);
+    expect(await eventDeleteRes.json()).toMatchObject({
+      code: "profile_event_history_requires_inactive",
+    });
+
+    // 7. Reject profile with dues history
+    const duesProfileRes = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", adminCookie, {
+        body: JSON.stringify({ displayName: "Dues Profile" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    const duesProfileId = organizationProfileResponseSchema.parse(await duesProfileRes.json()).id;
+
+    await runInDurableObject<OrganizationStore, undefined>(alphaStub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO seasons (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES ('season-1', '2026 Season', '2026-01-01T00:00:00.000Z', '2026-12-31T23:59:59.000Z', 5000, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO dues (id, season_id, profile_id, amount_cents, status, created_at, updated_at)
+         VALUES ('dues-1', 'season-1', ?, 5000, 'paid', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
+        duesProfileId,
+      );
+    });
+
+    const duesDeleteRes = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${duesProfileId}`, adminCookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(duesDeleteRes.status).toBe(409);
+    expect(await duesDeleteRes.json()).toMatchObject({
+      code: "profile_dues_history_requires_inactive",
+    });
+
+    // 8. Safely delete unreferenced safeProfileId
+    const deleteRes = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${safeProfileId}`, adminCookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(deleteRes.status).toBe(200);
+    const deleteBody = organizationProfileDeleteResponseSchema.parse(await deleteRes.json());
+    expect(deleteBody.deleted).toBe(true);
+    expect(deleteBody.profileId).toBe(safeProfileId);
+
+    // Verify profile is gone
+    const listRes = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", adminCookie),
+    );
+    const listBody = organizationProfilesResponseSchema.parse(await listRes.json());
+    expect(listBody.profiles.some((p) => p.id === safeProfileId)).toBe(false);
+
+    // Verify audit event in DO
+    const auditCount = await runInDurableObject<OrganizationStore, number>(
+      alphaStub,
+      (_instance, state) => {
+        return state.storage.sql
+          .exec<{ readonly count: number }>(
+            "SELECT COUNT(*) AS count FROM audit_events WHERE action = 'profile.deleted' AND target_id = ?",
+            safeProfileId,
+          )
+          .one().count;
+      },
+    );
+    expect(auditCount).toBe(1);
+
+    // 9. Deleting already deleted profile returns 404
+    const repeatedDeleteRes = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${safeProfileId}`, adminCookie, {
+        method: "DELETE",
+      }),
+    );
+    expect(repeatedDeleteRes.status).toBe(404);
   });
 });
 

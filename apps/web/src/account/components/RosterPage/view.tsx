@@ -1,5 +1,14 @@
+import type { OrganizationProfile } from "@choir/contracts";
 import { rosterCsvColumnOptions } from "@choir/domain";
-import { DataTable, Tabs, TabsContent, TabsList, TabsTrigger, Tooltip } from "@choir/ui";
+import {
+  DataTable,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  Tooltip,
+  useConfirmation,
+} from "@choir/ui";
 import { VoicePartBalance } from "./shared";
 import { parseRosterStatusFilter, statusLabel } from "./utils";
 import { ProfileEditorDialog } from "../ProfileEditor";
@@ -106,6 +115,41 @@ export function RosterPageView({
     if (roster.status !== "ready" || !editingId) return undefined;
     return roster.memberships.find((membership) => membership.profileId === editingId);
   }, [editingId, roster]);
+  const isEditingAdmin = useMemo(() => {
+    if (roster.status !== "ready" || !editingId) return false;
+    return roster.memberships.some(
+      (membership) =>
+        membership.profileId === editingId &&
+        (membership.role === "administrator" || membership.role === "owner"),
+    );
+  }, [editingId, roster]);
+
+  const { confirm, confirmationDialog } = useConfirmation();
+
+  async function handleArchiveProfile(candidate: OrganizationProfile) {
+    const confirmed = await confirm({
+      confirmLabel: "Archive Profile",
+      description: `Archiving hides ${candidate.displayName} from the active roster while preserving all historical attendance, dues, folder assignments, and voting records. You can restore archived profiles at any time.`,
+      destructive: true,
+      title: `Archive ${candidate.displayName}?`,
+    });
+    if (confirmed) {
+      await model.archiveProfile(candidate.id);
+    }
+  }
+
+  async function handleDeleteProfile(candidate: OrganizationProfile) {
+    const confirmed = await confirm({
+      confirmLabel: "Delete permanently",
+      description: `Are you sure you want to permanently delete ${candidate.displayName}? This cannot be undone and is only allowed for profiles with zero event attendance, dues, folder assignments, or active memberships. If records exist, the profile must be archived instead.`,
+      destructive: true,
+      title: `Permanently delete ${candidate.displayName}?`,
+    });
+    if (confirmed) {
+      await model.deleteProfilePermanently(candidate.id);
+    }
+  }
+
   const selectAllVisibleRef = useRef<HTMLInputElement>(null);
   const [rosterPage, setRosterPage] = useState(1);
   const [rosterPageSize, setRosterPageSize] = useState(50);
@@ -537,10 +581,52 @@ export function RosterPageView({
                                   }
                                 })();
                               }}
+                              aria-label={`Impersonate ${candidate.displayName}`}
                               title={`Impersonate ${candidate.displayName}`}
                               type="button"
                             >
                               Impersonate
+                            </button>
+                          ) : null}
+                          {candidate.hidden ? (
+                            <button
+                              aria-label={`Restore ${candidate.displayName}`}
+                              className="button button--secondary button--small"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void model.restoreProfile(candidate.id);
+                              }}
+                              title={`Restore ${candidate.displayName}`}
+                              type="button"
+                            >
+                              Restore
+                            </button>
+                          ) : (
+                            <button
+                              aria-label={`Archive ${candidate.displayName}`}
+                              className="button button--secondary button--small"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleArchiveProfile(candidate);
+                              }}
+                              title={`Archive ${candidate.displayName}`}
+                              type="button"
+                            >
+                              Archive
+                            </button>
+                          )}
+                          {!isCandidateAdmin ? (
+                            <button
+                              aria-label={`Delete ${candidate.displayName}`}
+                              className="button button--danger button--small"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleDeleteProfile(candidate);
+                              }}
+                              title={`Delete ${candidate.displayName}`}
+                              type="button"
+                            >
+                              Delete
                             </button>
                           ) : null}
                         </div>
@@ -576,7 +662,21 @@ export function RosterPageView({
         editingProfileRecord={editingProfileRecord}
         error={error}
         linkedMembership={linkedMembership}
+        onArchive={
+          editingId && editingProfileRecord
+            ? () => {
+                void handleArchiveProfile(editingProfileRecord);
+              }
+            : undefined
+        }
         onClose={closeDialog}
+        onDeletePermanently={
+          editingId && editingProfileRecord && !isEditingAdmin
+            ? () => {
+                void handleDeleteProfile(editingProfileRecord);
+              }
+            : undefined
+        }
         onImpersonate={() => {
           if (!editingId) return;
           void (async () => {
@@ -606,6 +706,13 @@ export function RosterPageView({
         onResolveDuplicate={() => {
           setResolveDuplicateOpen(true);
         }}
+        onRestore={
+          editingId
+            ? () => {
+                void model.restoreProfile(editingId);
+              }
+            : undefined
+        }
         open={dialogOpen}
         performanceHistory={performanceHistory}
         profile={profile}
@@ -687,6 +794,7 @@ export function RosterPageView({
         }}
         open={inviteLinksDialogOpen}
       />
+      {confirmationDialog}
     </RosterConfigurationDraftProvider>
   );
 }

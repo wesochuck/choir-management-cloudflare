@@ -51,10 +51,19 @@ export const organizationProfileImportResponseSchema = z.object({
   requestId: requestIdSchema,
 });
 
+export const organizationProfileDeleteResponseSchema = z.object({
+  deleted: z.literal(true),
+  profileId: z.uuid(),
+  requestId: requestIdSchema,
+});
+
 export type OrganizationProfileRequest = z.infer<typeof organizationProfileRequestSchema>;
 export type OrganizationProfile = z.infer<typeof organizationProfileSchema>;
 export type OrganizationProfileResponse = z.infer<typeof organizationProfileResponseSchema>;
 export type OrganizationProfilesResponse = z.infer<typeof organizationProfilesResponseSchema>;
+export type OrganizationProfileDeleteResponse = z.infer<
+  typeof organizationProfileDeleteResponseSchema
+>;
 
 export const memberProfileUpdateRequestSchema = z.object({
   displayName: z.string().trim().min(1).max(200),

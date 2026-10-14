@@ -10,7 +10,9 @@ import {
 import { validateStartupConfig } from "../env";
 import {
   createOrganizationProfile,
+  deleteOrganizationProfile,
   importOrganizationProfiles,
+  OrganizationProfileDeletionError,
   OrganizationProfileMutationError,
   updateOrganizationProfile,
 } from "../organization/profiles";
@@ -270,6 +272,113 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         {
           code: "service_unavailable",
           message: "The Organization Profile could not be updated.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        503,
+      );
+    }
+  });
+
+  router.delete("/api/organization/profiles/:profileId", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok) {
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    }
+    const profileId = z.uuid().safeParse(context.req.param("profileId"));
+    if (!profileId.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "A valid Profile ID is required.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
+    const callerMember = await context.env.CONTROL_DB.prepare(
+      "SELECT id, profileId FROM member WHERE organizationId = ? AND userId = ? LIMIT 1",
+    )
+      .bind(authorization.organizationId, authorization.userId)
+      .first<{ id: string; profileId: string | null }>();
+    if (callerMember?.profileId === profileId.data) {
+      return context.json(
+        {
+          code: "cannot_delete_own_profile",
+          message:
+            "You cannot delete your own Profile. Switch or reassign your account before deleting.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        409,
+      );
+    }
+    const linkedMember = await context.env.CONTROL_DB.prepare(
+      "SELECT id FROM member WHERE organizationId = ? AND profileId = ? LIMIT 1",
+    )
+      .bind(authorization.organizationId, profileId.data)
+      .first<{ id: string }>();
+    if (linkedMember) {
+      return context.json(
+        {
+          code: "profile_has_active_membership",
+          message:
+            "Profiles attached to an Organization Membership cannot be deleted. Archive the profile instead.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        409,
+      );
+    }
+    const linkedEnrollment = await context.env.CONTROL_DB.prepare(
+      "SELECT id FROM organization_roster_invite_enrollments WHERE organization_id = ? AND (profile_id = ? OR canonical_profile_id = ?) LIMIT 1",
+    )
+      .bind(authorization.organizationId, profileId.data, profileId.data)
+      .first<{ id: string }>();
+    if (linkedEnrollment) {
+      return context.json(
+        {
+          code: "profile_has_enrollment_history",
+          message:
+            "Profiles with invite enrollments cannot be deleted. Archive the profile instead.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        409,
+      );
+    }
+    try {
+      const deleted = await deleteOrganizationProfile(context.env, {
+        actorUserId: authorization.userId,
+        organizationId: authorization.organizationId,
+        profileId: profileId.data,
+        requestId: context.get("requestId"),
+      });
+      if (!deleted) {
+        return context.json(
+          {
+            code: "not_found",
+            message: "The requested Profile could not be found.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          404,
+        );
+      }
+      return context.json({
+        deleted: true,
+        profileId: profileId.data,
+        requestId: context.get("requestId"),
+      });
+    } catch (error: unknown) {
+      if (error instanceof OrganizationProfileDeletionError) {
+        return context.json(
+          { code: error.code, message: error.message, requestId: context.get("requestId") },
+          409,
+        );
+      }
+      return context.json(
+        {
+          code: "service_unavailable",
+          message: "The Organization Profile could not be deleted.",
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         503,

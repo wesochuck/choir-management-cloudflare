@@ -60,12 +60,15 @@ export interface ProfileEditorDialogProps {
   readonly editingProfileRecord?: OrganizationProfile | null | undefined;
   readonly error: string | null;
   readonly linkedMembership?: OrganizationMembershipSummary | null | undefined;
+  readonly onArchive?: (() => void) | undefined;
   readonly onClose: () => void;
   readonly onCloseAutoFocus?: ((event: Event) => void) | undefined;
+  readonly onDeletePermanently?: (() => void) | undefined;
   readonly onImpersonate?: (() => void) | undefined;
   readonly onPhotoChanged?: ((fileId: string | null) => void) | undefined;
   readonly onPhotoPendingChange?: ((pending: boolean) => void) | undefined;
   readonly onRegisterPhotoSave?: ((saveFn: (() => Promise<boolean>) | null) => void) | undefined;
+  readonly onRestore?: (() => void) | undefined;
   /** Notified when the Performance RSVPs tab changes an RSVP (issue #137). */
   readonly onRsvpChanged?: ((eventId: string) => void) | undefined;
   readonly onResolveDuplicate?: (() => void) | undefined;

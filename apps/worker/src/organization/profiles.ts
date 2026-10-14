@@ -195,15 +195,25 @@ export async function createOrganizationProfile(
   return profile;
 }
 
+export class OrganizationProfileDeletionError extends Error {
+  readonly code: string;
+
+  constructor(message: string, code = "profile_history_requires_inactive") {
+    super(message);
+    this.name = "OrganizationProfileDeletionError";
+    this.code = code;
+  }
+}
+
 export async function deleteOrganizationProfile(
-  env: Env,
+  env: Pick<Env, "ORGANIZATION_STORE">,
   input: {
     readonly actorUserId: string;
     readonly organizationId: string;
     readonly profileId: string;
     readonly requestId: string;
   },
-): Promise<void> {
+): Promise<boolean> {
   const response = await invokeOrganizationRpc(
     organizationStub(env, input.organizationId),
     "https://organization.internal/internal/profiles/delete",
@@ -213,9 +223,31 @@ export async function deleteOrganizationProfile(
       method: "POST",
     },
   );
-  if (!response.ok && response.status !== 404) {
+  if (response.status === 409) {
+    const errorBody: unknown = await response.json().catch(() => null);
+    const code =
+      typeof errorBody === "object" &&
+      errorBody !== null &&
+      "code" in errorBody &&
+      typeof errorBody.code === "string"
+        ? errorBody.code
+        : "profile_history_requires_inactive";
+    const message =
+      typeof errorBody === "object" &&
+      errorBody !== null &&
+      "message" in errorBody &&
+      typeof errorBody.message === "string"
+        ? errorBody.message
+        : "Profiles with historical records cannot be deleted. Archive the profile instead.";
+    throw new OrganizationProfileDeletionError(message, code);
+  }
+  if (response.status === 404) {
+    return false;
+  }
+  if (!response.ok) {
     throw new Error("The Organization store rejected the Profile delete request.");
   }
+  return true;
 }
 
 export async function importOrganizationProfiles(

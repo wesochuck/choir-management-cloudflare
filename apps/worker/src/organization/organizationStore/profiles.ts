@@ -572,8 +572,92 @@ export async function deleteProfile(
           }
         });
       if (folderHistory > 0 || folderAuditHistory) {
-        throw new ProfileHistoryDeletionError();
+        throw new ProfileHistoryDeletionError(
+          "Profiles with music-folder history must be marked Inactive instead of deleted.",
+          "profile_folder_history_requires_inactive",
+        );
       }
+      const eventRosterHistory = storage.sql
+        .exec<{ readonly count: number }>(
+          "SELECT COUNT(*) AS count FROM event_rosters WHERE profile_id = ? LIMIT 1",
+          parsed.data.profileId,
+        )
+        .one().count;
+      if (eventRosterHistory > 0) {
+        throw new ProfileHistoryDeletionError(
+          "Profiles with event attendance or RSVP history must be marked Inactive instead of deleted.",
+          "profile_event_history_requires_inactive",
+        );
+      }
+      const duesHistory = storage.sql
+        .exec<{ readonly count: number }>(
+          "SELECT COUNT(*) AS count FROM dues WHERE profile_id = ? LIMIT 1",
+          parsed.data.profileId,
+        )
+        .one().count;
+      if (duesHistory > 0) {
+        throw new ProfileHistoryDeletionError(
+          "Profiles with dues or payment records must be marked Inactive instead of deleted.",
+          "profile_dues_history_requires_inactive",
+        );
+      }
+      const pollHistory = storage.sql
+        .exec<{ readonly count: number }>(
+          "SELECT COUNT(*) AS count FROM poll_responses WHERE profile_id = ? LIMIT 1",
+          parsed.data.profileId,
+        )
+        .one().count;
+      if (pollHistory > 0) {
+        throw new ProfileHistoryDeletionError(
+          "Profiles with poll responses must be marked Inactive instead of deleted.",
+          "profile_poll_history_requires_inactive",
+        );
+      }
+      const reconciliationHistory = storage.sql
+        .exec<{ readonly count: number }>(
+          "SELECT COUNT(*) AS count FROM profile_reconciliations WHERE source_profile_id = ? OR target_profile_id = ? LIMIT 1",
+          parsed.data.profileId,
+          parsed.data.profileId,
+        )
+        .one().count;
+      if (reconciliationHistory > 0) {
+        throw new ProfileHistoryDeletionError(
+          "Merged profiles must be marked Inactive instead of deleted.",
+          "profile_reconciliation_history_requires_inactive",
+        );
+      }
+      const deliveryHistory = storage.sql
+        .exec<{ readonly count: number }>(
+          "SELECT COUNT(*) AS count FROM communication_deliveries WHERE profile_id = ? LIMIT 1",
+          parsed.data.profileId,
+        )
+        .one().count;
+      if (deliveryHistory > 0) {
+        throw new ProfileHistoryDeletionError(
+          "Profiles with message delivery history must be marked Inactive instead of deleted.",
+          "profile_communications_history_requires_inactive",
+        );
+      }
+      const contactHistory = storage.sql
+        .exec<{ readonly count: number }>(
+          "SELECT COUNT(*) AS count FROM contacts WHERE profile_id = ? LIMIT 1",
+          parsed.data.profileId,
+        )
+        .one().count;
+      if (contactHistory > 0) {
+        throw new ProfileHistoryDeletionError(
+          "Profiles linked to contacts must be marked Inactive instead of deleted.",
+          "profile_contact_history_requires_inactive",
+        );
+      }
+      storage.sql.exec(
+        "DELETE FROM profile_status_history WHERE profile_id = ?",
+        parsed.data.profileId,
+      );
+      storage.sql.exec(
+        "DELETE FROM communication_suppressions WHERE profile_id = ?",
+        parsed.data.profileId,
+      );
       storage.sql.exec("DELETE FROM profiles WHERE id = ?", parsed.data.profileId);
       storage.sql.exec(
         `INSERT INTO audit_events
@@ -591,7 +675,7 @@ export async function deleteProfile(
     if (error instanceof ProfileHistoryDeletionError) {
       return Response.json(
         {
-          code: "profile_folder_history_requires_inactive",
+          code: error.code,
           message: error.message,
         },
         { status: 409 },
@@ -605,9 +689,15 @@ export async function deleteProfile(
 }
 
 class ProfileHistoryDeletionError extends Error {
-  constructor() {
-    super("Profiles with music-folder history must be marked Inactive instead of deleted.");
+  readonly code: string;
+
+  constructor(
+    message = "Profiles with music-folder history must be marked Inactive instead of deleted.",
+    code = "profile_folder_history_requires_inactive",
+  ) {
+    super(message);
     this.name = "ProfileHistoryDeletionError";
+    this.code = code;
   }
 }
 
