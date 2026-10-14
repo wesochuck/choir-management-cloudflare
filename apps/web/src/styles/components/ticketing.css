@@ -411,6 +411,19 @@
     gap: var(--spacing-sm);
   }
 
+  .ticket-dashboard__metrics .summary-card {
+    grid-row: span 3;
+    display: grid;
+    grid-template-rows: subgrid;
+    row-gap: var(--spacing-3xs);
+  }
+
+  @supports not (grid-template-rows: subgrid) {
+    .ticket-dashboard__metrics .summary-card__label {
+      min-height: 3.5rem;
+    }
+  }
+
   .ticket-dashboard__metric {
     border-top: 0.25rem solid var(--color-accent);
   }

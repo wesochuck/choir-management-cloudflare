@@ -185,6 +185,10 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .ticket-dashboard__metrics.donation-dashboard__metrics .summary-card {
+    grid-row: span 2;
+  }
+
   .ticket-dashboard__filters.donation-dashboard__filters {
     grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(8rem, 1fr)) repeat(
         2,

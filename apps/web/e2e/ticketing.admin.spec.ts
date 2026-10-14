@@ -1428,4 +1428,137 @@ test.describe("admin ticket management", () => {
     await expect(page.getByLabel("Select performance")).toHaveValue("all");
     await expect(page.getByText("does not have ticketing enabled")).toBeVisible();
   });
+
+  test("aligns KPI value baselines and secondary copy across desktop, tablet, and mobile breakpoints", async ({
+    page,
+  }) => {
+    await routeHealth(page);
+    await routeAdminAuth(page);
+    await page.route("**/api/public/projection", async (route) => {
+      await route.fulfill({ status: 404 });
+    });
+    await page.route("**/api/organization/tickets/orders", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          orders: [
+            adminOrder,
+            sortableAdminOrder,
+            bundleAdminOrder,
+            {
+              ...sortableAdminOrder,
+              id: "77777777-8888-4999-8aaa-bbbbbbbbbbbb",
+              buyerName: "Expired Buyer",
+              status: "expired",
+            },
+            {
+              ...bundleAdminOrder,
+              id: "88888888-9999-4aaa-8bbb-cccccccccccc",
+              buyerName: "Expired Bundle Buyer",
+              status: "expired",
+            },
+            {
+              ...sortableAdminOrder,
+              id: "99999999-aaaa-4bbb-8ccc-dddddddddddd",
+              buyerName: "Refunded Buyer",
+              status: "refunded",
+            },
+          ],
+          requestId,
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/events", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ events: [adminEvent], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+    await page.route("**/api/organization/tickets/bundles", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ bundles: [adminBundle], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto("/admin/tickets");
+    await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
+
+    // 1. Desktop: all 6 cards on one visual row
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const strongLocators = page.locator(".ticket-dashboard__metric strong");
+    await expect(strongLocators).toHaveCount(6);
+
+    const desktopStrongTops = await strongLocators.evaluateAll((elements) =>
+      elements.map((el) => Math.round(el.getBoundingClientRect().top)),
+    );
+    const desktopSmallTops = await page
+      .locator(".ticket-dashboard__metric small")
+      .evaluateAll((elements) => elements.map((el) => Math.round(el.getBoundingClientRect().top)));
+
+    // All 6 strong and small tops must align within <= 2 CSS pixels
+    expect(Math.max(...desktopStrongTops) - Math.min(...desktopStrongTops)).toBeLessThanOrEqual(2);
+    expect(Math.max(...desktopSmallTops) - Math.min(...desktopSmallTops)).toBeLessThanOrEqual(2);
+
+    // 2. Tablet: 3 cards per row (width <= 64rem = 1024px)
+    await page.setViewportSize({ width: 900, height: 800 });
+    const tabletStrongTops = await strongLocators.evaluateAll((elements) =>
+      elements.map((el) => Math.round(el.getBoundingClientRect().top)),
+    );
+    const tabletSmallTops = await page
+      .locator(".ticket-dashboard__metric small")
+      .evaluateAll((elements) => elements.map((el) => Math.round(el.getBoundingClientRect().top)));
+
+    // Row 1 (cards 0, 1, 2)
+    const tabletRow1Strong = tabletStrongTops.slice(0, 3);
+    const tabletRow1Small = tabletSmallTops.slice(0, 3);
+    expect(Math.max(...tabletRow1Strong) - Math.min(...tabletRow1Strong)).toBeLessThanOrEqual(2);
+    expect(Math.max(...tabletRow1Small) - Math.min(...tabletRow1Small)).toBeLessThanOrEqual(2);
+
+    // Row 2 (cards 3, 4, 5)
+    const tabletRow2Strong = tabletStrongTops.slice(3, 6);
+    const tabletRow2Small = tabletSmallTops.slice(3, 6);
+    expect(Math.max(...tabletRow2Strong) - Math.min(...tabletRow2Strong)).toBeLessThanOrEqual(2);
+    expect(Math.max(...tabletRow2Small) - Math.min(...tabletRow2Small)).toBeLessThanOrEqual(2);
+
+    // 3. Mobile: 2 cards per row (width <= 40rem = 640px)
+    await page.setViewportSize({ width: 390, height: 844 });
+    const mobileStrongTops = await strongLocators.evaluateAll((elements) =>
+      elements.map((el) => Math.round(el.getBoundingClientRect().top)),
+    );
+    const mobileSmallTops = await page
+      .locator(".ticket-dashboard__metric small")
+      .evaluateAll((elements) => elements.map((el) => Math.round(el.getBoundingClientRect().top)));
+
+    // Row 1 (cards 0, 1)
+    const mobileRow1Strong = mobileStrongTops.slice(0, 2);
+    const mobileRow1Small = mobileSmallTops.slice(0, 2);
+    expect(Math.max(...mobileRow1Strong) - Math.min(...mobileRow1Strong)).toBeLessThanOrEqual(2);
+    expect(Math.max(...mobileRow1Small) - Math.min(...mobileRow1Small)).toBeLessThanOrEqual(2);
+
+    // Row 2 (cards 2, 3)
+    const mobileRow2Strong = mobileStrongTops.slice(2, 4);
+    const mobileRow2Small = mobileSmallTops.slice(2, 4);
+    expect(Math.max(...mobileRow2Strong) - Math.min(...mobileRow2Strong)).toBeLessThanOrEqual(2);
+    expect(Math.max(...mobileRow2Small) - Math.min(...mobileRow2Small)).toBeLessThanOrEqual(2);
+
+    // Row 3 (cards 4, 5)
+    const mobileRow3Strong = mobileStrongTops.slice(4, 6);
+    const mobileRow3Small = mobileSmallTops.slice(4, 6);
+    expect(Math.max(...mobileRow3Strong) - Math.min(...mobileRow3Strong)).toBeLessThanOrEqual(2);
+    expect(Math.max(...mobileRow3Small) - Math.min(...mobileRow3Small)).toBeLessThanOrEqual(2);
+
+    // 4. Large font/zoom at 1280px desktop width: no overflow or clipped content
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.evaluate(() => {
+      document.documentElement.style.fontSize = "150%";
+    });
+    const zoomedStrongTops = await strongLocators.evaluateAll((elements) =>
+      elements.map((el) => Math.round(el.getBoundingClientRect().top)),
+    );
+    expect(Math.max(...zoomedStrongTops) - Math.min(...zoomedStrongTops)).toBeLessThanOrEqual(3);
+  });
 });
