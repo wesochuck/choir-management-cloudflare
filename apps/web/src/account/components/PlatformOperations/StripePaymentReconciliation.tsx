@@ -1,6 +1,5 @@
 import type {
   PlatformStripeReconciliationCursor,
-  PlatformStripeReconciliationApplyResponse,
   PlatformStripeReconciliationPreviewResponse,
   PlatformStripeReconciliationRow,
 } from "@choir/contracts";
@@ -12,7 +11,7 @@ import {
   previewPlatformStripeReconciliation,
 } from "../../../api/platform";
 import { AuthApiError } from "../../../auth/api";
-import { displayDate } from "./shared";
+import { displayDate, formatApplySuccessMessage } from "./shared";
 
 function formatMoney(cents: number | null | undefined, currency: string | null = "usd"): string {
   if (cents === null || cents === undefined) return "—";
@@ -65,15 +64,6 @@ function classificationBadge(classification: PlatformStripeReconciliationRow["cl
     case "local_inconsistency":
       return <span className="status-pill status-pill--error">Inconsistent</span>;
   }
-}
-
-function formatApplySuccessMessage(
-  result: Pick<
-    PlatformStripeReconciliationApplyResponse,
-    "appliedCount" | "feeBackfilledCount" | "paidCount" | "refundedCount"
-  >,
-): string {
-  return `Applied reconciliation repairs: ${String(result.appliedCount)} record${result.appliedCount === 1 ? "" : "s"} updated (${String(result.paidCount)} ticket${result.paidCount === 1 ? "" : "s"} restored, ${String(result.refundedCount)} refund${result.refundedCount === 1 ? "" : "s"}, ${String(result.feeBackfilledCount)} fee${result.feeBackfilledCount === 1 ? "" : "s"} backfilled).`;
 }
 
 const reconciliationColumns: readonly DataTableColumn<PlatformStripeReconciliationRow>[] = [

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PlatformStripeReconciliationPreviewResponse } from "@choir/contracts";
 import * as platformApi from "../../../api/platform";
+import { formatApplySuccessMessage } from "./shared";
 import { StripePaymentReconciliation } from "./StripePaymentReconciliation";
 
 vi.mock("../../../api/platform", () => ({
@@ -388,6 +389,34 @@ describe("StripePaymentReconciliation", () => {
       expect(
         screen.getByText(/1 ticket restored, 0 refunds, 0 fees backfilled/),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("formatApplySuccessMessage", () => {
+    it("formats singular counts correctly", () => {
+      expect(
+        formatApplySuccessMessage({
+          appliedCount: 1,
+          feeBackfilledCount: 1,
+          paidCount: 1,
+          refundedCount: 1,
+        }),
+      ).toBe(
+        "Applied reconciliation repairs: 1 record updated (1 ticket restored, 1 refund, 1 fee backfilled).",
+      );
+    });
+
+    it("formats plural and zero counts correctly", () => {
+      expect(
+        formatApplySuccessMessage({
+          appliedCount: 3,
+          feeBackfilledCount: 0,
+          paidCount: 2,
+          refundedCount: 1,
+        }),
+      ).toBe(
+        "Applied reconciliation repairs: 3 records updated (2 tickets restored, 1 refund, 0 fees backfilled).",
+      );
     });
   });
 });
