@@ -51,10 +51,23 @@ export function RsvpManagerPage({
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("All");
   const [historyQuery, setHistoryQuery] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{
+    type: "error" | "success";
+    message: string;
+  } | null>(null);
   const [selectedProfileIds, setSelectedProfileIds] = useState<readonly string[]>([]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const { confirm, confirmationDialog } = useConfirmation();
+
+  useEffect(() => {
+    if (feedback?.type !== "success") return;
+    const timer = setTimeout(() => {
+      setFeedback(null);
+    }, 5000);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [feedback]);
 
   const bootstrapQuery = useRsvpBootstrapQuery(enabled);
 
@@ -138,7 +151,7 @@ export function RsvpManagerPage({
       if (eventId && changedEventId !== eventId) invalidateRsvpForEvent(eventId);
     },
     onSaved: () => {
-      setFeedback("Profile updated.");
+      setFeedback({ type: "success", message: "Profile updated." });
       void queryClient.invalidateQueries({ queryKey: queryKeys.organization.rsvpBootstrap });
       if (eventId) invalidateRsvpForEvent(eventId);
     },
@@ -317,17 +330,21 @@ export function RsvpManagerPage({
         return previous !== undefined && previous !== row.rsvp;
       }).length;
       setSelectedProfileIds([]);
-      setFeedback(
-        changedCount === 0
-          ? "The selected RSVP responses were already up to date."
-          : `RSVP updated for ${String(changedCount)} Profile${changedCount === 1 ? "" : "s"}.`,
-      );
+      setFeedback({
+        type: "success",
+        message:
+          changedCount === 0
+            ? "The selected RSVP responses were already up to date."
+            : `RSVP updated for ${String(changedCount)} Profile${changedCount === 1 ? "" : "s"}.`,
+      });
     } catch (bulkError: unknown) {
-      setFeedback(
-        bulkError instanceof AuthApiError
-          ? bulkError.message
-          : "The bulk RSVP change could not be applied.",
-      );
+      setFeedback({
+        type: "error",
+        message:
+          bulkError instanceof AuthApiError
+            ? bulkError.message
+            : "The bulk RSVP change could not be applied.",
+      });
     } finally {
       setBulkBusy(false);
     }
@@ -340,11 +357,13 @@ export function RsvpManagerPage({
     setFeedback(null);
     try {
       await setRsvpMutation.mutateAsync({ profileId, rsvp: next });
-      setFeedback("RSVP updated.");
+      setFeedback({ type: "success", message: "RSVP updated." });
     } catch (saveError: unknown) {
-      setFeedback(
-        saveError instanceof AuthApiError ? saveError.message : "The RSVP could not be updated.",
-      );
+      setFeedback({
+        type: "error",
+        message:
+          saveError instanceof AuthApiError ? saveError.message : "The RSVP could not be updated.",
+      });
     } finally {
       setSavingId(null);
     }
@@ -495,11 +514,6 @@ export function RsvpManagerPage({
           {rowsError}
         </p>
       ) : null}
-      {feedback ? (
-        <p className="notice notice--success" role="status">
-          {feedback}
-        </p>
-      ) : null}
       {profileOpenError ? (
         <p className="notice notice--error" role="alert">
           {profileOpenError}{" "}
@@ -644,6 +658,30 @@ export function RsvpManagerPage({
           open={profileEditor.open}
           saveLabel="Save & Return to RSVPs"
         />
+      ) : null}
+      {feedback ? (
+        <aside
+          aria-atomic="true"
+          aria-live={feedback.type === "error" ? "assertive" : "polite"}
+          className="rsvp-toast-container"
+        >
+          <div
+            className={`notice notice--${feedback.type} rsvp-toast`}
+            role={feedback.type === "error" ? "alert" : "status"}
+          >
+            <span>{feedback.message}</span>
+            <button
+              aria-label="Dismiss notification"
+              className="text-button rsvp-toast__dismiss"
+              onClick={() => {
+                setFeedback(null);
+              }}
+              type="button"
+            >
+              ✕
+            </button>
+          </div>
+        </aside>
       ) : null}
       {confirmationDialog}
     </div>

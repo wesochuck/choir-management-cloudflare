@@ -615,6 +615,41 @@
     outline-offset: 2px;
   }
 
+  .rsvp-toast-container {
+    position: fixed;
+    bottom: var(--spacing-lg, 1.5rem);
+    right: var(--spacing-lg, 1.5rem);
+    z-index: 1000;
+    max-width: min(90vw, 26rem);
+    pointer-events: auto;
+  }
+
+  .rsvp-toast {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+    margin: 0;
+  }
+
+  .rsvp-toast__dismiss {
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    font-size: var(--font-size-md);
+    cursor: pointer;
+    padding: var(--spacing-2xs) var(--spacing-xs);
+    line-height: 1;
+    opacity: 0.8;
+  }
+
+  .rsvp-toast__dismiss:hover,
+  .rsvp-toast__dismiss:focus-visible {
+    opacity: 1;
+  }
+
   .rsvp-row-actions {
     display: flex;
     flex-wrap: wrap;

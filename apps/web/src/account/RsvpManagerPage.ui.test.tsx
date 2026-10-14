@@ -273,3 +273,23 @@ describe("RsvpManagerPage profile editor (issue #137)", () => {
     expect(first(screen.getAllByText("Alice Singer"))).toBeInTheDocument();
   });
 });
+
+describe("RsvpManagerPage toast feedback (#185)", () => {
+  it("renders success feedback as floating toast with role='status' and dismiss button", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(
+      first(await screen.findAllByRole("button", { name: "Open profile for Alice Singer" })),
+    );
+    const dialog = await screen.findByRole("dialog", { name: "Edit Profile" });
+    await user.click(within(dialog).getByRole("button", { name: "Save & Return to RSVPs" }));
+
+    const toast = await screen.findByRole("status");
+    expect(toast).toHaveTextContent("Profile updated.");
+    expect(toast.closest(".rsvp-toast-container")).toBeInTheDocument();
+
+    const dismissButton = within(toast).getByRole("button", { name: "Dismiss notification" });
+    await user.click(dismissButton);
+    expect(screen.queryByText("Profile updated.")).not.toBeInTheDocument();
+  });
+});
