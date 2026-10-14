@@ -87,6 +87,34 @@
     width: 100%;
   }
 
+  .practice-player__filters-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--spacing-sm);
+    width: 100%;
+  }
+
+  .practice-player__filters-row .field {
+    flex: 1 1 15rem;
+    margin-bottom: 0;
+  }
+
+  .practice-player__playable-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2xs);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+    user-select: none;
+    padding-bottom: var(--spacing-2xs);
+  }
+
+  .practice-player__count-badge {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
   .public-player__header {
     padding-inline: var(--spacing-3xs);
   }
