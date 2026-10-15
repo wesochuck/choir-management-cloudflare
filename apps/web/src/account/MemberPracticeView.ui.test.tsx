@@ -127,7 +127,7 @@ describe("MemberPracticeView event artwork", () => {
 
   it("shows the placeholder when the event has no image", async () => {
     renderWithEvent(EVENT_WITHOUT_ART_ID);
-    await screen.findByRole("heading", { name: "Practice" });
+    await screen.findByRole("tab", { name: "Published set lists" });
     await screen.findByLabelText("Search this set list");
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
     expect(document.querySelector(".public-player__artwork--placeholder")).toBeInTheDocument();

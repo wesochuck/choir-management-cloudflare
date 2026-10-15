@@ -53,18 +53,39 @@ export function singerPiecesToPlaylistItems(
   }));
 }
 
+export type SelectableEvent = SingerEvent | OrganizationEvent;
+
+export function isApprovedSetListEvent(event: SelectableEvent): boolean {
+  if (event.setList.length === 0) return false;
+  if ("practice" in event) {
+    return event.practice.sourceEventId !== null;
+  }
+  if ("setListApproved" in event) {
+    return event.setListApproved;
+  }
+  return false;
+}
+
+export function resolveEventCanonicalId(event: SelectableEvent): string {
+  if ("practice" in event && event.practice.sourceEventId) {
+    return event.practice.sourceEventId;
+  }
+  if ("parentPerformanceId" in event && event.parentPerformanceId) {
+    return event.parentPerformanceId;
+  }
+  return event.id;
+}
+
 export function getApprovedPerformanceSetLists(
-  events: readonly SingerEvent[],
+  events: readonly SelectableEvent[],
   now = new Date(),
 ): ApprovedSetListOption[] {
-  const approved = events.filter(
-    (event) => event.practice.sourceEventId !== null && event.setList.length > 0,
-  );
+  const approved = events.filter(isApprovedSetListEvent);
 
   // Deduplicate rehearsals inheriting parent performance program
-  const canonicalMap = new Map<string, SingerEvent>();
+  const canonicalMap = new Map<string, SelectableEvent>();
   for (const event of approved) {
-    const key = event.practice.sourceEventId ?? event.id;
+    const key = resolveEventCanonicalId(event);
     const existing = canonicalMap.get(key);
     if (!existing) {
       canonicalMap.set(key, event);
@@ -90,7 +111,7 @@ export function getApprovedPerformanceSetLists(
   });
 
   return sorted.map((event) => ({
-    eventId: event.practice.sourceEventId ?? event.id,
+    eventId: resolveEventCanonicalId(event),
     publicGraphicFileId: event.publicGraphicFileId ?? null,
     setList: event.setList,
     startsAt: event.startsAt,

@@ -73,6 +73,7 @@ export function PlayerSetList({
   activeTrackKey,
   autoRevealActive = false,
   currentIndex,
+  isSetList = true,
   items,
   offlineIds,
   onRemoveOfflineCopy,
@@ -87,6 +88,7 @@ export function PlayerSetList({
   readonly activeTrackKey: string;
   readonly autoRevealActive?: boolean;
   readonly currentIndex: number;
+  readonly isSetList?: boolean;
   readonly items: readonly PlayerPlaylistItem[];
   readonly offlineIds: ReadonlySet<string>;
   readonly onRemoveOfflineCopy: (fileId: string) => void;
@@ -112,7 +114,7 @@ export function PlayerSetList({
 
   return (
     <section
-      aria-label={mobilePicker ? "Set List tracks" : undefined}
+      aria-label={mobilePicker ? (isSetList ? "Set List tracks" : "Library tracks") : undefined}
       aria-labelledby={mobilePicker ? undefined : "public-player-set-list"}
       className={`public-player__set-list${mobilePicker ? " public-player__set-list--mobile-picker" : ""}`}
     >
@@ -120,13 +122,16 @@ export function PlayerSetList({
         <>
           <div className="public-player__set-list-heading">
             <div>
-              <h2 id="public-player-set-list">Set List</h2>
-              <p>{String(items.length)} tracks</p>
+              <h2 id="public-player-set-list">{isSetList ? "Set List" : "Library tracks"}</h2>
+              <p>
+                {String(items.length)} {isSetList ? "tracks in program order" : "tracks"}
+              </p>
             </div>
           </div>
           <p className="public-player__set-list-help">
-            Choose a track to start practicing. Part and section tracks fall back to an available
-            recording when a specific track is not available.
+            {isSetList
+              ? "Choose a track to start practicing. Part and section tracks fall back to an available recording when a specific track is not available."
+              : "Choose a track from the library. Tracks fall back to an available recording when your assigned part is not recorded."}
           </p>
         </>
       )}
