@@ -10,6 +10,9 @@ const appEnvironmentSchema = z.enum(["local", "staging", "production"]);
 const startupConfigSchema = z.object({
   APP_ENV: appEnvironmentSchema,
   BUILD_VERSION: z.string().min(1).max(128),
+  CANONICAL_HOSTNAME_FIREWALL_MODE: z
+    .enum(["cloudflare-inline", "disabled", "fake"])
+    .default("fake"),
   CUSTOM_DOMAIN_PROVIDER_MODE: z.enum(["cloudflare", "disabled", "fake"]),
   EXTERNAL_EFFECTS_MODE: z.enum(["disabled", "fake", "sandbox"]),
   EMAIL_EVENTS_DLQ_NAME: z.string().min(1).max(128),
@@ -36,8 +39,14 @@ export interface Env {
   readonly BREVO_SMS_ALLOWED_RECIPIENTS?: string | undefined;
   readonly BREVO_SMS_SENDER?: string | undefined;
   readonly BUILD_VERSION: string;
+  readonly CANONICAL_HOSTNAME_FIREWALL_MODE?: "cloudflare-inline" | "disabled" | "fake" | undefined;
   readonly CLOUDFLARE_API_TOKEN?: string | undefined;
   readonly CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID?: string | undefined;
+  readonly CLOUDFLARE_WAF_API_TOKEN?: string | undefined;
+  readonly CLOUDFLARE_WAF_ZONE_ID?: string | undefined;
+  readonly CLOUDFLARE_WAF_RULESET_ID?: string | undefined;
+  readonly CLOUDFLARE_WAF_RULE_ID?: string | undefined;
+  readonly CLOUDFLARE_WAF_RULE_ACTION?: "block" | "log" | undefined;
   readonly CONTROL_DB: D1Database;
   readonly CUSTOM_DOMAIN_PROVIDER_MODE: "cloudflare" | "disabled" | "fake";
   readonly CUSTOM_DOMAIN_WORKFLOW: Workflow<CustomDomainParams>;
@@ -120,6 +129,7 @@ export function validateStartupConfig(env: Env): StartupConfig {
   return startupConfigSchema.parse({
     APP_ENV: env.APP_ENV,
     BUILD_VERSION: env.BUILD_VERSION,
+    CANONICAL_HOSTNAME_FIREWALL_MODE: env.CANONICAL_HOSTNAME_FIREWALL_MODE ?? "fake",
     CUSTOM_DOMAIN_PROVIDER_MODE: env.CUSTOM_DOMAIN_PROVIDER_MODE,
     EXTERNAL_EFFECTS_MODE: env.EXTERNAL_EFFECTS_MODE,
     EMAIL_EVENTS_DLQ_NAME: env.EMAIL_EVENTS_DLQ_NAME,

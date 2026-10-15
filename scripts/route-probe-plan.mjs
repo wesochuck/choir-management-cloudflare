@@ -90,6 +90,8 @@ export const probePlan = new Map([
     { kind: "skip-elevation" },
   ],
   ["GET /api/platform/organization-context", { kind: "skip-elevation" }],
+  ["GET /api/platform/waf/status", { kind: "skip-elevation" }],
+  ["POST /api/platform/waf/sync", { kind: "skip-elevation" }],
   ["POST /api/platform/elevations", { kind: "skip-elevation" }],
   ["DELETE /api/platform/elevations/:elevationId", { kind: "skip-elevation" }],
 

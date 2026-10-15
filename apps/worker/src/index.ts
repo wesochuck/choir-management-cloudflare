@@ -8,6 +8,7 @@ import { repairPendingProfileReconciliations } from "./control/profileReconcilia
 import { processDeadLetterBatch, processDeliveryBatch } from "./jobs/consumer";
 import { OrganizationStore } from "./organization/OrganizationStore";
 import { router, setSecurityHeaders } from "./router";
+import { reconcileCanonicalHostnameFirewall } from "./security/canonicalHostnameFirewall";
 import { CustomDomainWorkflow } from "./workflows/CustomDomainWorkflow";
 import { FleetSchemaWorkflow } from "./workflows/FleetSchemaWorkflow";
 import { ProvisioningWorkflow } from "./workflows/ProvisioningWorkflow";
@@ -65,6 +66,7 @@ const worker = {
           reconcileEmailChangeNotifications(env),
           reconcileEmailProviderEvents(env),
           repairPendingProfileReconciliations(env),
+          reconcileCanonicalHostnameFirewall(env),
         ]).then(() => {
           console.info(
             JSON.stringify({

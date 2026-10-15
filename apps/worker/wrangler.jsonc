@@ -27,6 +27,7 @@
   "vars": {
     "APP_ENV": "local",
     "BUILD_VERSION": "development",
+    "CANONICAL_HOSTNAME_FIREWALL_MODE": "fake",
     "CUSTOM_DOMAIN_PROVIDER_MODE": "fake",
     "EMAIL_EVENTS_DLQ_NAME": "choir-management-email-events-dlq-local",
     "EMAIL_EVENTS_QUEUE_NAME": "choir-management-email-events-local",
@@ -299,7 +300,10 @@
       "vars": {
         "APP_ENV": "staging",
         "BUILD_VERSION": "staging",
+        "CANONICAL_HOSTNAME_FIREWALL_MODE": "fake",
         "CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID": "06291d6d14ca953912365e8f2df2eea8",
+        "CLOUDFLARE_WAF_RULE_ACTION": "log",
+        "CLOUDFLARE_WAF_ZONE_ID": "06291d6d14ca953912365e8f2df2eea8",
         "CUSTOM_DOMAIN_PROVIDER_MODE": "cloudflare",
         "EMAIL_EVENTS_DLQ_NAME": "choir-management-email-events-dlq-staging",
         "EMAIL_EVENTS_QUEUE_NAME": "choir-management-email-events-staging",
@@ -446,7 +450,10 @@
       "vars": {
         "APP_ENV": "production",
         "BUILD_VERSION": "production",
+        "CANONICAL_HOSTNAME_FIREWALL_MODE": "disabled",
         "CLOUDFLARE_CUSTOM_HOSTNAMES_ZONE_ID": "06291d6d14ca953912365e8f2df2eea8",
+        "CLOUDFLARE_WAF_RULE_ACTION": "block",
+        "CLOUDFLARE_WAF_ZONE_ID": "06291d6d14ca953912365e8f2df2eea8",
         "CUSTOM_DOMAIN_PROVIDER_MODE": "cloudflare",
         "EMAIL_EVENTS_DLQ_NAME": "choir-management-email-events-dlq-production",
         "EMAIL_EVENTS_QUEUE_NAME": "choir-management-email-events-production",
