@@ -32,6 +32,7 @@ import { registerRoutes as registerOrganizationModulesRoutes } from "../organiza
 import { registerRoutes as registerOrganizationMusicCatalogRoutes } from "../organizationMusicCatalog";
 import { registerRoutes as registerOrganizationMusicFolderReportRoutes } from "../organizationMusicFolderReports";
 import { registerRoutes as registerOrganizationMusicMutationsRoutes } from "../organizationMusicMutations";
+import { registerRoutes as registerOrganizationMusicTrackImportRoutes } from "../organizationMusicTrackImport";
 import { registerRoutes as registerOrganizationPatronsRoutes } from "../organizationPatrons";
 import { registerRoutes as registerOrganizationPaymentSettingsRoutes } from "../organizationPaymentSettings";
 import { registerRoutes as registerOrganizationPollsRoutes } from "../organizationPolls";
@@ -84,6 +85,7 @@ export function registerOrganizationGroupRoutes(router: Hono<WorkerHonoEnvironme
   registerOrganizationMusicCatalogRoutes(router);
   registerOrganizationMusicFolderReportRoutes(router);
   registerOrganizationMusicMutationsRoutes(router);
+  registerOrganizationMusicTrackImportRoutes(router);
   registerOrganizationPatronsRoutes(router);
   registerOrganizationPaymentSettingsRoutes(router);
   registerOrganizationPollsRoutes(router);

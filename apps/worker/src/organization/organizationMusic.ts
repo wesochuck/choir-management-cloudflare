@@ -1,10 +1,13 @@
 import {
+  musicTrackImportAttachResponseSchema,
   organizationMusicBulkDeleteResponseSchema,
   organizationMusicGenreMutationResponseSchema,
   organizationMusicImportResponseSchema,
   organizationMusicLibrarySettingsRequestSchema,
   organizationMusicPieceSchema,
   organizationMusicPiecesResponseSchema,
+  type MusicTrackAttachmentAssignment,
+  type MusicTrackImportAttachResponse,
   type OrganizationMusicBulkDeleteRequest,
   type OrganizationMusicBulkUpdateRequest,
   type OrganizationMusicCreditRenameRequest,
@@ -308,6 +311,29 @@ export async function importOrganizationMusicPieces(
     pieces: pieces.map(({ piece, row }) => ({ piece, pieceId: crypto.randomUUID(), row })),
   });
   return organizationMusicImportResponseSchema
+    .omit({ requestId: true })
+    .parse(await response.json());
+}
+
+export async function attachOrganizationMusicTracks(
+  env: Env,
+  context: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  },
+  request: {
+    readonly assignments: readonly MusicTrackAttachmentAssignment[];
+    readonly idempotencyKey: string;
+  },
+): Promise<Omit<MusicTrackImportAttachResponse, "requestId">> {
+  const response = await mutate(env, context.organizationId, {
+    action: "attach_tracks",
+    ...context,
+    assignments: request.assignments,
+    idempotencyKey: request.idempotencyKey,
+  });
+  return musicTrackImportAttachResponseSchema
     .omit({ requestId: true })
     .parse(await response.json());
 }

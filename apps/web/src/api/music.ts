@@ -1,4 +1,6 @@
 import {
+  musicTrackImportAttachResponseSchema,
+  musicTrackImportMatchResponseSchema,
   organizationMusicBulkDeleteResponseSchema,
   organizationMusicGenreMutationResponseSchema,
   organizationMusicPiecesResponseSchema,
@@ -7,6 +9,10 @@ import {
   organizationMusicImportResponseSchema,
   organizationMusicPieceResponseSchema,
   singerLearningTrackPiecesResponseSchema,
+  type MusicTrackImportAttachRequest,
+  type MusicTrackImportAttachResponse,
+  type MusicTrackImportMatchRequest,
+  type MusicTrackImportMatchResponse,
   type OrganizationMusicPiece,
   type OrganizationMusicLibrarySettings,
   type OrganizationMusicBulkDeleteRequest,
@@ -175,4 +181,24 @@ export async function importOrganizationMusicCsv(csv: string): Promise<{
   });
   const parsed = organizationMusicImportResponseSchema.parse(await response.json());
   return { errors: parsed.errors, imported: parsed.imported, skipped: parsed.skipped };
+}
+
+export async function attachBulkPracticeTracks(
+  requestData: MusicTrackImportAttachRequest,
+): Promise<MusicTrackImportAttachResponse> {
+  const response = await request("/api/organization/music/track-import/attach", {
+    body: JSON.stringify(requestData),
+    method: "POST",
+  });
+  return musicTrackImportAttachResponseSchema.parse(await response.json());
+}
+
+export async function matchBulkPracticeTracks(
+  matchData: MusicTrackImportMatchRequest,
+): Promise<MusicTrackImportMatchResponse> {
+  const response = await request("/api/organization/music/track-import/match", {
+    body: JSON.stringify(matchData),
+    method: "POST",
+  });
+  return musicTrackImportMatchResponseSchema.parse(await response.json());
 }

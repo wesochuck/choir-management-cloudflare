@@ -12,8 +12,10 @@ import { batchAddGenres, rewriteGenreLabels } from "./genres.js";
 import { importPieces } from "./import.js";
 import { updateMusicLibrarySettings } from "./settings.js";
 import { deletePiece, writePiece } from "./crud.js";
+import { attachTracksInStore } from "./trackAttachment.js";
 
 export { MUSIC_IMPORT_BATCH_SIZE, musicColumns, musicOperationSchema } from "./types.js";
+export { attachTracksInStore } from "./trackAttachment.js";
 export type {
   MusicOperation,
   MusicPieceRow,
@@ -89,6 +91,9 @@ export async function manageMusicInStore(
   }
   if (operation.data.action === "update_settings") {
     return updateMusicLibrarySettings(storage, operation.data);
+  }
+  if (operation.data.action === "attach_tracks") {
+    return attachTracksInStore(storage, operation.data);
   }
   return writePiece(storage, operation.data);
 }

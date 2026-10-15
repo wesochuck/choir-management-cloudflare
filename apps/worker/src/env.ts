@@ -31,6 +31,7 @@ const signedLinkSecretSchema = z.string().min(32).max(4096);
 const googleClientSecretSchema = z.string().min(1).max(4096);
 
 export interface Env {
+  readonly AI?: Ai | undefined;
   readonly APP_ENV: "staging" | "production" | "local";
   readonly ASSETS: Fetcher;
   readonly AUTH_RATE_LIMITER?: RateLimit | undefined;

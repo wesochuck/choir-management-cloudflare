@@ -1,5 +1,7 @@
 import { type CsvColumnMapping, musicCsvColumnOptions } from "@choir/domain";
 import { Dialog, Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
+import { useState } from "react";
+import { listOrganizationMusic } from "../../../auth/api";
 import { MusicGenreFilter, MusicGenrePicker } from "./shared";
 import {
   formatParentWorkOption,
@@ -16,6 +18,7 @@ import { MusicCredits } from "./credits";
 import { AddToSetListDialog } from "./AddToSetListDialog";
 import { CsvImportDialog } from "../../CsvImportDialog";
 import { AppLink } from "../AuthenticatedShell/navigation";
+import { BulkPracticeTrackImportDialog } from "./bulkTrackImport";
 import type { MusicCatalogModel } from "./hooks";
 
 // eslint-disable-next-line complexity -- render composition preserves the existing screen's independent states and dialogs.
@@ -126,6 +129,7 @@ export function MusicCatalogView({
     unlinkChildren,
     venues,
   } = model;
+  const [bulkTrackImportOpen, setBulkTrackImportOpen] = useState(false);
   if (view === "credits") {
     return (
       <section
@@ -182,17 +186,21 @@ export function MusicCatalogView({
           Library Settings
         </AppLink>
       </nav>
-      {error && !dialogOpen && !importDialogOpen && !bulkDialogOpen ? (
+      {error && !dialogOpen && !importDialogOpen && !bulkDialogOpen && !bulkTrackImportOpen ? (
         <p className="notice notice--error" role="alert">
           {error}
         </p>
       ) : null}
-      {message && !dialogOpen && !importDialogOpen && !bulkDialogOpen ? (
+      {message && !dialogOpen && !importDialogOpen && !bulkDialogOpen && !bulkTrackImportOpen ? (
         <p className="notice notice--success" role="status">
           {message}
         </p>
       ) : null}
-      {lastImportErrors.length > 0 && !dialogOpen && !importDialogOpen && !bulkDialogOpen ? (
+      {lastImportErrors.length > 0 &&
+      !dialogOpen &&
+      !importDialogOpen &&
+      !bulkDialogOpen &&
+      !bulkTrackImportOpen ? (
         <div className="notice notice--warning" role="status">
           <p>
             {String(lastImportErrors.length)} row(s) were skipped.{" "}
@@ -291,6 +299,17 @@ export function MusicCatalogView({
               >
                 Export CSV
               </a>
+              <button
+                className="button button--secondary"
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setMessage(null);
+                  setBulkTrackImportOpen(true);
+                }}
+              >
+                Bulk upload practice tracks
+              </button>
             </div>
             {creditFilter ? (
               <div className="music-catalog-active-filter" role="status">
@@ -760,6 +779,26 @@ export function MusicCatalogView({
             onMapColumn={handleMusicColumnMap}
             open={importDialogOpen}
             title="Import music catalog"
+          />
+          <BulkPracticeTrackImportDialog
+            events={events}
+            onClose={() => {
+              setBulkTrackImportOpen(false);
+            }}
+            onTracksAttached={() => {
+              void (async () => {
+                try {
+                  const updated = await listOrganizationMusic();
+                  setPieces(updated);
+                } catch {
+                  // Keep current pieces if reload fails
+                }
+              })();
+            }}
+            open={bulkTrackImportOpen}
+            pieces={pieces}
+            roster={roster}
+            key={bulkTrackImportOpen ? "bulk-track-open" : "bulk-track-closed"}
           />
         </div>
       )}

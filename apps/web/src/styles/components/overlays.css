@@ -46,11 +46,12 @@
   }
 
   .dialog--responsive.dialog--event-editor,
-  .dialog--responsive.dialog--profile-editor {
-    width: min(72rem, calc(100% - 2rem));
-    max-width: min(72rem, calc(100% - 2rem));
-    height: min(90dvh, 56rem);
-    max-height: min(90dvh, 56rem);
+  .dialog--responsive.dialog--profile-editor,
+  .dialog--responsive.dialog--bulk-track-import {
+    width: min(78rem, calc(100% - 2rem));
+    max-width: min(78rem, calc(100% - 2rem));
+    height: min(92dvh, 58rem);
+    max-height: min(92dvh, 58rem);
   }
 
   .dialog__header {

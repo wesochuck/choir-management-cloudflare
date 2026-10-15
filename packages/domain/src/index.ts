@@ -363,3 +363,5 @@ export {
   STANDARD_SCORE_KEYS,
   type ResolvedPieceScore,
 } from "./digitalScore";
+
+export * from "./practiceTrackMatching";

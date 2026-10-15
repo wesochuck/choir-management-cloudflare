@@ -1,4 +1,5 @@
 import {
+  musicTrackImportAttachRequestSchema,
   organizationMusicBulkDeleteRequestSchema,
   organizationMusicBulkUpdateRequestSchema,
   organizationMusicCreditRenameRequestSchema,
@@ -24,6 +25,11 @@ export const operationContextSchema = z.object({
 export const MUSIC_IMPORT_BATCH_SIZE = 6;
 
 export const musicOperationSchema = z.discriminatedUnion("action", [
+  operationContextSchema.extend({
+    action: z.literal("attach_tracks"),
+    assignments: musicTrackImportAttachRequestSchema.shape.assignments,
+    idempotencyKey: musicTrackImportAttachRequestSchema.shape.idempotencyKey,
+  }),
   operationContextSchema.extend({
     action: z.literal("create"),
     piece: organizationMusicPieceRequestSchema,
