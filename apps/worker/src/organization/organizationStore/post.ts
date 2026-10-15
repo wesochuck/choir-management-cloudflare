@@ -208,7 +208,9 @@ export async function dispatchPostRequest(
     const parsed = z
       .object({
         force: z.boolean().optional(),
+        operatorOverride: z.boolean().optional(),
         organizationId: z.string().min(1).max(128),
+        resetCircuitBreaker: z.boolean().optional(),
       })
       .safeParse(body);
     if (!parsed.success) {
@@ -225,6 +227,8 @@ export async function dispatchPostRequest(
     }
     const result = await runOrganizationAlarm(storage, queue, new Date(), {
       force: parsed.data.force === true,
+      operatorOverride:
+        parsed.data.operatorOverride === true || parsed.data.resetCircuitBreaker === true,
     });
     return Response.json({ ...result, ranAt: new Date().toISOString() });
   }
