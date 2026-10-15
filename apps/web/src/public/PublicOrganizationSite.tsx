@@ -134,6 +134,7 @@ export function OrganizationLayout({
         </p>
         <div className="public-site-footer__links">
           <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
           {settings.contactEmail ? (
             <a href={`mailto:${settings.contactEmail}`}>Contact us</a>
           ) : null}
@@ -167,6 +168,7 @@ export function PublicTransactionLayout({
         </p>
         <div className="public-site-footer__links">
           <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
           {settings.contactEmail ? (
             <a href={`mailto:${settings.contactEmail}`}>Contact us</a>
           ) : null}

@@ -190,4 +190,19 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
       "mailto:info@example.test",
     );
   });
+
+  it("renders Privacy and Terms links in the public site footer", async () => {
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(createProjection());
+
+    render(<PublicOrganizationSite fallback={<p>Fallback</p>} pathname="/" />);
+
+    await screen.findByRole("heading", { name: "Welcome to Our Choir" });
+    const privacyLink = screen.getByRole("link", { name: "Privacy" });
+    expect(privacyLink).toBeInTheDocument();
+    expect(privacyLink).toHaveAttribute("href", "/privacy");
+
+    const termsLink = screen.getByRole("link", { name: "Terms" });
+    expect(termsLink).toBeInTheDocument();
+    expect(termsLink).toHaveAttribute("href", "/terms");
+  });
 });

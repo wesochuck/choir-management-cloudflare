@@ -40,6 +40,7 @@ import { PublicTickets } from "./public/PublicTickets";
 import { PublicDonations } from "./public/PublicDonations";
 import { PlatformHomeView } from "./public/PlatformHomeView";
 import { PublicPrivacyPolicyView } from "./public/PublicPrivacyPolicyView";
+import { PublicTermsView } from "./public/PublicTermsView";
 import { SetupView } from "./setup/SetupView";
 
 const PublicPlayerView = lazy(() =>
@@ -331,6 +332,9 @@ function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocati
   }
   if (pathname === "/privacy") {
     return <PublicPrivacyPolicyView />;
+  }
+  if (pathname === "/terms") {
+    return <PublicTermsView />;
   }
   return null;
 }

@@ -744,6 +744,7 @@ function PlatformFooter() {
         </p>
         <nav aria-label="Legal and support" className="platform-footer__links">
           <a href="/privacy">Privacy Policy</a>
+          <a href="/terms">Terms of Service</a>
           <a href="mailto:support@musicsite.org">Support</a>
         </nav>
       </div>
