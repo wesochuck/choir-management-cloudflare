@@ -1,8 +1,19 @@
+import { otherEventAudienceSchema, type OtherEventAudience } from "@choir/contracts";
 import { z } from "zod";
 
 import { decorateEventWithRsvpDeadline } from "../statusAutomationStore";
 import { type DashboardEventRow, type EventRow, type VenueRow } from "./contracts";
 import { identityMatches, parseSetList, rosterConfigurationFromStore } from "./shared";
+
+function parseOtherEventAudience(value: string | null | undefined): OtherEventAudience {
+  if (!value) return { profileIds: [], type: "everyone", voiceParts: [] };
+  try {
+    const parsed = otherEventAudienceSchema.safeParse(JSON.parse(value));
+    return parsed.success ? parsed.data : { profileIds: [], type: "everyone", voiceParts: [] };
+  } catch {
+    return { profileIds: [], type: "everyone", voiceParts: [] };
+  }
+}
 
 export function listOrganizationVenuesFromStore(
   storage: DurableObjectStorage,
@@ -47,6 +58,9 @@ export function listOrganizationEventsFromStore(
          rsvp_follow_up_mode AS rsvpFollowUpMode, rsvp_deadline_date AS rsvpDeadlineDate,
          set_list_json AS setListJson, set_list_approved AS setListApproved,
          set_list_default_transition_seconds AS setListDefaultTransitionSeconds,
+         other_event_rsvp_mode AS otherEventRsvpMode,
+         other_event_staffing_goal AS otherEventStaffingGoal,
+         other_event_audience_json AS otherEventAudienceJson,
          created_at AS createdAt, updated_at AS updatedAt,
          is_canceled AS isCanceled
        FROM events WHERE is_archived = 0 ORDER BY starts_at DESC, id DESC LIMIT 500`,
@@ -65,6 +79,9 @@ export function listOrganizationEventsFromStore(
       isCanceled: event.isCanceled === 1,
       isTicketingEnabled: event.isTicketingEnabled === 1,
       location: event.location,
+      otherEventAudience: parseOtherEventAudience(event.otherEventAudienceJson),
+      otherEventRsvpMode: event.otherEventRsvpMode,
+      otherEventStaffingGoal: event.otherEventStaffingGoal,
       parentPerformanceId: event.parentPerformanceId,
       publicDetails: event.publicDetails,
       publicGraphicFileId: event.publicGraphicFileId,

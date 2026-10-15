@@ -135,8 +135,9 @@ export function writeEvent(
            advance_price_cents, day_of_price_cents, doors_open_time,
            is_ticketing_enabled, ticket_capacity, set_list_json, set_list_approved,
            set_list_default_transition_seconds,
+           other_event_rsvp_mode, other_event_staffing_goal, other_event_audience_json,
            is_archived, is_canceled, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)`,
         event.id,
         event.title,
         event.type,
@@ -161,6 +162,9 @@ export function writeEvent(
         JSON.stringify(event.setList),
         event.setListApproved ? 1 : 0,
         event.setListDefaultTransitionSeconds,
+        event.otherEventRsvpMode,
+        event.otherEventStaffingGoal,
+        JSON.stringify(event.otherEventAudience),
         occurredAt,
         occurredAt,
       );
@@ -189,7 +193,9 @@ export function writeEvent(
            rsvp_deadline_date = ?,
            advance_price_cents = ?, day_of_price_cents = ?, doors_open_time = ?,
            is_ticketing_enabled = ?, ticket_capacity = ?, set_list_json = ?,
-           set_list_approved = ?, set_list_default_transition_seconds = ?, updated_at = ?
+           set_list_approved = ?, set_list_default_transition_seconds = ?,
+           other_event_rsvp_mode = ?, other_event_staffing_goal = ?, other_event_audience_json = ?,
+           updated_at = ?
          WHERE id = ?`,
         event.title,
         event.type,
@@ -214,6 +220,9 @@ export function writeEvent(
         JSON.stringify(event.setList),
         event.setListApproved ? 1 : 0,
         event.setListDefaultTransitionSeconds,
+        event.otherEventRsvpMode,
+        event.otherEventStaffingGoal,
+        JSON.stringify(event.otherEventAudience),
         occurredAt,
         event.id,
       );

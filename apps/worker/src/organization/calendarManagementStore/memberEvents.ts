@@ -1,3 +1,4 @@
+import { otherEventAudienceSchema } from "@choir/contracts";
 import { datePartInTimeZone, zonedLocalDateTimeToUtc } from "@choir/domain";
 import { z } from "zod";
 
@@ -64,9 +65,63 @@ function seatingStateForMemberEvent(
   return { status: "available" };
 }
 
+function isProfileInvitedToOtherEvent(
+  audienceJson: string | null,
+  profileId: string,
+  profileVoicePart: string,
+): boolean {
+  if (!audienceJson) return true;
+  try {
+    const parsed: unknown = JSON.parse(audienceJson);
+    const result = otherEventAudienceSchema.safeParse(parsed);
+    if (!result.success) return true;
+    const audience = result.data;
+    if (audience.type === "everyone") return true;
+    if (
+      Array.isArray(audience.voiceParts) &&
+      profileVoicePart.length > 0 &&
+      audience.voiceParts.includes(profileVoicePart)
+    ) {
+      return true;
+    }
+    if (Array.isArray(audience.profileIds) && audience.profileIds.includes(profileId)) {
+      return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function resolveOtherEventMetadata(
+  event: MemberEventRow,
+  profileId: string,
+  profileVoicePart: string,
+) {
+  if (event.type !== "Other") {
+    return {
+      isInvited: false,
+      otherEventRsvpMode: null,
+      volunteerCount: 0,
+      volunteerGoal: null,
+    };
+  }
+  const otherEventRsvpMode = event.otherEventRsvpMode ?? "off";
+  const isInvited =
+    otherEventRsvpMode === "response_requested" &&
+    isProfileInvitedToOtherEvent(event.otherEventAudienceJson, profileId, profileVoicePart);
+  return {
+    isInvited,
+    otherEventRsvpMode,
+    volunteerCount: event.volunteerCount,
+    volunteerGoal: event.otherEventStaffingGoal,
+  };
+}
+
 function mapMemberEvent(
   event: MemberEventRow,
   profileId: string,
+  profileVoicePart: string,
   configuration: MemberEventConfiguration,
   timezone: string,
   now: Date,
@@ -83,6 +138,7 @@ function mapMemberEvent(
       ? (event.parentSetListJson ?? "")
       : event.setListJson;
   const resolvedRsvp = inherits ? event.parentRsvp : directRsvp;
+  const otherMeta = resolveOtherEventMetadata(event, profileId, profileVoicePart);
   return {
     ...decorateEventWithRsvpDeadline(event, timezone, now),
     attendanceWarning: attendanceWarningForMemberEvent(event, inherits, directRsvp, configuration),
@@ -92,8 +148,10 @@ function mapMemberEvent(
     durationMinutes: event.durationMinutes,
     id: event.id,
     isCanceled: event.isCanceled === 1,
+    isInvited: otherMeta.isInvited,
     inheritedFromParent: inherits,
     location: event.location,
+    otherEventRsvpMode: otherMeta.otherEventRsvpMode,
     featuredAssignments: featuredAssignmentsForProfile(sourceSetListJson, profileId),
     practice: practiceStateForMemberEvent(event),
     resolvedRsvp,
@@ -108,6 +166,8 @@ function mapMemberEvent(
     type: event.type,
     venueAddress: event.venueAddress,
     venueName: event.venueName,
+    volunteerCount: otherMeta.volunteerCount,
+    volunteerGoal: otherMeta.volunteerGoal,
   };
 }
 
@@ -136,6 +196,14 @@ export function listMemberEventsFromStore(
       "SELECT timezone FROM organization_metadata LIMIT 1",
     )
     .one().timezone;
+  const profileVoicePart =
+    storage.sql
+      .exec<{ readonly voicePart: string }>(
+        "SELECT voice_part AS voicePart FROM profiles WHERE id = ? LIMIT 1",
+        profileId.data,
+      )
+      .toArray()
+      .at(0)?.voicePart ?? "";
   // The member dashboard is organized by the Organization's calendar day, not by the
   // event's exact start time. Keep today's events available through 11:59 PM locally so a
   // performance that has already started does not appear as a stale past event in the
@@ -152,6 +220,10 @@ export function listMemberEventsFromStore(
          e.location, e.details, e.set_list_json AS setListJson,
          e.set_list_approved AS setListApproved,
          e.is_canceled AS isCanceled, e.rsvp_deadline_date AS rsvpDeadlineDate,
+         e.other_event_rsvp_mode AS otherEventRsvpMode,
+         e.other_event_staffing_goal AS otherEventStaffingGoal,
+         e.other_event_audience_json AS otherEventAudienceJson,
+         (SELECT COUNT(*) FROM event_rosters r WHERE r.event_id = e.id AND r.rsvp = 'Yes') AS volunteerCount,
          COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress,
          direct.rsvp AS directRsvp, COALESCE(direct.rsvp_note, '') AS rsvpNote,
          parent.rsvp AS parentRsvp,
@@ -226,6 +298,7 @@ export function listMemberEventsFromStore(
       mapMemberEvent(
         event,
         profileId.data,
+        profileVoicePart,
         configuration,
         timezone,
         now,

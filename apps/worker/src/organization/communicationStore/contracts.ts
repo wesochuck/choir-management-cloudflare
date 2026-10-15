@@ -72,7 +72,7 @@ export const sendOperationSchema = contextSchema
       .object({
         eventId: z.string().min(1).max(128),
         eventType: z.string().min(1).max(64),
-        kind: z.literal("event_reminder"),
+        kind: z.enum(["event_reminder", "rsvp_follow_up"]),
       })
       .optional(),
     jobId: z.uuid(),

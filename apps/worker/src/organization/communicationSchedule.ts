@@ -23,6 +23,8 @@ export function rsvpFollowUpSchedule(
     readonly rsvpFollowUpMode: "disabled" | "enabled" | "inherit";
     readonly rsvpFollowUpLeadHours: number | null;
     readonly rsvpDeadlineDate: string | null;
+    readonly startsAt?: string;
+    readonly type?: string;
   },
   configuration: OrganizationRosterConfiguration,
   timezone: string,
@@ -37,6 +39,11 @@ export function rsvpFollowUpSchedule(
       ? event.rsvpFollowUpLeadHours
       : configuration.rsvpFollowUpLeadHours;
   if (!enabled || leadHours === null) return null;
+  if (event.type === "Other" && event.startsAt) {
+    const deadlineAt = Date.parse(event.startsAt);
+    if (!Number.isFinite(deadlineAt)) return null;
+    return { deadlineAt, dueAt: deadlineAt - leadHours * 60 * 60 * 1000 };
+  }
   const deadline = rsvpDeadlineFromDate(event.rsvpDeadlineDate ?? "", timezone);
   if (!deadline) return null;
   const deadlineAt = Date.parse(deadline.deadlineAt);

@@ -344,6 +344,19 @@ export function EventEditorDialog({
           type: nextType,
         };
       }
+      if (nextType === "Other") {
+        return {
+          ...current,
+          isTicketingEnabled: false,
+          parentPerformanceId: null,
+          publicGraphicFileId: null,
+          publishOnWebsite: false,
+          rsvpDeadlineDate: null,
+          setList: [],
+          setListApproved: false,
+          type: nextType,
+        };
+      }
       return {
         ...current,
         parentPerformanceId: null,
@@ -352,6 +365,11 @@ export function EventEditorDialog({
     });
     if (nextType === "Rehearsal" && (activeSection === "rsvp" || activeSection === "tickets")) {
       setActiveSection("schedule");
+    } else if (
+      nextType === "Other" &&
+      (activeSection === "tickets" || activeSection === "public")
+    ) {
+      setActiveSection("rsvp");
     }
   }
 

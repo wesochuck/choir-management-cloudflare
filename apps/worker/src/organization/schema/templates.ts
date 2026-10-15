@@ -84,6 +84,14 @@ const scheduledEventSystemCommunicationTemplates = [
     subject: "Attendance report: {eventTitle}",
     title: "Attendance Report",
   },
+  {
+    channel: "Email",
+    contentMarkdown:
+      "Hi {recipientName},\n\n## Event reminder: {eventTitle}\n\n- **Date and time:** {eventDate}\n- **Location:** {eventLocation}\n\n### Event details\n\n{eventDetails}\n\nThank you,\nChoir Management",
+    id: "5f0ca4a5-7e4c-4e1a-9a1c-000000000019",
+    subject: "Event reminder: {eventTitle}",
+    title: "Other Event Reminder",
+  },
 ] as const;
 
 export function seedRsvpSystemCommunicationTemplates(sql: SqlStorage): void {

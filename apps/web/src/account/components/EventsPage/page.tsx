@@ -68,7 +68,7 @@ export function EventsPage({
   readonly initialAction?: "create" | null | undefined;
   readonly initialEventId?: string | null | undefined;
   readonly initialSection?: string | null | undefined;
-  readonly initialType?: "Performance" | "Rehearsal" | null | undefined;
+  readonly initialType?: "Performance" | "Rehearsal" | "Other" | null | undefined;
   readonly navigate?: ((href: string) => void) | undefined;
   readonly returnTo?: string | null | undefined;
 }) {
@@ -95,7 +95,9 @@ export function EventsPage({
       ? "performances"
       : initialType === "Rehearsal"
         ? "rehearsals"
-        : "all",
+        : initialType === "Other"
+          ? "other"
+          : "all",
   );
   const [currentTime] = useState(() => Date.now());
   const [query, setQuery] = useState("");
@@ -163,7 +165,8 @@ export function EventsPage({
         const matchesTab =
           eventTab === "all" ||
           (eventTab === "performances" && candidate.type === "Performance") ||
-          (eventTab === "rehearsals" && candidate.type === "Rehearsal");
+          (eventTab === "rehearsals" && candidate.type === "Rehearsal") ||
+          (eventTab === "other" && candidate.type === "Other");
         const matchesPast = showPastEvents || new Date(candidate.startsAt).getTime() >= currentTime;
         const matchesQuery =
           !normalized ||
@@ -526,6 +529,7 @@ export function EventsPage({
               ["all", "All Events"],
               ["performances", "Performances"],
               ["rehearsals", "Rehearsals"],
+              ["other", "Other Events"],
             ] as const
           ).map(([value, label]) => (
             <TabsTrigger

@@ -17,7 +17,9 @@ type DashboardEvent = MemberDashboardResponse["events"][number];
 type MemberWorkspaceAccessStatus = AccessState["status"];
 
 function eventTypeLabel(event: DashboardEvent): string {
-  return event.type === "Performance" ? "Performance" : "Rehearsal";
+  if (event.type === "Performance") return "Performance";
+  if (event.type === "Other") return "Other";
+  return "Rehearsal";
 }
 
 function rsvpLabel(value: DashboardEvent["resolvedRsvp"]): string {

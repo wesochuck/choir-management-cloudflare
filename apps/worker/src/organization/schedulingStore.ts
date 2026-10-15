@@ -1,3 +1,4 @@
+import { otherEventAudienceSchema, type OtherEventAudience } from "@choir/contracts";
 import { eventReminderPreferenceKind, type EventReminderPreferenceKind } from "@choir/domain";
 import { z } from "zod";
 
@@ -79,6 +80,102 @@ function readRsvpYesRecipients(
     .toArray();
 }
 
+function readOtherEventRecipients(
+  storage: DurableObjectStorage,
+  eventId: string,
+  kind: "event_reminder" | "rsvp_follow_up",
+): readonly RecipientRow[] {
+  if (kind === "event_reminder") {
+    return storage.sql
+      .exec<RecipientRow>(
+        `SELECT p.id AS profileId, p.display_name AS recipientName,
+           p.phone AS phone
+         FROM event_rosters r
+         JOIN profiles p ON p.id = r.profile_id
+         WHERE r.event_id = ? AND r.rsvp = 'Yes'
+           AND p.global_status = 'Active'
+           AND p.do_not_email = 0
+           AND p.receive_other_event_reminders = 1
+           AND NOT EXISTS (
+             SELECT 1 FROM communication_suppressions s
+             WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
+           )
+         ORDER BY p.display_name COLLATE NOCASE ASC, p.id ASC
+         LIMIT 500`,
+        eventId,
+      )
+      .toArray();
+  }
+
+  const row = storage.sql
+    .exec<{
+      readonly [column: string]: SqlStorageValue;
+      readonly other_event_audience_json: string;
+    }>("SELECT other_event_audience_json FROM events WHERE id = ? LIMIT 1", eventId)
+    .toArray()
+    .at(0);
+  if (!row) return [];
+
+  let audience: OtherEventAudience = {
+    type: "everyone",
+  };
+  if (row.other_event_audience_json) {
+    try {
+      const parsed: unknown = JSON.parse(row.other_event_audience_json);
+      const result = otherEventAudienceSchema.safeParse(parsed);
+      if (result.success) {
+        audience = result.data;
+      }
+    } catch {
+      // default everyone
+    }
+  }
+
+  const params: unknown[] = [];
+  let audienceClause = "";
+  if (audience.type === "targeted") {
+    const voiceParts = audience.voiceParts ?? [];
+    const profileIds = audience.profileIds ?? [];
+    if (voiceParts.length === 0 && profileIds.length === 0) {
+      return [];
+    }
+    const conditions: string[] = [];
+    if (voiceParts.length > 0) {
+      conditions.push(`p.voice_part IN (${voiceParts.map(() => "?").join(", ")})`);
+      params.push(...voiceParts);
+    }
+    if (profileIds.length > 0) {
+      conditions.push(`p.id IN (${profileIds.map(() => "?").join(", ")})`);
+      params.push(...profileIds);
+    }
+    audienceClause = `AND (${conditions.join(" OR ")})`;
+  }
+  params.push(eventId);
+
+  return storage.sql
+    .exec<RecipientRow>(
+      `SELECT p.id AS profileId, p.display_name AS recipientName,
+         p.phone AS phone
+       FROM profiles p
+       WHERE p.global_status = 'Active'
+         AND p.do_not_email = 0
+         AND p.receive_other_event_reminders = 1
+         ${audienceClause}
+         AND NOT EXISTS (
+           SELECT 1 FROM event_rosters r
+           WHERE r.event_id = ? AND r.profile_id = p.id AND r.rsvp IN ('Yes', 'No')
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM communication_suppressions s
+           WHERE s.profile_id = p.id AND s.channel = 'email' AND s.active = 1
+         )
+       ORDER BY p.display_name COLLATE NOCASE ASC, p.id ASC
+       LIMIT 500`,
+      ...params,
+    )
+    .toArray();
+}
+
 interface EventSummaryRow {
   readonly [column: string]: SqlStorageValue;
   readonly callTime: string;
@@ -152,12 +249,15 @@ function readEventCommunicationJobFromStore(
   // The applicable preference follows the reminder's own event type: a linked
   // Rehearsal honors the rehearsal preference even though its roster
   // eligibility is inherited from the parent Performance.
-  const recipients = readRsvpYesRecipients(
-    storage,
-    eventId,
-    rsvp,
-    kind === "event_reminder" ? eventReminderPreferenceKind(event.type) : null,
-  );
+  const recipients =
+    event.type === "Other"
+      ? readOtherEventRecipients(storage, eventId, kind)
+      : readRsvpYesRecipients(
+          storage,
+          eventId,
+          rsvp,
+          kind === "event_reminder" ? eventReminderPreferenceKind(event.type) : null,
+        );
   return Response.json({
     event: {
       callTime: event.callTime,

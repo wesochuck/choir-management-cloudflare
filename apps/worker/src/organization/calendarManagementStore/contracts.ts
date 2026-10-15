@@ -123,9 +123,12 @@ export interface EventRow {
   readonly startsAt: string;
   readonly ticketCapacity: number | null;
   readonly title: string;
-  readonly type: "Performance" | "Rehearsal";
+  readonly type: "Performance" | "Rehearsal" | "Other";
   readonly updatedAt: string;
   readonly venueId: string | null;
+  readonly otherEventRsvpMode: "off" | "optional" | "response_requested";
+  readonly otherEventStaffingGoal: number | null;
+  readonly otherEventAudienceJson: string;
 }
 
 export interface DashboardEventRow {
@@ -133,7 +136,7 @@ export interface DashboardEventRow {
   readonly id: string;
   readonly startsAt: string;
   readonly title: string;
-  readonly type: "Performance" | "Rehearsal";
+  readonly type: "Performance" | "Rehearsal" | "Other";
 }
 
 export interface MemberEventRow {
@@ -147,6 +150,9 @@ export interface MemberEventRow {
   readonly id: string;
   readonly isCanceled: number;
   readonly location: string;
+  readonly otherEventAudienceJson: string | null;
+  readonly otherEventRsvpMode: "off" | "optional" | "response_requested" | null;
+  readonly otherEventStaffingGoal: number | null;
   readonly parentRsvp: "No" | "Pending" | "Yes" | null;
   readonly parentSetListJson: string | null;
   readonly practiceEventId: string | null;
@@ -159,9 +165,10 @@ export interface MemberEventRow {
   readonly setListJson: string;
   readonly startsAt: string;
   readonly title: string;
-  readonly type: "Performance" | "Rehearsal";
+  readonly type: "Performance" | "Rehearsal" | "Other";
   readonly venueAddress: string;
   readonly venueName: string;
+  readonly volunteerCount: number;
 }
 
 export interface ProfilePerformanceRow {

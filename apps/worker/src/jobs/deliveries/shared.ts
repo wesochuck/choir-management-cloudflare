@@ -252,6 +252,7 @@ const auditionLinkPlaceholderReplacementPattern = /\{\{AUDITION_LINK\}\}|\{audit
 export const scheduledEventTemplateIds = {
   attendanceReport: "5f0ca4a5-7e4c-4e1a-9a1c-000000000016",
   eventRsvpFollowUp: "5f0ca4a5-7e4c-4e1a-9a1c-000000000015",
+  otherEventReminder: "5f0ca4a5-7e4c-4e1a-9a1c-000000000019",
   performanceReminder: "5f0ca4a5-7e4c-4e1a-9a1c-000000000006",
   rehearsalReminder: "5f0ca4a5-7e4c-4e1a-9a1c-000000000005",
 } as const;

@@ -28,7 +28,7 @@ const calendarFeedResponseSchema = z.object({
       setListJson: z.string().max(500_000),
       startsAt: z.iso.datetime(),
       title: z.string().min(1).max(500),
-      type: z.enum(["Performance", "Rehearsal"]),
+      type: z.enum(["Performance", "Rehearsal", "Other"]),
       venueAddress: z.string().max(2_000),
       venueName: z.string().max(500),
     }),

@@ -31,10 +31,11 @@ export function updateEventRsvp(
       readonly durationMinutes: number | null;
       readonly isCanceled: number;
       readonly startsAt: string;
-      readonly type: "Performance" | "Rehearsal";
+      readonly type: "Performance" | "Rehearsal" | "Other";
       readonly rsvpDeadlineDate: string | null;
+      readonly otherEventRsvpMode: "off" | "optional" | "response_requested" | null;
     }>(
-      "SELECT type, starts_at AS startsAt, duration_minutes AS durationMinutes, is_canceled AS isCanceled, rsvp_deadline_date AS rsvpDeadlineDate FROM events WHERE id = ? AND is_archived = 0 LIMIT 1",
+      "SELECT type, starts_at AS startsAt, duration_minutes AS durationMinutes, is_canceled AS isCanceled, rsvp_deadline_date AS rsvpDeadlineDate, other_event_rsvp_mode AS otherEventRsvpMode FROM events WHERE id = ? AND is_archived = 0 LIMIT 1",
       rsvpOperation.eventId,
     )
     .toArray()
@@ -42,6 +43,9 @@ export function updateEventRsvp(
   if (!event) return Response.json({ code: "event_not_found" }, { status: 404 });
   if (event.isCanceled === 1) {
     return Response.json({ code: "event_canceled" }, { status: 409 });
+  }
+  if (event.type === "Other" && event.otherEventRsvpMode === "off") {
+    return Response.json({ code: "rsvp_closed" }, { status: 409 });
   }
   if (
     rsvpOperation.selfService &&

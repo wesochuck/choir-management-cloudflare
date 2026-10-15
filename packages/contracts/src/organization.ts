@@ -29,6 +29,14 @@ export const organizationSetListItemSchema = z.object({
   type: z.enum(["intermission", "song"]).optional(),
 });
 
+export const otherEventAudienceSchema = z.object({
+  profileIds: z.array(z.uuid()).max(500).default([]).optional(),
+  type: z.enum(["everyone", "targeted"]).default("everyone"),
+  voiceParts: z.array(z.string().trim().min(1).max(80)).max(100).default([]).optional(),
+});
+
+export type OtherEventAudience = z.infer<typeof otherEventAudienceSchema>;
+
 export const organizationEventFieldsSchema = z.object({
   advancePriceCents: z.number().int().nonnegative().max(10_000_000).default(0),
   callTime: z.union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)]).default(""),
@@ -40,6 +48,22 @@ export const organizationEventFieldsSchema = z.object({
   durationMinutes: z.number().int().positive().max(1_440).nullable().default(null),
   isTicketingEnabled: z.boolean().default(false),
   location: z.string().trim().max(2_000).default(""),
+  otherEventAudience: otherEventAudienceSchema
+    .default({
+      profileIds: [],
+      type: "everyone",
+      voiceParts: [],
+    })
+    .optional(),
+  otherEventRsvpMode: z.enum(["off", "optional", "response_requested"]).default("off").optional(),
+  otherEventStaffingGoal: z
+    .number()
+    .int()
+    .positive()
+    .max(10_000)
+    .nullable()
+    .default(null)
+    .optional(),
   parentPerformanceId: z.uuid().nullable().default(null),
   publicDetails: z.string().max(100_000).default(""),
   publicGraphicFileId: z.uuid().nullable().default(null),
@@ -52,10 +76,140 @@ export const organizationEventFieldsSchema = z.object({
   startsAt: z.iso.datetime(),
   ticketCapacity: z.number().int().positive().max(100_000).nullable().default(null),
   title: z.string().trim().min(1).max(500),
-  type: z.enum(["Performance", "Rehearsal"]),
+  type: z.enum(["Performance", "Rehearsal", "Other"]),
   venueId: z.uuid().nullable().default(null),
   rsvpDeadlineDate: z.iso.date().nullable().default(null),
 });
+
+function validateRehearsalAndPerformanceFields(
+  event: z.infer<typeof organizationEventFieldsSchema>,
+  context: z.RefinementCtx,
+): void {
+  if (event.type !== "Rehearsal" && event.parentPerformanceId !== null) {
+    context.addIssue({
+      code: "custom",
+      message: "A parent performance can only be selected for a rehearsal.",
+      path: ["parentPerformanceId"],
+    });
+  }
+  if (event.type === "Rehearsal" && event.rsvpFollowUpMode !== "inherit") {
+    context.addIssue({
+      code: "custom",
+      message: "Rehearsals inherit RSVP follow-up settings from their parent Performance.",
+      path: ["rsvpFollowUpMode"],
+    });
+  }
+  if (event.rsvpFollowUpMode === "enabled" && event.rsvpFollowUpLeadHours === null) {
+    context.addIssue({
+      code: "custom",
+      message: "An RSVP follow-up lead time is required when the event override is enabled.",
+      path: ["rsvpFollowUpLeadHours"],
+    });
+  }
+  if (event.rsvpFollowUpMode !== "enabled" && event.rsvpFollowUpLeadHours !== null) {
+    context.addIssue({
+      code: "custom",
+      message: "A custom RSVP follow-up lead time requires an enabled event override.",
+      path: ["rsvpFollowUpLeadHours"],
+    });
+  }
+  if (event.type === "Performance" && event.rsvpDeadlineDate === null) {
+    context.addIssue({
+      code: "custom",
+      message: "A member RSVP deadline is required for a Performance.",
+      path: ["rsvpDeadlineDate"],
+    });
+  }
+  if (event.type === "Rehearsal" && event.rsvpDeadlineDate !== null) {
+    context.addIssue({
+      code: "custom",
+      message: "Rehearsals do not use an RSVP deadline.",
+      path: ["rsvpDeadlineDate"],
+    });
+  }
+}
+
+function validateOtherEventRestrictions(
+  event: z.infer<typeof organizationEventFieldsSchema>,
+  context: z.RefinementCtx,
+): void {
+  if (event.parentPerformanceId !== null) {
+    context.addIssue({
+      code: "custom",
+      message: "An Other Event cannot have a parent performance.",
+      path: ["parentPerformanceId"],
+    });
+  }
+  if (event.setList.length > 0 || event.setListApproved) {
+    context.addIssue({
+      code: "custom",
+      message: "An Other Event cannot have a set list.",
+      path: ["setList"],
+    });
+  }
+  if (event.isTicketingEnabled) {
+    context.addIssue({
+      code: "custom",
+      message: "An Other Event cannot have ticketing enabled.",
+      path: ["isTicketingEnabled"],
+    });
+  }
+  if (event.publishOnWebsite) {
+    context.addIssue({
+      code: "custom",
+      message: "An Other Event cannot be published on the website.",
+      path: ["publishOnWebsite"],
+    });
+  }
+  if (event.rsvpDeadlineDate !== null) {
+    context.addIssue({
+      code: "custom",
+      message: "Other Events do not use an RSVP deadline.",
+      path: ["rsvpDeadlineDate"],
+    });
+  }
+}
+
+function validateOtherEventRsvp(
+  event: z.infer<typeof organizationEventFieldsSchema>,
+  context: z.RefinementCtx,
+): void {
+  if (event.otherEventRsvpMode === "off" && event.otherEventStaffingGoal !== null) {
+    context.addIssue({
+      code: "custom",
+      message: "A helper goal cannot be set when RSVP collection is off.",
+      path: ["otherEventStaffingGoal"],
+    });
+  }
+  if (
+    event.otherEventRsvpMode === "response_requested" &&
+    event.otherEventAudience?.type === "targeted" &&
+    (event.otherEventAudience.voiceParts?.length ?? 0) === 0 &&
+    (event.otherEventAudience.profileIds?.length ?? 0) === 0
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Select at least one voice part or profile for a targeted audience.",
+      path: ["otherEventAudience"],
+    });
+  }
+}
+
+function validateOtherEventFields(
+  event: z.infer<typeof organizationEventFieldsSchema>,
+  context: z.RefinementCtx,
+): void {
+  if (event.type === "Other") {
+    validateOtherEventRestrictions(event, context);
+    validateOtherEventRsvp(event, context);
+  } else if (event.otherEventStaffingGoal !== null) {
+    context.addIssue({
+      code: "custom",
+      message: "Staffing goals are only supported for Other Events.",
+      path: ["otherEventStaffingGoal"],
+    });
+  }
+}
 
 export const organizationEventRequestSchema = organizationEventFieldsSchema.superRefine(
   (event, context) => {
@@ -66,48 +220,8 @@ export const organizationEventRequestSchema = organizationEventFieldsSchema.supe
         path: ["venueId"],
       });
     }
-    if (event.type !== "Rehearsal" && event.parentPerformanceId !== null) {
-      context.addIssue({
-        code: "custom",
-        message: "A parent performance can only be selected for a rehearsal.",
-        path: ["parentPerformanceId"],
-      });
-    }
-    if (event.type === "Rehearsal" && event.rsvpFollowUpMode !== "inherit") {
-      context.addIssue({
-        code: "custom",
-        message: "Rehearsals inherit RSVP follow-up settings from their parent Performance.",
-        path: ["rsvpFollowUpMode"],
-      });
-    }
-    if (event.rsvpFollowUpMode === "enabled" && event.rsvpFollowUpLeadHours === null) {
-      context.addIssue({
-        code: "custom",
-        message: "An RSVP follow-up lead time is required when the event override is enabled.",
-        path: ["rsvpFollowUpLeadHours"],
-      });
-    }
-    if (event.rsvpFollowUpMode !== "enabled" && event.rsvpFollowUpLeadHours !== null) {
-      context.addIssue({
-        code: "custom",
-        message: "A custom RSVP follow-up lead time requires an enabled event override.",
-        path: ["rsvpFollowUpLeadHours"],
-      });
-    }
-    if (event.type === "Performance" && event.rsvpDeadlineDate === null) {
-      context.addIssue({
-        code: "custom",
-        message: "A member RSVP deadline is required for a Performance.",
-        path: ["rsvpDeadlineDate"],
-      });
-    }
-    if (event.type === "Rehearsal" && event.rsvpDeadlineDate !== null) {
-      context.addIssue({
-        code: "custom",
-        message: "Rehearsals do not use an RSVP deadline.",
-        path: ["rsvpDeadlineDate"],
-      });
-    }
+    validateRehearsalAndPerformanceFields(event, context);
+    validateOtherEventFields(event, context);
   },
 );
 

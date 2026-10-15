@@ -75,7 +75,9 @@ export async function deliverScheduledEventCommunication(
       ? scheduledEventTemplateIds.eventRsvpFollowUp
       : scheduled.event.type === "Rehearsal"
         ? scheduledEventTemplateIds.rehearsalReminder
-        : scheduledEventTemplateIds.performanceReminder;
+        : scheduled.event.type === "Other"
+          ? scheduledEventTemplateIds.otherEventReminder
+          : scheduledEventTemplateIds.performanceReminder;
   const template = await readOrganizationCommunicationTemplate(env, job.organizationId, templateId);
   const recipients = await automatedRecipients(env, job.organizationId, scheduled.recipients);
   if (recipients.length === 0) return;
@@ -114,14 +116,11 @@ export async function deliverScheduledEventCommunication(
       requestId: job.jobId,
     },
     {
-      automation:
-        kind === "event_reminder"
-          ? {
-              eventId: scheduled.eventId,
-              eventType: scheduled.event.type,
-              kind: "event_reminder",
-            }
-          : undefined,
+      automation: {
+        eventId: scheduled.eventId,
+        eventType: scheduled.event.type,
+        kind,
+      },
       contentMarkdown: renderedContent,
       eventId: scheduled.eventId,
       recipients,

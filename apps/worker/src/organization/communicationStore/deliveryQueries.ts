@@ -283,18 +283,27 @@ export function readCommunicationJobFromStore(
                    WHERE linked_contact.id = communication_deliveries.profile_id
                  )
                )
-               AND json_extract(m.automation_json, '$.kind') = 'event_reminder'
                AND (
                  (
-                   json_extract(m.automation_json, '$.eventType') = 'Rehearsal'
-                   AND p.receive_rehearsal_reminders = 0
+                   json_extract(m.automation_json, '$.kind') = 'event_reminder'
+                   AND (
+                     (
+                       json_extract(m.automation_json, '$.eventType') = 'Rehearsal'
+                       AND p.receive_rehearsal_reminders = 0
+                     )
+                     OR (
+                       json_extract(m.automation_json, '$.eventType') = 'Performance'
+                       AND p.receive_performance_reminders = 0
+                     )
+                     OR (
+                       json_extract(m.automation_json, '$.eventType') NOT IN ('Rehearsal', 'Performance')
+                       AND p.receive_other_event_reminders = 0
+                     )
+                   )
                  )
                  OR (
-                   json_extract(m.automation_json, '$.eventType') = 'Performance'
-                   AND p.receive_performance_reminders = 0
-                 )
-                 OR (
-                   json_extract(m.automation_json, '$.eventType') NOT IN ('Rehearsal', 'Performance')
+                   json_extract(m.automation_json, '$.kind') = 'rsvp_follow_up'
+                   AND json_extract(m.automation_json, '$.eventType') NOT IN ('Rehearsal', 'Performance')
                    AND p.receive_other_event_reminders = 0
                  )
                )
