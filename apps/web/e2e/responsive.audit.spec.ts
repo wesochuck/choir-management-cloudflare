@@ -682,6 +682,7 @@ async function assertBreakpointSpecificLayout(
     await expect(page.getByRole("button", { name: "Share with members" })).toBeVisible();
   }
   if (path === "/admin/website" && width <= 1024) {
+    await page.getByRole("tab", { name: "Appearance", exact: true }).click();
     await expect(page.locator(".website-font-preview")).toHaveCount(2);
   }
 }
@@ -765,6 +766,7 @@ test("public website font selectors show live samples", async ({ page }) => {
   });
 
   await page.goto("/admin/website");
+  await page.getByRole("tab", { name: "Appearance", exact: true }).click();
   await expect(page.locator(".website-font-preview")).toHaveCount(2);
 
   const headingSample = page.locator(
