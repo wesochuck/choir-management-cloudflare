@@ -74,7 +74,8 @@ export function useSetListManagerController({
   const [showNotes, setShowNotes] = useState(false);
   const [dirty, setDirty] = useState(false);
   const saveTimerRef = useRef<number | null>(null);
-  const saveRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const saveRef = useRef<() => Promise<boolean>>(() => Promise.resolve(true));
+  const inFlightSavePromiseRef = useRef<Promise<boolean> | null>(null);
   const draftRevisionRef = useRef(0);
   const lastSaveRevisionRef = useRef(-1);
   const hasInitializedSelectionRef = useRef(false);
@@ -141,17 +142,32 @@ export function useSetListManagerController({
         const hasNewExplicitRequest = requestedEventIdsKey !== lastRequestedEventIdsRef.current;
 
         if (isFirstResourceLoad) {
-          initializeDraftForEvent(
-            explicitPerformance ??
+          if (explicitEventIds.length > 0) {
+            if (explicitPerformance) {
+              initializeDraftForEvent(explicitPerformance);
+            } else {
+              initializeDraftForEvent(null);
+              setError(
+                "The requested performance could not be found or is not an active performance.",
+              );
+            }
+          } else {
+            initializeDraftForEvent(
               selectDefaultPerformance(events, new Date(), calendarSettings.timezone),
-          );
+            );
+          }
           hasInitializedSelectionRef.current = true;
-        } else if (
-          hasNewExplicitRequest &&
-          explicitPerformance &&
-          explicitPerformance.id !== selectedEventIdRef.current
-        ) {
-          initializeDraftForEvent(explicitPerformance);
+        } else if (hasNewExplicitRequest) {
+          if (explicitPerformance) {
+            if (explicitPerformance.id !== selectedEventIdRef.current) {
+              initializeDraftForEvent(explicitPerformance);
+            }
+          } else if (explicitEventIds.length > 0) {
+            initializeDraftForEvent(null);
+            setError(
+              "The requested performance could not be found or is not an active performance.",
+            );
+          }
         }
         lastRequestedEventIdsRef.current = requestedEventIdsKey;
         setLoaded(true);
@@ -357,15 +373,18 @@ export function useSetListManagerController({
     setCopyEventId("");
   }
 
-  async function save(): Promise<void> {
-    if (!selectedEvent || busy) return;
+  async function save(): Promise<boolean> {
+    if (inFlightSavePromiseRef.current) {
+      return inFlightSavePromiseRef.current;
+    }
+    if (!selectedEvent) return true;
     if (saveTimerRef.current !== null) {
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
     if (items.some((item) => item.duration && parseSetListDuration(item.duration) === null)) {
       setError("Correct invalid item durations before saving.");
-      return;
+      return false;
     }
     const eventId = selectedEvent.id;
     const saveRevision = draftRevisionRef.current;
@@ -374,29 +393,38 @@ export function useSetListManagerController({
     setBusy(true);
     setError(null);
     setMessage(null);
-    try {
-      const saved = await updateOrganizationEvent(eventId, request);
-      setResources((current) => ({
-        ...current,
-        events: current.events.map((event) => (event.id === saved.id ? saved : event)),
-      }));
-      if (draftRevisionRef.current === saveRevision && selectedEventId === eventId) {
-        setItems(normalizeItems(saved.setList));
-        setApproved(saved.setListApproved);
-        setDefaultTransitionSeconds(saved.setListDefaultTransitionSeconds);
-        setDirty(false);
-        setMessage("Set list saved.");
-      } else {
-        setDirty(true);
-        setMessage("Set list saved; newer edits remain unsaved.");
+
+    const savePromise = (async () => {
+      try {
+        const saved = await updateOrganizationEvent(eventId, request);
+        setResources((current) => ({
+          ...current,
+          events: current.events.map((event) => (event.id === saved.id ? saved : event)),
+        }));
+        if (draftRevisionRef.current === saveRevision && selectedEventId === eventId) {
+          setItems(normalizeItems(saved.setList));
+          setApproved(saved.setListApproved);
+          setDefaultTransitionSeconds(saved.setListDefaultTransitionSeconds);
+          setDirty(false);
+          setMessage("Set list saved.");
+        } else {
+          setDirty(true);
+          setMessage("Set list saved; newer edits remain unsaved.");
+        }
+        return true;
+      } catch (caught: unknown) {
+        setError(
+          caught instanceof AuthApiError ? caught.message : "The set list could not be saved.",
+        );
+        return false;
+      } finally {
+        setBusy(false);
+        inFlightSavePromiseRef.current = null;
       }
-    } catch (caught: unknown) {
-      setError(
-        caught instanceof AuthApiError ? caught.message : "The set list could not be saved.",
-      );
-    } finally {
-      setBusy(false);
-    }
+    })();
+
+    inFlightSavePromiseRef.current = savePromise;
+    return savePromise;
   }
 
   useEffect(() => {

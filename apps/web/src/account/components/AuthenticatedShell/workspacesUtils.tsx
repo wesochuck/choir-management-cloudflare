@@ -230,6 +230,13 @@ function renderMusicPage({
   );
 }
 
+function resolveOrganizationRouteKey(pathname: string): string {
+  if (pathname.startsWith("/admin/events/") && pathname.endsWith("/roster")) {
+    return "event-roster";
+  }
+  return pathname;
+}
+
 export function renderOrganizationPage(
   routeState: RouteState,
   enabled: boolean,
@@ -238,6 +245,7 @@ export function renderOrganizationPage(
   notFoundPage: (navigate: (href: string) => void) => ReactNode,
   canEditProfiles = true,
   canReviewRsvps = false,
+  canManageSetLists = true,
 ) {
   const focusedEnabled = enabled && manager;
   const { pathname } = routeState;
@@ -251,10 +259,7 @@ export function renderOrganizationPage(
   const ticketingTab = ticketingTabFromSearch(routeState.search);
   const eventsProps = eventsPagePropsFromSearch(routeState.search);
   const reportTab = reportTabFromSearch(routeState.search);
-  const route =
-    pathname.startsWith("/admin/events/") && pathname.endsWith("/roster")
-      ? "event-roster"
-      : pathname;
+  const route = resolveOrganizationRouteKey(pathname);
   const pages: Record<string, ReactNode> = {
     "/admin/attendance": <AttendanceManager enabled={focusedEnabled} />,
     "/admin/auditions": <AuditionManager enabled={focusedEnabled} />,
@@ -329,6 +334,7 @@ export function renderOrganizationPage(
     "/admin/website": <PublicWebsiteManager enabled={focusedEnabled} />,
     "/admin/events": (
       <EventsPage
+        canManageSetLists={canManageSetLists}
         enabled={focusedEnabled}
         initialAction={eventsProps.initialAction}
         initialEventId={eventsProps.initialEventId}

@@ -27,9 +27,10 @@
     color: var(--color-text-muted);
   }
 
-  /* Ticketing setup guidance */
+  /* Ticketing & Set List setup guidance */
 
-  .ticketing-setup-guide {
+  .ticketing-setup-guide,
+  .setlist-setup-guide {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -41,7 +42,8 @@
     border-radius: var(--radius-card, 0.75rem);
   }
 
-  .ticketing-setup-guide__main {
+  .ticketing-setup-guide__main,
+  .setlist-setup-guide__main {
     display: flex;
     align-items: center;
     gap: var(--spacing-md);
@@ -49,7 +51,8 @@
     min-width: 0;
   }
 
-  .ticketing-setup-guide__icon {
+  .ticketing-setup-guide__icon,
+  .setlist-setup-guide__icon {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -61,51 +64,60 @@
     color: var(--color-accent);
   }
 
-  .ticketing-setup-guide__body {
+  .ticketing-setup-guide__body,
+  .setlist-setup-guide__body {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-3xs);
     min-width: 0;
   }
 
-  .ticketing-setup-guide__title {
+  .ticketing-setup-guide__title,
+  .setlist-setup-guide__title {
     margin: 0;
     font-size: var(--font-size-md, 1rem);
     font-weight: var(--font-weight-bold, 700);
     color: var(--color-text);
   }
 
-  .ticketing-setup-guide__description {
+  .ticketing-setup-guide__description,
+  .setlist-setup-guide__description {
     margin: 0;
     font-size: var(--font-size-sm, 0.875rem);
     color: var(--color-text-muted);
     line-height: var(--line-height-normal, 1.45);
   }
 
-  .ticketing-setup-guide__actions {
+  .ticketing-setup-guide__actions,
+  .setlist-setup-guide__actions {
     flex-shrink: 0;
   }
 
-  .ticketing-setup-guide__action {
+  .ticketing-setup-guide__action,
+  .setlist-setup-guide__action {
     white-space: nowrap;
   }
 
   @media (max-width: 768px) {
-    .ticketing-setup-guide {
+    .ticketing-setup-guide,
+    .setlist-setup-guide {
       flex-direction: column;
       align-items: stretch;
       padding: var(--spacing-md);
     }
 
-    .ticketing-setup-guide__main {
+    .ticketing-setup-guide__main,
+    .setlist-setup-guide__main {
       align-items: flex-start;
     }
 
-    .ticketing-setup-guide__actions {
+    .ticketing-setup-guide__actions,
+    .setlist-setup-guide__actions {
       width: 100%;
     }
 
-    .ticketing-setup-guide__action {
+    .ticketing-setup-guide__action,
+    .setlist-setup-guide__action {
       width: 100%;
       text-align: center;
     }

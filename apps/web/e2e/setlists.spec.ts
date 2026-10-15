@@ -828,10 +828,11 @@ test("keeps song rows compact while insert zones stay usable", async ({ page }) 
   expect(zoneMetrics.buttonHeight).toBeGreaterThanOrEqual(16);
 
   // Hover reveals the insert action without shifting any card.
+  const firstZone = page.locator(".set-list-insert-zone").first();
+  await firstZone.scrollIntoViewIfNeeded();
   const topsBefore = await page
     .locator(".set-list-item")
     .evaluateAll((items) => items.map((item) => item.getBoundingClientRect().top));
-  const firstZone = page.locator(".set-list-insert-zone").first();
   await firstZone.hover();
   await expect(
     firstZone.getByRole("button", { name: "Insert custom entry after 1. Song 1" }),

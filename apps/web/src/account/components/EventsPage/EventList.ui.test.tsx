@@ -251,3 +251,83 @@ describe("EventList table sorting", () => {
     expect(descTitles[2]).toBe("Upcoming Rehearsal");
   });
 });
+
+describe("EventList Set list action", () => {
+  const performanceEvent = mockEvent("perf-1", "Spring Concert", "2026-09-01T20:00:00.000Z", {
+    type: "Performance",
+  });
+  const rehearsalEvent = mockEvent("reh-1", "Weekly Rehearsal", "2026-09-02T19:00:00.000Z", {
+    type: "Rehearsal",
+  });
+
+  it("renders Set list link for Performance rows and omits it for Rehearsal rows", () => {
+    render(
+      <EventList
+        events={[performanceEvent, rehearsalEvent]}
+        filteredEvents={[performanceEvent, rehearsalEvent]}
+        onArchive={vi.fn()}
+        onCancel={vi.fn()}
+        onClone={vi.fn()}
+        onEdit={vi.fn()}
+        timezone="America/New_York"
+        venues={mockVenues}
+      />,
+    );
+
+    const setListLinks = screen.getAllByRole("link", { name: "Set list →" });
+    // DataTable renders both table row and mobile card representation
+    expect(setListLinks).toHaveLength(2);
+    expect(setListLinks[0]).toHaveAttribute("href", "/admin/setlists?eventId=perf-1");
+    expect(setListLinks[1]).toHaveAttribute("href", "/admin/setlists?eventId=perf-1");
+    expect(screen.queryByRole("link", { name: /reh-1/ })).not.toBeInTheDocument();
+  });
+
+  it("omits Set list link when canManageSetLists is false", () => {
+    render(
+      <EventList
+        canManageSetLists={false}
+        events={[performanceEvent]}
+        filteredEvents={[performanceEvent]}
+        onArchive={vi.fn()}
+        onCancel={vi.fn()}
+        onClone={vi.fn()}
+        onEdit={vi.fn()}
+        timezone="America/New_York"
+        venues={mockVenues}
+      />,
+    );
+
+    expect(screen.queryByRole("link", { name: "Set list →" })).not.toBeInTheDocument();
+  });
+
+  it("navigates on left click without triggering onEdit", async () => {
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const navigate = vi.fn();
+
+    render(
+      <EventList
+        events={[performanceEvent]}
+        filteredEvents={[performanceEvent]}
+        navigate={navigate}
+        onArchive={vi.fn()}
+        onCancel={vi.fn()}
+        onClone={vi.fn()}
+        onEdit={onEdit}
+        timezone="America/New_York"
+        venues={mockVenues}
+      />,
+    );
+
+    const links = screen.getAllByRole("link", { name: "Set list →" });
+    const targetLink = links[0];
+    expect(targetLink).toBeDefined();
+    if (!targetLink) {
+      throw new Error("Target link not found");
+    }
+    await user.click(targetLink);
+
+    expect(navigate).toHaveBeenCalledWith("/admin/setlists?eventId=perf-1");
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+});

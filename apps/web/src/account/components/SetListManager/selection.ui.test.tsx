@@ -116,7 +116,10 @@ describe("SetListManager default Performance selection", () => {
 
     const invalid = render(<SetListManager enabled initialEventId="invalid-event-id" />);
     await flushResourceLoad();
-    expect(screen.getByRole("combobox", { name: "Select event" })).toHaveValue(defaultEvent.id);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The requested performance could not be found or is not an active performance.",
+    );
+    expect(screen.getByRole("combobox", { name: "Select event" })).toHaveValue("");
     invalid.unmount();
 
     window.history.replaceState({}, "", `/admin/setlists?eventId=${futureEvent.id}`);
