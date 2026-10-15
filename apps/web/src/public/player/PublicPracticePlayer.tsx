@@ -18,7 +18,7 @@ import {
   updateMediaSessionPosition,
 } from "./format";
 import type { PracticeTrackSource } from "./source";
-import type { PlayerDetails, PlayerPlaylistItem } from "./types";
+import type { PlayerDetails, PlayerPlaylistItem, ResolvedTrack } from "./types";
 import { useAudioSession, type AudioSessionHandlers } from "./useAudioSession";
 import { useAutoCacheOfflineCopies, useOfflineAudioUrl } from "./usePlayerOffline";
 import { useOfflineCopies } from "../../offline/useOfflineCopies";
@@ -111,6 +111,195 @@ function computeAudioSrc(
   if (offlineUrl) return offlineUrl;
   if (currentTrack) return source.mediaUrl(currentTrack.fileId);
   return "";
+}
+
+interface PlayerAudioProps {
+  readonly audioRef: React.RefObject<HTMLAudioElement | null>;
+  readonly audioSrc: string;
+  readonly autoplayRef: React.RefObject<boolean>;
+  readonly currentItem: PlayerPlaylistItem | null;
+  readonly currentTrack: ResolvedTrack | null;
+  readonly duration: number;
+  readonly handleAudioError: (event: SyntheticEvent<HTMLAudioElement>) => void;
+  readonly handleEnded: () => void;
+  readonly playCurrent: () => void;
+  readonly playing: boolean;
+  readonly setCurrentTime: (time: number) => void;
+  readonly setDuration: (duration: number) => void;
+  readonly setPlaying: (playing: boolean) => void;
+  readonly startAt: number;
+}
+
+function PlayerAudio({
+  audioRef,
+  audioSrc,
+  autoplayRef,
+  currentItem,
+  currentTrack,
+  duration,
+  handleAudioError,
+  handleEnded,
+  playCurrent,
+  playing,
+  setCurrentTime,
+  setDuration,
+  setPlaying,
+  startAt,
+}: PlayerAudioProps) {
+  if (!currentItem || !currentTrack) return null;
+  return (
+    <audio
+      aria-label={`${currentItem.title} ${formatTrackKey(currentTrack.key)} track`}
+      className="public-player__audio"
+      onEnded={handleEnded}
+      onError={handleAudioError}
+      onLoadedMetadata={(event) => {
+        const nextDuration = Number.isFinite(event.currentTarget.duration)
+          ? event.currentTarget.duration
+          : 0;
+        const initialTime = Math.min(startAt, nextDuration);
+        setDuration(nextDuration);
+        setCurrentTime(initialTime);
+        event.currentTarget.currentTime = initialTime;
+        updateMediaSessionPosition(initialTime, nextDuration, event.currentTarget);
+        if (autoplayRef.current || playing) {
+          autoplayRef.current = false;
+          playCurrent();
+        }
+      }}
+      onPause={() => {
+        setPlaying(false);
+      }}
+      onPlay={() => {
+        setPlaying(true);
+      }}
+      onTimeUpdate={(event) => {
+        const time = event.currentTarget.currentTime;
+        setCurrentTime(time);
+        updateMediaSessionPosition(time, duration, event.currentTarget);
+      }}
+      preload="metadata"
+      ref={audioRef}
+      src={audioSrc}
+    >
+      <track kind="captions" />
+    </audio>
+  );
+}
+
+interface PlayerPlaybackControlsProps {
+  readonly activeTrackKey: string;
+  readonly blockedFileId: string | null;
+  readonly currentIndex: number;
+  readonly currentItem: PlayerPlaylistItem | null;
+  readonly currentTrack: ResolvedTrack | null;
+  readonly currentTime: number;
+  readonly duration: number;
+  readonly handleRetryPlayback: () => void;
+  readonly handleSeek: (time: number) => void;
+  readonly loopMode: "all" | "none" | "one";
+  readonly nextTrack: () => void;
+  readonly online: boolean;
+  readonly playableCount: number;
+  readonly playing: boolean;
+  readonly previousTrack: () => void;
+  readonly saveError: boolean;
+  readonly togglePlay: () => void;
+}
+
+function PlayerPlaybackControls({
+  activeTrackKey,
+  blockedFileId,
+  currentIndex,
+  currentItem,
+  currentTrack,
+  currentTime,
+  duration,
+  handleRetryPlayback,
+  handleSeek,
+  loopMode,
+  nextTrack,
+  online,
+  playableCount,
+  playing,
+  previousTrack,
+  saveError,
+  togglePlay,
+}: PlayerPlaybackControlsProps) {
+  if (!currentItem || !currentTrack) {
+    return (
+      <p className="public-player__empty" role="status">
+        No practice tracks are available for this set list yet.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <PlayerTrackMetadata
+        activeTrackKey={activeTrackKey}
+        currentTrack={currentTrack}
+        item={currentItem}
+      />
+      <OfflineStatusNotices
+        blockedFileId={blockedFileId}
+        currentFileId={currentTrack.fileId}
+        onRetryPlayback={handleRetryPlayback}
+        online={online}
+        saveError={saveError}
+      />
+      <PlayerProgress
+        currentTime={currentTime}
+        duration={duration}
+        onSeek={handleSeek}
+        title={currentItem.title}
+      />
+      <PlayerTransport
+        currentIndex={currentIndex}
+        loopMode={loopMode}
+        onNext={nextTrack}
+        onPrevious={previousTrack}
+        onTogglePlay={togglePlay}
+        playableCount={playableCount}
+        playing={playing}
+      />
+    </>
+  );
+}
+
+interface PlayerSecondaryControlsWrapperProps {
+  readonly hasTrack: boolean;
+  readonly loopMode: "all" | "none" | "one";
+  readonly onOpenQueue: () => void;
+  readonly onOpenSettings: () => void;
+  readonly onToggleLoop: () => void;
+  readonly queueButtonRef: React.RefObject<HTMLButtonElement | null>;
+  readonly queueCount: number;
+  readonly settingsButtonRef: React.RefObject<HTMLButtonElement | null>;
+}
+
+function PlayerSecondaryControlsWrapper({
+  hasTrack,
+  loopMode,
+  onOpenQueue,
+  onOpenSettings,
+  onToggleLoop,
+  queueButtonRef,
+  queueCount,
+  settingsButtonRef,
+}: PlayerSecondaryControlsWrapperProps) {
+  if (!hasTrack) return null;
+  return (
+    <PlayerSecondaryControls
+      loopMode={loopMode}
+      onOpenQueue={onOpenQueue}
+      onOpenSettings={onOpenSettings}
+      onToggleLoop={onToggleLoop}
+      queueButtonRef={queueButtonRef}
+      queueCount={queueCount}
+      settingsButtonRef={settingsButtonRef}
+    />
+  );
 }
 
 export function PublicPracticePlayer({
@@ -498,7 +687,12 @@ export function PublicPracticePlayer({
 
   useAudioSession(audioSessionHandlersRef);
 
-  if (!currentItem || !currentTrack) {
+  const isSetList = Boolean(details.eventId);
+  const setListHeading = isSetList ? "Set List" : "Library tracks";
+  const currentTrackFileId = currentTrack ? currentTrack.fileId : "";
+  const hasTrack = currentItem !== null && currentTrack !== null;
+
+  if (details.items.length === 0) {
     return (
       <div className="public-player__container">
         <PlayerPartSelector
@@ -517,42 +711,22 @@ export function PublicPracticePlayer({
   return (
     <div className="public-player__layout-grid">
       {/* Hidden Persistent Audio Element */}
-      <audio
-        aria-label={`${currentItem.title} ${formatTrackKey(currentTrack.key)} track`}
-        className="public-player__audio"
-        onEnded={handleEnded}
-        onError={handleAudioError}
-        onLoadedMetadata={(event) => {
-          const nextDuration = Number.isFinite(event.currentTarget.duration)
-            ? event.currentTarget.duration
-            : 0;
-          const initialTime = Math.min(startAt, nextDuration);
-          setDuration(nextDuration);
-          setCurrentTime(initialTime);
-          event.currentTarget.currentTime = initialTime;
-          updateMediaSessionPosition(initialTime, nextDuration, event.currentTarget);
-          if (autoplayRef.current || playing) {
-            autoplayRef.current = false;
-            playCurrent();
-          }
-        }}
-        onPause={() => {
-          setPlaying(false);
-        }}
-        onPlay={() => {
-          setPlaying(true);
-        }}
-        onTimeUpdate={(event) => {
-          const time = event.currentTarget.currentTime;
-          setCurrentTime(time);
-          updateMediaSessionPosition(time, duration, event.currentTarget);
-        }}
-        preload="metadata"
-        ref={audioRef}
-        src={audioSrc}
-      >
-        <track kind="captions" />
-      </audio>
+      <PlayerAudio
+        audioRef={audioRef}
+        audioSrc={audioSrc}
+        autoplayRef={autoplayRef}
+        currentItem={currentItem}
+        currentTrack={currentTrack}
+        duration={duration}
+        handleAudioError={handleAudioError}
+        handleEnded={handleEnded}
+        playCurrent={playCurrent}
+        playing={playing}
+        setCurrentTime={setCurrentTime}
+        setDuration={setDuration}
+        setPlaying={setPlaying}
+        startAt={startAt}
+      />
 
       {/* Main Player Column */}
       <div className="public-player__main-column">
@@ -563,37 +737,24 @@ export function PublicPracticePlayer({
           {/* Event artwork */}
           <PlayerArtwork artworkUrl={eventArtworkUrl} eventTitle={details.eventTitle} />
 
-          {/* Now playing metadata & Tutti fallback status */}
-          <PlayerTrackMetadata
+          <PlayerPlaybackControls
             activeTrackKey={activeTrackKey}
-            currentTrack={currentTrack}
-            item={currentItem}
-          />
-          <OfflineStatusNotices
             blockedFileId={blockedFileId}
-            currentFileId={currentTrack.fileId}
-            onRetryPlayback={handleRetryPlayback}
-            online={online}
-            saveError={saveError}
-          />
-
-          {/* Progress bar */}
-          <PlayerProgress
+            currentIndex={currentIndex}
+            currentItem={currentItem}
+            currentTrack={currentTrack}
             currentTime={currentTime}
             duration={duration}
-            onSeek={handleSeek}
-            title={currentItem.title}
-          />
-
-          {/* Transport controls */}
-          <PlayerTransport
-            currentIndex={currentIndex}
+            handleRetryPlayback={handleRetryPlayback}
+            handleSeek={handleSeek}
             loopMode={loopMode}
-            onNext={nextTrack}
-            onPrevious={previousTrack}
-            onTogglePlay={togglePlay}
+            nextTrack={nextTrack}
+            online={online}
             playableCount={playableItems.length}
             playing={playing}
+            previousTrack={previousTrack}
+            saveError={saveError}
+            togglePlay={togglePlay}
           />
 
           {/* Voice Part selection */}
@@ -605,7 +766,8 @@ export function PublicPracticePlayer({
           />
 
           {/* Secondary controls: Repeat, Set List, Settings */}
-          <PlayerSecondaryControls
+          <PlayerSecondaryControlsWrapper
+            hasTrack={hasTrack}
             loopMode={loopMode}
             onOpenQueue={() => {
               setQueueOpen(true);
@@ -628,6 +790,7 @@ export function PublicPracticePlayer({
         <PlayerSetList
           activeTrackKey={activeTrackKey}
           currentIndex={currentIndex}
+          isSetList={isSetList}
           items={details.items}
           offlineIds={offlineIds}
           onRemoveOfflineCopy={handleRemoveOfflineCopy}
@@ -643,7 +806,7 @@ export function PublicPracticePlayer({
         <div className="public-player__desktop-options">
           <PlayerRehearsalOptions
             countdown={countdown}
-            currentTrackFileId={currentTrack.fileId}
+            currentTrackFileId={currentTrackFileId}
             gapSeconds={gapSeconds}
             onChangeGapSeconds={setGapSeconds}
             onChangeStartAt={updateStartAt}
@@ -671,7 +834,7 @@ export function PublicPracticePlayer({
       >
         <div className="public-player__sheet-container public-player__sheet-container--set-list">
           <header className="public-player__sheet-header public-player__sheet-header--set-list">
-            <h2>Set List</h2>
+            <h2>{setListHeading}</h2>
             <p>
               {details.eventTitle} · {playableItems.length} tracks
             </p>
@@ -680,6 +843,7 @@ export function PublicPracticePlayer({
             activeTrackKey={activeTrackKey}
             autoRevealActive={queueOpen}
             currentIndex={currentIndex}
+            isSetList={isSetList}
             items={details.items}
             offlineIds={offlineIds}
             onRemoveOfflineCopy={handleRemoveOfflineCopy}
@@ -713,7 +877,7 @@ export function PublicPracticePlayer({
           </div>
           <PlayerRehearsalOptions
             countdown={countdown}
-            currentTrackFileId={currentTrack.fileId}
+            currentTrackFileId={currentTrackFileId}
             gapSeconds={gapSeconds}
             onChangeGapSeconds={setGapSeconds}
             onChangeStartAt={updateStartAt}

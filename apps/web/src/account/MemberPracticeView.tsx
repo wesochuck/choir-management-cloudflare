@@ -1,7 +1,8 @@
-import type { SingerEvent, SingerLearningTrackPiece } from "@choir/contracts";
+import type { SingerLearningTrackPiece } from "@choir/contracts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
 import { useEffect, useMemo, useState } from "react";
 
+import { listOrganizationEvents } from "../api/events";
 import { getMySchedule } from "../api/singer";
 import { AuthApiError, listSingerLearningTracks } from "../auth/api";
 import {
@@ -17,8 +18,10 @@ import {
   getApprovedPerformanceSetLists,
   isPiecePlayableForPart,
   mapSetListToPlaylistItems,
+  resolveEventCanonicalId,
   singerPiecesToPlaylistItems,
   type ApprovedSetListOption,
+  type SelectableEvent,
 } from "./memberPracticeLibrary";
 import type { PlayerPlaylistItem } from "../public/player/types";
 
@@ -40,7 +43,7 @@ interface InitialNavigationContext {
 
 function resolveInitialNavigation(
   approved: readonly ApprovedSetListOption[],
-  loadedEvents: readonly SingerEvent[],
+  loadedEvents: readonly SelectableEvent[],
   eventIdParam: string | null,
   pieceIdParam: string | null,
 ): InitialNavigationContext {
@@ -48,11 +51,12 @@ function resolveInitialNavigation(
     const matched = approved.find(
       (opt) =>
         opt.eventId === eventIdParam ||
-        loadedEvents.some(
-          (e) =>
-            (e.id === eventIdParam || e.practice.sourceEventId === eventIdParam) &&
-            (e.practice.sourceEventId ?? e.id) === opt.eventId,
-        ),
+        loadedEvents.some((e) => {
+          const canonicalId = resolveEventCanonicalId(e);
+          return (
+            (e.id === eventIdParam || canonicalId === eventIdParam) && canonicalId === opt.eventId
+          );
+        }),
     );
     if (matched) {
       return { activeTab: "set-lists", selectedEventId: matched.eventId, staleNotice: null };
@@ -302,7 +306,7 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
   const source = useMemo(() => createSessionTrackSource(), []);
 
   const [pieces, setPieces] = useState<readonly SingerLearningTrackPiece[]>([]);
-  const [events, setEvents] = useState<readonly SingerEvent[]>([]);
+  const [events, setEvents] = useState<readonly SelectableEvent[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [staleEventNotice, setStaleEventNotice] = useState<string | null>(null);
@@ -319,36 +323,50 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
     if (!enabled) return;
     const controller = new AbortController();
 
-    void Promise.allSettled([
-      listSingerLearningTracks(controller.signal),
-      getMySchedule(controller.signal, true, true),
-    ]).then(([piecesResult, scheduleResult]) => {
-      if (controller.signal.aborted) return;
-      if (piecesResult.status !== "fulfilled") {
-        const caught: unknown = piecesResult.reason;
-        setError(
-          caught instanceof AuthApiError
-            ? caught.message
-            : "The Organization practice library could not be loaded.",
-        );
+    const schedulePromise = getMySchedule(controller.signal, true, true)
+      .then(async (res) => {
+        const approved = getApprovedPerformanceSetLists(res.events);
+        if (approved.length > 0) return res.events;
+        try {
+          const orgEvents = await listOrganizationEvents(controller.signal);
+          return orgEvents.length > 0 ? orgEvents : res.events;
+        } catch {
+          return res.events;
+        }
+      })
+      .catch(async () => {
+        return listOrganizationEvents(controller.signal).catch(() => []);
+      });
+
+    void Promise.allSettled([listSingerLearningTracks(controller.signal), schedulePromise]).then(
+      ([piecesResult, eventsResult]) => {
+        if (controller.signal.aborted) return;
+        if (piecesResult.status !== "fulfilled") {
+          const caught: unknown = piecesResult.reason;
+          setError(
+            caught instanceof AuthApiError
+              ? caught.message
+              : "The Organization practice library could not be loaded.",
+          );
+          setLoaded(true);
+          return;
+        }
+        setPieces(piecesResult.value);
+
+        const loadedEvents = eventsResult.status === "fulfilled" ? eventsResult.value : [];
+        setEvents(loadedEvents);
+
+        const approved = getApprovedPerformanceSetLists(loadedEvents);
+        const nav = resolveInitialNavigation(approved, loadedEvents, eventIdParam, pieceIdParam);
+        setSelectedEventId(nav.selectedEventId);
+        setActiveTab(nav.activeTab);
+        if (nav.staleNotice) {
+          setStaleEventNotice(nav.staleNotice);
+        }
+
         setLoaded(true);
-        return;
-      }
-      setPieces(piecesResult.value);
-
-      const loadedEvents = scheduleResult.status === "fulfilled" ? scheduleResult.value.events : [];
-      setEvents(loadedEvents);
-
-      const approved = getApprovedPerformanceSetLists(loadedEvents);
-      const nav = resolveInitialNavigation(approved, loadedEvents, eventIdParam, pieceIdParam);
-      setSelectedEventId(nav.selectedEventId);
-      setActiveTab(nav.activeTab);
-      if (nav.staleNotice) {
-        setStaleEventNotice(nav.staleNotice);
-      }
-
-      setLoaded(true);
-    });
+      },
+    );
 
     return () => {
       controller.abort();
@@ -407,12 +425,7 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
   if (!enabled) return null;
 
   return (
-    <section aria-label="Practice library" className="account-section">
-      <header className="account-section__header">
-        <h1>Practice</h1>
-        <p>Listen to rehearsal learning tracks and audio recordings.</p>
-      </header>
-
+    <section aria-label="Practice library" className="account-section practice-player">
       {error ? (
         <p className="form-error" role="alert">
           {error}
@@ -433,7 +446,11 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
 
       {loaded && pieces.length > 0 ? (
         <Tabs onValueChange={setActiveTab} value={activeTab}>
-          <TabsList aria-label="Practice library views" className="practice-player__tabs-list">
+          <TabsList
+            aria-label="Practice library views"
+            as="nav"
+            className="ticketing-tabs practice-player__tabs-list"
+          >
             <TabsTrigger value="set-lists">Published set lists</TabsTrigger>
             <TabsTrigger value="all-tracks">All tracks</TabsTrigger>
           </TabsList>

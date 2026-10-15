@@ -890,6 +890,10 @@
     margin: 0;
     padding: 0;
     list-style: none;
+    max-height: min(34rem, 65vh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-inline-end: var(--spacing-3xs);
   }
 
   .public-player__queue-list li {
