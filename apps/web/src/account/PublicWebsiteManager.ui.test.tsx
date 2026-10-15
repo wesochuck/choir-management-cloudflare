@@ -1,5 +1,5 @@
 import type { PublicWebsiteSettings } from "@choir/contracts";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -208,5 +208,126 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
 
     const successMessage = await screen.findByRole("status");
     expect(successMessage).toHaveTextContent("Version 2 is live.");
+  });
+
+  it("preserves in-progress edits when switching between editor tabs (#259)", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue(defaultSettings);
+
+    render(
+      <SaveCoordinatorProvider>
+        <PublicWebsiteManager enabled />
+        <SaveBar />
+      </SaveCoordinatorProvider>,
+    );
+
+    await screen.findByRole("region", { name: "Website publication readiness" });
+
+    // In Home tab, edit hero headline
+    const headlineInput = screen.getByLabelText("Hero headline");
+    await user.clear(headlineInput);
+    await user.type(headlineInput, "New Unsaved Headline");
+
+    // Switch to History tab
+    const historyTab = screen.getByRole("tab", { name: "History" });
+    await user.click(historyTab);
+
+    // Edit history text
+    const historyTextarea = screen.getByLabelText("Our History (Markdown)");
+    await user.type(historyTextarea, "Founded in 2026.");
+
+    // Switch back to Home tab
+    const homeTab = screen.getByRole("tab", { name: "Home" });
+    await user.click(homeTab);
+
+    expect(screen.getByLabelText("Hero headline")).toHaveValue("New Unsaved Headline");
+
+    // Switch back to History tab
+    await user.click(screen.getByRole("tab", { name: "History" }));
+    expect(screen.getByLabelText("Our History (Markdown)")).toHaveValue("Founded in 2026.");
+  });
+
+  it("updates the preview immediately as administrator edits fields (#259)", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue(defaultSettings);
+
+    render(
+      <SaveCoordinatorProvider>
+        <PublicWebsiteManager enabled />
+        <SaveBar />
+      </SaveCoordinatorProvider>,
+    );
+
+    const preview = await screen.findByRole("region", {
+      name: "Public website draft preview",
+    });
+    expect(preview).toHaveTextContent("Welcome to Our Choir");
+
+    const headlineInput = screen.getByLabelText("Hero headline");
+    await user.clear(headlineInput);
+    await user.type(headlineInput, "Voices of the Community");
+
+    // Preview reflects immediately
+    expect(preview).toHaveTextContent("Voices of the Community");
+    expect(preview).toHaveTextContent("Draft — not public");
+  });
+
+  it("disables publish button when draft is dirty and requires saving first (#259)", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue(defaultSettings);
+
+    render(
+      <SaveCoordinatorProvider>
+        <PublicWebsiteManager enabled />
+        <SaveBar />
+      </SaveCoordinatorProvider>,
+    );
+
+    await screen.findByRole("region", { name: "Website publication readiness" });
+    const publishButton = screen.getByRole("button", { name: "Publish saved draft" });
+    expect(publishButton).not.toBeDisabled();
+
+    // Type an edit
+    const headlineInput = screen.getByLabelText("Hero headline");
+    await user.type(headlineInput, " (Edited)");
+
+    // Publish button is disabled with explanatory title and text
+    expect(publishButton).toBeDisabled();
+    expect(screen.getByText("Save your draft before publishing.")).toBeInTheDocument();
+  });
+
+  it("supports preview page and viewport simulation toggles without editorial prompts (#259)", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue({
+      ...defaultSettings,
+      historyText: "Our history started long ago.",
+    });
+
+    render(
+      <SaveCoordinatorProvider>
+        <PublicWebsiteManager enabled />
+        <SaveBar />
+      </SaveCoordinatorProvider>,
+    );
+
+    const preview = await screen.findByRole("region", {
+      name: "Public website draft preview",
+    });
+
+    // Switch preview page to History
+    const pageGroup = screen.getByRole("group", { name: "Preview page" });
+    const historyPreviewBtn = within(pageGroup).getByRole("button", { name: "History" });
+    await user.click(historyPreviewBtn);
+    expect(preview).toHaveTextContent("Our history started long ago.");
+
+    // Toggle viewport to Mobile
+    const mobileBtn = screen.getByRole("button", { name: "Mobile" });
+    await user.click(mobileBtn);
+    expect(mobileBtn).toHaveAttribute("aria-pressed", "true");
+
+    // Verify editorial advice like "Make it welcoming" is NOT present anywhere
+    expect(screen.queryByText(/Make it welcoming/i)).toBeNull();
+    expect(screen.queryByText(/Make it yours/i)).toBeNull();
+    expect(screen.queryByText(/A sentence or two works best/i)).toBeNull();
   });
 });

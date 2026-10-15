@@ -9,3 +9,24 @@ export const publicWebsiteFontStacks = {
 } as const;
 
 export type PublicWebsiteFont = keyof typeof publicWebsiteFontStacks;
+
+export const websiteFonts = [
+  "system",
+  "serif",
+  "modern-serif",
+  "friendly-sans",
+  "formal-sans",
+  "casual-handwritten",
+  "formal-script",
+] as const satisfies readonly PublicWebsiteFont[];
+
+export function isPublicWebsiteFont(value: string): value is PublicWebsiteFont {
+  return Object.hasOwn(publicWebsiteFontStacks, value);
+}
+
+export function fontLabel(font: PublicWebsiteFont): string {
+  return font
+    .split("-")
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join(" ");
+}

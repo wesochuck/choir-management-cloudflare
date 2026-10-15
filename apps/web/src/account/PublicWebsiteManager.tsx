@@ -1,5 +1,6 @@
 import type { PublicWebsiteSettings, PublicWebsiteSettingsRequest } from "@choir/contracts";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 
 import {
   AuthApiError,
@@ -10,13 +11,39 @@ import {
   updateOrganizationPublicWebsiteSettings,
   uploadPrivateOrganizationFile,
 } from "../auth/api";
-import { publicWebsiteFontStacks, type PublicWebsiteFont } from "../public/publicWebsiteFonts";
 import { useSaveRegistration } from "../persistence";
+import {
+  AppearanceTabContent,
+  HistoryTabContent,
+  HomeTabContent,
+  NavigationTabContent,
+} from "./components/PublicWebsiteEditorTabs";
+import { PublicWebsitePreview } from "./components/PublicWebsitePreview";
 
 type LoadState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
   | { readonly settings: PublicWebsiteSettings; readonly status: "ready" };
+
+type EditorTab = "appearance" | "history" | "home" | "navigation";
+type PublicationVerificationStatus =
+  "confirmed" | "idle" | "publishing" | "uncertain" | "verifying";
+
+function requestFrom(settings: PublicWebsiteSettings): PublicWebsiteSettingsRequest {
+  return {
+    aboutUsText: settings.aboutUsText,
+    bodyFont: settings.bodyFont,
+    contactEmail: settings.contactEmail,
+    enabledNavigation: settings.enabledNavigation,
+    headerFont: settings.headerFont,
+    heroFileId: settings.heroFileId,
+    heroHeadline: settings.heroHeadline,
+    heroSubtitle: settings.heroSubtitle,
+    historyText: settings.historyText,
+    logoFileId: settings.logoFileId,
+    showBrandingHeaderFooter: settings.showBrandingHeaderFooter,
+  };
+}
 
 function isWebsiteDraftDirty(
   loadState: LoadState,
@@ -41,56 +68,6 @@ function isWebsiteDraftDirty(
   );
 }
 
-const websiteFonts = [
-  "system",
-  "serif",
-  "modern-serif",
-  "friendly-sans",
-  "formal-sans",
-  "casual-handwritten",
-  "formal-script",
-] as const satisfies readonly PublicWebsiteFont[];
-
-function fontLabel(font: PublicWebsiteFont): string {
-  return font
-    .split("-")
-    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
-    .join(" ");
-}
-
-const fontPreviewText = "Aa Bb Cc — The quick brown fox jumps over the lazy dog.";
-
-function FontPreview({ font }: { readonly font: PublicWebsiteFont }) {
-  return (
-    <div className="website-font-preview" aria-label={`${fontLabel(font)} font preview`}>
-      <span className="website-font-preview__label">Sample in {fontLabel(font)}</span>
-      <p
-        aria-live="polite"
-        className="website-font-preview__sample"
-        style={{ fontFamily: publicWebsiteFontStacks[font] }}
-      >
-        {fontPreviewText}
-      </p>
-    </div>
-  );
-}
-
-function requestFrom(settings: PublicWebsiteSettings): PublicWebsiteSettingsRequest {
-  return {
-    aboutUsText: settings.aboutUsText,
-    bodyFont: settings.bodyFont,
-    contactEmail: settings.contactEmail,
-    enabledNavigation: settings.enabledNavigation,
-    headerFont: settings.headerFont,
-    heroFileId: settings.heroFileId,
-    heroHeadline: settings.heroHeadline,
-    heroSubtitle: settings.heroSubtitle,
-    historyText: settings.historyText,
-    logoFileId: settings.logoFileId,
-    showBrandingHeaderFooter: settings.showBrandingHeaderFooter,
-  };
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof AuthApiError
     ? error.message
@@ -104,9 +81,6 @@ function validateImage(file: File | null): string | null {
   }
   return file.size <= 5 * 1024 * 1024 ? null : "Public images must be 5 MB or smaller.";
 }
-
-type PublicationVerificationStatus =
-  "idle" | "publishing" | "verifying" | "confirmed" | "uncertain";
 
 function WebsiteReadinessChecklist({
   dirty,
@@ -158,7 +132,7 @@ function WebsiteReadinessChecklist({
       : "Standard (Performances & History appear when published)";
 
   return (
-    <section className="panel" aria-label="Website publication readiness">
+    <section aria-label="Website publication readiness" className="panel">
       <h2>Website publication readiness</h2>
       <p className="field-help">
         {versionText}
@@ -196,6 +170,7 @@ function WebsiteReadinessChecklist({
 
 function PublicWebsiteActions({
   busy,
+  dirty,
   onPublish,
   onRetryVerification,
   onSave,
@@ -203,6 +178,7 @@ function PublicWebsiteActions({
   verificationStatus,
 }: {
   readonly busy: boolean;
+  readonly dirty: boolean;
   readonly onPublish: () => void;
   readonly onRetryVerification: () => void;
   readonly onSave: () => void;
@@ -211,10 +187,17 @@ function PublicWebsiteActions({
 }) {
   return (
     <div className="form-actions">
-      <button className="button button--secondary" disabled={busy} onClick={onSave}>
+      <button className="button button--secondary" disabled={busy} onClick={onSave} type="button">
         {busy && verificationStatus === "idle" ? "Working…" : "Save draft"}
       </button>
-      <button className="button button--primary" disabled={busy} onClick={onPublish}>
+      <button
+        aria-describedby={dirty ? "publish-dirty-hint" : undefined}
+        className="button button--primary"
+        disabled={busy || dirty}
+        onClick={onPublish}
+        title={dirty ? "Save your draft before publishing" : undefined}
+        type="button"
+      >
         {verificationStatus === "publishing"
           ? "Publishing…"
           : verificationStatus === "verifying"
@@ -232,10 +215,79 @@ function PublicWebsiteActions({
         </button>
       ) : null}
       {publicationVersion > 0 ? (
-        <a className="button button--secondary" href="/" target="_blank">
+        <a className="button button--secondary" href="/" rel="noopener noreferrer" target="_blank">
           View live website
         </a>
       ) : null}
+      {dirty ? (
+        <span className="field-help" id="publish-dirty-hint">
+          Save your draft before publishing.
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+interface WebsiteEditorNoticesProps {
+  readonly error: string | null;
+  readonly success: string | null;
+  readonly verificationError: string | null;
+}
+
+function WebsiteEditorNotices({ error, success, verificationError }: WebsiteEditorNoticesProps) {
+  return (
+    <>
+      {error ? (
+        <p className="notice notice--error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {verificationError ? (
+        <div className="notice notice--warning" role="alert">
+          <p>{verificationError}</p>
+        </div>
+      ) : null}
+      {success ? (
+        <p className="notice notice--success" role="status">
+          {success}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+interface WebsiteEditorViewToggleProps {
+  readonly mobileView: "edit" | "preview";
+  readonly onToggle: (view: "edit" | "preview") => void;
+}
+
+function WebsiteEditorViewToggle({ mobileView, onToggle }: WebsiteEditorViewToggleProps) {
+  return (
+    <div
+      aria-label="Editor view mode"
+      className="segmented-control website-editor-view-toggle"
+      role="group"
+    >
+      <button
+        aria-pressed={mobileView === "edit"}
+        className={`button button--sm ${mobileView === "edit" ? "button--primary" : "button--secondary"}`}
+        onClick={() => {
+          onToggle("edit");
+        }}
+        type="button"
+      >
+        Edit
+      </button>
+      <button
+        aria-pressed={mobileView === "preview"}
+        className={`button button--sm ${mobileView === "preview" ? "button--primary" : "button--secondary"}`}
+        onClick={() => {
+          onToggle("preview");
+        }}
+        type="button"
+      >
+        Preview
+      </button>
     </div>
   );
 }
@@ -243,8 +295,14 @@ function PublicWebsiteActions({
 export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean }) {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [draft, setDraft] = useState<PublicWebsiteSettingsRequest | null>(null);
+  const [activeTab, setActiveTab] = useState<EditorTab>("home");
+  const [previewPage, setPreviewPage] = useState<"home" | "history">("home");
+  const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop");
+  const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [heroFile, setHeroFile] = useState<File | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [heroBlobUrl, setHeroBlobUrl] = useState<string | null>(null);
+  const [logoBlobUrl, setLogoBlobUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -252,7 +310,38 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     useState<PublicationVerificationStatus>("idle");
   const [verifiedVersion, setVerifiedVersion] = useState<number | null>(null);
   const [verificationError, setVerificationError] = useState<string | null>(null);
+
   const draftRevisionRef = useRef(0);
+  const aboutUsRef = useRef<HTMLTextAreaElement | null>(null);
+  const historyRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const heroPreviewUrl =
+    heroBlobUrl ?? (draft?.heroFileId ? `/api/organization/files/${draft.heroFileId}` : null);
+  const logoPreviewUrl =
+    logoBlobUrl ?? (draft?.logoFileId ? `/api/organization/files/${draft.logoFileId}` : null);
+
+  useEffect(() => {
+    return () => {
+      if (heroBlobUrl) URL.revokeObjectURL(heroBlobUrl);
+      if (logoBlobUrl) URL.revokeObjectURL(logoBlobUrl);
+    };
+  }, [heroBlobUrl, logoBlobUrl]);
+
+  function handleHeroFileSelect(file: File | null) {
+    setHeroFile(file);
+    setHeroBlobUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : null;
+    });
+  }
+
+  function handleLogoFileSelect(file: File | null) {
+    setLogoFile(file);
+    setLogoBlobUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : null;
+    });
+  }
 
   useEffect(() => {
     if (!enabled) return;
@@ -281,6 +370,12 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     setSuccess(null);
     setVerificationStatus("idle");
     setVerificationError(null);
+  }
+
+  function handleTabChange(tab: EditorTab) {
+    setActiveTab(tab);
+    if (tab === "home") setPreviewPage("home");
+    if (tab === "history") setPreviewPage("history");
   }
 
   async function save() {
@@ -321,8 +416,8 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
       setLoadState({ settings: saved, status: "ready" });
       if (draftRevisionRef.current === saveRevision) {
         setDraft(requestFrom(saved));
-        setHeroFile(null);
-        setLogoFile(null);
+        handleHeroFileSelect(null);
+        handleLogoFileSelect(null);
         setSuccess("Public website draft saved. Publish when it is ready for visitors.");
       } else {
         setDraft((current) =>
@@ -378,6 +473,10 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
   }
 
   async function publish() {
+    if (dirty) {
+      setError("Please save your draft edits before publishing.");
+      return;
+    }
     setBusy(true);
     setError(null);
     setSuccess(null);
@@ -417,10 +516,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     }
   }
 
-  const dirty = useMemo(
-    () => isWebsiteDraftDirty(loadState, draft, heroFile, logoFile),
-    [draft, heroFile, loadState, logoFile],
-  );
+  const dirty = isWebsiteDraftDirty(loadState, draft, heroFile, logoFile);
 
   useSaveRegistration({
     busy,
@@ -428,8 +524,8 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     discard: () => {
       if (loadState.status === "ready") {
         setDraft(requestFrom(loadState.settings));
-        setHeroFile(null);
-        setLogoFile(null);
+        handleHeroFileSelect(null);
+        handleLogoFileSelect(null);
         setError(null);
       }
     },
@@ -452,6 +548,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
       </p>
     );
   }
+
   return (
     <div className="settings-stack">
       <WebsiteReadinessChecklist
@@ -461,229 +558,102 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
         verificationStatus={verificationStatus}
         verifiedVersion={verifiedVersion}
       />
-      <section className="panel public-website-settings" aria-label="Public website settings">
-        {error ? (
-          <p className="notice notice--error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        {verificationError ? (
-          <div className="notice notice--warning" role="alert">
-            <p>{verificationError}</p>
-          </div>
-        ) : null}
-        {success ? (
-          <p className="notice notice--success" role="status">
-            {success}
-          </p>
-        ) : null}
-        <div className="form-stack">
-          <div className="field">
-            <label htmlFor="website-hero-headline">Hero headline</label>
-            <input
-              id="website-hero-headline"
-              maxLength={300}
-              onChange={(event) => {
-                change("heroHeadline", event.target.value);
-              }}
-              value={draft.heroHeadline}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="website-hero-subtitle">Hero subtitle</label>
-            <textarea
-              id="website-hero-subtitle"
-              maxLength={1_000}
-              onChange={(event) => {
-                change("heroSubtitle", event.target.value);
-              }}
-              rows={2}
-              value={draft.heroSubtitle}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="website-about">About Us (Markdown)</label>
-            <textarea
-              id="website-about"
-              maxLength={100_000}
-              onChange={(event) => {
-                change("aboutUsText", event.target.value);
-              }}
-              rows={8}
-              value={draft.aboutUsText}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="website-history">Our History (Markdown)</label>
-            <textarea
-              id="website-history"
-              maxLength={100_000}
-              onChange={(event) => {
-                change("historyText", event.target.value);
-              }}
-              rows={8}
-              value={draft.historyText}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="website-contact-email">Contact email</label>
-            <input
-              id="website-contact-email"
-              maxLength={320}
-              onChange={(event) => {
-                change("contactEmail", event.target.value);
-              }}
-              type="email"
-              value={draft.contactEmail}
-            />
-          </div>
-          <div className="settings-grid">
-            <div className="field">
-              <label htmlFor="website-header-font">Heading font</label>
-              <select
-                id="website-header-font"
-                onChange={(event) => {
-                  const font = websiteFonts.find((candidate) => candidate === event.target.value);
-                  if (font) change("headerFont", font);
+
+      <WebsiteEditorViewToggle mobileView={mobileView} onToggle={setMobileView} />
+
+      <div className={`website-editor-layout website-editor-layout--${mobileView}`}>
+        <section aria-label="Website editor" className="panel website-editor-controls">
+          <WebsiteEditorNotices
+            error={error}
+            success={success}
+            verificationError={verificationError}
+          />
+
+          <Tabs onValueChange={handleTabChange} value={activeTab}>
+            <TabsList aria-label="Public website sections" className="website-editor-tabs-list">
+              <TabsTrigger value="home">Home</TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
+              <TabsTrigger value="appearance">Appearance</TabsTrigger>
+              <TabsTrigger value="navigation">Navigation</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="home">
+              <HomeTabContent
+                aboutUsRef={aboutUsRef}
+                busy={busy}
+                draft={draft}
+                heroImageUrl={heroPreviewUrl}
+                onChange={change}
+                onHeroFileChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  const file = event.target.files?.[0] ?? null;
+                  handleHeroFileSelect(file);
                 }}
-                style={{ fontFamily: publicWebsiteFontStacks[draft.headerFont] }}
-                value={draft.headerFont}
-              >
-                {websiteFonts.map((font) => (
-                  <option
-                    key={font}
-                    style={{ fontFamily: publicWebsiteFontStacks[font] }}
-                    value={font}
-                  >
-                    {fontLabel(font)}
-                  </option>
-                ))}
-              </select>
-              <FontPreview font={draft.headerFont} />
-            </div>
-            <div className="field">
-              <label htmlFor="website-body-font">Body font</label>
-              <select
-                id="website-body-font"
-                onChange={(event) => {
-                  const font = websiteFonts.find((candidate) => candidate === event.target.value);
-                  if (font) change("bodyFont", font);
+                onRemoveHeroImage={() => {
+                  handleHeroFileSelect(null);
+                  change("heroFileId", null);
                 }}
-                style={{ fontFamily: publicWebsiteFontStacks[draft.bodyFont] }}
-                value={draft.bodyFont}
-              >
-                {websiteFonts.map((font) => (
-                  <option
-                    key={font}
-                    style={{ fontFamily: publicWebsiteFontStacks[font] }}
-                    value={font}
-                  >
-                    {fontLabel(font)}
-                  </option>
-                ))}
-              </select>
-              <FontPreview font={draft.bodyFont} />
-            </div>
-            <div className="field">
-              <label htmlFor="website-logo">Organization logo</label>
-              <input
-                accept="image/jpeg,image/png,image/webp"
-                id="website-logo"
-                onChange={(event) => {
-                  draftRevisionRef.current += 1;
-                  setLogoFile(event.target.files?.item(0) ?? null);
-                }}
-                type="file"
               />
-              {draft.logoFileId ? (
-                <button
-                  className="text-button"
-                  onClick={() => {
-                    change("logoFileId", null);
-                    setLogoFile(null);
-                  }}
-                  type="button"
-                >
-                  Remove current logo
-                </button>
-              ) : null}
-            </div>
-            <div className="field">
-              <label htmlFor="website-hero-image">Hero image</label>
-              <input
-                accept="image/jpeg,image/png,image/webp"
-                id="website-hero-image"
-                onChange={(event) => {
-                  draftRevisionRef.current += 1;
-                  setHeroFile(event.target.files?.item(0) ?? null);
-                }}
-                type="file"
+            </TabsContent>
+
+            <TabsContent value="history">
+              <HistoryTabContent
+                busy={busy}
+                draft={draft}
+                historyRef={historyRef}
+                onChange={change}
               />
-              {draft.heroFileId ? (
-                <button
-                  className="text-button"
-                  onClick={() => {
-                    change("heroFileId", null);
-                    setHeroFile(null);
-                  }}
-                  type="button"
-                >
-                  Remove current hero image
-                </button>
-              ) : null}
-            </div>
-          </div>
-          <fieldset>
-            <legend>Public navigation</legend>
-            {(["tickets", "donations", "auditions"] as const).map((item) => (
-              <label className="choice-field" key={item}>
-                <input
-                  checked={draft.enabledNavigation.includes(item)}
-                  onChange={(event) => {
-                    change(
-                      "enabledNavigation",
-                      event.target.checked
-                        ? [...new Set([...draft.enabledNavigation, item])]
-                        : draft.enabledNavigation.filter((candidate) => candidate !== item),
-                    );
-                  }}
-                  type="checkbox"
-                />
-                <span className="choice-field__content">
-                  {item === "tickets"
-                    ? "Tickets"
-                    : item === "donations"
-                      ? "Donate"
-                      : "Auditions & Inquiries"}
-                </span>
-              </label>
-            ))}
-            <p className="field-help">
-              Enable links only after the matching public module is ready.
-            </p>
-          </fieldset>
-          <label className="choice-field">
-            <input
-              checked={draft.showBrandingHeaderFooter}
-              onChange={(event) => {
-                change("showBrandingHeaderFooter", event.target.checked);
-              }}
-              type="checkbox"
-            />
-            <span className="choice-field__content">
-              Use this header and footer on public transaction pages
-            </span>
-          </label>
+            </TabsContent>
+
+            <TabsContent value="appearance">
+              <AppearanceTabContent
+                busy={busy}
+                draft={draft}
+                logoImageUrl={logoPreviewUrl}
+                onChange={change}
+                onLogoFileChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  const file = event.target.files?.[0] ?? null;
+                  handleLogoFileSelect(file);
+                }}
+                onRemoveLogo={() => {
+                  handleLogoFileSelect(null);
+                  change("logoFileId", null);
+                }}
+              />
+            </TabsContent>
+
+            <TabsContent value="navigation">
+              <NavigationTabContent busy={busy} draft={draft} onChange={change} />
+            </TabsContent>
+          </Tabs>
+
           <PublicWebsiteActions
             busy={busy}
-            onPublish={() => void publish()}
-            onRetryVerification={() => void retryVerification()}
-            onSave={() => void save()}
+            dirty={dirty}
+            onPublish={() => {
+              void publish();
+            }}
+            onRetryVerification={() => {
+              void retryVerification();
+            }}
+            onSave={() => {
+              void save();
+            }}
             publicationVersion={loadState.settings.publicationVersion}
             verificationStatus={verificationStatus}
           />
-        </div>
-      </section>
+        </section>
+
+        <PublicWebsitePreview
+          draft={draft}
+          heroImageUrl={heroPreviewUrl}
+          logoImageUrl={logoPreviewUrl}
+          onPageChange={setPreviewPage}
+          onViewportChange={setPreviewViewport}
+          organizationName={loadState.settings.organizationName}
+          page={previewPage}
+          viewport={previewViewport}
+        />
+      </div>
     </div>
   );
 }
