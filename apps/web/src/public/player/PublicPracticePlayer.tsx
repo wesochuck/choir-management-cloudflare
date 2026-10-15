@@ -110,12 +110,18 @@ export function PublicPracticePlayer({
   } = useOfflineCopies({ scope, source });
 
   const allTrackKeys = useMemo(() => availableTrackKeys(details.items), [details.items]);
-  const [selectedTrackKey, setSelectedTrackKey] = useState(() => {
+  const [userOverrideTrackKey, setUserOverrideTrackKey] = useState<string | null>(null);
+
+  const selectedTrackKey = useMemo(() => {
+    if (userOverrideTrackKey !== null) {
+      return userOverrideTrackKey;
+    }
     if (initialTrackKey) {
-      return resolveTrackKey(allTrackKeys, initialTrackKey) ?? initialTrackKey;
+      return resolveTrackKey(allTrackKeys, initialTrackKey, details.trackLabels) ?? initialTrackKey;
     }
     return allTrackKeys[0] ?? "tutti";
-  });
+  }, [allTrackKeys, details.trackLabels, initialTrackKey, userOverrideTrackKey]);
+
   const activeTrackKey =
     allTrackKeys.includes(selectedTrackKey) || initialTrackKey
       ? selectedTrackKey
@@ -171,6 +177,9 @@ export function PublicPracticePlayer({
   }, []);
 
   function playCurrent(): void {
+    if (userOverrideTrackKey === null) {
+      setUserOverrideTrackKey(selectedTrackKey);
+    }
     void audioRef.current?.play().then(
       () => {
         setPlaying(true);
@@ -196,8 +205,8 @@ export function PublicPracticePlayer({
 
   function selectTrackKey(key: string): void {
     if (key === selectedTrackKey) return;
+    setUserOverrideTrackKey(key);
     autoplayRef.current = playing;
-    setSelectedTrackKey(key);
     setSelectedItemIndex(0);
     setCountdown(null);
     setBlockedFileId(null);

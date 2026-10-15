@@ -287,9 +287,20 @@ describe("resolveTrack fallback hierarchy", () => {
       expect(resolveTrackKey(keys, "ALTO")).toBe("alto");
     });
 
-    it("returns null for section-level spellings so playback fallback decides", () => {
-      // "Tenor 2" matches no key exactly; per-item resolution still finds the tenor section.
-      expect(resolveTrackKey(keys, "Tenor 2")).toBeNull();
+    it("matches full voice-part names (e.g. 'Tenor 2') to corresponding track keys ('t2')", () => {
+      expect(resolveTrackKey(keys, "Tenor 2")).toBe("t2");
+      expect(resolveTrackKey(keys, "T 2")).toBe("t2");
+    });
+
+    it("matches configured track labels when provided", () => {
+      expect(
+        resolveTrackKey(["track_custom", "tutti"], "Tenor 2", { track_custom: "Tenor 2" }),
+      ).toBe("track_custom");
+    });
+
+    it("returns null when no part-level track key matches so playback fallback decides", () => {
+      const sectionOnlyKeys = ["alto", "tenor", "tutti"];
+      expect(resolveTrackKey(sectionOnlyKeys, "Tenor 2")).toBeNull();
     });
 
     it("returns null when nothing matches", () => {
