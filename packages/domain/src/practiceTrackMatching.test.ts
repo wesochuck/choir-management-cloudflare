@@ -185,6 +185,51 @@ describe("practiceTrackMatching", () => {
       expect(match.suggestedPiece?.conflicts).toHaveLength(0);
     });
 
+    it("does not suggest unrelated pieces from timing, set-list membership, or empty slots", () => {
+      for (const duration of [222, null]) {
+        const [group] = groupPracticeTrackFiles([
+          parsePracticeTrackFilename("Applause.mp3", configuredParts, "f1", duration),
+        ]);
+        if (!group) throw new Error("Missing group");
+        const match = rankCandidatePiecesForGroup(
+          group,
+          pieces,
+          pieces.map((piece) => piece.id),
+        );
+        expect(match.suggestedPiece).toBeNull();
+        expect(match.candidatePieces).toEqual([]);
+      }
+    });
+
+    it("leaves equally supported arrangements unselected", () => {
+      const [group] = groupPracticeTrackFiles([
+        parsePracticeTrackFilename("O Shenandoah Tenor.mp3", configuredParts, "f1", 222),
+      ]);
+      if (!group) throw new Error("Missing group");
+      const original = pieces[0];
+      if (!original) throw new Error("Missing piece");
+      const match = rankCandidatePiecesForGroup(group, [
+        original,
+        { ...original, id: "another-arrangement" },
+      ]);
+      expect(match.candidatePieces).toHaveLength(2);
+      expect(match.suggestedPiece).toBeNull();
+    });
+
+    it("can suggest a numbered track using its selected set-list position", () => {
+      const [group] = groupPracticeTrackFiles([
+        parsePracticeTrackFilename("Track02_Tenor.mp3", configuredParts, "f1", 180),
+      ]);
+      if (!group) throw new Error("Missing group");
+      const match = rankCandidatePiecesForGroup(
+        group,
+        pieces,
+        pieces.map((piece) => piece.id),
+      );
+      expect(match.suggestedPiece?.piece.title).toBe("Ave Verum Corpus");
+      expect(match.suggestedPiece?.evidence).toContain("Shared sequence number #02");
+    });
+
     it("gives priority and evidence to pieces in selected performance set list", () => {
       const [group] = groupPracticeTrackFiles([
         parsePracticeTrackFilename("Track02_Ave_Verum_Soprano1.mp3", configuredParts, "f1", 180),

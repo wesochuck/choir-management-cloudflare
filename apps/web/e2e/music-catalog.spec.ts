@@ -735,3 +735,47 @@ test("allows uploading a Tutti practice track directly from the catalog table ro
     page.getByRole("button", { name: "Play tutti learning track for First Work" }).first(),
   ).toBeVisible();
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`reviews bulk tracks with clear song headings and honest matching in ${theme} theme`, async ({
+    page,
+  }, testInfo) => {
+    await installRoutes(page);
+    await page.addInitScript((value) => {
+      window.localStorage.setItem(`choir-theme:${window.location.hostname}`, value);
+    }, theme);
+    await page.goto("/admin/library");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await page.getByRole("button", { name: "Bulk upload practice tracks", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Bulk upload practice tracks" });
+    await dialog.locator('input[type="file"]').setInputFiles([
+      { buffer: Buffer.from("invalid-audio"), mimeType: "audio/mpeg", name: "Applause.mp3" },
+      {
+        buffer: Buffer.from("invalid-audio"),
+        mimeType: "audio/mpeg",
+        name: "First Work Tutti.mp3",
+      },
+    ]);
+    await expect(dialog.getByText("Applause.mp3")).toBeVisible();
+    await dialog.getByRole("button", { name: "Review groups" }).click();
+    await expect(dialog.getByRole("heading", { name: "Applause", exact: true })).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "First Work", exact: true })).toBeVisible();
+    const cards = dialog.locator(".track-import-group-card");
+    await expect(cards.first().getByLabel("Destination music piece")).toHaveValue("");
+    await expect(cards.first().getByText("Part needed")).toBeVisible();
+    await expect(cards.nth(1).getByText("Review selection")).toBeVisible();
+    await expect(dialog.getByText("Strong suggestion", { exact: true })).toHaveCount(0);
+    await expect(dialog.getByRole("button", { name: "Split", exact: true })).toHaveCount(0);
+    const destination = cards.first().getByLabel("Destination music piece");
+    await destination.focus();
+    await expect(destination).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(cards.first().getByRole("button", { name: "Play Applause.mp3" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(cards.first().getByLabel("Voice part for Applause.mp3")).toBeFocused();
+    await dialog.locator(".track-import-wizard-step").evaluate((element) => {
+      element.scrollTop = 0;
+    });
+    await dialog.screenshot({ path: testInfo.outputPath(`bulk-review-${theme}.png`) });
+  });
+}

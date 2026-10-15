@@ -193,7 +193,7 @@ describe("BulkPracticeTrackImportDialog", () => {
     // Step 2: Review matches
     await waitFor(() => {
       expect(screen.getByText("Why this suggestion?")).toBeInTheDocument();
-      expect(screen.getByText("GROUP A")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Hallelujah Chorus" })).toBeInTheDocument();
       expect(screen.getAllByText("Hallelujah Chorus (Handel)").length).toBeGreaterThan(0);
     });
 
@@ -219,6 +219,42 @@ describe("BulkPracticeTrackImportDialog", () => {
 
     expect(handleTracksAttached).toHaveBeenCalledTimes(1);
     expect(handleClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves unrelated files unselected and explains missing parts without strong badges", async () => {
+    render(
+      <BulkPracticeTrackImportDialog
+        events={[sampleEvent]}
+        onClose={vi.fn()}
+        onTracksAttached={vi.fn()}
+        open={true}
+        pieces={[samplePiece]}
+        roster={sampleRoster}
+      />,
+    );
+    const dropzone = screen
+      .getByText("Drop MP3s here or browse files")
+      .closest(".track-import-dropzone");
+    if (!dropzone) throw new Error("Missing dropzone");
+    fireEvent.drop(dropzone, {
+      dataTransfer: { files: [new File(["dummy"], "Applause.mp3", { type: "audio/mpeg" })] },
+    });
+    await waitFor(() => expect(screen.getByText("Applause.mp3")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Review groups" }));
+    expect(screen.getByRole("heading", { name: "Applause" })).toBeInTheDocument();
+    expect(screen.getByText("0 strong suggestions")).toBeInTheDocument();
+    expect(screen.queryByText("Strong suggestion")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Destination music piece")).toHaveValue("");
+    expect(screen.getByText("Part needed")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Split" })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Destination music piece"), {
+      target: { value: samplePieceId },
+    });
+    expect(screen.getByText("Review selection")).toBeInTheDocument();
+    expect(
+      screen.getByText("Selected manually; no matching evidence for this piece."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Duration match:/)).not.toBeInTheDocument();
   });
 
   it("flags duplicate voice parts in Step 2 review and allows splitting", async () => {
@@ -271,9 +307,9 @@ describe("BulkPracticeTrackImportDialog", () => {
 
     fireEvent.click(secondSplitBtn);
 
-    // Splitting should create GROUP B
+    // Splitting should create two single-file song sets
     await waitFor(() => {
-      expect(screen.getByText("GROUP B")).toBeInTheDocument();
+      expect(screen.getAllByText("1 file")[0]).toBeInTheDocument();
     });
   });
 

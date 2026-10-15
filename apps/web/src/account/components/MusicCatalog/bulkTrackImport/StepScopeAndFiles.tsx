@@ -291,8 +291,8 @@ export function StepScopeAndFiles({
                 <span>Narrow title candidates when available.</span>
               </li>
               <li>
-                <strong>CLEF Flash for uncertainty</strong>
-                <span>Text metadata only. No MP3 sent to AI.</span>
+                <strong>Review uncertain matches</strong>
+                <span>Choose a piece yourself when filename clues are insufficient.</span>
               </li>
             </ol>
           </div>

@@ -280,8 +280,20 @@
     max-height: 16rem;
   }
 
+  .track-import-group-files-table-container {
+    overflow-x: auto;
+  }
+
+  .track-import-group-files-table th {
+    white-space: nowrap;
+  }
+
+  .track-import-part-cell select {
+    min-width: 15rem;
+  }
+
   .track-import-files-table,
-  .track-import-group-table,
+  .track-import-group-files-table,
   .track-import-planned-table,
   .track-import-results-table {
     width: 100%;
@@ -292,8 +304,8 @@
 
   .track-import-files-table th,
   .track-import-files-table td,
-  .track-import-group-table th,
-  .track-import-group-table td,
+  .track-import-group-files-table th,
+  .track-import-group-files-table td,
   .track-import-planned-table th,
   .track-import-planned-table td,
   .track-import-results-table th,
@@ -303,7 +315,7 @@
   }
 
   .track-import-files-table th,
-  .track-import-group-table th,
+  .track-import-group-files-table th,
   .track-import-planned-table th,
   .track-import-results-table th {
     background: var(--color-surface-subtle);
@@ -428,7 +440,15 @@
 
   .track-import-group-card__badges {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: var(--spacing-xs);
+  }
+
+  .track-import-group-card__badges h3 {
+    margin: 0;
+    font-size: var(--font-size-base);
+    overflow-wrap: anywhere;
   }
 
   .track-import-group-piece-select label {
@@ -448,6 +468,7 @@
 
   .track-import-piece-select-row select {
     flex: 1;
+    min-width: 0;
   }
 
   .track-import-group-conflict-banner {

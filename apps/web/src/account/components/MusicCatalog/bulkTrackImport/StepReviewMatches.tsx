@@ -10,6 +10,12 @@ function formatDuration(seconds: number | null): string {
   return `${String(mins)}:${remSecs}`;
 }
 
+function missingMatchExplanation(pieceId: string | null): string {
+  return pieceId
+    ? "Selected manually; no matching evidence for this piece."
+    : "No clear match. Choose a music piece to include these files.";
+}
+
 export function StepReviewMatches({
   groups,
   onBack,
@@ -47,50 +53,74 @@ export function StepReviewMatches({
     return list;
   }, [roster]);
 
+  const activeEvidence =
+    activeGroup?.candidates.find((candidate) => candidate.piece.id === activeGroup.selectedPieceId)
+      ?.evidence ?? [];
+
   const totalFiles = groups.reduce((sum, g) => sum + g.files.length, 0);
-  const strongCount = groups.filter((g) => g.selectedPieceId && !g.hasDuplicatePart).length;
+  const isStrongSuggestion = (group: GroupReviewItem) =>
+    !group.hasDuplicatePart &&
+    group.candidates.some(
+      (candidate) =>
+        candidate.piece.id === group.selectedPieceId && candidate.confidence === "high",
+    );
+  const strongCount = groups.filter(isStrongSuggestion).length;
   const reviewCount = groups.length - strongCount;
 
   return (
     <div className="track-import-wizard-step">
       <div className="track-import-summary-pills">
         <span className="badge badge--neutral">{String(totalFiles)} files</span>
-        <span className="badge badge--neutral">{String(groups.length)} groups</span>
+        <span className="badge badge--neutral">{String(groups.length)} song sets</span>
         <span className="badge badge--success">{String(strongCount)} strong suggestions</span>
         {reviewCount > 0 ? (
           <span className="badge badge--warning">{String(reviewCount)} need review</span>
         ) : null}
       </div>
 
+      <p>
+        Files in each song set share one destination piece. Check the piece and voice part before
+        uploading. Files without an assigned part are excluded.
+      </p>
       <div className="track-import-grid">
         <div className="track-import-main">
-          {groups.map((group, groupIdx) => {
+          {groups.map((group) => {
             const selectedPiece = group.selectedPieceId
               ? pieceMap.get(group.selectedPieceId)
               : undefined;
+            const selectedCandidate = group.candidates.find(
+              (candidate) => candidate.piece.id === group.selectedPieceId,
+            );
+            const evidence = selectedCandidate?.evidence ?? [];
             const existingTrackCount = Object.keys(selectedPiece?.trackFileIds ?? {}).length;
 
             return (
               <div
                 key={group.groupId}
                 className={`track-import-group-card ${
-                  group.hasDuplicatePart
+                  !isStrongSuggestion(group)
                     ? "track-import-group-card--warning"
                     : "track-import-group-card--success"
                 }`}
                 onClick={() => {
                   setSelectedGroupId(group.groupId);
                 }}
+                onFocus={() => {
+                  setSelectedGroupId(group.groupId);
+                }}
               >
                 <div className="track-import-group-card__header">
                   <div className="track-import-group-card__badges">
-                    <span className="badge badge--accent">
-                      GROUP {String.fromCharCode(65 + (groupIdx % 26))}
+                    <h3>{group.inferredTitle}</h3>
+                    <span className="badge badge--neutral">
+                      {String(group.files.length)} {group.files.length === 1 ? "file" : "files"}
                     </span>
                     {group.hasDuplicatePart ? (
                       <span className="badge badge--warning">Needs review</span>
-                    ) : group.selectedPieceId ? (
+                    ) : isStrongSuggestion(group) ? (
                       <span className="badge badge--success">Strong suggestion</span>
+                    ) : group.selectedPieceId ? (
+                      <span className="badge badge--warning">Review selection</span>
                     ) : (
                       <span className="badge badge--neutral">No piece selected</span>
                     )}
@@ -99,7 +129,7 @@ export function StepReviewMatches({
 
                 <div className="track-import-group-piece-select field">
                   <label htmlFor={`group-piece-${group.groupId}`}>
-                    Matched music piece
+                    Destination music piece
                     <div className="track-import-piece-select-row">
                       <select
                         id={`group-piece-${group.groupId}`}
@@ -140,11 +170,13 @@ export function StepReviewMatches({
                   </label>
                 </div>
 
-                {group.evidence.length > 0 ? (
+                {evidence.length > 0 ? (
+                  <p className="track-import-group-evidence">Evidence: {evidence.join(" + ")}</p>
+                ) : (
                   <p className="track-import-group-evidence">
-                    Evidence: {group.evidence.join(" + ")}
+                    {missingMatchExplanation(group.selectedPieceId)}
                   </p>
-                ) : null}
+                )}
 
                 <div className="track-import-group-files-table-container">
                   <table className="track-import-group-files-table">
@@ -162,9 +194,7 @@ export function StepReviewMatches({
                         const isDuplicate =
                           file.partKey && group.duplicatePartKeys.includes(file.partKey);
                         const isSlotOccupied =
-                          file.partKey &&
-                          selectedPiece?.trackFileIds &&
-                          Boolean(selectedPiece.trackFileIds[file.partKey]);
+                          file.partKey && Boolean(selectedPiece?.trackFileIds[file.partKey]);
 
                         return (
                           <tr key={file.clientFileId}>
@@ -194,7 +224,7 @@ export function StepReviewMatches({
                                   );
                                 }}
                               >
-                                <option value="">-- Skip file --</option>
+                                <option value="">-- Choose part (or exclude file) --</option>
                                 {partOptions.map((opt) => (
                                   <option key={opt.key} value={opt.key}>
                                     {opt.label}
@@ -213,21 +243,23 @@ export function StepReviewMatches({
                               ) : file.partKey ? (
                                 <span className="badge badge--success">✓ Ready</span>
                               ) : (
-                                <span className="badge badge--neutral">Skipped</span>
+                                <span className="badge badge--neutral">Part needed</span>
                               )}
                             </td>
                             <td className="track-import-actions-cell">
-                              <button
-                                className="button button--ghost"
-                                title="Split file to its own group"
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onSplitFile(file.clientFileId);
-                                }}
-                              >
-                                Split
-                              </button>
+                              {group.files.length > 1 ? (
+                                <button
+                                  className="button button--ghost"
+                                  title="Split file to its own group"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSplitFile(file.clientFileId);
+                                  }}
+                                >
+                                  Split
+                                </button>
+                              ) : null}
                             </td>
                           </tr>
                         );
@@ -244,8 +276,8 @@ export function StepReviewMatches({
           <div className="track-import-sidebar__card">
             <h3 className="track-import-sidebar__title">Why this suggestion?</h3>
             <ul className="track-import-sidebar__evidence-list">
-              {(activeGroup?.evidence ?? []).length > 0 ? (
-                activeGroup?.evidence.map((ev) => (
+              {activeEvidence.length > 0 ? (
+                activeEvidence.map((ev) => (
                   <li key={ev} className="track-import-sidebar__evidence-item">
                     <span aria-hidden="true">✓</span>
                     <span>{ev}</span>
@@ -253,7 +285,7 @@ export function StepReviewMatches({
                 ))
               ) : (
                 <li className="track-import-sidebar__evidence-item">
-                  <span>Select a group on the left to see matching signals.</span>
+                  <span>No matching evidence for the current selection.</span>
                 </li>
               )}
             </ul>

@@ -495,7 +495,7 @@ function scoreTitleMatch(
   normPiece: string,
   pieceTitle: string,
 ): { evidenceItem: string | null; score: number } {
-  if (normGroup === normPiece) {
+  if (normGroup.length > 0 && normGroup === normPiece) {
     return { evidenceItem: `Exact title match: "${pieceTitle}"`, score: 50 };
   }
   const tokenOverlap = titleTokenOverlap(normGroup, normPiece);
@@ -547,6 +547,14 @@ function detectSlotConflicts(
   return conflicts;
 }
 
+function hasComplementaryParts(group: TrackImportGroup): boolean {
+  return (
+    group.files.length >= 2 &&
+    !group.hasDuplicatePart &&
+    group.files.every((file) => Boolean(file.detectedPartKey))
+  );
+}
+
 function scoreCandidatePiece(
   piece: LibraryPieceOption,
   group: TrackImportGroup,
@@ -573,6 +581,16 @@ function scoreCandidatePiece(
     evidence.push(titleResult.evidenceItem);
   }
 
+  // Title or a known set-list position must identify the piece. Timing, empty
+  // slots, and group composition cannot identify an otherwise unrelated song.
+  const sequenceMatches = Boolean(
+    group.sequenceNumber &&
+    performanceSetListPieceIds?.[Number.parseInt(group.sequenceNumber, 10) - 1] === piece.id,
+  );
+  if (titleResult.score === 0 && !sequenceMatches) {
+    return { conflicts: detectSlotConflicts(piece, group.files), evidence: [], score: 0 };
+  }
+
   // 3. Duration match
   const durResult = scoreDurationMatch(piece.durationSeconds, group.averageDurationSeconds);
   score += durResult.score;
@@ -581,7 +599,7 @@ function scoreCandidatePiece(
   }
 
   // 4. Complementary voice parts
-  if (group.files.length >= 2 && !group.hasDuplicatePart) {
+  if (hasComplementaryParts(group)) {
     score += 10;
     evidence.push("Complementary voice parts");
   }
@@ -593,12 +611,6 @@ function scoreCandidatePiece(
       score += 25;
       evidence.push(`Shared sequence number #${group.sequenceNumber}`);
     }
-  }
-
-  // 6. Unrecorded bonus (populating empty pieces)
-  const existingTrackCount = Object.keys(piece.trackFileIds ?? {}).length;
-  if (existingTrackCount === 0) {
-    score += 10;
   }
 
   // 7. Check for slot conflicts
@@ -640,6 +652,8 @@ export function rankCandidatePiecesForGroup(
   return {
     candidatePieces: candidates,
     groupId: group.groupId,
-    suggestedPiece: candidates[0] ?? null,
+    // A tie needs a human decision, never an arbitrary library-order choice.
+    suggestedPiece:
+      candidates[0] && candidates[0].score !== candidates[1]?.score ? candidates[0] : null,
   };
 }
