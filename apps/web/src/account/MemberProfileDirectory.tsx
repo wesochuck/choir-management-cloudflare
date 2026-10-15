@@ -9,7 +9,9 @@ import {
   updateMemberProfile,
 } from "../api";
 import { AppLink } from "./components/AuthenticatedShell/navigation";
+import { ProfileAvatarButton } from "./components/ProfileAvatarButton";
 import { ProfilePhotoEditor, type ProfilePhotoTarget } from "./components/ProfilePhotoEditor";
+import { ProfilePhotoViewerDialog } from "./components/ProfilePhotoViewerDialog";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 import { usePersistedDraft } from "../persistence";
 
@@ -286,7 +288,7 @@ function MemberProfileEditor({
                 updateField("showInDirectory", event.target.checked);
               }}
             />
-            Show me in the Organization directory
+            List me in the Organization member directory
           </label>
           <fieldset className="field" disabled={busy}>
             <legend>Email reminder preferences</legend>
@@ -368,6 +370,7 @@ function Directory({
   const [state, setState] = useState<DirectoryState>({ status: "loading" });
   const [search, setSearch] = useState("");
   const [voicePart, setVoicePart] = useState("");
+  const [viewerPhoto, setViewerPhoto] = useState<{ displayName: string; src: string } | null>(null);
   const handleNavigate =
     navigate ??
     ((href: string) => {
@@ -483,16 +486,14 @@ function Directory({
               {profiles.map((profile) => (
                 <li key={profile.id} aria-label={`Directory Profile: ${profile.displayName}`}>
                   <div className="profile-photo profile-photo--directory">
-                    {profile.photoFileId ? (
-                      <img
-                        alt=""
-                        src={`/api/organization/files/${encodeURIComponent(profile.photoFileId)}`}
-                      />
-                    ) : (
-                      <span aria-hidden="true">
-                        {profile.displayName.slice(0, 1).toUpperCase()}
-                      </span>
-                    )}
+                    <ProfileAvatarButton
+                      displayName={profile.displayName}
+                      onOpenViewer={(src) => {
+                        setViewerPhoto({ displayName: profile.displayName, src });
+                      }}
+                      photoFileId={profile.photoFileId}
+                      size={64}
+                    />
                   </div>
                   <h3>{profile.displayName}</h3>
                   <p>{profile.voicePart || `${partLabel} not assigned`}</p>
@@ -518,6 +519,14 @@ function Directory({
           )}
         </>
       ) : null}
+      <ProfilePhotoViewerDialog
+        displayName={viewerPhoto?.displayName ?? ""}
+        isOpen={viewerPhoto !== null}
+        onClose={() => {
+          setViewerPhoto(null);
+        }}
+        photoSrc={viewerPhoto?.src ?? null}
+      />
     </section>
   );
 }

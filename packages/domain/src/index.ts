@@ -74,6 +74,11 @@ export {
 export { eventRsvpExportFilename, renderEventRsvpCsv } from "./eventRsvpCsv";
 export type { EventRsvpExportSort, EventRsvpStatus } from "./eventRsvpCsv";
 export {
+  getDirectoryListingReason,
+  isProfileDirectoryListed,
+  type DirectoryListingCandidate,
+} from "./directoryListing";
+export {
   getFirstName,
   getInitials,
   getLastName,

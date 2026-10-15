@@ -1,6 +1,8 @@
 import { DialogClose, DropdownMenu } from "@choir/ui";
 import type { OrganizationRosterConfiguration } from "@choir/contracts";
+import { useState } from "react";
 import { statusLabel } from "../RosterPage/utils";
+import { ProfilePhotoViewerDialog } from "../ProfilePhotoViewerDialog";
 
 export interface ProfileEditorHeaderProps {
   readonly busy?: boolean | undefined;
@@ -51,18 +53,33 @@ function getStatusClass(status: "Active" | "Idle" | "Inactive"): string {
 function ProfileAvatar({
   displayName,
   isEdit,
+  onOpenViewer,
   photoFileId,
 }: {
   readonly displayName: string;
   readonly isEdit: boolean;
+  readonly onOpenViewer?: (() => void) | undefined;
   readonly photoFileId: string | null;
 }) {
   if (isEdit && photoFileId) {
+    const src = `/api/organization/files/${encodeURIComponent(photoFileId)}`;
+    if (onOpenViewer) {
+      return (
+        <button
+          aria-label={`View larger photo of ${displayName}`}
+          className="profile-avatar-button profile-editor-header__avatar"
+          onClick={onOpenViewer}
+          type="button"
+        >
+          <img alt="" src={src} />
+        </button>
+      );
+    }
     return (
       <img
         alt={`${displayName} profile photo`}
         className="profile-editor-header__avatar profile-editor-header__avatar--photo"
-        src={`/api/organization/files/${encodeURIComponent(photoFileId)}`}
+        src={src}
       />
     );
   }
@@ -102,6 +119,7 @@ interface BuildMoreActionsOptions {
   readonly busy?: boolean | undefined;
   readonly canImpersonate: boolean;
   readonly canResolveDuplicate: boolean;
+  readonly globalStatus: "Active" | "Idle" | "Inactive";
   readonly isHidden?: boolean | undefined;
   readonly onArchive?: (() => void) | undefined;
   readonly onDeletePermanently?: (() => void) | undefined;
@@ -115,6 +133,7 @@ function buildMoreActions(options: BuildMoreActionsOptions) {
     busy = false,
     canImpersonate,
     canResolveDuplicate,
+    globalStatus,
     isHidden = false,
     onArchive,
     onDeletePermanently,
@@ -140,7 +159,7 @@ function buildMoreActions(options: BuildMoreActionsOptions) {
   if (isHidden && onRestore) {
     items.push({
       disabled: busy,
-      label: "Restore profile",
+      label: globalStatus === "Inactive" ? "Restore profile" : "Return to roster",
       onSelect: onRestore,
     });
   } else if (!isHidden && onArchive) {
@@ -184,10 +203,12 @@ export function ProfileEditorHeader({
   const trimmedName = displayName.trim();
   const headerName = isEdit ? trimmedName || "Untitled profile" : "Add Profile";
   const voicePartDisplay = getVoicePartDisplay(voicePart, rosterConfiguration);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const moreActionsItems = buildMoreActions({
     busy,
     canImpersonate,
     canResolveDuplicate,
+    globalStatus,
     isHidden,
     onArchive,
     onDeletePermanently,
@@ -204,6 +225,9 @@ export function ProfileEditorHeader({
           <ProfileAvatar
             displayName={trimmedName || headerName}
             isEdit={isEdit}
+            onOpenViewer={() => {
+              setViewerOpen(true);
+            }}
             photoFileId={profilePhotoFileId}
           />
         </div>
@@ -265,6 +289,19 @@ export function ProfileEditorHeader({
           </button>
         </DialogClose>
       </div>
+
+      <ProfilePhotoViewerDialog
+        displayName={trimmedName || headerName}
+        isOpen={viewerOpen}
+        onClose={() => {
+          setViewerOpen(false);
+        }}
+        photoSrc={
+          profilePhotoFileId
+            ? `/api/organization/files/${encodeURIComponent(profilePhotoFileId)}`
+            : null
+        }
+      />
     </div>
   );
 }
