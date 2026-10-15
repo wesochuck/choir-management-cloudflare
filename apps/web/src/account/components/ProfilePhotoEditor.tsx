@@ -10,6 +10,7 @@ import {
   uploadPrivateOrganizationFile,
 } from "../../api";
 import { useSaveRegistration } from "../../persistence";
+import { ProfilePhotoViewerDialog } from "./ProfilePhotoViewerDialog";
 
 export type ProfilePhotoTarget = Pick<MemberProfile, "displayName" | "id" | "photoFileId">;
 
@@ -42,6 +43,7 @@ export function ProfilePhotoEditor({
   const [message, setMessage] = useState<string | null>(null);
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [selectedCameraId, setSelectedCameraId] = useState("");
+  const [viewerOpen, setViewerOpen] = useState(false);
   const cameraTriggerRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingPreviewRef = useRef<string | null>(null);
@@ -327,13 +329,23 @@ export function ProfilePhotoEditor({
         <div className="profile-photo-controls__heading">
           <div className="profile-photo">
             {pendingPreview || profile.photoFileId ? (
-              <img
-                alt={`${profile.displayName} Profile photo`}
-                src={
-                  pendingPreview ??
-                  `/api/organization/files/${encodeURIComponent(profile.photoFileId ?? "")}`
-                }
-              />
+              <button
+                aria-label={`View larger photo of ${profile.displayName}`}
+                className="profile-avatar-button"
+                onClick={() => {
+                  setViewerOpen(true);
+                }}
+                style={{ height: "5rem", width: "5rem" }}
+                type="button"
+              >
+                <img
+                  alt=""
+                  src={
+                    pendingPreview ??
+                    `/api/organization/files/${encodeURIComponent(profile.photoFileId ?? "")}`
+                  }
+                />
+              </button>
             ) : (
               <span aria-hidden="true">{profile.displayName.slice(0, 1).toUpperCase()}</span>
             )}
@@ -466,6 +478,19 @@ export function ProfilePhotoEditor({
           </div>
         </div>
       </Dialog>
+      <ProfilePhotoViewerDialog
+        displayName={profile.displayName}
+        isOpen={viewerOpen}
+        onClose={() => {
+          setViewerOpen(false);
+        }}
+        photoSrc={
+          pendingPreview ??
+          (profile.photoFileId
+            ? `/api/organization/files/${encodeURIComponent(profile.photoFileId)}`
+            : null)
+        }
+      />
       {confirmationDialog}
     </>
   );

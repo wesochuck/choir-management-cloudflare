@@ -1,5 +1,9 @@
 import type { OrganizationProfile } from "@choir/contracts";
-import { rosterCsvColumnOptions } from "@choir/domain";
+import {
+  getDirectoryListingReason,
+  isProfileDirectoryListed,
+  rosterCsvColumnOptions,
+} from "@choir/domain";
 import {
   DataTable,
   Tabs,
@@ -12,6 +16,8 @@ import {
 import { VoicePartBalance } from "./shared";
 import { parseRosterStatusFilter, statusLabel } from "./utils";
 import { ProfileEditorDialog } from "../ProfileEditor";
+import { ProfileAvatarButton } from "../ProfileAvatarButton";
+import { ProfilePhotoViewerDialog } from "../ProfilePhotoViewerDialog";
 import { RosterInviteLinksDialog } from "./RosterInviteLinksDialog";
 import { CsvImportDialog } from "../../CsvImportDialog";
 import { RosterAutomationSettings } from "../../RosterAutomationSettings";
@@ -38,6 +44,7 @@ export function RosterPageView({
   const [activeTab, setActiveTab] = useState<RosterSection>(initialSection);
   const [inviteLinksDialogOpen, setInviteLinksDialogOpen] = useState(false);
   const [resolveDuplicateOpen, setResolveDuplicateOpen] = useState(false);
+  const [viewerPhoto, setViewerPhoto] = useState<{ displayName: string; src: string } | null>(null);
   const {
     busy,
     bulkBusy,
@@ -316,7 +323,7 @@ export function RosterPageView({
                     }}
                     type="checkbox"
                   />
-                  Show hidden profiles
+                  Include off-roster profiles
                 </label>
                 {query ||
                 selectedVoiceFilters.length > 0 ||
@@ -386,7 +393,7 @@ export function RosterPageView({
                       }}
                       type="button"
                     >
-                      Show in directory
+                      List in directory
                     </button>
                     <button
                       className="button button--secondary"
@@ -396,7 +403,7 @@ export function RosterPageView({
                       }}
                       type="button"
                     >
-                      Hide from directory
+                      Remove from directory
                     </button>
                     <button
                       className="button button--secondary"
@@ -406,7 +413,7 @@ export function RosterPageView({
                       }}
                       type="button"
                     >
-                      Hide selected
+                      Exclude from roster
                     </button>
                     <button
                       className="button button--secondary"
@@ -416,7 +423,7 @@ export function RosterPageView({
                       }}
                       type="button"
                     >
-                      Unhide selected
+                      Return to roster
                     </button>
                   </div>
                 </div>
@@ -456,6 +463,14 @@ export function RosterPageView({
                     id: "name",
                     render: (candidate) => (
                       <span className="roster-profile-name">
+                        <ProfileAvatarButton
+                          displayName={candidate.displayName}
+                          onOpenViewer={(src) => {
+                            setViewerPhoto({ displayName: candidate.displayName, src });
+                          }}
+                          photoFileId={candidate.photoFileId}
+                          size={32}
+                        />
                         <strong>{candidate.displayName}</strong>
                         {candidate.isSectionLeader ? (
                           <Tooltip content="Section leader">
@@ -495,7 +510,7 @@ export function RosterPageView({
                       <span className="status-pill-group">
                         <span className="status-pill">{statusLabel(candidate.globalStatus)}</span>
                         {candidate.hidden ? (
-                          <span className="status-pill status-pill--hidden">Hidden</span>
+                          <span className="status-pill status-pill--hidden">Off roster</span>
                         ) : null}
                       </span>
                     ),
@@ -536,10 +551,21 @@ export function RosterPageView({
                           : "Allowed",
                   },
                   {
-                    header: "Directory",
+                    header: "Directory listing",
                     id: "directory",
-                    render: (candidate) => (candidate.showInDirectory ? "Shown" : "Hidden"),
-                    sortValue: (candidate) => candidate.showInDirectory,
+                    render: (candidate) => {
+                      const listed = isProfileDirectoryListed(candidate);
+                      const reason = getDirectoryListingReason(candidate);
+                      return (
+                        <span
+                          className={`status-pill ${listed ? "status-pill--success" : "status-pill--neutral"}`}
+                          title={reason ?? undefined}
+                        >
+                          {listed ? "Listed" : "Not listed"}
+                        </span>
+                      );
+                    },
+                    sortValue: (candidate) => (isProfileDirectoryListed(candidate) ? 1 : 0),
                   },
                   {
                     header: "Actions",
@@ -589,18 +615,33 @@ export function RosterPageView({
                             </button>
                           ) : null}
                           {candidate.hidden ? (
-                            <button
-                              aria-label={`Restore ${candidate.displayName}`}
-                              className="button button--secondary button--small"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void model.restoreProfile(candidate.id);
-                              }}
-                              title={`Restore ${candidate.displayName}`}
-                              type="button"
-                            >
-                              Restore
-                            </button>
+                            candidate.globalStatus === "Inactive" ? (
+                              <button
+                                aria-label={`Restore ${candidate.displayName}`}
+                                className="button button--secondary button--small"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void model.restoreProfile(candidate.id);
+                                }}
+                                title={`Restore ${candidate.displayName} as active`}
+                                type="button"
+                              >
+                                Restore
+                              </button>
+                            ) : (
+                              <button
+                                aria-label={`Return ${candidate.displayName} to roster`}
+                                className="button button--secondary button--small"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void model.returnProfileToRoster(candidate.id);
+                                }}
+                                title={`Return ${candidate.displayName} to roster`}
+                                type="button"
+                              >
+                                Return to roster
+                              </button>
+                            )
                           ) : (
                             <button
                               aria-label={`Archive ${candidate.displayName}`}
@@ -793,6 +834,14 @@ export function RosterPageView({
           setInviteLinksDialogOpen(false);
         }}
         open={inviteLinksDialogOpen}
+      />
+      <ProfilePhotoViewerDialog
+        displayName={viewerPhoto?.displayName ?? ""}
+        isOpen={viewerPhoto !== null}
+        onClose={() => {
+          setViewerPhoto(null);
+        }}
+        photoSrc={viewerPhoto?.src ?? null}
       />
       {confirmationDialog}
     </RosterConfigurationDraftProvider>

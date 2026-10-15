@@ -33,8 +33,8 @@
 
   .roster-profile-name {
     display: inline-flex;
-    align-items: baseline;
-    gap: var(--spacing-2xs);
+    align-items: center;
+    gap: var(--spacing-xs);
   }
 
   .roster-section-leader {

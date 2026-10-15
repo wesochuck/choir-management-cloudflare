@@ -573,7 +573,7 @@ export async function deleteProfile(
         });
       if (folderHistory > 0 || folderAuditHistory) {
         throw new ProfileHistoryDeletionError(
-          "Profiles with music-folder history must be marked Inactive instead of deleted.",
+          "This profile can't be permanently deleted. It has music-folder history that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
           "profile_folder_history_requires_inactive",
         );
       }
@@ -585,7 +585,7 @@ export async function deleteProfile(
         .one().count;
       if (eventRosterHistory > 0) {
         throw new ProfileHistoryDeletionError(
-          "Profiles with event attendance or RSVP history must be marked Inactive instead of deleted.",
+          "This profile can't be permanently deleted. It has attendance or RSVP history that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
           "profile_event_history_requires_inactive",
         );
       }
@@ -597,7 +597,7 @@ export async function deleteProfile(
         .one().count;
       if (duesHistory > 0) {
         throw new ProfileHistoryDeletionError(
-          "Profiles with dues or payment records must be marked Inactive instead of deleted.",
+          "This profile can't be permanently deleted. It has dues or payment records that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
           "profile_dues_history_requires_inactive",
         );
       }
@@ -609,7 +609,7 @@ export async function deleteProfile(
         .one().count;
       if (pollHistory > 0) {
         throw new ProfileHistoryDeletionError(
-          "Profiles with poll responses must be marked Inactive instead of deleted.",
+          "This profile can't be permanently deleted. It has poll responses that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
           "profile_poll_history_requires_inactive",
         );
       }
@@ -622,7 +622,7 @@ export async function deleteProfile(
         .one().count;
       if (reconciliationHistory > 0) {
         throw new ProfileHistoryDeletionError(
-          "Merged profiles must be marked Inactive instead of deleted.",
+          "This profile can't be permanently deleted. It has merge history that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
           "profile_reconciliation_history_requires_inactive",
         );
       }
@@ -634,7 +634,7 @@ export async function deleteProfile(
         .one().count;
       if (deliveryHistory > 0) {
         throw new ProfileHistoryDeletionError(
-          "Profiles with message delivery history must be marked Inactive instead of deleted.",
+          "This profile can't be permanently deleted. It has message delivery history that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
           "profile_communications_history_requires_inactive",
         );
       }
@@ -646,7 +646,7 @@ export async function deleteProfile(
         .one().count;
       if (contactHistory > 0) {
         throw new ProfileHistoryDeletionError(
-          "Profiles linked to contacts must be marked Inactive instead of deleted.",
+          "This profile can't be permanently deleted. It is linked to contacts that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
           "profile_contact_history_requires_inactive",
         );
       }
@@ -692,7 +692,7 @@ class ProfileHistoryDeletionError extends Error {
   readonly code: string;
 
   constructor(
-    message = "Profiles with music-folder history must be marked Inactive instead of deleted.",
+    message = "This profile can't be permanently deleted. It has music-folder history that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
     code = "profile_folder_history_requires_inactive",
   ) {
     super(message);

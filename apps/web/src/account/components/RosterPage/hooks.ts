@@ -668,6 +668,42 @@ export function useRosterPageController({
     }
   }
 
+  async function returnProfileToRoster(profileId: string): Promise<void> {
+    const candidate =
+      roster.status === "ready" ? roster.profiles.find((p) => p.id === profileId) : undefined;
+    if (!candidate) return;
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const updated = await updateOrganizationProfile(profileId, {
+        ...profileRequestFrom(candidate),
+        hidden: false,
+      });
+      setRoster((current) =>
+        current.status === "ready"
+          ? {
+              ...current,
+              profiles: current.profiles.map((p) => (p.id === updated.id ? updated : p)),
+            }
+          : current,
+      );
+      setSuccess(`${updated.displayName} has been returned to the roster.`);
+      if (editingId === profileId) {
+        setDialogOpen(false);
+        setEditingId(null);
+      }
+    } catch (err: unknown) {
+      setError(
+        err instanceof AuthApiError
+          ? err.message
+          : "The Profile could not be returned to the roster.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function deleteProfilePermanently(profileId: string): Promise<void> {
     const candidate =
       roster.status === "ready" ? roster.profiles.find((p) => p.id === profileId) : undefined;
@@ -790,6 +826,7 @@ export function useRosterPageController({
     resetFeedback,
     resettingProfileId,
     restoreProfile,
+    returnProfileToRoster,
     roster,
     rosterImportConfirmed,
     rosterImportHeaders,

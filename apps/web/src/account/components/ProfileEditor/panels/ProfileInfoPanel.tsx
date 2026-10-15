@@ -232,19 +232,24 @@ export function ProfileInfoPanel({
         />
       </div>
 
-      <label className="checkbox-row">
-        <input
-          checked={profile.showInDirectory}
-          onChange={(event) => {
-            setProfile((current) => ({
-              ...current,
-              showInDirectory: event.target.checked,
-            }));
-          }}
-          type="checkbox"
-        />
-        Show in directory
-      </label>
+      <div className="field-group">
+        <label className="checkbox-row">
+          <input
+            checked={profile.showInDirectory}
+            onChange={(event) => {
+              setProfile((current) => ({
+                ...current,
+                showInDirectory: event.target.checked,
+              }));
+            }}
+            type="checkbox"
+          />
+          List in member directory
+        </label>
+        <p className="field-help">
+          Opt in to include this Profile in the Organization member directory.
+        </p>
+      </div>
 
       <label className="checkbox-row">
         <input
@@ -260,19 +265,24 @@ export function ProfileInfoPanel({
         Section leader
       </label>
 
-      <label className="checkbox-row">
-        <input
-          checked={profile.hidden}
-          onChange={(event) => {
-            setProfile((current) => ({
-              ...current,
-              hidden: event.target.checked,
-            }));
-          }}
-          type="checkbox"
-        />
-        Hide profile (hide from default roster view and search results)
-      </label>
+      <div className="field-group">
+        <label className="checkbox-row">
+          <input
+            checked={profile.hidden}
+            onChange={(event) => {
+              setProfile((current) => ({
+                ...current,
+                hidden: event.target.checked,
+              }));
+            }}
+            type="checkbox"
+          />
+          Exclude from roster
+        </label>
+        <p className="field-help">
+          Keeps the Profile and history, but removes it from the normal roster view and search.
+        </p>
+      </div>
     </div>
   );
 }

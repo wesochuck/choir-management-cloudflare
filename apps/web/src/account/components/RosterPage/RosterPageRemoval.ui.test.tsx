@@ -183,8 +183,8 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
 
     render(<RosterPage enabled />);
 
-    // Show hidden profiles checkbox
-    const showHiddenCheckbox = await screen.findByLabelText("Show hidden profiles");
+    // Include off-roster profiles checkbox
+    const showHiddenCheckbox = await screen.findByLabelText("Include off-roster profiles");
     await user.click(showHiddenCheckbox);
 
     const [restoreBtn] = await screen.findAllByRole("button", { name: "Restore Archived Singer" });
@@ -258,7 +258,7 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
     const user = userEvent.setup();
     vi.mocked(deleteOrganizationProfile).mockRejectedValue(
       new AuthApiError(
-        "Profiles with event attendance or RSVP history must be marked Inactive instead of deleted.",
+        "This profile can't be permanently deleted. It has attendance or RSVP history that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
         409,
         "profile_event_history_requires_inactive",
       ),
@@ -275,7 +275,7 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
 
     expect(
       await screen.findByText(
-        "Profiles with event attendance or RSVP history must be marked Inactive instead of deleted.",
+        "This profile can't be permanently deleted. It has attendance or RSVP history that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
       ),
     ).toBeInTheDocument();
   });
