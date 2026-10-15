@@ -56,14 +56,16 @@ export function BasicsSection({
         <select
           id="events-page-type"
           onChange={(change) => {
+            const val = change.target.value;
             const type: OrganizationEventRequest["type"] =
-              change.target.value === "Performance" ? "Performance" : "Rehearsal";
+              val === "Performance" ? "Performance" : val === "Other" ? "Other" : "Rehearsal";
             handleTypeChange(type);
           }}
           value={event.type}
         >
           <option value="Rehearsal">Rehearsal</option>
           <option value="Performance">Performance</option>
+          <option value="Other">Other</option>
         </select>
       </div>
       <div className="field">

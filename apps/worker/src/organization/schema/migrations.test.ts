@@ -103,4 +103,12 @@ describe("organization schema migrations", () => {
       applyVersion(adapter, 106);
     }).not.toThrow();
   });
+
+  it("v111 migration is registered forward-only with apply hook", () => {
+    const versions = organizationSchemaMigrations.map((entry) => entry.version);
+    expect(versions).toEqual([...versions].sort((left, right) => left - right));
+    const v111 = organizationSchemaMigrations.find((entry) => entry.version === 111);
+    expect(v111?.statements).toEqual([]);
+    expect(typeof v111?.apply).toBe("function");
+  });
 });

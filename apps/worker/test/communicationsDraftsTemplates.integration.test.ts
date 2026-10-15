@@ -99,6 +99,7 @@ describe("Organization communications drafts and templates", () => {
       "Event RSVP Follow-up",
       "Event RSVP Invitation",
       "General Announcement",
+      "Other Event Reminder",
       "Performance Reminder",
       "Rehearsal Reminder",
       "Ticket Concert Reminder",
@@ -125,6 +126,7 @@ describe("Organization communications drafts and templates", () => {
       "Event RSVP Follow-up",
       "Event RSVP Invitation",
       "General Announcement",
+      "Other Event Reminder",
       "Performance Reminder",
       "Rehearsal Reminder",
       "Ticket Concert Reminder",
@@ -135,7 +137,7 @@ describe("Organization communications drafts and templates", () => {
     const systemEmailTemplates = templates.templates.filter(
       ({ channel, isSystem }) => isSystem && channel === "Email",
     );
-    expect(systemEmailTemplates).toHaveLength(17);
+    expect(systemEmailTemplates).toHaveLength(18);
     for (const systemTemplate of systemEmailTemplates) {
       expect(systemTemplate.contentMarkdown, systemTemplate.title).toMatch(/^## |\n## /);
       expect(systemTemplate.subject, systemTemplate.title).not.toMatch(/^[A-Z\s!]+:/);

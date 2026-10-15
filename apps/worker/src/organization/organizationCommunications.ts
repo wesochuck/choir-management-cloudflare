@@ -412,7 +412,7 @@ export async function queueAutomatedOrganizationCommunication(
       | {
           readonly eventId: string;
           readonly eventType: string;
-          readonly kind: "event_reminder";
+          readonly kind: "event_reminder" | "rsvp_follow_up";
         }
       | undefined;
     readonly contentMarkdown: string;

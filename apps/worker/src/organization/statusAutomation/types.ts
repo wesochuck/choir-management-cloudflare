@@ -36,7 +36,7 @@ export interface StoredPendingRsvpRow {
   readonly eventId: string;
   readonly profileId: string;
   readonly startsAt: string;
-  readonly type: "Performance" | "Rehearsal";
+  readonly type: "Performance" | "Rehearsal" | "Other";
   readonly rsvpDeadlineDate: string | null;
 }
 
@@ -44,7 +44,7 @@ export interface StoredEventRow {
   readonly durationMinutes: number | null;
   readonly isCanceled?: boolean | number;
   readonly startsAt: string;
-  readonly type: "Performance" | "Rehearsal";
+  readonly type: "Performance" | "Rehearsal" | "Other";
   readonly rsvpDeadlineDate: string | null;
 }
 

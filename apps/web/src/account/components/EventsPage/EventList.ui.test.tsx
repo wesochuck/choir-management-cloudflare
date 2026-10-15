@@ -12,7 +12,7 @@ function mockEvent(
     readonly isCanceled?: boolean;
     readonly location?: string;
     readonly publishOnWebsite?: boolean;
-    readonly type?: "Performance" | "Rehearsal";
+    readonly type?: "Performance" | "Rehearsal" | "Other";
     readonly venueId?: string | null;
   } = {},
 ): OrganizationEvent {
@@ -28,6 +28,9 @@ function mockEvent(
     isCanceled: options.isCanceled ?? false,
     isTicketingEnabled: false,
     location: options.location ?? "Main Sanctuary",
+    otherEventAudience: { type: "everyone" },
+    otherEventRsvpMode: "off",
+    otherEventStaffingGoal: null,
     parentPerformanceId: null,
     publicDetails: "",
     publicGraphicFileId: null,
@@ -329,5 +332,28 @@ describe("EventList Set list action", () => {
 
     expect(navigate).toHaveBeenCalledWith("/admin/setlists?eventId=perf-1");
     expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it("renders Other events in EventList", () => {
+    const otherEvent = mockEvent("other-1", "Fundraiser Gala", "2026-09-01T20:00:00.000Z", {
+      type: "Other",
+      venueId: "11111111-1111-4111-8111-111111111111",
+    });
+
+    render(
+      <EventList
+        events={[otherEvent]}
+        filteredEvents={[otherEvent]}
+        onArchive={vi.fn()}
+        onCancel={vi.fn()}
+        onClone={vi.fn()}
+        onEdit={vi.fn()}
+        timezone="America/New_York"
+        venues={mockVenues}
+      />,
+    );
+
+    expect(screen.getAllByText("Fundraiser Gala").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Other").length).toBeGreaterThan(0);
   });
 });

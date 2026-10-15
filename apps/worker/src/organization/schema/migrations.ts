@@ -1858,6 +1858,89 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       `ALTER TABLE scheduler_state ADD COLUMN last_trip_reason TEXT`,
     ],
   },
+  {
+    apply: (sql) => {
+      // Other Events support with staffing goals and audience configuration (issue #127).
+      // The RSVP deadline column was introduced by migration 73's apply hook, so statement-only
+      // mock runners do not have it in plain statements. Recreating events table runs in apply()
+      // where table info is introspected safely.
+      const cols = sql.exec<{ readonly name: string }>("PRAGMA table_info(events)").toArray();
+      const hasDeadline = cols.some((col) => col.name === "rsvp_deadline_date");
+      if (!hasDeadline) {
+        sql.exec("ALTER TABLE events ADD COLUMN rsvp_deadline_date TEXT");
+      }
+      sql.exec(`CREATE TABLE events_new (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        type TEXT NOT NULL CHECK (type IN ('Performance', 'Rehearsal', 'Other')),
+        starts_at TEXT NOT NULL,
+        duration_minutes INTEGER,
+        call_time TEXT NOT NULL DEFAULT '',
+        location TEXT NOT NULL DEFAULT '',
+        venue_id TEXT,
+        parent_performance_id TEXT,
+        details TEXT NOT NULL DEFAULT '',
+        set_list_json TEXT NOT NULL DEFAULT '[]',
+        set_list_approved INTEGER NOT NULL DEFAULT 0 CHECK (set_list_approved IN (0, 1)),
+        set_list_default_transition_seconds INTEGER NOT NULL DEFAULT 0 CHECK (set_list_default_transition_seconds >= 0),
+        is_archived INTEGER NOT NULL DEFAULT 0 CHECK (is_archived IN (0, 1)),
+        is_canceled INTEGER NOT NULL DEFAULT 0 CHECK (is_canceled IN (0, 1)),
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        public_details TEXT NOT NULL DEFAULT '',
+        public_graphic_file_id TEXT,
+        publish_on_website INTEGER NOT NULL DEFAULT 0 CHECK (publish_on_website IN (0, 1)),
+        is_ticketing_enabled INTEGER NOT NULL DEFAULT 0 CHECK (is_ticketing_enabled IN (0, 1)),
+        advance_price_cents INTEGER NOT NULL DEFAULT 0 CHECK (advance_price_cents >= 0),
+        day_of_price_cents INTEGER NOT NULL DEFAULT 0 CHECK (day_of_price_cents >= 0),
+        ticket_capacity INTEGER CHECK (ticket_capacity IS NULL OR ticket_capacity > 0),
+        doors_open_time TEXT NOT NULL DEFAULT '',
+        reminder_sent_at TEXT,
+        rsvp_follow_up_mode TEXT NOT NULL DEFAULT 'inherit' CHECK (rsvp_follow_up_mode IN ('inherit', 'enabled', 'disabled')),
+        rsvp_follow_up_lead_hours INTEGER CHECK (rsvp_follow_up_lead_hours IS NULL OR (rsvp_follow_up_lead_hours >= 1 AND rsvp_follow_up_lead_hours <= 720)),
+        rsvp_deadline_date TEXT,
+        other_event_rsvp_mode TEXT NOT NULL DEFAULT 'off' CHECK (other_event_rsvp_mode IN ('off', 'optional', 'response_requested')),
+        other_event_staffing_goal INTEGER CHECK (other_event_staffing_goal IS NULL OR (other_event_staffing_goal >= 1 AND other_event_staffing_goal <= 10000)),
+        other_event_audience_json TEXT NOT NULL DEFAULT '{"type":"everyone","voiceParts":[],"profileIds":[]}'
+      ) STRICT`);
+      sql.exec(`INSERT INTO events_new (
+        id, title, type, starts_at, duration_minutes, call_time, location, venue_id,
+        parent_performance_id, details, set_list_json, set_list_approved,
+        set_list_default_transition_seconds, is_archived, is_canceled, created_at, updated_at,
+        public_details, public_graphic_file_id, publish_on_website, is_ticketing_enabled,
+        advance_price_cents, day_of_price_cents, ticket_capacity, doors_open_time,
+        reminder_sent_at, rsvp_follow_up_mode, rsvp_follow_up_lead_hours, rsvp_deadline_date,
+        other_event_rsvp_mode, other_event_staffing_goal, other_event_audience_json
+      )
+      SELECT
+        id, title, type, starts_at, duration_minutes, call_time, location, venue_id,
+        parent_performance_id, details, set_list_json, set_list_approved,
+        set_list_default_transition_seconds, is_archived, is_canceled, created_at, updated_at,
+        public_details, public_graphic_file_id, publish_on_website, is_ticketing_enabled,
+        advance_price_cents, day_of_price_cents, ticket_capacity, doors_open_time,
+        reminder_sent_at, rsvp_follow_up_mode, rsvp_follow_up_lead_hours, rsvp_deadline_date,
+        'off', NULL, '{"type":"everyone","voiceParts":[],"profileIds":[]}'
+      FROM events`);
+      sql.exec("DROP TABLE events");
+      sql.exec("ALTER TABLE events_new RENAME TO events");
+      sql.exec("CREATE INDEX IF NOT EXISTS idx_events_calendar ON events(is_archived, starts_at)");
+      sql.exec(
+        "CREATE INDEX IF NOT EXISTS idx_events_public_website ON events(publish_on_website, is_archived, type, starts_at DESC, id DESC)",
+      );
+      sql.exec(
+        "CREATE INDEX IF NOT EXISTS idx_events_active_calendar ON events(is_archived, is_canceled, starts_at)",
+      );
+      sql.exec(
+        "CREATE INDEX IF NOT EXISTS idx_events_active_rehearsals_parent ON events(parent_performance_id, is_archived, is_canceled, id) WHERE parent_performance_id IS NOT NULL",
+      );
+      sql.exec(
+        "CREATE INDEX IF NOT EXISTS idx_events_active_rsvp_deadline ON events(rsvp_deadline_date, starts_at, id) WHERE rsvp_deadline_date IS NOT NULL",
+      );
+      seedScheduledEventSystemCommunicationTemplates(sql);
+    },
+    statements: [],
+    version: 111,
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

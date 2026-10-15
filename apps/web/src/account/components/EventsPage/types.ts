@@ -13,4 +13,4 @@ export type EventsState =
       readonly venues: readonly OrganizationVenue[];
     };
 
-export type EventTab = "all" | "performances" | "rehearsals";
+export type EventTab = "all" | "performances" | "rehearsals" | "other";

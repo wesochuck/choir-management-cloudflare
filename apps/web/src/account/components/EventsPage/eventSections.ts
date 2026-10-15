@@ -47,6 +47,7 @@ export function visibleEditorSections(
   type: OrganizationEventRequest["type"],
 ): readonly EventEditorSection[] {
   if (type === "Rehearsal") return ["basics", "schedule", "public"];
+  if (type === "Other") return ["basics", "schedule", "rsvp"];
   return EVENT_EDITOR_SECTIONS;
 }
 
@@ -90,7 +91,7 @@ function venueErrors(event: OrganizationEventRequest, state: EventsState): strin
 }
 
 function parentErrors(event: OrganizationEventRequest, state: EventsState): string[] {
-  if (event.type === "Performance" && event.parentPerformanceId !== null) {
+  if (event.type !== "Rehearsal" && event.parentPerformanceId !== null) {
     return ["A parent performance can only be selected for a rehearsal."];
   }
   if (event.type !== "Rehearsal" || event.parentPerformanceId === null) return [];
@@ -150,6 +151,29 @@ function rsvpRehearsalErrors(event: OrganizationEventRequest): string[] {
   return errors;
 }
 
+function rsvpOtherErrors(event: OrganizationEventRequest): string[] {
+  const errors: string[] = [];
+  if (event.otherEventStaffingGoal !== null && event.otherEventStaffingGoal !== undefined) {
+    if (event.otherEventRsvpMode === "off") {
+      errors.push("A staffing goal requires RSVP to be optional or response requested.");
+    } else if (
+      !Number.isInteger(event.otherEventStaffingGoal) ||
+      event.otherEventStaffingGoal < 1 ||
+      event.otherEventStaffingGoal > 10_000
+    ) {
+      errors.push("Staffing goal must be a positive whole number.");
+    }
+  }
+  if (event.otherEventAudience?.type === "targeted") {
+    const hasVoice = (event.otherEventAudience.voiceParts?.length ?? 0) > 0;
+    const hasProfile = (event.otherEventAudience.profileIds?.length ?? 0) > 0;
+    if (!hasVoice && !hasProfile) {
+      errors.push("Select at least one voice part or singer for a targeted audience.");
+    }
+  }
+  return errors;
+}
+
 function ticketsErrors(event: OrganizationEventRequest): string[] {
   const errors: string[] = [];
   if (event.type === "Performance" && event.isTicketingEnabled) {
@@ -200,7 +224,12 @@ export function computeSectionErrors(options: {
   return {
     basics: basicsErrors(event),
     public: publicErrors(event, graphicError),
-    rsvp: event.type === "Performance" ? rsvpPerformanceErrors(event) : rsvpRehearsalErrors(event),
+    rsvp:
+      event.type === "Performance"
+        ? rsvpPerformanceErrors(event)
+        : event.type === "Other"
+          ? rsvpOtherErrors(event)
+          : rsvpRehearsalErrors(event),
     schedule: scheduleErrors(event, eventStart, state),
     tickets: ticketsErrors(event),
   };
@@ -264,6 +293,9 @@ export function firstInvalidFieldId(
         (event.rsvpDeadlineDate === null || event.rsvpDeadlineDate === "")
       ) {
         return "events-page-rsvp-deadline";
+      }
+      if (event.type === "Other") {
+        return "events-page-other-rsvp-mode";
       }
       if (event.rsvpFollowUpMode === "enabled") return "events-page-rsvp-follow-up-hours";
       return "events-page-rsvp-follow-up-mode";

@@ -293,4 +293,101 @@ describe("MySchedule event details and seating link (#192)", () => {
       window.history.pushState({}, "", "/schedule");
     }
   });
+
+  it("handles Other events with mode off as informational only", async () => {
+    const offEvent = createSampleEvent({
+      id: "other-off-1",
+      otherEventRsvpMode: "off",
+      title: "Board Meeting Info",
+      type: "Other",
+    });
+
+    vi.mocked(getMySchedule).mockResolvedValueOnce({
+      events: [offEvent],
+      profileId: "00000000-0000-4000-8000-000000000001",
+      requestId: "req-test-1",
+      timezone: "America/New_York",
+    });
+
+    render(<MySchedule enabled />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Board Meeting Info")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("button", { name: "Yes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "No" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "I can help" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Attending")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pending")).not.toBeInTheDocument();
+  });
+
+  it("handles Other event volunteering with 'I can help' and 'Withdraw' and tracks staffing goals", async () => {
+    const user = userEvent.setup();
+    const volunteerEvent = createSampleEvent({
+      id: "other-vol-1",
+      otherEventRsvpMode: "optional",
+      resolvedRsvp: "Pending",
+      title: "Gala Setup Helpers",
+      type: "Other",
+      volunteerCount: 3,
+      volunteerGoal: 5,
+    });
+
+    vi.mocked(getMySchedule).mockResolvedValue({
+      events: [volunteerEvent],
+      profileId: "00000000-0000-4000-8000-000000000001",
+      requestId: "req-test-1",
+      timezone: "America/New_York",
+    });
+    vi.mocked(setMyEventRsvp).mockResolvedValueOnce({
+      eventId: "other-vol-1",
+      profileId: "00000000-0000-4000-8000-000000000001",
+      rsvp: "Yes",
+      rsvpNote: "",
+      updatedAt: "2026-08-01T00:00:00Z",
+    });
+
+    render(<MySchedule enabled />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Gala Setup Helpers")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("3 of 5 helpers committed — 2 more needed")).toBeInTheDocument();
+    const helpButton = screen.getByRole("button", { name: "I can help" });
+    expect(helpButton).toBeInTheDocument();
+
+    await user.click(helpButton);
+    expect(setMyEventRsvp).toHaveBeenCalledWith("other-vol-1", "Yes", "");
+  });
+
+  it("shows 'Minimum reached' progress and 'Withdraw' button when helper is committed", async () => {
+    const committedEvent = createSampleEvent({
+      id: "other-vol-2",
+      otherEventRsvpMode: "optional",
+      resolvedRsvp: "Yes",
+      title: "Stage Crew",
+      type: "Other",
+      volunteerCount: 5,
+      volunteerGoal: 5,
+    });
+
+    vi.mocked(getMySchedule).mockResolvedValueOnce({
+      events: [committedEvent],
+      profileId: "00000000-0000-4000-8000-000000000001",
+      requestId: "req-test-1",
+      timezone: "America/New_York",
+    });
+
+    render(<MySchedule enabled />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Stage Crew")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Minimum reached: 5 helpers committed")).toBeInTheDocument();
+    expect(screen.getByText("Committed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Withdraw" })).toBeInTheDocument();
+  });
 });

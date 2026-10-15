@@ -23,7 +23,7 @@ export const organizationDashboardEventSchema = z.object({
   id: z.uuid(),
   startsAt: z.iso.datetime(),
   title: z.string().min(1).max(500),
-  type: z.enum(["Performance", "Rehearsal"]),
+  type: z.enum(["Performance", "Rehearsal", "Other"]),
 });
 
 export const organizationDashboardSummaryResponseSchema = z.object({
@@ -223,6 +223,12 @@ export const singerEventSchema = z.object({
     })
     .default({ sourceEventId: null, status: "not_published", trackCount: 0 }),
   resolvedRsvp: z.enum(["Yes", "No", "Pending"]),
+  isInvited: z.boolean().default(false).optional(),
+  otherEventRsvpMode: z
+    .enum(["off", "optional", "response_requested"])
+    .nullable()
+    .default(null)
+    .optional(),
   rsvpDeadlineAt: z.iso.datetime().nullable(),
   rsvpDeadlineDate: z.string().nullable(),
   rsvpDeadlinePassed: z.boolean(),
@@ -236,9 +242,11 @@ export const singerEventSchema = z.object({
   setList: z.array(organizationSetListItemSchema).max(200).default([]),
   startsAt: z.iso.datetime(),
   title: z.string().min(1).max(500),
-  type: z.enum(["Performance", "Rehearsal"]),
+  type: z.enum(["Performance", "Rehearsal", "Other"]),
   venueAddress: z.string().max(2_000),
   venueName: z.string().max(500),
+  volunteerCount: z.number().int().nonnegative().default(0).optional(),
+  volunteerGoal: z.number().int().positive().nullable().default(null).optional(),
 });
 
 export const singerEventsResponseSchema = z.object({

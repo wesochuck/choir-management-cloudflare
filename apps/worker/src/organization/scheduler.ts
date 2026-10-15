@@ -364,6 +364,7 @@ interface RsvpFollowUpCandidateRow {
   readonly rsvpDeadlineDate: string | null;
   readonly rsvpFollowUpLeadHours: number | null;
   readonly rsvpFollowUpMode: "disabled" | "enabled" | "inherit";
+  readonly type: string;
 }
 
 function readOrganizationTimezone(storage: DurableObjectStorage): string {
@@ -385,18 +386,33 @@ function createRsvpFollowUpJobs(
   const candidates = storage.sql
     .exec<RsvpFollowUpCandidateRow>(
       `SELECT id AS eventId, starts_at AS eventStartsAt,
+         type,
          rsvp_follow_up_mode AS rsvpFollowUpMode,
          rsvp_follow_up_lead_hours AS rsvpFollowUpLeadHours,
          rsvp_deadline_date AS rsvpDeadlineDate
        FROM events
-       WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
+       WHERE is_archived = 0 AND is_canceled = 0
          AND starts_at > ?
+         AND (
+           type = 'Performance'
+           OR (type = 'Other' AND other_event_rsvp_mode = 'response_requested' AND rsvp_follow_up_mode = 'enabled')
+         )
        ORDER BY starts_at, id LIMIT 500`,
       now.toISOString(),
     )
     .toArray();
   for (const candidate of candidates) {
-    const schedule = rsvpFollowUpSchedule(candidate, configuration, timezone);
+    const schedule = rsvpFollowUpSchedule(
+      {
+        rsvpDeadlineDate: candidate.rsvpDeadlineDate,
+        rsvpFollowUpLeadHours: candidate.rsvpFollowUpLeadHours,
+        rsvpFollowUpMode: candidate.rsvpFollowUpMode,
+        startsAt: candidate.eventStartsAt,
+        type: candidate.type,
+      },
+      configuration,
+      timezone,
+    );
     if (!schedule || schedule.deadlineAt <= now.getTime() || schedule.dueAt > now.getTime())
       continue;
     const idempotencyKey = `rsvp-follow-up:${organizationId}:${candidate.eventId}`;
@@ -436,6 +452,7 @@ function createEventReminderJobs(
       `SELECT id AS eventId, title AS eventTitle, type AS eventType, starts_at AS eventStartsAt
        FROM events
        WHERE is_archived = 0 AND is_canceled = 0
+         AND (type <> 'Other' OR other_event_rsvp_mode <> 'off')
          AND reminder_sent_at IS NULL
          AND starts_at > ?
          AND starts_at <= ?

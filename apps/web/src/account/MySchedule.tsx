@@ -51,7 +51,74 @@ function performerCredit(
   return `Featured: ${credits.join(", ")}`;
 }
 
-function ScheduleRsvpButtons({
+function OtherEventProgressLine({
+  volunteerCount,
+  volunteerGoal,
+}: {
+  readonly volunteerCount?: number | undefined;
+  readonly volunteerGoal?: number | null | undefined;
+}) {
+  if (!volunteerGoal || volunteerGoal <= 0) return null;
+  const count = volunteerCount ?? 0;
+  if (count >= volunteerGoal) {
+    return (
+      <p className="schedule-card__staffing-progress notice notice--success" role="status">
+        Minimum reached: {String(count)} {count === 1 ? "helper" : "helpers"} committed
+      </p>
+    );
+  }
+  const needed = volunteerGoal - count;
+  return (
+    <p className="schedule-card__staffing-progress notice notice--info" role="status">
+      {String(count)} of {String(volunteerGoal)} helpers committed — {String(needed)} more needed
+    </p>
+  );
+}
+
+function ScheduleVolunteerRsvpButtons({
+  busy,
+  event,
+  onRsvp,
+  pendingStatus,
+}: {
+  readonly busy: boolean;
+  readonly event: SingerEvent;
+  readonly onRsvp: (event: SingerEvent, rsvp: "No" | "Yes") => void;
+  readonly pendingStatus?: "No" | "Yes" | null | undefined;
+}) {
+  const isHelping = event.resolvedRsvp === "Yes";
+  return (
+    <div className="schedule-rsvp__buttons">
+      {isHelping ? (
+        <button
+          aria-busy={busy && pendingStatus === "No"}
+          className="button button--secondary"
+          disabled={busy || !event.rsvpSelfServiceOpen}
+          onClick={() => {
+            onRsvp(event, "No");
+          }}
+          type="button"
+        >
+          {busy && pendingStatus === "No" ? "Saving…" : "Withdraw"}
+        </button>
+      ) : (
+        <button
+          aria-busy={busy && pendingStatus === "Yes"}
+          className="button button--primary"
+          disabled={busy || !event.rsvpSelfServiceOpen}
+          onClick={() => {
+            onRsvp(event, "Yes");
+          }}
+          type="button"
+        >
+          {busy && pendingStatus === "Yes" ? "Saving…" : "I can help"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ScheduleStandardRsvpButtons({
   busy,
   event,
   onDeclineRehearsal,
@@ -99,7 +166,30 @@ function ScheduleRsvpButtons({
   );
 }
 
+function ScheduleRsvpButtons(props: {
+  readonly busy: boolean;
+  readonly event: SingerEvent;
+  readonly onDeclineRehearsal: (event: SingerEvent) => void;
+  readonly onRsvp: (event: SingerEvent, rsvp: "No" | "Yes") => void;
+  readonly pendingStatus?: "No" | "Yes" | null | undefined;
+}) {
+  const { event } = props;
+  if (event.type === "Other") {
+    if (event.otherEventRsvpMode === "off") {
+      return null;
+    }
+    if (event.otherEventRsvpMode === "optional" || !event.isInvited) {
+      return <ScheduleVolunteerRsvpButtons {...props} />;
+    }
+  }
+
+  return <ScheduleStandardRsvpButtons {...props} />;
+}
+
 function ScheduleRsvpFooter({ event }: { readonly event: SingerEvent }) {
+  if (event.type === "Other" && event.otherEventRsvpMode === "off") {
+    return null;
+  }
   return (
     <>
       {event.inheritedFromParent ? (
@@ -307,6 +397,39 @@ function ScheduleEventAccordion({
   );
 }
 
+function ScheduleCardBadges({
+  event,
+  isOtherOff,
+  isVolunteerMode,
+}: {
+  readonly event: SingerEvent;
+  readonly isOtherOff: boolean;
+  readonly isVolunteerMode: boolean;
+}) {
+  if (isOtherOff) return null;
+  if (isVolunteerMode) {
+    if (event.resolvedRsvp === "Yes") {
+      return (
+        <span className="rsvp-status-badge schedule-card__badge rsvp-status-badge--Yes">
+          Committed
+        </span>
+      );
+    }
+    return null;
+  }
+  return (
+    <span
+      className={`rsvp-status-badge schedule-card__badge rsvp-status-badge--${event.resolvedRsvp}`}
+    >
+      {event.resolvedRsvp === "Yes"
+        ? "Attending"
+        : event.resolvedRsvp === "No"
+          ? "Declined"
+          : "Pending"}
+    </span>
+  );
+}
+
 function ScheduleEventCard({
   busy,
   event,
@@ -329,6 +452,13 @@ function ScheduleEventCard({
   readonly timezone: string;
 }) {
   const location = eventLocation(event);
+  const isOther = event.type === "Other";
+  const isOtherOff = isOther && event.otherEventRsvpMode === "off";
+  const isVolunteerMode =
+    isOther &&
+    (event.otherEventRsvpMode === "optional" ||
+      (event.otherEventRsvpMode === "response_requested" && !event.isInvited));
+
   return (
     <li className="schedule-card-item" key={event.id}>
       <fieldset className="schedule-card schedule-rsvp">
@@ -340,15 +470,11 @@ function ScheduleEventCard({
                 Inherited: {event.resolvedRsvp}
               </span>
             ) : null}
-            <span
-              className={`rsvp-status-badge schedule-card__badge rsvp-status-badge--${event.resolvedRsvp}`}
-            >
-              {event.resolvedRsvp === "Yes"
-                ? "Attending"
-                : event.resolvedRsvp === "No"
-                  ? "Declined"
-                  : "Pending"}
-            </span>
+            <ScheduleCardBadges
+              event={event}
+              isOtherOff={isOtherOff}
+              isVolunteerMode={isVolunteerMode}
+            />
           </div>
         </legend>
 
@@ -363,6 +489,13 @@ function ScheduleEventCard({
         <div className="schedule-card__details">
           <span>{location || "Location to be announced"}</span>
         </div>
+
+        {isOther ? (
+          <OtherEventProgressLine
+            volunteerCount={event.volunteerCount}
+            volunteerGoal={event.volunteerGoal}
+          />
+        ) : null}
 
         <ScheduleEventDeadline event={event} timezone={timezone} />
 
