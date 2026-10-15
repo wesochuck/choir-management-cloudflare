@@ -735,6 +735,22 @@ function CommunityChoirsSection() {
 /* Page                                                               */
 /* ------------------------------------------------------------------ */
 
+function PlatformFooter() {
+  return (
+    <footer aria-label="Platform information" className="platform-footer">
+      <div className="platform-footer__content">
+        <p className="platform-footer__copyright">
+          © {new Date().getUTCFullYear()} Choir Management
+        </p>
+        <nav aria-label="Legal and support" className="platform-footer__links">
+          <a href="/privacy">Privacy Policy</a>
+          <a href="mailto:support@musicsite.org">Support</a>
+        </nav>
+      </div>
+    </footer>
+  );
+}
+
 export function PlatformHomeView({ signedIn }: PlatformHomeViewProps) {
   return (
     <main className="platform-home">
@@ -744,6 +760,7 @@ export function PlatformHomeView({ signedIn }: PlatformHomeViewProps) {
       <SigningInSection signedIn={signedIn} />
       <PerformancesSection />
       <CommunityChoirsSection />
+      <PlatformFooter />
     </main>
   );
 }
