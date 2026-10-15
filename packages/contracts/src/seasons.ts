@@ -39,6 +39,7 @@ export const duesRecordSchema = z.object({
   profileId: z.uuid(),
   refundRequested: z.boolean().default(false),
   seasonId: z.uuid(),
+  sharedCheckout: z.boolean().default(false),
   status: duesStatusSchema,
   updatedAt: z.iso.datetime(),
 });
@@ -55,6 +56,8 @@ export const duesCheckoutRequestSchema = z.object({
 });
 
 export const duesCashPaymentRequestSchema = z.object({
+  cancelPendingOnlineCheckout: z.boolean().optional(),
+  expectedDuesId: z.uuid().optional(),
   profileId: z.uuid(),
   seasonId: z.uuid(),
 });

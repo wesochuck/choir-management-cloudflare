@@ -6,8 +6,9 @@ import {
 import { runInDurableObject } from "cloudflare:test";
 import { exports } from "cloudflare:workers";
 import { requestOrganizationProviderRefund } from "../src/payments/refundRequest";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
+import * as stripeCheckout from "../src/payments/stripeCheckout";
 import {
   setupTicketingIntegration,
   teardownTicketingIntegration,
@@ -16,6 +17,7 @@ import {
   jsonWrite,
   signIn,
   api,
+  env,
 } from "./ticketing.integration.fixture";
 beforeEach(async () => setupTicketingIntegration());
 afterEach(async () => teardownTicketingIntegration());
@@ -1233,5 +1235,468 @@ describe("Organization dues and ticket payment transitions", () => {
       cookie,
     );
     expect(memberAttempt.status).toBe(403);
+  });
+
+  it("converts an in-progress single-profile dues checkout to cash and cancels pending online checkout", async () => {
+    const cookie = await signIn();
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const profileId = crypto.randomUUID();
+    const seasonId = crypto.randomUUID();
+    const duesId = crypto.randomUUID();
+    const checkoutRequestId = crypto.randomUUID();
+    const providerSessionId = `pending_conv_${duesId}`;
+    const now = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 86_400_000).toISOString();
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Convert Dues Member', ?, ?)`,
+        profileId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Convert Dues Season', ?, ?, 4500, ?, ?)`,
+        seasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO dues
+          (id, season_id, profile_id, amount_cents, fee_cents, provider_session_id,
+           provider_payment_id, payer_email, status, payment_method, paid_at, created_at, updated_at)
+         VALUES (?, ?, ?, 4500, 161, ?, '', '', 'pending', 'online', NULL, ?, ?)`,
+        duesId,
+        seasonId,
+        profileId,
+        providerSessionId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO payment_attempts
+          (id, payment_type, resource_id, checkout_request_id, provider_session_id,
+           provider_payment_id, status, amount_cents, created_at, updated_at)
+         VALUES (?, 'dues', ?, ?, ?, '', 'pending', 4661, ?, ?)`,
+        crypto.randomUUID(),
+        duesId,
+        checkoutRequestId,
+        providerSessionId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO dues_expirations (dues_id, stripe_event_id, expired_at)
+         VALUES (?, '', ?)`,
+        duesId,
+        expiresAt,
+      );
+    });
+
+    // 1. Without cancelPendingOnlineCheckout, rejects with 409 dues_checkout_in_progress
+    const inProgress = await jsonWrite(
+      "alpha.localhost",
+      "/api/organization/dues/cash",
+      "POST",
+      { profileId, seasonId },
+      cookie,
+    );
+    expect(inProgress.status).toBe(409);
+    expect(await inProgress.json()).toMatchObject({ code: "dues_checkout_in_progress" });
+
+    // 2. With mismatched expectedDuesId, rejects with 409 dues_state_conflict
+    const conflict = await jsonWrite(
+      "alpha.localhost",
+      "/api/organization/dues/cash",
+      "POST",
+      {
+        cancelPendingOnlineCheckout: true,
+        expectedDuesId: crypto.randomUUID(),
+        profileId,
+        seasonId,
+      },
+      cookie,
+    );
+    expect(conflict.status).toBe(409);
+    expect(await conflict.json()).toMatchObject({ code: "dues_state_conflict" });
+
+    // 3. With cancelPendingOnlineCheckout and matching expectedDuesId, succeeds
+    const converted = await jsonWrite(
+      "alpha.localhost",
+      "/api/organization/dues/cash",
+      "POST",
+      {
+        cancelPendingOnlineCheckout: true,
+        expectedDuesId: duesId,
+        profileId,
+        seasonId,
+      },
+      cookie,
+    );
+    expect(converted.status).toBe(200);
+    const convertedRecord = duesRecordSchema.parse(await converted.json());
+    expect(convertedRecord).toMatchObject({
+      amountCents: 4500,
+      feeCents: 0,
+      id: duesId,
+      paymentMethod: "cash",
+      profileId,
+      seasonId,
+      status: "paid",
+    });
+
+    // 4. Verify durable store state
+    await expect(
+      runInDurableObject<
+        OrganizationStore,
+        {
+          readonly duesFeeCents: number;
+          readonly duesMethod: string;
+          readonly duesStatus: string;
+          readonly expirationsCount: number;
+          readonly paidAt: string | null;
+          readonly paExpiredAt: string | null;
+          readonly paStatus: string;
+        }
+      >(stub, (_instance, state) => {
+        const dues = state.storage.sql
+          .exec<{
+            readonly duesFeeCents: number;
+            readonly duesMethod: string;
+            readonly duesStatus: string;
+            readonly paidAt: string | null;
+          }>(
+            `SELECT status AS duesStatus, payment_method AS duesMethod,
+                    fee_cents AS duesFeeCents, paid_at AS paidAt
+             FROM dues WHERE id = ?`,
+            duesId,
+          )
+          .one();
+        const pa = state.storage.sql
+          .exec<{ readonly paExpiredAt: string | null; readonly paStatus: string }>(
+            `SELECT status AS paStatus, expired_at AS paExpiredAt
+             FROM payment_attempts WHERE resource_id = ?`,
+            duesId,
+          )
+          .one();
+        const expirations = state.storage.sql
+          .exec<{ readonly expirationsCount: number }>(
+            "SELECT COUNT(*) AS expirationsCount FROM dues_expirations WHERE dues_id = ?",
+            duesId,
+          )
+          .one();
+        return { ...dues, ...pa, ...expirations };
+      }),
+    ).resolves.toMatchObject({
+      duesFeeCents: 0,
+      duesMethod: "cash",
+      duesStatus: "paid",
+      expirationsCount: 0,
+      paStatus: "expired",
+    });
+
+    // 5. Verify audit event
+    await expect(
+      runInDurableObject<
+        OrganizationStore,
+        { readonly action: string; readonly changeSummary: string }
+      >(stub, (_instance, state) =>
+        state.storage.sql
+          .exec<{ readonly action: string; readonly changeSummary: string }>(
+            "SELECT action, change_summary AS changeSummary FROM audit_events WHERE action = 'dues.converted_to_cash'",
+          )
+          .one(),
+      ),
+    ).resolves.toMatchObject({
+      action: "dues.converted_to_cash",
+    });
+  });
+
+  it("blocks converting an individual dues checkout that is part of a shared group checkout", async () => {
+    const cookie = await signIn();
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const profileId1 = crypto.randomUUID();
+    const profileId2 = crypto.randomUUID();
+    const seasonId = crypto.randomUUID();
+    const duesId1 = crypto.randomUUID();
+    const duesId2 = crypto.randomUUID();
+    const sharedSessionId = `pending_shared_${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Shared One', ?, ?), (?, 'Shared Two', ?, ?)`,
+        profileId1,
+        now,
+        now,
+        profileId2,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Shared Group Season', ?, ?, 5000, ?, ?)`,
+        seasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO dues
+          (id, season_id, profile_id, amount_cents, fee_cents, provider_session_id,
+           provider_payment_id, payer_email, status, payment_method, paid_at, created_at, updated_at)
+         VALUES (?, ?, ?, 5000, 150, ?, '', '', 'pending', 'online', NULL, ?, ?),
+                (?, ?, ?, 5000, 150, ?, '', '', 'pending', 'online', NULL, ?, ?)`,
+        duesId1,
+        seasonId,
+        profileId1,
+        sharedSessionId,
+        now,
+        now,
+        duesId2,
+        seasonId,
+        profileId2,
+        sharedSessionId,
+        now,
+        now,
+      );
+    });
+
+    const attempt = await jsonWrite(
+      "alpha.localhost",
+      "/api/organization/dues/cash",
+      "POST",
+      {
+        cancelPendingOnlineCheckout: true,
+        expectedDuesId: duesId1,
+        profileId: profileId1,
+        seasonId,
+      },
+      cookie,
+    );
+    expect(attempt.status).toBe(409);
+    expect(await attempt.json()).toMatchObject({ code: "dues_shared_checkout" });
+  });
+
+  it("verifies and expires live Stripe checkout session or rejects if already paid", async () => {
+    const cookie = await signIn();
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const profileId = crypto.randomUUID();
+    const seasonId = crypto.randomUUID();
+    const duesId = crypto.randomUUID();
+    const stripeSessionId = `cs_test_convert_${duesId}`;
+    const now = new Date().toISOString();
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Stripe Convert Member', ?, ?)`,
+        profileId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Stripe Convert Season', ?, ?, 4000, ?, ?)`,
+        seasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO dues
+          (id, season_id, profile_id, amount_cents, fee_cents, provider_session_id,
+           provider_payment_id, payer_email, status, payment_method, paid_at, created_at, updated_at)
+         VALUES (?, ?, ?, 4000, 146, ?, '', '', 'pending', 'online', NULL, ?, ?)`,
+        duesId,
+        seasonId,
+        profileId,
+        stripeSessionId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO stripe_connect_accounts
+          (organization_id, account_id, status, details_submitted, charges_enabled, payouts_enabled, requirements_due_json, created_at, updated_at)
+         VALUES ('organization-alpha', 'acct_1234567890', 'ready', 1, 1, 1, '[]', ?, ?)`,
+        now,
+        now,
+      );
+    });
+
+    const previousSecretKey = Reflect.get(env, "STRIPE_SECRET_KEY");
+    Reflect.set(env, "STRIPE_SECRET_KEY", "sk_test_fake_secret");
+
+    const retrieveSpy = vi.spyOn(stripeCheckout, "retrieveStripeCheckoutReconciliationSession");
+    const expireSpy = vi.spyOn(stripeCheckout, "expireStripeCheckoutSession");
+
+    try {
+      // Case 1: Stripe reports session is already paid
+      retrieveSpy.mockResolvedValueOnce({
+        amountTotalCents: 4146,
+        currency: "usd",
+        id: stripeSessionId,
+        metadata: {},
+        mode: "payment",
+        paymentIntentId: "pi_already_paid",
+        paymentStatus: "paid",
+        status: "complete",
+      });
+
+      const alreadyPaid = await jsonWrite(
+        "alpha.localhost",
+        "/api/organization/dues/cash",
+        "POST",
+        {
+          cancelPendingOnlineCheckout: true,
+          expectedDuesId: duesId,
+          profileId,
+          seasonId,
+        },
+        cookie,
+      );
+      expect(alreadyPaid.status).toBe(409);
+      expect(await alreadyPaid.json()).toMatchObject({ code: "dues_already_paid" });
+      expect(expireSpy).not.toHaveBeenCalled();
+
+      // Case 2: Stripe reports session is open and unpaid -> expires session and converts to cash
+      retrieveSpy.mockResolvedValueOnce({
+        amountTotalCents: 4146,
+        currency: "usd",
+        id: stripeSessionId,
+        metadata: {},
+        mode: "payment",
+        paymentIntentId: null,
+        paymentStatus: "unpaid",
+        status: "open",
+      });
+      expireSpy.mockResolvedValueOnce({
+        amountTotalCents: 4146,
+        currency: "usd",
+        id: stripeSessionId,
+        metadata: {},
+        mode: "payment",
+        paymentIntentId: null,
+        paymentStatus: "unpaid",
+        status: "expired",
+      });
+
+      const success = await jsonWrite(
+        "alpha.localhost",
+        "/api/organization/dues/cash",
+        "POST",
+        {
+          cancelPendingOnlineCheckout: true,
+          expectedDuesId: duesId,
+          profileId,
+          seasonId,
+        },
+        cookie,
+      );
+      expect(success.status).toBe(200);
+      expect(expireSpy).toHaveBeenCalledWith(
+        "sk_test_fake_secret",
+        "acct_1234567890",
+        stripeSessionId,
+      );
+    } finally {
+      Reflect.set(env, "STRIPE_SECRET_KEY", previousSecretKey);
+      retrieveSpy.mockRestore();
+      expireSpy.mockRestore();
+    }
+  });
+
+  it("records duplicate payment audit event when a completed Stripe webhook arrives after dues were converted to cash", async () => {
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const profileId = crypto.randomUUID();
+    const seasonId = crypto.randomUUID();
+    const duesId = crypto.randomUUID();
+    const checkoutRequestId = crypto.randomUUID();
+    const providerSessionId = `cs_late_race_${duesId}`;
+    const now = new Date().toISOString();
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, created_at, updated_at)
+         VALUES (?, 'Late Webhook Member', ?, ?)`,
+        profileId,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO seasons
+          (id, name, starts_at, ends_at, dues_amount_cents, created_at, updated_at)
+         VALUES (?, 'Late Webhook Season', ?, ?, 4000, ?, ?)`,
+        seasonId,
+        now,
+        new Date(Date.now() + 86_400_000).toISOString(),
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO dues
+          (id, season_id, profile_id, amount_cents, fee_cents, provider_session_id,
+           provider_payment_id, payer_email, status, payment_method, paid_at, created_at, updated_at)
+         VALUES (?, ?, ?, 4000, 0, ?, '', '', 'paid', 'cash', ?, ?, ?)`,
+        duesId,
+        seasonId,
+        profileId,
+        providerSessionId,
+        now,
+        now,
+        now,
+      );
+    });
+
+    const completed = await stub.fetch("https://organization.internal/internal/seasons/manage", {
+      body: JSON.stringify({
+        action: "stripe_dues_completed",
+        checkoutRequestId,
+        organizationId: "organization-alpha",
+        providerPaymentId: `pi_late_${duesId}`,
+        providerSessionId,
+        stripeEventId: crypto.randomUUID(),
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(completed.status).toBe(200);
+
+    // Verify dues record remained cash and paid
+    await expect(
+      runInDurableObject<OrganizationStore, { readonly method: string; readonly status: string }>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly method: string; readonly status: string }>(
+              "SELECT status, payment_method AS method FROM dues WHERE id = ?",
+              duesId,
+            )
+            .one(),
+      ),
+    ).resolves.toEqual({ method: "cash", status: "paid" });
+
+    // Verify dues.duplicate_payment_detected was recorded in audit_events
+    await expect(
+      runInDurableObject<OrganizationStore, number>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly count: number }>(
+              "SELECT COUNT(*) AS count FROM audit_events WHERE action = 'dues.duplicate_payment_detected'",
+            )
+            .one().count,
+      ),
+    ).resolves.toBe(1);
   });
 });

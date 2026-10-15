@@ -34,7 +34,9 @@ function seasonDate(season: Season): string {
 
 function statusLabel(record: DuesRecord | undefined): string {
   if (!record) return "Not paid";
-  if (record.status === "paid") return "Paid";
+  if (record.status === "paid") {
+    return record.paymentMethod === "cash" ? "Paid · Cash" : "Paid";
+  }
   if (record.status === "refunded") return "Refunded";
   if (record.status === "expired") return "Checkout expired";
   return "Payment processing";

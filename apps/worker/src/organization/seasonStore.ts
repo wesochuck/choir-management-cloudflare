@@ -14,6 +14,7 @@ import { identity } from "./seasonStore/shared";
 export {
   listDuesFromStore,
   listSeasonsFromStore,
+  readDuesTargetFromStore,
   readMemberActiveSeasonFromStore,
 } from "./seasonStore/queries";
 

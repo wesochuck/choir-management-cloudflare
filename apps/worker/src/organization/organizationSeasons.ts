@@ -9,6 +9,7 @@ import {
   seasonSchema,
   seasonUpdateRequestSchema,
   seasonsResponseSchema,
+  type DuesCashPaymentRequest,
   type DuesCheckoutRequest,
   type DuesRecord,
   type Season,
@@ -19,11 +20,20 @@ import { transactionProcessingFeeCents } from "@choir/domain";
 import { z } from "zod";
 
 import type { Env } from "../env";
-import { createStripeCheckoutSession, StripeCheckoutError } from "../payments/stripeConnect";
+import {
+  createStripeCheckoutSession,
+  expireStripeCheckoutSession,
+  retrieveStripeCheckoutReconciliationSession,
+  StripeCheckoutError,
+} from "../payments/stripeConnect";
 import { ticketCheckoutMode } from "../payments/ticketCheckout";
 import { readOrganizationPaymentActivations } from "./organizationPaymentSettings";
 import { PaymentRefundError, requestOrganizationProviderRefund } from "../payments/refundRequest";
-import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
+import {
+  invokeOrganizationRpc,
+  organizationStoreStub,
+  type OrganizationStoreStub,
+} from "./rpc/client";
 import { mutateOrganizationStore, readOrganizationStore, storeErrorCode } from "./rpc/repository";
 
 interface ActorContext {
@@ -478,11 +488,179 @@ export async function refundDues(
   return duesRecordSchema.parse(await response.json());
 }
 
+async function verifyAndExpireStripeSession(
+  secretKey: string,
+  connectedAccountId: string,
+  sessionId: string,
+): Promise<void> {
+  const session = await retrieveStripeCheckoutReconciliationSession(
+    secretKey,
+    connectedAccountId,
+    sessionId,
+  );
+  if (session.paymentStatus === "paid") {
+    throw new SeasonError(
+      "dues_already_paid",
+      409,
+      "This dues checkout was completed and paid online.",
+    );
+  }
+  if (session.status === "open") {
+    const expiredSession = await expireStripeCheckoutSession(
+      secretKey,
+      connectedAccountId,
+      sessionId,
+    );
+    if (expiredSession.status !== "expired" || expiredSession.paymentStatus === "paid") {
+      throw new SeasonError(
+        "dues_cancellation_failed",
+        409,
+        "Stripe checkout session could not be cancelled.",
+      );
+    }
+  } else if (session.status !== "expired") {
+    throw new SeasonError(
+      "dues_cancellation_failed",
+      409,
+      `Stripe checkout session status is ${session.status ?? "unknown"}, cannot cancel.`,
+    );
+  }
+}
+
+const duesTargetSchema = z.object({
+  createdAt: z.string(),
+  id: z.uuid(),
+  paymentMethod: z.enum(["cash", "online"]),
+  providerSessionId: z.string(),
+  sharedCheckout: z.boolean(),
+  status: z.enum(["expired", "paid", "pending", "refunded"]),
+});
+
+type DuesTarget = z.infer<typeof duesTargetSchema>;
+
+async function expireConnectedStripeSession(
+  env: Pick<Env, "STRIPE_SECRET_KEY">,
+  stub: OrganizationStoreStub,
+  organizationId: string,
+  sessionId: string,
+): Promise<void> {
+  const secretKey = env.STRIPE_SECRET_KEY?.trim() ?? "";
+  if (!secretKey) {
+    throw new SeasonError("stripe_not_configured", 503, "Stripe is not configured.");
+  }
+  const statusUrl = new URL("https://organization.internal/internal/stripe-connect");
+  statusUrl.searchParams.set("organizationId", organizationId);
+  const statusResponse = await invokeOrganizationRpc(stub, statusUrl);
+  const status = z
+    .object({
+      accountId: z
+        .string()
+        .regex(/^acct_[A-Za-z0-9]+$/)
+        .nullable(),
+      status: z.string(),
+    })
+    .safeParse(await statusResponse.json().catch(() => null));
+  if (!statusResponse.ok || !status.success || !status.data.accountId) {
+    throw new SeasonError(
+      "stripe_account_not_ready",
+      409,
+      "Stripe account is unavailable for this Organization.",
+    );
+  }
+  await verifyAndExpireStripeSession(secretKey, status.data.accountId, sessionId);
+}
+
+async function validatePendingOnlineCheckout(
+  env: Pick<Env, "STRIPE_SECRET_KEY">,
+  stub: OrganizationStoreStub,
+  organizationId: string,
+  cashPayment: DuesCashPaymentRequest,
+  target: DuesTarget,
+): Promise<{ expectedDuesId: string; expectedProviderSessionId: string }> {
+  if (target.sharedCheckout) {
+    throw new SeasonError(
+      "dues_shared_checkout",
+      409,
+      "This dues entry is part of a group checkout with multiple members and cannot be converted individually.",
+    );
+  }
+  if (!cashPayment.cancelPendingOnlineCheckout) {
+    throw new SeasonError(
+      "dues_checkout_in_progress",
+      409,
+      "An online checkout is in progress for this member.",
+    );
+  }
+  if (cashPayment.expectedDuesId && cashPayment.expectedDuesId !== target.id) {
+    throw new SeasonError(
+      "dues_state_conflict",
+      409,
+      "The dues record has changed. Please refresh and try again.",
+    );
+  }
+  if (target.providerSessionId.startsWith("cs_")) {
+    await expireConnectedStripeSession(env, stub, organizationId, target.providerSessionId);
+  } else if (target.providerSessionId.startsWith("pending_")) {
+    const ageMs = Date.now() - new Date(target.createdAt).getTime();
+    if (Number.isFinite(ageMs) && ageMs < 30_000) {
+      throw new SeasonError(
+        "dues_checkout_in_progress",
+        409,
+        "Online checkout is currently being initialized. Please wait a moment and try again.",
+      );
+    }
+  }
+  return {
+    expectedDuesId: target.id,
+    expectedProviderSessionId: target.providerSessionId,
+  };
+}
+
 export async function markOrganizationDuesPaidInCash(
-  env: Pick<Env, "ORGANIZATION_STORE">,
+  env: Pick<Env, "APP_ENV" | "EXTERNAL_EFFECTS_MODE" | "ORGANIZATION_STORE" | "STRIPE_SECRET_KEY">,
   actor: ActorContext,
-  cashPayment: { readonly profileId: string; readonly seasonId: string },
+  cashPayment: DuesCashPaymentRequest,
 ): Promise<DuesRecord> {
+  const stub = organizationStoreStub(env, actor.organizationId);
+  const targetUrl = new URL("https://organization.internal/internal/seasons/dues-target");
+  targetUrl.searchParams.set("organizationId", actor.organizationId);
+  targetUrl.searchParams.set("seasonId", cashPayment.seasonId);
+  targetUrl.searchParams.set("profileId", cashPayment.profileId);
+  const targetResponse = await invokeOrganizationRpc(stub, targetUrl);
+
+  let expectedDuesId = cashPayment.expectedDuesId;
+  let expectedProviderSessionId: string | undefined;
+
+  if (targetResponse.ok) {
+    const targetParsed = duesTargetSchema.safeParse(await targetResponse.json().catch(() => null));
+    if (targetParsed.success) {
+      const target = targetParsed.data;
+      if (target.status === "paid") {
+        if (target.paymentMethod === "cash") {
+          const current = (await listDues(env, actor.organizationId)).find(
+            ({ id }) => id === target.id,
+          );
+          if (current) return current;
+        }
+        throw new SeasonError("dues_already_paid", 409, "Dues have already been paid.");
+      }
+      if (target.status === "refunded") {
+        throw new SeasonError("dues_refunded", 409, "Dues have already been refunded.");
+      }
+      if (target.paymentMethod === "online" && target.status === "pending") {
+        const validated = await validatePendingOnlineCheckout(
+          env,
+          stub,
+          actor.organizationId,
+          cashPayment,
+          target,
+        );
+        expectedDuesId = validated.expectedDuesId;
+        expectedProviderSessionId = validated.expectedProviderSessionId;
+      }
+    }
+  }
+
   const response = await mutateOrganizationStore(
     env,
     actor.organizationId,
@@ -491,6 +669,8 @@ export async function markOrganizationDuesPaidInCash(
       action: "mark_dues_cash_paid",
       ...actor,
       cashPayment: duesCashPaymentRequestSchema.parse(cashPayment),
+      expectedDuesId,
+      expectedProviderSessionId,
     },
   );
   if (!response.ok) {

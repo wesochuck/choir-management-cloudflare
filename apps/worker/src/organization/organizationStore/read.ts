@@ -98,6 +98,7 @@ import { listEmailProviderRoutesFromStore } from "./providerFeedback";
 import {
   listSeasonsFromStore,
   listDuesFromStore,
+  readDuesTargetFromStore,
   readMemberActiveSeasonFromStore,
 } from "../seasonStore";
 import {
@@ -332,6 +333,12 @@ const contentGetHandlers: Record<
     listSeasonsFromStore(storage, organizationId),
   "/internal/seasons/dues": (storage, _url, organizationId) =>
     listDuesFromStore(storage, organizationId),
+  "/internal/seasons/dues-target": (storage, url, organizationId) =>
+    readDuesTargetFromStore(storage, {
+      organizationId,
+      profileId: url.searchParams.get("profileId"),
+      seasonId: url.searchParams.get("seasonId"),
+    }),
   "/internal/seasons/member-active": (storage, url, organizationId) =>
     readMemberActiveSeasonFromStore(storage, {
       organizationId,

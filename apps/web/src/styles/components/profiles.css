@@ -270,6 +270,12 @@
     justify-content: flex-end;
   }
 
+  .profile-dues-row__help {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+    text-align: right;
+  }
+
   .profile-folder-numbers {
     display: grid;
     gap: var(--spacing-sm);

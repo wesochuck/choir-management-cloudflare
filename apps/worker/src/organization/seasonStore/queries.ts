@@ -64,3 +64,35 @@ export function readMemberActiveSeasonFromStore(
     },
   });
 }
+
+export function readDuesTargetFromStore(
+  storage: DurableObjectStorage,
+  input: {
+    readonly organizationId: string | null;
+    readonly profileId: string | null;
+    readonly seasonId: string | null;
+  },
+): Response {
+  if (identity(storage)?.organizationId !== input.organizationId) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  const seasonId = z.uuid().safeParse(input.seasonId);
+  const profileId = z.uuid().safeParse(input.profileId);
+  if (!seasonId.success || !profileId.success) {
+    return Response.json({ code: "validation_failed" }, { status: 400 });
+  }
+  const target = storage.sql
+    .exec<DuesRow>(
+      `${duesSelect} WHERE d.season_id = ? AND d.profile_id = ? LIMIT 1`,
+      seasonId.data,
+      profileId.data,
+    )
+    .toArray()
+    .at(0);
+  if (!target) return Response.json({ code: "dues_not_found" }, { status: 404 });
+  return Response.json({
+    ...duesResult(target),
+    createdAt: target.createdAt,
+    providerSessionId: target.providerSessionId,
+  });
+}

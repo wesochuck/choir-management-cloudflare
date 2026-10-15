@@ -134,7 +134,17 @@ export function DuesTab({
             {
               header: "Status",
               id: "status",
-              render: (record) => record.status,
+              render: (record) => {
+                if (record.status === "paid") {
+                  return record.paymentMethod === "cash" ? "Paid · Cash" : "Paid";
+                }
+                if (record.status === "pending" && record.paymentMethod === "online") {
+                  return record.sharedCheckout
+                    ? "Online checkout pending (shared)"
+                    : "Online checkout pending";
+                }
+                return record.status;
+              },
               sortValue: (record) => record.status,
             },
             {

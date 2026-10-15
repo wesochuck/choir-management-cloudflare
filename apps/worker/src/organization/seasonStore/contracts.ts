@@ -77,6 +77,8 @@ export const cashPaymentOperationSchema = organizationContextSchema.extend({
   action: z.literal("mark_dues_cash_paid"),
   actorUserId: z.string().min(1).max(128),
   cashPayment: duesCashPaymentRequestSchema,
+  expectedDuesId: z.uuid().optional(),
+  expectedProviderSessionId: z.string().trim().max(256).optional(),
   requestId: z.uuid(),
 });
 
@@ -140,6 +142,7 @@ export interface DuesRow {
   readonly providerSessionId: string;
   readonly refundRequested: number;
   readonly seasonId: string;
+  readonly sharedCheckout: number;
   readonly status: "expired" | "paid" | "pending" | "refunded";
   readonly updatedAt: string;
 }
@@ -162,6 +165,10 @@ export const duesSelect = `SELECT d.id, d.season_id AS seasonId, d.profile_id AS
     WHERE pa.payment_type = 'dues'
       AND pa.provider_payment_id = d.provider_payment_id
       AND pa.refund_requested_at IS NOT NULL) AS refundRequested,
+  EXISTS (SELECT 1 FROM dues d2
+    WHERE d2.provider_session_id = d.provider_session_id
+      AND d2.id != d.id
+      AND d.provider_session_id != '') AS sharedCheckout,
   d.created_at AS createdAt, d.updated_at AS updatedAt
   FROM dues d
   LEFT JOIN profiles p ON p.id = d.profile_id
