@@ -39,6 +39,7 @@ import { PublicOrganizationSite } from "./public/PublicOrganizationSite";
 import { PublicTickets } from "./public/PublicTickets";
 import { PublicDonations } from "./public/PublicDonations";
 import { PlatformHomeView } from "./public/PlatformHomeView";
+import { PublicPrivacyPolicyView } from "./public/PublicPrivacyPolicyView";
 import { SetupView } from "./setup/SetupView";
 
 const PublicPlayerView = lazy(() =>
@@ -327,6 +328,9 @@ function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocati
   }
   if (pathname === "/join-roster") {
     return <JoinRosterView />;
+  }
+  if (pathname === "/privacy") {
+    return <PublicPrivacyPolicyView />;
   }
   return null;
 }

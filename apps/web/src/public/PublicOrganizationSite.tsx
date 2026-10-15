@@ -132,7 +132,12 @@ export function OrganizationLayout({
           © {new Date(projection.generatedAt).getUTCFullYear()}{" "}
           {projection.payload.organizationName}
         </p>
-        {settings.contactEmail ? <a href={`mailto:${settings.contactEmail}`}>Contact us</a> : null}
+        <div className="public-site-footer__links">
+          <a href="/privacy">Privacy</a>
+          {settings.contactEmail ? (
+            <a href={`mailto:${settings.contactEmail}`}>Contact us</a>
+          ) : null}
+        </div>
       </footer>
     </div>
   );
@@ -160,7 +165,12 @@ export function PublicTransactionLayout({
           © {new Date(projection.generatedAt).getUTCFullYear()}{" "}
           {projection.payload.organizationName}
         </p>
-        {settings.contactEmail ? <a href={`mailto:${settings.contactEmail}`}>Contact us</a> : null}
+        <div className="public-site-footer__links">
+          <a href="/privacy">Privacy</a>
+          {settings.contactEmail ? (
+            <a href={`mailto:${settings.contactEmail}`}>Contact us</a>
+          ) : null}
+        </div>
       </footer>
     </div>
   );
