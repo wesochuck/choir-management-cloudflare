@@ -7,6 +7,7 @@ import type { WorkerHonoEnvironment } from "./helpers";
 
 import { authorizeCalendarRoute, setupFailureStatus } from "./helpers";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
+import { reconcileCanonicalHostnameFirewall } from "../security/canonicalHostnameFirewall";
 
 const statusAutomationFixtureRequestSchema = z.object({ profileId: z.uuid() });
 
@@ -71,7 +72,25 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         })
         .safeParse(body);
       if (!result.success) throw new Error("maintenance_result_invalid");
-      return context.json({ ...result.data, requestId: context.get("requestId"), success: true });
+      const syncFirewall = context.req.query("syncFirewall") === "true";
+      const firewall = syncFirewall
+        ? await reconcileCanonicalHostnameFirewall(context.env)
+        : undefined;
+      return context.json({
+        ...result.data,
+        ...(firewall
+          ? {
+              firewall: {
+                action: firewall.action,
+                changed: firewall.changed,
+                desiredHostnameCount: firewall.desiredHostnameCount,
+                mode: firewall.mode,
+              },
+            }
+          : {}),
+        requestId: context.get("requestId"),
+        success: true,
+      });
     } catch {
       return context.json(
         {

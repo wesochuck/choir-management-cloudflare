@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Env } from "../env";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { currentOrganizationSchemaVersion } from "../organization/schema";
+import { reconcileCanonicalHostnameFirewall } from "../security/canonicalHostnameFirewall";
 
 const provisioningParamsSchema = z.object({
   actorUserId: z.string().min(1).max(128),
@@ -98,5 +99,15 @@ export class ProvisioningWorkflow extends WorkflowEntrypoint<Env, ProvisioningPa
         return { published: true };
       });
     }
+
+    await step.do("sync canonical hostname firewall", async () => {
+      const result = await reconcileCanonicalHostnameFirewall(this.env);
+      return {
+        action: result.action,
+        changed: result.changed,
+        desiredHostnameCount: result.desiredHostnameCount,
+        mode: result.mode,
+      };
+    });
   }
 }
