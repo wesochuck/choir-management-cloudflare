@@ -4,11 +4,30 @@ import {
   moveFileBetweenTrackImportGroups,
   parsePracticeTrackFilename,
   rankCandidatePiecesForGroup,
+  resolvePracticeTrackAssignments,
   splitFileToNewTrackImportGroup,
   updateFileInTrackImportGroup,
   type ConfiguredPartOption,
   type LibraryPieceOption,
 } from "./practiceTrackMatching";
+
+describe("default practice track assignments", () => {
+  it("defaults undetected parts only when a piece is selected", () => {
+    expect(resolvePracticeTrackAssignments([{ partKey: null }], null).files[0]?.partKey).toBeNull();
+    expect(resolvePracticeTrackAssignments([{ partKey: null }], "piece").files[0]?.partKey).toBe(
+      "tutti",
+    );
+  });
+  it("preserves detected parts and explicit skips", () => {
+    const files = [{ partKey: "soprano" }, { partKey: null, partSelectionChanged: true }];
+    expect(resolvePracticeTrackAssignments(files, "piece").files).toEqual(files);
+  });
+  it("reports duplicate Tutti assignments instead of silently attaching competing recordings", () => {
+    expect(
+      resolvePracticeTrackAssignments([{ partKey: null }, { partKey: "tutti" }], "piece"),
+    ).toMatchObject({ duplicatePartKeys: ["tutti"], hasDuplicatePart: true });
+  });
+});
 
 describe("practiceTrackMatching", () => {
   const configuredParts: ConfiguredPartOption[] = [

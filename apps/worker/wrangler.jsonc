@@ -154,6 +154,7 @@
   ],
   "env": {
     "staging": {
+      "ai": { "binding": "AI" },
       "name": "choir-management-cloudflare-staging",
       "workers_dev": true,
       "routes": [

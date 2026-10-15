@@ -1,5 +1,6 @@
 import type { OrganizationMusicPiece, OrganizationRosterConfiguration } from "@choir/contracts";
 import { useMemo, useState } from "react";
+import { DestinationPiecePicker, type DestinationPieceOption } from "./DestinationPiecePicker";
 import { TrackFileAudioPlayer } from "./TrackFileAudioPlayer";
 import type { GroupReviewItem } from "./types";
 
@@ -16,8 +17,19 @@ function missingMatchExplanation(pieceId: string | null): string {
     : "No clear match. Choose a music piece to include these files.";
 }
 
+function matchingEvidence(group: GroupReviewItem | undefined): readonly string[] {
+  if (group?.aiSuggestion?.rationale) return [group.aiSuggestion.rationale];
+  return (
+    group?.candidates.find((candidate) => candidate.piece.id === group.selectedPieceId)?.evidence ??
+    []
+  );
+}
+
 export function StepReviewMatches({
   groups,
+  matching,
+  matchError,
+  onAiMatch,
   onBack,
   onGroupPieceChanged,
   onNext,
@@ -28,6 +40,9 @@ export function StepReviewMatches({
   roster,
 }: {
   readonly groups: readonly GroupReviewItem[];
+  readonly matching: boolean;
+  readonly matchError: string | null;
+  readonly onAiMatch: () => void;
   readonly onBack: () => void;
   readonly onGroupPieceChanged: (groupId: string, pieceId: string | null) => void;
   readonly onNext: () => void;
@@ -42,6 +57,17 @@ export function StepReviewMatches({
   const activeGroup = groups.find((g) => g.groupId === selectedGroupId) ?? groups[0];
 
   const pieceMap = useMemo(() => new Map(pieces.map((p) => [p.id, p])), [pieces]);
+  const destinationOptions = useMemo<readonly DestinationPieceOption[]>(
+    () =>
+      pieces.map((piece) => ({
+        id: piece.id,
+        label: `${piece.title} (${piece.composer || "Unknown"})${piece.arranger ? ` · arr. ${piece.arranger}` : ""}`,
+        searchText: `${piece.title} ${piece.composer} ${piece.arranger}`.toLowerCase(),
+        trackCount: Object.keys(piece.trackFileIds).length,
+      })),
+    [pieces],
+  );
+  const performanceIds = useMemo(() => new Set(performancePieceIds), [performancePieceIds]);
 
   // Voice part options
   const partOptions = useMemo(() => {
@@ -53,17 +79,17 @@ export function StepReviewMatches({
     return list;
   }, [roster]);
 
-  const activeEvidence =
-    activeGroup?.candidates.find((candidate) => candidate.piece.id === activeGroup.selectedPieceId)
-      ?.evidence ?? [];
+  const activeEvidence = matchingEvidence(activeGroup);
 
   const totalFiles = groups.reduce((sum, g) => sum + g.files.length, 0);
   const isStrongSuggestion = (group: GroupReviewItem) =>
     !group.hasDuplicatePart &&
-    group.candidates.some(
-      (candidate) =>
-        candidate.piece.id === group.selectedPieceId && candidate.confidence === "high",
-    );
+    (group.aiSuggestion
+      ? group.aiSuggestion.confidence === "high"
+      : group.candidates.some(
+          (candidate) =>
+            candidate.piece.id === group.selectedPieceId && candidate.confidence === "high",
+        ));
   const strongCount = groups.filter(isStrongSuggestion).length;
   const reviewCount = groups.length - strongCount;
 
@@ -80,19 +106,31 @@ export function StepReviewMatches({
 
       <p>
         Files in each song set share one destination piece. Check the piece and voice part before
-        uploading. Files without an assigned part are excluded.
+        uploading. Files without an assigned part are excluded. Use{" "}
+        <strong>Match separately</strong> to move a recording into its own song set and choose a
+        different library piece.
       </p>
+      <p>
+        Optionally use Clef Flash to suggest pieces from filenames, durations, and catalog details.
+        This sends that metadata to Cloudflare AI. Review every suggestion before uploading.
+      </p>
+      <button
+        className="button button--secondary"
+        disabled={matching}
+        type="button"
+        onClick={onAiMatch}
+      >
+        {matching ? "Matching with Clef Flash…" : "Use Clef Flash"}
+      </button>
+      {matching ? <p role="status">Getting Clef Flash suggestions…</p> : null}
+      {matchError ? <p role="alert">{matchError} Your current selections are preserved.</p> : null}
       <div className="track-import-grid">
         <div className="track-import-main">
           {groups.map((group) => {
             const selectedPiece = group.selectedPieceId
               ? pieceMap.get(group.selectedPieceId)
               : undefined;
-            const selectedCandidate = group.candidates.find(
-              (candidate) => candidate.piece.id === group.selectedPieceId,
-            );
-            const evidence = selectedCandidate?.evidence ?? [];
-            const existingTrackCount = Object.keys(selectedPiece?.trackFileIds ?? {}).length;
+            const evidence = matchingEvidence(group);
 
             return (
               <div
@@ -127,48 +165,16 @@ export function StepReviewMatches({
                   </div>
                 </div>
 
-                <div className="track-import-group-piece-select field">
-                  <label htmlFor={`group-piece-${group.groupId}`}>
-                    Destination music piece
-                    <div className="track-import-piece-select-row">
-                      <select
-                        id={`group-piece-${group.groupId}`}
-                        value={group.selectedPieceId ?? ""}
-                        onChange={(e) => {
-                          onGroupPieceChanged(group.groupId, e.target.value || null);
-                        }}
-                      >
-                        <option value="">-- Choose a music library piece --</option>
-                        {performancePieceIds.length > 0 ? (
-                          <optgroup label="Performance Set List">
-                            {performancePieceIds.map((pid) => {
-                              const p = pieceMap.get(pid);
-                              if (!p) return null;
-                              return (
-                                <option key={p.id} value={p.id}>
-                                  {p.title} ({p.composer || "Unknown"})
-                                </option>
-                              );
-                            })}
-                          </optgroup>
-                        ) : null}
-                        <optgroup label="Entire Music Library">
-                          {pieces.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.title} ({p.composer || "Unknown"})
-                            </option>
-                          ))}
-                        </optgroup>
-                      </select>
-
-                      {selectedPiece ? (
-                        <span className="badge badge--neutral">
-                          {String(existingTrackCount)} existing tracks
-                        </span>
-                      ) : null}
-                    </div>
-                  </label>
-                </div>
+                <DestinationPiecePicker
+                  disabled={matching}
+                  id={`group-piece-${group.groupId}`}
+                  onSelect={(pieceId) => {
+                    onGroupPieceChanged(group.groupId, pieceId);
+                  }}
+                  options={destinationOptions}
+                  performancePieceIds={performanceIds}
+                  selectedPieceId={group.selectedPieceId}
+                />
 
                 {evidence.length > 0 ? (
                   <p className="track-import-group-evidence">Evidence: {evidence.join(" + ")}</p>
@@ -214,6 +220,7 @@ export function StepReviewMatches({
                             </td>
                             <td className="track-import-part-cell">
                               <select
+                                disabled={matching}
                                 aria-label={`Voice part for ${file.fileName}`}
                                 value={file.partKey ?? ""}
                                 onChange={(e) => {
@@ -249,15 +256,16 @@ export function StepReviewMatches({
                             <td className="track-import-actions-cell">
                               {group.files.length > 1 ? (
                                 <button
+                                  disabled={matching}
                                   className="button button--ghost"
-                                  title="Split file to its own group"
+                                  title="Move this recording to its own song set to choose a different library piece"
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onSplitFile(file.clientFileId);
                                   }}
                                 >
-                                  Split
+                                  Match separately
                                 </button>
                               ) : null}
                             </td>
@@ -308,10 +316,20 @@ export function StepReviewMatches({
           Staff must approve resolved mappings before any file is uploaded.
         </span>
         <div className="track-import-actions__buttons">
-          <button className="button button--secondary" type="button" onClick={onBack}>
+          <button
+            className="button button--secondary"
+            disabled={matching}
+            type="button"
+            onClick={onBack}
+          >
             Back
           </button>
-          <button className="button button--primary" type="button" onClick={onNext}>
+          <button
+            className="button button--primary"
+            disabled={matching}
+            type="button"
+            onClick={onNext}
+          >
             Confirm selections
           </button>
         </div>

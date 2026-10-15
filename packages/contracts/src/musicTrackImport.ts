@@ -58,9 +58,10 @@ export const musicTrackImportGroupMetadataSchema = z.object({
 });
 
 export const musicTrackImportMatchRequestSchema = z.object({
+  useAi: z.boolean().optional(),
   candidates: z.array(musicTrackImportMatchCandidateSchema).min(1).max(200),
   groups: z.array(musicTrackImportGroupMetadataSchema).min(1).max(50),
-  performanceTitle: z.string().optional(),
+  performanceTitle: z.string().max(500).optional(),
 });
 
 export const musicTrackImportGroupSuggestionSchema = z.object({

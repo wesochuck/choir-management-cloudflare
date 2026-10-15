@@ -3,6 +3,27 @@ export interface ConfiguredPartOption {
   readonly label: string;
 }
 
+/** A selected piece makes an undifferentiated recording a Tutti track, unless explicitly skipped. */
+export function resolvePracticeTrackAssignments<
+  T extends { readonly partKey: string | null; readonly partSelectionChanged?: boolean },
+>(files: readonly T[], selectedPieceId: string | null) {
+  const resolvedFiles = files.map((file) =>
+    selectedPieceId && file.partKey === null && !file.partSelectionChanged
+      ? { ...file, partKey: "tutti" }
+      : file,
+  );
+  const counts = new Map<string, number>();
+  for (const file of resolvedFiles) {
+    if (file.partKey) counts.set(file.partKey, (counts.get(file.partKey) ?? 0) + 1);
+  }
+  const duplicatePartKeys = [...counts].filter(([, count]) => count > 1).map(([key]) => key);
+  return {
+    duplicatePartKeys,
+    files: resolvedFiles,
+    hasDuplicatePart: duplicatePartKeys.length > 0,
+  };
+}
+
 export interface ParsedTrackFile {
   readonly clientFileId: string;
   readonly detectedPartKey: string | null;

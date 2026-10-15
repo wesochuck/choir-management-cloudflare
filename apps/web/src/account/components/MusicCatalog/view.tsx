@@ -130,6 +130,21 @@ export function MusicCatalogView({
     venues,
   } = model;
   const [bulkTrackImportOpen, setBulkTrackImportOpen] = useState(false);
+  async function openImportedPiece(pieceId: string): Promise<void> {
+    setBulkTrackImportOpen(false);
+    try {
+      const updated = await listOrganizationMusic();
+      setPieces(updated);
+      const selected = updated.find((candidate) => candidate.id === pieceId);
+      if (!selected) {
+        setError("This music piece is no longer in the library.");
+        return;
+      }
+      selectPiece(selected);
+    } catch {
+      setError("The music piece could not be loaded. Try opening it from the Music Library.");
+    }
+  }
   if (view === "credits") {
     return (
       <section
@@ -781,6 +796,9 @@ export function MusicCatalogView({
             title="Import music catalog"
           />
           <BulkPracticeTrackImportDialog
+            onOpenPiece={(pieceId) => {
+              void openImportedPiece(pieceId);
+            }}
             events={events}
             onClose={() => {
               setBulkTrackImportOpen(false);

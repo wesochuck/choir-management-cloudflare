@@ -2,6 +2,8 @@ import type {
   OrganizationEvent,
   OrganizationMusicPiece,
   OrganizationRosterConfiguration,
+  MusicTrackImportMatchRequest,
+  MusicTrackImportMatchResponse,
 } from "@choir/contracts";
 import { organizationEventSchema } from "@choir/contracts";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -43,9 +45,12 @@ const mockAttachResult = {
 const mockAttachBulkPracticeTracks = vi
   .fn<() => Promise<typeof mockAttachResult>>()
   .mockResolvedValue(mockAttachResult);
+const mockMatchBulkPracticeTracks =
+  vi.fn<(request: MusicTrackImportMatchRequest) => Promise<MusicTrackImportMatchResponse>>();
 vi.mock("../../../../api/music", () => ({
   attachBulkPracticeTracks: () => mockAttachBulkPracticeTracks(),
-  matchBulkPracticeTracks: vi.fn(),
+  matchBulkPracticeTracks: (request: MusicTrackImportMatchRequest) =>
+    mockMatchBulkPracticeTracks(request),
 }));
 
 const samplePiece: OrganizationMusicPiece = {
@@ -152,12 +157,14 @@ describe("BulkPracticeTrackImportDialog", () => {
 
   it("handles file drop, progresses through wizard to completion", async () => {
     const handleClose = vi.fn();
+    const handleOpenPiece = vi.fn();
     const handleTracksAttached = vi.fn();
 
     render(
       <BulkPracticeTrackImportDialog
         events={[sampleEvent]}
         onClose={handleClose}
+        onOpenPiece={handleOpenPiece}
         onTracksAttached={handleTracksAttached}
         open={true}
         pieces={[samplePiece]}
@@ -214,6 +221,8 @@ describe("BulkPracticeTrackImportDialog", () => {
       expect(screen.getByText("Tracks attached")).toBeInTheDocument();
     });
 
+    fireEvent.click(screen.getByRole("button", { name: "Hallelujah Chorus" }));
+    expect(handleOpenPiece).toHaveBeenCalledWith(samplePieceId);
     const doneBtn = screen.getByRole("button", { name: "Return to Music Library" });
     fireEvent.click(doneBtn);
 
@@ -246,7 +255,7 @@ describe("BulkPracticeTrackImportDialog", () => {
     expect(screen.queryByText("Strong suggestion")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Destination music piece")).toHaveValue("");
     expect(screen.getByText("Part needed")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Split" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Match separately" })).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Destination music piece"), {
       target: { value: samplePieceId },
     });
@@ -298,7 +307,7 @@ describe("BulkPracticeTrackImportDialog", () => {
     });
 
     // Split buttons should be present
-    const splitButtons = screen.getAllByRole("button", { name: "Split" });
+    const splitButtons = screen.getAllByRole("button", { name: "Match separately" });
     expect(splitButtons.length).toBe(2);
 
     const secondSplitBtn = splitButtons[1];
@@ -359,5 +368,151 @@ describe("BulkPracticeTrackImportDialog", () => {
 
     // Clicking play triggers toggle without error
     fireEvent.click(playButton);
+  });
+});
+
+async function openAiReview(fileName = "Hallelujah - Soprano.mp3") {
+  render(
+    <BulkPracticeTrackImportDialog
+      events={[sampleEvent]}
+      onClose={vi.fn()}
+      onTracksAttached={vi.fn()}
+      open
+      pieces={[samplePiece]}
+      roster={sampleRoster}
+    />,
+  );
+  fireEvent.change(screen.getByLabelText(/Drop MP3s here or browse files/), {
+    target: { files: [new File(["audio"], fileName, { type: "audio/mpeg" })] },
+  });
+  await screen.findByText(fileName);
+  fireEvent.click(screen.getByRole("button", { name: "Review groups" }));
+}
+
+describe("optional Clef Flash matching", () => {
+  afterEach(() => {
+    mockMatchBulkPracticeTracks.mockReset();
+  });
+
+  it("defaults a matched recording without a detected part to Tutti", async () => {
+    await openAiReview("Hallelujah Chorus.mp3");
+    expect(
+      screen.getByRole("combobox", { name: "Voice part for Hallelujah Chorus.mp3" }),
+    ).toHaveValue("tutti");
+  });
+
+  it("defaults an unassigned recording when a piece is selected manually and preserves explicit skips", async () => {
+    await openAiReview("Unidentified recording.mp3");
+    const part = screen.getByRole("combobox", {
+      name: "Voice part for Unidentified recording.mp3",
+    });
+    expect(part).toHaveValue("");
+    fireEvent.change(screen.getByRole("combobox", { name: /Destination music piece/ }), {
+      target: { value: samplePieceId },
+    });
+    expect(part).toHaveValue("tutti");
+    fireEvent.change(part, { target: { value: "" } });
+    fireEvent.change(screen.getByRole("combobox", { name: /Destination music piece/ }), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByRole("combobox", { name: /Destination music piece/ }), {
+      target: { value: samplePieceId },
+    });
+    expect(part).toHaveValue("");
+  });
+
+  it("defaults recordings without a part when Clef Flash finds a match", async () => {
+    mockMatchBulkPracticeTracks.mockImplementation((request) =>
+      Promise.resolve({
+        model: "@cf/cloudflare/clef-flash",
+        requestId: "req-1",
+        suggestions: request.groups.map((group) => ({
+          confidence: "high",
+          groupId: group.groupId,
+          suggestedPieceId: samplePieceId,
+        })),
+      }),
+    );
+    await openAiReview("Unidentified recording.mp3");
+    fireEvent.click(screen.getByRole("button", { name: "Use Clef Flash" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", { name: "Voice part for Unidentified recording.mp3" }),
+      ).toHaveValue("tutti"),
+    );
+  });
+
+  it("only sends metadata on opt-in and shows a reviewable suggestion", async () => {
+    mockMatchBulkPracticeTracks.mockImplementation((request) =>
+      Promise.resolve({
+        model: "@cf/cloudflare/clef-flash",
+        requestId: "req-1",
+        suggestions: request.groups.map((group) => ({
+          confidence: "high",
+          groupId: group.groupId,
+          rationale: "Clef Flash metadata suggestion (90% confidence). Review before uploading.",
+          suggestedPieceId: samplePieceId,
+        })),
+      }),
+    );
+    await openAiReview();
+    expect(mockMatchBulkPracticeTracks).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Use Clef Flash" }));
+    await waitFor(() => {
+      expect(screen.getByText(/Evidence: Clef Flash metadata suggestion/)).toBeInTheDocument();
+    });
+    expect(mockMatchBulkPracticeTracks).toHaveBeenCalledWith(
+      expect.objectContaining({
+        useAi: true,
+        performanceTitle: "Winter Concert",
+        candidates: [expect.objectContaining({ pieceId: samplePieceId })],
+        groups: [expect.objectContaining({ fileNames: ["Hallelujah - Soprano.mp3"] })],
+      }),
+    );
+    expect(JSON.stringify(mockMatchBulkPracticeTracks.mock.calls[0])).not.toContain("audio/mpeg");
+    expect(screen.getByRole("button", { name: "Confirm selections" })).toBeEnabled();
+  });
+
+  it("preserves manual selections on failure and allows retry", async () => {
+    mockMatchBulkPracticeTracks.mockRejectedValueOnce(new Error("Clef Flash is unavailable."));
+    await openAiReview();
+    fireEvent.click(screen.getByRole("button", { name: "Use Clef Flash" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your current selections are preserved",
+    );
+    expect(screen.getByRole("button", { name: "Confirm selections" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Use Clef Flash" })).toBeEnabled();
+  });
+
+  it("locks editing while a request runs and leaves uncertain choices for manual assignment", async () => {
+    let resolveMatch: ((response: MusicTrackImportMatchResponse) => void) | undefined;
+    mockMatchBulkPracticeTracks.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveMatch = resolve;
+        }),
+    );
+    await openAiReview();
+    fireEvent.click(screen.getByRole("button", { name: "Use Clef Flash" }));
+    expect(screen.getByRole("button", { name: "Confirm selections" })).toBeDisabled();
+    expect(
+      screen.getAllByRole("combobox").every((element) => element.hasAttribute("disabled")),
+    ).toBe(true);
+    const groupId = mockMatchBulkPracticeTracks.mock.calls[0]?.[0].groups[0]?.groupId;
+    expect(groupId).toBeDefined();
+    resolveMatch?.({
+      model: "@cf/cloudflare/clef-flash",
+      requestId: "req-1",
+      suggestions: [
+        {
+          confidence: "none",
+          groupId: groupId ?? "",
+          rationale: "Choose a piece manually.",
+          suggestedPieceId: null,
+        },
+      ],
+    });
+    await screen.findByText("No piece selected");
+    expect(screen.getByRole("button", { name: "Use Clef Flash" })).toBeEnabled();
   });
 });

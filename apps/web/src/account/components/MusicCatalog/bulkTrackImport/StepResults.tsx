@@ -10,11 +10,13 @@ interface PieceActivityResult {
 
 export function StepResults({
   onFinish,
+  onOpenPiece,
   pieces,
   results,
   summary,
 }: {
   readonly onFinish: () => void;
+  readonly onOpenPiece?: ((pieceId: string) => void) | undefined;
   readonly pieces: readonly OrganizationMusicPiece[];
   readonly results: readonly MusicTrackAttachmentResult[];
   readonly summary: {
@@ -103,7 +105,21 @@ export function StepResults({
             <tbody>
               {activityList.map((item) => (
                 <tr key={item.pieceId}>
-                  <td className="track-import-piece-cell">{item.pieceTitle}</td>
+                  <td className="track-import-piece-cell">
+                    {onOpenPiece && pieceMap.has(item.pieceId) ? (
+                      <button
+                        className="text-button text-link"
+                        type="button"
+                        onClick={() => {
+                          onOpenPiece(item.pieceId);
+                        }}
+                      >
+                        {item.pieceTitle}
+                      </button>
+                    ) : (
+                      item.pieceTitle
+                    )}
+                  </td>
                   <td className="track-import-assignments-cell">
                     {[
                       ...item.attachedParts,

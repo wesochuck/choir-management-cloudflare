@@ -6,6 +6,11 @@ import {
 } from "@choir/contracts";
 import type { Hono } from "hono";
 import {
+  CLEF_TRACK_MATCH_MODEL,
+  suggestClefTrackMatches,
+  TrackMatchingError,
+} from "../music/clefTrackMatching";
+import {
   attachOrganizationMusicTracks,
   MusicRepositoryError,
 } from "../organization/organizationMusic";
@@ -157,6 +162,53 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
 
+    if (body.data.useAi) {
+      const ai = context.env.AI;
+      if (
+        !ai ||
+        context.env.APP_ENV === "local" ||
+        context.env.EXTERNAL_EFFECTS_MODE === "disabled" ||
+        context.env.EXTERNAL_EFFECTS_MODE === "fake"
+      ) {
+        return context.json(
+          {
+            code: "service_unavailable",
+            message:
+              "Clef Flash is unavailable in this environment. Continue with manual matching.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          503,
+        );
+      }
+      try {
+        const digest = await crypto.subtle.digest(
+          "SHA-256",
+          new TextEncoder().encode(authorization.organizationId),
+        );
+        const organizationTag = `org:${Array.from(new Uint8Array(digest).slice(0, 20), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+        const suggestions = await suggestClefTrackMatches(body.data, (input, signal) =>
+          ai.run(CLEF_TRACK_MATCH_MODEL, input, {
+            signal,
+            tags: ["music-track-import", organizationTag],
+          }),
+        );
+        return context.json({
+          model: CLEF_TRACK_MATCH_MODEL,
+          requestId: context.get("requestId"),
+          suggestions,
+        });
+      } catch (error: unknown) {
+        if (!(error instanceof TrackMatchingError)) throw error;
+        return context.json(
+          {
+            code: error.code,
+            message: error.message,
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          error.code === "validation_failed" ? 400 : 503,
+        );
+      }
+    }
     const suggestions = buildFallbackSuggestions(body.data.groups, body.data.candidates);
     return context.json({
       model: "heuristic-v1",

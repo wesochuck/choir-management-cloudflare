@@ -195,8 +195,10 @@ export async function attachBulkPracticeTracks(
 
 export async function matchBulkPracticeTracks(
   matchData: MusicTrackImportMatchRequest,
+  signal?: AbortSignal,
 ): Promise<MusicTrackImportMatchResponse> {
   const response = await request("/api/organization/music/track-import/match", {
+    signal: signal ?? null,
     body: JSON.stringify(matchData),
     method: "POST",
   });

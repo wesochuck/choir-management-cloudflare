@@ -111,6 +111,16 @@ describe("musicTrackImport contracts", () => {
       });
       expect(parsed.groups).toHaveLength(1);
       expect(parsed.candidates).toHaveLength(1);
+      expect(parsed.useAi).toBeUndefined();
+      for (const useAi of [true, false, undefined]) {
+        expect(musicTrackImportMatchRequestSchema.parse({ ...parsed, useAi }).useAi).toBe(useAi);
+      }
+      expect(musicTrackImportMatchRequestSchema.safeParse({ ...parsed, useAi: null }).success).toBe(
+        false,
+      );
+      expect(
+        musicTrackImportMatchRequestSchema.safeParse({ ...parsed, useAi: "true" }).success,
+      ).toBe(false);
     });
   });
 

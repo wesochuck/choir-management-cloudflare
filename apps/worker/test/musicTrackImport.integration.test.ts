@@ -78,6 +78,29 @@ afterEach(async () => {
 });
 
 describe("Organization music track import", () => {
+  it("requires authorized Organization access and keeps local AI requests offline", async () => {
+    const path = "/api/organization/music/track-import/match";
+    const body = {
+      candidates: [{ pieceId: "11111111-1111-4111-8111-111111111111", title: "Shenandoah" }],
+      groups: [{ groupId: "one", fileNames: ["Shenandoah.mp3"] }],
+      useAi: true,
+    };
+    expect((await write("alpha.localhost", path, "", body)).status).toBe(401);
+    const cookie = await signIn();
+    expect((await write("alpha.localhost", path, cookie, { ...body, useAi: "yes" })).status).toBe(
+      400,
+    );
+    const offline = await write("alpha.localhost", path, cookie, body);
+    expect(offline.status).toBe(503);
+    await expect(offline.json()).resolves.toMatchObject({ code: "service_unavailable" });
+    await seedAuthUser(database, "other-manager", "other.manager@example.test", "Other Manager");
+    await provisionOrganization(database, stores, {
+      id: "organization-beta",
+      slug: "beta",
+      userId: "other-manager",
+    });
+    expect((await write("beta.localhost", path, cookie, body)).status).toBe(403);
+  });
   it("attaches practice tracks transactionally, fills piece duration, and protects occupied slots", async () => {
     const cookie = await signIn();
 

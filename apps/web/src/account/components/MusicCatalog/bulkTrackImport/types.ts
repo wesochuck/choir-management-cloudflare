@@ -2,6 +2,7 @@ import type {
   OrganizationEvent,
   OrganizationMusicPiece,
   OrganizationRosterConfiguration,
+  MusicTrackImportGroupSuggestion,
 } from "@choir/contracts";
 import type { RankedPieceCandidate } from "@choir/domain";
 
@@ -26,9 +27,11 @@ export interface GroupFileAssignment {
   readonly file: File;
   readonly fileName: string;
   readonly partKey: string | null; // null means skipped
+  readonly partSelectionChanged?: boolean;
 }
 
 export interface GroupReviewItem {
+  readonly aiSuggestion?: MusicTrackImportGroupSuggestion | undefined;
   readonly averageDurationSeconds: number | null;
   readonly candidates: readonly RankedPieceCandidate[];
   readonly duplicatePartKeys: readonly string[];
@@ -51,6 +54,7 @@ export interface UploadProgressState {
 export interface BulkPracticeTrackImportDialogProps {
   readonly events: readonly OrganizationEvent[];
   readonly onClose: () => void;
+  readonly onOpenPiece?: ((pieceId: string) => void) | undefined;
   readonly onTracksAttached: () => void;
   readonly open: boolean;
   readonly pieces: readonly OrganizationMusicPiece[];
