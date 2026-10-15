@@ -5,6 +5,7 @@ import { getPublishedOrganizationProjection } from "../auth/api";
 import { PublicOrganizationBrand } from "./PublicOrganizationBrand";
 import { mediaUrl } from "./publicMedia";
 import { PublicGraphicImage } from "./PublicGraphicImage";
+import { PublicCopy } from "./PublicCopy";
 import { publicWebsiteFontStacks } from "./publicWebsiteFonts";
 
 type ProjectionState =
@@ -24,24 +25,6 @@ function publicSiteStyle(
     "--public-body-font": publicWebsiteFontStacks[settings.bodyFont],
     "--public-heading-font": publicWebsiteFontStacks[settings.headerFont],
   };
-}
-
-function PublicCopy({ text }: { readonly text?: string | null | undefined }) {
-  if (!text?.trim()) return null;
-  return (
-    <div className="public-copy">
-      {text
-        .trim()
-        .split(/\n{2,}/)
-        .map((block, index) => {
-          const normalized = block.trim();
-          if (normalized.startsWith("### ")) return <h4 key={index}>{normalized.slice(4)}</h4>;
-          if (normalized.startsWith("## ")) return <h3 key={index}>{normalized.slice(3)}</h3>;
-          if (normalized.startsWith("# ")) return <h2 key={index}>{normalized.slice(2)}</h2>;
-          return <p key={index}>{normalized}</p>;
-        })}
-    </div>
-  );
 }
 
 function displayDate(value: string, timezone: string): string {
