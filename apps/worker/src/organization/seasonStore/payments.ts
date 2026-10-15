@@ -37,6 +37,7 @@ export function duesResult(row: DuesRow) {
     profileId: row.profileId,
     refundRequested: row.refundRequested === 1,
     seasonId: row.seasonId,
+    sharedCheckout: row.sharedCheckout === 1,
     status: row.status,
     updatedAt: row.updatedAt,
   };
@@ -337,6 +338,51 @@ export function refundDues(
   return Response.json({ ...duesResult(row), status: "refunded", updatedAt: occurredAt });
 }
 
+function validatePendingOnlineCashPayment(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof cashPaymentOperationSchema>,
+  existing: DuesRow,
+): Response | undefined {
+  if (operation.cashPayment.cancelPendingOnlineCheckout) {
+    if (operation.expectedDuesId && operation.expectedDuesId !== existing.id) {
+      return Response.json({ code: "dues_state_conflict" }, { status: 409 });
+    }
+    if (
+      operation.expectedProviderSessionId !== undefined &&
+      operation.expectedProviderSessionId !== existing.providerSessionId
+    ) {
+      return Response.json({ code: "dues_state_conflict" }, { status: 409 });
+    }
+    if (existing.sharedCheckout === 1) {
+      return Response.json({ code: "dues_shared_checkout" }, { status: 409 });
+    }
+    return undefined;
+  }
+  if (!releaseStalePendingDuesAttempt(storage, existing.id)) {
+    return Response.json({ code: "dues_checkout_in_progress" }, { status: 409 });
+  }
+  return undefined;
+}
+
+function validateCashPaymentPreconditions(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof cashPaymentOperationSchema>,
+  existing: DuesRow | undefined,
+): Response | undefined {
+  if (existing?.status === "paid") {
+    return existing.paymentMethod === "cash"
+      ? Response.json(duesResult(existing))
+      : Response.json({ code: "dues_already_paid" }, { status: 409 });
+  }
+  if (existing?.status === "refunded") {
+    return Response.json({ code: "dues_refunded" }, { status: 409 });
+  }
+  if (existing?.paymentMethod === "online") {
+    return validatePendingOnlineCashPayment(storage, operation, existing);
+  }
+  return undefined;
+}
+
 export function markDuesCashPaid(
   storage: DurableObjectStorage,
   operation: z.infer<typeof cashPaymentOperationSchema>,
@@ -364,19 +410,9 @@ export function markDuesCashPaid(
     )
     .toArray()
     .at(0);
-  if (existing?.status === "paid") {
-    return existing.paymentMethod === "cash"
-      ? Response.json(duesResult(existing))
-      : Response.json({ code: "dues_already_paid" }, { status: 409 });
-  }
-  if (existing?.status === "refunded") {
-    return Response.json({ code: "dues_refunded" }, { status: 409 });
-  }
-  if (existing?.paymentMethod === "online") {
-    if (!releaseStalePendingDuesAttempt(storage, existing.id)) {
-      return Response.json({ code: "dues_checkout_in_progress" }, { status: 409 });
-    }
-  }
+
+  const preconditionError = validateCashPaymentPreconditions(storage, operation, existing);
+  if (preconditionError) return preconditionError;
 
   const occurredAt = new Date().toISOString();
   const duesId = existing?.id ?? crypto.randomUUID();
@@ -418,15 +454,23 @@ export function markDuesCashPaid(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
          request_id, change_summary, occurred_at)
-       VALUES (?, 'organization_member', ?, 'dues.cash_paid', 'dues', ?, ?, ?, ?)`,
+       VALUES (?, 'organization_member', ?, ?, 'dues', ?, ?, ?, ?)`,
       `dues-cash-paid:${operation.requestId}`,
       operation.actorUserId,
+      operation.cashPayment.cancelPendingOnlineCheckout
+        ? "dues.converted_to_cash"
+        : "dues.cash_paid",
       duesId,
       operation.requestId,
       JSON.stringify({
         amountCents: existing?.amountCents ?? season.duesAmountCents,
         paymentMethod: "cash",
+        priorPaymentMethod: existing?.paymentMethod ?? null,
+        priorProviderSessionId: existing?.providerSessionId ?? null,
         profileId: operation.cashPayment.profileId,
+        reason: operation.cashPayment.cancelPendingOnlineCheckout
+          ? "admin_cash_conversion"
+          : "admin_cash_entry",
         seasonId: operation.cashPayment.seasonId,
       }),
       occurredAt,
@@ -504,6 +548,26 @@ export function completeStripeDues(
         row.id,
       );
       storage.sql.exec("DELETE FROM dues_expirations WHERE dues_id = ?", row.id);
+    }
+    const duplicateCashRows = rows.filter(
+      (row) => row.paymentMethod === "cash" && row.status === "paid",
+    );
+    for (const cashRow of duplicateCashRows) {
+      storage.sql.exec(
+        `INSERT INTO audit_events
+          (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+         VALUES (?, 'provider', 'stripe', 'dues.duplicate_payment_detected', 'dues', ?, ?, ?, ?)`,
+        `dues-duplicate:${operation.stripeEventId}:${cashRow.id}`,
+        cashRow.id,
+        operation.stripeEventId,
+        JSON.stringify({
+          amountCents: cashRow.amountCents,
+          message: "Stripe payment arrived after dues record was converted to cash",
+          providerPaymentId: operation.providerPaymentId,
+          providerSessionId: operation.providerSessionId,
+        }),
+        occurredAt,
+      );
     }
     storage.sql.exec(
       `INSERT INTO audit_events

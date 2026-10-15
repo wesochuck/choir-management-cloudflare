@@ -158,6 +158,43 @@ export async function retrieveStripeCheckoutReconciliationSession(
   };
 }
 
+export async function expireStripeCheckoutSession(
+  secretKey: string,
+  connectedAccountId: string,
+  sessionId: string,
+): Promise<StripeCheckoutReconciliationSession> {
+  const result: unknown = await stripeV1Request(
+    secretKey,
+    `/v1/checkout/sessions/${encodeURIComponent(sessionId)}/expire`,
+    {
+      errorType: "checkout",
+      idempotencyKey: `payment-expire-${sessionId}`,
+      method: "POST",
+      stripeAccount: connectedAccountId,
+    },
+  );
+  const parsed = stripeCheckoutReconciliationSessionSchema.safeParse(result);
+  if (!parsed.success) {
+    throw new StripeCheckoutError(
+      "Stripe Checkout session could not be expired.",
+      502,
+      "stripe_checkout_session_invalid",
+    );
+  }
+  const paymentIntent = parsed.data.payment_intent;
+  return {
+    amountTotalCents: parsed.data.amount_total ?? null,
+    currency: parsed.data.currency ?? null,
+    id: parsed.data.id,
+    metadata: parsed.data.metadata,
+    mode: parsed.data.mode,
+    paymentIntentId:
+      typeof paymentIntent === "string" ? paymentIntent : (paymentIntent?.id ?? null),
+    paymentStatus: parsed.data.payment_status,
+    status: parsed.data.status,
+  };
+}
+
 export async function createStripeRefund(
   secretKey: string,
   connectedAccountId: string,

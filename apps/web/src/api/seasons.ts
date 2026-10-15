@@ -96,9 +96,20 @@ export async function refundOrganizationDues(duesId: string): Promise<DuesRecord
 export async function markOrganizationDuesPaidInCash(
   profileId: string,
   seasonId: string,
+  options?: {
+    readonly cancelPendingOnlineCheckout?: boolean | undefined;
+    readonly expectedDuesId?: string | undefined;
+  },
 ): Promise<DuesRecord> {
   const response = await request("/api/organization/dues/cash", {
-    body: JSON.stringify(duesCashPaymentRequestSchema.parse({ profileId, seasonId })),
+    body: JSON.stringify(
+      duesCashPaymentRequestSchema.parse({
+        cancelPendingOnlineCheckout: options?.cancelPendingOnlineCheckout,
+        expectedDuesId: options?.expectedDuesId,
+        profileId,
+        seasonId,
+      }),
+    ),
     method: "POST",
   });
   return duesRecordSchema.parse(await response.json());

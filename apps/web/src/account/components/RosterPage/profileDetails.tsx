@@ -140,12 +140,66 @@ export function ProfileFolderNumbers({
   );
 }
 
+function cashPaymentConfirmation(isOnlinePending: boolean, seasonName: string) {
+  return {
+    confirmLabel: isOnlinePending ? "Switch to cash" : "Mark paid",
+    description: isOnlinePending
+      ? `This will cancel the pending online checkout session and mark ${seasonName} dues as Paid · Cash.`
+      : `This will record ${seasonName} dues as paid without a checkout payment.`,
+    title: isOnlinePending ? "Switch to cash payment?" : "Mark dues paid in cash?",
+  };
+}
+
+function ProfileDuesAction({
+  isPendingOperation,
+  onMarkCash,
+  record,
+}: {
+  readonly isPendingOperation: boolean;
+  readonly onMarkCash: () => void;
+  readonly record: DuesRecord | undefined;
+}) {
+  if (record && record.status !== "pending") return null;
+  if (record?.status === "pending" && record.paymentMethod === "online" && record.sharedCheckout) {
+    return (
+      <span className="field-help profile-dues-row__help">
+        Shared group checkout cannot be converted individually.
+      </span>
+    );
+  }
+  const isOnline = record?.paymentMethod === "online";
+  const buttonLabel = isPendingOperation
+    ? isOnline
+      ? "Switching…"
+      : "Recording…"
+    : isOnline
+      ? "Switch to cash payment"
+      : "Mark cash paid";
+
+  return (
+    <button
+      className="button button--secondary button--small"
+      disabled={isPendingOperation}
+      onClick={onMarkCash}
+      type="button"
+    >
+      {buttonLabel}
+    </button>
+  );
+}
+
+function cannotMarkCashPayment(record: DuesRecord | undefined): boolean {
+  if (record?.status === "paid" || record?.status === "refunded") return true;
+  if (!record) return false;
+  return record.status === "pending" && record.paymentMethod === "online" && record.sharedCheckout;
+}
+
 export function ProfileDues({
   onCashPaymentMarked,
   profileId,
   state,
 }: {
-  readonly onCashPaymentMarked: (record: DuesRecord) => void;
+  readonly onCashPaymentMarked: (dues: DuesRecord) => void;
   readonly profileId: string;
   readonly state: ProfileDuesState;
 }) {
@@ -155,22 +209,25 @@ export function ProfileDues({
   const { confirm, confirmationDialog } = useConfirmation();
 
   async function markCashPayment(season: Season, record: DuesRecord | undefined): Promise<void> {
-    if (record?.status === "paid" || record?.status === "refunded") return;
-    if (
-      !(await confirm({
-        description: `This will record ${season.name} dues as paid without a checkout payment.`,
-        title: "Mark dues paid in cash?",
-      }))
-    ) {
-      return;
-    }
+    if (cannotMarkCashPayment(record)) return;
+    const isOnlinePending = record?.status === "pending" && record.paymentMethod === "online";
+    const confirmed = await confirm(cashPaymentConfirmation(isOnlinePending, season.name));
+    if (!confirmed) return;
+
     setCashPaymentSeasonId(season.id);
     setCashPaymentError(null);
     setCashPaymentSuccess(null);
     try {
-      const updated = await markOrganizationDuesPaidInCash(profileId, season.id);
+      const updated = await markOrganizationDuesPaidInCash(profileId, season.id, {
+        cancelPendingOnlineCheckout: isOnlinePending,
+        expectedDuesId: record?.id,
+      });
       onCashPaymentMarked(updated);
-      setCashPaymentSuccess(`${season.name} dues were marked as paid in cash.`);
+      setCashPaymentSuccess(
+        isOnlinePending
+          ? `${season.name} dues were switched to cash payment.`
+          : `${season.name} dues were marked as paid in cash.`,
+      );
     } catch (error: unknown) {
       setCashPaymentError(
         error instanceof AuthApiError
@@ -242,18 +299,13 @@ export function ProfileDues({
                 <span>{record?.paidAt ? new Date(record.paidAt).toLocaleDateString() : "—"}</span>
               </div>
               <div className="profile-dues-row__action">
-                {!record || record.status === "pending" ? (
-                  <button
-                    className="button button--secondary button--small"
-                    disabled={cashPaymentSeasonId !== null}
-                    onClick={() => {
-                      void markCashPayment(season, record);
-                    }}
-                    type="button"
-                  >
-                    {cashPaymentSeasonId === season.id ? "Recording…" : "Mark cash paid"}
-                  </button>
-                ) : null}
+                <ProfileDuesAction
+                  isPendingOperation={cashPaymentSeasonId !== null}
+                  onMarkCash={() => {
+                    void markCashPayment(season, record);
+                  }}
+                  record={record}
+                />
               </div>
             </div>
           );
