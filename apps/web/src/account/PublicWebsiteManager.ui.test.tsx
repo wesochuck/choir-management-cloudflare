@@ -1,5 +1,6 @@
 import type { PublicWebsiteSettings } from "@choir/contracts";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as authApi from "../auth/api";
@@ -11,6 +12,7 @@ vi.mock("../auth/api", async (importOriginal) => {
   return {
     ...actual,
     getOrganizationPublicWebsiteSettings: vi.fn(),
+    getPublishedOrganizationProjection: vi.fn(),
     publishOrganizationPublicWebsite: vi.fn(),
     updateOrganizationPublicWebsiteSettings: vi.fn(),
   };
@@ -34,9 +36,11 @@ const defaultSettings: PublicWebsiteSettings = {
   updatedAt: "2026-10-14T12:00:00.000Z",
 };
 
-describe("PublicWebsiteManager website publication readiness (#199)", () => {
+describe("PublicWebsiteManager website publication readiness (#199, #255)", () => {
   beforeEach(() => {
     vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockReset();
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockReset();
+    vi.mocked(authApi.publishOrganizationPublicWebsite).mockReset();
   });
 
   it("renders website readiness checklist with unpublished guidance when version is 0", async () => {
@@ -82,5 +86,127 @@ describe("PublicWebsiteManager website publication readiness (#199)", () => {
     expect(readiness).toHaveTextContent(
       "Our History: Draft ready (History page appears in navigation)",
     );
+  });
+
+  it("publishes and confirms live version after successful projection verification", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue(defaultSettings);
+    vi.mocked(authApi.publishOrganizationPublicWebsite).mockResolvedValue({
+      publishedAt: "2026-10-15T00:00:00.000Z",
+      version: 1,
+    });
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue({
+      generatedAt: "2026-10-15T00:00:00.000Z",
+      organizationId: "organization-alpha",
+      payload: {
+        mediaFileIds: [],
+        organizationName: "Test Chorus",
+        performances: [],
+        settings: {
+          aboutUsText: "We are an all-volunteer community choir.",
+          bodyFont: "system",
+          contactEmail: "contact@example.test",
+          enabledNavigation: ["tickets"],
+          headerFont: "system",
+          heroFileId: null,
+          heroHeadline: "Welcome to Our Choir",
+          heroSubtitle: "Voices in harmony",
+          historyText: "",
+          logoFileId: null,
+          showBrandingHeaderFooter: false,
+        },
+        ticketBundles: [],
+        timezone: "UTC",
+      },
+      version: 1,
+    });
+
+    render(
+      <SaveCoordinatorProvider>
+        <PublicWebsiteManager enabled />
+        <SaveBar />
+      </SaveCoordinatorProvider>,
+    );
+
+    await screen.findByRole("region", { name: "Website publication readiness" });
+    const publishButton = screen.getByRole("button", { name: "Publish saved draft" });
+    await user.click(publishButton);
+
+    expect(authApi.publishOrganizationPublicWebsite).toHaveBeenCalledTimes(1);
+    expect(authApi.getPublishedOrganizationProjection).toHaveBeenCalledWith(undefined, {
+      bypassCache: true,
+    });
+
+    const successMessage = await screen.findByRole("status");
+    expect(successMessage).toHaveTextContent("Version 1 is live.");
+
+    const readiness = screen.getByRole("region", { name: "Website publication readiness" });
+    expect(readiness).toHaveTextContent("Version 1 is live.");
+  });
+
+  it("shows warning and allows retrying verification when initial projection verification fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue(defaultSettings);
+    vi.mocked(authApi.publishOrganizationPublicWebsite).mockResolvedValue({
+      publishedAt: "2026-10-15T00:00:00.000Z",
+      version: 2,
+    });
+    // First verification attempt fails
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockRejectedValueOnce(
+      new Error("Network glitch"),
+    );
+
+    render(
+      <SaveCoordinatorProvider>
+        <PublicWebsiteManager enabled />
+        <SaveBar />
+      </SaveCoordinatorProvider>,
+    );
+
+    await screen.findByRole("region", { name: "Website publication readiness" });
+    const publishButton = screen.getByRole("button", { name: "Publish saved draft" });
+    await user.click(publishButton);
+
+    // Shows verification warning
+    const warning = await screen.findByRole("alert");
+    expect(warning).toHaveTextContent("public verification could not be confirmed");
+    expect(screen.getByRole("button", { name: "Retry verification" })).toBeInTheDocument();
+
+    // Now resolve verification on retry
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValueOnce({
+      generatedAt: "2026-10-15T00:00:00.000Z",
+      organizationId: "organization-alpha",
+      payload: {
+        mediaFileIds: [],
+        organizationName: "Test Chorus",
+        performances: [],
+        settings: {
+          aboutUsText: "We are an all-volunteer community choir.",
+          bodyFont: "system",
+          contactEmail: "contact@example.test",
+          enabledNavigation: ["tickets"],
+          headerFont: "system",
+          heroFileId: null,
+          heroHeadline: "Welcome to Our Choir",
+          heroSubtitle: "Voices in harmony",
+          historyText: "",
+          logoFileId: null,
+          showBrandingHeaderFooter: false,
+        },
+        ticketBundles: [],
+        timezone: "UTC",
+      },
+      version: 2,
+    });
+
+    const retryButton = screen.getByRole("button", { name: "Retry verification" });
+    await user.click(retryButton);
+
+    // Should NOT have called publishOrganizationPublicWebsite again
+    expect(authApi.publishOrganizationPublicWebsite).toHaveBeenCalledTimes(1);
+    expect(authApi.getPublishedOrganizationProjection).toHaveBeenCalledTimes(2);
+
+    const successMessage = await screen.findByRole("status");
+    expect(successMessage).toHaveTextContent("Version 2 is live.");
   });
 });

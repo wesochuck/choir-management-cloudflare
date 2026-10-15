@@ -5,6 +5,7 @@ import {
   AuthApiError,
   deletePrivateOrganizationFile,
   getOrganizationPublicWebsiteSettings,
+  getPublishedOrganizationProjection,
   publishOrganizationPublicWebsite,
   updateOrganizationPublicWebsiteSettings,
   uploadPrivateOrganizationFile,
@@ -104,23 +105,50 @@ function validateImage(file: File | null): string | null {
   return file.size <= 5 * 1024 * 1024 ? null : "Public images must be 5 MB or smaller.";
 }
 
+type PublicationVerificationStatus =
+  "idle" | "publishing" | "verifying" | "confirmed" | "uncertain";
+
 function WebsiteReadinessChecklist({
   dirty,
   draft,
   settings,
+  verificationStatus,
+  verifiedVersion,
 }: {
   readonly dirty: boolean;
   readonly draft: PublicWebsiteSettingsRequest;
   readonly settings: PublicWebsiteSettings;
+  readonly verificationStatus: PublicationVerificationStatus;
+  readonly verifiedVersion: number | null;
 }) {
-  const versionText =
-    settings.publicationVersion === 0
-      ? "Your public website is not published yet. Visitors see default placeholder information until you publish."
-      : `Live version ${String(settings.publicationVersion)}${
-          settings.publishedAt
-            ? ` (published ${new Date(settings.publishedAt).toLocaleDateString()})`
-            : ""
-        }.`;
+  let versionText: string;
+  if (settings.publicationVersion === 0) {
+    versionText =
+      "Your public website is not published yet. Visitors see default placeholder information until you publish.";
+  } else if (
+    verificationStatus === "confirmed" &&
+    verifiedVersion === settings.publicationVersion
+  ) {
+    versionText = `Live version ${String(settings.publicationVersion)}${
+      settings.publishedAt
+        ? ` (published ${new Date(settings.publishedAt).toLocaleDateString()})`
+        : ""
+    }. Version ${String(settings.publicationVersion)} is live.`;
+  } else if (verificationStatus === "verifying") {
+    versionText = `Publishing version ${String(settings.publicationVersion)}: Verifying public website availability…`;
+  } else if (verificationStatus === "uncertain") {
+    versionText = `Live version ${String(settings.publicationVersion)}${
+      settings.publishedAt
+        ? ` (published ${new Date(settings.publishedAt).toLocaleDateString()})`
+        : ""
+    } (public verification pending or unconfirmed).`;
+  } else {
+    versionText = `Live version ${String(settings.publicationVersion)}${
+      settings.publishedAt
+        ? ` (published ${new Date(settings.publishedAt).toLocaleDateString()})`
+        : ""
+    }.`;
+  }
 
   const navigationSummary =
     draft.enabledNavigation.length > 0
@@ -166,6 +194,52 @@ function WebsiteReadinessChecklist({
   );
 }
 
+function PublicWebsiteActions({
+  busy,
+  onPublish,
+  onRetryVerification,
+  onSave,
+  publicationVersion,
+  verificationStatus,
+}: {
+  readonly busy: boolean;
+  readonly onPublish: () => void;
+  readonly onRetryVerification: () => void;
+  readonly onSave: () => void;
+  readonly publicationVersion: number;
+  readonly verificationStatus: PublicationVerificationStatus;
+}) {
+  return (
+    <div className="form-actions">
+      <button className="button button--secondary" disabled={busy} onClick={onSave}>
+        {busy && verificationStatus === "idle" ? "Working…" : "Save draft"}
+      </button>
+      <button className="button button--primary" disabled={busy} onClick={onPublish}>
+        {verificationStatus === "publishing"
+          ? "Publishing…"
+          : verificationStatus === "verifying"
+            ? "Verifying…"
+            : "Publish saved draft"}
+      </button>
+      {verificationStatus === "uncertain" ? (
+        <button
+          className="button button--secondary"
+          disabled={busy}
+          onClick={onRetryVerification}
+          type="button"
+        >
+          Retry verification
+        </button>
+      ) : null}
+      {publicationVersion > 0 ? (
+        <a className="button button--secondary" href="/" target="_blank">
+          View live website
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean }) {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [draft, setDraft] = useState<PublicWebsiteSettingsRequest | null>(null);
@@ -174,6 +248,10 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [verificationStatus, setVerificationStatus] =
+    useState<PublicationVerificationStatus>("idle");
+  const [verifiedVersion, setVerifiedVersion] = useState<number | null>(null);
+  const [verificationError, setVerificationError] = useState<string | null>(null);
   const draftRevisionRef = useRef(0);
 
   useEffect(() => {
@@ -201,6 +279,8 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     draftRevisionRef.current += 1;
     setDraft((current) => (current ? { ...current, [key]: value } : current));
     setSuccess(null);
+    setVerificationStatus("idle");
+    setVerificationError(null);
   }
 
   async function save() {
@@ -272,10 +352,37 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     }
   }
 
+  async function verifyPublication(targetVersion: number) {
+    setVerificationStatus("verifying");
+    setVerificationError(null);
+    try {
+      const projection = await getPublishedOrganizationProjection(undefined, {
+        bypassCache: true,
+      });
+      if (projection?.version === targetVersion) {
+        setVerificationStatus("confirmed");
+        setVerifiedVersion(targetVersion);
+        setSuccess(`Version ${String(targetVersion)} is live.`);
+      } else {
+        setVerificationStatus("uncertain");
+        setVerificationError(
+          `Publication completed, but public verification timed out or returned version ${String(projection?.version ?? "unknown")}. Visitors may see updates shortly.`,
+        );
+      }
+    } catch {
+      setVerificationStatus("uncertain");
+      setVerificationError(
+        "Publication completed, but public verification could not be confirmed. Check your connection or retry verification.",
+      );
+    }
+  }
+
   async function publish() {
     setBusy(true);
     setError(null);
     setSuccess(null);
+    setVerificationStatus("publishing");
+    setVerificationError(null);
     try {
       const result = await publishOrganizationPublicWebsite();
       setLoadState((current) =>
@@ -290,8 +397,21 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
             }
           : current,
       );
+      await verifyPublication(result.version);
     } catch (failure: unknown) {
+      setVerificationStatus("idle");
       setError(errorMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function retryVerification() {
+    if (loadState.status !== "ready" || loadState.settings.publicationVersion === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await verifyPublication(loadState.settings.publicationVersion);
     } finally {
       setBusy(false);
     }
@@ -334,12 +454,23 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
   }
   return (
     <div className="settings-stack">
-      <WebsiteReadinessChecklist dirty={dirty} draft={draft} settings={loadState.settings} />
+      <WebsiteReadinessChecklist
+        dirty={dirty}
+        draft={draft}
+        settings={loadState.settings}
+        verificationStatus={verificationStatus}
+        verifiedVersion={verifiedVersion}
+      />
       <section className="panel public-website-settings" aria-label="Public website settings">
         {error ? (
           <p className="notice notice--error" role="alert">
             {error}
           </p>
+        ) : null}
+        {verificationError ? (
+          <div className="notice notice--warning" role="alert">
+            <p>{verificationError}</p>
+          </div>
         ) : null}
         {success ? (
           <p className="notice notice--success" role="status">
@@ -543,27 +674,14 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
               Use this header and footer on public transaction pages
             </span>
           </label>
-          <div className="form-actions">
-            <button
-              className="button button--secondary"
-              disabled={busy}
-              onClick={() => void save()}
-            >
-              {busy ? "Working…" : "Save draft"}
-            </button>
-            <button
-              className="button button--primary"
-              disabled={busy}
-              onClick={() => void publish()}
-            >
-              Publish saved draft
-            </button>
-            {loadState.settings.publicationVersion > 0 ? (
-              <a className="button button--secondary" href="/" target="_blank">
-                View live website
-              </a>
-            ) : null}
-          </div>
+          <PublicWebsiteActions
+            busy={busy}
+            onPublish={() => void publish()}
+            onRetryVerification={() => void retryVerification()}
+            onSave={() => void save()}
+            publicationVersion={loadState.settings.publicationVersion}
+            verificationStatus={verificationStatus}
+          />
         </div>
       </section>
     </div>

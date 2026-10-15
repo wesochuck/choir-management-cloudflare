@@ -139,7 +139,7 @@ router.use("*", async (context, next) => {
   context.header(
     "cache-control",
     publicProjectionResponse
-      ? "public, max-age=60, stale-while-revalidate=300"
+      ? "no-store"
       : publicMediaResponse
         ? "public, max-age=31536000, immutable"
         : (routeCacheControl ?? "no-store"),
