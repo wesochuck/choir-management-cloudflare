@@ -2,7 +2,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PlayerBrand, type PlayerDetails } from "./player";
+import {
+  PlayerBrand,
+  PublicPracticePlayer,
+  createTokenTrackSource,
+  type PlayerDetails,
+} from "./player";
 import { PublicPlayerView } from "./PublicPlayerView";
 import * as playerApi from "./player/api";
 
@@ -181,6 +186,56 @@ describe("PublicPlayerView UI & Branding", () => {
 
       expect(screen.getByText("2026 Christmas Concert")).toBeInTheDocument();
       expect(screen.queryByText("Choir Management")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("PublicPracticePlayer async voice part race resolution", () => {
+    const multiTrackDetails: PlayerDetails = {
+      eventArtworkFileId: null,
+      eventId: "event-multitrack",
+      eventStartsAt: "2026-10-20T19:00:00.000Z",
+      eventTitle: "Fall Practice",
+      items: [
+        {
+          composer: "Composer",
+          durationSeconds: 180,
+          title: "Anthem",
+          trackFileIds: {
+            s1: "file-s1",
+            t2: "file-t2",
+            tutti: "file-tutti",
+          },
+        },
+      ],
+      organizationName: "Test Chorus",
+      performerLabel: "Singer",
+      profileName: "Bob",
+    };
+
+    it("applies late-arriving roster voice part once loaded if user has not overridden", async () => {
+      function Wrapper({ part }: { readonly part?: string | undefined }) {
+        return (
+          <PublicPracticePlayer
+            details={multiTrackDetails}
+            initialTrackKey={part}
+            source={createTokenTrackSource("token-123")}
+          />
+        );
+      }
+
+      const { container, rerender } = render(<Wrapper part={undefined} />);
+
+      // Initially defaults to tutti before roster part is loaded
+      const audioElement = container.querySelector("audio");
+      expect(audioElement).toBeInTheDocument();
+      expect(audioElement?.getAttribute("src")).toContain("file-tutti");
+
+      // Roster part resolves to "Tenor 2", matching "t2"
+      rerender(<Wrapper part="Tenor 2" />);
+
+      await waitFor(() => {
+        expect(audioElement?.getAttribute("src")).toContain("file-t2");
+      });
     });
   });
 });

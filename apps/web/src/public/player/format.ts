@@ -34,15 +34,51 @@ export function availableTrackKeys(items: readonly PlayerPlaylistItem[]): string
   });
 }
 
+export function canonicalPartKey(key: string): string {
+  const norm = normalizeKey(key);
+  return norm
+    .replace(/^soprano(\d*)$/, "s$1")
+    .replace(/^alto(\d*)$/, "a$1")
+    .replace(/^tenor(\d*)$/, "t$1")
+    .replace(/^bass(\d*)$/, "b$1")
+    .replace(/^baritone(\d*)$/, "bar$1")
+    .replace(/^mezzosoprano(\d*)$/, "ms$1")
+    .replace(/^mezzo(\d*)$/, "ms$1");
+}
+
 /**
- * Matches a requested part (for example a roster voice part such as "T2") against the track
- * keys actually present, using the same normalization as track resolution. Returns null when
- * nothing matches so callers fall back to their default key.
+ * Matches a requested part (for example a roster voice part such as "Tenor 2" or "T2")
+ * against the track keys actually present, using label matching, exact/normalized matching,
+ * and canonical part abbreviations. Returns null when nothing matches so callers fall back
+ * to their default key or section-level track fallback.
  */
-export function resolveTrackKey(trackKeys: readonly string[], requestedKey: string): string | null {
+export function resolveTrackKey(
+  trackKeys: readonly string[],
+  requestedKey: string,
+  trackLabels?: Readonly<Record<string, string>>,
+): string | null {
   if (trackKeys.includes(requestedKey)) return requestedKey;
   const requestedNorm = normalizeKey(requestedKey);
-  return trackKeys.find((key) => normalizeKey(key) === requestedNorm) ?? null;
+
+  // Exact or normalized match
+  const normMatch = trackKeys.find((key) => normalizeKey(key) === requestedNorm);
+  if (normMatch) return normMatch;
+
+  // Track label match (configured full names)
+  if (trackLabels) {
+    const labelMatch = trackKeys.find((key) => {
+      const label = trackLabels[key];
+      return label && normalizeKey(label) === requestedNorm;
+    });
+    if (labelMatch) return labelMatch;
+  }
+
+  // Canonical voice part match (e.g. "Tenor 2" <-> "t2", "Soprano 1" <-> "s1")
+  const requestedCanonical = canonicalPartKey(requestedKey);
+  const canonicalMatch = trackKeys.find((key) => canonicalPartKey(key) === requestedCanonical);
+  if (canonicalMatch) return canonicalMatch;
+
+  return null;
 }
 
 export function normalizeKey(key: string): string {
@@ -126,7 +162,7 @@ export function resolveTrack(item: PlayerPlaylistItem, requestedKey: string): Re
 
   const requestedNorm = normalizeKey(requestedKey);
 
-  // 1. Play part recording if available (exact or normalized match)
+  // 1. Play part recording if available (exact, normalized, or canonical part match)
   const exactMatch = entries.find(([k]) => k === requestedKey);
   if (exactMatch) {
     return { fallback: false, fileId: exactMatch[1], key: exactMatch[0] };
@@ -134,6 +170,11 @@ export function resolveTrack(item: PlayerPlaylistItem, requestedKey: string): Re
   const normMatch = entries.find(([k]) => normalizeKey(k) === requestedNorm);
   if (normMatch) {
     return { fallback: false, fileId: normMatch[1], key: normMatch[0] };
+  }
+  const requestedCanonical = canonicalPartKey(requestedKey);
+  const canonicalMatch = entries.find(([k]) => canonicalPartKey(k) === requestedCanonical);
+  if (canonicalMatch) {
+    return { fallback: false, fileId: canonicalMatch[1], key: canonicalMatch[0] };
   }
 
   // 2. Play section recording track if available
