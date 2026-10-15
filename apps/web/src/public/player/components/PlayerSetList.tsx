@@ -140,7 +140,7 @@ export function PlayerSetList({
           return (
             <li
               className={active ? "is-active" : undefined}
-              key={item.pieceId ?? `${item.title}-${String(index)}`}
+              key={`${item.pieceId ?? item.title}-${String(index)}`}
               ref={active ? activeRowRef : undefined}
             >
               <button
@@ -165,6 +165,14 @@ export function PlayerSetList({
                       {track.fallback
                         ? `${formatTrackKey(track.key)} fallback`
                         : formatTrackKey(track.key)}
+                    </span>
+                  ) : item.type === "intermission" ? (
+                    <span className="public-player__item-track public-player__item-track--cue">
+                      Intermission
+                    </span>
+                  ) : !item.pieceId && item.type !== "song" ? (
+                    <span className="public-player__item-track public-player__item-track--cue">
+                      Program cue
                     </span>
                   ) : (
                     <span className="public-player__item-track public-player__item-track--unavailable">

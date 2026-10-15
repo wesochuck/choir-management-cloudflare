@@ -18,7 +18,7 @@ import {
   updateMediaSessionPosition,
 } from "./format";
 import type { PracticeTrackSource } from "./source";
-import type { PlayerDetails } from "./types";
+import type { PlayerDetails, PlayerPlaylistItem } from "./types";
 import { useAudioSession, type AudioSessionHandlers } from "./useAudioSession";
 import { useAutoCacheOfflineCopies, useOfflineAudioUrl } from "./usePlayerOffline";
 import { useOfflineCopies } from "../../offline/useOfflineCopies";
@@ -67,13 +67,63 @@ function OfflineStatusNotices({
   );
 }
 
+function findInitialSelectedItemIndex(
+  items: readonly PlayerPlaylistItem[],
+  initialPieceId?: string,
+  initialTrackKey?: string,
+): number {
+  if (!initialPieceId) return 0;
+  const initialKey = initialTrackKey?.trim() ? initialTrackKey.trim() : "all";
+  const initialPlayable = items.filter((item) => resolveTrack(item, initialKey) !== null);
+  const found = initialPlayable.findIndex((item) => item.pieceId === initialPieceId);
+  return found >= 0 ? found : 0;
+}
+
+function resolveSelectedTrackKey(
+  userOverrideTrackKey: string | null,
+  initialTrackKey: string | undefined,
+  allTrackKeys: readonly string[],
+  trackLabels?: Record<string, string>,
+): string {
+  if (userOverrideTrackKey !== null) return userOverrideTrackKey;
+  if (initialTrackKey) {
+    return resolveTrackKey(allTrackKeys, initialTrackKey, trackLabels) ?? initialTrackKey;
+  }
+  return allTrackKeys[0] ?? "tutti";
+}
+
+function computeActiveTrackKey(
+  selectedTrackKey: string,
+  allTrackKeys: readonly string[],
+  hasInitialTrackKey: boolean,
+): string {
+  if (allTrackKeys.includes(selectedTrackKey) || hasInitialTrackKey) {
+    return selectedTrackKey;
+  }
+  return allTrackKeys[0] ?? "tutti";
+}
+
+function computeAudioSrc(
+  offlineUrl: string | null,
+  currentTrack: { readonly fileId: string } | null,
+  source: PracticeTrackSource,
+): string {
+  if (offlineUrl) return offlineUrl;
+  if (currentTrack) return source.mediaUrl(currentTrack.fileId);
+  return "";
+}
+
 export function PublicPracticePlayer({
   details,
+  initialPieceId,
   initialTrackKey,
+  onTrackKeyChange,
   source,
 }: {
   readonly details: PlayerDetails;
+  readonly initialPieceId?: string | undefined;
   readonly initialTrackKey?: string | undefined;
+  readonly onTrackKeyChange?: ((key: string) => void) | undefined;
   readonly source: PracticeTrackSource;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -82,7 +132,10 @@ export function PublicPracticePlayer({
   const queueButtonRef = useRef<HTMLButtonElement | null>(null);
   const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
 
-  const [selectedItemIndex, setSelectedItemIndex] = useState(0);
+  const [prevInitialPieceId, setPrevInitialPieceId] = useState(initialPieceId);
+  const [selectedItemIndex, setSelectedItemIndex] = useState(() =>
+    findInitialSelectedItemIndex(details.items, initialPieceId, initialTrackKey),
+  );
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -112,24 +165,32 @@ export function PublicPracticePlayer({
   const allTrackKeys = useMemo(() => availableTrackKeys(details.items), [details.items]);
   const [userOverrideTrackKey, setUserOverrideTrackKey] = useState<string | null>(null);
 
-  const selectedTrackKey = useMemo(() => {
-    if (userOverrideTrackKey !== null) {
-      return userOverrideTrackKey;
-    }
-    if (initialTrackKey) {
-      return resolveTrackKey(allTrackKeys, initialTrackKey, details.trackLabels) ?? initialTrackKey;
-    }
-    return allTrackKeys[0] ?? "tutti";
-  }, [allTrackKeys, details.trackLabels, initialTrackKey, userOverrideTrackKey]);
+  const selectedTrackKey = useMemo(
+    () =>
+      resolveSelectedTrackKey(
+        userOverrideTrackKey,
+        initialTrackKey,
+        allTrackKeys,
+        details.trackLabels,
+      ),
+    [allTrackKeys, details.trackLabels, initialTrackKey, userOverrideTrackKey],
+  );
 
-  const activeTrackKey =
-    allTrackKeys.includes(selectedTrackKey) || initialTrackKey
-      ? selectedTrackKey
-      : (allTrackKeys[0] ?? "tutti");
+  const activeTrackKey = useMemo(
+    () => computeActiveTrackKey(selectedTrackKey, allTrackKeys, Boolean(initialTrackKey)),
+    [allTrackKeys, initialTrackKey, selectedTrackKey],
+  );
   const playableItems = useMemo(
     () => details.items.filter((item) => resolveTrack(item, activeTrackKey) !== null),
     [activeTrackKey, details.items],
   );
+  if (initialPieceId && initialPieceId !== prevInitialPieceId) {
+    setPrevInitialPieceId(initialPieceId);
+    const found = playableItems.findIndex((item) => item.pieceId === initialPieceId);
+    if (found >= 0) {
+      setSelectedItemIndex(found);
+    }
+  }
   const safeSelectedItemIndex = Math.min(selectedItemIndex, Math.max(playableItems.length - 1, 0));
   const currentItem = playableItems[safeSelectedItemIndex] ?? null;
   const currentTrack = currentItem ? resolveTrack(currentItem, activeTrackKey) : null;
@@ -140,12 +201,38 @@ export function PublicPracticePlayer({
     offlineIds,
     acquireOfflineUrl,
   );
-  const audioSrc = offlineUrl ?? (currentTrack ? source.mediaUrl(currentTrack.fileId) : "");
+  const audioSrc = computeAudioSrc(offlineUrl, currentTrack, source);
   const eventArtworkUrl = details.eventArtworkFileId
     ? source.artworkUrl(details.eventArtworkFileId)
     : null;
 
   useAutoCacheOfflineCopies(scope, details.items, activeTrackKey, ensureOfflineCopies);
+
+  const prevEventIdRef = useRef(details.eventId);
+  useEffect(() => {
+    if (prevEventIdRef.current !== details.eventId) {
+      prevEventIdRef.current = details.eventId;
+      if (gapTimerRef.current !== null) {
+        window.clearInterval(gapTimerRef.current);
+        gapTimerRef.current = null;
+      }
+      setPlaying(false);
+      setCountdown(null);
+      setBlockedFileId(null);
+      const targetIndex = initialPieceId
+        ? Math.max(
+            0,
+            playableItems.findIndex((item) => item.pieceId === initialPieceId),
+          )
+        : 0;
+      setSelectedItemIndex(targetIndex >= 0 ? targetIndex : 0);
+      const audio = audioRef.current;
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
+    }
+  }, [details.eventId, initialPieceId, playableItems]);
 
   useEffect(() => {
     if ("audioSession" in navigator) {
@@ -210,6 +297,7 @@ export function PublicPracticePlayer({
     setSelectedItemIndex(0);
     setCountdown(null);
     setBlockedFileId(null);
+    onTrackKeyChange?.(key);
   }
 
   function handleSaveOfflineCopy(fileId: string): void {

@@ -222,6 +222,7 @@ export const singerEventSchema = z.object({
       trackCount: z.number().int().nonnegative(),
     })
     .default({ sourceEventId: null, status: "not_published", trackCount: 0 }),
+  publicGraphicFileId: z.string().max(200).nullable().default(null).optional(),
   resolvedRsvp: z.enum(["Yes", "No", "Pending"]),
   isInvited: z.boolean().default(false).optional(),
   otherEventRsvpMode: z

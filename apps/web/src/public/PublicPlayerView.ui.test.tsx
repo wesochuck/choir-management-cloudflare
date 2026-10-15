@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -235,6 +236,106 @@ describe("PublicPlayerView UI & Branding", () => {
 
       await waitFor(() => {
         expect(audioElement?.getAttribute("src")).toContain("file-t2");
+      });
+    });
+
+    it("calls onTrackKeyChange and retains manual selection even if roster part arrives late", async () => {
+      const user = userEvent.setup();
+      const onTrackKeyChange = vi.fn();
+
+      function Wrapper({ part }: { readonly part?: string | undefined }) {
+        return (
+          <PublicPracticePlayer
+            details={multiTrackDetails}
+            initialTrackKey={part}
+            onTrackKeyChange={onTrackKeyChange}
+            source={createTokenTrackSource("token-123")}
+          />
+        );
+      }
+
+      const { container, rerender } = render(<Wrapper part={undefined} />);
+      const audioElement = container.querySelector("audio");
+
+      // Select S1 manually
+      const partSelect = screen.getByRole("combobox", { name: /Voice Part/i });
+      await user.selectOptions(partSelect, "s1");
+
+      expect(onTrackKeyChange).toHaveBeenCalledWith("s1");
+      expect(audioElement?.getAttribute("src")).toContain("file-s1");
+
+      // Late arrival of roster part "Tenor 2" should NOT override manual selection
+      rerender(<Wrapper part="Tenor 2" />);
+      expect(audioElement?.getAttribute("src")).toContain("file-s1");
+    });
+
+    it("cycles repeat modes: No repeat -> Repeat all -> Repeat one -> No repeat", async () => {
+      const user = userEvent.setup();
+      render(
+        <PublicPracticePlayer
+          details={multiTrackDetails}
+          source={createTokenTrackSource("token-123")}
+        />,
+      );
+
+      const repeatBtn = screen.getByRole("button", { name: "No repeat" });
+      expect(repeatBtn).toHaveAttribute("aria-pressed", "false");
+
+      await user.click(repeatBtn);
+      expect(screen.getByRole("button", { name: "Repeat all" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+
+      await user.click(screen.getByRole("button", { name: "Repeat all" }));
+      expect(screen.getByRole("button", { name: "Repeat one" })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+
+      await user.click(screen.getByRole("button", { name: "Repeat one" }));
+      expect(screen.getByRole("button", { name: "No repeat" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    });
+
+    it("resets selection index and cancels gap timer on eventId change", async () => {
+      const user = userEvent.setup();
+      const twoTrackDetails: PlayerDetails = {
+        ...multiTrackDetails,
+        items: [
+          {
+            title: "Track 1",
+            trackFileIds: { tutti: "file-1" },
+          },
+          {
+            title: "Track 2",
+            trackFileIds: { tutti: "file-2" },
+          },
+        ],
+      };
+
+      function Wrapper({ details }: { readonly details: PlayerDetails }) {
+        return (
+          <PublicPracticePlayer details={details} source={createTokenTrackSource("token-123")} />
+        );
+      }
+
+      const { rerender } = render(<Wrapper details={twoTrackDetails} />);
+      await user.click(screen.getByRole("button", { name: "Next track" }));
+      expect(screen.getByRole("heading", { name: "Track 2" })).toBeInTheDocument();
+
+      // Switch event context
+      const newEventDetails: PlayerDetails = {
+        ...twoTrackDetails,
+        eventId: "event-switched",
+      };
+      rerender(<Wrapper details={newEventDetails} />);
+
+      // Index resets cleanly to 0 (Track 1)
+      await waitFor(() => {
+        expect(screen.getByRole("heading", { name: "Track 1" })).toBeInTheDocument();
       });
     });
   });

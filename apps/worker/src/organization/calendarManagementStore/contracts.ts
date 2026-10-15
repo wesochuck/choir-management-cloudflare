@@ -155,8 +155,10 @@ export interface MemberEventRow {
   readonly otherEventStaffingGoal: number | null;
   readonly parentRsvp: "No" | "Pending" | "Yes" | null;
   readonly parentSetListJson: string | null;
+  readonly parentPublicGraphicFileId: string | null;
   readonly practiceEventId: string | null;
   readonly practiceTrackCount: number;
+  readonly publicGraphicFileId: string | null;
   readonly rsvpDeadlineDate: string | null;
   readonly rsvpNote: string;
   readonly seatingChartExists: number;

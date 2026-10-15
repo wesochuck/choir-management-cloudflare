@@ -118,6 +118,22 @@ function resolveOtherEventMetadata(
   };
 }
 
+function resolvePublicGraphicFileId(event: MemberEventRow, inherits: boolean): string | null {
+  if (event.publicGraphicFileId !== null) return event.publicGraphicFileId;
+  return inherits ? event.parentPublicGraphicFileId : null;
+}
+
+function resolveMemberEventSetList(
+  event: MemberEventRow,
+  resolvedRsvp: string,
+  includePublishedSetList: boolean,
+  sourceSetListJson: string,
+) {
+  if (event.practiceEventId === null) return [];
+  if (!includePublishedSetList && resolvedRsvp !== "Yes") return [];
+  return parseSetList(includePublishedSetList ? sourceSetListJson : event.setListJson);
+}
+
 function mapMemberEvent(
   event: MemberEventRow,
   profileId: string,
@@ -154,13 +170,16 @@ function mapMemberEvent(
     otherEventRsvpMode: otherMeta.otherEventRsvpMode,
     featuredAssignments: featuredAssignmentsForProfile(sourceSetListJson, profileId),
     practice: practiceStateForMemberEvent(event),
+    publicGraphicFileId: resolvePublicGraphicFileId(event, inherits),
     resolvedRsvp,
     rsvpNote: event.rsvpNote,
     seating: seatingStateForMemberEvent(event, inherits, directRsvp),
-    setList:
-      event.practiceEventId !== null && (includePublishedSetList || resolvedRsvp === "Yes")
-        ? parseSetList(includePublishedSetList ? sourceSetListJson : event.setListJson)
-        : [],
+    setList: resolveMemberEventSetList(
+      event,
+      resolvedRsvp,
+      includePublishedSetList,
+      sourceSetListJson,
+    ),
     startsAt: event.startsAt,
     title: event.title,
     type: event.type,
@@ -220,6 +239,8 @@ export function listMemberEventsFromStore(
          e.location, e.details, e.set_list_json AS setListJson,
          e.set_list_approved AS setListApproved,
          e.is_canceled AS isCanceled, e.rsvp_deadline_date AS rsvpDeadlineDate,
+         e.public_graphic_file_id AS publicGraphicFileId,
+         parentEvent.public_graphic_file_id AS parentPublicGraphicFileId,
          e.other_event_rsvp_mode AS otherEventRsvpMode,
          e.other_event_staffing_goal AS otherEventStaffingGoal,
          e.other_event_audience_json AS otherEventAudienceJson,
