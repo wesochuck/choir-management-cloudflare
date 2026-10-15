@@ -44,9 +44,17 @@ export async function checkoutPublicDonation(checkoutRequest: DonationCheckoutRe
 
 export async function getPublishedOrganizationProjection(
   signal?: AbortSignal,
+  options?: { readonly bypassCache?: boolean },
 ): Promise<PublishedOrganizationProjection | null> {
-  const response = await fetch("/api/public/projection", {
-    headers: { accept: "application/json" },
+  const url = options?.bypassCache
+    ? `/api/public/projection?_t=${String(Date.now())}`
+    : "/api/public/projection";
+  const response = await fetch(url, {
+    cache: options?.bypassCache ? "no-store" : "default",
+    headers: {
+      accept: "application/json",
+      ...(options?.bypassCache ? { "cache-control": "no-cache" } : {}),
+    },
     signal: signal ?? null,
   });
   if (response.status === 404) return null;

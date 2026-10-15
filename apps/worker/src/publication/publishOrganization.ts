@@ -26,6 +26,10 @@ export function publishedProjectionKey(organizationId: string, version: number):
   return `organizations/${organizationId}/published/v${String(version)}/index.json`;
 }
 
+export function publishedCurrentKey(organizationId: string): string {
+  return `organizations/${organizationId}/published/current.json`;
+}
+
 export function publishedMediaKey(organizationId: string, version: number, fileId: string): string {
   return `organizations/${organizationId}/published/v${String(version)}/media/${fileId}`;
 }
@@ -64,6 +68,32 @@ export async function activatePublishedOrganization(
     validatedProjection.version,
   );
   if (key !== expectedKey) throw new Error("The published Organization pointer key is invalid.");
+
+  const currentKey = publishedCurrentKey(validatedProjection.organizationId);
+  const existingCurrent = await env.ORGANIZATION_FILES.head(currentKey);
+  if (existingCurrent) {
+    const existingVersionRaw = existingCurrent.customMetadata?.version;
+    const existingVersion = existingVersionRaw ? Number.parseInt(existingVersionRaw, 10) : null;
+    if (
+      existingVersion !== null &&
+      !Number.isNaN(existingVersion) &&
+      existingVersion >= validatedProjection.version
+    ) {
+      throw new Error(
+        `Active publication version ${String(existingVersion)} is newer than or equal to version ${String(validatedProjection.version)}.`,
+      );
+    }
+  }
+
+  const serializedProjection = JSON.stringify(validatedProjection);
+  await env.ORGANIZATION_FILES.put(currentKey, serializedProjection, {
+    customMetadata: {
+      organizationId: validatedProjection.organizationId,
+      version: String(validatedProjection.version),
+    },
+    httpMetadata: { contentType: "application/json; charset=utf-8" },
+  });
+
   await env.ROUTING_CACHE.put(
     `published:${validatedProjection.organizationId}`,
     JSON.stringify({
@@ -91,6 +121,21 @@ export async function readPublishedOrganization(
   if (!parsedOrganizationId.success) {
     return null;
   }
+
+  const currentKey = publishedCurrentKey(parsedOrganizationId.data);
+  const currentObject = await env.ORGANIZATION_FILES.get(currentKey);
+  if (currentObject !== null) {
+    if (currentObject.size > MAX_PUBLISHED_PROJECTION_BYTES) {
+      return null;
+    }
+    const projectionValue: unknown = await currentObject.json().catch(() => null);
+    const projection = publishedOrganizationProjectionSchema.safeParse(projectionValue);
+    if (!projection.success || projection.data.organizationId !== parsedOrganizationId.data) {
+      return null;
+    }
+    return { httpEtag: currentObject.httpEtag, projection: projection.data };
+  }
+
   const pointerValue: unknown = await env.ROUTING_CACHE.get(
     `published:${parsedOrganizationId.data}`,
     "json",

@@ -4,7 +4,9 @@ import { applyD1Migrations, reset } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, inject, it } from "vitest";
 
 import {
+  activatePublishedOrganization,
   publishOrganization,
+  publishedCurrentKey,
   publishedProjectionKey,
 } from "../src/publication/publishOrganization";
 
@@ -108,7 +110,7 @@ afterEach(async () => {
 });
 
 describe("Published Organization projections", () => {
-  it("serves immutable versioned projections on canonical and custom public hosts", async () => {
+  it("serves immutable versioned projections on canonical and custom public hosts with no-store cache control", async () => {
     const versionOneKey = await publishOrganization(publicationEnv, {
       generatedAt: "2026-07-21T12:00:00.000Z",
       organizationId: "organization-alpha",
@@ -125,15 +127,16 @@ describe("Published Organization projections", () => {
     const canonicalResponse = await fetchProjection("alpha.localhost");
     const canonicalBody: unknown = await canonicalResponse.json();
     expect(canonicalResponse.status).toBe(200);
-    expect(canonicalResponse.headers.get("cache-control")).toBe(
-      "public, max-age=60, stale-while-revalidate=300",
-    );
+    expect(canonicalResponse.headers.get("cache-control")).toBe("no-store");
     expect(canonicalBody).toMatchObject({
       organizationId: "organization-alpha",
       payload: { settings: { heroHeadline: "Alpha version two" } },
       version: 2,
     });
     await expect(organizationFiles.head(versionOneKey)).resolves.not.toBeNull();
+    const currentKey = publishedCurrentKey("organization-alpha");
+    const currentObject = await organizationFiles.head(currentKey);
+    expect(currentObject?.customMetadata?.version).toBe("2");
 
     const customResponse = await fetchProjection("alpha.example.test");
     expect(customResponse.status).toBe(200);
@@ -146,13 +149,109 @@ describe("Published Organization projections", () => {
     expect(notModifiedResponse.status).toBe(304);
   });
 
-  it("rejects KV and R2 substitutions instead of leaking another Organization's payload", async () => {
+  it("enforces monotonicity so an older or concurrent publish never regresses active version", async () => {
     await publishOrganization(publicationEnv, {
       generatedAt: "2026-07-21T12:00:00.000Z",
       organizationId: "organization-alpha",
-      payload: publicWebsitePayload("alpha-only"),
+      payload: publicWebsitePayload("Alpha v2"),
+      version: 2,
+    });
+
+    const olderKey = publishedProjectionKey("organization-alpha", 1);
+    await expect(
+      activatePublishedOrganization(
+        publicationEnv,
+        {
+          generatedAt: "2026-07-21T11:59:00.000Z",
+          organizationId: "organization-alpha",
+          payload: publicWebsitePayload("Alpha v1 regressive"),
+          version: 1,
+        },
+        olderKey,
+      ),
+    ).rejects.toThrow(/newer than or equal to version 1/);
+
+    const canonicalResponse = await fetchProjection("alpha.localhost");
+    const canonicalBody: unknown = await canonicalResponse.json();
+    expect(canonicalBody).toMatchObject({
+      organizationId: "organization-alpha",
+      payload: { settings: { heroHeadline: "Alpha v2" } },
+      version: 2,
+    });
+  });
+
+  it("falls back to legacy KV pointer only when current.json is missing", async () => {
+    const v1Key = publishedProjectionKey("organization-alpha", 1);
+    await organizationFiles.put(
+      v1Key,
+      JSON.stringify({
+        generatedAt: "2026-07-21T12:00:00.000Z",
+        organizationId: "organization-alpha",
+        payload: publicWebsitePayload("Alpha legacy site"),
+        version: 1,
+      }),
+      {
+        customMetadata: { organizationId: "organization-alpha", version: "1" },
+        httpMetadata: { contentType: "application/json" },
+      },
+    );
+    await routingCache.put(
+      "published:organization-alpha",
+      JSON.stringify({
+        key: v1Key,
+        organizationId: "organization-alpha",
+        version: 1,
+      }),
+    );
+
+    // Verify current.json is absent
+    const currentKey = publishedCurrentKey("organization-alpha");
+    expect(await organizationFiles.head(currentKey)).toBeNull();
+
+    // Legacy fallback serves the site successfully
+    const response = await fetchProjection("alpha.localhost");
+    expect(response.status).toBe(200);
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({
+      organizationId: "organization-alpha",
+      payload: { settings: { heroHeadline: "Alpha legacy site" } },
       version: 1,
     });
+  });
+
+  it("does not fall back to KV once current.json exists, even if current.json is invalid", async () => {
+    const v1Key = publishedProjectionKey("organization-alpha", 1);
+    await organizationFiles.put(
+      v1Key,
+      JSON.stringify({
+        generatedAt: "2026-07-21T12:00:00.000Z",
+        organizationId: "organization-alpha",
+        payload: publicWebsitePayload("Alpha legacy valid"),
+        version: 1,
+      }),
+    );
+    await routingCache.put(
+      "published:organization-alpha",
+      JSON.stringify({
+        key: v1Key,
+        organizationId: "organization-alpha",
+        version: 1,
+      }),
+    );
+
+    // Put invalid JSON in current.json
+    const currentKey = publishedCurrentKey("organization-alpha");
+    await organizationFiles.put(currentKey, "not-valid-json", {
+      customMetadata: { organizationId: "organization-alpha", version: "2" },
+      httpMetadata: { contentType: "application/json" },
+    });
+
+    // Should return 404, NOT fall back to KV
+    const response = await fetchProjection("alpha.localhost");
+    expect(response.status).toBe(404);
+  });
+
+  it("rejects KV and R2 substitutions in legacy mode instead of leaking another Organization's payload", async () => {
     const bravoKey = await publishOrganization(publicationEnv, {
       generatedAt: "2026-07-21T12:00:00.000Z",
       organizationId: "organization-bravo",
@@ -163,6 +262,7 @@ describe("Published Organization projections", () => {
       version: 1,
     });
 
+    // organization-alpha has no current.json; test malicious pointer
     await routingCache.put(
       "published:organization-alpha",
       JSON.stringify({
