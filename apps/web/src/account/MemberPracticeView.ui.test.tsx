@@ -1,10 +1,10 @@
-import { organizationEventSchema, type OrganizationEvent } from "@choir/contracts";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import * as singerApi from "../api/singer";
 import * as api from "../auth/api";
 import { MemberPracticeView } from "./MemberPracticeView";
+
+vi.mock("../api/singer", () => ({
+  getMySchedule: vi.fn(),
+}));
 
 vi.mock("../auth/api", async (importOriginal) => {
   const actual = await importOriginal<typeof api>();
@@ -34,34 +34,46 @@ function trackPiece(id: string, title: string) {
   };
 }
 
-function mockEvent(
-  overrides: Partial<OrganizationEvent> & { id: string; title: string },
-): OrganizationEvent {
-  return organizationEventSchema.parse({
+import type { SingerEvent } from "@choir/contracts";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+function mockSingerEvent(
+  overrides: Partial<SingerEvent> & { id: string; title: string },
+): SingerEvent {
+  return {
+    attendanceWarning: null,
     callTime: "",
-    createdAt: "2026-09-01T00:00:00Z",
-    description: "",
-    doorsOpenTime: "",
+    details: "",
+    directRsvp: "Yes",
     durationMinutes: 120,
-    isTicketingEnabled: false,
+    featuredAssignments: [],
+    inheritedFromParent: false,
     location: "",
-    parentPerformanceId: null,
-    publicDetails: "",
+    practice: {
+      sourceEventId: overrides.id,
+      status: "available",
+      trackCount: 2,
+    },
     publicGraphicFileId: null,
-    publishOnWebsite: false,
+    resolvedRsvp: "Yes",
+    rsvpDeadlineAt: null,
+    rsvpDeadlineDate: null,
+    rsvpDeadlinePassed: false,
+    rsvpNote: "",
+    rsvpSelfServiceOpen: true,
+    seating: { status: "not_published" },
     setList: [
-      { pieceId: PIECE_ONE_ID, title: "Alleluia" },
-      { pieceId: PIECE_TWO_ID, title: "Ave Verum" },
+      { pieceId: PIECE_ONE_ID, title: "Alleluia", type: "song" },
+      { pieceId: PIECE_TWO_ID, title: "Ave Verum", type: "song" },
     ],
-    setListApproved: false,
     startsAt: "2026-10-15T19:00:00Z",
-    status: "scheduled",
-    ticketCapacity: null,
     type: "Performance",
-    updatedAt: "2026-09-01T00:00:00Z",
-    venueId: null,
+    venueAddress: "",
+    venueName: "",
     ...overrides,
-  });
+  };
 }
 
 function renderWithEvent(eventId: string | null) {
@@ -75,14 +87,19 @@ beforeEach(() => {
     trackPiece(PIECE_ONE_ID, "Alleluia"),
     trackPiece(PIECE_TWO_ID, "Ave Verum"),
   ]);
-  vi.mocked(api.listOrganizationEvents).mockResolvedValue([
-    mockEvent({
-      id: EVENT_WITH_ART_ID,
-      publicGraphicFileId: EVENT_ARTWORK_FILE_ID,
-      title: "Spring Concert",
-    }),
-    mockEvent({ id: EVENT_WITHOUT_ART_ID, title: "Summer Sing" }),
-  ]);
+  vi.mocked(singerApi.getMySchedule).mockResolvedValue({
+    events: [
+      mockSingerEvent({
+        id: EVENT_WITH_ART_ID,
+        publicGraphicFileId: EVENT_ARTWORK_FILE_ID,
+        title: "Spring Concert",
+      }),
+      mockSingerEvent({ id: EVENT_WITHOUT_ART_ID, title: "Summer Sing" }),
+    ],
+    profileId: "00000000-0000-4000-8000-000000000000",
+    requestId: "11111111-1111-4111-8111-111111111111",
+    timezone: "UTC",
+  });
 });
 
 afterEach(() => {
@@ -110,8 +127,8 @@ describe("MemberPracticeView event artwork", () => {
 
   it("shows the placeholder when the event has no image", async () => {
     renderWithEvent(EVENT_WITHOUT_ART_ID);
-    await screen.findByText("Summer Sing");
-    await screen.findByLabelText("Search tracks");
+    await screen.findByRole("heading", { name: "Practice" });
+    await screen.findByLabelText("Search this set list");
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
     expect(document.querySelector(".public-player__artwork--placeholder")).toBeInTheDocument();
   });
@@ -172,6 +189,7 @@ describe("MemberPracticeView event artwork", () => {
 
 describe("MemberPracticeView playable-only filter", () => {
   it("renders the playable-only toggle and count badge", async () => {
+    const user = userEvent.setup();
     vi.mocked(api.listSingerLearningTracks).mockResolvedValue([
       trackPiece(PIECE_ONE_ID, "Alleluia"),
       trackPiece(PIECE_TWO_ID, "Ave Verum"),
@@ -187,6 +205,7 @@ describe("MemberPracticeView playable-only filter", () => {
       },
     ]);
     renderWithEvent(null);
+    await user.click(await screen.findByRole("tab", { name: "All tracks" }));
     await screen.findByText("Showing 2 playable of 3 total pieces");
     const toggle = screen.getByRole("checkbox", { name: "Playable only" });
     expect(toggle).not.toBeChecked();
@@ -209,6 +228,7 @@ describe("MemberPracticeView playable-only filter", () => {
       },
     ]);
     renderWithEvent(null);
+    await user.click(await screen.findByRole("tab", { name: "All tracks" }));
     await screen.findByText("Showing 1 playable of 2 total pieces");
     expect(screen.getByText("Lacrimosa")).toBeInTheDocument();
 
@@ -235,11 +255,52 @@ describe("MemberPracticeView playable-only filter", () => {
       },
     ]);
     renderWithEvent(null);
+    await user.click(await screen.findByRole("tab", { name: "All tracks" }));
     await screen.findByText("Showing 0 playable of 1 total pieces");
 
     const toggle = screen.getByRole("checkbox", { name: "Playable only" });
     await user.click(toggle);
 
     expect(screen.getByText("No playable tracks match the current filters.")).toBeInTheDocument();
+  });
+});
+
+describe("MemberPracticeView published set lists and selection", () => {
+  it("defaults to Published set lists view when approved performance lists exist", async () => {
+    renderWithEvent(null);
+    const setListsTab = await screen.findByRole("tab", { name: "Published set lists" });
+    expect(setListsTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText("Choose a performance")).toBeInTheDocument();
+    expect(screen.getByText(/playable of 2 music selections/)).toBeInTheDocument();
+  });
+
+  it("switches performance when selected from the dropdown", async () => {
+    const user = userEvent.setup();
+    renderWithEvent(null);
+    const select = await screen.findByLabelText("Choose a performance");
+    expect(select).toHaveValue(EVENT_WITH_ART_ID);
+
+    await user.selectOptions(select, EVENT_WITHOUT_ART_ID);
+    expect(select).toHaveValue(EVENT_WITHOUT_ART_ID);
+  });
+
+  it("scopes search to the chosen published set list", async () => {
+    const user = userEvent.setup();
+    renderWithEvent(null);
+    const searchInput = await screen.findByPlaceholderText("Search this set list");
+    await user.type(searchInput, "Alleluia");
+
+    expect(screen.getByRole("heading", { name: "Alleluia" })).toBeInTheDocument();
+    expect(screen.queryByText("Ave Verum")).not.toBeInTheDocument();
+  });
+
+  it("shows stale event notice when requested eventId is not found", async () => {
+    renderWithEvent("stale-or-deleted-event-id");
+    expect(
+      await screen.findByText("The requested set list is no longer available."),
+    ).toBeInTheDocument();
+    // Falls back to All tracks tab
+    const allTracksTab = screen.getByRole("tab", { name: "All tracks" });
+    expect(allTracksTab).toHaveAttribute("aria-selected", "true");
   });
 });

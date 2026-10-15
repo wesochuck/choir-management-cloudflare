@@ -31,10 +31,12 @@ export function isPlayerPlaylistItem(value: unknown): value is PlayerPlaylistIte
   return (
     isNullableString(value.arranger) &&
     isNullableString(value.composer) &&
+    isNullableString(value.cueInstruction) &&
     isNullableNumber(value.durationSeconds) &&
     isNullableBoolean(value.isFeaturedNumber) &&
     isNullableString(value.notes) &&
-    isNullableString(value.pieceId)
+    isNullableString(value.pieceId) &&
+    (value.type === undefined || value.type === "intermission" || value.type === "song")
   );
 }
 

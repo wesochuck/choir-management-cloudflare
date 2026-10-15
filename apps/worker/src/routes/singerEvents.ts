@@ -46,6 +46,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           profileId,
           new Date(),
           context.req.query("includePast") === "true",
+          context.req.query("includePublishedSetList") === "true",
         ),
         readOrganizationCalendarSettings(context.env, authorization.organizationId),
       ]);

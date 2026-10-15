@@ -37,8 +37,12 @@ export async function getMyEventSeating(
 export async function getMySchedule(
   signal?: AbortSignal,
   includePast = false,
+  includePublishedSetList = false,
 ): Promise<SingerEventsResponse> {
-  const query = includePast ? "?includePast=true" : "";
+  const params = new URLSearchParams();
+  if (includePast) params.set("includePast", "true");
+  if (includePublishedSetList) params.set("includePublishedSetList", "true");
+  const query = params.toString() ? `?${params.toString()}` : "";
   const response = await request(`/api/singer/events${query}`, { signal: signal ?? null });
   return singerEventsResponseSchema.parse(await response.json());
 }

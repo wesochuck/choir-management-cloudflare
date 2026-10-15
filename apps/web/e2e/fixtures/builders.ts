@@ -62,12 +62,14 @@ import {
   type OrganizationEventRsvpHistoryEntry,
   type OrganizationInvitationDetails,
   type OrganizationInvitationSummary,
+  singerLearningTrackPieceSchema,
   type OrganizationProfile,
   type OrganizationVenue,
   type OrganizationSeatingChart,
   type PlatformHomeTicketListing,
   type PlatformHomeTicketListingsResponse,
   type SingerEvent,
+  type SingerLearningTrackPiece,
 } from "@choir/contracts";
 
 /**
@@ -640,6 +642,25 @@ export function buildSingerEventsResponse(
     },
     (value) => singerEventsResponseSchema.parse(value),
   );
+}
+
+export function buildSingerLearningTrackPiece(
+  overrides: Partial<SingerLearningTrackPiece> = {},
+): SingerLearningTrackPiece {
+  const piece: SingerLearningTrackPiece = {
+    arranger: "Traditional",
+    composer: "Traditional",
+    durationSeconds: 180,
+    id: "12345678-1234-4234-8234-123456789abc",
+    parentId: null,
+    scoreFileIds: {},
+    title: "Browser Song",
+    trackFileIds: {
+      all: "aaaaaaaa-0000-4000-8000-000000000001",
+    },
+    ...overrides,
+  };
+  return validated(piece, (value) => singerLearningTrackPieceSchema.parse(value));
 }
 
 export function buildSingerSeatingResponse() {

@@ -14,6 +14,7 @@ import {
   type OrganizationProfile,
   type OrganizationSeatingChart,
   type SingerEvent,
+  type SingerLearningTrackPiece,
 } from "@choir/contracts";
 import {
   buildAttendanceRow,
@@ -128,6 +129,7 @@ export interface OrganizationApi {
   readonly seatingCharts: MutableState<OrganizationSeatingChart[]>;
   readonly seatingConfiguration: MutableState<ReturnType<typeof buildSeatingConfiguration>>;
   readonly singerEvents: MutableState<SingerEvent[]>;
+  readonly learningTracks: MutableState<SingerLearningTrackPiece[]>;
   readonly donations: MutableState<DonationRecord[]>;
   readonly unexpectedRequests: readonly string[];
   assertNoUnexpectedRequests(): void;
@@ -182,6 +184,7 @@ export async function installOrganizationApi(
     buildSingerEvent({}),
     buildRehearsalSingerEvent(),
   ]);
+  const learningTracks = createMutableState<SingerLearningTrackPiece[]>([]);
   const donations = createMutableState<DonationRecord[]>([]);
   let singerDashboard: MemberDashboardResponse | null = null;
 
@@ -447,12 +450,18 @@ export async function installOrganizationApi(
     seatingCharts.set([chart]);
     await fulfillJson(route, chart, method === "POST" ? 201 : 200);
   });
-  await page.route("**/api/singer/events", async (route) => {
+  await page.route(/\/api\/singer\/events(?:\?.*)?$/, async (route) => {
     await fulfillJson(route, {
       events: singerEvents.get(),
       profileId: fixtureIds.browserProfileId,
       requestId,
       timezone: "America/New_York",
+    });
+  });
+  await page.route(/\/api\/singer\/music(?:\?.*)?$/, async (route) => {
+    await fulfillJson(route, {
+      pieces: learningTracks.get(),
+      requestId,
     });
   });
   await page.route("**/api/singer/events/*/seating", async (route) => {
@@ -581,6 +590,7 @@ export async function installOrganizationApi(
       singerDashboard = response;
     },
     singerEvents,
+    learningTracks,
     unexpectedRequests: guard?.unexpectedRequests ?? [],
   };
 }

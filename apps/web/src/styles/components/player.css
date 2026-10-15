@@ -110,6 +110,36 @@
     padding-bottom: var(--spacing-2xs);
   }
 
+  .practice-player__tabs-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .practice-player__performance-picker {
+    display: grid;
+    gap: var(--spacing-2xs);
+    width: 100%;
+  }
+
+  .practice-player__performance-picker .field {
+    margin-bottom: 0;
+  }
+
+  .practice-player__performance-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  .practice-player__meta-separator {
+    color: var(--color-border);
+  }
+
   .practice-player__count-badge {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
@@ -943,6 +973,12 @@
   .public-player__item-track--unavailable {
     border-color: var(--color-border);
     color: var(--color-text-muted);
+  }
+
+  .public-player__item-track--cue {
+    border-color: var(--color-border);
+    color: var(--color-text-muted);
+    font-style: italic;
   }
 
   .public-player__download-btn {

@@ -9,12 +9,14 @@ declare global {
 export interface PlayerPlaylistItem {
   readonly arranger?: string | null | undefined;
   readonly composer?: string | null | undefined;
+  readonly cueInstruction?: string | null | undefined;
   readonly durationSeconds?: number | null | undefined;
   readonly isFeaturedNumber?: boolean | null | undefined;
   readonly notes?: string | null | undefined;
   readonly pieceId?: string | null | undefined;
   readonly title: string;
   readonly trackFileIds: Record<string, string>;
+  readonly type?: "intermission" | "song" | undefined;
 }
 
 export interface PlayerDetails {
