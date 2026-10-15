@@ -1,5 +1,5 @@
 import type { OrganizationEventRequest, OrganizationVenue } from "@choir/contracts";
-import { Dialog, DialogClose, Tabs, TabsList, TabsTrigger } from "@choir/ui";
+import { Dialog, DialogClose, Tabs, TabsList, TabsTrigger, useConfirmation } from "@choir/ui";
 import {
   type Dispatch,
   type DragEvent,
@@ -61,6 +61,7 @@ function isEventEditorSection(value: string): value is EventEditorSection {
 // eslint-disable-next-line complexity -- the editor keeps the event form's cross-field controls together.
 export function EventEditorDialog({
   busy,
+  canManageSetLists = true,
   dialogOpen,
   editingId,
   error,
@@ -68,6 +69,7 @@ export function EventEditorDialog({
   eventStart,
   graphicFile,
   initialSection = null,
+  navigate,
   onClose,
   onSubmit,
   onVenueCreated,
@@ -78,6 +80,7 @@ export function EventEditorDialog({
   state,
 }: {
   readonly busy: boolean;
+  readonly canManageSetLists?: boolean | undefined;
   readonly dialogOpen: boolean;
   readonly editingId: string | null;
   readonly error: string | null;
@@ -85,6 +88,7 @@ export function EventEditorDialog({
   readonly eventStart: string;
   readonly graphicFile: File | null;
   readonly initialSection?: string | null | undefined;
+  readonly navigate?: ((href: string) => void) | undefined;
   readonly onClose: () => void;
   readonly onSubmit: (event: OrganizationEventRequest) => void;
   readonly onVenueCreated?: ((venue: OrganizationVenue) => void) | undefined;
@@ -94,6 +98,8 @@ export function EventEditorDialog({
   readonly setGraphicFile: (file: File | null) => void;
   readonly state: EventsState;
 }) {
+  const { confirm, confirmationDialog } = useConfirmation();
+
   const [advancePriceDraft, setAdvancePriceDraft] = useState(
     currencyDraftFromCents(event.advancePriceCents),
   );
@@ -134,6 +140,25 @@ export function EventEditorDialog({
     advancePriceDraft !== initialDraft.advancePriceDraft ||
     dayOfPriceDraft !== initialDraft.dayOfPriceDraft ||
     graphicFile !== null;
+
+  async function handleOpenSetList(): Promise<void> {
+    if (!editingId) return;
+    if (dirty) {
+      const shouldDiscard = await confirm({
+        confirmLabel: "Discard changes",
+        description: "Your unsaved changes will be lost if you leave this event.",
+        destructive: true,
+        title: "Discard unsaved changes?",
+      });
+      if (!shouldDiscard) return;
+    }
+    const targetUrl = `/admin/setlists?eventId=${encodeURIComponent(editingId)}`;
+    if (navigate) {
+      navigate(targetUrl);
+    } else {
+      window.location.assign(targetUrl);
+    }
+  }
   const followUpEnabled =
     event.rsvpFollowUpMode === "enabled" ||
     (event.rsvpFollowUpMode === "inherit" && state.status === "ready" && state.rsvpFollowUpEnabled);
@@ -348,248 +373,269 @@ export function EventEditorDialog({
   const timezoneLabel = state.status === "ready" ? state.timezone : null;
 
   return (
-    <Dialog
-      className="dialog--event-editor"
-      description={eventDialogDescription(state)}
-      dirty={dirty}
-      header={
-        <EventEditorHeader
-          dirty={dirty}
-          editingId={editingId}
-          eventStart={eventStart}
-          eventTitle={event.title}
-          eventType={event.type}
-          timezoneLabel={timezoneLabel}
-        />
-      }
-      onClose={onClose}
-      open={dialogOpen}
-      title={eventDialogTitle(editingId, event.title)}
-    >
-      <Tabs
-        className="event-editor-tabs-root"
-        onValueChange={(value) => {
-          if (isEventEditorSection(value)) setActiveSection(value);
-        }}
-        orientation="vertical"
-        value={activeSection}
+    <>
+      <Dialog
+        className="dialog--event-editor"
+        description={eventDialogDescription(state)}
+        dirty={dirty}
+        header={
+          <EventEditorHeader
+            busy={busy}
+            canManageSetLists={canManageSetLists}
+            dirty={dirty}
+            editingId={editingId}
+            eventStart={eventStart}
+            eventTitle={event.title}
+            eventType={event.type}
+            onOpenSetList={() => {
+              void handleOpenSetList();
+            }}
+            timezoneLabel={timezoneLabel}
+          />
+        }
+        onClose={onClose}
+        open={dialogOpen}
+        title={eventDialogTitle(editingId, event.title)}
       >
-        <div className="event-editor-layout">
-          <div className="event-editor-body">
-            <div className="event-editor__mobile-nav">
-              <label
-                className="event-editor__mobile-nav-label"
-                htmlFor="event-editor-section-select"
-              >
-                Event section
-              </label>
-              <select
-                aria-label="Event section"
-                className="event-editor__mobile-nav-select"
-                id="event-editor-section-select"
-                onChange={(change) => {
-                  if (isEventEditorSection(change.target.value)) {
-                    setActiveSection(change.target.value);
-                  }
-                }}
-                value={activeSection}
-              >
-                {visibleSections.map((section) => (
-                  <option key={section} value={section}>
-                    {EVENT_EDITOR_SECTION_META[section].shortLabel}
-                    {sectionCounts[section] > 0 && showErrorBadges
-                      ? ` · ${String(sectionCounts[section])} to fix`
-                      : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <aside aria-label="Event section navigation" className="event-editor__rail">
-              <div className="event-editor__rail-header">Event sections</div>
-              <TabsList aria-label="Event sections" className="event-editor__rail-tablist">
-                {visibleSections.map((section, index) => {
-                  const meta = EVENT_EDITOR_SECTION_META[section];
-                  const required = isSectionRequired(section, event.type);
-                  const count = sectionCounts[section];
-                  const badge = sectionBadgeLabel(showErrorBadges ? count : 0, required);
-                  const isActive = activeSection === section;
-                  return (
-                    <TabsTrigger
-                      aria-controls={`event-editor-${section}-panel`}
-                      className={`event-editor__rail-trigger ${isActive ? "is-active" : ""} ${
-                        count > 0 && showErrorBadges ? "has-errors" : ""
-                      }`}
-                      id={`event-editor-${section}-tab`}
-                      key={section}
-                      value={section}
-                    >
-                      <span aria-hidden="true" className="event-editor__rail-index">
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
-                      <span className="event-editor__rail-text">
-                        <span className="event-editor__rail-label">{meta.label}</span>
-                        <span className="event-editor__rail-desc">{meta.description}</span>
-                      </span>
-                      <span
-                        className={`event-editor__badge ${
-                          count > 0 && showErrorBadges
-                            ? "event-editor__badge--error"
-                            : required
-                              ? "event-editor__badge--required"
-                              : "event-editor__badge--optional"
-                        }`}
-                      >
-                        {badge}
-                      </span>
-                    </TabsTrigger>
-                  );
-                })}
-              </TabsList>
-              <div className="event-editor__rail-callout">
-                <strong>Required before save</strong>
-                <p>Warnings never block saving. A TBD venue satisfies the venue requirement.</p>
+        <Tabs
+          className="event-editor-tabs-root"
+          onValueChange={(value) => {
+            if (isEventEditorSection(value)) setActiveSection(value);
+          }}
+          orientation="vertical"
+          value={activeSection}
+        >
+          <div className="event-editor-layout">
+            <div className="event-editor-body">
+              <div className="event-editor__mobile-nav">
+                <label
+                  className="event-editor__mobile-nav-label"
+                  htmlFor="event-editor-section-select"
+                >
+                  Event section
+                </label>
+                <select
+                  aria-label="Event section"
+                  className="event-editor__mobile-nav-select"
+                  id="event-editor-section-select"
+                  onChange={(change) => {
+                    if (isEventEditorSection(change.target.value)) {
+                      setActiveSection(change.target.value);
+                    }
+                  }}
+                  value={activeSection}
+                >
+                  {visibleSections.map((section) => (
+                    <option key={section} value={section}>
+                      {EVENT_EDITOR_SECTION_META[section].shortLabel}
+                      {sectionCounts[section] > 0 && showErrorBadges
+                        ? ` · ${String(sectionCounts[section])} to fix`
+                        : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </aside>
 
-            <form
-              className="event-editor-main"
-              noValidate
-              onSubmit={(formEvent) => {
-                formEvent.preventDefault();
-                handleValidatedSubmit();
-              }}
-            >
-              <div className="event-editor-content">
-                {error ? (
-                  <p
-                    className="notice notice--error"
-                    id="event-editor-error"
-                    role="alert"
-                    tabIndex={-1}
-                  >
-                    {error}
-                  </p>
-                ) : null}
+              <aside aria-label="Event section navigation" className="event-editor__rail">
+                <div className="event-editor__rail-header">Event sections</div>
+                <TabsList aria-label="Event sections" className="event-editor__rail-tablist">
+                  {visibleSections.map((section, index) => {
+                    const meta = EVENT_EDITOR_SECTION_META[section];
+                    const required = isSectionRequired(section, event.type);
+                    const count = sectionCounts[section];
+                    const badge = sectionBadgeLabel(showErrorBadges ? count : 0, required);
+                    const isActive = activeSection === section;
+                    return (
+                      <TabsTrigger
+                        aria-controls={`event-editor-${section}-panel`}
+                        className={`event-editor__rail-trigger ${isActive ? "is-active" : ""} ${
+                          count > 0 && showErrorBadges ? "has-errors" : ""
+                        }`}
+                        id={`event-editor-${section}-tab`}
+                        key={section}
+                        value={section}
+                      >
+                        <span aria-hidden="true" className="event-editor__rail-index">
+                          {String(index + 1).padStart(2, "0")}
+                        </span>
+                        <span className="event-editor__rail-text">
+                          <span className="event-editor__rail-label">{meta.label}</span>
+                          <span className="event-editor__rail-desc">{meta.description}</span>
+                        </span>
+                        <span
+                          className={`event-editor__badge ${
+                            count > 0 && showErrorBadges
+                              ? "event-editor__badge--error"
+                              : required
+                                ? "event-editor__badge--required"
+                                : "event-editor__badge--optional"
+                          }`}
+                        >
+                          {badge}
+                        </span>
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+                <div className="event-editor__rail-callout">
+                  <strong>Required before save</strong>
+                  <p>Warnings never block saving. A TBD venue satisfies the venue requirement.</p>
+                </div>
+              </aside>
 
-                {totalErrors > 0 && attemptedSave ? (
-                  <div
-                    aria-live="polite"
-                    className="notice notice--error event-editor-error-summary"
-                    id="event-editor-error-summary"
-                    ref={errorSummaryRef}
-                    role="alert"
-                    tabIndex={-1}
-                  >
-                    <strong>
-                      Please resolve {String(totalErrors)} error{totalErrors === 1 ? "" : "s"}{" "}
-                      before saving:
-                    </strong>
-                    <ul>
-                      {visibleSections.map((section) =>
-                        sectionErrors[section].length > 0 ? (
-                          <li key={section}>
-                            {EVENT_EDITOR_SECTION_META[section].label}: {sectionErrors[section][0]}
-                          </li>
-                        ) : null,
-                      )}
-                    </ul>
-                  </div>
-                ) : null}
+              <form
+                className="event-editor-main"
+                noValidate
+                onSubmit={(formEvent) => {
+                  formEvent.preventDefault();
+                  handleValidatedSubmit();
+                }}
+              >
+                <div className="event-editor-content">
+                  {error ? (
+                    <p
+                      className="notice notice--error"
+                      id="event-editor-error"
+                      role="alert"
+                      tabIndex={-1}
+                    >
+                      {error}
+                    </p>
+                  ) : null}
 
-                <BasicsSection
-                  error={error}
-                  event={event}
-                  handleTypeChange={handleTypeChange}
-                  sectionErrors={sectionErrors}
-                  setEvent={setEvent}
-                  showErrorBadges={showErrorBadges}
-                />
+                  {totalErrors > 0 && attemptedSave ? (
+                    <div
+                      aria-live="polite"
+                      className="notice notice--error event-editor-error-summary"
+                      id="event-editor-error-summary"
+                      ref={errorSummaryRef}
+                      role="alert"
+                      tabIndex={-1}
+                    >
+                      <strong>
+                        Please resolve {String(totalErrors)} error{totalErrors === 1 ? "" : "s"}{" "}
+                        before saving:
+                      </strong>
+                      <ul>
+                        {visibleSections.map((section) =>
+                          sectionErrors[section].length > 0 ? (
+                            <li key={section}>
+                              {EVENT_EDITOR_SECTION_META[section].label}:{" "}
+                              {sectionErrors[section][0]}
+                            </li>
+                          ) : null,
+                        )}
+                      </ul>
+                    </div>
+                  ) : null}
 
-                <ScheduleSection
-                  busy={busy}
-                  event={event}
-                  eventStart={eventStart}
-                  existingTbd={existingTbd ?? null}
-                  handleEnsureTbd={handleEnsureTbd}
-                  sectionErrors={sectionErrors}
-                  setEvent={setEvent}
-                  setEventStart={setEventStart}
-                  setTbdError={setTbdError}
-                  showErrorBadges={showErrorBadges}
-                  state={state}
-                  tbdBusy={tbdBusy}
-                  tbdError={tbdError}
-                  tbdInfo={tbdInfo}
-                  timezoneLabel={timezoneLabel}
-                />
-
-                {event.type === "Performance" ? (
-                  <RsvpSection
+                  <BasicsSection
+                    error={error}
                     event={event}
-                    followUpEnabled={followUpEnabled}
-                    followUpLeadHours={followUpLeadHours}
+                    handleTypeChange={handleTypeChange}
                     sectionErrors={sectionErrors}
                     setEvent={setEvent}
                     showErrorBadges={showErrorBadges}
-                    state={state}
                   />
-                ) : null}
 
-                {event.type === "Performance" ? (
-                  <TicketingSection
-                    advancePriceDraft={advancePriceDraft}
-                    dayOfPriceDraft={dayOfPriceDraft}
-                    editingId={editingId}
+                  <ScheduleSection
+                    busy={busy}
                     event={event}
                     eventStart={eventStart}
-                    isPastEvent={isPastEvent}
+                    existingTbd={existingTbd ?? null}
+                    handleEnsureTbd={handleEnsureTbd}
                     sectionErrors={sectionErrors}
-                    setAdvancePriceDraft={setAdvancePriceDraft}
-                    setDayOfPriceDraft={setDayOfPriceDraft}
                     setEvent={setEvent}
+                    setEventStart={setEventStart}
+                    setTbdError={setTbdError}
                     showErrorBadges={showErrorBadges}
                     state={state}
+                    tbdBusy={tbdBusy}
+                    tbdError={tbdError}
+                    tbdInfo={tbdInfo}
+                    timezoneLabel={timezoneLabel}
+                  />
+
+                  {event.type === "Performance" ? (
+                    <RsvpSection
+                      event={event}
+                      followUpEnabled={followUpEnabled}
+                      followUpLeadHours={followUpLeadHours}
+                      sectionErrors={sectionErrors}
+                      setEvent={setEvent}
+                      showErrorBadges={showErrorBadges}
+                      state={state}
+                    />
+                  ) : null}
+
+                  {event.type === "Performance" ? (
+                    <TicketingSection
+                      advancePriceDraft={advancePriceDraft}
+                      dayOfPriceDraft={dayOfPriceDraft}
+                      editingId={editingId}
+                      event={event}
+                      eventStart={eventStart}
+                      isPastEvent={isPastEvent}
+                      sectionErrors={sectionErrors}
+                      setAdvancePriceDraft={setAdvancePriceDraft}
+                      setDayOfPriceDraft={setDayOfPriceDraft}
+                      setEvent={setEvent}
+                      showErrorBadges={showErrorBadges}
+                      state={state}
+                      tbdInfo={tbdInfo}
+                    />
+                  ) : null}
+
+                  <PublicSection
+                    activeGraphicPreviewUrl={activeGraphicPreviewUrl}
+                    event={event}
+                    graphicDragging={graphicDragging}
+                    graphicError={graphicError}
+                    graphicFile={graphicFile}
+                    handleGraphicDrop={handleGraphicDrop}
+                    handleGraphicFile={handleGraphicFile}
+                    handleRemoveGraphicFile={handleRemoveGraphicFile}
+                    setEvent={setEvent}
+                    setGraphicDragging={setGraphicDragging}
+                    setGraphicError={setGraphicError}
                     tbdInfo={tbdInfo}
                   />
-                ) : null}
+                </div>
 
-                <PublicSection
-                  activeGraphicPreviewUrl={activeGraphicPreviewUrl}
-                  event={event}
-                  graphicDragging={graphicDragging}
-                  graphicError={graphicError}
-                  graphicFile={graphicFile}
-                  handleGraphicDrop={handleGraphicDrop}
-                  handleGraphicFile={handleGraphicFile}
-                  handleRemoveGraphicFile={handleRemoveGraphicFile}
-                  setEvent={setEvent}
-                  setGraphicDragging={setGraphicDragging}
-                  setGraphicError={setGraphicError}
-                  tbdInfo={tbdInfo}
-                />
-              </div>
-
-              <div className="event-editor-footer" role="region" aria-label="Event editor save bar">
-                <span className="event-editor-footer__status" role="status">
-                  <span
-                    aria-hidden="true"
-                    className={`event-editor-footer__dot ${dirty ? "event-editor-footer__dot--dirty" : "event-editor-footer__dot--pristine"}`}
-                  />
-                  {footerStatus}
-                </span>
-                <div className="event-editor-footer__actions">
-                  {showBackToTicketing ? (
-                    <button className="button button--secondary" onClick={onClose} type="button">
-                      Back to Ticketing
-                    </button>
-                  ) : (
-                    <>
-                      <DialogClose asChild>
-                        <button className="button button--secondary" type="button">
-                          Cancel
+                <div
+                  className="event-editor-footer"
+                  role="region"
+                  aria-label="Event editor save bar"
+                >
+                  <span className="event-editor-footer__status" role="status">
+                    <span
+                      aria-hidden="true"
+                      className={`event-editor-footer__dot ${dirty ? "event-editor-footer__dot--dirty" : "event-editor-footer__dot--pristine"}`}
+                    />
+                    {footerStatus}
+                  </span>
+                  <div className="event-editor-footer__actions">
+                    {showBackToTicketing ? (
+                      <button className="button button--secondary" onClick={onClose} type="button">
+                        Back to Ticketing
+                      </button>
+                    ) : (
+                      <>
+                        <DialogClose asChild>
+                          <button className="button button--secondary" type="button">
+                            Cancel
+                          </button>
+                        </DialogClose>
+                        <button
+                          className="button button--primary"
+                          disabled={saveDisabled}
+                          type="submit"
+                        >
+                          {eventSaveLabel(busy, editingId)}
                         </button>
-                      </DialogClose>
+                      </>
+                    )}
+                    {dirty && showBackToTicketing ? (
                       <button
                         className="button button--primary"
                         disabled={saveDisabled}
@@ -597,23 +643,15 @@ export function EventEditorDialog({
                       >
                         {eventSaveLabel(busy, editingId)}
                       </button>
-                    </>
-                  )}
-                  {dirty && showBackToTicketing ? (
-                    <button
-                      className="button button--primary"
-                      disabled={saveDisabled}
-                      type="submit"
-                    >
-                      {eventSaveLabel(busy, editingId)}
-                    </button>
-                  ) : null}
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      </Tabs>
-    </Dialog>
+        </Tabs>
+      </Dialog>
+      {confirmationDialog}
+    </>
   );
 }

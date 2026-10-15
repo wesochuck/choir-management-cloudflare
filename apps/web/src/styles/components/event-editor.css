@@ -216,6 +216,11 @@
     flex-shrink: 0;
   }
 
+  .event-editor-header__set-list-action {
+    white-space: nowrap;
+    font-size: var(--font-size-sm);
+  }
+
   .event-editor-header__status {
     display: flex;
     align-items: center;
@@ -560,6 +565,16 @@
   }
 
   @media (max-width: 53.125rem) {
+    .event-editor-header {
+      flex-wrap: wrap;
+      gap: var(--spacing-sm);
+      padding: var(--spacing-sm) var(--spacing-md);
+    }
+
+    .event-editor-header__actions {
+      flex-wrap: wrap;
+    }
+
     .event-editor-body {
       flex-direction: column;
     }

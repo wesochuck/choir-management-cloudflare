@@ -47,8 +47,10 @@ export function EventRsvpDeadlineNotice({
 }
 
 export function EventList({
+  canManageSetLists = true,
   events,
   filteredEvents,
+  navigate,
   onArchive,
   onCancel,
   onClone,
@@ -56,8 +58,10 @@ export function EventList({
   timezone,
   venues,
 }: {
+  readonly canManageSetLists?: boolean | undefined;
   readonly events: readonly OrganizationEvent[];
   readonly filteredEvents: readonly OrganizationEvent[];
+  readonly navigate?: ((href: string) => void) | undefined;
   readonly onArchive: (event: OrganizationEvent) => void;
   readonly onCancel: (event: OrganizationEvent) => void;
   readonly onClone: (event: OrganizationEvent) => void;
@@ -126,6 +130,27 @@ export function EventList({
             >
               RSVP
             </a>
+            {canManageSetLists && candidate.type === "Performance" ? (
+              <a
+                className="text-button"
+                href={`/admin/setlists?eventId=${encodeURIComponent(candidate.id)}`}
+                onClick={(event) => {
+                  if (
+                    navigate &&
+                    event.button === 0 &&
+                    !event.metaKey &&
+                    !event.ctrlKey &&
+                    !event.shiftKey &&
+                    !event.altKey
+                  ) {
+                    event.preventDefault();
+                    navigate(`/admin/setlists?eventId=${encodeURIComponent(candidate.id)}`);
+                  }
+                }}
+              >
+                Set list →
+              </a>
+            ) : null}
             <button
               className="text-button"
               onClick={() => {
@@ -168,7 +193,7 @@ export function EventList({
         ),
       },
     ],
-    [onArchive, onCancel, onClone, onEdit, timezone, venueMap],
+    [canManageSetLists, navigate, onArchive, onCancel, onClone, onEdit, timezone, venueMap],
   );
 
   const displayRows = useMemo(() => {

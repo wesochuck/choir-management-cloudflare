@@ -921,4 +921,178 @@ describe("EventEditorDialog start date/time keyboard access and validation (#174
     fireEvent.change(startInput, { target: { value: "2026-10-16T20:00" } });
     expect(setEventStart).toHaveBeenCalledWith("2026-10-16T20:00");
   });
+
+  describe("Open set list action in header", () => {
+    const savedPerformance: OrganizationEventRequest = {
+      ...emptyEvent,
+      title: "Saved Gala",
+      type: "Performance",
+      venueId: venueHall.id,
+    };
+
+    it("renders Open set list button for saved Performances", () => {
+      render(
+        <EventEditorDialog
+          busy={false}
+          dialogOpen={true}
+          editingId="perf-saved-1"
+          error={null}
+          event={savedPerformance}
+          eventStart="2026-10-15T19:30"
+          graphicFile={null}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          setEvent={vi.fn()}
+          setEventStart={vi.fn()}
+          setGraphicFile={vi.fn()}
+          state={stateWithVenues([venueHall])}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "Open set list →" })).toBeInTheDocument();
+    });
+
+    it("omits Open set list button for new events, rehearsals, or when disabled", () => {
+      const { rerender } = render(
+        <EventEditorDialog
+          busy={false}
+          dialogOpen={true}
+          editingId={null}
+          error={null}
+          event={savedPerformance}
+          eventStart="2026-10-15T19:30"
+          graphicFile={null}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          setEvent={vi.fn()}
+          setEventStart={vi.fn()}
+          setGraphicFile={vi.fn()}
+          state={stateWithVenues([venueHall])}
+        />,
+      );
+      expect(screen.queryByRole("button", { name: "Open set list →" })).not.toBeInTheDocument();
+
+      rerender(
+        <EventEditorDialog
+          busy={false}
+          dialogOpen={true}
+          editingId="perf-saved-1"
+          error={null}
+          event={{ ...savedPerformance, type: "Rehearsal" }}
+          eventStart="2026-10-15T19:30"
+          graphicFile={null}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          setEvent={vi.fn()}
+          setEventStart={vi.fn()}
+          setGraphicFile={vi.fn()}
+          state={stateWithVenues([venueHall])}
+        />,
+      );
+      expect(screen.queryByRole("button", { name: "Open set list →" })).not.toBeInTheDocument();
+
+      rerender(
+        <EventEditorDialog
+          busy={false}
+          canManageSetLists={false}
+          dialogOpen={true}
+          editingId="perf-saved-1"
+          error={null}
+          event={savedPerformance}
+          eventStart="2026-10-15T19:30"
+          graphicFile={null}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          setEvent={vi.fn()}
+          setEventStart={vi.fn()}
+          setGraphicFile={vi.fn()}
+          state={stateWithVenues([venueHall])}
+        />,
+      );
+      expect(screen.queryByRole("button", { name: "Open set list →" })).not.toBeInTheDocument();
+    });
+
+    it("navigates immediately when pristine", () => {
+      const navigate = vi.fn();
+      render(
+        <EventEditorDialog
+          busy={false}
+          dialogOpen={true}
+          editingId="perf-saved-1"
+          error={null}
+          event={savedPerformance}
+          eventStart="2026-10-15T19:30"
+          graphicFile={null}
+          navigate={navigate}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          setEvent={vi.fn()}
+          setEventStart={vi.fn()}
+          setGraphicFile={vi.fn()}
+          state={stateWithVenues([venueHall])}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Open set list →" }));
+      expect(navigate).toHaveBeenCalledWith("/admin/setlists?eventId=perf-saved-1");
+    });
+
+    it("prompts before navigating when dirty, preserving draft on cancel", async () => {
+      const navigate = vi.fn();
+      const { rerender } = render(
+        <EventEditorDialog
+          busy={false}
+          dialogOpen={true}
+          editingId="perf-saved-1"
+          error={null}
+          event={savedPerformance}
+          eventStart="2026-10-15T19:30"
+          graphicFile={null}
+          navigate={navigate}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          setEvent={vi.fn()}
+          setEventStart={vi.fn()}
+          setGraphicFile={vi.fn()}
+          state={stateWithVenues([venueHall])}
+        />,
+      );
+
+      // Make dirty by rerendering with modified event
+      rerender(
+        <EventEditorDialog
+          busy={false}
+          dialogOpen={true}
+          editingId="perf-saved-1"
+          error={null}
+          event={{ ...savedPerformance, title: "Modified Title" }}
+          eventStart="2026-10-15T19:30"
+          graphicFile={null}
+          navigate={navigate}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          setEvent={vi.fn()}
+          setEventStart={vi.fn()}
+          setGraphicFile={vi.fn()}
+          state={stateWithVenues([venueHall])}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Open set list →" }));
+      expect(screen.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeInTheDocument();
+
+      // Click Cancel
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      await Promise.resolve();
+      expect(navigate).not.toHaveBeenCalled();
+
+      // Click Open set list again and confirm Discard
+      fireEvent.click(screen.getByRole("button", { name: "Open set list →" }));
+      expect(screen.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+      await Promise.resolve();
+
+      expect(navigate).toHaveBeenCalledWith("/admin/setlists?eventId=perf-saved-1");
+    });
+  });
 });

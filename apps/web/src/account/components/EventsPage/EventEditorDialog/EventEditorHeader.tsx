@@ -2,18 +2,24 @@ import type { OrganizationEventRequest } from "@choir/contracts";
 import { DialogClose } from "@choir/ui";
 
 export function EventEditorHeader({
+  busy = false,
+  canManageSetLists = true,
   dirty,
   editingId,
   eventStart,
   eventTitle,
   eventType,
+  onOpenSetList,
   timezoneLabel,
 }: {
+  readonly busy?: boolean | undefined;
+  readonly canManageSetLists?: boolean | undefined;
   readonly dirty: boolean;
   readonly editingId: string | null;
   readonly eventStart: string;
   readonly eventTitle: string;
   readonly eventType: OrganizationEventRequest["type"];
+  readonly onOpenSetList?: (() => void) | undefined;
   readonly timezoneLabel: string | null;
 }) {
   const displayTitle = eventTitle.trim() ? eventTitle : editingId ? "Edit event" : "Create event";
@@ -32,6 +38,16 @@ export function EventEditorHeader({
         </div>
       </div>
       <div className="event-editor-header__actions">
+        {editingId && eventType === "Performance" && canManageSetLists && onOpenSetList ? (
+          <button
+            className="text-button event-editor-header__set-list-action"
+            disabled={busy}
+            onClick={onOpenSetList}
+            type="button"
+          >
+            Open set list →
+          </button>
+        ) : null}
         {dirty ? (
           <span className="status-pill status-pill--warning">Unsaved changes</span>
         ) : (

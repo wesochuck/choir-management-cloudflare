@@ -230,16 +230,32 @@ function PlatformScopedWorkspacePage({
 }
 
 function readyAccessFlags(access: AccessState): {
+  readonly canManageSetLists: boolean;
+  readonly canReviewRsvps: boolean;
   readonly enabled: boolean;
   readonly manager: boolean;
   readonly moduleDenied: boolean;
 } {
-  if (access.status !== "ready") return { enabled: false, manager: false, moduleDenied: false };
+  if (access.status !== "ready") {
+    return {
+      canManageSetLists: false,
+      canReviewRsvps: false,
+      enabled: false,
+      manager: false,
+      moduleDenied: false,
+    };
+  }
   const enabled =
     !access.context.mfaRequired ||
     access.context.mfaSatisfied ||
     Boolean(access.context.mfaVerifiedUntil);
-  return { enabled, manager: access.context.role !== "member", moduleDenied: false };
+  return {
+    canManageSetLists: routeHasModule({ module: "setlists" }, access.modules),
+    canReviewRsvps: routeHasModule({ module: "rsvp" }, access.modules),
+    enabled,
+    manager: access.context.role !== "member",
+    moduleDenied: false,
+  };
 }
 
 function OrganizationWorkspacePage({
@@ -283,7 +299,7 @@ function OrganizationWorkspacePage({
   if (access.status === "ready" && access.context.role === "member") {
     return <AccessDeniedPage workspace="Organization Admin" />;
   }
-  const { enabled, manager } = readyAccessFlags(access);
+  const { canManageSetLists, canReviewRsvps, enabled, manager } = readyAccessFlags(access);
   const requiredModule = routeModule(route.pathname);
   if (
     access.status === "ready" &&
@@ -300,7 +316,8 @@ function OrganizationWorkspacePage({
     navigate,
     (nextNavigate) => <NotFoundPage navigate={nextNavigate} />,
     canEditProfiles,
-    access.status === "ready" && routeHasModule({ module: "rsvp" }, access.modules),
+    canReviewRsvps,
+    canManageSetLists,
   );
   return (
     page ?? (

@@ -54,6 +54,7 @@ function isTicketingReturnTo(returnTo: string): boolean {
 
 // eslint-disable-next-line complexity -- the main events manager screen coordinates multiple modals, bulk actions, and filters.
 export function EventsPage({
+  canManageSetLists = true,
   enabled,
   initialAction = null,
   initialEventId = null,
@@ -62,6 +63,7 @@ export function EventsPage({
   navigate,
   returnTo = null,
 }: {
+  readonly canManageSetLists?: boolean | undefined;
   readonly enabled: boolean;
   readonly initialAction?: "create" | null | undefined;
   readonly initialEventId?: string | null | undefined;
@@ -605,8 +607,10 @@ export function EventsPage({
           ) : null}
           {readyState ? (
             <EventList
+              canManageSetLists={canManageSetLists}
               events={readyState.events}
               filteredEvents={filteredEvents}
+              navigate={navigate}
               onArchive={(candidate) => {
                 setError(null);
                 setSuccess(null);
@@ -627,6 +631,7 @@ export function EventsPage({
       </Tabs>
       <EventEditorDialog
         busy={busy}
+        canManageSetLists={canManageSetLists}
         dialogOpen={dialogOpen}
         editingId={editingId}
         error={error}
@@ -635,6 +640,7 @@ export function EventsPage({
         graphicFile={graphicFile}
         initialSection={initialSection}
         key={`${dialogOpen ? "open" : "closed"}:${editingId ?? "new"}`}
+        navigate={navigate}
         onClose={closeDialog}
         onSubmit={(eventDraft) => {
           void saveEvent(eventDraft);
