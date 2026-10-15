@@ -134,7 +134,76 @@ Perform this lightweight review at the start of each billing cycle:
 
 ---
 
-## 6. Authoritative Billing Source of Truth
+## 6. Durable Object Runaway-Work Circuit Breaker
+
+To prevent runaway alarm execution loops and queue dispatch failures from generating excessive
+Worker execution time and billable invocations, each tenant's `OrganizationStore` Durable Object
+includes an automated scheduler circuit breaker.
+
+> [!IMPORTANT] **Operating Boundary:** This circuit breaker is an application-level
+> background-processing protection mechanism. It does **not** serve as a hard Cloudflare invoice
+> spending cap, nor does it cap or throttle inbound HTTP requests. Cloudflare's billing dashboard
+> and invoice notifications remain the authoritative billing threshold mechanism.
+
+### Trip Conditions
+
+The scheduler circuit breaker trips to `open` state under either of two conditions:
+
+1. **Runaway Batch Loop:** When an organization processes **> 30 consecutive full batches** (300
+   jobs at `OUTBOX_BATCH_SIZE = 10`) without settling into a quiet or backlogged non-full state.
+   This indicates a cascading recursive job loop.
+2. **Consecutive Dispatch Failures:** When **5 consecutive `queue.sendBatch()` dispatches** fail
+   (e.g., downstream queue unavailability or schema validation failures).
+
+### Circuit Behavior & Alarm Cooldown
+
+- **15-Minute Cooldown:** When tripped, the circuit enters `open` state and sets a 15-minute alarm
+  cooldown (`CIRCUIT_BACKOFF_MS = 900_000`). All immediate 1-second continuation wakes and 60-second
+  retry wakes are suspended.
+- **Alarm Immunity:** External calls to `wakeOrganizationAlarm()` and `ensureOrganizationAlarm()`
+  cannot defeat an active cooldown while the circuit is open.
+- **Critical Flow Exemption:** Inbound member payments, checkout flows, and Stripe webhook
+  reconciliation operate independently and are not blocked by the scheduler circuit breaker.
+
+### Half-Open Probing & Automatic Recovery
+
+- When the 15-minute cooldown expires, the circuit enters `half_open` state on the next scheduled
+  alarm.
+- The scheduler executes a single bounded probe batch:
+  - If the probe batch succeeds, the circuit returns to `closed`, reset counters to 0, and resumes
+    normal backlog processing.
+  - If the probe batch fails or encounters dispatch errors, the circuit immediately trips back to
+    `open` with a renewed 15-minute cooldown.
+
+### Structured Diagnostic Logs
+
+Circuit transitions emit high-visibility structured logs:
+
+- `scheduler_circuit_opened`: Emitted with `level: "error"` when the circuit trips. Includes
+  `reason`, `consecutiveFullBatches`, `consecutiveDispatchFailures`, `cooldownMs`, and `resumeAt`.
+- `scheduler_circuit_probe`: Emitted with `level: "info"` when entering `half_open` to attempt a
+  probe batch.
+- `scheduler_circuit_closed`: Emitted with `level: "info"` when the probe batch succeeds and normal
+  scheduling resumes.
+
+### Operator Manual Override & State Inspection
+
+Operators can inspect and clear the circuit breaker:
+
+- **State Inspection:** `GET /internal/scheduler/state` (via internal DO RPC or platform maintenance
+  endpoint) returns `circuitState`, `consecutiveFullBatches`, `consecutiveDispatchFailures`,
+  `tripCount`, `openedAt`, `resumeAt`, and `lastTripReason`.
+- **Operator Override / Reset:** An authorized operator can force-reset the circuit breaker and
+  execute an immediate scheduler pass via:
+  ```text
+  POST /api/platform/maintenance/run?reset=true
+  ```
+  This immediately sets `circuitState = "closed"`, clears failure counters, and runs a scheduler
+  pass with `operatorOverride = true`.
+
+---
+
+## 7. Authoritative Billing Source of Truth
 
 - **Invoices & Billing Dashboard:** The **Cloudflare Billable Usage** page and official monthly
   invoice are the definitive source of truth for all charges.

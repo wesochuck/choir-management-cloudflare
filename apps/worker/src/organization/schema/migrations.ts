@@ -1843,6 +1843,21 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       `ALTER TABLE communication_messages ADD COLUMN automation_json TEXT`,
     ],
   },
+  {
+    version: 110,
+    statements: [
+      // Per-Organization Durable Object runaway-work circuit breaker (issue #121).
+      // Durably tracks alarm loop backoff and dispatch failures across DO evictions.
+      `ALTER TABLE scheduler_state ADD COLUMN circuit_state TEXT NOT NULL DEFAULT 'closed'
+       CHECK (circuit_state IN ('closed', 'open', 'half_open'))`,
+      `ALTER TABLE scheduler_state ADD COLUMN consecutive_full_batches INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE scheduler_state ADD COLUMN consecutive_dispatch_failures INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE scheduler_state ADD COLUMN trip_count INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE scheduler_state ADD COLUMN opened_at TEXT`,
+      `ALTER TABLE scheduler_state ADD COLUMN resume_at TEXT`,
+      `ALTER TABLE scheduler_state ADD COLUMN last_trip_reason TEXT`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

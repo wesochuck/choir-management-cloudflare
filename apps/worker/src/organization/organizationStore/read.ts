@@ -101,6 +101,7 @@ import {
   readDuesTargetFromStore,
   readMemberActiveSeasonFromStore,
 } from "../seasonStore";
+import { readSchedulerStateFromStore } from "../scheduler";
 import {
   readStripeConnectEligibilityFromStore,
   readStripeConnectStatusFromStore,
@@ -573,6 +574,12 @@ export function dispatchGetRequest(storage: DurableObjectStorage, url: URL): Res
         eventId: url.searchParams.get("eventId"),
         organizationId,
       });
+    case "/internal/scheduler/state": {
+      const scheduler = readSchedulerStateFromStore(storage);
+      return Response.json(scheduler ?? { code: "scheduler_not_initialized" }, {
+        status: scheduler ? 200 : 404,
+      });
+    }
     case "/internal/search": {
       const categoryParsed = searchCategorySchema
         .optional()

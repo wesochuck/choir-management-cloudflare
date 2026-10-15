@@ -26,12 +26,18 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         authorization.status,
       );
     }
+    const reset = context.req.query("reset") === "true";
     try {
       const response = await invokeOrganizationRpc(
         organizationStoreStub(context.env, authorization.organizationId),
         "https://organization.internal/internal/scheduler/run-now",
         {
-          body: JSON.stringify({ force: true, organizationId: authorization.organizationId }),
+          body: JSON.stringify({
+            force: true,
+            operatorOverride: reset,
+            organizationId: authorization.organizationId,
+            resetCircuitBreaker: reset,
+          }),
           headers: { "content-type": "application/json" },
           method: "POST",
         },
@@ -49,6 +55,16 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       }
       const result = z
         .object({
+          circuitBreaker: z
+            .object({
+              consecutiveDispatchFailures: z.number().int().nonnegative().optional(),
+              consecutiveFullBatches: z.number().int().nonnegative().optional(),
+              reason: z.string().nullable().optional(),
+              resumeAt: z.string().nullable().optional(),
+              state: z.enum(["closed", "open", "half_open"]),
+              tripCount: z.number().int().nonnegative().optional(),
+            })
+            .optional(),
           enqueuedJobCount: z.number().int().nonnegative(),
           organizationId: z.string().min(1),
           ranAt: z.string(),
