@@ -276,4 +276,52 @@ describe("BulkPracticeTrackImportDialog", () => {
       expect(screen.getByText("GROUP B")).toBeInTheDocument();
     });
   });
+
+  it("provides play and scrub controls for track files", async () => {
+    render(
+      <BulkPracticeTrackImportDialog
+        events={[sampleEvent]}
+        onClose={vi.fn()}
+        onTracksAttached={vi.fn()}
+        open={true}
+        pieces={[samplePiece]}
+        roster={sampleRoster}
+      />,
+    );
+
+    const file = new File(["dummy audio bytes"], "01 Hallelujah Chorus - Soprano.mp3", {
+      type: "audio/mpeg",
+    });
+
+    const dropzone = screen
+      .getByText("Drop MP3s here or browse files")
+      .closest(".track-import-dropzone");
+    expect(dropzone).not.toBeNull();
+    if (!dropzone) return;
+
+    fireEvent.drop(dropzone, {
+      dataTransfer: {
+        files: [file],
+      },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("01 Hallelujah Chorus - Soprano.mp3")).toBeInTheDocument();
+    });
+
+    // Audio play button should be available in Step 1
+    const playButton = screen.getByRole("button", {
+      name: "Play 01 Hallelujah Chorus - Soprano.mp3",
+    });
+    expect(playButton).toBeInTheDocument();
+
+    // Scrubber should be available
+    const scrubber = screen.getByRole("slider", {
+      name: "Scrub 01 Hallelujah Chorus - Soprano.mp3",
+    });
+    expect(scrubber).toBeInTheDocument();
+
+    // Clicking play triggers toggle without error
+    fireEvent.click(playButton);
+  });
 });

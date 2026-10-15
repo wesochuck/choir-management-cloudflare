@@ -1,5 +1,6 @@
 import type { OrganizationMusicPiece, OrganizationRosterConfiguration } from "@choir/contracts";
 import { useMemo, useState } from "react";
+import { TrackFileAudioPlayer } from "./TrackFileAudioPlayer";
 import type { GroupReviewItem } from "./types";
 
 function formatDuration(seconds: number | null): string {
@@ -168,7 +169,18 @@ export function StepReviewMatches({
                         return (
                           <tr key={file.clientFileId}>
                             <td className="track-import-filename-cell">
-                              <span className="track-import-filename-text">{file.fileName}</span>
+                              <div className="track-import-filename-row">
+                                <span aria-hidden="true" className="track-import-audio-icon">
+                                  ♪
+                                </span>
+                                <span className="track-import-filename-text">{file.fileName}</span>
+                              </div>
+                              <TrackFileAudioPlayer
+                                key={file.clientFileId}
+                                durationSeconds={file.durationSeconds}
+                                file={file.file}
+                                fileName={file.fileName}
+                              />
                             </td>
                             <td className="track-import-part-cell">
                               <select

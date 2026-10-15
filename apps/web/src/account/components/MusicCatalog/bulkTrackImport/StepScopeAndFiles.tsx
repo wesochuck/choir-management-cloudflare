@@ -3,6 +3,7 @@ import type { OrganizationEvent, OrganizationRosterConfiguration } from "@choir/
 import { parsePracticeTrackFilename } from "@choir/domain";
 import { useCallback, useId, useState } from "react";
 import { extractAudioDuration } from "../../../audioDuration";
+import { TrackFileAudioPlayer } from "./TrackFileAudioPlayer";
 import type { InspectedTrackFile, TrackImportScope } from "./types";
 
 function formatDuration(seconds: number | null): string {
@@ -234,10 +235,18 @@ export function StepScopeAndFiles({
                     {files.map((file) => (
                       <tr key={file.clientFileId}>
                         <td className="track-import-filename-cell">
-                          <span aria-hidden="true" className="track-import-audio-icon">
-                            ♪
-                          </span>
-                          <span className="track-import-filename-text">{file.fileName}</span>
+                          <div className="track-import-filename-row">
+                            <span aria-hidden="true" className="track-import-audio-icon">
+                              ♪
+                            </span>
+                            <span className="track-import-filename-text">{file.fileName}</span>
+                          </div>
+                          <TrackFileAudioPlayer
+                            key={file.clientFileId}
+                            durationSeconds={file.durationSeconds}
+                            file={file.file}
+                            fileName={file.fileName}
+                          />
                         </td>
                         <td className="track-import-duration-cell">
                           {formatDuration(file.durationSeconds)}

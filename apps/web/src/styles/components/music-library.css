@@ -314,12 +314,26 @@
 
   .track-import-filename-cell {
     display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-3xs);
+    min-width: 14rem;
+  }
+
+  .track-import-filename-row {
+    display: flex;
     align-items: center;
     gap: var(--spacing-xs);
   }
 
   .track-import-audio-icon {
     color: var(--color-primary);
+  }
+
+  .track-import-audio-player {
+    width: 100%;
+    max-width: 18rem;
+    margin-top: var(--spacing-3xs);
   }
 
   .track-import-sidebar__card {
