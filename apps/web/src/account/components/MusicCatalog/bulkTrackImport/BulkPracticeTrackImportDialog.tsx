@@ -12,6 +12,12 @@ import { StepConfirmUpload } from "./StepConfirmUpload";
 import { StepResults } from "./StepResults";
 import { StepReviewMatches } from "./StepReviewMatches";
 import { StepScopeAndFiles } from "./StepScopeAndFiles";
+import {
+  areAllReviewGroupsResolved,
+  getReviewGroupState,
+  getReviewMappingKey,
+  getValidTrackPartKeys,
+} from "./reviewState";
 import type {
   BulkPracticeTrackImportDialogProps,
   GroupFileAssignment,
@@ -105,6 +111,8 @@ export function BulkPracticeTrackImportDialog({
   );
 
   const fileLookup = useMemo(() => new Map(files.map((f) => [f.clientFileId, f])), [files]);
+  const pieceLookup = useMemo(() => new Map(pieces.map((piece) => [piece.id, piece])), [pieces]);
+  const validPartKeys = useMemo(() => getValidTrackPartKeys(roster), [roster]);
 
   const handleAiMatch = async () => {
     if (matching) return;
@@ -175,6 +183,7 @@ export function BulkPracticeTrackImportDialog({
             aiSuggestion: suggestion,
             ...resolvePracticeTrackAssignments(group.files, suggestion.suggestedPieceId),
             selectedPieceId: suggestion.suggestedPieceId,
+            reviewedMappingKey: null,
           };
         }),
       );
@@ -203,11 +212,13 @@ export function BulkPracticeTrackImportDialog({
     setGroups((prev) =>
       prev.map((g) => {
         if (g.groupId !== groupId) return g;
+        if (g.selectedPieceId === pieceId) return g;
         return {
           ...g,
           aiSuggestion: undefined,
           ...resolvePracticeTrackAssignments(g.files, pieceId),
           selectedPieceId: pieceId,
+          reviewedMappingKey: null,
         };
       }),
     );
@@ -220,12 +231,13 @@ export function BulkPracticeTrackImportDialog({
           if (group.groupId !== groupId) return group;
           const updatedFiles = group.files.map((file) =>
             file.clientFileId === clientFileId
-              ? { ...file, partKey, partSelectionChanged: true }
+              ? { ...file, excluded: false, partKey, partSelectionChanged: true }
               : file,
           );
           return {
             ...group,
             ...resolvePracticeTrackAssignments(updatedFiles, group.selectedPieceId),
+            reviewedMappingKey: null,
           };
         }),
       );
@@ -233,13 +245,127 @@ export function BulkPracticeTrackImportDialog({
     [],
   );
 
+  const handleFileExclusionChanged = useCallback(
+    (groupId: string, clientFileId: string, excluded: boolean) => {
+      setGroups((prev) =>
+        prev.map((group) => {
+          if (group.groupId !== groupId) return group;
+          return {
+            ...group,
+            files: group.files.map((file) =>
+              file.clientFileId === clientFileId
+                ? { ...file, excluded, partSelectionChanged: true }
+                : file,
+            ),
+            reviewedMappingKey: null,
+          };
+        }),
+      );
+    },
+    [],
+  );
+
+  const handleGroupSkipToggled = useCallback((groupId: string) => {
+    setGroups((prev) =>
+      prev.map((group) => {
+        if (group.groupId !== groupId) return group;
+        if (!group.groupSkipped && group.files.every((file) => file.excluded)) {
+          return {
+            ...group,
+            files: group.files.map((file) => ({
+              ...file,
+              excluded: false,
+              partSelectionChanged: true,
+            })),
+            reviewedMappingKey: null,
+          };
+        }
+        return {
+          ...group,
+          groupSkipped: group.groupSkipped !== true,
+          reviewedMappingKey: null,
+        };
+      }),
+    );
+  }, []);
+
+  const handleMarkGroupReviewed = useCallback(
+    (groupId: string) => {
+      setGroups((prev) =>
+        prev.map((group) => {
+          if (group.groupId !== groupId) return group;
+          const reviewState = getReviewGroupState(group, pieceLookup, validPartKeys);
+          if (!reviewState.isEligibleForReview) return group;
+          return { ...group, reviewedMappingKey: getReviewMappingKey(group) };
+        }),
+      );
+    },
+    [pieceLookup, validPartKeys],
+  );
+
   const handleSplitFile = useCallback(
     (clientFileId: string) => {
       const updatedDomainGroups = splitFileToNewTrackImportGroup(domainGroups, clientFileId);
+      if (updatedDomainGroups === domainGroups) return null;
+      const previousFileState = new Map(
+        groups.flatMap((group) =>
+          group.files.map((file) => [file.clientFileId, { file, group }] as const),
+        ),
+      );
+      const sourceGroup = previousFileState.get(clientFileId)?.group;
+      if (!sourceGroup) return null;
+      const previousGroupsById = new Map(groups.map((group) => [group.groupId, group]));
+      const updatedGroups = updatedDomainGroups.map((domainGroup) => {
+        const firstPrevious = domainGroup.files[0]
+          ? previousFileState.get(domainGroup.files[0].clientFileId)
+          : undefined;
+        const previousGroup = firstPrevious?.group ?? sourceGroup;
+        const exactPreviousGroup = previousGroupsById.get(domainGroup.groupId);
+        const nextFileIds = new Set(domainGroup.files.map((file) => file.clientFileId));
+        const matchesPreviousMembership =
+          exactPreviousGroup?.files.length === domainGroup.files.length &&
+          exactPreviousGroup.files.every((file) => nextFileIds.has(file.clientFileId));
+        if (exactPreviousGroup && matchesPreviousMembership) return exactPreviousGroup;
+
+        const match = rankCandidatePiecesForGroup(domainGroup, pieces, performancePieceIds);
+        const nextFiles: GroupFileAssignment[] = domainGroup.files.map((file) => {
+          const previous = previousFileState.get(file.clientFileId)?.file;
+          if (previous) return previous;
+          const original = fileLookup.get(file.clientFileId);
+          return {
+            clientFileId: file.clientFileId,
+            durationSeconds: file.durationSeconds,
+            file: original?.file ?? new File([], file.fileName),
+            fileName: file.fileName,
+            partKey: file.detectedPartKey,
+          };
+        });
+        const resolved = resolvePracticeTrackAssignments(nextFiles, previousGroup.selectedPieceId);
+        return {
+          averageDurationSeconds: domainGroup.averageDurationSeconds,
+          candidates: match.candidatePieces,
+          evidence:
+            match.candidatePieces.find(
+              (candidate) => candidate.piece.id === previousGroup.selectedPieceId,
+            )?.evidence ?? [],
+          ...resolved,
+          groupId: domainGroup.groupId,
+          inferredTitle: domainGroup.inferredTitle,
+          selectedPieceId: previousGroup.selectedPieceId,
+          sequenceNumber: domainGroup.sequenceNumber,
+          groupSkipped: false,
+          reviewedMappingKey: null,
+        } satisfies GroupReviewItem;
+      });
       setDomainGroups(updatedDomainGroups);
-      setGroups(buildReviewGroups(updatedDomainGroups, pieces, performancePieceIds, fileLookup));
+      setGroups(updatedGroups);
+      return (
+        updatedGroups.find((group) =>
+          group.files.some((file) => file.clientFileId === clientFileId),
+        )?.groupId ?? null
+      );
     },
-    [domainGroups, fileLookup, performancePieceIds, pieces],
+    [domainGroups, fileLookup, groups, performancePieceIds, pieces],
   );
 
   const handleUploadComplete = useCallback(
@@ -293,15 +419,21 @@ export function BulkPracticeTrackImportDialog({
               void handleAiMatch();
             }}
             groups={groups}
+            onFileExclusionChanged={handleFileExclusionChanged}
+            onGroupSkipToggled={handleGroupSkipToggled}
+            onMarkGroupReviewed={handleMarkGroupReviewed}
             performancePieceIds={performancePieceIds}
             pieces={pieces}
             roster={roster}
+            validPartKeys={validPartKeys}
             onBack={() => {
               setStep("scope_files");
             }}
             onGroupPieceChanged={handleGroupPieceChanged}
             onNext={() => {
-              setStep("upload");
+              if (areAllReviewGroupsResolved(groups, pieceLookup, validPartKeys)) {
+                setStep("upload");
+              }
             }}
             onPartChanged={handlePartChanged}
             onSplitFile={handleSplitFile}
@@ -312,6 +444,7 @@ export function BulkPracticeTrackImportDialog({
           <StepConfirmUpload
             groups={groups}
             pieces={pieces}
+            roster={roster}
             onBack={() => {
               setStep("review");
             }}

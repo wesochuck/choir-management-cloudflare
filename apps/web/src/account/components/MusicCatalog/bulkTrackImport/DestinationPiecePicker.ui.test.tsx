@@ -6,20 +6,35 @@ import { DestinationPiecePicker, type DestinationPieceOption } from "./Destinati
 
 const options: readonly DestinationPieceOption[] = [
   {
+    arranger: "",
+    composer: "Irving Berlin",
     id: "one",
-    label: "Blue Skies (Irving Berlin)",
+    occupiedParts: ["soprano"],
     searchText: "blue skies irving berlin",
+    title: "Blue Skies",
     trackCount: 1,
   },
   {
+    arranger: "Jane Smith",
+    composer: "Gounod",
     id: "two",
-    label: "Ave Maria (Gounod) · arr. Jane Smith",
+    occupiedParts: [],
     searchText: "ave maria gounod jane smith",
+    title: "Ave Maria",
     trackCount: 0,
   },
-  { id: "three", label: "Ave Verum (Elgar)", searchText: "ave verum elgar", trackCount: 0 },
+  {
+    arranger: "",
+    composer: "Elgar",
+    id: "three",
+    occupiedParts: [],
+    searchText: "ave verum elgar",
+    title: "Ave Verum",
+    trackCount: 0,
+  },
 ];
 const performancePieceIds = new Set(["two"]);
+
 function Harness({
   onSelect = vi.fn(),
   disabled = false,
@@ -43,78 +58,71 @@ function Harness({
   );
 }
 
-describe("searchable practice track destinations", () => {
-  it("keeps the full list available with set-list pieces first and no duplicate options", () => {
+describe("Music Library destination search", () => {
+  it("shows a prominent explicit search action and opens the separate library search", async () => {
+    const user = userEvent.setup();
     render(<Harness />);
-    expect(screen.getAllByRole("option")).toHaveLength(4);
-    expect(screen.getByRole("group", { name: "Performance Set List" })).toHaveTextContent(
+    expect(screen.getByRole("heading", { name: "Blue Skies" })).toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: "Search library to change piece" });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("searchbox", { name: "Search titles, composers, or arrangers" }),
+    ).toHaveFocus();
+    expect(screen.getByRole("region", { name: "Performance Set List" })).toHaveTextContent(
       "Ave Maria",
     );
-    expect(screen.getByRole("combobox", { name: "Destination music piece" })).toHaveValue("one");
+    expect(screen.getByRole("region", { name: "Entire Music Library" })).toHaveTextContent(
+      "Blue Skies",
+    );
   });
 
   it.each(["AVE MARIA", "gounod", "Jane Smith", "maria smith"])(
-    "finds a destination by %s without changing the current selection",
+    "searches titles, composers and arrangers with %s without changing the selection",
     async (query) => {
       const user = userEvent.setup();
       const onSelect = vi.fn();
       render(<Harness onSelect={onSelect} />);
-      await user.type(screen.getByRole("searchbox", { name: "Search library" }), query);
-      expect(screen.getByRole("status")).toHaveTextContent("1 matching piece");
-      expect(screen.queryByRole("option", { name: "Ave Verum (Elgar)" })).not.toBeInTheDocument();
-      const select = screen.getByRole("combobox", { name: "Destination music piece" });
-      expect(select).toHaveValue("one");
+      await user.click(screen.getByRole("button", { name: "Search library to change piece" }));
+      const search = screen.getByRole("searchbox", {
+        name: "Search titles, composers, or arrangers",
+      });
+      await user.type(search, query);
+      expect(screen.getByRole("region", { name: "Music Library search" })).toHaveTextContent(
+        "Ave Maria",
+      );
+      expect(screen.queryByRole("button", { name: /Ave Verum/ })).not.toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Blue Skies" })).toBeInTheDocument();
       expect(onSelect).not.toHaveBeenCalled();
-      await user.selectOptions(select, "two");
+      const results = within(screen.getByRole("region", { name: "Music Library search" }));
+      await user.click(results.getByRole("button", { name: /Ave Maria/ }));
       expect(onSelect).toHaveBeenCalledWith("two");
-      expect(select).toHaveValue("two");
+      expect(screen.getByRole("heading", { name: "Ave Maria" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Search library to change piece" })).toHaveFocus();
     },
   );
 
-  it("explains empty results, retains the selected piece, and restores browsing when cleared", async () => {
+  it("keeps the current selection on empty results and lets staff cancel with keyboard", async () => {
     const user = userEvent.setup();
     render(<Harness />);
-    const search = screen.getByRole("searchbox");
+    const trigger = screen.getByRole("button", { name: "Search library to change piece" });
+    await user.click(trigger);
+    const search = screen.getByRole("searchbox", {
+      name: "Search titles, composers, or arrangers",
+    });
     await user.type(search, "no such piece");
-    expect(screen.getByRole("status")).toHaveTextContent("No matching pieces");
-    expect(screen.getByRole("group", { name: "Current selection" })).toHaveTextContent(
-      "Blue Skies",
-    );
-    expect(screen.getByRole("combobox")).toHaveValue("one");
-    await user.clear(search);
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("option")).toHaveLength(4);
-  });
-
-  it("keeps search independent for each recording group", async () => {
-    const user = userEvent.setup();
-    render(
-      <>
-        <div data-testid="first">
-          <Harness />
-        </div>
-        <div data-testid="second">
-          <DestinationPiecePicker
-            disabled={false}
-            id="second-destination"
-            onSelect={vi.fn()}
-            options={options}
-            performancePieceIds={performancePieceIds}
-            selectedPieceId={null}
-          />
-        </div>
-      </>,
-    );
-    await user.type(within(screen.getByTestId("first")).getByRole("searchbox"), "elgar");
-    expect(within(screen.getByTestId("second")).getAllByRole("option")).toHaveLength(4);
     expect(
-      within(screen.getByTestId("first")).queryByRole("option", { name: /Ave Maria/ }),
-    ).not.toBeInTheDocument();
+      screen.getByText("No matching pieces. Try a different title, composer, or arranger."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Blue Skies" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveFocus();
   });
 
-  it("disables search and selection during AI matching", () => {
+  it("disables the search action during Clef Flash matching", () => {
     render(<Harness disabled />);
-    expect(screen.getByRole("searchbox")).toBeDisabled();
-    expect(screen.getByRole("combobox")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Search library to change piece" })).toBeDisabled();
   });
 });

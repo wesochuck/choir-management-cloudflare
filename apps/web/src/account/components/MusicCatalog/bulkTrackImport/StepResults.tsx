@@ -53,12 +53,18 @@ export function StepResults({
   });
 
   const hasConflicts = summary.conflict > 0;
+  const allSkipped =
+    summary.attached === 0 && summary.skipped > 0 && summary.failed === 0 && !hasConflicts;
 
   return (
     <div className="track-import-wizard-step">
       <div className="track-import-results-header">
-        <h3 className="track-import-results-title">Import completed</h3>
-        {hasConflicts ? (
+        <h3 className="track-import-results-title">
+          {allSkipped ? "No tracks uploaded" : "Import completed"}
+        </h3>
+        {allSkipped ? (
+          <span className="badge badge--neutral">All files skipped</span>
+        ) : hasConflicts || summary.failed > 0 ? (
           <span className="badge badge--warning">Partial success</span>
         ) : (
           <span className="badge badge--success">Completed successfully</span>
@@ -91,71 +97,82 @@ export function StepResults({
         </div>
       </div>
 
-      <div className="track-import-activity-section">
-        <h4 className="track-import-activity-title">Import activity</h4>
-        <div className="track-import-activity-table-container">
-          <table className="track-import-files-table">
-            <thead>
-              <tr>
-                <th scope="col">Music library piece</th>
-                <th scope="col">Track assignments</th>
-                <th scope="col">Result</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activityList.map((item) => (
-                <tr key={item.pieceId}>
-                  <td className="track-import-piece-cell">
-                    {onOpenPiece && pieceMap.has(item.pieceId) ? (
-                      <button
-                        className="text-button text-link"
-                        type="button"
-                        onClick={() => {
-                          onOpenPiece(item.pieceId);
-                        }}
-                      >
-                        {item.pieceTitle}
-                      </button>
-                    ) : (
-                      item.pieceTitle
-                    )}
-                  </td>
-                  <td className="track-import-assignments-cell">
-                    {[
-                      ...item.attachedParts,
-                      ...item.conflictedParts.map((p) => `${p} (conflict)`),
-                    ].join(", ") || "None"}
-                  </td>
-                  <td className="track-import-result-badge-cell">
-                    {item.conflictedParts.length > 0 ? (
-                      <span className="badge badge--warning">
-                        {String(item.conflictedParts.length)} slot conflict(s)
-                      </span>
-                    ) : (
-                      <span className="badge badge--success">
-                        {String(item.attachedParts.length)} attached
-                      </span>
-                    )}
-                  </td>
+      {activityList.length > 0 ? (
+        <div className="track-import-activity-section">
+          <h4 className="track-import-activity-title">Import activity</h4>
+          <div className="track-import-activity-table-container">
+            <table className="track-import-files-table">
+              <thead>
+                <tr>
+                  <th scope="col">Music library piece</th>
+                  <th scope="col">Track assignments</th>
+                  <th scope="col">Result</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {activityList.map((item) => (
+                  <tr key={item.pieceId}>
+                    <td className="track-import-piece-cell">
+                      {onOpenPiece && pieceMap.has(item.pieceId) ? (
+                        <button
+                          className="text-button text-link"
+                          type="button"
+                          onClick={() => {
+                            onOpenPiece(item.pieceId);
+                          }}
+                        >
+                          {item.pieceTitle}
+                        </button>
+                      ) : (
+                        item.pieceTitle
+                      )}
+                    </td>
+                    <td className="track-import-assignments-cell">
+                      {[
+                        ...item.attachedParts,
+                        ...item.conflictedParts.map((p) => `${p} (conflict)`),
+                      ].join(", ") || "None"}
+                    </td>
+                    <td className="track-import-result-badge-cell">
+                      {item.conflictedParts.length > 0 ? (
+                        <span className="badge badge--warning">
+                          {String(item.conflictedParts.length)} slot conflict(s)
+                        </span>
+                      ) : (
+                        <span className="badge badge--success">
+                          {String(item.attachedParts.length)} attached
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : (
+        <p className="track-import-empty-results">
+          The reviewed batch contains no files to upload. The skipped files were not sent to
+          storage.
+        </p>
+      )}
 
       <div className="notice notice--success track-import-safety-banner" role="status">
         <span aria-hidden="true" className="track-import-check-icon">
           ✓
         </span>
         <span>
-          No preexisting practice-track assignments or recordings were replaced or deleted.
+          {allSkipped
+            ? "No files were uploaded, and no preexisting practice-track assignments were changed."
+            : "No preexisting practice-track assignments or recordings were replaced or deleted."}
         </span>
       </div>
 
       <div className="dialog__actions track-import-actions">
         <span className="track-import-actions__note">
-          Tracks are now accessible in practice players and the Music Library.
+          {allSkipped
+            ? "No audio was uploaded."
+            : "Tracks are now accessible in practice players and the Music Library."}
         </span>
         <div className="track-import-actions__buttons">
           <button className="button button--primary" type="button" onClick={onFinish}>

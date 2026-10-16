@@ -26,7 +26,8 @@ export interface GroupFileAssignment {
   readonly durationSeconds: number | null;
   readonly file: File;
   readonly fileName: string;
-  readonly partKey: string | null; // null means skipped
+  readonly excluded?: boolean;
+  readonly partKey: string | null;
   readonly partSelectionChanged?: boolean;
 }
 
@@ -40,8 +41,10 @@ export interface GroupReviewItem {
   readonly groupId: string;
   readonly hasDuplicatePart: boolean;
   readonly inferredTitle: string;
+  readonly groupSkipped?: boolean;
   readonly selectedPieceId: string | null;
   readonly sequenceNumber: string | null;
+  readonly reviewedMappingKey?: string | null;
 }
 
 export interface UploadProgressState {
