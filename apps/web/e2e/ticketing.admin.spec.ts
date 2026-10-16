@@ -203,6 +203,19 @@ test.describe("admin ticket management", () => {
         status: 200,
       });
     });
+    await page.route("**/api/organization/ticket-confirmation-settings", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          pendingMessage: "Your order is pending.",
+          qrCodeInstructions: "Show this code at the door.",
+          requestId,
+          successMessage: "Your order is confirmed.",
+          willCallInstructions: "Pick up tickets at will call.",
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
 
     await page.goto("/admin/tickets");
     await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();

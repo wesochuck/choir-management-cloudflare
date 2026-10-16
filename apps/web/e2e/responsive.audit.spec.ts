@@ -936,6 +936,10 @@ test("first-run setup remains usable and resumable on a narrow viewport", async 
       });
       return;
     }
+    if (pathname === "/api/setup/progress" && route.request().method() === "POST") {
+      await fulfillJson(route, { requestId, saved: true });
+      return;
+    }
     if (await handleShellRoute(route)) return;
     await fulfillJson(route, { requestId });
   });

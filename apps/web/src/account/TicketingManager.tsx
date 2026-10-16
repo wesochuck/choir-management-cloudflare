@@ -8,7 +8,14 @@ import type {
 } from "@choir/contracts";
 import { calculatePaymentFinancialSummary } from "@choir/domain";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
-import { useCallback, useEffect, useState, type SyntheticEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type SetStateAction,
+  type SyntheticEvent,
+} from "react";
 
 import {
   deletePrivateOrganizationFile,
@@ -72,6 +79,8 @@ export function TicketingManager({
   const { clearScopedNoticeWhenLeavingTab, clearSuccessNotice, notice, showNotice } =
     useTicketingNotice();
   const [selectedPerformanceId, setSelectedPerformanceId] = useState("all");
+  const userPerformanceSelectionRef = useRef(false);
+  const initialDefaultAppliedRef = useRef(false);
   const [willCallSearch, setWillCallSearch] = useState("");
   const [willCallDiscountCode, setWillCallDiscountCode] = useState<string | null>(null);
   const [willCallShowRefunded, setWillCallShowRefunded] = useState(false);
@@ -148,26 +157,27 @@ export function TicketingManager({
             return diff !== 0 ? diff : a.title.localeCompare(b.title);
           });
         setTicketEvents(ticketedEvents);
-        const queryEventId =
-          initialEventId ??
-          (typeof window !== "undefined"
-            ? new URLSearchParams(window.location.search).get("eventId")
-            : null);
-        if (queryEventId) {
-          const matchingQueryEvent = ticketedEvents.find((event) => event.id === queryEventId);
-          if (matchingQueryEvent) {
-            setSelectedPerformanceId(matchingQueryEvent.id);
+        if (!userPerformanceSelectionRef.current && !initialDefaultAppliedRef.current) {
+          const queryEventId =
+            initialEventId ??
+            (typeof window !== "undefined"
+              ? new URLSearchParams(window.location.search).get("eventId")
+              : null);
+          if (queryEventId) {
+            const matchingQueryEvent = ticketedEvents.find((event) => event.id === queryEventId);
+            if (matchingQueryEvent) {
+              setSelectedPerformanceId(matchingQueryEvent.id);
+            } else {
+              setSelectedPerformanceId("all");
+              showNotice("The selected performance does not have ticketing enabled.", "info");
+            }
           } else {
-            setSelectedPerformanceId("all");
-            showNotice("The selected performance does not have ticketing enabled.", "info");
+            const closestTicketedEvent = findClosestEvent(ticketedEvents);
+            if (closestTicketedEvent) {
+              setSelectedPerformanceId(closestTicketedEvent.id);
+            }
           }
-        } else {
-          const closestTicketedEvent = findClosestEvent(ticketedEvents);
-          if (closestTicketedEvent) {
-            setSelectedPerformanceId((current) =>
-              current === "all" ? closestTicketedEvent.id : current,
-            );
-          }
+          initialDefaultAppliedRef.current = true;
         }
       }
       if (bundlesResult.status === "fulfilled") setBundles(bundlesResult.value);
@@ -511,7 +521,13 @@ export function TicketingManager({
     }
   }
 
+  const handleSelectPerformanceId = useCallback((action: SetStateAction<string>) => {
+    userPerformanceSelectionRef.current = true;
+    setSelectedPerformanceId(action);
+  }, []);
+
   function viewDiscountCodeRedemptions(code: DiscountCode): void {
+    userPerformanceSelectionRef.current = true;
     setWillCallDiscountCode(code.code);
     setWillCallShowRefunded(true);
     setWillCallSearch("");
@@ -678,7 +694,7 @@ export function TicketingManager({
             resendConfirmation={resendConfirmation}
             selectedPerformance={selectedPerformance}
             selectedPerformanceId={selectedPerformanceId}
-            setSelectedPerformanceId={setSelectedPerformanceId}
+            setSelectedPerformanceId={handleSelectPerformanceId}
             setShowRefunded={setWillCallShowRefunded}
             setWillCallSearch={setWillCallSearch}
             showRefunded={willCallShowRefunded}
