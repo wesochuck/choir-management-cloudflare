@@ -419,7 +419,7 @@
 
   .roster-filter-row {
     display: flex;
-    align-items: flex-end;
+    align-items: center;
     gap: var(--spacing-sm);
     margin: var(--spacing-lg) 0;
   }
@@ -430,6 +430,11 @@
 
   .roster-filter-row__status {
     flex: 0 1 12rem;
+  }
+
+  .roster-filter-row__hidden {
+    min-height: var(--control-height);
+    align-items: center;
   }
 
   .roster-bulk-actions {

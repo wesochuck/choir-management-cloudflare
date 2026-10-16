@@ -123,6 +123,15 @@
     font-size: var(--font-size-base);
   }
 
+  .dialog:not(.dialog--confirmation)
+    .dialog__body:has(.dialog__actions, .track-import-review-footer, .sticky-form-actions) {
+    padding-bottom: 0;
+  }
+
+  .dialog__body > .danger-confirmation:last-child {
+    margin-bottom: var(--spacing-lg);
+  }
+
   .dialog__actions {
     display: flex;
     flex-wrap: wrap;
@@ -130,12 +139,23 @@
     justify-content: flex-end;
     gap: var(--spacing-sm);
     margin-top: var(--spacing-lg);
-    padding-top: var(--spacing-sm);
+    margin-inline: calc(-1 * var(--spacing-lg));
+    padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-lg);
     border-top: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
     position: sticky;
     bottom: 0;
     background: var(--color-surface);
+    box-shadow: 0 -4px 12px -2px color-mix(in srgb, var(--color-text) 6%, transparent);
     z-index: 10;
+  }
+
+  .dialog__actions.dialog__footer {
+    position: static;
+    flex-shrink: 0;
+    margin-top: 0;
+    margin-inline: 0;
+    margin-bottom: 0;
+    padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-lg);
   }
 
   .dialog__actions--start {
@@ -165,7 +185,8 @@
   .dialog--confirmation .dialog__actions {
     position: static;
     margin-top: var(--spacing-md);
-    padding-top: var(--spacing-sm);
+    margin-inline: 0;
+    padding: var(--spacing-sm) 0 0;
     background: transparent;
     box-shadow: none;
   }
@@ -186,6 +207,7 @@
     .dialog__actions {
       margin-top: var(--spacing-xs);
       padding-top: var(--spacing-2xs);
+      padding-bottom: var(--spacing-xs);
     }
   }
 
@@ -458,11 +480,23 @@
       padding-bottom: var(--spacing-md);
     }
 
+    .dialog--responsive:not(.dialog--confirmation)
+      .dialog__body:has(.dialog__actions, .track-import-review-footer, .sticky-form-actions) {
+      padding-bottom: 0;
+    }
+
     .dialog--responsive .dialog__actions {
+      margin-left: calc(-1 * max(var(--spacing-md), env(safe-area-inset-left)));
+      margin-right: calc(-1 * max(var(--spacing-md), env(safe-area-inset-right)));
       padding-bottom: max(var(--spacing-md), env(safe-area-inset-bottom));
       padding-left: max(var(--spacing-md), env(safe-area-inset-left));
       padding-right: max(var(--spacing-md), env(safe-area-inset-right));
       box-shadow: 0 -4px 12px -2px color-mix(in srgb, var(--color-text) 6%, transparent);
+    }
+
+    .dialog--responsive .dialog__actions.dialog__footer {
+      margin-left: 0;
+      margin-right: 0;
     }
 
     .dialog--responsive .dialog__actions .button {
@@ -496,6 +530,8 @@
 
     .dialog--responsive.dialog--confirmation .dialog__actions {
       position: static;
+      margin-left: 0;
+      margin-right: 0;
       padding-bottom: 0;
       padding-left: 0;
       padding-right: 0;

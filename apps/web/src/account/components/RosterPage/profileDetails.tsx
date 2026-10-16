@@ -122,7 +122,7 @@ export function ProfileFolderNumbers({
               </label>
               <div className="profile-folder-row__action">
                 <button
-                  className="button button--secondary button--small"
+                  className="button button--secondary button--control-height"
                   disabled={savingEventId !== null}
                   onClick={() => {
                     void saveFolderNumber(folder);

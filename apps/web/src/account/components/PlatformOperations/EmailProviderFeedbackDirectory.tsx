@@ -147,7 +147,7 @@ export function EmailProviderFeedbackDirectory() {
           </select>
         </label>
         <button
-          className="button button--secondary"
+          className="button button--secondary button--control-height"
           disabled={feedback.status === "loading"}
           onClick={refresh}
           type="button"

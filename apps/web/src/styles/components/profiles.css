@@ -254,7 +254,7 @@
 
   .profile-dues-history__heading {
     display: flex;
-    align-items: flex-end;
+    align-items: baseline;
     justify-content: space-between;
     gap: var(--spacing-md);
   }
@@ -334,7 +334,7 @@
 
   .profile-folder-numbers__heading {
     display: flex;
-    align-items: flex-end;
+    align-items: baseline;
     justify-content: space-between;
     gap: var(--spacing-md);
   }
@@ -404,12 +404,17 @@
   }
 
   .profile-folder-row__returned {
-    min-height: 2.5rem;
+    min-height: var(--control-height);
+    align-items: center;
+    align-self: end;
   }
 
   .profile-folder-row__action {
     display: flex;
     min-width: 0;
+    min-height: var(--control-height);
+    align-items: center;
+    align-self: end;
     justify-content: flex-start;
   }
 
@@ -431,6 +436,7 @@
   .directory-filters {
     display: grid;
     grid-template-columns: minmax(0, 2fr) minmax(10rem, 1fr);
+    align-items: start;
     gap: var(--spacing-md);
     margin-top: var(--spacing-md);
   }

@@ -266,7 +266,7 @@ function DetailPanel({
         {controller.hasUnsavedDrafts ? (
           <div className="music-folder-report__edit-actions">
             <button
-              className="button button--secondary"
+              className="button button--secondary button--control-height"
               disabled={controller.detailState !== "ready"}
               onClick={() => {
                 void controller.saveChanges();
@@ -276,7 +276,7 @@ function DetailPanel({
               Save changes
             </button>
             <button
-              className="button button--secondary"
+              className="button button--secondary button--control-height"
               onClick={controller.discardChanges}
               type="button"
             >
@@ -449,7 +449,7 @@ export function MusicFolderReport({
           selectedEventIds={controller.selectedEventIds}
         />
         <button
-          className="button button--secondary"
+          className="button button--secondary button--control-height"
           disabled={controller.selectedEventIds.length === 0}
           onClick={() => {
             void controller.downloadCsv();

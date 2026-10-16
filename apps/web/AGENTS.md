@@ -105,6 +105,22 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
   (or `.button--control-height`) so that their top and bottom baselines align seamlessly with
   neighboring inputs. Standalone buttons in dialog footers (`.dialog__actions`) and floating save
   bars retains standard full-size control styling (`min-height: 3rem`).
+- Single-line checkbox and radio labels (`.checkbox-row`, `.checkbox-field`, `.checkbox-label`,
+  `.field-checkbox`) must center the input box with its label text
+  (`align-items: center; margin: 0`), reserving `align-items: flex-start` and
+  `margin-top: var(--spacing-3xs)` only for multi-line choice blocks containing
+  `.choice-field__content`, `.field-help`, or `small`. When a single-line checkbox label or custom
+  `<details>` dropdown summary sits in the same horizontal row as `<input>`, `<select>`, or
+  `.button--control-height` controls, it must match `--control-height` (`2.5rem` / `40px`) so all
+  controls share a vertical midline. `npm run check:control-alignment` and the E2E control-row
+  alignment audit in `apps/web/e2e/responsive.audit.spec.ts` enforce this.
+- Modal action bars must never allow scrolled content to peek below or beside them. Prefer passing
+  dialog footer buttons via the `Dialog` `footer` prop (`.dialog__footer`, rendered as a flex
+  sibling outside `.dialog__body`), or when `.dialog__actions` / `.track-import-review-footer` is
+  rendered inside `.dialog__body`, keep `.dialog__body` at `padding-bottom: 0` with full-bleed
+  negative inline margins (`margin-inline: calc(-1 * var(--spacing-lg))`) and opaque bottom/inline
+  padding on the sticky footer without `border-radius`. `npm run check:control-alignment` and
+  `apps/web/e2e/responsive.audit.spec.ts` enforce this.
 
 ## Web Verification
 

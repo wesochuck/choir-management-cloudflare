@@ -56,15 +56,24 @@
   .choice-field,
   .checkbox-row,
   .checkbox-field,
-  .checkbox-label {
+  .checkbox-label,
+  .field-checkbox {
     display: inline-flex;
-    align-items: flex-start;
+    align-items: center;
     gap: var(--spacing-xs);
     min-width: 0;
     min-height: 1.5rem;
     cursor: pointer;
     user-select: none;
     line-height: var(--line-height-normal);
+  }
+
+  :is(.choice-field, .checkbox-row, .checkbox-field, .checkbox-label, .field-checkbox):has(
+    .choice-field__content,
+    .field-help,
+    small
+  ) {
+    align-items: flex-start;
   }
 
   .choice-field input[type="checkbox"],
@@ -74,7 +83,9 @@
   .checkbox-field input[type="checkbox"],
   .checkbox-field input[type="radio"],
   .checkbox-label input[type="checkbox"],
-  .checkbox-label input[type="radio"] {
+  .checkbox-label input[type="radio"],
+  .field-checkbox input[type="checkbox"],
+  .field-checkbox input[type="radio"] {
     appearance: auto;
     -webkit-appearance: auto;
     box-sizing: border-box;
@@ -83,11 +94,17 @@
     min-width: var(--choice-size, 1rem);
     min-height: var(--choice-size, 1rem);
     flex: 0 0 var(--choice-size, 1rem);
-    margin-top: var(--spacing-3xs);
-    margin-right: 0;
-    margin-bottom: 0;
-    margin-left: 0;
+    margin: 0;
     padding: 0;
+  }
+
+  :is(.choice-field, .checkbox-row, .checkbox-field, .checkbox-label, .field-checkbox):has(
+      .choice-field__content,
+      .field-help,
+      small
+    )
+    > :is(input[type="checkbox"], input[type="radio"]) {
+    margin-top: var(--spacing-3xs);
   }
 
   .choice-field__content {

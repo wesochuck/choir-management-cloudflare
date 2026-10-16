@@ -103,11 +103,11 @@
   .practice-player__playable-toggle {
     display: inline-flex;
     align-items: center;
+    min-height: var(--control-height);
     gap: var(--spacing-2xs);
     cursor: pointer;
     font-size: var(--font-size-sm);
     user-select: none;
-    padding-bottom: var(--spacing-2xs);
   }
 
   .practice-player__tabs-list {

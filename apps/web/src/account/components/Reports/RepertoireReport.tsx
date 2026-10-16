@@ -28,7 +28,7 @@ export function RepertoireReport({
           />
         </label>
         <button
-          className="button button--secondary"
+          className="button button--secondary button--control-height"
           disabled={!filtered.length}
           onClick={() => {
             downloadCsv("repertoire-report.csv", [

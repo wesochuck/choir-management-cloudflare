@@ -400,23 +400,29 @@ export function StripePaymentReconciliation({
       >
         <div className="field">
           <label htmlFor="platform-reconciliation-since">Only check payments since</label>
-          <input
-            aria-describedby="platform-reconciliation-since-help"
-            id="platform-reconciliation-since"
-            onChange={(e) => {
-              setSinceDate(e.target.value);
-            }}
-            type="date"
-            value={sinceDate}
-          />
+          <div className="platform-reconciliation-controls__input-row">
+            <input
+              aria-describedby="platform-reconciliation-since-help"
+              id="platform-reconciliation-since"
+              onChange={(e) => {
+                setSinceDate(e.target.value);
+              }}
+              type="date"
+              value={sinceDate}
+            />
+            <button
+              className="button button--secondary button--control-height"
+              disabled={loadingPreview}
+              type="submit"
+            >
+              {loadingPreview ? "Scanning Stripe payments…" : "Run reconciliation preview"}
+            </button>
+          </div>
           <p className="field-help" id="platform-reconciliation-since-help">
             Optional. Leave blank to include older payments. This filters by payment date, not
             refund date.
           </p>
         </div>
-        <button className="button button--secondary" disabled={loadingPreview} type="submit">
-          {loadingPreview ? "Scanning Stripe payments…" : "Run reconciliation preview"}
-        </button>
       </form>
 
       {previewData ? (

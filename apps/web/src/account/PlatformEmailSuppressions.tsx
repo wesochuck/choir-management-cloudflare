@@ -290,10 +290,14 @@ export function PlatformEmailSuppressions() {
           </select>
         </label>
         <div className="platform-email-suppressions__filter-actions">
-          <button className="button button--primary" type="submit">
+          <button className="button button--primary button--control-height" type="submit">
             Apply filters
           </button>
-          <button className="button button--secondary" onClick={clearFilters} type="button">
+          <button
+            className="button button--secondary button--control-height"
+            onClick={clearFilters}
+            type="button"
+          >
             Clear
           </button>
         </div>

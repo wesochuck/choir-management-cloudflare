@@ -98,7 +98,7 @@ export function CommerceReport({
           </div>
         </div>
         <button
-          className="button button--secondary"
+          className="button button--secondary button--control-height"
           disabled={!rows.length || state !== "ready"}
           onClick={() => {
             downloadCsv("donations-and-ticket-sales-report.csv", [

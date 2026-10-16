@@ -687,6 +687,139 @@ async function assertBreakpointSpecificLayout(
   }
 }
 
+async function assertInlineControlRowAlignment(
+  page: Page,
+  label: string,
+  width: number,
+): Promise<void> {
+  const misalignments = await page.evaluate(() => {
+    interface ControlEntry {
+      desc: string;
+      mid: number;
+      rect: DOMRect;
+    }
+
+    function resolveCheckboxControl(
+      selector: string,
+      child: HTMLElement,
+      childRect: DOMRect,
+      issues: string[],
+    ): ControlEntry | null {
+      if (child.querySelector(".choice-field__content, .field-help, small") !== null) {
+        return null;
+      }
+      const checkboxInput = child.querySelector<HTMLElement>('input[type="checkbox"]');
+      if (checkboxInput) {
+        const boxRect = checkboxInput.getBoundingClientRect();
+        const labelMid = childRect.top + childRect.height / 2;
+        const boxMid = boxRect.top + boxRect.height / 2;
+        if (childRect.height <= 44 && Math.abs(labelMid - boxMid) > 2) {
+          issues.push(
+            `${selector}: checkbox input midline (${boxMid.toFixed(1)}) misaligned with its label midline (${labelMid.toFixed(1)})`,
+          );
+        }
+      }
+      const firstClass = child.className.split(" ")[0] ?? "";
+      return {
+        desc: `checkbox-label.${firstClass.length > 0 ? firstClass : "label"}`,
+        mid: childRect.top + childRect.height / 2,
+        rect: childRect,
+      };
+    }
+
+    function resolveChildControl(
+      selector: string,
+      child: HTMLElement,
+      issues: string[],
+    ): ControlEntry | null {
+      const childRect = child.getBoundingClientRect();
+      if (childRect.width === 0 || childRect.height === 0) return null;
+
+      const isCheckboxLabel =
+        child.matches(".checkbox-row, .checkbox-field, .checkbox-label, .field-checkbox") ||
+        (child.tagName === "LABEL" &&
+          child.querySelector(':scope > input[type="checkbox"]') !== null);
+      if (isCheckboxLabel) {
+        return resolveCheckboxControl(selector, child, childRect, issues);
+      }
+
+      if (child.matches("button.button, a.button")) {
+        return {
+          desc: `button(${child.textContent.trim().slice(0, 20)})`,
+          mid: childRect.top + childRect.height / 2,
+          rect: childRect,
+        };
+      }
+
+      const target =
+        child.tagName === "DETAILS"
+          ? child.querySelector<HTMLElement>(":scope > summary")
+          : child.querySelector<HTMLElement>(
+              'select, details > summary, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])',
+            );
+      if (!target) return null;
+      const r = target.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) return null;
+      return {
+        desc: target.tagName.toLowerCase(),
+        mid: r.top + r.height / 2,
+        rect: r,
+      };
+    }
+
+    function compareRowControls(selector: string, controls: ControlEntry[], issues: string[]) {
+      for (let i = 0; i < controls.length; i += 1) {
+        for (let j = i + 1; j < controls.length; j += 1) {
+          const a = controls[i];
+          const b = controls[j];
+          if (!a || !b) continue;
+          const horizontallySeparated =
+            a.rect.right <= b.rect.left + 2 || b.rect.right <= a.rect.left + 2;
+          const verticallyOverlapping =
+            a.rect.bottom > b.rect.top + 4 && b.rect.bottom > a.rect.top + 4;
+          if (horizontallySeparated && verticallyOverlapping && Math.abs(a.mid - b.mid) > 2) {
+            issues.push(
+              `${selector}: ${a.desc} midline (${a.mid.toFixed(1)}) != ${b.desc} midline (${b.mid.toFixed(1)})`,
+            );
+          }
+        }
+      }
+    }
+
+    const rowSelectors = [
+      ".roster-filter-row",
+      ".roster-configuration-row",
+      ".music-catalog-toolbar",
+      ".reports-toolbar",
+      ".practice-player__filters-row",
+      ".set-list-save-row",
+      ".set-list-copy-row",
+      ".profile-folder-row",
+    ];
+    const issues: string[] = [];
+
+    for (const selector of rowSelectors) {
+      for (const row of document.querySelectorAll<HTMLElement>(selector)) {
+        const rowRect = row.getBoundingClientRect();
+        if (rowRect.width === 0 || rowRect.height === 0) continue;
+        const controls: ControlEntry[] = [];
+        for (const child of row.children) {
+          if (!(child instanceof HTMLElement)) continue;
+          const entry = resolveChildControl(selector, child, issues);
+          if (entry) controls.push(entry);
+        }
+        compareRowControls(selector, controls, issues);
+      }
+    }
+    return issues;
+  });
+
+  expect(
+    misalignments,
+    `${label} @ ${String(width)}px has misaligned inline controls: ${misalignments.join("; ")}`,
+  ).toEqual([]);
+}
+
 test("signed-in pages never overflow horizontally at any breakpoint", async ({ page }) => {
   await page.route("**/api/**", async (route) => {
     if (await handleShellRoute(route)) return;
@@ -697,6 +830,7 @@ test("signed-in pages never overflow horizontally at any breakpoint", async ({ p
   const pages = [
     { path: "/dashboard", label: "member dashboard" },
     { path: "/admin", label: "admin overview" },
+    { path: "/admin/roster", label: "roster" },
     { path: "/admin/donations", label: "donations" },
     { path: "/admin/events", label: "events" },
     { path: "/admin/polls", label: "polls" },
@@ -721,6 +855,7 @@ test("signed-in pages never overflow horizontally at any breakpoint", async ({ p
       await page.setViewportSize({ width, height: 900 });
       await page.waitForTimeout(120);
       await assertBreakpointSpecificLayout(page, path, width);
+      await assertInlineControlRowAlignment(page, label, width);
       const audit = await page.evaluate(() => {
         const viewport = window.innerWidth;
         const scrollWidth = document.documentElement.scrollWidth;
@@ -846,6 +981,7 @@ test("poll creation requires and defaults an expiration date", async ({ page }) 
     await fulfillJson(route, { requestId });
   });
 
+  await page.setViewportSize({ height: 480, width: 900 });
   await page.goto("/admin/polls");
   await page.getByRole("button", { name: "Create poll", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Create poll" });
@@ -859,6 +995,25 @@ test("poll creation requires and defaults an expiration date", async ({ page }) 
   // datetime-local values truncate seconds/milliseconds (up to 59,999 ms rounding floor).
   // Allow up to 120_000 ms (2 minutes) to prevent flaking when the dialog opens near minute boundaries.
   expect(Math.abs(expirationTime - Date.now() - 3 * 24 * 60 * 60 * 1_000)).toBeLessThan(120_000);
+
+  // Verify sticky modal action bar spans full width flush to the bottom of .dialog__body with zero peek gap
+  const footerGeometry = await dialog.evaluate((dialogEl) => {
+    const body = dialogEl.querySelector<HTMLElement>(".dialog__body");
+    const actions = dialogEl.querySelector<HTMLElement>(".dialog__actions");
+    if (!body || !actions) return null;
+    body.scrollTop = Math.min(24, Math.max(0, body.scrollHeight - body.clientHeight));
+    const bodyRect = body.getBoundingClientRect();
+    const actionsRect = actions.getBoundingClientRect();
+    return {
+      bottomGap: Math.abs(bodyRect.bottom - actionsRect.bottom),
+      leftGap: Math.abs(actionsRect.left - bodyRect.left),
+      rightGap: Math.abs(bodyRect.right - actionsRect.right),
+    };
+  });
+  expect(footerGeometry).not.toBeNull();
+  expect(footerGeometry?.bottomGap).toBeLessThanOrEqual(1.5);
+  expect(footerGeometry?.leftGap).toBeLessThanOrEqual(1.5);
+  expect(footerGeometry?.rightGap).toBeLessThanOrEqual(1.5);
 });
 
 test("poll archive filter loads archived polls", async ({ page }) => {

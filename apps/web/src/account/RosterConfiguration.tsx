@@ -261,7 +261,7 @@ export function RosterConfiguration({ enabled }: Props) {
                       Track only
                     </label>
                     <button
-                      className="button button--secondary"
+                      className="button button--secondary button--control-height"
                       disabled={configuration.sections.length === 1 || referenced}
                       title={referenced ? `Remove its ${partTerm} assignments first.` : undefined}
                       type="button"
@@ -441,6 +441,28 @@ export function RosterConfiguration({ enabled }: Props) {
       )}
       <Dialog
         description={`Choose a new ${partTerm} assignment for these Profiles, or clear their assignments so this assignment can be removed.`}
+        footer={
+          <>
+            <button
+              className="button button--secondary"
+              disabled={busy}
+              onClick={() => {
+                setReassigningLabel(null);
+              }}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="button button--primary"
+              disabled={busy || reassigningLabel === null}
+              onClick={() => void reassignProfiles()}
+              type="button"
+            >
+              {busy ? "Updating…" : "Apply assignments"}
+            </button>
+          </>
+        }
         onClose={() => {
           if (!busy) setReassigningLabel(null);
         }}
@@ -487,26 +509,6 @@ export function RosterConfiguration({ enabled }: Props) {
             ),
           )}
         </ul>
-        <div className="dialog__actions">
-          <button
-            className="button button--secondary"
-            disabled={busy}
-            onClick={() => {
-              setReassigningLabel(null);
-            }}
-            type="button"
-          >
-            Cancel
-          </button>
-          <button
-            className="button button--primary"
-            disabled={busy || reassigningLabel === null}
-            onClick={() => void reassignProfiles()}
-            type="button"
-          >
-            {busy ? "Updating…" : "Apply assignments"}
-          </button>
-        </div>
       </Dialog>
     </section>
   );

@@ -275,7 +275,7 @@ export function MusicCatalogView({
                 onToggleUncategorized={toggleUncategorized}
               />
               <button
-                className="button button--secondary"
+                className="button button--secondary button--control-height"
                 disabled={selectedPieces.length === 0}
                 type="button"
                 onClick={() => {
@@ -286,7 +286,7 @@ export function MusicCatalogView({
                 Bulk edit{selectedPieces.length > 0 ? ` (${String(selectedPieces.length)})` : ""}
               </button>
               <button
-                className="button button--secondary"
+                className="button button--secondary button--control-height"
                 disabled={selectedPieces.length === 0}
                 type="button"
                 onClick={() => {
@@ -298,7 +298,7 @@ export function MusicCatalogView({
                 {selectedPieces.length > 0 ? ` (${String(selectedPieces.length)})` : ""}
               </button>
               <button
-                className="button button--secondary"
+                className="button button--secondary button--control-height"
                 type="button"
                 onClick={() => {
                   beginNew();
@@ -307,7 +307,7 @@ export function MusicCatalogView({
                 Add music piece
               </button>
               <button
-                className="button button--secondary"
+                className="button button--secondary button--control-height"
                 type="button"
                 onClick={() => {
                   setError(null);
@@ -318,14 +318,14 @@ export function MusicCatalogView({
                 Import CSV
               </button>
               <a
-                className="button button--secondary"
+                className="button button--secondary button--control-height"
                 download
                 href="/api/organization/music/export"
               >
                 Export CSV
               </a>
               <button
-                className="button button--secondary"
+                className="button button--secondary button--control-height"
                 type="button"
                 onClick={() => {
                   setError(null);

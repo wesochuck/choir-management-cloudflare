@@ -257,6 +257,15 @@
     font-size: var(--font-size-body);
   }
 
+  .music-piece-quick-performance .dialog__actions {
+    position: static;
+    margin: 0;
+    padding: var(--spacing-xs) 0 0;
+    border-top: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
   .music-audio-tracks legend {
     padding: 0 var(--spacing-2xs);
     font-weight: var(--font-weight-bold);

@@ -41,7 +41,7 @@ export function QueueDeadLetterContent({
           </select>
         </label>
         <button
-          className="button button--secondary"
+          className="button button--secondary button--control-height"
           disabled={deadLetters.status === "loading"}
           onClick={onRefresh}
           type="button"

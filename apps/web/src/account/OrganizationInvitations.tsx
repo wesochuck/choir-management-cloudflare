@@ -296,7 +296,7 @@ function MembershipProfileLinkList({
                 {canChangeRole ? (
                   <button
                     aria-label={`Change role for ${membership.name}`}
-                    className="button button--secondary"
+                    className="button button--secondary button--control-height"
                     disabled={busyMembershipId !== null}
                     onClick={() => {
                       onOpenRoleChange(membership);
@@ -309,7 +309,7 @@ function MembershipProfileLinkList({
                 {onOpenResolveDuplicate && membership.profileId ? (
                   <button
                     aria-label={`Resolve duplicate for ${membership.name}`}
-                    className="button button--secondary"
+                    className="button button--secondary button--control-height"
                     disabled={busyMembershipId !== null}
                     onClick={() => {
                       onOpenResolveDuplicate(membership);
@@ -346,7 +346,7 @@ function MembershipProfileLinkList({
                   </select>
                 </label>
                 <button
-                  className="button button--secondary"
+                  className="button button--secondary button--control-height"
                   disabled={
                     busyMembershipId !== null ||
                     !selectedProfiles[membership.id] ||

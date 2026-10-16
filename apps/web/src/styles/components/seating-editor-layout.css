@@ -489,6 +489,8 @@
   }
 
   .checkbox-row--compact {
+    min-height: var(--control-height-sm);
+    align-items: center;
     margin: 0;
     white-space: nowrap;
     font-size: var(--font-size-md);
@@ -537,11 +539,13 @@
 
   .communication-section-picker summary {
     display: flex;
-    min-height: 3.25rem;
+    height: var(--control-height);
+    min-height: var(--control-height);
+    box-sizing: border-box;
     align-items: center;
     justify-content: space-between;
     gap: var(--spacing-sm);
-    padding: var(--spacing-sm) var(--spacing-sm);
+    padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface);

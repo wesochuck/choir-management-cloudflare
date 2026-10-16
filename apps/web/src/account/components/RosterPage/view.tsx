@@ -330,7 +330,7 @@ export function RosterPageView({
                 statusFilter !== "all" ||
                 showHidden ? (
                   <button
-                    className="button button--secondary"
+                    className="button button--secondary button--control-height"
                     onClick={clearRosterFilters}
                     type="button"
                   >

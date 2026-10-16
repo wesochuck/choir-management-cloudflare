@@ -157,11 +157,20 @@
     display: inline-flex;
     min-width: 0;
     min-height: 1.5rem;
-    align-items: flex-start;
+    align-items: center;
     gap: var(--spacing-xs);
     white-space: normal;
     cursor: pointer;
     line-height: var(--line-height-normal);
+  }
+
+  :where(.signed-in-main, .dialog, .dialog--responsive)
+    label:has(> :is(input[type="checkbox"], input[type="radio"])):has(
+      .choice-field__content,
+      .field-help,
+      small
+    ) {
+    align-items: flex-start;
   }
 
   :where(.signed-in-main, .dialog, .dialog--responsive) label:has(> input[type="checkbox"]) > input,
@@ -174,11 +183,43 @@
     min-width: var(--choice-size, 1rem);
     min-height: var(--choice-size, 1rem);
     flex: 0 0 var(--choice-size, 1rem);
-    margin-top: var(--spacing-3xs);
-    margin-right: 0;
-    margin-bottom: 0;
-    margin-left: 0;
+    margin: 0;
     padding: 0;
+  }
+
+  :where(.signed-in-main, .dialog, .dialog--responsive)
+    label:has(> :is(input[type="checkbox"], input[type="radio"])):has(
+      .choice-field__content,
+      .field-help,
+      small
+    )
+    > input {
+    margin-top: var(--spacing-3xs);
+  }
+
+  /* Single-line checkbox controls placed in the same row/grid as text inputs,
+   * selects, or custom dropdowns match --control-height (2.5rem) so their
+   * vertical midline aligns with adjacent controls in both center- and
+   * bottom-aligned rows. */
+  :where(.signed-in-main, .dialog, .dialog--responsive)
+    :where(div, form, fieldset, section):has(
+      > :is(
+        .field,
+        .search-field,
+        select,
+        details,
+        input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])
+      )
+    )
+    > :is(
+      .checkbox-row,
+      .checkbox-field,
+      .checkbox-label,
+      .field-checkbox,
+      label:has(> input[type="checkbox"])
+    ):not(:has(.choice-field__content, .field-help, small)):not(.checkbox-row--compact) {
+    min-height: var(--control-height);
+    align-items: center;
   }
 
   /* Keep signed-in dialog inputs on the same control system. */

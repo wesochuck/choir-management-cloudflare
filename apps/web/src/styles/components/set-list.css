@@ -217,14 +217,13 @@
     align-items: flex-start;
   }
 
-  .set-list-copy-row,
   .set-list-inline-control,
   .set-list-summary,
   .set-list-save-row,
   .set-list-item-heading,
   .set-list-credit-list li {
     display: flex;
-    align-items: end;
+    align-items: center;
     justify-content: space-between;
     gap: var(--spacing-md);
   }

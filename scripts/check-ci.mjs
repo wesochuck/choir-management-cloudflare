@@ -51,6 +51,12 @@ const steps = [
     args: ["run", "knip"],
   },
   { job: "static", label: "Check spacing tokens", command: "npm", args: ["run", "check:spacing"] },
+  {
+    job: "static",
+    label: "Check control-row vertical alignment",
+    command: "npm",
+    args: ["run", "check:control-alignment"],
+  },
   { job: "contracts", label: "Typecheck", command: "npm", args: ["run", "typecheck"] },
   {
     job: "contracts",

@@ -33,7 +33,7 @@ export function RosterReport({
           />
         </label>
         <button
-          className="button button--secondary"
+          className="button button--secondary button--control-height"
           disabled={!filtered.length}
           onClick={() => {
             downloadCsv("roster-report.csv", [

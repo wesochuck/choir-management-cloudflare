@@ -74,7 +74,7 @@ export function AttendanceReport({
       <div className="reports-toolbar">
         <EventPicker events={performances} onChange={onChange} selectedId={selectedId} />
         <button
-          className="button button--secondary"
+          className="button button--secondary button--control-height"
           disabled={!selected || rows.length === 0}
           onClick={() => {
             downloadCsv("attendance-report.csv", [

@@ -201,7 +201,9 @@
 
   .music-genre-filter summary {
     display: flex;
-    min-height: 2.45rem;
+    height: var(--control-height);
+    min-height: var(--control-height);
+    box-sizing: border-box;
     align-items: center;
     justify-content: space-between;
     gap: var(--spacing-sm);
@@ -677,8 +679,13 @@
   .music-bulk-edit-field {
     display: grid;
     grid-template-columns: minmax(10rem, 0.45fr) minmax(0, 1fr);
-    align-items: center;
+    align-items: start;
     gap: var(--spacing-sm);
+  }
+
+  .music-bulk-edit-field > .checkbox-row {
+    min-height: var(--control-height);
+    align-items: center;
   }
 
   @media (max-width: 40rem) {
@@ -690,6 +697,8 @@
   .music-bulk-edit-section-options {
     display: flex;
     flex-wrap: wrap;
+    min-height: var(--control-height);
+    align-items: center;
     gap: var(--spacing-xs) var(--spacing-sm);
   }
 
