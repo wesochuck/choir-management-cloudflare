@@ -872,7 +872,7 @@ test("keeps song rows compact while insert zones stay usable", async ({ page }) 
   expect(overflow).toBe(false);
 });
 
-test("creates, edits, and prints Quick cues with compact layout, 0:00 duration, and date-first event options", async ({
+test("creates and edits Quick cues, omits them from print and copy, and uses date-first event options", async ({
   page,
 }) => {
   const eventRef: { value: Record<string, unknown> } = {
@@ -898,7 +898,7 @@ test("creates, edits, and prints Quick cues with compact layout, 0:00 duration, 
           title: "Opening Song",
           type: "song",
         },
-        { composer: "Composer B", id: "item-b", pieceId: musicId, title: "Finale", type: "song" },
+        { composer: "Composer B", duration: "3:00", id: "item-b", title: "Finale", type: "song" },
       ],
       setListApproved: false,
       startsAt: "2026-12-13T19:00:00.000Z",
@@ -924,8 +924,13 @@ test("creates, edits, and prints Quick cues with compact layout, 0:00 duration, 
   const selectOption = page.locator('select option[value="' + eventId + '"]').first();
   await expect(selectOption).toContainText("Dec 13, 2026 · Holiday Stroll");
 
-  // 2. Click "+ Insert Custom entry" which inserts a custom item and opens the Edit dialog
-  await page.getByRole("button", { name: "+ Insert Custom entry" }).click();
+  // Insert between songs, leaving the final song available for another cue after it.
+  const insertAfterOpening = page.getByRole("button", {
+    name: "Insert custom entry after 1. Opening Song",
+    exact: true,
+  });
+  await insertAfterOpening.focus();
+  await insertAfterOpening.press("Enter");
   const editDialog = page.getByRole("dialog", { name: "Edit set-list item" });
   await expect(editDialog).toBeVisible();
 
@@ -956,6 +961,18 @@ test("creates, edits, and prints Quick cues with compact layout, 0:00 duration, 
   await expect(quickCueRow).toContainText("Quick cue");
   await expect(quickCueRow).toContainText("Welcome guests and introduce guest soloist");
   await expect(quickCueRow.locator(".set-list-item-duration")).toHaveText("0:00");
+  await expect(
+    page.getByRole("button", {
+      name: "Insert custom entry after 1. Opening Song",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", {
+      name: "Insert custom entry after Director Welcome",
+      exact: true,
+    }),
+  ).toHaveCount(0);
 
   // Verify Quick cue row height is compact (~40-48px)
   const cueHeight = await quickCueRow.evaluate((el) => el.getBoundingClientRect().height);
@@ -985,6 +1002,16 @@ test("creates, edits, and prints Quick cues with compact layout, 0:00 duration, 
 
   await expect(quickCueRow).toContainText("Updated: Welcome guests and announce intermission");
 
+  // Actions after a cue must still address the original song index.
+  const finale = page
+    .getByRole("list", { name: "Ordered set-list items" })
+    .getByRole("listitem")
+    .filter({ hasText: "Finale" });
+  await finale.getByRole("button", { name: "Set list details" }).click();
+  await expect(editDialog.getByLabel("Title")).toHaveValue("Finale");
+  await page.keyboard.press("Escape");
+  await expect(editDialog).not.toBeVisible();
+
   // 5. Test CustomItemDialog (via "+ Add new song" -> change type to Custom entry)
   await page.getByRole("button", { name: "+ Add new song" }).click();
   const customDialog = page.getByRole("dialog", { name: "Add custom item" });
@@ -1002,14 +1029,24 @@ test("creates, edits, and prints Quick cues with compact layout, 0:00 duration, 
   // Summary breakdown displays Quick cues count of 2
   await expect(page.locator(".set-list-summary__breakdown")).toContainText("Quick cues 2");
 
-  // 6. Print & Copy includes Quick cues unnumbered with instruction
+  // Quick Cues suppress announcement time but are omitted from program output.
   await page.getByRole("button", { name: "Print & Copy" }).click();
   const printDialog = page.getByRole("dialog", { name: "Printable Set List" });
   await expect(printDialog).toBeVisible();
-  await expect(printDialog).toContainText(
-    "Director Welcome — Updated: Welcome guests and announce intermission",
-  );
-  await expect(printDialog).toContainText("Closing Cue — Direct applause to choir");
+  await expect(printDialog).not.toContainText("Director Welcome");
+  await expect(printDialog).not.toContainText("Closing Cue");
+  await expect(printDialog).not.toContainText("Updated: Welcome guests and announce intermission");
+  await expect(printDialog).not.toContainText("Direct applause to choir");
+  await expect(printDialog).toContainText("Opening Song");
+  await expect(printDialog).toContainText("Finale");
+  await printDialog.getByRole("button", { name: "Copy Plain Text" }).click();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain("Opening Song");
+  expect(copied).toContain("Finale");
+  expect(copied).not.toContain("Director Welcome");
+  expect(copied).not.toContain("Closing Cue");
+  expect(copied).not.toContain("Updated: Welcome guests and announce intermission");
+  expect(copied).not.toContain("Direct applause to choir");
   await page.keyboard.press("Escape");
   await expect(printDialog).not.toBeVisible();
 });

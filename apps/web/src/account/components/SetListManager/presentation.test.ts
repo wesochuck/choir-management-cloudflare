@@ -110,6 +110,29 @@ describe("groupSetListForPresentation", () => {
     expect(nextSong.item.title).toBe("Seal Lullaby");
   });
 
+  it("keeps Quick Cues and original action indices in the editor", () => {
+    const items: SetListItem[] = [
+      { id: "song-a", title: "Opening", type: "song" },
+      { id: "cue", title: "No Announcements", type: "intermission", cueKind: "quick" },
+      { id: "song-b", title: "Finale", type: "song" },
+    ];
+    const entries = groupSetListForPresentation(items, [], { includeQuickCues: true });
+    expect(entries.map((entry) => entry.kind)).toEqual([
+      "standalone",
+      "intermission",
+      "standalone",
+    ]);
+    expect(
+      entries.map((entry) => (entry.kind === "movement-group" ? undefined : entry.flatIndex)),
+    ).toEqual([0, 1, 2]);
+    expect(expectStandalone(entries[2]).item.id).toBe("song-b");
+    expect(expectStandalone(entries[2]).programNumber).toBe(2);
+    expect(groupSetListForPresentation(items, []).map((entry) => entry.kind)).toEqual([
+      "standalone",
+      "standalone",
+    ]);
+  });
+
   it("omits Quick Cues and keeps movements grouped across them in program output", () => {
     const items: SetListItem[] = [
       { id: "1", pieceId: sunriseMass.id, title: "Sunrise Mass", type: "song" },

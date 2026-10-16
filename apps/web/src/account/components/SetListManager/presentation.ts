@@ -300,8 +300,10 @@ function tryCreateDerivedGroup(
 export function groupSetListForPresentation(
   items: readonly SetListItem[],
   music: readonly OrganizationMusicPiece[],
+  options: { readonly includeQuickCues?: boolean } = {},
 ): readonly SetListPresentationEntry[] {
-  const programItems = setListProgramItems(items);
+  // Editor actions need the original indices; only program output omits Quick Cues.
+  const programItems = options.includeQuickCues ? items : setListProgramItems(items);
   const musicById = new Map(music.map((p) => [p.id, p]));
   const entries: SetListPresentationEntry[] = [];
   let programNumber = 0;

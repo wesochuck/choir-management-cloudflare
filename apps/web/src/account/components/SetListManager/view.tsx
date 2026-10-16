@@ -143,7 +143,7 @@ export function SetListManagerView({
     return map;
   }, [resources.music]);
   const presentation = useMemo(
-    () => groupSetListForPresentation(items, resources.music),
+    () => groupSetListForPresentation(items, resources.music, { includeQuickCues: true }),
     [items, resources.music],
   );
   if (!enabled) return null;
