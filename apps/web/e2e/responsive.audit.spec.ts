@@ -856,7 +856,9 @@ test("poll creation requires and defaults an expiration date", async ({ page }) 
     (dateTimeLocal) => new Date(dateTimeLocal).getTime(),
     value,
   );
-  expect(Math.abs(expirationTime - Date.now() - 3 * 24 * 60 * 60 * 1_000)).toBeLessThan(60_000);
+  // datetime-local values truncate seconds/milliseconds (up to 59,999 ms rounding floor).
+  // Allow up to 120_000 ms (2 minutes) to prevent flaking when the dialog opens near minute boundaries.
+  expect(Math.abs(expirationTime - Date.now() - 3 * 24 * 60 * 60 * 1_000)).toBeLessThan(120_000);
 });
 
 test("poll archive filter loads archived polls", async ({ page }) => {
