@@ -25,6 +25,7 @@ export function getValidTrackPartKeys(
   return new Set([
     "tutti",
     "accompaniment",
+    ...(roster?.sections.map((section) => section.code) ?? []),
     ...(roster?.voiceParts.map((part) => part.label) ?? []),
   ]);
 }

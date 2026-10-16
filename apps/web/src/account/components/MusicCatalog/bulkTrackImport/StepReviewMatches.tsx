@@ -63,7 +63,11 @@ function voicePartLabel(
   if (!partKey) return "Part needed";
   if (partKey === "tutti") return "Tutti";
   if (partKey === "accompaniment") return "Accompaniment";
-  return roster?.voiceParts.find((part) => part.label === partKey)?.fullName ?? partKey;
+  return (
+    roster?.sections.find((section) => section.code === partKey)?.name ??
+    roster?.voiceParts.find((part) => part.label === partKey)?.fullName ??
+    partKey
+  );
 }
 
 function reviewFileLabel(
@@ -142,9 +146,9 @@ function FileReviewRow({
       </div>
       <div className="track-import-review-file__mapping">
         <label>
-          <span>Voice part</span>
+          <span>Section or voice part</span>
           <select
-            aria-label={`Voice part for ${file.fileName}`}
+            aria-label={`Section or voice part for ${file.fileName}`}
             disabled={excluded || groupSkipped || matching}
             onChange={(event) => {
               onPartChanged(event.target.value || null);
@@ -152,7 +156,7 @@ function FileReviewRow({
             ref={selectRef}
             value={file.partKey ?? ""}
           >
-            <option value="">Choose a voice part</option>
+            <option value="">Choose a section or voice part</option>
             {unavailablePart ? (
               <option disabled value={file.partKey}>
                 {voicePartLabel(file.partKey, roster)} (not configured)
@@ -579,7 +583,7 @@ function ConflictSection({
             if (firstConflict) onFocusPart(firstConflict.clientFileId);
           }}
         >
-          Choose another voice part
+          Choose another section or voice part
         </button>
         <button
           className="button button--secondary"
@@ -643,7 +647,7 @@ function FilesSection({
   return (
     <section aria-label="Files in this song group" className="track-import-review-files">
       <div className="track-import-review-files__heading">
-        <h3>Files and voice parts</h3>
+        <h3>Files and track assignments</h3>
         <span>
           {String(groupState.uploadableFileCount)} ready · {String(groupState.excludedFileCount)}{" "}
           excluded
@@ -959,8 +963,16 @@ function getOptionalGroupConflictAnalysis(
 
 function buildPartOptions(roster: OrganizationRosterConfiguration | null) {
   const options: { key: string; label: string }[] = [{ key: "tutti", label: "Tutti" }];
+  const seen = new Set(["tutti", "accompaniment"]);
+  for (const section of roster?.sections ?? []) {
+    if (seen.has(section.code)) continue;
+    options.push({ key: section.code, label: `${section.name} (${section.code}) — section` });
+    seen.add(section.code);
+  }
   for (const voicePart of roster?.voiceParts ?? []) {
+    if (seen.has(voicePart.label)) continue;
     options.push({ key: voicePart.label, label: voicePart.fullName });
+    seen.add(voicePart.label);
   }
   options.push({ key: "accompaniment", label: "Accompaniment" });
   return options;

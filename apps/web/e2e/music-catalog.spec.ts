@@ -789,8 +789,19 @@ for (const theme of ["light", "dark"] as const) {
       firstWorkGroup.getByRole("heading", { name: "First Work", level: 3 }),
     ).toBeVisible();
     await expect(
-      firstWorkGroup.getByRole("combobox", { name: "Voice part for First Work Tutti.mp3" }),
+      firstWorkGroup.getByRole("combobox", {
+        name: "Section or voice part for First Work Tutti.mp3",
+      }),
     ).toHaveValue("tutti");
+    const trackAssignment = firstWorkGroup.getByRole("combobox", {
+      name: "Section or voice part for First Work Tutti.mp3",
+    });
+    await expect(
+      trackAssignment.getByRole("option", { name: "Sopranos (S) — section" }),
+    ).toHaveCount(1);
+    await trackAssignment.selectOption("S");
+    await expect(trackAssignment).toHaveValue("S");
+    await expect(dialog.getByRole("button", { name: "Mark reviewed & next" })).toBeEnabled();
     await expect(firstWorkQueueItem).toContainText("Needs review");
     await expect(dialog.getByText("Strong suggestion", { exact: true })).toHaveCount(0);
 
@@ -803,7 +814,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.keyboard.press("Tab");
     await expect(applauseGroup.getByRole("button", { name: "Play Applause.mp3" })).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(applauseGroup.getByLabel("Voice part for Applause.mp3")).toBeFocused();
+    await expect(applauseGroup.getByLabel("Section or voice part for Applause.mp3")).toBeFocused();
     await dialog.locator(".track-import-wizard-step").evaluate((element) => {
       element.scrollTop = 0;
     });

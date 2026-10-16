@@ -2,6 +2,7 @@ import type {
   OrganizationEvent,
   OrganizationMusicPiece,
   OrganizationRosterConfiguration,
+  MusicTrackImportAttachRequest,
   MusicTrackImportMatchRequest,
   MusicTrackImportMatchResponse,
 } from "@choir/contracts";
@@ -43,12 +44,13 @@ const mockAttachResult = {
 };
 
 const mockAttachBulkPracticeTracks = vi
-  .fn<() => Promise<typeof mockAttachResult>>()
+  .fn<(request: MusicTrackImportAttachRequest) => Promise<typeof mockAttachResult>>()
   .mockResolvedValue(mockAttachResult);
 const mockMatchBulkPracticeTracks =
   vi.fn<(request: MusicTrackImportMatchRequest) => Promise<MusicTrackImportMatchResponse>>();
 vi.mock("../../../../api/music", () => ({
-  attachBulkPracticeTracks: () => mockAttachBulkPracticeTracks(),
+  attachBulkPracticeTracks: (request: MusicTrackImportAttachRequest) =>
+    mockAttachBulkPracticeTracks(request),
   matchBulkPracticeTracks: (request: MusicTrackImportMatchRequest) =>
     mockMatchBulkPracticeTracks(request),
 }));
@@ -242,6 +244,77 @@ describe("BulkPracticeTrackImportDialog", () => {
     expect(handleClose).toHaveBeenCalledTimes(1);
   });
 
+  it.each([false, true])("uploads a section assignment (track only: %s)", async (trackOnly) => {
+    const roster = {
+      ...sampleRoster,
+      sections: sampleRoster.sections.map((section) => ({ ...section, trackOnly })),
+    };
+    render(
+      <BulkPracticeTrackImportDialog
+        events={[sampleEvent]}
+        onClose={vi.fn()}
+        onTracksAttached={vi.fn()}
+        open
+        pieces={[samplePiece]}
+        roster={roster}
+      />,
+    );
+    const fileName = "Hallelujah - Soprano.mp3";
+    fireEvent.change(screen.getByLabelText(/Drop MP3s here or browse files/), {
+      target: { files: [new File(["audio"], fileName, { type: "audio/mpeg" })] },
+    });
+    await screen.findByText(fileName);
+    fireEvent.click(screen.getByRole("button", { name: "Review groups" }));
+    const selector = screen.getByRole("combobox", {
+      name: `Section or voice part for ${fileName}`,
+    });
+    expect(within(selector).getByRole("option", { name: "Soprano (S) — section" })).toHaveValue(
+      "S",
+    );
+    expect(within(selector).getByRole("option", { name: "Soprano" })).toHaveValue("soprano");
+    fireEvent.change(selector, { target: { value: "S" } });
+    fireEvent.click(screen.getByRole("button", { name: "Batch overview" }));
+    expect(screen.getByRole("region", { name: "Batch overview" })).toHaveTextContent("Soprano");
+    fireEvent.click(screen.getByRole("button", { name: "Guided review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark reviewed & next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue to confirmation" }));
+    fireEvent.click(screen.getByRole("button", { name: /Upload & attach 1 tracks/i }));
+    await waitFor(() => {
+      expect(mockAttachBulkPracticeTracks).toHaveBeenCalledWith(
+        expect.objectContaining({
+          assignments: [
+            expect.objectContaining({
+              partKey: "S",
+              pieceId: samplePieceId,
+              expectedEmptySlot: true,
+            }),
+          ],
+        }),
+      );
+    });
+    await screen.findByText("Import completed");
+  });
+
+  it("protects occupied section slots and requires review after changing a section", async () => {
+    await openAiReview("Hallelujah - Soprano.mp3", [
+      { ...samplePiece, trackFileIds: { S: "existing-section-track" } },
+    ]);
+    const selector = screen.getByRole("combobox", {
+      name: "Section or voice part for Hallelujah - Soprano.mp3",
+    });
+    fireEvent.change(selector, { target: { value: "S" } });
+    expect(screen.getByRole("alert")).toHaveTextContent("S already has a recording");
+    expect(screen.queryByRole("button", { name: "Mark reviewed & next" })).not.toBeInTheDocument();
+    fireEvent.change(selector, { target: { value: "A" } });
+    fireEvent.click(screen.getByRole("button", { name: "Mark reviewed & next" }));
+    expect(screen.getByRole("button", { name: "Continue to confirmation" })).toBeEnabled();
+    fireEvent.change(selector, { target: { value: "T" } });
+    expect(
+      screen.queryByRole("button", { name: "Continue to confirmation" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark reviewed & next" })).toBeEnabled();
+  });
+
   it("leaves unrelated files unselected and offers an explicit library search", async () => {
     render(
       <BulkPracticeTrackImportDialog
@@ -280,9 +353,9 @@ describe("BulkPracticeTrackImportDialog", () => {
     expect(
       screen.getByRole("heading", { level: 3, name: "Hallelujah Chorus" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Voice part for Applause.mp3" })).toHaveValue(
-      "tutti",
-    );
+    expect(
+      screen.getByRole("combobox", { name: "Section or voice part for Applause.mp3" }),
+    ).toHaveValue("tutti");
   });
 
   it("flags duplicate voice parts in Step 2 review and allows splitting", async () => {
@@ -350,7 +423,7 @@ describe("BulkPracticeTrackImportDialog", () => {
     });
 
     fireEvent.change(
-      screen.getByRole("combobox", { name: "Voice part for Hallelujah - Soprano.mp3" }),
+      screen.getByRole("combobox", { name: "Section or voice part for Hallelujah - Soprano.mp3" }),
       {
         target: { value: "alto" },
       },
@@ -396,7 +469,7 @@ describe("BulkPracticeTrackImportDialog", () => {
     ).not.toBeInTheDocument();
 
     fireEvent.change(
-      screen.getByRole("combobox", { name: "Voice part for Hallelujah - Soprano.mp3" }),
+      screen.getByRole("combobox", { name: "Section or voice part for Hallelujah - Soprano.mp3" }),
       {
         target: { value: "alto" },
       },
@@ -564,14 +637,14 @@ describe("optional Clef Flash matching", () => {
   it("defaults a matched recording without a detected part to Tutti", async () => {
     await openAiReview("Hallelujah Chorus.mp3");
     expect(
-      screen.getByRole("combobox", { name: "Voice part for Hallelujah Chorus.mp3" }),
+      screen.getByRole("combobox", { name: "Section or voice part for Hallelujah Chorus.mp3" }),
     ).toHaveValue("tutti");
   });
 
   it("defaults an unassigned recording when a piece is selected manually and preserves explicit skips", async () => {
     await openAiReview("Unidentified recording.mp3", [samplePiece, alternatePiece]);
     const part = screen.getByRole("combobox", {
-      name: "Voice part for Unidentified recording.mp3",
+      name: "Section or voice part for Unidentified recording.mp3",
     });
     expect(part).toHaveValue("");
     fireEvent.click(screen.getByRole("button", { name: "Search library to change piece" }));
@@ -612,7 +685,9 @@ describe("optional Clef Flash matching", () => {
     fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
     await waitFor(() =>
       expect(
-        screen.getByRole("combobox", { name: "Voice part for Unidentified recording.mp3" }),
+        screen.getByRole("combobox", {
+          name: "Section or voice part for Unidentified recording.mp3",
+        }),
       ).toHaveValue("tutti"),
     );
   });
