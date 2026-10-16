@@ -911,7 +911,7 @@
     min-height: 1.5rem;
     align-items: center;
     justify-content: center;
-    padding: 0.15rem var(--spacing-xs);
+    padding: var(--spacing-3xs) var(--spacing-xs);
     border: 1px solid currentColor;
     border-radius: var(--radius-full);
     font-size: var(--font-size-2xs, 0.6875rem);
