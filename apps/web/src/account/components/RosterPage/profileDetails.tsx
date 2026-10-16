@@ -159,7 +159,7 @@ function ProfileDuesAction({
   readonly onMarkCash: () => void;
   readonly record: DuesRecord | undefined;
 }) {
-  if (record && record.status !== "pending") return null;
+  if (record?.status === "paid" || record?.status === "refunded") return null;
   if (record?.status === "pending" && record.paymentMethod === "online" && record.sharedCheckout) {
     return (
       <span className="field-help profile-dues-row__help">
@@ -167,7 +167,7 @@ function ProfileDuesAction({
       </span>
     );
   }
-  const isOnline = record?.paymentMethod === "online";
+  const isOnline = record?.status === "pending" && record.paymentMethod === "online";
   const buttonLabel = isPendingOperation
     ? isOnline
       ? "Switching…"

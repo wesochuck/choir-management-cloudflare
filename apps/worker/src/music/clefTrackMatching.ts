@@ -52,14 +52,14 @@ function buildSuggestion(
     return {
       confidence: "none",
       groupId,
-      rationale: "Clef Flash found no confident match. Choose a piece manually.",
+      rationale: "AI found no confident match. Choose a piece manually.",
       suggestedPieceId: null,
     };
   }
   return {
     confidence: confidence >= 0.85 ? "high" : confidence >= 0.65 ? "medium" : "low",
     groupId,
-    rationale: `Clef Flash metadata suggestion (${String(Math.round(confidence * 100))}% confidence). Review before uploading.`,
+    rationale: `AI metadata suggestion (${String(Math.round(confidence * 100))}% confidence). Review before uploading.`,
     suggestedPieceId: candidate.pieceId,
   };
 }
@@ -137,7 +137,7 @@ export async function suggestClefTrackMatches(
   } catch (cause: unknown) {
     throw new TrackMatchingError(
       "service_unavailable",
-      "Clef Flash matching is unavailable. Continue with manual matching or try again.",
+      "AI matching is unavailable. Continue with manual matching or try again.",
       { cause },
     );
   }

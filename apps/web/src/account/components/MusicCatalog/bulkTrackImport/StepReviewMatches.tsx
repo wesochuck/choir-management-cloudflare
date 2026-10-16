@@ -271,7 +271,7 @@ function ReviewToolbar({
         type="button"
         onClick={onAiMatch}
       >
-        {matching ? "Matching with Clef Flash…" : "Use Clef Flash"}
+        {matching ? "Matching with AI…" : "AI Match"}
       </button>
     </div>
   );
@@ -719,7 +719,7 @@ function ReviewNotices({
   return (
     <>
       {matchError ? <p role="alert">{matchError} Your current selections are preserved.</p> : null}
-      {matching ? <p role="status">Getting Clef Flash suggestions…</p> : null}
+      {matching ? <p role="status">Getting AI suggestions…</p> : null}
     </>
   );
 }

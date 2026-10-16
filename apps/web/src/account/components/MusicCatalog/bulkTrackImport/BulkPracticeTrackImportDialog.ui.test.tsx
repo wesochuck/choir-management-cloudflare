@@ -609,7 +609,7 @@ describe("optional Clef Flash matching", () => {
       }),
     );
     await openAiReview("Unidentified recording.mp3");
-    fireEvent.click(screen.getByRole("button", { name: "Use Clef Flash" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
     await waitFor(() =>
       expect(
         screen.getByRole("combobox", { name: "Voice part for Unidentified recording.mp3" }),
@@ -625,16 +625,16 @@ describe("optional Clef Flash matching", () => {
         suggestions: request.groups.map((group) => ({
           confidence: "high",
           groupId: group.groupId,
-          rationale: "Clef Flash metadata suggestion (90% confidence). Review before uploading.",
+          rationale: "AI metadata suggestion (90% confidence). Review before uploading.",
           suggestedPieceId: samplePieceId,
         })),
       }),
     );
     await openAiReview();
     expect(mockMatchBulkPracticeTracks).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Use Clef Flash" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
     await waitFor(() => {
-      expect(screen.getByText(/Clef Flash metadata suggestion/)).toBeInTheDocument();
+      expect(screen.getByText(/AI metadata suggestion/)).toBeInTheDocument();
     });
     expect(mockMatchBulkPracticeTracks).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -663,7 +663,7 @@ describe("optional Clef Flash matching", () => {
     await openAiReview();
     fireEvent.click(screen.getByRole("button", { name: "Mark reviewed & next" }));
     expect(screen.getByRole("button", { name: "Continue to confirmation" })).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: "Use Clef Flash" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
     await waitFor(() => {
       expect(screen.getAllByText("Needs review").length).toBeGreaterThan(0);
       expect(
@@ -673,14 +673,14 @@ describe("optional Clef Flash matching", () => {
   });
 
   it("preserves manual selections on failure and allows retry", async () => {
-    mockMatchBulkPracticeTracks.mockRejectedValueOnce(new Error("Clef Flash is unavailable."));
+    mockMatchBulkPracticeTracks.mockRejectedValueOnce(new Error("AI matching is unavailable."));
     await openAiReview();
-    fireEvent.click(screen.getByRole("button", { name: "Use Clef Flash" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Your current selections are preserved",
     );
     expect(screen.getByRole("button", { name: "Mark reviewed & next" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Use Clef Flash" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "AI Match" })).toBeEnabled();
   });
 
   it("locks editing while a request runs and leaves uncertain choices for manual assignment", async () => {
@@ -692,7 +692,7 @@ describe("optional Clef Flash matching", () => {
         }),
     );
     await openAiReview();
-    fireEvent.click(screen.getByRole("button", { name: "Use Clef Flash" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
     expect(screen.getByRole("button", { name: "Mark reviewed & next" })).toBeDisabled();
     expect(
       screen.getAllByRole("combobox").every((element) => element.hasAttribute("disabled")),
@@ -712,6 +712,6 @@ describe("optional Clef Flash matching", () => {
       ],
     });
     await screen.findByText("No destination piece selected");
-    expect(screen.getByRole("button", { name: "Use Clef Flash" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "AI Match" })).toBeEnabled();
   });
 });

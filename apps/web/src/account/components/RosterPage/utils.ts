@@ -160,7 +160,8 @@ export function duesStatusLabel(record: DuesRecord | undefined): string {
     return record.paymentMethod === "cash" ? "Paid · Cash" : "Paid";
   }
   if (record.status === "refunded") return "Refunded";
-  if (record.status === "pending" && record.paymentMethod === "online") {
+  if (record.status === "expired") return "Expired · Not paid";
+  if (record.paymentMethod === "online") {
     return record.sharedCheckout ? "Online checkout pending (shared)" : "Online checkout pending";
   }
   return "Pending";

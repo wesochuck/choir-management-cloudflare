@@ -131,7 +131,7 @@ export function BulkPracticeTrackImportDialog({
       groups.some((group) => group.files.length > 50)
     ) {
       setMatchError(
-        "Clef Flash supports up to 200 candidate pieces, 50 song sets, and 50 files per song set. Select a smaller set list or fewer files, or continue with manual matching.",
+        "AI matching supports up to 200 candidate pieces, 50 song sets, and 50 files per song set. Select a smaller set list or fewer files, or continue with manual matching.",
       );
       return;
     }
@@ -192,7 +192,7 @@ export function BulkPracticeTrackImportDialog({
         setMatchError(
           error instanceof Error
             ? error.message
-            : "Clef Flash matching failed. Continue with manual matching or try again.",
+            : "AI matching failed. Continue with manual matching or try again.",
         );
     } finally {
       if (matchController.current === controller) setMatching(false);

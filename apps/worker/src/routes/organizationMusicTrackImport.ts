@@ -174,7 +174,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           {
             code: "service_unavailable",
             message:
-              "Clef Flash is unavailable in this environment. Continue with manual matching.",
+              "AI matching is unavailable in this environment. Continue with manual matching.",
             requestId: context.get("requestId"),
           } satisfies ProblemDetails,
           503,

@@ -320,6 +320,7 @@
       },
     },
     "production": {
+      "ai": { "binding": "AI" },
       "name": "choir-management-cloudflare-production",
       "workers_dev": false,
       "routes": [

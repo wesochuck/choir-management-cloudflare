@@ -536,6 +536,13 @@ export function MusicLibrarySettingsPage({
     return [...labels.values()].sort((left, right) => left.localeCompare(right));
   }, [pieces, settings]);
 
+  function mergeUpdatedPieces(updated: readonly OrganizationMusicPiece[]): void {
+    // Genre mutations return only affected pieces, not the full catalog.
+    if (updated.length === 0) return;
+    const updatedById = new Map(updated.map((piece) => [piece.id, piece]));
+    setPieces((current) => current.map((piece) => updatedById.get(piece.id) ?? piece));
+  }
+
   async function savePendingGenres(): Promise<void> {
     if (pendingGenres.length === 0 || !settings) return;
     setGenreBusy("batch-add");
@@ -543,9 +550,7 @@ export function MusicLibrarySettingsPage({
     setSuccess(null);
     try {
       const saved = await batchAddOrganizationMusicGenres({ labels: pendingGenres });
-      if (saved.pieces.length > 0) {
-        setPieces(saved.pieces);
-      }
+      mergeUpdatedPieces(saved.pieces);
       updateField("genres", saved.settings.genres);
       setInitialSettings(saved.settings);
       setSuccess(
@@ -574,7 +579,7 @@ export function MusicLibrarySettingsPage({
     setSuccess(null);
     try {
       const saved = await renameOrganizationMusicGenre({ currentLabel, newLabel });
-      setPieces(saved.pieces);
+      mergeUpdatedPieces(saved.pieces);
       updateField("genres", saved.settings.genres);
       setInitialSettings(saved.settings);
       setSuccess("Genre renamed.");
@@ -602,7 +607,7 @@ export function MusicLibrarySettingsPage({
     setSuccess(null);
     try {
       const saved = await deleteOrganizationMusicGenre({ label });
-      setPieces(saved.pieces);
+      mergeUpdatedPieces(saved.pieces);
       updateField("genres", saved.settings.genres);
       setInitialSettings(saved.settings);
       setSuccess("Genre removed.");
