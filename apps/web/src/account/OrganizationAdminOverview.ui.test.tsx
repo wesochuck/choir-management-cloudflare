@@ -1,5 +1,6 @@
+import { moduleIdSchema } from "@choir/contracts";
 import type { ModuleState, OrganizationAuthStatusResponse } from "@choir/contracts";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getOrganizationDashboardSummary, listOrganizationAuditions } from "../auth/api";
@@ -11,11 +12,10 @@ vi.mock("../auth/api", () => ({
   listOrganizationAuditions: vi.fn(),
 }));
 
-const allModulesEnabled: readonly ModuleState[] = [
-  { enabled: true, id: "people" },
-  { enabled: true, id: "events" },
-  { enabled: true, id: "programs" },
-];
+const allModulesEnabled: readonly ModuleState[] = moduleIdSchema.options.map((id) => ({
+  id,
+  enabled: true,
+}));
 
 describe("OrganizationAdminOverview", () => {
   beforeEach(() => {
@@ -190,11 +190,10 @@ describe("OrganizationAdminOverview", () => {
   });
 
   it("filters cards and metrics when modules are disabled", async () => {
-    const modules: readonly ModuleState[] = [
-      { enabled: true, id: "people" },
-      { enabled: false, id: "events" },
-      { enabled: false, id: "programs" },
-    ];
+    const modules = allModulesEnabled.map((module) => ({
+      ...module,
+      enabled: ["roster", "directory", "auditions"].includes(module.id),
+    }));
 
     render(
       <OrganizationAdminOverview
@@ -222,12 +221,88 @@ describe("OrganizationAdminOverview", () => {
     expect(screen.getByRole("link", { name: "Add Performer" })).toBeVisible();
   });
 
+  it.each([
+    ["roster", "/admin/roster"],
+    ["directory", "/directory"],
+    ["auditions", "/admin/auditions"],
+    ["communications", "/admin/communications"],
+    ["polls", "/admin/polls"],
+    ["donations", "/admin/donations"],
+    ["events", "/admin/events"],
+    ["ticketing", "/admin/tickets"],
+    ["rsvp", "/admin/rsvp"],
+    ["attendance", "/admin/attendance"],
+    ["venues", "/admin/venues"],
+    ["seating", "/admin/seating"],
+    ["music_library", "/admin/library"],
+    ["setlists", "/admin/setlists"],
+    ["resources", "/admin/resources"],
+    ["public_website", "/admin/website"],
+  ])("hides every %s shortcut and restores it when enabled", async (moduleId, path) => {
+    const modules = allModulesEnabled.map((module) => ({
+      ...module,
+      enabled: module.id !== moduleId,
+    }));
+    const props = { context: null, displayName: "Admin", navigate: vi.fn() };
+    const { rerender } = render(<OrganizationAdminOverview {...props} modules={modules} />);
+    await screen.findByText(moduleId === "roster" ? "8" : "88");
+    const linksForPath = () =>
+      screen
+        .getAllByRole("link")
+        .filter((link) => link.getAttribute("href")?.split("?")[0] === path);
+    expect(linksForPath()).toHaveLength(0);
+    expect(screen.getByRole("link", { name: /System Settings/ })).toBeVisible();
+    if (moduleId === "auditions") {
+      expect(listOrganizationAuditions).not.toHaveBeenCalled();
+      expect(screen.queryByText("Pending Inquiries")).not.toBeInTheDocument();
+    }
+    rerender(<OrganizationAdminOverview {...props} modules={allModulesEnabled} />);
+    await waitFor(() => {
+      expect(linksForPath().length).toBeGreaterThan(0);
+    });
+    if (moduleId === "auditions") await screen.findByText("Pending Inquiries");
+  });
+
+  it("keeps independent modules available and updates visible tool counts", async () => {
+    const disabled = new Set([
+      "auditions",
+      "directory",
+      "communications",
+      "polls",
+      "donations",
+      "ticketing",
+      "attendance",
+      "resources",
+      "public_website",
+    ]);
+    render(
+      <OrganizationAdminOverview
+        context={null}
+        displayName="Admin"
+        modules={allModulesEnabled.map((module) => ({
+          ...module,
+          enabled: !disabled.has(module.id),
+        }))}
+        navigate={vi.fn()}
+      />,
+    );
+    await screen.findByText("88");
+    const people = screen.getByRole("region", { name: "People & membership" });
+    expect(within(people).getAllByRole("link")).toHaveLength(1);
+    expect(within(people).getByText("1 tool")).toBeVisible();
+    expect(within(people).getByRole("link", { name: /Manage Roster/ })).toBeVisible();
+    expect(
+      within(screen.getByRole("region", { name: "Events & attendance" })).getByText("4 tools"),
+    ).toBeVisible();
+    expect(
+      within(screen.getByRole("region", { name: "Music & performance" })).getByText("2 tools"),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "New Event" })).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Send Announcement" })).not.toBeInTheDocument();
+  });
+
   it("renders onboarding GettingStartedGuide when setup is pending", async () => {
-    const emptyModules: readonly ModuleState[] = [
-      { enabled: false, id: "people" },
-      { enabled: false, id: "events" },
-      { enabled: false, id: "programs" },
-    ];
+    const emptyModules = allModulesEnabled.map((module) => ({ ...module, enabled: false }));
 
     render(
       <OrganizationAdminOverview
@@ -249,6 +324,11 @@ describe("OrganizationAdminOverview", () => {
     expect(screen.getByText("Complete Setup Checklist")).toBeVisible();
     expect(screen.getByText("System Settings & Terminology")).toBeVisible();
     expect(screen.getByText("Add Performers & Music")).toBeVisible();
+    expect(screen.queryByRole("link", { name: /Manage performers/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Organization at a glance" }),
+    ).not.toBeInTheDocument();
+    expect(listOrganizationAuditions).not.toHaveBeenCalled();
   });
 
   it("displays error status banner when summary fails to load", async () => {

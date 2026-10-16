@@ -1,4 +1,5 @@
 import type {
+  ModuleId,
   ModuleState,
   OrganizationAuthStatusResponse,
   OrganizationDashboardSummaryResponse,
@@ -6,11 +7,11 @@ import type {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { getOrganizationDashboardSummary, listOrganizationAuditions } from "../auth/api";
+import { routeHasModule, routeModule } from "./components/AuthenticatedShell/utils";
 import { QuickSearchTrigger } from "./components/CommandPalette";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
-type OverviewModule = "events" | "people" | "programs";
 type OverviewTone = "green" | "blue" | "amber" | "pink" | "cyan" | "slate";
 
 interface OverviewCard {
@@ -18,7 +19,6 @@ interface OverviewCard {
   readonly href: string;
   readonly icon: string;
   readonly label: string;
-  readonly module?: OverviewModule;
   readonly tone: OverviewTone;
 }
 
@@ -33,7 +33,6 @@ interface QuickAction {
   readonly href: string;
   readonly icon: string;
   readonly label: string;
-  readonly module?: OverviewModule;
 }
 
 type SummaryState =
@@ -42,23 +41,19 @@ type SummaryState =
   | { readonly data: OrganizationDashboardSummaryResponse; readonly status: "ready" };
 
 const quickActions: readonly QuickAction[] = [
-  { href: "/admin/attendance", icon: "✅", label: "Take Attendance", module: "events" },
+  { href: "/admin/attendance", icon: "✅", label: "Take Attendance" },
   {
     href: "/admin/communications",
     icon: "✉️",
     label: "Send Announcement",
-    module: "programs",
   },
-  { href: "/admin/roster?add=true", icon: "👥", label: "Add performer", module: "people" },
-  { href: "/admin/events?add=true", icon: "📅", label: "New Event", module: "events" },
-  { href: "/admin/library", icon: "🎼", label: "Add Music", module: "programs" },
+  { href: "/admin/roster?add=true", icon: "👥", label: "Add performer" },
+  { href: "/admin/events?add=true", icon: "📅", label: "New Event" },
+  { href: "/admin/library", icon: "🎼", label: "Add Music" },
 ];
 
-function moduleIsEnabled(
-  modules: readonly ModuleState[],
-  module: OverviewModule | undefined,
-): boolean {
-  return !module || (modules.find((item) => item.id === module)?.enabled ?? true);
+function moduleIsEnabled(modules: readonly ModuleState[], module: ModuleId | undefined): boolean {
+  return module ? routeHasModule({ module }, modules) : true;
 }
 
 function buildOverviewSections(
@@ -76,7 +71,6 @@ function buildOverviewSections(
           icon: "👥",
           label: "Manage Roster",
           description: `Add ${performerLabelPlural.toLowerCase()} and track status`,
-          module: "people",
           tone: "green",
         },
         {
@@ -84,7 +78,6 @@ function buildOverviewSections(
           icon: "📖",
           label: `${performerLabel} Directory`,
           description: `View opted-in ${performerLabelPlural.toLowerCase()} contact info`,
-          module: "people",
           tone: "green",
         },
         {
@@ -92,7 +85,6 @@ function buildOverviewSections(
           icon: "🎵",
           label: "Auditions & Inquiries",
           description: "Review public audition requests and join inquiries",
-          module: "people",
           tone: "blue",
         },
         {
@@ -100,7 +92,6 @@ function buildOverviewSections(
           icon: "✉️",
           label: "Communications",
           description: "Send announcements and review history",
-          module: "programs",
           tone: "slate",
         },
         {
@@ -108,7 +99,6 @@ function buildOverviewSections(
           icon: "📊",
           label: "Engagement Polls",
           description: "Review volunteer responses and counts",
-          module: "programs",
           tone: "pink",
         },
         {
@@ -116,7 +106,6 @@ function buildOverviewSections(
           icon: "🎁",
           label: "Donations",
           description: "Track giving and manage donor levels",
-          module: "programs",
           tone: "pink",
         },
         {
@@ -124,7 +113,6 @@ function buildOverviewSections(
           icon: "💎",
           label: "Patrons Dashboard",
           description: "View donor/buyer LTV and message patrons",
-          module: "programs",
           tone: "cyan",
         },
       ],
@@ -139,7 +127,6 @@ function buildOverviewSections(
           icon: "📅",
           label: "Manage Events",
           description: "Schedule performances and rehearsals",
-          module: "events",
           tone: "amber",
         },
         {
@@ -147,7 +134,6 @@ function buildOverviewSections(
           icon: "🎟️",
           label: "Ticket Sales",
           description: "Track sales and process refunds",
-          module: "programs",
           tone: "amber",
         },
         {
@@ -155,7 +141,6 @@ function buildOverviewSections(
           icon: "🗓️",
           label: "Event RSVPs",
           description: "Track responses and roster balances",
-          module: "events",
           tone: "amber",
         },
         {
@@ -163,7 +148,6 @@ function buildOverviewSections(
           icon: "✅",
           label: "Take Attendance",
           description: "Track check-ins for events",
-          module: "events",
           tone: "green",
         },
         {
@@ -171,7 +155,6 @@ function buildOverviewSections(
           icon: "🏛️",
           label: "Manage Venues",
           description: "Configure venue capacities",
-          module: "events",
           tone: "slate",
         },
         {
@@ -179,7 +162,6 @@ function buildOverviewSections(
           icon: "🪑",
           label: "Seating Charts",
           description: "Design layouts and assign seats",
-          module: "events",
           tone: "blue",
         },
       ],
@@ -194,7 +176,6 @@ function buildOverviewSections(
           icon: "🎼",
           label: "Music Library",
           description: "Catalog, repertoire, and CSV import",
-          module: "programs",
           tone: "cyan",
         },
         {
@@ -202,7 +183,6 @@ function buildOverviewSections(
           icon: "📋",
           label: "Set Lists",
           description: "Build and reorder event music",
-          module: "programs",
           tone: "cyan",
         },
         {
@@ -210,7 +190,6 @@ function buildOverviewSections(
           icon: "📂",
           label: `${performerLabel} Resources`,
           description: `Upload documents and links for ${performerLabelPlural.toLowerCase()}`,
-          module: "programs",
           tone: "cyan",
         },
       ],
@@ -225,7 +204,6 @@ function buildOverviewSections(
           icon: "🌐",
           label: "Public Website",
           description: "Landing page, hero image, and public branding",
-          module: "programs",
           tone: "cyan",
         },
         {
@@ -308,7 +286,9 @@ function OverviewBanner({
 }) {
   const greetingName = displayName.trim() || "Admin";
   const greeting = `${greetingForCurrentTime()}, ${greetingName}`;
-  const hasEnabledStats = moduleIsEnabled(modules, "people") || moduleIsEnabled(modules, "events");
+  const hasEnabledStats = (["roster", "events", "auditions"] as const).some((module) =>
+    moduleIsEnabled(modules, module),
+  );
 
   return (
     <section className="admin-overview__banner" aria-labelledby="admin-overview-greeting">
@@ -323,7 +303,7 @@ function OverviewBanner({
           className="admin-overview__stats admin-overview__kpi-grid"
           aria-label="Organization at a glance"
         >
-          {moduleIsEnabled(modules, "people") ? (
+          {moduleIsEnabled(modules, "roster") ? (
             <DashboardLink
               className="admin-overview__kpi"
               href="/admin/roster"
@@ -343,7 +323,7 @@ function OverviewBanner({
               <span>Upcoming Events</span>
             </DashboardLink>
           ) : null}
-          {moduleIsEnabled(modules, "people") ? (
+          {moduleIsEnabled(modules, "auditions") ? (
             <DashboardLink
               className="admin-overview__kpi"
               href="/admin/auditions"
@@ -353,7 +333,7 @@ function OverviewBanner({
               <span>Pending Inquiries</span>
             </DashboardLink>
           ) : null}
-          {moduleIsEnabled(modules, "people") ? (
+          {moduleIsEnabled(modules, "roster") ? (
             <DashboardLink
               className="admin-overview__kpi"
               href="/admin/roster"
@@ -363,7 +343,7 @@ function OverviewBanner({
               <span>Recent Email Bounces</span>
             </DashboardLink>
           ) : null}
-          {moduleIsEnabled(modules, "people") ? (
+          {moduleIsEnabled(modules, "roster") ? (
             <DashboardLink
               className="admin-overview__kpi"
               href="/admin/roster"
@@ -420,9 +400,11 @@ function QuickActionsSection({
 }
 
 function GettingStartedGuide({
+  modules,
   navigate,
   performerLabelPlural,
 }: {
+  readonly modules: readonly ModuleState[];
   readonly navigate: (href: string) => void;
   readonly performerLabelPlural: string;
 }) {
@@ -495,9 +477,11 @@ function GettingStartedGuide({
               Once modules are active, add your ensemble members and repertoire manually or via CSV
               import.
             </p>
-            <DashboardLink href="/admin/roster" onNavigate={navigate}>
-              <span>Manage {performerLabelPlural.toLowerCase()} →</span>
-            </DashboardLink>
+            {moduleIsEnabled(modules, "roster") ? (
+              <DashboardLink href="/admin/roster" onNavigate={navigate}>
+                <span>Manage {performerLabelPlural.toLowerCase()} →</span>
+              </DashboardLink>
+            ) : null}
           </div>
         </div>
       </div>
@@ -643,7 +627,7 @@ export function OrganizationAdminOverview({
         }
       });
 
-    if (moduleIsEnabled(modules, "people") && !platformReadOnly) {
+    if (moduleIsEnabled(modules, "auditions") && !platformReadOnly) {
       listOrganizationAuditions(controller.signal)
         .then((auditions) => {
           if (!controller.signal.aborted) {
@@ -669,17 +653,21 @@ export function OrganizationAdminOverview({
       buildOverviewSections(performerLabel, performerLabelPlural)
         .map((section) => ({
           ...section,
-          cards: section.cards.filter((card) => moduleIsEnabled(modules, card.module)),
+          cards: section.cards.filter((card) =>
+            moduleIsEnabled(modules, routeModule(card.href.split("?")[0] ?? card.href)),
+          ),
         }))
         .filter((section) => section.cards.length > 0),
     [modules, performerLabel, performerLabelPlural],
   );
   const visibleQuickActions = useMemo(
-    () => quickActions.filter((action) => moduleIsEnabled(modules, action.module)),
+    () =>
+      quickActions.filter((action) =>
+        moduleIsEnabled(modules, routeModule(action.href.split("?")[0] ?? action.href)),
+      ),
     [modules],
   );
-  const hasEnabledStats = moduleIsEnabled(modules, "people") || moduleIsEnabled(modules, "events");
-  const isNewOrgOrSetupPending = !hasEnabledStats || sections.length <= 1;
+  const isNewOrgOrSetupPending = sections.length <= 1;
 
   const summaryError = summary.status === "error";
   const activeProfileCount = summary.status === "ready" ? summary.data.activeProfileCount : null;
@@ -718,7 +706,11 @@ export function OrganizationAdminOverview({
       ) : null}
 
       {isNewOrgOrSetupPending && !platformReadOnly ? (
-        <GettingStartedGuide navigate={navigate} performerLabelPlural={performerLabelPlural} />
+        <GettingStartedGuide
+          modules={modules}
+          navigate={navigate}
+          performerLabelPlural={performerLabelPlural}
+        />
       ) : null}
 
       <div className="admin-overview__sections">

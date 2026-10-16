@@ -1,3 +1,4 @@
+import { moduleIdSchema } from "@choir/contracts";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
@@ -8,7 +9,7 @@ const REQUEST_ID = "11111111-1111-4111-8111-111111111111";
 
 async function mockAdminOverviewApis(page: Page) {
   await installOrganizationApi(page, {
-    modules: ["events", "people", "programs"],
+    modules: moduleIdSchema.options,
     role: "administrator",
   });
 
@@ -218,6 +219,50 @@ test.describe("Organization Admin Overview", () => {
     await expect(page).toHaveURL(/\/admin\/attendance$/);
   });
 
+  test("hides disabled modules across the sidebar and dashboard", async ({ page }) => {
+    await mockAdminOverviewApis(page);
+    const disabled = new Set([
+      "auditions",
+      "directory",
+      "communications",
+      "polls",
+      "donations",
+      "ticketing",
+      "attendance",
+      "resources",
+      "public_website",
+    ]);
+    await page.route("**/api/organization/module-state", async (route) => {
+      await fulfillJson(route, {
+        modules: moduleIdSchema.options.map((id) => ({ id, enabled: !disabled.has(id) })),
+      });
+    });
+    await page.goto("/admin");
+    await expect(page.getByRole("heading", { name: "People & membership" })).toBeVisible();
+    const overview = page.locator(".admin-overview");
+    for (const path of [
+      "/admin/auditions",
+      "/directory",
+      "/admin/communications",
+      "/admin/polls",
+      "/admin/donations",
+      "/admin/tickets",
+      "/admin/attendance",
+      "/admin/resources",
+      "/admin/website",
+    ]) {
+      await expect(overview.locator(`a[href^="${path}"]`)).toHaveCount(0);
+      await expect(page.locator(`nav a[href="${path}"]`)).toHaveCount(0);
+    }
+    await expect(overview.getByRole("link", { name: "New Event" })).toBeVisible();
+    await expect(overview.getByRole("link", { name: /Manage Roster/ })).toBeVisible();
+    await expect(
+      overview.getByRole("region", { name: "People & membership" }).getByText("1 tool"),
+    ).toBeVisible();
+    await expect(overview.getByText("Pending Inquiries")).toHaveCount(0);
+    await expect(overview.getByText("Active Performers")).toBeVisible();
+  });
+
   test("renders setup checklist guide when no operational modules are enabled", async ({
     page,
   }) => {
@@ -226,11 +271,7 @@ test.describe("Organization Admin Overview", () => {
     });
     await page.route("**/api/organization/module-state", async (route) => {
       await fulfillJson(route, {
-        modules: [
-          { enabled: false, id: "people" },
-          { enabled: false, id: "events" },
-          { enabled: false, id: "programs" },
-        ],
+        modules: moduleIdSchema.options.map((id) => ({ id, enabled: false })),
       });
     });
     await page.goto("/admin");
@@ -287,7 +328,7 @@ test.describe("Organization Admin Overview", () => {
 
   test("wraps long display names and survives 125% root text scaling", async ({ page }) => {
     await installOrganizationApi(page, {
-      modules: ["events", "people", "programs"],
+      modules: moduleIdSchema.options,
       role: "administrator",
       user: { name: "Alexandria Constantopoulos Papadopoulos-Smith" },
     });
