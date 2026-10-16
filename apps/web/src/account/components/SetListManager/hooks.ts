@@ -1,6 +1,7 @@
 import type { OrganizationMusicPiece } from "@choir/contracts";
 import {
   canInsertSetListCustomEntryAt,
+  expandMusicSelections,
   hasSetListPiece,
   normalizeSetListDuration,
   parseSetListDuration,
@@ -257,20 +258,24 @@ export function useSetListManagerController({
   }
 
   function addMusicPiece(piece: OrganizationMusicPiece): void {
-    if (hasSetListPiece(items, piece.id)) {
+    const existingIds = new Set(items.map(({ pieceId }) => pieceId));
+    const additions = expandMusicSelections([piece], resources.music).filter(
+      (candidate) => !existingIds.has(candidate.id),
+    );
+    if (additions.length === 0) {
       setError("That music piece is already in this set list.");
       return;
     }
     updateDraftItems((current) => [
       ...current,
-      {
-        composer: piece.composer || undefined,
-        duration: durationFromSeconds(piece.durationSeconds),
+      ...additions.map((candidate) => ({
+        composer: candidate.composer || undefined,
+        duration: durationFromSeconds(candidate.durationSeconds),
         id: crypto.randomUUID(),
-        pieceId: piece.id,
-        title: piece.title,
-        type: "song",
-      },
+        pieceId: candidate.id,
+        title: candidate.title,
+        type: "song" as const,
+      })),
     ]);
     setMusicQuery("");
     setError(null);

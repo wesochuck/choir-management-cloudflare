@@ -16,6 +16,7 @@ export function parseStoredPiece(row: MusicPieceRow): OrganizationMusicPiece {
   const scoreFileIds = row.scoreFileIdsJson ? (JSON.parse(row.scoreFileIdsJson) as unknown) : {};
   return organizationMusicPieceSchema.parse({
     ...row,
+    movementOrder: JSON.parse(row.movementOrderJson) as unknown,
     genres,
     scoreFileIds,
     sectionBuckets,
@@ -106,8 +107,8 @@ export function writePiece(
         `INSERT INTO music_pieces
           (id, title, composer, arranger, purchase_date, copies, catalog_id, duration_seconds,
            notes, section_buckets_json, genres_json, parent_id, track_file_ids_json,
-           score_file_ids_json, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           score_file_ids_json, movement_order_json, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         operation.pieceId,
         piece.title,
         piece.composer,
@@ -122,6 +123,7 @@ export function writePiece(
         piece.parentId,
         JSON.stringify(piece.trackFileIds),
         JSON.stringify(piece.scoreFileIds),
+        JSON.stringify(piece.movementOrder ?? []),
         occurredAt,
         occurredAt,
       );
@@ -130,7 +132,7 @@ export function writePiece(
         `UPDATE music_pieces
          SET title = ?, composer = ?, arranger = ?, purchase_date = ?, copies = ?, catalog_id = ?,
            duration_seconds = ?, notes = ?, section_buckets_json = ?, genres_json = ?, parent_id = ?,
-           track_file_ids_json = ?, score_file_ids_json = ?, updated_at = ?
+           track_file_ids_json = ?, score_file_ids_json = ?, movement_order_json = COALESCE(?, movement_order_json), updated_at = ?
          WHERE id = ?`,
         piece.title,
         piece.composer,
@@ -145,6 +147,7 @@ export function writePiece(
         piece.parentId,
         JSON.stringify(piece.trackFileIds),
         JSON.stringify(piece.scoreFileIds),
+        piece.movementOrder === undefined ? null : JSON.stringify(piece.movementOrder),
         occurredAt,
         operation.pieceId,
       );
@@ -155,6 +158,7 @@ export function writePiece(
       operation.action === "create" ? "music.piece.created" : "music.piece.updated",
       {
         parentId: piece.parentId,
+        movementOrder: piece.movementOrder,
         title: piece.title,
         trackCount: Object.keys(piece.trackFileIds).length,
       },

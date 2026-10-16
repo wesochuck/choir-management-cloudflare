@@ -92,6 +92,97 @@ afterEach(async () => {
 });
 
 describe("Organization music catalog", () => {
+  it("persists default movement order, preserves legacy edits, and enforces Organization and parent relationships", async () => {
+    const cookie = await signIn();
+    async function create(title: string, parentId: string | null = null, host = "alpha.localhost") {
+      return organizationMusicPieceResponseSchema.parse(
+        await (await write(host, "/api/organization/music", cookie, { title, parentId })).json(),
+      );
+    }
+    const parent = await create("Ordered work");
+    expect(parent.movementOrder).toEqual([]);
+    const first = await create("Alpha", parent.id);
+    const second = await create("Beta", parent.id);
+    const other = await create("Other work");
+    const foreign = await create("Foreign work", null, "bravo.localhost");
+    const path = `/api/organization/music/${parent.id}`;
+    const ordered = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          path,
+          cookie,
+          { ...requestFrom(parent), movementOrder: [second.id, first.id] },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(ordered.movementOrder).toEqual([second.id, first.id]);
+    const legacyEdit = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          path,
+          cookie,
+          { ...requestFrom(ordered), notes: "Legacy metadata edit" },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(legacyEdit.movementOrder).toEqual([second.id, first.id]);
+    for (const id of [other.id, foreign.id]) {
+      expect(
+        (
+          await write(
+            "alpha.localhost",
+            path,
+            cookie,
+            { ...requestFrom(parent), movementOrder: [id] },
+            "PUT",
+          )
+        ).status,
+      ).toBe(409);
+    }
+    expect(
+      (
+        await write(
+          "alpha.localhost",
+          path,
+          cookie,
+          { ...requestFrom(parent), movementOrder: [first.id, first.id] },
+          "PUT",
+        )
+      ).status,
+    ).toBe(400);
+    await write(
+      "alpha.localhost",
+      `/api/organization/music/${second.id}`,
+      cookie,
+      { ...requestFrom(second), parentId: other.id },
+      "PUT",
+    );
+    let catalog = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie))
+      ).json(),
+    );
+    expect(catalog.pieces.find(({ id }) => id === parent.id)?.movementOrder).toEqual([first.id]);
+    expect(
+      (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/music/${first.id}`, cookie, {
+            method: "DELETE",
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    catalog = organizationMusicPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/music", cookie))
+      ).json(),
+    );
+    expect(catalog.pieces.find(({ id }) => id === parent.id)?.movementOrder).toEqual([]);
+  });
   it("renames exact composer and arranger credits atomically within one Organization", async () => {
     const cookie = await signIn();
     const first = organizationMusicPieceResponseSchema.parse(

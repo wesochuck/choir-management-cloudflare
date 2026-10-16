@@ -87,6 +87,13 @@ explicitly marked as a simulation; Stripe Connect direct-charge state will reuse
 than move operational order data into D1. Contract or removal migrations occur only after old and
 new Worker versions are both safe throughout the rollback window.
 
+Version 112 adds a parent work's `movement_order_json`: an ordered list of its movement IDs. Writes
+validate that every ID is a movement of that work in the same Organization. Removing or reparenting
+a movement removes its old order reference. Unordered or newly added movements follow the saved
+sequence in title order. The order affects library display and whole-work set-list selection;
+existing event-specific set lists retain their own sequence. Omitted ordering fields on older
+metadata requests preserve the stored order.
+
 ## R2 and KV
 
 Every R2 key begins `organizations/{organizationId}/`. Original files are private unless explicitly

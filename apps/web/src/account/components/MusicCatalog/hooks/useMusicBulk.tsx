@@ -1,4 +1,4 @@
-import { calculateRsvpDeadline } from "@choir/domain";
+import { calculateRsvpDeadline, expandMusicSelections } from "@choir/domain";
 import type {
   OrganizationEvent,
   OrganizationMusicBulkUpdateRequest,
@@ -174,7 +174,9 @@ export function useMusicBulk({
             window.location.assign(href);
           }
         });
-      const itemsToAdd = selectedPieces.map((p) => performanceSetListItem(p));
+      const itemsToAdd = expandMusicSelections(selectedPieces, pieces).map((p) =>
+        performanceSetListItem(p),
+      );
       let targetEvent: OrganizationEvent;
       let actionNotice: ReactNode;
       if (payload.mode === "existing") {

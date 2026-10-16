@@ -86,6 +86,12 @@ export function useMusicCatalogController({
     };
   }, [data.pieces, enabled, initialPieceId, selectPiece]);
   return {
+    backToParent: editor.backToParent,
+    confirmationDialog: editor.confirmationDialog,
+    editorBodyRef: editor.editorBodyRef,
+    editorDirty: editor.editorDirty,
+    openMovement: editor.openMovement,
+    parentEditorTitle: editor.parentEditorTitle,
     addSelectedPiecesToSetList: bulk.addSelectedPiecesToSetList,
     applyBulkChanges: bulk.applyBulkChanges,
     applyBulkDelete: bulk.applyBulkDelete,

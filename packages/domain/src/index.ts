@@ -1,6 +1,8 @@
 export type DomainErrorCode =
   "conflict" | "forbidden" | "not_found" | "unauthorized" | "validation_failed";
 
+export { sortMusicMovements, expandMusicSelections } from "./musicMovementOrder";
+
 export interface DomainError {
   readonly code: DomainErrorCode;
   readonly message: string;

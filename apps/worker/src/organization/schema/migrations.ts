@@ -1941,6 +1941,23 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
     statements: [],
     version: 111,
   },
+  {
+    version: 112,
+    statements: [
+      "ALTER TABLE music_pieces ADD COLUMN movement_order_json TEXT NOT NULL DEFAULT '[]'",
+      `CREATE TRIGGER music_movement_order_after_delete AFTER DELETE ON music_pieces BEGIN
+        UPDATE music_pieces SET movement_order_json = (
+          SELECT json_group_array(value) FROM json_each(movement_order_json) WHERE value <> OLD.id
+        ) WHERE id = OLD.parent_id;
+      END`,
+      `CREATE TRIGGER music_movement_order_after_reparent AFTER UPDATE OF parent_id ON music_pieces
+       WHEN OLD.parent_id IS NOT NEW.parent_id BEGIN
+        UPDATE music_pieces SET movement_order_json = (
+          SELECT json_group_array(value) FROM json_each(movement_order_json) WHERE value <> OLD.id
+        ) WHERE id = OLD.parent_id;
+      END`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

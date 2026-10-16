@@ -110,7 +110,34 @@ export function validatePiece(
   return (
     validateSectionBuckets(storage, piece) ??
     validateParent(storage, pieceId, piece.parentId) ??
+    validateMovementOrder(storage, pieceId, piece) ??
     validateTrackFiles(storage, piece) ??
     validateScoreFiles(storage, piece)
   );
+}
+
+function validateMovementOrder(
+  storage: DurableObjectStorage,
+  pieceId: string,
+  piece: OrganizationMusicPieceRequest,
+): Response | null {
+  const order = piece.movementOrder ?? [];
+  if (order.length === 0) return null;
+  const count = storage.sql
+    .exec<{ readonly count: number }>(
+      `SELECT COUNT(*) AS count FROM music_pieces WHERE parent_id = ?
+     AND id IN (SELECT value FROM json_each(?))`,
+      pieceId,
+      JSON.stringify(order),
+    )
+    .one().count;
+  return !piece.parentId && count === order.length
+    ? null
+    : Response.json(
+        {
+          code: "music_movement_order_invalid",
+          message: "Movement order must contain only movements of this work.",
+        },
+        { status: 409 },
+      );
 }

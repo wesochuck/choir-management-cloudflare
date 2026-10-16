@@ -109,6 +109,13 @@ export const organizationMusicPieceRequestSchema = z.object({
   durationSeconds: z.number().int().min(0).max(86_400).nullable().default(null),
   genres: uniqueMusicLabelsSchema.default([]),
   notes: z.string().trim().max(100_000).default(""),
+  movementOrder: z
+    .array(z.uuid())
+    .max(5_000)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: "Movement IDs must be unique.",
+    })
+    .optional(),
   parentId: z.uuid().nullable().default(null),
   purchaseDate: z.iso.date().nullable().default(null),
   scoreFileIds: musicScoreFileIdsSchema.default({}),

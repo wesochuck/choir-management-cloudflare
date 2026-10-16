@@ -50,6 +50,38 @@ function readTaskApplicable(
 }
 
 describe("organization schema migrations", () => {
+  it("v112 expands existing music rows and cleans saved movement references on reparent and delete", () => {
+    const adapter = setupThrough(111);
+    for (const [id, parentId] of [
+      ["parent", null],
+      ["child-a", "parent"],
+      ["child-b", "parent"],
+    ]) {
+      adapter.storage.sql.exec(
+        "INSERT INTO music_pieces (id, title, parent_id, created_at, updated_at) VALUES (?, ?, ?, '2026-01-01', '2026-01-01')",
+        id,
+        id,
+        parentId,
+      );
+    }
+    applyVersion(adapter, 112);
+    const order = () =>
+      adapter.storage.sql
+        .exec<{ readonly value: string }>(
+          "SELECT movement_order_json AS value FROM music_pieces WHERE id = 'parent'",
+        )
+        .toArray()
+        .at(0)?.value ?? "null";
+    expect(JSON.parse(order())).toEqual([]);
+    adapter.storage.sql.exec(
+      "UPDATE music_pieces SET movement_order_json = ? WHERE id = 'parent'",
+      JSON.stringify(["child-b", "child-a"]),
+    );
+    adapter.storage.sql.exec("UPDATE music_pieces SET parent_id = NULL WHERE id = 'child-a'");
+    expect(JSON.parse(order())).toEqual(["child-b"]);
+    adapter.storage.sql.exec("DELETE FROM music_pieces WHERE id = 'child-b'");
+    expect(JSON.parse(order())).toEqual([]);
+  });
   it("v107 carries the Ohio backfill on the migration path", () => {
     const versions = organizationSchemaMigrations.map((entry) => entry.version);
     expect(versions).toEqual([...versions].sort((left, right) => left - right));

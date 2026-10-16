@@ -7,12 +7,14 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useLayoutEffect,
   useRef,
   useState,
   type Dispatch,
   type ReactNode,
   type SetStateAction,
 } from "react";
+import { useConfirmation } from "@choir/ui";
 import {
   AuthApiError,
   createOrganizationMusicPiece,
@@ -39,6 +41,42 @@ import {
   uniqueLabels,
   type MusicEditorTab,
 } from "../utils";
+
+function draftSnapshot(
+  piece: OrganizationMusicPieceRequest,
+  duration: string,
+  genres: string,
+  copies: string,
+): string {
+  return JSON.stringify({ piece, duration, genres, copies });
+}
+
+function movementOrderForSave(
+  piece: OrganizationMusicPieceRequest,
+  pieces: readonly OrganizationMusicPiece[],
+  parentId: string | null,
+): string[] | undefined {
+  if (!piece.movementOrder) return undefined;
+  const childIds = new Set(
+    pieces.filter((candidate) => candidate.parentId === parentId).map(({ id }) => id),
+  );
+  return piece.movementOrder.filter((id) => childIds.has(id));
+}
+
+interface ParentEditorDraft {
+  readonly id: string;
+  readonly piece: OrganizationMusicPieceRequest;
+  readonly duration: string;
+  readonly genres: string;
+  readonly copies: string;
+  readonly baseline: string;
+  readonly scrollTop: number;
+  readonly movementId: string | null;
+  readonly durationAutoFillState: DurationAutoFillState;
+  readonly trackDurationCache: Record<string, number | null>;
+  readonly durationAutoFillLabel: string | null;
+  readonly durationDetectionNotice: string | null;
+}
 export function useMusicEditor({
   busy,
   pieces,
@@ -70,6 +108,27 @@ export function useMusicEditor({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [unlinkChildren, setUnlinkChildren] = useState(false);
+  const [baseline, setBaseline] = useState(() => draftSnapshot(emptyPiece, "", "", ""));
+  const [parentDraft, setParentDraft] = useState<ParentEditorDraft | null>(null);
+  const editorBodyRef = useRef<HTMLDivElement>(null);
+  const restorePositionRef = useRef<{
+    readonly scrollTop: number;
+    readonly movementId: string | null;
+  } | null>(null);
+  const { confirm, confirmationDialog } = useConfirmation();
+  const editorDirty =
+    pendingTuttiFile !== null ||
+    draftSnapshot(piece, durationInput, genresInput, copiesInput) !== baseline;
+  useLayoutEffect(() => {
+    if (!dialogOpen) return;
+    const position = restorePositionRef.current;
+    const target = position?.movementId
+      ? (document.getElementById(`music-movement-${position.movementId}`) ?? editorBodyRef.current)
+      : editorBodyRef.current;
+    target?.focus({ preventScroll: true });
+    if (editorBodyRef.current) editorBodyRef.current.scrollTop = position?.scrollTop ?? 0;
+    restorePositionRef.current = null;
+  }, [dialogOpen, editingId]);
   const durationAutoFillStateRef = useRef<DurationAutoFillState>(initialDurationAutoFillState);
   const durationInputRef = useRef("");
   const durationDetectionRequestRef = useRef(0);
@@ -178,6 +237,14 @@ export function useMusicEditor({
       setDurationValue(durationText(selected.durationSeconds), false);
       setGenresInput(selected.genres.join(", "));
       setCopiesInput(selected.copies === null ? "" : String(selected.copies));
+      setBaseline(
+        draftSnapshot(
+          requestFrom(selected),
+          durationText(selected.durationSeconds),
+          selected.genres.join(", "),
+          selected.copies === null ? "" : String(selected.copies),
+        ),
+      );
       setDeleteConfirm(false);
       setUnlinkChildren(false);
       setMessage(null);
@@ -185,8 +252,73 @@ export function useMusicEditor({
     },
     [resetDurationDetection, setDurationValue, setError, setMessage],
   );
+  function captureParent(movementId: string | null): void {
+    if (!editingId) return;
+    setParentDraft({
+      id: editingId,
+      piece,
+      duration: durationInput,
+      genres: genresInput,
+      copies: copiesInput,
+      baseline,
+      scrollTop: editorBodyRef.current?.scrollTop ?? 0,
+      movementId,
+      durationAutoFillState: durationAutoFillStateRef.current,
+      trackDurationCache,
+      durationAutoFillLabel,
+      durationDetectionNotice,
+    });
+  }
+  function restoreParent(): void {
+    if (!parentDraft) return;
+    restorePositionRef.current = {
+      scrollTop: parentDraft.scrollTop,
+      movementId: parentDraft.movementId,
+    };
+    setEditingId(parentDraft.id);
+    setPiece(parentDraft.piece);
+    resetDurationDetection();
+    durationAutoFillStateRef.current = parentDraft.durationAutoFillState;
+    setTrackDurationCache(parentDraft.trackDurationCache);
+    setDurationAutoFillLabel(parentDraft.durationAutoFillLabel);
+    setDurationDetectionNotice(parentDraft.durationDetectionNotice);
+    setDurationValue(parentDraft.duration, false);
+    setGenresInput(parentDraft.genres);
+    setCopiesInput(parentDraft.copies);
+    setBaseline(parentDraft.baseline);
+    setPendingTuttiFile(null);
+    setEditorTab("movements");
+    setParentDraft(null);
+    setDeleteConfirm(false);
+    setError(null);
+    setDialogOpen(true);
+  }
+  async function backToParent(): Promise<void> {
+    if (busy || !parentDraft) return;
+    if (
+      editorDirty &&
+      !(await confirm({
+        title: "Discard movement changes?",
+        description:
+          "Your movement changes will be discarded. The parent work's draft and movement order will be kept.",
+        confirmLabel: "Discard and return",
+        destructive: true,
+      }))
+    )
+      return;
+    restoreParent();
+  }
+  function openMovement(selected: OrganizationMusicPiece): void {
+    if (busy || selected.parentId !== editingId) return;
+    captureParent(selected.id);
+    setEditorPiece(selected);
+  }
   function closeDialog(): void {
     if (busy) return;
+    if (parentDraft) {
+      restoreParent();
+      return;
+    }
     setDialogOpen(false);
     setEditingId(null);
     setPiece(emptyPiece);
@@ -200,8 +332,11 @@ export function useMusicEditor({
     setEditorTab("details");
   }
   function beginNew(parentId: string | null = null): void {
+    if (parentId && parentId === editingId) captureParent(null);
+    else setParentDraft(null);
     setEditingId(null);
     setPiece({ ...emptyPiece, parentId });
+    setBaseline(draftSnapshot({ ...emptyPiece, parentId }, "", "", ""));
     setPendingTuttiFile(null);
     resetDurationDetection();
     setGenresInput("");
@@ -216,6 +351,25 @@ export function useMusicEditor({
     const normalized = normalizeDurationInput(value);
     if (normalized !== value) setDurationValue(normalized, true);
     return normalized;
+  }
+  function finishSave(saved: OrganizationMusicPiece): void {
+    setPieces((current) =>
+      editingId
+        ? current.map((candidate) => (candidate.id === saved.id ? saved : candidate))
+        : [...current, saved].sort((a, b) => a.title.localeCompare(b.title)),
+    );
+    if (parentDraft) {
+      restoreParent();
+      setMessage("Movement saved.");
+      return;
+    }
+    setEditorPiece(saved);
+    setMessage("Music piece saved.");
+    setDialogOpen(false);
+    setEditingId(null);
+    setPiece(emptyPiece);
+    setPendingTuttiFile(null);
+    resetDurationDetection();
   }
   async function save(): Promise<void> {
     const currentRoster = roster;
@@ -240,6 +394,7 @@ export function useMusicEditor({
     try {
       const request: OrganizationMusicPieceRequest = {
         ...piece,
+        movementOrder: movementOrderForSave(piece, pieces, editingId),
         copies,
         durationSeconds,
         genres: uniqueLabels(genresInput),
@@ -255,18 +410,7 @@ export function useMusicEditor({
       const saved = editingId
         ? await updateOrganizationMusicPiece(editingId, request)
         : await createOrganizationMusicPiece(request);
-      setPieces((current) =>
-        editingId
-          ? current.map((candidate) => (candidate.id === saved.id ? saved : candidate))
-          : [...current, saved].sort((a, b) => a.title.localeCompare(b.title)),
-      );
-      setEditorPiece(saved);
-      setMessage("Music piece saved.");
-      setDialogOpen(false);
-      setEditingId(null);
-      setPiece(emptyPiece);
-      setPendingTuttiFile(null);
-      resetDurationDetection();
+      finishSave(saved);
     } catch (caught: unknown) {
       let nextError =
         caught instanceof AuthApiError ? caught.message : "The music piece could not be saved.";
@@ -295,6 +439,11 @@ export function useMusicEditor({
             candidate.parentId === editingId ? { ...candidate, parentId: null } : candidate,
           ),
       );
+      if (parentDraft) {
+        restoreParent();
+        setMessage("Movement deleted.");
+        return;
+      }
       setDialogOpen(false);
       setEditingId(null);
       setPiece(emptyPiece);
@@ -316,6 +465,12 @@ export function useMusicEditor({
     }
   }
   return {
+    backToParent,
+    confirmationDialog,
+    editorBodyRef,
+    editorDirty,
+    openMovement,
+    parentEditorTitle: parentDraft?.piece.title ?? null,
     beginNew,
     closeDialog,
     copiesInput,

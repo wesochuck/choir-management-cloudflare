@@ -72,7 +72,7 @@ export function summarizeMusicCredits(
 
 export const maximumAudioBytes = 20 * 1024 * 1024;
 
-export type MusicEditorTab = "details" | "performances" | "scores" | "tracks";
+export type MusicEditorTab = "details" | "movements" | "performances" | "scores" | "tracks";
 
 export const emptyPiece: OrganizationMusicPieceRequest = {
   arranger: "",
@@ -99,6 +99,7 @@ export function requestFrom(piece: OrganizationMusicPiece): OrganizationMusicPie
     durationSeconds: piece.durationSeconds,
     genres: piece.genres,
     notes: piece.notes,
+    movementOrder: piece.movementOrder,
     parentId: piece.parentId,
     purchaseDate: piece.purchaseDate,
     scoreFileIds: piece.scoreFileIds,

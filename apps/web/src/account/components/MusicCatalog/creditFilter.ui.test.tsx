@@ -23,6 +23,12 @@ const MOCK_ROSTER: OrganizationRosterConfiguration = {
 
 function mockCatalogModel(overrides: Partial<MusicCatalogModel> = {}): MusicCatalogModel {
   return {
+    backToParent: vi.fn(),
+    confirmationDialog: null,
+    editorBodyRef: { current: null },
+    editorDirty: false,
+    openMovement: vi.fn(),
+    parentEditorTitle: null,
     addSelectedPiecesToSetList: vi.fn(),
     applyBulkChanges: vi.fn(),
     applyBulkDelete: vi.fn(),

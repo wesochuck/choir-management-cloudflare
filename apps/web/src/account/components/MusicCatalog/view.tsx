@@ -1,18 +1,14 @@
-import { type CsvColumnMapping, musicCsvColumnOptions } from "@choir/domain";
-import { Dialog, Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
-import { useState } from "react";
+import { type CsvColumnMapping, musicCsvColumnOptions, sortMusicMovements } from "@choir/domain";
+import { Dialog, Tabs, TabsContent } from "@choir/ui";
+import { useMemo, useState } from "react";
 import { listOrganizationMusic } from "../../../auth/api";
 import { MusicGenreFilter, MusicGenrePicker } from "./shared";
-import {
-  formatParentWorkOption,
-  normalizeDurationInput,
-  pieceScoreCount,
-  uniqueLabels,
-} from "./utils";
+import { formatParentWorkOption, normalizeDurationInput, uniqueLabels } from "./utils";
 import { MusicCatalogTable, SectionBuckets } from "./table";
-import { performanceContainsPiece, pieceIdsForPerformance } from "./tableUtils";
 import { MusicPiecePerformances, MusicTuttiTrackDropzone } from "./performances";
 import { MusicAudioTracks, MusicBulkEditDialog, MusicDeleteControls } from "./tracksAndBulkEdit";
+import { MusicEditorNav } from "./MusicEditorNav";
+import { MusicMovementList } from "./MusicMovementList";
 import { MusicDigitalScores } from "./MusicDigitalScores";
 import { MusicCredits } from "./credits";
 import { AddToSetListDialog } from "./AddToSetListDialog";
@@ -34,6 +30,12 @@ export function MusicCatalogView({
   readonly view?: "catalog" | "credits";
 }) {
   const {
+    backToParent,
+    confirmationDialog,
+    editorBodyRef,
+    editorDirty,
+    openMovement,
+    parentEditorTitle,
     addSelectedPiecesToSetList,
     applyBulkChanges,
     applyBulkDelete,
@@ -130,6 +132,14 @@ export function MusicCatalogView({
     venues,
   } = model;
   const [bulkTrackImportOpen, setBulkTrackImportOpen] = useState(false);
+  const movements = useMemo(
+    () =>
+      sortMusicMovements(
+        pieces.filter((candidate) => candidate.parentId === editingId),
+        piece.movementOrder,
+      ),
+    [editingId, piece.movementOrder, pieces],
+  );
   async function openImportedPiece(pieceId: string): Promise<void> {
     setBulkTrackImportOpen(false);
     try {
@@ -372,7 +382,14 @@ export function MusicCatalogView({
             />
           </div>
           <Dialog
-            description="Catalog metadata, sections, movements, learning tracks, and linked performances."
+            className="dialog--music-editor"
+            bodyClassName="music-editor-body"
+            dirty={editorDirty}
+            description={
+              editingId
+                ? `${piece.composer || "Composer not set"}${childCount ? ` · ${String(childCount)} movements` : ""}`
+                : "Catalog metadata, sections, movements, learning tracks, and linked performances."
+            }
             onClose={closeDialog}
             open={dialogOpen}
             title={
@@ -389,6 +406,20 @@ export function MusicCatalogView({
               <p className="notice notice--error" role="alert">
                 {error}
               </p>
+            ) : null}
+            {parentEditorTitle ? (
+              <div className="music-editor-return">
+                <button
+                  className="text-button"
+                  disabled={busy}
+                  onClick={() => {
+                    void backToParent();
+                  }}
+                  type="button"
+                >
+                  Back to {parentEditorTitle}
+                </button>
+              </div>
             ) : null}
             {returnTo ? (
               <div className="music-library-return">
@@ -414,304 +445,294 @@ export function MusicCatalogView({
                   <option key={name} value={name} />
                 ))}
               </datalist>
-              <Tabs onValueChange={setEditorTab} value={editorTab}>
-                <div className="music-piece-tabs">
-                  <TabsList aria-label="Music piece editor">
-                    <TabsTrigger
-                      aria-controls="music-piece-details"
-                      id="music-piece-details-tab"
-                      value="details"
-                    >
-                      Piece details
-                    </TabsTrigger>
-                    <TabsTrigger
-                      aria-controls="music-piece-tracks"
-                      disabled={!selectedPiece}
-                      id="music-piece-tracks-tab"
-                      value="tracks"
-                    >
-                      Practice tracks
-                      {selectedPiece && Object.values(selectedPiece.trackFileIds).some(Boolean)
-                        ? ` (${String(Object.values(selectedPiece.trackFileIds).filter(Boolean).length)})`
-                        : ""}
-                    </TabsTrigger>
-                    <TabsTrigger
-                      aria-controls="music-piece-scores"
-                      disabled={!selectedPiece}
-                      id="music-piece-scores-tab"
-                      value="scores"
-                    >
-                      Digital scores
-                      {selectedPiece && pieceScoreCount(selectedPiece) > 0
-                        ? ` (${String(pieceScoreCount(selectedPiece))})`
-                        : ""}
-                    </TabsTrigger>
-                    <TabsTrigger
-                      aria-controls="music-piece-performances"
-                      disabled={!selectedPiece}
-                      id="music-piece-performances-tab"
-                      value="performances"
-                    >
-                      Linked performances
-                      {selectedPiece
-                        ? ` (${String(events.filter((event) => event.type === "Performance" && performanceContainsPiece(event, pieceIdsForPerformance(selectedPiece, pieces))).length)})`
-                        : ""}
-                    </TabsTrigger>
-                  </TabsList>
+              <Tabs
+                className="music-editor-layout"
+                onValueChange={setEditorTab}
+                orientation="vertical"
+                value={editorTab}
+              >
+                <MusicEditorNav
+                  value={editorTab}
+                  onChange={setEditorTab}
+                  saved={Boolean(selectedPiece)}
+                  isMovement={Boolean(piece.parentId)}
+                  movementCount={childCount}
+                />
+                <div className="music-editor-content" ref={editorBodyRef} tabIndex={-1}>
+                  <TabsContent
+                    aria-labelledby="music-piece-movements-tab"
+                    id="music-piece-movements"
+                    value="movements"
+                  >
+                    <MusicMovementList
+                      busy={busy}
+                      movements={movements}
+                      onAdd={() => {
+                        beginNew(editingId);
+                      }}
+                      onOpen={openMovement}
+                      onReorder={(movementOrder) => {
+                        setPiece((current) => ({ ...current, movementOrder }));
+                      }}
+                    />
+                  </TabsContent>
+                  <TabsContent
+                    aria-labelledby="music-piece-details-tab"
+                    id="music-piece-details"
+                    value="details"
+                  >
+                    <div className="music-fields-grid">
+                      <label className="field music-field--wide">
+                        Title
+                        <input
+                          maxLength={500}
+                          required
+                          value={piece.title}
+                          onChange={(event) => {
+                            setPiece((current) => ({ ...current, title: event.target.value }));
+                          }}
+                        />
+                      </label>
+                      <label className="field">
+                        Composer
+                        <input
+                          aria-autocomplete="list"
+                          list="music-composer-arranger-options"
+                          maxLength={300}
+                          value={piece.composer}
+                          onChange={(event) => {
+                            setPiece((current) => ({ ...current, composer: event.target.value }));
+                          }}
+                        />
+                      </label>
+                      <label className="field">
+                        Arranger
+                        <input
+                          aria-autocomplete="list"
+                          list="music-composer-arranger-options"
+                          maxLength={300}
+                          value={piece.arranger}
+                          onChange={(event) => {
+                            setPiece((current) => ({ ...current, arranger: event.target.value }));
+                          }}
+                        />
+                      </label>
+                      <label className="field">
+                        Catalog ID
+                        <input
+                          maxLength={200}
+                          value={piece.catalogId}
+                          onChange={(event) => {
+                            setPiece((current) => ({ ...current, catalogId: event.target.value }));
+                          }}
+                        />
+                      </label>
+                      <label className="field">
+                        Purchase date
+                        <input
+                          type="date"
+                          value={piece.purchaseDate ?? ""}
+                          onChange={(event) => {
+                            setPiece((current) => ({
+                              ...current,
+                              purchaseDate: event.target.value || null,
+                            }));
+                          }}
+                        />
+                      </label>
+                      <label className="field">
+                        Copies
+                        <input
+                          inputMode="numeric"
+                          min="0"
+                          step="1"
+                          type="number"
+                          value={copiesInput}
+                          onChange={(event) => {
+                            setCopiesInput(event.target.value);
+                          }}
+                        />
+                      </label>
+                      <label className="field">
+                        Duration (minutes:seconds)
+                        <input
+                          placeholder="4:05 or 4"
+                          value={durationInput}
+                          onBlur={() => {
+                            const normalized = normalizeDurationInput(durationInput);
+                            if (normalized !== durationInput) setDurationValue(normalized, true);
+                          }}
+                          onChange={(event) => {
+                            setDurationValue(event.target.value, true);
+                          }}
+                        />
+                        {durationAutoFillLabel ? (
+                          <small className="field-hint">
+                            Auto-detected from “{durationAutoFillLabel}” track.
+                          </small>
+                        ) : null}
+                        {durationDetectionNotice ? (
+                          <small className="field-hint">{durationDetectionNotice}</small>
+                        ) : null}
+                        {durationMismatch ? (
+                          <small className="music-duration-mismatch">
+                            Tracks suggest {durationMismatch.suggested}.
+                            {durationMismatch.current
+                              ? ` Current: ${durationMismatch.current}. `
+                              : " "}
+                            <button
+                              className="text-button"
+                              type="button"
+                              onClick={() => {
+                                setDurationValue(durationMismatch.suggested, true);
+                              }}
+                            >
+                              Update
+                            </button>
+                          </small>
+                        ) : null}
+                      </label>
+                      <label className="field music-field--wide">
+                        Genres
+                        <MusicGenrePicker
+                          availableGenres={availableGenres}
+                          selected={uniqueLabels(genresInput)}
+                          onChange={(genres) => {
+                            setGenresInput(genres.join(", "));
+                          }}
+                        />
+                      </label>
+                      <label className="field music-field--wide">
+                        Parent work
+                        <select
+                          value={piece.parentId ?? ""}
+                          onChange={(event) => {
+                            setPiece((current) => ({
+                              ...current,
+                              parentId: event.target.value || null,
+                            }));
+                          }}
+                        >
+                          <option value="">Top-level work</option>
+                          {topLevelPieces.map((parent) => (
+                            <option key={parent.id} value={parent.id}>
+                              {formatParentWorkOption(parent, topLevelPieces)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="field music-field--wide">
+                        Notes
+                        <textarea
+                          maxLength={100_000}
+                          rows={4}
+                          value={piece.notes}
+                          onChange={(event) => {
+                            setPiece((current) => ({ ...current, notes: event.target.value }));
+                          }}
+                        />
+                      </label>
+                    </div>
+                    {!editingId ? (
+                      <MusicTuttiTrackDropzone
+                        disabled={busy}
+                        file={pendingTuttiFile}
+                        onChange={handlePendingTuttiFileChange}
+                      />
+                    ) : null}
+                    <SectionBuckets
+                      configuration={roster}
+                      selected={piece.sectionBuckets}
+                      onChange={(sectionBuckets) => {
+                        setPiece((current) => ({ ...current, sectionBuckets }));
+                      }}
+                    />
+                  </TabsContent>
+                  <TabsContent
+                    aria-labelledby="music-piece-tracks-tab"
+                    id="music-piece-tracks"
+                    value="tracks"
+                  >
+                    {selectedPiece ? (
+                      <MusicAudioTracks
+                        configuration={roster}
+                        key={selectedPiece.id}
+                        piece={selectedPiece}
+                        onTrackDurationDetected={handleTrackDurationDetected}
+                        onSaved={(saved, successMessage) => {
+                          setPieces((current) =>
+                            current.map((candidate) =>
+                              candidate.id === saved.id ? saved : candidate,
+                            ),
+                          );
+                          setEditorPiece(saved, "tracks");
+                          setMessage(successMessage);
+                        }}
+                      />
+                    ) : (
+                      <p className="notice">Save the piece first, then add practice tracks.</p>
+                    )}
+                  </TabsContent>
+                  <TabsContent
+                    aria-labelledby="music-piece-scores-tab"
+                    id="music-piece-scores"
+                    value="scores"
+                  >
+                    {selectedPiece ? (
+                      <MusicDigitalScores
+                        configuration={roster}
+                        key={selectedPiece.id}
+                        onSaved={(saved, successMessage) => {
+                          setPieces((current) =>
+                            current.map((candidate) =>
+                              candidate.id === saved.id ? saved : candidate,
+                            ),
+                          );
+                          setEditorPiece(saved, "scores");
+                          setMessage(successMessage);
+                        }}
+                        parentPiece={
+                          selectedPiece.parentId
+                            ? (pieces.find(
+                                (candidate) => candidate.id === selectedPiece.parentId,
+                              ) ?? null)
+                            : null
+                        }
+                        piece={selectedPiece}
+                      />
+                    ) : (
+                      <p className="notice">Save the piece first, then add digital scores.</p>
+                    )}
+                  </TabsContent>
+                  <TabsContent
+                    aria-labelledby="music-piece-performances-tab"
+                    id="music-piece-performances"
+                    value="performances"
+                  >
+                    {selectedPiece ? (
+                      <MusicPiecePerformances
+                        allEvents={events}
+                        allPieces={pieces}
+                        onEventChanged={handlePerformanceChanged}
+                        piece={selectedPiece}
+                        timezone={timezone}
+                        venues={venues}
+                      />
+                    ) : (
+                      <p className="notice">Save the piece first, then link performances.</p>
+                    )}
+                  </TabsContent>
                 </div>
-                <TabsContent
-                  aria-labelledby="music-piece-details-tab"
-                  id="music-piece-details"
-                  value="details"
-                >
-                  <div className="music-fields-grid">
-                    <label className="field music-field--wide">
-                      Title
-                      <input
-                        maxLength={500}
-                        required
-                        value={piece.title}
-                        onChange={(event) => {
-                          setPiece((current) => ({ ...current, title: event.target.value }));
-                        }}
-                      />
-                    </label>
-                    <label className="field">
-                      Composer
-                      <input
-                        aria-autocomplete="list"
-                        list="music-composer-arranger-options"
-                        maxLength={300}
-                        value={piece.composer}
-                        onChange={(event) => {
-                          setPiece((current) => ({ ...current, composer: event.target.value }));
-                        }}
-                      />
-                    </label>
-                    <label className="field">
-                      Arranger
-                      <input
-                        aria-autocomplete="list"
-                        list="music-composer-arranger-options"
-                        maxLength={300}
-                        value={piece.arranger}
-                        onChange={(event) => {
-                          setPiece((current) => ({ ...current, arranger: event.target.value }));
-                        }}
-                      />
-                    </label>
-                    <label className="field">
-                      Catalog ID
-                      <input
-                        maxLength={200}
-                        value={piece.catalogId}
-                        onChange={(event) => {
-                          setPiece((current) => ({ ...current, catalogId: event.target.value }));
-                        }}
-                      />
-                    </label>
-                    <label className="field">
-                      Purchase date
-                      <input
-                        type="date"
-                        value={piece.purchaseDate ?? ""}
-                        onChange={(event) => {
-                          setPiece((current) => ({
-                            ...current,
-                            purchaseDate: event.target.value || null,
-                          }));
-                        }}
-                      />
-                    </label>
-                    <label className="field">
-                      Copies
-                      <input
-                        inputMode="numeric"
-                        min="0"
-                        step="1"
-                        type="number"
-                        value={copiesInput}
-                        onChange={(event) => {
-                          setCopiesInput(event.target.value);
-                        }}
-                      />
-                    </label>
-                    <label className="field">
-                      Duration (minutes:seconds)
-                      <input
-                        placeholder="4:05 or 4"
-                        value={durationInput}
-                        onBlur={() => {
-                          const normalized = normalizeDurationInput(durationInput);
-                          if (normalized !== durationInput) setDurationValue(normalized, true);
-                        }}
-                        onChange={(event) => {
-                          setDurationValue(event.target.value, true);
-                        }}
-                      />
-                      {durationAutoFillLabel ? (
-                        <small className="field-hint">
-                          Auto-detected from “{durationAutoFillLabel}” track.
-                        </small>
-                      ) : null}
-                      {durationDetectionNotice ? (
-                        <small className="field-hint">{durationDetectionNotice}</small>
-                      ) : null}
-                      {durationMismatch ? (
-                        <small className="music-duration-mismatch">
-                          Tracks suggest {durationMismatch.suggested}.
-                          {durationMismatch.current
-                            ? ` Current: ${durationMismatch.current}. `
-                            : " "}
-                          <button
-                            className="text-button"
-                            type="button"
-                            onClick={() => {
-                              setDurationValue(durationMismatch.suggested, true);
-                            }}
-                          >
-                            Update
-                          </button>
-                        </small>
-                      ) : null}
-                    </label>
-                    <label className="field music-field--wide">
-                      Genres
-                      <MusicGenrePicker
-                        availableGenres={availableGenres}
-                        selected={uniqueLabels(genresInput)}
-                        onChange={(genres) => {
-                          setGenresInput(genres.join(", "));
-                        }}
-                      />
-                    </label>
-                    <label className="field music-field--wide">
-                      Parent work
-                      <select
-                        value={piece.parentId ?? ""}
-                        onChange={(event) => {
-                          setPiece((current) => ({
-                            ...current,
-                            parentId: event.target.value || null,
-                          }));
-                        }}
-                      >
-                        <option value="">Top-level work</option>
-                        {topLevelPieces.map((parent) => (
-                          <option key={parent.id} value={parent.id}>
-                            {formatParentWorkOption(parent, topLevelPieces)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="field music-field--wide">
-                      Notes
-                      <textarea
-                        maxLength={100_000}
-                        rows={4}
-                        value={piece.notes}
-                        onChange={(event) => {
-                          setPiece((current) => ({ ...current, notes: event.target.value }));
-                        }}
-                      />
-                    </label>
-                  </div>
-                  {!editingId ? (
-                    <MusicTuttiTrackDropzone
-                      disabled={busy}
-                      file={pendingTuttiFile}
-                      onChange={handlePendingTuttiFileChange}
-                    />
-                  ) : null}
-                  <SectionBuckets
-                    configuration={roster}
-                    selected={piece.sectionBuckets}
-                    onChange={(sectionBuckets) => {
-                      setPiece((current) => ({ ...current, sectionBuckets }));
-                    }}
-                  />
-                </TabsContent>
-                <TabsContent
-                  aria-labelledby="music-piece-tracks-tab"
-                  id="music-piece-tracks"
-                  value="tracks"
-                >
-                  {selectedPiece ? (
-                    <MusicAudioTracks
-                      configuration={roster}
-                      key={selectedPiece.id}
-                      piece={selectedPiece}
-                      onTrackDurationDetected={handleTrackDurationDetected}
-                      onSaved={(saved, successMessage) => {
-                        setPieces((current) =>
-                          current.map((candidate) =>
-                            candidate.id === saved.id ? saved : candidate,
-                          ),
-                        );
-                        setEditorPiece(saved, "tracks");
-                        setMessage(successMessage);
-                      }}
-                    />
-                  ) : (
-                    <p className="notice">Save the piece first, then add practice tracks.</p>
-                  )}
-                </TabsContent>
-                <TabsContent
-                  aria-labelledby="music-piece-scores-tab"
-                  id="music-piece-scores"
-                  value="scores"
-                >
-                  {selectedPiece ? (
-                    <MusicDigitalScores
-                      configuration={roster}
-                      key={selectedPiece.id}
-                      onSaved={(saved, successMessage) => {
-                        setPieces((current) =>
-                          current.map((candidate) =>
-                            candidate.id === saved.id ? saved : candidate,
-                          ),
-                        );
-                        setEditorPiece(saved, "scores");
-                        setMessage(successMessage);
-                      }}
-                      parentPiece={
-                        selectedPiece.parentId
-                          ? (pieces.find((candidate) => candidate.id === selectedPiece.parentId) ??
-                            null)
-                          : null
-                      }
-                      piece={selectedPiece}
-                    />
-                  ) : (
-                    <p className="notice">Save the piece first, then add digital scores.</p>
-                  )}
-                </TabsContent>
-                <TabsContent
-                  aria-labelledby="music-piece-performances-tab"
-                  id="music-piece-performances"
-                  value="performances"
-                >
-                  {selectedPiece ? (
-                    <MusicPiecePerformances
-                      allEvents={events}
-                      allPieces={pieces}
-                      onEventChanged={handlePerformanceChanged}
-                      piece={selectedPiece}
-                      timezone={timezone}
-                      venues={venues}
-                    />
-                  ) : (
-                    <p className="notice">Save the piece first, then link performances.</p>
-                  )}
-                </TabsContent>
               </Tabs>
-              {editingId ? (
-                <p className="field-help">
-                  Learning tracks linked: {String(Object.keys(piece.trackFileIds).length)} · Digital
-                  scores linked: {String(pieceScoreCount(piece))} · Movements: {String(childCount)}
-                </p>
-              ) : null}
               <MusicDeleteControls
+                canAddMovement={!piece.parentId && editorTab !== "movements"}
+                saveLabel={
+                  parentEditorTitle
+                    ? "Save and return"
+                    : editorTab === "movements"
+                      ? "Save order"
+                      : "Save music piece"
+                }
                 busy={busy}
                 childCount={childCount}
                 deleteConfirm={deleteConfirm}
@@ -733,6 +754,7 @@ export function MusicCatalogView({
               />
             </form>
           </Dialog>
+          {confirmationDialog}
           <MusicBulkEditDialog
             availableGenres={availableGenres}
             busy={busy}

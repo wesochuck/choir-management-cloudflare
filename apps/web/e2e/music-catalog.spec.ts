@@ -189,8 +189,11 @@ async function handleEventDynamicRoute(
   return false;
 }
 
-async function installRoutes(page: Page): Promise<void> {
-  let pieces: readonly OrganizationMusicPiece[] = [
+async function installRoutes(
+  page: Page,
+  initialPieces?: readonly OrganizationMusicPiece[],
+): Promise<void> {
+  let pieces: readonly OrganizationMusicPiece[] = initialPieces ?? [
     piece("11111111-1111-4111-8111-111111111111", "First Work", "Jane Doe", "J. Smith"),
     piece("22222222-2222-4222-8222-222222222222", "Second Work", "Jane Doe", "Jane Doe"),
   ];
@@ -690,7 +693,9 @@ test("keeps the piece editor action buttons on a single row", async ({ page }) =
   const dialog = page.getByRole("dialog", { name: "Edit music piece" });
   await expect(dialog).toBeVisible();
   const actionButtons = dialog.locator(".music-piece-form__actions > .button");
-  await expect(actionButtons).toHaveCount(4);
+  await expect(dialog.locator(".music-piece-form__actions > button")).toHaveCount(4);
+  await expect(actionButtons).toHaveCount(3);
+  await expect(dialog.getByRole("button", { name: "Delete music piece" })).toBeVisible();
   // Below 40rem the action row wraps, which is the intended narrow-screen
   // behavior; a single shared baseline is a desktop assertion.
   if ((page.viewportSize()?.width ?? 0) > 640) {
@@ -709,7 +714,11 @@ test("displays the piece title when editing and on practice tracks tab", async (
   const dialog = page.getByRole("dialog", { name: "Edit music piece: First Work" });
   await expect(dialog).toBeVisible();
 
-  await dialog.getByRole("tab", { name: /Practice tracks/ }).click();
+  if ((page.viewportSize()?.width ?? 0) <= 767) {
+    await dialog.getByRole("combobox", { name: "Music section" }).selectOption("tracks");
+  } else {
+    await dialog.getByRole("tab", { name: /Practice tracks/ }).click();
+  }
   await expect(dialog.getByRole("group", { name: "Learning tracks: First Work" })).toBeVisible();
   await expect(
     dialog.getByText("Attach a full mix, section, or part track for “First Work”"),
@@ -799,5 +808,137 @@ for (const theme of ["light", "dark"] as const) {
       element.scrollTop = 0;
     });
     await dialog.screenshot({ path: testInfo.outputPath(`bulk-review-${theme}.png`) });
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`orders movements and returns from editing without losing the parent draft in ${theme} theme`, async ({
+    page,
+  }, testInfo) => {
+    const runtimeErrors: string[] = [];
+    page.on("pageerror", (error) => {
+      runtimeErrors.push(error.message);
+    });
+    if (testInfo.project.name === "chromium")
+      await page.setViewportSize({ width: 1440, height: 1024 });
+    const parent = piece("30000000-0000-4000-8000-000000000001", "Sunrise Mass", "Ola Gjeilo", "");
+    const movements = [
+      {
+        ...piece("30000000-0000-4000-8000-000000000002", "The Spheres", "Ola Gjeilo", ""),
+        durationSeconds: 304,
+        parentId: parent.id,
+      },
+      {
+        ...piece("30000000-0000-4000-8000-000000000003", "Sunrise", "Ola Gjeilo", ""),
+        durationSeconds: 592,
+        parentId: parent.id,
+      },
+      {
+        ...piece("30000000-0000-4000-8000-000000000004", "The City", "Ola Gjeilo", ""),
+        durationSeconds: 617,
+        parentId: parent.id,
+      },
+      {
+        ...piece("30000000-0000-4000-8000-000000000005", "Identity & The Ground", "Ola Gjeilo", ""),
+        durationSeconds: 354,
+        parentId: parent.id,
+      },
+    ];
+    await installRoutes(page, [
+      { ...parent, movementOrder: movements.map(({ id }) => id) },
+      ...movements,
+    ]);
+    await page.addInitScript((value) => {
+      window.localStorage.setItem(`choir-theme:${window.location.hostname}`, value);
+    }, theme);
+    await page.goto("/admin/library");
+    await page.getByRole("button", { name: "Edit music piece: Sunrise Mass" }).click();
+    let dialog = page.getByRole("dialog", { name: "Edit music piece: Sunrise Mass" });
+    if (testInfo.project.name === "mobile-chromium") {
+      await dialog.getByRole("combobox", { name: "Music section" }).selectOption("movements");
+    } else {
+      await dialog.getByRole("tab", { name: "Movements (4)" }).click();
+    }
+    const list = dialog.getByRole("list", { name: "Default movement order" });
+    await expect(list.getByRole("listitem")).toHaveCount(4);
+    await page.screenshot({
+      path: testInfo.outputPath(`music-movements-${theme}.png`),
+      fullPage: false,
+    });
+    if (testInfo.project.name === "chromium") {
+      await list.getByRole("listitem").nth(2).dragTo(list.getByRole("listitem").nth(1));
+    } else {
+      await dialog.getByRole("button", { name: "Move The City up", exact: true }).click();
+    }
+    await dialog.getByRole("button", { name: "Open movement: The City", exact: true }).click();
+    const child = page.getByRole("dialog", { name: "Edit music piece: The City", exact: true });
+    await expect(child.getByRole("button", { name: "Back to Sunrise Mass" })).toBeVisible();
+    await child.getByLabel("Title", { exact: true }).fill("The City (edited)");
+    await page
+      .getByRole("dialog", { name: "Edit music piece: The City (edited)", exact: true })
+      .getByRole("button", { name: "Back to Sunrise Mass" })
+      .click();
+    const confirmation = page.getByRole("dialog", { name: "Discard movement changes?" });
+    await expect(confirmation).toBeVisible();
+    await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "Edit music piece: The City (edited)", exact: true })
+      .getByRole("button", { name: "Save and return" })
+      .click();
+    dialog = page.getByRole("dialog", { name: "Edit music piece: Sunrise Mass", exact: true });
+    const returned = dialog.getByRole("list", { name: "Default movement order" });
+    await expect(returned.getByRole("listitem").nth(1)).toContainText("The City (edited)");
+    await expect(
+      dialog.getByRole("button", { name: "Open movement: The City (edited)", exact: true }),
+    ).toBeFocused();
+    await dialog.getByRole("button", { name: "Open movement: Sunrise", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "Edit music piece: Sunrise", exact: true })
+      .getByLabel("Title", { exact: true })
+      .fill("Discard this edit");
+    await page
+      .getByRole("dialog", { name: "Edit music piece: Discard this edit", exact: true })
+      .getByRole("button", { name: "Back to Sunrise Mass" })
+      .click();
+    await page
+      .getByRole("dialog", { name: "Discard movement changes?" })
+      .getByRole("button", { name: "Discard and return" })
+      .click();
+    await expect(
+      dialog.getByRole("button", { name: "Open movement: Sunrise", exact: true }),
+    ).toBeVisible();
+    await dialog.getByRole("button", { name: "Save order", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await page.getByRole("button", { name: "Edit music piece: Sunrise Mass" }).click();
+    if (testInfo.project.name === "mobile-chromium") {
+      await dialog.getByRole("combobox", { name: "Music section" }).selectOption("movements");
+    } else {
+      await dialog.getByRole("tab", { name: "Movements (4)" }).click();
+    }
+    await expect(
+      dialog.getByRole("list", { name: "Default movement order" }).getByRole("listitem").nth(1),
+    ).toContainText("The City (edited)");
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.getByRole("checkbox", { name: "Select Sunrise Mass", exact: true }).check();
+    await page.getByRole("button", { name: "Add to set list (1)" }).click();
+    const eventWrite = page.waitForRequest(
+      (request) =>
+        request.method() === "PUT" &&
+        new URL(request.url()).pathname.startsWith("/api/organization/events/"),
+    );
+    await page
+      .getByRole("dialog", { name: "Add to set list", exact: true })
+      .getByRole("button", { name: "Add to set list", exact: true })
+      .click();
+    const savedSetList = organizationEventRequestSchema.parse(
+      (await eventWrite).postDataJSON(),
+    ).setList;
+    expect(savedSetList.map(({ pieceId }) => pieceId)).toEqual([
+      movements[0]?.id,
+      movements[2]?.id,
+      movements[1]?.id,
+      movements[3]?.id,
+    ]);
+    expect(runtimeErrors).toEqual([]);
   });
 }

@@ -256,6 +256,8 @@ export function MusicAudioTracks({
 }
 
 export function MusicDeleteControls({
+  canAddMovement = true,
+  saveLabel = "Save music piece",
   busy,
   childCount,
   deleteConfirm,
@@ -267,6 +269,8 @@ export function MusicDeleteControls({
   onUnlinkChildren,
   unlinkChildren,
 }: {
+  readonly canAddMovement?: boolean;
+  readonly saveLabel?: string;
   readonly busy: boolean;
   readonly childCount: number;
   readonly deleteConfirm: boolean;
@@ -290,17 +294,17 @@ export function MusicDeleteControls({
     <>
       <div className="dialog__actions music-piece-form__actions">
         {editingId && !deleteConfirm ? (
-          <button className="button button--danger" type="button" onClick={onRequest}>
+          <button className="text-button text-button--danger" type="button" onClick={onRequest}>
             Delete music piece
           </button>
         ) : null}
-        {editingId ? (
+        {editingId && canAddMovement ? (
           <button className="button button--secondary" type="button" onClick={onAddMovement}>
             Add movement
           </button>
         ) : null}
         <button className="button button--primary" disabled={busy} type="submit">
-          {busy ? "Saving music…" : "Save music piece"}
+          {busy ? "Saving music…" : saveLabel}
         </button>
         {!deleteConfirm ? (
           <DialogClose asChild>

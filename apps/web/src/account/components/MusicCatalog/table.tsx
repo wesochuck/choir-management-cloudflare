@@ -1,3 +1,4 @@
+import { sortMusicMovements } from "@choir/domain";
 import type { OrganizationMusicPiece, OrganizationRosterConfiguration } from "@choir/contracts";
 import { DataTable } from "@choir/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -97,8 +98,9 @@ export function MusicCatalogTable({
     pieces
       .filter((piece) => !piece.parentId)
       .forEach((parent) => {
-        const matchingChildren = (childrenByParent.get(parent.id) ?? []).filter((child) =>
-          matchingIds.has(child.id),
+        const matchingChildren = sortMusicMovements(
+          (childrenByParent.get(parent.id) ?? []).filter((child) => matchingIds.has(child.id)),
+          parent.movementOrder,
         );
         if (!matchingIds.has(parent.id) && matchingChildren.length === 0) return;
         visiblePieces.push(parent);

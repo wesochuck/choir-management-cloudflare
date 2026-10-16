@@ -3,7 +3,31 @@ import { describe, expect, it } from "vitest";
 import {
   organizationMusicCreditRenameRequestSchema,
   organizationMusicPiecesResponseSchema,
+  organizationMusicPieceRequestSchema,
 } from "./music";
+
+describe("music movement order compatibility", () => {
+  const id = "00000000-0000-4000-8000-000000000001";
+  it("accepts legacy omission, explicit undefined, empty order, and a saved order", () => {
+    for (const extra of [
+      {},
+      { movementOrder: undefined },
+      { movementOrder: [] },
+      { movementOrder: [id] },
+    ]) {
+      expect(
+        organizationMusicPieceRequestSchema.safeParse({ title: "Work", ...extra }).success,
+      ).toBe(true);
+    }
+  });
+  it("rejects null, duplicate IDs, and invalid IDs", () => {
+    for (const movementOrder of [null, [id, id], ["not-an-id"]]) {
+      expect(
+        organizationMusicPieceRequestSchema.safeParse({ title: "Work", movementOrder }).success,
+      ).toBe(false);
+    }
+  });
+});
 
 describe("organizationMusicCreditRenameRequestSchema", () => {
   it("trims valid exact credit names", () => {

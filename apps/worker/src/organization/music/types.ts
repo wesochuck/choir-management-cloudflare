@@ -103,6 +103,7 @@ export interface MusicPieceRow {
   readonly genresJson: string;
   readonly id: string;
   readonly notes: string;
+  readonly movementOrderJson: string;
   readonly parentId: string | null;
   readonly purchaseDate: string | null;
   readonly scoreFileIdsJson: string;
@@ -126,7 +127,7 @@ export interface PerformanceHistoryRow {
 export const musicColumns = `id, title, composer, arranger, purchase_date AS purchaseDate, copies,
   catalog_id AS catalogId, duration_seconds AS durationSeconds, notes,
   section_buckets_json AS sectionBucketsJson, genres_json AS genresJson,
-  parent_id AS parentId, track_file_ids_json AS trackFileIdsJson,
+  parent_id AS parentId, movement_order_json AS movementOrderJson, track_file_ids_json AS trackFileIdsJson,
   score_file_ids_json AS scoreFileIdsJson,
   created_at AS createdAt, updated_at AS updatedAt`;
 
