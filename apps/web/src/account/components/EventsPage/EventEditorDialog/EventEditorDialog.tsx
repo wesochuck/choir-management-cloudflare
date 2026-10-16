@@ -35,6 +35,9 @@ import {
 } from "../eventSections";
 import { ensureTbdVenue, findTbdVenue } from "../tbdVenue";
 
+import { EditorUnsavedIndicator } from "../../EditorUnsavedIndicator";
+import { eventDirtySections } from "../eventDirtySections";
+
 import { BasicsSection } from "./BasicsSection";
 import { EventEditorHeader } from "./EventEditorHeader";
 import { PublicSection } from "./PublicSection";
@@ -140,6 +143,13 @@ export function EventEditorDialog({
     advancePriceDraft !== initialDraft.advancePriceDraft ||
     dayOfPriceDraft !== initialDraft.dayOfPriceDraft ||
     graphicFile !== null;
+
+  const dirtySections = eventDirtySections(event, initialDraft.event);
+  dirtySections.schedule ||= eventStart !== initialDraft.eventStart;
+  dirtySections.tickets ||=
+    advancePriceDraft !== initialDraft.advancePriceDraft ||
+    dayOfPriceDraft !== initialDraft.dayOfPriceDraft;
+  dirtySections.public ||= graphicFile !== null;
 
   async function handleOpenSetList(): Promise<void> {
     if (!editingId) return;
@@ -446,6 +456,7 @@ export function EventEditorDialog({
                   {visibleSections.map((section) => (
                     <option key={section} value={section}>
                       {EVENT_EDITOR_SECTION_META[section].shortLabel}
+                      {dirtySections[section] ? " — Unsaved changes" : ""}
                       {sectionCounts[section] > 0 && showErrorBadges
                         ? ` · ${String(sectionCounts[section])} to fix`
                         : ""}
@@ -466,6 +477,9 @@ export function EventEditorDialog({
                     return (
                       <TabsTrigger
                         aria-controls={`event-editor-${section}-panel`}
+                        aria-describedby={
+                          dirtySections[section] ? `event-editor-${section}-unsaved` : undefined
+                        }
                         className={`event-editor__rail-trigger ${isActive ? "is-active" : ""} ${
                           count > 0 && showErrorBadges ? "has-errors" : ""
                         }`}
@@ -479,6 +493,9 @@ export function EventEditorDialog({
                         <span className="event-editor__rail-text">
                           <span className="event-editor__rail-label">{meta.label}</span>
                           <span className="event-editor__rail-desc">{meta.description}</span>
+                          {dirtySections[section] ? (
+                            <EditorUnsavedIndicator id={`event-editor-${section}-unsaved`} />
+                          ) : null}
                         </span>
                         <span
                           className={`event-editor__badge ${

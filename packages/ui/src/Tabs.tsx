@@ -125,6 +125,7 @@ export function TabsList({
 }
 
 export interface TabsTriggerProps {
+  readonly "aria-describedby"?: string | undefined;
   readonly "aria-controls"?: string;
   readonly children: ReactNode;
   readonly className?: string;
@@ -134,6 +135,7 @@ export interface TabsTriggerProps {
 }
 
 export function TabsTrigger({
+  "aria-describedby": describedBy,
   "aria-controls": customControls,
   children,
   className,
@@ -156,6 +158,7 @@ export function TabsTrigger({
   return (
     <button
       aria-controls={panelId}
+      aria-describedby={describedBy}
       aria-selected={isSelected}
       className={classNames}
       data-state={isSelected ? "active" : "inactive"}

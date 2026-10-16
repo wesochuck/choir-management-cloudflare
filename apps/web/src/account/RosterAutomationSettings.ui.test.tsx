@@ -145,6 +145,28 @@ describe("RosterAutomationSettings UI", () => {
     expect(screen.getByText(/On Break → Inactive · On Break timeout is due\./)).toBeInTheDocument();
   });
 
+  it("explains status transitions and links the two distinct automation templates", async () => {
+    vi.mocked(api.previewOrganizationRosterAutomation).mockResolvedValue(samplePreview);
+    renderComponent();
+    expect(
+      screen.getByLabelText("Missed Performances before changing Active to Inactive"),
+    ).toHaveAccessibleDescription(/becomes Inactive after 3 consecutive missed Performances/);
+    expect(
+      screen.getByLabelText("Rehearsal misses before an attendance warning"),
+    ).toHaveAccessibleDescription(/does not change Profile Status/);
+    expect(
+      screen.getByRole("link", { name: /Edit pending RSVP follow-up template/ }),
+    ).toHaveAttribute(
+      "href",
+      "/admin/communications?tab=templates&templateId=5f0ca4a5-7e4c-4e1a-9a1c-000000000015",
+    );
+    expect(screen.getByRole("link", { name: /Edit Attendance Report template/ })).toHaveAttribute(
+      "href",
+      "/admin/communications?tab=templates&templateId=5f0ca4a5-7e4c-4e1a-9a1c-000000000016",
+    );
+    await waitFor(() => expect(screen.getByText(/Profiles affected/)).toBeInTheDocument());
+  });
+
   it("displays actionable role=alert banner on preview failure and recovers via retry", async () => {
     const user = userEvent.setup();
     vi.mocked(api.previewOrganizationRosterAutomation)

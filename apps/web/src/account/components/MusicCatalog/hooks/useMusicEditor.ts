@@ -47,8 +47,12 @@ function draftSnapshot(
   duration: string,
   genres: string,
   copies: string,
-): string {
-  return JSON.stringify({ piece, duration, genres, copies });
+) {
+  const { movementOrder, ...details } = piece;
+  return {
+    details: JSON.stringify({ piece: details, duration, genres, copies }),
+    movements: JSON.stringify(movementOrder ?? []),
+  };
 }
 
 function movementOrderForSave(
@@ -69,7 +73,7 @@ interface ParentEditorDraft {
   readonly duration: string;
   readonly genres: string;
   readonly copies: string;
-  readonly baseline: string;
+  readonly baseline: ReturnType<typeof draftSnapshot>;
   readonly scrollTop: number;
   readonly movementId: string | null;
   readonly durationAutoFillState: DurationAutoFillState;
@@ -116,9 +120,15 @@ export function useMusicEditor({
     readonly movementId: string | null;
   } | null>(null);
   const { confirm, confirmationDialog } = useConfirmation();
-  const editorDirty =
-    pendingTuttiFile !== null ||
-    draftSnapshot(piece, durationInput, genresInput, copiesInput) !== baseline;
+  const currentDraft = draftSnapshot(piece, durationInput, genresInput, copiesInput);
+  const editorDirtySections: Readonly<Record<MusicEditorTab, boolean>> = {
+    details: pendingTuttiFile !== null || currentDraft.details !== baseline.details,
+    movements: currentDraft.movements !== baseline.movements,
+    tracks: false,
+    scores: false,
+    performances: false,
+  };
+  const editorDirty = Object.values(editorDirtySections).some(Boolean);
   useLayoutEffect(() => {
     if (!dialogOpen) return;
     const position = restorePositionRef.current;
@@ -469,6 +479,7 @@ export function useMusicEditor({
     confirmationDialog,
     editorBodyRef,
     editorDirty,
+    editorDirtySections,
     openMovement,
     parentEditorTitle: parentDraft?.piece.title ?? null,
     beginNew,

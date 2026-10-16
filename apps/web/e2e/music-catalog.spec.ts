@@ -881,6 +881,22 @@ for (const theme of ["light", "dark"] as const) {
     } else {
       await dialog.getByRole("button", { name: "Move The City up", exact: true }).click();
     }
+    if (testInfo.project.name === "mobile-chromium") {
+      await expect(
+        dialog.getByRole("option", { name: "Movements (4) — Unsaved changes", exact: true }),
+      ).toHaveCount(1);
+      await expect(dialog.getByRole("option", { name: "Piece details", exact: true })).toHaveCount(
+        1,
+      );
+    } else {
+      await expect(
+        dialog.getByRole("tab", { name: "Movements (4)", exact: true }),
+      ).toHaveAccessibleDescription("Unsaved");
+      await expect(
+        dialog.getByRole("tab", { name: "Piece details", exact: true }),
+      ).not.toHaveAttribute("aria-describedby");
+    }
+    await page.screenshot({ path: testInfo.outputPath(`music-unsaved-sections-${theme}.png`) });
     await dialog.getByRole("button", { name: "Open movement: The City", exact: true }).click();
     const child = page.getByRole("dialog", { name: "Edit music piece: The City", exact: true });
     await expect(child.getByRole("button", { name: "Back to Sunrise Mass" })).toBeVisible();
@@ -918,6 +934,11 @@ for (const theme of ["light", "dark"] as const) {
     await expect(
       dialog.getByRole("button", { name: "Open movement: Sunrise", exact: true }),
     ).toBeVisible();
+    if (testInfo.project.name === "chromium") {
+      await expect(
+        dialog.getByRole("tab", { name: "Movements (4)", exact: true }),
+      ).toHaveAccessibleDescription("Unsaved");
+    }
     await dialog.getByRole("button", { name: "Save order", exact: true }).click();
     await expect(dialog).toBeHidden();
     await page.getByRole("button", { name: "Edit music piece: Sunrise Mass" }).click();
@@ -929,6 +950,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(
       dialog.getByRole("list", { name: "Default movement order" }).getByRole("listitem").nth(1),
     ).toContainText("The City (edited)");
+    await expect(dialog.getByText("Unsaved", { exact: true })).toHaveCount(0);
     await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
     await page.getByRole("checkbox", { name: "Select Sunrise Mass", exact: true }).check();
     await page.getByRole("button", { name: "Add to set list (1)" }).click();

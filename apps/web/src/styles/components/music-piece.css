@@ -490,6 +490,11 @@
     gap: var(--spacing-3xs);
   }
   .music-editor-rail__tab {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-3xs);
     min-height: var(--control-height);
     padding: var(--spacing-sm);
     border: 0;

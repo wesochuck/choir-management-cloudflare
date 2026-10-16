@@ -33,6 +33,10 @@
   --color-danger-surface: #fef2f2;
   --color-danger-foreground: #ffffff;
   --color-info-surface: #eff6ff;
+  /* Email previews retain an inbox-like light canvas in either app theme. */
+  --color-message-preview-surface: #ffffff;
+  --color-message-preview-text: #0f172a;
+  --color-message-preview-link: #1e40af;
   --color-success: #16a34a;
   --color-shadow: rgb(0 0 0 / 10%);
 

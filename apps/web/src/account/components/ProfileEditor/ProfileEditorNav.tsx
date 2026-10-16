@@ -3,6 +3,7 @@ import { TabsList, TabsTrigger } from "@choir/ui";
 import type { ProfileTab } from "./types";
 
 export interface ProfileEditorNavProps {
+  readonly dirtySections: Readonly<Record<ProfileTab, boolean>>;
   readonly editingId: string | null;
   readonly onValueChange: (tab: ProfileTab) => void;
   readonly value: ProfileTab;
@@ -155,7 +156,12 @@ function isProfileTab(value: string): value is ProfileTab {
   return VALID_PROFILE_TABS.has(value);
 }
 
-export function ProfileEditorNav({ editingId, onValueChange, value }: ProfileEditorNavProps) {
+export function ProfileEditorNav({
+  dirtySections,
+  editingId,
+  onValueChange,
+  value,
+}: ProfileEditorNavProps) {
   const sections = editingId ? ALL_SECTIONS : ALL_SECTIONS.slice(0, 2);
 
   return (
@@ -180,6 +186,7 @@ export function ProfileEditorNav({ editingId, onValueChange, value }: ProfileEdi
           {sections.map((section) => (
             <option key={section.id} value={section.id}>
               {section.label}
+              {dirtySections[section.id] ? " — Unsaved changes" : ""}
             </option>
           ))}
         </select>
@@ -194,6 +201,9 @@ export function ProfileEditorNav({ editingId, onValueChange, value }: ProfileEdi
             const isActive = value === section.id;
             return (
               <TabsTrigger
+                aria-describedby={
+                  dirtySections[section.id] ? `roster-profile-${section.id}-unsaved` : undefined
+                }
                 aria-controls={`roster-profile-${section.id}-panel`}
                 className={`profile-editor__rail-trigger ${isActive ? "is-active" : ""}`}
                 id={`roster-profile-${section.id}-tab`}
@@ -202,8 +212,15 @@ export function ProfileEditorNav({ editingId, onValueChange, value }: ProfileEdi
               >
                 <Icon className="profile-editor__rail-icon" />
                 <span className="profile-editor__rail-label">{section.label}</span>
-                {isActive ? (
-                  <span aria-hidden="true" className="profile-editor__rail-active-dot" />
+                {dirtySections[section.id] ? (
+                  <span
+                    aria-hidden="true"
+                    className="profile-editor__rail-unsaved"
+                    id={`roster-profile-${section.id}-unsaved`}
+                  >
+                    <span className="profile-editor__rail-unsaved-dot" />
+                    Unsaved
+                  </span>
                 ) : null}
               </TabsTrigger>
             );

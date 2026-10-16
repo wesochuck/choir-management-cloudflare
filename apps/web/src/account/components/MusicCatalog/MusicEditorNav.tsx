@@ -1,13 +1,16 @@
 import { TabsList, TabsTrigger } from "@choir/ui";
+import { EditorUnsavedIndicator } from "../EditorUnsavedIndicator";
 import type { MusicEditorTab } from "./utils";
 
 export function MusicEditorNav({
+  dirtySections,
   value,
   onChange,
   saved,
   isMovement,
   movementCount,
 }: {
+  readonly dirtySections: Readonly<Record<MusicEditorTab, boolean>>;
   readonly value: MusicEditorTab;
   readonly onChange: (tab: MusicEditorTab) => void;
   readonly saved: boolean;
@@ -47,6 +50,7 @@ export function MusicEditorNav({
           {sections.map(({ id, label, disabled }) => (
             <option disabled={disabled} key={id} value={id}>
               {label}
+              {dirtySections[id] ? " — Unsaved changes" : ""}
             </option>
           ))}
         </select>
@@ -56,13 +60,17 @@ export function MusicEditorNav({
           {sections.map(({ id, label, disabled }) => (
             <TabsTrigger
               aria-controls={`music-piece-${id}`}
+              aria-describedby={dirtySections[id] ? `music-piece-${id}-unsaved` : undefined}
               className="music-editor-rail__tab"
               disabled={disabled}
               id={`music-piece-${id}-tab`}
               key={id}
               value={id}
             >
-              {label}
+              <span>{label}</span>
+              {dirtySections[id] ? (
+                <EditorUnsavedIndicator id={`music-piece-${id}-unsaved`} />
+              ) : null}
             </TabsTrigger>
           ))}
         </TabsList>

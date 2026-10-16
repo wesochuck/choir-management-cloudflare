@@ -377,6 +377,35 @@ export function TemplatesPanel() {
   const [success, setSuccess] = useState<string | null>(null);
   const { confirm, confirmationDialog } = useConfirmation();
 
+  const [linkedTemplateId] = useState(() =>
+    new URLSearchParams(window.location.search).get("templateId"),
+  );
+  useEffect(() => {
+    if (!linkedTemplateId) return;
+    const controller = new AbortController();
+    // The existing bounded template-list endpoint includes the protected system templates.
+    // Resolve directly from that list rather than depending on the visible pagination page.
+    void listOrganizationCommunicationTemplates(controller.signal)
+      .then((items) => {
+        if (controller.signal.aborted) return;
+        const template = items.find((item) => item.id === linkedTemplateId);
+        if (!template) {
+          setError("This template is unavailable. Choose a template from the list below.");
+          return;
+        }
+        setEditingTemplate(template);
+        setEditingTitle(template.title);
+        setEditingSubject(template.subject);
+        setEditingContent(template.contentMarkdown);
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) setError(failureMessage(error));
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [linkedTemplateId]);
+
   const loadPage = useCallback(async (cursor: string | null, signal?: AbortSignal) => {
     if (cursor !== null) {
       setLoadingTemplates(true);

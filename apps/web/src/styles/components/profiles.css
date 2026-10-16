@@ -508,6 +508,7 @@
 /* === Redesigned Profile Editor Modal === */
 
 .dialog--profile-editor {
+  --profile-editor-accent-text: color-mix(in srgb, var(--color-accent) 75%, var(--color-text));
   width: min(72rem, calc(100% - 2rem));
   max-width: min(72rem, calc(100% - 2rem));
   height: min(90dvh, 56rem);
@@ -580,7 +581,7 @@
 
 .profile-editor-header__avatar--initials {
   background: color-mix(in srgb, var(--color-accent) 15%, var(--color-surface));
-  color: var(--color-accent);
+  color: var(--profile-editor-accent-text);
   border: 1px solid color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
 }
 
@@ -731,16 +732,31 @@
 .profile-editor__rail-trigger.is-active,
 .profile-editor__rail-trigger[data-state="active"] {
   background: color-mix(in srgb, var(--color-accent) 12%, transparent);
-  color: var(--color-accent);
+  color: var(--profile-editor-accent-text);
   font-weight: var(--font-weight-semibold);
 }
 
-.profile-editor__rail-active-dot {
+.profile-editor__rail-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-editor__rail-unsaved {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-3xs);
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--profile-editor-accent-text);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.profile-editor__rail-unsaved-dot {
   width: 6px;
   height: 6px;
   border-radius: var(--radius-full);
   background: var(--color-accent);
-  margin-left: auto;
   flex-shrink: 0;
 }
 
@@ -980,7 +996,7 @@
 
 .profile-setting-row__description {
   font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
+  color: color-mix(in srgb, var(--color-text-muted) 90%, var(--color-text));
   line-height: var(--line-height-normal);
 }
 
@@ -1102,7 +1118,7 @@
 }
 
 .profile-editor-footer__status--dirty {
-  color: var(--color-accent);
+  color: var(--profile-editor-accent-text);
   font-weight: var(--font-weight-medium);
 }
 
@@ -1123,7 +1139,7 @@
 }
 
 .profile-editor-footer__dot--dirty {
-  background-color: var(--color-accent);
+  background-color: var(--profile-editor-accent-text);
 }
 
 .profile-editor-footer__dot--busy {

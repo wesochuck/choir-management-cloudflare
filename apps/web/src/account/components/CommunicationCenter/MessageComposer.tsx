@@ -14,7 +14,7 @@ import {
   type CommunicationPlaceholderDefinition,
 } from "@choir/domain";
 import { useConfirmation } from "@choir/ui";
-import { useRef, useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import {
   communicationPreviewValues,
   populateCommunicationPreview,
@@ -52,6 +52,13 @@ interface MessageComposerProps {
   readonly subject: string;
   readonly timezone: string | null;
   readonly templates: readonly CommunicationTemplate[];
+}
+
+function handlePlaceholderKeyDown(event: KeyboardEvent<HTMLDetailsElement>): void {
+  if (event.key !== "Escape") return;
+  event.preventDefault();
+  event.currentTarget.open = false;
+  event.currentTarget.querySelector("summary")?.focus();
 }
 
 function replaceSelection(
@@ -417,6 +424,8 @@ export function MessageComposer({
   subject,
   templates,
 }: MessageComposerProps) {
+  const [previewSize, setPreviewSize] = useState<"desktop" | "mobile">("desktop");
+  const placeholderPickerRef = useRef<HTMLDetailsElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const { confirm, confirmationDialog } = useConfirmation();
@@ -450,6 +459,11 @@ export function MessageComposer({
   function insert(replacement: string) {
     if (!textareaRef.current) return;
     insertAtSelection(textareaRef.current, contentMarkdown, replacement, onContentChange);
+  }
+
+  function insertPlaceholder(tag: string): void {
+    insert(tag);
+    if (placeholderPickerRef.current) placeholderPickerRef.current.open = false;
   }
 
   function insertListItem() {
@@ -515,51 +529,49 @@ export function MessageComposer({
         onToggleRecipientsExpanded={onToggleRecipientsExpanded}
       />
 
-      {/* 3. Optional Template Selector */}
-      <div className="communication-composer-template-bar">
-        <div className="field">
-          <label htmlFor="communication-template-select">Template</label>
-          <select
-            id="communication-template-select"
-            onChange={(e) => void handleTemplateSelect(e.target.value)}
-            value={selectedTemplateId}
-          >
-            <option value="">No template</option>
-            {availableTemplates.map((template) => (
-              <option key={template.id} value={template.id}>
-                {template.title} ({template.channel})
-              </option>
-            ))}
-          </select>
-          {availableTemplates.length === 0 ? (
-            <p className="field-help">
-              No custom templates match these recipients and delivery channel.
-            </p>
-          ) : null}
-        </div>
-      </div>
-
-      {/* 4. Subject Field (for Email and Both) */}
-      {channel !== "SMS" ? (
-        <div className="field">
-          <label htmlFor="communication-subject">Subject</label>
-          <input
-            id="communication-subject"
-            maxLength={300}
-            onChange={(e) => {
-              onSubjectChange(e.target.value);
-            }}
-            placeholder="Subject line…"
-            required
-            value={subject}
-          />
-        </div>
-      ) : null}
-
-      {/* 5. 2-Column Composer (Editor on Left, Live Preview on Right) */}
       <div className="communication-composer-two-column">
-        {/* Left Column: Editor & Personalization */}
         <div className="communication-composer-editor-col">
+          {/* 3. Optional Template Selector */}
+          <div className="communication-composer-template-bar">
+            <div className="field">
+              <label htmlFor="communication-template-select">Template</label>
+              <select
+                id="communication-template-select"
+                onChange={(e) => void handleTemplateSelect(e.target.value)}
+                value={selectedTemplateId}
+              >
+                <option value="">No template</option>
+                {availableTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.title} ({template.channel})
+                  </option>
+                ))}
+              </select>
+              {availableTemplates.length === 0 ? (
+                <p className="field-help">
+                  No custom templates match these recipients and delivery channel.
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          {/* 4. Subject Field (for Email and Both) */}
+          {channel !== "SMS" ? (
+            <div className="field">
+              <label htmlFor="communication-subject">Subject</label>
+              <input
+                id="communication-subject"
+                maxLength={300}
+                onChange={(e) => {
+                  onSubjectChange(e.target.value);
+                }}
+                placeholder="Subject line…"
+                required
+                value={subject}
+              />
+            </div>
+          ) : null}
+
           <div className="field">
             <label htmlFor="communication-body-textarea">Message</label>
             <div aria-label="Formatting tools" className="communication-composer__toolbar">
@@ -608,6 +620,24 @@ export function MessageComposer({
               >
                 H
               </button>
+              <details
+                className="communication-insert-placeholder"
+                onKeyDown={handlePlaceholderKeyDown}
+                ref={placeholderPickerRef}
+              >
+                <summary>Insert placeholder</summary>
+                <div className="communication-insert-placeholder__panel">
+                  <PersonalizeSection
+                    audience={audience}
+                    events={events}
+                    needsEvent={needsEvent}
+                    onInsert={insertPlaceholder}
+                    onUpdateAudience={onUpdateAudience}
+                    placeholderGroups={placeholderGroups}
+                    selectedEvent={selectedEvent}
+                  />
+                </div>
+              </details>
             </div>
             <textarea
               aria-label="Message body"
@@ -627,39 +657,44 @@ export function MessageComposer({
               Markdown formatting is supported. Use the live preview to verify how it will look.
             </p>
           </div>
-
-          <PersonalizeSection
-            audience={audience}
-            events={events}
-            needsEvent={needsEvent}
-            onInsert={insert}
-            onUpdateAudience={onUpdateAudience}
-            placeholderGroups={placeholderGroups}
-            selectedEvent={selectedEvent}
-          />
         </div>
 
         {/* Right Column: Live Formatted Preview */}
         <div className="communication-composer-preview-col">
           <div className="preview-card">
             <div className="preview-card__header">
-              <h4>Live preview</h4>
-              <span className="field-help">
-                {channel === "SMS" ? "SMS preview" : "Email preview"}
-              </span>
-            </div>
-            {subject && channel !== "SMS" ? (
-              <div className="preview-subject">
-                <strong>Subject:</strong> {populateCommunicationPreview(subject, previewValues)}
+              <h3>Message preview</h3>
+              <div aria-label="Preview size" className="communication-preview-sizes" role="group">
+                {(["desktop", "mobile"] as const).map((size) => (
+                  <button
+                    aria-pressed={previewSize === size}
+                    className="button button--secondary button--control-height"
+                    key={size}
+                    onClick={() => {
+                      setPreviewSize(size);
+                    }}
+                    type="button"
+                  >
+                    {size === "desktop" ? "Desktop" : "Mobile"}
+                  </button>
+                ))}
               </div>
-            ) : null}
-            <div
-              aria-label="Live formatted message preview"
-              className="communication-composer__preview preview-body"
-              dangerouslySetInnerHTML={{
-                __html: renderCommunicationMarkdownPreview(contentMarkdown, previewValues),
-              }}
-            />
+            </div>
+            <p className="field-help preview-sample-recipient">Sample recipient: Alex Morgan</p>
+            <div className="communication-preview-canvas" data-preview-size={previewSize}>
+              {subject && channel !== "SMS" ? (
+                <div className="preview-subject">
+                  <strong>Subject:</strong> {populateCommunicationPreview(subject, previewValues)}
+                </div>
+              ) : null}
+              <div
+                aria-label="Live formatted message preview"
+                className="communication-composer__preview preview-body"
+                dangerouslySetInnerHTML={{
+                  __html: renderCommunicationMarkdownPreview(contentMarkdown, previewValues),
+                }}
+              />
+            </div>
             <p className="field-help preview-footer-note">
               Preview uses a sample recipient. Event values come from the selected event.
             </p>

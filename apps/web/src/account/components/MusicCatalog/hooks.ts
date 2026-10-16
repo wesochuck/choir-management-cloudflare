@@ -90,6 +90,7 @@ export function useMusicCatalogController({
     confirmationDialog: editor.confirmationDialog,
     editorBodyRef: editor.editorBodyRef,
     editorDirty: editor.editorDirty,
+    editorDirtySections: editor.editorDirtySections,
     openMovement: editor.openMovement,
     parentEditorTitle: editor.parentEditorTitle,
     addSelectedPiecesToSetList: bulk.addSelectedPiecesToSetList,

@@ -77,10 +77,12 @@ export function EventList({
         header: "Event",
         id: "event",
         render: (candidate) => (
-          <div>
-            <strong>{candidate.title}</strong>
-            <small className="table-secondary">{candidate.type}</small>
-            {candidate.isCanceled ? <span className="status-pill">Canceled</span> : null}
+          <div className="event-list__identity flex items-center gap-(--spacing-sm)">
+            <div className="min-w-0 flex-1">
+              <strong className="wrap-anywhere">{candidate.title}</strong>
+              <small className="table-secondary">{candidate.type}</small>
+            </div>
+            {candidate.isCanceled ? <span className="status-pill shrink-0">Canceled</span> : null}
           </div>
         ),
         sortValue: (candidate) => candidate.title,

@@ -189,6 +189,98 @@ describe("EventEditorDialog section layout", () => {
     expect(screen.getByLabelText("Public details")).toBeInTheDocument();
   });
 
+  it("attributes unsaved edits to sections, preserves markers across navigation, and clears reverted edits", async () => {
+    const user = userEvent.setup();
+    const baseline = {
+      ...emptyEvent,
+      type: "Performance" as const,
+      title: "Concert",
+      venueId: venueHall.id,
+    };
+    const editor = (event: OrganizationEventRequest, graphicFile: File | null = null) => (
+      <EventEditorDialog
+        busy={false}
+        dialogOpen
+        editingId="event-1"
+        error={null}
+        event={event}
+        eventStart="2026-11-15T15:00"
+        graphicFile={graphicFile}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />
+    );
+    const { rerender } = render(editor(baseline));
+    const basics = screen.getByRole("tab", { name: /Basics/ });
+    const schedule = screen.getByRole("tab", { name: /Schedule & venue/ });
+    const publicTab = screen.getByRole("tab", { name: /Public content/ });
+    expect(basics).not.toHaveAccessibleDescription();
+    rerender(editor({ ...baseline, title: "Edited concert" }));
+    expect(basics).toHaveAccessibleDescription("Unsaved");
+    expect(schedule).not.toHaveAccessibleDescription();
+    await user.click(schedule);
+    expect(schedule).toHaveAttribute("aria-selected", "true");
+    expect(schedule).not.toHaveAccessibleDescription();
+    expect(basics).toHaveAccessibleDescription("Unsaved");
+    expect(screen.getByRole("option", { name: /01 Basics — Unsaved changes/ })).toBeInTheDocument();
+    rerender(editor({ ...baseline, publicDetails: "Public draft" }));
+    expect(basics).not.toHaveAccessibleDescription();
+    expect(publicTab).toHaveAccessibleDescription("Unsaved");
+    rerender(editor(baseline, new File(["graphic"], "poster.png", { type: "image/png" })));
+    expect(publicTab).toHaveAccessibleDescription("Unsaved");
+    rerender(editor(baseline));
+    expect(publicTab).not.toHaveAccessibleDescription();
+    expect(screen.queryByText("Unsaved", { exact: true })).not.toBeInTheDocument();
+  });
+
+  it("marks ticket price drafts even before they produce a changed event value", async () => {
+    const user = userEvent.setup();
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen
+        editingId="event-1"
+        error={null}
+        event={{
+          ...emptyEvent,
+          type: "Performance",
+          title: "Concert",
+          isTicketingEnabled: true,
+          venueId: venueHall.id,
+        }}
+        eventStart="2026-11-15T15:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+    await switchToSection(/Ticket sales/);
+    const price = screen.getByLabelText("Advance price (USD)");
+    const original = price instanceof HTMLInputElement ? price.value : "";
+    await user.clear(price);
+    await user.type(price, "12.34");
+    expect(screen.getByRole("tab", { name: /Ticket sales/ })).toHaveAccessibleDescription(
+      "Unsaved",
+    );
+    await switchToSection(/Schedule & venue/);
+    expect(screen.getByRole("tab", { name: /Schedule & venue/ })).not.toHaveAccessibleDescription();
+    expect(screen.getByRole("tab", { name: /Ticket sales/ })).toHaveAccessibleDescription(
+      "Unsaved",
+    );
+    await switchToSection(/Ticket sales/);
+    await user.clear(screen.getByLabelText("Advance price (USD)"));
+    await user.type(screen.getByLabelText("Advance price (USD)"), original);
+    expect(screen.getByRole("tab", { name: /Ticket sales/ })).not.toHaveAccessibleDescription();
+  });
+
   it("blocks save with missing venue and jumps to Schedule with first-invalid focus", async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();

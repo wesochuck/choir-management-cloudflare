@@ -34,6 +34,7 @@ export function MusicCatalogView({
     confirmationDialog,
     editorBodyRef,
     editorDirty,
+    editorDirtySections,
     openMovement,
     parentEditorTitle,
     addSelectedPiecesToSetList,
@@ -452,6 +453,7 @@ export function MusicCatalogView({
                 value={editorTab}
               >
                 <MusicEditorNav
+                  dirtySections={editorDirtySections}
                   value={editorTab}
                   onChange={setEditorTab}
                   saved={Boolean(selectedPiece)}

@@ -136,6 +136,43 @@ describe("ProfileEditorDialog photo save coordination", () => {
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
   });
 
+  it("marks only changed sections, keeps markers across navigation, and clears reverted edits", async () => {
+    const user = userEvent.setup();
+    render(<ProfileEditorHarness />);
+    await user.click(screen.getByRole("button", { name: "Open Editor" }));
+
+    const infoTab = screen.getByRole("tab", { name: "Profile info" });
+    const emailTab = screen.getByRole("tab", { name: "Email & notifications" });
+    const foldersTab = screen.getByRole("tab", { name: "Folder numbers" });
+    expect(infoTab).toHaveAttribute("aria-selected", "true");
+    expect(infoTab).not.toHaveAccessibleDescription();
+    expect(screen.queryByText("Unsaved", { exact: true })).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Display name"), " edited");
+    expect(infoTab).toHaveAccessibleDescription("Unsaved");
+    expect(emailTab).not.toHaveAccessibleDescription();
+    expect(
+      screen.getByRole("option", { name: "Profile info — Unsaved changes" }),
+    ).toBeInTheDocument();
+
+    await user.click(emailTab);
+    expect(emailTab).toHaveAttribute("aria-selected", "true");
+    expect(emailTab).not.toHaveAccessibleDescription();
+    expect(infoTab).toHaveAccessibleDescription("Unsaved");
+    await user.click(screen.getByRole("switch", { name: "Do not email" }));
+    expect(emailTab).toHaveAccessibleDescription("Unsaved");
+    expect(foldersTab).not.toHaveAccessibleDescription();
+
+    await user.click(screen.getByRole("switch", { name: "Do not email" }));
+    expect(emailTab).not.toHaveAccessibleDescription();
+    await user.click(infoTab);
+    await user.clear(screen.getByLabelText("Display name"));
+    await user.type(screen.getByLabelText("Display name"), sampleProfile.displayName);
+    expect(infoTab).not.toHaveAccessibleDescription();
+    expect(screen.queryByText("Unsaved", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByText("No unsaved changes")).toBeInTheDocument();
+  });
+
   it("enables main save when photo is staged, preserves photo across tab switches, and saves both", async () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();
@@ -156,6 +193,9 @@ describe("ProfileEditorDialog photo save coordination", () => {
     await user.upload(fileInput, chosenFile);
 
     expect(screen.getByText("Ready to upload: chosen-photo.jpg")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Profile info" })).toHaveAccessibleDescription(
+      "Unsaved",
+    );
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
 
     // Switch to Email & notifications tab
@@ -164,6 +204,9 @@ describe("ProfileEditorDialog photo save coordination", () => {
 
     // Info tab is hidden but mounted (forceMount)
     expect(screen.getByText("Ready to upload: chosen-photo.jpg")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Profile info" })).toHaveAccessibleDescription(
+      "Unsaved",
+    );
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
 
     // Submit form via main Save button
@@ -320,6 +363,8 @@ describe("ProfileEditorDialog photo save coordination", () => {
     expect(returnedCheckbox).not.toBeChecked();
     await user.click(returnedCheckbox);
     expect(returnedCheckbox).toBeChecked();
+    expect(foldersTab).toHaveAccessibleDescription("Unsaved");
+    expect(screen.getByRole("tab", { name: "Profile info" })).not.toHaveAccessibleDescription();
 
     // Dirty: State shows Unsaved changes and Save Profile button lights up (enabled)
     expect(screen.getByText("Unsaved changes")).toBeInTheDocument();

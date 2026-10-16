@@ -169,7 +169,7 @@ export function CommunicationCenterView({
       ) : null}
 
       {/* Main Section Content */}
-      <main className="communication-main-content">
+      <div className="communication-main-content">
         {activeSection === "messages" ? (
           messageMode === "compose" ? (
             <div className="communication-compose-container">
@@ -258,7 +258,7 @@ export function CommunicationCenterView({
             providerStatus={providerStatus}
           />
         ) : null}
-      </main>
+      </div>
 
       {/* Global Dialogs */}
       <CommunicationReviewDialog

@@ -143,22 +143,14 @@ function CollapsedRecipientSummary({
   return (
     <div className="communication-recipient-summary">
       <div className="communication-recipient-summary__info">
-        <div className="summary-row">
-          <span className="summary-label">To</span>
-          <span className="summary-value">
-            <strong>{recipientSummary}</strong>
-            {filterSummary ? ` · ${filterSummary}` : ""}
-            {selectedEvent ? ` · ${selectedEvent.title}` : ""}
-          </span>
-        </div>
-        <div className="summary-row">
-          <span className="summary-label">Via</span>
-          <span className="summary-value">{channel}</span>
-        </div>
-        <div aria-live="polite" className="summary-row" role="status">
-          <span className="summary-label">Reach</span>
-          <span className="summary-value">{reachDisplay}</span>
-        </div>
+        <p className="summary-value">
+          <strong>To: {recipientSummary}</strong>
+          {filterSummary ? ` · ${filterSummary}` : ""}
+          {` · ${channel} · ${selectedEvent?.title ?? "No event"}`}
+        </p>
+        <p aria-live="polite" className="summary-value" role="status">
+          {reachDisplay}
+        </p>
       </div>
       <button
         className="button button--secondary button--sm"

@@ -198,8 +198,9 @@ export function RosterAutomationSettings({ enabled }: Props) {
               </label>
               <div className="settings-grid">
                 <label className="field" htmlFor="status-automation-threshold">
-                  <span>Consecutive missed Performances</span>
+                  <span>Missed Performances before changing Active to Inactive</span>
                   <NumberInput
+                    aria-describedby="status-automation-threshold-help"
                     id="status-automation-threshold"
                     max="10"
                     min="1"
@@ -216,6 +217,14 @@ export function RosterAutomationSettings({ enabled }: Props) {
                   />
                 </label>
               </div>
+              <p className="field-help" id="status-automation-threshold-help">
+                When enabled, an automatically managed Active performer becomes Inactive after{" "}
+                {configuration.statusAutomationMissThreshold} consecutive missed Performance
+                {configuration.statusAutomationMissThreshold === 1 ? "" : "s"}. A miss means Absent
+                attendance, or an RSVP of No unless attendance is Present. Only ended Performances
+                count; canceled and archived Performances are excluded. Manually managed Profiles
+                are exempt.
+              </p>
               <label className="choice-field">
                 <input
                   checked={configuration.statusAutomationRecoveryEnabled}
@@ -287,7 +296,9 @@ export function RosterAutomationSettings({ enabled }: Props) {
             </fieldset>
 
             <fieldset className="roster-automation__card">
-              <legend className="roster-automation__legend">Pending RSVP follow-up</legend>
+              <legend className="roster-automation__legend">
+                RSVP follow-up &amp; attendance reports
+              </legend>
               <label className="choice-field">
                 <input
                   checked={configuration.rsvpFollowUpEnabled}
@@ -301,6 +312,17 @@ export function RosterAutomationSettings({ enabled }: Props) {
                 />
                 <span className="choice-field__content">Send the pending RSVP follow-up email</span>
               </label>
+              <p className="field-help">
+                <a
+                  className="text-primary-strong underline underline-offset-2"
+                  href="/admin/communications?tab=templates&templateId=5f0ca4a5-7e4c-4e1a-9a1c-000000000015"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Edit pending RSVP follow-up template
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </a>
+              </p>
               <label className="field" htmlFor="rsvp-follow-up-lead-hours">
                 <span>Hours before the RSVP deadline</span>
                 <NumberInput
@@ -322,6 +344,7 @@ export function RosterAutomationSettings({ enabled }: Props) {
               <label className="field" htmlFor="attendance-report-warning-threshold">
                 <span>Rehearsal misses before an attendance warning</span>
                 <NumberInput
+                  aria-describedby="attendance-report-warning-help"
                   id="attendance-report-warning-threshold"
                   max="10"
                   min="1"
@@ -337,6 +360,22 @@ export function RosterAutomationSettings({ enabled }: Props) {
                   value={configuration.attendanceReportWarningThreshold}
                 />
               </label>
+              <p className="field-help" id="attendance-report-warning-help">
+                Performers who miss at least {configuration.attendanceReportWarningThreshold} linked
+                Rehearsal{configuration.attendanceReportWarningThreshold === 1 ? "" : "s"} are
+                flagged in the Attendance Report. This warning does not change Profile Status.
+              </p>
+              <p className="field-help">
+                <a
+                  className="text-primary-strong underline underline-offset-2"
+                  href="/admin/communications?tab=templates&templateId=5f0ca4a5-7e4c-4e1a-9a1c-000000000016"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Edit Attendance Report template
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </a>
+              </p>
             </fieldset>
           </div>
           <RosterAutomationLivePreview

@@ -1,5 +1,6 @@
+import AxeBuilder from "@axe-core/playwright";
 import { futureIsoDate } from "@choir/testkit";
-import { expect, test, type Route } from "@playwright/test";
+import { expect, test, type Page, type Route } from "@playwright/test";
 
 const requestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const organizationId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -285,6 +286,12 @@ async function handleRoute(
   );
 }
 
+async function editRecipients(page: Page): Promise<void> {
+  if (!(await page.getByRole("button", { name: "Done editing", exact: true }).isVisible())) {
+    await page.getByRole("button", { name: "Edit recipients", exact: true }).click();
+  }
+}
+
 test("preserves all selected audiences and automatically computes reach preview", async ({
   page,
 }) => {
@@ -297,6 +304,7 @@ test("preserves all selected audiences and automatically computes reach preview"
     "page",
   );
 
+  await editRecipients(page);
   const recipientPanel = page.locator(".communication-recipient-panel");
   const ticketBuyers = recipientPanel.getByRole("checkbox", { name: "Ticket Buyers" });
   const donors = recipientPanel.getByRole("checkbox", { name: "Donors" });
@@ -330,6 +338,7 @@ test("reviews and queues an event-specific ticket-holder service notice", async 
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies, sendBodies));
 
   await page.goto("/admin/communications?tab=compose");
+  await editRecipients(page);
   const recipientPanel = page.locator(".communication-recipient-panel");
   const subject = page.getByLabel("Subject");
   const body = page.getByRole("textbox", { name: "Message body" });
@@ -410,6 +419,7 @@ test.describe("Organization timezone previews", () => {
     await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
 
     await page.goto("/admin/communications?tab=compose");
+    await editRecipients(page);
     await page.getByLabel("Event (optional)").selectOption(eventId);
 
     const message = page.getByRole("textbox", { name: "Message body" });
@@ -447,7 +457,9 @@ test("uses the same recipient name placeholder for ticket buyers and mixed audie
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
 
   await page.goto("/admin/communications?tab=compose");
+  await editRecipients(page);
   const recipientPanel = page.locator(".communication-recipient-panel");
+  await page.getByText("Insert placeholder", { exact: true }).click();
   const personalize = page.getByRole("region", { name: "Personalize message" });
   const recipientButton = personalize.getByRole("button", {
     name: "{recipientName} Recipient name",
@@ -727,6 +739,7 @@ test("shows conflict warning when audience becomes incompatible with placeholder
   await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
 
   await page.goto("/admin/communications?tab=compose");
+  await editRecipients(page);
   await page.getByLabel("Event (optional)").selectOption(eventId);
 
   const message = page.getByRole("textbox", { name: "Message body" });
@@ -736,6 +749,7 @@ test("shows conflict warning when audience becomes incompatible with placeholder
   await expect(page.locator(".communication-conflict-banner")).toHaveCount(0);
 
   // Add Ticket Buyers to audience
+  await editRecipients(page);
   const recipientPanel = page.locator(".communication-recipient-panel");
   await recipientPanel.getByRole("checkbox", { name: "Ticket Buyers" }).click();
 
@@ -779,6 +793,34 @@ test("searches and filters the template list in the dedicated Templates panel", 
   await page.getByLabel("Channel").selectOption("SMS");
   await expect(templateList.getByText("Text reminder", { exact: true })).toBeVisible();
   await expect(templateList.getByText("First template", { exact: true })).toHaveCount(0);
+});
+
+test("opens an automation template directly from its settings link", async ({ page }) => {
+  await page.route("**/api/**", (route) => handleRoute(route, []));
+  const templateId = "5f0ca4a5-7e4c-4e1a-9a1c-000000000016";
+  await page.route("**/api/organization/communications/templates*", async (route) => {
+    await fulfillJson(route, {
+      requestId,
+      nextCursor: null,
+      templates: [
+        {
+          id: templateId,
+          title: "Attendance Report",
+          channel: "Email",
+          isSystem: true,
+          subject: "Attendance report: {eventTitle}",
+          contentMarkdown: "{thresholdWarningsSection}",
+          createdAt: "2026-01-01T00:00:00Z",
+          updatedAt: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+  });
+  await page.goto(`/admin/communications?tab=templates&templateId=${templateId}`);
+  const dialog = page.getByRole("dialog", { name: "Edit template wording" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel("Subject")).toHaveValue("Attendance report: {eventTitle}");
+  await expect(dialog.getByRole("button", { name: "Reset to system default" })).toBeVisible();
 });
 
 test("hides delivery mode notice banner in production", async ({ page }) => {
@@ -1111,4 +1153,98 @@ test("shows upcoming automation previews in both themes without viewport overflo
       fullPage: true,
     });
   }
+});
+
+test("wide composer keeps recipient summary, writing, and preview together", async ({
+  page,
+}, testInfo) => {
+  if (!testInfo.project.name.includes("mobile")) {
+    await page.setViewportSize({ width: 1920, height: 1248 });
+  }
+  const previewBodies: unknown[] = [];
+  await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
+  await page.goto("/admin/communications?tab=compose");
+  await expect(page.getByRole("button", { name: "Edit recipients", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Delivery channel", { exact: true })).toHaveCount(0);
+  const message = page.getByRole("textbox", { name: "Message body" });
+  await page.getByLabel("Subject", { exact: true }).fill("A few notes before our next rehearsal");
+  await message.fill(
+    "Hi {recipientName},\n\nJust a few notes before our next rehearsal:\n\n- Please arrive 10 minutes early to settle in.\n- Bring your music folder and a pencil.\n- We’ll be working on **Gloria** and **Sure on This Shining Night**.\n\nLooking forward to seeing you there!\n\n— The Choir Team",
+  );
+  const placeholderToggle = page.getByText("Insert placeholder", { exact: true });
+  await placeholderToggle.focus();
+  await placeholderToggle.press("Enter");
+  await expect(page.getByRole("region", { name: "Personalize message" })).toBeVisible();
+  await placeholderToggle.press("Escape");
+  await expect(page.getByRole("region", { name: "Personalize message" })).toHaveCount(0);
+  await expect(placeholderToggle).toBeFocused();
+  const preview = page.getByLabel("Live formatted message preview");
+  await expect(preview).toContainText("Hi Alex Morgan,");
+  await expect(preview.locator("strong").first()).toHaveText("Gloria");
+  const canvas = page.locator(".communication-preview-canvas");
+  await page.getByRole("button", { name: "Mobile", exact: true }).click();
+  await expect(canvas).toHaveAttribute("data-preview-size", "mobile");
+  await page.getByRole("button", { name: "Desktop", exact: true }).click();
+  await expect(canvas).toHaveAttribute("data-preview-size", "desktop");
+
+  for (const theme of ["light", "dark"] as const) {
+    const toggle = page.getByRole("button", { name: `Switch to ${theme} theme`, exact: true });
+    if (await toggle.isVisible()) await toggle.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await expect(page.locator("body")).toHaveJSProperty(
+      "scrollWidth",
+      await page.locator("body").evaluate((node) => node.clientWidth),
+    );
+    if (!testInfo.project.name.includes("mobile")) {
+      const editorBox = await page.locator(".communication-composer-editor-col").boundingBox();
+      const previewBox = await page.locator(".communication-composer-preview-col").boundingBox();
+      expect(editorBox).not.toBeNull();
+      expect(previewBox).not.toBeNull();
+      if (!editorBox || !previewBox) throw new Error("Composer columns are missing");
+      expect(Math.abs(editorBox.y - previewBox.y)).toBeLessThan(2);
+      expect(previewBox.x).toBeGreaterThan(editorBox.x + editorBox.width);
+      expect(previewBox.y).toBeLessThan(650);
+      const mainWidth = await page
+        .locator(".communication-main-content")
+        .evaluate((node) => node.clientWidth);
+      const centerWidth = await page
+        .locator(".communication-center")
+        .evaluate((node) => node.clientWidth);
+      expect(mainWidth).toBeGreaterThan(centerWidth - 2);
+    }
+    await page.evaluate(() => {
+      window.scrollTo(0, 0);
+    });
+    await page.locator(".communication-workspace").evaluate(async (node) => {
+      await Promise.allSettled(
+        node.getAnimations({ subtree: true }).map((animation) => animation.finished),
+      );
+    });
+    const results = await new AxeBuilder({ page })
+      .include(".communication-workspace")
+      .withTags(["wcag2a", "wcag2aa"])
+      .analyze();
+    expect(
+      results.violations.filter(
+        (violation) => violation.impact === "serious" || violation.impact === "critical",
+      ),
+    ).toEqual([]);
+    const screenshotPath = testInfo.outputPath(`wide-composer-${theme}.png`);
+    if (testInfo.project.name.includes("mobile")) {
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    } else {
+      await page.locator(".signed-in-main").screenshot({ path: screenshotPath });
+    }
+  }
+  await editRecipients(page);
+  await page.getByLabel("Delivery channel", { exact: true }).selectOption("SMS");
+  await page.getByRole("button", { name: "Done editing", exact: true }).click();
+  await expect(page.getByLabel("Subject", { exact: true })).toHaveCount(0);
+  await expect(message).toHaveValue(/Hi \{recipientName\}/);
+  await expect(page.locator(".communication-recipient-summary")).toContainText("SMS");
+  await editRecipients(page);
+  await page.getByLabel("Delivery channel", { exact: true }).selectOption("Email");
+  await page.getByRole("button", { name: "Done editing", exact: true }).click();
+  await page.getByRole("button", { name: "Review & send", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Review message" })).toBeVisible();
 });

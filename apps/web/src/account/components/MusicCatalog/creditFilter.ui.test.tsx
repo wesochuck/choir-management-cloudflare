@@ -27,6 +27,13 @@ function mockCatalogModel(overrides: Partial<MusicCatalogModel> = {}): MusicCata
     confirmationDialog: null,
     editorBodyRef: { current: null },
     editorDirty: false,
+    editorDirtySections: {
+      details: false,
+      movements: false,
+      tracks: false,
+      scores: false,
+      performances: false,
+    },
     openMovement: vi.fn(),
     parentEditorTitle: null,
     addSelectedPiecesToSetList: vi.fn(),

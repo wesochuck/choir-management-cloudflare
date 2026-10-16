@@ -77,3 +77,87 @@ None required for this flow. The generated source does not specify empty works o
 existing product patterns.
 
 final result: passed
+
+---
+
+# Communications composer visual QA
+
+Date: October 16, 2026. Selected target: first displayed Communications mockup.
+
+## Evidence and normalization
+
+- Source:
+  `/Users/wesosborn/.codex/generated_images/01a1461b-7294-79e0-9de8-dee1a4afa32c/exec-ad625b1c-cc84-42ea-8fea-c3e000635123.png`
+  (1606 × 979 pixels).
+- Desktop:
+  `test-results/communications-wide-compos-5938e-riting-and-preview-together-chromium/wide-composer-dark.png`
+  and `wide-composer-light.png` in the same directory. Browser viewport: 1920 × 1248 CSS pixels,
+  device scale factor 1. Main-content capture: 1632 × 1188 pixels.
+- Mobile: corresponding
+  `communications-wide-compos-5938e-riting-and-preview-together-mobile-chromium` captures. Pixel 7
+  viewport: 393 × 727 CSS pixels, device scale factor 2.75; full-page capture: 1082 × 5709 pixels.
+- State: Email draft, collapsed default member audience, matching rehearsal subject and message,
+  desktop preview selected. Fixture recipient counts, name, and delivery mode differ intentionally
+  from illustrative mock data.
+- Source and final desktop capture were opened together for comparison. Compare the content region
+  at equal width (source-to-desktop width factor 1.016), excluding the implementation's trailing
+  page padding. Mobile is a responsive adaptation, not a mobile source reproduction. Density
+  differences are not fidelity findings.
+
+## Findings and comparison history
+
+- Initial capture: preview bullets were hidden by the existing reset. Restored scoped list markers
+  and list spacing; final desktop and mobile captures show the formatted lists.
+- Initial capture framing: an element screenshot taller than its viewport introduced a sticky-shell
+  overlay. Recaptured desktop at a wide viewport and mobile as a full page from scroll position
+  zero.
+- Accessibility iteration: theme transitions temporarily mixed foreground and background colors
+  during the scan. The test now waits for active workspace animations to finish; both theme scans
+  pass without rule exclusions.
+- Final comparison: no outstanding P0/P1/P2 findings. The recipient summary, aligned editor/preview
+  columns, light email canvas, and review action reproduce the selected layout's hierarchy. Focused
+  inspection covered recipient text, subject, toolbar, rendered bullets/bold, preview-size controls,
+  and footer actions.
+
+## Required fidelity surfaces
+
+- Typography: existing product sans-serif and type scale retained. Editor and preview body use the
+  readable base size; helper text remains subordinate. Wrapping checked on mobile.
+- Layout: inner content uses the available width; template and subject belong to the editor column.
+  Columns stack on narrow screens. The desktop action bar remains visible while scrolling; mobile
+  actions remain in normal flow. Existing explanatory text adds some height relative to the mock.
+- Colors: existing theme tokens retained. Dedicated email-preview tokens preserve a light inbox
+  canvas and contrasting text/links in both themes. WCAG A/AA scans report no serious or critical
+  violations in the composer.
+- Assets: no raster artwork is required. Existing labeled formatting controls are retained rather
+  than introducing an icon dependency.
+- Copy: real provider-mode text, valid `{recipientName}` syntax, fixed sample recipient, and
+  existing Save as template action are retained. No unsupported recipient selector, autosave status,
+  or overflow action was introduced merely to match illustrative chrome.
+
+## Validation and regeneration
+
+Full Communications browser suite: 34 passed. After final typography and keyboard polish, four
+affected desktop/mobile tests passed. Recipient expansion, audience changes, contextual templates,
+draft behavior, personalization, rendered preview, size toggles, keyboard Escape, and review were
+exercised. Browser console logging is not asserted by this suite; runtime interactions and requests
+are verified by its fixtures.
+
+Regenerate screenshots and accessibility evidence with:
+
+```bash
+npm run test:e2e -- apps/web/e2e/communications.spec.ts --grep 'wide composer'
+```
+
+Unit/UI tests, web typecheck/build, lint, formatting, spacing, control alignment, and no-eyebrows
+checks passed. Worker integration and full release qualification were not run: no Worker, API,
+persistence, or deployment changes are included.
+
+## Follow-up polish
+
+- P3: the mock's compact icon toolbar and overflow action differ from the product's existing labeled
+  controls and explicit Save as template button; preserving the established interactions is
+  intentional.
+- P3: desktop/mobile sizes approximate email widths and do not emulate individual email clients.
+
+final result: passed

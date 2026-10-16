@@ -185,13 +185,15 @@ async function routeRosterSettings(page: Page): Promise<void> {
 
 test("explains roster automation, On Break timeout, and configurable RSVP expiry", async ({
   page,
-}) => {
+}, testInfo) => {
   await routeRosterSettings(page);
   await page.goto("/admin/roster");
   await page.getByRole("tab", { name: "Roster automation" }).click();
 
   const settings = page.getByRole("region", { name: "Roster status automation" });
-  await expect(settings.getByLabel("Consecutive missed Performances")).toHaveValue("3");
+  await expect(
+    settings.getByLabel("Missed Performances before changing Active to Inactive"),
+  ).toHaveValue("3");
   await expect(settings.getByLabel("Days on Break before Inactive")).toHaveValue("365");
   await expect(
     settings.getByRole("checkbox", {
@@ -201,6 +203,21 @@ test("explains roster automation, On Break timeout, and configurable RSVP expiry
   await expect(settings.getByText(/On Break → Inactive · On Break timeout is due\./)).toBeVisible();
   await expect(settings.getByText("On Break transition: Jul 31, 2027")).toBeVisible();
 
+  await expect(
+    settings.getByText(/Active performer becomes Inactive after 3 consecutive missed Performances/),
+  ).toBeVisible();
+  await expect(
+    settings.getByRole("link", { name: /Edit Attendance Report template/ }),
+  ).toHaveAttribute("target", "_blank");
+  for (const theme of ["light", "dark"] as const) {
+    const toggle = page.getByRole("button", { name: `Switch to ${theme} theme`, exact: true });
+    if (await toggle.isVisible()) await toggle.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await page.screenshot({
+      path: testInfo.outputPath(`roster-automation-guidance-${theme}.png`),
+      fullPage: true,
+    });
+  }
   await settings
     .getByRole("checkbox", { name: "Convert Pending responses to No at the deadline" })
     .uncheck();

@@ -138,7 +138,7 @@ export function useCommunicationCenterController({
 
   const [audience, setAudience] = useState<CommunicationAudienceRequest>(defaultAudience);
   const audienceRef = useRef<CommunicationAudienceRequest>(defaultAudience);
-  const [recipientsExpanded, setRecipientsExpanded] = useState(true);
+  const [recipientsExpanded, setRecipientsExpanded] = useState(false);
 
   const [channel, setChannel] = useState<CommunicationChannel>("Email");
   const [contentMarkdown, setContentMarkdown] = useState("");
@@ -229,7 +229,7 @@ export function useCommunicationCenterController({
     setLoadingDeliveryId(null);
     setError(null);
     setSuccessNotice(null);
-    setRecipientsExpanded(true);
+    setRecipientsExpanded(false);
     setMessageMode("compose");
     setActiveSection("messages");
   }

@@ -13,7 +13,7 @@ async function expectNoSeriousAxeViolations(page: Page, context: string): Promis
     .flatMap((violation) =>
       violation.nodes.map(
         (node) =>
-          `${violation.id} (${violation.impact ?? "unknown"}): ${node.target.join(" ")} — ${violation.helpUrl}`,
+          `${violation.id} (${violation.impact ?? "unknown"}): ${node.target.join(" ")} — ${violation.helpUrl} — ${node.failureSummary ?? ""}`,
       ),
     );
   expect(blocking, `axe violations found for ${context}`).toEqual([]);
@@ -822,6 +822,61 @@ test("desktop vertical section rail keyboard navigation in Edit Profile", async 
   await expect(infoTab).toBeFocused();
   await expect(infoTab).toHaveAttribute("aria-selected", "true");
 
+  api.assertNoUnexpectedRequests();
+});
+
+test("profile section markers distinguish unsaved edits from the current section", async ({
+  page,
+}, testInfo) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  await page.route("**/api/organization/members", async (route) => {
+    await route.fulfill({ json: { memberships: [], truncated: false, requestId } });
+  });
+
+  for (const theme of ["light", "dark"] as const) {
+    await page.goto("/admin/roster");
+    await expect(page.getByRole("button", { name: "Edit", exact: true }).first()).toBeVisible();
+    const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await toggle.isVisible()) await toggle.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+    const dialog = page.getByRole("dialog", { name: "Edit Profile" });
+    const name = dialog.getByLabel("Display name");
+    const originalName = await name.inputValue();
+    await name.fill(`${originalName} edited`);
+    await selectProfileTab(dialog, "Email & notifications", "email");
+
+    const sectionSelect = dialog.getByLabel("Profile section", { exact: true });
+    if (await sectionSelect.isVisible()) {
+      await expect(sectionSelect).toHaveValue("email");
+      await expect(sectionSelect.locator('option[value="info"]')).toHaveText(
+        "Profile info — Unsaved changes",
+      );
+      await expect(sectionSelect.locator('option[value="email"]')).toHaveText(
+        "Email & notifications",
+      );
+    } else {
+      const infoTab = dialog.getByRole("tab", { name: "Profile info", exact: true });
+      const emailTab = dialog.getByRole("tab", { name: "Email & notifications", exact: true });
+      await expect(infoTab).toHaveAttribute("aria-selected", "false");
+      await expect(infoTab).toHaveAccessibleDescription("Unsaved");
+      await expect(infoTab.getByText("Unsaved", { exact: true })).toBeVisible();
+      await expect(emailTab).toHaveAttribute("aria-selected", "true");
+      await expect(emailTab).not.toHaveAttribute("aria-describedby");
+    }
+    await dialog.evaluate(async (node) => {
+      await Promise.allSettled(
+        node.getAnimations({ subtree: true }).map((animation) => animation.finished),
+      );
+    });
+    await expectNoSeriousAxeViolations(page, `Unsaved profile sections in ${theme} theme`);
+    await page.screenshot({ path: testInfo.outputPath(`unsaved-sections-${theme}.png`) });
+    await selectProfileTab(dialog, "Profile info", "info");
+    await name.fill(originalName);
+    await expect(dialog.getByText("Unsaved", { exact: true })).toHaveCount(0);
+    await expect(dialog.getByText("No unsaved changes")).toBeVisible();
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  }
   api.assertNoUnexpectedRequests();
 });
 

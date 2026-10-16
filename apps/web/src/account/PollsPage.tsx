@@ -989,6 +989,7 @@ export function PollsPage({ enabled }: { readonly enabled: boolean }) {
                         {sharingPollId === poll.id ? "Preparing…" : "Share with members"}
                       </button>
                       <button
+                        className="button button--secondary button--small"
                         disabled={loadingPollId === poll.id}
                         onClick={(event) => {
                           event.stopPropagation();

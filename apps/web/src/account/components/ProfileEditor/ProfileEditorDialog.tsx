@@ -15,8 +15,11 @@ import type { ProfileEditorDialogProps, ProfileTab } from "./types";
 function hasProfileInfoChanged(
   current: OrganizationProfileRequest,
   baseline: OrganizationProfileRequest,
+  currentEmail: string,
+  baselineEmail: string,
 ): boolean {
   return (
+    currentEmail.trim().toLowerCase() !== baselineEmail.trim().toLowerCase() ||
     current.displayName !== baseline.displayName ||
     current.phone !== baseline.phone ||
     current.voicePart !== baseline.voicePart ||
@@ -43,21 +46,6 @@ function hasEmailSettingsChanged(
     (current.receivePerformanceReminders ?? true) !==
       (baseline.receivePerformanceReminders ?? true) ||
     (current.receiveOtherEventReminders ?? true) !== (baseline.receiveOtherEventReminders ?? true)
-  );
-}
-
-function isProfileDraftDirty(
-  profile: OrganizationProfileRequest,
-  baselineProfile: OrganizationProfileRequest,
-  profileEmail: string,
-  baselineEmail: string,
-): boolean {
-  if (profileEmail.trim().toLowerCase() !== baselineEmail.trim().toLowerCase()) {
-    return true;
-  }
-  return (
-    hasProfileInfoChanged(profile, baselineProfile) ||
-    hasEmailSettingsChanged(profile, baselineProfile)
   );
 }
 
@@ -128,11 +116,16 @@ export function ProfileEditorDialog({
     return areFolderNumbersDirty(profileFolderNumbers.folderNumbers, baselineFolderNumbers);
   }, [baselineFolderNumbers, profileFolderNumbers]);
 
-  const isDirty = useMemo(() => {
-    return (
-      isProfileDraftDirty(profile, baselineProfile, profileEmail, baselineEmail) || isFoldersDirty
-    );
-  }, [baselineEmail, baselineProfile, isFoldersDirty, profile, profileEmail]);
+  const dirtySections: Readonly<Record<ProfileTab, boolean>> = {
+    info:
+      hasProfileInfoChanged(profile, baselineProfile, profileEmail, baselineEmail) || photoPending,
+    email: hasEmailSettingsChanged(profile, baselineProfile),
+    folders: isFoldersDirty,
+    performance: false,
+    dues: false,
+    messages: false,
+  };
+  const isDirty = Object.values(dirtySections).some(Boolean);
 
   // Independent tabs (RSVPs, dues, folders, messages) save through their own
   // mutations or preserve form drafts. The outer profile form must never implicitly
@@ -141,7 +134,7 @@ export function ProfileEditorDialog({
 
   function handleProfileSubmit(event: React.SyntheticEvent): void {
     event.preventDefault();
-    if (INDEPENDENT_TABS.includes(profileTab) && !isDirty && !photoPending) {
+    if (INDEPENDENT_TABS.includes(profileTab) && !isDirty) {
       return;
     }
     void saveProfile();
@@ -183,7 +176,7 @@ export function ProfileEditorDialog({
     <Dialog
       className="dialog--profile-editor"
       description="Profile details and roster attributes belong only to this Organization."
-      dirty={isDirty || photoPending}
+      dirty={isDirty}
       header={
         <ProfileEditorHeader
           busy={busy}
@@ -222,6 +215,7 @@ export function ProfileEditorDialog({
           }}
         >
           <ProfileEditorNav
+            dirtySections={dirtySections}
             editingId={editingId}
             onValueChange={handleTabChange}
             value={profileTab}
@@ -380,7 +374,7 @@ export function ProfileEditorDialog({
               activeTab={profileTab}
               busy={busy}
               editingId={editingId}
-              isDirty={isDirty || photoPending}
+              isDirty={isDirty}
               saveLabel={saveLabel}
             />
           </form>

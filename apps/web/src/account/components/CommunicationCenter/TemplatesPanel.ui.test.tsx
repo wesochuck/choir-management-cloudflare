@@ -39,10 +39,49 @@ const resetTemplate: CommunicationTemplate = {
 };
 
 afterEach(() => {
+  window.history.replaceState(null, "", "/");
   vi.restoreAllMocks();
 });
 
 describe("TemplatesPanel", () => {
+  it("opens the linked template even when it is absent from the displayed page", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      `/admin/communications?tab=templates&templateId=${systemTemplate.id}`,
+    );
+    vi.spyOn(apiModule, "listOrganizationCommunicationTemplates").mockResolvedValue([
+      systemTemplate,
+    ]);
+    vi.spyOn(organizationApi, "getOrganizationCommunicationTemplatesPage").mockResolvedValue({
+      templates: [customTemplate],
+      nextCursor: null,
+    });
+    render(<TemplatesPanel />);
+    const dialog = await screen.findByRole("dialog", { name: "Edit template wording" });
+    expect(within(dialog).getByDisplayValue(systemTemplate.subject)).toBeInTheDocument();
+    expect(within(dialog).getByDisplayValue(systemTemplate.contentMarkdown)).toBeInTheDocument();
+  });
+
+  it("keeps the template list usable when a linked template no longer exists", async () => {
+    window.history.replaceState(null, "", "/admin/communications?tab=templates&templateId=missing");
+    vi.spyOn(apiModule, "listOrganizationCommunicationTemplates").mockResolvedValue([
+      customTemplate,
+    ]);
+    vi.spyOn(organizationApi, "getOrganizationCommunicationTemplatesPage").mockResolvedValue({
+      templates: [customTemplate],
+      nextCursor: null,
+    });
+    render(<TemplatesPanel />);
+    expect(
+      await screen.findByText(
+        "This template is unavailable. Choose a template from the list below.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Edit template wording" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: customTemplate.title })).toBeInTheDocument();
+  });
+
   it("resets system wording in place and omits reset for a custom template", async () => {
     const user = userEvent.setup();
     vi.spyOn(apiModule, "listOrganizationCommunicationTemplates").mockResolvedValue([
