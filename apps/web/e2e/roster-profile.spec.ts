@@ -905,7 +905,9 @@ test("photo controls, honest Add header, and truthful dirty footer", async ({ pa
   const nameField = profileDialog.getByLabel("Display name");
   const originalName = await nameField.inputValue();
   await nameField.fill(`${originalName} edited`);
-  await expect(profileDialog.getByText("Unsaved changes")).toBeVisible();
+  await expect(
+    profileDialog.locator(".profile-editor-footer").getByText("Unsaved changes", { exact: true }),
+  ).toBeVisible();
   await nameField.fill(originalName);
   await expect(profileDialog.getByText("No unsaved changes")).toBeVisible();
 
@@ -971,7 +973,9 @@ test("independent tabs do not implicitly save pristine drafts", async ({ page })
   const originalName = await nameField.inputValue();
   await nameField.fill(`${originalName} dirty`);
   await selectProfileTab(profileDialog, "Messages", "messages");
-  await expect(profileDialog.getByText("Unsaved changes")).toBeVisible();
+  await expect(
+    profileDialog.locator(".profile-editor-footer").getByText("Unsaved changes", { exact: true }),
+  ).toBeVisible();
   await expect(profileDialog.getByRole("button", { name: "Save Profile" })).toBeEnabled();
 
   api.assertNoUnexpectedRequests();
