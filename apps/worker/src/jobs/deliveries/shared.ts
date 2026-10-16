@@ -48,7 +48,13 @@ const providerNotificationFields = {
     .enum(["accepted", "delivered", "deferred", "bounced", "failed", "rejected", "complained"])
     .nullable(),
 };
+const optionalDoorsOpenTimeSchema = z
+  .union([z.literal(""), z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)])
+  .nullish()
+  .transform((value) => value ?? "");
+
 export const ticketNotificationJobSchema = z.object({
+  doorsOpenTime: optionalDoorsOpenTimeSchema,
   buyerName: z.string().min(1).max(200),
   contentMarkdown: z.string().max(100_000),
   currency: z.string().regex(/^[A-Za-z]{3}$/),
@@ -66,6 +72,7 @@ export const ticketNotificationJobSchema = z.object({
       z.object({
         id: z.string().optional(),
         location: z.string().default(""),
+        doorsOpenTime: optionalDoorsOpenTimeSchema,
         startsAt: z.iso.datetime(),
         title: z.string(),
         venueAddress: z.string().default(""),

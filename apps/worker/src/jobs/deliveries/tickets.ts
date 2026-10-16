@@ -1,3 +1,4 @@
+import { withDefaultTicketDoorsOpenTime } from "../../organization/ticketMessageTemplates";
 import { renderCommunicationTemplate } from "@choir/domain";
 import { deliverOrganizationCommunication } from "../../communications/provider";
 import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
@@ -79,7 +80,11 @@ export async function deliverTicketNotificationJob(
     venueName: notification.data.venueName,
   };
   const templatedContent = renderCommunicationTemplate(
-    notification.data.contentMarkdown,
+    withDefaultTicketDoorsOpenTime(
+      notification.data.contentMarkdown,
+      notification.data.kind,
+      notification.data.doorsOpenTime,
+    ),
     notification.data.buyerName,
     templateValues,
   );

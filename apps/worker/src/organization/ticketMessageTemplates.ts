@@ -106,3 +106,21 @@ export function refreshUnmodifiedTicketRefundTemplates(sql: SqlStorage): void {
     );
   }
 }
+
+/** Add optional event details only to the built-in admission emails, preserving customized bodies. */
+export function withDefaultTicketDoorsOpenTime(
+  contentMarkdown: string,
+  kind: "confirmation" | "reminder" | "refund",
+  doorsOpenTime: string,
+): string {
+  if (!doorsOpenTime || kind === "refund") return contentMarkdown;
+  const isDefault = ticketMessageTemplates.some(
+    (template) => template.kind === kind && template.contentMarkdown === contentMarkdown,
+  );
+  return isDefault
+    ? contentMarkdown.replace(
+        "- **Date:** {eventDate}",
+        `- **Date:** {eventDate}\n- **Doors open:** ${doorsOpenTime}`,
+      )
+    : contentMarkdown;
+}

@@ -104,6 +104,7 @@ export function TicketBundlePurchaseForm({
               <div>
                 <strong>{event.title}</strong> ·{" "}
                 {publicDate(event.startsAt, projection.payload.timezone)}
+                {event.doorsOpenTime ? <p>Doors open at {event.doorsOpenTime}.</p> : null}
                 {venueDetails.displayName || venueDetails.venueAddress ? (
                   <div className="public-bundle-event-venue">
                     {venueDetails.displayName ? <span>{venueDetails.displayName}</span> : null}

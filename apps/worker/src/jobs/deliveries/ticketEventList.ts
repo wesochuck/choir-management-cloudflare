@@ -1,5 +1,6 @@
 export interface TicketBundleEventDetails {
   readonly id?: string | undefined;
+  readonly doorsOpenTime?: string | null | undefined;
   readonly location: string;
   readonly startsAt: string;
   readonly title: string;
@@ -41,7 +42,10 @@ export function formatTicketBundleEventList(
       const locationLine =
         locationParts.length > 0 ? `\n  - **Location:** ${locationParts.join(", ")}` : "";
 
-      return `- **${event.title}**\n  - **Date and time:** ${dateTime}${locationLine}`;
+      const doorsOpenLine = event.doorsOpenTime
+        ? `\n  - **Doors open:** ${event.doorsOpenTime}`
+        : "";
+      return `- **${event.title}**\n  - **Date and time:** ${dateTime}${doorsOpenLine}${locationLine}`;
     })
     .join("\n");
 }

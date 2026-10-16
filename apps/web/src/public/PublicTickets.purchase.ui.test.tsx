@@ -28,6 +28,31 @@ vi.mock("../auth/api", async (importOriginal) => {
   };
 });
 
+describe("optional doors-open information", () => {
+  it.each([
+    "/tickets",
+    "/tickets/11111111-1111-4111-8111-111111111111",
+    "/tickets/bundles/22222222-2222-4222-8222-222222222222",
+  ])("shows doors-open time only when provided on %s", (pathname) => {
+    const base = checkoutProjection(1500, 3000);
+    const withDoors = {
+      ...base,
+      payload: {
+        ...base.payload,
+        performances: base.payload.performances.map((event) => ({
+          ...event,
+          doorsOpenTime: "18:30",
+        })),
+      },
+    };
+    const props = { feeSettings, nowMs: new Date("2026-01-01T00:00:00Z").getTime(), pathname };
+    const { rerender } = render(<TicketsContent {...props} projection={withDoors} />);
+    expect(screen.getByText("Doors open at 18:30.")).toBeInTheDocument();
+    rerender(<TicketsContent {...props} projection={base} />);
+    expect(screen.queryByText(/Doors open/)).not.toBeInTheDocument();
+  });
+});
+
 describe("TicketBundlePurchaseForm", () => {
   it("prevents an unsupported paid total while keeping free and fifty-cent bundle totals available", async () => {
     const unsupported = checkoutProjection(500, 17);

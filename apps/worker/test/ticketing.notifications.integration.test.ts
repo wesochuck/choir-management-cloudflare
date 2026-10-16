@@ -20,100 +20,119 @@ beforeEach(async () => setupTicketingIntegration());
 afterEach(async () => teardownTicketingIntegration());
 
 describe("Organization ticketing notifications and reminders", () => {
-  it("queues one confirmation and one 24-hour reminder through the durable ticket outbox", async () => {
-    const cookie = await signIn();
-    const startsAt = new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString();
-    const reminderVenue = organizationVenueSchema.parse(
-      await (
-        await jsonWrite(
-          "alpha.localhost",
-          "/api/organization/venues",
-          "POST",
-          { address: "2 Reminder Road", name: "Reminder Hall" },
-          cookie,
-        )
-      ).json(),
-    );
-    const event = organizationEventSchema.parse(
-      await (
-        await jsonWrite(
-          "alpha.localhost",
-          "/api/organization/events",
-          "POST",
-          {
-            advancePriceCents: 1_500,
-            callTime: "",
-            dayOfPriceCents: 1_500,
-            details: "",
-            doorsOpenTime: "",
-            durationMinutes: 60,
-            isTicketingEnabled: true,
-            location: "Hall",
-            parentPerformanceId: null,
-            publicDetails: "",
-            publicGraphicFileId: null,
-            publishOnWebsite: true,
-            setList: [],
-            setListApproved: false,
-            startsAt,
-            ticketCapacity: 20,
-            title: "Tomorrow Concert",
-            type: "Performance",
-            rsvpDeadlineDate: "2030-01-01",
-            venueId: reminderVenue.id,
-          },
-          cookie,
-        )
-      ).json(),
-    );
-    expect(
-      (
-        await jsonWrite("tickets.example.test", "/api/public/tickets/checkout", "POST", {
-          buyerEmail: "reminder@example.test",
-          buyerName: "Reminder Buyer",
-          checkoutRequestId: crypto.randomUUID(),
-          eventId: event.id,
-          marketingOptIn: false,
-          quantity: 1,
-        })
-      ).status,
-    ).toBe(201);
-    const stub = stores.get(stores.idFromName("organization-alpha"));
-    const overdueAt = new Date(Date.now() - 1_000).toISOString();
-    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
-      state.storage.sql.exec(
-        "UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1",
-        overdueAt,
-        overdueAt,
-      );
-      return state.storage.setAlarm(Date.now() + 60_000).then(() => undefined);
-    });
-    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
-    const notificationKinds = await runInDurableObject<OrganizationStore, string[]>(
-      stub,
-      (_instance, state) =>
-        state.storage.sql
-          .exec<Record<string, SqlStorageValue> & { kind: string }>(
-            "SELECT kind FROM ticket_notifications ORDER BY kind",
+  it.each(["", "18:30"])(
+    "queues confirmation and reminder emails with optional doors-open time %s",
+    async (doorsOpenTime) => {
+      const cookie = await signIn();
+      const startsAt = new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString();
+      const reminderVenue = organizationVenueSchema.parse(
+        await (
+          await jsonWrite(
+            "alpha.localhost",
+            "/api/organization/venues",
+            "POST",
+            { address: "2 Reminder Road", name: "Reminder Hall" },
+            cookie,
           )
-          .toArray()
-          .map(({ kind }) => kind),
-    );
-    expect(notificationKinds).toEqual(["confirmation", "reminder"]);
-    await deliverQueuedTicketNotification("organization-alpha");
-    await deliverQueuedTicketNotification("organization-alpha");
-    expect(
-      await runInDurableObject<OrganizationStore, number>(
+        ).json(),
+      );
+      const event = organizationEventSchema.parse(
+        await (
+          await jsonWrite(
+            "alpha.localhost",
+            "/api/organization/events",
+            "POST",
+            {
+              advancePriceCents: 1_500,
+              callTime: "",
+              dayOfPriceCents: 1_500,
+              details: "",
+              doorsOpenTime,
+              durationMinutes: 60,
+              isTicketingEnabled: true,
+              location: "Hall",
+              parentPerformanceId: null,
+              publicDetails: "",
+              publicGraphicFileId: null,
+              publishOnWebsite: true,
+              setList: [],
+              setListApproved: false,
+              startsAt,
+              ticketCapacity: 20,
+              title: "Tomorrow Concert",
+              type: "Performance",
+              rsvpDeadlineDate: "2030-01-01",
+              venueId: reminderVenue.id,
+            },
+            cookie,
+          )
+        ).json(),
+      );
+      expect(
+        (
+          await jsonWrite("tickets.example.test", "/api/public/tickets/checkout", "POST", {
+            buyerEmail: "reminder@example.test",
+            buyerName: "Reminder Buyer",
+            checkoutRequestId: crypto.randomUUID(),
+            eventId: event.id,
+            marketingOptIn: false,
+            quantity: 1,
+          })
+        ).status,
+      ).toBe(201);
+      const stub = stores.get(stores.idFromName("organization-alpha"));
+      const overdueAt = new Date(Date.now() - 1_000).toISOString();
+      await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+        state.storage.sql.exec(
+          "UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1",
+          overdueAt,
+          overdueAt,
+        );
+        return state.storage.setAlarm(Date.now() + 60_000).then(() => undefined);
+      });
+      await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+      const notificationKinds = await runInDurableObject<OrganizationStore, string[]>(
         stub,
         (_instance, state) =>
           state.storage.sql
-            .exec<Record<string, SqlStorageValue> & { count: number }>(
-              "SELECT COUNT(*) AS count FROM ticket_notifications WHERE status = 'sent'",
+            .exec<Record<string, SqlStorageValue> & { kind: string }>(
+              "SELECT kind FROM ticket_notifications ORDER BY kind",
             )
-            .one().count,
-      ),
-    ).toBe(2);
-  });
+            .toArray()
+            .map(({ kind }) => kind),
+      );
+      expect(event.doorsOpenTime).toBe(doorsOpenTime);
+      expect(notificationKinds).toEqual(["confirmation", "reminder"]);
+      await deliverQueuedTicketNotification("organization-alpha");
+      await deliverQueuedTicketNotification("organization-alpha");
+      expect(
+        await runInDurableObject<OrganizationStore, number>(
+          stub,
+          (_instance, state) =>
+            state.storage.sql
+              .exec<Record<string, SqlStorageValue> & { count: number }>(
+                "SELECT COUNT(*) AS count FROM ticket_notifications WHERE status = 'sent'",
+              )
+              .one().count,
+        ),
+      ).toBe(2);
+      const rendered = await runInDurableObject<OrganizationStore, string[]>(
+        stub,
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ content: string }>(
+              "SELECT rendered_content_markdown AS content FROM ticket_notifications ORDER BY kind",
+            )
+            .toArray()
+            .map((row) => row.content),
+      );
+      expect(rendered).toHaveLength(2);
+      for (const content of rendered) {
+        if (doorsOpenTime) expect(content).toContain("**Doors open:** 18:30");
+        else expect(content).not.toContain("Doors open");
+      }
+    },
+  );
 
   it("wakes the Organization scheduler promptly on Stripe ticket completion and enqueues confirmation", async () => {
     const cookie = await signIn();

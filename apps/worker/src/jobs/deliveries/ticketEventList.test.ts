@@ -58,6 +58,33 @@ describe("ticket bundle event list", () => {
     expect(eventList).not.toContain("Old venue location");
   });
 
+  it.each(["18:30", "", null, undefined])(
+    "includes doors-open details only when present: %s",
+    (doorsOpenTime) => {
+      const details = {
+        doorsOpenTime,
+        location: "",
+        startsAt: "2027-05-02T01:00:00Z",
+        title: "Concert",
+        venueAddress: "",
+        venueName: "Hall",
+      };
+      const content = formatTicketBundleEventList([details], "America/New_York");
+      if (doorsOpenTime) expect(content).toContain("**Doors open:** 18:30");
+      else expect(content).not.toContain("Doors open");
+      const withoutDoors = {
+        location: "",
+        startsAt: details.startsAt,
+        title: "Concert",
+        venueAddress: "",
+        venueName: "Hall",
+      };
+      expect(formatTicketBundleEventList([withoutDoors], "America/New_York")).not.toContain(
+        "Doors open",
+      );
+    },
+  );
+
   it("returns an empty list when a notification has no included bundle events", () => {
     expect(formatTicketBundleEventList([], "UTC")).toBe("");
   });

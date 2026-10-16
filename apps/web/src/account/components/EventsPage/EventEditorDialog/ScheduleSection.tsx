@@ -120,6 +120,17 @@ function ScheduleTimingFields({
         />
       </div>
       <div className="field">
+        <label htmlFor="events-page-doors-open">Doors open time (optional)</label>
+        <input
+          id="events-page-doors-open"
+          onChange={(change) => {
+            setEvent((current) => ({ ...current, doorsOpenTime: change.target.value }));
+          }}
+          type="time"
+          value={event.doorsOpenTime}
+        />
+      </div>
+      <div className="field">
         <label htmlFor="events-page-duration">Duration (minutes)</label>
         <input
           id="events-page-duration"

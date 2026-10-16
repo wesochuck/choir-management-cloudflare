@@ -44,7 +44,7 @@ export function RsvpManagerPage({
 }) {
   const { partLabel } = useOrganizationTerminology();
   const [eventId, setEventId] = useState(initialEventId ?? "");
-  const [filter, setFilter] = useState<RsvpFilter>("active");
+  const [filter, setFilter] = useState<RsvpFilter>("Yes");
   const [assignmentFilter, setAssignmentFilter] = useState<RsvpAssignmentFilter | null>(null);
   const [view, setView] = useState<RsvpView>("roster");
   const [query, setQuery] = useState("");

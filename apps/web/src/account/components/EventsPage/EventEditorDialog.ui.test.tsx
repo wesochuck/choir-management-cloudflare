@@ -62,6 +62,46 @@ beforeEach(() => {
 });
 
 describe("EventEditorDialog section layout", () => {
+  it.each(["18:30", ""])(
+    "allows the optional doors-open time to be set to %s",
+    async (doorsOpenTime) => {
+      let draft: OrganizationEventRequest = {
+        ...emptyEvent,
+        title: "Concert",
+        type: "Performance",
+        venueId: venueHall.id,
+        doorsOpenTime: "17:30",
+      };
+      const setEvent = (change: SetStateAction<OrganizationEventRequest>) => {
+        draft = typeof change === "function" ? change(draft) : change;
+      };
+      render(
+        <EventEditorDialog
+          busy={false}
+          dialogOpen
+          editingId={null}
+          error={null}
+          event={draft}
+          eventStart="2027-11-15T19:00"
+          graphicFile={null}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          setEvent={setEvent}
+          setEventStart={vi.fn()}
+          setGraphicFile={vi.fn()}
+          state={stateWithVenues([venueHall])}
+        />,
+      );
+      await switchToSection(/Schedule & venue/);
+      const input = screen.getByLabelText("Doors open time (optional)");
+      expect(input).toHaveValue("17:30");
+      expect(input).not.toBeRequired();
+      fireEvent.change(input, { target: { value: doorsOpenTime } });
+      expect(draft.doorsOpenTime).toBe(doorsOpenTime);
+      expect(draft.callTime).toBe(emptyEvent.callTime);
+    },
+  );
+
   it("renders five sections for Performances with required indicators", () => {
     const performance: OrganizationEventRequest = {
       ...emptyEvent,

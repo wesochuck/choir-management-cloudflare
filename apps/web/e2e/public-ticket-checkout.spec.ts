@@ -138,7 +138,10 @@ test("rejects a discounted sub-fifty-cent ticket before checkout and permits a c
     });
   });
 
+  await page.goto("/tickets");
+  await expect(page.getByText("Doors open at 19:00.")).toBeVisible();
   await page.goto(`/tickets/${eventId}`);
+  await expect(page.getByText("Doors open at 19:00.")).toBeVisible();
   await page.getByRole("button", { name: "Have a discount code?" }).click();
   await page.getByLabel("Discount code (optional)").fill("min43");
   await page.getByRole("button", { name: "Apply code" }).click();

@@ -1,3 +1,4 @@
+import { moduleIdSchema } from "@choir/contracts";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 const requestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -72,11 +73,7 @@ async function setupChecklistRoutes(
         twoFactorVerified: false,
       },
       "/api/organization/module-state": {
-        modules: [
-          { enabled: true, id: "events" },
-          { enabled: true, id: "people" },
-          { enabled: true, id: "programs" },
-        ],
+        modules: moduleIdSchema.options.map((id) => ({ enabled: true, id })),
       },
       "/api/organization/provider-status": {
         brevo: { detail: "Sandbox provider", status: "ok" },
@@ -311,11 +308,7 @@ test("shows onboarding guidance and next steps on admin overview when brand new"
         upcomingEventCount: 0,
       },
       "/api/organization/module-state": {
-        modules: [
-          { enabled: false, id: "events" },
-          { enabled: false, id: "people" },
-          { enabled: false, id: "programs" },
-        ],
+        modules: moduleIdSchema.options.map((id) => ({ enabled: false, id })),
       },
       "/api/platform/mfa/status": {
         activePlatformAdministrator: false,
@@ -347,8 +340,94 @@ test("shows onboarding guidance and next steps on admin overview when brand new"
     page.getByText("Welcome to your organization workspace", { exact: false }),
   ).toBeVisible();
 
+  await expect(page.locator(".admin-overview__kpi-grid")).toHaveCount(0);
+  await expect(page.locator(".admin-overview__quick-actions")).toHaveCount(0);
+  await expect(page.locator('.admin-overview a[href="/admin/roster"]')).toHaveCount(0);
+  await expect(page.locator('.admin-overview a[href="/admin/auditions"]')).toHaveCount(0);
+
   // Verify next steps guidance cards
   await expect(page.getByText("Next steps for your organization")).toBeVisible();
   await expect(page.getByRole("link", { name: "Configure modules →" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Open setup checklist →" })).toBeVisible();
 });
+
+test("completes setup using the server response and remains complete after reload", async ({
+  page,
+}) => {
+  await setupChecklistRoutes(page, []);
+  let launched = false;
+  let completionCalls = 0;
+  await page.route("**/api/setup/status", async (route) => {
+    await fulfillJson(route, {
+      allModulesConfigured: true,
+      completedSteps: ["organization_info", "modules", "theme", "data_import"],
+      currentStep: launched ? null : "launch",
+      launched,
+      organizationId,
+      organizationName: "Setup Checklist Choir",
+    });
+  });
+  await page.route("**/api/setup/progress", async (route) => {
+    expect(route.request().postDataJSON()).toEqual({ step: "launch" });
+    await fulfillJson(route, { saved: true });
+  });
+  await page.route("**/api/setup/complete", async (route) => {
+    completionCalls += 1;
+    launched = true;
+    await fulfillJson(route, { completed: true });
+  });
+
+  await page.goto("/setup");
+  await page.getByRole("button", { name: "Launch Organization" }).click();
+  await expect(page.getByRole("heading", { name: "Setup complete" })).toBeVisible();
+  expect(completionCalls).toBe(1);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Setup complete" })).toBeVisible();
+  expect(completionCalls).toBe(1);
+});
+
+for (const failedStep of ["progress", "complete"] as const) {
+  test(`keeps setup retryable when ${failedStep} fails`, async ({ page }) => {
+    await setupChecklistRoutes(page, []);
+    let shouldFail = true;
+    let completionCalls = 0;
+    await page.route("**/api/setup/status", async (route) => {
+      await fulfillJson(route, {
+        allModulesConfigured: true,
+        completedSteps: ["organization_info", "modules", "theme", "data_import"],
+        currentStep: "launch",
+        launched: false,
+        organizationId,
+        organizationName: "Setup Checklist Choir",
+      });
+    });
+    for (const endpoint of ["progress", "complete"] as const) {
+      await page.route(`**/api/setup/${endpoint}`, async (route) => {
+        if (endpoint === "complete") completionCalls += 1;
+        if (endpoint === failedStep && shouldFail) {
+          await fulfillJson(
+            route,
+            {
+              code: "setup_temporarily_unavailable",
+              message: "Setup is temporarily unavailable. Try again.",
+              requestId,
+            },
+            503,
+          );
+        } else {
+          await fulfillJson(route, endpoint === "progress" ? { saved: true } : { completed: true });
+        }
+      });
+    }
+    await page.goto("/setup");
+    await page.getByRole("button", { name: "Launch Organization" }).click();
+    await expect(page.getByRole("status")).toHaveText(
+      "Setup is temporarily unavailable. Try again.",
+    );
+    await expect(page.getByRole("button", { name: "Launch Organization" })).toBeEnabled();
+    expect(completionCalls).toBe(failedStep === "progress" ? 0 : 1);
+    shouldFail = false;
+    await page.getByRole("button", { name: "Launch Organization" }).click();
+    await expect(page.getByRole("heading", { name: "Setup complete" })).toBeVisible();
+  });
+}

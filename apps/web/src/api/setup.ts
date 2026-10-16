@@ -30,8 +30,8 @@ export async function saveSetupProgress(
   });
 }
 
-export async function completeSetup(): Promise<{ readonly launched: boolean }> {
-  return requestJson("/api/setup/complete", z.object({ launched: z.boolean() }), {
+export async function completeSetup(): Promise<{ readonly completed: boolean }> {
+  return requestJson("/api/setup/complete", z.object({ completed: z.boolean() }), {
     body: JSON.stringify({}),
     method: "POST",
   });

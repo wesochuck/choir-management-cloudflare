@@ -6,6 +6,7 @@ import {
 import { MODULE_DEFINITIONS } from "@choir/domain";
 import { useEffect, useRef, useState } from "react";
 import {
+  AuthApiError,
   completeSetup,
   getSetupStatus,
   saveSetupProgress,
@@ -94,14 +95,9 @@ export function SetupView() {
   }, []);
 
   async function saveProgress(step: string, data?: Record<string, unknown>) {
-    setMessage(null);
-    try {
-      const body: SetupProgressRequest = { step, data };
-      const validated = setupProgressRequestSchema.parse(body);
-      await saveSetupProgress(validated);
-    } catch {
-      setMessage("Progress could not be saved.");
-    }
+    const body: SetupProgressRequest = { step, data };
+    const validated = setupProgressRequestSchema.parse(body);
+    await saveSetupProgress(validated);
   }
 
   async function handleNext() {
@@ -127,6 +123,8 @@ export function SetupView() {
       if (nextStep) {
         setCurrentStep(nextStep.id);
       }
+    } catch (error: unknown) {
+      setMessage(error instanceof AuthApiError ? error.message : "Progress could not be saved.");
     } finally {
       setBusy(false);
     }
@@ -137,10 +135,11 @@ export function SetupView() {
     setMessage(null);
     try {
       await saveProgress("launch");
-      await completeSetup();
-      setCompleted(true);
-    } catch {
-      setMessage("Setup could not be completed.");
+      const result = await completeSetup();
+      if (result.completed) setCompleted(true);
+      else setMessage("Setup could not be completed.");
+    } catch (error: unknown) {
+      setMessage(error instanceof AuthApiError ? error.message : "Setup could not be completed.");
     } finally {
       setBusy(false);
     }

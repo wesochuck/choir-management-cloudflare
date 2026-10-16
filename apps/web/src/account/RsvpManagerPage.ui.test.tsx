@@ -154,6 +154,40 @@ beforeEach(() => {
 });
 
 describe("RsvpManagerPage profile editor (issue #137)", () => {
+  it("defaults to attending and lets administrators switch RSVP filters", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    expect(await screen.findByRole("button", { name: "Attending (1)" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      screen.getAllByRole("button", { name: "Open profile for Alice Singer" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: "Open profile for Alicia Keys" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "All active (2)" }));
+    expect(
+      screen.getAllByRole("button", { name: "Open profile for Alicia Keys" }).length,
+    ).toBeGreaterThan(0);
+    await user.click(screen.getByRole("button", { name: "No response (1)" }));
+    expect(screen.getByRole("button", { name: "No response (1)" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Open profile for Alice Singer" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Attending (1)" }));
+    expect(
+      screen.getAllByRole("button", { name: "Open profile for Alice Singer" }).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByRole("button", { name: "Open profile for Alicia Keys" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("opens the correct profile by name button, saves with RSVP label, and returns focus with list state preserved", async () => {
     const user = userEvent.setup();
     const updated = makeProfile(profileId1, "Alice Renamed");
@@ -205,6 +239,7 @@ describe("RsvpManagerPage profile editor (issue #137)", () => {
   it("opens a different singer with a similar name by stable profileId", async () => {
     const user = userEvent.setup();
     renderPage();
+    await user.click(await screen.findByRole("button", { name: "All active (2)" }));
     await user.click(
       first(await screen.findAllByRole("button", { name: "Open profile for Alicia Keys" })),
     );

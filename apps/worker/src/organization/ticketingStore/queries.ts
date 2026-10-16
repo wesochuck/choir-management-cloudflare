@@ -248,6 +248,7 @@ export function readTicketNotificationJobFromStore(
       readonly discountCode: string | null;
       readonly discountedSubtotalCents: number;
       readonly eventLocation: string;
+      readonly doorsOpenTime: string;
       readonly eventStartsAt: string;
       readonly eventTitle: string;
       readonly feeCents: number;
@@ -295,6 +296,7 @@ export function readTicketNotificationJobFromStore(
         COALESCE(v.name, '') AS venueName,
         COALESCE(v.address, '') AS venueAddress,
         COALESCE(e.location, '') AS eventLocation,
+        COALESCE(e.doors_open_time, '') AS doorsOpenTime,
         n.event_id AS eventId,
         n.dedupe_key AS dedupeKey,
         COALESCE(e.is_canceled, 0) AS isCanceled,
@@ -339,12 +341,13 @@ export function readTicketNotificationJobFromStore(
     .exec<{
       readonly id: string;
       readonly location: string;
+      readonly doorsOpenTime: string;
       readonly startsAt: string;
       readonly title: string;
       readonly venueAddress: string;
       readonly venueName: string;
     }>(
-      `SELECT e.id, e.title, e.starts_at AS startsAt, e.location,
+      `SELECT e.id, e.title, e.starts_at AS startsAt, e.location, e.doors_open_time AS doorsOpenTime,
               COALESCE(v.name, '') AS venueName, COALESCE(v.address, '') AS venueAddress
        FROM ticket_bundle_allocations a
        JOIN events e ON e.id = a.event_id

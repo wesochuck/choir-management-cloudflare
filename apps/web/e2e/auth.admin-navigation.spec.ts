@@ -102,6 +102,11 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(
     linkedRsvpPage.getByRole("link", { name: "Roster Settings", exact: true }),
   ).toHaveCount(0);
+  await expect(linkedRsvpPage.getByRole("button", { name: /^Attending \(\d+\)$/ })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await linkedRsvpPage.getByRole("button", { name: /^All active \(\d+\)$/ }).click();
   const rsvpBalance = linkedRsvpPage.locator(".rsvp-manager__balance");
   const rsvpRoster = linkedRsvpPage.locator(".rsvp-manager__roster");
   const visibleRsvpContent = rsvpRoster.locator(".data-table:visible, .data-table-cards:visible");
@@ -167,6 +172,15 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await browserConcertEdit.getByRole("button", { name: "Edit", exact: true }).click();
   const eventEditor = page.getByRole("dialog", { name: "Edit event" });
   await expect(eventEditor).toBeVisible();
+  await selectEventEditorSection(eventEditor, "schedule");
+  const doorsOpenInput = eventEditor.getByLabel("Doors open time (optional)");
+  const originalDoorsOpenTime = await doorsOpenInput.inputValue();
+  await expect(doorsOpenInput).not.toHaveAttribute("required");
+  await doorsOpenInput.fill("18:30");
+  await expect(doorsOpenInput).toHaveValue("18:30");
+  await doorsOpenInput.fill("");
+  await expect(doorsOpenInput).toHaveValue("");
+  await doorsOpenInput.fill(originalDoorsOpenTime);
   await selectEventEditorSection(eventEditor, "rsvp");
   await expect(eventEditor.getByLabel("Member RSVP deadline")).toHaveValue("2027-08-13");
   await selectEventEditorSection(eventEditor, "tickets");

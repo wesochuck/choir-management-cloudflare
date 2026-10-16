@@ -108,6 +108,7 @@ export function TicketsContent({
                   <div className="public-performance-card__content">
                     <p>{publicDate(event.startsAt, projection.payload.timezone)}</p>
                     <h2>{event.title}</h2>
+                    {event.doorsOpenTime ? <p>Doors open at {event.doorsOpenTime}.</p> : null}
                     {venueDetails.displayName || venueDetails.venueAddress ? (
                       <div className="public-performance-venue">
                         {venueDetails.displayName ? (
