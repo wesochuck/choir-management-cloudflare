@@ -374,6 +374,7 @@ it("labels upcoming previews with the Organization timezone and event navigation
   );
   expect(screen.getByText(/Scheduled for.*America\/New_York/)).toBeVisible();
   expect(screen.getByText(/Automation preview. Recipients/)).toBeVisible();
+  expect(screen.getByText("15 ticket purchases")).toBeVisible();
   expect(screen.getByText(/next 90 days/)).toBeVisible();
   expect(screen.getByRole("link", { name: "View event" })).toHaveAttribute(
     "href",

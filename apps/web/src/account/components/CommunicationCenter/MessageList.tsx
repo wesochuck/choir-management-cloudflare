@@ -212,6 +212,17 @@ function MessageCard({
                 </span>
               </>
             ) : null}
+            {item.kind === "scheduled" &&
+            item.scheduledMessage.projected &&
+            item.scheduledMessage.kind === "ticket_reminder" ? (
+              <>
+                <span>·</span>
+                <span>
+                  {String(item.scheduledMessage.recipientCount)} ticket{" "}
+                  {item.scheduledMessage.recipientCount === 1 ? "purchase" : "purchases"}
+                </span>
+              </>
+            ) : null}
             {item.automated ? (
               <>
                 <span>·</span>

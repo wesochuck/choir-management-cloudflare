@@ -128,7 +128,7 @@ export function upcomingCommunications(
     .exec<{
       readonly [column: string]: SqlStorageValue;
       readonly eventId: string;
-      readonly purchaseId: string;
+      readonly purchaseCount: number;
       readonly title: string;
       readonly startsAt: string;
     }>(
@@ -143,10 +143,11 @@ export function upcomingCommunications(
        JOIN ticket_purchases p ON p.id = a.purchase_id
        WHERE p.status = 'paid' AND e.is_archived = 0 AND e.is_canceled = 0
          AND e.starts_at > ? AND e.starts_at <= ?
-     ) SELECT * FROM ticket_events t WHERE NOT EXISTS (
+     ) SELECT t.eventId, t.title, t.startsAt, COUNT(DISTINCT t.purchaseId) AS purchaseCount
+     FROM ticket_events t WHERE NOT EXISTS (
        SELECT 1 FROM ticket_notifications n WHERE n.dedupe_key =
          ('ticket-reminder:' || t.purchaseId || ':' || t.eventId || ':' || strftime('%Y-%m-%dT%H:%M:%fZ', t.startsAt))
-     )`,
+     ) GROUP BY t.eventId, t.title, t.startsAt`,
       now.toISOString(),
       new Date(horizon + 86400000).toISOString(),
       now.toISOString(),
@@ -159,9 +160,9 @@ export function upcomingCommunications(
     result.push({
       eventId: ticket.eventId,
       eventTitle: ticket.title,
-      id: `planned:ticket-reminder:${ticket.purchaseId}:${ticket.eventId}`,
+      id: `planned:ticket-reminder:${ticket.eventId}`,
       kind: "ticket_reminder",
-      recipientCount: 1,
+      recipientCount: ticket.purchaseCount,
       scheduledAt: new Date(dueAt).toISOString(),
       status: "Scheduled",
       subject: `Ticket reminder: ${ticket.title}`,

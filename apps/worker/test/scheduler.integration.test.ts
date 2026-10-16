@@ -1381,6 +1381,94 @@ describe("upcoming communication scheduling", () => {
       }
     });
   });
+  it("groups ticket reminder previews before pagination while retaining a reminder job for every paid purchase", async () => {
+    const stub = await provisionScheduler();
+    await runInDurableObject(stub, async (_instance, state) => {
+      const now = new Date();
+      const startsAt = new Date(now.getTime() + 10 * 86400000).toISOString();
+      const eventIds = [crypto.randomUUID(), crypto.randomUUID()];
+      const paidPurchaseIds: string[] = [];
+      for (const [eventIndex, eventId] of eventIds.entries()) {
+        state.storage.sql.exec(
+          "INSERT INTO events (id, title, type, starts_at, created_at, updated_at) VALUES (?, 'Ticket concert', 'Performance', ?, ?, ?)",
+          eventId,
+          startsAt,
+          now.toISOString(),
+          now.toISOString(),
+        );
+        const count = eventIndex === 0 ? 4 : 1;
+        for (let index = 0; index < count; index++) {
+          const purchaseId = crypto.randomUUID();
+          const status = index === 3 ? "refunded" : "paid";
+          if (status === "paid") paidPurchaseIds.push(purchaseId);
+          state.storage.sql.exec(
+            `INSERT INTO ticket_purchases (id, checkout_request_id, event_id, event_title, event_starts_at, event_timezone,
+               buyer_name, buyer_email, quantity, unit_price_cents, fee_cents, amount_paid_cents, currency,
+               provider_session_id, provider_payment_id, status, created_at, updated_at)
+             VALUES (?, ?, ?, 'Ticket concert', ?, 'UTC', 'Buyer', ?, 2, 100, 0, 200, 'usd', ?, '', ?, ?, ?)`,
+            purchaseId,
+            crypto.randomUUID(),
+            eventId,
+            startsAt,
+            `buyer-${purchaseId}@example.test`,
+            crypto.randomUUID(),
+            status,
+            now.toISOString(),
+            now.toISOString(),
+          );
+        }
+      }
+      const alarmBefore = await state.storage.getAlarm();
+      const previews: { readonly eventId: string | null; readonly recipientCount: number }[] = [];
+      let cursor: string | null = null;
+      for (let pageIndex = 0; pageIndex < 10; pageIndex++) {
+        const page = communicationHistoryPageResponseSchema.omit({ requestId: true }).parse(
+          await listCommunicationHistoryFromStore(state.storage, {
+            organizationId: "organization-scheduler",
+            status: "scheduled",
+            limit: 1,
+            cursor,
+          }).json(),
+        );
+        for (const item of page.items) {
+          if (item.kind === "automated" && item.scheduledMessage.kind === "ticket_reminder") {
+            previews.push(item.scheduledMessage);
+          }
+        }
+        cursor = page.nextCursor;
+        if (!cursor) break;
+      }
+      expect(cursor).toBeNull();
+      expect(previews).toHaveLength(2);
+      expect(previews.find(({ eventId }) => eventId === eventIds[0])?.recipientCount).toBe(3);
+      expect(previews.find(({ eventId }) => eventId === eventIds[1])?.recipientCount).toBe(1);
+      const fallback = communicationScheduledMessagesResponseSchema
+        .omit({ requestId: true })
+        .parse(
+          await listCommunicationScheduledMessagesFromStore(
+            state.storage,
+            "organization-scheduler",
+          ).json(),
+        );
+      expect(fallback.messages.filter(({ kind }) => kind === "ticket_reminder")).toHaveLength(2);
+      expect(await state.storage.getAlarm()).toBe(alarmBefore);
+      const dueAt = new Date(Date.parse(startsAt) - 86400000);
+      await runOrganizationAlarm(
+        state.storage,
+        requireBinding(env.JOBS_QUEUE, "JOBS_QUEUE"),
+        dueAt,
+      );
+      const notifications = state.storage.sql
+        .exec<{ readonly purchaseId: string }>(
+          "SELECT purchase_id AS purchaseId FROM ticket_notifications WHERE kind = 'reminder'",
+        )
+        .toArray();
+      expect(notifications.map(({ purchaseId }) => purchaseId).sort()).toEqual(
+        paidPurchaseIds.sort(),
+      );
+    });
+  });
+
   it("previews paid ticket reminders and inherited RSVP follow-ups without duplicating persisted notifications", async () => {
     const stub = await provisionScheduler();
     await runInDurableObject(stub, async (_instance, state) => {
