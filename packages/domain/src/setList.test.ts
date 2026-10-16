@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canInsertSetListCustomEntryAt,
   calculateSetListDuration,
   calculateSetListTiming,
   calculateSetListTransitionCount,
   formatSetListDuration,
   hasSetListPiece,
+  isSetListQuickCue,
   moveSetListItem,
   normalizeSetListDuration,
   parseSetListDuration,
@@ -37,6 +39,27 @@ describe("set-list rules", () => {
     expect(hasSetListPiece(items, "charlie")).toBe(false);
     expect(moveSetListItem(items, 1, -1)).toEqual([{ pieceId: "bravo" }, { pieceId: "alpha" }]);
     expect(moveSetListItem(items, 0, -1)).toBe(items);
+  });
+
+  it("blocks custom-entry insertion immediately before or after a Quick Cue", () => {
+    const items = [
+      { type: "song" },
+      { cueKind: "quick" as const, type: "intermission" },
+      { type: "song" },
+    ];
+
+    expect(isSetListQuickCue(items[1] ?? {})).toBe(true);
+    expect(canInsertSetListCustomEntryAt(items, 0)).toBe(true);
+    expect(canInsertSetListCustomEntryAt(items, 1)).toBe(false);
+    expect(canInsertSetListCustomEntryAt(items, 2)).toBe(false);
+    expect(canInsertSetListCustomEntryAt(items, 3)).toBe(true);
+  });
+
+  it("accepts an empty-list boundary and rejects invalid insertion boundaries", () => {
+    expect(canInsertSetListCustomEntryAt([], 0)).toBe(true);
+    expect(canInsertSetListCustomEntryAt([], -1)).toBe(false);
+    expect(canInsertSetListCustomEntryAt([], 1)).toBe(false);
+    expect(canInsertSetListCustomEntryAt([], 0.5)).toBe(false);
   });
 
   describe("transition count and timing calculations", () => {

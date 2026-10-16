@@ -141,11 +141,13 @@ export {
   type SeatingLayoutState,
 } from "./seatingLayout";
 export {
+  canInsertSetListCustomEntryAt,
   calculateSetListDuration,
   calculateSetListTiming,
   calculateSetListTransitionCount,
   formatSetListDuration,
   hasSetListPiece,
+  isSetListQuickCue,
   isSetListSongItem,
   moveSetListItem,
   normalizeSetListDuration,

@@ -79,6 +79,19 @@ export interface SetListTimingItem {
   readonly type?: string | undefined;
 }
 
+export function isSetListQuickCue(item: SetListTimingItem): boolean {
+  return item.type === "intermission" && item.cueKind === "quick";
+}
+
+/** Whether a custom entry can be inserted at a boundary without touching a Quick Cue. */
+export function canInsertSetListCustomEntryAt(
+  items: readonly SetListTimingItem[],
+  boundary: number,
+): boolean {
+  if (!Number.isInteger(boundary) || boundary < 0 || boundary > items.length) return false;
+  return !isSetListQuickCue(items[boundary - 1] ?? {}) && !isSetListQuickCue(items[boundary] ?? {});
+}
+
 export interface SetListTimingBreakdown {
   readonly defaultTransitionCount: number;
   readonly defaultTransitionDuration: number;

@@ -128,6 +128,29 @@ describe("SetListPreview credit formatting", () => {
     expect(composerSpan).toBeNull();
   });
 
+  it("omits Quick Cues from the printed program preview", () => {
+    const items: SetListItem[] = [
+      { id: "item-1", title: "First Song", type: "song" },
+      {
+        cueInstruction: "Proceed directly to the next piece",
+        cueKind: "quick",
+        id: "cue-1",
+        notes: "Internal cue note",
+        title: "No Announcements",
+        type: "intermission",
+      },
+      { id: "item-2", title: "Second Song", type: "song" },
+    ];
+
+    render(<SetListPreview event={event} items={items} music={[]} showNotes />);
+
+    expect(screen.getByText("1. First Song")).toBeDefined();
+    expect(screen.getByText("2. Second Song")).toBeDefined();
+    expect(screen.queryByText("No Announcements")).toBeNull();
+    expect(screen.queryByText("Proceed directly to the next piece")).toBeNull();
+    expect(screen.queryByText("Internal cue note")).toBeNull();
+  });
+
   it("matches copied text credit precedence across all scenarios", () => {
     const items: SetListItem[] = [
       { id: "item-1", pieceId: pieceBoth.id, title: pieceBoth.title, type: "song" },

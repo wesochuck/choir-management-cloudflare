@@ -1109,7 +1109,7 @@ describe("Quick cue effective duration", () => {
   });
 });
 
-describe("Quick cue formatting in setListDocumentText and print preview", () => {
+describe("Quick cues in setListDocumentText and print preview", () => {
   const event = organizationEventSchema.parse({
     createdAt: "2026-08-01T12:00:00.000Z",
     id: "5f7d9d3e-0b5a-4a8e-9d0e-1a2b3c4d5e63",
@@ -1121,29 +1121,33 @@ describe("Quick cue formatting in setListDocumentText and print preview", () => 
     updatedAt: "2026-08-01T12:00:00.000Z",
   });
 
-  it("renders Quick cue unnumbered with title and instruction", () => {
+  it("omits Quick Cues from program output while retaining their zero-time timing effect", () => {
     const items: SetListItem[] = [
-      { id: "1", pieceId, title: "A Holiday Road of Carols", type: "song" },
+      { duration: "1:00", id: "1", title: "First Song", type: "song" },
       {
         cueInstruction: "Acknowledge the sponsors and introduce next piece",
         cueKind: "quick",
         id: "2",
-        title: "Remarks",
+        notes: "Private cue note",
+        title: "No Announcements",
         type: "intermission",
       },
-      { id: "3", pieceId, title: "A Holiday Road of Carols", type: "song" },
+      { duration: "2:00", id: "3", title: "Second Song", type: "song" },
     ];
 
-    const text = setListDocumentText(event, items, music);
-    expect(text).toContain("1. A Holiday Road of Carols");
-    expect(text).toContain("Remarks — Acknowledge the sponsors and introduce next piece");
-    expect(text).not.toContain("2. Remarks");
-    expect(text).toContain("2. A Holiday Road of Carols");
+    const text = setListDocumentText(event, items, music, true, 30);
+    expect(text).toContain("Estimated runtime: 3:00");
+    expect(text).toContain("1. First Song");
+    expect(text).toContain("2. Second Song");
+    expect(text).not.toContain("No Announcements");
+    expect(text).not.toContain("Acknowledge the sponsors");
+    expect(text).not.toContain("Private cue note");
 
     const rows = setListPreviewRows(items, music);
     expect(rows[0]?.number).toBe(1);
-    expect(rows[1]?.number).toBeNull();
-    expect(rows[1]?.title).toBe("Remarks — Acknowledge the sponsors and introduce next piece");
-    expect(rows[2]?.number).toBe(2);
+    expect(rows[0]?.title).toBe("First Song");
+    expect(rows[1]?.number).toBe(2);
+    expect(rows[1]?.title).toBe("Second Song");
+    expect(rows).toHaveLength(2);
   });
 });

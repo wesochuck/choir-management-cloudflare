@@ -110,6 +110,28 @@ describe("groupSetListForPresentation", () => {
     expect(nextSong.item.title).toBe("Seal Lullaby");
   });
 
+  it("omits Quick Cues and keeps movements grouped across them in program output", () => {
+    const items: SetListItem[] = [
+      { id: "1", pieceId: sunriseMass.id, title: "Sunrise Mass", type: "song" },
+      {
+        cueKind: "quick",
+        cueInstruction: "Proceed without announcements",
+        id: "cue",
+        title: "No Announcements",
+        type: "intermission",
+      },
+      { id: "2", pieceId: spheres.id, title: "The Spheres", type: "song" },
+      { id: "3", pieceId: sunrise.id, title: "Sunrise", type: "song" },
+    ];
+
+    const entries = groupSetListForPresentation(items, catalog);
+    expect(entries).toHaveLength(1);
+    const group = expectGroup(entries[0]);
+    expect(group.movements.map(({ item }) => item.title)).toEqual(["The Spheres", "Sunrise"]);
+    expect(JSON.stringify(entries)).not.toContain("No Announcements");
+    expect(JSON.stringify(entries)).not.toContain("Proceed without announcements");
+  });
+
   it("derives a parent heading when contiguous movements appear without an explicit parent item", () => {
     const items: SetListItem[] = [
       { id: "1", pieceId: spheres.id, title: "The Spheres", type: "song" },

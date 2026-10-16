@@ -235,6 +235,7 @@ function QuickCueRowContent({
 }
 
 export interface SetListItemRowProps {
+  readonly canInsertCustomEntryAfter?: boolean | undefined;
   readonly displayCredit?: string | undefined;
   readonly dragIndex: number | null;
   readonly dragOverBoundary: number | null;
@@ -269,6 +270,7 @@ export interface SetListItemRowProps {
 }
 
 export function SetListItemRow({
+  canInsertCustomEntryAfter,
   displayCredit,
   dragIndex,
   dragOverBoundary,
@@ -415,7 +417,7 @@ export function SetListItemRow({
         )}
         <SetListItemNotes notes={itemNotes} showNotes={showNotes} />
       </li>
-      {index < itemsLength - 1 ? (
+      {index < itemsLength - 1 && canInsertCustomEntryAfter !== false ? (
         <SetListInsertZone
           dragIndex={dragIndex}
           dropAfter={dropState.after}

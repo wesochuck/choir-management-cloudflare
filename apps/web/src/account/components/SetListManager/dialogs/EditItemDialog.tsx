@@ -96,6 +96,10 @@ export function EditItemDialog({
                       ...editingItem,
                       cueKind: "timed",
                       duration: "",
+                      title:
+                        editingItem.title === "No Announcements"
+                          ? "Intermission"
+                          : editingItem.title,
                     });
                   }}
                 />
@@ -112,6 +116,10 @@ export function EditItemDialog({
                       ...editingItem,
                       cueKind: "quick",
                       duration: undefined,
+                      title:
+                        !editingItem.title.trim() || editingItem.title === "Intermission"
+                          ? "No Announcements"
+                          : editingItem.title,
                     });
                   }}
                 />

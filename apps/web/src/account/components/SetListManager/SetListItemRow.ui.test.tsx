@@ -85,7 +85,8 @@ describe("SetListItemRow", () => {
           dragOverBoundary={null}
           index={1}
           item={mockQuickCue}
-          itemsLength={2}
+          itemsLength={3}
+          canInsertCustomEntryAfter={false}
           keyboardDragIndex={null}
           music={[]}
           onDropDraggedItem={vi.fn()}
@@ -112,7 +113,7 @@ describe("SetListItemRow", () => {
     expect(screen.getByText("Dim lights")).toBeInTheDocument();
     expect(screen.getByText("0:00")).toBeInTheDocument();
 
-    // Last item does not render an insert zone after itself
+    // Quick Cues do not render an insertion zone after themselves.
     expect(screen.queryByRole("button", { name: /insert custom entry/i })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
@@ -120,5 +121,39 @@ describe("SetListItemRow", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(onRemoveItem).toHaveBeenCalledWith(1);
+  });
+
+  it("omits an insertion zone immediately before a Quick Cue", () => {
+    render(
+      <ol>
+        <SetListItemRow
+          canInsertCustomEntryAfter={false}
+          dragIndex={null}
+          dragOverBoundary={null}
+          index={0}
+          item={mockItem}
+          itemsLength={2}
+          keyboardDragIndex={null}
+          music={[]}
+          onDropDraggedItem={vi.fn()}
+          onInsertCustom={vi.fn()}
+          onKeyboardReorderKeyDown={vi.fn()}
+          onOpenItemEditor={vi.fn()}
+          onRemoveItem={vi.fn()}
+          onRowDragEnd={vi.fn()}
+          onRowDragOver={vi.fn()}
+          onRowDragStart={vi.fn()}
+          onRowDrop={vi.fn()}
+          onRowPointerCancel={vi.fn()}
+          onRowPointerDown={vi.fn()}
+          onRowPointerUp={vi.fn()}
+          onSetDragOverBoundary={vi.fn()}
+          recentlyMovedItemId={null}
+          showNotes={false}
+        />
+      </ol>,
+    );
+
+    expect(screen.queryByRole("button", { name: /insert custom entry/i })).not.toBeInTheDocument();
   });
 });

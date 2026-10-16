@@ -1,5 +1,5 @@
 import { NumberInput } from "@choir/ui";
-import { formatSetListDuration } from "@choir/domain";
+import { canInsertSetListCustomEntryAt, formatSetListDuration } from "@choir/domain";
 import { useMemo, useState } from "react";
 import {
   displayEvent,
@@ -174,6 +174,7 @@ export function SetListManagerView({
   }) {
     return (
       <SetListItemRow
+        canInsertCustomEntryAfter={canInsertSetListCustomEntryAt(items, index + 1)}
         displayCredit={displayCredit}
         dragIndex={dragIndex}
         dragOverBoundary={reorder.dragOverBoundary}
@@ -598,15 +599,17 @@ export function SetListManagerView({
                     >
                       + Add new song
                     </button>
-                    <button
-                      className="button button--secondary button--small button--control-height"
-                      type="button"
-                      onClick={() => {
-                        insertCustomItem(items.length);
-                      }}
-                    >
-                      + Insert Custom entry
-                    </button>
+                    {canInsertSetListCustomEntryAt(items, items.length) ? (
+                      <button
+                        className="button button--secondary button--small button--control-height"
+                        type="button"
+                        onClick={() => {
+                          insertCustomItem(items.length);
+                        }}
+                      >
+                        + Insert Custom entry
+                      </button>
+                    ) : null}
                   </div>
                 </div>
                 <p className="field-help set-list-add-tip" aria-live="polite">
@@ -802,6 +805,7 @@ export function SetListManagerView({
 
               <CustomItemDialog
                 addCustomItem={addCustomItem}
+                canAddCustomEntry={canInsertSetListCustomEntryAt(items, items.length)}
                 customComposer={customComposer}
                 customCueInstruction={customCueInstruction}
                 customCueKind={customCueKind}

@@ -1,5 +1,6 @@
 import type { OrganizationMusicPiece } from "@choir/contracts";
 import {
+  canInsertSetListCustomEntryAt,
   hasSetListPiece,
   normalizeSetListDuration,
   parseSetListDuration,
@@ -276,6 +277,10 @@ export function useSetListManagerController({
   }
 
   function addCustomItem(): void {
+    if (customType === "intermission" && !canInsertSetListCustomEntryAt(items, items.length)) {
+      setError("A custom entry cannot be placed directly before or after a Quick Cue.");
+      return;
+    }
     if (!customTitle.trim()) {
       setError("Enter a title for the set-list item.");
       return;
@@ -322,6 +327,10 @@ export function useSetListManagerController({
   }
 
   function insertCustomItem(index: number): void {
+    if (!canInsertSetListCustomEntryAt(items, index)) {
+      setError("A custom entry cannot be placed directly before or after a Quick Cue.");
+      return;
+    }
     const item: SetListItem = {
       cueKind: "timed",
       id: crypto.randomUUID(),

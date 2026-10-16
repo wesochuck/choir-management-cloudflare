@@ -3,6 +3,7 @@ import type { SyntheticEvent } from "react";
 
 export function CustomItemDialog({
   addCustomItem,
+  canAddCustomEntry,
   customComposer,
   customCueInstruction,
   customCueKind,
@@ -21,6 +22,7 @@ export function CustomItemDialog({
   setCustomType,
 }: {
   readonly addCustomItem: () => void;
+  readonly canAddCustomEntry: boolean;
   readonly customComposer: string;
   readonly customCueInstruction: string;
   readonly customCueKind: "timed" | "quick";
@@ -61,16 +63,23 @@ export function CustomItemDialog({
               setCustomType(nextType);
               if (nextType === "intermission") {
                 setCustomCueKind("timed");
-                if (!customTitle.trim()) {
+                if (!customTitle.trim() || customTitle === "No Announcements") {
                   setCustomTitle("Intermission");
                 }
               }
             }}
           >
             <option value="song">Song</option>
-            <option value="intermission">Custom entry</option>
+            <option disabled={!canAddCustomEntry} value="intermission">
+              Custom entry
+            </option>
           </select>
         </label>
+        {!canAddCustomEntry ? (
+          <p className="field-help">
+            Custom entries cannot be placed directly before or after a Quick Cue.
+          </p>
+        ) : null}
         {customType === "intermission" ? (
           <fieldset className="field set-list-cue-kind-field">
             <legend className="set-list-field-label">Entry style</legend>
@@ -83,6 +92,9 @@ export function CustomItemDialog({
                   value="timed"
                   onChange={() => {
                     setCustomCueKind("timed");
+                    if (customTitle === "No Announcements") {
+                      setCustomTitle("Intermission");
+                    }
                   }}
                 />
                 Timed cue
@@ -95,6 +107,9 @@ export function CustomItemDialog({
                   value="quick"
                   onChange={() => {
                     setCustomCueKind("quick");
+                    if (!customTitle.trim() || customTitle === "Intermission") {
+                      setCustomTitle("No Announcements");
+                    }
                   }}
                 />
                 Quick cue

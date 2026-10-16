@@ -1,4 +1,5 @@
 import type { OrganizationMusicPiece } from "@choir/contracts";
+import { isSetListQuickCue } from "@choir/domain";
 import type { SetListItem } from "./types";
 
 export interface PresentationMovementItem {
@@ -39,6 +40,11 @@ export interface PresentationIntermissionEntry {
   readonly item: SetListItem;
   readonly kind: "intermission";
   readonly notes: string;
+}
+
+/** Quick Cues affect timing in the editor, but are omitted from program output. */
+export function setListProgramItems(items: readonly SetListItem[]): SetListItem[] {
+  return items.filter((item) => !isSetListQuickCue(item));
 }
 
 export type SetListPresentationEntry =
@@ -295,13 +301,14 @@ export function groupSetListForPresentation(
   items: readonly SetListItem[],
   music: readonly OrganizationMusicPiece[],
 ): readonly SetListPresentationEntry[] {
+  const programItems = setListProgramItems(items);
   const musicById = new Map(music.map((p) => [p.id, p]));
   const entries: SetListPresentationEntry[] = [];
   let programNumber = 0;
   let i = 0;
 
-  while (i < items.length) {
-    const item = items[i];
+  while (i < programItems.length) {
+    const item = programItems[i];
     if (!item) {
       i++;
       continue;
@@ -326,7 +333,7 @@ export function groupSetListForPresentation(
         item,
         i,
         piece,
-        items,
+        programItems,
         musicById,
         music,
         programNumber + 1,
@@ -348,7 +355,7 @@ export function groupSetListForPresentation(
           i,
           piece,
           parentPiece,
-          items,
+          programItems,
           musicById,
           music,
           programNumber + 1,

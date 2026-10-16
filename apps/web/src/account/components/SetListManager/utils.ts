@@ -22,6 +22,7 @@ import {
   formatPerformerCredits,
   groupSetListForPresentation,
   indentedNoteLines,
+  setListProgramItems,
   setListBuilderCredit,
   setListPrintedCredit,
   type PresentationGroupEntry,
@@ -38,6 +39,7 @@ export {
   formatPerformerCredits,
   groupSetListForPresentation,
   indentedNoteLines,
+  setListProgramItems,
   setListBuilderCredit,
   setListPrintedCredit,
   type PresentationGroupEntry,
@@ -467,9 +469,10 @@ export function setListPreviewRows(
   items: readonly SetListItem[],
   music: readonly OrganizationMusicPiece[],
 ): SetListPreviewRow[] {
-  const rows = printRowsFor(items, music);
+  const programItems = setListProgramItems(items);
+  const rows = printRowsFor(programItems, music);
   let songNumber = 0;
-  return items.map((item, index) => {
+  return programItems.map((item, index) => {
     const row = rows[index] ?? {
       arranger: "",
       composer: "",
