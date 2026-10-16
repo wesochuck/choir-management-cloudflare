@@ -1,6 +1,7 @@
 import type {
   DuesRecord,
   OrganizationProfile,
+  OrganizationProfileFolderNumber,
   OrganizationProfileRequest,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
@@ -165,4 +166,26 @@ export function duesStatusLabel(record: DuesRecord | undefined): string {
     return record.sharedCheckout ? "Online checkout pending (shared)" : "Online checkout pending";
   }
   return "Pending";
+}
+
+export function getModifiedFolderNumbers(
+  current: readonly OrganizationProfileFolderNumber[],
+  baseline: readonly OrganizationProfileFolderNumber[],
+): readonly OrganizationProfileFolderNumber[] {
+  if (baseline.length === 0) return [];
+  return current.filter((folder) => {
+    const base = baseline.find((b) => b.eventId === folder.eventId);
+    if (!base) return true;
+    return (
+      folder.folderNumber.trim() !== base.folderNumber.trim() ||
+      folder.folderReturned !== base.folderReturned
+    );
+  });
+}
+
+export function areFolderNumbersDirty(
+  current: readonly OrganizationProfileFolderNumber[],
+  baseline: readonly OrganizationProfileFolderNumber[],
+): boolean {
+  return getModifiedFolderNumbers(current, baseline).length > 0;
 }

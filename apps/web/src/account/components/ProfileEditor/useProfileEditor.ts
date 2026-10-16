@@ -1,6 +1,7 @@
 import type {
   OrganizationMembershipSummary,
   OrganizationProfile,
+  OrganizationProfileFolderNumber,
   OrganizationProfileRequest,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
@@ -18,8 +19,9 @@ import {
   listOrganizationSeasons,
   requestPasswordReset,
   updateOrganizationProfile,
+  updateOrganizationProfileFolderNumber,
 } from "../../../auth/api";
-import { emptyProfile, profileRequestFrom } from "../RosterPage/utils";
+import { emptyProfile, getModifiedFolderNumbers, profileRequestFrom } from "../RosterPage/utils";
 import type {
   PerformanceHistoryState,
   ProfileDeliveriesState,
@@ -68,6 +70,9 @@ export function useProfileEditor({
   const [profileFolderNumbers, setProfileFolderNumbers] = useState<ProfileFolderNumbersState>({
     status: "idle",
   });
+  const [baselineFolderNumbers, setBaselineFolderNumbers] = useState<
+    readonly OrganizationProfileFolderNumber[]
+  >([]);
   const [profilePhotoFileId, setProfilePhotoFileId] = useState<string | null>(null);
   const [photoPending, setPhotoPending] = useState(false);
   const photoSaveFnRef = useRef<(() => Promise<boolean>) | null>(null);
@@ -95,6 +100,7 @@ export function useProfileEditor({
     setProfileStatusHistory({ status: "loading" });
     setProfileDues({ status: "idle" });
     setProfileFolderNumbers({ status: "idle" });
+    setBaselineFolderNumbers([]);
     setProfileDeliveries({ status: "idle" });
     setResetFeedback(null);
     setError(null);
@@ -117,6 +123,7 @@ export function useProfileEditor({
     setProfileStatusHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
     setProfileFolderNumbers({ status: "idle" });
+    setBaselineFolderNumbers([]);
     setProfileDeliveries({ status: "idle" });
     setResetFeedback(null);
     setError(null);
@@ -181,9 +188,11 @@ export function useProfileEditor({
 
   useEffect(() => {
     if (!open || !editingId || profileTab !== "folders") return;
+    if (profileFolderNumbers.status !== "idle" && profileFolderNumbers.status !== "loading") return;
     const controller = new AbortController();
     getOrganizationProfileFolderNumbers(editingId, controller.signal)
       .then((folderNumbers) => {
+        setBaselineFolderNumbers(folderNumbers);
         setProfileFolderNumbers({ folderNumbers, status: "ready" });
       })
       .catch((folderError: unknown) => {
@@ -194,7 +203,7 @@ export function useProfileEditor({
     return () => {
       controller.abort();
     };
-  }, [editingId, open, profileTab]);
+  }, [editingId, open, profileFolderNumbers.status, profileTab]);
 
   useEffect(() => {
     if (!open || !editingId || profileTab !== "messages") return;
@@ -264,6 +273,10 @@ export function useProfileEditor({
         return;
       }
     }
+    const modifiedFolders =
+      editingId && profileFolderNumbers.status === "ready"
+        ? getModifiedFolderNumbers(profileFolderNumbers.folderNumbers, baselineFolderNumbers)
+        : [];
     setBusy(true);
     setError(null);
     try {
@@ -279,6 +292,22 @@ export function useProfileEditor({
           // Profile saved; invitation failure matches Roster behavior of not
           // blocking the save (host shows generic saved feedback).
         }
+      }
+      if (editingId && modifiedFolders.length > 0) {
+        const updatedFolders = await Promise.all(
+          modifiedFolders.map((folder) =>
+            updateOrganizationProfileFolderNumber(editingId, folder.eventId, {
+              folderNumber: folder.folderNumber.trim(),
+              folderReturned: folder.folderReturned,
+            }),
+          ),
+        );
+        setBaselineFolderNumbers((current) =>
+          current.map((base) => {
+            const updated = updatedFolders.find((u) => u.eventId === base.eventId);
+            return updated ?? base;
+          }),
+        );
       }
       let photoSaveFailed = false;
       if (photoPending && photoSaveFnRef.current) {
@@ -333,6 +362,7 @@ export function useProfileEditor({
     : undefined;
 
   const dialogProps: Omit<ProfileEditorDialogProps, "onClose" | "open" | "saveLabel"> = {
+    baselineFolderNumbers,
     busy,
     editingId,
     editingProfileRecord,

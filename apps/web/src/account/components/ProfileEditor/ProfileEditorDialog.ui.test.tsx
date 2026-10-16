@@ -19,9 +19,11 @@ vi.mock("../../../api", async (importOriginal) => {
   return {
     ...actual,
     deletePrivateOrganizationFile: vi.fn(),
+    getOrganizationProfileFolderNumbers: vi.fn(),
     listOrganizationMemberships: vi.fn(),
     setOrganizationProfilePhoto: vi.fn(),
     updateOrganizationProfile: vi.fn(),
+    updateOrganizationProfileFolderNumber: vi.fn(),
     uploadPrivateOrganizationFile: vi.fn(),
   };
 });
@@ -105,6 +107,30 @@ describe("ProfileEditorDialog photo save coordination", () => {
       uploadedAt: new Date().toISOString(),
     });
     vi.mocked(api.setOrganizationProfilePhoto).mockResolvedValue(undefined);
+    vi.mocked(api.getOrganizationProfileFolderNumbers).mockResolvedValue([
+      {
+        eventId: "event-1111",
+        eventTitle: "Spring Gala",
+        eventType: "Performance",
+        folderNumber: "42",
+        folderReturned: false,
+        profileId: sampleProfile.id,
+        returnedAt: null,
+        startsAt: "2026-05-01T19:00:00Z",
+        updatedAt: null,
+      },
+    ]);
+    vi.mocked(api.updateOrganizationProfileFolderNumber).mockResolvedValue({
+      eventId: "event-1111",
+      eventTitle: "Spring Gala",
+      eventType: "Performance",
+      folderNumber: "42",
+      folderReturned: true,
+      profileId: sampleProfile.id,
+      returnedAt: new Date().toISOString(),
+      startsAt: "2026-05-01T19:00:00Z",
+      updatedAt: new Date().toISOString(),
+    });
 
     vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-preview");
     vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
@@ -262,5 +288,58 @@ describe("ProfileEditorDialog photo save coordination", () => {
     });
     expect(editHeadings).toHaveLength(1);
     expect(editHeadings[0]).toHaveTextContent("Alex Rivera");
+  });
+
+  it("marks state as dirty, enables save button on folder changes, removes per-row save, and saves via main save button", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+
+    render(<ProfileEditorHarness onSaved={onSaved} saveLabel="Save Profile" />);
+
+    await user.click(screen.getByRole("button", { name: "Open Editor" }));
+    expect(screen.getByRole("dialog", { name: "Edit Profile" })).toBeInTheDocument();
+
+    // Switch to Folder numbers tab
+    const foldersTab = screen.getByRole("tab", { name: "Folder numbers" });
+    await user.click(foldersTab);
+
+    // Initial folder row is rendered
+    expect(await screen.findByDisplayValue("42")).toBeInTheDocument();
+    expect(screen.getByText("Spring Gala")).toBeInTheDocument();
+
+    // Pristine: No unsaved changes, Save button disabled
+    expect(screen.getByText("No unsaved changes")).toBeInTheDocument();
+    const saveButton = screen.getByRole("button", { name: "Save Profile" });
+    expect(saveButton).toBeDisabled();
+
+    // Verify there are NO per-row save buttons
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+
+    // Toggle "Folder returned" checkbox
+    const returnedCheckbox = screen.getByRole("checkbox", { name: /Folder returned/i });
+    expect(returnedCheckbox).not.toBeChecked();
+    await user.click(returnedCheckbox);
+    expect(returnedCheckbox).toBeChecked();
+
+    // Dirty: State shows Unsaved changes and Save Profile button lights up (enabled)
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(saveButton).not.toBeDisabled();
+
+    // Click main Save button
+    await user.click(saveButton);
+
+    expect(api.updateOrganizationProfile).toHaveBeenCalled();
+    expect(api.updateOrganizationProfileFolderNumber).toHaveBeenCalledWith(
+      sampleProfile.id,
+      "event-1111",
+      {
+        folderNumber: "42",
+        folderReturned: true,
+      },
+    );
+    expect(onSaved).toHaveBeenCalled();
+
+    // Dialog closes on success
+    expect(screen.queryByRole("dialog", { name: "Edit Profile" })).not.toBeInTheDocument();
   });
 });

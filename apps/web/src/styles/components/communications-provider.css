@@ -583,7 +583,10 @@
   /* Wide container layout for Communications */
   .signed-in-main.signed-in-main--communications,
   .signed-in-main:has(.communication-center) {
-    width: min(88rem, calc(100% - 2rem));
+    width: 100%;
+    max-width: 100%;
+    padding: clamp(var(--spacing-md), 2vw, var(--spacing-lg))
+      clamp(var(--spacing-sm), 1.5vw, var(--spacing-md)) 3rem;
   }
 
   /* Top-level Communications Navigation */

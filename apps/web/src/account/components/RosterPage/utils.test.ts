@@ -75,3 +75,55 @@ describe("duesStatusLabel", () => {
     ).toBe("Refunded");
   });
 });
+
+describe("folder numbers dirty tracking", () => {
+  it("detects changes in folder number and folder returned status", async () => {
+    const { areFolderNumbersDirty, getModifiedFolderNumbers } = await import("./utils");
+    const firstFolder = {
+      eventId: "e1",
+      eventTitle: "Concert A",
+      eventType: "Performance" as const,
+      folderNumber: "12",
+      folderReturned: false,
+      profileId: "p1",
+      returnedAt: null,
+      startsAt: "2026-12-01T19:00:00Z",
+      updatedAt: null,
+    };
+    const secondFolder = {
+      eventId: "e2",
+      eventTitle: "Concert B",
+      eventType: "Performance" as const,
+      folderNumber: "",
+      folderReturned: false,
+      profileId: "p1",
+      returnedAt: null,
+      startsAt: "2026-12-15T19:00:00Z",
+      updatedAt: null,
+    };
+    const baseline = [firstFolder, secondFolder];
+
+    // Pristine
+    expect(areFolderNumbersDirty(baseline, baseline)).toBe(false);
+    expect(getModifiedFolderNumbers(baseline, baseline)).toEqual([]);
+
+    // When empty baseline
+    expect(areFolderNumbersDirty(baseline, [])).toBe(false);
+    expect(getModifiedFolderNumbers(baseline, [])).toEqual([]);
+
+    // Checkbox toggled
+    const returnedChanged = [{ ...firstFolder, folderReturned: true }, secondFolder];
+    expect(areFolderNumbersDirty(returnedChanged, baseline)).toBe(true);
+    expect(getModifiedFolderNumbers(returnedChanged, baseline)).toEqual([returnedChanged[0]]);
+
+    // Folder number changed
+    const numberChanged = [firstFolder, { ...secondFolder, folderNumber: "45" }];
+    expect(areFolderNumbersDirty(numberChanged, baseline)).toBe(true);
+    expect(getModifiedFolderNumbers(numberChanged, baseline)).toEqual([numberChanged[1]]);
+
+    // Whitespace only matching trimmed
+    const whitespaceOnly = [{ ...firstFolder, folderNumber: "  12  " }, secondFolder];
+    expect(areFolderNumbersDirty(whitespaceOnly, baseline)).toBe(false);
+    expect(getModifiedFolderNumbers(whitespaceOnly, baseline)).toEqual([]);
+  });
+});

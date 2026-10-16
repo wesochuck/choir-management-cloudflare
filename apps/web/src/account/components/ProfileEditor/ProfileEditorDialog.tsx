@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { PerformanceHistory } from "../RosterPage/shared";
 import { ProfileDues, ProfileFolderNumbers, ProfileMessages } from "../RosterPage/profileDetails";
-import { emptyProfile, profileRequestFrom } from "../RosterPage/utils";
+import { areFolderNumbersDirty, emptyProfile, profileRequestFrom } from "../RosterPage/utils";
 import { ProfileEditorFooter } from "./ProfileEditorFooter";
 import { ProfileEditorHeader } from "./ProfileEditorHeader";
 import { ProfileEditorNav } from "./ProfileEditorNav";
@@ -62,6 +62,7 @@ function isProfileDraftDirty(
 }
 
 export function ProfileEditorDialog({
+  baselineFolderNumbers,
   busy,
   editingId,
   editingProfileRecord,
@@ -122,13 +123,20 @@ export function ProfileEditorDialog({
     : undefined;
   const baselineEmail = linkedProfileEmail ?? "";
 
+  const isFoldersDirty = useMemo(() => {
+    if (!baselineFolderNumbers || profileFolderNumbers.status !== "ready") return false;
+    return areFolderNumbersDirty(profileFolderNumbers.folderNumbers, baselineFolderNumbers);
+  }, [baselineFolderNumbers, profileFolderNumbers]);
+
   const isDirty = useMemo(() => {
-    return isProfileDraftDirty(profile, baselineProfile, profileEmail, baselineEmail);
-  }, [baselineEmail, baselineProfile, profile, profileEmail]);
+    return (
+      isProfileDraftDirty(profile, baselineProfile, profileEmail, baselineEmail) || isFoldersDirty
+    );
+  }, [baselineEmail, baselineProfile, isFoldersDirty, profile, profileEmail]);
 
   // Independent tabs (RSVPs, dues, folders, messages) save through their own
-  // mutations. The outer profile form must never implicitly submit from those
-  // panels when the general draft is pristine.
+  // mutations or preserve form drafts. The outer profile form must never implicitly
+  // submit from those panels when pristine.
   const INDEPENDENT_TABS: readonly ProfileTab[] = ["performance", "dues", "folders", "messages"];
 
   function handleProfileSubmit(event: React.SyntheticEvent): void {
@@ -145,7 +153,9 @@ export function ProfileEditorDialog({
     } else if (nextTab === "dues") {
       setProfileDues({ status: "loading" });
     } else if (nextTab === "folders") {
-      setProfileFolderNumbers({ status: "loading" });
+      if (profileFolderNumbers.status === "idle" || profileFolderNumbers.status === "error") {
+        setProfileFolderNumbers({ status: "loading" });
+      }
     } else if (nextTab === "messages") {
       setProfileDeliveries({ status: "loading" });
     }

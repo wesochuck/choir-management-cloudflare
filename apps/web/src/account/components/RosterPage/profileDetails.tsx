@@ -1,54 +1,19 @@
 import type { DuesRecord, OrganizationProfileFolderNumber, Season } from "@choir/contracts";
 import { useConfirmation } from "@choir/ui";
 import { useState } from "react";
-import {
-  AuthApiError,
-  markOrganizationDuesPaidInCash,
-  updateOrganizationProfileFolderNumber,
-} from "../../../auth/api";
+import { AuthApiError, markOrganizationDuesPaidInCash } from "../../../auth/api";
 
 import { duesStatusLabel, formatDuesAmount, formatPerformanceDate } from "./utils";
 import type { ProfileDeliveriesState, ProfileDuesState, ProfileFolderNumbersState } from "./types";
 
 export function ProfileFolderNumbers({
   onFolderNumberChanged,
-  profileId,
   state,
 }: {
   readonly onFolderNumberChanged: (folderNumber: OrganizationProfileFolderNumber) => void;
-  readonly profileId: string;
+  readonly profileId?: string | null | undefined;
   readonly state: ProfileFolderNumbersState;
 }) {
-  const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
-  const [returnedDrafts, setReturnedDrafts] = useState<Readonly<Record<string, boolean>>>({});
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [savingEventId, setSavingEventId] = useState<string | null>(null);
-
-  async function saveFolderNumber(folder: OrganizationProfileFolderNumber): Promise<void> {
-    const folderNumber = (drafts[folder.eventId] ?? folder.folderNumber).trim();
-    const folderReturned = returnedDrafts[folder.eventId] ?? folder.folderReturned;
-    setSavingEventId(folder.eventId);
-    setError(null);
-    setSuccess(null);
-    try {
-      const updated = await updateOrganizationProfileFolderNumber(profileId, folder.eventId, {
-        folderNumber,
-        folderReturned,
-      });
-      onFolderNumberChanged(updated);
-      setSuccess(`${folder.eventTitle} folder details saved.`);
-    } catch (saveError: unknown) {
-      setError(
-        saveError instanceof AuthApiError
-          ? saveError.message
-          : "The folder number could not be saved.",
-      );
-    } finally {
-      setSavingEventId(null);
-    }
-  }
-
   if (state.status === "loading") {
     return <p className="notice notice--info">Loading folder numbers…</p>;
   }
@@ -72,20 +37,9 @@ export function ProfileFolderNumbers({
         </div>
         <span className="field-help">Folder details are stored separately for each event.</span>
       </div>
-      {error ? (
-        <p className="notice notice--error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {success ? (
-        <p className="notice notice--success" role="status">
-          {success}
-        </p>
-      ) : null}
       <div className="profile-folder-numbers__list" role="list">
         {state.folderNumbers.map((folder) => {
           const formatted = formatPerformanceDate(folder.startsAt);
-          const isSaving = savingEventId === folder.eventId;
           return (
             <div className="profile-folder-row" key={folder.eventId} role="listitem">
               <div className="profile-folder-row__event">
@@ -99,39 +53,27 @@ export function ProfileFolderNumbers({
                 <input
                   maxLength={50}
                   onChange={(event) => {
-                    setDrafts((current) => ({
-                      ...current,
-                      [folder.eventId]: event.target.value,
-                    }));
+                    onFolderNumberChanged({
+                      ...folder,
+                      folderNumber: event.target.value,
+                    });
                   }}
-                  value={drafts[folder.eventId] ?? folder.folderNumber}
+                  value={folder.folderNumber}
                 />
               </label>
               <label className="checkbox-row profile-folder-row__returned">
                 <input
-                  checked={returnedDrafts[folder.eventId] ?? folder.folderReturned}
+                  checked={folder.folderReturned}
                   onChange={(event) => {
-                    setReturnedDrafts((current) => ({
-                      ...current,
-                      [folder.eventId]: event.target.checked,
-                    }));
+                    onFolderNumberChanged({
+                      ...folder,
+                      folderReturned: event.target.checked,
+                    });
                   }}
                   type="checkbox"
                 />
                 Folder returned
               </label>
-              <div className="profile-folder-row__action">
-                <button
-                  className="button button--secondary button--control-height"
-                  disabled={savingEventId !== null}
-                  onClick={() => {
-                    void saveFolderNumber(folder);
-                  }}
-                  type="button"
-                >
-                  {isSaving ? "Saving…" : "Save"}
-                </button>
-              </div>
             </div>
           );
         })}

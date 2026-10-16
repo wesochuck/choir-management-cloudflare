@@ -1,6 +1,15 @@
-import type { OrganizationProfile, OrganizationProfileRequest } from "@choir/contracts";
+import type {
+  OrganizationProfile,
+  OrganizationProfileFolderNumber,
+  OrganizationProfileRequest,
+} from "@choir/contracts";
 import { organizationInvitationRequestSchema } from "@choir/contracts";
-import { emptyProfile, profileMatchesVoiceFilters, profileRequestFrom } from "./utils";
+import {
+  emptyProfile,
+  getModifiedFolderNumbers,
+  profileMatchesVoiceFilters,
+  profileRequestFrom,
+} from "./utils";
 import type {
   PerformanceHistoryState,
   ProfileDeliveriesState,
@@ -36,6 +45,7 @@ import {
   listOrganizationSeasons,
   requestPasswordReset,
   updateOrganizationProfile,
+  updateOrganizationProfileFolderNumber,
 } from "../../../auth/api";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 
@@ -84,6 +94,9 @@ export function useRosterPageController({
   const [profileFolderNumbers, setProfileFolderNumbers] = useState<ProfileFolderNumbersState>({
     status: "idle",
   });
+  const [baselineFolderNumbers, setBaselineFolderNumbers] = useState<
+    readonly OrganizationProfileFolderNumber[]
+  >([]);
   const [profileDeliveries, setProfileDeliveries] = useState<ProfileDeliveriesState>({
     status: "idle",
   });
@@ -147,6 +160,7 @@ export function useRosterPageController({
     setProfileStatusHistory({ status: "loading" });
     setProfileDues({ status: initialProfileTab === "dues" ? "loading" : "idle" });
     setProfileFolderNumbers({ status: initialProfileTab === "folders" ? "loading" : "idle" });
+    setBaselineFolderNumbers([]);
     setProfileDeliveries({ status: initialProfileTab === "messages" ? "loading" : "idle" });
     setResetFeedback(null);
     setError(null);
@@ -190,9 +204,11 @@ export function useRosterPageController({
 
   useEffect(() => {
     if (!dialogOpen || !editingId || profileTab !== "folders") return;
+    if (profileFolderNumbers.status !== "idle" && profileFolderNumbers.status !== "loading") return;
     const controller = new AbortController();
     getOrganizationProfileFolderNumbers(editingId, controller.signal)
       .then((folderNumbers) => {
+        setBaselineFolderNumbers(folderNumbers);
         setProfileFolderNumbers({ folderNumbers, status: "ready" });
       })
       .catch((folderError: unknown) => {
@@ -203,7 +219,7 @@ export function useRosterPageController({
     return () => {
       controller.abort();
     };
-  }, [dialogOpen, editingId, profileTab]);
+  }, [dialogOpen, editingId, profileFolderNumbers.status, profileTab]);
 
   useEffect(() => {
     if (!dialogOpen || !editingId || profileTab !== "messages") return;
@@ -370,6 +386,7 @@ export function useRosterPageController({
     setProfileStatusHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
     setProfileFolderNumbers({ status: "idle" });
+    setBaselineFolderNumbers([]);
     setProfileDeliveries({ status: "idle" });
     setResetFeedback(null);
     setError(null);
@@ -450,6 +467,7 @@ export function useRosterPageController({
     setProfileStatusHistory({ status: "idle" });
     setProfileDues({ status: "idle" });
     setProfileFolderNumbers({ status: "idle" });
+    setBaselineFolderNumbers([]);
     setProfileDeliveries({ status: "idle" });
     setProfile(emptyProfile);
     setProfileEmail("");
@@ -469,6 +487,7 @@ export function useRosterPageController({
     setProfileStatusHistory({ status: "loading" });
     setProfileDues({ status: "idle" });
     setProfileFolderNumbers({ status: "idle" });
+    setBaselineFolderNumbers([]);
     setProfileDeliveries({ status: "idle" });
     setProfile(profileRequestFrom(candidate));
     setProfilePhotoFileId(candidate.photoFileId);
@@ -508,6 +527,10 @@ export function useRosterPageController({
         return;
       }
     }
+    const modifiedFolders =
+      editingId && profileFolderNumbers.status === "ready"
+        ? getModifiedFolderNumbers(profileFolderNumbers.folderNumbers, baselineFolderNumbers)
+        : [];
     setBusy(true);
     setError(null);
     try {
@@ -532,6 +555,22 @@ export function useRosterPageController({
               ? ` The Profile was saved, but the membership invitation could not be created. ${invitationError.message}`
               : " The Profile was saved, but the membership invitation could not be created.";
         }
+      }
+      if (editingId && modifiedFolders.length > 0) {
+        const updatedFolders = await Promise.all(
+          modifiedFolders.map((folder) =>
+            updateOrganizationProfileFolderNumber(editingId, folder.eventId, {
+              folderNumber: folder.folderNumber.trim(),
+              folderReturned: folder.folderReturned,
+            }),
+          ),
+        );
+        setBaselineFolderNumbers((current) =>
+          current.map((base) => {
+            const updated = updatedFolders.find((u) => u.eventId === base.eventId);
+            return updated ?? base;
+          }),
+        );
       }
       let photoSaveFailed = false;
       if (photoPending && photoSaveFnRef.current) {
@@ -789,6 +828,7 @@ export function useRosterPageController({
 
   return {
     archiveProfile,
+    baselineFolderNumbers,
     busy,
     bulkBusy,
     bulkUpdateProfiles,

@@ -46,6 +46,7 @@ export function RosterPageView({
   const [resolveDuplicateOpen, setResolveDuplicateOpen] = useState(false);
   const [viewerPhoto, setViewerPhoto] = useState<{ displayName: string; src: string } | null>(null);
   const {
+    baselineFolderNumbers,
     busy,
     bulkBusy,
     bulkUpdateProfiles,
@@ -698,6 +699,7 @@ export function RosterPageView({
       </Tabs>
 
       <ProfileEditorDialog
+        baselineFolderNumbers={baselineFolderNumbers}
         busy={busy}
         editingId={editingId}
         editingProfileRecord={editingProfileRecord}

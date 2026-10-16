@@ -55,6 +55,7 @@ export type ProfileFolderNumbersState =
     };
 
 export interface ProfileEditorDialogProps {
+  readonly baselineFolderNumbers?: readonly OrganizationProfileFolderNumber[] | undefined;
   readonly busy: boolean;
   readonly editingId: string | null;
   readonly editingProfileRecord?: OrganizationProfile | null | undefined;
