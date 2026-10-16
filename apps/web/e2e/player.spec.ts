@@ -174,7 +174,9 @@ test("renders practice player with artwork, track navigation, and set list @webk
 
     // Secondary controls
     await expect(nowPlaying.getByRole("button", { name: "No repeat" })).toBeVisible();
-    await expect(nowPlaying.getByRole("button", { name: /Set list \(2 tracks\)/i })).toBeVisible();
+    await expect(
+      nowPlaying.getByRole("button", { name: /Set list \(2 tracks\)/i }),
+    ).not.toBeVisible();
     await expect(nowPlaying.getByRole("button", { name: "Rehearsal settings" })).toBeVisible();
 
     // Selecting individual voice part from modal sheet

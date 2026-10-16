@@ -455,7 +455,7 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
             <TabsTrigger value="all-tracks">All tracks</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="set-lists">
+          <TabsContent className="grid gap-(--spacing-md) md:gap-(--spacing-lg)" value="set-lists">
             <PublishedSetListsTabContent
               approvedSetLists={approvedSetLists}
               currentSetList={currentSetList}
@@ -474,7 +474,7 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
             />
           </TabsContent>
 
-          <TabsContent value="all-tracks">
+          <TabsContent className="grid gap-(--spacing-md) md:gap-(--spacing-lg)" value="all-tracks">
             <AllTracksTabContent
               allTracksPlayableCount={allTracksPlayableCount}
               allTracksPlaylistItems={allTracksPlaylistItems}

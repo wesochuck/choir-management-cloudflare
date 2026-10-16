@@ -3,7 +3,7 @@ import {
   type SetupProgressRequest,
   type SetupStatus,
 } from "@choir/contracts";
-import { MODULE_DEFINITIONS } from "@choir/domain";
+import { MODULE_DEFINITIONS, isSetupComplete, nextSetupStep } from "@choir/domain";
 import { useEffect, useRef, useState } from "react";
 import {
   AuthApiError,
@@ -67,7 +67,10 @@ export function SetupView() {
     getSetupStatus(controller.signal)
       .then((setup) => {
         setSetupState({ setup, status: "ready" });
-        if (setup.currentStep && isStep(setup.currentStep)) {
+        if (setup.launched) {
+          const missingStep = nextSetupStep(setup.completedSteps);
+          if (missingStep) setCurrentStep(missingStep);
+        } else if (setup.currentStep && isStep(setup.currentStep)) {
           setCurrentStep(setup.currentStep);
         } else if (setup.completedSteps.length > 0) {
           const next = nextUncompleted(setup.completedSteps);
@@ -80,9 +83,7 @@ export function SetupView() {
         if (setup.physicalAddress) {
           setPhysicalAddress(setup.physicalAddress);
         }
-        if (setup.launched) {
-          setCompleted(true);
-        }
+        setCompleted(isSetupComplete(setup));
       })
       .catch(() => {
         if (!controller.signal.aborted) {
@@ -117,6 +118,25 @@ export function SetupView() {
         stepData.accentColor = themeAccent;
       }
       await saveProgress(currentStep, stepData);
+      if (setupState.status === "ready" && setupState.setup.launched) {
+        // Repair only missing steps for a live Organization; never replay saved module choices.
+        let refreshed: SetupStatus;
+        try {
+          refreshed = await getSetupStatus();
+        } catch (error: unknown) {
+          setMessage(
+            error instanceof AuthApiError
+              ? error.message
+              : "Changes saved, but setup status could not be refreshed. Try again.",
+          );
+          return;
+        }
+        setSetupState({ setup: refreshed, status: "ready" });
+        setCompleted(isSetupComplete(refreshed));
+        const missingStep = nextSetupStep(refreshed.completedSteps);
+        if (missingStep) setCurrentStep(missingStep);
+        return;
+      }
       const currentIndex = steps.findIndex((s) => s.id === currentStep);
       const nextStep =
         currentIndex >= 0 && currentIndex < steps.length - 1 ? steps[currentIndex + 1] : null;
@@ -189,6 +209,13 @@ export function SetupView() {
       <div className="account-heading">
         <h1>Welcome to your Organization</h1>
       </div>
+
+      {setupState.setup.launched ? (
+        <p className="notice notice--info">
+          Your Organization is already live. Complete the missing setup details below; previously
+          completed steps will be kept.
+        </p>
+      ) : null}
 
       <div
         className="progress-bar"

@@ -360,7 +360,13 @@ test("completes setup using the server response and remains complete after reloa
   await page.route("**/api/setup/status", async (route) => {
     await fulfillJson(route, {
       allModulesConfigured: true,
-      completedSteps: ["organization_info", "modules", "theme", "data_import"],
+      completedSteps: [
+        "organization_info",
+        "modules",
+        "theme",
+        "data_import",
+        ...(launched ? ["launch"] : []),
+      ],
       currentStep: launched ? null : "launch",
       launched,
       organizationId,
@@ -431,3 +437,54 @@ for (const failedStep of ["progress", "complete"] as const) {
     await expect(page.getByRole("heading", { name: "Setup complete" })).toBeVisible();
   });
 }
+
+test("repairs a missing Organization Info step without changing disabled modules", async ({
+  page,
+}) => {
+  await setupChecklistRoutes(page, []);
+  const completedSteps = ["modules", "theme", "data_import", "launch"];
+  const progressWrites: unknown[] = [];
+  await page.route("**/api/organization/module-state", async (route) => {
+    await fulfillJson(route, {
+      modules: moduleIdSchema.options.map((id) => ({ id, enabled: id === "roster" })),
+    });
+  });
+  await page.route("**/api/setup/status", async (route) => {
+    await fulfillJson(route, {
+      allModulesConfigured: true,
+      completedSteps,
+      currentStep: null,
+      launched: true,
+      organizationId,
+      organizationName: "Setup Checklist Choir",
+    });
+  });
+  await page.route("**/api/setup/progress", async (route) => {
+    const body: unknown = route.request().postDataJSON();
+    progressWrites.push(body);
+    expect(body).toMatchObject({
+      step: "organization_info",
+      data: { name: "Setup Checklist Choir" },
+    });
+    completedSteps.push("organization_info");
+    await fulfillJson(route, { saved: true });
+  });
+  await page.goto("/admin/settings/setup-checklist");
+  await expect(page.getByText("4 of 5 steps completed.")).toBeVisible();
+  await expect(
+    page.getByRole("group", { name: "Module Configuration", exact: true }),
+  ).toContainText("This step is complete.");
+  await page.getByRole("link", { name: "Complete organization info", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Organization Info", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Setup complete", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Setup complete", exact: true })).toBeVisible();
+  expect(progressWrites).toHaveLength(1);
+  await page.goto("/admin/settings/setup-checklist");
+  await expect(page.getByText("5 of 5 steps completed.")).toBeVisible();
+  await expect(
+    page.getByText(
+      "Setup is complete. Your Organization is live. Optional data imports can be added later.",
+    ),
+  ).toBeVisible();
+});

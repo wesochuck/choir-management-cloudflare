@@ -208,6 +208,9 @@ export function nextSetupStep(currentSteps: readonly string[]): SetupStep | null
   return null;
 }
 
-export function isSetupComplete(setup: SetupProgress): boolean {
-  return setup.launched && setup.completedSteps.length >= stepOrder.length;
+export function isSetupComplete(
+  setup: Pick<SetupProgress, "completedSteps" | "launched">,
+): boolean {
+  const completed = new Set(setup.completedSteps);
+  return setup.launched && stepOrder.every((step) => completed.has(step));
 }

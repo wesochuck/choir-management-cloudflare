@@ -839,6 +839,10 @@
   }
 
   @media (min-width: 48rem) {
+    .public-player__queue-trigger {
+      display: none;
+    }
+
     .public-player__desktop-panel {
       display: grid;
       gap: var(--spacing-md);

@@ -37,19 +37,42 @@ describe("setup domain model", () => {
 
     expect(
       isSetupComplete({
-        allModulesConfigured: true,
         completedSteps: ["organization_info", "modules", "theme", "launch"],
-        currentStep: null,
         launched: true,
       }),
     ).toBe(true);
 
     expect(
       isSetupComplete({
-        allModulesConfigured: true,
         completedSteps: ["organization_info", "modules"],
-        currentStep: "theme",
         launched: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("requires every named setup step rather than counting optional or duplicate entries", () => {
+    expect(
+      isSetupComplete({
+        launched: true,
+        completedSteps: ["modules", "theme", "data_import", "launch"],
+      }),
+    ).toBe(false);
+    expect(
+      isSetupComplete({
+        launched: true,
+        completedSteps: ["modules", "modules", "theme", "launch"],
+      }),
+    ).toBe(false);
+    expect(
+      isSetupComplete({
+        launched: true,
+        completedSteps: ["organization_info", "modules", "theme", "launch"],
+      }),
+    ).toBe(true);
+    expect(
+      isSetupComplete({
+        launched: false,
+        completedSteps: ["organization_info", "modules", "theme", "launch"],
       }),
     ).toBe(false);
   });

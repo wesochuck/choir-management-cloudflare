@@ -1,4 +1,5 @@
 import type { SetupStatus } from "@choir/contracts";
+import { isSetupComplete } from "@choir/domain";
 import { useEffect, useState } from "react";
 
 import { getSetupStatus } from "../api/setup";
@@ -102,11 +103,7 @@ export function SetupChecklistView() {
 
   const { setup } = checkState;
   const completedCount = allSteps.filter((step) => setup.completedSteps.includes(step)).length;
-  const requiredSteps = allSteps.filter((step) => step !== "data_import");
-  const requiredCompletedCount = requiredSteps.filter((step) =>
-    setup.completedSteps.includes(step),
-  ).length;
-  const setupIsComplete = setup.launched && requiredCompletedCount === requiredSteps.length;
+  const setupIsComplete = isSetupComplete(setup);
 
   return (
     <div className="settings-stack">

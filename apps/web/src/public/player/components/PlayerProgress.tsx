@@ -186,7 +186,7 @@ export function PlayerSecondaryControls({
 
       <button
         aria-label={`Set list (${String(queueCount)} tracks)`}
-        className="public-player__secondary-btn"
+        className="public-player__secondary-btn public-player__queue-trigger"
         onClick={onOpenQueue}
         ref={queueButtonRef}
         type="button"

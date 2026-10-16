@@ -41,6 +41,9 @@ async function openSetListIfMobile(page: Page, isMobile: boolean) {
   if (isMobile) {
     await page.getByRole("button", { name: /Set list \(/i }).click();
     await expect(page.getByRole("dialog", { name: "Set List" })).toBeVisible();
+  } else {
+    await expect(page.getByRole("button", { name: /Set list \(/i })).not.toBeVisible();
+    await expect(page.locator(".public-player__desktop-panel")).toBeVisible();
   }
 }
 
@@ -49,6 +52,20 @@ async function closeSetListIfMobile(page: Page, isMobile: boolean) {
     await page.getByRole("button", { name: "Close Set List" }).click();
     await expect(page.getByRole("dialog", { name: "Set List" })).not.toBeVisible();
   }
+}
+
+async function expectSpaceBelowFilters(page: Page) {
+  const filters = page.locator(".practice-player__filters");
+  const player = page.locator(".public-player__layout-grid");
+  await expect(player).toBeVisible();
+  await expect(async () => {
+    const filtersBounds = await filters.boundingBox();
+    const playerBounds = await player.boundingBox();
+    expect(filtersBounds).not.toBeNull();
+    expect(playerBounds).not.toBeNull();
+    if (!filtersBounds || !playerBounds) return;
+    expect(playerBounds.y - (filtersBounds.y + filtersBounds.height)).toBeGreaterThanOrEqual(16);
+  }).toPass();
 }
 
 test("displays published set lists tab by default with approved performance program order and cues", async ({
@@ -135,6 +152,7 @@ test("displays published set lists tab by default with approved performance prog
   await expect(picker).toHaveValue(eventId);
 
   await expect(page.getByText("3 playable of 4 music selections", { exact: false })).toBeVisible();
+  await expectSpaceBelowFilters(page);
 
   await openSetListIfMobile(page, isMobile);
   const playlistItems = getPlaylist(page, isMobile).locator("> li");
@@ -323,6 +341,7 @@ test("allows switching to all tracks tab with scoped search", async ({ page }, t
   );
 
   const searchInput = page.getByRole("searchbox", { name: "Search tracks" });
+  await expectSpaceBelowFilters(page);
   await searchInput.fill("Fauré");
 
   await openSetListIfMobile(page, isMobile);
