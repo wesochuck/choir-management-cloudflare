@@ -1,7 +1,7 @@
 import { DialogClose } from "@choir/ui";
 import type { OrganizationEvent, OrganizationRosterConfiguration } from "@choir/contracts";
 import { parsePracticeTrackFilename } from "@choir/domain";
-import { useCallback, useId, useState } from "react";
+import { useCallback, useId, useMemo, useState } from "react";
 import { extractAudioDuration } from "../../../audioDuration";
 import { TrackFileAudioPlayer } from "./TrackFileAudioPlayer";
 import type { InspectedTrackFile, TrackImportScope } from "./types";
@@ -41,10 +41,13 @@ export function StepScopeAndFiles({
 
   const performances = events.filter((e) => e.type === "Performance" || e.setList.length > 0);
 
-  const configuredParts = (roster?.voiceParts ?? []).map((vp) => ({
-    key: vp.label,
-    label: vp.fullName,
-  }));
+  const configuredParts = useMemo(
+    () => [
+      ...(roster?.voiceParts ?? []).map((part) => ({ key: part.label, label: part.fullName })),
+      ...(roster?.sections ?? []).map((section) => ({ key: section.code, label: section.name })),
+    ],
+    [roster],
+  );
 
   const handleProcessRawFiles = useCallback(
     async (rawFiles: FileList | readonly File[]) => {

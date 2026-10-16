@@ -295,6 +295,67 @@ describe("BulkPracticeTrackImportDialog", () => {
     await screen.findByText("Import completed");
   });
 
+  it.each([false, true])(
+    "detects section tracks from filenames (occupied: %s)",
+    async (occupied) => {
+      const roster = {
+        ...sampleRoster,
+        sections: [
+          { code: "T", name: "Tenors", color: "#000000", trackOnly: false },
+          { code: "B", name: "Basses", color: "#000000", trackOnly: false },
+        ],
+        voiceParts: [
+          { label: "T1", fullName: "Tenor 1", sectionCode: "T" },
+          { label: "T2", fullName: "Tenor 2", sectionCode: "T" },
+          { label: "B1", fullName: "Bass 1", sectionCode: "B" },
+          { label: "B2", fullName: "Bass 2", sectionCode: "B" },
+        ],
+      };
+      render(
+        <BulkPracticeTrackImportDialog
+          events={[sampleEvent]}
+          onClose={vi.fn()}
+          onTracksAttached={vi.fn()}
+          open
+          pieces={[
+            {
+              ...samplePiece,
+              title: "A Song in the Air",
+              trackFileIds: occupied ? { T: "tenor-file", B: "bass-file" } : {},
+            },
+          ]}
+          roster={roster}
+        />,
+      );
+      const fileNames = [
+        "03 Tenor 3. A Song in the Air.mp3",
+        "10 Bass 10. A Song in the Air.mp3",
+      ] as const;
+      fireEvent.change(screen.getByLabelText(/Drop MP3s here or browse files/), {
+        target: {
+          files: fileNames.map((name) => new File(["audio"], name, { type: "audio/mpeg" })),
+        },
+      });
+      await screen.findByText(fileNames[0]);
+      fireEvent.click(screen.getByRole("button", { name: "Review groups" }));
+      expect(
+        screen.getByRole("combobox", { name: `Section or voice part for ${fileNames[0]}` }),
+      ).toHaveValue("T");
+      expect(
+        screen.getByRole("combobox", { name: `Section or voice part for ${fileNames[1]}` }),
+      ).toHaveValue("B");
+      expect(screen.queryByText(/not configured/)).not.toBeInTheDocument();
+      if (occupied) {
+        expect(screen.getAllByText("Occupied slot conflict")).toHaveLength(2);
+        expect(
+          screen.queryByRole("button", { name: "Mark reviewed & next" }),
+        ).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByRole("button", { name: "Mark reviewed & next" })).toBeEnabled();
+      }
+    },
+  );
+
   it("protects occupied section slots and requires review after changing a section", async () => {
     await openAiReview("Hallelujah - Soprano.mp3", [
       { ...samplePiece, trackFileIds: { S: "existing-section-track" } },

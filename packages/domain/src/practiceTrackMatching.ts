@@ -142,33 +142,55 @@ const DEFAULT_PART_ALIASES: readonly {
   { alias: "instrumental", key: "accompaniment", label: "Accompaniment" },
 ];
 
+function normalizePartName(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]/gu, "")
+    .replace(/^(soprano|alto|tenor|baritone)s$/u, "$1")
+    .replace(/^basses$/u, "bass");
+}
+
 function buildPartCandidates(
   configuredParts: readonly ConfiguredPartOption[],
 ): { alias: string; key: string; label: string }[] {
   const candidates: { alias: string; key: string; label: string }[] = [];
+  const aliases = new Set<string>();
+  const defaultKeys = new Map(
+    DEFAULT_PART_ALIASES.map((part) => [normalizePartName(part.alias), part.key]),
+  );
+  const canonicalName = (value: string) => {
+    const normalized = normalizePartName(value);
+    return defaultKeys.get(normalized) ?? normalized;
+  };
+  const configuredByKey = new Map<string, ConfiguredPartOption>();
+  const configuredByName = new Map<string, ConfiguredPartOption | null>();
   for (const part of configuredParts) {
-    candidates.push({
-      alias: part.label.toLowerCase(),
-      key: part.key,
-      label: part.label,
-    });
-    candidates.push({
-      alias: part.key.toLowerCase(),
-      key: part.key,
-      label: part.label,
-    });
+    configuredByKey.set(normalizePartName(part.key), part);
+    for (const value of [part.label, part.key]) {
+      const alias = value.toLowerCase();
+      if (!aliases.has(alias)) {
+        candidates.push({ alias, key: part.key, label: part.label });
+        aliases.add(alias);
+      }
+      const name = canonicalName(value);
+      const existing = configuredByName.get(name);
+      // An ambiguous name must not silently choose one configured track slot.
+      configuredByName.set(
+        name,
+        existing === undefined || existing?.key === part.key ? part : null,
+      );
+    }
   }
   for (const def of DEFAULT_PART_ALIASES) {
-    if (!candidates.some((c) => c.alias === def.alias)) {
-      const configuredMatch = configuredParts.find(
-        (cp) => cp.key.toLowerCase() === def.key.toLowerCase(),
-      );
-      candidates.push({
-        alias: def.alias,
-        key: configuredMatch?.key ?? def.key,
-        label: configuredMatch?.label ?? def.label,
-      });
-    }
+    if (aliases.has(def.alias)) continue;
+    const configuredMatch =
+      configuredByKey.get(normalizePartName(def.key)) ?? configuredByName.get(def.key);
+    candidates.push({
+      alias: def.alias,
+      key: configuredMatch?.key ?? def.key,
+      label: configuredMatch?.label ?? def.label,
+    });
+    aliases.add(def.alias);
   }
   candidates.sort((a, b) => b.alias.length - a.alias.length);
   return candidates;
@@ -180,8 +202,13 @@ function detectVoicePart(
 ): { alias: string; key: string; label: string } | null {
   const normalizedForSearch = baseName.toLowerCase().replaceAll(/[-_.]/gu, " ");
   for (const candidate of candidates) {
-    const escapedAlias = candidate.alias.replaceAll(/[-/\\^$*+?.()|[\]{}]/gu, "\\$&");
-    const regex = new RegExp(`(?:^|[\\s_-])${escapedAlias}(?:[\\s_-]|$)`, "iu");
+    const escapedAlias = candidate.alias.replaceAll(/[\\^$*+?.()|[\]{}]/gu, "\\$&");
+    // Single-letter section codes need a filename edge, so articles in song titles do not match.
+    const pattern =
+      candidate.alias.length === 1
+        ? `(?:^${escapedAlias}\\s*[-_.]|(?:^|[\\s_.-])${escapedAlias}$)`
+        : `(?:^|[\\s_-])${escapedAlias}(?:[\\s_-]|$)`;
+    const regex = new RegExp(pattern, "iu");
     if (regex.test(baseName) || regex.test(normalizedForSearch)) {
       return candidate;
     }
@@ -196,8 +223,11 @@ function cleanInferredTitle(
 ): string {
   let inferredTitle = baseName;
   if (partMatchAlias) {
-    const escaped = partMatchAlias.replaceAll(/[-/\\^$*+?.()|[\]{}]/gu, "\\$&");
-    inferredTitle = inferredTitle.replaceAll(new RegExp(escaped, "giu"), " ");
+    const escaped = partMatchAlias.replaceAll(/[\\^$*+?.()|[\]{}]/gu, "\\$&");
+    inferredTitle = inferredTitle.replaceAll(
+      new RegExp(`(^|[\\s_.-])${escaped}(?=[\\s_.-]|$)`, "giu"),
+      "$1 ",
+    );
   }
   if (sequenceNumber) {
     const numStr = String(Number.parseInt(sequenceNumber, 10));

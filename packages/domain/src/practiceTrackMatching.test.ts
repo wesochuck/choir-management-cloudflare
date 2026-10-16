@@ -43,6 +43,57 @@ describe("practiceTrackMatching", () => {
   ];
 
   describe("parsePracticeTrackFilename", () => {
+    const sectionParts: ConfiguredPartOption[] = [
+      { key: "S", label: "Sopranos" },
+      { key: "A", label: "Altos" },
+      { key: "T", label: "Tenors" },
+      { key: "B", label: "Basses" },
+      { key: "S1", label: "Soprano 1" },
+      { key: "T1", label: "Tenor 1" },
+      { key: "T2", label: "Tenor 2" },
+    ];
+
+    it.each([
+      ["03 Tenor 3. A Song in the Air.mp3", "T", "Tenors"],
+      ["10 Bass 10. A Song in the Air.mp3", "B", "Basses"],
+      ["Song - Sop.mp3", "S", "Sopranos"],
+      ["Song - Contralto.mp3", "A", "Altos"],
+      ["Song - Tenors.mp3", "T", "Tenors"],
+      ["Song - Basses.mp3", "B", "Basses"],
+      ["Song - Tenor 1.mp3", "T1", "Tenor 1"],
+      ["Song - t2.mp3", "T2", "Tenor 2"],
+      ["Song - Soprano1.mp3", "S1", "Soprano 1"],
+    ])("maps %s to its configured slot", (fileName, key, label) => {
+      expect(parsePracticeTrackFilename(fileName, sectionParts)).toMatchObject({
+        detectedPartKey: key,
+        detectedPartLabel: label,
+      });
+    });
+
+    it("preserves title words when matching section codes", () => {
+      expect(
+        parsePracticeTrackFilename("A Song in the Air.mp3", sectionParts).detectedPartKey,
+      ).toBeNull();
+      expect(parsePracticeTrackFilename("A Song in the Air - T.mp3", sectionParts)).toMatchObject({
+        detectedPartKey: "T",
+        inferredTitle: "A Song in the Air",
+      });
+    });
+
+    it("does not collapse an unconfigured numbered part into a section", () => {
+      expect(parsePracticeTrackFilename("Song - Bass 2.mp3", sectionParts).detectedPartKey).toBe(
+        "bass2",
+      );
+    });
+
+    it("leaves ambiguous generic names unresolved", () => {
+      const parts = [
+        { key: "tenors-a", label: "Tenors" },
+        { key: "tenors-b", label: "Tenor" },
+      ];
+      expect(parsePracticeTrackFilename("Song - Ten.mp3", parts).detectedPartKey).toBe("tenor");
+    });
+
     it("parses standard title, number, and part", () => {
       const parsed = parsePracticeTrackFilename("01 O Shenandoah - Soprano 1.mp3", configuredParts);
       expect(parsed.detectedPartKey).toBe("soprano1");
