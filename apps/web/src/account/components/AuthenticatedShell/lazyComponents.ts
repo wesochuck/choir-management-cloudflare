@@ -1,4 +1,4 @@
-import { lazy } from "react";
+import { lazyWithRetry as lazy } from "../../../offline/chunkRecovery";
 
 export const AccountSecurity = lazy(() =>
   import("../../AccountSecurity").then(({ AccountSecurity: component }) => ({

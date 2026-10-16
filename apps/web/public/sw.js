@@ -1,19 +1,85 @@
 const SHELL_CACHE_NAME = /* __SHELL_CACHE_NAME__ */ "choir-shell-v1";
 const PRECACHE_MANIFEST = /* __PRECACHE_MANIFEST__ */ [];
 
+function isHtmlResponse(response) {
+  const contentType = response.headers.get("content-type") || "";
+  return contentType.toLowerCase().includes("text/html");
+}
+
+function isDocumentPath(url) {
+  return url === "/" || url === "/index.html";
+}
+
+async function precacheAsset(cache, url) {
+  try {
+    const request = isDocumentPath(url) ? new Request(url, { cache: "no-cache" }) : url;
+    const response = await fetch(request);
+    if (!response.ok) {
+      return;
+    }
+    if (!isDocumentPath(url) && isHtmlResponse(response)) {
+      return;
+    }
+    await cache.put(url, response);
+  } catch (err) {
+    console.warn("SW precache skipped:", url, err);
+  }
+}
+
+async function handleNavigationRequest(request) {
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse.status === 200 && isHtmlResponse(networkResponse)) {
+      const responseToCache = networkResponse.clone();
+      void caches.open(SHELL_CACHE_NAME).then((cache) => {
+        void cache.put("/index.html", responseToCache);
+      });
+    }
+    return networkResponse;
+  } catch {
+    const cache = await caches.open(SHELL_CACHE_NAME);
+    const cachedResponse = (await cache.match("/index.html")) || (await cache.match("/"));
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+    return new Response(
+      "<!doctype html><html><body><p>You are currently offline.</p></body></html>",
+      {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+        status: 503,
+        statusText: "Offline",
+      },
+    );
+  }
+}
+
+async function handleStaticAssetRequest(request, pathname) {
+  const cache = await caches.open(SHELL_CACHE_NAME);
+  const cached = (await cache.match(request)) || (await cache.match(pathname));
+  if (cached && !isHtmlResponse(cached)) {
+    return cached;
+  }
+  try {
+    const networkResponse = await fetch(request);
+    if (isHtmlResponse(networkResponse)) {
+      return new Response(null, { status: 404, statusText: "Asset Not Found" });
+    }
+    if (networkResponse.status === 200) {
+      void cache.put(request, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch {
+    return new Response(null, { status: 404 });
+  }
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(SHELL_CACHE_NAME)
       .then(async (cache) => {
         if (PRECACHE_MANIFEST.length > 0) {
-          await Promise.all(
-            PRECACHE_MANIFEST.map((url) =>
-              cache.add(url).catch((err) => {
-                console.warn("SW precache skipped:", url, err);
-              }),
-            ),
-          );
+          await Promise.all(PRECACHE_MANIFEST.map((url) => precacheAsset(cache, url)));
         }
       })
       .then(() => self.skipWaiting()),
@@ -64,33 +130,7 @@ self.addEventListener("fetch", (event) => {
   // Never cache URLs with search query parameters (e.g. ?token=...) to avoid unbounded
   // cache growth and prevent persisting sensitive signed tokens into Cache Storage keys.
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((networkResponse) => {
-          if (networkResponse.status === 200) {
-            const responseToCache = networkResponse.clone();
-            void caches.open(SHELL_CACHE_NAME).then((cache) => {
-              void cache.put("/index.html", responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(async () => {
-          const cache = await caches.open(SHELL_CACHE_NAME);
-          const cachedResponse = (await cache.match("/index.html")) || (await cache.match("/"));
-          if (cachedResponse) {
-            return cachedResponse;
-          }
-          return new Response(
-            "<!doctype html><html><body><p>You are currently offline.</p></body></html>",
-            {
-              headers: { "Content-Type": "text/html; charset=utf-8" },
-              status: 503,
-              statusText: "Offline",
-            },
-          );
-        }),
-    );
+    event.respondWith(handleNavigationRequest(request));
     return;
   }
 
@@ -105,23 +145,7 @@ self.addEventListener("fetch", (event) => {
     url.pathname.endsWith(".woff2");
 
   if (isStaticAsset) {
-    event.respondWith(
-      caches.open(SHELL_CACHE_NAME).then(async (cache) => {
-        const cached = (await cache.match(request)) || (await cache.match(url.pathname));
-        if (cached) {
-          return cached;
-        }
-        try {
-          const networkResponse = await fetch(request);
-          if (networkResponse.status === 200) {
-            void cache.put(request, networkResponse.clone());
-          }
-          return networkResponse;
-        } catch {
-          return new Response(null, { status: 404 });
-        }
-      }),
-    );
+    event.respondWith(handleStaticAssetRequest(request, url.pathname));
     return;
   }
 });

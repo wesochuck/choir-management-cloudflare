@@ -3,7 +3,7 @@ import "./styles/theme.css";
 
 import type { CurrentAuthSession } from "@choir/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 
 import { getHealth } from "./api";
 
@@ -30,6 +30,7 @@ import {
 } from "./auth/postSignIn";
 import { ResetPasswordView } from "./auth/ResetPasswordView";
 import { SignInView } from "./auth/SignInView";
+import { lazyWithRetry } from "./offline/chunkRecovery";
 import { purgeCachedPlayerMetadata, purgeOfflineAudioForSource } from "./offline/mediaStore";
 import { PublicUnsubscribeView } from "./public/PublicUnsubscribeView";
 import { PublicPollView } from "./public/PublicPollView";
@@ -43,7 +44,7 @@ import { PublicPrivacyPolicyView } from "./public/PublicPrivacyPolicyView";
 import { PublicTermsView } from "./public/PublicTermsView";
 import { SetupView } from "./setup/SetupView";
 
-const PublicPlayerView = lazy(() =>
+const PublicPlayerView = lazyWithRetry(() =>
   import("./public/PublicPlayerView").then((m) => ({ default: m.PublicPlayerView })),
 );
 

@@ -41,6 +41,19 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
   - **Real media-path tests:** Required when verifying actual media loading, codec/browser
     compatibility, network behavior, and playback failures. A mocked `play()` must not be considered
     proof that real media playback works.
+- Always use `lazyWithRetry` / `importWithRetry` from `src/offline/chunkRecovery.ts` instead of raw
+  `React.lazy` for code-split views and top-level dynamic imports, and keep
+  `installChunkErrorHandling()` active in `src/main.tsx`. This ensures post-deployment chunk
+  mismatches trigger a single bounded reload (when online) rather than unmounting into a blank page.
+- Preserve the split caching contract across `apps/web/public/_headers` and `apps/web/public/sw.js`:
+  - HTML documents (`/*`) and `/sw.js` must use `Cache-Control: no-cache` so browsers revalidate the
+    ~1 KB HTML shell via ETag (`304 Not Modified`) while still falling back to the cached shell when
+    offline.
+  - Content-hashed bundles under `/assets/*` must use
+    `Cache-Control: public, max-age=31536000, immutable`.
+  - `apps/web/public/sw.js` must verify `Content-Type` (`!isHtmlResponse(response)`) before caching
+    or serving static assets so Cloudflare's `single-page-application` `index.html` fallback for a
+    missing old chunk is never cached under a `.js` or `.css` asset key.
 
 ## Components and Accessibility
 

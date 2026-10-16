@@ -1,7 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { importWithRetry, installChunkErrorHandling } from "./offline/chunkRecovery";
 import { registerServiceWorker } from "./offline/registerServiceWorker";
+
+installChunkErrorHandling();
 
 const root = document.querySelector<HTMLDivElement>("#root");
 
@@ -12,14 +15,14 @@ if (!root) {
 const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
 
 if (pathname === "/player") {
-  const { PlayerApp } = await import("./public/PlayerApp");
+  const { PlayerApp } = await importWithRetry(() => import("./public/PlayerApp"));
   createRoot(root).render(
     <StrictMode>
       <PlayerApp />
     </StrictMode>,
   );
 } else {
-  const { App } = await import("./App");
+  const { App } = await importWithRetry(() => import("./App"));
   createRoot(root).render(
     <StrictMode>
       <App />
