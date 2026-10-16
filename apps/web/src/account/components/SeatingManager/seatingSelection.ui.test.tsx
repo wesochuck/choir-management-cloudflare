@@ -552,7 +552,7 @@ describe("Seat assignment candidate picker", () => {
     [
       "attending but ineligible",
       [attending(dave, "Yes")],
-      "No attending singers are eligible for seating yet. A singer must have an active Profile and a voice part.",
+      "No attending performers are eligible for seating yet. A performer must have an active Profile and a section or part assignment.",
     ],
     [
       "all eligible seated",
@@ -570,7 +570,7 @@ describe("Seat assignment candidate picker", () => {
     await flushLoad();
     const tray = screen.getByRole("region", { name: "Unassigned Profiles" });
     expect(within(tray).getByText(message)).toBeInTheDocument();
-    expect(tray).toHaveTextContent("Only active singers with a voice part");
+    expect(tray).toHaveTextContent("Only active performers with a part assignment");
     const dialog = await openSeat("Seat 3, empty");
     expect(within(dialog).getByText(message)).toBeInTheDocument();
     expect(dialog).toHaveTextContent("have RSVP'd Attending");

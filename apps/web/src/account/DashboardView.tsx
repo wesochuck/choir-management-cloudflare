@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getMemberDashboard, getMemberPracticeLink, setMyEventRsvp } from "../auth/api";
 import { renderCommunicationMarkdownPreview } from "./communicationMarkdown";
+import { useOrganizationTerminology } from "./organizationTerminologyContext";
 import { AppLink } from "./components/AuthenticatedShell/navigation";
 import type { AccessState } from "./components/AuthenticatedShell/types";
 import {
@@ -118,6 +119,7 @@ function DashboardEventPracticeStrip({
       ? `${String(trackCount)} ${trackCount === 1 ? "track" : "tracks"} available`
       : "Practice tracks available";
   const trimmedPart = userVoicePart?.trim();
+  const { partLabel } = useOrganizationTerminology();
 
   return (
     <div className="member-dashboard__practice-strip">
@@ -145,7 +147,7 @@ function DashboardEventPracticeStrip({
             <>
               <span aria-hidden="true">•</span>
               <span className="member-dashboard__practice-strip-voice-part">
-                Your voice part: {trimmedPart}
+                Your {partLabel.toLowerCase()}: {trimmedPart}
               </span>
             </>
           ) : null}

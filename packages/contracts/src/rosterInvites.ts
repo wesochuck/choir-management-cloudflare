@@ -110,6 +110,7 @@ export const rosterInviteOptionsResponseSchema = z.object({
     .nullable(),
   organizationName: z.string().min(1).max(120),
   performerLabel: z.string().min(1).max(50),
+  rosterStructure: z.enum(["sections_only", "sections_with_parts"]).optional(),
   requestId: requestIdSchema,
   sections: z.array(rosterInviteConfiguredSectionSchema),
   voiceParts: z.array(rosterInviteConfiguredPartSchema),

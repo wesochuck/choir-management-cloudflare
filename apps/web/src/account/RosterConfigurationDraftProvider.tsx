@@ -20,7 +20,7 @@ export function RosterConfigurationDraftProvider({
   readonly children: ReactNode;
   readonly enabled: boolean;
 }) {
-  const { setPerformerLabel } = useOrganizationTerminology();
+  const { setPerformerLabel, setRosterStructure } = useOrganizationTerminology();
   const [initialConfig, setInitialConfig] = useState<OrganizationRosterConfiguration | null>(null);
   const [profiles, setProfiles] = useState<readonly OrganizationProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +30,8 @@ export function RosterConfigurationDraftProvider({
     initialValue: initialConfig,
     onSaveSuccess: (saved) => {
       setPerformerLabel(saved.performerLabel);
+      setRosterStructure?.(saved.rosterStructure ?? "sections_with_parts");
+      void refreshProfiles();
     },
     resourceKey: "organization-roster-configuration",
     save: updateOrganizationRosterConfiguration,
@@ -46,6 +48,7 @@ export function RosterConfigurationDraftProvider({
         setInitialConfig(config);
         setProfiles(profilesData);
         setPerformerLabel(config.performerLabel);
+        setRosterStructure?.(config.rosterStructure ?? "sections_with_parts");
         setLoading(false);
       })
       .catch((err: unknown) => {
@@ -61,7 +64,7 @@ export function RosterConfigurationDraftProvider({
     return () => {
       controller.abort();
     };
-  }, [enabled, setPerformerLabel]);
+  }, [enabled, setPerformerLabel, setRosterStructure]);
 
   const refreshProfiles = async () => {
     try {

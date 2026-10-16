@@ -56,6 +56,7 @@ export {
   type RosterCsvInspection,
 } from "./rosterCsv";
 export { defaultRosterConfiguration } from "./rosterConfiguration";
+export { rosterAssignmentConversion } from "./rosterStructure";
 export {
   calculateOnBreakInactiveAt,
   calculateRsvpDeadline,

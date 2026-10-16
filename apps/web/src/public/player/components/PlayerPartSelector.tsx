@@ -8,6 +8,7 @@ import {
 import { Sheet } from "@choir/ui";
 
 import { displayTrackName, sortVoiceParts } from "../../playerVoiceParts";
+import { useOrganizationTerminology } from "../../../account/organizationTerminologyContext";
 
 export function PlayerPartSelector({
   activeTrackKey,
@@ -24,6 +25,8 @@ export function PlayerPartSelector({
   readonly trackLabels?: Readonly<Record<string, string>> | undefined;
   readonly voicePartKeys?: readonly string[] | undefined;
 }) {
+  const { partLabel } = useOrganizationTerminology();
+  const assignmentLabel = partLabel === "Section" ? "Section" : "Voice Part";
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const selectedOptionRef = useRef<HTMLButtonElement | null>(null);
@@ -96,7 +99,7 @@ export function PlayerPartSelector({
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
             <circle cx="12" cy="7" r="4" />
           </svg>
-          <span className="public-player__part-picker-label">Voice Part</span>
+          <span className="public-player__part-picker-label">{assignmentLabel}</span>
         </span>
         <span className="public-player__part-picker-value">
           <span>{displayTrackName(activeTrackKey, trackLabels)}</span>
@@ -116,7 +119,7 @@ export function PlayerPartSelector({
           </svg>
         </span>
         <select
-          aria-label="Voice Part"
+          aria-label={assignmentLabel}
           className="public-player__part-picker-select"
           id="mobile-voice-part-select"
           onChange={(event) => {
@@ -161,7 +164,7 @@ export function PlayerPartSelector({
               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
               <circle cx="12" cy="7" r="4" />
             </svg>
-            <span className="public-player__part-trigger-label">Voice Part</span>
+            <span className="public-player__part-trigger-label">{assignmentLabel}</span>
           </span>
           <span className="public-player__part-trigger-value">
             <span>{displayTrackName(activeTrackKey, trackLabels)}</span>
@@ -188,14 +191,14 @@ export function PlayerPartSelector({
           }}
           open={isOpen}
           restoreFocusRef={triggerRef}
-          title="Choose Voice Part"
+          title={`Choose ${assignmentLabel}`}
         >
           <div className="public-player__sheet-container">
             <div className="public-player__sheet-header">
-              <p className="public-player__sheet-title">Choose Voice Part</p>
+              <p className="public-player__sheet-title">Choose {assignmentLabel}</p>
             </div>
             <div
-              aria-label="Choose Voice Part"
+              aria-label={`Choose ${assignmentLabel}`}
               className="public-player__part-options"
               onKeyDown={handleRadiogroupKeyDown}
               ref={optionsListRef}

@@ -285,6 +285,7 @@ export const organizationRosterConfigurationRequestSchema = z
     onBreakTimeoutDays: z.number().int().min(1).max(3_650).default(365),
     onBreakTimeoutEnabled: z.boolean().default(true),
     performerLabel: z.string().trim().min(1).max(50).default("Performer"),
+    rosterStructure: z.enum(["sections_only", "sections_with_parts"]).optional(),
     rsvpFollowUpEnabled: z.boolean().default(true),
     rsvpFollowUpLeadHours: z.number().int().min(1).max(720).default(48),
     rsvpExpiryEnabled: z.boolean().default(true),
@@ -293,13 +294,28 @@ export const organizationRosterConfigurationRequestSchema = z
     statusAutomationMissThreshold: z.number().int().min(1).max(10).default(3),
     statusAutomationRecoveryEnabled: z.boolean().default(true),
     attendanceReportWarningThreshold: z.number().int().min(1).max(10).default(1),
-    voiceParts: z.array(organizationVoicePartSchema).min(1).max(100),
+    voiceParts: z.array(organizationVoicePartSchema).max(100).default([]),
   })
   .superRefine((configuration, context) => {
     const sectionCodes = new Set(configuration.sections.map(({ code }) => code));
     const voicePartLabels = new Set(configuration.voiceParts.map(({ label }) => label));
     if (sectionCodes.size !== configuration.sections.length) {
       context.addIssue({ code: "custom", message: "Section codes must be unique." });
+    }
+    if (configuration.rosterStructure === "sections_only") {
+      if (!configuration.sections.some(({ trackOnly }) => !trackOnly)) {
+        context.addIssue({
+          code: "custom",
+          message: "At least one section must allow member assignments.",
+        });
+      }
+      return;
+    }
+    if (configuration.voiceParts.length === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "At least one part is required when using sections with parts.",
+      });
     }
     if (voicePartLabels.size !== configuration.voiceParts.length) {
       context.addIssue({ code: "custom", message: "Performer labels must be unique." });
@@ -310,7 +326,20 @@ export const organizationRosterConfigurationRequestSchema = z
         message: "Every Performer assignment must reference an existing section.",
       });
     }
-  });
+  })
+  .transform((configuration) => ({
+    ...configuration,
+    voiceParts:
+      configuration.rosterStructure === "sections_only"
+        ? configuration.sections
+            .filter(({ trackOnly }) => !trackOnly)
+            .map(({ code, name }) => ({
+              label: code,
+              fullName: name,
+              sectionCode: code,
+            }))
+        : configuration.voiceParts,
+  }));
 
 export const organizationRosterConfigurationResponseSchema =
   organizationRosterConfigurationRequestSchema.and(z.object({ requestId: requestIdSchema }));

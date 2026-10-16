@@ -148,6 +148,7 @@ export function UnassignedTray({
   readonly setQuery: (value: string) => void;
 }) {
   const { isOver: trayIsOver, setNodeRef: setTrayNodeRef } = useDroppable({ id: "tray" });
+  const { partLabel } = useOrganizationTerminology();
   const attachTrayNode = (node: HTMLElement | null) => {
     setTrayNodeRef(node);
   };
@@ -210,9 +211,9 @@ export function UnassignedTray({
         <span className="status-pill">{profiles.length}</span>
       </div>
       <p className="seating-assignment-picker__hint">
-        Only active singers with a voice part who have RSVP'd Attending for this performance and
-        have not yet been assigned a seat appear here. Use Lookup to mark an existing singer
-        attending.
+        Only active performers with a {partLabel.toLowerCase()} assignment who have RSVP'd Attending
+        for this performance and have not yet been assigned a seat appear here. Use Lookup to mark
+        an existing singer attending.
       </p>
       {onReviewRsvps ? (
         <button

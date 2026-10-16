@@ -181,169 +181,188 @@ describe("Organization roster invite links", () => {
     expect(createResponse.status).toBe(403);
   });
 
-  it("completes full self-service recipient join flow with safe defaults", async () => {
-    const adminCookie = await signInAdmin();
+  it.each(["sections_with_parts", "sections_only"] as const)(
+    "completes full self-service recipient join flow with safe defaults (%s)",
+    async (rosterStructure) => {
+      const adminCookie = await signInAdmin();
+      if (rosterStructure === "sections_only") {
+        const configurationResponse = await fetchWorker(
+          apiRequest("alpha.localhost", "/api/organization/roster-configuration", adminCookie, {
+            method: "PUT",
+            body: JSON.stringify({
+              rosterStructure,
+              sections: [{ code: "F", name: "Flute", color: "#123456" }],
+            }),
+          }),
+        );
+        expect(configurationResponse.status).toBe(200);
+      }
 
-    // 1. Admin creates invite link
-    const createResponse = await fetchWorker(
-      apiRequest("alpha.localhost", "/api/organization/roster-invite-links", adminCookie, {
-        body: JSON.stringify({
-          expiresInDays: 7,
-          label: "New Sopranos",
-          maxUses: 10,
+      // 1. Admin creates invite link
+      const createResponse = await fetchWorker(
+        apiRequest("alpha.localhost", "/api/organization/roster-invite-links", adminCookie, {
+          body: JSON.stringify({
+            expiresInDays: 7,
+            label: "New Sopranos",
+            maxUses: 10,
+          }),
+          method: "POST",
         }),
-        method: "POST",
-      }),
-    );
-    expect(createResponse.status).toBe(201);
-    const { shareUrl } = createRosterInviteLinkResponseSchema.parse(await createResponse.json());
-    const token = shareUrl.split("#token=")[1];
-    expect(token).toBeDefined();
+      );
+      expect(createResponse.status).toBe(201);
+      const { shareUrl } = createRosterInviteLinkResponseSchema.parse(await createResponse.json());
+      const token = shareUrl.split("#token=")[1];
+      expect(token).toBeDefined();
 
-    // 2. Anonymous preview
-    const previewResponse = await fetchWorker(
-      apiRequest("alpha.localhost", "/api/roster-invites/preview", undefined, {
-        body: JSON.stringify({ token }),
-        method: "POST",
-      }),
-    );
-    expect(previewResponse.status).toBe(200);
-    const preview = rosterInvitePreviewResponseSchema.parse(await previewResponse.json());
-    expect(preview.organizationName).toBe("Organization Alpha");
-
-    // 3. Start flow with new email address -> triggers OTP
-    const startResponse = await fetchWorker(
-      apiRequest("alpha.localhost", "/api/roster-invites/start", undefined, {
-        body: JSON.stringify({ email: SINGER_EMAIL, token }),
-        method: "POST",
-      }),
-    );
-    expect(startResponse.status).toBe(200);
-
-    // Verify identity was bootstrapped in D1 user table
-    const bootstrappedUser = await controlDatabase
-      .prepare("SELECT id, email, emailVerified FROM user WHERE email = ? LIMIT 1")
-      .bind(SINGER_EMAIL)
-      .first<{ email: string; emailVerified: number; id: string }>();
-    expect(bootstrappedUser).toBeDefined();
-    expect(bootstrappedUser?.emailVerified).toBe(0);
-
-    // 4. Verify OTP and sign in
-    const otp = readEmailOneTimeCode(readCapturedPlatformEmailsForTest(), SINGER_EMAIL);
-    expect(otp).toBeDefined();
-    const signInResponse = await fetchWorker(
-      apiRequest("alpha.localhost", "/api/auth/sign-in/email-otp", undefined, {
-        body: JSON.stringify({ email: SINGER_EMAIL, otp }),
-        headers: { "content-type": "application/json" },
-        method: "POST",
-      }),
-    );
-    expect(signInResponse.status).toBe(200);
-    const singerCookie = signInResponse.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
-    expect(singerCookie).toContain("choir-management.session_token=");
-
-    // 5. Query onboarding options
-    const optionsResponse = await fetchWorker(
-      apiRequest("alpha.localhost", "/api/roster-invites/options", singerCookie, {
-        body: JSON.stringify({ token }),
-        method: "POST",
-      }),
-    );
-    expect(optionsResponse.status).toBe(200);
-    const options = rosterInviteOptionsResponseSchema.parse(await optionsResponse.json());
-    expect(options.alreadyEnrolled).toBe(false);
-    expect(options.voiceParts.length).toBeGreaterThan(0);
-    const selectedPart = options.voiceParts[0]?.label ?? "Soprano";
-
-    // 6. Redeem invite to join roster
-    const redeemResponse = await fetchWorker(
-      apiRequest("alpha.localhost", "/api/roster-invites/redeem", singerCookie, {
-        body: JSON.stringify({
-          displayName: "Alice New Singer",
-          idempotencyKey: "idem-alice-1",
-          phone: "(555) 019-2834",
-          showInDirectory: true,
-          token,
-          voicePart: selectedPart,
+      // 2. Anonymous preview
+      const previewResponse = await fetchWorker(
+        apiRequest("alpha.localhost", "/api/roster-invites/preview", undefined, {
+          body: JSON.stringify({ token }),
+          method: "POST",
         }),
-        method: "POST",
-      }),
-    );
-    expect(redeemResponse.status).toBe(201);
-    const redeemResult = rosterInviteRedeemResponseSchema.parse(await redeemResponse.json());
-    expect(redeemResult.status).toBe("completed");
-    expect(redeemResult.membershipId).toBeDefined();
-    expect(redeemResult.profileId).toBeDefined();
+      );
+      expect(previewResponse.status).toBe(200);
+      const preview = rosterInvitePreviewResponseSchema.parse(await previewResponse.json());
+      expect(preview.organizationName).toBe("Organization Alpha");
 
-    // 7. Verify D1 member table: role is member, profileId is set
-    const memberRow = await controlDatabase
-      .prepare("SELECT id, role, profileId FROM member WHERE id = ? LIMIT 1")
-      .bind(redeemResult.membershipId)
-      .first<{ id: string; profileId: string; role: string }>();
-    expect(memberRow?.role).toBe("member");
-    expect(memberRow?.profileId).toBe(redeemResult.profileId);
-
-    // 8. Verify DO profile: Active status, safe defaults, no admin notification privileges
-    const profileResponse = await fetchWorker(
-      apiRequest("alpha.localhost", `/api/organization/profiles`, adminCookie, {
-        method: "GET",
-      }),
-    );
-    expect(profileResponse.status).toBe(200);
-    const profileBody = organizationProfilesResponseSchema.parse(await profileResponse.json());
-    const singerProfile = profileBody.profiles.find((p) => p.id === redeemResult.profileId);
-    expect(singerProfile).toBeDefined();
-    expect(singerProfile?.displayName).toBe("Alice New Singer");
-    expect(singerProfile?.globalStatus).toBe("Active");
-    expect(singerProfile?.voicePart).toBe(selectedPart);
-    expect(singerProfile?.receiveAdminNotifications).toBe(false);
-
-    // 9. Idempotent retry returns 200 completed and does not consume another use
-    const retryResponse = await fetchWorker(
-      apiRequest("alpha.localhost", "/api/roster-invites/redeem", singerCookie, {
-        body: JSON.stringify({
-          displayName: "Alice New Singer",
-          idempotencyKey: "idem-alice-1",
-          phone: "(555) 019-2834",
-          showInDirectory: true,
-          token,
-          voicePart: selectedPart,
+      // 3. Start flow with new email address -> triggers OTP
+      const startResponse = await fetchWorker(
+        apiRequest("alpha.localhost", "/api/roster-invites/start", undefined, {
+          body: JSON.stringify({ email: SINGER_EMAIL, token }),
+          method: "POST",
         }),
-        method: "POST",
-      }),
-    );
-    expect(retryResponse.status).toBe(200);
-    const retryResult = rosterInviteRedeemResponseSchema.parse(await retryResponse.json());
-    expect(retryResult.membershipId).toBe(redeemResult.membershipId);
+      );
+      expect(startResponse.status).toBe(200);
 
-    // Verify committed uses count is still 1
-    const listResponse = await fetchWorker(
-      apiRequest("alpha.localhost", "/api/organization/roster-invite-links", adminCookie, {
-        method: "GET",
-      }),
-    );
-    const list = rosterInviteLinksResponseSchema.parse(await listResponse.json());
-    expect(list.links[0]?.committedUses).toBe(1);
+      // Verify identity was bootstrapped in D1 user table
+      const bootstrappedUser = await controlDatabase
+        .prepare("SELECT id, email, emailVerified FROM user WHERE email = ? LIMIT 1")
+        .bind(SINGER_EMAIL)
+        .first<{ email: string; emailVerified: number; id: string }>();
+      expect(bootstrappedUser).toBeDefined();
+      expect(bootstrappedUser?.emailVerified).toBe(0);
 
-    // 10. Already-enrolled member calling with another key returns already_enrolled
-    const alreadyEnrolledResponse = await fetchWorker(
-      apiRequest("alpha.localhost", "/api/roster-invites/redeem", singerCookie, {
-        body: JSON.stringify({
-          displayName: "Alice Changed Name",
-          idempotencyKey: "new-attempt-different-key",
-          showInDirectory: true,
-          token,
-          voicePart: selectedPart,
+      // 4. Verify OTP and sign in
+      const otp = readEmailOneTimeCode(readCapturedPlatformEmailsForTest(), SINGER_EMAIL);
+      expect(otp).toBeDefined();
+      const signInResponse = await fetchWorker(
+        apiRequest("alpha.localhost", "/api/auth/sign-in/email-otp", undefined, {
+          body: JSON.stringify({ email: SINGER_EMAIL, otp }),
+          headers: { "content-type": "application/json" },
+          method: "POST",
         }),
-        method: "POST",
-      }),
-    );
-    expect(alreadyEnrolledResponse.status).toBe(200);
-    const alreadyEnrolledResult = rosterInviteRedeemResponseSchema.parse(
-      await alreadyEnrolledResponse.json(),
-    );
-    expect(alreadyEnrolledResult.status).toBe("already_enrolled");
-  });
+      );
+      expect(signInResponse.status).toBe(200);
+      const singerCookie = signInResponse.headers.get("set-cookie")?.split(";", 1)[0] ?? "";
+      expect(singerCookie).toContain("choir-management.session_token=");
+
+      // 5. Query onboarding options
+      const optionsResponse = await fetchWorker(
+        apiRequest("alpha.localhost", "/api/roster-invites/options", singerCookie, {
+          body: JSON.stringify({ token }),
+          method: "POST",
+        }),
+      );
+      expect(optionsResponse.status).toBe(200);
+      const options = rosterInviteOptionsResponseSchema.parse(await optionsResponse.json());
+      expect(options.alreadyEnrolled).toBe(false);
+      expect(options.voiceParts.length).toBeGreaterThan(0);
+      expect(options.rosterStructure).toBe(rosterStructure);
+      if (rosterStructure === "sections_only") {
+        expect(options.voiceParts).toEqual([{ label: "F", fullName: "Flute", sectionCode: "F" }]);
+      }
+      const selectedPart = options.voiceParts[0]?.label ?? "Soprano";
+
+      // 6. Redeem invite to join roster
+      const redeemResponse = await fetchWorker(
+        apiRequest("alpha.localhost", "/api/roster-invites/redeem", singerCookie, {
+          body: JSON.stringify({
+            displayName: "Alice New Singer",
+            idempotencyKey: "idem-alice-1",
+            phone: "(555) 019-2834",
+            showInDirectory: true,
+            token,
+            voicePart: selectedPart,
+          }),
+          method: "POST",
+        }),
+      );
+      expect(redeemResponse.status).toBe(201);
+      const redeemResult = rosterInviteRedeemResponseSchema.parse(await redeemResponse.json());
+      expect(redeemResult.status).toBe("completed");
+      expect(redeemResult.membershipId).toBeDefined();
+      expect(redeemResult.profileId).toBeDefined();
+
+      // 7. Verify D1 member table: role is member, profileId is set
+      const memberRow = await controlDatabase
+        .prepare("SELECT id, role, profileId FROM member WHERE id = ? LIMIT 1")
+        .bind(redeemResult.membershipId)
+        .first<{ id: string; profileId: string; role: string }>();
+      expect(memberRow?.role).toBe("member");
+      expect(memberRow?.profileId).toBe(redeemResult.profileId);
+
+      // 8. Verify DO profile: Active status, safe defaults, no admin notification privileges
+      const profileResponse = await fetchWorker(
+        apiRequest("alpha.localhost", `/api/organization/profiles`, adminCookie, {
+          method: "GET",
+        }),
+      );
+      expect(profileResponse.status).toBe(200);
+      const profileBody = organizationProfilesResponseSchema.parse(await profileResponse.json());
+      const singerProfile = profileBody.profiles.find((p) => p.id === redeemResult.profileId);
+      expect(singerProfile).toBeDefined();
+      expect(singerProfile?.displayName).toBe("Alice New Singer");
+      expect(singerProfile?.globalStatus).toBe("Active");
+      expect(singerProfile?.voicePart).toBe(selectedPart);
+      expect(singerProfile?.receiveAdminNotifications).toBe(false);
+
+      // 9. Idempotent retry returns 200 completed and does not consume another use
+      const retryResponse = await fetchWorker(
+        apiRequest("alpha.localhost", "/api/roster-invites/redeem", singerCookie, {
+          body: JSON.stringify({
+            displayName: "Alice New Singer",
+            idempotencyKey: "idem-alice-1",
+            phone: "(555) 019-2834",
+            showInDirectory: true,
+            token,
+            voicePart: selectedPart,
+          }),
+          method: "POST",
+        }),
+      );
+      expect(retryResponse.status).toBe(200);
+      const retryResult = rosterInviteRedeemResponseSchema.parse(await retryResponse.json());
+      expect(retryResult.membershipId).toBe(redeemResult.membershipId);
+
+      // Verify committed uses count is still 1
+      const listResponse = await fetchWorker(
+        apiRequest("alpha.localhost", "/api/organization/roster-invite-links", adminCookie, {
+          method: "GET",
+        }),
+      );
+      const list = rosterInviteLinksResponseSchema.parse(await listResponse.json());
+      expect(list.links[0]?.committedUses).toBe(1);
+
+      // 10. Already-enrolled member calling with another key returns already_enrolled
+      const alreadyEnrolledResponse = await fetchWorker(
+        apiRequest("alpha.localhost", "/api/roster-invites/redeem", singerCookie, {
+          body: JSON.stringify({
+            displayName: "Alice Changed Name",
+            idempotencyKey: "new-attempt-different-key",
+            showInDirectory: true,
+            token,
+            voicePart: selectedPart,
+          }),
+          method: "POST",
+        }),
+      );
+      expect(alreadyEnrolledResponse.status).toBe(200);
+      const alreadyEnrolledResult = rosterInviteRedeemResponseSchema.parse(
+        await alreadyEnrolledResponse.json(),
+      );
+      expect(alreadyEnrolledResult.status).toBe("already_enrolled");
+    },
+  );
 
   it("enforces link capacity and rejects when exhausted", async () => {
     const adminCookie = await signInAdmin();

@@ -91,7 +91,9 @@ export function JoinRosterView() {
       const options = await getRosterInviteOptions(activeToken);
       setSections(options.sections);
       setVoiceParts(options.voiceParts);
-      setPerformerLabel(options.performerLabel || "Voice Part");
+      setPerformerLabel(
+        options.rosterStructure === "sections_only" ? "Section" : options.performerLabel || "Part",
+      );
 
       if (options.alreadyEnrolled) {
         setStep("already_enrolled");

@@ -431,8 +431,8 @@ function SeatDetailDialog({
             : "This seat is empty."}
         </p>
         <p className="seating-assignment-picker__hint">
-          Available singers must have an active Profile and a voice part, have RSVP'd Attending for
-          this performance, and must not already be seated.
+          Available performers must have an active Profile and a {partLabel.toLowerCase()}{" "}
+          assignment, have RSVP'd Attending for this performance, and must not already be seated.
         </p>
         {suggestion ? (
           <p className="seating-assignment-picker__hint">

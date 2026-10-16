@@ -58,9 +58,9 @@ boundary. _Avoid_: Platform Administrator, Organization Owner
 ## Organization Member
 
 An Organization Membership role with self-service access to the member-facing experience. Performer
-status, Part assignment, section leadership, and notification responsibilities are profile
-attributes rather than Organization Membership roles, and a profile may exist without login access.
-_Avoid_: Singer as an authorization role
+status, Section or Part assignment, section leadership, and notification responsibilities are
+profile attributes rather than Organization Membership roles, and a profile may exist without login
+access. _Avoid_: Singer as an authorization role
 
 ## Organization Member Dashboard
 
@@ -101,18 +101,18 @@ consecutive missed Performances and restore any non-Active Profile to Active aft
 attending RSVP, unless manual status control is enabled. Automatic recovery is enabled by default.
 It automates Profile Status, not RSVP Status. Manual status control may be used for any Organization
 Profile, including a Profile used for administration. _Avoid_: RSVP automation Automatic status
-changes apply only to Performer-eligible Profiles with a Part assignment and a Performance roster
-entry; administrator-only Profiles are not automatically changed. Re-enabling automatic management
-immediately evaluates the Profile's existing Performance history. Corrections to past Performance
-RSVPs or attendance immediately reevaluate the Profile Status decision. Changing the miss threshold
-or related automation setting also immediately reevaluates existing Profiles and previews the
-affected transitions before saving. Selecting On Break does not itself enable manual status control;
-the separate manual control is the explicit opt-out from Profile Status Automation and the On Break
-Timeout. Directly selecting a Profile Status does not silently enable manual control; the Profile
-explains that automation may later change the status until the administrator explicitly opts out.
-Archived or canceled Performances do not count as missed Performances. An active Performance becomes
-eligible for miss evaluation only after it ends, using its scheduled duration when available or the
-end of its Organization-local calendar day otherwise.
+changes apply only to Performer-eligible Profiles with a Section or Part assignment and a
+Performance roster entry; administrator-only Profiles are not automatically changed. Re-enabling
+automatic management immediately evaluates the Profile's existing Performance history. Corrections
+to past Performance RSVPs or attendance immediately reevaluate the Profile Status decision. Changing
+the miss threshold or related automation setting also immediately reevaluates existing Profiles and
+previews the affected transitions before saving. Selecting On Break does not itself enable manual
+status control; the separate manual control is the explicit opt-out from Profile Status Automation
+and the On Break Timeout. Directly selecting a Profile Status does not silently enable manual
+control; the Profile explains that automation may later change the status until the administrator
+explicitly opts out. Archived or canceled Performances do not count as missed Performances. An
+active Performance becomes eligible for miss evaluation only after it ends, using its scheduled
+duration when available or the end of its Organization-local calendar day otherwise.
 
 ## On Break Timeout
 
@@ -455,15 +455,21 @@ incomplete, or not applicable when its owning Module is disabled.
 
 ## Performer
 
-An Organization Profile with a Part assignment and therefore eligible for performer-specific
-workflows. Each Organization may configure the person-facing label, such as Singer, Musician, or
-Performer. _Avoid_: Part when referring to a person
+An Organization Profile with a Section assignment in a Sections only roster, or a Part assignment in
+a Sections with parts roster, and therefore eligible for performer-specific workflows. Each
+Organization may configure the person-facing label, such as Singer, Musician, or Performer. _Avoid_:
+Part when referring to a person
 
 ## Part
 
 An Organization-defined assignment classification for a Performer, such as Soprano 1 or Bass 2. Each
 Part has a short label, a descriptive full name, and a Section Bucket. _Avoid_: Performer when
 referring to the assignment, Voice Part in user-facing language
+
+## Roster Structure
+
+An Organization's choice between Sections only, where Performers are assigned directly to Sections,
+and Sections with parts, where Performers are assigned to Parts within Sections.
 
 ## Personalized Magic Link
 
@@ -680,9 +686,10 @@ sections or movements (e.g. masses, cantatas, or oratorios).
 
 ## Section Bucket
 
-A top-level classification used to group related Parts (e.g., "Sopranos" as a bucket for "S1" and
-"S2"). These buckets serve as the primary units for standard seating distribution, filtering, and
-visual identification throughout the application.
+A top-level classification used to assign Performers directly in a Sections only roster, or to group
+related Parts in a Sections with parts roster (e.g., "Sopranos" as a bucket for "S1" and "S2").
+These buckets serve as the primary units for standard seating distribution, filtering, and visual
+identification throughout the application.
 
 ## Seating Formation
 

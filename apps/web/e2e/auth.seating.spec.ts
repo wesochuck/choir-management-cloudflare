@@ -1015,7 +1015,7 @@ test("explains RSVP eligibility and broadens a failed seating search in both the
     await page.getByRole("button", { name: "Edit anyway" }).click();
   const tray = page.getByRole("region", { name: "Unassigned Profiles" });
   await expect(tray).toContainText(
-    "Only active singers with a voice part who have RSVP'd Attending for this performance",
+    "Only active performers with a part assignment who have RSVP'd Attending for this performance",
   );
   await expect(tray.getByRole("button", { name: "Review Event RSVPs" })).toBeVisible();
   const search = tray.getByRole("searchbox");

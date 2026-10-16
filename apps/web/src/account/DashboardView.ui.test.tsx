@@ -191,7 +191,7 @@ describe("DashboardView", () => {
       });
 
       expect(screen.getByText("6 tracks available")).toBeInTheDocument();
-      expect(screen.getByText("Your voice part: Tenor 2")).toBeInTheDocument();
+      expect(screen.getByText("Your part: Tenor 2")).toBeInTheDocument();
 
       const openPracticeButton = screen.getByRole("button", { name: "Open practice player" });
       fireEvent.click(openPracticeButton);

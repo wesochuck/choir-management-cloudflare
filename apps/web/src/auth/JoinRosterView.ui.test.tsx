@@ -49,94 +49,101 @@ describe("JoinRosterView UI", () => {
     ).toBeInTheDocument();
   });
 
-  it("allows anonymous user to submit email, enter verification OTP, and complete registration", async () => {
-    const user = userEvent.setup();
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: {
-        hash: "#token=valid-test-token-123",
-        search: "",
-      },
-    });
+  it.each([undefined, "sections_only"] as const)(
+    "allows anonymous registration with roster structure %s",
+    async (rosterStructure) => {
+      const user = userEvent.setup();
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: {
+          hash: "#token=valid-test-token-123",
+          search: "",
+        },
+      });
 
-    vi.mocked(api.previewRosterInvite).mockResolvedValue({
-      expiresAt: new Date(Date.now() + 86400000).toISOString(),
-      logoFileId: null,
-      organizationName: "City Chamber Choir",
-      organizationSlug: "city-choir",
-      requestId: "req-preview",
-    });
+      vi.mocked(api.previewRosterInvite).mockResolvedValue({
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+        logoFileId: null,
+        organizationName: "City Chamber Choir",
+        organizationSlug: "city-choir",
+        requestId: "req-preview",
+      });
 
-    vi.mocked(api.getCurrentSession).mockResolvedValue(null);
+      vi.mocked(api.getCurrentSession).mockResolvedValue(null);
 
-    vi.mocked(api.startRosterInvite).mockResolvedValue({
-      requestId: "req-start",
-      status: "code_sent",
-    });
+      vi.mocked(api.startRosterInvite).mockResolvedValue({
+        requestId: "req-start",
+        status: "code_sent",
+      });
 
-    vi.mocked(api.signInWithCode).mockResolvedValue();
+      vi.mocked(api.signInWithCode).mockResolvedValue();
 
-    vi.mocked(api.getRosterInviteOptions).mockResolvedValue({
-      alreadyEnrolled: false,
-      existingProfile: null,
-      organizationName: "City Chamber Choir",
-      performerLabel: "Voice Part",
-      requestId: "req-options",
-      sections: [{ code: "S", color: "#f00", name: "Soprano", trackOnly: false }],
-      voiceParts: [{ fullName: "Soprano 1", label: "S1", sectionCode: "S" }],
-    });
+      vi.mocked(api.getRosterInviteOptions).mockResolvedValue({
+        alreadyEnrolled: false,
+        existingProfile: null,
+        organizationName: "City Chamber Choir",
+        performerLabel: "Voice Part",
+        rosterStructure,
+        requestId: "req-options",
+        sections: [{ code: "S", color: "#f00", name: "Soprano", trackOnly: false }],
+        voiceParts: [{ fullName: "Soprano 1", label: "S1", sectionCode: "S" }],
+      });
 
-    vi.mocked(api.redeemRosterInvite).mockResolvedValue({
-      enrollmentId: "enrollment-1",
-      membershipId: "membership-1",
-      profileId: "00000000-0000-0000-0000-000000000001",
-      requestId: "req-redeem",
-      status: "completed",
-    });
+      vi.mocked(api.redeemRosterInvite).mockResolvedValue({
+        enrollmentId: "enrollment-1",
+        membershipId: "membership-1",
+        profileId: "00000000-0000-0000-0000-000000000001",
+        requestId: "req-redeem",
+        status: "completed",
+      });
 
-    render(<JoinRosterView />);
+      render(<JoinRosterView />);
 
-    // Wait for preview to finish and show email input
-    await waitFor(() => {
-      expect(screen.getByText("Join City Chamber Choir")).toBeInTheDocument();
-      expect(screen.getByLabelText("Email address")).toBeInTheDocument();
-    });
+      // Wait for preview to finish and show email input
+      await waitFor(() => {
+        expect(screen.getByText("Join City Chamber Choir")).toBeInTheDocument();
+        expect(screen.getByLabelText("Email address")).toBeInTheDocument();
+      });
 
-    // Enter email
-    const emailInput = screen.getByLabelText("Email address");
-    await user.type(emailInput, "singer@example.test");
-    const sendCodeBtn = screen.getByRole("button", { name: /continue with email/i });
-    fireEvent.click(sendCodeBtn);
+      // Enter email
+      const emailInput = screen.getByLabelText("Email address");
+      await user.type(emailInput, "singer@example.test");
+      const sendCodeBtn = screen.getByRole("button", { name: /continue with email/i });
+      fireEvent.click(sendCodeBtn);
 
-    await waitFor(() => {
-      expect(api.startRosterInvite).toHaveBeenCalledWith(
-        "singer@example.test",
-        "valid-test-token-123",
-      );
-      expect(screen.getByLabelText("Verification code")).toBeInTheDocument();
-    });
+      await waitFor(() => {
+        expect(api.startRosterInvite).toHaveBeenCalledWith(
+          "singer@example.test",
+          "valid-test-token-123",
+        );
+        expect(screen.getByLabelText("Verification code")).toBeInTheDocument();
+      });
 
-    // Enter OTP
-    const otpInput = screen.getByLabelText("Verification code");
-    await user.type(otpInput, "654321");
-    const confirmBtn = screen.getByRole("button", { name: /confirm code/i });
-    fireEvent.click(confirmBtn);
+      // Enter OTP
+      const otpInput = screen.getByLabelText("Verification code");
+      await user.type(otpInput, "654321");
+      const confirmBtn = screen.getByRole("button", { name: /confirm code/i });
+      fireEvent.click(confirmBtn);
 
-    await waitFor(() => {
-      expect(api.signInWithCode).toHaveBeenCalledWith("singer@example.test", "654321");
-      expect(screen.getByLabelText("Your name")).toBeInTheDocument();
-    });
+      await waitFor(() => {
+        expect(api.signInWithCode).toHaveBeenCalledWith("singer@example.test", "654321");
+        expect(screen.getByLabelText("Your name")).toBeInTheDocument();
+        expect(
+          screen.getByLabelText(rosterStructure === "sections_only" ? "Section" : "Voice Part"),
+        ).toBeInTheDocument();
+      });
 
-    // Fill profile
-    const nameInput = screen.getByLabelText("Your name");
-    await user.type(nameInput, "Jane Singer");
+      // Fill profile
+      const nameInput = screen.getByLabelText("Your name");
+      await user.type(nameInput, "Jane Singer");
 
-    const joinBtn = screen.getByRole("button", { name: /join roster/i });
-    fireEvent.click(joinBtn);
+      const joinBtn = screen.getByRole("button", { name: /join roster/i });
+      fireEvent.click(joinBtn);
 
-    await waitFor(() => {
-      expect(api.redeemRosterInvite).toHaveBeenCalled();
-      expect(screen.getByText("Welcome to City Chamber Choir!")).toBeInTheDocument();
-    });
-  });
+      await waitFor(() => {
+        expect(api.redeemRosterInvite).toHaveBeenCalled();
+        expect(screen.getByText("Welcome to City Chamber Choir!")).toBeInTheDocument();
+      });
+    },
+  );
 });

@@ -12,6 +12,7 @@ import { Dialog, DialogClose } from "@choir/ui";
 import { useEffect, useState } from "react";
 
 import { AuthApiError } from "../api/client";
+import { useOrganizationTerminology } from "./organizationTerminologyContext";
 import {
   executeProfileReconciliation,
   getProfileReconciliationCandidates,
@@ -192,6 +193,7 @@ function ProfileCard({
   readonly profile: ProfileReconciliationProfileSummary;
   readonly title: string;
 }) {
+  const { partLabel } = useOrganizationTerminology();
   return (
     <div
       className={`surface-card p-3 rounded border ${
@@ -212,7 +214,7 @@ function ProfileCard({
           <dd className="font-medium inline">{profile.displayName}</dd>
         </div>
         <div>
-          <dt className="text-secondary inline">Part: </dt>
+          <dt className="text-secondary inline">{partLabel}: </dt>
           <dd className="inline">
             {profile.voicePart || "None"} {profile.isSectionLeader ? "(Section Leader)" : ""}
           </dd>

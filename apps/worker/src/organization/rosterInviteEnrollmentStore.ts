@@ -37,6 +37,7 @@ export interface PreparedEnrollmentRow {
 }
 
 function readOrganizationRosterConfig(storage: DurableObjectStorage): {
+  readonly rosterStructure: "sections_only" | "sections_with_parts";
   readonly performerLabel: string;
   readonly sections: readonly {
     readonly code: string;
@@ -59,6 +60,7 @@ function readOrganizationRosterConfig(storage: DurableObjectStorage): {
     const parsed = organizationRosterConfigurationRequestSchema.safeParse(JSON.parse(raw));
     if (parsed.success) {
       return {
+        rosterStructure: parsed.data.rosterStructure ?? "sections_with_parts",
         performerLabel: parsed.data.performerLabel,
         sections: parsed.data.sections.map((s) => ({
           code: s.code,
@@ -77,6 +79,7 @@ function readOrganizationRosterConfig(storage: DurableObjectStorage): {
     // Fall back to empty defaults if not yet configured
   }
   return {
+    rosterStructure: "sections_with_parts",
     performerLabel: "Performer",
     sections: [],
     voiceParts: [],
@@ -90,6 +93,7 @@ export function getRosterInviteOptionsInStore(
   readonly alreadyEnrolled: boolean;
   readonly existingProfile: { readonly displayName: string; readonly voicePart: string } | null;
   readonly organizationName: string;
+  readonly rosterStructure: "sections_only" | "sections_with_parts";
   readonly performerLabel: string;
   readonly sections: readonly {
     readonly code: string;
@@ -153,6 +157,7 @@ export function getRosterInviteOptionsInStore(
     alreadyEnrolled,
     existingProfile,
     organizationName: identity.name,
+    rosterStructure: config.rosterStructure,
     performerLabel: config.performerLabel,
     sections: eligibleSections,
     voiceParts: eligibleVoiceParts,

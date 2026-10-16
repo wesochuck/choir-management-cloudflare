@@ -1,8 +1,13 @@
-import type { OrganizationEventRequest, OrganizationProfile } from "@choir/contracts";
+import type {
+  OrganizationEventRequest,
+  OrganizationProfile,
+  OrganizationRosterConfiguration,
+} from "@choir/contracts";
 import { NumberInput, TabsContent } from "@choir/ui";
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from "react";
 
-import { listOrganizationProfiles } from "../../../../api";
+import { getOrganizationRosterConfiguration, listOrganizationProfiles } from "../../../../api";
+import { useOrganizationTerminology } from "../../../organizationTerminologyContext";
 import { EventRsvpDeadlineNotice } from "../shared";
 import type { EventsState } from "../types";
 import type { SectionErrors } from "../eventSections";
@@ -40,11 +45,12 @@ function TargetedAudiencePicker({
   readonly targetedProfileIds: readonly string[];
   readonly targetedVoiceParts: readonly string[];
 }) {
+  const { partLabelPlural } = useOrganizationTerminology();
   return (
     <div className="targeted-audience-picker">
       <div className="field">
         <label className="field-label" htmlFor="events-page-targeted-voice-parts">
-          Voice parts
+          {partLabelPlural}
         </label>
         <div className="checkbox-grid" id="events-page-targeted-voice-parts">
           {availableVoiceParts.map((vp) => (
@@ -119,13 +125,18 @@ function OtherEventRsvpPanel({
   showErrorBadges,
   state,
 }: RsvpSectionProps) {
+  const { partLabelPlural } = useOrganizationTerminology();
   const [profiles, setProfiles] = useState<readonly OrganizationProfile[]>([]);
+  const [configuration, setConfiguration] = useState<OrganizationRosterConfiguration | null>(null);
 
   useEffect(() => {
     let active = true;
-    void listOrganizationProfiles()
-      .then((loaded) => {
-        if (active) setProfiles(loaded);
+    void Promise.all([listOrganizationProfiles(), getOrganizationRosterConfiguration()])
+      .then(([loaded, roster]) => {
+        if (active) {
+          setProfiles(loaded);
+          setConfiguration(roster);
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -138,13 +149,12 @@ function OtherEventRsvpPanel({
   }, [profiles]);
 
   const availableVoiceParts = useMemo(() => {
-    const defaultParts = ["S1", "S2", "A1", "A2", "T1", "T2", "B1", "B2"];
-    const set = new Set(defaultParts);
+    const set = new Set(configuration?.voiceParts.map(({ label }) => label));
     for (const p of activeProfiles) {
       if (p.voicePart.trim()) set.add(p.voicePart.trim());
     }
     return Array.from(set);
-  }, [activeProfiles]);
+  }, [activeProfiles, configuration]);
 
   const targetedVoiceParts = useMemo(() => {
     return event.otherEventAudience?.type === "targeted"
@@ -279,7 +289,7 @@ function OtherEventRsvpPanel({
               type="radio"
               value="targeted"
             />
-            Targeted audience (select voice parts or specific members)
+            Targeted audience (select {partLabelPlural.toLowerCase()} or specific members)
           </label>
         </div>
       </fieldset>

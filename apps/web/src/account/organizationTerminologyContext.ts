@@ -7,6 +7,7 @@ export interface OrganizationTerminology {
   readonly performerLabel: string;
   readonly performerLabelPlural: string;
   readonly setPerformerLabel: (label: string) => void;
+  readonly setRosterStructure?: (structure: "sections_only" | "sections_with_parts") => void;
 }
 
 export const organizationTerminologyContext = createContext<OrganizationTerminology>({

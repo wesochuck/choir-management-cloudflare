@@ -110,6 +110,9 @@ export function AuthenticatedShell({
   const [platformAvailable, setPlatformAvailable] = useState(false);
   const [baseHostname, setBaseHostname] = useState<string | null>(null);
   const [organizationPerformerLabel, setOrganizationPerformerLabel] = useState("Performer");
+  const [rosterStructure, setRosterStructure] = useState<"sections_only" | "sections_with_parts">(
+    "sections_with_parts",
+  );
   const [branding, setBranding] = useState<{
     readonly logoFileId: string | null;
     readonly organizationName: string;
@@ -332,7 +335,10 @@ export function AuthenticatedShell({
     const controller = new AbortController();
     getOrganizationRosterConfiguration(controller.signal)
       .then((configuration) => {
-        if (!controller.signal.aborted) setOrganizationPerformerLabel(configuration.performerLabel);
+        if (!controller.signal.aborted) {
+          setOrganizationPerformerLabel(configuration.performerLabel);
+          setRosterStructure(configuration.rosterStructure ?? "sections_with_parts");
+        }
       })
       .catch(() => {
         // Account and Platform workspaces do not have an Organization roster to load.
@@ -774,6 +780,8 @@ export function AuthenticatedShell({
             ) : null}
             <OrganizationTerminologyProvider
               onLabelChange={setOrganizationPerformerLabel}
+              onStructureChange={setRosterStructure}
+              rosterStructure={rosterStructure}
               organizationName={organizationName}
               performerLabel={organizationPerformerLabel}
             >

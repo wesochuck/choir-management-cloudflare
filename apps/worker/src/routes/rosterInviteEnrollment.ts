@@ -299,6 +299,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       existingProfile: options.existingProfile ? { ...options.existingProfile } : null,
       organizationName: options.organizationName,
       performerLabel: options.performerLabel,
+      rosterStructure: options.rosterStructure,
       requestId: context.get("requestId"),
       sections: options.sections.map((s) => ({ ...s })),
       voiceParts: options.voiceParts.map((v) => ({ ...v })),
