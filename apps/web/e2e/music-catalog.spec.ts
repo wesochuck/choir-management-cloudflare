@@ -758,21 +758,43 @@ for (const theme of ["light", "dark"] as const) {
     ]);
     await expect(dialog.getByText("Applause.mp3")).toBeVisible();
     await dialog.getByRole("button", { name: "Review groups" }).click();
-    await expect(dialog.getByRole("heading", { name: "Applause", exact: true })).toBeVisible();
-    await expect(dialog.getByRole("heading", { name: "First Work", exact: true })).toBeVisible();
-    const cards = dialog.locator(".track-import-group-card");
-    await expect(cards.first().getByLabel("Destination music piece")).toHaveValue("");
-    await expect(cards.first().getByText("Part needed")).toBeVisible();
-    await expect(cards.nth(1).getByText("Review selection")).toBeVisible();
+    const queue = dialog.getByRole("complementary", { name: "Song group queue" });
+    const applauseQueueItem = queue.getByRole("button", { name: /Applause/ });
+    const firstWorkQueueItem = queue.getByRole("button", { name: /First Work/ });
+    await expect(applauseQueueItem).toBeVisible();
+    await expect(firstWorkQueueItem).toContainText("Needs review");
+
+    const applauseGroup = dialog.getByRole("region", { name: "Applause" });
+    await expect(applauseGroup.getByRole("heading", { name: "Applause", level: 2 })).toBeVisible();
+    await expect(
+      applauseGroup.getByRole("heading", { name: "No destination piece selected" }),
+    ).toBeVisible();
+    await expect(applauseGroup.getByText("Part needed")).toBeVisible();
+
+    await firstWorkQueueItem.click();
+    const firstWorkGroup = dialog.getByRole("region", { name: "First Work" });
+    await expect(
+      firstWorkGroup.getByRole("heading", { name: "First Work", level: 2 }),
+    ).toBeVisible();
+    await expect(
+      firstWorkGroup.getByRole("heading", { name: "First Work", level: 3 }),
+    ).toBeVisible();
+    await expect(
+      firstWorkGroup.getByRole("combobox", { name: "Voice part for First Work Tutti.mp3" }),
+    ).toHaveValue("tutti");
+    await expect(firstWorkQueueItem).toContainText("Needs review");
     await expect(dialog.getByText("Strong suggestion", { exact: true })).toHaveCount(0);
-    await expect(dialog.getByRole("button", { name: "Split", exact: true })).toHaveCount(0);
-    const destination = cards.first().getByLabel("Destination music piece");
+
+    await applauseQueueItem.click();
+    const destination = applauseGroup.getByRole("button", {
+      name: "Search library to change piece",
+    });
     await destination.focus();
     await expect(destination).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(cards.first().getByRole("button", { name: "Play Applause.mp3" })).toBeFocused();
+    await expect(applauseGroup.getByRole("button", { name: "Play Applause.mp3" })).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(cards.first().getByLabel("Voice part for Applause.mp3")).toBeFocused();
+    await expect(applauseGroup.getByLabel("Voice part for Applause.mp3")).toBeFocused();
     await dialog.locator(".track-import-wizard-step").evaluate((element) => {
       element.scrollTop = 0;
     });
