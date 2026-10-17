@@ -8,7 +8,11 @@
 // same pages lives in the non-`fullstack` specs, which stay fast and
 // deterministic through apps/web/e2e/fixtures/apiMocks.ts.
 import { expect, test } from "@playwright/test";
-import { currentAuthSessionSchema, healthResponseSchema } from "@choir/contracts";
+import {
+  currentAuthSessionSchema,
+  healthResponseSchema,
+  publishedOrganizationProjectionSchema,
+} from "@choir/contracts";
 import { z } from "zod";
 import { bootstrapFullstack, FULLSTACK_APP_ORIGIN } from "./fixtures/fullstack";
 
@@ -41,15 +45,46 @@ test("serves the anonymous landing page from the real Worker @webkit-smoke", asy
   expect(readinessSchema.parse(await ready.json()).status).toBe("ready");
 
   // No session exists in this fresh browser context; the Worker answers null
-  // and the app must present the signed-out product surface.
+  // and the app must present the signed-out homepage for this hostname.
   const session = await request.get(`${FULLSTACK_APP_ORIGIN}/api/auth/get-session`);
   expect(session.ok()).toBe(true);
   expect(currentAuthSessionSchema.parse(await session.json())).toBeNull();
 
+  // The shared local tenant can already have a published website from the
+  // event publication suite or a previous run. Verify the actual projection
+  // consumed by this navigation rather than assuming that no site exists.
+  const projectionResponsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/public/projection" &&
+      response.request().method() === "GET",
+  );
   await page.goto(`${FULLSTACK_APP_ORIGIN}/`);
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Music Manager");
-  await expect(page.getByRole("link", { name: "Upcoming performances" })).toBeVisible();
-  await expect(page.getByLabel("Account").getByRole("link", { name: "Sign in" })).toBeVisible();
+  const projectionResponse = await projectionResponsePromise;
+  if (projectionResponse.status() === 200) {
+    const { payload } = publishedOrganizationProjectionSchema.parse(
+      await projectionResponse.json(),
+    );
+    await expect(
+      page.getByRole("banner").getByRole("link", {
+        name: payload.organizationName,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Public website" })).toBeVisible();
+    if (payload.settings.heroHeadline) {
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+        payload.settings.heroHeadline,
+      );
+    }
+  } else {
+    expect(projectionResponse.status()).toBe(404);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Music Manager");
+    await expect(page.getByRole("link", { name: "Upcoming performances" })).toBeVisible();
+  }
+  await expect(page.getByRole("main")).toBeVisible();
+  await expect(
+    page.getByRole("banner").getByRole("link", { name: "Sign in", exact: true }),
+  ).toBeVisible();
 });
 
 test("keeps OTP sign-in non-enumerating and rejects an unknown code", async ({ page }) => {

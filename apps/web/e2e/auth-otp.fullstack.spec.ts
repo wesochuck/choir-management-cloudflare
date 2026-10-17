@@ -53,7 +53,11 @@ test("signs in with a real one-time code and restores the session", async ({
 
   await page.getByRole("banner").getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(`${FULLSTACK_APP_ORIGIN}/`);
-  await expect(page.getByLabel("Account").getByRole("link", { name: "Sign in" })).toBeVisible();
+  // A published Organization site has its own public navigation. Sign-out
+  // must expose sign-in on either homepage without depending on product-shell markup.
+  await expect(
+    page.getByRole("banner").getByRole("link", { name: "Sign in", exact: true }),
+  ).toBeVisible();
 
   const afterSignOut = await page.request.get(`${FULLSTACK_APP_ORIGIN}/api/auth/get-session`);
   expect(afterSignOut.ok()).toBe(true);
