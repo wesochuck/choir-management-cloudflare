@@ -1,6 +1,8 @@
+import { eventWebsiteVisibility } from "@choir/domain";
 import type { OrganizationEventRequest } from "@choir/contracts";
 import { TabsContent } from "@choir/ui";
-import type { Dispatch, DragEvent, SetStateAction } from "react";
+import { useRef, type Dispatch, type DragEvent, type SetStateAction } from "react";
+import { MarkdownToolbar } from "../../MarkdownToolbar";
 
 export function PublicSection({
   activeGraphicPreviewUrl,
@@ -29,6 +31,9 @@ export function PublicSection({
   readonly setGraphicError: (error: string | null) => void;
   readonly tbdInfo: { readonly isTbd: boolean };
 }) {
+  const detailsRef = useRef<HTMLTextAreaElement | null>(null);
+  const publishedOnWebsite = eventWebsiteVisibility(event);
+  const ticketingMakesPublic = event.type === "Performance" && event.isTicketingEnabled;
   return (
     <TabsContent
       aria-labelledby="event-editor-public-tab"
@@ -47,7 +52,15 @@ export function PublicSection({
       </div>
       <div className="field">
         <label htmlFor="events-page-public-details">Public details</label>
+        <MarkdownToolbar
+          textareaRef={detailsRef}
+          value={event.publicDetails}
+          onChange={(publicDetails) => {
+            setEvent((current) => ({ ...current, publicDetails }));
+          }}
+        />
         <textarea
+          ref={detailsRef}
           id="events-page-public-details"
           maxLength={100000}
           onChange={(change) => {
@@ -138,7 +151,9 @@ export function PublicSection({
       </div>
       <label className="checkbox-row" htmlFor="events-page-publish">
         <input
-          checked={event.publishOnWebsite}
+          checked={publishedOnWebsite}
+          disabled={ticketingMakesPublic}
+          aria-describedby={ticketingMakesPublic ? "event-ticketing-public-visibility" : undefined}
           id="events-page-publish"
           onChange={(change) => {
             setEvent((current) => ({
@@ -150,17 +165,46 @@ export function PublicSection({
         />
         Publish on public website
       </label>
-      {event.publishOnWebsite && tbdInfo.isTbd ? (
+      <PublicVisibilityHelp
+        ticketingMakesPublic={ticketingMakesPublic}
+        publishedOnWebsite={publishedOnWebsite}
+        isTbd={tbdInfo.isTbd}
+      />
+    </TabsContent>
+  );
+}
+
+function PublicVisibilityHelp({
+  ticketingMakesPublic,
+  publishedOnWebsite,
+  isTbd,
+}: {
+  readonly ticketingMakesPublic: boolean;
+  readonly publishedOnWebsite: boolean;
+  readonly isTbd: boolean;
+}) {
+  return (
+    <>
+      {ticketingMakesPublic ? (
+        <p className="field-help" id="event-ticketing-public-visibility">
+          Ticket-enabled Performances are public. Saving updates the published website schedule
+          automatically. To hide this event, turn off ticket sales first.
+        </p>
+      ) : null}
+      {publishedOnWebsite && isTbd ? (
         <p className="notice notice--info" role="status">
           <strong>Publishing with TBD venue:</strong> the public page will show “TBD” without an
           address or map pin until the actual venue is assigned.
         </p>
       ) : null}
-      {!event.publishOnWebsite ? (
+      {publishedOnWebsite && !ticketingMakesPublic ? (
+        <p className="field-help">Saving updates the published website schedule automatically.</p>
+      ) : null}
+      {!publishedOnWebsite ? (
         <p className="notice notice--info" role="status">
           This event will not appear on the public concert schedule until publishing is enabled.
         </p>
       ) : null}
-    </TabsContent>
+    </>
   );
 }

@@ -16,7 +16,11 @@ const operationSchema = z.discriminatedUnion("action", [
     action: z.literal("update"),
     settings: publicWebsiteSettingsRequestSchema,
   }),
-  actorSchema.extend({ action: z.literal("begin_publication") }),
+  actorSchema.extend({
+    action: z.literal("begin_publication"),
+    scheduleSettings: publicWebsiteSettingsRequestSchema.optional(),
+    expectedVersion: z.number().int().nonnegative().optional(),
+  }),
   actorSchema.extend({
     action: z.literal("complete_publication"),
     publishedAt: z.iso.datetime(),
@@ -39,6 +43,7 @@ interface SettingsRow {
   readonly contactEmail: string;
   readonly footerText: string;
   readonly footerEmbedsJson: string;
+  readonly pageLabelsJson: string;
   readonly enabledNavigationJson: string;
   readonly headerFont: string;
   readonly heroFileId: string | null;
@@ -105,7 +110,7 @@ function settingsRow(storage: DurableObjectStorage): SettingsRow {
       `SELECT hero_headline AS heroHeadline, hero_subtitle AS heroSubtitle,
         hero_position_x AS heroPositionX, hero_position_y AS heroPositionY,
         about_us_text AS aboutUsText, history_text AS historyText,
-        contact_email AS contactEmail, footer_text AS footerText, footer_embeds_json AS footerEmbedsJson,
+        contact_email AS contactEmail, footer_text AS footerText, footer_embeds_json AS footerEmbedsJson, page_labels_json AS pageLabelsJson,
         show_branding_header_footer AS showBrandingHeaderFooter,
         header_font AS headerFont, body_font AS bodyFont,
         hero_file_id AS heroFileId, logo_file_id AS logoFileId,
@@ -127,6 +132,7 @@ function parsedSettings(row: SettingsRow, organizationName: string) {
     }
   })();
   return publicWebsiteSettingsSchema.parse({
+    pageLabels: JSON.parse(row.pageLabelsJson) as unknown,
     footerText: row.footerText,
     footerEmbeds: JSON.parse(row.footerEmbedsJson) as unknown,
     aboutUsText: row.aboutUsText,
@@ -287,7 +293,7 @@ function updateSettings(
         hero_headline = ?, hero_subtitle = ?, about_us_text = ?, history_text = ?,
         contact_email = ?, show_branding_header_footer = ?, header_font = ?, body_font = ?,
         hero_file_id = ?, logo_file_id = ?, enabled_navigation_json = ?, updated_at = ?,
-        footer_text = ?, footer_embeds_json = ?, hero_position_x = ?, hero_position_y = ?
+        footer_text = ?, footer_embeds_json = ?, hero_position_x = ?, hero_position_y = ?, page_labels_json = ?
        WHERE singleton = 1`,
       operation.settings.heroHeadline,
       operation.settings.heroSubtitle,
@@ -305,6 +311,7 @@ function updateSettings(
       JSON.stringify(operation.settings.footerEmbeds ?? []),
       operation.settings.heroPosition?.x ?? 50,
       operation.settings.heroPosition?.y ?? 50,
+      JSON.stringify(operation.settings.pageLabels ?? {}),
     );
     storage.sql.exec(
       `INSERT INTO audit_events
@@ -327,10 +334,20 @@ function updateSettings(
   return Response.json(parsedSettings(settingsRow(storage), organization.name));
 }
 
-function beginPublication(storage: DurableObjectStorage, organization: IdentityRow): Response {
+function beginPublication(
+  storage: DurableObjectStorage,
+  organization: IdentityRow,
+  operation: Extract<z.infer<typeof operationSchema>, { readonly action: "begin_publication" }>,
+): Response {
   const row = settingsRow(storage);
+  if (
+    operation.expectedVersion !== undefined &&
+    operation.expectedVersion !== row.publicationVersion
+  ) {
+    return Response.json({ code: "publication_version_conflict" }, { status: 409 });
+  }
   const version = Math.max(row.publicationVersion, row.pendingPublicationVersion ?? 0) + 1;
-  const settings = parsedSettings(row, organization.name);
+  const settings = operation.scheduleSettings ?? parsedSettings(row, organization.name);
   const performances = storage.sql
     .exec<PublicEventRow>(
       `SELECT e.id, e.title,
@@ -414,6 +431,7 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
       organizationName: organization.name,
       performances,
       settings: {
+        pageLabels: settings.pageLabels,
         footerText: settings.footerText,
         footerEmbeds: settings.footerEmbeds,
         aboutUsText: settings.aboutUsText,
@@ -484,7 +502,7 @@ export async function managePublicWebsiteInStore(
     return updateSettings(storage, parsed.data, organization);
   }
   if (parsed.data.action === "begin_publication") {
-    return beginPublication(storage, organization);
+    return beginPublication(storage, organization, parsed.data);
   }
   return completePublication(storage, parsed.data);
 }

@@ -1,4 +1,6 @@
-import type { RefObject } from "react";
+import { useState, type RefObject } from "react";
+import { formatMarkdownLink, markdownLinkSelection } from "../../shared/markdownLinks";
+import { MarkdownLinkEditor } from "./MarkdownLinkEditor";
 
 interface MarkdownToolbarProps {
   readonly onChange: (nextValue: string) => void;
@@ -7,6 +9,19 @@ interface MarkdownToolbarProps {
 }
 
 export function MarkdownToolbar({ onChange, textareaRef, value }: MarkdownToolbarProps) {
+  const [link, setLink] = useState<ReturnType<typeof markdownLinkSelection> | null>(null);
+  function restoreFocus(cursor: number) {
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(cursor, cursor);
+    });
+  }
+  function applyLink(replacement: string) {
+    if (!link) return;
+    onChange(value.slice(0, link.start) + replacement + value.slice(link.end));
+    setLink(null);
+    restoreFocus(link.start + replacement.length);
+  }
   function applyFormat(prefix: string, suffix = "", defaultText = "") {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -63,57 +78,74 @@ export function MarkdownToolbar({ onChange, textareaRef, value }: MarkdownToolba
   }
 
   return (
-    <div aria-label="Text formatting" className="markdown-toolbar" role="toolbar">
-      <button
-        aria-label="Heading 2"
-        className="markdown-toolbar__button"
-        onClick={() => {
-          applyHeading("## ");
-        }}
-        type="button"
-      >
-        H2
-      </button>
-      <button
-        aria-label="Heading 3"
-        className="markdown-toolbar__button"
-        onClick={() => {
-          applyHeading("### ");
-        }}
-        type="button"
-      >
-        H3
-      </button>
-      <button
-        aria-label="Bold text"
-        className="markdown-toolbar__button markdown-toolbar__button--bold"
-        onClick={() => {
-          applyFormat("**", "**", "bold text");
-        }}
-        type="button"
-      >
-        B
-      </button>
-      <button
-        aria-label="Italic text"
-        className="markdown-toolbar__button markdown-toolbar__button--italic"
-        onClick={() => {
-          applyFormat("*", "*", "italic text");
-        }}
-        type="button"
-      >
-        I
-      </button>
-      <button
-        aria-label="Insert link"
-        className="markdown-toolbar__button"
-        onClick={() => {
-          applyFormat("[", "](https://example.com)", "link text");
-        }}
-        type="button"
-      >
-        Link
-      </button>
-    </div>
+    <>
+      <div aria-label="Text formatting" className="markdown-toolbar" role="toolbar">
+        <button
+          aria-label="Heading 2"
+          className="markdown-toolbar__button"
+          onClick={() => {
+            applyHeading("## ");
+          }}
+          type="button"
+        >
+          H2
+        </button>
+        <button
+          aria-label="Heading 3"
+          className="markdown-toolbar__button"
+          onClick={() => {
+            applyHeading("### ");
+          }}
+          type="button"
+        >
+          H3
+        </button>
+        <button
+          aria-label="Bold text"
+          className="markdown-toolbar__button markdown-toolbar__button--bold"
+          onClick={() => {
+            applyFormat("**", "**", "bold text");
+          }}
+          type="button"
+        >
+          B
+        </button>
+        <button
+          aria-label="Italic text"
+          className="markdown-toolbar__button markdown-toolbar__button--italic"
+          onClick={() => {
+            applyFormat("*", "*", "italic text");
+          }}
+          type="button"
+        >
+          I
+        </button>
+        <button
+          aria-label="Insert link"
+          className="markdown-toolbar__button"
+          onClick={() => {
+            const textarea = textareaRef.current;
+            if (textarea)
+              setLink(markdownLinkSelection(value, textarea.selectionStart, textarea.selectionEnd));
+          }}
+          type="button"
+        >
+          Link
+        </button>
+      </div>
+      {link ? (
+        <MarkdownLinkEditor
+          selection={link}
+          onApply={(text, url, newTab) => {
+            applyLink(formatMarkdownLink(text, url, newTab));
+          }}
+          onRemove={applyLink}
+          onClose={() => {
+            setLink(null);
+            restoreFocus(link.start);
+          }}
+        />
+      ) : null}
+    </>
   );
 }

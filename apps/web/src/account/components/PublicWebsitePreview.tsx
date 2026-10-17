@@ -1,3 +1,4 @@
+import { publicPageNavigationLabel } from "../../public/publicPageLabels";
 import { PublicWebsiteHero } from "../../public/PublicWebsiteHero";
 import { PublicWebsiteFooter } from "../../public/PublicWebsiteFooter";
 import type { PublicWebsiteSettingsRequest } from "@choir/contracts";
@@ -107,17 +108,17 @@ function PreviewHeader({
             }}
             type="button"
           >
-            History
+            {publicPageNavigationLabel(draft, "history")}
           </button>
         ) : null}
         {draft.enabledNavigation.includes("tickets") ? (
-          <span className="preview-nav-link">Tickets</span>
+          <span className="preview-nav-link">{publicPageNavigationLabel(draft, "tickets")}</span>
         ) : null}
         {draft.enabledNavigation.includes("donations") ? (
-          <span className="preview-nav-link">Donate</span>
+          <span className="preview-nav-link">{publicPageNavigationLabel(draft, "donations")}</span>
         ) : null}
         {draft.enabledNavigation.includes("auditions") ? (
-          <span className="preview-nav-link">Auditions</span>
+          <span className="preview-nav-link">{publicPageNavigationLabel(draft, "auditions")}</span>
         ) : null}
       </nav>
     </header>
@@ -158,12 +159,13 @@ function PreviewHome({ draft, heroImageUrl, organizationName }: PreviewHomeProps
 
 interface PreviewHistoryProps {
   readonly historyText: string;
+  readonly heading: string | undefined;
 }
 
-function PreviewHistory({ historyText }: PreviewHistoryProps) {
+function PreviewHistory({ historyText, heading }: PreviewHistoryProps) {
   return (
     <section className="public-section public-section--narrow">
-      <h1>Our History</h1>
+      <h1>{heading ?? "Our History"}</h1>
       {historyText.trim() ? (
         <PublicCopy text={historyText} />
       ) : (
@@ -245,7 +247,10 @@ export function PublicWebsitePreview({
                 organizationName={organizationName}
               />
             ) : (
-              <PreviewHistory historyText={draft.historyText} />
+              <PreviewHistory
+                historyText={draft.historyText}
+                heading={draft.pageLabels?.history?.heading}
+              />
             )}
           </main>
 

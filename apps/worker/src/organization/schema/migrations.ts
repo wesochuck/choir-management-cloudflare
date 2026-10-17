@@ -2035,6 +2035,18 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE public_website_settings ADD COLUMN hero_position_y REAL NOT NULL DEFAULT 50 CHECK (hero_position_y BETWEEN 0 AND 100)",
     ],
   },
+  {
+    version: 117,
+    statements: [
+      "ALTER TABLE public_website_settings ADD COLUMN page_labels_json TEXT NOT NULL DEFAULT '{}'",
+    ],
+  },
+  {
+    version: 118,
+    statements: [
+      "UPDATE events SET publish_on_website = 1 WHERE type = 'Performance' AND is_ticketing_enabled = 1 AND publish_on_website = 0",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

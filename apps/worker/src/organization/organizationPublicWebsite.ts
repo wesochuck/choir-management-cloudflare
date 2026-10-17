@@ -11,6 +11,8 @@ import {
   activatePublishedOrganization,
   publishedMediaKey,
   writePublishedOrganization,
+  readPublishedOrganization,
+  PublicationConflictError,
 } from "../publication/publishOrganization";
 import { privateOrganizationFileKey } from "../storage/privateFiles";
 import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
@@ -159,10 +161,12 @@ async function copyPublicMediaInBatches(
 export async function publishOrganizationPublicWebsite(
   env: Pick<Env, "ORGANIZATION_FILES" | "ORGANIZATION_STORE" | "ROUTING_CACHE">,
   context: WebsiteContext,
+  schedule?: { readonly settings: PublicWebsiteSettingsRequest; readonly version: number },
 ) {
   const validatedContext = contextSchema.parse(context);
   const beginResponse = await internalPost(env, validatedContext, {
     action: "begin_publication",
+    ...(schedule ? { scheduleSettings: schedule.settings, expectedVersion: schedule.version } : {}),
   });
   const draft = publicationDraftSchema.safeParse(await beginResponse.json().catch(() => null));
   if (!beginResponse.ok || !draft.success) {
@@ -195,7 +199,40 @@ export async function publishOrganizationPublicWebsite(
     await completeResponse.json().catch(() => null),
   );
   if (!completeResponse.ok || !completed.success) {
-    throw new PublicWebsiteError(503, "The public website publication could not be finalized.");
+    throw new PublicWebsiteError(
+      completeResponse.status === 409 ? 409 : 503,
+      "The public website publication could not be finalized.",
+    );
   }
   return completed.data;
+}
+
+/** Refresh event content without exposing the administrator's saved website draft. */
+export async function refreshOrganizationPublicSchedule(
+  env: Pick<Env, "ORGANIZATION_FILES" | "ORGANIZATION_STORE" | "ROUTING_CACHE">,
+  context: WebsiteContext,
+  event: { readonly eventId: string; readonly isPublic: boolean },
+): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const current = await readPublishedOrganization(env, context.organizationId);
+    // An Organization must publish its website once before its live schedule can be refreshed.
+    if (!current) return;
+    if (
+      !event.isPublic &&
+      !current.projection.payload.performances.some(({ id }) => id === event.eventId)
+    )
+      return;
+    try {
+      await publishOrganizationPublicWebsite(env, context, {
+        settings: current.projection.payload.settings,
+        version: current.projection.version,
+      });
+      return;
+    } catch (error) {
+      const conflict =
+        error instanceof PublicationConflictError ||
+        (error instanceof PublicWebsiteError && error.status === 409);
+      if (!conflict || attempt === 2) throw error;
+    }
+  }
 }

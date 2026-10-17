@@ -1,3 +1,4 @@
+import { publicPageHeading, publicPageNavigationLabel } from "./publicPageLabels";
 import type { PublishedOrganizationProjection } from "@choir/contracts";
 import { ticketSalesPath } from "@choir/domain";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
@@ -112,16 +113,30 @@ export function OrganizationLayout({
   const hasHistory = Boolean(settings.historyText.trim());
 
   const navigation = [
-    ...(hasPerformances ? [{ href: "/performances", label: "Performances" }] : []),
-    ...(hasHistory ? [{ href: "/history", label: "History" }] : []),
+    ...(hasPerformances
+      ? [
+          {
+            href: "/performances",
+            label: publicPageNavigationLabel(settings, "performances"),
+          },
+        ]
+      : []),
+    ...(hasHistory
+      ? [{ href: "/history", label: publicPageNavigationLabel(settings, "history") }]
+      : []),
     ...(settings.enabledNavigation.includes("tickets")
-      ? [{ href: "/tickets", label: "Tickets" }]
+      ? [{ href: "/tickets", label: publicPageNavigationLabel(settings, "tickets") }]
       : []),
     ...(settings.enabledNavigation.includes("donations")
-      ? [{ href: "/donate", label: "Donate" }]
+      ? [{ href: "/donate", label: publicPageNavigationLabel(settings, "donations") }]
       : []),
     ...(settings.enabledNavigation.includes("auditions")
-      ? [{ href: "/auditions", label: "Auditions" }]
+      ? [
+          {
+            href: "/auditions",
+            label: publicPageNavigationLabel(settings, "auditions"),
+          },
+        ]
       : []),
   ];
   return (
@@ -274,7 +289,7 @@ function OrganizationHistory({
   return (
     <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
       <section className="public-section public-section--narrow">
-        <h1>Our History</h1>
+        <h1>{publicPageHeading(projection.payload.settings, "history", "Our History")}</h1>
         {historyText ? (
           <PublicCopy text={historyText} />
         ) : (
@@ -319,7 +334,7 @@ function OrganizationPerformances({
   return (
     <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
       <section className="public-section">
-        <h1>Performances</h1>
+        <h1>{publicPageHeading(projection.payload.settings, "performances", "Performances")}</h1>
         {hasPerformances ? (
           <PerformanceCards
             linkToDetails

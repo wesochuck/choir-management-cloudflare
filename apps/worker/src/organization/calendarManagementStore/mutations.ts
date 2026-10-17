@@ -1,5 +1,5 @@
 import { ensureTicketSlug, readTicketSlug } from "../ticketSlugs";
-import { isValidTimeZone } from "@choir/domain";
+import { eventWebsiteVisibility, isValidTimeZone } from "@choir/domain";
 
 import { decorateEventWithRsvpDeadline } from "../statusAutomationStore";
 import { type EventOperation, type ManagementRequest, type VenueOperation } from "./contracts";
@@ -119,7 +119,7 @@ export function writeEvent(
   operation: EventOperation,
   occurredAt: string,
 ): Response {
-  const event = operation.event;
+  const event = { ...operation.event, publishOnWebsite: eventWebsiteVisibility(operation.event) };
   const referenceError = eventReferenceError(storage, event);
   if (referenceError) return referenceError;
   if (operation.action === "update_event" && !recordExists(storage, "events", event.id)) {

@@ -1,5 +1,6 @@
 import {
   organizationEventSchema,
+  organizationEventsResponseSchema,
   organizationVenueSchema,
   privateFileResponseSchema,
   publishedOrganizationProjectionSchema,
@@ -8,6 +9,7 @@ import {
 } from "@choir/contracts";
 import {
   organizationRequest,
+  futureIsoDate,
   provisionOrganization,
   readEmailOneTimeCode,
   seedAuthUser,
@@ -111,6 +113,187 @@ beforeEach(async () => {
 afterEach(async () => reset());
 
 describe("Organization public website", () => {
+  it("makes ticket-enabled Performances public on create and update and refreshes the live schedule without publishing website drafts", async () => {
+    const cookie = await signIn();
+    const venue = organizationVenueSchema.parse(
+      await (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/venues",
+          "POST",
+          { name: "Ticket Hall", address: "1 Music Way" },
+          cookie,
+        )
+      ).json(),
+    );
+    const base = {
+      type: "Performance",
+      title: "New ticketed concert",
+      startsAt: futureIsoDate({ days: 30 }),
+      rsvpDeadlineDate: futureIsoDate({ days: 20 }).slice(0, 10),
+      venueId: venue.id,
+      details: "Private call notes",
+      publicDetails: "Public concert description",
+      publishOnWebsite: false,
+    };
+    const create = async (isTicketingEnabled: boolean) => {
+      const response = await jsonWrite(
+        "alpha.localhost",
+        "/api/organization/events",
+        "POST",
+        { ...base, isTicketingEnabled },
+        cookie,
+      );
+      expect(response.status).toBe(201);
+      return organizationEventSchema.parse(await response.json());
+    };
+    const event = await create(false);
+    expect(event.publishOnWebsite).toBe(false);
+    const publish = async () => {
+      const response = await exports.default.fetch(
+        api("alpha.localhost", "/api/organization/website/publish", cookie, { method: "POST" }),
+      );
+      expect(response.status).toBe(200);
+    };
+    const readPublic = async () =>
+      publishedOrganizationProjectionSchema.parse(
+        await (
+          await exports.default.fetch(api("alpha.localhost", "/api/public/projection"))
+        ).json(),
+      );
+    await publish();
+    expect((await readPublic()).payload.performances).toHaveLength(0);
+    const update = async (isTicketingEnabled: boolean, publishOnWebsite: boolean) => {
+      const response = await jsonWrite(
+        "alpha.localhost",
+        `/api/organization/events/${event.id}`,
+        "PUT",
+        { ...event, isTicketingEnabled, publishOnWebsite },
+        cookie,
+      );
+      expect(response.status).toBe(200);
+      return organizationEventSchema.parse(await response.json());
+    };
+    const settings = publicWebsiteSettingsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/website", cookie))
+      ).json(),
+    );
+    expect(
+      (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/website",
+          "PUT",
+          {
+            ...settings,
+            heroHeadline: "Unpublished headline",
+            footerText: "Private draft footer",
+          },
+          cookie,
+        )
+      ).status,
+    ).toBe(200);
+    expect((await update(true, false)).publishOnWebsite).toBe(true);
+    const live = await readPublic();
+    expect(live.payload.performances).toMatchObject([{ id: event.id, isTicketingEnabled: true }]);
+    expect(JSON.stringify(live)).not.toContain("Private call notes");
+    expect(JSON.stringify(live)).not.toContain("Unpublished headline");
+    expect(JSON.stringify(live)).not.toContain("Private draft footer");
+    const draft = publicWebsiteSettingsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/website", cookie))
+      ).json(),
+    );
+    expect(draft.heroHeadline).toBe("Unpublished headline");
+    expect((await update(false, true)).publishOnWebsite).toBe(true);
+    expect((await readPublic()).payload.performances).toMatchObject([
+      { id: event.id, isTicketingEnabled: false },
+    ]);
+    expect((await update(false, false)).publishOnWebsite).toBe(false);
+    expect((await readPublic()).payload.performances).toHaveLength(0);
+    const newlyTicketed = await create(true);
+    expect(newlyTicketed.publishOnWebsite).toBe(true);
+    expect((await readPublic()).payload.performances).toMatchObject([{ id: newlyTicketed.id }]);
+    expect(
+      (await exports.default.fetch(api("bravo.localhost", "/api/public/projection"))).status,
+    ).toBe(404);
+    const listed = organizationEventsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/events", cookie))
+      ).json(),
+    );
+    expect(listed.events.find(({ id }) => id === newlyTicketed.id)?.publishOnWebsite).toBe(true);
+    expect(
+      (
+        await jsonWrite(
+          "alpha.localhost",
+          `/api/organization/events/${newlyTicketed.id}/cancel`,
+          "POST",
+          {},
+          cookie,
+        )
+      ).status,
+    ).toBe(200);
+    expect((await readPublic()).payload.performances).toHaveLength(0);
+    const archived = await create(true);
+    expect(
+      (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/events/${archived.id}`, cookie, {
+            method: "DELETE",
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    expect((await readPublic()).payload.performances).toHaveLength(0);
+    const concurrent = await Promise.all([create(true), create(true)]);
+    expect(new Set((await readPublic()).payload.performances.map(({ id }) => id))).toEqual(
+      new Set(concurrent.map(({ id }) => id)),
+    );
+    await uploadImage(cookie);
+    const graphicEvent = concurrent[0];
+    expect(
+      (
+        await jsonWrite(
+          "alpha.localhost",
+          `/api/organization/events/${graphicEvent.id}`,
+          "PUT",
+          {
+            ...graphicEvent,
+            publicGraphicFileId: FILE_ID,
+          },
+          cookie,
+        )
+      ).status,
+    ).toBe(200);
+    await files.delete(privateOrganizationFileKey("organization-alpha", FILE_ID));
+    const failedRefresh = await jsonWrite(
+      "alpha.localhost",
+      `/api/organization/events/${graphicEvent.id}`,
+      "PUT",
+      {
+        ...graphicEvent,
+        publicGraphicFileId: FILE_ID,
+        title: "Saved despite image publication failure",
+      },
+      cookie,
+    );
+    expect(failedRefresh.status).toBe(503);
+    expect(await failedRefresh.json()).toMatchObject({
+      code: "event_saved_website_refresh_failed",
+      message: expect.stringContaining("event change was saved"),
+    });
+    const savedEvents = organizationEventsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/events", cookie))
+      ).json(),
+    );
+    expect(savedEvents.events.find(({ id }) => id === graphicEvent.id)?.title).toBe(
+      "Saved despite image publication failure",
+    );
+  });
+
   it("rejects unsafe embed URLs without changing the saved draft", async () => {
     const cookie = await signIn();
     for (const src of [
@@ -137,17 +320,20 @@ describe("Organization public website", () => {
     expect(saved.footerEmbeds).toEqual([]);
   });
 
-  it("rejects focal points outside the image bounds", async () => {
-    const cookie = await signIn();
-    const response = await jsonWrite(
-      "alpha.localhost",
-      "/api/organization/website",
-      "PUT",
-      { heroPosition: { x: 101, y: -1 } },
-      cookie,
-    );
-    expect(response.status).toBe(400);
-  });
+  it.each([{ heroPosition: { x: 101, y: -1 } }, { pageLabels: { history: { heading: " " } } }])(
+    "rejects invalid website settings",
+    async (invalid) => {
+      const cookie = await signIn();
+      const response = await jsonWrite(
+        "alpha.localhost",
+        "/api/organization/website",
+        "PUT",
+        invalid,
+        cookie,
+      );
+      expect(response.status).toBe(400);
+    },
+  );
 
   it("publishes isolated immutable projections and public media from a private manager draft", async () => {
     const cookie = await signIn();
@@ -219,6 +405,10 @@ describe("Organization public website", () => {
             heroFileId: FILE_ID,
             heroHeadline: "Alpha sings",
             heroPosition: { x: 25.5, y: 80 },
+            pageLabels: {
+              history: { navigationLabel: "Our story", heading: "Our beginnings" },
+              auditions: { navigationLabel: "Join", heading: "Join our chorus" },
+            },
             heroSubtitle: "Music for everyone",
             historyText: "Founded with a song.",
             logoFileId: FILE_ID,
@@ -241,6 +431,7 @@ describe("Organization public website", () => {
     );
     expect(reloaded.footerText).toBe("**Alpha supporters**");
     expect(reloaded.heroPosition).toEqual({ x: 25.5, y: 80 });
+    expect(reloaded.pageLabels?.auditions?.navigationLabel).toBe("Join");
     expect(reloaded.footerEmbeds).toEqual(footerEmbeds);
 
     const publication = publicWebsitePublishResponseSchema.parse(
@@ -265,6 +456,10 @@ describe("Organization public website", () => {
           settings: {
             heroHeadline: "Alpha sings",
             heroPosition: { x: 25.5, y: 80 },
+            pageLabels: {
+              history: { navigationLabel: "Our story", heading: "Our beginnings" },
+              auditions: { navigationLabel: "Join", heading: "Join our chorus" },
+            },
             footerText: "**Alpha supporters**",
             footerEmbeds,
           },
@@ -305,6 +500,7 @@ describe("Organization public website", () => {
         ...savedSettings,
         heroHeadline: "",
         heroPosition: { x: 75, y: 10 },
+        pageLabels: { history: { heading: "Our new story" } },
         footerText: "New footer",
         footerEmbeds: [],
       },
@@ -314,6 +510,7 @@ describe("Organization public website", () => {
       await (await exports.default.fetch(api("alpha.localhost", "/api/public/projection"))).json(),
     );
     expect(unchanged.payload.settings.heroHeadline).toBe("Alpha sings");
+    expect(unchanged.payload.settings.pageLabels?.history?.heading).toBe("Our beginnings");
     expect(unchanged.payload.settings.heroPosition).toEqual({ x: 25.5, y: 80 });
     expect(unchanged.payload.settings.footerEmbeds).toEqual(footerEmbeds);
     const secondPublication = publicWebsitePublishResponseSchema.parse(
@@ -330,6 +527,7 @@ describe("Organization public website", () => {
       ).json(),
     );
     expect(revised.payload.settings.heroHeadline).toBe("");
+    expect(revised.payload.settings.pageLabels?.history?.heading).toBe("Our new story");
     expect(revised.payload.settings.heroPosition).toEqual({ x: 75, y: 10 });
     expect(revised.version).toBe(2);
     expect(revised.payload.settings.footerText).toBe("New footer");

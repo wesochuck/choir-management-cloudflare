@@ -17,6 +17,8 @@ const publishedProjectionPointerSchema = z.object({
 
 type PublicationEnv = Pick<Env, "ORGANIZATION_FILES" | "ROUTING_CACHE">;
 
+export class PublicationConflictError extends Error {}
+
 export interface ReadPublishedProjection {
   readonly httpEtag: string;
   readonly projection: PublishedOrganizationProjection;
@@ -79,20 +81,23 @@ export async function activatePublishedOrganization(
       !Number.isNaN(existingVersion) &&
       existingVersion >= validatedProjection.version
     ) {
-      throw new Error(
+      throw new PublicationConflictError(
         `Active publication version ${String(existingVersion)} is newer than or equal to version ${String(validatedProjection.version)}.`,
       );
     }
   }
 
   const serializedProjection = JSON.stringify(validatedProjection);
-  await env.ORGANIZATION_FILES.put(currentKey, serializedProjection, {
+  const activated = await env.ORGANIZATION_FILES.put(currentKey, serializedProjection, {
+    onlyIf: existingCurrent ? { etagMatches: existingCurrent.etag } : { etagDoesNotMatch: "*" },
     customMetadata: {
       organizationId: validatedProjection.organizationId,
       version: String(validatedProjection.version),
     },
     httpMetadata: { contentType: "application/json; charset=utf-8" },
   });
+
+  if (!activated) throw new PublicationConflictError("The active website publication changed.");
 
   await env.ROUTING_CACHE.put(
     `published:${validatedProjection.organizationId}`,

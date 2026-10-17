@@ -50,6 +50,53 @@ function readTaskApplicable(
 }
 
 describe("organization schema migrations", () => {
+  it("v118 marks existing ticket-enabled Performances public without changing other events", () => {
+    const adapter = setupThrough(117);
+    for (const [id, type, ticketing, published] of [
+      ["ticketed", "Performance", 1, 0],
+      ["private", "Performance", 0, 0],
+      ["public", "Performance", 0, 1],
+      ["rehearsal", "Rehearsal", 0, 0],
+    ] as const) {
+      adapter.storage.sql.exec(
+        "INSERT INTO events (id, title, type, starts_at, is_ticketing_enabled, publish_on_website, created_at, updated_at) VALUES (?, ?, ?, '2027-01-01T18:00:00Z', ?, ?, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+        id,
+        id,
+        type,
+        ticketing,
+        published,
+      );
+    }
+    applyVersion(adapter, 118);
+    expect(
+      adapter.storage.sql
+        .exec<{ id: string; publish_on_website: number }>(
+          "SELECT id, publish_on_website FROM events ORDER BY id",
+        )
+        .toArray(),
+    ).toEqual([
+      { id: "private", publish_on_website: 0 },
+      { id: "public", publish_on_website: 1 },
+      { id: "rehearsal", publish_on_website: 0 },
+      { id: "ticketed", publish_on_website: 1 },
+    ]);
+  });
+
+  it("v117 preserves website content while defaulting custom page labels to empty", () => {
+    const adapter = setupThrough(116);
+    adapter.storage.sql.exec(
+      "UPDATE public_website_settings SET history_text = 'Our original story' WHERE singleton = 1",
+    );
+    applyVersion(adapter, 117);
+    expect(
+      adapter.storage.sql
+        .exec<{ history_text: string; page_labels_json: string }>(
+          "SELECT history_text, page_labels_json FROM public_website_settings WHERE singleton = 1",
+        )
+        .toArray()
+        .at(0),
+    ).toEqual({ history_text: "Our original story", page_labels_json: "{}" });
+  });
   it("v116 preserves populated website drafts and gives existing heroes a centered focal point", () => {
     const adapter = setupThrough(115);
     adapter.storage.sql.exec(

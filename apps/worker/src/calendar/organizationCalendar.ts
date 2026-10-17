@@ -43,6 +43,7 @@ import {
 } from "@choir/contracts";
 
 import type { Env } from "../env";
+import { refreshOrganizationPublicSchedule } from "../organization/organizationPublicWebsite";
 import { z } from "zod";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import {
@@ -76,6 +77,15 @@ const organizationProfileEventRsvpSchema = z.object({
 });
 
 export type OrganizationProfileEventRsvp = z.infer<typeof organizationProfileEventRsvpSchema>;
+
+export class PublicScheduleRefreshError extends Error {
+  constructor(cause: unknown) {
+    super(
+      "The event change was saved, but the public website could not be refreshed. Reload Events and save the event again to retry.",
+      { cause },
+    );
+  }
+}
 
 export class CalendarMutationError extends Error {
   constructor(
@@ -243,7 +253,22 @@ async function mutate(
   if (!response.ok) {
     throw new CalendarMutationError(await storeErrorCode(response, "unknown"), response.status);
   }
-  return response.json();
+  const result: unknown = await response.json();
+  if (
+    ["create_event", "update_event", "archive_event", "cancel_event"].includes(String(input.action))
+  ) {
+    try {
+      const changed = organizationEventSchema.safeParse(result);
+      await refreshOrganizationPublicSchedule(env, input, {
+        eventId: changed.success ? changed.data.id : String(input.eventId),
+        isPublic:
+          changed.success && changed.data.type === "Performance" && changed.data.publishOnWebsite,
+      });
+    } catch (error) {
+      throw new PublicScheduleRefreshError(error);
+    }
+  }
+  return result;
 }
 
 export async function listOrganizationVenues(

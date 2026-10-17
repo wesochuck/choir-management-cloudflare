@@ -255,7 +255,21 @@ const footerEmbedSchema = z.object({
   height: z.number().int().min(100).max(800).default(240),
 });
 
+const publicPageLabelSchema = z.object({
+  navigationLabel: z.string().trim().min(1).max(60).optional(),
+  heading: z.string().trim().min(1).max(120).optional(),
+});
+
 export const publicWebsiteSettingsRequestSchema = z.object({
+  pageLabels: z
+    .object({
+      performances: publicPageLabelSchema.optional(),
+      history: publicPageLabelSchema.optional(),
+      tickets: publicPageLabelSchema.optional(),
+      donations: publicPageLabelSchema.optional(),
+      auditions: publicPageLabelSchema.optional(),
+    })
+    .optional(),
   footerText: z.string().max(10_000).optional(),
   footerEmbeds: z.array(footerEmbedSchema).max(6).optional(),
   aboutUsText: z.string().max(100_000).default(""),

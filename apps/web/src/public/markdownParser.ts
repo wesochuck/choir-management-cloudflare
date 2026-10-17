@@ -1,52 +1,61 @@
 import React, { type ReactNode } from "react";
+import { markdownLinkLabel, markdownLinkSource, safePublicLinkUrl } from "../shared/markdownLinks";
 
-function isSafeUrl(url: string): boolean {
-  try {
-    const trimmed = url.trim();
-    if (trimmed.startsWith("mailto:")) return true;
-    const parsed = new URL(trimmed);
-    return parsed.protocol === "https:" || parsed.protocol === "http:";
-  } catch {
-    return false;
+function plainTextLinks(text: string, keyPrefix: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  let offset = 0;
+  for (const match of text.matchAll(/(?:https?:\/\/|mailto:)[^\s<>"']+/g)) {
+    const url = match[0].replace(/[.,!?;:)]+$/, "");
+    nodes.push(text.slice(offset, match.index));
+    nodes.push(
+      safePublicLinkUrl(url)
+        ? React.createElement(
+            "a",
+            {
+              href: url,
+              key: `${keyPrefix}-${String(match.index)}`,
+              target: "_blank",
+              rel: "noopener noreferrer",
+            },
+            url,
+          )
+        : url,
+    );
+    offset = match.index + url.length;
   }
+  nodes.push(text.slice(offset));
+  return nodes;
 }
 
-/**
- * Parses inline Markdown formatting:
- * - Links: [label](url) where url is https://, http://, or mailto:
- * - Bold: **text**
- * - Italic: *text*
- * All text content is safely escaped by React.
- */
+/** Safe inline Markdown with optional explicit tab targets. Legacy links keep opening in a new tab. */
 export function parseInlineMarkdown(text: string): ReactNode[] {
-  const tokenRegex = /\[([^\]]+)\]\(([^)\s]+)\)|\*\*([^*]+)\*\*|\*([^*]+)\*/g;
+  const tokenRegex = new RegExp(`${markdownLinkSource}|\\*\\*([^*]+)\\*\\*|\\*([^*]+)\\*`, "g");
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
   let keyIndex = 0;
-
   while ((match = tokenRegex.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      nodes.push(text.slice(lastIndex, match.index));
-    }
-    const [fullMatch, linkText, linkUrl, boldText, italicText] = match;
+    if (match.index > lastIndex)
+      nodes.push(
+        ...plainTextLinks(text.slice(lastIndex, match.index), `plain-${String(lastIndex)}`),
+      );
+    const [fullMatch, linkText, linkUrl, target, boldText, italicText] = match;
     if (linkText !== undefined && linkUrl !== undefined) {
-      if (isSafeUrl(linkUrl)) {
-        nodes.push(
-          React.createElement(
-            "a",
-            {
-              href: linkUrl.trim(),
-              key: `link-${String(keyIndex++)}`,
-              rel: "noopener noreferrer",
-              target: "_blank",
-            },
-            linkText,
-          ),
-        );
-      } else {
-        nodes.push(fullMatch);
-      }
+      const href = safePublicLinkUrl(linkUrl);
+      nodes.push(
+        href
+          ? React.createElement(
+              "a",
+              {
+                href,
+                key: `link-${String(keyIndex++)}`,
+                rel: "noopener noreferrer",
+                target: target === "_self" ? undefined : "_blank",
+              },
+              markdownLinkLabel(linkText),
+            )
+          : fullMatch,
+      );
     } else if (boldText !== undefined) {
       nodes.push(React.createElement("strong", { key: `bold-${String(keyIndex++)}` }, boldText));
     } else if (italicText !== undefined) {
@@ -54,10 +63,7 @@ export function parseInlineMarkdown(text: string): ReactNode[] {
     }
     lastIndex = match.index + fullMatch.length;
   }
-
-  if (lastIndex < text.length) {
-    nodes.push(text.slice(lastIndex));
-  }
-
+  if (lastIndex < text.length)
+    nodes.push(...plainTextLinks(text.slice(lastIndex), `plain-${String(lastIndex)}`));
   return nodes.length > 0 ? nodes : [text];
 }

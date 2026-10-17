@@ -49,7 +49,7 @@ const TRIBUTE_OPTIONS: readonly {
 ];
 
 // eslint-disable-next-line complexity -- PublicDonationView coordinates donation levels, custom amount, tribute options, fees, and checkout.
-export function PublicDonationView() {
+export function PublicDonationView({ heading }: { readonly heading?: string | undefined }) {
   const [settings, setSettings] = useState<DonationSettings>(DEFAULT_SETTINGS);
   const [transactionFeeSettings, setTransactionFeeSettings] = useState<TransactionFeeSettings>(
     DEFAULT_TRANSACTION_FEE_SETTINGS,
@@ -158,7 +158,7 @@ export function PublicDonationView() {
 
   return (
     <section className="public-section public-donation-section">
-      <h1>{settings.buttonText}</h1>
+      <h1>{heading ?? settings.buttonText}</h1>
       <p>{settings.description}</p>
       {settingsLoading ? <p className="notice notice--info">Loading donation options…</p> : null}
       {loadError ? (

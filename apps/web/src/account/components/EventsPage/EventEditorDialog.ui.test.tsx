@@ -62,6 +62,88 @@ beforeEach(() => {
 });
 
 describe("EventEditorDialog section layout", () => {
+  it("links ticket sales to public visibility and preserves visibility when ticketing is turned off", async () => {
+    const user = userEvent.setup();
+    let draft: OrganizationEventRequest = {
+      ...emptyEvent,
+      type: "Performance",
+      title: "Concert",
+      venueId: venueHall.id,
+    };
+    const setEvent = (change: SetStateAction<OrganizationEventRequest>) => {
+      draft = typeof change === "function" ? change(draft) : change;
+    };
+    const editor = () => (
+      <EventEditorDialog
+        busy={false}
+        dialogOpen
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart="2027-11-15T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={setEvent}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />
+    );
+    const { rerender } = render(editor());
+    await switchToSection(/Ticket sales/);
+    await user.click(screen.getByLabelText("Enable ticket sales"));
+    expect(draft).toMatchObject({ isTicketingEnabled: true, publishOnWebsite: true });
+    rerender(editor());
+    await switchToSection(/Public content/);
+    const visibility = screen.getByLabelText("Publish on public website");
+    expect(visibility).toBeChecked();
+    expect(visibility).toBeDisabled();
+    await switchToSection(/Ticket sales/);
+    await user.click(screen.getByLabelText("Enable ticket sales"));
+    expect(draft).toMatchObject({ isTicketingEnabled: false, publishOnWebsite: true });
+    rerender(editor());
+    await switchToSection(/Public content/);
+    const editableVisibility = screen.getByLabelText("Publish on public website");
+    expect(editableVisibility).toBeEnabled();
+    await user.click(editableVisibility);
+    expect(draft.publishOnWebsite).toBe(false);
+  });
+
+  it("inserts an editable link into public performance details", async () => {
+    const user = userEvent.setup();
+    let draft: OrganizationEventRequest = { ...emptyEvent, type: "Performance", title: "Concert" };
+    const setEvent = (change: SetStateAction<OrganizationEventRequest>) => {
+      draft = typeof change === "function" ? change(draft) : change;
+    };
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart="2027-11-15T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={setEvent}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={readyState}
+      />,
+    );
+    await switchToSection(/Public content/);
+    await user.click(screen.getByRole("button", { name: "Insert link" }));
+    const dialog = screen.getByRole("dialog", { name: "Insert link" });
+    await user.type(within(dialog).getByLabelText("Link text"), "Read the program");
+    await user.type(within(dialog).getByLabelText("Link address"), "https://example.org/program");
+    await user.click(within(dialog).getByRole("button", { name: "Apply link" }));
+    expect(draft.publicDetails).toBe(
+      '[Read the program](https://example.org/program){target="_self"}',
+    );
+  });
+
   it.each(["18:30", ""])(
     "allows the optional doors-open time to be set to %s",
     async (doorsOpenTime) => {
@@ -668,7 +750,7 @@ describe("EventEditorDialog public graphic upload and preview", () => {
     expect(screen.queryByText(/This performance date has already passed/)).not.toBeInTheDocument();
   });
 
-  it("warns admin when ticketing is enabled but event is not published on public website", async () => {
+  it("shows linked public visibility for a legacy ticket-enabled Performance", async () => {
     const unpublishedPerformance: OrganizationEventRequest = {
       ...emptyEvent,
       isTicketingEnabled: true,
@@ -698,8 +780,11 @@ describe("EventEditorDialog public graphic upload and preview", () => {
     await switchToSection(/Ticket sales/);
 
     expect(
-      screen.getByText(/This event will not appear on the public concert schedule/),
+      screen.getByText(/Enabling ticket sales also enables public website visibility/),
     ).toBeInTheDocument();
+    await switchToSection(/Public content/);
+    expect(screen.getByLabelText("Publish on public website")).toBeChecked();
+    expect(screen.getByLabelText("Publish on public website")).toBeDisabled();
   });
 
   it("requires venue in Schedule section instead of publishing warning", async () => {

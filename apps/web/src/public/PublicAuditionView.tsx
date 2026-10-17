@@ -640,7 +640,7 @@ export function PublicAuditionStatusCard({
   return null;
 }
 
-export function PublicAuditionView() {
+export function PublicAuditionView({ heading }: { readonly heading?: string | undefined }) {
   const [token] = useState(() => new URLSearchParams(window.location.search).get("token"));
   const [pageStatus, setPageStatus] = useState<PageStatus>({
     type: "loading",
@@ -776,7 +776,9 @@ export function PublicAuditionView() {
   return (
     <main className="auth-layout">
       <section className="auth-card public-audition-card" aria-labelledby="audition-title">
-        <h1 id="audition-title">{isOpenInquiry ? "Join Inquiry" : "Audition Inquiry"}</h1>
+        <h1 id="audition-title">
+          {heading ?? (isOpenInquiry ? "Join Inquiry" : "Audition Inquiry")}
+        </h1>
         <p className="auth-card__intro">
           {isOpenInquiry
             ? "Interested in singing with us? Fill out the form below and we will be in touch with rehearsal details."

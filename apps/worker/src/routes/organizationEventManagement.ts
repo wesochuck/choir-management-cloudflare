@@ -8,6 +8,7 @@ import { z } from "zod";
 import {
   bulkSetOrganizationEventRsvp,
   CalendarMutationError,
+  PublicScheduleRefreshError,
   cancelOrganizationEvent,
   createOrganizationEvent,
   archiveOrganizationEvent,
@@ -87,8 +88,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       }
       return context.json(
         {
-          code: "service_unavailable",
-          message: "The Organization event could not be created.",
+          ...eventServiceFailure(error, "The Organization event could not be created."),
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         503,
@@ -163,8 +163,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       }
       return context.json(
         {
-          code: "service_unavailable",
-          message: "The Organization event could not be updated.",
+          ...eventServiceFailure(error, "The Organization event could not be updated."),
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         503,
@@ -202,11 +201,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         eventId.data,
       );
       return context.json({ ...result, requestId: context.get("requestId") });
-    } catch {
+    } catch (error: unknown) {
       return context.json(
         {
-          code: "service_unavailable",
-          message: "The Organization event could not be archived.",
+          ...eventServiceFailure(error, "The Organization event could not be archived."),
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         503,
@@ -257,8 +255,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       }
       return context.json(
         {
-          code: "service_unavailable",
-          message: "The Organization event could not be canceled.",
+          ...eventServiceFailure(error, "The Organization event could not be canceled."),
           requestId: context.get("requestId"),
         } satisfies ProblemDetails,
         503,
@@ -377,4 +374,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
   });
+}
+
+function eventServiceFailure(error: unknown, fallback: string) {
+  return error instanceof PublicScheduleRefreshError
+    ? { code: "event_saved_website_refresh_failed", message: error.message }
+    : { code: "service_unavailable", message: fallback };
 }

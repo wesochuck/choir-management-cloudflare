@@ -57,6 +57,12 @@ describe("MarkdownToolbar", () => {
     const linkButton = screen.getByRole("button", { name: "Insert link" });
     await user.click(linkButton);
 
-    expect(onChange).toHaveBeenCalledWith("[link text](https://example.com)");
+    const dialog = screen.getByRole("dialog", { name: "Insert link" });
+    expect(dialog).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Link text"), "Our website");
+    await user.type(screen.getByLabelText("Link address"), "example.org");
+    await user.click(screen.getByRole("checkbox", { name: "Open in new tab" }));
+    await user.click(screen.getByRole("button", { name: "Apply link" }));
+    expect(onChange).toHaveBeenCalledWith('[Our website](https://example.org){target="_blank"}');
   });
 });

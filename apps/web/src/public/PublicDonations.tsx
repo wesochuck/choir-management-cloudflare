@@ -47,7 +47,11 @@ export function PublicDonations({ pathname }: { readonly pathname: string }) {
 
   const settings = state.projection.payload.settings;
   const content =
-    pathname === "/donate/success" ? <PublicDonationSuccessView /> : <PublicDonationView />;
+    pathname === "/donate/success" ? (
+      <PublicDonationSuccessView />
+    ) : (
+      <PublicDonationView heading={settings.pageLabels?.donations?.heading} />
+    );
 
   return settings.showBrandingHeaderFooter ? (
     <OrganizationLayout pathname={pathname} projection={state.projection}>

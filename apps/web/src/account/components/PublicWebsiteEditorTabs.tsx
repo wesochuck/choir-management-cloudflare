@@ -9,6 +9,7 @@ import {
   type PublicWebsiteFont,
 } from "../../public/publicWebsiteFonts";
 import { HeroImagePositionEditor } from "./HeroImagePositionEditor";
+import { PublicWebsitePageLabelsEditor } from "./PublicWebsitePageLabelsEditor";
 import { MarkdownToolbar } from "./MarkdownToolbar";
 
 const fontPreviewText = "Aa Bb Cc — The quick brown fox jumps over the lazy dog.";
@@ -303,6 +304,14 @@ export function NavigationTabContent({ busy, draft, onChange }: TabContentProps)
         />
         <p className="field-help">Displayed in the public website footer when provided.</p>
       </div>
+
+      <PublicWebsitePageLabelsEditor
+        draft={draft}
+        busy={busy}
+        onChange={(labels) => {
+          onChange("pageLabels", labels);
+        }}
+      />
 
       <fieldset className="field">
         <legend>Public modules navigation links</legend>

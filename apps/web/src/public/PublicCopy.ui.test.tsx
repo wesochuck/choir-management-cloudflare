@@ -30,6 +30,23 @@ describe("PublicCopy", () => {
     expect(mailLink).toHaveAttribute("href", "mailto:test@example.com");
   });
 
+  it("renders page links, raw URLs and explicit tab choices without allowing HTML", () => {
+    render(
+      <PublicCopy
+        text={
+          '[Give](/donate){target="_self"} and [Join](/auditions){target="_blank"}. Read https://example.org/info.'
+        }
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Give" })).toHaveAttribute("href", "/donate");
+    expect(screen.getByRole("link", { name: "Give" })).not.toHaveAttribute("target");
+    expect(screen.getByRole("link", { name: "Join" })).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", { name: "https://example.org/info" })).toHaveAttribute(
+      "href",
+      "https://example.org/info",
+    );
+  });
+
   it("sanitizes unsafe javascript links and treats raw HTML as text", () => {
     const unsafe = "Unsafe link: [Click me](javascript:alert(1)) and <script>alert('xss')</script>";
     render(<PublicCopy text={unsafe} />);

@@ -560,6 +560,35 @@
     white-space: pre-wrap;
   }
 
+  .public-copy a,
+  .markdown-link-dialog a {
+    color: var(--color-primary-strong);
+    font-weight: var(--font-weight-bold);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+    overflow-wrap: anywhere;
+  }
+
+  .public-copy a:hover,
+  .markdown-link-dialog a:hover {
+    text-decoration-thickness: 2px;
+  }
+
+  .public-copy a:focus-visible,
+  .markdown-link-dialog a:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .markdown-link-dialog .notice--error {
+    color: var(--color-text);
+  }
+
+  .markdown-link-dialog {
+    max-width: 30rem;
+  }
+
   .public-copy p {
     line-height: var(--line-height-relaxed);
   }

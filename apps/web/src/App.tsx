@@ -248,8 +248,9 @@ function selectContent(
   finishSignOut: () => void,
   finishInvitationSignIn: () => void,
   isOrganization: boolean,
+  auditionHeading: string | undefined,
 ): ReactNode {
-  const utilityRoute = publicUtilityRoute(pathname, resetLocation);
+  const utilityRoute = publicUtilityRoute(pathname, resetLocation, auditionHeading);
   if (utilityRoute) return utilityRoute;
   const sessionNotice = sessionBoundary(pathname, sessionState, oauthCompletion);
   if (sessionNotice) return sessionNotice;
@@ -304,7 +305,11 @@ function isPublicOrganizationRoute(pathname: string): boolean {
   return pathname === "/" || pathname === "/history" || pathname === "/performances";
 }
 
-function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocation) {
+function publicUtilityRoute(
+  pathname: string,
+  resetLocation: PasswordResetLocation,
+  auditionHeading: string | undefined,
+) {
   const recovery = passwordRecoveryRoute(pathname, resetLocation);
   if (recovery) return recovery;
   if (pathname === "/unsubscribe") {
@@ -326,7 +331,7 @@ function publicUtilityRoute(pathname: string, resetLocation: PasswordResetLocati
     return <PublicPollView />;
   }
   if (pathname === "/auditions" || pathname === "/join") {
-    return <PublicAuditionView />;
+    return <PublicAuditionView heading={auditionHeading} />;
   }
   if (pathname === "/join-roster") {
     return <JoinRosterView />;
@@ -365,6 +370,7 @@ export function App() {
   const [serviceState, setServiceState] = useState<ServiceState>("checking");
   const [sessionState, setSessionState] = useState<SessionState>({ status: "checking" });
   const [baseHostname, setBaseHostname] = useState<string | null>(null);
+  const [auditionHeading, setAuditionHeading] = useState<string | undefined>();
   const [organizationName, setOrganizationName] = useState<string | null>(null);
   const [logoFileId, setLogoFileId] = useState<string | null>(null);
   const [projectionVersion, setProjectionVersion] = useState<number>(1);
@@ -407,6 +413,7 @@ export function App() {
         const projection = await getPublishedOrganizationProjection(abortController.signal);
         if (projection?.payload.organizationName) {
           setOrganizationName(projection.payload.organizationName);
+          setAuditionHeading(projection.payload.settings.pageLabels?.auditions?.heading);
           setLogoFileId(projection.payload.settings.logoFileId ?? null);
           setProjectionVersion(projection.version);
         }
@@ -494,6 +501,7 @@ export function App() {
     finishSignOut,
     finishInvitationSignIn,
     isOrganization,
+    auditionHeading,
   );
 
   const productName = !isOrganization && pathname === "/" ? "Music Manager" : "Choir Management";

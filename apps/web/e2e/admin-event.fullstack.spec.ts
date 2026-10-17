@@ -1,3 +1,4 @@
+import { futureIsoDate } from "@choir/testkit";
 // FULL-STACK suite (reaches the real local Worker/D1/DO stack).
 //
 // A representative administrator create flow: the event is created through
@@ -7,7 +8,12 @@
 // registered; the only test seam is the local-only bootstrap/login helper.
 // Mocked event-state coverage lives in auth.attendance.spec.ts.
 import { expect, test } from "@playwright/test";
-import { organizationEventRequestSchema, organizationEventsResponseSchema } from "@choir/contracts";
+import {
+  organizationEventRequestSchema,
+  organizationEventsResponseSchema,
+  organizationEventSchema,
+  publishedOrganizationProjectionSchema,
+} from "@choir/contracts";
 import { z } from "zod";
 import {
   bootstrapFullstack,
@@ -72,6 +78,62 @@ test("creates an event that survives a reload against the real store", async ({
 
   await page.reload();
   await expect(page.getByText(title).filter({ visible: true }).first()).toBeVisible();
+});
+
+test("enabling tickets selects public visibility and persists it in the real store", async ({
+  page,
+  request,
+}, testInfo) => {
+  const email = `fullstack.events-public-${testInfo.project.name}@example.test`;
+  await bootstrapFullstack(request, email);
+  await signInWithFullstackOtp(page, request, email);
+  const initialPublication = await page.request.post(
+    `${FULLSTACK_APP_ORIGIN}/api/organization/website/publish`,
+    {
+      headers: { origin: FULLSTACK_APP_ORIGIN },
+    },
+  );
+  expect(initialPublication.status()).toBe(200);
+  const title = uniqueFullstackName("Ticketed Performance");
+  await page.goto(`${FULLSTACK_APP_ORIGIN}/admin/events`);
+  await page.getByRole("button", { name: "Single event" }).click();
+  const dialog = page.getByRole("dialog", { name: "Create event" });
+  await dialog.getByRole("textbox", { name: /Title/ }).fill(title);
+  await dialog.getByLabel("Type *", { exact: true }).selectOption("Performance");
+  await selectEventEditorSection(dialog, "schedule");
+  await dialog.getByLabel(/Start date/i).fill(futureLocalDateTime());
+  await dialog.getByRole("button", { name: /Create or select TBD/ }).click();
+  await selectEventEditorSection(dialog, "rsvp");
+  await dialog
+    .getByLabel("Member RSVP deadline *", { exact: true })
+    .fill(futureIsoDate({ days: 20 }).slice(0, 10));
+  await selectEventEditorSection(dialog, "tickets");
+  await dialog.getByLabel("Enable ticket sales", { exact: true }).check();
+  await selectEventEditorSection(dialog, "public");
+  await expect(dialog.getByLabel("Publish on public website", { exact: true })).toBeChecked();
+  await expect(dialog.getByLabel("Publish on public website", { exact: true })).toBeDisabled();
+  await expect(dialog.getByText(/Saving updates the published website schedule/)).toBeVisible();
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && response.url().endsWith("/api/organization/events"),
+  );
+  await dialog.getByRole("button", { name: "Create event", exact: true }).click();
+  const response = await responsePromise;
+  expect(response.status()).toBe(201);
+  const created = organizationEventSchema.parse(await response.json());
+  expect(created).toMatchObject({ title, isTicketingEnabled: true, publishOnWebsite: true });
+  const projection = await page.request.get(`${FULLSTACK_APP_ORIGIN}/api/public/projection`);
+  expect(projection.status()).toBe(200);
+  expect(
+    publishedOrganizationProjectionSchema.parse(await projection.json()).payload.performances,
+  ).toEqual(expect.arrayContaining([expect.objectContaining({ id: created.id, title })]));
+  await expect(dialog).toBeHidden();
+  const listed = await page.request.get(`${FULLSTACK_APP_ORIGIN}/api/organization/events`);
+  expect(
+    organizationEventsResponseSchema
+      .parse(await listed.json())
+      .events.find((event) => event.id === created.id)?.publishOnWebsite,
+  ).toBe(true);
 });
 
 test("rejects an invalid event payload with a typed validation failure", async ({

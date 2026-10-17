@@ -1,3 +1,4 @@
+import { PublicCopy } from "../../PublicCopy";
 import { NumberInput } from "@choir/ui";
 import type { PublishedOrganizationProjection, TransactionFeeSettings } from "@choir/contracts";
 import { isSupportedPaidCheckoutAmount, ticketUnitPriceCents } from "@choir/domain";
@@ -125,6 +126,7 @@ export function TicketPurchaseForm({
         );
       })()}
       {event.doorsOpenTime ? <p>Doors open at {event.doorsOpenTime}.</p> : null}
+      <PublicCopy text={event.publicDetails} />
       <TicketBundleSuggestions
         bundles={projection.payload.ticketBundles}
         eventId={event.id}

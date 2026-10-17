@@ -1,3 +1,4 @@
+import { publicPageHeading } from "../publicPageLabels";
 import { ticketSalesPath } from "@choir/domain";
 import type { PublishedOrganizationProjection, TransactionFeeSettings } from "@choir/contracts";
 import { PublicGraphicImage } from "../PublicGraphicImage";
@@ -66,7 +67,7 @@ export function TicketsContent({
     });
   return (
     <section className="public-section public-section--tickets">
-      <h1>Tickets</h1>
+      <h1>{publicPageHeading(projection.payload.settings, "tickets", "Tickets")}</h1>
       {events.length === 0 && bundles.length === 0 ? (
         <p>No tickets are currently available.</p>
       ) : (

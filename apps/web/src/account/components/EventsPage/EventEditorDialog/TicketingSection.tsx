@@ -71,6 +71,7 @@ export function TicketingSection({
               setEvent((current) => ({
                 ...current,
                 isTicketingEnabled: change.target.checked,
+                publishOnWebsite: change.target.checked || current.publishOnWebsite,
               }));
             }}
             type="checkbox"
@@ -86,14 +87,10 @@ export function TicketingSection({
                 future date and time.
               </p>
             ) : null}
-            {!event.publishOnWebsite ? (
-              <p className="notice notice--info form-grid__wide" role="status">
-                <strong>Unpublished on public website:</strong> &quot;Publish on public
-                website&quot; is unchecked. This event will not appear on the public concert
-                schedule. Buyers will only be able to access tickets via direct link or QR code once
-                ticket sales are open.
-              </p>
-            ) : null}
+            <p className="notice notice--info form-grid__wide" role="status">
+              Enabling ticket sales also enables public website visibility. After saving this event,
+              the published website schedule updates automatically.
+            </p>
             {tbdInfo.isTbd ? (
               <p className="notice notice--info form-grid__wide" role="status">
                 <strong>TBD venue:</strong> ticket buyers will see “TBD” without a physical address

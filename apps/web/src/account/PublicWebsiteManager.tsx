@@ -36,6 +36,7 @@ type PublicationVerificationStatus =
 
 function requestFrom(settings: PublicWebsiteSettings): PublicWebsiteSettingsRequest {
   return {
+    pageLabels: settings.pageLabels ?? {},
     footerText: settings.footerText ?? "",
     footerEmbeds: settings.footerEmbeds ?? [],
     aboutUsText: settings.aboutUsText,
@@ -59,6 +60,7 @@ function customWebsiteSettingsChanged(
 ): boolean {
   return (
     heroSettingsChanged(draft, saved) ||
+    JSON.stringify(draft.pageLabels) !== JSON.stringify(saved.pageLabels) ||
     draft.footerText !== saved.footerText ||
     JSON.stringify(draft.footerEmbeds) !== JSON.stringify(saved.footerEmbeds)
   );
@@ -205,6 +207,8 @@ function WebsiteReadinessChecklist({
         Saving updates your administrative draft. Edits do not appear on your public website until
         you click <strong>Publish saved draft</strong>. Public navigation links (Performances and
         History) are hidden automatically whenever no published content exists for that section.
+        Once your website has been published, public Performance changes update automatically when
+        saved in Events.
       </p>
     </section>
   );
