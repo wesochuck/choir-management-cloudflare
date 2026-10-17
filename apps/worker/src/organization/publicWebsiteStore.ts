@@ -37,6 +37,8 @@ interface SettingsRow {
   readonly aboutUsText: string;
   readonly bodyFont: string;
   readonly contactEmail: string;
+  readonly footerText: string;
+  readonly footerEmbedsJson: string;
   readonly enabledNavigationJson: string;
   readonly headerFont: string;
   readonly heroFileId: string | null;
@@ -100,7 +102,7 @@ function settingsRow(storage: DurableObjectStorage): SettingsRow {
     .exec<SettingsRow>(
       `SELECT hero_headline AS heroHeadline, hero_subtitle AS heroSubtitle,
         about_us_text AS aboutUsText, history_text AS historyText,
-        contact_email AS contactEmail,
+        contact_email AS contactEmail, footer_text AS footerText, footer_embeds_json AS footerEmbedsJson,
         show_branding_header_footer AS showBrandingHeaderFooter,
         header_font AS headerFont, body_font AS bodyFont,
         hero_file_id AS heroFileId, logo_file_id AS logoFileId,
@@ -122,6 +124,8 @@ function parsedSettings(row: SettingsRow, organizationName: string) {
     }
   })();
   return publicWebsiteSettingsSchema.parse({
+    footerText: row.footerText,
+    footerEmbeds: JSON.parse(row.footerEmbedsJson) as unknown,
     aboutUsText: row.aboutUsText,
     bodyFont: row.bodyFont,
     contactEmail: row.contactEmail,
@@ -278,7 +282,8 @@ function updateSettings(
       `UPDATE public_website_settings SET
         hero_headline = ?, hero_subtitle = ?, about_us_text = ?, history_text = ?,
         contact_email = ?, show_branding_header_footer = ?, header_font = ?, body_font = ?,
-        hero_file_id = ?, logo_file_id = ?, enabled_navigation_json = ?, updated_at = ?
+        hero_file_id = ?, logo_file_id = ?, enabled_navigation_json = ?, updated_at = ?,
+        footer_text = ?, footer_embeds_json = ?
        WHERE singleton = 1`,
       operation.settings.heroHeadline,
       operation.settings.heroSubtitle,
@@ -292,6 +297,8 @@ function updateSettings(
       operation.settings.logoFileId,
       JSON.stringify(operation.settings.enabledNavigation),
       updatedAt,
+      operation.settings.footerText ?? "",
+      JSON.stringify(operation.settings.footerEmbeds ?? []),
     );
     storage.sql.exec(
       `INSERT INTO audit_events
@@ -401,6 +408,8 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
       organizationName: organization.name,
       performances,
       settings: {
+        footerText: settings.footerText,
+        footerEmbeds: settings.footerEmbeds,
         aboutUsText: settings.aboutUsText,
         bodyFont: settings.bodyFont,
         contactEmail: settings.contactEmail,

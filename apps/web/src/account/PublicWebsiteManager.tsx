@@ -1,4 +1,8 @@
-import type { PublicWebsiteSettings, PublicWebsiteSettingsRequest } from "@choir/contracts";
+import {
+  publicWebsiteSettingsRequestSchema,
+  type PublicWebsiteSettings,
+  type PublicWebsiteSettingsRequest,
+} from "@choir/contracts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 
@@ -18,6 +22,7 @@ import {
   HomeTabContent,
   NavigationTabContent,
 } from "./components/PublicWebsiteEditorTabs";
+import { FooterTabContent } from "./components/PublicWebsiteFooterEditor";
 import { PublicWebsitePreview } from "./components/PublicWebsitePreview";
 
 type LoadState =
@@ -25,12 +30,14 @@ type LoadState =
   | { readonly status: "loading" }
   | { readonly settings: PublicWebsiteSettings; readonly status: "ready" };
 
-type EditorTab = "appearance" | "history" | "home" | "navigation";
+type EditorTab = "appearance" | "history" | "home" | "navigation" | "footer";
 type PublicationVerificationStatus =
   "confirmed" | "idle" | "publishing" | "uncertain" | "verifying";
 
 function requestFrom(settings: PublicWebsiteSettings): PublicWebsiteSettingsRequest {
   return {
+    footerText: settings.footerText ?? "",
+    footerEmbeds: settings.footerEmbeds ?? [],
     aboutUsText: settings.aboutUsText,
     bodyFont: settings.bodyFont,
     contactEmail: settings.contactEmail,
@@ -45,6 +52,26 @@ function requestFrom(settings: PublicWebsiteSettings): PublicWebsiteSettingsRequ
   };
 }
 
+function customFooterChanged(
+  draft: PublicWebsiteSettingsRequest,
+  saved: PublicWebsiteSettingsRequest,
+): boolean {
+  return (
+    draft.footerText !== saved.footerText ||
+    JSON.stringify(draft.footerEmbeds) !== JSON.stringify(saved.footerEmbeds)
+  );
+}
+
+function settingsValidationError(
+  draft: PublicWebsiteSettingsRequest,
+  heroFile: File | null,
+  logoFile: File | null,
+): string | null {
+  const result = publicWebsiteSettingsRequestSchema.safeParse(draft);
+  if (!result.success) return result.error.issues[0]?.message ?? "Check the website settings.";
+  return validateImage(heroFile) ?? validateImage(logoFile);
+}
+
 function isWebsiteDraftDirty(
   loadState: LoadState,
   draft: PublicWebsiteSettingsRequest | null,
@@ -55,6 +82,7 @@ function isWebsiteDraftDirty(
   if (heroFile !== null || logoFile !== null) return true;
   const saved = requestFrom(loadState.settings);
   return (
+    customFooterChanged(draft, saved) ||
     draft.aboutUsText !== saved.aboutUsText ||
     draft.bodyFont !== saved.bodyFont ||
     draft.contactEmail !== saved.contactEmail ||
@@ -382,7 +410,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
 
   async function save() {
     if (!draft || loadState.status !== "ready") return;
-    const imageError = validateImage(heroFile) ?? validateImage(logoFile);
+    const imageError = settingsValidationError(draft, heroFile, logoFile);
     if (imageError) {
       setError(imageError);
       return;
@@ -577,6 +605,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
               <TabsTrigger value="history">History</TabsTrigger>
               <TabsTrigger value="appearance">Appearance</TabsTrigger>
               <TabsTrigger value="navigation">Navigation</TabsTrigger>
+              <TabsTrigger value="footer">Footer</TabsTrigger>
             </TabsList>
 
             <TabsContent value="home">
@@ -621,6 +650,10 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
                   change("logoFileId", null);
                 }}
               />
+            </TabsContent>
+
+            <TabsContent value="footer">
+              <FooterTabContent busy={busy} draft={draft} onChange={change} />
             </TabsContent>
 
             <TabsContent value="navigation">

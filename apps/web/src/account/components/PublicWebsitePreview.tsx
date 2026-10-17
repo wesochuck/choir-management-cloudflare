@@ -1,3 +1,5 @@
+import { PublicWebsiteHero } from "../../public/PublicWebsiteHero";
+import { PublicWebsiteFooter } from "../../public/PublicWebsiteFooter";
 import type { PublicWebsiteSettingsRequest } from "@choir/contracts";
 import type { CSSProperties } from "react";
 
@@ -123,22 +125,20 @@ function PreviewHeader({
 }
 
 interface PreviewHomeProps {
+  readonly organizationName: string;
   readonly draft: PublicWebsiteSettingsRequest;
   readonly heroImageUrl: string | null;
 }
 
-function PreviewHome({ draft, heroImageUrl }: PreviewHomeProps) {
+function PreviewHome({ draft, heroImageUrl, organizationName }: PreviewHomeProps) {
   return (
     <>
-      <section
-        className={`public-hero ${heroImageUrl ? "public-hero--image" : ""}`}
-        style={heroImageUrl ? { backgroundImage: `url(${heroImageUrl})` } : undefined}
-      >
-        <div>
-          <h1>{draft.heroHeadline}</h1>
-          <p>{draft.heroSubtitle}</p>
-        </div>
-      </section>
+      <PublicWebsiteHero
+        headline={draft.heroHeadline}
+        subtitle={draft.heroSubtitle}
+        imageUrl={heroImageUrl}
+        organizationName={organizationName}
+      />
       {draft.aboutUsText.trim() ? (
         <section className="public-section public-section--narrow" id="about-us">
           <h2>About Us</h2>
@@ -171,25 +171,6 @@ function PreviewHistory({ historyText }: PreviewHistoryProps) {
         </div>
       )}
     </section>
-  );
-}
-
-interface PreviewFooterProps {
-  readonly contactEmail: string;
-  readonly currentYear: string;
-  readonly organizationName: string;
-}
-
-function PreviewFooter({ contactEmail, currentYear, organizationName }: PreviewFooterProps) {
-  return (
-    <footer className="public-site-footer">
-      <p>
-        © {currentYear} {organizationName}
-      </p>
-      {contactEmail.trim() ? (
-        <span className="preview-footer-link">Contact us ({contactEmail.trim()})</span>
-      ) : null}
-    </footer>
   );
 }
 
@@ -234,15 +215,19 @@ export function PublicWebsitePreview({
 
           <main>
             {page === "home" ? (
-              <PreviewHome draft={draft} heroImageUrl={heroImageUrl} />
+              <PreviewHome
+                draft={draft}
+                heroImageUrl={heroImageUrl}
+                organizationName={organizationName}
+              />
             ) : (
               <PreviewHistory historyText={draft.historyText} />
             )}
           </main>
 
-          <PreviewFooter
-            contactEmail={draft.contactEmail}
-            currentYear={currentYear}
+          <PublicWebsiteFooter
+            settings={draft}
+            year={currentYear}
             organizationName={organizationName}
           />
         </div>

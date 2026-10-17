@@ -235,7 +235,29 @@ export const publicWebsiteFontSchema = z.enum([
   "formal-script",
 ]);
 
+const footerHttpsUrlSchema = z
+  .url()
+  .max(2_048)
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" && !url.username && !url.password;
+    } catch {
+      return false;
+    }
+  }, "Use an HTTPS URL without credentials.");
+
+const footerEmbedSchema = z.object({
+  kind: z.enum(["image", "iframe"]),
+  title: z.string().trim().min(1).max(200),
+  src: footerHttpsUrlSchema,
+  href: z.union([z.literal(""), footerHttpsUrlSchema]).default(""),
+  height: z.number().int().min(100).max(800).default(240),
+});
+
 export const publicWebsiteSettingsRequestSchema = z.object({
+  footerText: z.string().max(10_000).optional(),
+  footerEmbeds: z.array(footerEmbedSchema).max(6).optional(),
   aboutUsText: z.string().max(100_000).default(""),
   bodyFont: publicWebsiteFontSchema.default("system"),
   contactEmail: z.union([z.literal(""), z.email()]).default(""),
@@ -245,7 +267,7 @@ export const publicWebsiteSettingsRequestSchema = z.object({
     .default([]),
   headerFont: publicWebsiteFontSchema.default("system"),
   heroFileId: z.uuid().nullable().default(null),
-  heroHeadline: z.string().trim().min(1).max(300).default("Welcome to Our Choir"),
+  heroHeadline: z.string().trim().max(300).default("Welcome to Our Choir"),
   heroSubtitle: z.string().trim().max(1_000).default("Voices united in harmony."),
   historyText: z.string().max(100_000).default(""),
   logoFileId: z.uuid().nullable().default(null),

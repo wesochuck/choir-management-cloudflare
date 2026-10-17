@@ -2021,6 +2021,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
         ensureTicketSlug(sql, "bundle", row.id, row.title);
     },
   },
+  {
+    version: 115,
+    statements: [
+      "ALTER TABLE public_website_settings ADD COLUMN footer_text TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE public_website_settings ADD COLUMN footer_embeds_json TEXT NOT NULL DEFAULT '[]'",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

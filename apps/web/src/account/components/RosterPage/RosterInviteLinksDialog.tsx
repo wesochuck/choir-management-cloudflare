@@ -1,4 +1,5 @@
 import type { RosterInviteExpirationDays, RosterInviteLinkSummary } from "@choir/contracts";
+import { timestampedExportFilename } from "@choir/domain";
 import { DataTable, Dialog, DialogClose, useConfirmation } from "@choir/ui";
 import { useCallback, useEffect, useState } from "react";
 
@@ -8,6 +9,7 @@ import {
   revokeRosterInviteLink,
   shareRosterInviteLink,
 } from "../../../api";
+import { generateQRCodeDataUrl } from "../../../shared/qrCode";
 
 export function RosterInviteLinksDialog({
   onClose,
@@ -27,6 +29,7 @@ export function RosterInviteLinksDialog({
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
+  const [downloadingLinkId, setDownloadingLinkId] = useState<string | null>(null);
 
   const { confirm, confirmationDialog } = useConfirmation();
 
@@ -111,6 +114,30 @@ export function RosterInviteLinksDialog({
       }, 3000);
     } catch {
       setActionError("Could not retrieve share link URL.");
+    }
+  }
+
+  async function handleDownloadQr(link: RosterInviteLinkSummary): Promise<void> {
+    if (link.status !== "active") return;
+    setActionError(null);
+    setActionSuccess(null);
+    setDownloadingLinkId(link.id);
+    try {
+      const { shareUrl } = await shareRosterInviteLink(link.id);
+      const dataUrl = await generateQRCodeDataUrl({ payload: shareUrl, width: 512 });
+      const download = document.createElement("a");
+      download.href = dataUrl;
+      download.download = timestampedExportFilename("roster_invite_qr.png", new Date());
+      document.body.appendChild(download);
+      download.click();
+      download.remove();
+      setActionSuccess(
+        "QR image downloaded. It uses the invite link’s expiration and usage limits.",
+      );
+    } catch {
+      setActionError("Could not download the QR image. Please try again.");
+    } finally {
+      setDownloadingLinkId(null);
     }
   }
 
@@ -300,6 +327,16 @@ export function RosterInviteLinksDialog({
                         >
                           {copiedLinkId === link.id ? "Copied!" : "Copy link"}
                         </button>
+                        {link.status === "active" ? (
+                          <button
+                            className="button button--secondary button--small"
+                            disabled={downloadingLinkId !== null}
+                            onClick={() => void handleDownloadQr(link)}
+                            type="button"
+                          >
+                            {downloadingLinkId === link.id ? "Generating QR…" : "Download QR code"}
+                          </button>
+                        ) : null}
                         {link.status === "active" ? (
                           <button
                             className="button button--danger button--small"

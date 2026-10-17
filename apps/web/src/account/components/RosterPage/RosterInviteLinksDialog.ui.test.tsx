@@ -1,10 +1,13 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RosterInviteLinksDialog } from "./RosterInviteLinksDialog";
 import * as api from "../../../api";
+import { generateQRCodeDataUrl } from "../../../shared/qrCode";
+
+vi.mock("../../../shared/qrCode", () => ({ generateQRCodeDataUrl: vi.fn() }));
 
 vi.mock("../../../api", async () => {
   const actual = await vi.importActual("../../../api");
@@ -152,5 +155,76 @@ describe("RosterInviteLinksDialog UI interaction", () => {
     const createBtn = screen.getByRole("button", { name: "Create invite link" });
     const actionContainer = createBtn.closest(".form-actions");
     expect(actionContainer).toHaveClass("form-actions--end");
+  });
+});
+
+describe("roster invite QR download", () => {
+  const shareUrl = "https://alpha.example.test/join-roster#token=synthetic-test-token";
+  beforeEach(() => {
+    vi.mocked(api.listRosterInviteLinks).mockResolvedValue({
+      requestId: "request",
+      links: [
+        {
+          id: "invite-qr",
+          label: "Community rehearsal",
+          status: "active",
+          maxUses: null,
+          committedUses: 0,
+          activeReservations: 0,
+          createdByUserId: "admin",
+          organizationId: "alpha",
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+          revokedAt: null,
+        },
+      ],
+    });
+    vi.mocked(api.shareRosterInviteLink)
+      .mockReset()
+      .mockResolvedValue({
+        id: "invite-qr",
+        shareUrl,
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+        requestId: "request",
+      });
+    vi.mocked(generateQRCodeDataUrl).mockReset().mockResolvedValue("data:image/png;base64,cG5n");
+  });
+  it("downloads a PNG using the unmodified sharing URL", async () => {
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      expect(this.download).toMatch(/roster_invite_qr.*\.png$/);
+      expect(this.href).toBe("data:image/png;base64,cG5n");
+    });
+    try {
+      render(<RosterInviteLinksDialog open onClose={vi.fn()} />);
+      const buttons = await screen.findAllByRole("button", {
+        name: "Download QR code",
+      });
+      const button = buttons.at(0);
+      if (!button) throw new Error("Missing QR action");
+      fireEvent.click(button);
+      await waitFor(() => {
+        expect(click).toHaveBeenCalledTimes(1);
+      });
+      expect(api.shareRosterInviteLink).toHaveBeenCalledWith("invite-qr");
+      expect(generateQRCodeDataUrl).toHaveBeenCalledWith({ payload: shareUrl, width: 512 });
+      expect(screen.getByRole("status")).toHaveTextContent("QR image downloaded");
+    } finally {
+      click.mockRestore();
+    }
+  });
+  it.each(["share", "generation"])("reports %s failure and allows retry", async (failure) => {
+    if (failure === "share")
+      vi.mocked(api.shareRosterInviteLink).mockRejectedValue(new Error("failed"));
+    else vi.mocked(generateQRCodeDataUrl).mockRejectedValue(new Error("failed"));
+    render(<RosterInviteLinksDialog open onClose={vi.fn()} />);
+    const button = (await screen.findAllByRole("button", { name: "Download QR code" })).at(0);
+    if (!button) throw new Error("Missing QR action");
+    fireEvent.click(button);
+    await expect(screen.findByRole("alert")).resolves.toHaveTextContent(
+      "Could not download the QR image",
+    );
+    expect(button).toBeEnabled();
   });
 });

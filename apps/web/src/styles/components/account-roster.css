@@ -11,6 +11,13 @@
     min-width: 0;
   }
 
+  .roster-invite-links .field input,
+  .roster-invite-links .field select {
+    box-sizing: border-box;
+    height: var(--control-height);
+    min-height: var(--control-height);
+  }
+
   .roster-invite-links .data-table .roster-invite-links__summary {
     white-space: nowrap;
   }

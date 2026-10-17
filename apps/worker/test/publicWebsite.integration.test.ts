@@ -27,6 +27,15 @@ import { publishedMediaKey } from "../src/publication/publishOrganization";
 import { privateOrganizationFileKey } from "../src/storage/privateFiles";
 
 const USER_EMAIL = "website.manager@example.test";
+const footerEmbeds = [
+  {
+    kind: "image",
+    title: "Alpha transparency seal",
+    src: "https://widgets.guidestar.org/seal/alpha.svg",
+    href: "https://app.candid.org/profile/alpha",
+    height: 240,
+  },
+];
 const FILE_ID = "77777777-7777-4777-8777-777777777777";
 
 function binding<T>(value: T | undefined, name: string): T {
@@ -102,6 +111,32 @@ beforeEach(async () => {
 afterEach(async () => reset());
 
 describe("Organization public website", () => {
+  it("rejects unsafe embed URLs without changing the saved draft", async () => {
+    const cookie = await signIn();
+    for (const src of [
+      "javascript:alert(1)",
+      "data:text/html,hello",
+      "http://example.test/widget",
+      "https://user:secret@example.test/widget",
+      "invalid",
+    ]) {
+      const response = await jsonWrite(
+        "alpha.localhost",
+        "/api/organization/website",
+        "PUT",
+        { footerEmbeds: [{ ...footerEmbeds[0], src }] },
+        cookie,
+      );
+      expect(response.status).toBe(400);
+    }
+    const saved = publicWebsiteSettingsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/website", cookie))
+      ).json(),
+    );
+    expect(saved.footerEmbeds).toEqual([]);
+  });
+
   it("publishes isolated immutable projections and public media from a private manager draft", async () => {
     const cookie = await signIn();
     expect(
@@ -162,6 +197,8 @@ describe("Organization public website", () => {
           "/api/organization/website",
           "PUT",
           {
+            footerText: "**Alpha supporters**",
+            footerEmbeds,
             aboutUsText: "## About Alpha\nWe sing together.",
             bodyFont: "friendly-sans",
             contactEmail: "hello@alpha.example.test",
@@ -180,6 +217,16 @@ describe("Organization public website", () => {
     );
     expect(initialSettings.publicationVersion).toBe(0);
     expect(savedSettings.heroHeadline).toBe("Alpha sings");
+    expect(initialSettings.footerText).toBe("");
+    expect(initialSettings.footerEmbeds).toEqual([]);
+    expect(savedSettings.footerEmbeds).toEqual(footerEmbeds);
+    const reloaded = publicWebsiteSettingsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/website", cookie))
+      ).json(),
+    );
+    expect(reloaded.footerText).toBe("**Alpha supporters**");
+    expect(reloaded.footerEmbeds).toEqual(footerEmbeds);
 
     const publication = publicWebsitePublishResponseSchema.parse(
       await (
@@ -200,7 +247,11 @@ describe("Organization public website", () => {
           performances: [
             { id: performance.id, title: "Winter Concert", ticketSlug: "winter-concert" },
           ],
-          settings: { heroHeadline: "Alpha sings" },
+          settings: {
+            heroHeadline: "Alpha sings",
+            footerText: "**Alpha supporters**",
+            footerEmbeds,
+          },
         },
         version: 1,
       });
@@ -234,13 +285,19 @@ describe("Organization public website", () => {
       "alpha.localhost",
       "/api/organization/website",
       "PUT",
-      { ...savedSettings, heroHeadline: "Unpublished revision" },
+      {
+        ...savedSettings,
+        heroHeadline: "",
+        footerText: "New footer",
+        footerEmbeds: [],
+      },
       cookie,
     );
     const unchanged = publishedOrganizationProjectionSchema.parse(
       await (await exports.default.fetch(api("alpha.localhost", "/api/public/projection"))).json(),
     );
     expect(unchanged.payload.settings.heroHeadline).toBe("Alpha sings");
+    expect(unchanged.payload.settings.footerEmbeds).toEqual(footerEmbeds);
     const secondPublication = publicWebsitePublishResponseSchema.parse(
       await (
         await exports.default.fetch(
@@ -254,8 +311,10 @@ describe("Organization public website", () => {
         await exports.default.fetch(api("alpha.example.test", "/api/public/projection"))
       ).json(),
     );
-    expect(revised.payload.settings.heroHeadline).toBe("Unpublished revision");
+    expect(revised.payload.settings.heroHeadline).toBe("");
     expect(revised.version).toBe(2);
+    expect(revised.payload.settings.footerText).toBe("New footer");
+    expect(revised.payload.settings.footerEmbeds).toEqual([]);
     expect(
       (await exports.default.fetch(api("alpha.localhost", `/api/public/media/1/${FILE_ID}`)))
         .status,

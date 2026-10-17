@@ -63,6 +63,9 @@ export function HomeTabContent({
           }}
           value={draft.heroHeadline}
         />
+        <p className="field-help">
+          Leave the headline and subtitle blank to show the image without a text overlay.
+        </p>
       </div>
 
       <div className="field">

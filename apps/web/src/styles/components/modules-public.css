@@ -289,6 +289,11 @@
     padding-block: 4rem;
   }
 
+  .public-section > h1,
+  .public-section > h2 {
+    margin-bottom: var(--spacing-2xl);
+  }
+
   /* Tickets list view only: less air above the title than the default
      section padding, and a deliberate margin below it before the grid. */
   .public-section--tickets {
@@ -330,6 +335,11 @@
   .public-section-heading {
     justify-content: space-between;
     gap: var(--spacing-md);
+    margin-bottom: var(--spacing-2xl);
+  }
+
+  .public-section-heading h2 {
+    margin-bottom: 0;
   }
 
   .public-performance-grid {
@@ -483,7 +493,67 @@
     line-height: var(--line-height-relaxed);
   }
 
+  .public-site-footer__content {
+    width: 100%;
+    display: grid;
+    gap: var(--spacing-md);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .public-site-footer__content:empty {
+    display: none;
+  }
+
+  .public-site-footer__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    width: 100%;
+  }
+
+  .public-site-footer__links {
+    flex-wrap: wrap;
+  }
+
+  .public-site-footer__embeds {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-lg);
+  }
+
+  .public-footer-embed {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .public-footer-embed--iframe {
+    width: 100%;
+  }
+  .public-footer-embed iframe {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    border: 0;
+  }
+  .public-footer-embed img {
+    display: block;
+    max-width: 100%;
+    width: auto;
+    max-height: 10rem;
+    object-fit: contain;
+  }
+  .website-footer-embed-editor {
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+  }
+
   .public-site-footer {
+    flex-direction: column;
+    align-items: stretch;
     justify-content: space-between;
     gap: var(--spacing-md);
     padding-block: var(--spacing-2xl);
@@ -859,7 +929,7 @@
 
   .website-editor-tabs-list {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: var(--spacing-xs);
     padding: var(--spacing-xs);
     margin-bottom: var(--spacing-lg);
@@ -901,9 +971,12 @@
     outline-offset: 2px;
   }
 
-  @container (max-width: 32rem) {
+  @container (max-width: 40rem) {
     .website-editor-tabs-list {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .website-editor-tabs-list [role="tab"]:last-child {
+      grid-column: 1 / -1;
     }
   }
 

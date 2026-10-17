@@ -50,6 +50,24 @@ function readTaskApplicable(
 }
 
 describe("organization schema migrations", () => {
+  it("v115 adds empty footer defaults while preserving a populated website draft", () => {
+    const adapter = setupThrough(114);
+    adapter.storage.sql.exec(
+      "UPDATE public_website_settings SET hero_headline = 'Existing choir' WHERE singleton = 1",
+    );
+    applyVersion(adapter, 115);
+    const row = adapter.storage.sql
+      .exec<{ hero_headline: string; footer_text: string; footer_embeds_json: string }>(
+        "SELECT hero_headline, footer_text, footer_embeds_json FROM public_website_settings WHERE singleton = 1",
+      )
+      .toArray()
+      .at(0);
+    expect(row).toEqual({
+      hero_headline: "Existing choir",
+      footer_text: "",
+      footer_embeds_json: "[]",
+    });
+  });
   it("v112 expands existing music rows and cleans saved movement references on reparent and delete", () => {
     const adapter = setupThrough(111);
     for (const [id, parentId] of [

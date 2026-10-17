@@ -6,6 +6,8 @@ import { PublicOrganizationBrand } from "./PublicOrganizationBrand";
 import { mediaUrl } from "./publicMedia";
 import { PublicGraphicImage } from "./PublicGraphicImage";
 import { PublicCopy } from "./PublicCopy";
+import { PublicWebsiteHero } from "./PublicWebsiteHero";
+import { PublicWebsiteFooter } from "./PublicWebsiteFooter";
 import { publicWebsiteFontStacks } from "./publicWebsiteFonts";
 
 type ProjectionState =
@@ -127,19 +129,11 @@ export function OrganizationLayout({
         </nav>
       </header>
       <main>{children}</main>
-      <footer className="public-site-footer">
-        <p>
-          © {new Date(projection.generatedAt).getUTCFullYear()}{" "}
-          {projection.payload.organizationName}
-        </p>
-        <div className="public-site-footer__links">
-          <a href="/privacy">Privacy</a>
-          <a href="/terms">Terms</a>
-          {settings.contactEmail ? (
-            <a href={`mailto:${settings.contactEmail}`}>Contact us</a>
-          ) : null}
-        </div>
-      </footer>
+      <PublicWebsiteFooter
+        settings={settings}
+        organizationName={projection.payload.organizationName}
+        year={new Date(projection.generatedAt).getUTCFullYear()}
+      />
     </div>
   );
 }
@@ -161,19 +155,11 @@ export function PublicTransactionLayout({
         />
       </header>
       <main>{children}</main>
-      <footer className="public-site-footer">
-        <p>
-          © {new Date(projection.generatedAt).getUTCFullYear()}{" "}
-          {projection.payload.organizationName}
-        </p>
-        <div className="public-site-footer__links">
-          <a href="/privacy">Privacy</a>
-          <a href="/terms">Terms</a>
-          {settings.contactEmail ? (
-            <a href={`mailto:${settings.contactEmail}`}>Contact us</a>
-          ) : null}
-        </div>
-      </footer>
+      <PublicWebsiteFooter
+        settings={settings}
+        organizationName={projection.payload.organizationName}
+        year={new Date(projection.generatedAt).getUTCFullYear()}
+      />
     </div>
   );
 }
@@ -197,19 +183,12 @@ function OrganizationHome({
     .slice(0, 3);
   return (
     <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
-      <section
-        className={`public-hero ${settings.heroFileId ? "public-hero--image" : ""}`}
-        style={
-          settings.heroFileId
-            ? { backgroundImage: `url(${mediaUrl(projection, settings.heroFileId)})` }
-            : undefined
-        }
-      >
-        <div>
-          <h1>{settings.heroHeadline}</h1>
-          <p>{settings.heroSubtitle}</p>
-        </div>
-      </section>
+      <PublicWebsiteHero
+        headline={settings.heroHeadline}
+        subtitle={settings.heroSubtitle}
+        imageUrl={settings.heroFileId ? mediaUrl(projection, settings.heroFileId) : null}
+        organizationName={projection.payload.organizationName}
+      />
       {upcoming.length > 0 ? (
         <section className="public-section">
           <h2>Upcoming Performances</h2>
