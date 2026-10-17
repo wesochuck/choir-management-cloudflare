@@ -181,10 +181,10 @@ function PlatformHero({ signedIn }: PlatformHomeViewProps) {
   return (
     <section className="platform-hero" aria-labelledby="hero-title">
       <div className="platform-hero__copy">
-        <h1 id="hero-title">Choir Management</h1>
+        <h1 id="hero-title">Music Manager</h1>
         <p className="hero__lede">
-          A shared home for community choirs: rehearsal schedules, music and practice tracks, member
-          rosters, announcements, and concert tickets, all in one place.
+          A shared home for community choirs and bands: rehearsal schedules, music and practice
+          tracks, member rosters, announcements, and concert tickets, all in one place.
         </p>
         <div className="hero__actions">
           {signedIn ? (
@@ -203,7 +203,7 @@ function PlatformHero({ signedIn }: PlatformHomeViewProps) {
           </a>
         </div>
         <p className="hero__guidance">
-          Have an invitation or practice-player link? Use the unique link provided by your choir.
+          Have an invitation or practice-player link? Use the unique link provided by your ensemble.
         </p>
       </div>
       <HeroPreview />
@@ -225,25 +225,25 @@ interface AudienceRoute {
 
 const audienceRoutes: readonly AudienceRoute[] = [
   {
-    description: "Sign in to see your schedule, music, and messages from your choir.",
+    description: "Sign in to see your schedule, music, and messages from your ensemble.",
     href: "#signing-in",
     icon: icons.key,
     linkLabel: "How to sign in",
-    title: "I sing with a choir",
+    title: "I sing or play in an ensemble",
   },
   {
-    description: "Browse upcoming concerts and buy tickets directly from the choir.",
+    description: "Browse upcoming concerts and buy tickets directly from the ensemble.",
     href: "#upcoming-performances",
     icon: icons.ticket,
     linkLabel: "Find tickets",
     title: "I’m going to a concert",
   },
   {
-    description: "Learn how ensembles in and around Fairfield County can get started.",
+    description: "Learn how community choirs and bands can get started.",
     href: "#community-choirs",
     icon: icons.people,
-    linkLabel: "For community choirs",
-    title: "I help run a choir",
+    linkLabel: "For community ensembles",
+    title: "I help run an ensemble",
   },
 ];
 
@@ -287,17 +287,18 @@ const features: readonly Feature[] = [
   },
   {
     description:
-      "A searchable music library, set lists, and practice players singers can open from a link.",
+      "A searchable music library, set lists, and practice players members can open from a link.",
     icon: icons.music,
     title: "Music & practice tracks",
   },
   {
-    description: "Rosters, voice parts, and seating charts kept in one place for the whole choir.",
+    description:
+      "Rosters, member details, and seating charts kept in one place for the whole ensemble.",
     icon: icons.people,
-    title: "Members & voice parts",
+    title: "Members & sections",
   },
   {
-    description: "Announcements and reminders sent to the whole choir or to a single section.",
+    description: "Announcements and reminders sent to the whole ensemble or to a single section.",
     icon: icons.message,
     title: "Messages",
   },
@@ -307,9 +308,10 @@ const features: readonly Feature[] = [
     title: "Tickets & donations",
   },
   {
-    description: "A simple public site for each choir with its story, history, and performances.",
+    description:
+      "A simple public site for each ensemble with its story, history, and performances.",
     icon: icons.globe,
-    title: "Public choir website",
+    title: "Public ensemble website",
   },
 ];
 
@@ -317,10 +319,10 @@ function FeatureOverview() {
   return (
     <section className="foundation" id="what-it-does" aria-labelledby="features-title">
       <div className="section-heading">
-        <h2 id="features-title">What Choir Management does.</h2>
+        <h2 id="features-title">What Music Manager does.</h2>
         <p>
-          Each choir gets its own private workspace. Directors and administrators keep things
-          organized, and singers always know where to be and what to practice.
+          Each ensemble gets its own private workspace. Directors and administrators keep things
+          organized, and members always know where to be and what to practice.
         </p>
       </div>
       <ul className="platform-features">
@@ -342,7 +344,7 @@ function FeatureOverview() {
 
 const signInSteps: readonly { readonly body: string; readonly title: string }[] = [
   {
-    body: "Your choir’s administrators invite you by email. Open the invitation to set up your account.",
+    body: "Your ensemble’s administrators invite you by email. Open the invitation to set up your account.",
     title: "Accept your invitation",
   },
   {
@@ -350,8 +352,8 @@ const signInSteps: readonly { readonly body: string; readonly title: string }[] 
     title: "Sign in with that email",
   },
   {
-    body: "If you sing with more than one choir, switch between them from your workspace.",
-    title: "Choose your choir",
+    body: "If you belong to more than one ensemble, switch between them from your workspace.",
+    title: "Choose your ensemble",
   },
 ];
 
@@ -362,8 +364,8 @@ function SigningInSection({ signedIn }: PlatformHomeViewProps) {
         <div className="platform-signin__intro">
           <h2 id="signing-in-title">Signing in.</h2>
           <p className="platform-signin__lede">
-            Accounts are created by each choir. If you sing with a participating choir, here is how
-            to get to your schedule, music, and messages.
+            Accounts are created by each ensemble. If you belong to a participating ensemble, here
+            is how to get to your schedule, music, and messages.
           </p>
           <div className="platform-signin__actions">
             {signedIn ? (
@@ -397,7 +399,7 @@ function SigningInSection({ signedIn }: PlatformHomeViewProps) {
             ))}
           </ol>
           <p className="platform-signin__note">
-            Practice-player, RSVP, and poll links from your choir open directly, with no sign-in
+            Practice-player, RSVP, and poll links from your ensemble open directly, with no sign-in
             needed.
           </p>
         </div>
@@ -456,8 +458,8 @@ function PerformanceFeed({ state }: { readonly state: TicketFeedState }) {
     return (
       <div className="empty-state">
         <p>
-          No public ticketed events are currently scheduled across associated choirs. Check back as
-          ensembles publish their upcoming performance dates.
+          No public ticketed events are currently scheduled across associated ensembles. Check back
+          as ensembles publish their upcoming performance dates.
         </p>
       </div>
     );
@@ -496,8 +498,8 @@ function PerformancesSection() {
       <div className="section-heading">
         <h2 id="performances-title">Upcoming performances.</h2>
         <p>
-          Performances from participating choirs with online ticketing enabled. Tickets are
-          purchased directly through each choir’s site.
+          Performances from participating ensembles with online ticketing enabled. Tickets are
+          purchased directly through each ensemble’s site.
         </p>
       </div>
       <div className="mt-8">
@@ -644,8 +646,7 @@ function InquiryForm() {
 
       <label className="field" htmlFor="inquiry-location">
         <span className="field__label-row">
-          <span>Location in Fairfield County / Central Ohio</span>
-          <span className="field-help field-help--inline">(optional)</span>
+          <span>Location</span> <span className="field-help field-help--inline">(optional)</span>
         </span>
         <input
           id="inquiry-location"
@@ -653,7 +654,7 @@ function InquiryForm() {
           onChange={(e) => {
             setLocation(e.target.value);
           }}
-          placeholder="e.g. Lancaster, Pickerington, Baltimore"
+          placeholder="City, state or region"
           type="text"
           value={location}
         />
@@ -670,7 +671,7 @@ function InquiryForm() {
           onChange={(e) => {
             setMessage(e.target.value);
           }}
-          placeholder="Tell us a bit about your ensemble, how many singers you have, or questions you have."
+          placeholder="Tell us a bit about your ensemble, how many members you have, or questions you have."
           rows={4}
           value={message}
         />
@@ -712,15 +713,15 @@ function CommunityChoirsSection() {
     <section className="foundation" id="community-choirs" aria-labelledby="inquiry-title">
       <div className="platform-inquiry">
         <div className="section-heading platform-inquiry__intro">
-          <h2 id="inquiry-title">For community choirs.</h2>
+          <h2 id="inquiry-title">For community choirs and bands.</h2>
           <p>
-            Interested in using Choir Management for your ensemble? Choirs and choral nonprofits in
-            or around Fairfield County, Ohio can contact the platform administrators below.
+            Interested in using Music Manager for your ensemble? Community choirs, bands, and music
+            nonprofits can contact the platform administrators below.
           </p>
           <ul className="platform-checklist">
-            <li>Tell us about your ensemble and roughly how many singers you have.</li>
+            <li>Tell us about your ensemble and roughly how many members you have.</li>
             <li>An administrator will reply by email to talk through next steps.</li>
-            <li>Your choir gets its own private workspace and public site.</li>
+            <li>Your ensemble gets its own private workspace and public site.</li>
           </ul>
         </div>
         <div className="inquiry-form-container platform-inquiry__form">
@@ -739,9 +740,7 @@ function PlatformFooter() {
   return (
     <footer aria-label="Platform information" className="platform-footer">
       <div className="platform-footer__content">
-        <p className="platform-footer__copyright">
-          © {new Date().getUTCFullYear()} Choir Management
-        </p>
+        <p className="platform-footer__copyright">© {new Date().getUTCFullYear()} Music Manager</p>
         <nav aria-label="Legal and support" className="platform-footer__links">
           <a href="/privacy">Privacy Policy</a>
           <a href="/terms">Terms of Service</a>
@@ -753,6 +752,13 @@ function PlatformFooter() {
 }
 
 export function PlatformHomeView({ signedIn }: PlatformHomeViewProps) {
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = "Music Manager";
+    return () => {
+      document.title = previousTitle;
+    };
+  }, []);
   return (
     <main className="platform-home">
       <PlatformHero signedIn={signedIn} />

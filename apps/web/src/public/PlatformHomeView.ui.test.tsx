@@ -50,13 +50,13 @@ describe("PlatformHomeView", () => {
       "href",
       "#upcoming-performances",
     );
-    expect(within(routes).getByRole("link", { name: "For community choirs" })).toHaveAttribute(
+    expect(within(routes).getByRole("link", { name: "For community ensembles" })).toHaveAttribute(
       "href",
       "#community-choirs",
     );
 
     expect(
-      screen.getByRole("heading", { level: 2, name: "What Choir Management does." }),
+      screen.getByRole("heading", { level: 2, name: "What Music Manager does." }),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: "Tickets & donations" })).toBeVisible();
 
@@ -126,7 +126,7 @@ describe("PlatformHomeView", () => {
 
     expect(
       screen.getByText(
-        /Have an invitation or practice-player link\? Use the unique link provided by your choir\./i,
+        /Have an invitation or practice-player link\? Use the unique link provided by your ensemble\./i,
       ),
     ).toBeInTheDocument();
 
@@ -158,7 +158,7 @@ describe("PlatformHomeView", () => {
     await waitFor(() => {
       expect(
         screen.getByText(
-          /No public ticketed events are currently scheduled across associated choirs\./i,
+          /No public ticketed events are currently scheduled across associated ensembles\./i,
         ),
       ).toBeInTheDocument();
     });
@@ -179,12 +179,14 @@ describe("PlatformHomeView", () => {
     const user = userEvent.setup();
     render(<PlatformHomeView signedIn={false} />);
 
-    expect(screen.getByRole("heading", { name: "For community choirs." })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "For community choirs and bands." }),
+    ).toBeInTheDocument();
 
     await user.type(screen.getByLabelText(/Organization Name \*/i), "Buckeye Choral Guild");
     await user.type(screen.getByLabelText(/Contact Name \*/i), "John Doe");
     await user.type(screen.getByLabelText(/Email Address \*/i), "john@buckeye.org");
-    await user.type(screen.getByLabelText(/Location in Fairfield County/i), "Lancaster, OH");
+    await user.type(screen.getByRole("textbox", { name: "Location (optional)" }), "Lancaster, OH");
     await user.type(screen.getByLabelText(/Message & details/i), "We are looking for a platform.");
 
     const submitBtn = screen.getByRole("button", { name: "Send inquiry to admins" });
@@ -229,14 +231,19 @@ describe("PlatformHomeView", () => {
     });
   });
 
-  it("consistently uses Choir Management branding and never mentions MusicSite", async () => {
-    const { container } = render(<PlatformHomeView signedIn={false} />);
+  it("consistently uses Music Manager branding and never mentions MusicSite", async () => {
+    const previousTitle = document.title;
+    const { container, unmount } = render(<PlatformHomeView signedIn={false} />);
 
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Choir Management");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Music Manager");
+    expect(document.title).toBe("Music Manager");
+    expect(container.textContent).not.toContain("Choir Management");
     expect(container.textContent).not.toContain("MusicSite");
 
     await waitFor(() => {
       expect(screen.getByText("Winter Masterworks")).toBeInTheDocument();
     });
+    unmount();
+    expect(document.title).toBe(previousTitle);
   });
 });

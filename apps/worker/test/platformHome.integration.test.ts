@@ -14,6 +14,12 @@ import {
   readCapturedPlatformEmailsForTest,
 } from "../src/auth/platformEmail";
 import { publishOrganization } from "../src/publication/publishOrganization";
+import {
+  disablePublicDomain,
+  recordCustomDomainProviderState,
+  removePublicDomain,
+} from "../src/tenancy/registerPublicDomain";
+import { testEnv } from "./auth.integration.fixture";
 
 function requireBinding<T>(bindingValue: T | undefined, name: string): T {
   if (bindingValue === undefined) {
@@ -174,6 +180,112 @@ afterEach(async () => {
 });
 
 describe("Platform home routes", () => {
+  it.each(["remove", "disable"] as const)(
+    "rebuilds cached ticket URLs after a custom domain is %s, preserving other Organizations",
+    async (action) => {
+      await provisionAndSeedOrg(
+        "org-alpha",
+        "Alpha Chorus",
+        "alpha",
+        "tickets.alpha.org",
+        "custom_public",
+      );
+      await provisionAndSeedOrg(
+        "org-beta",
+        "Beta Chorus",
+        "beta",
+        "tickets.beta.org",
+        "custom_public",
+      );
+      const alphaEventId = "11111111-1111-4111-8111-111111111111";
+      const betaEventId = "22222222-2222-4222-8222-222222222222";
+      for (const [orgId, eventId] of [
+        ["org-alpha", alphaEventId],
+        ["org-beta", betaEventId],
+      ] as const) {
+        await seedOrgEvent(orgId, {
+          id: eventId,
+          title: "Upcoming Concert",
+          startsAt: futureIsoDate({ days: 14 }),
+          isTicketingEnabled: true,
+        });
+      }
+      const readFeed = async () => {
+        const response = await exports.default.fetch(
+          new Request("http://localhost/api/public/platform/tickets"),
+        );
+        expect(response.status).toBe(200);
+        return platformHomeTicketListingsResponseSchema.parse(await response.json()).listings;
+      };
+      const before = await readFeed();
+      expect(before.find((item) => item.eventId === alphaEventId)?.ticketsUrl).toBe(
+        `https://tickets.alpha.org/tickets/${alphaEventId}`,
+      );
+      expect(await routingCache.get("platform:tickets:feed")).not.toBeNull();
+
+      const mutate = action === "remove" ? removePublicDomain : disablePublicDomain;
+      const result = await mutate(testEnv, {
+        actorUserId: "test-admin",
+        domainId: "domain-alpha-custom",
+        organizationId: "org-alpha",
+        requestId: crypto.randomUUID(),
+      });
+      expect(result.ok).toBe(true);
+      const after = await readFeed();
+      expect(after).toHaveLength(2);
+      expect(after.find((item) => item.eventId === alphaEventId)?.ticketsUrl).toBe(
+        `https://alpha.localhost/tickets/${alphaEventId}`,
+      );
+      expect(after.find((item) => item.eventId === betaEventId)).toEqual(
+        before.find((item) => item.eventId === betaEventId),
+      );
+    },
+  );
+
+  it("refreshes preferred ticket URLs when a custom domain activates or returns to pending", async () => {
+    await provisionAndSeedOrg(
+      "org-alpha",
+      "Alpha Chorus",
+      "alpha",
+      "tickets.alpha.org",
+      "custom_public",
+    );
+    const eventId = "11111111-1111-4111-8111-111111111111";
+    await seedOrgEvent("org-alpha", {
+      id: eventId,
+      title: "Upcoming Concert",
+      startsAt: futureIsoDate({ days: 14 }),
+      isTicketingEnabled: true,
+    });
+    await controlDatabase
+      .prepare("UPDATE organization_domains SET status = 'pending' WHERE id = ?")
+      .bind("domain-alpha-custom")
+      .run();
+    for (const status of ["pending", "active", "pending"] as const) {
+      await recordCustomDomainProviderState(testEnv, {
+        actorUserId: "test-admin",
+        domainId: "domain-alpha-custom",
+        organizationId: "org-alpha",
+        requestId: crypto.randomUUID(),
+        now: new Date(),
+        providerState: {
+          providerHostnameId: "fake-alpha",
+          providerStatus: status,
+          providerSslStatus: status,
+          validationRecords: [],
+        },
+      });
+      const response = await exports.default.fetch(
+        new Request("http://localhost/api/public/platform/tickets"),
+      );
+      expect(response.status).toBe(200);
+      const { listings } = platformHomeTicketListingsResponseSchema.parse(await response.json());
+      expect(listings[0]?.ticketsUrl).toBe(
+        `https://${status === "active" ? "tickets.alpha.org" : "alpha.localhost"}/tickets/${eventId}`,
+      );
+    }
+  });
+
   it("case 1: aggregates upcoming ticketed performances for an org that never published a website", async () => {
     await provisionAndSeedOrg(
       "org-lancaster",

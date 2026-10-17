@@ -8,6 +8,16 @@ export interface PublicDomainRecord extends PublicDomainResponse {
   readonly providerCheckedAt: string | null;
 }
 
+async function invalidatePublicDomainCaches(
+  env: Pick<Env, "ROUTING_CACHE">,
+  hostname: string,
+): Promise<void> {
+  await env.ROUTING_CACHE.delete(`host:${hostname}`);
+  // The homepage feed also caches absolute URLs selected from active domains.
+  // Rebuild it after domain changes so it can select the remaining preferred host.
+  await env.ROUTING_CACHE.delete("platform:tickets:feed");
+}
+
 function normalizeHostname(hostname: string): string {
   return hostname.trim().toLowerCase().replace(/\.$/, "");
 }
@@ -252,6 +262,9 @@ export async function recordCustomDomainProviderState(
       : []),
   ]);
 
+  if (status !== current.status) {
+    await invalidatePublicDomainCaches(env, current.hostname);
+  }
   if (activated) {
     await env.ROUTING_CACHE.put(
       `host:${current.hostname}`,
@@ -322,6 +335,7 @@ export async function disablePublicDomain(
     return failure("not_found", "The Public Website Domain was not found.");
   }
   if (domain.status === "disabled") {
+    await invalidatePublicDomainCaches(env, domain.hostname);
     return success(toResponse(domain));
   }
 
@@ -356,7 +370,7 @@ export async function disablePublicDomain(
       occurredAt,
     ),
   ]);
-  await env.ROUTING_CACHE.delete(`host:${domain.hostname}`);
+  await invalidatePublicDomainCaches(env, domain.hostname);
 
   const disabled = await readPublicDomain(env.CONTROL_DB, input);
   return disabled
@@ -412,7 +426,7 @@ export async function removePublicDomain(
       occurredAt,
     ),
   ]);
-  await env.ROUTING_CACHE.delete(`host:${domain.hostname}`);
+  await invalidatePublicDomainCaches(env, domain.hostname);
 
   return success({ domainId: input.domainId });
 }

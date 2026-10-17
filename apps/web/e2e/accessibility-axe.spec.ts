@@ -106,7 +106,7 @@ test("platform home page has no serious accessibility violations @webkit-smoke",
   });
 
   await page.goto("/");
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Choir Management");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Music Manager");
 
   await expectNoSeriousAxeViolations(page, "platform home");
   api.assertNoUnexpectedRequests();

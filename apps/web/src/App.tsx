@@ -496,15 +496,14 @@ export function App() {
     isOrganization,
   );
 
-  const displayName = organizationName ?? "Choir Management";
-  const initials = organizationName
-    ? organizationName
-        .split(/\s+/)
-        .map((part) => part[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : "CM";
+  const productName = !isOrganization && pathname === "/" ? "Music Manager" : "Choir Management";
+  const displayName = organizationName ?? productName;
+  const initials = displayName
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   const productShell = (
     <div className="app-shell">
