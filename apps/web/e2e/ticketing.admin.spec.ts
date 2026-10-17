@@ -909,11 +909,23 @@ test.describe("admin ticket management", () => {
 
     await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
     await page.getByRole("tab", { name: "Season Bundles" }).click();
-    await expect(page.getByText("Season Pass")).toBeVisible();
-    await page.getByRole("button", { name: "Delete" }).click({ force: true });
+    const bundle = page.getByRole("article", { name: "Season Pass", exact: true });
+    await expect(bundle).toBeVisible();
+    await bundle.getByRole("button", { name: "Delete Season Pass", exact: true }).click();
+
+    const confirmation = page.getByRole("dialog", { name: "Delete Season Pass?", exact: true });
+    await expect(confirmation).toBeVisible();
+    expect(deleteCalled).toBe(false);
+    await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(confirmation).not.toBeVisible();
+    await expect(bundle).toBeVisible();
+    expect(deleteCalled).toBe(false);
+
+    await bundle.getByRole("button", { name: "Delete Season Pass", exact: true }).click();
+    await confirmation.getByRole("button", { name: "Delete bundle", exact: true }).click();
 
     await expect(page.getByText("Ticket bundle deleted.")).toBeVisible();
-    await expect(page.getByText("Season Pass")).not.toBeVisible();
+    await expect(bundle).not.toBeVisible();
     expect(deleteCalled).toBe(true);
   });
 
@@ -1015,7 +1027,9 @@ test.describe("admin ticket management", () => {
     await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
     await expect(page.getByText("No ticket orders yet.")).toBeVisible();
     await page.getByRole("tab", { name: "Season Bundles" }).click();
-    await expect(page.getByText("No bundles yet.")).toBeVisible();
+    const bundles = page.getByRole("tabpanel", { name: "Season Bundles", exact: true });
+    await expect(bundles.getByRole("heading", { name: "Your season starts here" })).toBeVisible();
+    await expect(bundles.getByRole("button", { name: "New ticket bundle" })).toBeEnabled();
   });
 
   test("reactivates an inactive discount code and aligns redemption count geometry", async ({
