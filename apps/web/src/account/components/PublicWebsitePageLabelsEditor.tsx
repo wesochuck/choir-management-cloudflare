@@ -21,8 +21,8 @@ export function PublicWebsitePageLabelsEditor({
     <fieldset className="form-stack" disabled={busy}>
       <legend>Public page names</legend>
       <p className="field-help">
-        Customize navigation labels and page headings independently. Leave a field blank to keep its
-        default. Existing page addresses stay the same.
+        Page headings also appear in navigation unless you set a separate navigation label. Leave
+        both fields blank to keep the defaults. Existing page addresses stay the same.
       </p>
       {pages.map(([page, label, heading]) => (
         <div className="form-grid" key={page}>
@@ -37,7 +37,7 @@ export function PublicWebsitePageLabelsEditor({
                     ? page === "donations" || page === "auditions"
                       ? "Use existing page heading"
                       : heading
-                    : label
+                    : (draft.pageLabels?.[page]?.heading ?? label)
                 }
                 onChange={(event) => {
                   onChange({

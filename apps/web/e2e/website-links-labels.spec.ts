@@ -8,11 +8,13 @@ import { futureIsoDate } from "@choir/testkit";
 import { installOrganizationApi } from "./fixtures/apiMocks";
 
 const requestId = "11111111-1111-4111-8111-111111111111";
+const logoId = "33333333-3333-4333-8333-333333333333";
 const eventId = "22222222-2222-4222-8222-222222222222";
 for (const theme of ["light", "dark"] as const) {
   test(`publishes safe links and custom public page names in ${theme} theme`, async ({
     page,
   }, testInfo) => {
+    await page.emulateMedia({ colorScheme: theme });
     await page.addInitScript((mode) => {
       localStorage.setItem(`choir-theme:${location.hostname}`, mode);
     }, theme);
@@ -49,10 +51,10 @@ for (const theme of ["light", "dark"] as const) {
         generatedAt: new Date().toISOString(),
         organizationId: "organization-alpha",
         payload: {
-          settings: published,
+          settings: { ...published, logoFileId: logoId },
           organizationName: "Community Chorus",
           timezone: "UTC",
-          mediaFileIds: [],
+          mediaFileIds: [logoId],
           ticketBundles: [],
           performances: [
             {
@@ -74,6 +76,12 @@ for (const theme of ["light", "dark"] as const) {
           ],
         },
       });
+    await page.route(`**/api/public/media/*/${logoId}`, (route) =>
+      route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1600"><rect width="1600" height="1600" fill="#456789"/></svg>',
+      }),
+    );
     await page.route("**/api/public/projection*", (route) => route.fulfill({ json: projection() }));
     await page.route("**/api/public/commerce-projection", (route) =>
       route.fulfill({ json: projection() }),
@@ -155,8 +163,7 @@ for (const theme of ["light", "dark"] as const) {
     for (const [field, value] of [
       ["History navigation label", "Our story"],
       ["History page heading", "Our beginnings"],
-      ["Auditions navigation label", "Join the chorus"],
-      ["Auditions page heading", "Sing with us"],
+      ["Auditions page heading", "Join"],
       ["Performances navigation label", "Concerts"],
       ["Performances page heading", "Concert schedule"],
       ["Tickets navigation label", "Book seats"],
@@ -222,8 +229,30 @@ for (const theme of ["light", "dark"] as const) {
     await expect(
       page.getByRole("heading", { name: "Support our chorus", exact: true }),
     ).toBeVisible();
-    await page.goto("/auditions");
-    await expect(page.getByRole("heading", { name: "Sing with us", exact: true })).toBeVisible();
+    await page.goto("/");
+    const joinLink = page
+      .getByRole("navigation", { name: "Public website" })
+      .getByRole("link", { name: "Join", exact: true });
+    await expect(joinLink).toHaveAttribute("href", "/auditions");
+    await joinLink.click();
+    for (const path of ["/auditions", "/join"]) {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { name: "Join", exact: true })).toBeVisible();
+      const logo = page.getByRole("banner").locator(".brand-logo");
+      await expect(logo).toBeVisible();
+      await expect
+        .poll(() =>
+          logo.evaluate((image) => image instanceof HTMLImageElement && image.naturalWidth > 0),
+        )
+        .toBe(true);
+      const bounds = await logo.boundingBox();
+      expect(bounds?.width).toBeLessThanOrEqual(48);
+      expect(bounds?.height).toBeLessThanOrEqual(48);
+      await expect(
+        page.getByRole("banner").getByRole("link", { name: "Community Chorus home" }),
+      ).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath(`join-header-${path.slice(1)}.png`) });
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );

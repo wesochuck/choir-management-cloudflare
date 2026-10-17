@@ -3,11 +3,13 @@
 Status: Accepted
 
 Organizations can customize the navigation label and page heading independently for Performances,
-History, Tickets, Donate, and Auditions. Empty overrides retain existing defaults, including
-Auditions. Public paths and signed-link parameters do not change. These settings use the existing
-Organization website draft, save snapshot, and explicit publication flow. Migration 117 adds one
-JSON column with an empty-object default. Older projections omit these optional settings safely.
-Older clients may reset overrides when saving website settings without the new field.
+History, Tickets, Donate, and Auditions. A custom heading also supplies the navigation label when no
+explicit navigation label is set; an explicit label takes priority. Leaving both overrides empty
+retains the existing defaults, including Auditions. Public paths and signed-link parameters do not
+change. These settings use the existing Organization website draft, save snapshot, and explicit
+publication flow. Migration 117 adds one JSON column with an empty-object default. Older projections
+omit these optional settings safely. Older clients may reset overrides when saving website settings
+without the new field.
 
 Website and event public-details editors use the shared Markdown link dialog. It accepts a display
 label, a safe destination, and an open-in-new-tab choice, and can edit or remove a link containing

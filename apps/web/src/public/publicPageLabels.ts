@@ -11,7 +11,8 @@ const defaultNavigation = {
 } as const;
 
 export function publicPageNavigationLabel(settings: PageNames, page: Page): string {
-  return settings.pageLabels?.[page]?.navigationLabel ?? defaultNavigation[page];
+  const labels = settings.pageLabels?.[page];
+  return labels?.navigationLabel ?? labels?.heading ?? defaultNavigation[page];
 }
 export function publicPageHeading(settings: PageNames, page: Page, fallback: string): string {
   return settings.pageLabels?.[page]?.heading ?? fallback;
