@@ -50,6 +50,24 @@ function readTaskApplicable(
 }
 
 describe("organization schema migrations", () => {
+  it("v116 preserves populated website drafts and gives existing heroes a centered focal point", () => {
+    const adapter = setupThrough(115);
+    adapter.storage.sql.exec(
+      "UPDATE public_website_settings SET hero_headline = 'Existing concert' WHERE singleton = 1",
+    );
+    applyVersion(adapter, 116);
+    const row = adapter.storage.sql
+      .exec<{ hero_headline: string; hero_position_x: number; hero_position_y: number }>(
+        "SELECT hero_headline, hero_position_x, hero_position_y FROM public_website_settings WHERE singleton = 1",
+      )
+      .toArray()
+      .at(0);
+    expect(row).toEqual({
+      hero_headline: "Existing concert",
+      hero_position_x: 50,
+      hero_position_y: 50,
+    });
+  });
   it("v115 adds empty footer defaults while preserving a populated website draft", () => {
     const adapter = setupThrough(114);
     adapter.storage.sql.exec(

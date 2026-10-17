@@ -356,6 +356,9 @@ export function routeProjection(page: Page) {
 
 export async function routePublicBasics(page: Page) {
   await page.route("**/api/public/logo", (route) => route.fulfill({ status: 404 }));
+  // Published-projection scenarios must not merge data from the local Worker.
+  // Tests exercising live commerce install their own later route override.
+  await page.route("**/api/public/commerce-projection", (route) => route.fulfill({ status: 404 }));
   await routeHealth(page);
   await routeAnonymousSession(page);
   await routeProjection(page);

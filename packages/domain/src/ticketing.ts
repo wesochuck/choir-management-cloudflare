@@ -331,3 +331,12 @@ export function calculatePaymentFinancialSummary(
     unreconciledProcessorFeeCount,
   };
 }
+
+/** Public bundle lists contain active bundles; exclude unrelated and ended sales. */
+export function availableTicketBundlesForEvent<
+  T extends { readonly eventIds: readonly string[]; readonly saleEndAt: string },
+>(bundles: readonly T[], eventId: string, nowMs: number): T[] {
+  return bundles.filter(
+    (bundle) => bundle.eventIds.includes(eventId) && Date.parse(bundle.saleEndAt) > nowMs,
+  );
+}

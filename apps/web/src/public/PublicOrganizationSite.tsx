@@ -1,4 +1,5 @@
 import type { PublishedOrganizationProjection } from "@choir/contracts";
+import { ticketSalesPath } from "@choir/domain";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 import { getPublishedOrganizationProjection } from "../auth/api";
@@ -37,16 +38,22 @@ function displayDate(value: string, timezone: string): string {
 }
 
 function PerformanceCards({
+  linkToDetails = false,
   performances,
   projection,
 }: {
+  readonly linkToDetails?: boolean;
   readonly performances: PublishedOrganizationProjection["payload"]["performances"];
   readonly projection: PublishedOrganizationProjection;
 }) {
   return (
     <div className="public-performance-grid">
       {performances.map((performance) => (
-        <article className="public-performance-card" key={performance.id}>
+        <article
+          className={`public-performance-card${linkToDetails ? " public-performance-card--linked" : ""}`}
+          id={`performance-${performance.id}`}
+          key={performance.id}
+        >
           {performance.graphicFileId ? (
             <PublicGraphicImage
               alt={performance.title}
@@ -55,13 +62,33 @@ function PerformanceCards({
           ) : null}
           <div>
             <p>{displayDate(performance.startsAt, projection.payload.timezone)}</p>
-            <h3>{performance.title}</h3>
+            <h3>
+              {linkToDetails ? (
+                <a
+                  className="performance-card__link"
+                  href={
+                    performance.isTicketingEnabled
+                      ? ticketSalesPath(performance)
+                      : `/performances#performance-${performance.id}`
+                  }
+                >
+                  {performance.title}
+                </a>
+              ) : (
+                performance.title
+              )}
+            </h3>
             {performance.venueName || performance.location ? (
               <p className="public-performance-location">
                 {performance.venueName || performance.location}
               </p>
             ) : null}
             <PublicCopy text={performance.publicDetails} />
+            {linkToDetails ? (
+              <p aria-hidden="true" className="public-performance-card__destination">
+                {performance.isTicketingEnabled ? "View tickets →" : "View performance →"}
+              </p>
+            ) : null}
           </div>
         </article>
       ))}
@@ -184,6 +211,7 @@ function OrganizationHome({
   return (
     <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
       <PublicWebsiteHero
+        position={settings.heroPosition}
         headline={settings.heroHeadline}
         subtitle={settings.heroSubtitle}
         imageUrl={settings.heroFileId ? mediaUrl(projection, settings.heroFileId) : null}
@@ -192,7 +220,11 @@ function OrganizationHome({
       {upcoming.length > 0 ? (
         <section className="public-section">
           <h2>Upcoming Performances</h2>
-          <PerformanceCards performances={upcoming.slice(0, 3)} projection={projection} />
+          <PerformanceCards
+            linkToDetails
+            performances={upcoming.slice(0, 3)}
+            projection={projection}
+          />
         </section>
       ) : null}
       {settings.aboutUsText ? (
@@ -290,6 +322,7 @@ function OrganizationPerformances({
         <h1>Performances</h1>
         {hasPerformances ? (
           <PerformanceCards
+            linkToDetails
             performances={projection.payload.performances}
             projection={projection}
           />

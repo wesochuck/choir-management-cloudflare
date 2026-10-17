@@ -1,9 +1,11 @@
 export function PublicWebsiteHero({
+  position = { x: 50, y: 50 },
   headline,
   subtitle,
   imageUrl,
   organizationName,
 }: {
+  readonly position?: { readonly x: number; readonly y: number } | undefined;
   readonly headline: string;
   readonly subtitle: string;
   readonly imageUrl: string | null;
@@ -14,7 +16,14 @@ export function PublicWebsiteHero({
   return (
     <section
       className={`public-hero ${imageUrl ? "public-hero--image" : ""}`}
-      style={imageUrl ? { backgroundImage: `url(${imageUrl})` } : undefined}
+      style={
+        imageUrl
+          ? {
+              backgroundImage: `url(${imageUrl})`,
+              backgroundPosition: `${String(position.x)}% ${String(position.y)}%`,
+            }
+          : undefined
+      }
     >
       {heading ? null : <h1 className="sr-only">{organizationName}</h1>}
       {heading || description ? (

@@ -2028,6 +2028,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE public_website_settings ADD COLUMN footer_embeds_json TEXT NOT NULL DEFAULT '[]'",
     ],
   },
+  {
+    version: 116,
+    statements: [
+      "ALTER TABLE public_website_settings ADD COLUMN hero_position_x REAL NOT NULL DEFAULT 50 CHECK (hero_position_x BETWEEN 0 AND 100)",
+      "ALTER TABLE public_website_settings ADD COLUMN hero_position_y REAL NOT NULL DEFAULT 50 CHECK (hero_position_y BETWEEN 0 AND 100)",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

@@ -43,6 +43,8 @@ interface SettingsRow {
   readonly headerFont: string;
   readonly heroFileId: string | null;
   readonly heroHeadline: string;
+  readonly heroPositionX: number;
+  readonly heroPositionY: number;
   readonly heroSubtitle: string;
   readonly historyText: string;
   readonly logoFileId: string | null;
@@ -101,6 +103,7 @@ function settingsRow(storage: DurableObjectStorage): SettingsRow {
   return storage.sql
     .exec<SettingsRow>(
       `SELECT hero_headline AS heroHeadline, hero_subtitle AS heroSubtitle,
+        hero_position_x AS heroPositionX, hero_position_y AS heroPositionY,
         about_us_text AS aboutUsText, history_text AS historyText,
         contact_email AS contactEmail, footer_text AS footerText, footer_embeds_json AS footerEmbedsJson,
         show_branding_header_footer AS showBrandingHeaderFooter,
@@ -133,6 +136,7 @@ function parsedSettings(row: SettingsRow, organizationName: string) {
     headerFont: row.headerFont,
     heroFileId: row.heroFileId,
     heroHeadline: row.heroHeadline,
+    heroPosition: { x: row.heroPositionX, y: row.heroPositionY },
     heroSubtitle: row.heroSubtitle,
     historyText: row.historyText,
     logoFileId: row.logoFileId,
@@ -283,7 +287,7 @@ function updateSettings(
         hero_headline = ?, hero_subtitle = ?, about_us_text = ?, history_text = ?,
         contact_email = ?, show_branding_header_footer = ?, header_font = ?, body_font = ?,
         hero_file_id = ?, logo_file_id = ?, enabled_navigation_json = ?, updated_at = ?,
-        footer_text = ?, footer_embeds_json = ?
+        footer_text = ?, footer_embeds_json = ?, hero_position_x = ?, hero_position_y = ?
        WHERE singleton = 1`,
       operation.settings.heroHeadline,
       operation.settings.heroSubtitle,
@@ -299,6 +303,8 @@ function updateSettings(
       updatedAt,
       operation.settings.footerText ?? "",
       JSON.stringify(operation.settings.footerEmbeds ?? []),
+      operation.settings.heroPosition?.x ?? 50,
+      operation.settings.heroPosition?.y ?? 50,
     );
     storage.sql.exec(
       `INSERT INTO audit_events
@@ -417,6 +423,7 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
         headerFont: settings.headerFont,
         heroFileId: settings.heroFileId,
         heroHeadline: settings.heroHeadline,
+        heroPosition: settings.heroPosition,
         heroSubtitle: settings.heroSubtitle,
         historyText: settings.historyText,
         logoFileId: effectiveLogoFileId,

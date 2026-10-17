@@ -11,6 +11,7 @@ import { getEventVenueDetails } from "../../venueDetails";
 import { TicketDiscountControls } from "../discounts/TicketDiscountControls";
 import { useTicketDiscountQuote } from "../discounts/useTicketDiscountQuote";
 import { money, publicDate } from "../shared";
+import { TicketBundleSuggestions } from "./TicketBundleSuggestions";
 import { TicketCheckoutFooter } from "./TicketCheckoutFooter";
 
 export function TicketPurchaseForm({
@@ -124,6 +125,11 @@ export function TicketPurchaseForm({
         );
       })()}
       {event.doorsOpenTime ? <p>Doors open at {event.doorsOpenTime}.</p> : null}
+      <TicketBundleSuggestions
+        bundles={projection.payload.ticketBundles}
+        eventId={event.id}
+        nowMs={nowMs}
+      />
       <form className="panel form-stack" onSubmit={(formEvent) => void submit(formEvent)}>
         {error ? (
           <p className="notice notice--error" id="single-ticket-order-error" role="alert">

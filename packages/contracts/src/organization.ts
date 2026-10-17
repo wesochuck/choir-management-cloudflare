@@ -266,6 +266,9 @@ export const publicWebsiteSettingsRequestSchema = z.object({
     .max(3)
     .default([]),
   headerFont: publicWebsiteFontSchema.default("system"),
+  heroPosition: z
+    .object({ x: z.number().min(0).max(100), y: z.number().min(0).max(100) })
+    .optional(),
   heroFileId: z.uuid().nullable().default(null),
   heroHeadline: z.string().trim().max(300).default("Welcome to Our Choir"),
   heroSubtitle: z.string().trim().max(1_000).default("Voices united in harmony."),

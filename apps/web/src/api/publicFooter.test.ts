@@ -11,6 +11,7 @@ const settings = publicWebsiteSettingsResponseSchema.parse({
   publishedAt: null,
   updatedAt: new Date().toISOString(),
   requestId: "11111111-1111-4111-8111-111111111111",
+  heroPosition: { x: 30, y: 75 },
   footerText: "Our supporters",
   footerEmbeds: [{ kind: "image", title: "Our badge", src: "https://example.org/badge.svg" }],
 });
@@ -21,6 +22,7 @@ it("round trips Organization footer content through the browser API parser", asy
     .mockImplementation(() => Promise.resolve(Response.json(settings)));
   vi.stubGlobal("fetch", mock);
   await expect(updateOrganizationPublicWebsiteSettings(settings)).resolves.toMatchObject({
+    heroPosition: settings.heroPosition,
     footerText: settings.footerText,
     footerEmbeds: settings.footerEmbeds,
   });

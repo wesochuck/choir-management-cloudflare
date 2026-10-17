@@ -44,6 +44,7 @@ function requestFrom(settings: PublicWebsiteSettings): PublicWebsiteSettingsRequ
     enabledNavigation: settings.enabledNavigation,
     headerFont: settings.headerFont,
     heroFileId: settings.heroFileId,
+    heroPosition: settings.heroPosition ?? { x: 50, y: 50 },
     heroHeadline: settings.heroHeadline,
     heroSubtitle: settings.heroSubtitle,
     historyText: settings.historyText,
@@ -52,13 +53,24 @@ function requestFrom(settings: PublicWebsiteSettings): PublicWebsiteSettingsRequ
   };
 }
 
-function customFooterChanged(
+function customWebsiteSettingsChanged(
   draft: PublicWebsiteSettingsRequest,
   saved: PublicWebsiteSettingsRequest,
 ): boolean {
   return (
+    heroSettingsChanged(draft, saved) ||
     draft.footerText !== saved.footerText ||
     JSON.stringify(draft.footerEmbeds) !== JSON.stringify(saved.footerEmbeds)
+  );
+}
+
+function heroSettingsChanged(
+  draft: PublicWebsiteSettingsRequest,
+  saved: PublicWebsiteSettingsRequest,
+): boolean {
+  return (
+    draft.heroFileId !== saved.heroFileId ||
+    JSON.stringify(draft.heroPosition) !== JSON.stringify(saved.heroPosition)
   );
 }
 
@@ -82,7 +94,7 @@ function isWebsiteDraftDirty(
   if (heroFile !== null || logoFile !== null) return true;
   const saved = requestFrom(loadState.settings);
   return (
-    customFooterChanged(draft, saved) ||
+    customWebsiteSettingsChanged(draft, saved) ||
     draft.aboutUsText !== saved.aboutUsText ||
     draft.bodyFont !== saved.bodyFont ||
     draft.contactEmail !== saved.contactEmail ||
@@ -618,6 +630,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
                 onHeroFileChange={(event: ChangeEvent<HTMLInputElement>) => {
                   const file = event.target.files?.[0] ?? null;
                   handleHeroFileSelect(file);
+                  change("heroPosition", { x: 50, y: 50 });
                 }}
                 onRemoveHeroImage={() => {
                   handleHeroFileSelect(null);

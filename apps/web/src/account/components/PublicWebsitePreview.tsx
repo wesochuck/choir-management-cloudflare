@@ -1,7 +1,7 @@
 import { PublicWebsiteHero } from "../../public/PublicWebsiteHero";
 import { PublicWebsiteFooter } from "../../public/PublicWebsiteFooter";
 import type { PublicWebsiteSettingsRequest } from "@choir/contracts";
-import type { CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { PublicCopy } from "../../public/PublicCopy";
 import { publicWebsiteFontStacks } from "../../public/publicWebsiteFonts";
@@ -134,6 +134,7 @@ function PreviewHome({ draft, heroImageUrl, organizationName }: PreviewHomeProps
   return (
     <>
       <PublicWebsiteHero
+        position={draft.heroPosition}
         headline={draft.heroHeadline}
         subtitle={draft.heroSubtitle}
         imageUrl={heroImageUrl}
@@ -185,6 +186,21 @@ export function PublicWebsitePreview({
   viewport,
 }: PublicWebsitePreviewProps) {
   const currentYear = String(new Date().getUTCFullYear());
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
+  const viewportWidth = viewport === "desktop" ? 1280 : 390;
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0;
+      if (width > 0) setScale(Math.min(1, width / viewportWidth));
+    });
+    observer.observe(frame);
+    return () => {
+      observer.disconnect();
+    };
+  }, [viewportWidth]);
 
   return (
     <section aria-label="Public website draft preview" className="panel website-preview-panel">
@@ -195,11 +211,19 @@ export function PublicWebsitePreview({
         viewport={viewport}
       />
 
-      <div className={`website-preview-frame website-preview-frame--${viewport}`}>
+      <p className="field-help">
+        {viewport === "desktop" ? "Desktop" : "Mobile"} preview · {viewportWidth}px wide, scaled to
+        fit. The image crop changes with screen width.
+      </p>
+      <div ref={frameRef} className={`website-preview-frame website-preview-frame--${viewport}`}>
         <div
           className="public-site website-preview-content"
           style={
             {
+              width: viewportWidth,
+              zoom: scale,
+              "--public-hero-subtitle-size": `clamp(1.1rem, ${String(viewportWidth * 0.02)}px, 1.45rem)`,
+              "--public-hero-title-size": `clamp(2.8rem, ${String(viewportWidth * 0.08)}px, 6rem)`,
               "--public-body-font": publicWebsiteFontStacks[draft.bodyFont],
               "--public-heading-font": publicWebsiteFontStacks[draft.headerFont],
             } as CSSProperties

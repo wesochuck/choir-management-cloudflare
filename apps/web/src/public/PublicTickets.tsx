@@ -41,25 +41,6 @@ function mergePerformances(
   return Array.from(map.values());
 }
 
-function mergeTicketBundles(
-  published:
-    readonly PublishedOrganizationProjection["payload"]["ticketBundles"][number][] | undefined,
-  commerce:
-    readonly PublishedOrganizationProjection["payload"]["ticketBundles"][number][] | undefined,
-): PublishedOrganizationProjection["payload"]["ticketBundles"][number][] {
-  const map = new Map<
-    string,
-    PublishedOrganizationProjection["payload"]["ticketBundles"][number]
-  >();
-  for (const item of published ?? []) {
-    map.set(item.id, item);
-  }
-  for (const item of commerce ?? []) {
-    map.set(item.id, item);
-  }
-  return Array.from(map.values());
-}
-
 function combineProjections(
   published: PublishedOrganizationProjection | null,
   commerce: PublishedOrganizationProjection | null,
@@ -85,10 +66,8 @@ function combineProjections(
         published.payload.performances,
         commerce.payload.performances,
       ),
-      ticketBundles: mergeTicketBundles(
-        published.payload.ticketBundles,
-        commerce.payload.ticketBundles,
-      ),
+      // A live commerce response is authoritative: omitted bundles are no longer offered.
+      ticketBundles: commerce.payload.ticketBundles,
     },
     version: commerce.version,
   };

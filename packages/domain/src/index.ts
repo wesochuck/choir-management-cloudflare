@@ -372,3 +372,5 @@ export {
 export * from "./practiceTrackMatching";
 
 export { ticketSlugBase, ticketSalesPath } from "./ticketLinks";
+export { availableTicketBundlesForEvent } from "./ticketing";
+export { coverImageOverflow, shiftCoverImagePosition } from "./imagePosition";

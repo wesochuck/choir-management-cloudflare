@@ -1,3 +1,4 @@
+import { futureIsoDate } from "@choir/testkit";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, it, vi } from "vitest";
@@ -261,4 +262,64 @@ describe("PublicTickets shell layout", () => {
     expect(screen.queryByRole("link", { name: "Performances" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Donate" })).not.toBeInTheDocument();
   });
+
+  it.each(["removed", "expired", "available", "fallback"])(
+    "suggests only currently offered bundles (%s)",
+    async (status) => {
+      const original = sampleProjection.payload.performances[0];
+      if (!original) throw new Error("Missing fixture performance");
+      const event = {
+        ...original,
+        id: "11111111-1111-4111-8111-111111111111",
+        title: "Current concert",
+        startsAt: futureIsoDate({ days: 30 }),
+      };
+      const bundle = {
+        id: "22222222-2222-4222-8222-222222222222",
+        ticketSlug: "season-pass",
+        title: "Season pass",
+        priceCents: 3000,
+        capacity: null,
+        graphicFileId: null,
+        eventIds: [event.id],
+        saleEndAt: futureIsoDate({ days: 20 }),
+      };
+      const published = {
+        ...sampleProjection,
+        payload: { ...sampleProjection.payload, performances: [event], ticketBundles: [bundle] },
+      };
+      const commerce = {
+        ...published,
+        payload: {
+          ...published.payload,
+          ticketBundles:
+            status === "removed"
+              ? []
+              : [
+                  {
+                    ...bundle,
+                    saleEndAt:
+                      status === "expired"
+                        ? new Date(Date.now() - 1).toISOString()
+                        : bundle.saleEndAt,
+                  },
+                ],
+        },
+      };
+      vi.mocked(getPublishedOrganizationProjection).mockResolvedValue(published);
+      if (status === "fallback")
+        vi.mocked(getPublicCommerceProjection).mockRejectedValue(new Error("Commerce unavailable"));
+      else vi.mocked(getPublicCommerceProjection).mockResolvedValue(commerce);
+      vi.mocked(getPublicTransactionFeeSettings).mockResolvedValue(feeSettings);
+      render(<PublicTickets pathname={`/tickets/${event.id}`} />);
+      await screen.findByRole("heading", { name: "Current concert" });
+      if (status === "available" || status === "fallback")
+        expect(screen.getByRole("link", { name: "View season pass: Season pass" })).toHaveAttribute(
+          "href",
+          "/tickets/bundles/season-pass",
+        );
+      else expect(screen.queryByRole("complementary")).toBeNull();
+      expect(screen.getByLabelText("Name on order")).toBeVisible();
+    },
+  );
 });

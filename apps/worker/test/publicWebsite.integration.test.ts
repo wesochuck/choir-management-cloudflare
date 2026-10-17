@@ -137,6 +137,18 @@ describe("Organization public website", () => {
     expect(saved.footerEmbeds).toEqual([]);
   });
 
+  it("rejects focal points outside the image bounds", async () => {
+    const cookie = await signIn();
+    const response = await jsonWrite(
+      "alpha.localhost",
+      "/api/organization/website",
+      "PUT",
+      { heroPosition: { x: 101, y: -1 } },
+      cookie,
+    );
+    expect(response.status).toBe(400);
+  });
+
   it("publishes isolated immutable projections and public media from a private manager draft", async () => {
     const cookie = await signIn();
     expect(
@@ -206,6 +218,7 @@ describe("Organization public website", () => {
             headerFont: "modern-serif",
             heroFileId: FILE_ID,
             heroHeadline: "Alpha sings",
+            heroPosition: { x: 25.5, y: 80 },
             heroSubtitle: "Music for everyone",
             historyText: "Founded with a song.",
             logoFileId: FILE_ID,
@@ -218,6 +231,7 @@ describe("Organization public website", () => {
     expect(initialSettings.publicationVersion).toBe(0);
     expect(savedSettings.heroHeadline).toBe("Alpha sings");
     expect(initialSettings.footerText).toBe("");
+    expect(initialSettings.heroPosition).toEqual({ x: 50, y: 50 });
     expect(initialSettings.footerEmbeds).toEqual([]);
     expect(savedSettings.footerEmbeds).toEqual(footerEmbeds);
     const reloaded = publicWebsiteSettingsResponseSchema.parse(
@@ -226,6 +240,7 @@ describe("Organization public website", () => {
       ).json(),
     );
     expect(reloaded.footerText).toBe("**Alpha supporters**");
+    expect(reloaded.heroPosition).toEqual({ x: 25.5, y: 80 });
     expect(reloaded.footerEmbeds).toEqual(footerEmbeds);
 
     const publication = publicWebsitePublishResponseSchema.parse(
@@ -249,6 +264,7 @@ describe("Organization public website", () => {
           ],
           settings: {
             heroHeadline: "Alpha sings",
+            heroPosition: { x: 25.5, y: 80 },
             footerText: "**Alpha supporters**",
             footerEmbeds,
           },
@@ -288,6 +304,7 @@ describe("Organization public website", () => {
       {
         ...savedSettings,
         heroHeadline: "",
+        heroPosition: { x: 75, y: 10 },
         footerText: "New footer",
         footerEmbeds: [],
       },
@@ -297,6 +314,7 @@ describe("Organization public website", () => {
       await (await exports.default.fetch(api("alpha.localhost", "/api/public/projection"))).json(),
     );
     expect(unchanged.payload.settings.heroHeadline).toBe("Alpha sings");
+    expect(unchanged.payload.settings.heroPosition).toEqual({ x: 25.5, y: 80 });
     expect(unchanged.payload.settings.footerEmbeds).toEqual(footerEmbeds);
     const secondPublication = publicWebsitePublishResponseSchema.parse(
       await (
@@ -312,6 +330,7 @@ describe("Organization public website", () => {
       ).json(),
     );
     expect(revised.payload.settings.heroHeadline).toBe("");
+    expect(revised.payload.settings.heroPosition).toEqual({ x: 75, y: 10 });
     expect(revised.version).toBe(2);
     expect(revised.payload.settings.footerText).toBe("New footer");
     expect(revised.payload.settings.footerEmbeds).toEqual([]);

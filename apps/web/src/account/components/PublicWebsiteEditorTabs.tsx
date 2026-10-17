@@ -8,6 +8,7 @@ import {
   websiteFonts,
   type PublicWebsiteFont,
 } from "../../public/publicWebsiteFonts";
+import { HeroImagePositionEditor } from "./HeroImagePositionEditor";
 import { MarkdownToolbar } from "./MarkdownToolbar";
 
 const fontPreviewText = "Aa Bb Cc — The quick brown fox jumps over the lazy dog.";
@@ -107,6 +108,16 @@ export function HomeTabContent({
         <p className="field-help">JPEG, PNG, or WebP; maximum 5 MB.</p>
       </div>
 
+      {heroImageUrl ? (
+        <HeroImagePositionEditor
+          imageUrl={heroImageUrl}
+          position={draft.heroPosition ?? { x: 50, y: 50 }}
+          disabled={busy}
+          onChange={(position) => {
+            onChange("heroPosition", position);
+          }}
+        />
+      ) : null}
       <div className="field">
         <label htmlFor="website-about">About Us (Markdown)</label>
         <MarkdownToolbar
