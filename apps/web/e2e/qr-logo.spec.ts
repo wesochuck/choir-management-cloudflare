@@ -7,6 +7,11 @@ import {
   successToken,
 } from "./support/ticketingFixtures";
 
+// These tests intercept lazy-loaded decoder code. A controlling service worker
+// can serve its precached real decoder without passing through page.route().
+// Offline/service-worker behavior is covered by the separate offline suites.
+test.use({ serviceWorkers: "block" });
+
 const logos = [
   { name: "square", width: 120, height: 120 },
   { name: "wide transparent", width: 240, height: 60 },
@@ -23,13 +28,19 @@ for (const logo of [
   test(`ticket QR decodes with ${logo.name} Organization logo`, async ({ page }, testInfo) => {
     const token = logo.name === "dense token" ? `scan-${"abcdefgh".repeat(80)}` : scanToken;
     await routePublicBasics(page);
+    let rejectedDecoderRequests = 0;
     if (logo.name === "decoder rejected") {
-      await page.route("**/assets/jsQR-*.js", (route) =>
-        route.fulfill({
+      await page.route("**/assets/jsQR-*.js", (route) => {
+        rejectedDecoderRequests += 1;
+        return route.fulfill({
           contentType: "application/javascript",
-          body: "export default function () { return null; }",
-        }),
-      );
+          body: `export default function () {
+            const key = "qr-test-decoder-rejections";
+            sessionStorage.setItem(key, String(Number(sessionStorage.getItem(key) ?? "0") + 1));
+            return null;
+          }`,
+        });
+      });
     }
     await page.route("**/api/public/tickets/order*", (route) =>
       route.fulfill({ json: { ...receiptResponse, scanToken: token } }),
@@ -71,6 +82,15 @@ for (const logo of [
     expect(jsQR(Uint8ClampedArray.from(pixels.data), pixels.width, pixels.height)?.data).toBe(
       token,
     );
+    if (logo.name === "decoder rejected") {
+      expect(rejectedDecoderRequests, "The decoder replacement must be requested").toBeGreaterThan(
+        0,
+      );
+      expect(
+        await page.evaluate(() => Number(sessionStorage.getItem("qr-test-decoder-rejections"))),
+        "The rejecting decoder must run before checking the unbranded fallback",
+      ).toBeGreaterThan(0);
+    }
     if (logo.width > 0 && logo.name !== "decoder rejected")
       expect(pixels.logoPixels).toBeGreaterThan(50);
     else expect(pixels.logoPixels).toBe(0);
