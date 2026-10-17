@@ -449,15 +449,23 @@ export function RosterConfiguration({ enabled }: Props) {
                         <p>
                           {assigned
                             ? `Move or clear assigned Profiles before removing this ${partTerm}.`
-                            : `This ${partTerm} can be removed because it has no assigned Profiles.`}
+                            : configuration.voiceParts.length === 1
+                              ? `This is the last ${partTerm}. Switch to Sections only to remove the final part.`
+                              : `This ${partTerm} can be removed because it has no assigned Profiles.`}
                         </p>
                         <button
                           className="button button--secondary button--control-height"
-                          disabled={!assigned && configuration.voiceParts.length === 1}
                           type="button"
                           onClick={() => {
                             if (assigned) {
                               openReassignment(voicePart.label);
+                              return;
+                            }
+                            if (configuration.voiceParts.length === 1) {
+                              setConfiguration((current) => ({
+                                ...current,
+                                rosterStructure: "sections_only",
+                              }));
                               return;
                             }
                             setConfiguration((current) => ({
@@ -468,7 +476,11 @@ export function RosterConfiguration({ enabled }: Props) {
                             }));
                           }}
                         >
-                          {assigned ? "Manage assignments" : `Remove ${partTerm}`}
+                          {assigned
+                            ? "Manage assignments"
+                            : configuration.voiceParts.length === 1
+                              ? "Use sections only"
+                              : `Remove ${partTerm}`}
                         </button>
                       </div>
                     </fieldset>

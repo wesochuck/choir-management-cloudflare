@@ -79,3 +79,32 @@ test("section-only structure saves from Roster Settings and drives member assign
   await page.locator(".floating-save-bar").getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator(".floating-save-bar")).not.toBeVisible();
 });
+
+test("the final unassigned part offers a direct switch to sections only", async ({ page }) => {
+  const api = await installOrganizationApi(page);
+  api.profiles.set([]);
+  let configuration = organizationRosterConfigurationRequestSchema.parse({
+    sections: [{ code: "F", name: "Flute", color: "#123456" }],
+    voiceParts: [{ label: "F1", fullName: "Flute 1", sectionCode: "F" }],
+  });
+  await page.route("**/api/organization/roster-configuration", async (route) => {
+    if (route.request().method() === "PUT") {
+      configuration = organizationRosterConfigurationRequestSchema.parse(
+        route.request().postDataJSON(),
+      );
+    }
+    await route.fulfill({
+      json: { ...configuration, requestId: "11111111-1111-4111-8111-111111111111" },
+    });
+  });
+
+  await page.goto("/admin/roster");
+  await page.getByRole("tab", { name: "Settings", exact: true }).click();
+  await expect(
+    page.getByText("This is the last part. Switch to Sections only to remove the final part."),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Use sections only", exact: true }).click();
+
+  await expect(page.getByRole("group", { name: "Parts", exact: true })).not.toBeVisible();
+  await expect(page.getByText(/On save, members assigned to parts/)).toBeVisible();
+});
