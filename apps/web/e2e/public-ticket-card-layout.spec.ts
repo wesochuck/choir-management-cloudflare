@@ -79,6 +79,11 @@ async function mockTicketCardPage(page: Page): Promise<void> {
   await page.route("**/api/public/projection", async (route) => {
     await fulfillJson(route, ticketCardProjection);
   });
+  // Live commerce is authoritative for offered bundles, so keep the layout fixture
+  // independent of the local server's current ticket inventory.
+  await page.route("**/api/public/commerce-projection", async (route) => {
+    await fulfillJson(route, ticketCardProjection);
+  });
 }
 
 test.describe("public ticket card layout", () => {
