@@ -1,8 +1,8 @@
 # Permanent Staging Deployment Runbook
 
 The sole staging release path runs locally from an authenticated maintainer workstation. GitHub
-Actions is disabled; the local command runs the complete release checks before deployment. This path
-does not authorize a production deployment.
+Actions is disabled; the local command requires complete release qualification before deployment.
+This path does not authorize a production deployment.
 
 ## Default local release
 
@@ -18,9 +18,10 @@ does not authorize a production deployment.
    `npm run deploy:staging -- --yes` remains an alias for the same implementation.
 
 The command refuses a dirty tree, a branch other than `main`, or a local commit that differs from
-`origin/main`. It runs the complete local release gate (`npm run check:release`: browser-free CI
-plus the Chromium E2E suite), builds and hashes one immutable release artifact, verifies the staging
-email-feedback subscription, captures the active rollback version, applies forward-only D1
+`origin/main`. It reuses a matching recent successful `npm run check:release` qualification, or runs
+the complete gate (browser-free CI plus the Chromium E2E suite) when evidence is unavailable or
+invalid. It copies and verifies the qualified build as one immutable release artifact, verifies the
+staging email-feedback subscription, captures the active rollback version, applies forward-only D1
 migrations and version-external triggers, uploads an inactive Worker Version, and only then shifts
 staging traffic.
 
@@ -38,6 +39,36 @@ qualification. The temporary build directory is removed afterward. All release r
 `npm run check:ci` is the browser-free subset of qualification. `npm run check:release` is the full
 standalone release qualification command (check:ci plus the Playwright Chromium E2E suite); run it
 before any promotion that does not go through the staging deploy command below.
+
+### Reusing local release checks
+
+After a successful full gate on a clean committed checkout, `check:release` saves
+`.wrangler/releases/qualification.json`. Deployment can reuse this record for four hours measured
+from the start of the gate, including time spent running checks. It verifies the same checkout,
+commit, lockfile, Node version/platform, dependency installation identity, build/test environment,
+local `.env*`/`.dev.vars*` configuration, and the complete Worker/web artifact file hashes. Local
+configuration values are hashed; their contents are never saved in the record. A changed commit,
+dirty tree (including untracked files), dependency reinstall, missing/changed build files, invalid
+record, or expired evidence causes the entire gate to run again. Copying artifacts for upload
+rehashes them against the qualification record before any hosted resource is changed.
+
+An explicit `npm run check:release` always runs every check and invalidates old evidence before
+starting, so a failed rerun cannot reuse an earlier success. A successful run on uncommitted work
+does not create reusable evidence. Commit first, run `npm run check:release`, push, then deploy to
+avoid repeating qualification. The record is local to that checkout; a different machine must
+qualify independently. It is a trusted workstation cache, not a signed attestation of dependency
+contents or authorization to deploy.
+
+To force fresh checks during deployment:
+
+```bash
+npm run deploy:staging -- --yes --force-release-checks
+```
+
+Fresh checkout/remote checks, Cloudflare identity and email configuration checks, migrations,
+trigger updates, deployed-build API qualification, and rollback readiness always run. Reuse skips
+the local full gate and the Chromium installation check; it never substitutes for staging health
+qualification and never creates a production-promotable staging receipt by itself.
 
 Routes, queue consumers, schedules, and Workflow triggers are not Worker-versioned. Automatic code
 rollback cannot revert those settings. Keep trigger changes backward compatible and follow

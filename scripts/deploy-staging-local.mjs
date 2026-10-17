@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { createReleaseManifest, verifyReleaseManifest } from "./release-artifact.mjs";
+import { invalidateQualification, readQualification } from "./release-qualification.mjs";
 import {
   activeVersionId as sharedActiveVersionId,
   artifactDirForSha,
@@ -186,10 +187,25 @@ async function recordStagingProvenance({
   return { persistentDir, record };
 }
 
-export function runReleaseGate(options = {}) {
+export async function runReleaseGate(options = {}) {
   const runner = options.runner ?? run;
-  runner("npx", ["playwright", "install", "chromium"]);
-  runner("npm", ["run", "check:release"]);
+  const readEvidence = options.readQualification ?? readQualification;
+  const lookupOptions = options.root ? { root: options.root } : {};
+  const cached = options.force
+    ? { receipt: null, reason: "fresh checks requested" }
+    : await readEvidence(lookupOptions);
+  if (cached.receipt) {
+    console.log("Reusing verified check:release evidence for this commit (within four hours).");
+    return cached.receipt;
+  }
+  console.log(`Running the complete local release gate: ${cached.reason}.`);
+  await (options.invalidateQualification ?? invalidateQualification)(options.root);
+  await runner("npx", ["playwright", "install", "chromium"]);
+  await runner("npm", ["run", "check:release"]);
+  const fresh = await readEvidence(lookupOptions);
+  if (!fresh.receipt)
+    throw new Error(`Release gate produced no reusable evidence: ${fresh.reason}.`);
+  return fresh.receipt;
 }
 
 function verifyCheckout() {
@@ -216,9 +232,12 @@ export async function deployStaging(options = {}) {
   const checkoutVerifier = options.verifyCheckout ?? verifyCheckout;
   const commitSha = checkoutVerifier();
 
-  console.log("Running the complete local release gate...");
+  console.log("Checking local release qualification...");
   const releaseGateRunner = options.runReleaseGate ?? runReleaseGate;
-  releaseGateRunner({ runner: options.runner ?? run });
+  const qualification = await releaseGateRunner({
+    runner: options.runner ?? run,
+    force: argv.includes("--force-release-checks"),
+  });
   if (checkoutVerifier() !== commitSha)
     throw new Error("The release commit changed during checks.");
 
@@ -230,6 +249,10 @@ export async function deployStaging(options = {}) {
     console.log("Creating and verifying the immutable local release artifact...");
     const prepare = options.prepareArtifact ?? prepareArtifact;
     await prepare(releaseRoot, commitSha);
+    // Bind the copied artifact to the bytes that actually passed the gate, including on reuse.
+    if (qualification) {
+      await verifyReleaseManifest(releaseRoot, commitSha, qualification.manifest);
+    }
 
     const wranglerRunner = options.wrangler ?? wrangler;
     const statusRunner = options.stagingStatus ?? stagingStatus;

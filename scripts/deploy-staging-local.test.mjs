@@ -276,14 +276,21 @@ describe("local staging deployment safeguards", () => {
   });
 
   describe("canonical release gate invocation", () => {
-    it("installs Chromium and invokes npm run check:release", () => {
+    it("installs Chromium and invokes npm run check:release without reusable evidence", async () => {
       const calls = [];
       const runner = vi.fn((command, args) => {
         calls.push({ args, command });
         return "";
       });
 
-      runReleaseGate({ runner });
+      await runReleaseGate({
+        runner,
+        invalidateQualification: vi.fn(),
+        readQualification: vi
+          .fn()
+          .mockResolvedValueOnce({ receipt: null, reason: "missing" })
+          .mockResolvedValueOnce({ receipt: { gate: "check:release" } }),
+      });
 
       expect(runner).toHaveBeenCalledTimes(2);
       expect(calls[0]).toEqual({
@@ -296,18 +303,42 @@ describe("local staging deployment safeguards", () => {
       });
     });
 
-    it("does not independently invoke check:ci or test:e2e", () => {
+    it("does not independently invoke check:ci or test:e2e", async () => {
       const calls = [];
       const runner = vi.fn((command, args) => {
         calls.push({ args, command });
         return "";
       });
 
-      runReleaseGate({ runner });
+      await runReleaseGate({
+        runner,
+        invalidateQualification: vi.fn(),
+        force: true,
+        readQualification: vi.fn().mockResolvedValue({ receipt: { gate: "check:release" } }),
+      });
 
       const invokedArgs = calls.flatMap((c) => c.args);
       expect(invokedArgs).not.toContain("check:ci");
       expect(invokedArgs).not.toContain("test:e2e");
+    });
+
+    it("reuses valid evidence without reinstalling browsers or rerunning tests", async () => {
+      const receipt = { gate: "check:release" };
+      const runner = vi.fn();
+      await expect(
+        runReleaseGate({ runner, readQualification: async () => ({ receipt }) }),
+      ).resolves.toBe(receipt);
+      expect(runner).not.toHaveBeenCalled();
+    });
+
+    it("refuses deployment when a fresh gate produces no valid evidence", async () => {
+      await expect(
+        runReleaseGate({
+          runner: vi.fn(),
+          invalidateQualification: vi.fn(),
+          readQualification: async () => ({ receipt: null, reason: "artifact changed" }),
+        }),
+      ).rejects.toThrow(/no reusable evidence/u);
     });
 
     it("deployStaging invokes the canonical release gate", async () => {
@@ -322,7 +353,7 @@ describe("local staging deployment safeguards", () => {
 
       await expect(
         deployStaging({
-          argv: ["--yes"],
+          argv: ["--yes", "--force-release-checks"],
           verifyCheckout: verifyCheckoutSpy,
           runReleaseGate: releaseGateSpy,
         }),
@@ -330,6 +361,7 @@ describe("local staging deployment safeguards", () => {
 
       expect(verifyCheckoutSpy).toHaveBeenCalledTimes(2);
       expect(releaseGateSpy).toHaveBeenCalledTimes(1);
+      expect(releaseGateSpy).toHaveBeenCalledWith(expect.objectContaining({ force: true }));
     });
   });
 });

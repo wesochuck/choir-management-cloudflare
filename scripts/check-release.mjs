@@ -12,6 +12,13 @@
 // release-blocking: the test plan explicitly does not require every browser
 // engine on every run. Firefox is deferred (see apps/web/e2e/fixtures/README.md).
 import { execFileSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
+import { collectReleaseManifest } from "./release-artifact.mjs";
+import {
+  invalidateQualification,
+  qualificationInputs,
+  recordQualification,
+} from "./release-qualification.mjs";
 
 const steps = [
   {
@@ -29,49 +36,87 @@ const steps = [
   },
 ];
 
-function runStep(step) {
-  process.stdout.write(`\n=== ${step.label} (release ${step.job} job)\n`);
-  execFileSync(step.command, step.args, {
-    stdio: "inherit",
-    cwd: process.cwd(),
-    env: { ...process.env, ...(step.env ?? {}) },
-  });
-}
-
-const results = [];
-for (const step of steps) {
+export async function checkRelease(options = {}) {
+  const root = options.root ?? process.cwd();
+  const runner = options.runner ?? execFileSync;
+  const startedAt = Date.now();
+  await invalidateQualification(root);
+  let inputs;
   try {
-    runStep(step);
-    results.push({ ...step, ok: true });
-  } catch (error) {
-    results.push({ ...step, ok: false });
-    console.error(`\n✗ ${step.label} failed with exit ${error.status ?? error.message}.`);
-    if (step.label.includes("Playwright")) {
-      console.error(
-        "If the failure reports a missing browser executable, install Chromium with " +
-          "`npx playwright install chromium` and re-run `npm run check:release`.",
-      );
-    }
-    break;
+    inputs = await qualificationInputs(root);
+  } catch {
+    console.log(
+      "This checkout cannot produce reusable qualification evidence; the full gate will still run.",
+    );
   }
+  let manifest;
+  function runStep(step) {
+    process.stdout.write(`\n=== ${step.label} (release ${step.job} job)\n`);
+    return runner(step.command, step.args, {
+      stdio: "inherit",
+      cwd: root,
+      env: { ...process.env, RELEASE_QUALIFICATION: "1", ...(step.env ?? {}) },
+    });
+  }
+
+  const results = [];
+  for (const step of steps) {
+    try {
+      await runStep(step);
+      if (inputs && step.args.includes("check:ci")) {
+        manifest = await collectReleaseManifest(root, inputs.commitSha);
+      }
+      results.push({ ...step, ok: true });
+    } catch (error) {
+      results.push({ ...step, ok: false });
+      console.error(`\n✗ ${step.label} failed with exit ${error.status ?? error.message}.`);
+      if (step.label.includes("Playwright")) {
+        console.error(
+          "If the failure reports a missing browser executable, install Chromium with " +
+            "`npx playwright install chromium` and re-run `npm run check:release`.",
+        );
+      }
+      break;
+    }
+  }
+
+  const failed = results.filter((result) => !result.ok);
+  const ran = results.length;
+
+  console.log("\nRelease qualification summary:");
+  for (const result of results) {
+    console.log(`  ${result.ok ? "✓" : "✗"} ${result.job.padEnd(14)} ${result.label}`);
+  }
+  if (failed.length > 0) {
+    console.error(
+      `\n${failed.length}/${ran} steps failed. Fix and re-run \`npm run check:release\` before promotion.`,
+    );
+    return false;
+  } else {
+    console.log(
+      `\nAll ${ran} steps passed. Full release qualification (check:ci + Chromium E2E) is complete. ` +
+        "WebKit smoke (`npm run test:e2e:webkit`) remains an opt-in periodic check, not a " +
+        "release gate; see apps/web/e2e/fixtures/README.md.",
+    );
+  }
+
+  if (inputs) {
+    try {
+      await recordQualification({ root, inputs, manifest, startedAt });
+      console.log("Saved reusable qualification evidence (valid for four hours from gate start).");
+    } catch (error) {
+      console.error(`Cannot record release qualification: ${error.message}`);
+      return false;
+    }
+  }
+  return true;
 }
 
-const failed = results.filter((result) => !result.ok);
-const ran = results.length;
-
-console.log("\nRelease qualification summary:");
-for (const result of results) {
-  console.log(`  ${result.ok ? "✓" : "✗"} ${result.job.padEnd(14)} ${result.label}`);
-}
-if (failed.length > 0) {
-  console.error(
-    `\n${failed.length}/${ran} steps failed. Fix and re-run \`npm run check:release\` before promotion.`,
-  );
-  process.exitCode = 1;
-} else {
-  console.log(
-    `\nAll ${ran} steps passed. Full release qualification (check:ci + Chromium E2E) is complete. ` +
-      "WebKit smoke (`npm run test:e2e:webkit`) remains an opt-in periodic check, not a " +
-      "release gate; see apps/web/e2e/fixtures/README.md.",
-  );
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  try {
+    if (!(await checkRelease())) process.exitCode = 1;
+  } catch (error) {
+    console.error(error.message);
+    process.exitCode = 1;
+  }
 }

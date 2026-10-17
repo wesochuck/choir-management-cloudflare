@@ -179,7 +179,8 @@ Before finishing a material or release-bound change, report:
   deployed secrets in Worker secret stores, never tracked files.
 - The sole permanent-staging release path is the guarded local command
   `npm run deploy:staging -- --yes`. It must run from a clean `main` checkout that exactly matches
-  `origin/main`, execute the complete local release gate, create and verify one immutable artifact
+  `origin/main`, execute the complete local release gate or verify matching local qualification
+  evidence under ADR 0051 (at most four hours old), create and verify one immutable artifact
   containing commit, lockfile, Worker bundle, and web asset hashes, and retain the prior Worker
   Version for rollback. Follow `docs/runbooks/staging-deployment.md`.
 - GitHub Actions is disabled for this repository. Release checks run locally through

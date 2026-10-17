@@ -56,7 +56,7 @@ function assertCommitSha(commitSha) {
   }
 }
 
-export async function createReleaseManifest(root, commitSha) {
+export async function collectReleaseManifest(root, commitSha) {
   assertCommitSha(commitSha);
   const lockfile = resolve(root, lockfilePath);
   const manifest = {
@@ -75,6 +75,11 @@ export async function createReleaseManifest(root, commitSha) {
     manifest.artifacts[directory] = files;
   }
 
+  return manifest;
+}
+
+export async function createReleaseManifest(root, commitSha) {
+  const manifest = await collectReleaseManifest(root, commitSha);
   await writeFile(
     resolve(root, manifestName),
     `${JSON.stringify(manifest, undefined, 2)}\n`,
@@ -87,9 +92,10 @@ function sameFiles(expected, actual) {
   return JSON.stringify(expected) === JSON.stringify(actual);
 }
 
-export async function verifyReleaseManifest(root, expectedCommitSha) {
+export async function verifyReleaseManifest(root, expectedCommitSha, suppliedManifest) {
   assertCommitSha(expectedCommitSha);
-  const manifest = JSON.parse(await readFile(resolve(root, manifestName), "utf8"));
+  const manifest =
+    suppliedManifest ?? JSON.parse(await readFile(resolve(root, manifestName), "utf8"));
 
   if (manifest.schemaVersion !== 1) throw new Error("Unsupported release manifest schema.");
   if (manifest.commitSha !== expectedCommitSha) {
