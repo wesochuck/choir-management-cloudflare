@@ -49,8 +49,6 @@ test("section-only structure saves from Roster Settings and drives member assign
   await expect(page.getByText(/On save, members assigned to parts/)).toBeVisible();
   await page.locator(".floating-save-bar").getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator(".floating-save-bar")).not.toBeVisible();
-  await page.reload();
-  await page.getByRole("tab", { name: "Settings", exact: true }).click();
   await expect(page.getByLabel("Assign members by")).toHaveValue("sections_only");
   await expect(page.getByRole("button", { name: "Add part", exact: true })).not.toBeVisible();
   for (const theme of ["light", "dark"]) {
@@ -78,6 +76,18 @@ test("section-only structure saves from Roster Settings and drives member assign
   await expect(page.getByRole("button", { name: "Add part", exact: true })).toBeVisible();
   await page.locator(".floating-save-bar").getByRole("button", { name: "Save changes" }).click();
   await expect(page.locator(".floating-save-bar")).not.toBeVisible();
+  await page.getByRole("tab", { name: "Roster", exact: true }).click();
+  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  await expect(dialog.getByLabel("Part", { exact: true })).toHaveValue("F");
+  await expect(dialog.getByLabel("Part", { exact: true }).locator("option")).toHaveText([
+    "No part",
+    "Flute (F)",
+    "Trumpet (TR)",
+  ]);
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.reload();
+  await page.getByRole("button", { name: "Edit", exact: true }).first().click();
+  await expect(dialog.getByLabel("Part", { exact: true })).toHaveValue("F");
 });
 
 test("the final unassigned part offers a direct switch to sections only", async ({ page }) => {

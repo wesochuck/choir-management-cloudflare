@@ -16,9 +16,11 @@ import {
 export function RosterConfigurationDraftProvider({
   children,
   enabled,
+  onConfigurationSaved,
 }: {
   readonly children: ReactNode;
   readonly enabled: boolean;
+  readonly onConfigurationSaved?: (configuration: OrganizationRosterConfiguration) => void;
 }) {
   const { setPerformerLabel, setRosterStructure } = useOrganizationTerminology();
   const [initialConfig, setInitialConfig] = useState<OrganizationRosterConfiguration | null>(null);
@@ -31,6 +33,7 @@ export function RosterConfigurationDraftProvider({
     onSaveSuccess: (saved) => {
       setPerformerLabel(saved.performerLabel);
       setRosterStructure?.(saved.rosterStructure ?? "sections_with_parts");
+      onConfigurationSaved?.(saved);
       void refreshProfiles();
     },
     resourceKey: "organization-roster-configuration",

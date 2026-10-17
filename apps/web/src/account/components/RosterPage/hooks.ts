@@ -2,6 +2,7 @@ import type {
   OrganizationProfile,
   OrganizationProfileFolderNumber,
   OrganizationProfileRequest,
+  OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { organizationInvitationRequestSchema } from "@choir/contracts";
 import {
@@ -26,6 +27,7 @@ import {
   rosterCsvColumnForHeader,
   type CsvColumnMapping,
   type RosterCsvInspection,
+  rosterAssignmentConversion,
 } from "@choir/domain";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -810,6 +812,28 @@ export function useRosterPageController({
     editingId && roster.status === "ready"
       ? (roster.profiles.find((candidate) => candidate.id === editingId) ?? null)
       : null;
+  function applyRosterConfiguration(configuration: OrganizationRosterConfiguration): void {
+    setRoster((current) => {
+      if (current.status !== "ready") return current;
+      const assignments = rosterAssignmentConversion(current.configuration, configuration);
+      return {
+        ...current,
+        configuration,
+        profiles: current.profiles.map((candidate) => {
+          const voicePart = assignments.get(candidate.voicePart) ?? candidate.voicePart;
+          return voicePart === candidate.voicePart ? candidate : { ...candidate, voicePart };
+        }),
+      };
+    });
+    if (
+      roster.status === "ready" &&
+      (roster.configuration.rosterStructure ?? "sections_with_parts") !==
+        (configuration.rosterStructure ?? "sections_with_parts")
+    ) {
+      setSelectedVoiceFilters([]);
+    }
+  }
+
   async function refreshRoster() {
     try {
       const [profiles, memberships] = await Promise.all([
@@ -827,6 +851,7 @@ export function useRosterPageController({
   }
 
   return {
+    applyRosterConfiguration,
     archiveProfile,
     baselineFolderNumbers,
     busy,

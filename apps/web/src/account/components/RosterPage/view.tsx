@@ -183,7 +183,10 @@ export function RosterPageView({
     return <OrganizationMfaPrompt message="Verify Organization MFA to manage the roster." />;
   }
   return (
-    <RosterConfigurationDraftProvider enabled={enabled}>
+    <RosterConfigurationDraftProvider
+      enabled={enabled}
+      onConfigurationSaved={model.applyRosterConfiguration}
+    >
       <Tabs onValueChange={setActiveTab} value={activeTab}>
         <TabsList aria-label="Roster sections" as="nav" className="ticketing-tabs roster-page-tabs">
           <TabsTrigger
