@@ -1,3 +1,4 @@
+import { ensureTicketSlug } from "../ticketSlugs";
 import type { z } from "zod";
 
 import type { deleteBundleOperationSchema, upsertBundleOperationSchema } from "./contracts";
@@ -33,6 +34,7 @@ export function upsertTicketBundle(
   }
   const occurredAt = new Date().toISOString();
   storage.transactionSync(() => {
+    ensureTicketSlug(storage.sql, "bundle", operation.bundleId, operation.bundle.title);
     storage.sql.exec(
       `INSERT INTO ticket_bundles
         (id, title, price_cents, capacity, public_graphic_file_id, sale_end_at, is_active, created_at, updated_at)

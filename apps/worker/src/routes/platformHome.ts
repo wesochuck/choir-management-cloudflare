@@ -1,3 +1,4 @@
+import { ticketSalesPath } from "@choir/domain";
 import {
   MAX_PLATFORM_HOME_TICKET_LISTINGS,
   platformHomeTicketListingsResponseSchema,
@@ -193,7 +194,7 @@ async function fetchOrganizationTicketListings(
         eventId: performance.id,
         organizationName: orgName,
         startsAt: performance.startsAt,
-        ticketsUrl: `https://${org.hostname}/tickets/${performance.id}`,
+        ticketsUrl: `https://${org.hostname}${ticketSalesPath(performance)}`,
         timezone,
         title: performance.title,
         venueName: performance.venueName || "",

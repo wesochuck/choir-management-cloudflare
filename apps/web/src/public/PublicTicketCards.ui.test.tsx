@@ -297,3 +297,86 @@ describe("TicketsContent whole-card purchase navigation", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("readable ticket URLs", () => {
+  const namedProjection: PublishedOrganizationProjection = {
+    ...projection,
+    payload: {
+      ...projection.payload,
+      performances: projection.payload.performances.map((event) => ({
+        ...event,
+        ticketSlug: "spring-concert",
+      })),
+      ticketBundles: projection.payload.ticketBundles.map((bundle) => ({
+        ...bundle,
+        ticketSlug: "season-pass",
+      })),
+    },
+  };
+
+  it("generates readable concert and bundle links", () => {
+    render(
+      <TicketsContent
+        feeSettings={feeSettings}
+        nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+        pathname="/tickets"
+        projection={namedProjection}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "Buy tickets" })).toHaveAttribute(
+      "href",
+      "/tickets/spring-concert",
+    );
+    expect(screen.getByRole("link", { name: "Buy pass" })).toHaveAttribute(
+      "href",
+      "/tickets/bundles/season-pass",
+    );
+  });
+
+  it.each(["/tickets/spring-concert", "/tickets/event-ticket-card"])(
+    "opens the same performance using %s",
+    (pathname) => {
+      render(
+        <TicketsContent
+          feeSettings={feeSettings}
+          nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+          pathname={pathname}
+          projection={namedProjection}
+        />,
+      );
+      expect(
+        screen.getByRole("heading", { name: projection.payload.performances[0]?.title ?? "" }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /All tickets/ })).toBeInTheDocument();
+    },
+  );
+
+  it.each(["/tickets/bundles/season-pass", "/tickets/bundles/bundle-ticket-card"])(
+    "opens the same bundle using %s",
+    (pathname) => {
+      render(
+        <TicketsContent
+          feeSettings={feeSettings}
+          nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+          pathname={pathname}
+          projection={namedProjection}
+        />,
+      );
+      expect(screen.getByRole("heading", { name: "Season Pass" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: /All tickets/ })).toBeInTheDocument();
+    },
+  );
+
+  it("does not fall back to a different sale for unknown names", () => {
+    render(
+      <TicketsContent
+        feeSettings={feeSettings}
+        nowMs={new Date("2026-09-20T00:00:00Z").getTime()}
+        pathname="/tickets/missing-concert"
+        projection={namedProjection}
+      />,
+    );
+    expect(screen.getByText("Ticket sales are closed for this performance.")).toBeInTheDocument();
+    expect(screen.queryByRole("article")).not.toBeInTheDocument();
+  });
+});

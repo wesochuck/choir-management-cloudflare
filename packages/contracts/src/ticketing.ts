@@ -278,6 +278,13 @@ export const ticketBundleRequestSchema = z.object({
 });
 
 export const ticketBundleSchema = ticketBundleRequestSchema.extend({
+  ticketSlug: z
+    .string()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+    .nullable()
+    .optional(),
   createdAt: z.iso.datetime(),
   id: z.uuid(),
   updatedAt: z.iso.datetime(),
@@ -289,6 +296,13 @@ export const ticketBundlesResponseSchema = z.object({
 });
 
 export const publicTicketBundleSchema = z.object({
+  ticketSlug: z
+    .string()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+    .nullable()
+    .optional(),
   capacity: z.number().int().positive().nullable(),
   eventIds: z.array(z.uuid()).min(1).max(100),
   graphicFileId: z.uuid().nullable().default(null),

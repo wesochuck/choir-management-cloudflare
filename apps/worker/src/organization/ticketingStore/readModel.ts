@@ -1,3 +1,4 @@
+import { readTicketSlug } from "../ticketSlugs";
 import { discountCodeSchema, ticketBundleSchema } from "@choir/contracts";
 import { z } from "zod";
 
@@ -179,6 +180,7 @@ export function bundleResult(storage: DurableObjectStorage, row: TicketBundleRow
   return ticketBundleSchema.parse({
     ...row,
     eventIds: bundleEventIds(storage, row.id),
+    ticketSlug: readTicketSlug(storage.sql, "bundle", row.id),
     isActive: row.isActive === 1,
     publicGraphicFileId: row.publicGraphicFileId ?? null,
   });

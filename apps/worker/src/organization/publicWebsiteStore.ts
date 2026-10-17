@@ -180,7 +180,9 @@ export function readPublicCommerceProjectionFromStore(
   }
   const performances = storage.sql
     .exec<PublicEventRow>(
-      `SELECT e.id, e.title, e.starts_at AS startsAt, e.location,
+      `SELECT e.id, e.title,
+        (SELECT slug FROM ticket_url_names WHERE kind = 'performance' AND resource_id = e.id) AS ticketSlug,
+        e.starts_at AS startsAt, e.location,
         e.advance_price_cents AS advancePriceCents,
         e.day_of_price_cents AS dayOfPriceCents, e.doors_open_time AS doorsOpenTime,
         e.is_ticketing_enabled AS isTicketingEnabled, e.ticket_capacity AS ticketCapacity,
@@ -195,7 +197,9 @@ export function readPublicCommerceProjectionFromStore(
   const performanceIds = new Set(performances.map(({ id }) => id));
   const ticketBundles = storage.sql
     .exec<PublicTicketBundleRow>(
-      `SELECT id, title, price_cents AS priceCents, capacity, sale_end_at AS saleEndAt,
+      `SELECT id, title,
+        (SELECT slug FROM ticket_url_names WHERE kind = 'bundle' AND resource_id = ticket_bundles.id) AS ticketSlug,
+        price_cents AS priceCents, capacity, sale_end_at AS saleEndAt,
         public_graphic_file_id AS graphicFileId
        FROM ticket_bundles WHERE is_active = 1 ORDER BY created_at DESC, id DESC LIMIT 100`,
     )
@@ -316,7 +320,9 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
   const settings = parsedSettings(row, organization.name);
   const performances = storage.sql
     .exec<PublicEventRow>(
-      `SELECT e.id, e.title, e.starts_at AS startsAt, e.location,
+      `SELECT e.id, e.title,
+        (SELECT slug FROM ticket_url_names WHERE kind = 'performance' AND resource_id = e.id) AS ticketSlug,
+        e.starts_at AS startsAt, e.location,
         e.advance_price_cents AS advancePriceCents,
         e.day_of_price_cents AS dayOfPriceCents, e.doors_open_time AS doorsOpenTime,
         e.is_ticketing_enabled AS isTicketingEnabled, e.ticket_capacity AS ticketCapacity,
@@ -331,7 +337,9 @@ function beginPublication(storage: DurableObjectStorage, organization: IdentityR
   const publicEventIds = new Set(performances.map(({ id }) => id));
   const ticketBundles = storage.sql
     .exec<PublicTicketBundleRow>(
-      `SELECT id, title, price_cents AS priceCents, capacity, sale_end_at AS saleEndAt,
+      `SELECT id, title,
+        (SELECT slug FROM ticket_url_names WHERE kind = 'bundle' AND resource_id = ticket_bundles.id) AS ticketSlug,
+        price_cents AS priceCents, capacity, sale_end_at AS saleEndAt,
         public_graphic_file_id AS graphicFileId
        FROM ticket_bundles WHERE is_active = 1 ORDER BY created_at DESC, id DESC LIMIT 100`,
     )

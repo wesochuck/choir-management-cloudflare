@@ -19,6 +19,7 @@ const EXPORT_TABLES = [
   "discount_codes",
   "discount_code_redemptions",
   "ticket_bundles",
+  "ticket_url_names",
   "ticket_bundle_events",
   "ticket_bundle_allocations",
   "ticket_notifications",

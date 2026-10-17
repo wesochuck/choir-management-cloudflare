@@ -1,3 +1,4 @@
+import { ticketSalesPath } from "@choir/domain";
 import type { OrganizationEvent, TicketBundle } from "@choir/contracts";
 import { QRCodeShareCard } from "../../QRCodeShareCard";
 import { money } from "./shared";
@@ -28,7 +29,7 @@ export function SharePanel({
             asFieldset
             description={`Tickets for ${event.title}.`}
             key={event.id}
-            path={`/tickets/${event.id}`}
+            path={ticketSalesPath(event)}
             title={event.title}
           />
         ))}
@@ -39,7 +40,7 @@ export function SharePanel({
               asFieldset
               description={`${money(bundle.priceCents)} bundle covering ${String(bundle.eventIds.length)} performance${bundle.eventIds.length === 1 ? "" : "s"}.`}
               key={bundle.id}
-              path={`/tickets/bundles/${bundle.id}`}
+              path={ticketSalesPath(bundle, "bundle")}
               title={bundle.title}
             />
           ))}

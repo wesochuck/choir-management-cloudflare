@@ -1,3 +1,4 @@
+import { ticketSalesPath } from "@choir/domain";
 import type { PublishedOrganizationProjection, TransactionFeeSettings } from "@choir/contracts";
 import { PublicGraphicImage } from "../PublicGraphicImage";
 import { mediaUrl } from "../publicMedia";
@@ -21,18 +22,22 @@ export function TicketsContent({
   const search = new URLSearchParams(window.location.search);
   if (pathname === "/tickets/order/success")
     return <TicketReceipt projection={projection} token={search.get("token") ?? ""} />;
-  const bundleId = /^\/tickets\/bundles\/([0-9a-f-]+)$/i.exec(pathname)?.[1];
+  const bundleId = /^\/tickets\/bundles\/([a-z0-9-]+)$/i.exec(pathname)?.[1];
   if (bundleId) {
-    const bundle = projection.payload.ticketBundles.find((candidate) => candidate.id === bundleId);
+    const bundle = projection.payload.ticketBundles.find(
+      (candidate) => candidate.id === bundleId || candidate.ticketSlug === bundleId,
+    );
     return bundle && new Date(bundle.saleEndAt).getTime() > nowMs ? (
       <TicketBundlePurchaseForm bundle={bundle} feeSettings={feeSettings} projection={projection} />
     ) : (
       <p className="notice notice--error">This ticket bundle is no longer available.</p>
     );
   }
-  const eventId = /^\/tickets\/([0-9a-f-]+)$/i.exec(pathname)?.[1];
+  const eventId = /^\/tickets\/([a-z0-9-]+)$/i.exec(pathname)?.[1];
   if (eventId) {
-    const event = projection.payload.performances.find((candidate) => candidate.id === eventId);
+    const event = projection.payload.performances.find(
+      (candidate) => candidate.id === eventId || candidate.ticketSlug === eventId,
+    );
     return event?.isTicketingEnabled && new Date(event.startsAt).getTime() > nowMs ? (
       <TicketPurchaseForm
         event={event}
@@ -43,6 +48,9 @@ export function TicketsContent({
     ) : (
       <p className="notice notice--error">Ticket sales are closed for this performance.</p>
     );
+  }
+  if (!["/tickets", "/tickets/"].includes(pathname)) {
+    return <p className="notice notice--error">This ticket page is not available.</p>;
   }
   const events = projection.payload.performances
     .filter((event) => event.isTicketingEnabled && new Date(event.startsAt).getTime() > nowMs)
@@ -83,7 +91,7 @@ export function TicketsContent({
                   <p>{money(bundle.priceCents)} per pass</p>
                   <a
                     className="button button--primary ticket-card__link"
-                    href={`/tickets/bundles/${bundle.id}`}
+                    href={ticketSalesPath(bundle, "bundle")}
                   >
                     Buy pass
                   </a>
@@ -136,7 +144,7 @@ export function TicketsContent({
                     <p>From {money(event.advancePriceCents)}</p>
                     <a
                       className="button button--primary ticket-card__link"
-                      href={`/tickets/${event.id}`}
+                      href={ticketSalesPath(event)}
                     >
                       Buy tickets
                     </a>

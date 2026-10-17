@@ -260,6 +260,13 @@ export const publicWebsiteSettingsSchema = publicWebsiteSettingsRequestSchema.ex
 });
 
 export const publicPerformanceSchema = z.object({
+  ticketSlug: z
+    .string()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+    .nullable()
+    .optional(),
   advancePriceCents: z.number().int().nonnegative(),
   dayOfPriceCents: z.number().int().nonnegative(),
   doorsOpenTime: z.string().max(5),

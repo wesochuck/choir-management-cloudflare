@@ -4,6 +4,13 @@ import { organizationEventFieldsSchema, organizationSetListItemSchema } from "./
 export const organizationEventSchema = organizationEventFieldsSchema.and(
   z.object({
     createdAt: z.iso.datetime(),
+    ticketSlug: z
+      .string()
+      .min(1)
+      .max(120)
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .nullable()
+      .optional(),
     id: z.uuid(),
     isCanceled: z.boolean().default(false),
     rsvpDeadlineAt: z.iso.datetime().nullable().default(null),

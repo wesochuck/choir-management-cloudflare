@@ -1,3 +1,4 @@
+import { ensureTicketSlug, readTicketSlug } from "../ticketSlugs";
 import { isValidTimeZone } from "@choir/domain";
 
 import { decorateEventWithRsvpDeadline } from "../statusAutomationStore";
@@ -125,6 +126,8 @@ export function writeEvent(
     return Response.json({ code: "event_not_found" }, { status: 404 });
   }
   storage.transactionSync(() => {
+    if (event.type === "Performance")
+      ensureTicketSlug(storage.sql, "performance", event.id, event.title);
     if (operation.action === "create_event") {
       storage.sql.exec(
         `INSERT INTO events
@@ -271,6 +274,7 @@ export function writeEvent(
     .one().timezone;
   return Response.json({
     ...event,
+    ticketSlug: readTicketSlug(storage.sql, "performance", event.id),
     isCanceled: isCanceled === 1,
     ...decorateEventWithRsvpDeadline(
       { ...event, isCanceled: isCanceled === 1 },

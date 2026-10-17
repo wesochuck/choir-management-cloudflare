@@ -1,3 +1,4 @@
+import { ensureTicketSlug } from "../ticketSlugs";
 import {
   calculateRsvpDeadline,
   datePartInTimeZone,
@@ -1957,6 +1958,35 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
         ) WHERE id = OLD.parent_id;
       END`,
     ],
+  },
+  {
+    version: 113,
+    statements: [
+      `CREATE TABLE ticket_url_names (
+        kind TEXT NOT NULL CHECK (kind IN ('performance', 'bundle')),
+        resource_id TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        base TEXT NOT NULL,
+        suffix INTEGER NOT NULL CHECK (suffix >= 1),
+        PRIMARY KEY (kind, resource_id),
+        UNIQUE (kind, slug),
+        UNIQUE (kind, base, suffix)
+      ) STRICT`,
+    ],
+    apply(sql) {
+      for (const row of sql
+        .exec<{ id: string; title: string }>(
+          "SELECT id, title FROM events WHERE type = 'Performance' ORDER BY created_at, id",
+        )
+        .toArray())
+        ensureTicketSlug(sql, "performance", row.id, row.title);
+      for (const row of sql
+        .exec<{ id: string; title: string }>(
+          "SELECT id, title FROM ticket_bundles ORDER BY created_at, id",
+        )
+        .toArray())
+        ensureTicketSlug(sql, "bundle", row.id, row.title);
+    },
   },
 ] as const;
 

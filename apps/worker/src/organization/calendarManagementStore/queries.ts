@@ -1,3 +1,4 @@
+import { readTicketSlug } from "../ticketSlugs";
 import { otherEventAudienceSchema, type OtherEventAudience } from "@choir/contracts";
 import { z } from "zod";
 
@@ -76,6 +77,7 @@ export function listOrganizationEventsFromStore(
       doorsOpenTime: event.doorsOpenTime,
       durationMinutes: event.durationMinutes,
       id: event.id,
+      ticketSlug: readTicketSlug(storage.sql, "performance", event.id),
       isCanceled: event.isCanceled === 1,
       isTicketingEnabled: event.isTicketingEnabled === 1,
       location: event.location,

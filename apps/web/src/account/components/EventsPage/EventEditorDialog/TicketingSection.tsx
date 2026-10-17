@@ -1,3 +1,4 @@
+import { ticketSalesPath } from "@choir/domain";
 import type { OrganizationEventRequest } from "@choir/contracts";
 import { TabsContent } from "@choir/ui";
 import type { Dispatch, SetStateAction } from "react";
@@ -171,7 +172,13 @@ export function TicketingSection({
                 <>
                   <QRCodeShareCard
                     description={`Tickets for ${event.title}.`}
-                    path={`/tickets/${editingId}`}
+                    path={ticketSalesPath({
+                      id: editingId,
+                      ticketSlug:
+                        state.status === "ready"
+                          ? state.events.find((saved) => saved.id === editingId)?.ticketSlug
+                          : null,
+                    })}
                     title={`${event.title} tickets`}
                   />
                   {isPastEvent ? (

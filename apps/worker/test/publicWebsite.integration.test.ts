@@ -197,7 +197,9 @@ describe("Organization public website", () => {
       expect(projection).toMatchObject({
         organizationId: "organization-alpha",
         payload: {
-          performances: [{ id: performance.id, title: "Winter Concert" }],
+          performances: [
+            { id: performance.id, title: "Winter Concert", ticketSlug: "winter-concert" },
+          ],
           settings: { heroHeadline: "Alpha sings" },
         },
         version: 1,
