@@ -33,6 +33,13 @@ const projection = publishedOrganizationProjectionSchema.parse({
     performances: [
       {
         ...performance,
+        id: freeId,
+        title: "Free Community Concert",
+        isTicketingEnabled: false,
+        startsAt: futureIsoDate({ days: 1 }),
+      },
+      {
+        ...performance,
         id: firstId,
         title: "Winter Concert",
         ticketSlug: "winter-concert",
@@ -40,7 +47,6 @@ const projection = publishedOrganizationProjectionSchema.parse({
         publicDetails: "[Program notes](https://partner.example.test/notes)",
       },
       { ...performance, id: legacyId, title: "Legacy Concert", ticketSlug: null },
-      { ...performance, id: freeId, title: "Free Community Concert", isTicketingEnabled: false },
     ],
   },
 });
@@ -73,6 +79,11 @@ for (const pathname of ["/", "/performances"] as const) {
           route.fulfill({ contentType: "text/html", body: "Program notes" }),
         );
       await page.goto(pathname);
+      await expect(page.locator(".public-performance-card h3")).toHaveText([
+        "Winter Concert",
+        "Legacy Concert",
+        "Free Community Concert",
+      ]);
       const card = page.locator(`#performance-${firstId}`);
       const title = card.getByRole("link", { name: "Winter Concert", exact: true });
       await expect(title).toHaveAttribute("href", "/tickets/winter-concert");

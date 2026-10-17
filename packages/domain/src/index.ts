@@ -376,3 +376,5 @@ export { availableTicketBundlesForEvent } from "./ticketing";
 export { coverImageOverflow, shiftCoverImagePosition } from "./imagePosition";
 
 export { eventWebsiteVisibility } from "./eventWebsiteVisibility";
+
+export { prioritizeTicketedPerformances } from "./performanceOrdering";

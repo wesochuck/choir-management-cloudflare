@@ -1,6 +1,6 @@
 import { publicPageHeading, publicPageNavigationLabel } from "./publicPageLabels";
 import type { PublishedOrganizationProjection } from "@choir/contracts";
-import { ticketSalesPath } from "@choir/domain";
+import { prioritizeTicketedPerformances, ticketSalesPath } from "@choir/domain";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 
 import { getPublishedOrganizationProjection } from "../auth/api";
@@ -217,9 +217,11 @@ function OrganizationHome({
 }) {
   const { performances, settings } = projection.payload;
   const now = new Date(projection.generatedAt).getTime();
-  const upcoming = performances
-    .filter(({ startsAt }) => new Date(startsAt).getTime() >= now)
-    .toSorted((left, right) => left.startsAt.localeCompare(right.startsAt));
+  const upcoming = prioritizeTicketedPerformances(
+    performances
+      .filter(({ startsAt }) => new Date(startsAt).getTime() >= now)
+      .toSorted((left, right) => left.startsAt.localeCompare(right.startsAt)),
+  );
   const past = performances
     .filter(({ startsAt }) => new Date(startsAt).getTime() < now)
     .slice(0, 3);
@@ -338,7 +340,7 @@ function OrganizationPerformances({
         {hasPerformances ? (
           <PerformanceCards
             linkToDetails
-            performances={projection.payload.performances}
+            performances={prioritizeTicketedPerformances(projection.payload.performances)}
             projection={projection}
           />
         ) : (

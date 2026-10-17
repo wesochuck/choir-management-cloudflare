@@ -49,6 +49,52 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
     vi.mocked(authApi.getPublishedOrganizationProjection).mockReset();
   });
 
+  it.each(["/", "/performances"])(
+    "prioritizes ticketed cards on %s before the homepage limit",
+    async (pathname) => {
+      const projection = createProjection();
+      const performances = [
+        { title: "First free appearance", days: 1, isTicketingEnabled: false },
+        { title: "Second free appearance", days: 2, isTicketingEnabled: false },
+        { title: "Third free appearance", days: 3, isTicketingEnabled: false },
+        { title: "Next ticketed concert", days: 30, isTicketingEnabled: true },
+        { title: "Later ticketed concert", days: 60, isTicketingEnabled: true },
+      ].map(({ days, ...event }) => ({
+        ...event,
+        id: `performance-${String(days)}`,
+        startsAt: new Date(Date.parse(projection.generatedAt) + days * 86_400_000).toISOString(),
+        advancePriceCents: 1500,
+        dayOfPriceCents: 2000,
+        doorsOpenTime: "",
+        graphicFileId: null,
+        location: "",
+        publicDetails: "",
+        ticketCapacity: null,
+        venueAddress: "",
+        venueName: "",
+      }));
+      vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(
+        createProjection({ performances }),
+      );
+      render(<PublicOrganizationSite fallback={<p>Fallback</p>} pathname={pathname} />);
+      await screen.findByRole("heading", {
+        name: pathname === "/" ? "Upcoming Performances" : "Performances",
+      });
+      const expected = [
+        "Next ticketed concert",
+        "Later ticketed concert",
+        "First free appearance",
+        "Second free appearance",
+        "Third free appearance",
+      ];
+      expect(
+        screen
+          .getAllByRole("article")
+          .map((card) => within(card).getByRole("heading", { level: 3 }).textContent),
+      ).toEqual(pathname === "/" ? expected.slice(0, 3) : expected);
+    },
+  );
+
   it("suppresses Performances and History navigation links when no content has been published", async () => {
     vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(createProjection());
 
