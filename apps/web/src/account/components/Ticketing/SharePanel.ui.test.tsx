@@ -7,9 +7,6 @@ import "@testing-library/jest-dom/vitest";
 import { generateQRCodeDataUrl } from "../../../shared/qrCode";
 import { SharePanel } from "./SharePanel";
 
-vi.mock("../../../auth/api", () => ({
-  getOrganizationPublicWebsiteSettings: vi.fn().mockResolvedValue({ logoFileId: null }),
-}));
 vi.mock("../../../shared/qrCode", () => ({
   generateQRCodeDataUrl: vi.fn().mockResolvedValue("data:image/png;base64,cXI="),
 }));

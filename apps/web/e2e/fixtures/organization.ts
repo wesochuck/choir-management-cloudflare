@@ -53,6 +53,7 @@ export async function installWorkspaceExtras(
   options: { organizationId?: string } = {},
 ): Promise<void> {
   const organizationId = options.organizationId ?? organizationAlphaId;
+  await page.route("**/api/public/logo", (route) => route.fulfill({ status: 404 }));
   await page.route("**/api/organization/branding", async (route) => {
     await fulfillJson(route, { logoFileId: null, organizationName: "Alpha Choir" });
   });

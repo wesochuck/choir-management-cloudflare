@@ -1,8 +1,6 @@
 import { timestampedExportFilename } from "@choir/domain";
 import { useEffect, useMemo, useState } from "react";
 
-import { getOrganizationPublicWebsiteSettings } from "../auth/api";
-
 interface QRCodeShareCardProps {
   readonly asFieldset?: boolean;
   readonly description: string;
@@ -19,21 +17,6 @@ function safeFileName(title: string): string {
   );
 }
 
-const organizationLogoUrlPromises = new Map<string, Promise<string | null>>();
-
-function getOrganizationLogoUrl(): Promise<string | null> {
-  const hostname = typeof window === "undefined" ? "localhost" : window.location.hostname;
-  const existing = organizationLogoUrlPromises.get(hostname);
-  if (existing) return existing;
-  const request = getOrganizationPublicWebsiteSettings()
-    .then(({ logoFileId }) =>
-      logoFileId ? `/api/organization/files/${encodeURIComponent(logoFileId)}` : null,
-    )
-    .catch(() => null);
-  organizationLogoUrlPromises.set(hostname, request);
-  return request;
-}
-
 import { generateQRCodeDataUrl } from "../shared/qrCode";
 
 export function QRCodeShareCard({
@@ -48,7 +31,6 @@ export function QRCodeShareCard({
     | null
   >(null);
   const [copied, setCopied] = useState(false);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const absoluteUrl = useMemo(() => {
     const origin = typeof window === "undefined" ? "http://localhost" : window.location.origin;
     return new URL(path, origin).toString();
@@ -56,19 +38,8 @@ export function QRCodeShareCard({
 
   useEffect(() => {
     let active = true;
-    void getOrganizationLogoUrl().then((nextLogoUrl) => {
-      if (active) setLogoUrl(nextLogoUrl);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
     generateQRCodeDataUrl({
       errorCorrectionLevel: "H",
-      logoUrl,
       margin: 2,
       payload: absoluteUrl,
       width: 512,
@@ -82,7 +53,7 @@ export function QRCodeShareCard({
     return () => {
       active = false;
     };
-  }, [absoluteUrl, logoUrl]);
+  }, [absoluteUrl]);
 
   const qrCodeUrl = qrCode?.path === absoluteUrl && "dataUrl" in qrCode ? qrCode.dataUrl : null;
   const generationError = qrCode?.path === absoluteUrl && "error" in qrCode;

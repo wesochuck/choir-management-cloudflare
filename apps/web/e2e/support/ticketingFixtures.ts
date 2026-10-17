@@ -355,6 +355,7 @@ export function routeProjection(page: Page) {
 }
 
 export async function routePublicBasics(page: Page) {
+  await page.route("**/api/public/logo", (route) => route.fulfill({ status: 404 }));
   await routeHealth(page);
   await routeAnonymousSession(page);
   await routeProjection(page);
