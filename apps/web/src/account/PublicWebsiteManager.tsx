@@ -132,13 +132,15 @@ function WebsiteReadinessChecklist({
       : "Standard (Performances & History appear when published)";
 
   return (
-    <section aria-label="Website publication readiness" className="panel">
-      <h2>Website publication readiness</h2>
-      <p className="field-help">
-        {versionText}
-        {dirty ? " You have unsaved changes in your draft." : ""}
-      </p>
-      <ul className="bullet-list">
+    <section aria-label="Website publication readiness" className="panel website-readiness">
+      <header className="website-readiness__header">
+        <h2>Website publication readiness</h2>
+        <p className="field-help website-readiness__status">
+          {versionText}
+          {dirty ? " You have unsaved changes in your draft." : ""}
+        </p>
+      </header>
+      <ul className="website-readiness__items">
         <li>
           <strong>About Us:</strong>{" "}
           {draft.aboutUsText.trim() ? "Draft ready" : "Empty (omitted from home page)"}
@@ -159,7 +161,7 @@ function WebsiteReadinessChecklist({
           <strong>Navigation:</strong> {navigationSummary}
         </li>
       </ul>
-      <p className="field-help">
+      <p className="field-help website-readiness__guidance">
         Saving updates your administrative draft. Edits do not appear on your public website until
         you click <strong>Publish saved draft</strong>. Public navigation links (Performances and
         History) are hidden automatically whenever no published content exists for that section.

@@ -1,7 +1,8 @@
 import type { OrganizationEvent, TicketBundle } from "@choir/contracts";
-import { Dialog, DialogClose } from "@choir/ui";
+import { Dialog, DialogClose, useConfirmation } from "@choir/ui";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -9,7 +10,7 @@ import {
   type SetStateAction,
   type SyntheticEvent,
 } from "react";
-import { money } from "./shared";
+import { BundleCard } from "./BundleCard";
 
 const allowedGraphicTypes = ["image/jpeg", "image/png", "image/webp"];
 const maxGraphicBytes = 5 * 1024 * 1024;
@@ -226,19 +227,33 @@ export function BundlePanel({
   readonly setBundleTitle: Dispatch<SetStateAction<string>>;
   readonly ticketEvents: readonly OrganizationEvent[];
 }) {
+  const eventsById = useMemo(
+    () => new Map(ticketEvents.map((event) => [event.id, event])),
+    [ticketEvents],
+  );
+  const { confirm, confirmationDialog } = useConfirmation();
+  async function confirmRemoval(bundle: TicketBundle) {
+    const approved = await confirm({
+      title: `Delete ${bundle.title}?`,
+      description:
+        "This removes the ticket bundle. Bundles with orders cannot be deleted; edit or deactivate them instead.",
+      confirmLabel: "Delete bundle",
+      destructive: true,
+    });
+    if (approved) await removeBundle(bundle.id);
+  }
   return (
-    <div
-      aria-labelledby="ticketing-bundles-tab"
-      className="split-panel"
-      id="ticketing-bundles-panel"
-      role="tabpanel"
-    >
-      <div>
-        <h3>Ticket bundles</h3>
+    <div className="ticket-bundles-panel">
+      {confirmationDialog}
+      <header className="ticket-bundles-panel__header">
+        <div>
+          <h3>Season bundles</h3>
+          <p>Bring your concerts together in one easy-to-share pass.</p>
+        </div>
         <button className="button button--primary" onClick={openNewBundle} type="button">
           New ticket bundle
         </button>
-      </div>
+      </header>
       <Dialog
         description="Set pricing, capacity, sale timing, and included performances."
         onClose={closeBundleDialog}
@@ -359,45 +374,32 @@ export function BundlePanel({
           </div>
         </form>
       </Dialog>
-      <div>
-        {bundles.length === 0 ? (
-          <div className="empty-state">
-            <p>No bundles yet.</p>
-            <button className="button button--primary" onClick={openNewBundle} type="button">
-              Create your first bundle
-            </button>
-          </div>
-        ) : null}
-        {bundles.map((bundle) => (
-          <fieldset className="compact-card" key={bundle.id}>
-            <legend>{bundle.title}</legend>
-            <p>
-              {money(bundle.priceCents)} · {bundle.eventIds.length} performance
-              {bundle.eventIds.length === 1 ? "" : "s"} · {bundle.isActive ? "active" : "inactive"}
-            </p>
-            <div className="form-actions">
-              <button
-                className="text-button"
-                disabled={busy}
-                onClick={() => {
-                  editBundle(bundle);
-                }}
-                type="button"
-              >
-                Edit
-              </button>
-              <button
-                className="text-button text-button--danger"
-                disabled={busy}
-                onClick={() => void removeBundle(bundle.id)}
-                type="button"
-              >
-                Delete
-              </button>
-            </div>
-          </fieldset>
-        ))}
-      </div>
+      {bundles.length === 0 ? (
+        <div className="ticket-bundles-panel__empty">
+          <h4>Your season starts here</h4>
+          <p>
+            Group ticketed performances into a single pass, set a price, and share it with your
+            audience.
+          </p>
+        </div>
+      ) : (
+        <div className="ticket-bundles-panel__grid">
+          {bundles.map((bundle) => (
+            <BundleCard
+              bundle={bundle}
+              busy={busy}
+              eventsById={eventsById}
+              key={bundle.id}
+              onEdit={() => {
+                editBundle(bundle);
+              }}
+              onDelete={() => {
+                void confirmRemoval(bundle);
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
