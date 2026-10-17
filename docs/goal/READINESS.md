@@ -7,6 +7,26 @@ Durable Objects, and D1. Legacy parity tracking has been retired (ADR 0049), and
 maintained natively via `scripts/check-routes.mjs` and `scripts/route-probe-plan.mjs`. Permanent
 staging remains the active deployment target; production launch is out of scope.
 
+## Readable ticket URL staging recovery — October 16, 2026
+
+The supplied deployment log for commit `f7e71bdb2649530bc2239ba6c9a3487c9102de54` reports failed
+anonymous public API qualification on both seeded Organization hosts and successful automatic
+rollback to Worker Version `84868cb7-5877-4201-bd5c-83177ae8c79c` (commit `c4a4aac`). The failure is
+reproducible from source: migration 113 backfills its new table before the migration runner executes
+the table-creation statement. Existing populated Organizations fail constructor initialization;
+empty local fixtures had missed this upgrade case.
+
+Forward recovery migration 114 supersedes pending 113, creates the table before backfill, and
+preserves names in Organizations where 113 already applied. Both version markers commit atomically.
+See ADR 0053. Populated-store recovery and already-applied-name preservation pass focused local
+workerd integration tests. `npm run check:ci` passed all 19 steps: 1,822 unit, 748 UI, and 513
+workerd integration tests, plus static gates and artifact build/hash verification. Browser release
+qualification was not rerun because this Worker-only recovery was not promoted. The recovery has not
+been promoted to staging. Read-only direct Worker probes after rollback returned health HTTP 200
+with exact commit `c4a4aac2ae66b823bc855be90e2741a35860cd30` and readiness HTTP 200. Product and
+Organization custom-domain probes returned HTTP 403 from this runner, so those paths were not
+independently requalified.
+
 ## Whole-product staging qualification batch — August 14, 2026
 
 The unified authenticated qualification runner `npm run qualify:staging:all` was executed against

@@ -11,6 +11,13 @@ export function applyOrganizationMigration(
     for (const statement of migration.statements) {
       sql.exec(statement);
     }
+    for (const version of migration.supersedes ?? []) {
+      sql.exec(
+        "INSERT OR IGNORE INTO organization_schema_migrations (version, applied_at) VALUES (?, ?)",
+        version,
+        appliedAt,
+      );
+    }
     sql.exec(
       "INSERT INTO organization_schema_migrations (version, applied_at) VALUES (?, ?)",
       migration.version,
@@ -32,8 +39,11 @@ export function migrateOrganization(storage: DurableObjectStorage): void {
   ];
   const appliedVersions = new Set(appliedRows.map((row) => row.version));
 
+  const supersededVersions = new Set(
+    organizationSchemaMigrations.flatMap((migration) => migration.supersedes ?? []),
+  );
   for (const migration of organizationSchemaMigrations) {
-    if (appliedVersions.has(migration.version)) {
+    if (appliedVersions.has(migration.version) || supersededVersions.has(migration.version)) {
       continue;
     }
     applyOrganizationMigration(storage, migration);

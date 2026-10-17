@@ -1,3 +1,4 @@
+import { applyOrganizationMigration, migrateOrganization } from "../src/organization/migrations";
 import {
   organizationEventSchema,
   organizationEventsResponseSchema,
@@ -25,6 +26,96 @@ beforeEach(setupTicketingIntegration);
 afterEach(teardownTicketingIntegration);
 
 describe("stable Organization ticket URL names", () => {
+  it("recovers a populated v112 store through the real migration runner after v113 fails", async () => {
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      const sql = state.storage.sql;
+      const now = new Date().toISOString();
+      for (const id of ["concert-a", "concert-b"]) {
+        sql.exec(
+          "INSERT INTO events (id, title, type, starts_at, created_at, updated_at) VALUES (?, 'Winter Concert', 'Performance', ?, ?, ?)",
+          id,
+          now,
+          now,
+          now,
+        );
+      }
+      sql.exec(
+        "INSERT INTO ticket_bundles (id, title, price_cents, sale_end_at, created_at, updated_at) VALUES ('old-bundle', 'Season Pass', 1000, ?, ?, ?)",
+        now,
+        now,
+        now,
+      );
+      // Model the deployed populated v112 database, not a fresh empty Object.
+      sql.exec("DROP TABLE ticket_url_names");
+      sql.exec("DELETE FROM organization_schema_migrations WHERE version IN (113, 114)");
+      const broken = organizationSchemaMigrations.find((migration) => migration.version === 113);
+      if (!broken) throw new Error("Missing original migration 113");
+      expect(() => {
+        applyOrganizationMigration(state.storage, broken);
+      }).toThrow(/no such table: ticket_url_names/);
+      expect(
+        sql
+          .exec("SELECT version FROM organization_schema_migrations WHERE version = 113")
+          .toArray(),
+      ).toEqual([]);
+
+      migrateOrganization(state.storage);
+      const names = sql
+        .exec<{ resourceId: string; slug: string }>(
+          "SELECT resource_id AS resourceId, slug FROM ticket_url_names ORDER BY kind, resource_id",
+        )
+        .toArray();
+      expect(names).toEqual([
+        { resourceId: "old-bundle", slug: "season-pass" },
+        { resourceId: "concert-a", slug: "winter-concert" },
+        { resourceId: "concert-b", slug: "winter-concert-2" },
+      ]);
+      expect(
+        sql
+          .exec<{ version: number }>(
+            "SELECT version FROM organization_schema_migrations WHERE version IN (113, 114) ORDER BY version",
+          )
+          .toArray(),
+      ).toEqual([{ version: 113 }, { version: 114 }]);
+      migrateOrganization(state.storage);
+      expect(
+        sql
+          .exec<{ resourceId: string; slug: string }>(
+            "SELECT resource_id AS resourceId, slug FROM ticket_url_names ORDER BY kind, resource_id",
+          )
+          .toArray(),
+      ).toEqual(names);
+      return null;
+    });
+    // A normal public RPC must remain usable after constructor migration recovery.
+    const response = await exports.default.fetch(
+      api("tickets.example.test", "/api/public/transaction-fee-settings"),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("preserves previously allocated v113 names when applying the forward recovery", async () => {
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      const sql = state.storage.sql;
+      const now = new Date().toISOString();
+      sql.exec(
+        "INSERT INTO events (id, title, type, starts_at, created_at, updated_at) VALUES ('saved-concert', 'Renamed Concert', 'Performance', ?, ?, ?)",
+        now,
+        now,
+        now,
+      );
+      ensureTicketSlug(sql, "performance", "saved-concert", "Original Title");
+      sql.exec("DELETE FROM organization_schema_migrations WHERE version = 114");
+      migrateOrganization(state.storage);
+      expect(ensureTicketSlug(sql, "performance", "saved-concert", "Renamed Concert")).toBe(
+        "original-title",
+      );
+      return null;
+    });
+  });
+
   it("persists names across renames, disambiguates duplicates, and projects them publicly", async () => {
     const cookie = await signIn();
     const venueResponse = await jsonWrite(
@@ -152,7 +243,7 @@ describe("stable Organization ticket URL names", () => {
             now,
           );
         }
-        const migration = organizationSchemaMigrations.find((item) => item.version === 113);
+        const migration = organizationSchemaMigrations.find((item) => item.version === 114);
         migration?.apply?.(sql);
         const names = [
           ensureTicketSlug(sql, "performance", "older", "Different Title"),

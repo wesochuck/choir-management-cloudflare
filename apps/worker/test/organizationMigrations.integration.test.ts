@@ -24,6 +24,43 @@ afterEach(async () => {
 });
 
 describe("Organization schema migrations", () => {
+  it("rolls back replacement markers if recording the recovery migration fails", async () => {
+    const stub = stores.getByName("organization-recovery-atomicity");
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      const sql = state.storage.sql;
+      sql.exec(
+        "INSERT INTO organization_schema_migrations (version, applied_at) VALUES (10000, 'original')",
+      );
+      expect(() => {
+        applyOrganizationMigration(state.storage, {
+          version: 10000,
+          supersedes: [9999],
+          statements: ["CREATE TABLE recovery_atomicity_probe (id INTEGER PRIMARY KEY)"],
+        });
+      }).toThrow();
+      expect(
+        sql
+          .exec(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'recovery_atomicity_probe'",
+          )
+          .toArray(),
+      ).toEqual([]);
+      expect(
+        sql
+          .exec("SELECT version FROM organization_schema_migrations WHERE version = 9999")
+          .toArray(),
+      ).toEqual([]);
+      expect(
+        sql
+          .exec<{ appliedAt: string }>(
+            "SELECT applied_at AS appliedAt FROM organization_schema_migrations WHERE version = 10000",
+          )
+          .one().appliedAt,
+      ).toBe("original");
+      return null;
+    });
+  });
+
   it("uses the canonical recipient placeholder in ticket and payment system template defaults", () => {
     for (const template of [...ticketMessageTemplates, ...paymentMessageTemplates]) {
       expect(template.contentMarkdown).toContain("Hi {recipientName}");

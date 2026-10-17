@@ -29,6 +29,8 @@ import {
 
 export interface OrganizationSchemaMigration {
   readonly apply?: (sql: SqlStorage) => void;
+  /** A forward recovery may replace a pending migration without rewriting its applied SQL. */
+  readonly supersedes?: readonly number[];
   readonly statements: readonly string[];
   readonly version: number;
 }
@@ -1974,6 +1976,37 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       ) STRICT`,
     ],
     apply(sql) {
+      for (const row of sql
+        .exec<{ id: string; title: string }>(
+          "SELECT id, title FROM events WHERE type = 'Performance' ORDER BY created_at, id",
+        )
+        .toArray())
+        ensureTicketSlug(sql, "performance", row.id, row.title);
+      for (const row of sql
+        .exec<{ id: string; title: string }>(
+          "SELECT id, title FROM ticket_bundles ORDER BY created_at, id",
+        )
+        .toArray())
+        ensureTicketSlug(sql, "bundle", row.id, row.title);
+    },
+  },
+  {
+    version: 114,
+    supersedes: [113],
+    statements: [],
+    apply(sql) {
+      // v113's hook ran before its CREATE TABLE statement. Populated stores could not
+      // apply it; empty stores could. Recover both states without changing v113.
+      sql.exec(`CREATE TABLE IF NOT EXISTS ticket_url_names (
+        kind TEXT NOT NULL CHECK (kind IN ('performance', 'bundle')),
+        resource_id TEXT NOT NULL,
+        slug TEXT NOT NULL,
+        base TEXT NOT NULL,
+        suffix INTEGER NOT NULL CHECK (suffix >= 1),
+        PRIMARY KEY (kind, resource_id),
+        UNIQUE (kind, slug),
+        UNIQUE (kind, base, suffix)
+      ) STRICT`);
       for (const row of sql
         .exec<{ id: string; title: string }>(
           "SELECT id, title FROM events WHERE type = 'Performance' ORDER BY created_at, id",
