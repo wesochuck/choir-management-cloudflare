@@ -378,6 +378,7 @@ export function PublicOrganizationSite({
   readonly signedIn?: boolean | undefined;
 }) {
   const [state, setState] = useState<ProjectionState>({ status: "loading" });
+  const [retryCount, setRetryCount] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     getPublishedOrganizationProjection(controller.signal)
@@ -392,7 +393,7 @@ export function PublicOrganizationSite({
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [retryCount]);
 
   if (state.status === "loading") {
     return (
@@ -403,7 +404,12 @@ export function PublicOrganizationSite({
       </main>
     );
   }
-  if ((state.status === "error" || state.projection === null) && pathname === "/") {
+  if (
+    state.status === "ready" &&
+    state.projection === null &&
+    pathname === "/" &&
+    fallback != null
+  ) {
     return fallback;
   }
   if (state.status === "error" || state.projection === null) {
@@ -411,7 +417,21 @@ export function PublicOrganizationSite({
       <main className="auth-layout">
         <section className="auth-card">
           <h1>Website unavailable</h1>
-          <p>This Organization has not published this page yet.</p>
+          <p role="status">
+            {state.status === "error"
+              ? "The public website could not be loaded. Please try again."
+              : "This public website is not available on this address yet."}
+          </p>
+          <button
+            className="button button--primary"
+            onClick={() => {
+              setState({ status: "loading" });
+              setRetryCount((current) => current + 1);
+            }}
+            type="button"
+          >
+            Retry website
+          </button>
           <a className="button button--secondary" href="/">
             Return home
           </a>

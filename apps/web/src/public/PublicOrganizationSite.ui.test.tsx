@@ -1,5 +1,5 @@
 import type { PublishedOrganizationProjection } from "@choir/contracts";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as authApi from "../auth/api";
@@ -96,6 +96,30 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
       ).toEqual(pathname === "/" ? expected.slice(0, 3) : expected);
     },
   );
+
+  it("shows public loading failure instead of an account fallback and can retry", async () => {
+    vi.mocked(authApi.getPublishedOrganizationProjection)
+      .mockRejectedValueOnce(new Error("unavailable"))
+      .mockResolvedValueOnce(createProjection());
+    render(<PublicOrganizationSite fallback={<p>Account fallback</p>} pathname="/" />);
+    await screen.findByRole("heading", { name: "Website unavailable" });
+    expect(screen.queryByText("Account fallback")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry website" }));
+    await screen.findByRole("heading", { name: "Welcome to Our Choir" });
+  });
+
+  it("shows a public unavailable page when an Organization hostname has no published website", async () => {
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(null);
+    render(<PublicOrganizationSite fallback={null} pathname="/" />);
+    await screen.findByRole("heading", { name: "Website unavailable" });
+    expect(screen.getByRole("status")).toHaveTextContent("not available on this address yet");
+  });
+
+  it("retains the platform home fallback when no Organization website exists", async () => {
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(null);
+    render(<PublicOrganizationSite fallback={<p>Platform home</p>} pathname="/" />);
+    await screen.findByText("Platform home");
+  });
 
   it("suppresses Performances and History navigation links when no content has been published", async () => {
     vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(createProjection());

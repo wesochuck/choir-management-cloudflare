@@ -354,6 +354,7 @@ function renderPublicOrProductRoute(
   productShell: ReactNode,
   signedIn: boolean,
   projection: PublishedOrganizationProjection | null | undefined,
+  isOrganization: boolean,
 ) {
   if (isAuditionRoute(pathname) && projection === undefined) {
     return (
@@ -388,7 +389,11 @@ function renderPublicOrProductRoute(
     );
   }
   return isPublicOrganizationRoute(pathname) ? (
-    <PublicOrganizationSite fallback={productShell} pathname={pathname} signedIn={signedIn} />
+    <PublicOrganizationSite
+      fallback={isOrganization ? null : productShell}
+      pathname={pathname}
+      signedIn={signedIn}
+    />
   ) : (
     productShell
   );
@@ -607,6 +612,7 @@ export function App() {
           productShell,
           sessionState.status === "authenticated",
           publishedProjection,
+          isOrganization,
         );
 
   return <QueryClientProvider client={appQueryClient}>{rendered}</QueryClientProvider>;

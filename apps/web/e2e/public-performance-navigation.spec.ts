@@ -51,6 +51,40 @@ const projection = publishedOrganizationProjectionSchema.parse({
   },
 });
 
+for (const projectionStatus of [200, 404, 503]) {
+  test(`public homepage handles projection ${String(projectionStatus)} independently of session failures`, async ({
+    page,
+  }) => {
+    await mockHealth(page, { baseHostname: "musicsite.org" });
+    await page.route("**/api/auth/get-session", (route) =>
+      route.fulfill({ status: 403, json: { code: "canonical_host_required" } }),
+    );
+    let status = projectionStatus;
+    await page.route("**/api/public/projection", (route) =>
+      route.fulfill({ status, json: status === 200 ? projection : { code: "not_found" } }),
+    );
+    await page.route("**/api/public/logo", (route) => route.fulfill({ status: 404 }));
+    await page.route(`**/api/public/media/1/${graphicId}`, (route) =>
+      route.fulfill({ status: 404 }),
+    );
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", {
+        name: projectionStatus === 200 ? "Upcoming Performances" : "Website unavailable",
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "We couldn’t confirm your sign-in." }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Retry session check" })).toHaveCount(0);
+    if (projectionStatus !== 200) {
+      status = 200;
+      await page.getByRole("button", { name: "Retry website" }).click();
+      await expect(page.getByRole("heading", { name: "Upcoming Performances" })).toBeVisible();
+    }
+  });
+}
+
 for (const pathname of ["/", "/performances"] as const) {
   for (const theme of ["light", "dark"] as const) {
     test(`${pathname} performance cards navigate by pointer and keyboard in ${theme} theme`, async ({
