@@ -1,5 +1,5 @@
 import { healthResponseSchema } from "@choir/contracts";
-import { exports } from "cloudflare:workers";
+import { env, exports } from "cloudflare:workers";
 import { describe, expect, it } from "vitest";
 
 import { MAX_JSON_BODY_BYTES } from "../src/routes/helpers";
@@ -47,7 +47,9 @@ describe("Worker foundation", () => {
 
   it("serves the SPA shell through the Worker security-header path with nonce-based CSP", async () => {
     const response = await exports.default.fetch(
-      new Request("https://choir-management.local/login", {
+      // Platform sign-in serves the shell without a tenant registry. Foreign hosts
+      // intentionally require registry resolution for the custom-domain handoff.
+      new Request(`https://${env.PRODUCT_BASE_DOMAIN}/login`, {
         headers: { "sec-fetch-mode": "navigate" },
       }),
     );
