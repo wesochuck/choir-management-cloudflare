@@ -354,7 +354,7 @@ function renderPublicOrProductRoute(
   productShell: ReactNode,
   signedIn: boolean,
   projection: PublishedOrganizationProjection | null | undefined,
-  isOrganization: boolean,
+  allowAccountFallback: boolean,
 ) {
   if (isAuditionRoute(pathname) && projection === undefined) {
     return (
@@ -390,7 +390,7 @@ function renderPublicOrProductRoute(
   }
   return isPublicOrganizationRoute(pathname) ? (
     <PublicOrganizationSite
-      fallback={isOrganization ? null : productShell}
+      fallback={allowAccountFallback ? productShell : null}
       pathname={pathname}
       signedIn={signedIn}
     />
@@ -612,7 +612,9 @@ export function App() {
           productShell,
           sessionState.status === "authenticated",
           publishedProjection,
-          isOrganization,
+          // An unpublished home page may lead to accounts only after the account service
+          // confirms a session or anonymous access. Public-only hosts reject this check.
+          sessionState.status === "anonymous" || sessionState.status === "authenticated",
         );
 
   return <QueryClientProvider client={appQueryClient}>{rendered}</QueryClientProvider>;
