@@ -22,6 +22,22 @@ Before creating production resources or deploying code:
 4. Production domains (`musicsite.org`, `*.musicsite.org`, and Cloudflare Email Sending domains)
    must be registered in the production Cloudflare account.
 
+### Custom hostname Worker routing
+
+The production `routes` array in `apps/worker/wrangler.jsonc` includes `*/*`, explicitly scoped to
+the `musicsite.org` zone. Cloudflare for SaaS preserves the customer's hostname, so
+`*.musicsite.org/*` alone cannot capture requests for Organization custom domains. Keep this route
+in source: both production release paths apply the configured routes through
+`wrangler triggers deploy`, and dashboard-only additions can be removed on the next release.
+
+The more-specific `staging.musicsite.org/*` and `*.staging.musicsite.org/*` routes continue to
+select the staging Worker. Do not assign the zone-wide `*/*` route to staging. Confirm these route
+owners after applying triggers. The application's authoritative hostname registry still determines
+which Organization may serve each custom domain; the wildcard does not authorize unknown hosts.
+
+Routes are not Worker-versioned. Rolling back Worker code does not restore a removed route; route
+recovery must be applied explicitly from the reviewed configuration.
+
 ---
 
 ## 2. Cloudflare Resource Provisioning

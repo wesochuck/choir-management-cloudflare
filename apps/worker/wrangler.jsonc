@@ -325,6 +325,12 @@
       "workers_dev": false,
       "routes": [
         {
+          // Cloudflare for SaaS preserves the customer's hostname; the canonical
+          // *.musicsite.org route alone does not capture that traffic.
+          "pattern": "*/*",
+          "zone_name": "musicsite.org",
+        },
+        {
           "pattern": "musicsite.org",
           "custom_domain": true,
         },
