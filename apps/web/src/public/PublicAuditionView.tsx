@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { areAuditionDatesPassed } from "@choir/domain";
 import {
@@ -525,29 +525,45 @@ function AuditionDetailView({
   );
 }
 
+function AuditionContainer({
+  children,
+  embedded,
+}: {
+  readonly children: ReactNode;
+  readonly embedded: boolean | undefined;
+}) {
+  return embedded ? (
+    <div className="auth-layout">{children}</div>
+  ) : (
+    <main className="auth-layout">{children}</main>
+  );
+}
+
 export function PublicAuditionStatusCard({
+  embedded,
   onRetry,
   pageStatus,
 }: {
+  readonly embedded?: boolean | undefined;
   readonly onRetry: () => void;
   readonly pageStatus: PageStatus;
 }) {
   if (pageStatus.type === "loading") {
     return (
-      <main className="auth-layout">
+      <AuditionContainer embedded={embedded}>
         <section aria-labelledby="audition-title" className="auth-card">
           <h1 id="audition-title">Loading...</h1>
           <p className="notice notice--info" role="status">
             Loading audition details…
           </p>
         </section>
-      </main>
+      </AuditionContainer>
     );
   }
 
   if (pageStatus.type === "not_found") {
     return (
-      <main className="auth-layout">
+      <AuditionContainer embedded={embedded}>
         <section aria-labelledby="audition-title" className="auth-card">
           <h1 id="audition-title">Link Not Found</h1>
           <p className="notice notice--error" role="alert">
@@ -562,13 +578,13 @@ export function PublicAuditionStatusCard({
             </a>
           </div>
         </section>
-      </main>
+      </AuditionContainer>
     );
   }
 
   if (pageStatus.type === "settings_error") {
     return (
-      <main className="auth-layout">
+      <AuditionContainer embedded={embedded}>
         <section aria-labelledby="audition-title" className="auth-card">
           <h1 id="audition-title">Audition Settings Unavailable</h1>
           <p className="notice notice--error" role="alert">
@@ -583,13 +599,13 @@ export function PublicAuditionStatusCard({
             </a>
           </div>
         </section>
-      </main>
+      </AuditionContainer>
     );
   }
 
   if (pageStatus.type === "closed") {
     return (
-      <main className="auth-layout">
+      <AuditionContainer embedded={embedded}>
         <section aria-labelledby="audition-title" className="auth-card">
           <h1 id="audition-title">Inquiries are currently closed</h1>
           <p className="notice">{pageStatus.message}</p>
@@ -597,14 +613,14 @@ export function PublicAuditionStatusCard({
             Return to the Organization site
           </a>
         </section>
-      </main>
+      </AuditionContainer>
     );
   }
 
   if (pageStatus.type === "inquiry_submitted") {
     const isOpenInquiry = pageStatus.mode === "open_inquiry";
     return (
-      <main className="auth-layout">
+      <AuditionContainer embedded={embedded}>
         <section aria-labelledby="audition-title" className="auth-card">
           <h1 id="audition-title">Inquiry Received</h1>
           <p className="notice notice--success" role="status">
@@ -617,13 +633,13 @@ export function PublicAuditionStatusCard({
             Return to the Organization site
           </a>
         </section>
-      </main>
+      </AuditionContainer>
     );
   }
 
   if (pageStatus.type === "inquiry_error") {
     return (
-      <main className="auth-layout">
+      <AuditionContainer embedded={embedded}>
         <section aria-labelledby="audition-title" className="auth-card">
           <h1 id="audition-title">Submission Error</h1>
           <p className="notice notice--error" role="alert">
@@ -633,14 +649,20 @@ export function PublicAuditionStatusCard({
             Try again
           </button>
         </section>
-      </main>
+      </AuditionContainer>
     );
   }
 
   return null;
 }
 
-export function PublicAuditionView({ heading }: { readonly heading?: string | undefined }) {
+export function PublicAuditionView({
+  embedded,
+  heading,
+}: {
+  readonly embedded?: boolean | undefined;
+  readonly heading?: string | undefined;
+}) {
   const [token] = useState(() => new URLSearchParams(window.location.search).get("token"));
   const [pageStatus, setPageStatus] = useState<PageStatus>({
     type: "loading",
@@ -743,6 +765,7 @@ export function PublicAuditionView({ heading }: { readonly heading?: string | un
   ) {
     return (
       <PublicAuditionStatusCard
+        embedded={embedded}
         onRetry={() => {
           if (pageStatus.type === "inquiry_error") {
             setPageStatus({ settings: formSettings, type: "ready_form" });
@@ -758,7 +781,7 @@ export function PublicAuditionView({ heading }: { readonly heading?: string | un
 
   if (pageStatus.type === "ready_details") {
     return (
-      <main className="auth-layout">
+      <AuditionContainer embedded={embedded}>
         <section className="auth-card" aria-labelledby="audition-title">
           <h1 id="audition-title">Your Audition</h1>
           <p>
@@ -767,14 +790,14 @@ export function PublicAuditionView({ heading }: { readonly heading?: string | un
           <hr className="my-4" />
           <AuditionDetailView details={pageStatus.details} token={token ?? ""} />
         </section>
-      </main>
+      </AuditionContainer>
     );
   }
 
   const isOpenInquiry = formSettings.mode === "open_inquiry";
 
   return (
-    <main className="auth-layout">
+    <AuditionContainer embedded={embedded}>
       <section className="auth-card public-audition-card" aria-labelledby="audition-title">
         <h1 id="audition-title">
           {heading ?? (isOpenInquiry ? "Join Inquiry" : "Audition Inquiry")}
@@ -795,6 +818,6 @@ export function PublicAuditionView({ heading }: { readonly heading?: string | un
           settings={formSettings}
         />
       </section>
-    </main>
+    </AuditionContainer>
   );
 }

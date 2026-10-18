@@ -1,7 +1,7 @@
 import "./main.css";
 import "./styles/theme.css";
 
-import type { CurrentAuthSession } from "@choir/contracts";
+import type { CurrentAuthSession, PublishedOrganizationProjection } from "@choir/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 
@@ -36,7 +36,7 @@ import { PublicUnsubscribeView } from "./public/PublicUnsubscribeView";
 import { PublicPollView } from "./public/PublicPollView";
 import { PublicRsvpView } from "./public/PublicRsvpView";
 import { PublicAuditionView } from "./public/PublicAuditionView";
-import { PublicOrganizationSite } from "./public/PublicOrganizationSite";
+import { OrganizationLayout, PublicOrganizationSite } from "./public/PublicOrganizationSite";
 import { PublicTickets } from "./public/PublicTickets";
 import { PublicDonations } from "./public/PublicDonations";
 import { PlatformHomeView } from "./public/PlatformHomeView";
@@ -345,7 +345,35 @@ function publicUtilityRoute(
   return null;
 }
 
-function renderPublicOrProductRoute(pathname: string, productShell: ReactNode, signedIn: boolean) {
+function isAuditionRoute(pathname: string): boolean {
+  return pathname === "/auditions" || pathname === "/join";
+}
+
+function renderPublicOrProductRoute(
+  pathname: string,
+  productShell: ReactNode,
+  signedIn: boolean,
+  projection: PublishedOrganizationProjection | null | undefined,
+) {
+  if (isAuditionRoute(pathname) && projection === undefined) {
+    return (
+      <main className="auth-layout">
+        <p className="notice notice--info" role="status">
+          Loading Organization website…
+        </p>
+      </main>
+    );
+  }
+  if (isAuditionRoute(pathname) && projection?.payload.settings.showBrandingHeaderFooter) {
+    return (
+      <OrganizationLayout pathname="/auditions" projection={projection} signedIn={signedIn}>
+        <PublicAuditionView
+          embedded
+          heading={projection.payload.settings.pageLabels?.auditions?.heading}
+        />
+      </OrganizationLayout>
+    );
+  }
   if (pathname === "/donate" || pathname === "/donate/success") {
     return <PublicDonations pathname={pathname} />;
   }
@@ -370,6 +398,8 @@ export function App() {
   const [serviceState, setServiceState] = useState<ServiceState>("checking");
   const [sessionState, setSessionState] = useState<SessionState>({ status: "checking" });
   const [baseHostname, setBaseHostname] = useState<string | null>(null);
+  const [publishedProjection, setPublishedProjection] =
+    useState<PublishedOrganizationProjection | null>();
   const [auditionHeading, setAuditionHeading] = useState<string | undefined>();
   const [organizationName, setOrganizationName] = useState<string | null>(null);
   const [logoFileId, setLogoFileId] = useState<string | null>(null);
@@ -411,6 +441,7 @@ export function App() {
     async function checkProjection() {
       try {
         const projection = await getPublishedOrganizationProjection(abortController.signal);
+        setPublishedProjection(projection);
         if (projection?.payload.organizationName) {
           setOrganizationName(projection.payload.organizationName);
           setAuditionHeading(projection.payload.settings.pageLabels?.auditions?.heading);
@@ -418,6 +449,7 @@ export function App() {
           setProjectionVersion(projection.version);
         }
       } catch {
+        if (!abortController.signal.aborted) setPublishedProjection(null);
         // Fall back gracefully to default branding if projection is not published or unavailable.
       }
     }
@@ -570,7 +602,12 @@ export function App() {
   const rendered =
     isAuthenticatedRoute(pathname) && sessionState.status === "authenticated"
       ? content
-      : renderPublicOrProductRoute(pathname, productShell, sessionState.status === "authenticated");
+      : renderPublicOrProductRoute(
+          pathname,
+          productShell,
+          sessionState.status === "authenticated",
+          publishedProjection,
+        );
 
   return <QueryClientProvider client={appQueryClient}>{rendered}</QueryClientProvider>;
 }

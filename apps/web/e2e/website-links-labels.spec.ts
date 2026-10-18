@@ -27,6 +27,7 @@ for (const theme of ["light", "dark"] as const) {
       requestId,
       aboutUsText: "Support our music",
       historyText: "Our original history.",
+      footerText: "Come sing with our community.",
       enabledNavigation: ["tickets", "donations", "auditions"],
       showBrandingHeaderFooter: true,
     });
@@ -238,7 +239,7 @@ for (const theme of ["light", "dark"] as const) {
     for (const path of ["/auditions", "/join"]) {
       await page.goto(path);
       await expect(page.getByRole("heading", { name: "Join", exact: true })).toBeVisible();
-      const logo = page.getByRole("banner").locator(".brand-logo");
+      const logo = page.getByRole("banner").locator(".public-site-brand img");
       await expect(logo).toBeVisible();
       await expect
         .poll(() =>
@@ -249,13 +250,39 @@ for (const theme of ["light", "dark"] as const) {
       expect(bounds?.width).toBeLessThanOrEqual(48);
       expect(bounds?.height).toBeLessThanOrEqual(48);
       await expect(
-        page.getByRole("banner").getByRole("link", { name: "Community Chorus home" }),
+        page.getByRole("banner").getByRole("link", { name: "Community Chorus", exact: true }),
       ).toBeVisible();
+      await expect(page.getByRole("navigation", { name: "Public website" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Join", exact: true })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+      await expect(page.getByRole("contentinfo")).toContainText("Come sing with our community.");
+      await expect(page.getByRole("main")).toHaveCount(1);
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
       await page.screenshot({ path: testInfo.outputPath(`join-header-${path.slice(1)}.png`) });
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
+    await page.route("**/api/public/audition-details", (route) =>
+      route.fulfill({ status: 404, json: { error: "not_found", requestId } }),
+    );
+    await page.goto("/auditions?token=expired-audition-link");
+    await expect(page.getByRole("heading", { name: "Link Not Found" })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Public website" })).toBeVisible();
+    await expect(page.getByRole("contentinfo")).toContainText("Come sing with our community.");
+    await expect(page).toHaveURL(/token=expired-audition-link$/);
+
+    published = { ...published, showBrandingHeaderFooter: false };
+    for (const path of ["/auditions", "/join"]) {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { name: "Join", exact: true })).toBeVisible();
+      await expect(page.getByRole("navigation", { name: "Public website" })).toHaveCount(0);
+      await expect(page.getByRole("contentinfo")).not.toContainText(
+        "Come sing with our community.",
+      );
+    }
     api.assertNoUnexpectedRequests();
   });
 }

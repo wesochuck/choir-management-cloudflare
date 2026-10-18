@@ -226,7 +226,7 @@
 
   .public-site-header nav a[aria-current="page"],
   .public-site-header nav a.is-active {
-    color: var(--color-accent);
+    color: var(--color-primary-strong);
     border-bottom: 2px solid var(--color-accent);
     padding-bottom: var(--spacing-3xs);
   }
