@@ -14,6 +14,23 @@ describe("PublicCopy", () => {
     expect(screen.getByText("Regular paragraph text.")).toBeInTheDocument();
   });
 
+  it.each(["\n", "\r\n", "\r"])(
+    "preserves line and paragraph breaks with %j endings",
+    (newline) => {
+      const { container } = render(
+        <PublicCopy
+          text={`First line${newline}Second **line**${newline}  ${newline}Next [paragraph](/history)`}
+        />,
+      );
+      const paragraphs = container.querySelectorAll("p");
+      expect(paragraphs).toHaveLength(2);
+      expect(paragraphs[0]?.textContent).toBe("First line\nSecond line");
+      expect(paragraphs[1]?.textContent).toBe("Next paragraph");
+      expect(screen.getByText("line").tagName).toBe("STRONG");
+      expect(screen.getByRole("link", { name: "paragraph" })).toHaveAttribute("href", "/history");
+    },
+  );
+
   it("renders inline bold, italic, and safe links", () => {
     const markdown =
       "Check out our **bold voices** and *expressive sound* on [our website](https://example.com) or [email us](mailto:test@example.com).";

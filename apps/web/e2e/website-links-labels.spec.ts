@@ -158,7 +158,7 @@ for (const theme of ["light", "dark"] as const) {
     await dialog.getByRole("checkbox", { name: "Open in new tab" }).uncheck();
     await dialog.getByRole("button", { name: "Apply link" }).click();
     const markdown =
-      '[Our story](/history){target="_self"} our music\n\nhttps://partner.example.test/notes';
+      '[Our story](/history){target="_self"} our music\nSing together.\n\nhttps://partner.example.test/notes';
     await about.fill(markdown);
     await page.getByRole("tab", { name: "Navigation", exact: true }).click();
     for (const [field, value] of [
@@ -189,6 +189,23 @@ for (const theme of ["light", "dark"] as const) {
     await page.getByRole("button", { name: "Publish saved draft", exact: true }).click();
     await expect(page.getByText("Version 5 is live.", { exact: true })).toBeVisible();
     await page.goto("/");
+    const paragraphs = page.locator("#about-us .public-copy > p");
+    await expect(paragraphs).toHaveCount(2);
+    const firstParagraph = paragraphs.nth(0);
+    await expect(firstParagraph).toHaveCSS("white-space", "pre-wrap");
+    const firstBounds = await firstParagraph.boundingBox();
+    const secondBounds = await paragraphs.nth(1).boundingBox();
+    const lineHeight = await firstParagraph.evaluate((element) =>
+      parseFloat(getComputedStyle(element).lineHeight),
+    );
+    expect(firstBounds).not.toBeNull();
+    expect(secondBounds).not.toBeNull();
+    if (!firstBounds || !secondBounds) throw new Error("Expected visible public paragraphs");
+    expect(firstBounds.height).toBeGreaterThanOrEqual(lineHeight * 2 - 1);
+    expect(secondBounds.y - firstBounds.y - firstBounds.height).toBeGreaterThanOrEqual(16);
+    await page
+      .locator("#about-us")
+      .screenshot({ path: testInfo.outputPath("public-paragraphs.png") });
     const link = page.locator(".public-copy").getByRole("link", { name: "Our story", exact: true });
     await expect(link).toHaveCSS("font-weight", "700");
     await expect(link).toHaveCSS("text-decoration-line", "underline");

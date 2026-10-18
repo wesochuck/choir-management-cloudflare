@@ -557,7 +557,13 @@
   }
 
   .public-copy {
+    display: grid;
+    gap: var(--spacing-md);
     white-space: pre-wrap;
+  }
+
+  .public-copy > * {
+    margin: 0;
   }
 
   .public-copy a,

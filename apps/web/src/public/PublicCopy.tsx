@@ -5,8 +5,9 @@ export function PublicCopy({ text }: { readonly text?: string | null | undefined
   return (
     <div className="public-copy">
       {text
+        .replace(/\r\n?/g, "\n")
         .trim()
-        .split(/\n{2,}/)
+        .split(/\n(?:[ \t]*\n)+/)
         .map((block, index) => {
           const normalized = block.trim();
           if (normalized.startsWith("### ")) {
