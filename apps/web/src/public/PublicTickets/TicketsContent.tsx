@@ -7,7 +7,7 @@ import { getEventVenueDetails } from "../venueDetails";
 import { TicketBundlePurchaseForm } from "./forms/TicketBundlePurchaseForm";
 import { TicketPurchaseForm } from "./forms/TicketPurchaseForm";
 import { TicketReceipt } from "./receipt/TicketReceipt";
-import { money, publicDate } from "./shared";
+import { money, publicDate, publicTime } from "./shared";
 
 export function TicketsContent({
   feeSettings,
@@ -117,7 +117,9 @@ export function TicketsContent({
                   <div className="public-performance-card__content">
                     <p>{publicDate(event.startsAt, projection.payload.timezone)}</p>
                     <h2>{event.title}</h2>
-                    {event.doorsOpenTime ? <p>Doors open at {event.doorsOpenTime}.</p> : null}
+                    {event.doorsOpenTime ? (
+                      <p>Doors open at {publicTime(event.doorsOpenTime)}.</p>
+                    ) : null}
                     {venueDetails.displayName || venueDetails.venueAddress ? (
                       <div className="public-performance-venue">
                         {venueDetails.displayName ? (

@@ -29,27 +29,34 @@ vi.mock("../auth/api", async (importOriginal) => {
 });
 
 describe("optional doors-open information", () => {
-  it.each([
+  describe.each([
     "/tickets",
     "/tickets/11111111-1111-4111-8111-111111111111",
     "/tickets/bundles/22222222-2222-4222-8222-222222222222",
-  ])("shows doors-open time only when provided on %s", (pathname) => {
-    const base = checkoutProjection(1500, 3000);
-    const withDoors = {
-      ...base,
-      payload: {
-        ...base.payload,
-        performances: base.payload.performances.map((event) => ({
-          ...event,
-          doorsOpenTime: "18:30",
-        })),
-      },
-    };
-    const props = { feeSettings, nowMs: new Date("2026-01-01T00:00:00Z").getTime(), pathname };
-    const { rerender } = render(<TicketsContent {...props} projection={withDoors} />);
-    expect(screen.getByText("Doors open at 18:30.")).toBeInTheDocument();
-    rerender(<TicketsContent {...props} projection={base} />);
-    expect(screen.queryByText(/Doors open/)).not.toBeInTheDocument();
+  ])("doors-open time on %s", (pathname) => {
+    it.each([
+      ["14:30", "2:30 PM"],
+      ["09:05", "9:05 AM"],
+      ["00:00", "12:00 AM"],
+      ["12:00", "12:00 PM"],
+    ])("formats %s as %s and omits missing times", (doorsOpenTime, expectedTime) => {
+      const base = checkoutProjection(1500, 3000);
+      const withDoors = {
+        ...base,
+        payload: {
+          ...base.payload,
+          performances: base.payload.performances.map((event) => ({
+            ...event,
+            doorsOpenTime,
+          })),
+        },
+      };
+      const props = { feeSettings, nowMs: new Date("2026-01-01T00:00:00Z").getTime(), pathname };
+      const { rerender } = render(<TicketsContent {...props} projection={withDoors} />);
+      expect(screen.getByText(`Doors open at ${expectedTime}.`)).toBeInTheDocument();
+      rerender(<TicketsContent {...props} projection={base} />);
+      expect(screen.queryByText(/Doors open/)).not.toBeInTheDocument();
+    });
   });
 });
 

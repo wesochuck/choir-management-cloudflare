@@ -115,7 +115,7 @@ test.describe("public ticket pages", () => {
 
     await expect(page.getByRole("heading", { name: "Spring Concert" })).toBeVisible();
     await expect(page.getByText("Grand Auditorium")).toBeVisible();
-    await expect(page.getByText("Doors open at 19:00.")).toBeVisible();
+    await expect(page.getByText("Doors open at 7:00 PM.")).toBeVisible();
 
     await page.getByLabel("Name on order").fill("Jane Buyer");
     await page.getByLabel("Email", { exact: true }).fill("jane@example.test");

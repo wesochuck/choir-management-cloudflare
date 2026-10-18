@@ -11,7 +11,7 @@ import { mediaUrl } from "../../publicMedia";
 import { getEventVenueDetails } from "../../venueDetails";
 import { TicketDiscountControls } from "../discounts/TicketDiscountControls";
 import { useTicketDiscountQuote } from "../discounts/useTicketDiscountQuote";
-import { money, publicDate } from "../shared";
+import { money, publicDate, publicTime } from "../shared";
 import { TicketBundleSuggestions } from "./TicketBundleSuggestions";
 import { TicketCheckoutFooter } from "./TicketCheckoutFooter";
 
@@ -125,7 +125,7 @@ export function TicketPurchaseForm({
           </div>
         );
       })()}
-      {event.doorsOpenTime ? <p>Doors open at {event.doorsOpenTime}.</p> : null}
+      {event.doorsOpenTime ? <p>Doors open at {publicTime(event.doorsOpenTime)}.</p> : null}
       <PublicCopy text={event.publicDetails} />
       <TicketBundleSuggestions
         bundles={projection.payload.ticketBundles}

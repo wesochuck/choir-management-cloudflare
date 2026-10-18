@@ -57,3 +57,10 @@ export function publicDate(value: string, timezone: string): string {
     timeZone: timezone,
   }).format(new Date(value));
 }
+
+export function publicTime(value: string): string {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
+  if (!match?.[2]) return value;
+  const hour = Number(match[1]);
+  return `${String(hour % 12 || 12)}:${match[2]} ${hour >= 12 ? "PM" : "AM"}`;
+}

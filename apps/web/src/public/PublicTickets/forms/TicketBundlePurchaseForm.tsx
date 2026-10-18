@@ -10,7 +10,7 @@ import { mediaUrl } from "../../publicMedia";
 import { getEventVenueDetails } from "../../venueDetails";
 import { TicketDiscountControls } from "../discounts/TicketDiscountControls";
 import { useTicketDiscountQuote } from "../discounts/useTicketDiscountQuote";
-import { money, publicDate } from "../shared";
+import { money, publicDate, publicTime } from "../shared";
 import { TicketCheckoutFooter } from "./TicketCheckoutFooter";
 
 export function TicketBundlePurchaseForm({
@@ -104,7 +104,9 @@ export function TicketBundlePurchaseForm({
               <div>
                 <strong>{event.title}</strong> ·{" "}
                 {publicDate(event.startsAt, projection.payload.timezone)}
-                {event.doorsOpenTime ? <p>Doors open at {event.doorsOpenTime}.</p> : null}
+                {event.doorsOpenTime ? (
+                  <p>Doors open at {publicTime(event.doorsOpenTime)}.</p>
+                ) : null}
                 {venueDetails.displayName || venueDetails.venueAddress ? (
                   <div className="public-bundle-event-venue">
                     {venueDetails.displayName ? <span>{venueDetails.displayName}</span> : null}
