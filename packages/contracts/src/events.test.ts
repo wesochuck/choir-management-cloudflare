@@ -4,6 +4,7 @@ import {
   organizationEventFieldsSchema,
   organizationEventRequestSchema,
   organizationEventSchema,
+  singerEventSchema,
 } from "./index";
 
 describe("organization event contracts", () => {
@@ -168,5 +169,21 @@ describe("organization event contracts", () => {
       venueId: null,
     });
     expect(parsedEvent.venueId).toBeNull();
+  });
+});
+
+describe("member event score availability", () => {
+  it.each([undefined, false, true])("preserves optional availability %s", (scoreAvailable) => {
+    const item = singerEventSchema.shape.setList.parse([
+      { title: "Opening Song", scoreAvailable },
+    ])[0];
+    expect(item?.scoreAvailable).toBe(scoreAvailable);
+  });
+
+  it("rejects non-boolean availability", () => {
+    expect(
+      singerEventSchema.shape.setList.safeParse([{ title: "Opening Song", scoreAvailable: "yes" }])
+        .success,
+    ).toBe(false);
   });
 });

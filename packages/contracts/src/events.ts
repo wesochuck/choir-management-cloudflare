@@ -247,7 +247,14 @@ export const singerEventSchema = z.object({
       status: z.enum(["available", "not_published", "not_assigned", "declined"]),
     })
     .default({ status: "not_published" }),
-  setList: z.array(organizationSetListItemSchema).max(200).default([]),
+  setList: z
+    .array(
+      organizationSetListItemSchema.extend({
+        scoreAvailable: z.boolean().optional(),
+      }),
+    )
+    .max(200)
+    .default([]),
   startsAt: z.iso.datetime(),
   title: z.string().min(1).max(500),
   type: z.enum(["Performance", "Rehearsal", "Other"]),

@@ -1,4 +1,4 @@
-import { otherEventAudienceSchema } from "@choir/contracts";
+import { organizationSetListItemSchema, otherEventAudienceSchema } from "@choir/contracts";
 import { datePartInTimeZone, zonedLocalDateTimeToUtc } from "@choir/domain";
 import { z } from "zod";
 
@@ -13,6 +13,8 @@ import {
   parseSetList,
   recordExists,
 } from "./shared";
+
+import { withMemberScoreAvailability } from "./memberScoreAvailability";
 
 type MemberEventConfiguration = ReturnType<typeof readRosterAutomationConfiguration>;
 
@@ -131,7 +133,9 @@ function resolveMemberEventSetList(
 ) {
   if (event.practiceEventId === null) return [];
   if (!includePublishedSetList && resolvedRsvp !== "Yes") return [];
-  return parseSetList(includePublishedSetList ? sourceSetListJson : event.setListJson);
+  return parseSetList(includePublishedSetList ? sourceSetListJson : event.setListJson).map((item) =>
+    organizationSetListItemSchema.parse(item),
+  );
 }
 
 function mapMemberEvent(
@@ -326,7 +330,7 @@ export function listMemberEventsFromStore(
         input.includePublishedSetList === true,
       ),
     );
-  return Response.json({ events });
+  return Response.json({ events: withMemberScoreAvailability(storage, events, profileVoicePart) });
 }
 
 export function listProfilePerformanceHistoryFromStore(

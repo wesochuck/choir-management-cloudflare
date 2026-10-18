@@ -244,6 +244,77 @@ afterEach(async () => {
 });
 
 describe("member dashboard", () => {
+  it.each([
+    { kind: "no attachment", ready: false, attached: false, parent: false, present: false },
+    { kind: "missing file", ready: false, attached: true, parent: false, present: false },
+    { kind: "pending upload", ready: false, attached: true, parent: false, present: true },
+    { kind: "ready score", ready: true, attached: true, parent: false, present: true },
+    { kind: "inherited parent score", ready: true, attached: true, parent: true, present: true },
+  ])("reports downloadable scores for $kind", async ({ ready, attached, parent, present }) => {
+    await runInDurableObject<OrganizationStore, null>(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance, state) => {
+        const fileId = "12345678-1234-4234-8234-123456789012";
+        const parentId = "12345678-1234-4234-8234-123456789013";
+        const now = new Date().toISOString();
+        if (present)
+          state.storage.sql.exec(
+            `INSERT INTO private_files
+        (id, storage_key, file_name, content_type, size_bytes, status, uploaded_by, request_id, created_at)
+        VALUES (?, ?, 'score.pdf', 'application/pdf', 10, ?, 'score-test', ?, ?)`,
+            fileId,
+            `organizations/organization-alpha/files/${fileId}`,
+            ready ? "ready" : "pending",
+            crypto.randomUUID(),
+            now,
+          );
+        if (parent) {
+          state.storage.sql.exec(
+            `INSERT INTO music_pieces (id, title, score_file_ids_json, created_at, updated_at)
+          VALUES (?, 'Parent work', ?, ?, ?)`,
+            parentId,
+            JSON.stringify({ primary: fileId }),
+            now,
+            now,
+          );
+          state.storage.sql.exec(
+            "UPDATE music_pieces SET parent_id = ? WHERE id = ?",
+            parentId,
+            PIECE_ID,
+          );
+        } else if (attached) {
+          state.storage.sql.exec(
+            "UPDATE music_pieces SET score_file_ids_json = ? WHERE id = ?",
+            JSON.stringify({ primary: fileId }),
+            PIECE_ID,
+          );
+        }
+        return null;
+      },
+    );
+    const cookie = await signIn();
+    const response = await exports.default.fetch(
+      api("alpha.localhost", "/api/singer/dashboard", cookie),
+    );
+    expect(response.status).toBe(200);
+    const dashboard = memberDashboardResponseSchema.parse(await response.json());
+    for (const eventId of [PERFORMANCE_ID, REHEARSAL_ID]) {
+      expect(dashboard.events.find((event) => event.id === eventId)?.setList[0]).toMatchObject({
+        pieceId: PIECE_ID,
+        scoreAvailable: ready,
+      });
+    }
+    const scheduleResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/singer/events", cookie),
+    );
+    expect(scheduleResponse.status).toBe(200);
+    const schedule = singerEventsResponseSchema.parse(await scheduleResponse.json());
+    expect(schedule.events.find((event) => event.id === PERFORMANCE_ID)?.setList[0]).toMatchObject({
+      pieceId: PIECE_ID,
+      scoreAvailable: ready,
+    });
+  });
+
   it("aggregates member widgets and uses the parent Performance for inherited practice", async () => {
     const cookie = await signIn();
     const response = await exports.default.fetch(

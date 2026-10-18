@@ -444,3 +444,24 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   api.assertNoUnexpectedRequests();
 });
+
+for (const role of ["member", "administrator"] as const) {
+  test(`hides quick search in the Member workspace for ${role}`, async ({ page }) => {
+    await installOrganizationApi(page, { role });
+    await page.goto(role === "administrator" ? "/admin" : "/dashboard");
+    const workspace = page.getByRole("combobox", { name: "Workspace", exact: true });
+    const search = page.getByRole("button", { name: "Quick search (⌘K)", exact: true });
+    if (role === "administrator") {
+      await expect(search).toBeVisible();
+      await workspace.selectOption("member");
+    }
+    await expect(workspace).toHaveValue("member");
+    await expect(search).toHaveCount(0);
+    await page.keyboard.press("Control+k");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    if (role === "administrator") {
+      await workspace.selectOption("organization");
+      await expect(search).toBeVisible();
+    }
+  });
+}

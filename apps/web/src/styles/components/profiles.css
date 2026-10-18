@@ -440,6 +440,7 @@
 
   .directory-grid li {
     min-width: 0;
+    overflow-wrap: anywhere;
     padding: var(--spacing-md);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);

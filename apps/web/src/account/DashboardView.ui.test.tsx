@@ -61,67 +61,83 @@ describe("DashboardView", () => {
     expect(navigate).toHaveBeenCalledWith("/member/polls/poll-uuid-1?token=token-secret-abc");
   });
 
-  it("renders event date tile, 12-hour time range, call time, and RSVP deadline in event timezone", async () => {
-    const dashboardWithEvent: MemberDashboardResponse = {
-      ...mockDashboard,
-      events: [
-        {
-          attendanceWarning: null,
-          callTime: "18:45",
-          details: "Main hall rehearsal",
-          directRsvp: "Pending",
-          durationMinutes: 120,
-          featuredAssignments: [],
-          id: "event-1111-2222-3333-444444444444",
-          inheritedFromParent: false,
-          location: "Symphony Hall - Room B",
-          practice: {
-            sourceEventId: "event-1111-2222-3333-444444444444",
-            status: "available",
-            trackCount: 4,
+  it.each([undefined, false, true])(
+    "renders event information and only available score links (%s)",
+    async (scoreAvailable) => {
+      const dashboardWithEvent: MemberDashboardResponse = {
+        ...mockDashboard,
+        events: [
+          {
+            attendanceWarning: null,
+            callTime: "18:45",
+            details: "Main hall rehearsal",
+            directRsvp: "Pending",
+            durationMinutes: 120,
+            featuredAssignments: [],
+            id: "event-1111-2222-3333-444444444444",
+            inheritedFromParent: false,
+            location: "Symphony Hall - Room B",
+            practice: {
+              sourceEventId: "event-1111-2222-3333-444444444444",
+              status: "available",
+              trackCount: 4,
+            },
+            resolvedRsvp: "Pending",
+            rsvpDeadlineAt: null,
+            rsvpDeadlineDate: "2026-10-20",
+            rsvpDeadlinePassed: false,
+            rsvpNote: "",
+            rsvpSelfServiceOpen: true,
+            seating: {
+              status: "not_published",
+            },
+            setList: [
+              {
+                pieceId: "score-piece",
+                title: "Opening Song",
+                ...(scoreAvailable === undefined ? {} : { scoreAvailable }),
+              },
+              { pieceId: "no-score-piece", title: "Song without score", scoreAvailable: false },
+            ],
+            startsAt: "2026-10-22T23:00:00Z", // 7:00 PM EDT
+            title: "Fall Concert Rehearsal",
+            type: "Rehearsal",
+            venueAddress: "123 Symphony St",
+            venueName: "Symphony Hall",
           },
-          resolvedRsvp: "Pending",
-          rsvpDeadlineAt: null,
-          rsvpDeadlineDate: "2026-10-20",
-          rsvpDeadlinePassed: false,
-          rsvpNote: "",
-          rsvpSelfServiceOpen: true,
-          seating: {
-            status: "not_published",
-          },
-          setList: [],
-          startsAt: "2026-10-22T23:00:00Z", // 7:00 PM EDT
-          title: "Fall Concert Rehearsal",
-          type: "Rehearsal",
-          venueAddress: "123 Symphony St",
-          venueName: "Symphony Hall",
-        },
-      ],
-    };
+        ],
+      };
 
-    vi.spyOn(authApi, "getMemberDashboard").mockResolvedValueOnce(dashboardWithEvent);
-    const navigate = vi.fn();
+      vi.spyOn(authApi, "getMemberDashboard").mockResolvedValueOnce(dashboardWithEvent);
+      const navigate = vi.fn();
 
-    render(<DashboardView accessStatus="ready" enabled={true} navigate={navigate} />);
+      render(<DashboardView accessStatus="ready" enabled={true} navigate={navigate} />);
 
-    await waitFor(() => {
-      expect(screen.getByText("Fall Concert Rehearsal")).toBeInTheDocument();
-    });
+      await waitFor(() => {
+        expect(screen.getByText("Fall Concert Rehearsal")).toBeInTheDocument();
+      });
 
-    // Date tile verification
-    const dateTile = screen.getByLabelText("Thursday, October 22, 2026");
-    expect(dateTile).toBeInTheDocument();
-    expect(dateTile).toHaveTextContent("Thu");
-    expect(dateTile).toHaveTextContent("22");
-    expect(dateTile).toHaveTextContent("Oct");
+      expect(screen.queryAllByRole("link", { name: "Score (PDF)" })).toHaveLength(
+        scoreAvailable ? 1 : 0,
+      );
+      expect(screen.queryAllByRole("link", { name: "Download all scores (ZIP)" })).toHaveLength(
+        scoreAvailable ? 1 : 0,
+      );
+      // Date tile verification
+      const dateTile = screen.getByLabelText("Thursday, October 22, 2026");
+      expect(dateTile).toBeInTheDocument();
+      expect(dateTile).toHaveTextContent("Thu");
+      expect(dateTile).toHaveTextContent("22");
+      expect(dateTile).toHaveTextContent("Oct");
 
-    // Time range and details
-    expect(screen.getByText("7:00 PM – 9:00 PM")).toBeInTheDocument();
-    expect(screen.getByText("Symphony Hall")).toBeInTheDocument();
-    expect(screen.getByText("Call 6:45 PM")).toBeInTheDocument();
-    expect(screen.getByText("RSVP by Oct 20, 2026")).toBeInTheDocument();
-    expect(screen.getByText("Next up")).toBeInTheDocument();
-  });
+      // Time range and details
+      expect(screen.getByText("7:00 PM – 9:00 PM")).toBeInTheDocument();
+      expect(screen.getByText("Symphony Hall")).toBeInTheDocument();
+      expect(screen.getByText("Call 6:45 PM")).toBeInTheDocument();
+      expect(screen.getByText("RSVP by Oct 20, 2026")).toBeInTheDocument();
+      expect(screen.getByText("Next up")).toBeInTheDocument();
+    },
+  );
 
   it("renders dedicated practice music strip with track count and voice part and opens practice player", async () => {
     const dashboardWithPractice: MemberDashboardResponse = {

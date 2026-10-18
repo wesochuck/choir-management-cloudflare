@@ -59,6 +59,36 @@ function createSampleEvent(overrides: Partial<SingerEvent> = {}): SingerEvent {
 }
 
 describe("MySchedule RSVP pending state (#196)", () => {
+  it.each([undefined, false, true])(
+    "shows score downloads only when available (%s)",
+    async (scoreAvailable) => {
+      const event = createSampleEvent({
+        setList: [
+          {
+            title: "Opening Song",
+            pieceId: "score-piece",
+            ...(scoreAvailable === undefined ? {} : { scoreAvailable }),
+          },
+          { title: "Song without score", pieceId: "empty-piece", scoreAvailable: false },
+        ],
+      });
+      vi.mocked(getMySchedule).mockResolvedValueOnce({
+        events: [event],
+        profileId: "profile",
+        requestId: "request",
+        timezone: "America/New_York",
+      });
+      render(<MySchedule enabled />);
+      await screen.findByText("Opening Song");
+      expect(screen.queryAllByRole("link", { name: "Score (PDF)" })).toHaveLength(
+        scoreAvailable ? 1 : 0,
+      );
+      expect(screen.queryAllByRole("link", { name: "Download score bundle (ZIP)" })).toHaveLength(
+        scoreAvailable ? 1 : 0,
+      );
+    },
+  );
+
   beforeEach(() => {
     vi.clearAllMocks();
   });

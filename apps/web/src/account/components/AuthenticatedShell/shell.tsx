@@ -399,7 +399,9 @@ export function AuthenticatedShell({
   );
 
   const workspaceOptions = availableWorkspaces(canManage, platformAvailable);
-  const canAccessPalette = access.status === "ready" || access.status === "platform-scoped";
+  const canAccessPalette =
+    selectedWorkspace !== "member" &&
+    (access.status === "ready" || access.status === "platform-scoped");
 
   useEffect(() => {
     if (!canAccessPalette) return;

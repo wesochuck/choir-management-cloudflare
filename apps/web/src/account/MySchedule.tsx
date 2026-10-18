@@ -240,11 +240,11 @@ function ScheduleEventSetList({
   if (event.setList.length === 0) {
     return null;
   }
-  const hasPieces = event.setList.some((item) => Boolean(item.pieceId));
+  const hasScores = event.setList.some((item) => Boolean(item.pieceId && item.scoreAvailable));
   return (
     <fieldset className="schedule-set-list">
       <legend className="schedule-set-list__legend">Approved set list</legend>
-      {hasPieces ? (
+      {hasScores ? (
         <div className="schedule-set-list__actions">
           <a
             className="button button--secondary button--small"
@@ -265,7 +265,7 @@ function ScheduleEventSetList({
                 <strong>{item.title}</strong>
                 {item.composer ? ` — ${item.composer}` : ""}
                 {duration ? ` (${duration})` : ""}
-                {item.pieceId ? (
+                {item.pieceId && item.scoreAvailable ? (
                   <a
                     className="button button--secondary button--small schedule-set-list__score-link"
                     href={`/api/singer/pieces/${encodeURIComponent(item.pieceId)}/score`}

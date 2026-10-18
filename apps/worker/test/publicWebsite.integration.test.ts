@@ -113,6 +113,79 @@ beforeEach(async () => {
 afterEach(async () => reset());
 
 describe("Organization public website", () => {
+  it.each(["/login", "/login/"])(
+    "redirects custom-domain %s to its own Organization auth host",
+    async (path) => {
+      const response = await exports.default.fetch(
+        api(
+          "alpha.example.test",
+          `${path}?returnTo=https://evil.example&token=not-forwarded`,
+          undefined,
+          {
+            redirect: "manual",
+          },
+        ),
+      );
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("http://alpha.localhost/login");
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+      expect(response.headers.get("set-cookie")).toBeNull();
+    },
+  );
+
+  it("keeps custom-domain redirects bound to their Organization", async () => {
+    const now = new Date().toISOString();
+    await database
+      .prepare(
+        `INSERT INTO organization_domains
+      (id, organization_id, hostname, kind, status, routing_version, created_at, updated_at)
+      VALUES ('domain-bravo-public', 'organization-bravo', 'bravo.example.test', 'custom_public', 'active', 1, ?, ?)`,
+      )
+      .bind(now, now)
+      .run();
+    const response = await exports.default.fetch(
+      api("bravo.example.test", "/login?organizationId=organization-alpha", undefined, {
+        redirect: "manual",
+      }),
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("http://bravo.localhost/login");
+  });
+
+  it.each(["pending", "disabled"])(
+    "refuses sign-in handoff for a %s custom domain",
+    async (status) => {
+      await database
+        .prepare("UPDATE organization_domains SET status = ? WHERE id = 'domain-alpha-public'")
+        .bind(status)
+        .run();
+      const response = await exports.default.fetch(api("alpha.example.test", "/login"));
+      expect(response.status).toBe(404);
+      expect(response.headers.get("location")).toBeNull();
+    },
+  );
+
+  it("does not redirect unknown hosts or borrow another Organization's canonical host", async () => {
+    const unknown = await exports.default.fetch(api("unknown.example.test", "/login"));
+    expect(unknown.status).toBe(404);
+    expect(unknown.headers.get("location")).toBeNull();
+    await database
+      .prepare(
+        "UPDATE organization_domains SET status = 'disabled' WHERE organization_id = 'organization-alpha' AND kind = 'canonical'",
+      )
+      .run();
+    const response = await exports.default.fetch(api("alpha.example.test", "/login"));
+    expect(response.status).toBe(503);
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("continues serving the canonical login page without a redirect loop", async () => {
+    const response = await exports.default.fetch(api("alpha.localhost", "/login"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+  });
+
   it("makes ticket-enabled Performances public on create and update and refreshes the live schedule without publishing website drafts", async () => {
     const cookie = await signIn();
     const venue = organizationVenueSchema.parse(

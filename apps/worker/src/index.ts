@@ -13,11 +13,18 @@ import { CustomDomainWorkflow } from "./workflows/CustomDomainWorkflow";
 import { FleetSchemaWorkflow } from "./workflows/FleetSchemaWorkflow";
 import { ProvisioningWorkflow } from "./workflows/ProvisioningWorkflow";
 import type { Env } from "./env";
+import { customDomainLoginRedirect } from "./tenancy/customDomainLogin";
 
 export { CustomDomainWorkflow, FleetSchemaWorkflow, OrganizationStore, ProvisioningWorkflow };
 
 const worker = {
   async fetch(request: Request, env: Env, executionContext: ExecutionContext): Promise<Response> {
+    const loginRedirect = await customDomainLoginRedirect(request, env);
+    if (loginRedirect) {
+      setSecurityHeaders(loginRedirect.headers, "no-referrer");
+      loginRedirect.headers.set("cache-control", "no-store");
+      return loginRedirect;
+    }
     const response = await router.fetch(request, env, executionContext);
     const pathname = new URL(request.url).pathname;
     if (response.status !== 404 || pathname === "/api" || pathname.startsWith("/api/")) {

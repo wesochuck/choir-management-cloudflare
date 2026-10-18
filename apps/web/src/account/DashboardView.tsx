@@ -66,7 +66,7 @@ function DashboardEventHighlights({ event }: { readonly event: DashboardEvent })
 
 function DashboardEventSetList({ event }: { readonly event: DashboardEvent }) {
   if (event.setList.length === 0) return null;
-  const hasPieces = event.setList.some((item) => Boolean(item.pieceId));
+  const hasScores = event.setList.some((item) => Boolean(item.pieceId && item.scoreAvailable));
   return (
     <details className="member-dashboard__set-list">
       <summary>View set list ({String(event.setList.length)} items)</summary>
@@ -74,7 +74,7 @@ function DashboardEventSetList({ event }: { readonly event: DashboardEvent }) {
         {event.setList.map((item, index) => (
           <li key={`${item.title}-${String(index)}`}>
             <span>{item.title}</span>
-            {item.pieceId ? (
+            {item.pieceId && item.scoreAvailable ? (
               <a
                 className="member-dashboard__score-link"
                 href={`/api/singer/pieces/${encodeURIComponent(item.pieceId)}/score`}
@@ -87,7 +87,7 @@ function DashboardEventSetList({ event }: { readonly event: DashboardEvent }) {
           </li>
         ))}
       </ul>
-      {hasPieces ? (
+      {hasScores ? (
         <div className="member-dashboard__set-list-actions">
           <a
             className="button button--secondary button--small"
@@ -704,7 +704,6 @@ export function DashboardView({
 }) {
   const [dashboard, setDashboard] = useState<MemberDashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -717,7 +716,6 @@ export function DashboardView({
     async (showLoading = false): Promise<void> => {
       if (!enabled) return;
       if (showLoading) setLoading(true);
-      else setRefreshing(true);
       try {
         const result = await getMemberDashboard();
         setDashboard(result);
@@ -726,7 +724,6 @@ export function DashboardView({
         setError("Your member dashboard could not be loaded. Try again.");
       } finally {
         setLoading(false);
-        setRefreshing(false);
       }
     },
     [enabled],
@@ -819,20 +816,6 @@ export function DashboardView({
   }
   return (
     <main className="account-layout member-dashboard">
-      <div className="member-dashboard__header">
-        <div>
-          <h1>Welcome back{dashboard.profile ? `, ${dashboard.profile.displayName}` : ""}</h1>
-          <p>Here’s what’s coming up for {dashboard.organizationName}.</p>
-        </div>
-        <button
-          className="button button--secondary"
-          disabled={refreshing}
-          onClick={() => void loadDashboard()}
-          type="button"
-        >
-          {refreshing ? "Refreshing…" : "Refresh"}
-        </button>
-      </div>
       {error ? (
         <p className="notice notice--warning" role="status">
           {error}

@@ -135,7 +135,9 @@ test("offers published practice and set-list actions before RSVP", async ({ page
 
   await page.goto("/dashboard");
 
-  await expect(page.getByRole("heading", { name: "Welcome back, Wes Osborn" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Welcome back/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Refresh", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Practice" })).toBeVisible();
   await expect(page.getByText("View set list (1 items)")).toBeVisible();
   api.assertNoUnexpectedRequests();

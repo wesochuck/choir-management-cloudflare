@@ -119,7 +119,7 @@ test("member dashboard has no serious accessibility violations", async ({ page }
   );
 
   await page.goto("/dashboard");
-  await expect(page.getByRole("heading", { name: /Welcome back/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
 
   await expectNoSeriousAxeViolations(page, "member dashboard");
   api.assertNoUnexpectedRequests();
