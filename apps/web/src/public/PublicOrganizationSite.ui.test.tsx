@@ -59,20 +59,22 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
         { title: "Third free appearance", days: 3, isTicketingEnabled: false },
         { title: "Next ticketed concert", days: 30, isTicketingEnabled: true },
         { title: "Later ticketed concert", days: 60, isTicketingEnabled: true },
-      ].map(({ days, ...event }) => ({
-        ...event,
-        id: `performance-${String(days)}`,
-        startsAt: new Date(Date.parse(projection.generatedAt) + days * 86_400_000).toISOString(),
-        advancePriceCents: 1500,
-        dayOfPriceCents: 2000,
-        doorsOpenTime: "",
-        graphicFileId: null,
-        location: "",
-        publicDetails: "",
-        ticketCapacity: null,
-        venueAddress: "",
-        venueName: "",
-      }));
+      ]
+        .reverse()
+        .map(({ days, ...event }) => ({
+          ...event,
+          id: `performance-${String(days)}`,
+          startsAt: new Date(Date.parse(projection.generatedAt) + days * 86_400_000).toISOString(),
+          advancePriceCents: 1500,
+          dayOfPriceCents: 2000,
+          doorsOpenTime: "",
+          graphicFileId: null,
+          location: "",
+          publicDetails: "",
+          ticketCapacity: null,
+          venueAddress: "",
+          venueName: "",
+        }));
       vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(
         createProjection({ performances }),
       );

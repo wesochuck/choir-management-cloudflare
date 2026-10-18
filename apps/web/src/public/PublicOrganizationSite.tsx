@@ -218,9 +218,7 @@ function OrganizationHome({
   const { performances, settings } = projection.payload;
   const now = new Date(projection.generatedAt).getTime();
   const upcoming = prioritizeTicketedPerformances(
-    performances
-      .filter(({ startsAt }) => new Date(startsAt).getTime() >= now)
-      .toSorted((left, right) => left.startsAt.localeCompare(right.startsAt)),
+    performances.filter(({ startsAt }) => new Date(startsAt).getTime() >= now),
   );
   const past = performances
     .filter(({ startsAt }) => new Date(startsAt).getTime() < now)
