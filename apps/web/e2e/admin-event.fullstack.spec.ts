@@ -76,7 +76,26 @@ test("creates an event that survives a reload against the real store", async ({
   const eventsBody = organizationEventsResponseSchema.parse(await listed.json());
   expect(eventsBody.events.map((event) => event.title)).toContain(title);
 
-  await page.reload();
+  // Reload finishes before the Events page's asynchronous reads. Synchronize
+  // with all four real responses so Worker latency is not charged against the
+  // short rendering assertion, and surface failed reads as API failures.
+  const reloadReads = Promise.all(
+    ["events", "venues", "calendar-settings", "roster-configuration"].map(async (resource) => {
+      const response = await page.waitForResponse(
+        (entry) =>
+          entry.request().method() === "GET" &&
+          new URL(entry.url()).pathname === `/api/organization/${resource}`,
+      );
+      expect(response.status(), `Reload ${resource} read must succeed`).toBe(200);
+      const body: unknown = await response.json();
+      if (resource === "events") {
+        expect(organizationEventsResponseSchema.parse(body).events).toEqual(
+          expect.arrayContaining([expect.objectContaining({ title })]),
+        );
+      }
+    }),
+  );
+  await Promise.all([page.reload(), reloadReads]);
   await expect(page.getByText(title).filter({ visible: true }).first()).toBeVisible();
 });
 
