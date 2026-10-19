@@ -344,14 +344,6 @@ export function TicketScanner({ events }: { readonly events: readonly Organizati
               Start camera
             </button>
           )}
-          {eventId ? (
-            <a
-              className="button button--secondary"
-              href={`/api/organization/tickets/will-call?eventId=${encodeURIComponent(eventId)}`}
-            >
-              Download will-call CSV
-            </a>
-          ) : null}
         </div>
       </div>
       {events.length === 0 ? (

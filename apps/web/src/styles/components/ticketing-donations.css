@@ -253,6 +253,7 @@
     }
 
     .ticket-dashboard__performance-control-row select,
+    .ticket-dashboard__will-call-export-button,
     .ticket-dashboard__edit-settings-button {
       width: 100%;
     }

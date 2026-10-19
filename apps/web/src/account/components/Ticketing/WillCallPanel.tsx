@@ -161,18 +161,26 @@ function WillCallPerformanceSelector({
           ))}
         </select>
         {selectedPerformance ? (
-          <AppLink
-            className="button button--secondary button--control-height ticket-dashboard__edit-settings-button"
-            href={editTicketSettingsHref}
-            onNavigate={
-              navigate ??
-              ((href) => {
-                window.location.assign(href);
-              })
-            }
-          >
-            Edit ticket settings →
-          </AppLink>
+          <>
+            <a
+              className="button button--secondary button--control-height ticket-dashboard__will-call-export-button"
+              href={`/api/organization/tickets/will-call?eventId=${encodeURIComponent(selectedPerformance.id)}`}
+            >
+              Download will-call CSV
+            </a>
+            <AppLink
+              className="button button--secondary button--control-height ticket-dashboard__edit-settings-button"
+              href={editTicketSettingsHref}
+              onNavigate={
+                navigate ??
+                ((href) => {
+                  window.location.assign(href);
+                })
+              }
+            >
+              Edit ticket settings →
+            </AppLink>
+          </>
         ) : null}
       </div>
       {selectedPerformance ? (

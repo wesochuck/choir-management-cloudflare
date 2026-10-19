@@ -548,8 +548,8 @@
   }
 
   .ticket-dashboard__intro .field.ticket-dashboard__performance-field {
-    width: min(100%, 36rem);
-    flex: 0 1 36rem;
+    width: min(100%, 48rem);
+    flex: 0 1 48rem;
   }
 
   .ticket-dashboard__performance-control-row {
@@ -564,6 +564,7 @@
     min-width: 0;
   }
 
+  .ticket-dashboard__will-call-export-button,
   .ticket-dashboard__edit-settings-button {
     white-space: nowrap;
     flex-shrink: 0;

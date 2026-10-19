@@ -569,4 +569,25 @@ describe("WillCallPanel refund confirmation dialog", () => {
     expect(within(actionWrapper).getByRole("button", { name: "Resend" })).toBeInTheDocument();
     expect(within(actionWrapper).getByRole("button", { name: "Refund" })).toBeInTheDocument();
   });
+
+  it("renders the Download will-call CSV link for a selected performance and omits it for all performances", () => {
+    const { unmount } = renderWillCallPanel([paidOrder], {
+      selectedPerformance: event,
+      selectedPerformanceId: eventId,
+    });
+    const exportLink = screen.getByRole("link", { name: "Download will-call CSV" });
+    expect(exportLink).toBeInTheDocument();
+    expect(exportLink).toHaveAttribute(
+      "href",
+      `/api/organization/tickets/will-call?eventId=${encodeURIComponent(eventId)}`,
+    );
+
+    unmount();
+
+    renderWillCallPanel([paidOrder], {
+      selectedPerformance: undefined,
+      selectedPerformanceId: "all",
+    });
+    expect(screen.queryByRole("link", { name: "Download will-call CSV" })).not.toBeInTheDocument();
+  });
 });
