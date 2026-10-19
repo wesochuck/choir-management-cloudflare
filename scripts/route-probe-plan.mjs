@@ -97,6 +97,7 @@ export const probePlan = new Map([
 
   // Require seeded data, a signed token, a parameterized fixture, or mutate state
   ["GET /api/calendar/feed", { kind: "skip-fixture" }],
+  ["GET /api/calendar/feed/:filename", { kind: "skip-fixture" }],
   ["POST /api/singer/calendar-feed-url/reset", { kind: "skip-fixture" }],
   ["GET /api/public/player/playlist", { kind: "skip-fixture" }],
   ["GET /api/singer/practice-links/:eventId", { kind: "skip-fixture" }],
@@ -161,6 +162,7 @@ export function isExpectedAnonymousBoundary(row, result) {
   }
   if (
     route === "/api/calendar/feed" ||
+    route.startsWith("/api/calendar/feed/") ||
     route === "/api/public/logo" ||
     route.startsWith("/api/public/media/") ||
     route === "/api/public/tickets/order" ||
