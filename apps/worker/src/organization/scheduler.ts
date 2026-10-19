@@ -533,17 +533,21 @@ interface PostEventReportCandidateRow {
   readonly eventStartsAt: string;
 }
 
-function createPostEventReportJobs(
+export function createPostEventReportJobs(
   storage: DurableObjectStorage,
   organizationId: string,
   now: Date,
 ): void {
+  const configuration = readRosterAutomationConfiguration(storage);
   const dueBefore = new Date(now.getTime() - ATTENDANCE_REPORT_DELAY_MS).toISOString();
+  const eventTypeClause = configuration.rehearsalAttendanceReportsEnabled
+    ? "type IN ('Performance', 'Rehearsal')"
+    : "type = 'Performance'";
   const candidates = storage.sql
     .exec<PostEventReportCandidateRow>(
       `SELECT id AS eventId, title AS eventTitle, type AS eventType, starts_at AS eventStartsAt
        FROM events
-       WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
+       WHERE ${eventTypeClause} AND is_archived = 0 AND is_canceled = 0
          AND starts_at < ?
        ORDER BY starts_at DESC, id LIMIT 50`,
       dueBefore,

@@ -336,6 +336,66 @@ interface LinkedRehearsalRosterRow {
   readonly rsvp: string | null;
 }
 
+function isAllowedAttendanceReportEvent(event: EventSummaryRow | null): boolean {
+  if (!event) {
+    return false;
+  }
+  return event.type === "Performance" || event.type === "Rehearsal";
+}
+
+function resolvePerformanceEventId(event: EventSummaryRow): string | null {
+  if (event.type === "Performance") {
+    return event.id;
+  }
+  if (event.parentPerformanceId && event.parentPerformanceId.length > 0) {
+    return event.parentPerformanceId;
+  }
+  return null;
+}
+
+function readPerformerProfileIds(
+  storage: DurableObjectStorage,
+  eventId: string,
+): readonly string[] {
+  return storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly profileId: string }>(
+      `SELECT r.profile_id AS profileId FROM event_rosters r
+       JOIN profiles p ON p.id = r.profile_id
+       WHERE r.event_id = ? AND r.rsvp = 'Yes' AND p.global_status = 'Active'
+         AND p.voice_part <> ''`,
+      eventId,
+    )
+    .toArray()
+    .map(({ profileId }) => profileId);
+}
+
+function readLinkedRehearsalRows(
+  storage: DurableObjectStorage,
+  performanceEventId: string | null,
+  maxStartsAt: string,
+): readonly LinkedRehearsalRosterRow[] {
+  if (!performanceEventId) {
+    return [];
+  }
+  return storage.sql
+    .exec<LinkedRehearsalRosterRow>(
+      `SELECT e.id AS eventId, e.title AS eventTitle, e.starts_at AS eventStartsAt,
+         r.profile_id AS profileId, p.display_name AS displayName,
+         r.rsvp, r.attendance
+       FROM events e
+       LEFT JOIN event_rosters r ON r.event_id = e.id
+       LEFT JOIN profiles p ON p.id = r.profile_id
+       WHERE e.parent_performance_id = ? AND e.type = 'Rehearsal'
+         AND e.is_archived = 0 AND e.is_canceled = 0
+         AND e.starts_at <= ?
+       ORDER BY e.starts_at, e.id, p.display_name COLLATE NOCASE, p.id
+       LIMIT 500`,
+      performanceEventId,
+      maxStartsAt,
+    )
+    .toArray();
+}
+
 function readAttendanceReportJobFromStore(
   storage: DurableObjectStorage,
   organizationId: string | null,
@@ -362,9 +422,10 @@ function readAttendanceReportJobFromStore(
     return Response.json({ code: "attendance_report_job_not_found" }, { status: 404 });
   }
   const event = readEventSummary(storage, eventId);
-  if (event?.type !== "Performance") {
+  if (!isAllowedAttendanceReportEvent(event) || !event) {
     return Response.json({ code: "attendance_report_job_not_found" }, { status: 404 });
   }
+  const configuration = readRosterAutomationConfiguration(storage);
   const roster = storage.sql
     .exec<AttendanceRosterRow>(
       `SELECT p.id AS profileId, p.display_name AS displayName,
@@ -388,38 +449,10 @@ function readAttendanceReportJobFromStore(
        FROM profiles WHERE global_status = 'Active' LIMIT 500`,
     )
     .toArray();
-  const warningThreshold =
-    readRosterAutomationConfiguration(storage).attendanceReportWarningThreshold;
-  const performanceEventId = event.id;
-  const performerProfileIds = performanceEventId
-    ? storage.sql
-        .exec<{ readonly [column: string]: SqlStorageValue; readonly profileId: string }>(
-          `SELECT r.profile_id AS profileId FROM event_rosters r
-           JOIN profiles p ON p.id = r.profile_id
-           WHERE r.event_id = ? AND r.rsvp = 'Yes' AND p.global_status = 'Active'
-             AND p.voice_part <> ''`,
-          performanceEventId,
-        )
-        .toArray()
-        .map(({ profileId }) => profileId)
-    : [];
-  const linkedRehearsalRows = performanceEventId
-    ? storage.sql
-        .exec<LinkedRehearsalRosterRow>(
-          `SELECT e.id AS eventId, e.title AS eventTitle, e.starts_at AS eventStartsAt,
-             r.profile_id AS profileId, p.display_name AS displayName,
-             r.rsvp, r.attendance
-           FROM events e
-           LEFT JOIN event_rosters r ON r.event_id = e.id
-           LEFT JOIN profiles p ON p.id = r.profile_id
-           WHERE e.parent_performance_id = ? AND e.type = 'Rehearsal'
-             AND e.is_archived = 0 AND e.is_canceled = 0
-           ORDER BY e.starts_at, e.id, p.display_name COLLATE NOCASE, p.id
-           LIMIT 500`,
-          performanceEventId,
-        )
-        .toArray()
-    : [];
+  const warningThreshold = configuration.attendanceReportWarningThreshold;
+  const performanceEventId = resolvePerformanceEventId(event);
+  const performerProfileIds = readPerformerProfileIds(storage, performanceEventId ?? event.id);
+  const linkedRehearsalRows = readLinkedRehearsalRows(storage, performanceEventId, event.startsAt);
   return Response.json({
     event: {
       callTime: event.callTime,
@@ -427,7 +460,7 @@ function readAttendanceReportJobFromStore(
       durationMinutes: event.durationMinutes,
       id: event.id,
       location: event.location,
-      parentPerformanceId: event.parentPerformanceId,
+      parentPerformanceId: event.parentPerformanceId ?? null,
       startsAt: event.startsAt,
       title: event.title,
       type: event.type,
@@ -472,7 +505,7 @@ export function prepareAttendanceReportJobFromStore(
     return Response.json({ code: "attendance_report_job_not_found" }, { status: 404 });
   }
   const event = readEventSummary(storage, eventId);
-  if (event?.type !== "Performance") {
+  if (!isAllowedAttendanceReportEvent(event) || !event) {
     return Response.json({ code: "attendance_report_job_not_found" }, { status: 404 });
   }
   const finalizedAt = new Date().toISOString();

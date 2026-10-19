@@ -332,10 +332,10 @@ describe("MessagesPanel UI", () => {
   });
 });
 
-it("labels upcoming previews with the Organization timezone and event navigation", () => {
+it("labels upcoming ticket reminder previews with the Organization timezone and ticketing navigation", () => {
   const scheduledMessage: CommunicationScheduledMessage = {
     ...automatedScheduledMsg,
-    id: `planned:event-reminder:${automatedScheduledMsg.id}`,
+    id: `planned:ticket-reminder:${automatedScheduledMsg.id}`,
     scheduledAt: futureIsoDate({ days: 10 }),
     projected: true,
     timezone: "America/New_York",
@@ -376,6 +376,105 @@ it("labels upcoming previews with the Organization timezone and event navigation
   expect(screen.getByText(/Automation preview. Recipients/)).toBeVisible();
   expect(screen.getByText("15 ticket purchases")).toBeVisible();
   expect(screen.getByText(/next 90 days/)).toBeVisible();
+  expect(screen.getByRole("link", { name: "View ticketing" })).toHaveAttribute(
+    "href",
+    "/admin/tickets?eventId=12345678-1234-4234-8234-123456789012",
+  );
+});
+
+it("renders ticketing link for ticket confirmation without an eventId and never links to auditions", () => {
+  const scheduledMessage: CommunicationScheduledMessage = {
+    eventId: null,
+    eventTitle: "LCC 2026 - 2027 Season",
+    id: "30000000-0000-0000-0000-000000000001",
+    kind: "ticket_confirmation",
+    recipientCount: 1,
+    scheduledAt: "2026-10-17T17:48:00Z",
+    status: "Sent",
+    subject: "Ticket bundle confirmed: LCC 2026 - 2027 Season",
+  };
+  render(
+    <MessagesPanel
+      busy={false}
+      currentOrigin="all"
+      currentStatus="sent"
+      deliveryDetailsMessage={null}
+      deliverySummary={null}
+      loadingDeliveryId={null}
+      onCancelQueued={vi.fn()}
+      onDeleteDraft={vi.fn()}
+      onNewMessage={vi.fn()}
+      onOpenDeliveryDetails={vi.fn()}
+      onOriginFilterChange={vi.fn()}
+      onResumeDraft={vi.fn()}
+      onRetryDeliveries={vi.fn()}
+      onStatusFilterChange={vi.fn()}
+      unifiedMessages={[
+        {
+          automated: true,
+          channel: "Email",
+          id: scheduledMessage.id,
+          kind: "scheduled",
+          recipientCount: 1,
+          scheduledMessage,
+          status: "Sent",
+          timestamp: scheduledMessage.scheduledAt,
+          title: scheduledMessage.subject,
+        },
+      ]}
+    />,
+  );
+  expect(screen.getByRole("link", { name: "View ticketing" })).toHaveAttribute(
+    "href",
+    "/admin/tickets",
+  );
+  expect(screen.queryByRole("link", { name: "View auditions" })).not.toBeInTheDocument();
+});
+
+it("renders event navigation for event reminders", () => {
+  const scheduledMessage: CommunicationScheduledMessage = {
+    eventId: "12345678-1234-4234-8234-123456789012",
+    eventTitle: "Upcoming concert",
+    id: "planned:event-reminder:12345678-1234-4234-8234-123456789012",
+    kind: "event_reminder",
+    recipientCount: 0,
+    scheduledAt: futureIsoDate({ days: 10 }),
+    status: "Scheduled",
+    subject: "Event reminder: Upcoming concert",
+    projected: true,
+    timezone: "America/New_York",
+  };
+  render(
+    <MessagesPanel
+      busy={false}
+      currentOrigin="all"
+      currentStatus="scheduled"
+      deliveryDetailsMessage={null}
+      deliverySummary={null}
+      loadingDeliveryId={null}
+      onCancelQueued={vi.fn()}
+      onDeleteDraft={vi.fn()}
+      onNewMessage={vi.fn()}
+      onOpenDeliveryDetails={vi.fn()}
+      onOriginFilterChange={vi.fn()}
+      onResumeDraft={vi.fn()}
+      onRetryDeliveries={vi.fn()}
+      onStatusFilterChange={vi.fn()}
+      unifiedMessages={[
+        {
+          automated: true,
+          channel: "Email",
+          id: scheduledMessage.id,
+          kind: "scheduled",
+          recipientCount: null,
+          scheduledMessage,
+          status: "Scheduled",
+          timestamp: scheduledMessage.scheduledAt,
+          title: scheduledMessage.subject,
+        },
+      ]}
+    />,
+  );
   expect(screen.getByRole("link", { name: "View event" })).toHaveAttribute(
     "href",
     "/admin/rsvp?eventId=12345678-1234-4234-8234-123456789012",

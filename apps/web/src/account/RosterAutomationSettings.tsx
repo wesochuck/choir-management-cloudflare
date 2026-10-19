@@ -365,6 +365,25 @@ export function RosterAutomationSettings({ enabled }: Props) {
                 Rehearsal{configuration.attendanceReportWarningThreshold === 1 ? "" : "s"} are
                 flagged in the Attendance Report. This warning does not change Profile Status.
               </p>
+              <label className="choice-field">
+                <input
+                  checked={configuration.rehearsalAttendanceReportsEnabled}
+                  onChange={(event) => {
+                    setConfiguration({
+                      ...configuration,
+                      rehearsalAttendanceReportsEnabled: event.target.checked,
+                    });
+                  }}
+                  type="checkbox"
+                />
+                <span className="choice-field__content">
+                  Send attendance reports for Rehearsals
+                </span>
+              </label>
+              <p className="field-help">
+                When enabled, attendance reports are sent 12 hours after Rehearsals in addition to
+                Performances.
+              </p>
               <p className="field-help">
                 <a
                   className="text-primary-strong underline underline-offset-2"

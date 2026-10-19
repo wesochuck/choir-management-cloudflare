@@ -7,6 +7,7 @@ import { futureDateString } from "@choir/testkit";
 import type { OrganizationStore } from "../src/organization/OrganizationStore";
 import type { DeliveryJob } from "../src/jobs/contracts";
 import {
+  createPostEventReportJobs,
   readSchedulerState,
   runOrganizationAlarm,
   wakeOrganizationAlarm,
@@ -337,6 +338,75 @@ describe("Organization scheduler", () => {
         return row?.reminderSentAt ?? null;
       }),
     ).toBeNull();
+  });
+
+  it("creates attendance report jobs for past rehearsals when enabled and omits them when disabled", async () => {
+    const stub = await provisionScheduler();
+    const now = Date.now();
+    const overdueAt = new Date(now - 1_000).toISOString();
+    const pastPerformanceId = "44444444-4444-4444-8444-444444444444";
+    const pastRehearsalId = "55555555-5555-4555-8555-555555555554";
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, call_time, location, details, created_at, updated_at)
+         VALUES (?, 'Past Performance', 'Performance', ?, '19:00', 'Main Hall', 'Concert details', ?, ?)`,
+        pastPerformanceId,
+        new Date(now - 12.5 * 60 * 60 * 1_000).toISOString(),
+        overdueAt,
+        overdueAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, call_time, location, details, created_at, updated_at)
+         VALUES (?, 'Past Rehearsal', 'Rehearsal', ?, '19:00', 'Room 2', 'Rehearsal details', ?, ?)`,
+        pastRehearsalId,
+        new Date(now - 12.5 * 60 * 60 * 1_000).toISOString(),
+        overdueAt,
+        overdueAt,
+      );
+
+      createPostEventReportJobs(state.storage, "organization-scheduler", new Date(now));
+
+      const outboxWithEnabled = state.storage.sql
+        .exec<{ readonly idempotencyKey: string }>(
+          "SELECT idempotency_key AS idempotencyKey FROM scheduled_job_outbox WHERE kind = 'attendance_report'",
+        )
+        .toArray()
+        .map((r) => r.idempotencyKey);
+
+      expect(outboxWithEnabled).toContain(
+        `post-event-report:organization-scheduler:${pastPerformanceId}`,
+      );
+      expect(outboxWithEnabled).toContain(
+        `post-event-report:organization-scheduler:${pastRehearsalId}`,
+      );
+
+      state.storage.sql.exec("DELETE FROM scheduled_job_outbox");
+
+      const config = readRosterAutomationConfiguration(state.storage);
+      state.storage.sql.exec(
+        "UPDATE organization_metadata SET roster_configuration_json = ?",
+        JSON.stringify({ ...config, rehearsalAttendanceReportsEnabled: false }),
+      );
+
+      createPostEventReportJobs(state.storage, "organization-scheduler", new Date(now));
+
+      const outboxWithDisabled = state.storage.sql
+        .exec<{ readonly idempotencyKey: string }>(
+          "SELECT idempotency_key AS idempotencyKey FROM scheduled_job_outbox WHERE kind = 'attendance_report'",
+        )
+        .toArray()
+        .map((r) => r.idempotencyKey);
+
+      expect(outboxWithDisabled).toContain(
+        `post-event-report:organization-scheduler:${pastPerformanceId}`,
+      );
+      expect(outboxWithDisabled).not.toContain(
+        `post-event-report:organization-scheduler:${pastRehearsalId}`,
+      );
+
+      return undefined;
+    });
   });
 
   it("forces due work through the manual scheduler route without advancing the hourly gate", async () => {
@@ -1303,6 +1373,56 @@ describe("upcoming communication scheduling", () => {
           organizationId: "another-organization",
         }).status,
       ).toBe(404);
+
+      const rehearsalId = crypto.randomUUID();
+      const rehearsalStartsAt = new Date(now.getTime() + 5 * 86400000).toISOString();
+      state.storage.sql.exec(
+        "INSERT INTO events (id, title, type, starts_at, created_at, updated_at) VALUES (?, 'Upcoming rehearsal', 'Rehearsal', ?, ?, ?)",
+        rehearsalId,
+        rehearsalStartsAt,
+        now.toISOString(),
+        now.toISOString(),
+      );
+      const rehearsalUpcoming = communicationScheduledMessagesResponseSchema
+        .omit({ requestId: true })
+        .parse(
+          await listCommunicationScheduledMessagesFromStore(
+            state.storage,
+            "organization-scheduler",
+          ).json(),
+        );
+      expect(
+        rehearsalUpcoming.messages.some(
+          (m) => m.eventId === rehearsalId && m.kind === "attendance_report",
+        ),
+      ).toBe(true);
+
+      // Disable rehearsalAttendanceReportsEnabled and verify rehearsal attendance report disappears from projected
+      const config = readRosterAutomationConfiguration(state.storage);
+      state.storage.sql.exec(
+        "UPDATE organization_metadata SET roster_configuration_json = ?",
+        JSON.stringify({ ...config, rehearsalAttendanceReportsEnabled: false }),
+      );
+      const rehearsalUpcomingDisabled = communicationScheduledMessagesResponseSchema
+        .omit({ requestId: true })
+        .parse(
+          await listCommunicationScheduledMessagesFromStore(
+            state.storage,
+            "organization-scheduler",
+          ).json(),
+        );
+      expect(
+        rehearsalUpcomingDisabled.messages.some(
+          (m) => m.eventId === rehearsalId && m.kind === "attendance_report",
+        ),
+      ).toBe(false);
+
+      // Clean up rehearsal event and restore config
+      state.storage.sql.exec("DELETE FROM events WHERE id = ?", rehearsalId);
+      state.storage.sql.exec(
+        "UPDATE organization_metadata SET roster_configuration_json = ?",
+        JSON.stringify({ ...config, rehearsalAttendanceReportsEnabled: true }),
+      );
     });
   });
   it("shows future audition notifications as Scheduled in both endpoints, preserving processing and terminal states", async () => {

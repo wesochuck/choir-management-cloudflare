@@ -29,6 +29,7 @@ const sampleConfiguration: OrganizationRosterConfiguration = {
   onBreakTimeoutDays: 365,
   onBreakTimeoutEnabled: true,
   performerLabel: "Performer",
+  rehearsalAttendanceReportsEnabled: true,
   rsvpExpiryEnabled: true,
   rsvpFollowUpEnabled: true,
   rsvpFollowUpLeadHours: 48,
@@ -382,5 +383,25 @@ describe("RosterAutomationSettings UI", () => {
     expect(
       screen.queryByRole("region", { name: "Roster status automation" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("allows toggling rehearsal attendance reports", async () => {
+    const user = userEvent.setup();
+    const mockSetDraft = vi.fn();
+    const draftReturn = createMockDraftReturn({ setDraft: mockSetDraft });
+    vi.mocked(api.previewOrganizationRosterAutomation).mockResolvedValue(samplePreview);
+
+    renderComponent({ draftReturn });
+
+    const checkbox = screen.getByRole("checkbox", {
+      name: "Send attendance reports for Rehearsals",
+    });
+    expect(checkbox).toBeChecked();
+
+    await user.click(checkbox);
+    expect(mockSetDraft).toHaveBeenCalledWith({
+      ...sampleConfiguration,
+      rehearsalAttendanceReportsEnabled: false,
+    });
   });
 });

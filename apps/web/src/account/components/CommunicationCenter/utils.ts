@@ -290,6 +290,49 @@ export function scheduledMessageKindLabel(kind: CommunicationScheduledMessage["k
   }
 }
 
+export interface ScheduledMessageActionLink {
+  readonly href: string;
+  readonly label: string;
+}
+
+export function scheduledMessageActionLink(
+  scheduledMessage: CommunicationScheduledMessage,
+): ScheduledMessageActionLink | null {
+  const { eventId, kind } = scheduledMessage;
+  switch (kind) {
+    case "audition_confirmation":
+    case "audition_reminder":
+      return { href: "/admin/auditions", label: "View auditions" };
+
+    case "ticket_confirmation":
+    case "ticket_reminder":
+    case "ticket_refund":
+      return {
+        href: eventId ? `/admin/tickets?eventId=${encodeURIComponent(eventId)}` : "/admin/tickets",
+        label: "View ticketing",
+      };
+
+    case "attendance_report":
+      return { href: "/admin/attendance", label: "View attendance" };
+
+    case "event_reminder":
+    case "rsvp_follow_up":
+      return {
+        href: eventId ? `/admin/rsvp?eventId=${encodeURIComponent(eventId)}` : "/admin/rsvp",
+        label: "View event",
+      };
+
+    default:
+      if (eventId) {
+        return {
+          href: `/admin/rsvp?eventId=${encodeURIComponent(eventId)}`,
+          label: "View event",
+        };
+      }
+      return null;
+  }
+}
+
 export function unifiedItemSortTimestamp(item: UnifiedCommunicationItem): number {
   return new Date(item.timestamp).getTime() || 0;
 }

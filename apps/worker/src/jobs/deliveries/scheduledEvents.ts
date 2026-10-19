@@ -209,6 +209,9 @@ export async function deliverAttendanceReportJob(
     "/internal/scheduling/attendance-report-prepare",
     { jobId: job.jobId, organizationId: job.organizationId },
   );
+  if (response.status === 404) {
+    return;
+  }
   const parsed = attendanceReportJobResponseSchema.safeParse(
     await response.json().catch(() => null),
   );

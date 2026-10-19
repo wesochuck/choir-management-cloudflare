@@ -93,6 +93,7 @@ export async function getOrganizationRosterConfiguration(
     statusAutomationMissThreshold: parsed.statusAutomationMissThreshold,
     statusAutomationRecoveryEnabled: parsed.statusAutomationRecoveryEnabled,
     attendanceReportWarningThreshold: parsed.attendanceReportWarningThreshold,
+    rehearsalAttendanceReportsEnabled: parsed.rehearsalAttendanceReportsEnabled,
     voiceParts: parsed.voiceParts,
   };
 }
@@ -118,6 +119,7 @@ export async function updateOrganizationRosterConfiguration(
     statusAutomationMissThreshold: parsed.statusAutomationMissThreshold,
     statusAutomationRecoveryEnabled: parsed.statusAutomationRecoveryEnabled,
     attendanceReportWarningThreshold: parsed.attendanceReportWarningThreshold,
+    rehearsalAttendanceReportsEnabled: parsed.rehearsalAttendanceReportsEnabled,
     voiceParts: parsed.voiceParts,
   };
 }

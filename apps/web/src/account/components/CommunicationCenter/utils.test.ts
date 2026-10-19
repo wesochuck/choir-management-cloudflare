@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseCommunicationSearch } from "./utils";
+import type { CommunicationScheduledMessage } from "@choir/contracts";
+import { parseCommunicationSearch, scheduledMessageActionLink } from "./utils";
 
 describe("parseCommunicationSearch", () => {
   it("defaults to all status, all origins, and messages list for empty search", () => {
@@ -94,5 +95,99 @@ describe("parseCommunicationSearch", () => {
     expect(parseCommunicationSearch("?tab=compose").messageMode).toBe("compose");
     expect(parseCommunicationSearch("?tab=templates").section).toBe("templates");
     expect(parseCommunicationSearch("?tab=settings").section).toBe("settings");
+  });
+});
+
+describe("scheduledMessageActionLink", () => {
+  const baseMessage: CommunicationScheduledMessage = {
+    eventId: null,
+    eventTitle: "",
+    id: "00000000-0000-0000-0000-000000000001",
+    kind: "audition_confirmation",
+    recipientCount: 1,
+    scheduledAt: "2026-10-17T12:00:00Z",
+    status: "Sent",
+    subject: "Test subject",
+  };
+
+  it("routes ticket confirmations with null eventId (bundles) to /admin/tickets with 'View ticketing'", () => {
+    const link = scheduledMessageActionLink({
+      ...baseMessage,
+      eventId: null,
+      kind: "ticket_confirmation",
+    });
+    expect(link).toEqual({ href: "/admin/tickets", label: "View ticketing" });
+  });
+
+  it("routes ticket reminders with eventId to /admin/tickets?eventId=... with 'View ticketing'", () => {
+    const link = scheduledMessageActionLink({
+      ...baseMessage,
+      eventId: "11111111-1111-4111-8111-111111111111",
+      kind: "ticket_reminder",
+    });
+    expect(link).toEqual({
+      href: "/admin/tickets?eventId=11111111-1111-4111-8111-111111111111",
+      label: "View ticketing",
+    });
+  });
+
+  it("routes ticket refunds to /admin/tickets with 'View ticketing'", () => {
+    const link = scheduledMessageActionLink({
+      ...baseMessage,
+      eventId: null,
+      kind: "ticket_refund",
+    });
+    expect(link).toEqual({ href: "/admin/tickets", label: "View ticketing" });
+  });
+
+  it("routes audition confirmations and reminders to /admin/auditions with 'View auditions'", () => {
+    expect(scheduledMessageActionLink({ ...baseMessage, kind: "audition_confirmation" })).toEqual({
+      href: "/admin/auditions",
+      label: "View auditions",
+    });
+    expect(scheduledMessageActionLink({ ...baseMessage, kind: "audition_reminder" })).toEqual({
+      href: "/admin/auditions",
+      label: "View auditions",
+    });
+  });
+
+  it("routes attendance reports to /admin/attendance with 'View attendance'", () => {
+    expect(scheduledMessageActionLink({ ...baseMessage, kind: "attendance_report" })).toEqual({
+      href: "/admin/attendance",
+      label: "View attendance",
+    });
+  });
+
+  it("routes event reminders and RSVP follow-ups to /admin/rsvp with 'View event'", () => {
+    expect(
+      scheduledMessageActionLink({
+        ...baseMessage,
+        eventId: "22222222-2222-4222-8222-222222222222",
+        kind: "event_reminder",
+      }),
+    ).toEqual({
+      href: "/admin/rsvp?eventId=22222222-2222-4222-8222-222222222222",
+      label: "View event",
+    });
+    expect(
+      scheduledMessageActionLink({
+        ...baseMessage,
+        eventId: "22222222-2222-4222-8222-222222222222",
+        kind: "rsvp_follow_up",
+      }),
+    ).toEqual({
+      href: "/admin/rsvp?eventId=22222222-2222-4222-8222-222222222222",
+      label: "View event",
+    });
+    expect(
+      scheduledMessageActionLink({
+        ...baseMessage,
+        eventId: null,
+        kind: "event_reminder",
+      }),
+    ).toEqual({
+      href: "/admin/rsvp",
+      label: "View event",
+    });
   });
 });

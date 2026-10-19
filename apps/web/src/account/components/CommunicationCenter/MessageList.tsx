@@ -1,7 +1,12 @@
 import type { CommunicationDeliverySummary, CommunicationMessage } from "@choir/contracts";
 import { CommunicationDeliveryDetails } from "./CommunicationDeliveryDetails";
 import type { MessageOriginFilter, MessageStatusFilter, UnifiedCommunicationItem } from "./types";
-import { displayDate, getEmptyStateText, scheduledMessageKindLabel } from "./utils";
+import {
+  displayDate,
+  getEmptyStateText,
+  scheduledMessageActionLink,
+  scheduledMessageKindLabel,
+} from "./utils";
 
 interface MessageListProps {
   readonly busy: boolean;
@@ -144,6 +149,7 @@ function MessageTimestamp({ item }: { readonly item: UnifiedCommunicationItem })
 
 function AutomationContext({ item }: { readonly item: UnifiedCommunicationItem }) {
   if (item.kind !== "scheduled") return null;
+  const action = scheduledMessageActionLink(item.scheduledMessage);
   return (
     <>
       {item.scheduledMessage.projected ? (
@@ -151,16 +157,11 @@ function AutomationContext({ item }: { readonly item: UnifiedCommunicationItem }
           Automation preview. Recipients and eligibility are checked at send time.
         </p>
       ) : null}
-      <a
-        className="text-link"
-        href={
-          item.scheduledMessage.eventId
-            ? `/admin/rsvp?eventId=${encodeURIComponent(item.scheduledMessage.eventId)}`
-            : "/admin/auditions"
-        }
-      >
-        {item.scheduledMessage.eventId ? "View event" : "View auditions"}
-      </a>
+      {action ? (
+        <a className="text-link" href={action.href}>
+          {action.label}
+        </a>
+      ) : null}
     </>
   );
 }

@@ -308,6 +308,7 @@ export const organizationRosterConfigurationRequestSchema = z
     statusAutomationMissThreshold: z.number().int().min(1).max(10).default(3),
     statusAutomationRecoveryEnabled: z.boolean().default(true),
     attendanceReportWarningThreshold: z.number().int().min(1).max(10).default(1),
+    rehearsalAttendanceReportsEnabled: z.boolean().default(true),
     voiceParts: z.array(organizationVoicePartSchema).max(100).default([]),
   })
   .superRefine((configuration, context) => {

@@ -105,6 +105,14 @@ export function upcomingCommunications(
         `post-event-report:${organizationId}:${event.id}`,
         `Attendance report: ${event.title}`,
       );
+    } else if (event.type === "Rehearsal" && configuration.rehearsalAttendanceReportsEnabled) {
+      add(
+        event,
+        "attendance_report",
+        attendanceReportDueAt(event.startsAt),
+        `post-event-report:${organizationId}:${event.id}`,
+        `Attendance report: ${event.title}`,
+      );
     }
   }
   const keys = JSON.stringify(predictions.map(({ key }) => key));

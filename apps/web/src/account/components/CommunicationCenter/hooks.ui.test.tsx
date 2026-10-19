@@ -33,6 +33,7 @@ const mockRosterConfig: OrganizationRosterConfiguration = {
   onBreakTimeoutDays: 30,
   onBreakTimeoutEnabled: false,
   performerLabel: "Singer",
+  rehearsalAttendanceReportsEnabled: true,
   rsvpExpiryEnabled: false,
   rsvpFollowUpEnabled: false,
   rsvpFollowUpLeadHours: 24,

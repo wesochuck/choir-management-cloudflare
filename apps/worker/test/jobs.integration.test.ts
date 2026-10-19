@@ -13,6 +13,7 @@ import { z } from "zod";
 import * as communicationProvider from "../src/communications/provider";
 import { listMemberBulletinsFromStore } from "../src/organization/communicationStore/queries";
 import { scheduledEventTemplateIds } from "../src/jobs/deliveries/shared";
+import { readRosterAutomationConfiguration } from "../src/organization/statusAutomationStore";
 
 import { processDeadLetterBatch, processDeliveryBatch } from "../src/jobs/consumer";
 import type { DeliveryJob } from "../src/jobs/contracts";
@@ -336,24 +337,32 @@ describe("Organization queue delivery", () => {
   });
 
   it("records a failed attempt and lets a later queue delivery reclaim and complete it", async () => {
-    const failedResult = await processBatch(alphaJob, 1, "alpha-failed", "sandbox");
+    const failedJob: DeliveryJob = {
+      attempt: 1,
+      idempotencyKey: "event-reminder:organization-alpha:retry-test",
+      jobId: "11111111-1111-4111-8111-111111111111",
+      kind: "event_reminder",
+      organizationId: "organization-alpha",
+      version: 1,
+    };
+    const failedResult = await processBatch(failedJob, 1, "alpha-failed", "sandbox");
 
     expect(failedResult.retryMessages).toHaveLength(1);
     await expect(
-      readJobLedger("organization-alpha", alphaJob.idempotencyKey),
+      readJobLedger("organization-alpha", failedJob.idempotencyKey),
     ).resolves.toMatchObject({
       attempt: 1,
-      jobId: alphaJob.jobId,
+      jobId: failedJob.jobId,
       status: "failed",
     });
 
-    const retryResult = await processBatch(alphaJob, 2, "alpha-retry");
+    const retryResult = await processBatch(failedJob, 2, "alpha-retry");
 
     expect(retryResult.explicitAcks).toEqual(["alpha-retry"]);
-    await expect(readJobLedger("organization-alpha", alphaJob.idempotencyKey)).resolves.toEqual({
+    await expect(readJobLedger("organization-alpha", failedJob.idempotencyKey)).resolves.toEqual({
       attempt: 2,
       failedAt: null,
-      jobId: alphaJob.jobId,
+      jobId: failedJob.jobId,
       status: "completed",
     });
   });
@@ -534,6 +543,191 @@ describe("Organization queue delivery", () => {
     expect(stored.deliveryStatus).toBe("sent");
     expect(stored.messageCount).toBe(3);
     expect(stored.reminderSentAt).toEqual(expect.any(String));
+  });
+
+  it("delivers attendance_report for a Rehearsal event, marks pending attendance absent, and includes rehearsal threshold warnings up to current rehearsal", async () => {
+    const stub = await provisionScheduledCommunicationFixture();
+    const now = Date.now();
+    const nowIso = new Date(now).toISOString();
+    const performanceId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb01";
+    const pastRehearsal1Id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb02";
+    const pastRehearsal2Id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb03";
+    const futureRehearsalId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbb04";
+    const singer1Id = "cccccccc-cccc-4ccc-8ccc-cccccccccc01";
+    const singer2Id = "cccccccc-cccc-4ccc-8ccc-cccccccccc02";
+    const reportJobId = "dddddddd-dddd-4ddd-8ddd-dddddddddd01";
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      // Create singers
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, phone, voice_part, global_status, receive_attendance_reports, created_at, updated_at)
+         VALUES (?, 'Singer One', '+15551111111', 'S1', 'Active', 0, ?, ?),
+                (?, 'Singer Two', '+15552222222', 'A1', 'Active', 0, ?, ?)`,
+        singer1Id,
+        nowIso,
+        nowIso,
+        singer2Id,
+        nowIso,
+        nowIso,
+      );
+      // Create parent performance
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, duration_minutes, call_time, location, details, created_at, updated_at)
+         VALUES (?, 'Parent Concert', 'Performance', ?, 120, '19:00', 'Hall', '', ?, ?)`,
+        performanceId,
+        new Date(now + 7 * 24 * 60 * 60 * 1_000).toISOString(),
+        nowIso,
+        nowIso,
+      );
+      // Both singers are performers for the concert (RSVP Yes)
+      state.storage.sql.exec(
+        `INSERT INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at)
+         VALUES (?, ?, 'Yes', 'Pending', ?, ?),
+                (?, ?, 'Yes', 'Pending', ?, ?)`,
+        performanceId,
+        singer1Id,
+        nowIso,
+        nowIso,
+        performanceId,
+        singer2Id,
+        nowIso,
+        nowIso,
+      );
+      // Past Rehearsal 1 (20 hours ago)
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, duration_minutes, call_time, location, parent_performance_id, details, created_at, updated_at)
+         VALUES (?, 'Rehearsal 1', 'Rehearsal', ?, 90, '19:00', 'Studio', ?, '', ?, ?)`,
+        pastRehearsal1Id,
+        new Date(now - 20 * 60 * 60 * 1_000).toISOString(),
+        performanceId,
+        nowIso,
+        nowIso,
+      );
+      // In Rehearsal 1: Singer One was Present, Singer Two was Absent
+      state.storage.sql.exec(
+        `INSERT INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at)
+         VALUES (?, ?, 'Yes', 'Present', ?, ?),
+                (?, ?, 'Yes', 'Absent', ?, ?)`,
+        pastRehearsal1Id,
+        singer1Id,
+        nowIso,
+        nowIso,
+        pastRehearsal1Id,
+        singer2Id,
+        nowIso,
+        nowIso,
+      );
+      // Past Rehearsal 2 (13 hours ago - the one being reported)
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, duration_minutes, call_time, location, parent_performance_id, details, created_at, updated_at)
+         VALUES (?, 'Rehearsal 2', 'Rehearsal', ?, 90, '19:00', 'Studio', ?, '', ?, ?)`,
+        pastRehearsal2Id,
+        new Date(now - 13 * 60 * 60 * 1_000).toISOString(),
+        performanceId,
+        nowIso,
+        nowIso,
+      );
+      // In Rehearsal 2: Singer One is Present, Singer Two is Pending
+      state.storage.sql.exec(
+        `INSERT INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at)
+         VALUES (?, ?, 'Yes', 'Present', ?, ?),
+                (?, ?, 'Yes', 'Pending', ?, ?)`,
+        pastRehearsal2Id,
+        singer1Id,
+        nowIso,
+        nowIso,
+        pastRehearsal2Id,
+        singer2Id,
+        nowIso,
+        nowIso,
+      );
+      // Future Rehearsal (tomorrow)
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, duration_minutes, call_time, location, parent_performance_id, details, created_at, updated_at)
+         VALUES (?, 'Rehearsal 3', 'Rehearsal', ?, 90, '19:00', 'Studio', ?, '', ?, ?)`,
+        futureRehearsalId,
+        new Date(now + 24 * 60 * 60 * 1_000).toISOString(),
+        performanceId,
+        nowIso,
+        nowIso,
+      );
+      // Enqueue attendance report job for Rehearsal 2
+      state.storage.sql.exec(
+        `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)
+         VALUES (?, 'attendance_report', ?, ?, ?)`,
+        reportJobId,
+        `post-event-report:organization-scheduled:${pastRehearsal2Id}`,
+        nowIso,
+        nowIso,
+      );
+      // Set warning threshold to 2, and disable toggle to prove already-queued rehearsal reports still deliver cleanly
+      const config = readRosterAutomationConfiguration(state.storage);
+      state.storage.sql.exec(
+        "UPDATE organization_metadata SET roster_configuration_json = ?",
+        JSON.stringify({
+          ...config,
+          attendanceReportWarningThreshold: 2,
+          rehearsalAttendanceReportsEnabled: false,
+        }),
+      );
+      return undefined;
+    });
+
+    const job: DeliveryJob = {
+      attempt: 1,
+      idempotencyKey: `post-event-report:organization-scheduled:${pastRehearsal2Id}`,
+      jobId: reportJobId,
+      kind: "attendance_report",
+      organizationId: "organization-scheduled",
+      version: 1,
+    };
+
+    const result = await processBatch(job, 1, "rehearsal-report-outer", "fake", true);
+    expect(result.explicitAcks).toEqual(["rehearsal-report-outer"]);
+
+    // Singer Two's pending attendance in Rehearsal 2 should now be Absent
+    const stored = await runInDurableObject<
+      OrganizationStore,
+      { readonly attendance: string; readonly content: string }
+    >(stub, (_instance, state) => ({
+      attendance: state.storage.sql
+        .exec<{ readonly [column: string]: SqlStorageValue; readonly attendance: string }>(
+          "SELECT attendance FROM event_rosters WHERE event_id = ? AND profile_id = ?",
+          pastRehearsal2Id,
+          singer2Id,
+        )
+        .one().attendance,
+      content: state.storage.sql
+        .exec<{ readonly [column: string]: SqlStorageValue; readonly content: string }>(
+          "SELECT content_markdown AS content FROM communication_messages WHERE subject = 'Attendance report: Rehearsal 2' LIMIT 1",
+        )
+        .one().content,
+    }));
+
+    expect(stored.attendance).toBe("Absent");
+    expect(stored.content).toContain("Event type:** Rehearsal");
+    // Singer Two missed 2 rehearsals (Rehearsal 1 and Rehearsal 2), so at threshold 2 they are warned!
+    expect(stored.content).toContain("- Singer Two (2 missed Rehearsals)");
+    // Singer One was Present at both, so not in warnings
+    expect(stored.content).not.toContain("Singer One (");
+  });
+
+  it("treats attendance_report jobs for deleted or non-applicable events as a terminal ack without retrying", async () => {
+    await provisionScheduledCommunicationFixture();
+    const missingEventJobId = "99999999-9999-4999-8999-999999999999";
+    const job: DeliveryJob = {
+      attempt: 1,
+      idempotencyKey:
+        "post-event-report:organization-scheduled:00000000-0000-4000-8000-000000000000",
+      jobId: missingEventJobId,
+      kind: "attendance_report",
+      organizationId: "organization-scheduled",
+      version: 1,
+    };
+
+    const result = await processBatch(job, 1, "missing-event-report", "fake", true);
+    expect(result.explicitAcks).toEqual(["missing-event-report"]);
+    expect(result.retryMessages).toEqual([]);
   });
 
   it.each([

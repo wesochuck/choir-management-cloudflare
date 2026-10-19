@@ -25,4 +25,5 @@ export const defaultRosterConfiguration = {
   statusAutomationMissThreshold: 3,
   statusAutomationRecoveryEnabled: true,
   attendanceReportWarningThreshold: 1,
+  rehearsalAttendanceReportsEnabled: true,
 } as const;
