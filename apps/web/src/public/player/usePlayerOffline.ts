@@ -98,14 +98,18 @@ export function useAutoCacheOfflineCopies(
   items: readonly PlayerPlaylistItem[],
   activeTrackKey: string,
   ensureOfflineCopies: (fileIds: readonly string[]) => void,
+  priorityFileId?: string,
 ): void {
   useEffect(() => {
     if (!scope) return;
     const fileIds = new Set<string>();
+    if (priorityFileId) {
+      fileIds.add(priorityFileId);
+    }
     for (const item of items) {
       const track = resolveTrack(item, activeTrackKey);
       if (track) fileIds.add(track.fileId);
     }
     ensureOfflineCopies([...fileIds]);
-  }, [activeTrackKey, ensureOfflineCopies, items, scope]);
+  }, [activeTrackKey, ensureOfflineCopies, items, priorityFileId, scope]);
 }

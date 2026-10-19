@@ -1,4 +1,5 @@
 import type { OrganizationEvent, SingerEvent, SingerLearningTrackPiece } from "@choir/contracts";
+import { sortMusicMovements } from "@choir/domain";
 
 import { resolveTrack, type PlayerPlaylistItem } from "../public/player";
 
@@ -119,10 +120,41 @@ export function getApprovedPerformanceSetLists(
   }));
 }
 
+function nonEmptyString(value: string | null | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? (value ?? undefined) : undefined;
+}
+
+function pieceToSetListPlaylistItem(
+  piece: SingerLearningTrackPiece,
+  parentPiece: SingerLearningTrackPiece | undefined,
+  item: OrganizationSetListItem,
+  titleOverride?: string,
+): PlayerPlaylistItem {
+  const arranger = nonEmptyString(piece.arranger) ?? nonEmptyString(parentPiece?.arranger) ?? "";
+  const composer =
+    nonEmptyString(piece.composer) ??
+    nonEmptyString(parentPiece?.composer) ??
+    nonEmptyString(item.composer) ??
+    null;
+  return {
+    arranger,
+    composer,
+    durationSeconds: piece.durationSeconds,
+    isFeaturedNumber: item.isFeaturedNumber,
+    notes: item.notes,
+    pieceId: piece.id,
+    title: titleOverride ?? piece.title,
+    trackFileIds: piece.trackFileIds,
+    type: "song",
+  };
+}
+
 function mapSetListItem(
   item: OrganizationSetListItem,
   pieceMap: Map<string, SingerLearningTrackPiece>,
   parentMovementsMap: Map<string, SingerLearningTrackPiece[]>,
+  setListPieceIds: ReadonlySet<string>,
 ): PlayerPlaylistItem[] {
   if (!item.pieceId) {
     return [
@@ -139,35 +171,22 @@ function mapSetListItem(
   }
 
   const directMatch = pieceMap.get(item.pieceId);
-  if (directMatch) {
-    return [
-      {
-        arranger: directMatch.arranger,
-        composer: directMatch.composer.trim() ? directMatch.composer : (item.composer ?? null),
-        durationSeconds: directMatch.durationSeconds,
-        isFeaturedNumber: item.isFeaturedNumber,
-        notes: item.notes,
-        pieceId: directMatch.id,
-        title: item.title || directMatch.title,
-        trackFileIds: directMatch.trackFileIds,
-        type: "song",
-      },
-    ];
+  const movements = parentMovementsMap.get(item.pieceId);
+  const hasDirectTracks =
+    directMatch !== undefined && Object.keys(directMatch.trackFileIds).length > 0;
+
+  if (movements && movements.length > 0 && !hasDirectTracks) {
+    if (movements.some((m) => setListPieceIds.has(m.id))) {
+      return [];
+    }
+    return sortMusicMovements(movements, directMatch?.movementOrder).map((movement) =>
+      pieceToSetListPlaylistItem(movement, directMatch, item),
+    );
   }
 
-  const movements = parentMovementsMap.get(item.pieceId);
-  if (movements && movements.length > 0) {
-    return movements.map((movement) => ({
-      arranger: movement.arranger,
-      composer: movement.composer.trim() ? movement.composer : (item.composer ?? null),
-      durationSeconds: movement.durationSeconds,
-      isFeaturedNumber: item.isFeaturedNumber,
-      notes: item.notes,
-      pieceId: movement.id,
-      title: movement.title,
-      trackFileIds: movement.trackFileIds,
-      type: "song",
-    }));
+  if (directMatch) {
+    const parentMatch = directMatch.parentId ? pieceMap.get(directMatch.parentId) : undefined;
+    return [pieceToSetListPlaylistItem(directMatch, parentMatch, item, item.title || undefined)];
   }
 
   return [
@@ -202,7 +221,11 @@ export function mapSetListToPlaylistItems(
     }
   }
 
-  return setList.flatMap((item) => mapSetListItem(item, pieceMap, parentMovementsMap));
+  const setListPieceIds = new Set(setList.flatMap((item) => (item.pieceId ? [item.pieceId] : [])));
+
+  return setList.flatMap((item) =>
+    mapSetListItem(item, pieceMap, parentMovementsMap, setListPieceIds),
+  );
 }
 
 export function filterLibraryPieces(

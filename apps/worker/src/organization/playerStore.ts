@@ -1,7 +1,7 @@
 import type { DurableObjectStorage, SqlStorageValue } from "@cloudflare/workers-types";
 
 import { organizationRosterConfigurationRequestSchema } from "@choir/contracts";
-import { defaultRosterConfiguration } from "@choir/domain";
+import { defaultRosterConfiguration, sortMusicMovements } from "@choir/domain";
 import { z } from "zod";
 
 const setListItemSchema = z.object({
@@ -26,17 +26,29 @@ const setListItemSchema = z.object({
   type: z.enum(["intermission", "song"]).optional(),
 });
 
-type SetListItem = z.infer<typeof setListItemSchema>;
+export type SetListItem = z.infer<typeof setListItemSchema>;
 
 export interface PieceRow {
-  readonly [column: string]: SqlStorageValue;
+  readonly [column: string]: SqlStorageValue | undefined;
   readonly arranger: string | null;
   readonly composer: string | null;
   readonly durationSeconds: number | null;
   readonly id: string;
+  readonly movementOrderJson?: string | null | undefined;
   readonly parentId: string | null;
   readonly title: string;
   readonly trackFileIds: string | null;
+}
+
+export function parseMovementOrderJson(value: string | null | undefined): string[] {
+  if (typeof value !== "string" || !value.trim()) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is string => typeof entry === "string");
+  } catch {
+    return [];
+  }
 }
 
 function parseSetListJson(value: string): SetListItem[] {
@@ -56,7 +68,7 @@ function parseSetListJson(value: string): SetListItem[] {
   }
 }
 
-function parseTrackFileIds(value: string | null | undefined): Record<string, string> {
+export function parseTrackFileIds(value: string | null | undefined): Record<string, string> {
   if (typeof value !== "string" || !value.trim()) return {};
   try {
     const parsed: unknown = JSON.parse(value);
@@ -129,45 +141,29 @@ export function readTrackLabels(
   return trackLabels;
 }
 
-/**
- * Set lists normally reference a top-level work, while learning tracks can be
- * attached to that work's movements. Resolve both levels so a parent item is
- * playable without requiring the set list editor to duplicate every movement.
- */
-function readPieceForSetListItem(
-  storage: DurableObjectStorage,
-  pieceId: string,
-): PieceRow | undefined {
-  const rows = storage.sql
-    .exec<PieceRow>(
-      `SELECT arranger, composer, duration_seconds AS durationSeconds, id,
-         parent_id AS parentId, title, track_file_ids_json AS trackFileIds
-       FROM music_pieces
-       WHERE id = ? OR parent_id = ?
-       ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, created_at ASC, id ASC`,
-      pieceId,
-      pieceId,
-      pieceId,
-    )
-    .toArray();
-  const primary = rows.find((row) => row.id === pieceId) ?? rows[0];
-  if (!primary) return undefined;
-  const trackFileIds: Record<string, string> = {};
-  for (const row of rows) {
-    Object.assign(trackFileIds, parseTrackFileIds(row.trackFileIds));
-  }
-  return { ...primary, trackFileIds: JSON.stringify(trackFileIds) };
-}
-
 function cleanOptionalString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function resolvePieceCredits(
+  piece: PieceRow | undefined,
+  parentPiece: PieceRow | undefined,
+  itemComposer: string | undefined,
+): { readonly arranger?: string | undefined; readonly composer?: string | undefined } {
+  return {
+    arranger: cleanOptionalString(piece?.arranger) ?? cleanOptionalString(parentPiece?.arranger),
+    composer:
+      cleanOptionalString(piece?.composer) ??
+      cleanOptionalString(parentPiece?.composer) ??
+      cleanOptionalString(itemComposer),
+  };
+}
+
 export function toPlaylistItem(
   item: SetListItem,
-  pieceMap: Map<string, PieceRow>,
+  pieceMap: ReadonlyMap<string, PieceRow>,
 ): {
   readonly arranger?: string | undefined;
   readonly composer?: string | undefined;
@@ -179,10 +175,11 @@ export function toPlaylistItem(
   readonly trackFileIds: Record<string, string>;
 } {
   const piece = item.pieceId ? pieceMap.get(item.pieceId) : undefined;
-  const rawComposer = piece?.composer ?? item.composer;
+  const parentPiece = piece?.parentId ? pieceMap.get(piece.parentId) : undefined;
+  const { arranger, composer } = resolvePieceCredits(piece, parentPiece, item.composer);
   return {
-    arranger: cleanOptionalString(piece?.arranger),
-    composer: cleanOptionalString(rawComposer),
+    arranger,
+    composer,
     durationSeconds: typeof piece?.durationSeconds === "number" ? piece.durationSeconds : undefined,
     isFeaturedNumber:
       typeof item.isFeaturedNumber === "boolean" ? item.isFeaturedNumber : undefined,
@@ -191,6 +188,116 @@ export function toPlaylistItem(
     title: piece?.title ?? item.title,
     trackFileIds: piece ? parseTrackFileIds(piece.trackFileIds) : {},
   };
+}
+
+export function resolveSetListPlaylistItems(
+  setList: readonly SetListItem[],
+  pieceMap: ReadonlyMap<string, PieceRow>,
+  childrenMap?: ReadonlyMap<string, readonly PieceRow[]>,
+): {
+  readonly arranger?: string | undefined;
+  readonly composer?: string | undefined;
+  readonly durationSeconds?: number | undefined;
+  readonly isFeaturedNumber?: boolean | undefined;
+  readonly notes?: string | undefined;
+  readonly pieceId?: string | undefined;
+  readonly title: string;
+  readonly trackFileIds: Record<string, string>;
+}[] {
+  const setListPieceIds = new Set(
+    setList.map((i) => i.pieceId).filter((id): id is string => id !== undefined),
+  );
+  return setList.flatMap((item) => {
+    if (!item.pieceId) {
+      return [toPlaylistItem(item, pieceMap)];
+    }
+    const directPiece = pieceMap.get(item.pieceId);
+    const children = childrenMap?.get(item.pieceId) ?? [];
+    const hasDirectTracks =
+      directPiece !== undefined &&
+      Object.keys(parseTrackFileIds(directPiece.trackFileIds)).length > 0;
+
+    if (children.length > 0 && !hasDirectTracks) {
+      if (children.some((child) => setListPieceIds.has(child.id))) {
+        return [];
+      }
+      const sortedChildren = sortMusicMovements(
+        children,
+        parseMovementOrderJson(directPiece?.movementOrderJson),
+      );
+      return sortedChildren.map((child) => {
+        const { arranger, composer } = resolvePieceCredits(child, directPiece, item.composer);
+        return {
+          arranger,
+          composer,
+          durationSeconds:
+            typeof child.durationSeconds === "number" ? child.durationSeconds : undefined,
+          isFeaturedNumber:
+            typeof item.isFeaturedNumber === "boolean" ? item.isFeaturedNumber : undefined,
+          notes: cleanOptionalString(item.notes),
+          pieceId: child.id,
+          title: child.title,
+          trackFileIds: parseTrackFileIds(child.trackFileIds),
+        };
+      });
+    }
+
+    return [toPlaylistItem(item, pieceMap)];
+  });
+}
+
+interface StoredPieceRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly arranger: string | null;
+  readonly composer: string | null;
+  readonly durationSeconds: number | null;
+  readonly id: string;
+  readonly movementOrderJson: string | null;
+  readonly parentId: string | null;
+  readonly title: string;
+  readonly trackFileIds: string | null;
+}
+
+function readPiecesForSetList(
+  storage: DurableObjectStorage,
+  pieceIds: readonly string[],
+): {
+  readonly childrenMap: Map<string, PieceRow[]>;
+  readonly pieceMap: Map<string, PieceRow>;
+} {
+  const pieceMap = new Map<string, PieceRow>();
+  const childrenMap = new Map<string, PieceRow[]>();
+  const uniquePieceIds = new Set(pieceIds);
+
+  for (const pieceId of uniquePieceIds) {
+    const rows = storage.sql
+      .exec<StoredPieceRow>(
+        `SELECT arranger, composer, duration_seconds AS durationSeconds, id,
+           movement_order_json AS movementOrderJson,
+           parent_id AS parentId, title, track_file_ids_json AS trackFileIds
+         FROM music_pieces
+         WHERE id = ? OR parent_id = ?
+         ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END, created_at ASC, id ASC`,
+        pieceId,
+        pieceId,
+        pieceId,
+      )
+      .toArray();
+
+    const directRow = rows.find((row) => row.id === pieceId);
+    if (directRow) {
+      pieceMap.set(pieceId, directRow);
+    }
+    const childRows = rows.filter((row) => row.parentId === pieceId);
+    if (childRows.length > 0) {
+      childrenMap.set(
+        pieceId,
+        sortMusicMovements(childRows, parseMovementOrderJson(directRow?.movementOrderJson)),
+      );
+    }
+  }
+
+  return { childrenMap, pieceMap };
 }
 
 function readOrganizationName(storage: DurableObjectStorage): string | undefined {
@@ -247,16 +354,8 @@ export function readPlayerDetailsFromStore(
   const pieceIds = setList
     .map((item) => item.pieceId)
     .filter((id): id is string => id !== undefined);
-  const pieceMap = new Map<string, PieceRow>();
-  if (pieceIds.length > 0) {
-    for (const pieceId of pieceIds) {
-      const piece = readPieceForSetListItem(storage, pieceId);
-      if (piece) {
-        pieceMap.set(pieceId, piece);
-      }
-    }
-  }
-  const items = setList.map((item) => toPlaylistItem(item, pieceMap));
+  const { childrenMap, pieceMap } = readPiecesForSetList(storage, pieceIds);
+  const items = resolveSetListPlaylistItems(setList, pieceMap, childrenMap);
   const rosterConfig = readRosterConfiguration(storage);
   return Response.json({
     eventArtworkFileId: eventRow.publicGraphicFileId ?? null,
@@ -300,12 +399,8 @@ export function readPlayerPlaylistFromStore(
   const pieceIds = setList
     .map((item) => item.pieceId)
     .filter((id): id is string => id !== undefined);
-  const pieceMap = new Map<string, PieceRow>();
-  for (const pieceId of pieceIds) {
-    const piece = readPieceForSetListItem(storage, pieceId);
-    if (piece) pieceMap.set(pieceId, piece);
-  }
-  const items = setList.map((item) => toPlaylistItem(item, pieceMap));
+  const { childrenMap, pieceMap } = readPiecesForSetList(storage, pieceIds);
+  const items = resolveSetListPlaylistItems(setList, pieceMap, childrenMap);
   const rosterConfig = readRosterConfiguration(storage);
   return Response.json({
     eventArtworkFileId: eventRow.publicGraphicFileId ?? null,

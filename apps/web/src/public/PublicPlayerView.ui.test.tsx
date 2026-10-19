@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,7 @@ import {
 } from "./player";
 import { PublicPlayerView } from "./PublicPlayerView";
 import * as playerApi from "./player/api";
+import * as usePlayerOfflineModule from "./player/usePlayerOffline";
 
 const mockDetails: PlayerDetails = {
   eventArtworkFileId: "artwork-uuid-123",
@@ -337,6 +338,130 @@ describe("PublicPlayerView UI & Branding", () => {
       await waitFor(() => {
         expect(screen.getByRole("heading", { name: "Track 1" })).toBeInTheDocument();
       });
+    });
+
+    it("preserves playback state and currentTime when offline copy finishes mid-playback", async () => {
+      const user = userEvent.setup();
+      vi.spyOn(window.HTMLMediaElement.prototype, "play").mockImplementation(function (
+        this: HTMLMediaElement,
+      ) {
+        this.dispatchEvent(new Event("play"));
+        return Promise.resolve();
+      });
+      vi.spyOn(window.HTMLMediaElement.prototype, "pause").mockImplementation(function (
+        this: HTMLMediaElement,
+      ) {
+        this.dispatchEvent(new Event("pause"));
+      });
+
+      let currentOfflineUrl: string | null = null;
+      vi.spyOn(usePlayerOfflineModule, "useOfflineAudioUrl").mockImplementation(
+        () => currentOfflineUrl,
+      );
+
+      function Wrapper() {
+        return (
+          <PublicPracticePlayer
+            details={multiTrackDetails}
+            source={createTokenTrackSource("token-123")}
+          />
+        );
+      }
+
+      const { container, rerender } = render(<Wrapper />);
+      const audioElement = container.querySelector("audio");
+      expect(audioElement).toBeInTheDocument();
+      if (!audioElement) throw new Error("Audio element not found");
+
+      Object.defineProperty(audioElement, "duration", { value: 180, writable: true });
+      fireEvent.loadedMetadata(audioElement);
+
+      // Start playing
+      const playButton = screen.getByRole("button", { name: "Play" });
+      await user.click(playButton);
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+      });
+
+      // Advance currentTime to 45
+      Object.defineProperty(audioElement, "currentTime", { value: 45, writable: true });
+      fireEvent.timeUpdate(audioElement);
+      expect(screen.getByText("0:45")).toBeInTheDocument();
+
+      // Now offline copy finishes resolving for the same track
+      currentOfflineUrl = "blob:offline-file-tutti";
+      rerender(<Wrapper />);
+
+      // audioSrc changes to blob URL. In browser, loadedmetadata fires on the reloaded element.
+      fireEvent.loadedMetadata(audioElement);
+
+      // Verify playback remains active (Pause button still visible)
+      expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+      // Verify currentTime is preserved at 45 (not reset to 0)
+      expect(audioElement.currentTime).toBe(45);
+      expect(screen.getByText("0:45")).toBeInTheDocument();
+    });
+
+    it("automatically recovers playback at currentTime on network reconnect", async () => {
+      const user = userEvent.setup();
+      const playSpy = vi
+        .spyOn(window.HTMLMediaElement.prototype, "play")
+        .mockImplementation(function (this: HTMLMediaElement) {
+          this.dispatchEvent(new Event("play"));
+          return Promise.resolve();
+        });
+      vi.spyOn(window.HTMLMediaElement.prototype, "pause").mockImplementation(function (
+        this: HTMLMediaElement,
+      ) {
+        this.dispatchEvent(new Event("pause"));
+      });
+
+      const { container } = render(
+        <PublicPracticePlayer
+          details={multiTrackDetails}
+          source={createTokenTrackSource("token-123")}
+        />,
+      );
+      const audioElement = container.querySelector("audio");
+      if (!audioElement) throw new Error("Audio element not found");
+
+      Object.defineProperty(audioElement, "duration", { value: 180, writable: true });
+      fireEvent.loadedMetadata(audioElement);
+
+      // Start playing
+      const playButton = screen.getByRole("button", { name: "Play" });
+      await user.click(playButton);
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
+      });
+
+      // Advance currentTime to 62 seconds (1:02)
+      Object.defineProperty(audioElement, "currentTime", { value: 62, writable: true });
+      fireEvent.timeUpdate(audioElement);
+      expect(screen.getByText("1:02")).toBeInTheDocument();
+
+      // Simulate Wi-Fi drop / network error during playback
+      Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+      fireEvent.error(audioElement);
+
+      // Cellular connects: navigator.onLine becomes true and window fires "online"
+      act(() => {
+        Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+        window.dispatchEvent(new Event("online"));
+      });
+
+      // Audio element reloads on reconnection and fires loadedMetadata
+      act(() => {
+        fireEvent.loadedMetadata(audioElement);
+      });
+
+      // Verify playback resumed at 62s without user intervention
+      expect(audioElement.currentTime).toBe(62);
+      expect(screen.getByText("1:02")).toBeInTheDocument();
+      expect(playSpy).toHaveBeenCalled();
+      expect(screen.getByRole("button", { name: "Pause" })).toBeInTheDocument();
     });
   });
 });

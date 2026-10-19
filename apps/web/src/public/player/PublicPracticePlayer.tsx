@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { Sheet } from "@choir/ui";
 
 import { PlayerArtwork, PlayerTrackMetadata } from "./components/PlayerArtwork";
@@ -21,6 +21,7 @@ import type { PracticeTrackSource } from "./source";
 import type { PlayerDetails, PlayerPlaylistItem, ResolvedTrack } from "./types";
 import { useAudioSession, type AudioSessionHandlers } from "./useAudioSession";
 import { useAutoCacheOfflineCopies, useOfflineAudioUrl } from "./usePlayerOffline";
+import { subscribeNetworkStatus } from "../../offline/network";
 import { useOfflineCopies } from "../../offline/useOfflineCopies";
 
 function OfflineStatusNotices({
@@ -113,21 +114,30 @@ function computeAudioSrc(
   return "";
 }
 
+const MAX_STREAM_RETRIES = 3;
+const STREAM_RETRY_DELAYS = [300, 1000, 2500] as const;
+
 interface PlayerAudioProps {
   readonly audioRef: React.RefObject<HTMLAudioElement | null>;
   readonly audioSrc: string;
-  readonly autoplayRef: React.RefObject<boolean>;
+  readonly autoplayRef: { current: boolean };
   readonly currentItem: PlayerPlaylistItem | null;
   readonly currentTrack: ResolvedTrack | null;
+  readonly currentTimeRef: { current: number };
   readonly duration: number;
   readonly handleAudioError: (event: SyntheticEvent<HTMLAudioElement>) => void;
   readonly handleEnded: () => void;
+  readonly handleStalled: () => void;
+  readonly isReloadingRef: { current: boolean };
   readonly playCurrent: () => void;
   readonly playing: boolean;
+  readonly resumeTimeRef: { current: number | null };
+  readonly retryCountRef: { current: number };
   readonly setCurrentTime: (time: number) => void;
   readonly setDuration: (duration: number) => void;
   readonly setPlaying: (playing: boolean) => void;
   readonly startAt: number;
+  readonly wantPlayingRef: { current: boolean };
 }
 
 function PlayerAudio({
@@ -136,15 +146,21 @@ function PlayerAudio({
   autoplayRef,
   currentItem,
   currentTrack,
+  currentTimeRef,
   duration,
   handleAudioError,
   handleEnded,
+  handleStalled,
+  isReloadingRef,
   playCurrent,
   playing,
+  resumeTimeRef,
+  retryCountRef,
   setCurrentTime,
   setDuration,
   setPlaying,
   startAt,
+  wantPlayingRef,
 }: PlayerAudioProps) {
   if (!currentItem || !currentTrack) return null;
   return (
@@ -157,28 +173,49 @@ function PlayerAudio({
         const nextDuration = Number.isFinite(event.currentTarget.duration)
           ? event.currentTarget.duration
           : 0;
-        const initialTime = Math.min(startAt, nextDuration);
+        const targetTime =
+          resumeTimeRef.current !== null
+            ? Math.min(resumeTimeRef.current, nextDuration)
+            : Math.min(startAt, nextDuration);
+        resumeTimeRef.current = null;
+        isReloadingRef.current = false;
         setDuration(nextDuration);
-        setCurrentTime(initialTime);
-        event.currentTarget.currentTime = initialTime;
-        updateMediaSessionPosition(initialTime, nextDuration, event.currentTarget);
-        if (autoplayRef.current || playing) {
+        setCurrentTime(targetTime);
+        currentTimeRef.current = targetTime;
+        event.currentTarget.currentTime = targetTime;
+        updateMediaSessionPosition(targetTime, nextDuration, event.currentTarget);
+        if (autoplayRef.current || wantPlayingRef.current || playing) {
           autoplayRef.current = false;
           playCurrent();
         }
       }}
-      onPause={() => {
+      onPause={(event) => {
+        if (isReloadingRef.current) return;
+        if (
+          wantPlayingRef.current &&
+          (event.currentTarget.error !== null ||
+            (typeof navigator !== "undefined" && !navigator.onLine))
+        ) {
+          return;
+        }
         setPlaying(false);
       }}
       onPlay={() => {
+        isReloadingRef.current = false;
+        wantPlayingRef.current = true;
         setPlaying(true);
       }}
+      onStalled={handleStalled}
       onTimeUpdate={(event) => {
         const time = event.currentTarget.currentTime;
+        currentTimeRef.current = time;
         setCurrentTime(time);
         updateMediaSessionPosition(time, duration, event.currentTarget);
+        if (time > 0) {
+          retryCountRef.current = 0;
+        }
       }}
-      preload="metadata"
+      preload={playing ? "auto" : "metadata"}
       ref={audioRef}
       src={audioSrc}
     >
@@ -302,6 +339,46 @@ function PlayerSecondaryControlsWrapper({
   );
 }
 
+function PlayerEmptyState({
+  activeTrackKey,
+  allTrackKeys,
+  onSelectTrackKey,
+  trackLabels,
+}: {
+  readonly activeTrackKey: string;
+  readonly allTrackKeys: readonly string[];
+  readonly onSelectTrackKey: (key: string) => void;
+  readonly trackLabels?: Record<string, string> | undefined;
+}) {
+  return (
+    <div className="public-player__container">
+      <PlayerPartSelector
+        activeTrackKey={activeTrackKey}
+        onSelectTrackKey={onSelectTrackKey}
+        trackKeys={allTrackKeys}
+        trackLabels={trackLabels}
+      />
+      <p className="public-player__empty" role="status">
+        No practice tracks are available for this set list yet.
+      </p>
+    </div>
+  );
+}
+
+function getPlayerMetadata(
+  currentItem: PlayerPlaylistItem | null,
+  currentTrack: ResolvedTrack | null,
+  eventId?: string,
+) {
+  const isSetList = Boolean(eventId);
+  return {
+    currentTrackFileId: currentTrack ? currentTrack.fileId : "",
+    hasTrack: currentItem !== null && currentTrack !== null,
+    isSetList,
+    setListHeading: isSetList ? "Set List" : "Library tracks",
+  };
+}
+
 export function PublicPracticePlayer({
   details,
   initialPieceId,
@@ -320,6 +397,14 @@ export function PublicPracticePlayer({
   const gapTimerRef = useRef<number | null>(null);
   const queueButtonRef = useRef<HTMLButtonElement | null>(null);
   const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const currentTimeRef = useRef(0);
+  const wantPlayingRef = useRef(false);
+  const resumeTimeRef = useRef<number | null>(null);
+  const isReloadingRef = useRef(false);
+  const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<number | null>(null);
+  const prevTrackFileIdRef = useRef<string | undefined>(undefined);
+  const prevAudioSrcRef = useRef<string>("");
 
   const [prevInitialPieceId, setPrevInitialPieceId] = useState(initialPieceId);
   const [selectedItemIndex, setSelectedItemIndex] = useState(() =>
@@ -395,7 +480,13 @@ export function PublicPracticePlayer({
     ? source.artworkUrl(details.eventArtworkFileId)
     : null;
 
-  useAutoCacheOfflineCopies(scope, details.items, activeTrackKey, ensureOfflineCopies);
+  useAutoCacheOfflineCopies(
+    scope,
+    details.items,
+    activeTrackKey,
+    ensureOfflineCopies,
+    currentTrack?.fileId,
+  );
 
   const prevEventIdRef = useRef(details.eventId);
   useEffect(() => {
@@ -405,6 +496,13 @@ export function PublicPracticePlayer({
         window.clearInterval(gapTimerRef.current);
         gapTimerRef.current = null;
       }
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+      wantPlayingRef.current = false;
+      resumeTimeRef.current = null;
+      retryCountRef.current = 0;
       setPlaying(false);
       setCountdown(null);
       setBlockedFileId(null);
@@ -433,14 +531,50 @@ export function PublicPracticePlayer({
     }
   }, []);
 
+  const playRef = useRef(playCurrent);
+
+  const triggerAudioReload = useCallback((): void => {
+    resumeTimeRef.current = currentTimeRef.current;
+    autoplayRef.current = true;
+    isReloadingRef.current = true;
+    audioRef.current?.load();
+    playRef.current();
+  }, []);
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    if (prevAudioSrcRef.current === audioSrc) return;
+
+    const isSameTrack =
+      prevTrackFileIdRef.current !== undefined &&
+      prevTrackFileIdRef.current === currentTrack?.fileId;
+
+    prevTrackFileIdRef.current = currentTrack?.fileId;
+    prevAudioSrcRef.current = audioSrc;
+
+    if (retryTimerRef.current !== null) {
+      window.clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+
+    if (isSameTrack) {
+      resumeTimeRef.current = currentTimeRef.current > 0 ? currentTimeRef.current : null;
+      autoplayRef.current = wantPlayingRef.current;
+      isReloadingRef.current = wantPlayingRef.current;
+      audio.load();
+      return;
+    }
+
+    retryCountRef.current = 0;
+    resumeTimeRef.current = null;
+    isReloadingRef.current = autoplayRef.current;
     audio.pause();
     audio.load();
     setCurrentTime(0);
+    currentTimeRef.current = 0;
     setDuration(0);
-  }, [audioSrc]);
+  }, [audioSrc, currentTrack?.fileId]);
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume / 100;
@@ -449,10 +583,12 @@ export function PublicPracticePlayer({
   useEffect(() => {
     return () => {
       if (gapTimerRef.current !== null) window.clearInterval(gapTimerRef.current);
+      if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current);
     };
   }, []);
 
   function playCurrent(): void {
+    wantPlayingRef.current = true;
     if (userOverrideTrackKey === null) {
       setUserOverrideTrackKey(selectedTrackKey);
     }
@@ -472,7 +608,14 @@ export function PublicPracticePlayer({
       window.clearInterval(gapTimerRef.current);
       gapTimerRef.current = null;
     }
+    if (retryTimerRef.current !== null) {
+      window.clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+    retryCountRef.current = 0;
+    resumeTimeRef.current = null;
     autoplayRef.current = autoplay;
+    wantPlayingRef.current = autoplay;
     setSelectedItemIndex(index);
     setPlaying(autoplay);
     setCountdown(null);
@@ -483,6 +626,7 @@ export function PublicPracticePlayer({
     if (key === selectedTrackKey) return;
     setUserOverrideTrackKey(key);
     autoplayRef.current = playing;
+    wantPlayingRef.current = playing;
     setSelectedItemIndex(0);
     setCountdown(null);
     setBlockedFileId(null);
@@ -514,7 +658,13 @@ export function PublicPracticePlayer({
   function handleAudioError(event: SyntheticEvent<HTMLAudioElement>): void {
     if (!currentTrack) return;
     // Cached tracks are already saved locally and must never trigger an offline-missing notice.
-    if (offlineUrl || offlineIds.has(currentTrack.fileId)) return;
+    if (offlineUrl || offlineIds.has(currentTrack.fileId)) {
+      if (wantPlayingRef.current && retryCountRef.current < MAX_STREAM_RETRIES) {
+        retryCountRef.current += 1;
+        triggerAudioReload();
+      }
+      return;
+    }
     // Ignore stale failures from a previous track: only the current source may raise the notice.
     const expected = source.mediaUrl(currentTrack.fileId);
     const failed = event.currentTarget.currentSrc;
@@ -526,18 +676,71 @@ export function PublicPracticePlayer({
         // Unparseable URLs fall through to the notice below.
       }
     }
+    if (
+      wantPlayingRef.current &&
+      typeof navigator !== "undefined" &&
+      navigator.onLine &&
+      retryCountRef.current < MAX_STREAM_RETRIES
+    ) {
+      retryCountRef.current += 1;
+      const delay = STREAM_RETRY_DELAYS[retryCountRef.current - 1] ?? 1000;
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+      }
+      retryTimerRef.current = window.setTimeout(() => {
+        retryTimerRef.current = null;
+        triggerAudioReload();
+      }, delay);
+      return;
+    }
     setBlockedFileId(currentTrack.fileId);
+    setPlaying(false);
+  }
+
+  function handleStalled(): void {
+    if (!wantPlayingRef.current || !currentTrack) return;
+    if (offlineUrl || offlineIds.has(currentTrack.fileId)) {
+      triggerAudioReload();
+      return;
+    }
+    if (
+      typeof navigator !== "undefined" &&
+      navigator.onLine &&
+      retryCountRef.current < MAX_STREAM_RETRIES &&
+      retryTimerRef.current === null
+    ) {
+      retryCountRef.current += 1;
+      const delay = STREAM_RETRY_DELAYS[retryCountRef.current - 1] ?? 1000;
+      retryTimerRef.current = window.setTimeout(() => {
+        retryTimerRef.current = null;
+        triggerAudioReload();
+      }, delay);
+    }
   }
 
   function handleRetryPlayback(): void {
+    retryCountRef.current = 0;
+    wantPlayingRef.current = true;
     setBlockedFileId(null);
-    if (audioRef.current) {
-      audioRef.current.load();
-      void audioRef.current.play().catch(() => {
-        // Handled by onError if playback still fails
-      });
-    }
+    triggerAudioReload();
   }
+
+  useEffect(() => {
+    return subscribeNetworkStatus(() => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
+      if (!wantPlayingRef.current || !currentTrack) return;
+      const audio = audioRef.current;
+      if (blockedFileId !== null || audio?.paused || audio?.error) {
+        if (retryTimerRef.current !== null) {
+          window.clearTimeout(retryTimerRef.current);
+          retryTimerRef.current = null;
+        }
+        retryCountRef.current = 0;
+        setBlockedFileId(null);
+        triggerAudioReload();
+      }
+    });
+  }, [blockedFileId, currentTrack, triggerAudioReload]);
 
   function nextTrack(autoPlay = playing): void {
     if (currentIndex < playableItems.length - 1) {
@@ -560,6 +763,7 @@ export function PublicPracticePlayer({
       nextTrack(true);
       return;
     }
+    wantPlayingRef.current = false;
     setPlaying(false);
     setCountdown(gapSeconds);
     let remaining = gapSeconds;
@@ -580,11 +784,13 @@ export function PublicPracticePlayer({
     if (loopMode === "one") {
       if (audioRef.current) {
         audioRef.current.currentTime = startAt;
+        currentTimeRef.current = startAt;
         playCurrent();
       }
       return;
     }
     if (currentIndex >= playableItems.length - 1 && loopMode !== "all") {
+      wantPlayingRef.current = false;
       setPlaying(false);
       return;
     }
@@ -594,10 +800,12 @@ export function PublicPracticePlayer({
   function togglePlay(): void {
     if (!audioRef.current) return;
     if (playing) {
+      wantPlayingRef.current = false;
       audioRef.current.pause();
       setPlaying(false);
       return;
     }
+    wantPlayingRef.current = true;
     playCurrent();
   }
 
@@ -605,13 +813,16 @@ export function PublicPracticePlayer({
     const next = Math.max(0, Number(value) || 0);
     setStartAt(next);
     if (audioRef.current && duration > 0) {
-      audioRef.current.currentTime = Math.min(next, duration);
-      setCurrentTime(Math.min(next, duration));
+      const bounded = Math.min(next, duration);
+      audioRef.current.currentTime = bounded;
+      currentTimeRef.current = bounded;
+      setCurrentTime(bounded);
     }
   }
 
   function handleSeek(nextTime: number): void {
     const bounded = Math.max(0, Math.min(nextTime, duration || 0));
+    currentTimeRef.current = bounded;
     setCurrentTime(bounded);
     if (audioRef.current) {
       audioRef.current.currentTime = bounded;
@@ -648,7 +859,6 @@ export function PublicPracticePlayer({
     }
   }, [playing]);
 
-  const playRef = useRef(playCurrent);
   const togglePlayRef = useRef(togglePlay);
   const nextTrackRef = useRef(nextTrack);
   const prevTrackRef = useRef(previousTrack);
@@ -687,24 +897,20 @@ export function PublicPracticePlayer({
 
   useAudioSession(audioSessionHandlersRef);
 
-  const isSetList = Boolean(details.eventId);
-  const setListHeading = isSetList ? "Set List" : "Library tracks";
-  const currentTrackFileId = currentTrack ? currentTrack.fileId : "";
-  const hasTrack = currentItem !== null && currentTrack !== null;
+  const { currentTrackFileId, hasTrack, isSetList, setListHeading } = getPlayerMetadata(
+    currentItem,
+    currentTrack,
+    details.eventId,
+  );
 
   if (details.items.length === 0) {
     return (
-      <div className="public-player__container">
-        <PlayerPartSelector
-          activeTrackKey={activeTrackKey}
-          onSelectTrackKey={selectTrackKey}
-          trackKeys={allTrackKeys}
-          trackLabels={details.trackLabels}
-        />
-        <p className="public-player__empty" role="status">
-          No practice tracks are available for this set list yet.
-        </p>
-      </div>
+      <PlayerEmptyState
+        activeTrackKey={activeTrackKey}
+        allTrackKeys={allTrackKeys}
+        onSelectTrackKey={selectTrackKey}
+        trackLabels={details.trackLabels}
+      />
     );
   }
 
@@ -717,15 +923,21 @@ export function PublicPracticePlayer({
         autoplayRef={autoplayRef}
         currentItem={currentItem}
         currentTrack={currentTrack}
+        currentTimeRef={currentTimeRef}
         duration={duration}
         handleAudioError={handleAudioError}
         handleEnded={handleEnded}
+        handleStalled={handleStalled}
+        isReloadingRef={isReloadingRef}
         playCurrent={playCurrent}
         playing={playing}
+        resumeTimeRef={resumeTimeRef}
+        retryCountRef={retryCountRef}
         setCurrentTime={setCurrentTime}
         setDuration={setDuration}
         setPlaying={setPlaying}
         startAt={startAt}
+        wantPlayingRef={wantPlayingRef}
       />
 
       {/* Main Player Column */}

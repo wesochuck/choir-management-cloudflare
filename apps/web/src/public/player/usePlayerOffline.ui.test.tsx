@@ -1,6 +1,7 @@
 import { it, expect, vi } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { useOfflineAudioUrl } from "./usePlayerOffline";
+import { useAutoCacheOfflineCopies, useOfflineAudioUrl } from "./usePlayerOffline";
+import type { PlayerPlaylistItem } from "./types";
 it("track switch must not return the previous file URL", async () => {
   const ids = new Set<string>();
   let resolveNext: ((value: null) => void) | undefined;
@@ -94,4 +95,17 @@ it("releases a delayed lease after unmount", async () => {
     await Promise.resolve();
   });
   expect(release).toHaveBeenCalledOnce();
+});
+
+it("prioritizes priorityFileId first in ensureOfflineCopies", () => {
+  const ensureOfflineCopies = vi.fn();
+  const items: PlayerPlaylistItem[] = [
+    { title: "Song 1", trackFileIds: { tutti: "file-1" } },
+    { title: "Song 2", trackFileIds: { tutti: "file-2" } },
+    { title: "Song 3", trackFileIds: { tutti: "file-3" } },
+  ];
+  renderHook(() => {
+    useAutoCacheOfflineCopies("example.com", items, "tutti", ensureOfflineCopies, "file-2");
+  });
+  expect(ensureOfflineCopies).toHaveBeenCalledWith(["file-2", "file-1", "file-3"]);
 });

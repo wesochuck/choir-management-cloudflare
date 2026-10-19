@@ -1,4 +1,7 @@
-import { publicPlayerDetailsResponseSchema } from "@choir/contracts";
+import {
+  publicPlayerDetailsResponseSchema,
+  publicPlayerPlaylistResponseSchema,
+} from "@choir/contracts";
 import { env, exports } from "cloudflare:workers";
 import { organizationRequest, provisionOrganization, seedAuthUser } from "@choir/testkit";
 import { applyD1Migrations, reset, runInDurableObject } from "cloudflare:test";
@@ -18,6 +21,13 @@ const ALPHA_ARTWORK_FILE = "f0000000-0000-4000-8000-000000000008";
 const ALPHA_OUT_OF_SCOPE_FILE = "f0000000-0000-4000-8000-000000000003";
 const BRAVO_PIECE = "e0000000-0000-4000-8000-000000000002";
 const BRAVO_NULL_PIECE = "e0000000-0000-4000-8000-000000000009";
+const MULTI_PARENT_PIECE = "e0000000-0000-4000-8000-000000000030";
+const MULTI_MOV1_PIECE = "e0000000-0000-4000-8000-000000000031";
+const MULTI_MOV2_PIECE = "e0000000-0000-4000-8000-000000000032";
+const MULTI_MOV1_FILE = "f0000000-0000-4000-8000-000000000031";
+const MULTI_MOV2_FILE = "f0000000-0000-4000-8000-000000000032";
+const MULTI_EVENT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa30";
+const MULTI_SOLO_EVENT = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa31";
 
 function requireBinding<T>(binding: T | undefined, name: string): T {
   if (binding === undefined) throw new Error(`The ${name} integration-test binding is missing.`);
@@ -627,5 +637,191 @@ describe("public player signed flow", () => {
     );
     expect(unsatisfiableResponse.status).toBe(416);
     expect(unsatisfiableResponse.headers.get("content-range")).toBe("bytes */14");
+  });
+
+  async function seedMultiMovementEvent(eventId: string, setList: unknown[]): Promise<void> {
+    const stub = stores.get(stores.idFromName("organization-alpha"));
+    const now = new Date().toISOString();
+    await runInDurableObject<OrganizationStore, null>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO music_pieces
+           (id, title, composer, arranger, duration_seconds, notes, section_buckets_json,
+            genres_json, track_file_ids_json, movement_order_json, parent_id, created_at, updated_at)
+         VALUES (?, 'Sunrise Mass', 'Ola Gjeilo', 'Gjeilo Arr', NULL, '', '[]', '[]', '{}', ?, NULL, ?, ?)`,
+        MULTI_PARENT_PIECE,
+        JSON.stringify([MULTI_MOV1_PIECE, MULTI_MOV2_PIECE]),
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO music_pieces
+           (id, title, composer, arranger, duration_seconds, notes, section_buckets_json,
+            genres_json, track_file_ids_json, movement_order_json, parent_id, created_at, updated_at)
+         VALUES (?, 'The Spheres', '', '', 240, '', '[]', '[]', ?, '[]', ?, ?, ?)`,
+        MULTI_MOV1_PIECE,
+        JSON.stringify({ soprano: MULTI_MOV1_FILE }),
+        MULTI_PARENT_PIECE,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO music_pieces
+           (id, title, composer, arranger, duration_seconds, notes, section_buckets_json,
+            genres_json, track_file_ids_json, movement_order_json, parent_id, created_at, updated_at)
+         VALUES (?, 'Sunrise', '', '', 300, '', '[]', '[]', ?, '[]', ?, ?, ?)`,
+        MULTI_MOV2_PIECE,
+        JSON.stringify({ alto: MULTI_MOV2_FILE }),
+        MULTI_PARENT_PIECE,
+        now,
+        now,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO events
+           (id, title, type, starts_at, duration_minutes, call_time, location, venue_id,
+            parent_performance_id, details, set_list_json, set_list_approved,
+            is_archived, public_graphic_file_id, created_at, updated_at)
+         VALUES (?, 'Sunrise Concert', 'Performance', ?, 90, '', '', NULL, NULL, '', ?, 1, 0, NULL, ?, ?)`,
+        eventId,
+        new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000).toISOString(),
+        JSON.stringify(setList),
+        now,
+        now,
+      );
+      return null;
+    });
+  }
+
+  it("resolves multi-movement works on player-details and player/playlist without overwriting tracks on parent holder", async () => {
+    await seedMultiMovementEvent(MULTI_EVENT, [
+      {
+        composer: "Ola Gjeilo",
+        isFeaturedNumber: false,
+        pieceId: MULTI_PARENT_PIECE,
+        title: "Sunrise Mass",
+      },
+      {
+        composer: "Ola Gjeilo",
+        isFeaturedNumber: false,
+        pieceId: MULTI_MOV1_PIECE,
+        title: "The Spheres",
+      },
+      {
+        composer: "Ola Gjeilo",
+        isFeaturedNumber: false,
+        pieceId: MULTI_MOV2_PIECE,
+        title: "Sunrise",
+      },
+    ]);
+
+    const playerToken = await issuePlayerToken("organization-alpha", MULTI_EVENT, ALPHA_PROFILE);
+    const detailsResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/player-details", {
+        body: JSON.stringify({ token: playerToken }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(detailsResponse.status).toBe(200);
+    const detailsBody: unknown = await detailsResponse.json();
+    const parsedDetails = publicPlayerDetailsResponseSchema.parse(detailsBody);
+    expect(parsedDetails.items).toHaveLength(2);
+    expect(parsedDetails.items[0]).toMatchObject({
+      pieceId: MULTI_MOV1_PIECE,
+      title: "The Spheres",
+      trackFileIds: { soprano: MULTI_MOV1_FILE },
+    });
+    expect(parsedDetails.items[1]).toMatchObject({
+      pieceId: MULTI_MOV2_PIECE,
+      title: "Sunrise",
+      trackFileIds: { alto: MULTI_MOV2_FILE },
+    });
+
+    const publicToken = await issuePublicPlayerToken("organization-alpha", MULTI_EVENT);
+    const playlistResponse = await exports.default.fetch(
+      api(
+        "alpha.localhost",
+        `/api/public/player/playlist?token=${encodeURIComponent(publicToken)}`,
+      ),
+    );
+    expect(playlistResponse.status).toBe(200);
+    const playlistBody: unknown = await playlistResponse.json();
+    const parsedPlaylist = publicPlayerPlaylistResponseSchema.parse(playlistBody);
+    expect(parsedPlaylist.setList).toHaveLength(2);
+    expect(parsedPlaylist.setList[0]).toMatchObject({
+      pieceId: MULTI_MOV1_PIECE,
+      title: "The Spheres",
+      trackFileIds: { soprano: MULTI_MOV1_FILE },
+    });
+    expect(parsedPlaylist.setList[1]).toMatchObject({
+      pieceId: MULTI_MOV2_PIECE,
+      title: "Sunrise",
+      trackFileIds: { alto: MULTI_MOV2_FILE },
+    });
+  });
+
+  it("expands parent holder alone in set list into movements on player-details and player/playlist", async () => {
+    await seedMultiMovementEvent(MULTI_SOLO_EVENT, [
+      {
+        composer: "Ola Gjeilo",
+        isFeaturedNumber: true,
+        notes: "Full mass performance",
+        pieceId: MULTI_PARENT_PIECE,
+        title: "Sunrise Mass",
+      },
+    ]);
+
+    const soloPlayerToken = await issuePlayerToken(
+      "organization-alpha",
+      MULTI_SOLO_EVENT,
+      ALPHA_PROFILE,
+    );
+    const soloDetailsResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/player-details", {
+        body: JSON.stringify({ token: soloPlayerToken }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(soloDetailsResponse.status).toBe(200);
+    const soloDetailsBody: unknown = await soloDetailsResponse.json();
+    const parsedSoloDetails = publicPlayerDetailsResponseSchema.parse(soloDetailsBody);
+    expect(parsedSoloDetails.items).toHaveLength(2);
+    expect(parsedSoloDetails.items[0]).toMatchObject({
+      arranger: "Gjeilo Arr",
+      composer: "Ola Gjeilo",
+      isFeaturedNumber: true,
+      notes: "Full mass performance",
+      pieceId: MULTI_MOV1_PIECE,
+      title: "The Spheres",
+      trackFileIds: { soprano: MULTI_MOV1_FILE },
+    });
+    expect(parsedSoloDetails.items[1]).toMatchObject({
+      composer: "Ola Gjeilo",
+      pieceId: MULTI_MOV2_PIECE,
+      title: "Sunrise",
+      trackFileIds: { alto: MULTI_MOV2_FILE },
+    });
+
+    const soloPublicToken = await issuePublicPlayerToken("organization-alpha", MULTI_SOLO_EVENT);
+    const soloPlaylistResponse = await exports.default.fetch(
+      api(
+        "alpha.localhost",
+        `/api/public/player/playlist?token=${encodeURIComponent(soloPublicToken)}`,
+      ),
+    );
+    expect(soloPlaylistResponse.status).toBe(200);
+    const soloPlaylistBody: unknown = await soloPlaylistResponse.json();
+    const parsedSoloPlaylist = publicPlayerPlaylistResponseSchema.parse(soloPlaylistBody);
+    expect(parsedSoloPlaylist.setList).toHaveLength(2);
+    expect(parsedSoloPlaylist.setList[0]).toMatchObject({
+      pieceId: MULTI_MOV1_PIECE,
+      title: "The Spheres",
+      trackFileIds: { soprano: MULTI_MOV1_FILE },
+    });
+    expect(parsedSoloPlaylist.setList[1]).toMatchObject({
+      pieceId: MULTI_MOV2_PIECE,
+      title: "Sunrise",
+      trackFileIds: { alto: MULTI_MOV2_FILE },
+    });
   });
 });

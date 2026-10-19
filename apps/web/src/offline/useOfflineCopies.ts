@@ -10,6 +10,7 @@ import {
   type OfflineAudioLease,
   type OfflineAudioSource,
 } from "./mediaStore";
+import { subscribeNetworkStatus } from "./network";
 
 export interface OfflineAudioOrigin {
   readonly kind: OfflineAudioSource;
@@ -44,6 +45,11 @@ export function useOfflineCopies({ scope, source }: UseOfflineCopiesOptions): Of
   const inFlight = useRef(new Set<string>());
   const urls = useRef<Record<string, string>>({});
 
+  const desiredFileIdsRef = useRef<readonly string[]>([]);
+  const ensureOfflineCopiesRef = useRef<((fileIds: readonly string[]) => void) | undefined>(
+    undefined,
+  );
+
   useEffect(() => {
     if (!scope) return;
     let cancelled = false;
@@ -60,17 +66,15 @@ export function useOfflineCopies({ scope, source }: UseOfflineCopiesOptions): Of
   }, [scope]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const update = (): void => {
-      setOnline(navigator.onLine);
+    const handleNetworkChange = (): void => {
+      const isOnline = typeof navigator !== "undefined" ? navigator.onLine : true;
+      setOnline(isOnline);
+      if (isOnline && desiredFileIdsRef.current.length > 0) {
+        ensureOfflineCopiesRef.current?.(desiredFileIdsRef.current);
+      }
     };
-    update();
-    window.addEventListener("online", update);
-    window.addEventListener("offline", update);
-    return () => {
-      window.removeEventListener("online", update);
-      window.removeEventListener("offline", update);
-    };
+    handleNetworkChange();
+    return subscribeNetworkStatus(handleNetworkChange);
   }, []);
 
   const resolveOfflineUrl = useCallback(
@@ -96,6 +100,7 @@ export function useOfflineCopies({ scope, source }: UseOfflineCopiesOptions): Of
 
   const ensureOfflineCopies = useCallback(
     (fileIds: readonly string[]) => {
+      desiredFileIdsRef.current = fileIds;
       if (!scope) return;
       void (async (): Promise<void> => {
         try {
@@ -123,6 +128,10 @@ export function useOfflineCopies({ scope, source }: UseOfflineCopiesOptions): Of
     },
     [scope, source],
   );
+
+  useEffect(() => {
+    ensureOfflineCopiesRef.current = ensureOfflineCopies;
+  }, [ensureOfflineCopies]);
 
   const removeOfflineCopy = useCallback(
     async (fileId: string): Promise<void> => {

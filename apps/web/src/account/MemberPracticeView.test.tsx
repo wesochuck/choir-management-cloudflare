@@ -263,6 +263,107 @@ describe("mapSetListToPlaylistItems", () => {
     expect(playlist[4]?.title).toBe("Missing Song");
     expect(playlist[4]?.trackFileIds).toEqual({});
   });
+
+  it("omits parent holder when parent holder is present in pieces with trackFileIds: {} and movements are in setList", () => {
+    const parentHolder = piece({
+      arranger: "Arranger",
+      composer: "Ola Gjeilo",
+      id: "parent-sunrise",
+      movementOrder: ["mov-1", "mov-2"],
+      title: "Sunrise Mass",
+      trackFileIds: {},
+    });
+    const mov1 = piece({
+      composer: "Ola Gjeilo",
+      id: "mov-1",
+      parentId: "parent-sunrise",
+      title: "The Spheres",
+      trackFileIds: { soprano: "f-spheres" },
+    });
+    const mov2 = piece({
+      composer: "Ola Gjeilo",
+      id: "mov-2",
+      parentId: "parent-sunrise",
+      title: "Sunrise",
+      trackFileIds: { alto: "f-sunrise" },
+    });
+
+    const setList = [
+      {
+        pieceId: "parent-sunrise",
+        title: "Sunrise Mass",
+      },
+      {
+        pieceId: "mov-1",
+        title: "The Spheres",
+      },
+      {
+        pieceId: "mov-2",
+        title: "Sunrise",
+      },
+    ];
+
+    const playlist = mapSetListToPlaylistItems(setList, [parentHolder, mov1, mov2]);
+    expect(playlist).toHaveLength(2);
+    expect(playlist[0]?.pieceId).toBe("mov-1");
+    expect(playlist[0]?.title).toBe("The Spheres");
+    expect(playlist[0]?.arranger).toBe("Arranger");
+    expect(playlist[0]?.trackFileIds).toEqual({ soprano: "f-spheres" });
+    expect(playlist[1]?.pieceId).toBe("mov-2");
+    expect(playlist[1]?.title).toBe("Sunrise");
+    expect(playlist[1]?.arranger).toBe("Arranger");
+    expect(playlist[1]?.trackFileIds).toEqual({ alto: "f-sunrise" });
+  });
+
+  it("expands parent holder into movements in movementOrder order when only parent holder is in setList", () => {
+    const parentHolder = piece({
+      arranger: "Arranger",
+      composer: "Ola Gjeilo",
+      id: "parent-sunrise",
+      movementOrder: ["mov-1", "mov-2"],
+      title: "Sunrise Mass",
+      trackFileIds: {},
+    });
+    const mov1 = piece({
+      composer: "",
+      id: "mov-1",
+      parentId: "parent-sunrise",
+      title: "The Spheres",
+      trackFileIds: { soprano: "f-spheres" },
+    });
+    const mov2 = piece({
+      composer: "",
+      id: "mov-2",
+      parentId: "parent-sunrise",
+      title: "Sunrise",
+      trackFileIds: { alto: "f-sunrise" },
+    });
+
+    const setList = [
+      {
+        composer: "Gjeilo SetList",
+        isFeaturedNumber: true,
+        notes: "Full performance",
+        pieceId: "parent-sunrise",
+        title: "Sunrise Mass",
+      },
+    ];
+
+    const playlist = mapSetListToPlaylistItems(setList, [parentHolder, mov2, mov1]);
+    expect(playlist).toHaveLength(2);
+    expect(playlist[0]?.pieceId).toBe("mov-1");
+    expect(playlist[0]?.title).toBe("The Spheres");
+    expect(playlist[0]?.composer).toBe("Ola Gjeilo");
+    expect(playlist[0]?.arranger).toBe("Arranger");
+    expect(playlist[0]?.isFeaturedNumber).toBe(true);
+    expect(playlist[0]?.notes).toBe("Full performance");
+    expect(playlist[0]?.trackFileIds).toEqual({ soprano: "f-spheres" });
+
+    expect(playlist[1]?.pieceId).toBe("mov-2");
+    expect(playlist[1]?.title).toBe("Sunrise");
+    expect(playlist[1]?.composer).toBe("Ola Gjeilo");
+    expect(playlist[1]?.trackFileIds).toEqual({ alto: "f-sunrise" });
+  });
 });
 
 describe("filterPlaylistItems", () => {

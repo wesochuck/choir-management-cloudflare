@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { type PieceRow, readTrackLabels, toPlaylistItem } from "./playerStore";
+import {
+  type PieceRow,
+  readTrackLabels,
+  resolveSetListPlaylistItems,
+  toPlaylistItem,
+} from "./playerStore";
 
 describe("toPlaylistItem", () => {
   it("maps a pieceMap entry containing null values without converting to 'null' strings", () => {
@@ -74,6 +79,169 @@ describe("toPlaylistItem", () => {
     expect(result.arranger).toBeUndefined();
     expect(result.pieceId).toBeUndefined();
     expect(result.trackFileIds).toEqual({});
+  });
+
+  it("falls back to item composer when piece composer is an empty string", () => {
+    const item = {
+      composer: "Item Composer",
+      isFeaturedNumber: false,
+      pieceId: "piece-empty-composer",
+      title: "Piece Title",
+    };
+    const pieceMap = new Map<string, PieceRow>([
+      [
+        "piece-empty-composer",
+        {
+          arranger: null,
+          composer: "",
+          durationSeconds: null,
+          id: "piece-empty-composer",
+          parentId: null,
+          title: "Piece Title",
+          trackFileIds: null,
+        },
+      ],
+    ]);
+
+    const result = toPlaylistItem(item, pieceMap);
+    expect(result.composer).toBe("Item Composer");
+  });
+});
+
+describe("resolveSetListPlaylistItems", () => {
+  const parentHolder: PieceRow = {
+    arranger: "Gjeilo Arr",
+    composer: "Ola Gjeilo",
+    durationSeconds: null,
+    id: "parent-holder-id",
+    movementOrderJson: JSON.stringify(["mov-1-id", "mov-2-id"]),
+    parentId: null,
+    title: "Sunrise Mass",
+    trackFileIds: "{}",
+  };
+
+  const movement1: PieceRow = {
+    arranger: null,
+    composer: null,
+    durationSeconds: 240,
+    id: "mov-1-id",
+    movementOrderJson: null,
+    parentId: "parent-holder-id",
+    title: "The Spheres",
+    trackFileIds: JSON.stringify({ soprano: "f-spheres-soprano" }),
+  };
+
+  const movement2: PieceRow = {
+    arranger: null,
+    composer: null,
+    durationSeconds: 300,
+    id: "mov-2-id",
+    movementOrderJson: null,
+    parentId: "parent-holder-id",
+    title: "Sunrise",
+    trackFileIds: JSON.stringify({ alto: "f-sunrise-alto" }),
+  };
+
+  it("omits parent holder and preserves each movement's own tracks when parent holder and movements are in set list", () => {
+    const setList = [
+      {
+        pieceId: "parent-holder-id",
+        title: "Sunrise Mass",
+      },
+      {
+        pieceId: "mov-1-id",
+        title: "The Spheres",
+      },
+      {
+        pieceId: "mov-2-id",
+        title: "Sunrise",
+      },
+    ];
+
+    const pieceMap = new Map<string, PieceRow>([
+      ["parent-holder-id", parentHolder],
+      ["mov-1-id", movement1],
+      ["mov-2-id", movement2],
+    ]);
+
+    const childrenMap = new Map<string, PieceRow[]>([["parent-holder-id", [movement1, movement2]]]);
+
+    const items = resolveSetListPlaylistItems(setList, pieceMap, childrenMap);
+
+    expect(items).toHaveLength(2);
+    expect(items[0]?.pieceId).toBe("mov-1-id");
+    expect(items[0]?.title).toBe("The Spheres");
+    expect(items[0]?.composer).toBe("Ola Gjeilo");
+    expect(items[0]?.arranger).toBe("Gjeilo Arr");
+    expect(items[0]?.trackFileIds).toEqual({ soprano: "f-spheres-soprano" });
+    expect(items[1]?.pieceId).toBe("mov-2-id");
+    expect(items[1]?.title).toBe("Sunrise");
+    expect(items[1]?.composer).toBe("Ola Gjeilo");
+    expect(items[1]?.arranger).toBe("Gjeilo Arr");
+    expect(items[1]?.trackFileIds).toEqual({ alto: "f-sunrise-alto" });
+  });
+
+  it("expands parent holder alone in set list into movements in movementOrderJson order with each movement's own tracks", () => {
+    const setList = [
+      {
+        isFeaturedNumber: true,
+        notes: "Full mass performance",
+        pieceId: "parent-holder-id",
+        title: "Sunrise Mass",
+      },
+    ];
+
+    const pieceMap = new Map<string, PieceRow>([["parent-holder-id", parentHolder]]);
+
+    // Children in reverse order to ensure movementOrderJson sorting is verified
+    const childrenMap = new Map<string, PieceRow[]>([["parent-holder-id", [movement2, movement1]]]);
+
+    const items = resolveSetListPlaylistItems(setList, pieceMap, childrenMap);
+
+    expect(items).toHaveLength(2);
+    expect(items[0]?.pieceId).toBe("mov-1-id");
+    expect(items[0]?.title).toBe("The Spheres");
+    expect(items[0]?.composer).toBe("Ola Gjeilo");
+    expect(items[0]?.arranger).toBe("Gjeilo Arr");
+    expect(items[0]?.durationSeconds).toBe(240);
+    expect(items[0]?.isFeaturedNumber).toBe(true);
+    expect(items[0]?.notes).toBe("Full mass performance");
+    expect(items[0]?.trackFileIds).toEqual({ soprano: "f-spheres-soprano" });
+
+    expect(items[1]?.pieceId).toBe("mov-2-id");
+    expect(items[1]?.title).toBe("Sunrise");
+    expect(items[1]?.composer).toBe("Ola Gjeilo");
+    expect(items[1]?.trackFileIds).toEqual({ alto: "f-sunrise-alto" });
+  });
+
+  it("keeps parent piece's own trackFileIds without overwriting from children when parent has tracks", () => {
+    const parentWithTracks: PieceRow = {
+      arranger: "Shaw",
+      composer: "Handel",
+      durationSeconds: 600,
+      id: "parent-with-tracks-id",
+      movementOrderJson: JSON.stringify(["mov-1-id"]),
+      parentId: null,
+      title: "Messiah Highlights",
+      trackFileIds: JSON.stringify({ tutti: "f-messiah-tutti" }),
+    };
+
+    const setList = [
+      {
+        pieceId: "parent-with-tracks-id",
+        title: "Messiah Highlights",
+      },
+    ];
+
+    const pieceMap = new Map<string, PieceRow>([["parent-with-tracks-id", parentWithTracks]]);
+    const childrenMap = new Map<string, PieceRow[]>([["parent-with-tracks-id", [movement1]]]);
+
+    const items = resolveSetListPlaylistItems(setList, pieceMap, childrenMap);
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.pieceId).toBe("parent-with-tracks-id");
+    expect(items[0]?.title).toBe("Messiah Highlights");
+    expect(items[0]?.trackFileIds).toEqual({ tutti: "f-messiah-tutti" });
   });
 });
 

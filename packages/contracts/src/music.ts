@@ -238,16 +238,20 @@ export const organizationMusicGenreMutationResponseSchema = z.object({
   settings: organizationMusicLibrarySettingsFieldsSchema,
 });
 
-export const singerLearningTrackPieceSchema = organizationMusicPieceSchema.pick({
-  arranger: true,
-  composer: true,
-  durationSeconds: true,
-  id: true,
-  parentId: true,
-  scoreFileIds: true,
-  title: true,
-  trackFileIds: true,
-});
+export const singerLearningTrackPieceSchema = organizationMusicPieceSchema
+  .pick({
+    arranger: true,
+    composer: true,
+    durationSeconds: true,
+    id: true,
+    parentId: true,
+    scoreFileIds: true,
+    title: true,
+    trackFileIds: true,
+  })
+  .extend({
+    movementOrder: z.array(z.uuid()).max(200).optional(),
+  });
 
 export const singerLearningTrackPiecesResponseSchema = z.object({
   pieces: z.array(singerLearningTrackPieceSchema).max(2_000),
