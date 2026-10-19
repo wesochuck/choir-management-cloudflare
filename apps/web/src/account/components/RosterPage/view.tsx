@@ -18,7 +18,6 @@ import { parseRosterStatusFilter, statusLabel } from "./utils";
 import { ProfileEditorDialog } from "../ProfileEditor";
 import { ProfileAvatarButton } from "../ProfileAvatarButton";
 import { ProfilePhotoViewerDialog } from "../ProfilePhotoViewerDialog";
-import { RosterInviteLinksDialog } from "./RosterInviteLinksDialog";
 import { CsvImportDialog } from "../../CsvImportDialog";
 import { RosterAutomationSettings } from "../../RosterAutomationSettings";
 import { RosterConfiguration } from "../../RosterConfiguration";
@@ -42,7 +41,6 @@ export function RosterPageView({
 }) {
   const { partLabel } = useOrganizationTerminology();
   const [activeTab, setActiveTab] = useState<RosterSection>(initialSection);
-  const [inviteLinksDialogOpen, setInviteLinksDialogOpen] = useState(false);
   const [resolveDuplicateOpen, setResolveDuplicateOpen] = useState(false);
   const [viewerPhoto, setViewerPhoto] = useState<{ displayName: string; src: string } | null>(null);
   const {
@@ -250,24 +248,13 @@ export function RosterPageView({
               >
                 Import CSV
               </button>
-              <button
-                className="button button--secondary"
-                onClick={() => {
-                  setError(null);
-                  setSuccess(null);
-                  setInviteLinksDialogOpen(true);
-                }}
-                type="button"
-              >
-                Invite by link
-              </button>
               <button className="button button--primary" onClick={openCreate} type="button">
                 Add Profile
               </button>
             </div>
           </div>
 
-          {error && !dialogOpen && !importDialogOpen && !inviteLinksDialogOpen ? (
+          {error && !dialogOpen && !importDialogOpen ? (
             <p className="notice notice--error" role="alert">
               {error}
             </p>
@@ -833,12 +820,6 @@ export function RosterPageView({
         onMapColumn={handleRosterColumnMap}
         open={importDialogOpen}
         title="Import roster"
-      />
-      <RosterInviteLinksDialog
-        onClose={() => {
-          setInviteLinksDialogOpen(false);
-        }}
-        open={inviteLinksDialogOpen}
       />
       <ProfilePhotoViewerDialog
         displayName={viewerPhoto?.displayName ?? ""}

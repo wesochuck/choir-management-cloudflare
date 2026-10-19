@@ -108,10 +108,23 @@ export async function manageCalendarCredential(
   if (!profile) {
     return Response.json({ code: "profile_not_found" }, { status: 404 });
   }
+  const setupRow = storage.sql
+    .exec<{ readonly organizationName: string }>(
+      "SELECT organization_name AS organizationName FROM setup_state LIMIT 1",
+    )
+    .toArray()
+    .at(0);
+  const configuredName = setupRow?.organizationName.trim();
+  const organizationName =
+    configuredName && configuredName.length > 0
+      ? configuredName
+      : (organizationIdentity(storage)?.name ?? "Choir");
+
   if (parsed.data.action === "read") {
     return Response.json({
       calendarFeedVersion: profile.calendarFeedVersion,
       displayName: profile.displayName,
+      organizationName,
       profileId: parsed.data.profileId,
     });
   }
@@ -144,6 +157,7 @@ export async function manageCalendarCredential(
   return Response.json({
     calendarFeedVersion: nextVersion,
     displayName: profile.displayName,
+    organizationName,
     profileId: parsed.data.profileId,
   });
 }

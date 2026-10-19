@@ -255,14 +255,80 @@ export function MusicAudioTracks({
   );
 }
 
+function MusicDeleteConfirmation({
+  busy,
+  childCount,
+  onCancel,
+  onConfirm,
+  onUnlinkChildren,
+  unlinkChildren,
+}: {
+  readonly busy: boolean;
+  readonly childCount: number;
+  readonly onCancel: () => void;
+  readonly onConfirm: () => void;
+  readonly onUnlinkChildren: (enabled: boolean) => void;
+  readonly unlinkChildren: boolean;
+}) {
+  const confirmRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    confirmRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, []);
+
+  return (
+    <div
+      ref={confirmRef}
+      tabIndex={-1}
+      className="danger-confirmation"
+      role="group"
+      aria-label="Confirm music deletion"
+    >
+      <p>This cannot be undone. Referenced set-list pieces cannot be deleted.</p>
+      {childCount > 0 ? (
+        <label className="checkbox-row">
+          <input
+            checked={unlinkChildren}
+            type="checkbox"
+            onChange={(event) => {
+              onUnlinkChildren(event.target.checked);
+            }}
+          />
+          Keep {String(childCount)} movement(s) as top-level works
+        </label>
+      ) : null}
+      <div className="form-actions">
+        <button
+          className="button button--danger"
+          disabled={busy || (childCount > 0 && !unlinkChildren)}
+          type="button"
+          onClick={onConfirm}
+        >
+          Confirm delete
+        </button>
+        <button
+          className="button button--secondary"
+          disabled={busy}
+          type="button"
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function MusicDeleteControls({
   canAddMovement = true,
+  canAddToSetList = true,
   saveLabel = "Save music piece",
   busy,
   childCount,
   deleteConfirm,
   editingId,
   onAddMovement,
+  onAddToSetList,
   onCancel,
   onConfirm,
   onRequest,
@@ -270,26 +336,20 @@ export function MusicDeleteControls({
   unlinkChildren,
 }: {
   readonly canAddMovement?: boolean;
+  readonly canAddToSetList?: boolean;
   readonly saveLabel?: string;
   readonly busy: boolean;
   readonly childCount: number;
   readonly deleteConfirm: boolean;
   readonly editingId: string | null;
   readonly onAddMovement: () => void;
+  readonly onAddToSetList?: (() => void) | undefined;
   readonly onCancel: () => void;
   readonly onConfirm: () => void;
   readonly onRequest: () => void;
   readonly onUnlinkChildren: (enabled: boolean) => void;
   readonly unlinkChildren: boolean;
 }) {
-  const confirmRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (deleteConfirm) {
-      confirmRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    }
-  }, [deleteConfirm]);
-
   return (
     <>
       <div className="dialog__actions music-piece-form__actions">
@@ -301,6 +361,11 @@ export function MusicDeleteControls({
         {editingId && canAddMovement ? (
           <button className="button button--secondary" type="button" onClick={onAddMovement}>
             Add movement
+          </button>
+        ) : null}
+        {editingId && canAddToSetList && onAddToSetList && !deleteConfirm ? (
+          <button className="button button--secondary" type="button" onClick={onAddToSetList}>
+            Add to set list
           </button>
         ) : null}
         <button className="button button--primary" disabled={busy} type="submit">
@@ -315,45 +380,14 @@ export function MusicDeleteControls({
         ) : null}
       </div>
       {deleteConfirm ? (
-        <div
-          ref={confirmRef}
-          tabIndex={-1}
-          className="danger-confirmation"
-          role="group"
-          aria-label="Confirm music deletion"
-        >
-          <p>This cannot be undone. Referenced set-list pieces cannot be deleted.</p>
-          {childCount > 0 ? (
-            <label className="checkbox-row">
-              <input
-                checked={unlinkChildren}
-                type="checkbox"
-                onChange={(event) => {
-                  onUnlinkChildren(event.target.checked);
-                }}
-              />
-              Keep {String(childCount)} movement(s) as top-level works
-            </label>
-          ) : null}
-          <div className="form-actions">
-            <button
-              className="button button--danger"
-              disabled={busy || (childCount > 0 && !unlinkChildren)}
-              type="button"
-              onClick={onConfirm}
-            >
-              Confirm delete
-            </button>
-            <button
-              className="button button--secondary"
-              disabled={busy}
-              type="button"
-              onClick={onCancel}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+        <MusicDeleteConfirmation
+          busy={busy}
+          childCount={childCount}
+          onCancel={onCancel}
+          onConfirm={onConfirm}
+          onUnlinkChildren={onUnlinkChildren}
+          unlinkChildren={unlinkChildren}
+        />
       ) : null}
     </>
   );

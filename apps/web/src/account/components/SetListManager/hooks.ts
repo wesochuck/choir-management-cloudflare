@@ -476,8 +476,8 @@ export function useSetListManagerController({
     setDirty(true);
   }
 
-  async function copyListText(): Promise<void> {
-    if (!selectedEvent) return;
+  async function copyListText(): Promise<boolean> {
+    if (!selectedEvent) return false;
     const text = setListDocumentText(
       selectedEvent,
       items,
@@ -489,8 +489,10 @@ export function useSetListManagerController({
     try {
       await navigator.clipboard.writeText(text);
       setMessage("Set list copied as text.");
+      return true;
     } catch {
       setError("The set list could not be copied. Check clipboard permissions.");
+      return false;
     }
   }
 

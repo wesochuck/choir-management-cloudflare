@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../auth/api";
 import { CalendarSubscription } from "./CalendarSubscription";
-import { maskCalendarUrl } from "./calendarFeedUtils";
 
 vi.mock("../auth/api", async (importOriginal) => {
   const actual = await importOriginal<typeof api>();
@@ -18,33 +17,23 @@ vi.mock("../auth/api", async (importOriginal) => {
 
 const sampleFeedUrls: CalendarFeedUrlsResponse = {
   expiresAt: "2027-08-20T20:00:00.000Z",
-  httpsUrl: "https://choir.test/api/calendar/feed?token=secret-calendar-jwt-token-12345",
+  httpsUrl:
+    "https://choir.test/api/calendar/feed/Northwest%20Choir.ics?token=secret-calendar-jwt-token-12345",
   requestId: "req-1111",
-  webcalUrl: "webcal://choir.test/api/calendar/feed?token=secret-calendar-jwt-token-12345",
+  webcalUrl:
+    "webcal://choir.test/api/calendar/feed/Northwest%20Choir.ics?token=secret-calendar-jwt-token-12345",
 };
 
 const updatedFeedUrls: CalendarFeedUrlsResponse = {
   expiresAt: "2027-08-20T20:00:00.000Z",
-  httpsUrl: "https://choir.test/api/calendar/feed?token=new-secret-jwt-token-67890",
+  httpsUrl:
+    "https://choir.test/api/calendar/feed/Northwest%20Choir.ics?token=new-secret-jwt-token-67890",
   requestId: "req-2222",
-  webcalUrl: "webcal://choir.test/api/calendar/feed?token=new-secret-jwt-token-67890",
+  webcalUrl:
+    "webcal://choir.test/api/calendar/feed/Northwest%20Choir.ics?token=new-secret-jwt-token-67890",
 };
 
-describe("maskCalendarUrl helper", () => {
-  it("masks token parameter with bullet dots", () => {
-    const masked = maskCalendarUrl(sampleFeedUrls.httpsUrl);
-    expect(masked).toBe(
-      "https://choir.test/api/calendar/feed?token=%E2%80%A2%E2%80%A2%E2%80%A2%E2%80%A2%E2%80%A2%E2%80%A2%E2%80%A2%E2%80%A2",
-    );
-    expect(decodeURIComponent(masked)).toBe("https://choir.test/api/calendar/feed?token=••••••••");
-  });
-
-  it("handles non-token URLs gracefully", () => {
-    expect(maskCalendarUrl("https://choir.test/calendar")).toBe("https://choir.test/calendar");
-  });
-});
-
-describe("CalendarSubscription UI (#195)", () => {
+describe("CalendarSubscription UI", () => {
   const originalClipboard = navigator.clipboard;
 
   beforeEach(() => {
@@ -59,7 +48,7 @@ describe("CalendarSubscription UI (#195)", () => {
     });
   });
 
-  it("displays masked calendar token by default and explains privacy policy", async () => {
+  it("displays full calendar URL by default with copy link button and explains privacy policy", async () => {
     vi.mocked(api.getCalendarFeedUrls).mockResolvedValue(sampleFeedUrls);
 
     render(<CalendarSubscription enabled />);
@@ -69,41 +58,38 @@ describe("CalendarSubscription UI (#195)", () => {
     });
 
     const input = screen.getByLabelText<HTMLInputElement>("HTTPS calendar address");
-    const maskedValue = input.value;
-    expect(maskedValue.includes("token=")).toBe(true);
-    expect(maskedValue.includes("secret-calendar-jwt-token-12345")).toBe(false);
-    expect(maskedValue.includes(encodeURIComponent("••••••••"))).toBe(true);
+    expect(input.value).toBe(sampleFeedUrls.httpsUrl);
+    expect(screen.queryByRole("button", { name: "Reveal address" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Hide address" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy link" })).toBeInTheDocument();
 
     expect(
       screen.getByText("Anyone with this link can view your calendar. Do not share it."),
     ).toBeInTheDocument();
   });
 
-  it("toggles URL reveal and hide on clicking reveal button", async () => {
-    const user = userEvent.setup();
+  it("provides direct subscription links for calendar apps and Google Calendar", async () => {
     vi.mocked(api.getCalendarFeedUrls).mockResolvedValue(sampleFeedUrls);
 
     render(<CalendarSubscription enabled />);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Reveal address" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Subscribe in calendar app" })).toBeInTheDocument();
     });
 
-    const input = screen.getByLabelText<HTMLInputElement>("HTTPS calendar address");
-    const revealBtn = screen.getByRole("button", { name: "Reveal address" });
+    const calendarAppLink = screen.getByRole("link", { name: "Subscribe in calendar app" });
+    expect(calendarAppLink).toHaveAttribute("href", sampleFeedUrls.webcalUrl);
 
-    // Click reveal
-    await user.click(revealBtn);
-    expect(input.value).toBe(sampleFeedUrls.httpsUrl);
-    expect(screen.getByRole("button", { name: "Hide address" })).toBeInTheDocument();
-
-    // Click hide
-    await user.click(screen.getByRole("button", { name: "Hide address" }));
-    expect(input.value.includes(encodeURIComponent("••••••••"))).toBe(true);
-    expect(screen.getByRole("button", { name: "Reveal address" })).toBeInTheDocument();
+    const googleCalendarLink = screen.getByRole("link", {
+      name: "Subscribe in Google Calendar",
+    });
+    expect(googleCalendarLink).toHaveAttribute(
+      "href",
+      `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(sampleFeedUrls.webcalUrl)}`,
+    );
   });
 
-  it("copies unmasked URL to clipboard even when display is masked", async () => {
+  it("copies full URL to clipboard when Copy link is clicked", async () => {
     const user = userEvent.setup();
     vi.mocked(api.getCalendarFeedUrls).mockResolvedValue(sampleFeedUrls);
 
@@ -119,16 +105,15 @@ describe("CalendarSubscription UI (#195)", () => {
     render(<CalendarSubscription enabled />);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Copy address" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Copy link" })).toBeInTheDocument();
     });
 
-    const copyBtn = screen.getByRole("button", { name: "Copy address" });
+    const copyBtn = screen.getByRole("button", { name: "Copy link" });
     await user.click(copyBtn);
 
-    // Verifies the clipboard receives the full unmasked raw URL
     expect(writeTextSpy).toHaveBeenCalledWith(sampleFeedUrls.httpsUrl);
     expect(screen.getByRole("button", { name: "✓ Copied!" })).toBeInTheDocument();
-    expect(screen.getByText("Calendar address copied to clipboard.")).toBeInTheDocument();
+    expect(screen.getByText("Calendar link copied to clipboard.")).toBeInTheDocument();
   });
 
   it("opens modal confirmation on Reset calendar address and revokes on confirm", async () => {
@@ -173,9 +158,7 @@ describe("CalendarSubscription UI (#195)", () => {
     });
 
     const input = screen.getByLabelText<HTMLInputElement>("HTTPS calendar address");
-    const resetValue = input.value;
-    expect(resetValue.includes(encodeURIComponent("••••••••"))).toBe(true);
-    expect(resetValue.includes("new-secret-jwt-token-67890")).toBe(false);
+    expect(input.value).toBe(updatedFeedUrls.httpsUrl);
   });
 
   it("cancels reset dialog without calling reset API", async () => {

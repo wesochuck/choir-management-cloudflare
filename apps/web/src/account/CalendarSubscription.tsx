@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 
 import { getCalendarFeedUrls, resetCalendarFeedUrls } from "../auth/api";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
-import { maskCalendarUrl } from "./calendarFeedUtils";
 
 type CalendarState =
   | { readonly status: "error" }
@@ -35,7 +34,7 @@ function CalendarFeedReadyContent({
   resetNotice,
   urls,
 }: ReadyContentProps) {
-  const [revealed, setRevealed] = useState(false);
+  const googleCalendarUrl = `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(urls.webcalUrl)}`;
 
   return (
     <>
@@ -44,39 +43,36 @@ function CalendarFeedReadyContent({
         current address on every device.
       </p>
       <div className="form-stack">
-        <a className="button button--primary" href={urls.webcalUrl}>
-          Subscribe in calendar app
-        </a>
+        <div className="button-row">
+          <a className="button button--primary" href={urls.webcalUrl}>
+            Subscribe in calendar app
+          </a>
+          <a
+            className="button button--secondary"
+            href={googleCalendarUrl}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            Subscribe in Google Calendar
+          </a>
+        </div>
         <label htmlFor="calendar-feed-url">HTTPS calendar address</label>
         <div className="calendar-feed-url-row">
-          <input
-            id="calendar-feed-url"
-            readOnly
-            type="text"
-            value={revealed ? urls.httpsUrl : maskCalendarUrl(urls.httpsUrl)}
-          />
-          <button
-            className="button button--secondary"
-            onClick={() => {
-              setRevealed((prev) => !prev);
-            }}
-            type="button"
-          >
-            {revealed ? "Hide address" : "Reveal address"}
-          </button>
+          <input id="calendar-feed-url" readOnly type="text" value={urls.httpsUrl} />
           <button className="button button--secondary" onClick={onCopy} type="button">
-            {copyState === "copied" ? "✓ Copied!" : "Copy address"}
+            {copyState === "copied" ? "✓ Copied!" : "Copy link"}
           </button>
         </div>
         {copyState === "copied" ? (
           <span className="sr-only" role="status">
-            Calendar address copied to clipboard.
+            Calendar link copied to clipboard.
           </span>
         ) : null}
         <p className="field-help">Anyone with this link can view your calendar. Do not share it.</p>
         <p className="field-help">
           In Google Calendar, choose <strong>Other calendars</strong> → <strong>From URL</strong>{" "}
-          and paste this address. Use the Subscribe button for calendar apps that support webcal.
+          and paste this address, or click <strong>Subscribe in Google Calendar</strong>. Use the
+          Subscribe in calendar app button for Apple Calendar and other apps that support webcal.
         </p>
         {copyState === "error" ? (
           <p className="notice notice--warning" role="status">

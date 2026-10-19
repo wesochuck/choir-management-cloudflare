@@ -5,8 +5,11 @@ import type {
 } from "@choir/contracts";
 import { organizationEventSchema } from "@choir/contracts";
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { Dialog } from "@choir/ui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AddToSetListDialog } from "./AddToSetListDialog";
+import { MusicDeleteControls } from "./tracksAndBulkEdit";
 
 const selectedPiece: OrganizationMusicPiece = {
   arranger: "",
@@ -122,5 +125,54 @@ describe("AddToSetListDialog default Performance selection", () => {
     rerender(renderDialog({ events: [], open: true }));
     expect(screen.getByLabelText("Create new concert")).toBeChecked();
     expect(screen.getByLabelText("Concert / Performance title")).toBeInTheDocument();
+  });
+});
+
+describe("MusicDeleteControls in piece edit modal", () => {
+  it("renders Add to set list button when editingId is present and triggers callback", async () => {
+    const user = userEvent.setup();
+    const onAddToSetList = vi.fn();
+    render(
+      <Dialog open onClose={vi.fn()} title="Edit piece">
+        <MusicDeleteControls
+          busy={false}
+          childCount={0}
+          deleteConfirm={false}
+          editingId="piece-123"
+          onAddMovement={vi.fn()}
+          onAddToSetList={onAddToSetList}
+          onCancel={vi.fn()}
+          onConfirm={vi.fn()}
+          onRequest={vi.fn()}
+          onUnlinkChildren={vi.fn()}
+          unlinkChildren={false}
+        />
+      </Dialog>,
+    );
+    const btn = screen.getByRole("button", { name: "Add to set list" });
+    expect(btn).toBeInTheDocument();
+    await user.click(btn);
+    expect(onAddToSetList).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits Add to set list button when creating a new piece (editingId is null)", () => {
+    render(
+      <Dialog open onClose={vi.fn()} title="Add piece">
+        <MusicDeleteControls
+          busy={false}
+          childCount={0}
+          deleteConfirm={false}
+          editingId={null}
+          onAddMovement={vi.fn()}
+          onAddToSetList={vi.fn()}
+          onCancel={vi.fn()}
+          onConfirm={vi.fn()}
+          onRequest={vi.fn()}
+          onUnlinkChildren={vi.fn()}
+          unlinkChildren={false}
+        />
+      </Dialog>,
+    );
+    expect(screen.queryByRole("button", { name: "Add to set list" })).not.toBeInTheDocument();
   });
 });

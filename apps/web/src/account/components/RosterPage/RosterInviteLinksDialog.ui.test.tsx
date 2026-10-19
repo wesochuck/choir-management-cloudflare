@@ -21,6 +21,10 @@ vi.mock("../../../api", async () => {
 });
 
 describe("RosterInviteLinksDialog UI interaction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("renders form, lists existing links, and allows creating a new link", async () => {
     const user = userEvent.setup();
     const mockLinks = [
@@ -78,6 +82,40 @@ describe("RosterInviteLinksDialog UI interaction", () => {
         maxUses: 5,
       });
     });
+  });
+
+  it("closes cleanly via Done button after creating an invite link without showing unsaved changes confirmation", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    vi.mocked(api.listRosterInviteLinks).mockResolvedValue({
+      links: [],
+      requestId: "req-1",
+    });
+    vi.mocked(api.createRosterInviteLink).mockResolvedValue({
+      expiresAt: new Date(Date.now() + 86400000 * 7).toISOString(),
+      id: "link-new",
+      requestId: "req-2",
+      shareUrl: "https://choir.test/join-roster#token=mock-token",
+    });
+
+    render(<RosterInviteLinksDialog onClose={onClose} open={true} />);
+
+    const labelInput = screen.getByLabelText("Link label");
+    await user.clear(labelInput);
+    await user.type(labelInput, "Spring Basses");
+
+    const submitBtn = screen.getByRole("button", { name: /create invite link/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(api.createRosterInviteLink).toHaveBeenCalledTimes(1);
+    });
+
+    const doneBtn = screen.getByRole("button", { name: "Done" });
+    fireEvent.click(doneBtn);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Discard unsaved changes?")).not.toBeInTheDocument();
   });
 
   it("copies share URL when copy link button is clicked", async () => {

@@ -11,6 +11,7 @@ const CALENDAR_FEED_LIFETIME_SECONDS = 10 * 365 * 24 * 60 * 60;
 const calendarCredentialResponseSchema = z.object({
   calendarFeedVersion: z.number().int().positive(),
   displayName: z.string().min(1).max(200),
+  organizationName: z.string().min(1).max(120).optional(),
   profileId: z.uuid(),
 });
 
@@ -57,6 +58,14 @@ function safeFilename(value: string): string {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "") || "choir-schedule"
   );
+}
+
+function safeCalendarFilename(value: string): string {
+  const cleaned = value
+    .trim()
+    .replace(/[/\\?#%:*|"<>]/g, "")
+    .replace(/\s+/g, " ");
+  return encodeURIComponent(cleaned || "choir");
 }
 
 export async function createCalendarFeedUrls(
@@ -110,7 +119,8 @@ export async function createCalendarFeedUrls(
     subjectId: profileId,
     version: 1,
   });
-  const feedUrl = new URL("/api/calendar/feed", input.canonicalOrigin);
+  const filename = `${safeCalendarFilename(credential.data.organizationName ?? "choir")}.ics`;
+  const feedUrl = new URL(`/api/calendar/feed/${filename}`, input.canonicalOrigin);
   feedUrl.searchParams.set("token", token);
   return {
     expiresAt: new Date(expiresAt * 1000).toISOString(),

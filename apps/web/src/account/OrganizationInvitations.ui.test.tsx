@@ -289,4 +289,16 @@ describe("OrganizationInvitations membership role management", () => {
       screen.queryByRole("button", { name: "Change role for Owner User" }),
     ).not.toBeInTheDocument();
   });
+
+  it("opens Roster invite links dialog when Invite by link is clicked", async () => {
+    const user = userEvent.setup();
+    render(<OrganizationInvitations context={ADMIN_CONTEXT} />);
+
+    const inviteByLinkBtn = screen.getByRole("button", { name: "Invite by link" });
+    expect(inviteByLinkBtn).toBeInTheDocument();
+
+    await user.click(inviteByLinkBtn);
+
+    expect(screen.getByRole("dialog", { name: "Roster invite links" })).toBeInTheDocument();
+  });
 });

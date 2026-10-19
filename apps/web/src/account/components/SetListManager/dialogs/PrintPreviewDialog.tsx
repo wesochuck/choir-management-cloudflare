@@ -1,5 +1,6 @@
 import type { OrganizationEvent } from "@choir/contracts";
 import { Dialog, DialogClose } from "@choir/ui";
+import { useEffect, useRef, useState } from "react";
 
 import type { SetListManagerModel } from "../hooks";
 import { SetListPreview } from "../shared";
@@ -16,7 +17,7 @@ export function PrintPreviewDialog({
   showNotes = false,
   venues,
 }: {
-  readonly copyListText: () => Promise<void>;
+  readonly copyListText: () => Promise<boolean>;
   readonly defaultTransitionSeconds?: number | undefined;
   readonly event: OrganizationEvent | null;
   readonly items: readonly SetListItem[];
@@ -26,9 +27,41 @@ export function PrintPreviewDialog({
   readonly showNotes?: boolean;
   readonly venues?: SetListManagerModel["resources"]["venues"] | undefined;
 }) {
+  const [copied, setCopied] = useState(false);
+  const copyTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current !== null) {
+        window.clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function handleClose(): void {
+    setCopied(false);
+    if (copyTimeoutRef.current !== null) {
+      window.clearTimeout(copyTimeoutRef.current);
+    }
+    onClose();
+  }
+
   if (!event) return null;
+
+  async function handleCopy(): Promise<void> {
+    const success = await copyListText();
+    if (!success) return;
+    setCopied(true);
+    if (copyTimeoutRef.current !== null) {
+      window.clearTimeout(copyTimeoutRef.current);
+    }
+    copyTimeoutRef.current = window.setTimeout(() => {
+      setCopied(false);
+    }, 2000);
+  }
+
   return (
-    <Dialog onClose={onClose} open={open} title="Printable Set List">
+    <Dialog onClose={handleClose} open={open} title="Printable Set List">
       <div className="set-list-preview-dialog">
         <SetListPreview
           defaultTransitionSeconds={defaultTransitionSeconds}
@@ -40,23 +73,28 @@ export function PrintPreviewDialog({
         />
         <div className="dialog__actions">
           <DialogClose asChild>
-            <button className="button button--secondary" type="button">
+            <button className="button button--secondary" onClick={handleClose} type="button">
               Close
             </button>
           </DialogClose>
           <button
             className="button button--secondary"
             onClick={() => {
-              void copyListText();
+              void handleCopy();
             }}
             type="button"
           >
-            Copy Plain Text
+            {copied ? "✓ Copied!" : "Copy Plain Text"}
           </button>
+          {copied ? (
+            <span className="sr-only" role="status">
+              Set list plain text copied to clipboard.
+            </span>
+          ) : null}
           <button
             className="button button--primary"
             onClick={() => {
-              onClose();
+              handleClose();
               window.setTimeout(() => {
                 window.print();
               }, 0);

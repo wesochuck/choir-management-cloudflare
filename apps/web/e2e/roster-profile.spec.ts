@@ -468,7 +468,7 @@ test("keeps roster invite fields and actions inside the dialog in both themes", 
       },
     });
   });
-  await page.goto("/admin/roster");
+  await page.goto("/admin/settings/invitations");
   for (const theme of ["light", "dark"] as const) {
     const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
     if (await toggle.isVisible()) await toggle.click();

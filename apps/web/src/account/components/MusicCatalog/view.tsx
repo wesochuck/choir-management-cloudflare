@@ -1,3 +1,4 @@
+import type { OrganizationMusicPiece } from "@choir/contracts";
 import { type CsvColumnMapping, musicCsvColumnOptions, sortMusicMovements } from "@choir/domain";
 import { Dialog, Tabs, TabsContent } from "@choir/ui";
 import { useMemo, useState } from "react";
@@ -133,6 +134,9 @@ export function MusicCatalogView({
     venues,
   } = model;
   const [bulkTrackImportOpen, setBulkTrackImportOpen] = useState(false);
+  const [setListTargetPieces, setSetListTargetPieces] = useState<
+    readonly OrganizationMusicPiece[] | null
+  >(null);
   const movements = useMemo(
     () =>
       sortMusicMovements(
@@ -291,6 +295,7 @@ export function MusicCatalogView({
                 disabled={selectedPieces.length === 0}
                 type="button"
                 onClick={() => {
+                  setSetListTargetPieces(null);
                   setSetListError(null);
                   setSetListDialogOpen(true);
                 }}
@@ -743,6 +748,16 @@ export function MusicCatalogView({
                 onAddMovement={() => {
                   beginNew(editingId);
                 }}
+                onAddToSetList={() => {
+                  if (selectedPiece) {
+                    const pieceForSetList = piece.title.trim()
+                      ? { ...selectedPiece, title: piece.title.trim() }
+                      : selectedPiece;
+                    setSetListTargetPieces([pieceForSetList]);
+                    setSetListError(null);
+                    setSetListDialogOpen(true);
+                  }
+                }}
                 onCancel={() => {
                   setDeleteConfirm(false);
                 }}
@@ -781,14 +796,15 @@ export function MusicCatalogView({
             error={setListError}
             events={events}
             onApply={(payload) => {
-              void addSelectedPiecesToSetList(payload);
+              void addSelectedPiecesToSetList(payload, setListTargetPieces ?? undefined);
             }}
             onClose={() => {
               setSetListDialogOpen(false);
+              setSetListTargetPieces(null);
               setSetListError(null);
             }}
             open={setListDialogOpen}
-            selectedPieces={selectedPieces}
+            selectedPieces={setListTargetPieces ?? selectedPieces}
             timezone={timezone}
             venues={venues}
             key={setListDialogOpen ? "setlist-open" : "setlist-closed"}

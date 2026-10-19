@@ -93,6 +93,7 @@ export function RosterInviteLinksDialog({
       setActionSuccess("Invite link created and copied to clipboard!");
       void navigator.clipboard.writeText(response.shareUrl);
       setLabel("Choir Roster Invite");
+      setExpiresInDays(7);
       setMaxUsesInput("");
       await loadLinks();
     } catch {
@@ -100,6 +101,16 @@ export function RosterInviteLinksDialog({
     } finally {
       setIsCreating(false);
     }
+  }
+
+  function handleClose(): void {
+    setActionError(null);
+    setActionSuccess(null);
+    setListError(null);
+    setLabel("Choir Roster Invite");
+    setExpiresInDays(7);
+    setMaxUsesInput("");
+    onClose();
   }
 
   async function handleCopy(linkId: string): Promise<void> {
@@ -166,6 +177,7 @@ export function RosterInviteLinksDialog({
       <Dialog
         className="dialog--roster-invites"
         description="Create and manage reusable links that allow new members to join this roster."
+        dirty={false}
         footer={
           <DialogClose asChild>
             <button className="button button--secondary" type="button">
@@ -173,7 +185,7 @@ export function RosterInviteLinksDialog({
             </button>
           </DialogClose>
         }
-        onClose={onClose}
+        onClose={handleClose}
         open={open}
         title="Roster invite links"
       >

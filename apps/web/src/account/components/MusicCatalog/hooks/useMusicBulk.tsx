@@ -162,8 +162,10 @@ export function useMusicBulk({
           readonly title: string;
           readonly venueId?: string | null;
         },
+    piecesToAdd?: readonly OrganizationMusicPiece[],
   ): Promise<void> {
-    if (selectedPieces.length === 0) return;
+    const targetPieces = piecesToAdd ?? selectedPieces;
+    if (targetPieces.length === 0) return;
     setBusy(true);
     setSetListError(null);
     try {
@@ -174,7 +176,7 @@ export function useMusicBulk({
             window.location.assign(href);
           }
         });
-      const itemsToAdd = expandMusicSelections(selectedPieces, pieces).map((p) =>
+      const itemsToAdd = expandMusicSelections(targetPieces, pieces).map((p) =>
         performanceSetListItem(p),
       );
       let targetEvent: OrganizationEvent;
@@ -253,7 +255,9 @@ export function useMusicBulk({
           ? current.map((e) => (e.id === targetEvent.id ? targetEvent : e))
           : [...current, targetEvent];
       });
-      setSelectedPieceIds([]);
+      if (!piecesToAdd) {
+        setSelectedPieceIds([]);
+      }
       setSetListDialogOpen(false);
       setMessage(actionNotice);
     } catch (caught: unknown) {

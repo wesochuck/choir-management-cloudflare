@@ -54,7 +54,7 @@ for (const logo of ["present", "missing"] as const) {
           })
         : route.fulfill({ status: 404 }),
     );
-    await page.goto("/admin/roster");
+    await page.goto("/admin/settings/invitations");
     await page.getByRole("button", { name: "Invite by link", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Roster invite links", exact: true });
     const buttons = dialog

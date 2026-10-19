@@ -693,9 +693,10 @@ test("keeps the piece editor action buttons on a single row", async ({ page }) =
   const dialog = page.getByRole("dialog", { name: "Edit music piece" });
   await expect(dialog).toBeVisible();
   const actionButtons = dialog.locator(".music-piece-form__actions > .button");
-  await expect(dialog.locator(".music-piece-form__actions > button")).toHaveCount(4);
-  await expect(actionButtons).toHaveCount(3);
+  await expect(dialog.locator(".music-piece-form__actions > button")).toHaveCount(5);
+  await expect(actionButtons).toHaveCount(4);
   await expect(dialog.getByRole("button", { name: "Delete music piece" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Add to set list" })).toBeVisible();
   // Below 40rem the action row wraps, which is the intended narrow-screen
   // behavior; a single shared baseline is a desktop assertion.
   if ((page.viewportSize()?.width ?? 0) > 640) {

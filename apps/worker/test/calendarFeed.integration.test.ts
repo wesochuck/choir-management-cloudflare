@@ -100,13 +100,23 @@ describe("calendar feed credentials", () => {
     );
     expect(credentialResponse.status).toBe(200);
     const credential = calendarFeedUrlsResponseSchema.parse(await credentialResponse.json());
-    expect(credential.httpsUrl).toContain("http://alpha.localhost/api/calendar/feed?token=");
-    expect(credential.webcalUrl).toContain("webcal://alpha.localhost/api/calendar/feed?token=");
+    expect(credential.httpsUrl).toContain(
+      "http://alpha.localhost/api/calendar/feed/Organization%20Alpha.ics?token=",
+    );
+    expect(credential.webcalUrl).toContain(
+      "webcal://alpha.localhost/api/calendar/feed/Organization%20Alpha.ics?token=",
+    );
 
     const feedResponse = await exports.default.fetch(new Request(credential.httpsUrl));
     expect(feedResponse.status).toBe(200);
     expect(feedResponse.headers.get("content-type")).toBe("text/calendar; charset=utf-8");
     await expect(feedResponse.text()).resolves.toContain("X-WR-CALNAME:Organization Alpha");
+
+    const legacyUrl = new URL("/api/calendar/feed", credential.httpsUrl);
+    legacyUrl.search = new URL(credential.httpsUrl).search;
+    const legacyResponse = await exports.default.fetch(new Request(legacyUrl));
+    expect(legacyResponse.status).toBe(200);
+    expect(legacyResponse.headers.get("content-type")).toBe("text/calendar; charset=utf-8");
 
     const crossOrganizationUrl = new URL(credential.httpsUrl);
     crossOrganizationUrl.hostname = "bravo.localhost";

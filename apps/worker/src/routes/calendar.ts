@@ -2,13 +2,13 @@ import type { ProblemDetails } from "@choir/contracts";
 import { readCalendarFeed } from "../calendar/calendarFeed";
 import { validateStartupConfig } from "../env";
 
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 
 import type { WorkerHonoEnvironment } from "./helpers";
 import { resolveCanonicalOrganizationId } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
-  router.get("/api/calendar/feed", async (context) => {
+  const handleCalendarFeed = async (context: Context<WorkerHonoEnvironment>) => {
     validateStartupConfig(context.env);
     const requestUrl = new URL(context.req.url);
     const organizationId = await resolveCanonicalOrganizationId(requestUrl, context.env);
@@ -37,5 +37,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     context.header("content-disposition", `inline; filename="${feed.filename}"`);
     context.header("content-type", "text/calendar; charset=utf-8");
     return context.body(feed.body);
-  });
+  };
+
+  router.get("/api/calendar/feed", handleCalendarFeed);
+  router.get("/api/calendar/feed/:filename", handleCalendarFeed);
 }
