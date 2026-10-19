@@ -157,9 +157,13 @@ for (const theme of ["light", "dark"] as const) {
     await dialog.getByLabel("Link address").fill("/history");
     await dialog.getByRole("checkbox", { name: "Open in new tab" }).uncheck();
     await dialog.getByRole("button", { name: "Apply link" }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(about).toBeFocused();
+    await expect(about).toHaveValue('[Our story](/history){target="_self"} our music');
     const markdown =
       '[Our story](/history){target="_self"} our music\nSing together.\n\nhttps://partner.example.test/notes';
     await about.fill(markdown);
+    await expect(about).toHaveValue(markdown);
     await page.getByRole("tab", { name: "Navigation", exact: true }).click();
     for (const [field, value] of [
       ["History navigation label", "Our story"],
@@ -206,13 +210,15 @@ for (const theme of ["light", "dark"] as const) {
     await page
       .locator("#about-us")
       .screenshot({ path: testInfo.outputPath("public-paragraphs.png") });
-    const link = page.locator(".public-copy").getByRole("link", { name: "Our story", exact: true });
+    const link = page
+      .locator("#about-us .public-copy")
+      .getByRole("link", { name: "Our story", exact: true });
     await expect(link).toHaveCSS("font-weight", "700");
     await expect(link).toHaveCSS("text-decoration-line", "underline");
     await expect(link).not.toHaveAttribute("target");
     const popupPromise = page.waitForEvent("popup");
     await page
-      .locator(".public-copy")
+      .locator("#about-us .public-copy")
       .getByRole("link", { name: "https://partner.example.test/notes", exact: true })
       .click();
     const popup = await popupPromise;
