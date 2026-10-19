@@ -249,9 +249,14 @@ export async function deliverAttendanceReportJob(
     ),
   );
   if (recipients.length === 0) {
-    throw new Error(
-      "No reachable attendance-report recipient is configured; owner attention is required.",
+    console.warn(
+      JSON.stringify({
+        event: "attendance_report_skipped_no_recipients",
+        jobId: job.jobId,
+        organizationId: job.organizationId,
+      }),
     );
+    return;
   }
   const template = await readOrganizationCommunicationTemplate(
     env,

@@ -560,7 +560,7 @@ export function createPostEventReportJobs(
         .exec<{ readonly count: number }>(
           `SELECT COUNT(*) AS count FROM scheduled_job_outbox WHERE idempotency_key = ?
            UNION ALL
-           SELECT COUNT(*) AS count FROM job_ledger WHERE idempotency_key = ? AND status != 'failed'`,
+           SELECT COUNT(*) AS count FROM job_ledger WHERE idempotency_key = ?`,
           idempotencyKey,
           idempotencyKey,
         )

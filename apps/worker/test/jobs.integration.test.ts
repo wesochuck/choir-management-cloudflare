@@ -730,6 +730,26 @@ describe("Organization queue delivery", () => {
     expect(result.retryMessages).toEqual([]);
   });
 
+  it("completes and acks attendance_report jobs when no reachable recipient is configured without retrying", async () => {
+    await provisionScheduledCommunicationFixture();
+    await controlDatabase
+      .prepare("DELETE FROM member WHERE organizationId = 'organization-scheduled'")
+      .run();
+    const reportEventId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab";
+    const job: DeliveryJob = {
+      attempt: 1,
+      idempotencyKey: `post-event-report:organization-scheduled:${reportEventId}`,
+      jobId: "88888888-8888-4888-8888-888888888888",
+      kind: "attendance_report",
+      organizationId: "organization-scheduled",
+      version: 1,
+    };
+
+    const result = await processBatch(job, 1, "no-recipient-report", "fake", true);
+    expect(result.explicitAcks).toEqual(["no-recipient-report"]);
+    expect(result.retryMessages).toEqual([]);
+  });
+
   it.each([
     [
       "America/New_York",

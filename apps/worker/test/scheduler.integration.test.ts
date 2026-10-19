@@ -841,6 +841,38 @@ describe("Organization scheduler", () => {
     expect(eventReminderJobsAgain).toHaveLength(1);
   });
 
+  it("does not re-enqueue attendance_report jobs on re-alarm when already recorded in job_ledger", async () => {
+    const stub = await provisionScheduler();
+    const now = Date.now();
+    const pastStartsAt = new Date(now - 14 * 60 * 60 * 1_000).toISOString();
+    const eventId = "77777777-7777-4777-8777-777777777777";
+    const idempotencyKey = `post-event-report:organization-scheduler:${eventId}`;
+
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+         VALUES (?, 'Past Performance', 'Performance', ?, ?, ?)`,
+        eventId,
+        pastStartsAt,
+        pastStartsAt,
+        pastStartsAt,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO job_ledger (idempotency_key, job_id, kind, status, attempt, claimed_at, failed_at)
+         VALUES (?, '99999999-9999-4999-8999-999999999999', 'attendance_report', 'failed', 1, ?, ?)`,
+        idempotencyKey,
+        pastStartsAt,
+        pastStartsAt,
+      );
+      return state.storage.setAlarm(now + 60_000).then(() => undefined);
+    });
+
+    await expect(runDurableObjectAlarm(stub)).resolves.toBe(true);
+    const outboxJobs = await readAllOutboxJobs(stub);
+    const reportJobs = outboxJobs.filter((j) => j.kind === "attendance_report");
+    expect(reportJobs).toHaveLength(0);
+  });
+
   it("requeues a terminal event reminder on the next scheduler run", async () => {
     const stub = await provisionScheduler();
     const eventId = "88888888-8888-4888-8888-888888888888";
