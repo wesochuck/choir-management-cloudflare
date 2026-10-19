@@ -4,6 +4,7 @@ import { z } from "zod";
 import { organizationTicketOrderSchema } from "@choir/contracts";
 import { deliveryOrigin } from "../jobs/deliveries/shared";
 import { queueTicketSaleAlert } from "../organization/ticketSaleAlerts";
+import { organizationStoreStub } from "../organization/rpc/client";
 import { retrieveStripePaymentSettlement } from "./stripeConnect";
 import { resolveOrganizationForStripeAccount } from "./stripeRouting";
 import {
@@ -140,22 +141,33 @@ async function reconcileCompletedPaymentFee(
 
   if (!reconciled) {
     try {
-      await context.env.JOBS_QUEUE.send({
-        attempt: 1,
-        idempotencyKey: `reconcile-fee:${values.providerPaymentId}`,
-        jobId: crypto.randomUUID(),
-        kind: "payment_fee_reconciliation",
+      const result = await organizationStoreStub(
+        context.env,
         organizationId,
-        version: 1,
+      ).schedulePaymentFeeReconciliation({
+        organizationId,
+        providerPaymentId: values.providerPaymentId,
       });
-    } catch (queueError) {
+      if (result.status === "rejected") {
+        console.error(
+          JSON.stringify({
+            code: "code" in result ? result.code : "fee_reconciliation_rejected",
+            environment: context.env.APP_ENV,
+            event: "stripe_fee_reconciliation_schedule_rejected",
+            organizationId,
+            providerPaymentId: values.providerPaymentId,
+            requestId: context.get("requestId"),
+          }),
+        );
+      }
+    } catch (error: unknown) {
       console.error(
         JSON.stringify({
           environment: context.env.APP_ENV,
-          event: "stripe_fee_reconciliation_queue_failed",
+          event: "stripe_fee_reconciliation_schedule_failed",
           organizationId,
           providerPaymentId: values.providerPaymentId,
-          reason: queueError instanceof Error ? queueError.message : "unknown_error",
+          reason: error instanceof Error ? error.name : "unknown_error",
           requestId: context.get("requestId"),
         }),
       );

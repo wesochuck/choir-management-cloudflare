@@ -2047,6 +2047,12 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "UPDATE events SET publish_on_website = 1 WHERE type = 'Performance' AND is_ticketing_enabled = 1 AND publish_on_website = 0",
     ],
   },
+  {
+    version: 119,
+    statements: [
+      "ALTER TABLE scheduler_state ADD COLUMN fee_reconciliation_cursor TEXT NOT NULL DEFAULT ''",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

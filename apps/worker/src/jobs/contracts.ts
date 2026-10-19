@@ -18,7 +18,7 @@ const jobKindSchema = z.enum([
 
 export const deliveryJobSchema = z.object({
   attempt: z.number().int().min(1).max(10),
-  idempotencyKey: z.string().min(1).max(256),
+  idempotencyKey: z.string().min(1).max(281),
   jobId: z.uuid(),
   kind: jobKindSchema,
   organizationId: organizationIdSchema,

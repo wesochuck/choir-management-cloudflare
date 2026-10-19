@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { retrieveStripePaymentSettlement } from "../../payments/stripeConnect";
 import { invokeOrganizationRpc, organizationStoreStub } from "../../organization/rpc/client";
+import { parseFeeReconciliationIdempotencyKey } from "../../organization/feeReconciliation";
 import type { DeliveryJob } from "../contracts";
 import type { JobConsumerEnv } from "./shared";
 
@@ -50,8 +51,9 @@ async function resolvePaymentIdsToReconcile(
   job: DeliveryJob,
 ): Promise<readonly string[]> {
   if (job.idempotencyKey.startsWith("reconcile-fee:")) {
-    const paymentId = job.idempotencyKey.slice("reconcile-fee:".length);
-    if (paymentId) return [paymentId];
+    const parsed = parseFeeReconciliationIdempotencyKey(job.idempotencyKey);
+    if (!parsed) throw new Error("invalid_fee_reconciliation_identity");
+    return [parsed.providerPaymentId];
   }
 
   const unreconciledUrl = new URL("https://organization.internal/internal/payments/unreconciled");
@@ -104,6 +106,30 @@ export async function deliverPaymentFeeReconciliationJob(
   job: DeliveryJob,
 ): Promise<void> {
   const objectStub = organizationStoreStub(env, job.organizationId);
+  if (job.idempotencyKey.startsWith("reconcile-fee:")) {
+    const parsed = parseFeeReconciliationIdempotencyKey(job.idempotencyKey);
+    if (!parsed) throw new Error("invalid_fee_reconciliation_identity");
+
+    const status = await objectStub.readPaymentFeeReconciliationStatus({
+      organizationId: job.organizationId,
+      providerPaymentId: parsed.providerPaymentId,
+    });
+    if (status.status === "rejected") {
+      throw new Error(status.code);
+    }
+    if (status.status !== "unreconciled") return;
+
+    const accountId = await resolveConnectedAccountId(env, objectStub, job.organizationId);
+    await reconcileSinglePayment(
+      env,
+      objectStub,
+      job.organizationId,
+      accountId,
+      parsed.providerPaymentId,
+    );
+    return;
+  }
+
   const accountId = await resolveConnectedAccountId(env, objectStub, job.organizationId);
   const paymentIds = await resolvePaymentIdsToReconcile(objectStub, job);
 

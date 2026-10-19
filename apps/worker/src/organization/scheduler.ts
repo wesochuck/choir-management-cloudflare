@@ -8,6 +8,7 @@ import {
 import { readTicketMessageTemplate } from "./ticketMessageTemplates";
 import { readRosterAutomationConfiguration, runRosterAutomations } from "./statusAutomationStore";
 import { advanceComplianceReminder, findDueComplianceReminders } from "./complianceStore";
+import { schedulePaymentFeeReconciliationInStore } from "./feeReconciliation";
 
 import {
   EVENT_REMINDER_LEAD_MS,
@@ -18,6 +19,7 @@ import {
 
 const SCHEDULER_INTERVAL_MS = 60 * 60 * 1000;
 const OUTBOX_BATCH_SIZE = 10;
+const FEE_RECONCILIATION_BATCH_SIZE = 10;
 const POLL_ARCHIVE_BATCH_SIZE = 100;
 const RETRY_ALARM_DELAY_MS = 60_000;
 const ALARM_WAKE_DELAY_MS = 1_000;
@@ -76,6 +78,11 @@ interface PollArchiveCandidateRow {
   readonly expiresAt: string;
   readonly id: string;
   readonly title: string;
+}
+
+interface FeeReconciliationCandidateRow {
+  readonly [column: string]: SqlStorageValue;
+  readonly providerPaymentId: string;
 }
 
 export interface RunOrganizationAlarmOptions {
@@ -659,7 +666,7 @@ function createDueJobs(
     createEventReminderJobs(storage, organizationId, now);
     createRsvpFollowUpJobs(storage, organizationId, now);
     createPostEventReportJobs(storage, organizationId, now);
-    createFeeReconciliationJobs(storage, now);
+    createFeeReconciliationJobs(storage, organizationId, now);
     createComplianceReminderJobs(storage, organizationId, now);
     if (schedulerDueAt.getTime() <= now.getTime()) {
       storage.sql.exec(
@@ -671,36 +678,82 @@ function createDueJobs(
   });
 }
 
-function createFeeReconciliationJobs(storage: DurableObjectStorage, now: Date): void {
-  const cursor = storage.sql.exec<{ readonly providerPaymentId: string }>(
+function readFeeReconciliationCandidatePage(
+  storage: DurableObjectStorage,
+  operator: ">" | "<=",
+  cursor: string,
+  limit: number,
+): { readonly rows: readonly FeeReconciliationCandidateRow[]; readonly rowsRead: number } {
+  const result = storage.sql.exec<FeeReconciliationCandidateRow>(
     `SELECT DISTINCT provider_payment_id AS providerPaymentId
        FROM payment_attempts
-       WHERE status IN ('paid', 'refunded')
+       WHERE provider_payment_id ${operator} ?
+         AND status IN ('paid', 'refunded')
          AND processor_fee_cents IS NULL
          AND provider_payment_id NOT LIKE 'fake_%'
          AND provider_payment_id <> ''
-       LIMIT 10`,
+       ORDER BY provider_payment_id
+       LIMIT ?`,
+    cursor,
+    limit,
   );
-  const unreconciled = cursor.toArray();
+  return { rows: result.toArray(), rowsRead: result.rowsRead };
+}
+
+function createFeeReconciliationJobs(
+  storage: DurableObjectStorage,
+  organizationId: string,
+  now: Date,
+): void {
+  const savedCursor = storage.sql
+    .exec<{ readonly feeReconciliationCursor: string }>(
+      `SELECT fee_reconciliation_cursor AS feeReconciliationCursor
+       FROM scheduler_state WHERE singleton = 1`,
+    )
+    .toArray()
+    .at(0)?.feeReconciliationCursor;
+  const cursor = savedCursor ?? "";
+  const firstPage = readFeeReconciliationCandidatePage(
+    storage,
+    ">",
+    cursor,
+    FEE_RECONCILIATION_BATCH_SIZE,
+  );
+  const candidates = [...firstPage.rows];
+  let rowsRead = firstPage.rowsRead;
+  if (cursor !== "" && candidates.length < FEE_RECONCILIATION_BATCH_SIZE) {
+    const wrappedPage = readFeeReconciliationCandidatePage(
+      storage,
+      "<=",
+      cursor,
+      FEE_RECONCILIATION_BATCH_SIZE - candidates.length,
+    );
+    candidates.push(...wrappedPage.rows);
+    rowsRead += wrappedPage.rowsRead;
+  }
+
+  for (const row of candidates) {
+    schedulePaymentFeeReconciliationInStore(storage, {
+      now,
+      organizationId,
+      providerPaymentId: row.providerPaymentId,
+    });
+  }
+
+  const nextCursor = candidates.at(-1)?.providerPaymentId ?? "";
+  const cursorUpdate = storage.sql.exec(
+    `UPDATE scheduler_state
+     SET fee_reconciliation_cursor = ?, updated_at = ? WHERE singleton = 1`,
+    nextCursor,
+    now.toISOString(),
+  );
   recordDatabaseCost({
     operation: "organization_sqlite.scheduler.fee_reconciliation",
-    rowsRead: cursor.rowsRead,
-    rowsReturned: unreconciled.length,
-    rowsWritten: cursor.rowsWritten,
+    rowsRead,
+    rowsReturned: candidates.length,
+    rowsWritten: cursorUpdate.rowsWritten,
     store: "organization_sqlite",
   });
-
-  for (const row of unreconciled) {
-    storage.sql.exec(
-      `INSERT OR IGNORE INTO scheduled_job_outbox
-        (job_id, kind, idempotency_key, due_at, created_at)
-       VALUES (?, 'payment_fee_reconciliation', ?, ?, ?)`,
-      crypto.randomUUID(),
-      `reconcile-fee:${row.providerPaymentId}`,
-      now.toISOString(),
-      now.toISOString(),
-    );
-  }
 }
 
 function createComplianceReminderJobs(

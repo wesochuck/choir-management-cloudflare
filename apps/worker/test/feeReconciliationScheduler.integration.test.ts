@@ -94,6 +94,40 @@ describe("Hourly fee reconciliation candidate scan hardening (#67)", () => {
     });
   });
 
+  it("applies migration 119 forward to add the bounded fee scan cursor", async () => {
+    const stub = await provisionOrganization("org-fee-migration-upgrade-119");
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      state.storage.sql.exec("ALTER TABLE scheduler_state DROP COLUMN fee_reconciliation_cursor");
+      state.storage.sql.exec("DELETE FROM organization_schema_migrations WHERE version >= 119");
+
+      const versionBefore = state.storage.sql
+        .exec<{ readonly version: number }>(
+          "SELECT version FROM organization_schema_migrations ORDER BY version DESC LIMIT 1",
+        )
+        .one().version;
+      expect(versionBefore).toBe(118);
+
+      const migration119 = organizationSchemaMigrations.find(
+        (migration) => migration.version === 119,
+      );
+      if (!migration119) throw new Error("Migration 119 not found");
+      applyOrganizationMigration(state.storage, migration119);
+
+      const columns = state.storage.sql
+        .exec<{ readonly name: string }>("PRAGMA table_info(scheduler_state)")
+        .toArray()
+        .map((column) => column.name);
+      expect(columns).toContain("fee_reconciliation_cursor");
+      expect(
+        state.storage.sql
+          .exec<{ readonly version: number }>(
+            "SELECT version FROM organization_schema_migrations ORDER BY version DESC LIMIT 1",
+          )
+          .one().version,
+      ).toBe(119);
+    });
+  });
+
   it("uses the partial index payment_attempts_unreconciled_fee with bounded rowsRead and correct scheduling", async () => {
     const orgId = "org-fee-recon-test";
     const stub = await provisionOrganization(orgId);
@@ -188,11 +222,14 @@ describe("Hourly fee reconciliation candidate scan hardening (#67)", () => {
         `EXPLAIN QUERY PLAN
          SELECT DISTINCT provider_payment_id AS providerPaymentId
          FROM payment_attempts
-         WHERE status IN ('paid', 'refunded')
+         WHERE provider_payment_id > ?
+           AND status IN ('paid', 'refunded')
            AND processor_fee_cents IS NULL
            AND provider_payment_id NOT LIKE 'fake_%'
            AND provider_payment_id <> ''
+         ORDER BY provider_payment_id
          LIMIT 10`,
+        "",
       );
       const plan = planCursor.toArray();
       const planDetails = plan.map((p) => p.detail).join(" ");
@@ -203,11 +240,14 @@ describe("Hourly fee reconciliation candidate scan hardening (#67)", () => {
       const cursor = state.storage.sql.exec<{ providerPaymentId: string }>(
         `SELECT DISTINCT provider_payment_id AS providerPaymentId
          FROM payment_attempts
-         WHERE status IN ('paid', 'refunded')
+         WHERE provider_payment_id > ?
+           AND status IN ('paid', 'refunded')
            AND processor_fee_cents IS NULL
            AND provider_payment_id NOT LIKE 'fake_%'
            AND provider_payment_id <> ''
+         ORDER BY provider_payment_id
          LIMIT 10`,
+        "",
       );
       const rows = cursor.toArray();
       expect(rows.map((r) => r.providerPaymentId).sort()).toEqual([

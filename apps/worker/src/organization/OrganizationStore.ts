@@ -73,6 +73,10 @@ import {
   type PreviewProfileReconciliationInput,
 } from "./organizationStore/profileReconciliation";
 import { migrateOrganization } from "./migrations";
+import {
+  readPaymentFeeReconciliationStatus,
+  schedulePaymentFeeReconciliationInStore,
+} from "./feeReconciliation";
 import { runOrganizationAlarm, wakeOrganizationAlarm } from "./scheduler";
 import { dispatchPostRequest } from "./organizationStore/post";
 import { dispatchGetRequest } from "./organizationStore/read";
@@ -244,6 +248,26 @@ export class OrganizationStore extends DurableObject {
 
   async operationsRpc(call: OrganizationRpcCall<"operations">): Promise<OrganizationRpcResult> {
     return this.dispatchRpcCall(call);
+  }
+
+  async schedulePaymentFeeReconciliation(input: {
+    readonly organizationId: string;
+    readonly providerPaymentId: string;
+  }) {
+    const result = this.ctx.storage.transactionSync(() =>
+      schedulePaymentFeeReconciliationInStore(this.ctx.storage, input),
+    );
+    if ("wakeScheduler" in result && result.wakeScheduler) {
+      await wakeOrganizationAlarm(this.ctx.storage);
+    }
+    return result;
+  }
+
+  readPaymentFeeReconciliationStatus(input: {
+    readonly organizationId: string;
+    readonly providerPaymentId: string;
+  }) {
+    return readPaymentFeeReconciliationStatus(this.ctx.storage, input);
   }
 
   // Phase 2 marketing contacts: strongly typed Durable Object RPC methods.

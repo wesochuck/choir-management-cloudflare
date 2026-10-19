@@ -7,14 +7,14 @@ import {
 export const completionSchema = z.object({
   attempt: z.number().int().min(1).max(10),
   completedAt: z.iso.datetime(),
-  idempotencyKey: z.string().min(1).max(256),
+  idempotencyKey: z.string().min(1).max(281),
   jobId: z.uuid(),
 });
 
 export const failureSchema = z.object({
   attempt: z.number().int().min(1).max(10),
   failedAt: z.iso.datetime(),
-  idempotencyKey: z.string().min(1).max(256),
+  idempotencyKey: z.string().min(1).max(281),
   jobId: z.uuid(),
 });
 
