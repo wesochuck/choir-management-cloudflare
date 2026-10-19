@@ -1093,6 +1093,7 @@
       min-height: 0;
       gap: var(--spacing-2xs);
       padding: 0 var(--spacing-2xs) var(--spacing-sm);
+      scroll-padding-block: var(--spacing-xs) var(--spacing-sm);
       overflow-x: hidden;
       overflow-y: auto;
       overscroll-behavior-y: contain;
@@ -1110,6 +1111,7 @@
       border-radius: var(--radius-control);
       border-inline-start: 3px solid transparent;
       background: transparent;
+      scroll-margin-block: var(--spacing-xs);
     }
 
     .public-player__queue-list--mobile-picker li.is-active {
