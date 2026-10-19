@@ -16,6 +16,7 @@ export default tseslint.config(
       "**/.wrangler/**",
       "playwright-report/**",
       "test-results/**",
+      "work/**",
     ],
   },
   eslint.configs.recommended,
