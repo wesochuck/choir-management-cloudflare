@@ -681,10 +681,10 @@ test("shows recording coverage and plays inline audio previews in set list build
     page.locator(".set-list-summary dt").filter({ hasText: /^Recordings$/ }),
   ).toHaveCount(0);
 
-  // Row 1 (Carol of the Bells) has Tutti recording
+  // Row 1 (Carol of the Bells) has Tutti recording player and practice link, but no redundant summary status text
   const item1 = page.locator(".set-list-item").first();
   await expect(item1).toContainText("Carol of the Bells");
-  await expect(item1).toContainText("Recording: Tutti");
+  await expect(item1).not.toContainText("Recording: Tutti");
   const playButton1 = item1.getByRole("button", {
     name: "Play Tutti recording for Carol of the Bells",
   });
@@ -698,16 +698,16 @@ test("shows recording coverage and plays inline audio previews in set list build
   await expect(item2).not.toContainText("No recording");
   await expect(item2.getByRole("button", { name: /Play/ })).not.toBeVisible();
 
-  // Row 3 (Silent Night) has no recording
+  // Row 3 (Silent Night) has no recording - no playback controls or summary status text
   const item3 = page.locator(".set-list-item").nth(2);
   await expect(item3).toContainText("Silent Night");
-  await expect(item3).toContainText("No recording");
+  await expect(item3).not.toContainText("No recording");
   await expect(item3.getByRole("button", { name: /Play/ })).not.toBeVisible();
 
-  // Row 4 (O Holy Night) has Tenor fallback recording
+  // Row 4 (O Holy Night) has Tenor fallback recording player, but no redundant summary status text
   const item4 = page.locator(".set-list-item").nth(3);
   await expect(item4).toContainText("O Holy Night");
-  await expect(item4).toContainText("Recording: Tenor");
+  await expect(item4).not.toContainText("Recording: Tenor");
   const playButton4 = item4.getByRole("button", {
     name: "Play Tenor recording for O Holy Night",
   });

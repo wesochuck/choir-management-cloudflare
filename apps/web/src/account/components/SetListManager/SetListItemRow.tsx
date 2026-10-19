@@ -35,7 +35,6 @@ export function SetListItemSummaryText({
   itemNotes,
   movementCount,
   parentWorkTitle,
-  recordingStatus,
 }: {
   readonly arranger?: string | undefined;
   readonly composer: string | undefined;
@@ -45,7 +44,6 @@ export function SetListItemSummaryText({
   readonly itemNotes: string;
   readonly movementCount?: number | undefined;
   readonly parentWorkTitle?: string | undefined;
-  readonly recordingStatus: SetListItemRecordingStatus;
 }) {
   const credit = isSong ? (displayCredit ?? setListBuilderCredit(composer, arranger)) : undefined;
   const parentText = parentWorkTitle ? `Movement of ${parentWorkTitle}` : undefined;
@@ -59,24 +57,7 @@ export function SetListItemSummaryText({
   return (
     <span>
       {details}
-      {isSong ? (
-        <span
-          className={`set-list-recording-status set-list-recording-status--${recordingStatus.status}`}
-        >
-          {hasDetails ? " · " : ""}
-          <span className="set-list-recording-status__icon" aria-hidden="true">
-            {recordingStatus.status === "available" || recordingStatus.status === "multiple"
-              ? "●"
-              : "○"}
-          </span>{" "}
-          {recordingStatus.status === "available"
-            ? `Recording: ${recordingStatus.track.trackLabel}`
-            : recordingStatus.status === "multiple"
-              ? "Multiple recordings available"
-              : "No recording"}
-        </span>
-      ) : null}
-      {!hasDetails && !isSong && (itemNotes ? "Notes added" : "No additional details")}
+      {!hasDetails && (itemNotes ? "Notes added" : "No additional details")}
     </span>
   );
 }
@@ -409,7 +390,6 @@ export function SetListItemRow({
                 itemNotes={itemNotes}
                 movementCount={movementCount}
                 parentWorkTitle={parentWorkTitle}
-                recordingStatus={recordingStatus}
               />
               {item.isFeaturedNumber ? <span className="status-pill">Featured</span> : null}
             </div>

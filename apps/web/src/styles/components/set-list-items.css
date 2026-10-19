@@ -336,26 +336,6 @@
     overflow-wrap: anywhere;
   }
 
-  .set-list-recording-status {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--spacing-3xs);
-    font-size: var(--font-size-sm);
-  }
-
-  .set-list-recording-status--available {
-    color: var(--color-text-muted);
-  }
-
-  .set-list-recording-status--missing {
-    color: var(--color-warning, #d97706);
-  }
-
-  .set-list-recording-status__icon {
-    font-size: 0.75em;
-    line-height: 1;
-  }
-
   .set-list-item-notes {
     margin: var(--spacing-2xs) 0 0;
     color: var(--color-text-muted);

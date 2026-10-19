@@ -181,9 +181,7 @@ describe("SetListPreview credit formatting", () => {
 });
 
 describe("SetListItemSummaryText (Admin Set List Builder)", () => {
-  const missingRecording = { status: "missing" } as const;
-
-  it("renders both composer and arranger when both exist", () => {
+  it("renders both composer and arranger when both exist without recording status", () => {
     const { container } = render(
       <SetListItemSummaryText
         arranger="Peter J. Wilhousky"
@@ -191,10 +189,10 @@ describe("SetListItemSummaryText (Admin Set List Builder)", () => {
         duration="1:52"
         isSong={true}
         itemNotes=""
-        recordingStatus={missingRecording}
       />,
     );
-    expect(container.textContent).toContain("Mykola Leontovych · arr. Peter J. Wilhousky · 1:52");
+    expect(container.textContent).toBe("Mykola Leontovych · arr. Peter J. Wilhousky · 1:52");
+    expect(container.textContent).not.toContain("Recording");
   });
 
   it("renders composer only without prefix when arranger is absent", () => {
@@ -205,10 +203,9 @@ describe("SetListItemSummaryText (Admin Set List Builder)", () => {
         duration="3:45"
         isSong={true}
         itemNotes=""
-        recordingStatus={missingRecording}
       />,
     );
-    expect(container.textContent).toContain("George Frideric Handel · 3:45");
+    expect(container.textContent).toBe("George Frideric Handel · 3:45");
     expect(container.textContent).not.toContain("arr.");
   });
 
@@ -220,24 +217,16 @@ describe("SetListItemSummaryText (Admin Set List Builder)", () => {
         duration="2:10"
         isSong={true}
         itemNotes=""
-        recordingStatus={missingRecording}
       />,
     );
-    expect(container.textContent).toContain("arr. Moses Hogan · 2:10");
+    expect(container.textContent).toBe("arr. Moses Hogan · 2:10");
   });
 
   it("renders only duration when neither composer nor arranger exists", () => {
     const { container } = render(
-      <SetListItemSummaryText
-        arranger=""
-        composer=""
-        duration="4:00"
-        isSong={true}
-        itemNotes=""
-        recordingStatus={missingRecording}
-      />,
+      <SetListItemSummaryText arranger="" composer="" duration="4:00" isSong={true} itemNotes="" />,
     );
-    expect(container.textContent).toContain("4:00");
+    expect(container.textContent).toBe("4:00");
     expect(container.textContent).not.toContain("· 4:00");
   });
 
@@ -249,7 +238,6 @@ describe("SetListItemSummaryText (Admin Set List Builder)", () => {
         duration="15:00"
         isSong={false}
         itemNotes=""
-        recordingStatus={missingRecording}
       />,
     );
     expect(container.textContent).not.toContain("Should Not Appear");
@@ -268,12 +256,9 @@ describe("SetListItemSummaryText (Admin Set List Builder)", () => {
         duration="1:52"
         isSong={true}
         itemNotes=""
-        recordingStatus={missingRecording}
       />,
     );
-    expect(adminContainer.textContent).toContain(
-      "Mykola Leontovych · arr. Peter J. Wilhousky · 1:52",
-    );
+    expect(adminContainer.textContent).toBe("Mykola Leontovych · arr. Peter J. Wilhousky · 1:52");
 
     // 2. Print & Copy shows only arranger (arranger-first rule):
     const items: SetListItem[] = [
