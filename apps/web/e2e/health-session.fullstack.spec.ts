@@ -91,7 +91,7 @@ test("keeps OTP sign-in non-enumerating and rejects an unknown code", async ({ p
   // Nobody seeds this address: the Worker must still answer success (no
   // account enumeration) without capturing any email.
   await page.goto(`${FULLSTACK_APP_ORIGIN}/login`);
-  await expect(page.getByRole("heading", { name: "Sign in to Choir Management." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Sign in to / })).toBeVisible();
   await page.getByLabel("Email address").fill("nobody.fullstack@example.test");
   await page.getByRole("button", { name: "Send sign-in code" }).click();
   await expect(page.getByRole("main").getByRole("status")).toContainText(

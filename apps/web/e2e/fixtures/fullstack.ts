@@ -141,7 +141,7 @@ export async function signInWithFullstackOtp(
   email: string = FULLSTACK_ADMIN_EMAIL,
 ): Promise<void> {
   await page.goto(`${FULLSTACK_APP_ORIGIN}/login`);
-  await expect(page.getByRole("heading", { name: "Sign in to Choir Management." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Sign in to / })).toBeVisible();
   await page.getByLabel("Email address").fill(email);
   const codeResponsePromise = page.waitForResponse(
     (response) =>

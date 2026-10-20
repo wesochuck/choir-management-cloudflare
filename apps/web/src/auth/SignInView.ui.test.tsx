@@ -100,4 +100,22 @@ describe("SignInView Google UI", () => {
       ).toBeInTheDocument();
     });
   });
+
+  it("renders default title and heading when organizationName is omitted", () => {
+    render(<SignInView onSignedIn={vi.fn()} />);
+
+    expect(
+      screen.getByRole("heading", { name: "Sign in to Choir Management." }),
+    ).toBeInTheDocument();
+    expect(document.title).toBe("Sign in · Choir Management");
+  });
+
+  it("renders organization name in title and heading when organizationName is provided", () => {
+    render(<SignInView onSignedIn={vi.fn()} organizationName="Lancaster Community Chorus" />);
+
+    expect(
+      screen.getByRole("heading", { name: "Sign in to Lancaster Community Chorus." }),
+    ).toBeInTheDocument();
+    expect(document.title).toBe("Sign in · Lancaster Community Chorus");
+  });
 });

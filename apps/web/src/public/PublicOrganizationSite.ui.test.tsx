@@ -277,4 +277,23 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
     expect(termsLink).toBeInTheDocument();
     expect(termsLink).toHaveAttribute("href", "/terms");
   });
+
+  it("updates document.title with the organization name on home and subpages", async () => {
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(
+      createProjection({
+        settings: {
+          ...createProjection().payload.settings,
+          historyText: "Our story",
+        },
+      }),
+    );
+
+    const { rerender } = render(<PublicOrganizationSite fallback={<p>Fallback</p>} pathname="/" />);
+
+    await screen.findByRole("heading", { name: "Welcome to Our Choir" });
+    expect(document.title).toBe("City Chorale");
+
+    rerender(<PublicOrganizationSite fallback={<p>Fallback</p>} pathname="/history" />);
+    expect(document.title).toBe("History · City Chorale");
+  });
 });

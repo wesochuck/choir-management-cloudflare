@@ -11,6 +11,7 @@ import { isConditionalMediationSupported, signInWithPasskey } from "./passkeyCli
 
 interface SignInViewProps {
   readonly onSignedIn: () => void;
+  readonly organizationName?: string | null | undefined;
 }
 
 type PasswordSecondFactor = "recovery_code" | "totp";
@@ -56,7 +57,16 @@ function secondFactorFieldSettings(method: PasswordSecondFactor): SecondFactorFi
 }
 
 // eslint-disable-next-line complexity -- SignInView coordinates multi-step authentication (passkeys, credentials, code, password, and two-factor MFA).
-export function SignInView({ onSignedIn }: SignInViewProps) {
+export function SignInView({ onSignedIn, organizationName }: SignInViewProps) {
+  const orgTitle = organizationName?.trim() ?? "Choir Management";
+
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = `Sign in · ${orgTitle}`;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [orgTitle]);
   const [email, setEmail] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -282,7 +292,7 @@ export function SignInView({ onSignedIn }: SignInViewProps) {
   return (
     <main className="auth-layout">
       <section className="auth-card" aria-labelledby="sign-in-title">
-        <h1 id="sign-in-title">Sign in to Choir Management.</h1>
+        <h1 id="sign-in-title">Sign in to {orgTitle}.</h1>
         <p className="auth-card__intro">
           This site is invitation-only. Passkey is the preferred sign-in method. You can also sign
           in with Google or an email code, or use an optional password.

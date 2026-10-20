@@ -29,6 +29,17 @@ export function PublicDonations({ pathname }: { readonly pathname: string }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (state.status !== "ready") return;
+    const orgName = state.projection.payload.organizationName;
+    if (!orgName) return;
+    const previousTitle = document.title;
+    document.title = `Donations · ${orgName}`;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [state]);
+
   if (state.status === "loading") {
     return (
       <main className="auth-layout">

@@ -224,6 +224,7 @@ function organizationFallbackContent(
   sessionState: SessionState,
   oauthCompletion: OAuthCompletionState,
   finishSignIn: () => void,
+  organizationName: string | null,
 ): ReactNode {
   if (sessionState.status === "checking") return <AccountLoading />;
   if (sessionState.status === "error") return <SessionCheckError reason={sessionState.reason} />;
@@ -236,7 +237,7 @@ function organizationFallbackContent(
       />
     );
   }
-  return <SignInView onSignedIn={finishSignIn} />;
+  return <SignInView onSignedIn={finishSignIn} organizationName={organizationName} />;
 }
 
 function selectContent(
@@ -249,6 +250,7 @@ function selectContent(
   finishInvitationSignIn: () => void,
   isOrganization: boolean,
   auditionHeading: string | undefined,
+  organizationName: string | null,
 ): ReactNode {
   const utilityRoute = publicUtilityRoute(pathname, resetLocation, auditionHeading);
   if (utilityRoute) return utilityRoute;
@@ -263,7 +265,7 @@ function selectContent(
         />
       );
     }
-    return <SignInView onSignedIn={finishInvitationSignIn} />;
+    return <SignInView onSignedIn={finishInvitationSignIn} organizationName={organizationName} />;
   }
   if (pathname === "/login") {
     if (sessionState.status === "authenticated") {
@@ -275,7 +277,7 @@ function selectContent(
         />
       );
     }
-    return <SignInView onSignedIn={finishSignIn} />;
+    return <SignInView onSignedIn={finishSignIn} organizationName={organizationName} />;
   }
   if (isAuthenticatedRoute(pathname)) {
     if (sessionState.status === "checking") return <AccountLoading />;
@@ -286,10 +288,15 @@ function selectContent(
         <AuthenticatedShell currentSession={sessionState.session} onSignedOut={finishSignOut} />
       );
     }
-    return <SignInView onSignedIn={finishSignIn} />;
+    return <SignInView onSignedIn={finishSignIn} organizationName={organizationName} />;
   }
   if (isOrganization) {
-    return organizationFallbackContent(sessionState, oauthCompletion, finishSignIn);
+    return organizationFallbackContent(
+      sessionState,
+      oauthCompletion,
+      finishSignIn,
+      organizationName,
+    );
   }
   return <PlatformHomeView signedIn={sessionState.status === "authenticated"} />;
 }
@@ -524,6 +531,12 @@ export function App() {
     finishSignIn(`/accept-invitation${window.location.search}`);
   }
 
+  useEffect(() => {
+    if (organizationName) {
+      document.title = organizationName;
+    }
+  }, [organizationName]);
+
   const isOrganization = isOrganizationHost(
     typeof window !== "undefined" ? window.location.hostname : "",
     baseHostname,
@@ -539,6 +552,7 @@ export function App() {
     finishInvitationSignIn,
     isOrganization,
     auditionHeading,
+    organizationName,
   );
 
   const productName = !isOrganization && pathname === "/" ? "Music Manager" : "Choir Management";

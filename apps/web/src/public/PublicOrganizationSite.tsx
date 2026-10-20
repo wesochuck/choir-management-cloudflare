@@ -395,6 +395,23 @@ export function PublicOrganizationSite({
     };
   }, [retryCount]);
 
+  useEffect(() => {
+    if (state.status !== "ready" || !state.projection) return;
+    const orgName = state.projection.payload.organizationName;
+    if (!orgName) return;
+    const pageLabel =
+      pathname === "/history"
+        ? publicPageNavigationLabel(state.projection.payload.settings, "history")
+        : pathname === "/performances"
+          ? publicPageNavigationLabel(state.projection.payload.settings, "performances")
+          : null;
+    const previousTitle = document.title;
+    document.title = pageLabel ? `${pageLabel} · ${orgName}` : orgName;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [pathname, state]);
+
   if (state.status === "loading") {
     return (
       <main className="auth-layout">

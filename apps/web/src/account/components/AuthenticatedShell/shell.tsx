@@ -560,6 +560,29 @@ export function AuthenticatedShell({
   );
   const selectedWorkspaceHome = workspaceHome(selectedWorkspace);
   const organizationName = organizationDisplayName(access, currentSession);
+  const activeOrgName =
+    branding?.organizationName ??
+    (access.status === "ready" || access.status === "platform-scoped"
+      ? access.organizationName
+      : null);
+
+  useEffect(() => {
+    const org =
+      activeOrgName ??
+      (access.status === "ready" || access.status === "platform-scoped"
+        ? access.organizationName
+        : null);
+    const title = pageTitle(route.pathname);
+    const previousTitle = document.title;
+    if (org) {
+      document.title = title ? `${title} · ${org}` : org;
+    } else if (title) {
+      document.title = `${title} · Choir Management`;
+    }
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [activeOrgName, access, route.pathname]);
 
   return (
     <SaveCoordinatorProvider>

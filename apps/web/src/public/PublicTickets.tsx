@@ -100,6 +100,17 @@ export function PublicTickets({ pathname }: { readonly pathname: string }) {
       controller.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (state.status !== "ready") return;
+    const orgName = state.projection.payload.organizationName;
+    if (!orgName) return;
+    const previousTitle = document.title;
+    document.title = `Tickets · ${orgName}`;
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [state]);
   if (state.status === "loading")
     return (
       <main className="auth-layout">
