@@ -1,3 +1,7 @@
+import {
+  getOrganizationSidebarGroups,
+  getAdminFeatureForPath,
+} from "../../organizationFeatures/selectors";
 import type { ModuleState } from "@choir/contracts";
 import type {
   NavigationGroup,
@@ -69,61 +73,10 @@ export const memberGroups: readonly NavigationGroup[] = [
   },
 ];
 
-export const organizationGroups: readonly NavigationGroup[] = [
-  {
-    label: "Overview",
-    items: [{ href: "/admin", label: "Admin overview" }],
-  },
-  {
-    label: "People",
-    items: [
-      { href: "/admin/roster", label: "Roster", module: "roster" },
-      { href: "/admin/contacts", label: "Contacts" },
-      { href: "/admin/settings/invitations", label: "Membership invitations", module: "roster" },
-      { href: "/directory?from=admin", label: "Directory", module: "directory" },
-      { href: "/admin/auditions", label: "Auditions & Inquiries", module: "auditions" },
-    ],
-  },
-  {
-    label: "Events",
-    items: [
-      { href: "/admin/events", label: "Events", module: "events" },
-      { href: "/admin/venues", label: "Venues", module: "venues" },
-      { href: "/admin/rsvp", label: "RSVPs", module: "rsvp" },
-      { href: "/admin/attendance", label: "Attendance", module: "attendance" },
-      { href: "/admin/seating", label: "Seating", module: "seating" },
-    ],
-  },
-  {
-    label: "Music & content",
-    items: [
-      { href: "/admin/library", label: "Music library", module: "music_library" },
-      { href: "/admin/setlists", label: "Set lists", module: "setlists" },
-      { href: "/admin/resources", label: "Resources", module: "resources" },
-      { href: "/admin/website", label: "Public website", module: "public_website" },
-    ],
-  },
-  {
-    label: "Communications & finance",
-    items: [
-      { href: "/admin/communications", label: "Communications", module: "communications" },
-      { href: "/admin/polls", label: "Polls", module: "polls" },
-      { href: "/admin/tickets", label: "Ticketing", module: "ticketing" },
-      { href: "/admin/donations", label: "Donations & giving", module: "donations" },
-      { href: "/admin/seasons", label: "Seasons & dues", module: "dues" },
-    ],
-  },
-  {
-    label: "Insights & settings",
-    items: [
-      { href: "/admin/reports", label: "Reports", module: "reports" },
-      { href: "/admin/settings", label: "Organization settings" },
-      { href: "/admin/settings/modules", label: "Modules" },
-      { href: "/admin/settings/setup-checklist", label: "Setup checklist" },
-      { href: "/admin/settings/security", label: "Organization security" },
-    ],
-  },
-];
+export const organizationGroups: readonly NavigationGroup[] = getOrganizationSidebarGroups({
+  modules: [],
+  status: "ready",
+});
 
 export const platformGroups: readonly NavigationGroup[] = [
   {
@@ -167,66 +120,7 @@ export function workspaceLabel(workspace: Workspace): string {
 }
 
 const staticPageDescriptions: readonly [string, string][] = [
-  [
-    "/admin/events",
-    "Create and manage rehearsals, performances, and call times. Track attendance and edit seating charts.",
-  ],
-  ["/admin/venues", "Manage performance and rehearsal venues and locations."],
-  ["/admin/rsvp", "Track singer availability and RSVP responses for rehearsals and performances."],
-  [
-    "/admin/attendance",
-    "Tap a name to cycle Pending, Present, and Absent. Changes save immediately.",
-  ],
-  [
-    "/admin/setlists",
-    "Build concert set lists, link musical pieces from the catalog, and share performance order.",
-  ],
-  [
-    "/admin/auditions",
-    "Review candidate submissions, manage audition slots, and track singer inquiries.",
-  ],
-  ["/admin/tickets", "Manage ticket sales, bundles, and check-in."],
-  [
-    "/admin/tickets/scan",
-    "Scan a ticket QR code at the door or validate a ticket credential manually.",
-  ],
-  ["/admin/donations", "Monitor incoming donations, giving activity, and donor recognition tiers."],
-  ["/admin/patrons", "Monitor incoming donations, giving activity, and donor recognition tiers."],
-  [
-    "/admin/communications",
-    "Build a message in three steps: choose the audience, write with Markdown and placeholders, then review it before queueing delivery.",
-  ],
-  [
-    "/admin/contacts",
-    "Manage marketing and community contacts, contact lists, and communication preferences separately from the Organization roster.",
-  ],
-  [
-    "/admin/website",
-    "Edit a private draft, then publish an immutable edge-cached version for Organization visitors.",
-  ],
-  ["/admin/resources", "Shared files and trusted links for this Organization."],
   ["/member/resources", "Shared files and trusted links for this Organization."],
-  [
-    "/admin/roster",
-    "Manage the organization roster, section assignments, member statuses, and contact details.",
-  ],
-  ["/admin/reports", "Generate and review attendance, repertoire, and roster reports."],
-  ["/admin/seasons", "Manage performance seasons, dues schedules, and payment tracking."],
-  ["/admin/polls", "Create polls, collect member votes, and review real-time tally results."],
-  ["/admin/settings", "Manage organization preferences, terminology, and defaults."],
-  [
-    "/admin/settings/invitations",
-    "Invite new members, managers, and administrators to the organization.",
-  ],
-  [
-    "/admin/settings/security",
-    "Manage two-factor authentication and organization security policies.",
-  ],
-  ["/admin/settings/modules", "Enable or disable feature modules for your organization."],
-  [
-    "/admin/settings/setup-checklist",
-    "Review configuration steps to prepare your organization for launch.",
-  ],
   ["/directory", "Search and browse member directory contacts and section assignments."],
   [
     "/profile",
@@ -245,16 +139,20 @@ const staticPageDescriptions: readonly [string, string][] = [
 ];
 
 export function pageDescription(pathname: string, search = ""): string | null {
-  if (pathname === "/admin/library" || pathname === "/admin/music") {
+  if (["/admin/library", "/admin/music"].includes(pathname)) {
     const params = new URLSearchParams(search);
     if (params.get("view") === "credits") {
       return "Review exact catalog credits and correct a composer or arranger name everywhere it is used.";
     }
     return "Manage owned works and movements. Audio tracks are stored securely as Organization files and will appear here when linked through the track workflow.";
   }
-  if (pathname === "/admin/library/settings" || pathname === "/admin/music/settings") {
+  if (["/admin/library/settings", "/admin/music/settings"].includes(pathname)) {
     return "Configure publisher catalog links and the expiry period for public practice-player links.";
   }
+  if (pathname === "/admin/tickets/scan")
+    return "Scan a ticket QR code at the door or validate a ticket credential manually.";
+  const feature = getAdminFeatureForPath(pathname);
+  if (feature?.description) return feature.description;
   const exactMatch = staticPageDescriptions.find(([prefix]) => pathname === prefix);
   if (exactMatch) return exactMatch[1];
 
@@ -270,37 +168,12 @@ export function pageDescription(pathname: string, search = ""): string | null {
 }
 
 export function pageTitle(pathname: string): string {
+  if (["/admin/library/settings", "/admin/music/settings"].includes(pathname))
+    return "Music library settings";
+  if (pathname === "/admin/tickets/scan") return "Ticket scanner";
+  const feature = getAdminFeatureForPath(pathname);
+  if (feature) return feature.pageTitle;
   const titles: readonly [string, string][] = [
-    ["/admin/settings/invitations", "Membership invitations"],
-    ["/admin/settings/security", "Organization security"],
-    ["/admin/settings/modules", "Modules"],
-    ["/admin/settings/setup-checklist", "Setup checklist"],
-    ["/admin/roster", "Roster"],
-    ["/admin/auditions", "Auditions & Inquiries"],
-    ["/admin/events", "Events"],
-    ["/admin/venues", "Venues"],
-    ["/admin/rsvp", "Event RSVPs"],
-    ["/admin/attendance", "Attendance"],
-    ["/admin/seating", "Seating"],
-    ["/admin/library/settings", "Music library settings"],
-    ["/admin/library", "Music library"],
-    ["/admin/music/settings", "Music library settings"],
-    ["/admin/music", "Music library"],
-    ["/admin/communications/polls", "Polls"],
-    ["/admin/setlists", "Set lists"],
-    ["/admin/resources", "Resources"],
-    ["/admin/communications", "Communications"],
-    ["/admin/contacts", "Contacts"],
-    ["/admin/polls", "Polls"],
-    ["/admin/tickets/scan", "Ticket scanner"],
-    ["/admin/tickets", "Ticketing"],
-    ["/admin/ticketing", "Ticketing"],
-    ["/admin/invitations", "Membership invitations"],
-    ["/admin/donations", "Donations & Giving"],
-    ["/admin/seasons", "Seasons & dues"],
-    ["/admin/reports", "Reports"],
-    ["/admin/website", "Public website"],
-    ["/admin/settings", "Organization settings"],
     ["/platform/security", "Platform security"],
     ["/platform/organizations", "Organizations"],
     ["/platform/dead-letters", "Queue dead letters"],
@@ -344,28 +217,19 @@ const moduleRoutePrefixes: readonly (readonly [
   Exclude<NavigationItem["module"], undefined>,
   readonly string[],
 ])[] = [
-  ["attendance", ["/admin/attendance"]],
-  ["auditions", ["/admin/auditions"]],
-  ["communications", ["/admin/communications"]],
   ["directory", ["/directory"]],
-  ["donations", ["/admin/donations", "/admin/patrons"]],
-  ["dues", ["/admin/seasons", "/dues"]],
-  ["events", ["/schedule", "/calendar", "/admin/events"]],
-  ["music_library", ["/admin/library", "/admin/music"]],
-  ["polls", ["/admin/polls", "/admin/communications/polls", "/member/polls"]],
+  ["dues", ["/dues"]],
+  ["events", ["/schedule", "/calendar"]],
+  ["polls", ["/member/polls"]],
   ["practice_player", ["/practice"]],
-  ["public_website", ["/admin/website"]],
-  ["reports", ["/admin/reports"]],
-  ["resources", ["/member/resources", "/admin/resources"]],
-  ["roster", ["/profile", "/admin/roster", "/admin/settings/invitations", "/admin/invitations"]],
-  ["rsvp", ["/admin/rsvp"]],
-  ["seating", ["/seating", "/admin/seating"]],
-  ["setlists", ["/admin/setlists"]],
-  ["ticketing", ["/admin/tickets", "/admin/ticketing"]],
-  ["venues", ["/admin/venues"]],
+  ["resources", ["/member/resources"]],
+  ["roster", ["/profile"]],
+  ["seating", ["/seating"]],
 ];
 
 export function routeModule(pathname: string): NavigationItem["module"] {
+  const feature = getAdminFeatureForPath(pathname);
+  if (feature) return feature.requiredModule ?? undefined;
   for (const [moduleKey, prefixes] of moduleRoutePrefixes) {
     if (prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
       return moduleKey;

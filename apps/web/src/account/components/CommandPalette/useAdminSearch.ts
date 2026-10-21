@@ -3,9 +3,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { searchOrganization } from "../../../api/search";
 
-import { staticNavigationItems } from "./navigationIndex";
+import { paletteEligibility } from "./eligibility";
+import type { OrganizationFeatureContext } from "../../organizationFeatures/types";
 import { clearRecentSearches, getRecentSearches } from "./recents";
-import type { CommandPaletteWorkspace, PrefixKeyword, RecentItem } from "./types";
+import type { CommandPaletteWorkspace, PrefixKeyword } from "./types";
 
 export interface ParsedSearchQuery {
   readonly cleanTerm: string;
@@ -45,11 +46,15 @@ export function parseQuery(rawQuery: string): ParsedSearchQuery {
 
 export function useAdminSearch({
   hostname,
+  open = true,
+  organizationContext,
   isOwner,
   modules,
   workspace = "organization",
 }: {
   readonly hostname: string;
+  readonly open?: boolean;
+  readonly organizationContext?: OrganizationFeatureContext | undefined;
   readonly isOwner: boolean;
   readonly modules: readonly string[];
   readonly workspace?: CommandPaletteWorkspace | undefined;
@@ -58,37 +63,50 @@ export function useAdminSearch({
   const [serverResults, setServerResults] = useState<readonly SearchResultItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [includeHidden, setIncludeHidden] = useState(false);
-  const [recents, setRecents] = useState<readonly RecentItem[]>(() =>
-    getRecentSearches(hostname, workspace),
+  const recentScope = `${hostname}:${workspace}`;
+  const [recentState, setRecentState] = useState(() => ({
+    scope: recentScope,
+    items: getRecentSearches(hostname, workspace),
+  }));
+  const recents = useMemo(
+    () => (recentState.scope === recentScope ? recentState.items : []),
+    [recentState, recentScope],
   );
 
+  const eligibility = useMemo(
+    () => paletteEligibility(workspace, modules, isOwner, organizationContext),
+    [workspace, modules, isOwner, organizationContext],
+  );
+  const visibleRecents = useMemo(
+    () => recents.filter(eligibility.allowed).map(eligibility.resolveRecent),
+    [recents, eligibility],
+  );
   const parsed = useMemo(() => parseQuery(query), [query]);
 
   // Refresh recents on mount or when hostname/workspace changes
   const refreshRecents = () => {
-    setRecents(getRecentSearches(hostname, workspace));
+    setRecentState({ scope: recentScope, items: getRecentSearches(hostname, workspace) });
   };
 
   const handleClearRecents = () => {
     clearRecentSearches(hostname, workspace);
-    setRecents([]);
+    setRecentState({ scope: recentScope, items: [] });
   };
 
   // Client-side static navigation filtering
   const clientResults = useMemo(() => {
     if (!parsed.cleanTerm && !parsed.scopedCategory) return [];
 
-    const enabledModules = new Set(modules);
     const searchTerms = parsed.cleanTerm.toLowerCase().split(/\s+/).filter(Boolean);
     const activeWorkspace = workspace;
 
-    return staticNavigationItems
+    return eligibility.entries
       .filter((item) => {
         const itemWorkspaces =
           item.workspaces ??
           (item.href?.startsWith("/admin") ? ["organization"] : ["organization"]);
         if (!itemWorkspaces.includes(activeWorkspace)) return false;
-        if (item.requiredModule && !enabledModules.has(item.requiredModule)) return false;
+        if (!eligibility.allowed(item)) return false;
         if (item.ownerOnly && !isOwner) return false;
         if (parsed.scopedCategory && item.category !== parsed.scopedCategory) return false;
         if (searchTerms.length === 0) return true;
@@ -105,23 +123,25 @@ export function useAdminSearch({
         subtitle: item.subtitle,
         title: item.title,
       }));
-  }, [parsed.cleanTerm, parsed.scopedCategory, modules, isOwner, workspace]);
+  }, [parsed.cleanTerm, parsed.scopedCategory, eligibility, isOwner, workspace]);
 
   // Server-side debounced entity search
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!parsed.cleanTerm) {
+    if (!open || !parsed.cleanTerm) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- clear results when query becomes empty
       setServerResults([]);
       setIsSearching(false);
       return;
     }
 
-    // Skip server call if in member workspace (members cannot query /api/organization/search)
-    // or if explicitly filtering purely for settings or actions
+    // Only the Organization workspace performs entity search. Revalidate an open query
+    // when its module snapshot changes, so newly enabled entities can return immediately.
     if (
-      workspace === "member" ||
+      workspace !== "organization" ||
+      organizationContext?.scopedReadOnly ||
+      (organizationContext?.status ?? "ready") !== "ready" ||
       parsed.scopedCategory === "settings" ||
       parsed.scopedCategory === "actions"
     ) {
@@ -163,12 +183,21 @@ export function useAdminSearch({
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [includeHidden, parsed.cleanTerm, parsed.scopedCategory, workspace]);
+  }, [
+    open,
+    includeHidden,
+    parsed.cleanTerm,
+    parsed.scopedCategory,
+    workspace,
+    organizationContext?.scopedReadOnly,
+    organizationContext?.status,
+    organizationContext?.modules,
+  ]);
 
   const combinedResults = useMemo((): readonly SearchResultItem[] => {
     if (!parsed.cleanTerm && !parsed.scopedCategory) return [];
-    return [...clientResults, ...serverResults];
-  }, [clientResults, serverResults, parsed.cleanTerm, parsed.scopedCategory]);
+    return [...clientResults, ...serverResults.filter(eligibility.allowed)];
+  }, [clientResults, serverResults, parsed.cleanTerm, parsed.scopedCategory, eligibility]);
 
   return {
     clearRecents: handleClearRecents,
@@ -176,7 +205,8 @@ export function useAdminSearch({
     isSearching,
     parsedQuery: parsed,
     query,
-    recents,
+    recents: visibleRecents,
+    isEligible: eligibility.allowed,
     refreshRecents,
     results: combinedResults,
     setIncludeHidden,

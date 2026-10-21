@@ -1,0 +1,21 @@
+export const organizationFeatureIcons = {
+  roster: "👥",
+  directory: "📖",
+  auditions: "🎵",
+  communications: "✉️",
+  polls: "📊",
+  donations: "🎁",
+  patrons: "💎",
+  events: "📅",
+  ticketing: "🎟️",
+  rsvp: "🗓️",
+  attendance: "✅",
+  venues: "🏛️",
+  seating: "🪑",
+  music: "🎼",
+  setlists: "📋",
+  resources: "📂",
+  website: "🌐",
+  settings: "⚙️",
+} as const;
+export type OrganizationIconId = keyof typeof organizationFeatureIcons;

@@ -1,3 +1,6 @@
+import { moduleIdSchema } from "@choir/contracts";
+import { buildModuleStateResponse } from "./fixtures/builders";
+import { fulfillJson } from "./fixtures/session";
 import { expect, test } from "@playwright/test";
 
 const requestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -359,6 +362,9 @@ test("shows not-found state for an invalid audition token", async ({ page }) => 
 });
 
 test("admin manages auditions: list, edit, and save", async ({ page }, testInfo) => {
+  await page.route("**/api/organization/module-state", async (route) => {
+    await fulfillJson(route, buildModuleStateResponse(moduleIdSchema.options));
+  });
   const updatedAudition: {
     value: { id: string; status: string; adminNotes?: string } | null;
   } = { value: null };

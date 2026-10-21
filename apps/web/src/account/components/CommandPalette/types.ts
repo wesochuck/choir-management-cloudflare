@@ -1,3 +1,4 @@
+import type { OrganizationFeatureContext } from "../../organizationFeatures/types";
 import type { SearchCategory } from "@choir/contracts";
 
 export type CommandPaletteWorkspace = "account" | "member" | "organization" | "platform";
@@ -32,6 +33,7 @@ export type PrefixKeyword =
   "action" | "actions" | "event" | "events" | "music" | "poll" | "polls" | "roster" | "settings";
 
 export interface CommandPaletteProps {
+  readonly organizationContext?: OrganizationFeatureContext | undefined;
   readonly isOwner: boolean;
   readonly modules: readonly string[];
   readonly onClose: () => void;
