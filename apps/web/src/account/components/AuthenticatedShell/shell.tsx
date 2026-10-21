@@ -1,8 +1,8 @@
-import type {
-  CurrentAuthSession,
-  ModuleState,
-  OrganizationImpersonationStatusResponse,
-} from "@choir/contracts";
+import { useOrganizationModuleState } from "../../organizationFeatures/useOrganizationModuleState";
+import { organizationModuleContext } from "../../organizationFeatures/moduleStateContext";
+import { getOrganizationSidebarGroups } from "../../organizationFeatures/selectors";
+import { normalizeOrganizationTerminology } from "../../organizationTerminologyUtils";
+import type { CurrentAuthSession, OrganizationImpersonationStatusResponse } from "@choir/contracts";
 import { Sheet } from "@choir/ui";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { UIEvent } from "react";
@@ -12,7 +12,6 @@ import {
   getOrganizationAuthStatus,
   getOrganizationBranding,
   getOrganizationImpersonationStatus,
-  getOrganizationModuleState,
   getOrganizationRosterConfiguration,
   getPlatformMfaStatus,
   getPlatformOrganizationContext,
@@ -27,7 +26,6 @@ import { OrganizationTerminologyProvider } from "../../organizationTerminology";
 import {
   applyTheme,
   memberGroups,
-  organizationGroups,
   pageDescription,
   pageTitle,
   readRoute,
@@ -62,6 +60,17 @@ import {
   workspaceNavigation,
 } from "./workspacesUtils";
 
+function moduleStatusMessage(status: "loading" | "ready" | "error"): string {
+  switch (status) {
+    case "loading":
+      return "Loading Organization modules…";
+    case "error":
+      return "Organization modules could not be loaded. Module-dependent shortcuts are unavailable.";
+    case "ready":
+      return "Organization modules could not be refreshed. Confirmed changes remain active.";
+  }
+}
+
 function isSignalAborted(signal: AbortSignal): boolean {
   return signal.aborted;
 }
@@ -80,7 +89,7 @@ function readSidebarPinned(): boolean {
 }
 
 // eslint-disable-next-line complexity -- the shell coordinates pinned and modal navigation states.
-export function AuthenticatedShell({
+function AuthenticatedOrganizationShell({
   currentSession,
   onSignedOut,
 }: {
@@ -106,6 +115,9 @@ export function AuthenticatedShell({
   );
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [themePreference, setThemePreference] = useState<ThemePreference>(readThemePreference);
+  const moduleController = useOrganizationModuleState(
+    `${window.location.hostname}:${currentSession.user.id}`,
+  );
   const [access, setAccess] = useState<AccessState>({ status: "loading" });
   const [platformAvailable, setPlatformAvailable] = useState(false);
   const [baseHostname, setBaseHostname] = useState<string | null>(null);
@@ -257,7 +269,6 @@ export function AuthenticatedShell({
           return null;
         throw error;
       }),
-      getOrganizationModuleState(controller.signal).catch(() => [] as readonly ModuleState[]),
       getSetupStatus(controller.signal)
         .then((setup) => setup.organizationName)
         .catch(() => null),
@@ -268,7 +279,7 @@ export function AuthenticatedShell({
         .then((health) => health.baseHostname ?? null)
         .catch(() => null),
     ])
-      .then(async ([context, modules, organizationName, hasPlatformAccess, baseHostname]) => {
+      .then(async ([context, organizationName, hasPlatformAccess, baseHostname]) => {
         if (isSignalAborted(controller.signal)) return;
         const platformContext = hasPlatformAccess
           ? await getPlatformOrganizationContext(controller.signal).catch(() => null)
@@ -281,7 +292,7 @@ export function AuthenticatedShell({
           // Administrator may still have scoped access to this Organization.
           if (platformContext) {
             setAccess({
-              modules,
+              modules: [],
               organizationName,
               platformContext,
               status: "platform-scoped",
@@ -299,7 +310,7 @@ export function AuthenticatedShell({
         }
         setAccess({
           context,
-          modules,
+          modules: [],
           organizationName,
           ...(platformContext ? { platformContext } : {}),
           status: "ready",
@@ -370,22 +381,30 @@ export function AuthenticatedShell({
       access.context.mfaSatisfied ||
       Boolean(access.context.mfaVerifiedUntil));
   const memberEnabled = organizationEnabled;
-  const modules = useMemo(
-    () => (access.status === "ready" || access.status === "platform-scoped" ? access.modules : []),
-    [access],
+  const modules = moduleController.snapshot.modules;
+  const terminology = useMemo(
+    () => normalizeOrganizationTerminology(organizationPerformerLabel, rosterStructure),
+    [organizationPerformerLabel, rosterStructure],
+  );
+  const featureContext = useMemo(
+    () => ({
+      ...terminology,
+      modules,
+      status: moduleController.snapshot.status,
+      scopedReadOnly: scopedPlatformOverview,
+    }),
+    [terminology, modules, moduleController.snapshot.status, scopedPlatformOverview],
   );
   const visibleOrganizationGroups = useMemo(
+    () => getOrganizationSidebarGroups(featureContext),
+    [featureContext],
+  );
+  const effectiveAccess = useMemo(
     () =>
-      (scopedPlatformOverview
-        ? [{ label: "Organization", items: [{ href: "/admin", label: "Overview" }] }]
-        : organizationGroups
-      )
-        .map((group) => ({
-          ...group,
-          items: group.items.filter((item) => routeHasModule(item, modules)),
-        }))
-        .filter((group) => group.items.length > 0),
-    [modules, scopedPlatformOverview],
+      access.status === "ready" || access.status === "platform-scoped"
+        ? { ...access, modules }
+        : access,
+    [access, modules],
   );
   const visibleMemberGroups = useMemo(
     () =>
@@ -803,28 +822,44 @@ export function AuthenticatedShell({
                 Workspace access could not be loaded. Refresh and try again.
               </p>
             ) : null}
-            <OrganizationTerminologyProvider
-              onLabelChange={setOrganizationPerformerLabel}
-              onStructureChange={setRosterStructure}
-              rosterStructure={rosterStructure}
-              organizationName={organizationName}
-              performerLabel={organizationPerformerLabel}
-            >
-              <Suspense fallback={<WorkspacePageLoading />}>
-                <WorkspacePage
-                  access={access}
-                  currentSession={currentSession}
-                  memberEnabled={memberEnabled}
-                  navigate={handleVoidNavigate}
-                  onOpenCommandPalette={openPaletteFromHeader}
-                  onSignedOut={onSignedOut}
-                  platformAvailable={platformAvailable}
-                  route={route}
-                  workspace={workspace}
-                />
-              </Suspense>
-              <SaveBar />
-            </OrganizationTerminologyProvider>
+            {selectedWorkspace === "organization" &&
+            (moduleController.warning || moduleController.snapshot.status !== "ready") ? (
+              <p className="notice notice--info" role="status">
+                {moduleStatusMessage(moduleController.snapshot.status)}
+                <button
+                  type="button"
+                  onClick={() => {
+                    void moduleController.refresh();
+                  }}
+                >
+                  Retry
+                </button>
+              </p>
+            ) : null}
+            <organizationModuleContext.Provider value={moduleController}>
+              <OrganizationTerminologyProvider
+                onLabelChange={setOrganizationPerformerLabel}
+                onStructureChange={setRosterStructure}
+                rosterStructure={rosterStructure}
+                organizationName={organizationName}
+                performerLabel={organizationPerformerLabel}
+              >
+                <Suspense fallback={<WorkspacePageLoading />}>
+                  <WorkspacePage
+                    access={effectiveAccess}
+                    currentSession={currentSession}
+                    memberEnabled={memberEnabled}
+                    navigate={handleVoidNavigate}
+                    onOpenCommandPalette={openPaletteFromHeader}
+                    onSignedOut={onSignedOut}
+                    platformAvailable={platformAvailable}
+                    route={route}
+                    workspace={workspace}
+                  />
+                </Suspense>
+                <SaveBar />
+              </OrganizationTerminologyProvider>
+            </organizationModuleContext.Provider>
           </main>
         </div>
         <Sheet
@@ -876,6 +911,7 @@ export function AuthenticatedShell({
             isOwner={
               access.status === "ready" && (access.context.role === "owner" || platformAvailable)
             }
+            organizationContext={featureContext}
             modules={modules.filter((m) => m.enabled).map((m) => m.id)}
             onClose={closePalette}
             onNavigate={(path) => {
@@ -907,5 +943,17 @@ export function AuthenticatedShell({
         ) : null}
       </div>
     </SaveCoordinatorProvider>
+  );
+}
+
+export function AuthenticatedShell(props: {
+  readonly currentSession: NonNullable<CurrentAuthSession>;
+  readonly onSignedOut: () => void;
+}) {
+  return (
+    <AuthenticatedOrganizationShell
+      key={`${window.location.hostname}:${props.currentSession.user.id}`}
+      {...props}
+    />
   );
 }

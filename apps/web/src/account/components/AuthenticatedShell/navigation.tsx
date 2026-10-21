@@ -1,3 +1,4 @@
+import { getAdminFeatureForPath } from "../../organizationFeatures/selectors";
 import { type ReactNode } from "react";
 import type { NavigationGroup, ThemePreference } from "./types";
 
@@ -78,13 +79,15 @@ export function Navigation({
   readonly navigate: (href: string) => void;
   readonly pathname: string;
 }) {
+  const feature = getAdminFeatureForPath(pathname);
+  const activePath = feature?.href.split("?")[0] ?? pathname;
   const navigationItems = groups.flatMap((group) => group.items);
   const matchingItems = navigationItems.filter((item) => {
     const itemPath = item.href.split("?")[0] ?? item.href;
     return (
-      pathname === itemPath ||
-      (pathname === "/admin/patrons" && itemPath === "/admin/donations") ||
-      (itemPath !== "/admin" && pathname.startsWith(`${itemPath}/`))
+      activePath === itemPath ||
+      (activePath === "/admin/patrons" && itemPath === "/admin/donations") ||
+      (itemPath !== "/admin" && activePath.startsWith(`${itemPath}/`))
     );
   });
   // Prefer an exact route, then the most specific parent route. This prevents a
@@ -94,7 +97,8 @@ export function Navigation({
     matchingItems.find((item) => {
       const itemPath = item.href.split("?")[0] ?? item.href;
       return (
-        itemPath === pathname || (pathname === "/admin/patrons" && itemPath === "/admin/donations")
+        itemPath === activePath ||
+        (activePath === "/admin/patrons" && itemPath === "/admin/donations")
       );
     })?.href ??
     matchingItems.toSorted((left, right) => right.href.length - left.href.length)[0]?.href;

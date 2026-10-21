@@ -1,3 +1,9 @@
+import {
+  getOrganizationDashboardSections,
+  getOrganizationQuickActions,
+} from "./organizationFeatures/selectors";
+import { useOrganizationModules } from "./organizationFeatures/moduleStateContext";
+import { moduleIdSchema } from "@choir/contracts";
 import type {
   ModuleId,
   ModuleState,
@@ -7,215 +13,51 @@ import type {
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { getOrganizationDashboardSummary, listOrganizationAuditions } from "../auth/api";
-import { routeHasModule, routeModule } from "./components/AuthenticatedShell/utils";
+import { routeHasModule } from "./components/AuthenticatedShell/utils";
 import { QuickSearchTrigger } from "./components/CommandPalette";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
-type OverviewTone = "green" | "blue" | "amber" | "pink" | "cyan" | "slate";
+type OverviewCard = ReturnType<typeof getOrganizationDashboardSections>[number]["cards"][number];
+type QuickAction = ReturnType<typeof getOrganizationQuickActions>[number];
 
-interface OverviewCard {
-  readonly description: string;
-  readonly href: string;
-  readonly icon: string;
-  readonly label: string;
-  readonly tone: OverviewTone;
-}
-
-interface OverviewSection {
-  readonly cards: readonly OverviewCard[];
-  readonly description: string;
-  readonly label: string;
-  readonly tone: OverviewTone;
-}
-
-interface QuickAction {
-  readonly href: string;
-  readonly icon: string;
-  readonly label: string;
-}
+const unavailableModules = moduleIdSchema.options.map((id) => ({ id, enabled: false }));
 
 type SummaryState =
   | { readonly status: "loading" }
   | { readonly status: "error" }
   | { readonly data: OrganizationDashboardSummaryResponse; readonly status: "ready" };
 
-const quickActions: readonly QuickAction[] = [
-  { href: "/admin/attendance", icon: "✅", label: "Take Attendance" },
-  {
-    href: "/admin/communications",
-    icon: "✉️",
-    label: "Send Announcement",
-  },
-  { href: "/admin/roster?add=true", icon: "👥", label: "Add performer" },
-  { href: "/admin/events?add=true", icon: "📅", label: "New Event" },
-  { href: "/admin/library", icon: "🎼", label: "Add Music" },
-];
-
 function moduleIsEnabled(modules: readonly ModuleState[], module: ModuleId | undefined): boolean {
   return module ? routeHasModule({ module }, modules) : true;
 }
 
-function buildOverviewSections(
+function useOverviewFeatures(
+  modules: readonly ModuleState[],
   performerLabel: string,
   performerLabelPlural: string,
-): readonly OverviewSection[] {
-  return [
-    {
-      label: "People & membership",
-      description: "Profiles, communications, and supporter relationships",
-      tone: "green",
-      cards: [
-        {
-          href: "/admin/roster",
-          icon: "👥",
-          label: "Manage Roster",
-          description: `Add ${performerLabelPlural.toLowerCase()} and track status`,
-          tone: "green",
-        },
-        {
-          href: "/directory",
-          icon: "📖",
-          label: `${performerLabel} Directory`,
-          description: `View opted-in ${performerLabelPlural.toLowerCase()} contact info`,
-          tone: "green",
-        },
-        {
-          href: "/admin/auditions",
-          icon: "🎵",
-          label: "Auditions & Inquiries",
-          description: "Review public audition requests and join inquiries",
-          tone: "blue",
-        },
-        {
-          href: "/admin/communications",
-          icon: "✉️",
-          label: "Communications",
-          description: "Send announcements and review history",
-          tone: "slate",
-        },
-        {
-          href: "/admin/polls",
-          icon: "📊",
-          label: "Engagement Polls",
-          description: "Review volunteer responses and counts",
-          tone: "pink",
-        },
-        {
-          href: "/admin/donations",
-          icon: "🎁",
-          label: "Donations",
-          description: "Track giving and manage donor levels",
-          tone: "pink",
-        },
-        {
-          href: "/admin/donations?view=patrons",
-          icon: "💎",
-          label: "Patrons Dashboard",
-          description: "View donor/buyer LTV and message patrons",
-          tone: "cyan",
-        },
-      ],
-    },
-    {
-      label: "Events & attendance",
-      description: "Plan performances, manage ticketing, and check in members",
-      tone: "amber",
-      cards: [
-        {
-          href: "/admin/events",
-          icon: "📅",
-          label: "Manage Events",
-          description: "Schedule performances and rehearsals",
-          tone: "amber",
-        },
-        {
-          href: "/admin/tickets",
-          icon: "🎟️",
-          label: "Ticket Sales",
-          description: "Track sales and process refunds",
-          tone: "amber",
-        },
-        {
-          href: "/admin/rsvp",
-          icon: "🗓️",
-          label: "Event RSVPs",
-          description: "Track responses and roster balances",
-          tone: "amber",
-        },
-        {
-          href: "/admin/attendance",
-          icon: "✅",
-          label: "Take Attendance",
-          description: "Track check-ins for events",
-          tone: "green",
-        },
-        {
-          href: "/admin/venues",
-          icon: "🏛️",
-          label: "Manage Venues",
-          description: "Configure venue capacities",
-          tone: "slate",
-        },
-        {
-          href: "/admin/seating",
-          icon: "🪑",
-          label: "Seating Charts",
-          description: "Design layouts and assign seats",
-          tone: "blue",
-        },
-      ],
-    },
-    {
-      label: "Music & performance",
-      description: "Scores, programs, and materials for performers",
-      tone: "cyan",
-      cards: [
-        {
-          href: "/admin/library",
-          icon: "🎼",
-          label: "Music Library",
-          description: "Catalog, repertoire, and CSV import",
-          tone: "cyan",
-        },
-        {
-          href: "/admin/setlists",
-          icon: "📋",
-          label: "Set Lists",
-          description: "Build and reorder event music",
-          tone: "cyan",
-        },
-        {
-          href: "/admin/resources",
-          icon: "📂",
-          label: `${performerLabel} Resources`,
-          description: `Upload documents and links for ${performerLabelPlural.toLowerCase()}`,
-          tone: "cyan",
-        },
-      ],
-    },
-    {
-      label: "Admin",
-      description: "System configuration, website, and global preferences",
-      tone: "slate",
-      cards: [
-        {
-          href: "/admin/website",
-          icon: "🌐",
-          label: "Public Website",
-          description: "Landing page, hero image, and public branding",
-          tone: "cyan",
-        },
-        {
-          href: "/admin/settings",
-          icon: "⚙️",
-          label: "System Settings",
-          description: "Configure global preferences",
-          tone: "slate",
-        },
-      ],
-    },
-  ];
+) {
+  const sharedModules = useOrganizationModules();
+  const featureContext = useMemo(
+    () => ({
+      modules,
+      status: sharedModules?.snapshot.status ?? "ready",
+      performerLabel,
+      performerLabelPlural,
+    }),
+    [modules, sharedModules?.snapshot.status, performerLabel, performerLabelPlural],
+  );
+  const sections = useMemo(
+    () => getOrganizationDashboardSections(featureContext),
+    [featureContext],
+  );
+  const visibleQuickActions = useMemo(
+    () => getOrganizationQuickActions(featureContext),
+    [featureContext],
+  );
+  const displayModules =
+    sharedModules && sharedModules.snapshot.status !== "ready" ? unavailableModules : modules;
+  return { sections, visibleQuickActions, displayModules };
 }
 
 function DashboardLink({
@@ -367,12 +209,10 @@ function OverviewBanner({
 function QuickActionsSection({
   actions,
   navigate,
-  performerLabel,
   title,
 }: {
   readonly actions: readonly QuickAction[];
   readonly navigate: (href: string) => void;
-  readonly performerLabel: string;
   readonly title: string;
 }) {
   return (
@@ -391,7 +231,7 @@ function QuickActionsSection({
             <span aria-hidden="true" className="admin-overview__quick-btn-icon">
               {action.icon}
             </span>
-            <span>{action.label === "Add performer" ? `Add ${performerLabel}` : action.label}</span>
+            <span>{action.label}</span>
           </DashboardLink>
         ))}
       </div>
@@ -538,13 +378,11 @@ function OverviewCardItem({
 function OverviewCommandBar({
   navigate,
   onOpenCommandPalette,
-  performerLabel,
   platformReadOnly,
   visibleQuickActions,
 }: {
   readonly navigate: (href: string) => void;
   readonly onOpenCommandPalette?: (() => void) | undefined;
-  readonly performerLabel: string;
   readonly platformReadOnly: boolean;
   readonly visibleQuickActions: readonly QuickAction[];
 }) {
@@ -564,7 +402,6 @@ function OverviewCommandBar({
         <QuickActionsSection
           actions={visibleQuickActions}
           navigate={navigate}
-          performerLabel={performerLabel}
           title="Quick actions"
         />
       ) : null}
@@ -648,24 +485,10 @@ export function OrganizationAdminOverview({
     };
   }, [modules, platformReadOnly]);
 
-  const sections = useMemo(
-    () =>
-      buildOverviewSections(performerLabel, performerLabelPlural)
-        .map((section) => ({
-          ...section,
-          cards: section.cards.filter((card) =>
-            moduleIsEnabled(modules, routeModule(card.href.split("?")[0] ?? card.href)),
-          ),
-        }))
-        .filter((section) => section.cards.length > 0),
-    [modules, performerLabel, performerLabelPlural],
-  );
-  const visibleQuickActions = useMemo(
-    () =>
-      quickActions.filter((action) =>
-        moduleIsEnabled(modules, routeModule(action.href.split("?")[0] ?? action.href)),
-      ),
-    [modules],
+  const { sections, visibleQuickActions, displayModules } = useOverviewFeatures(
+    modules,
+    performerLabel,
+    performerLabelPlural,
   );
   const isNewOrgOrSetupPending = sections.length <= 1;
 
@@ -682,7 +505,7 @@ export function OrganizationAdminOverview({
         activeProfileCount={activeProfileCount}
         displayName={displayName}
         doNotEmailCount={doNotEmailCount}
-        modules={modules}
+        modules={displayModules}
         navigate={navigate}
         pendingAuditionCount={pendingAuditionCount}
         performerLabelPlural={performerLabelPlural}
@@ -693,7 +516,6 @@ export function OrganizationAdminOverview({
       <OverviewCommandBar
         navigate={navigate}
         onOpenCommandPalette={onOpenCommandPalette}
-        performerLabel={performerLabel}
         platformReadOnly={platformReadOnly}
         visibleQuickActions={visibleQuickActions}
       />
@@ -707,7 +529,7 @@ export function OrganizationAdminOverview({
 
       {isNewOrgOrSetupPending && !platformReadOnly ? (
         <GettingStartedGuide
-          modules={modules}
+          modules={displayModules}
           navigate={navigate}
           performerLabelPlural={performerLabelPlural}
         />

@@ -1,3 +1,4 @@
+import { useOrganizationModules } from "./organizationFeatures/moduleStateContext";
 import type { ModuleState } from "@choir/contracts";
 import { useEffect, useMemo, useState } from "react";
 
@@ -19,12 +20,15 @@ const categoryLabels: Record<string, string> = {
 const categoryOrder = ["people", "events", "content", "finance", "insights"];
 
 export function ModuleSettingsView() {
-  const [modulesState, setModulesState] = useState<ModulesState>({ status: "loading" });
+  const shared = useOrganizationModules();
+  const [localModulesState, setModulesState] = useState<ModulesState>({ status: "loading" });
+  const modulesState = shared?.snapshot ?? localModulesState;
   const [busyModuleId, setBusyModuleId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (shared) return;
     const controller = new AbortController();
     getOrganizationModuleState(controller.signal)
       .then((modules) => {
@@ -38,14 +42,16 @@ export function ModuleSettingsView() {
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [shared]);
 
   async function toggleModule(moduleId: string, enabled: boolean) {
     setBusyModuleId(moduleId);
     setMessage(null);
     setErrorMessage(null);
     try {
-      await saveSetupProgress({ step: "modules", data: { [moduleId]: enabled } });
+      const result = await saveSetupProgress({ step: "modules", data: { [moduleId]: enabled } });
+      if (!result.saved) throw new Error("Module save was not acknowledged");
+      shared?.confirmChange(moduleId, enabled);
       setModulesState((current) =>
         current.status === "ready"
           ? {
@@ -115,6 +121,16 @@ export function ModuleSettingsView() {
     return (
       <p className="notice notice--error" role="alert">
         Modules could not be loaded.
+        {shared ? (
+          <button
+            type="button"
+            onClick={() => {
+              void shared.refresh();
+            }}
+          >
+            Retry
+          </button>
+        ) : null}
       </p>
     );
 

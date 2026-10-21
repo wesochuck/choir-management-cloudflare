@@ -36,6 +36,7 @@ const SEARCH_TIPS: readonly { readonly label: string; readonly prefix: string }[
 
 export function CommandPaletteModal({
   isOwner,
+  organizationContext,
   modules,
   onClose,
   onNavigate,
@@ -52,6 +53,7 @@ export function CommandPaletteModal({
     clearRecents,
     includeHidden,
     isSearching,
+    isEligible,
     parsedQuery,
     query,
     recents,
@@ -61,6 +63,8 @@ export function CommandPaletteModal({
     setQuery,
   } = useAdminSearch({
     hostname,
+    open,
+    organizationContext,
     isOwner,
     modules,
     workspace: selectedWorkspace,
@@ -88,8 +92,8 @@ export function CommandPaletteModal({
     if (query.trim() === "") {
       return recents;
     }
-    return results;
-  }, [query, recents, results]);
+    return groupedResults.flatMap((group) => group.items);
+  }, [query, recents, groupedResults]);
 
   // Scroll active item into view
   useEffect(() => {
@@ -101,6 +105,7 @@ export function CommandPaletteModal({
   }, [selectedIndex]);
 
   const handleSelectItem = (item: RecentItem | SearchResultItem) => {
+    if (!isEligible(item)) return;
     // Save to recents
     addRecentSearch(
       hostname,
@@ -179,6 +184,9 @@ export function CommandPaletteModal({
           }}
           onOpenAutoFocus={(e) => {
             e.preventDefault();
+            refreshRecents();
+            setQuery("");
+            setSelectedIndex(0);
             inputRef.current?.focus();
           }}
         >

@@ -208,3 +208,23 @@ describe("sidebar navigation behavior", () => {
     });
   });
 });
+
+describe("registry aliases retain exactly one active destination", () => {
+  it.each([
+    ["/admin/music", "/admin/library"],
+    ["/admin/music/settings", "/admin/library"],
+    ["/admin/ticketing", "/admin/tickets"],
+    ["/admin/tickets/scan", "/admin/tickets"],
+    ["/admin/invitations", "/admin/settings/invitations"],
+    ["/admin/communications/polls", "/admin/polls"],
+    ["/admin/patrons?range=all", "/admin/donations"],
+    ["/directory?from=admin", "/directory?from=admin"],
+    ["/admin/settings/modules", "/admin/settings/modules"],
+  ])("%s highlights %s", (pathname, href) => {
+    render(
+      <Navigation groups={organizationGroups} navigate={() => undefined} pathname={pathname} />,
+    );
+    expect(currentLinks()).toHaveLength(1);
+    expect(currentLinks()[0]?.getAttribute("href")).toBe(href);
+  });
+});

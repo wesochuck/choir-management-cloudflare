@@ -2,16 +2,7 @@ import { useMemo, type ReactNode } from "react";
 
 import { organizationTerminologyContext } from "./organizationTerminologyContext";
 
-const DEFAULT_PERFORMER_LABEL = "Performer";
-
-function normalizePerformerLabel(label: string): string {
-  const trimmed = label.trim();
-  return trimmed || DEFAULT_PERFORMER_LABEL;
-}
-
-function pluralizePerformerLabel(label: string): string {
-  return `${label}s`;
-}
+import { normalizeOrganizationTerminology } from "./organizationTerminologyUtils";
 
 export function OrganizationTerminologyProvider({
   children,
@@ -31,10 +22,7 @@ export function OrganizationTerminologyProvider({
   const value = useMemo(
     () => ({
       organizationName,
-      partLabel: rosterStructure === "sections_only" ? "Section" : "Part",
-      partLabelPlural: rosterStructure === "sections_only" ? "Sections" : "Parts",
-      performerLabel: normalizePerformerLabel(performerLabel),
-      performerLabelPlural: pluralizePerformerLabel(normalizePerformerLabel(performerLabel)),
+      ...normalizeOrganizationTerminology(performerLabel, rosterStructure),
       setPerformerLabel: onLabelChange,
       ...(onStructureChange ? { setRosterStructure: onStructureChange } : {}),
     }),

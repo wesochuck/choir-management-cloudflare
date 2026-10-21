@@ -1,0 +1,645 @@
+{
+  "sidebar": [
+    {
+      "label": "Overview",
+      "items": [
+        {
+          "href": "/admin",
+          "label": "Admin overview"
+        }
+      ]
+    },
+    {
+      "label": "People",
+      "items": [
+        {
+          "href": "/admin/roster",
+          "label": "Roster",
+          "module": "roster"
+        },
+        {
+          "href": "/admin/contacts",
+          "label": "Contacts"
+        },
+        {
+          "href": "/admin/settings/invitations",
+          "label": "Membership invitations",
+          "module": "roster"
+        },
+        {
+          "href": "/directory?from=admin",
+          "label": "Directory",
+          "module": "directory"
+        },
+        {
+          "href": "/admin/auditions",
+          "label": "Auditions & Inquiries",
+          "module": "auditions"
+        }
+      ]
+    },
+    {
+      "label": "Events",
+      "items": [
+        {
+          "href": "/admin/events",
+          "label": "Events",
+          "module": "events"
+        },
+        {
+          "href": "/admin/venues",
+          "label": "Venues",
+          "module": "venues"
+        },
+        {
+          "href": "/admin/rsvp",
+          "label": "RSVPs",
+          "module": "rsvp"
+        },
+        {
+          "href": "/admin/attendance",
+          "label": "Attendance",
+          "module": "attendance"
+        },
+        {
+          "href": "/admin/seating",
+          "label": "Seating",
+          "module": "seating"
+        }
+      ]
+    },
+    {
+      "label": "Music & content",
+      "items": [
+        {
+          "href": "/admin/library",
+          "label": "Music library",
+          "module": "music_library"
+        },
+        {
+          "href": "/admin/setlists",
+          "label": "Set lists",
+          "module": "setlists"
+        },
+        {
+          "href": "/admin/resources",
+          "label": "Resources",
+          "module": "resources"
+        },
+        {
+          "href": "/admin/website",
+          "label": "Public website",
+          "module": "public_website"
+        }
+      ]
+    },
+    {
+      "label": "Communications & finance",
+      "items": [
+        {
+          "href": "/admin/communications",
+          "label": "Communications",
+          "module": "communications"
+        },
+        {
+          "href": "/admin/polls",
+          "label": "Polls",
+          "module": "polls"
+        },
+        {
+          "href": "/admin/tickets",
+          "label": "Ticketing",
+          "module": "ticketing"
+        },
+        {
+          "href": "/admin/donations",
+          "label": "Donations & giving",
+          "module": "donations"
+        },
+        {
+          "href": "/admin/seasons",
+          "label": "Seasons & dues",
+          "module": "dues"
+        }
+      ]
+    },
+    {
+      "label": "Insights & settings",
+      "items": [
+        {
+          "href": "/admin/reports",
+          "label": "Reports",
+          "module": "reports"
+        },
+        {
+          "href": "/admin/settings",
+          "label": "Organization settings"
+        },
+        {
+          "href": "/admin/settings/modules",
+          "label": "Modules"
+        },
+        {
+          "href": "/admin/settings/setup-checklist",
+          "label": "Setup checklist"
+        },
+        {
+          "href": "/admin/settings/security",
+          "label": "Organization security"
+        }
+      ]
+    }
+  ],
+  "sections": [
+    {
+      "label": "People & membership",
+      "description": "Profiles, communications, and supporter relationships",
+      "tone": "green",
+      "cards": [
+        {
+          "href": "/admin/roster",
+          "icon": "👥",
+          "label": "Manage Roster",
+          "description": "Add {performers} and track status",
+          "tone": "green"
+        },
+        {
+          "href": "/directory",
+          "icon": "📖",
+          "label": "{performer} Directory",
+          "description": "View opted-in {performers} contact info",
+          "tone": "green"
+        },
+        {
+          "href": "/admin/auditions",
+          "icon": "🎵",
+          "label": "Auditions & Inquiries",
+          "description": "Review public audition requests and join inquiries",
+          "tone": "blue"
+        },
+        {
+          "href": "/admin/communications",
+          "icon": "✉️",
+          "label": "Communications",
+          "description": "Send announcements and review history",
+          "tone": "slate"
+        },
+        {
+          "href": "/admin/polls",
+          "icon": "📊",
+          "label": "Engagement Polls",
+          "description": "Review volunteer responses and counts",
+          "tone": "pink"
+        },
+        {
+          "href": "/admin/donations",
+          "icon": "🎁",
+          "label": "Donations",
+          "description": "Track giving and manage donor levels",
+          "tone": "pink"
+        },
+        {
+          "href": "/admin/donations?view=patrons",
+          "icon": "💎",
+          "label": "Patrons Dashboard",
+          "description": "View donor/buyer LTV and message patrons",
+          "tone": "cyan"
+        }
+      ]
+    },
+    {
+      "label": "Events & attendance",
+      "description": "Plan performances, manage ticketing, and check in members",
+      "tone": "amber",
+      "cards": [
+        {
+          "href": "/admin/events",
+          "icon": "📅",
+          "label": "Manage Events",
+          "description": "Schedule performances and rehearsals",
+          "tone": "amber"
+        },
+        {
+          "href": "/admin/tickets",
+          "icon": "🎟️",
+          "label": "Ticket Sales",
+          "description": "Track sales and process refunds",
+          "tone": "amber"
+        },
+        {
+          "href": "/admin/rsvp",
+          "icon": "🗓️",
+          "label": "Event RSVPs",
+          "description": "Track responses and roster balances",
+          "tone": "amber"
+        },
+        {
+          "href": "/admin/attendance",
+          "icon": "✅",
+          "label": "Take Attendance",
+          "description": "Track check-ins for events",
+          "tone": "green"
+        },
+        {
+          "href": "/admin/venues",
+          "icon": "🏛️",
+          "label": "Manage Venues",
+          "description": "Configure venue capacities",
+          "tone": "slate"
+        },
+        {
+          "href": "/admin/seating",
+          "icon": "🪑",
+          "label": "Seating Charts",
+          "description": "Design layouts and assign seats",
+          "tone": "blue"
+        }
+      ]
+    },
+    {
+      "label": "Music & performance",
+      "description": "Scores, programs, and materials for performers",
+      "tone": "cyan",
+      "cards": [
+        {
+          "href": "/admin/library",
+          "icon": "🎼",
+          "label": "Music Library",
+          "description": "Catalog, repertoire, and CSV import",
+          "tone": "cyan"
+        },
+        {
+          "href": "/admin/setlists",
+          "icon": "📋",
+          "label": "Set Lists",
+          "description": "Build and reorder event music",
+          "tone": "cyan"
+        },
+        {
+          "href": "/admin/resources",
+          "icon": "📂",
+          "label": "{performer} Resources",
+          "description": "Upload documents and links for {performers}",
+          "tone": "cyan"
+        }
+      ]
+    },
+    {
+      "label": "Admin",
+      "description": "System configuration, website, and global preferences",
+      "tone": "slate",
+      "cards": [
+        {
+          "href": "/admin/website",
+          "icon": "🌐",
+          "label": "Public Website",
+          "description": "Landing page, hero image, and public branding",
+          "tone": "cyan"
+        },
+        {
+          "href": "/admin/settings",
+          "icon": "⚙️",
+          "label": "System Settings",
+          "description": "Configure global preferences",
+          "tone": "slate"
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "href": "/admin/attendance",
+      "icon": "✅",
+      "label": "Take Attendance"
+    },
+    {
+      "href": "/admin/communications",
+      "icon": "✉️",
+      "label": "Send Announcement"
+    },
+    {
+      "href": "/admin/roster?add=true",
+      "icon": "👥",
+      "label": "Add performer"
+    },
+    {
+      "href": "/admin/events?add=true",
+      "icon": "📅",
+      "label": "New Event"
+    },
+    {
+      "href": "/admin/library",
+      "icon": "🎼",
+      "label": "Add Music"
+    }
+  ],
+  "palette": [
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/admin",
+      "id": "nav-admin-overview",
+      "subtitle": "Organization administrative overview & summary",
+      "title": "Admin Overview"
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/admin/roster",
+      "id": "nav-roster",
+      "subtitle": "Manage choir members, parts, and profile statuses",
+      "title": "Roster Management"
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/admin/events",
+      "id": "nav-events",
+      "subtitle": "Rehearsals, performances, RSVP tracking, and attendance",
+      "title": "Events & Calendar"
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/admin/library",
+      "id": "nav-music",
+      "subtitle": "Sheet music catalog, arrangements, and reference audio",
+      "title": "Music Library"
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/admin/reports?tab=music-folders",
+      "id": "nav-music-folders",
+      "subtitle": "Track physical folder return status across performances",
+      "title": "Music Folder Reports"
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/admin/seating",
+      "id": "nav-seating",
+      "subtitle": "Stage setups, riser layouts, and auto-paint seating charts",
+      "title": "Seating Charts"
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/admin/communications",
+      "id": "nav-communications",
+      "subtitle": "Broadcast emails, SMS announcements, and dispatch logs",
+      "title": "Communications"
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/admin/polls",
+      "id": "nav-polls",
+      "subtitle": "Volunteer signups, availability polls, and results",
+      "title": "Engagement Polls"
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/admin/communications?section=templates",
+      "id": "nav-comm-templates",
+      "subtitle": "Reusable email layouts and message placeholders",
+      "title": "Message Templates"
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/admin/settings/invitations",
+      "id": "nav-invitations",
+      "subtitle": "Invite singers, directors, and administrators to the portal",
+      "title": "Organization Invitations"
+    },
+    {
+      "badge": "Module",
+      "category": "navigation",
+      "href": "/admin/auditions",
+      "id": "nav-auditions",
+      "requiredModule": "auditions",
+      "subtitle": "Audition slots, applicant registration, and judging review",
+      "title": "Audition Management"
+    },
+    {
+      "badge": "Module",
+      "category": "navigation",
+      "href": "/admin/tickets",
+      "id": "nav-ticketing",
+      "requiredModule": "ticketing",
+      "subtitle": "Ticket tiers, orders, will-call door lists, and discounts",
+      "title": "Ticket Sales & Orders"
+    },
+    {
+      "badge": "Module",
+      "category": "navigation",
+      "href": "/admin/donations",
+      "id": "nav-donations",
+      "requiredModule": "donations",
+      "subtitle": "Donor contributions, offline gifts, and tax letters",
+      "title": "Donations & Patrons"
+    },
+    {
+      "badge": "Module",
+      "category": "navigation",
+      "href": "/admin/seasons",
+      "id": "nav-seasons",
+      "requiredModule": "dues",
+      "subtitle": "Active seasons, member dues rates, and collection status",
+      "title": "Seasons & Member Dues"
+    },
+    {
+      "badge": "Module",
+      "category": "navigation",
+      "href": "/admin/website",
+      "id": "nav-website",
+      "requiredModule": "website",
+      "subtitle": "Branded public website, about markdown, and media links",
+      "title": "Public Website"
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/admin/settings",
+      "id": "nav-settings",
+      "subtitle": "Organization settings, integrations, branding, and audit log",
+      "title": "System Settings"
+    },
+    {
+      "badge": "Settings",
+      "category": "settings",
+      "href": "/admin/settings#general",
+      "id": "set-general",
+      "subtitle": "Organization name, logo, physical address, and subdomain",
+      "title": "General & Branding Settings"
+    },
+    {
+      "badge": "Settings",
+      "category": "settings",
+      "href": "/admin/settings#calendar",
+      "id": "set-calendar",
+      "subtitle": "Timezone, default RSVP deadlines, and automated reminders",
+      "title": "Calendar & Timezone Settings"
+    },
+    {
+      "badge": "Settings",
+      "category": "settings",
+      "href": "/admin/settings#communications",
+      "id": "set-communications",
+      "subtitle": "Brevo API key, custom sending domain, and reply-to address",
+      "title": "Communication Provider Settings"
+    },
+    {
+      "badge": "Settings",
+      "category": "settings",
+      "href": "/admin/settings#payment",
+      "id": "set-payment",
+      "ownerOnly": true,
+      "subtitle": "Stripe Connect onboarding, direct charges, and negative liability",
+      "title": "Payment Account & Gateway (Owner)"
+    },
+    {
+      "badge": "Settings",
+      "category": "settings",
+      "href": "/admin/roster?tab=config",
+      "id": "set-roster-automation",
+      "subtitle": "Parts taxonomy, Missed Performance automation, and On Break timeout",
+      "title": "Roster Automation & Parts Config"
+    },
+    {
+      "badge": "Settings",
+      "category": "settings",
+      "href": "/admin/library/settings",
+      "id": "set-music-genres",
+      "subtitle": "Music genres registry and external publisher lookup URL template",
+      "title": "Music Library Settings & Genres"
+    },
+    {
+      "badge": "Settings",
+      "category": "settings",
+      "href": "/admin/seating?tab=formations",
+      "id": "set-seating-formations",
+      "subtitle": "Column and row seating formation templates and color palettes",
+      "title": "Seating Formations & Templates"
+    },
+    {
+      "badge": "Settings",
+      "category": "settings",
+      "href": "/admin/settings#audit",
+      "id": "set-audit-history",
+      "subtitle": "Immutable chronological record of administrative operations",
+      "title": "Organization Audit History"
+    },
+    {
+      "badge": "Action",
+      "category": "actions",
+      "href": "/admin/events?action=new",
+      "id": "act-create-event",
+      "subtitle": "Schedule a new rehearsal or performance event",
+      "title": "Create New Event"
+    },
+    {
+      "badge": "Action",
+      "category": "actions",
+      "href": "/admin/roster?action=add",
+      "id": "act-add-singer",
+      "subtitle": "Create a new roster profile or import via CSV",
+      "title": "Add Singer / Import Roster"
+    },
+    {
+      "badge": "Action",
+      "category": "actions",
+      "href": "/admin/communications?action=compose",
+      "id": "act-compose-message",
+      "subtitle": "Draft and broadcast an email/SMS communication",
+      "title": "Compose Communication"
+    },
+    {
+      "badge": "Action",
+      "category": "actions",
+      "href": "/admin/settings#export",
+      "id": "act-export-org",
+      "subtitle": "Generate portable ZIP export of all tenant records and files",
+      "title": "Export Organization Archive"
+    },
+    {
+      "badge": "Action",
+      "category": "actions",
+      "id": "act-toggle-theme",
+      "subtitle": "Switch between dark mode and light mode",
+      "title": "Toggle Theme (Light / Dark)",
+      "workspaces": ["member", "organization", "platform", "account"]
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/dashboard",
+      "id": "nav-member-dashboard",
+      "subtitle": "Member dashboard, announcements, and quick status",
+      "title": "Dashboard",
+      "workspaces": ["member"]
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/schedule",
+      "id": "nav-member-schedule",
+      "requiredModule": "events",
+      "subtitle": "Upcoming rehearsals, performances, call times, and RSVPs",
+      "title": "My Schedule",
+      "workspaces": ["member"]
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/profile",
+      "id": "nav-member-profile",
+      "requiredModule": "roster",
+      "subtitle": "Personal contact info, voice part, emergency contacts, and attendance",
+      "title": "My Profile",
+      "workspaces": ["member"]
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/directory",
+      "id": "nav-member-directory",
+      "requiredModule": "directory",
+      "subtitle": "Choir member roster, sections, and contact directory",
+      "title": "Member Directory",
+      "workspaces": ["member"]
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/dues",
+      "id": "nav-member-dues",
+      "requiredModule": "dues",
+      "subtitle": "Season dues balance, payment status, and history",
+      "title": "Season Dues",
+      "workspaces": ["member"]
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/practice",
+      "id": "nav-member-practice",
+      "requiredModule": "practice_player",
+      "subtitle": "Practice audio tracks, part-specific recordings, and set lists",
+      "title": "Practice Player",
+      "workspaces": ["member"]
+    },
+    {
+      "badge": "Page",
+      "category": "navigation",
+      "href": "/member/resources",
+      "id": "nav-member-resources",
+      "requiredModule": "resources",
+      "subtitle": "Shared choir handbooks, documents, and reference files",
+      "title": "Member Resources",
+      "workspaces": ["member"]
+    }
+  ]
+}

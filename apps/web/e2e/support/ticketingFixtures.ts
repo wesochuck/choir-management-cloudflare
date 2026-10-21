@@ -1,3 +1,6 @@
+import { moduleIdSchema } from "@choir/contracts";
+import { buildModuleStateResponse } from "../fixtures/builders";
+import { fulfillJson } from "../fixtures/session";
 import type { Page } from "@playwright/test";
 import { futureDateString, futureIsoDate, pastIsoDate } from "@choir/testkit";
 
@@ -365,6 +368,9 @@ export async function routePublicBasics(page: Page) {
 }
 
 export async function routeAdminAuth(page: Page) {
+  await page.route("**/api/organization/module-state", async (route) => {
+    await fulfillJson(route, buildModuleStateResponse(moduleIdSchema.options));
+  });
   await page.route("**/api/auth/get-session", async (route) => {
     await route.fulfill({
       body: JSON.stringify(sessionResponse),
