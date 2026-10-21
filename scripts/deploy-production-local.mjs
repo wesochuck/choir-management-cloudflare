@@ -156,6 +156,10 @@ export async function deployProduction(options = {}) {
     );
   }
 
+  // Issue 277: Enable practice loudness normalization in production builds now that iOS qualification passed.
+  process.env.VITE_PRACTICE_LOUDNESS_ENABLED ??=
+    options.env?.VITE_PRACTICE_LOUDNESS_ENABLED ?? "true";
+
   console.log("Verifying clean, current main checkout...");
   const checkoutVerifier = options.verifyCheckout ?? verifyCheckout;
   const commitSha = checkoutVerifier();

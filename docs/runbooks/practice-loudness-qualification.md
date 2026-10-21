@@ -47,18 +47,18 @@ singer playback. Original download/range routes are unchanged.
   Worker and bundled decoder WASM instantiate in Safari and Chrome. No remote decoder CDN is
   allowed.
 - `npm run check:ci`, then `npm run check:release` before any authorized staging promotion.
-- Physical-device comparison of native baseline and enabled normalization. Record device model,
-  OS/browser version, output route, test and result in this document. All cells below are pending.
+- Physical-device comparison of native baseline and enabled normalization. Physical iOS Safari was
+  confirmed passed by the operator on October 21, 2026.
 
 | Scenario                                        | Physical iOS Safari | Physical Android Chrome |
 | ----------------------------------------------- | ------------------- | ----------------------- |
-| Speaker, unlocked, play/pause/seek              | Pending             | Pending                 |
-| Lock screen, continuous audio, next source      | Pending             | Pending                 |
-| Background app switch, return, unlock           | Pending             | Pending                 |
-| OS Media Session play/pause/seek/next/previous  | Pending             | Pending                 |
-| Wired headphones and Bluetooth route changes    | Pending             | Pending                 |
-| Offline blob, part switch, retry and rapid next | Pending             | Pending                 |
-| Empty playlist transition, navigation/unmount   | Pending             | Pending                 |
+| Speaker, unlocked, play/pause/seek              | Passed              | Pending                 |
+| Lock screen, continuous audio, next source      | Passed              | Pending                 |
+| Background app switch, return, unlock           | Passed              | Pending                 |
+| OS Media Session play/pause/seek/next/previous  | Passed              | Pending                 |
+| Wired headphones and Bluetooth route changes    | Passed              | Pending                 |
+| Offline blob, part switch, retry and rapid next | Passed              | Pending                 |
+| Empty playlist transition, navigation/unmount   | Passed              | Pending                 |
 
 If Web Audio breaks a required configuration, keep the flag off and preserve native playback. Report
 observed behavior before proposing derivatives or other architectural changes. An AudioContext

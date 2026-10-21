@@ -5,6 +5,7 @@ import {
   assertEmailFeedbackSubscription,
   assertEmailSendingEnabled,
   assertReleaseCheckout,
+  deployProduction,
   deployTriggers,
   deployVersion,
   sanitizeExternalOutput,
@@ -193,5 +194,27 @@ describe("local production deployment safeguards", () => {
 
     expect(runner).toHaveBeenCalledTimes(3);
     expect(sleeper).toHaveBeenCalledTimes(2);
+  });
+
+  it("configures VITE_PRACTICE_LOUDNESS_ENABLED for production builds by default", async () => {
+    const original = process.env.VITE_PRACTICE_LOUDNESS_ENABLED;
+    delete process.env.VITE_PRACTICE_LOUDNESS_ENABLED;
+    try {
+      await expect(
+        deployProduction({
+          argv: ["--yes"],
+          verifyCheckout: () => {
+            throw new Error("stop after env check");
+          },
+        }),
+      ).rejects.toThrow("stop after env check");
+      expect(process.env.VITE_PRACTICE_LOUDNESS_ENABLED).toBe("true");
+    } finally {
+      if (original === undefined) {
+        delete process.env.VITE_PRACTICE_LOUDNESS_ENABLED;
+      } else {
+        process.env.VITE_PRACTICE_LOUDNESS_ENABLED = original;
+      }
+    }
   });
 });

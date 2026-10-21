@@ -7,17 +7,14 @@ Durable Objects, and D1. Legacy parity tracking has been retired (ADR 0049), and
 maintained natively via `scripts/check-routes.mjs` and `scripts/route-probe-plan.mjs`. Permanent
 staging remains the active deployment target; production launch is out of scope.
 
-## Issue 277 practice loudness handoff — October 20, 2026
+## Issue 277 practice loudness delivery — October 21, 2026
 
-Local implementation and current verification are recorded in
-[ISSUE-277-HANDOFF.md](ISSUE-277-HANDOFF.md). The browser-free CI gate passed all 19 steps (1,929
-unit, 820 UI, 547 Workerd tests). Rollout remains disabled. Enabled real-media tests pass in
-Chromium desktop/mobile, but a newly added WebKit test fails to advance playback on the second track
-in both enabled and current-branch default-off modes. Compare untouched HEAD in an isolated checkout
-before attributing the failure; investigate before enabling normalization. Physical-phone and
-staging CSP qualification remain pending. No deployment or commit was made. The most recent E2E
-build in `apps/web/dist` temporarily has normalization enabled; restore a normal default-off build
-after diagnosis. See the handoff for exact commands, logs and resume steps.
+Implementation and regression tests were completed on `main` (`e133019`, `bbc6b4c`, `be2d132`).
+Physical iOS Safari qualification was confirmed by the operator on October 21, 2026 across playback,
+lock-screen, background, Media Session, route changes, and offline tracks. Both staging and
+production deployment configurations (`scripts/deploy-staging-local.mjs` and
+`scripts/deploy-production-local.mjs`) default `VITE_PRACTICE_LOUDNESS_ENABLED=true`. Issue #277 is
+resolved and closed.
 
 ## Readable ticket URL staging recovery — October 16, 2026
 
