@@ -1,86 +1,13 @@
-import { analyzeUploadedTrack } from "../../../loudness/client";
-import type {
-  MusicTrackAttachmentAssignment,
-  MusicTrackAttachmentResult,
-  OrganizationMusicPiece,
-  OrganizationRosterConfiguration,
-} from "@choir/contracts";
-import { useId, useMemo, useState } from "react";
-import { uploadPrivateOrganizationFile } from "../../../../api/files";
-import { attachBulkPracticeTracks } from "../../../../api/music";
-import type { GroupReviewItem, UploadProgressState } from "./types";
+import type { OrganizationMusicPiece, OrganizationRosterConfiguration } from "@choir/contracts";
+import { useMemo, useState } from "react";
+import type { GroupReviewItem } from "./types";
 import { getReviewGroupState, getValidTrackPartKeys } from "./reviewState";
-
-interface PlannedAssignment {
-  readonly durationSeconds: number | null;
-  readonly file: File;
-  readonly fileName: string;
-  readonly partKey: string;
-  readonly pieceId: string;
-  readonly pieceTitle: string;
-}
+import type { ImportFileState, ImportRunResult, PlannedImportFile } from "./useImportSession";
+import type { useImportSession } from "./useImportSession";
 
 interface SkippedFile {
   readonly fileName: string;
   readonly groupTitle: string;
-}
-
-async function uploadAndAttachReviewedTracks(
-  planned: readonly PlannedAssignment[],
-  idempotencyKey: string,
-  onUploadProgress: (fileName: string, completed: number) => void,
-  onAttaching: () => void,
-) {
-  const uploadedAssignments: (MusicTrackAttachmentAssignment | undefined)[] = [];
-  const concurrency = 3;
-  let nextIndex = 0;
-  let completedCount = 0;
-
-  async function uploadWorker(): Promise<void> {
-    while (nextIndex < planned.length) {
-      const index = nextIndex++;
-      const item = planned[index];
-      if (!item) break;
-
-      const uploaded = await uploadPrivateOrganizationFile(item.file, item.fileName);
-      uploadedAssignments[index] = {
-        durationSeconds: item.durationSeconds,
-        expectedEmptySlot: true,
-        fileId: uploaded.id,
-        partKey: item.partKey,
-        pieceId: item.pieceId,
-      };
-      completedCount += 1;
-      onUploadProgress(item.fileName, completedCount);
-    }
-  }
-
-  const workers = Array.from({ length: Math.min(concurrency, planned.length) }, () =>
-    uploadWorker(),
-  );
-  await Promise.all(workers);
-  onAttaching();
-
-  const completeAssignments = planned.map((_, index) => {
-    const assignment = uploadedAssignments[index];
-    if (!assignment) throw new Error("An uploaded track is missing its attachment details");
-    return assignment;
-  });
-
-  const result = await attachBulkPracticeTracks({
-    assignments: completeAssignments,
-    idempotencyKey,
-  });
-  const attached = new Set(
-    result.results.filter((row) => row.status === "attached").map((row) => row.fileId),
-  );
-  for (let index = 0; index < planned.length; index++) {
-    const item = planned[index];
-    const assignment = completeAssignments[index];
-    if (item && assignment && attached.has(assignment.fileId))
-      analyzeUploadedTrack(assignment.fileId, item.file);
-  }
-  return result;
 }
 
 function extractPlannedAssignments(
@@ -88,12 +15,12 @@ function extractPlannedAssignments(
   pieceMap: ReadonlyMap<string, OrganizationMusicPiece>,
   validPartKeys: ReadonlySet<string>,
 ): {
-  planned: PlannedAssignment[];
+  planned: PlannedImportFile[];
   skippedCount: number;
   skippedFiles: SkippedFile[];
   isResolved: boolean;
 } {
-  const planned: PlannedAssignment[] = [];
+  const planned: PlannedImportFile[] = [];
   const skippedFiles: SkippedFile[] = [];
   let skippedCount = 0;
   let isResolved = true;
@@ -129,6 +56,7 @@ function extractPlannedAssignments(
         skippedFiles.push({ fileName: file.fileName, groupTitle: group.inferredTitle });
       } else if (fileState?.status === "ready" && file.partKey && group.selectedPieceId) {
         planned.push({
+          clientFileId: file.clientFileId,
           durationSeconds: file.durationSeconds,
           file: file.file,
           fileName: file.fileName,
@@ -145,7 +73,16 @@ function extractPlannedAssignments(
   return { isResolved, planned, skippedCount, skippedFiles };
 }
 
-function PlannedFilesTable({ planned }: { readonly planned: readonly PlannedAssignment[] }) {
+function PlannedFilesTable({
+  files,
+}: {
+  readonly files: readonly {
+    readonly fileName: string;
+    readonly partKey: string;
+    readonly pieceId: string;
+    readonly pieceTitle: string;
+  }[];
+}) {
   return (
     <div className="track-import-planned-table-container">
       <table className="track-import-files-table">
@@ -157,7 +94,7 @@ function PlannedFilesTable({ planned }: { readonly planned: readonly PlannedAssi
           </tr>
         </thead>
         <tbody>
-          {planned.map((p) => (
+          {files.map((p) => (
             <tr key={`${p.pieceId}-${p.fileName}`}>
               <td className="track-import-filename-cell">{p.fileName}</td>
               <td className="track-import-part-cell">
@@ -195,7 +132,7 @@ function getUploadSummaryDescription(
   isResolved: boolean,
 ): string {
   if (plannedCount > 0) {
-    return `${String(plannedCount)} reviewed tracks will be uploaded to private storage and attached to ${String(destinationCount)} music library pieces.`;
+    return `${String(plannedCount)} reviewed tracks will upload to private storage under a recoverable import session, then attach to ${String(destinationCount)} music library pieces.`;
   }
   if (isResolved) {
     return "Every file in this batch is excluded or belongs to a skipped group. No audio will be uploaded.";
@@ -203,33 +140,17 @@ function getUploadSummaryDescription(
   return "One or more song groups still need a valid staff review. Return to Step 2 before continuing.";
 }
 
-function UploadConfirmationSummary({
+function ConfirmNotices({
+  conflictCount,
   errorMessage,
-  isBusy,
   isResolved,
-  planned,
-  progress,
-  skippedCount,
-  skippedFiles,
 }: {
+  readonly conflictCount: number;
   readonly errorMessage: string | null;
-  readonly isBusy: boolean;
   readonly isResolved: boolean;
-  readonly planned: readonly PlannedAssignment[];
-  readonly progress: UploadProgressState;
-  readonly skippedCount: number;
-  readonly skippedFiles: readonly SkippedFile[];
 }) {
-  const destinationCount = new Set(planned.map((item) => item.pieceId)).size;
   return (
-    <div className="track-import-confirm-summary">
-      <h3 className="track-import-confirm-title">
-        {planned.length > 0 ? "Ready to upload practice tracks" : "Nothing is selected to upload"}
-      </h3>
-      <p className="track-import-confirm-desc">
-        {getUploadSummaryDescription(planned.length, destinationCount, isResolved)}
-        {skippedCount > 0 ? ` ${String(skippedCount)} files are excluded or skipped.` : ""}
-      </p>
+    <>
       {!isResolved ? (
         <div className="notice notice--error" role="alert">
           Some groups no longer have a valid staff review. Return to Step 2 and review every
@@ -241,82 +162,152 @@ function UploadConfirmationSummary({
           {errorMessage}
         </div>
       ) : null}
-      {isBusy ? (
-        <div className="track-import-progress-card">
-          <span className="track-import-progress-card__status">
-            {progress.status === "uploading"
-              ? `Uploading ${progress.currentFileName ?? "files"} (${String(progress.completed)} of ${String(progress.total)})`
-              : "Attaching tracks to library pieces…"}
-          </span>
-          <div className="track-import-progress-bar">
-            <div
-              className="track-import-progress-bar__fill"
-              style={{
-                width: `${String(
-                  progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0,
-                )}%`,
-              }}
-            />
-          </div>
+      {conflictCount > 0 ? (
+        <div className="notice notice--error" role="alert">
+          {String(conflictCount)} destination slots are occupied by other tracks. Review the
+          conflicts in Step 2, or exclude those files before continuing.
         </div>
       ) : null}
-      {!isBusy && progress.status !== "complete" && planned.length > 0 ? (
-        <PlannedFilesTable planned={planned} />
-      ) : null}
-      {!isBusy && progress.status !== "complete" ? <SkippedFilesList files={skippedFiles} /> : null}
+    </>
+  );
+}
+
+function UploadProgressBar({
+  activeCount,
+  totalCount,
+}: {
+  readonly activeCount: number;
+  readonly totalCount: number;
+}) {
+  const percent = totalCount > 0 ? Math.round((activeCount / totalCount) * 100) : 0;
+  return (
+    <div className="track-import-progress-card">
+      <span className="track-import-progress-card__status">
+        Working through the import session…
+      </span>
+      <div className="track-import-progress-bar">
+        <div className="track-import-progress-bar__fill" style={{ width: `${String(percent)}%` }} />
+      </div>
     </div>
   );
 }
 
-function UploadActionFooter({
+function ActionButtons({
+  failedCount,
   isBusy,
   isResolved,
   onBack,
-  onFinishSkipped,
+  onFinishWithoutUpload,
+  onRetryFailed,
   onStartUpload,
   plannedCount,
 }: {
+  readonly failedCount: number;
   readonly isBusy: boolean;
   readonly isResolved: boolean;
   readonly onBack: () => void;
-  readonly onFinishSkipped: () => void;
+  readonly onFinishWithoutUpload: () => void;
+  readonly onRetryFailed: () => void;
   readonly onStartUpload: () => void;
   readonly plannedCount: number;
 }) {
   return (
-    <div className="dialog__actions track-import-actions">
-      <span className="track-import-actions__note">
-        {plannedCount > 0
-          ? "Audio files upload only after this confirmation. Excluded files are not sent."
-          : isResolved
-            ? "Review every included file in Step 2, or finish with the whole batch skipped."
-            : "Return to Step 2 to finish reviewing the batch."}
-      </span>
-      <div className="track-import-actions__buttons">
-        <button
-          className="button button--secondary"
-          disabled={isBusy}
-          type="button"
-          onClick={onBack}
-        >
-          Back
+    <div className="track-import-actions__buttons">
+      <button className="button button--secondary" disabled={isBusy} type="button" onClick={onBack}>
+        Back
+      </button>
+      {failedCount > 0 && !isBusy ? (
+        <button className="button button--secondary" type="button" onClick={onRetryFailed}>
+          Retry {String(failedCount)} failed upload{failedCount === 1 ? "" : "s"}
         </button>
-        {plannedCount > 0 ? (
-          <button
-            className="button button--primary"
-            disabled={isBusy || !isResolved}
-            type="button"
-            onClick={onStartUpload}
-          >
-            {isBusy ? "Uploading…" : `Upload & attach ${String(plannedCount)} tracks`}
-          </button>
-        ) : null}
-        {plannedCount === 0 && isResolved ? (
-          <button className="button button--primary" type="button" onClick={onFinishSkipped}>
-            Finish without uploading
-          </button>
-        ) : null}
-      </div>
+      ) : null}
+      {plannedCount > 0 ? (
+        <button
+          className="button button--primary"
+          disabled={isBusy || !isResolved}
+          type="button"
+          onClick={onStartUpload}
+        >
+          {isBusy ? "Uploading…" : `Upload & attach ${String(plannedCount)} tracks`}
+        </button>
+      ) : null}
+      {plannedCount === 0 && isResolved && !isBusy ? (
+        <button className="button button--primary" type="button" onClick={onFinishWithoutUpload}>
+          Finish without uploading
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function actionNote(plannedCount: number, isResolved: boolean): string {
+  if (plannedCount > 0) {
+    return "Audio files upload only after this confirmation. Excluded files are not sent.";
+  }
+  if (isResolved) {
+    return "Review every included file in Step 2, or finish with the whole batch skipped.";
+  }
+  return "Return to Step 2 to finish reviewing the batch.";
+}
+
+function statusLabel(status: ImportFileState["status"]): string {
+  switch (status) {
+    case "pending":
+      return "Waiting";
+    case "hashing":
+      return "Verifying";
+    case "uploading":
+      return "Uploading";
+    case "uploaded":
+      return "Uploaded";
+    case "upload_failed":
+      return "Upload failed";
+    case "committed":
+      return "Attached";
+    case "conflict":
+      return "Slot occupied";
+    case "skipped":
+      return "Skipped";
+  }
+}
+
+function FileRecoveryTable({ files }: { readonly files: readonly ImportFileState[] }) {
+  return (
+    <div className="track-import-planned-table-container">
+      <table className="track-import-files-table">
+        <thead>
+          <tr>
+            <th scope="col">File name</th>
+            <th scope="col">Destination</th>
+            <th scope="col">Status</th>
+            <th scope="col">Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          {files.map((file) => (
+            <tr key={file.clientFileId}>
+              <td className="track-import-filename-cell">{file.fileName}</td>
+              <td className="track-import-piece-cell">
+                {file.pieceTitle} · {file.partKey}
+              </td>
+              <td>
+                <span
+                  className={
+                    file.status === "uploaded" || file.status === "committed"
+                      ? "badge badge--success"
+                      : file.status === "upload_failed" || file.status === "conflict"
+                        ? "badge badge--warning"
+                        : "badge badge--neutral"
+                  }
+                >
+                  {statusLabel(file.status)}
+                </span>
+              </td>
+              <td className="track-import-piece-cell">{file.error ?? "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -327,29 +318,16 @@ export function StepConfirmUpload({
   onComplete,
   pieces,
   roster,
+  session,
 }: {
   readonly groups: readonly GroupReviewItem[];
   readonly onBack: () => void;
-  readonly onComplete: (
-    results: readonly MusicTrackAttachmentResult[],
-    summary: {
-      readonly attached: number;
-      readonly conflict: number;
-      readonly failed: number;
-      readonly skipped: number;
-    },
-  ) => void;
+  readonly onComplete: (result: ImportRunResult, skippedCount: number) => void;
   readonly pieces: readonly OrganizationMusicPiece[];
   readonly roster: OrganizationRosterConfiguration | null;
+  readonly session: ReturnType<typeof useImportSession>;
 }) {
-  const [progress, setProgress] = useState<UploadProgressState>({
-    completed: 0,
-    currentFileName: null,
-    status: "idle",
-    total: 0,
-  });
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const idempotencyKey = useId();
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const pieceMap = useMemo(() => new Map(pieces.map((p) => [p.id, p])), [pieces]);
   const validPartKeys = useMemo(() => getValidTrackPartKeys(roster), [roster]);
@@ -358,73 +336,86 @@ export function StepConfirmUpload({
     [groups, pieceMap, validPartKeys],
   );
 
+  const isBusy = session.phase === "running";
+  const showRecovery = session.files.length > 0;
+  const failedCount = session.files.filter((file) => file.status === "upload_failed").length;
+  const conflictCount = session.files.filter((file) => file.status === "conflict").length;
+  const errorMessage = localError ?? session.errorMessage;
+
   async function handleStartUpload() {
-    if (!isResolved || planned.length === 0) return;
-
-    setErrorMessage(null);
-    setProgress({
-      completed: 0,
-      currentFileName: planned[0]?.fileName ?? null,
-      status: "uploading",
-      total: planned.length,
-    });
-
+    if (!isResolved || planned.length === 0 || session.phase === "running") return;
+    setLocalError(null);
     try {
-      const response = await uploadAndAttachReviewedTracks(
-        planned,
-        idempotencyKey,
-        (fileName, completed) => {
-          setProgress((previous) => ({ ...previous, completed, currentFileName: fileName }));
-        },
-        () => {
-          setProgress((previous) => ({ ...previous, status: "attaching" }));
-        },
-      );
-
-      setProgress((prev) => ({
-        ...prev,
-        status: "complete",
-      }));
-
-      onComplete(response.results, {
-        ...response.summary,
-        skipped: response.summary.skipped + skippedCount,
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to upload and attach tracks";
-      setErrorMessage(msg);
-      setProgress((prev) => ({
-        ...prev,
-        status: "error",
-      }));
+      const receipt = await session.confirmPlanned(planned);
+      if (receipt) onComplete(receipt, skippedCount);
+    } catch (error: unknown) {
+      setLocalError(error instanceof Error ? error.message : "The import could not be completed.");
     }
   }
 
-  const isBusy = progress.status === "uploading" || progress.status === "attaching";
+  async function handleRetryFailed() {
+    const allUploaded = await session.retryUploads();
+    if (!allUploaded) return;
+    const receipt = await session.retryCommit();
+    if (receipt) onComplete(receipt, skippedCount);
+  }
+
+  function handleFinishWithoutUpload() {
+    onComplete(
+      {
+        commitSummary: { attached: 0, conflict: 0, failed: 0, skipped: 0 },
+        manifestRevision: session.manifestRevision,
+        sessionId: session.sessionId ?? "",
+      },
+      skippedCount,
+    );
+  }
 
   return (
     <div className="track-import-wizard-step">
-      <UploadConfirmationSummary
-        errorMessage={errorMessage}
-        isBusy={isBusy}
-        isResolved={isResolved}
-        planned={planned}
-        progress={progress}
-        skippedCount={skippedCount}
-        skippedFiles={skippedFiles}
-      />
-      <UploadActionFooter
-        isBusy={isBusy}
-        isResolved={isResolved}
-        onBack={onBack}
-        onFinishSkipped={() => {
-          onComplete([], { attached: 0, conflict: 0, failed: 0, skipped: skippedCount });
-        }}
-        onStartUpload={() => {
-          void handleStartUpload();
-        }}
-        plannedCount={planned.length}
-      />
+      <div className="track-import-confirm-summary">
+        <h3 className="track-import-confirm-title">
+          {planned.length > 0 ? "Ready to upload practice tracks" : "Nothing is selected to upload"}
+        </h3>
+        <p className="track-import-confirm-desc">
+          {getUploadSummaryDescription(
+            planned.length,
+            new Set(planned.map((item) => item.pieceId)).size,
+            isResolved,
+          )}
+          {skippedCount > 0 ? ` ${String(skippedCount)} files are excluded or skipped.` : ""}
+        </p>
+        <ConfirmNotices
+          conflictCount={conflictCount}
+          errorMessage={errorMessage}
+          isResolved={isResolved}
+        />
+        {isBusy ? (
+          <UploadProgressBar activeCount={session.activeCount} totalCount={session.files.length} />
+        ) : null}
+        {!showRecovery && isResolved && planned.length > 0 ? (
+          <PlannedFilesTable files={planned} />
+        ) : null}
+        {showRecovery ? <FileRecoveryTable files={session.files} /> : null}
+        {!isBusy && !showRecovery ? <SkippedFilesList files={skippedFiles} /> : null}
+      </div>
+      <div className="dialog__actions track-import-actions">
+        <span className="track-import-actions__note">{actionNote(planned.length, isResolved)}</span>
+        <ActionButtons
+          failedCount={failedCount}
+          isBusy={isBusy}
+          isResolved={isResolved}
+          onBack={onBack}
+          onFinishWithoutUpload={handleFinishWithoutUpload}
+          onRetryFailed={() => {
+            void handleRetryFailed();
+          }}
+          onStartUpload={() => {
+            void handleStartUpload();
+          }}
+          plannedCount={planned.length}
+        />
+      </div>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { readTicketMessageTemplate } from "./ticketMessageTemplates";
 import { readRosterAutomationConfiguration, runRosterAutomations } from "./statusAutomationStore";
 import { advanceComplianceReminder, findDueComplianceReminders } from "./complianceStore";
 import { schedulePaymentFeeReconciliationInStore } from "./feeReconciliation";
+import { prepareMusicTrackImportCleanupSweepInStore } from "./music/trackImportStore";
 
 import {
   EVENT_REMINDER_LEAD_MS,
@@ -672,6 +673,7 @@ function createDueJobs(
     createPostEventReportJobs(storage, organizationId, now);
     createFeeReconciliationJobs(storage, organizationId, now);
     createComplianceReminderJobs(storage, organizationId, now);
+    createMusicTrackImportCleanupJobs(storage, organizationId, now);
     if (schedulerDueAt.getTime() <= now.getTime()) {
       storage.sql.exec(
         `UPDATE scheduler_state SET next_due_at = ?, updated_at = ? WHERE singleton = 1`,
@@ -792,6 +794,25 @@ function createComplianceReminderJobs(
     }
     advanceComplianceReminder(storage, reminder.task.id, reminder.task.nextReminderAt, nowIso);
   }
+}
+
+/**
+ * Session-backed practice-track import cleanup sweep (issue #278).
+ *
+ * Expires idle/absolute-expired sessions and enqueues at most 10 cleanup
+ * executions per Organization scan. The store function owns the outbox
+ * writes with round-scoped idempotency keys and skips sessions that already
+ * have an unenqueued cleanup row, so hourly passes never duplicate work.
+ */
+function createMusicTrackImportCleanupJobs(
+  storage: DurableObjectStorage,
+  organizationId: string,
+  now: Date,
+): void {
+  prepareMusicTrackImportCleanupSweepInStore(storage, {
+    now: now.toISOString(),
+    organizationId,
+  });
 }
 
 function readPendingJobs(storage: DurableObjectStorage, now: Date): readonly ScheduledJobRow[] {

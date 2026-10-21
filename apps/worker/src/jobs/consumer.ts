@@ -23,6 +23,7 @@ import { deliverPaymentNotificationJob } from "./deliveries/payments";
 import { deliverOrganizationExportJob } from "./deliveries/export";
 import { cleanupStaleCheckout } from "./deliveries/cleanup";
 import { deliverComplianceReminderJob } from "./deliveries/compliance";
+import { deliverMusicTrackImportCleanupJob } from "./deliveries/musicTrackImportCleanup";
 import { deliverPaymentFeeReconciliationJob } from "./deliveries/reconciliation";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { mutateOrganizationStore } from "../organization/rpc/repository";
@@ -55,6 +56,10 @@ async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promi
   }
   if (job.kind === "organization_export") {
     await deliverOrganizationExportJob(env, job);
+    return;
+  }
+  if (job.kind === "music_track_import_cleanup") {
+    await deliverMusicTrackImportCleanupJob(env, job);
     return;
   }
   if (job.kind === "stale_checkout_cleanup") {

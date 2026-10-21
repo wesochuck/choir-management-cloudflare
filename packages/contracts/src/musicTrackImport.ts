@@ -82,3 +82,274 @@ export type MusicTrackImportGroupMetadata = z.infer<typeof musicTrackImportGroup
 export type MusicTrackImportMatchRequest = z.infer<typeof musicTrackImportMatchRequestSchema>;
 export type MusicTrackImportGroupSuggestion = z.infer<typeof musicTrackImportGroupSuggestionSchema>;
 export type MusicTrackImportMatchResponse = z.infer<typeof musicTrackImportMatchResponseSchema>;
+
+// Session-backed durable import (issue #278). The browser wizard stages
+// reviewed manifest rows in a server-owned session; uploads, assignments,
+// and commits all reference that session. Every state transition is
+// transactional in the Organization Durable Object.
+
+export const musicTrackImportSessionStateSchema = z.enum([
+  "active",
+  "partial",
+  "completed",
+  "cancel_requested",
+  "cleanup_pending",
+  "discarded",
+  "expired",
+]);
+
+export type MusicTrackImportSessionState = z.infer<typeof musicTrackImportSessionStateSchema>;
+
+export const musicTrackImportItemStatusSchema = z.enum([
+  "planned",
+  "uploading",
+  "uploaded",
+  "attached",
+  "upload_failed",
+  "attach_failed",
+  "conflict",
+  "cleanup_pending",
+  "reclaimed",
+]);
+
+export type MusicTrackImportItemStatus = z.infer<typeof musicTrackImportItemStatusSchema>;
+
+export const musicTrackImportAttemptStatusSchema = z.enum([
+  "reserved",
+  "uploading",
+  "ready",
+  "failed",
+  "cleanup_pending",
+  "reclaimed",
+]);
+
+export type MusicTrackImportAttemptStatus = z.infer<typeof musicTrackImportAttemptStatusSchema>;
+
+export const musicTrackImportManifestItemSchema = z.object({
+  clientFileId: z.string().min(1).max(100),
+  contentType: z.literal("audio/mpeg"),
+  durationSeconds: z.number().int().min(1).max(86_400).nullable(),
+  fileName: z.string().min(1).max(500),
+  lastModifiedMs: z.number().int().min(0),
+  partKey: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+  pieceId: z.uuid(),
+  sha256Hex: z.string().regex(/^[0-9a-f]{64}$/),
+  sizeBytes: z
+    .number()
+    .int()
+    .min(1)
+    .max(20 * 1024 * 1024),
+});
+
+export type MusicTrackImportManifestItem = z.infer<typeof musicTrackImportManifestItemSchema>;
+
+export const musicTrackImportCreateSessionRequestSchema = z
+  .object({
+    clientBatchKey: z.uuid(),
+    items: z.array(musicTrackImportManifestItemSchema).min(1).max(100),
+  })
+  .superRefine((request, context) => {
+    const clientFileIds = new Set<string>();
+    for (const item of request.items) {
+      if (clientFileIds.has(item.clientFileId)) {
+        context.addIssue({
+          code: "custom",
+          message: "Each manifest row must have a distinct client file ID.",
+          path: ["items"],
+        });
+        return;
+      }
+      clientFileIds.add(item.clientFileId);
+    }
+    const targets = new Set<string>();
+    for (const item of request.items) {
+      const target = `${item.pieceId}::${item.partKey}`;
+      if (targets.has(target)) {
+        context.addIssue({
+          code: "custom",
+          message: "Each manifest row must target a distinct piece slot.",
+          path: ["items"],
+        });
+        return;
+      }
+      targets.add(target);
+    }
+  });
+
+export type MusicTrackImportCreateSessionRequest = z.infer<
+  typeof musicTrackImportCreateSessionRequestSchema
+>;
+
+export const musicTrackImportSessionCountsSchema = z.object({
+  attachFailed: z.number().int().nonnegative(),
+  attached: z.number().int().nonnegative(),
+  cleanupPending: z.number().int().nonnegative(),
+  conflict: z.number().int().nonnegative(),
+  planned: z.number().int().nonnegative(),
+  reclaimed: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+  uploadFailed: z.number().int().nonnegative(),
+  uploaded: z.number().int().nonnegative(),
+  uploading: z.number().int().nonnegative(),
+});
+
+export type MusicTrackImportSessionCounts = z.infer<typeof musicTrackImportSessionCountsSchema>;
+
+export const musicTrackImportSessionSummarySchema = z.object({
+  absoluteExpiresAt: z.string(),
+  clientBatchKey: z.uuid(),
+  closedAt: z.string().nullable(),
+  counts: musicTrackImportSessionCountsSchema,
+  expiresAt: z.string(),
+  lastFailureCode: z.string().nullable(),
+  manifestRevision: z.number().int().nonnegative(),
+  sessionId: z.uuid(),
+  state: musicTrackImportSessionStateSchema,
+});
+
+export type MusicTrackImportSessionSummary = z.infer<typeof musicTrackImportSessionSummarySchema>;
+
+export const musicTrackImportCreateSessionResponseSchema = z.object({
+  counts: musicTrackImportSessionCountsSchema,
+  expiresAt: z.string(),
+  items: z.array(
+    z.object({
+      clientFileId: z.string(),
+      status: musicTrackImportItemStatusSchema,
+    }),
+  ),
+  manifestRevision: z.number().int().nonnegative(),
+  requestId: requestIdSchema,
+  sessionId: z.uuid(),
+});
+
+export type MusicTrackImportCreateSessionResponse = z.infer<
+  typeof musicTrackImportCreateSessionResponseSchema
+>;
+
+export const musicTrackImportUploadResponseSchema = z.object({
+  bytesReceived: z.number().int().nonnegative(),
+  fileId: z.uuid(),
+  requestId: z.string(),
+  status: z.enum(["uploaded", "already_uploaded"]),
+});
+
+export const musicTrackImportSessionListResponseSchema = z.object({
+  requestId: requestIdSchema,
+  sessions: z.array(musicTrackImportSessionSummarySchema),
+});
+
+export type MusicTrackImportSessionListResponse = z.infer<
+  typeof musicTrackImportSessionListResponseSchema
+>;
+
+export const musicTrackImportSessionAttemptSchema = z.object({
+  attemptNumber: z.number().int().min(1),
+  fileId: z.uuid(),
+  leaseExpiresAt: z.string().nullable(),
+  status: musicTrackImportAttemptStatusSchema,
+});
+
+export type MusicTrackImportSessionAttempt = z.infer<typeof musicTrackImportSessionAttemptSchema>;
+
+export const musicTrackImportSessionItemSchema = z.object({
+  attempts: z.array(musicTrackImportSessionAttemptSchema),
+  clientFileId: z.string(),
+  contentType: z.string(),
+  currentFileId: z.uuid().nullable(),
+  durationSeconds: z.number().int().nullable(),
+  errorCode: z.string().nullable(),
+  fileName: z.string(),
+  partKey: z.string(),
+  pieceId: z.uuid(),
+  sha256Hex: z.string(),
+  sizeBytes: z.number().int(),
+  status: musicTrackImportItemStatusSchema,
+});
+
+export type MusicTrackImportSessionItem = z.infer<typeof musicTrackImportSessionItemSchema>;
+
+export const musicTrackImportSessionDetailSchema = musicTrackImportSessionSummarySchema.extend({
+  items: z.array(musicTrackImportSessionItemSchema),
+});
+
+export type MusicTrackImportSessionDetail = z.infer<typeof musicTrackImportSessionDetailSchema>;
+
+export const musicTrackImportSessionDetailResponseSchema = z.object({
+  requestId: requestIdSchema,
+  session: musicTrackImportSessionDetailSchema,
+});
+
+export type MusicTrackImportSessionDetailResponse = z.infer<
+  typeof musicTrackImportSessionDetailResponseSchema
+>;
+
+export const musicTrackImportAssignmentUpdateSchema = z.object({
+  clientFileId: z.string().min(1).max(100),
+  durationSeconds: z.number().int().min(1).max(86_400).nullable(),
+  partKey: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+  pieceId: z.uuid(),
+});
+
+export type MusicTrackImportAssignmentUpdate = z.infer<
+  typeof musicTrackImportAssignmentUpdateSchema
+>;
+
+export const musicTrackImportUpdateAssignmentsRequestSchema = z.object({
+  assignments: z.array(musicTrackImportAssignmentUpdateSchema).min(1).max(100),
+  expectedRevision: z.number().int().nonnegative(),
+});
+
+export type MusicTrackImportUpdateAssignmentsRequest = z.infer<
+  typeof musicTrackImportUpdateAssignmentsRequestSchema
+>;
+
+export const musicTrackImportCommitRequestSchema = z.object({
+  commitKey: z.uuid(),
+  expectedRevision: z.number().int().nonnegative(),
+});
+
+export type MusicTrackImportCommitRequest = z.infer<typeof musicTrackImportCommitRequestSchema>;
+
+export const musicTrackImportCommitResultSchema = z.object({
+  clientFileId: z.string(),
+  durationUpdated: z.boolean().default(false),
+  fileId: z.uuid().nullable(),
+  partKey: z.string(),
+  pieceId: z.uuid(),
+  reason: z.string().optional(),
+  status: z.enum(["attached", "conflict", "skipped", "failed"]),
+});
+
+export type MusicTrackImportCommitResult = z.infer<typeof musicTrackImportCommitResultSchema>;
+
+export const musicTrackImportCommitResponseSchema = z.object({
+  committedAt: z.string(),
+  commitKey: z.uuid(),
+  manifestRevision: z.number().int().nonnegative(),
+  requestId: requestIdSchema,
+  results: z.array(musicTrackImportCommitResultSchema),
+  sessionId: z.uuid(),
+  summary: z.object({
+    attached: z.number().int().nonnegative(),
+    conflict: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    skipped: z.number().int().nonnegative(),
+  }),
+});
+
+export type MusicTrackImportCommitResponse = z.infer<typeof musicTrackImportCommitResponseSchema>;
+
+export const musicTrackImportDiscardResponseSchema = z.object({
+  requestId: z.string(),
+  sessionId: z.uuid(),
+  state: musicTrackImportSessionStateSchema,
+  statuses: z.array(
+    z.object({
+      clientFileId: z.string(),
+      status: musicTrackImportItemStatusSchema,
+    }),
+  ),
+});
+
+export type MusicTrackImportDiscardResponse = z.infer<typeof musicTrackImportDiscardResponseSchema>;

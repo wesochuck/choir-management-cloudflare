@@ -2,13 +2,12 @@ import type {
   OrganizationEvent,
   OrganizationMusicPiece,
   OrganizationRosterConfiguration,
-  MusicTrackImportAttachRequest,
   MusicTrackImportMatchRequest,
   MusicTrackImportMatchResponse,
 } from "@choir/contracts";
 import { organizationEventSchema } from "@choir/contracts";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BulkPracticeTrackImportDialog } from "./BulkPracticeTrackImportDialog";
 
 vi.mock("../../../audioDuration", () => ({
@@ -22,35 +21,136 @@ vi.mock("../../../../api/files", () => ({
   uploadPrivateOrganizationFile: () => mockUploadPrivateOrganizationFile(),
 }));
 
+beforeEach(() => {
+  importSessionState.items = [];
+  uploadCallLog.length = 0;
+  commitCallLog.length = 0;
+});
+
+interface SessionItemInput {
+  readonly clientFileId: string;
+  readonly partKey: string;
+  readonly pieceId: string;
+}
+
+const importSessionState: { items: SessionItemInput[] } = { items: [] };
+const uploadCallLog: { clientFileId: string; fileName: string; sessionId: string }[] = [];
+const commitCallLog: { commitKey: string; sessionId: string }[] = [];
+const mockCreateMusicTrackImportSession = vi.fn((body: { items: SessionItemInput[] }) => {
+  importSessionState.items = body.items.map((item) => ({ ...item }));
+  return Promise.resolve({
+    counts: {
+      attachFailed: 0,
+      attached: 0,
+      cleanupPending: 0,
+      conflict: 0,
+      planned: body.items.length,
+      reclaimed: 0,
+      total: body.items.length,
+      uploadFailed: 0,
+      uploaded: 0,
+      uploading: 0,
+    },
+    expiresAt: "2026-10-22T00:00:00.000Z",
+    items: body.items.map((item) => ({ clientFileId: item.clientFileId, status: "planned" })),
+    manifestRevision: 1,
+    requestId: "req-session",
+    sessionId: "session-1",
+  });
+});
+const mockUploadMusicTrackImportFile = vi.fn(
+  (sessionId: string, clientFileId: string, file: File) => {
+    uploadCallLog.push({ clientFileId, fileName: file.name, sessionId });
+    return Promise.resolve({
+      bytesReceived: 18,
+      fileId: "file-id-123",
+      requestId: "req-upload",
+      status: "uploaded" as const,
+    });
+  },
+);
+const mockCommitMusicTrackImportSession = vi.fn(
+  (sessionId: string, body: { commitKey: string }) => {
+    commitCallLog.push({ commitKey: body.commitKey, sessionId });
+    return Promise.resolve({
+      committedAt: "2026-10-21T00:00:00.000Z",
+      commitKey: "commit-1",
+      manifestRevision: 1,
+      requestId: "req-commit",
+      results: importSessionState.items.map((item) => ({
+        clientFileId: item.clientFileId,
+        durationUpdated: true,
+        fileId: "file-id-123",
+        partKey: item.partKey,
+        pieceId: item.pieceId,
+        status: "attached" as const,
+      })),
+      sessionId: "session-1",
+      summary: {
+        attached: importSessionState.items.length,
+        conflict: 0,
+        failed: 0,
+        skipped: 0,
+      },
+    });
+  },
+);
+const mockDiscardMusicTrackImportSession = vi.fn((sessionId: string) => {
+  void sessionId;
+  return Promise.resolve({});
+});
+const mockGetMusicTrackImportSession = vi.fn((sessionId: string) =>
+  Promise.resolve({
+    absoluteExpiresAt: "2026-10-28T00:00:00.000Z",
+    clientBatchKey: "batch-1",
+    closedAt: null,
+    counts: {
+      attachFailed: 0,
+      attached: 0,
+      cleanupPending: 0,
+      conflict: 0,
+      planned: 0,
+      reclaimed: 0,
+      total: 0,
+      uploadFailed: 0,
+      uploaded: 0,
+      uploading: 0,
+    },
+    expiresAt: "2026-10-22T00:00:00.000Z",
+    items: [],
+    lastFailureCode: null,
+    manifestRevision: 1,
+    sessionId,
+    state: "active",
+  }),
+);
+const mockUpdateMusicTrackImportAssignments = vi.fn(
+  (sessionId: string, body: { assignments: unknown[] }) => {
+    void sessionId;
+    void body;
+    return Promise.resolve({});
+  },
+);
+vi.mock("../../../../api/musicTrackImport", () => ({
+  commitMusicTrackImportSession: (sessionId: string, body: { commitKey: string }) =>
+    mockCommitMusicTrackImportSession(sessionId, body),
+  createMusicTrackImportSession: (body: { items: SessionItemInput[] }) =>
+    mockCreateMusicTrackImportSession(body),
+  discardMusicTrackImportSession: (sessionId: string) =>
+    mockDiscardMusicTrackImportSession(sessionId),
+  getMusicTrackImportSession: (sessionId: string) => mockGetMusicTrackImportSession(sessionId),
+  updateMusicTrackImportAssignments: (sessionId: string, body: { assignments: unknown[] }) =>
+    mockUpdateMusicTrackImportAssignments(sessionId, body),
+  uploadMusicTrackImportFile: (sessionId: string, clientFileId: string, file: File) =>
+    mockUploadMusicTrackImportFile(sessionId, clientFileId, file),
+}));
+
 const samplePieceId = "11111111-1111-4111-8111-111111111111";
 const sampleEventId = "22222222-2222-4222-8222-222222222222";
 
-const mockAttachResult = {
-  requestId: "req-1",
-  results: [
-    {
-      clientFileId: "file-1",
-      partKey: "soprano",
-      pieceId: samplePieceId,
-      status: "attached" as const,
-    },
-  ],
-  summary: {
-    attached: 1,
-    conflict: 0,
-    failed: 0,
-    skipped: 0,
-  },
-};
-
-const mockAttachBulkPracticeTracks = vi
-  .fn<(request: MusicTrackImportAttachRequest) => Promise<typeof mockAttachResult>>()
-  .mockResolvedValue(mockAttachResult);
 const mockMatchBulkPracticeTracks =
   vi.fn<(request: MusicTrackImportMatchRequest) => Promise<MusicTrackImportMatchResponse>>();
 vi.mock("../../../../api/music", () => ({
-  attachBulkPracticeTracks: (request: MusicTrackImportAttachRequest) =>
-    mockAttachBulkPracticeTracks(request),
   matchBulkPracticeTracks: (request: MusicTrackImportMatchRequest) =>
     mockMatchBulkPracticeTracks(request),
 }));
@@ -230,7 +330,28 @@ describe("BulkPracticeTrackImportDialog", () => {
     const startUploadBtn = screen.getByRole("button", { name: /Upload & attach 1 tracks/i });
     fireEvent.click(startUploadBtn);
 
-    // Step 4: Results
+    // Step 4: Results — the session API carries the whole run.
+    await waitFor(() => {
+      expect(mockCreateMusicTrackImportSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: [
+            expect.objectContaining({
+              partKey: "soprano",
+              pieceId: samplePieceId,
+            }),
+          ],
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(mockUploadMusicTrackImportFile).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(mockCommitMusicTrackImportSession).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({ expectedRevision: 1 }),
+      );
+    });
     await waitFor(() => {
       expect(screen.getByText("Import completed")).toBeInTheDocument();
       expect(screen.getByText("Tracks attached")).toBeInTheDocument();
@@ -281,13 +402,12 @@ describe("BulkPracticeTrackImportDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue to confirmation" }));
     fireEvent.click(screen.getByRole("button", { name: /Upload & attach 1 tracks/i }));
     await waitFor(() => {
-      expect(mockAttachBulkPracticeTracks).toHaveBeenCalledWith(
+      expect(mockCreateMusicTrackImportSession).toHaveBeenCalledWith(
         expect.objectContaining({
-          assignments: [
+          items: [
             expect.objectContaining({
               partKey: "S",
               pieceId: samplePieceId,
-              expectedEmptySlot: true,
             }),
           ],
         }),
@@ -512,8 +632,9 @@ describe("BulkPracticeTrackImportDialog", () => {
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Finish without uploading" }));
     expect(screen.getByText("No tracks uploaded")).toBeInTheDocument();
-    expect(mockUploadPrivateOrganizationFile).not.toHaveBeenCalled();
-    expect(mockAttachBulkPracticeTracks).not.toHaveBeenCalled();
+    expect(mockUploadMusicTrackImportFile).not.toHaveBeenCalled();
+    expect(mockCreateMusicTrackImportSession).not.toHaveBeenCalled();
+    expect(mockCommitMusicTrackImportSession).not.toHaveBeenCalled();
   });
 
   it("blocks approval for occupied slots until a different voice part is selected", async () => {

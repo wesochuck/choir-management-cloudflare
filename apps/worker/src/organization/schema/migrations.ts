@@ -2083,6 +2083,101 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       END`,
     ],
   },
+  {
+    version: 121,
+    statements: [
+      `CREATE TABLE music_track_import_sessions (
+        id TEXT PRIMARY KEY,
+        actor_user_id TEXT NOT NULL,
+        client_batch_key TEXT NOT NULL,
+        manifest_digest TEXT NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('active','partial','completed','cancel_requested','cleanup_pending','discarded','expired')),
+        manifest_revision INTEGER NOT NULL DEFAULT 1 CHECK (manifest_revision >= 1),
+        cleanup_round INTEGER NOT NULL DEFAULT 0 CHECK (cleanup_round >= 0),
+        created_at TEXT NOT NULL,
+        last_user_action_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        absolute_expires_at TEXT NOT NULL,
+        closed_at TEXT,
+        next_cleanup_due_at TEXT,
+        last_failure_code TEXT
+      ) STRICT`,
+      // One batch key maps to at most one session per actor; replays resolve
+      // to the same row instead of creating a duplicate import.
+      `CREATE UNIQUE INDEX idx_music_import_sessions_actor_batch
+        ON music_track_import_sessions(actor_user_id, client_batch_key)`,
+      // "Resume import" lists only this actor's recoverable, nonexpired
+      // sessions, newest first.
+      `CREATE INDEX idx_music_import_sessions_actor_state
+        ON music_track_import_sessions(actor_user_id, state, last_user_action_at DESC)`,
+      // Hourly cleanup sweep finds sessions that need reclamation without
+      // scanning finished history. Partial so tombstones stay out of the index.
+      `CREATE INDEX idx_music_import_sessions_cleanup_due
+        ON music_track_import_sessions(next_cleanup_due_at)
+        WHERE state IN ('cancel_requested', 'cleanup_pending', 'expired')
+          AND next_cleanup_due_at IS NOT NULL`,
+      // Expiry sweep finds idle/absolute-expired live sessions. Partial so
+      // terminal sessions are never indexed.
+      `CREATE INDEX idx_music_import_sessions_expiry
+        ON music_track_import_sessions(expires_at)
+        WHERE state IN ('active', 'partial')`,
+      `CREATE TABLE music_track_import_items (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES music_track_import_sessions(id) ON DELETE CASCADE,
+        client_file_id TEXT NOT NULL,
+        file_name TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL CHECK (size_bytes > 0),
+        last_modified_ms INTEGER NOT NULL CHECK (last_modified_ms >= 0),
+        sha256_hex TEXT NOT NULL,
+        content_type TEXT NOT NULL,
+        piece_id TEXT NOT NULL,
+        part_key TEXT NOT NULL,
+        duration_seconds INTEGER,
+        status TEXT NOT NULL CHECK (status IN ('planned','uploading','uploaded','attached','upload_failed','attach_failed','conflict','cleanup_pending','reclaimed')),
+        current_attempt_id TEXT,
+        current_file_id TEXT,
+        error_code TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (session_id, client_file_id)
+      ) STRICT`,
+      // Session-scoped item reads and per-status counts.
+      `CREATE INDEX idx_music_import_items_session_status
+        ON music_track_import_items(session_id, status)`,
+      // Each upload attempt mints a fresh private file UUID that is also the
+      // attempt primary key, so the attempt ledger and the file ledger can
+      // never disagree about which object belongs to which session.
+      `CREATE TABLE music_track_import_file_attempts (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL REFERENCES music_track_import_sessions(id) ON DELETE CASCADE,
+        item_id TEXT NOT NULL REFERENCES music_track_import_items(id) ON DELETE CASCADE,
+        attempt_number INTEGER NOT NULL CHECK (attempt_number >= 1),
+        storage_key TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('reserved','uploading','ready','failed','cleanup_pending','reclaimed')),
+        lease_expires_at TEXT,
+        created_at TEXT NOT NULL,
+        ready_at TEXT,
+        cleanup_started_at TEXT,
+        reclaimed_at TEXT,
+        UNIQUE (item_id, attempt_number)
+      ) STRICT`,
+      // Session-scoped attempt reads and the cleanup eligibility scan.
+      `CREATE INDEX idx_music_import_attempts_session_status
+        ON music_track_import_file_attempts(session_id, status)`,
+      // Exactly-once commit receipts: the same key + same payload returns the
+      // original receipt; the same key + a different payload is a 409.
+      `CREATE TABLE music_track_import_commit_receipts (
+        session_id TEXT NOT NULL REFERENCES music_track_import_sessions(id) ON DELETE CASCADE,
+        commit_key TEXT NOT NULL,
+        manifest_revision INTEGER NOT NULL,
+        assignments_hash TEXT NOT NULL,
+        results_json TEXT NOT NULL,
+        summary_json TEXT NOT NULL,
+        committed_at TEXT NOT NULL,
+        PRIMARY KEY (session_id, commit_key)
+      ) STRICT`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

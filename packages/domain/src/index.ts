@@ -98,6 +98,28 @@ export {
   type DurationAutoFillState,
 } from "./durationAutoFill";
 export {
+  chunkMusicTrackImport,
+  computeMusicTrackImportAttemptLease,
+  computeMusicTrackImportExpiries,
+  isRecoverableImportSessionState,
+  isTerminalImportSessionState,
+  MUSIC_TRACK_IMPORT_ABSOLUTE_EXPIRY_SECONDS,
+  MUSIC_TRACK_IMPORT_ATTEMPT_LEASE_SECONDS,
+  MUSIC_TRACK_IMPORT_CLEANUP_BATCH_SIZE,
+  MUSIC_TRACK_IMPORT_CLEANUP_RETRY_MAX_SECONDS,
+  MUSIC_TRACK_IMPORT_CLEANUP_RETRY_MIN_SECONDS,
+  MUSIC_TRACK_IMPORT_CLEANUP_SWEEP_LIMIT,
+  MUSIC_TRACK_IMPORT_COMMIT_CHUNK_SIZE,
+  MUSIC_TRACK_IMPORT_DIAGNOSTIC_RETENTION_SECONDS,
+  MUSIC_TRACK_IMPORT_IDLE_EXPIRY_SECONDS,
+  MUSIC_TRACK_IMPORT_MAX_BYTES,
+  MUSIC_TRACK_IMPORT_MAX_ITEMS,
+  MUSIC_TRACK_IMPORT_ORPHAN_ALERT_AFTER_SECONDS,
+  MUSIC_TRACK_IMPORT_UPLOAD_CONCURRENCY,
+  musicTrackImportCleanupJobIdempotencyKey,
+  type MusicTrackImportSessionRuntimeState,
+} from "./musicTrackImport";
+export {
   calculateMusicFolderCounts,
   deriveMusicFolderStatus,
   musicFolderReportFilename,

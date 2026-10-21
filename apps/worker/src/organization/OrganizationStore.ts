@@ -57,6 +57,22 @@ import {
   updateContactImportMappingInStore,
 } from "./contactImportStore";
 import {
+  claimMusicTrackImportCleanupBatchInStore,
+  claimMusicTrackImportUploadInStore,
+  commitMusicTrackImportInStore,
+  completeMusicTrackImportCleanupInStore,
+  createMusicTrackImportSessionInStore,
+  discardMusicTrackImportSessionInStore,
+  failMusicTrackImportUploadInStore,
+  finalizeMusicTrackImportUploadInStore,
+  getMusicTrackImportSessionInStore,
+  listMusicTrackImportSessionsInStore,
+  prepareMusicTrackImportCleanupSweepInStore,
+  scheduleMusicTrackImportCleanupContinuationInStore,
+  updateMusicTrackImportAssignmentsInStore,
+  type AssignmentPatch,
+} from "./music/trackImportStore";
+import {
   applyHistoricalStripeReconciliationInStore,
   listStripePaymentReconciliationCandidatesInStore,
   type ApplyHistoricalStripeReconciliationInput,
@@ -406,6 +422,166 @@ export class OrganizationStore extends DurableObject {
     readonly requestId: string;
   }) {
     return cancelContactImportInStore(this.ctx.storage, input);
+  }
+
+  // Session-backed bulk practice-track imports (issue #278): strongly typed
+  // Durable Object RPC methods. Call via `stub.methodName(...)`; no internal
+  // HTTP fetch routing. Upload/commit/cleanup only touch SQLite here; R2
+  // bytes move in the Worker route/queue layer between claim and finalize.
+  createMusicTrackImportSession(input: {
+    readonly actorUserId: string;
+    readonly clientBatchKey: string;
+    readonly items: readonly {
+      readonly clientFileId: string;
+      readonly contentType: "audio/mpeg";
+      readonly durationSeconds: number | null;
+      readonly fileName: string;
+      readonly lastModifiedMs: number;
+      readonly partKey: string;
+      readonly pieceId: string;
+      readonly sha256Hex: string;
+      readonly sizeBytes: number;
+    }[];
+    readonly manifestDigest: string;
+    readonly now: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  }) {
+    return createMusicTrackImportSessionInStore(this.ctx.storage, input);
+  }
+
+  getMusicTrackImportSession(input: {
+    readonly actorUserId: string;
+    readonly now: string;
+    readonly organizationId: string;
+    readonly sessionId: string;
+  }) {
+    return getMusicTrackImportSessionInStore(this.ctx.storage, input);
+  }
+
+  listMusicTrackImportSessions(input: {
+    readonly actorUserId: string;
+    readonly limit?: number | undefined;
+    readonly now: string;
+    readonly organizationId: string;
+  }) {
+    return listMusicTrackImportSessionsInStore(this.ctx.storage, input);
+  }
+
+  claimMusicTrackImportUpload(input: {
+    readonly actorUserId: string;
+    readonly clientFileId: string;
+    readonly contentType: string;
+    readonly expectedSizeBytes: number;
+    readonly fileName: string;
+    readonly now: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+    readonly sessionId: string;
+  }) {
+    return claimMusicTrackImportUploadInStore(this.ctx.storage, input);
+  }
+
+  finalizeMusicTrackImportUpload(input: {
+    readonly actorUserId: string;
+    readonly clientFileId: string;
+    readonly fileId: string;
+    readonly now: string;
+    readonly organizationId: string;
+    readonly r2Version?: string | null | undefined;
+    readonly receivedSizeBytes: number;
+    readonly requestId: string;
+    readonly sessionId: string;
+  }) {
+    return finalizeMusicTrackImportUploadInStore(this.ctx.storage, input);
+  }
+
+  failMusicTrackImportUpload(input: {
+    readonly actorUserId: string;
+    readonly clientFileId: string;
+    readonly errorCode: string;
+    readonly fileId: string;
+    readonly now: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+    readonly sessionId: string;
+  }) {
+    return failMusicTrackImportUploadInStore(this.ctx.storage, input);
+  }
+
+  updateMusicTrackImportAssignments(input: {
+    readonly actorUserId: string;
+    readonly assignments: readonly AssignmentPatch[];
+    readonly expectedRevision: number;
+    readonly now: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+    readonly sessionId: string;
+  }) {
+    return updateMusicTrackImportAssignmentsInStore(this.ctx.storage, input);
+  }
+
+  commitMusicTrackImport(input: {
+    readonly actorUserId: string;
+    readonly commitKey: string;
+    readonly expectedRevision: number;
+    readonly now: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+    readonly sessionId: string;
+  }) {
+    return commitMusicTrackImportInStore(this.ctx.storage, input);
+  }
+
+  async discardMusicTrackImportSession(input: {
+    readonly actorUserId: string;
+    readonly now: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+    readonly sessionId: string;
+  }) {
+    const result = discardMusicTrackImportSessionInStore(this.ctx.storage, input);
+    // Wake the scheduler promptly so orphaned uploads are reclaimed without
+    // waiting for the hourly cadence, mirroring contact-import confirmation.
+    await wakeOrganizationAlarm(this.ctx.storage);
+    return result;
+  }
+
+  prepareMusicTrackImportCleanupSweep(input: {
+    readonly limit?: number | undefined;
+    readonly now: string;
+    readonly organizationId: string;
+  }) {
+    return prepareMusicTrackImportCleanupSweepInStore(this.ctx.storage, input);
+  }
+
+  claimMusicTrackImportCleanupBatch(input: {
+    readonly limit?: number | undefined;
+    readonly now: string;
+    readonly organizationId: string;
+    readonly sessionId: string;
+  }) {
+    return claimMusicTrackImportCleanupBatchInStore(this.ctx.storage, input);
+  }
+
+  completeMusicTrackImportCleanup(input: {
+    readonly errorCode?: string | undefined;
+    readonly fileIds: readonly string[];
+    readonly now: string;
+    readonly organizationId: string;
+    readonly sessionId: string;
+  }) {
+    return completeMusicTrackImportCleanupInStore(this.ctx.storage, input);
+  }
+
+  async scheduleMusicTrackImportCleanupContinuation(input: {
+    readonly now: string;
+    readonly organizationId: string;
+    readonly sessionId: string;
+  }) {
+    const result = scheduleMusicTrackImportCleanupContinuationInStore(this.ctx.storage, input);
+    await wakeOrganizationAlarm(this.ctx.storage);
+    return result;
   }
 
   // Nonprofit compliance tracker: strongly typed Durable Object RPC methods.
