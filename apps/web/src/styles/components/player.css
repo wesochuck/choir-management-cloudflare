@@ -494,6 +494,17 @@
     background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface-raised));
   }
 
+  /* The tinted nudge background needs full-strength text for the lead label,
+     icon, and chevron to keep serious-level color contrast. */
+  .public-player__part-selector-container--hinted .public-player__part-picker-lead,
+  .public-player__part-selector-container--hinted .public-player__part-picker-label,
+  .public-player__part-selector-container--hinted .public-player__part-picker-chevron,
+  .public-player__part-selector-container--hinted .public-player__part-trigger-lead,
+  .public-player__part-selector-container--hinted .public-player__part-trigger-label,
+  .public-player__part-selector-container--hinted .public-player__part-trigger-chevron {
+    color: var(--color-text);
+  }
+
   .public-player__part-hint-pointer {
     display: flex;
     justify-content: flex-end;
