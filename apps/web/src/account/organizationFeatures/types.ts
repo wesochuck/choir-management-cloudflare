@@ -2,7 +2,8 @@ import type { ModuleId, ModuleState } from "@choir/contracts";
 import type { OrganizationIconId } from "./icons";
 
 export type OverviewTone = "green" | "blue" | "amber" | "pink" | "cyan" | "slate";
-export type OrganizationGroupId = "people" | "events" | "music" | "communications" | "insights";
+export type OrganizationGroupId =
+  "people" | "events" | "music" | "communications" | "finance" | "insights";
 export interface OrganizationFeatureGroup {
   readonly id: OrganizationGroupId;
   readonly iconId: OrganizationIconId;

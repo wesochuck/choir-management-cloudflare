@@ -53,13 +53,12 @@ it("keeps dues amounts and payment eligibility correct for paid, expired, and mi
   const cards = screen.getAllByRole("listitem");
   const paid = cards.find((card) => within(card).queryByRole("heading", { name: "Paid season" }));
   if (!paid) throw new Error("Missing paid card");
-  expect(within(paid).getByText("Paid", { exact: true })).toBeVisible();
+  expect(within(paid).getByText("Paid in full", { exact: true })).toBeVisible();
   expect(within(paid).queryByRole("button", { name: "Pay dues" })).not.toBeInTheDocument();
-  expect(
-    within(paid).getByText(
-      new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(25.91),
-    ),
-  ).toBeVisible();
+  expect(within(paid).getByText("Amount due")).toBeVisible();
+  expect(within(paid).getByText("$0.00", { exact: true })).toBeVisible();
+  expect(within(paid).getByText(/Payment received: \$25.91/)).toBeVisible();
+  expect(within(paid).queryByText("Total due")).not.toBeInTheDocument();
   expect(screen.getAllByRole("button", { name: "Pay dues" })).toHaveLength(2);
 });
 

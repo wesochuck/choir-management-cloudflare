@@ -35,7 +35,7 @@ function seasonDate(season: Season): string {
 function statusLabel(record: DuesRecord | undefined): string {
   if (!record) return "Not paid";
   if (record.status === "paid") {
-    return record.paymentMethod === "cash" ? "Paid · Cash" : "Paid";
+    return record.paymentMethod === "cash" ? "Paid in full · Cash" : "Paid in full";
   }
   if (record.status === "refunded") return "Refunded";
   if (record.status === "expired") return "Checkout expired";
@@ -65,30 +65,47 @@ function MemberDuesRow({
   const feeCents =
     record?.feeCents ?? transactionProcessingFeeCents(amountCents, transactionFeeSettings);
   const totalCents = amountCents + feeCents;
-  const canPay = (!record || record.status === "expired") && onlineDuesPaymentsAvailable;
+  const status = record?.status ?? "pending";
+  const isPaid = status === "paid";
+  const canPay = (!record || status === "expired") && onlineDuesPaymentsAvailable;
 
   return (
-    <article className="member-dues-row" key={season.id} role="listitem">
+    <article
+      className={`member-dues-row${isPaid ? " member-dues-row--paid" : ""}`}
+      key={season.id}
+      role="listitem"
+    >
       <div>
         <h3>{season.name}</h3>
         <p>Season starts {seasonDate(season)}</p>
       </div>
       <dl className="member-dues-row__amounts">
-        <div>
-          <dt>Dues</dt>
-          <dd>{money(amountCents)}</dd>
-        </div>
-        <div>
-          <dt>Processing fee</dt>
-          <dd>{money(feeCents)}</dd>
-        </div>
-        <div>
-          <dt>Total</dt>
-          <dd>{money(totalCents)}</dd>
-        </div>
+        {isPaid ? (
+          <div>
+            <dt>Amount due</dt>
+            <dd className="member-dues-row__balance">{money(0)}</dd>
+          </div>
+        ) : (
+          <>
+            <div>
+              <dt>Dues</dt>
+              <dd>{money(amountCents)}</dd>
+            </div>
+            <div>
+              <dt>Processing fee</dt>
+              <dd>{money(feeCents)}</dd>
+            </div>
+            <div>
+              <dt>Total due</dt>
+              <dd>{money(totalCents)}</dd>
+            </div>
+          </>
+        )}
       </dl>
       <div className="member-dues-row__action">
-        <span className={`status-pill status-pill--${record?.status ?? "pending"}`}>
+        <span
+          className={isPaid ? "member-dues-row__paid-status" : `status-pill status-pill--${status}`}
+        >
           {statusLabel(record)}
         </span>
         {canPay ? (
@@ -104,6 +121,11 @@ function MemberDuesRow({
           </button>
         ) : null}
       </div>
+      {isPaid ? (
+        <p className="member-dues-row__receipt">
+          Payment received: {money(totalCents)}. You’re all paid up for this season.
+        </p>
+      ) : null}
     </article>
   );
 }

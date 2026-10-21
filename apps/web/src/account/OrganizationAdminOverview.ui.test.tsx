@@ -114,7 +114,8 @@ describe("OrganizationAdminOverview", () => {
       ["People & membership", 5],
       ["Events & attendance", 5],
       ["Music & content", 4],
-      ["Communications & finance", 6],
+      ["Communications", 2],
+      ["Finance", 4],
       ["Insights & settings", 2],
     ] as const) {
       const region = screen.getByRole("region", { name });

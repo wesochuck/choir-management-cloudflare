@@ -864,6 +864,19 @@ test("profile section markers distinguish unsaved edits from the current section
       await expect(emailTab).toHaveAttribute("aria-selected", "true");
       await expect(emailTab).not.toHaveAttribute("aria-describedby");
     }
+    const emailPreference = dialog.getByRole("switch", { name: "Do not email", exact: true });
+    await emailPreference.click();
+    if (!(await sectionSelect.isVisible())) {
+      const emailTab = dialog.getByRole("tab", { name: "Email & notifications", exact: true });
+      await expect(emailTab).toHaveAccessibleDescription("Unsaved");
+      const label = await emailTab.locator(".profile-editor__rail-label").boundingBox();
+      const marker = await emailTab.getByText("Unsaved", { exact: true }).boundingBox();
+      const tab = await emailTab.boundingBox();
+      if (!label || !marker || !tab) throw new Error("Profile section geometry is unavailable");
+      expect(marker.y).toBeGreaterThanOrEqual(label.y + label.height);
+      expect(marker.x + marker.width).toBeLessThanOrEqual(tab.x + tab.width);
+    }
+    await emailPreference.click();
     await dialog.evaluate(async (node) => {
       await Promise.allSettled(
         node.getAnimations({ subtree: true }).map((animation) => animation.finished),

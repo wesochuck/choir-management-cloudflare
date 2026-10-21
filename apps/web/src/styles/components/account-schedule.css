@@ -278,6 +278,25 @@
     background: var(--color-surface-raised);
   }
 
+  .member-dues-row--paid {
+    border-color: var(--color-success);
+  }
+
+  .member-dues-row__paid-status {
+    color: var(--color-success-text);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .member-dues-row__amounts .member-dues-row__balance {
+    font-size: var(--font-size-xl);
+  }
+
+  .member-dues-row .member-dues-row__receipt {
+    grid-column: 1 / -1;
+    color: var(--color-text);
+  }
+
   .member-dues-row h3,
   .member-dues-row p {
     margin: 0;

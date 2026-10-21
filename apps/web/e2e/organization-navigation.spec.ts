@@ -164,9 +164,8 @@ for (const theme of ["dark", "light"] as const) {
     await page.goto("/admin");
     await expect(page.locator(".admin-overview__card")).toHaveCount(7);
     const nav = page.locator(".signed-in-sidebar").getByRole("navigation");
-    await expect(
-      nav.getByRole("button", { name: "Communications & finance", exact: true }),
-    ).toHaveCount(0);
+    await expect(nav.getByRole("button", { name: "Communications", exact: true })).toHaveCount(0);
+    await expect(nav.getByRole("button", { name: "Finance", exact: true })).toHaveCount(0);
     await expect(nav.getByRole("link", { name: "Contacts", exact: true })).toBeVisible();
     await expect(page.locator('.admin-overview__cards a[href="/admin/contacts"]')).toBeVisible();
     await expect(

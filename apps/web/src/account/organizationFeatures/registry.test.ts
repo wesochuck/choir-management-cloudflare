@@ -27,10 +27,16 @@ describe("Organization feature registry characterization", () => {
     const sidebar = getOrganizationSidebarGroups(ready);
     const dashboard = getOrganizationDashboardSections(ready);
     expect(sidebar.flatMap((g) => g.items)).toHaveLength(25);
-    expect(dashboard.map((g) => g.cards.length)).toEqual([5, 5, 4, 6, 2]);
+    expect(dashboard.map((g) => g.cards.length)).toEqual([5, 5, 4, 2, 4, 2]);
     expect(sidebar.slice(1).map((g) => [g.id, g.label])).toEqual(
       dashboard.map((g) => [g.id, g.label]),
     );
+    expect(
+      sidebar.find((group) => group.id === "communications")?.items.map((item) => item.featureId),
+    ).toEqual(["communications", "polls"]);
+    expect(
+      sidebar.find((group) => group.id === "finance")?.items.map((item) => item.featureId),
+    ).toEqual(["ticketing", "donations", "seasons-dues"]);
     const byId = new Map(organizationFeatures.map((f) => [f.id, f]));
     for (const context of [
       ready,

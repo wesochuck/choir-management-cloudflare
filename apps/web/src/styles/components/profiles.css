@@ -702,9 +702,11 @@
 }
 
 .profile-editor__rail-trigger {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: var(--spacing-sm);
+  column-gap: var(--spacing-sm);
+  row-gap: var(--spacing-3xs);
   width: 100%;
   padding: var(--spacing-xs) var(--spacing-sm);
   border: none;
@@ -738,16 +740,17 @@
 }
 
 .profile-editor__rail-label {
-  flex: 1;
   min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .profile-editor__rail-unsaved {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-3xs);
-  margin-left: auto;
-  flex-shrink: 0;
+  grid-column: 2;
+  justify-self: start;
   color: var(--profile-editor-accent-text);
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);

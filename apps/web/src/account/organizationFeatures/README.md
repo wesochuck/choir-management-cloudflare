@@ -7,10 +7,10 @@ selects Organization storage. The dispatcher and server access checks remain aut
 
 1. Implement and test its authorized route first. Add a stable `OrganizationFeatureId`, canonical
    `href`, explicit aliases, canonical `ModuleId | null`, and semantic `iconId` to the registry.
-2. Choose one `groupId` from the five shared `organizationFeatureGroups`: People & membership,
-   Events & attendance, Music & content, Communications & finance, Insights & settings. These
-   records own both surfaces' headings, order, icons and accents. Home is the separate Dashboard
-   landing destination above the groups.
+2. Choose one `groupId` from the six shared `organizationFeatureGroups`: People & membership, Events
+   & attendance, Music & content, Communications, Finance, Insights & settings. These records own
+   both surfaces' headings, order, icons and accents. Home is the separate Dashboard landing
+   destination above the groups.
 3. Declare sidebar and dashboard positions. Every primary destination requires both placements. Only
    three narrow coverage exceptions exist: landing (Dashboard), configuration (Modules, Setup
    Checklist, Organization Security through the Organization Settings gateway), contextual (Patrons

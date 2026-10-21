@@ -96,7 +96,7 @@ describe("sidebar navigation behavior", () => {
   it("marks /admin/donations active when viewing /admin/patrons alias (#180)", () => {
     const donationsGroups: readonly NavigationGroup[] = [
       {
-        label: "Communications & finance",
+        label: "Finance",
         items: [{ href: "/admin/donations", label: "Donations & giving", module: "donations" }],
       },
     ];

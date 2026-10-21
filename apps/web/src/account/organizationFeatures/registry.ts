@@ -28,10 +28,17 @@ export const organizationFeatureGroups = [
   },
   {
     id: "communications",
-    label: "Communications & finance",
-    description: "Messages, engagement, ticketing, giving, and dues",
+    label: "Communications",
+    description: "Messages, polls, and member engagement",
     tone: "cyan",
     iconId: "communications",
+  },
+  {
+    id: "finance",
+    label: "Finance",
+    description: "Ticketing, donations, giving, and season dues",
+    tone: "amber",
+    iconId: "wallet",
   },
   {
     id: "insights",
@@ -485,7 +492,7 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Ticket tiers, orders, will-call door lists, and discounts",
       title: "Ticket Sales & Orders",
     },
-    groupId: "communications",
+    groupId: "finance",
   },
   {
     id: "donations",
@@ -513,7 +520,7 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Donor contributions, offline gifts, and tax letters",
       title: "Donations & Patrons",
     },
-    groupId: "communications",
+    groupId: "finance",
   },
   {
     id: "seasons-dues",
@@ -534,7 +541,7 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Active seasons, member dues rates, and collection status",
       title: "Seasons & Member Dues",
     },
-    groupId: "communications",
+    groupId: "finance",
     dashboard: {
       label: "Seasons & Dues",
       description: "Manage seasons, dues and payment status",
@@ -653,7 +660,7 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       description: "View donor/buyer LTV and message patrons",
       tone: "cyan",
     },
-    groupId: "communications",
+    groupId: "finance",
   },
 ] as const satisfies readonly OrganizationFeature[];
 export const organizationPaletteShortcuts: readonly PaletteShortcut[] = [
