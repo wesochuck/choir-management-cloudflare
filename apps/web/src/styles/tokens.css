@@ -30,6 +30,8 @@
     --color-text: #f8fafc;
     --color-text-muted: #94a3b8;
     --color-primary: #60a5fa;
+    --color-navigation-music: #c4b5fd;
+    --color-navigation-communications: #5eead4;
     --color-primary-strong: #93c5fd;
     --color-primary-foreground: #0f172a;
     --color-accent: #fb923c;
@@ -58,6 +60,8 @@
       --color-text: #f8fafc;
       --color-text-muted: #94a3b8;
       --color-primary: #60a5fa;
+      --color-navigation-music: #c4b5fd;
+      --color-navigation-communications: #5eead4;
       --color-primary-strong: #93c5fd;
       --color-primary-foreground: #0f172a;
       --color-accent: #fb923c;

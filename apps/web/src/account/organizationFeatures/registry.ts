@@ -1,56 +1,68 @@
-import type { OrganizationFeature, PaletteShortcut, QuickShortcut, DashboardGroup } from "./types";
-export const sidebarGroupLabels = [
-  "Overview",
-  "People",
-  "Events",
-  "Music & content",
-  "Communications & finance",
-  "Insights & settings",
-] as const;
-export const dashboardGroups = [
+import type {
+  OrganizationFeature,
+  PaletteShortcut,
+  QuickShortcut,
+  OrganizationFeatureGroup,
+} from "./types";
+export const organizationFeatureGroups = [
   {
+    id: "people",
     label: "People & membership",
-    description: "Profiles, communications, and supporter relationships",
+    description: "Profiles, contacts, invitations, and membership",
     tone: "green",
+    iconId: "roster",
   },
   {
+    id: "events",
     label: "Events & attendance",
-    description: "Plan performances, manage ticketing, and check in members",
+    description: "Plan events, manage venues, and track attendance",
     tone: "amber",
+    iconId: "events",
   },
   {
-    label: "Music & performance",
-    description: "Scores, programs, and materials for performers",
+    id: "music",
+    label: "Music & content",
+    description: "Scores, programs, performer materials, and public website",
+    tone: "blue",
+    iconId: "music",
+  },
+  {
+    id: "communications",
+    label: "Communications & finance",
+    description: "Messages, engagement, ticketing, giving, and dues",
     tone: "cyan",
+    iconId: "communications",
   },
   {
-    label: "Admin",
-    description: "System configuration, website, and global preferences",
+    id: "insights",
+    label: "Insights & settings",
+    description: "Reports, organization preferences, and configuration",
     tone: "slate",
+    iconId: "settings",
   },
-] as const satisfies readonly DashboardGroup[];
+] as const satisfies readonly OrganizationFeatureGroup[];
 export const organizationFeatures: readonly OrganizationFeature[] = [
   {
     id: "admin-overview",
     href: "/admin",
     requiredModule: null,
-    label: "Admin overview",
+    label: "Dashboard",
     description: "",
-    iconId: "settings",
+    iconId: "home",
     sidebar: {
-      group: 0,
       position: 0,
     },
-    pageTitle: "Admin overview",
+    pageTitle: "Dashboard",
     coverageReason: "landing",
     palette: {
       badge: "Page",
       category: "navigation",
       id: "nav-admin-overview",
       position: 0,
-      subtitle: "Organization administrative overview & summary",
-      title: "Admin Overview",
+      subtitle: "Admin Overview — Organization administrative overview & summary",
+      title: "Dashboard",
     },
+    groupId: "home",
   },
   {
     id: "roster",
@@ -61,12 +73,10 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       "Manage the organization roster, section assignments, member statuses, and contact details.",
     iconId: "roster",
     sidebar: {
-      group: 1,
       position: 0,
     },
     pageTitle: "Roster",
     dashboard: {
-      group: 0,
       position: 0,
       label: "Manage Roster",
       description: "Add {performers} and track status",
@@ -80,6 +90,7 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Manage choir members, parts, and profile statuses",
       title: "Roster Management",
     },
+    groupId: "people",
   },
   {
     id: "contacts",
@@ -88,13 +99,11 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     label: "Contacts",
     description:
       "Manage marketing and community contacts, contact lists, and communication preferences separately from the Organization roster.",
-    iconId: "settings",
+    iconId: "contacts",
     sidebar: {
-      group: 1,
       position: 1,
     },
     pageTitle: "Contacts",
-    coverageReason: "parity-gap",
     palette: {
       id: "nav-contacts",
       position: 24,
@@ -104,21 +113,26 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle:
         "Manage marketing and community contacts, contact lists, and communication preferences separately from the Organization roster.",
     },
+    groupId: "people",
+    dashboard: {
+      label: "Contacts",
+      description: "Manage contacts and contact lists",
+      tone: "green",
+      position: 1,
+    },
   },
   {
     id: "membership-invitations",
     href: "/admin/settings/invitations",
     requiredModule: "roster",
-    label: "Membership invitations",
+    label: "Membership Invitations",
     description: "Invite new members, managers, and administrators to the organization.",
-    iconId: "settings",
+    iconId: "invitations",
     sidebar: {
-      group: 1,
       position: 2,
     },
     aliases: ["/admin/invitations"],
     pageTitle: "Membership invitations",
-    coverageReason: "parity-gap",
     palette: {
       badge: "Page",
       category: "navigation",
@@ -127,27 +141,33 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Invite singers, directors, and administrators to the portal",
       title: "Organization Invitations",
     },
+    groupId: "people",
+    dashboard: {
+      label: "Membership Invitations",
+      description: "Invite and manage organization members",
+      tone: "green",
+      position: 2,
+    },
   },
   {
     id: "directory",
     href: "/directory",
     requiredModule: "directory",
-    label: "Directory",
+    label: "{performer} Directory",
     description: "Search and browse member directory contacts and section assignments.",
     iconId: "directory",
     sidebar: {
-      group: 1,
       position: 3,
       href: "/directory?from=admin",
     },
     pageTitle: "Directory",
     dashboard: {
-      group: 0,
-      position: 1,
+      position: 3,
       label: "{performer} Directory",
       description: "View opted-in {performers} contact info",
       tone: "green",
     },
+    groupId: "people",
   },
   {
     id: "auditions",
@@ -157,13 +177,11 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     description: "Review candidate submissions, manage audition slots, and track singer inquiries.",
     iconId: "auditions",
     sidebar: {
-      group: 1,
       position: 4,
     },
     pageTitle: "Auditions & Inquiries",
     dashboard: {
-      group: 0,
-      position: 2,
+      position: 4,
       label: "Auditions & Inquiries",
       description: "Review public audition requests and join inquiries",
       tone: "blue",
@@ -176,6 +194,7 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Audition slots, applicant registration, and judging review",
       title: "Audition Management",
     },
+    groupId: "people",
   },
   {
     id: "events",
@@ -186,12 +205,10 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       "Create and manage rehearsals, performances, and call times. Track attendance and edit seating charts.",
     iconId: "events",
     sidebar: {
-      group: 2,
       position: 0,
     },
     pageTitle: "Events",
     dashboard: {
-      group: 1,
       position: 0,
       label: "Manage Events",
       description: "Schedule performances and rehearsals",
@@ -205,6 +222,7 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Rehearsals, performances, RSVP tracking, and attendance",
       title: "Events & Calendar",
     },
+    groupId: "events",
   },
   {
     id: "venues",
@@ -214,17 +232,16 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     description: "Manage performance and rehearsal venues and locations.",
     iconId: "venues",
     sidebar: {
-      group: 2,
       position: 1,
     },
     pageTitle: "Venues",
     dashboard: {
-      group: 1,
-      position: 4,
+      position: 1,
       label: "Manage Venues",
       description: "Configure venue capacities",
       tone: "slate",
     },
+    groupId: "events",
   },
   {
     id: "rsvp",
@@ -234,17 +251,16 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     description: "Track singer availability and RSVP responses for rehearsals and performances.",
     iconId: "rsvp",
     sidebar: {
-      group: 2,
       position: 2,
     },
     pageTitle: "Event RSVPs",
     dashboard: {
-      group: 1,
       position: 2,
       label: "Event RSVPs",
       description: "Track responses and roster balances",
       tone: "amber",
     },
+    groupId: "events",
   },
   {
     id: "attendance",
@@ -254,17 +270,16 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     description: "Tap a name to cycle Pending, Present, and Absent. Changes save immediately.",
     iconId: "attendance",
     sidebar: {
-      group: 2,
       position: 3,
     },
     pageTitle: "Attendance",
     dashboard: {
-      group: 1,
       position: 3,
       label: "Take Attendance",
       description: "Track check-ins for events",
       tone: "green",
     },
+    groupId: "events",
   },
   {
     id: "seating",
@@ -274,13 +289,11 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     description: "",
     iconId: "seating",
     sidebar: {
-      group: 2,
       position: 4,
     },
     pageTitle: "Seating",
     dashboard: {
-      group: 1,
-      position: 5,
+      position: 4,
       label: "Seating Charts",
       description: "Design layouts and assign seats",
       tone: "blue",
@@ -293,22 +306,21 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Stage setups, riser layouts, and auto-paint seating charts",
       title: "Seating Charts",
     },
+    groupId: "events",
   },
   {
     id: "music-library",
     href: "/admin/library",
     requiredModule: "music_library",
-    label: "Music library",
+    label: "Music Library",
     description: "",
     iconId: "music",
     sidebar: {
-      group: 3,
       position: 0,
     },
     aliases: ["/admin/music", "/admin/music/folders"],
     pageTitle: "Music library",
     dashboard: {
-      group: 2,
       position: 0,
       label: "Music Library",
       description: "Catalog, repertoire, and CSV import",
@@ -322,27 +334,27 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Sheet music catalog, arrangements, and reference audio",
       title: "Music Library",
     },
+    groupId: "music",
   },
   {
     id: "setlists",
     href: "/admin/setlists",
     requiredModule: "setlists",
-    label: "Set lists",
+    label: "Set Lists",
     description:
       "Build concert set lists, link musical pieces from the catalog, and share performance order.",
     iconId: "setlists",
     sidebar: {
-      group: 3,
       position: 1,
     },
     pageTitle: "Set lists",
     dashboard: {
-      group: 2,
       position: 1,
       label: "Set Lists",
       description: "Build and reorder event music",
       tone: "cyan",
     },
+    groupId: "music",
   },
   {
     id: "resources",
@@ -352,17 +364,16 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     description: "Shared files and trusted links for this Organization.",
     iconId: "resources",
     sidebar: {
-      group: 3,
       position: 2,
     },
     pageTitle: "Resources",
     dashboard: {
-      group: 2,
       position: 2,
       label: "{performer} Resources",
       description: "Upload documents and links for {performers}",
       tone: "cyan",
     },
+    groupId: "music",
   },
   {
     id: "public-website",
@@ -373,13 +384,11 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       "Edit a private draft, then publish an immutable edge-cached version for Organization visitors.",
     iconId: "website",
     sidebar: {
-      group: 3,
       position: 3,
     },
     pageTitle: "Public website",
     dashboard: {
-      group: 3,
-      position: 0,
+      position: 3,
       label: "Public Website",
       description: "Landing page, hero image, and public branding",
       tone: "cyan",
@@ -392,6 +401,7 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Branded public website, about markdown, and media links",
       title: "Public Website",
     },
+    groupId: "music",
   },
   {
     id: "communications",
@@ -402,13 +412,11 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       "Build a message in three steps: choose the audience, write with Markdown and placeholders, then review it before queueing delivery.",
     iconId: "communications",
     sidebar: {
-      group: 4,
       position: 0,
     },
     pageTitle: "Communications",
     dashboard: {
-      group: 0,
-      position: 3,
+      position: 0,
       label: "Communications",
       description: "Send announcements and review history",
       tone: "slate",
@@ -421,6 +429,7 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Broadcast emails, SMS announcements, and dispatch logs",
       title: "Communications",
     },
+    groupId: "communications",
   },
   {
     id: "polls",
@@ -430,14 +439,12 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     description: "Create polls, collect member votes, and review real-time tally results.",
     iconId: "polls",
     sidebar: {
-      group: 4,
       position: 1,
     },
     aliases: ["/admin/communications/polls"],
     pageTitle: "Polls",
     dashboard: {
-      group: 0,
-      position: 4,
+      position: 1,
       label: "Engagement Polls",
       description: "Review volunteer responses and counts",
       tone: "pink",
@@ -450,6 +457,7 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Volunteer signups, availability polls, and results",
       title: "Engagement Polls",
     },
+    groupId: "communications",
   },
   {
     id: "ticketing",
@@ -459,14 +467,12 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     description: "Manage ticket sales, bundles, and check-in.",
     iconId: "ticketing",
     sidebar: {
-      group: 4,
       position: 2,
     },
     aliases: ["/admin/ticketing"],
     pageTitle: "Ticketing",
     dashboard: {
-      group: 1,
-      position: 1,
+      position: 2,
       label: "Ticket Sales",
       description: "Track sales and process refunds",
       tone: "amber",
@@ -479,23 +485,22 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Ticket tiers, orders, will-call door lists, and discounts",
       title: "Ticket Sales & Orders",
     },
+    groupId: "communications",
   },
   {
     id: "donations",
     href: "/admin/donations",
     requiredModule: "donations",
-    label: "Donations & giving",
+    label: "Donations & Giving",
     description: "Monitor incoming donations, giving activity, and donor recognition tiers.",
     iconId: "donations",
     sidebar: {
-      group: 4,
       position: 3,
     },
     aliases: ["/admin/patrons"],
     pageTitle: "Donations & Giving",
     dashboard: {
-      group: 0,
-      position: 5,
+      position: 3,
       label: "Donations",
       description: "Track giving and manage donor levels",
       tone: "pink",
@@ -508,20 +513,19 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Donor contributions, offline gifts, and tax letters",
       title: "Donations & Patrons",
     },
+    groupId: "communications",
   },
   {
     id: "seasons-dues",
     href: "/admin/seasons",
     requiredModule: "dues",
-    label: "Seasons & dues",
+    label: "Seasons & Dues",
     description: "Manage performance seasons, dues schedules, and payment tracking.",
-    iconId: "settings",
+    iconId: "wallet",
     sidebar: {
-      group: 4,
       position: 4,
     },
     pageTitle: "Seasons & dues",
-    coverageReason: "parity-gap",
     palette: {
       badge: "Module",
       category: "navigation",
@@ -530,6 +534,13 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Active seasons, member dues rates, and collection status",
       title: "Seasons & Member Dues",
     },
+    groupId: "communications",
+    dashboard: {
+      label: "Seasons & Dues",
+      description: "Manage seasons, dues and payment status",
+      tone: "cyan",
+      position: 4,
+    },
   },
   {
     id: "reports",
@@ -537,13 +548,11 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     requiredModule: "reports",
     label: "Reports",
     description: "Generate and review attendance, repertoire, and roster reports.",
-    iconId: "settings",
+    iconId: "reports",
     sidebar: {
-      group: 5,
       position: 0,
     },
     pageTitle: "Reports",
-    coverageReason: "parity-gap",
     palette: {
       id: "nav-reports",
       position: 25,
@@ -552,23 +561,28 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       title: "Reports",
       subtitle: "Generate and review attendance, repertoire, and roster reports.",
     },
+    groupId: "insights",
+    dashboard: {
+      label: "Reports",
+      description: "Attendance, roster, repertoire and financial reports",
+      tone: "slate",
+      position: 0,
+    },
   },
   {
     id: "organization-settings",
     href: "/admin/settings",
     requiredModule: null,
-    label: "Organization settings",
+    label: "Organization Settings",
     description: "Manage organization preferences, terminology, and defaults.",
     iconId: "settings",
     sidebar: {
-      group: 5,
       position: 1,
     },
     pageTitle: "Organization settings",
     dashboard: {
-      group: 3,
       position: 1,
-      label: "System Settings",
+      label: "Organization Settings",
       description: "Configure global preferences",
       tone: "slate",
     },
@@ -580,6 +594,7 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
       subtitle: "Organization settings, integrations, branding, and audit log",
       title: "System Settings",
     },
+    groupId: "insights",
   },
   {
     id: "modules",
@@ -589,11 +604,11 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     description: "Enable or disable feature modules for your organization.",
     iconId: "settings",
     sidebar: {
-      group: 5,
       position: 2,
     },
     pageTitle: "Modules",
     coverageReason: "configuration",
+    groupId: "insights",
   },
   {
     id: "setup-checklist",
@@ -603,11 +618,11 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     description: "Review configuration steps to prepare your organization for launch.",
     iconId: "settings",
     sidebar: {
-      group: 5,
       position: 3,
     },
     pageTitle: "Setup checklist",
     coverageReason: "configuration",
+    groupId: "insights",
   },
   {
     id: "organization-security",
@@ -617,11 +632,11 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     description: "Manage two-factor authentication and organization security policies.",
     iconId: "settings",
     sidebar: {
-      group: 5,
       position: 4,
     },
     pageTitle: "Organization security",
     coverageReason: "configuration",
+    groupId: "insights",
   },
   {
     id: "patrons-dashboard",
@@ -633,12 +648,12 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     coverageReason: "contextual",
     pageTitle: "Patrons Dashboard",
     dashboard: {
-      group: 0,
-      position: 6,
+      position: 5,
       label: "Patrons Dashboard",
       description: "View donor/buyer LTV and message patrons",
       tone: "cyan",
     },
+    groupId: "communications",
   },
 ] as const satisfies readonly OrganizationFeature[];
 export const organizationPaletteShortcuts: readonly PaletteShortcut[] = [
@@ -749,30 +764,25 @@ export const organizationQuickActions = [
     featureId: "attendance",
     href: "/admin/attendance",
     label: "Take Attendance",
-    iconId: "attendance",
   },
   {
     featureId: "communications",
     href: "/admin/communications",
     label: "Send Announcement",
-    iconId: "communications",
   },
   {
     featureId: "roster",
     href: "/admin/roster?add=true",
     label: "Add {performer}",
-    iconId: "roster",
   },
   {
     featureId: "events",
     href: "/admin/events?add=true",
     label: "New Event",
-    iconId: "events",
   },
   {
     featureId: "music-library",
     href: "/admin/library",
     label: "Add Music",
-    iconId: "music",
   },
 ] as const satisfies readonly QuickShortcut[];

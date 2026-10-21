@@ -109,25 +109,18 @@ describe("OrganizationAdminOverview", () => {
     fireEvent.click(takeAttendanceAction);
     expect(navigate).toHaveBeenCalledWith("/admin/attendance");
 
-    // All 4 sections rendered with tool counts and section notes
-    expect(screen.getByRole("heading", { level: 2, name: /People & membership/i })).toBeVisible();
-    expect(screen.getByText("Profiles, communications, and supporter relationships")).toBeVisible();
-    expect(screen.getByText("7 tools")).toBeVisible();
-
-    expect(screen.getByRole("heading", { level: 2, name: /Events & attendance/i })).toBeVisible();
-    expect(
-      screen.getByText("Plan performances, manage ticketing, and check in members"),
-    ).toBeVisible();
-    expect(screen.getByText("6 tools")).toBeVisible();
-
-    expect(screen.getByRole("heading", { level: 2, name: /Music & performance/i })).toBeVisible();
-    expect(screen.getByText("Scores, programs, and materials for performers")).toBeVisible();
-    expect(screen.getByText("3 tools")).toBeVisible();
-
-    expect(screen.getByRole("heading", { level: 2, name: /Admin/i })).toBeVisible();
-    expect(screen.getByText("System configuration, website, and global preferences")).toBeVisible();
-    expect(screen.getByText("2 tools")).toBeVisible();
-
+    // Shared semantic groups and full inventory, with exact visible card counts.
+    for (const [name, count] of [
+      ["People & membership", 5],
+      ["Events & attendance", 5],
+      ["Music & content", 4],
+      ["Communications & finance", 6],
+      ["Insights & settings", 2],
+    ] as const) {
+      const region = screen.getByRole("region", { name });
+      expect(within(region).getAllByRole("link")).toHaveLength(count);
+      expect(within(region).getByText(`${String(count)} tools`)).toBeVisible();
+    }
     // Full card link navigation
     const rosterCard = screen.getByRole("link", { name: /Manage Roster/i });
     expect(rosterCard).toHaveAttribute("href", "/admin/roster");
@@ -211,7 +204,7 @@ describe("OrganizationAdminOverview", () => {
 
     // Events and Music sections hidden because all their cards are disabled
     expect(screen.queryByRole("heading", { name: /Events & attendance/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /Music & performance/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Music & content/i })).not.toBeInTheDocument();
 
     // Programs quick actions excluded
     expect(screen.queryByRole("link", { name: "Send Announcement" })).not.toBeInTheDocument();
@@ -251,7 +244,7 @@ describe("OrganizationAdminOverview", () => {
         .getAllByRole("link")
         .filter((link) => link.getAttribute("href")?.split("?")[0] === path);
     expect(linksForPath()).toHaveLength(0);
-    expect(screen.getByRole("link", { name: /System Settings/ })).toBeVisible();
+    expect(screen.getByRole("link", { name: /Organization Settings/ })).toBeVisible();
     if (moduleId === "auditions") {
       expect(listOrganizationAuditions).not.toHaveBeenCalled();
       expect(screen.queryByText("Pending Inquiries")).not.toBeInTheDocument();
@@ -288,14 +281,14 @@ describe("OrganizationAdminOverview", () => {
     );
     await screen.findByText("88");
     const people = screen.getByRole("region", { name: "People & membership" });
-    expect(within(people).getAllByRole("link")).toHaveLength(1);
-    expect(within(people).getByText("1 tool")).toBeVisible();
+    expect(within(people).getAllByRole("link")).toHaveLength(3);
+    expect(within(people).getByText("3 tools")).toBeVisible();
     expect(within(people).getByRole("link", { name: /Manage Roster/ })).toBeVisible();
     expect(
       within(screen.getByRole("region", { name: "Events & attendance" })).getByText("4 tools"),
     ).toBeVisible();
     expect(
-      within(screen.getByRole("region", { name: "Music & performance" })).getByText("2 tools"),
+      within(screen.getByRole("region", { name: "Music & content" })).getByText("2 tools"),
     ).toBeVisible();
     expect(screen.getByRole("link", { name: "New Event" })).toBeVisible();
     expect(screen.queryByRole("link", { name: "Send Announcement" })).not.toBeInTheDocument();

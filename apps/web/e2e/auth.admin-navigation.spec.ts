@@ -328,10 +328,10 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
     "M8 4h8v5l3 3H5l3-3V4M12 12v8",
   );
   await collapseNavigation.click();
+  await expect(page.getByRole("button", { name: "Expand navigation" })).toBeVisible();
+  await page.getByRole("button", { name: "Expand navigation" }).click();
+  await page.getByRole("button", { name: "Unpin sidebar" }).click();
   await expect(page.locator(".signed-in-sidebar")).toHaveCount(0);
-  const openNavigation = page.getByRole("button", { name: "Open workspace navigation" });
-  await expect(openNavigation).toBeVisible();
-  await openNavigation.click();
   const navigationDrawer = page.getByRole("dialog", { name: "Workspace navigation" });
   await expect(navigationDrawer).toBeVisible();
   const pinNavigation = navigationDrawer.getByRole("button", { name: "Keep sidebar open" });

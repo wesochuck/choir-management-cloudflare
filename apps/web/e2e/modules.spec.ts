@@ -125,8 +125,9 @@ test("renders categorized granular modules and allows toggling individual featur
 
   // Initially both Music library and Set lists should be visible in navigation (on desktop)
   if (test.info().project.name === "chromium") {
-    await expect(page.getByRole("link", { name: "Music library" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Set lists" })).toBeVisible();
+    await page.getByRole("button", { name: "Music & content", exact: true }).click();
+    await expect(page.getByRole("link", { name: "Music Library", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Set Lists", exact: true })).toBeVisible();
   }
 
   // Toggle off "Set Lists"
