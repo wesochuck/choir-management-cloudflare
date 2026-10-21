@@ -162,11 +162,18 @@ export function useMusicEditor({
       setDurationDetectionNotice(null);
     }
   }, []);
-  const handleTrackDurationDetected = useCallback(
+  const recordDetectedTrackDuration = useCallback(
     (trackKey: string, durationSeconds: number | null): void => {
       setTrackDurationCache((current) => ({ ...current, [trackKey]: durationSeconds }));
       if (durationSeconds === null) return;
       setDurationDetectionNotice(null);
+    },
+    [],
+  );
+  const handleTrackDurationDetected = useCallback(
+    (trackKey: string, durationSeconds: number | null): void => {
+      recordDetectedTrackDuration(trackKey, durationSeconds);
+      if (durationSeconds === null) return;
       const decision = computeDurationAutoFillDecision(
         durationAutoFillStateRef.current,
         durationInputRef.current,
@@ -179,7 +186,7 @@ export function useMusicEditor({
       setDurationInput(decision.newDuration);
       setDurationAutoFillLabel(trackKey === "tutti" ? "Tutti" : trackKey);
     },
-    [],
+    [recordDetectedTrackDuration],
   );
   const handlePendingTuttiFileChange = useCallback(
     (file: File | null): void => {
@@ -217,13 +224,16 @@ export function useMusicEditor({
       }),
     ).then((durations) => {
       if (cancelled || requestId !== durationDetectionRequestRef.current) return;
+      // Background metadata reads only record what the tracks contain. They never
+      // write into the draft, so a late resolution cannot mark the editor dirty
+      // while the administrator is playing a track on another section.
       for (const [trackKey, durationSeconds] of durations)
-        handleTrackDurationDetected(trackKey, durationSeconds);
+        recordDetectedTrackDuration(trackKey, durationSeconds);
     });
     return () => {
       cancelled = true;
     };
-  }, [dialogOpen, editingId, handleTrackDurationDetected, piece.trackFileIds]);
+  }, [dialogOpen, editingId, piece.trackFileIds, recordDetectedTrackDuration]);
   const expectedTrackDuration = useMemo(
     () => computeExpectedTrackDuration(trackDurationCache),
     [trackDurationCache],
