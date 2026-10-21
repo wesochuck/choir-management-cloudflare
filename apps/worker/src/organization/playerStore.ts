@@ -1,3 +1,4 @@
+import { readLoudness } from "./loudnessStore";
 import type { DurableObjectStorage, SqlStorageValue } from "@cloudflare/workers-types";
 
 import { organizationRosterConfigurationRequestSchema } from "@choir/contracts";
@@ -363,6 +364,10 @@ export function readPlayerDetailsFromStore(
     eventTitle: eventRow.title,
     eventStartsAt: eventRow.startsAt,
     items,
+    loudnessByFileId: readLoudness(
+      storage,
+      items.flatMap((item) => Object.values(item.trackFileIds)),
+    ),
     organizationName: readOrganizationName(storage),
     performerLabel: rosterConfig.performerLabel,
     profileId,
@@ -408,6 +413,10 @@ export function readPlayerPlaylistFromStore(
     eventStartsAt: eventRow.startsAt,
     eventTitle: eventRow.title,
     items,
+    loudnessByFileId: readLoudness(
+      storage,
+      items.flatMap((item) => Object.values(item.trackFileIds)),
+    ),
     organizationName: readOrganizationName(storage),
     performerLabel: rosterConfig.performerLabel,
     trackLabels: readTrackLabels(rosterConfig),

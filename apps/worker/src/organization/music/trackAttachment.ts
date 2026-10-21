@@ -1,3 +1,4 @@
+import { enqueueAttachedLoudness } from "../loudnessStore";
 import type { MusicTrackAttachmentResult } from "@choir/contracts";
 import type { z } from "zod";
 import type { musicOperationSchema } from "./types.js";
@@ -237,6 +238,7 @@ export function attachTracksInStore(
     }
 
     for (const audit of pendingAudits) {
+      enqueueAttachedLoudness(storage, audit.pieceId, [audit.fileId]);
       storage.sql.exec(
         `INSERT INTO audit_events
           (id, actor_type, actor_id, action, target_type, target_id,

@@ -133,6 +133,41 @@ afterEach(() => {
 });
 
 describe("offline private audio", () => {
+  it("binds cached bytes and URL leases to the exact downloaded content version", async () => {
+    installIndexedDatabase();
+    const response = (version?: string) =>
+      new Response(new Blob(["audio"], { type: "audio/mpeg" }), {
+        status: 200,
+        headers: version ? { "x-audio-content-version": version } : {},
+      });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(response("v1"))
+        .mockResolvedValueOnce(response("v2"))
+        .mockResolvedValueOnce(response()),
+    );
+    vi.spyOn(URL, "createObjectURL")
+      .mockReturnValueOnce("blob:v1")
+      .mockReturnValueOnce("blob:v2")
+      .mockReturnValueOnce("blob:legacy");
+    vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    await saveOfflineAudio("version-scope", "track", "/track");
+    const first = await acquireOfflineAudioUrl("version-scope", "track");
+    expect(first?.contentVersion).toBe("v1");
+    await saveOfflineAudio("version-scope", "track", "/track");
+    const second = await acquireOfflineAudioUrl("version-scope", "track");
+    expect(second?.contentVersion).toBe("v2");
+    expect(first?.contentVersion).toBe("v1");
+    await saveOfflineAudio("version-scope", "legacy", "/legacy");
+    const legacy = await acquireOfflineAudioUrl("version-scope", "legacy");
+    expect(legacy?.contentVersion).toBeNull();
+    first?.release();
+    second?.release();
+    legacy?.release();
+  });
+
   it("persists by host scope, creates a playable blob URL, and removes the copy", async () => {
     installIndexedDatabase();
     vi.stubGlobal(

@@ -1,3 +1,4 @@
+import { enqueueAttachedLoudness } from "../loudnessStore";
 import {
   organizationMusicPieceRequestSchema,
   organizationMusicPieceSchema,
@@ -152,6 +153,7 @@ export function writePiece(
         operation.pieceId,
       );
     }
+    enqueueAttachedLoudness(storage, operation.pieceId, Object.values(piece.trackFileIds));
     insertAudit(
       storage,
       operation,

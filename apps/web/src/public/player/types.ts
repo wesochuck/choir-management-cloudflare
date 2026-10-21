@@ -1,3 +1,4 @@
+import type { LoudnessMeasurement } from "@choir/contracts";
 declare global {
   interface Navigator {
     readonly audioSession?: {
@@ -7,6 +8,7 @@ declare global {
 }
 
 export interface PlayerPlaylistItem {
+  readonly loudnessByFileId?: Record<string, LoudnessMeasurement> | undefined;
   readonly arranger?: string | null | undefined;
   readonly composer?: string | null | undefined;
   readonly cueInstruction?: string | null | undefined;
@@ -20,6 +22,7 @@ export interface PlayerPlaylistItem {
 }
 
 export interface PlayerDetails {
+  readonly loudnessByFileId?: Record<string, LoudnessMeasurement> | undefined;
   readonly eventArtworkFileId?: string | null | undefined;
   readonly eventId: string;
   readonly eventTitle: string;

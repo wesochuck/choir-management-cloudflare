@@ -13,14 +13,15 @@ import type { PlayerPlaylistItem } from "./types";
  * When `acquireOfflineUrl` is provided, holds an explicit `OfflineAudioLease` for the active track
  * and releases it on track replacement or component unmount, preventing URL leaks.
  */
-export function useOfflineAudioUrl(
+export function useOfflineAudio(
   resolveOfflineUrl: (fileId: string) => Promise<string | null>,
   fileId: string | undefined,
   offlineIds: ReadonlySet<string>,
   acquireOfflineUrl?: (fileId: string) => Promise<OfflineAudioLease | null>,
-): string | null {
+): { readonly url: string | null; readonly contentVersion: string | null } {
   const [resolved, setResolved] = useState<{
     readonly fileId: string;
+    readonly contentVersion?: string | null | undefined;
     readonly resolver: typeof resolveOfflineUrl;
     readonly acquirer: typeof acquireOfflineUrl;
     readonly url: string | null;
@@ -46,6 +47,7 @@ export function useOfflineAudioUrl(
               resolver: resolveOfflineUrl,
               acquirer: acquireOfflineUrl,
               url: lease.url,
+              contentVersion: lease.contentVersion,
             });
           } else {
             setResolved({
@@ -85,8 +87,18 @@ export function useOfflineAudioUrl(
     resolved.fileId === fileId &&
     resolved.resolver === resolveOfflineUrl &&
     resolved.acquirer === acquireOfflineUrl
-    ? resolved.url
-    : null;
+    ? { url: resolved.url, contentVersion: resolved.contentVersion ?? null }
+    : { url: null, contentVersion: null };
+}
+
+/** Compatibility helper for callers that only need the playable URL. */
+export function useOfflineAudioUrl(
+  resolveOfflineUrl: (fileId: string) => Promise<string | null>,
+  fileId: string | undefined,
+  offlineIds: ReadonlySet<string>,
+  acquireOfflineUrl?: (fileId: string) => Promise<OfflineAudioLease | null>,
+): string | null {
+  return useOfflineAudio(resolveOfflineUrl, fileId, offlineIds, acquireOfflineUrl).url;
 }
 
 /**

@@ -1,7 +1,10 @@
+import type { LoudnessMeasurement } from "@choir/contracts";
+import { useLoudnessGain } from "../public/player/useLoudnessGain";
 import { useEffect, useRef, useState } from "react";
 import { audioTimeText } from "./components/MusicCatalog/utils";
 
 export interface InlinePracticeTrackPlayerProps {
+  readonly measurement?: LoudnessMeasurement | undefined;
   readonly buttonClassName?: string | undefined;
   readonly className?: string | undefined;
   readonly fileId: string;
@@ -58,6 +61,7 @@ export function InlinePracticeTrackPlayer({
   buttonClassName = "",
   className = "",
   fileId,
+  measurement,
   label = "Practice track",
   lowercaseLabelInAria = false,
   onPause,
@@ -67,6 +71,7 @@ export function InlinePracticeTrackPlayer({
   trackTypeNoun = "recording",
 }: InlinePracticeTrackPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const prepareLoudness = useLoudnessGain(audioRef, fileId, measurement);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -91,6 +96,7 @@ export function InlinePracticeTrackPlayer({
           otherAudio.pause();
         }
       });
+      prepareLoudness();
       void audio.play().catch(() => {
         setIsPlaying(false);
       });

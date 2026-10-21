@@ -1,0 +1,134 @@
+{
+  "generator": "FFmpeg lavfi + libmp3lame; loudnorm measurement only",
+  "ffmpegVersion": "ffmpeg version 7.1 Copyright (c) 2000-2024 the FFmpeg developers",
+  "fixtures": [
+    {
+      "name": "32000-1-cbr.mp3",
+      "integratedLufs": -31.05,
+      "truePeakDbtp": -26.82,
+      "samples": 77984,
+      "rate": 32000,
+      "channels": 1
+    },
+    {
+      "name": "32000-1-vbr.mp3",
+      "integratedLufs": -30.63,
+      "truePeakDbtp": -25.81,
+      "samples": 77984,
+      "rate": 32000,
+      "channels": 1
+    },
+    {
+      "name": "32000-2-cbr.mp3",
+      "integratedLufs": -31.05,
+      "truePeakDbtp": -29.81,
+      "samples": 77984,
+      "rate": 32000,
+      "channels": 2
+    },
+    {
+      "name": "32000-2-vbr.mp3",
+      "integratedLufs": -30.63,
+      "truePeakDbtp": -28.82,
+      "samples": 77984,
+      "rate": 32000,
+      "channels": 2
+    },
+    {
+      "name": "44100-1-cbr.mp3",
+      "integratedLufs": -31.05,
+      "truePeakDbtp": -26.81,
+      "samples": 107472,
+      "rate": 44100,
+      "channels": 1
+    },
+    {
+      "name": "44100-1-vbr.mp3",
+      "integratedLufs": -30.65,
+      "truePeakDbtp": -25.94,
+      "samples": 107472,
+      "rate": 44100,
+      "channels": 1
+    },
+    {
+      "name": "44100-2-cbr.mp3",
+      "integratedLufs": -31.05,
+      "truePeakDbtp": -29.75,
+      "samples": 107472,
+      "rate": 44100,
+      "channels": 2
+    },
+    {
+      "name": "44100-2-vbr.mp3",
+      "integratedLufs": -30.65,
+      "truePeakDbtp": -28.94,
+      "samples": 107472,
+      "rate": 44100,
+      "channels": 2
+    },
+    {
+      "name": "48000-1-cbr.mp3",
+      "integratedLufs": -31.05,
+      "truePeakDbtp": -26.8,
+      "samples": 116976,
+      "rate": 48000,
+      "channels": 1
+    },
+    {
+      "name": "48000-1-vbr.mp3",
+      "integratedLufs": -30.64,
+      "truePeakDbtp": -25.85,
+      "samples": 116976,
+      "rate": 48000,
+      "channels": 1
+    },
+    {
+      "name": "48000-2-cbr.mp3",
+      "integratedLufs": -31.05,
+      "truePeakDbtp": -29.83,
+      "samples": 116976,
+      "rate": 48000,
+      "channels": 2
+    },
+    {
+      "name": "48000-2-vbr.mp3",
+      "integratedLufs": -30.62,
+      "truePeakDbtp": -28.87,
+      "samples": 116976,
+      "rate": 48000,
+      "channels": 2
+    },
+    {
+      "name": "high-intersample-peak.mp3",
+      "integratedLufs": -0.35,
+      "truePeakDbtp": -3.16,
+      "samples": 116976,
+      "rate": 48000,
+      "channels": 2
+    },
+    {
+      "name": "dynamic.mp3",
+      "integratedLufs": -20.04,
+      "truePeakDbtp": -16.34,
+      "samples": 107472,
+      "rate": 44100,
+      "channels": 1
+    },
+    {
+      "name": "silence.mp3",
+      "integratedLufs": null,
+      "truePeakDbtp": null,
+      "samples": 107472,
+      "rate": 44100,
+      "channels": 1
+    },
+    {
+      "name": "no-xing.mp3",
+      "integratedLufs": -31.46,
+      "truePeakDbtp": -28.35,
+      "samples": 109440,
+      "rate": 44100,
+      "channels": 1
+    }
+  ]
+}

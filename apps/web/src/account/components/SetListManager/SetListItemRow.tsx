@@ -81,6 +81,7 @@ function SetListItemRowActions({
       {recordingStatus.status === "available" ? (
         <InlinePracticeTrackPlayer
           fileId={recordingStatus.track.fileId}
+          measurement={recordingStatus.track.measurement}
           label={recordingStatus.track.trackLabel}
           pieceTitle={recordingStatus.track.sourcePieceTitle || item.title}
           showLabelInButton

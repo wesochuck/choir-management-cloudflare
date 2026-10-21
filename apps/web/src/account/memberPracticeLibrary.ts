@@ -34,6 +34,7 @@ export function isPiecePlayableForPart(
         pieceId: piece.id,
         title: piece.title,
         trackFileIds: piece.trackFileIds,
+        loudnessByFileId: piece.loudnessByFileId,
       },
       rosterPart ?? "",
     ) !== null
@@ -50,6 +51,7 @@ export function singerPiecesToPlaylistItems(
     pieceId: piece.id,
     title: piece.title,
     trackFileIds: piece.trackFileIds,
+    loudnessByFileId: piece.loudnessByFileId,
     type: "song",
   }));
 }
@@ -146,6 +148,7 @@ function pieceToSetListPlaylistItem(
     pieceId: piece.id,
     title: titleOverride ?? piece.title,
     trackFileIds: piece.trackFileIds,
+    loudnessByFileId: piece.loudnessByFileId,
     type: "song",
   };
 }

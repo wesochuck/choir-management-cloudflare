@@ -1,3 +1,5 @@
+import type { LoudnessMeasurement } from "@choir/contracts";
+import { useLoudnessGain } from "../../../public/player/useLoudnessGain";
 import type {
   OrganizationEvent,
   OrganizationMusicPiece,
@@ -260,13 +262,18 @@ export function MusicPiecePerformances({
 }
 
 export function MusicInlineAudioPlayer({
+  fileId,
+  measurement,
   label,
   src,
 }: {
+  readonly fileId: string;
+  readonly measurement?: LoudnessMeasurement | undefined;
   readonly label: string;
   readonly src: string;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const prepareLoudness = useLoudnessGain(audioRef, `${fileId}:${src}`, measurement);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -286,6 +293,7 @@ export function MusicInlineAudioPlayer({
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) {
+      prepareLoudness();
       void audio.play().catch(() => {
         setIsPlaying(false);
       });
@@ -398,6 +406,7 @@ export function MusicTableTrackPlayer({
       buttonClassName="music-table-track-player__button"
       className="music-table-track-player"
       fileId={track.fileId}
+      measurement={piece.loudnessByFileId?.[track.fileId]}
       label={track.label}
       lowercaseLabelInAria={true}
       pieceTitle={piece.title}

@@ -1,3 +1,4 @@
+import type { LoudnessMeasurement } from "@choir/contracts";
 import type {
   OrganizationEvent,
   OrganizationEventRequest,
@@ -112,6 +113,7 @@ export function musicPiecesForSetListItem(
 }
 
 export interface SetListPreferredPracticeTrack {
+  readonly measurement?: LoudnessMeasurement | undefined;
   readonly fallback: boolean;
   readonly fileId: string;
   readonly sourcePieceId: string;
@@ -133,6 +135,9 @@ export function resolveSetListPreferredPracticeTrack(
       return {
         fallback: exactTrack.key.trim().toLowerCase() !== "tutti",
         fileId: exactTrack.fileId,
+        ...(exactPiece.loudnessByFileId?.[exactTrack.fileId]
+          ? { measurement: exactPiece.loudnessByFileId[exactTrack.fileId] }
+          : {}),
         sourcePieceId: exactPiece.id,
         sourcePieceTitle: exactPiece.title,
         trackKey: exactTrack.key,
@@ -158,6 +163,9 @@ export function resolveSetListPreferredPracticeTrack(
     return {
       fallback: true,
       fileId: track.fileId,
+      ...(child.loudnessByFileId?.[track.fileId]
+        ? { measurement: child.loudnessByFileId[track.fileId] }
+        : {}),
       sourcePieceId: child.id,
       sourcePieceTitle: child.title,
       trackKey: track.key,

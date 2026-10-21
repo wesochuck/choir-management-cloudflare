@@ -1,3 +1,4 @@
+import { loudnessByFileIdSchema } from "@choir/contracts";
 import {
   communicationUnsubscribeRequestSchema,
   publicAuditionInquiryRequestSchema,
@@ -497,6 +498,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
     const playlist = z
       .object({
+        loudnessByFileId: loudnessByFileIdSchema.optional(),
         eventArtworkFileId: z.uuid().nullable().optional(),
         eventId: z.uuid(),
         eventStartsAt: z.string().min(1),
@@ -518,6 +520,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
     return context.json({
+      loudnessByFileId: playlist.data.loudnessByFileId,
       allPieces: playlist.data.items,
       event: {
         artworkFileId: playlist.data.eventArtworkFileId ?? null,

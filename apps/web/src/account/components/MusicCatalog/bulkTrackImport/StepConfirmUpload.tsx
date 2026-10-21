@@ -1,3 +1,4 @@
+import { analyzeUploadedTrack } from "../../../loudness/client";
 import type {
   MusicTrackAttachmentAssignment,
   MusicTrackAttachmentResult,
@@ -66,7 +67,20 @@ async function uploadAndAttachReviewedTracks(
     return assignment;
   });
 
-  return attachBulkPracticeTracks({ assignments: completeAssignments, idempotencyKey });
+  const result = await attachBulkPracticeTracks({
+    assignments: completeAssignments,
+    idempotencyKey,
+  });
+  const attached = new Set(
+    result.results.filter((row) => row.status === "attached").map((row) => row.fileId),
+  );
+  for (let index = 0; index < planned.length; index++) {
+    const item = planned[index];
+    const assignment = completeAssignments[index];
+    if (item && assignment && attached.has(assignment.fileId))
+      analyzeUploadedTrack(assignment.fileId, item.file);
+  }
+  return result;
 }
 
 function extractPlannedAssignments(

@@ -7,6 +7,18 @@ Durable Objects, and D1. Legacy parity tracking has been retired (ADR 0049), and
 maintained natively via `scripts/check-routes.mjs` and `scripts/route-probe-plan.mjs`. Permanent
 staging remains the active deployment target; production launch is out of scope.
 
+## Issue 277 practice loudness handoff — October 20, 2026
+
+Local implementation and current verification are recorded in
+[ISSUE-277-HANDOFF.md](ISSUE-277-HANDOFF.md). The browser-free CI gate passed all 19 steps (1,929
+unit, 820 UI, 547 Workerd tests). Rollout remains disabled. Enabled real-media tests pass in
+Chromium desktop/mobile, but a newly added WebKit test fails to advance playback on the second track
+in both enabled and current-branch default-off modes. Compare untouched HEAD in an isolated checkout
+before attributing the failure; investigate before enabling normalization. Physical-phone and
+staging CSP qualification remain pending. No deployment or commit was made. The most recent E2E
+build in `apps/web/dist` temporarily has normalization enabled; restore a normal default-off build
+after diagnosis. See the handoff for exact commands, logs and resume steps.
+
 ## Readable ticket URL staging recovery — October 16, 2026
 
 The supplied deployment log for commit `f7e71bdb2649530bc2239ba6c9a3487c9102de54` reports failed

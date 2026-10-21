@@ -5,8 +5,8 @@ import { extractBaselineFromRouter, parseDirectives, validateStaticCsp } from ".
 const sampleRouter = `
 export function buildContentSecurityPolicy(nonce?: string): string {
   const scriptDirective = nonce
-    ? \`script-src 'self' 'nonce-\${nonce}' https://static.cloudflareinsights.com https://challenges.cloudflare.com\`
-    : "script-src 'self' https://static.cloudflareinsights.com https://challenges.cloudflare.com";
+    ? \`script-src 'self' 'wasm-unsafe-eval' 'nonce-\${nonce}' https://static.cloudflareinsights.com https://challenges.cloudflare.com\`
+    : "script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com https://challenges.cloudflare.com";
 
   return [
     "default-src 'self'",
@@ -31,14 +31,20 @@ const validHeaders = `/*
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://static.cloudflareinsights.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://cloudflareinsights.com https://challenges.cloudflare.com; frame-src 'self' https://challenges.cloudflare.com; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://cloudflareinsights.com https://challenges.cloudflare.com; frame-src 'self' https://challenges.cloudflare.com; media-src 'self' blob:; worker-src 'self' blob:; manifest-src 'self'
 `;
 
 describe("CSP verification check", () => {
   it("parses directives properly into a map", () => {
-    const directives = parseDirectives("default-src 'self'; script-src 'self' https://example.com");
+    const directives = parseDirectives(
+      "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://example.com",
+    );
     expect(directives.get("default-src")).toEqual(["'self'"]);
-    expect(directives.get("script-src")).toEqual(["'self'", "https://example.com"]);
+    expect(directives.get("script-src")).toEqual([
+      "'self'",
+      "'wasm-unsafe-eval'",
+      "https://example.com",
+    ]);
   });
 
   it("extracts baseline directives from router source", () => {
@@ -46,7 +52,7 @@ describe("CSP verification check", () => {
     expect(baseline).toContain("default-src 'self'");
     expect(baseline).toContain("frame-ancestors 'none'");
     expect(baseline).toContain(
-      "script-src 'self' https://static.cloudflareinsights.com https://challenges.cloudflare.com",
+      "script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com https://challenges.cloudflare.com",
     );
   });
 

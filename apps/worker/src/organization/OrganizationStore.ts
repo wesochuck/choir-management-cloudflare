@@ -1,3 +1,11 @@
+import {
+  startLoudness,
+  loudnessStatus,
+  claimLoudness,
+  bindLoudnessVersion,
+  renewLoudness,
+  submitLoudness,
+} from "./loudnessStore";
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 
@@ -620,6 +628,25 @@ export class OrganizationStore extends DurableObject {
 
   applyHistoricalStripeReconciliation(input: ApplyHistoricalStripeReconciliationInput) {
     return applyHistoricalStripeReconciliationInStore(this.ctx.storage, input);
+  }
+
+  startAudioLoudness(input: Parameters<typeof startLoudness>[1]) {
+    return startLoudness(this.ctx.storage, input);
+  }
+  audioLoudnessStatus(input: { organizationId: string }) {
+    return loudnessStatus(this.ctx.storage, input.organizationId);
+  }
+  claimAudioLoudness(input: Parameters<typeof claimLoudness>[1]) {
+    return claimLoudness(this.ctx.storage, input);
+  }
+  bindAudioLoudnessVersion(input: Parameters<typeof bindLoudnessVersion>[1]) {
+    return bindLoudnessVersion(this.ctx.storage, input);
+  }
+  renewAudioLoudness(input: Parameters<typeof renewLoudness>[1]) {
+    return renewLoudness(this.ctx.storage, input);
+  }
+  submitAudioLoudness(input: Parameters<typeof submitLoudness>[1]) {
+    return submitLoudness(this.ctx.storage, input);
   }
 
   private async dispatchRpcCall(call: OrganizationRpcCall): Promise<OrganizationRpcResult> {

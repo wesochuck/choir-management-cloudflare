@@ -38,6 +38,7 @@ const metadataStoreName = "audioMetadata";
 const databaseVersion = 2;
 
 export interface OfflineAudioLease {
+  readonly contentVersion?: string | null | undefined;
   readonly fileId: string;
   readonly release: () => void;
   readonly scope: string;
@@ -45,6 +46,7 @@ export interface OfflineAudioLease {
 }
 
 interface TrackedUrl {
+  readonly contentVersion: string | null;
   refCount: number;
   url: string;
 }
@@ -363,6 +365,7 @@ export async function saveOfflineAudio(
   tx.objectStore(audioStoreName).put({
     blob,
     key,
+    contentVersion: response.headers.get("x-audio-content-version"),
   });
   tx.objectStore(metadataStoreName).put({
     fileId,
@@ -410,6 +413,7 @@ export async function acquireOfflineAudioUrl(
     let released = false;
     return {
       fileId,
+      contentVersion: active.contentVersion,
       release: () => {
         if (released) return;
         released = true;
@@ -442,7 +446,11 @@ export async function acquireOfflineAudioUrl(
           return null;
         }
 
-        activeUrlEntries.set(key, { refCount: 0, url });
+        activeUrlEntries.set(key, {
+          refCount: 0,
+          url,
+          contentVersion: cachedContentVersion(result),
+        });
         return url;
       } finally {
         pendingUrlPromises.delete(key);
@@ -462,6 +470,7 @@ export async function acquireOfflineAudioUrl(
   let released = false;
   return {
     fileId,
+    contentVersion: entry.contentVersion,
     release: () => {
       if (released) return;
       released = true;
@@ -606,4 +615,17 @@ export async function purgeCachedPlayerMetadata(scope: string): Promise<number> 
     }
   }
   return purged;
+}
+
+function cachedContentVersion(value: unknown): string | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !("contentVersion" in value) ||
+    typeof value.contentVersion !== "string"
+  )
+    return null;
+  return value.contentVersion.length > 0 && value.contentVersion.length <= 256
+    ? value.contentVersion
+    : null;
 }

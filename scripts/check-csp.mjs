@@ -55,7 +55,7 @@ export function extractBaselineFromRouter(routerSource) {
   for (const line of rawLines) {
     if (line.includes("scriptDirective")) {
       baselineDirectives.push(
-        "script-src 'self' https://static.cloudflareinsights.com https://challenges.cloudflare.com",
+        "script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com https://challenges.cloudflare.com",
       );
     } else {
       const stringMatch = line.match(/^"([^"]+)",?$/);
@@ -104,6 +104,8 @@ export function validateStaticCsp(headersContent, routerSource) {
 
   // 2. Cloudflare Insights and Turnstile origins
   const scriptSrc = directives.get("script-src") ?? [];
+  if (!scriptSrc.includes("'wasm-unsafe-eval'"))
+    errors.push("`script-src` must permit the local WASM audio decoder");
   if (!scriptSrc.includes("https://static.cloudflareinsights.com")) {
     errors.push("`script-src` must include https://static.cloudflareinsights.com");
   }

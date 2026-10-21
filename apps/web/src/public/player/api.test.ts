@@ -124,3 +124,43 @@ describe("public player api parsing", () => {
     expect(details.trackLabels).toEqual({ B1: "Bass 1", T1: "Tenor 1" });
   });
 });
+
+describe("versioned loudness metadata parsing", () => {
+  const fileId = "8dd17839-19ac-4b24-8479-f600861e902b";
+  const measurement = {
+    analysisVersion: 1,
+    contentVersion: "r2-upload-version",
+    integratedLufs: -26,
+    truePeakDbtp: -3,
+  };
+  const details = {
+    eventId: "event",
+    eventStartsAt: "",
+    eventTitle: "Practice",
+    items: [{ title: "Song", trackFileIds: { tutti: fileId } }],
+  };
+  it("retains ready versioned metadata through repeated offline normalization", () => {
+    const parsed = parsePlayerDetails({ ...details, loudnessByFileId: { [fileId]: measurement } });
+    expect(parsePlayerDetails(parsed).loudnessByFileId).toEqual({ [fileId]: measurement });
+    expect(
+      parsePublicPlaylistDetails({
+        event: { id: "event", title: "Practice", date: "" },
+        pieces: details.items,
+        loudnessByFileId: parsed.loudnessByFileId,
+      }).loudnessByFileId,
+    ).toEqual(parsed.loudnessByFileId);
+  });
+  it("keeps old and malformed analysis payloads playable at unity", () => {
+    for (const value of [
+      undefined,
+      null,
+      {},
+      { [fileId]: { ...measurement, truePeakDbtp: Infinity } },
+      { [fileId]: { ...measurement, analysisVersion: 2 } },
+    ]) {
+      const parsed = parsePlayerDetails({ ...details, loudnessByFileId: value });
+      expect(parsed.items).toHaveLength(1);
+      expect(parsed.loudnessByFileId?.[fileId]).toBeUndefined();
+    }
+  });
+});

@@ -43,6 +43,7 @@ export const privateFileReservationSchema = z.object({
 });
 
 export const privateFileTransitionSchema = z.object({
+  r2Version: z.string().min(1).max(256).optional(),
   actorUserId: z.string().min(1).max(128),
   fileId: privateFileIdSchema,
   organizationId: organizationIdSchema,
@@ -297,8 +298,9 @@ export async function uploadPrivateOrganizationFile(
     storageKey: expectedKey,
   };
   try {
+    let uploadedObject: R2Object;
     if (input.body instanceof ArrayBuffer) {
-      await env.ORGANIZATION_FILES.put(expectedKey, input.body, {
+      uploadedObject = await env.ORGANIZATION_FILES.put(expectedKey, input.body, {
         customMetadata: { fileId: parsed.fileId, organizationId: parsed.organizationId },
         httpMetadata: { contentType: parsed.contentType },
       });
@@ -307,7 +309,7 @@ export async function uploadPrivateOrganizationFile(
       const stream = input.body
         .pipeThrough(validation.transform)
         .pipeThrough(new FixedLengthStream(parsed.sizeBytes));
-      await env.ORGANIZATION_FILES.put(expectedKey, stream, {
+      uploadedObject = await env.ORGANIZATION_FILES.put(expectedKey, stream, {
         customMetadata: { fileId: parsed.fileId, organizationId: parsed.organizationId },
         httpMetadata: { contentType: parsed.contentType },
       });
@@ -317,7 +319,7 @@ export async function uploadPrivateOrganizationFile(
       stub,
       "https://organization.internal/internal/files/ready",
       {
-        body: JSON.stringify(transition),
+        body: JSON.stringify({ ...transition, r2Version: uploadedObject.version }),
         headers: { "content-type": "application/json" },
         method: "POST",
       },

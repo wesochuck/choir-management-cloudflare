@@ -17,8 +17,8 @@ export function generateCspNonce(): string {
 
 export function buildContentSecurityPolicy(nonce?: string): string {
   const scriptDirective = nonce
-    ? `script-src 'self' 'nonce-${nonce}' https://static.cloudflareinsights.com https://challenges.cloudflare.com`
-    : "script-src 'self' https://static.cloudflareinsights.com https://challenges.cloudflare.com";
+    ? `script-src 'self' 'wasm-unsafe-eval' 'nonce-${nonce}' https://static.cloudflareinsights.com https://challenges.cloudflare.com`
+    : "script-src 'self' 'wasm-unsafe-eval' https://static.cloudflareinsights.com https://challenges.cloudflare.com";
 
   return [
     "default-src 'self'",

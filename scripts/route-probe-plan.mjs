@@ -30,6 +30,12 @@ export const probePlan = new Map([
     { expected: 200, kind: "read-auth" },
   ],
 
+  ["GET /api/organization/music/loudness", { expected: 200, kind: "read-auth" }],
+  ["POST /api/organization/music/loudness/start", { kind: "skip-fixture" }],
+  ["POST /api/organization/music/loudness/claim", { kind: "skip-fixture" }],
+  ["POST /api/organization/music/loudness/renew", { expected: 400, kind: "validation" }],
+  ["POST /api/organization/music/loudness/result", { expected: 400, kind: "validation" }],
+
   // Anonymous reads
   ["GET /api/health", { expected: 200, kind: "read-anon" }],
   ["GET /api/public/audition-settings", { expected: 200, kind: "read-anon" }],

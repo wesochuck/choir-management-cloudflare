@@ -51,6 +51,7 @@ export function privateFileDownloadResponse(file: PrivateFileReadResult): Respon
     "content-length": String(file.range?.length ?? file.metadata.sizeBytes),
     "content-type": file.metadata.contentType,
     etag: file.object.httpEtag,
+    "x-audio-content-version": file.object.version,
   });
   if (file.range) {
     const end = file.range.offset + file.range.length - 1;

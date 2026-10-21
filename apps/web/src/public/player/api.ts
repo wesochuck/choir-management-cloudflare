@@ -1,3 +1,4 @@
+import { loudnessByFileIdSchema } from "@choir/contracts";
 import { getPublicPlayerDetails, getPublicPlayerPlaylist } from "../../api";
 import { getCachedPlayerMetadata, saveCachedPlayerMetadata } from "../../offline/mediaStore";
 import { isPlayerDetails, isPlayerPlaylistItem, isRecord } from "./guards";
@@ -48,6 +49,7 @@ function parseTrackLabels(value: unknown): Record<string, string> {
 export function parsePlayerDetails(data: unknown): PlayerDetails {
   if (!isPlayerDetails(data)) throw new Error("invalid_response");
   return {
+    loudnessByFileId: loudnessByFileIdSchema.safeParse(data.loudnessByFileId).data,
     eventArtworkFileId:
       typeof data.eventArtworkFileId === "string" ? data.eventArtworkFileId : null,
     eventId: data.eventId,
@@ -75,6 +77,7 @@ export function parsePublicPlaylistDetails(data: unknown): PlayerDetails {
     throw new Error("invalid_response");
   }
   return {
+    loudnessByFileId: loudnessByFileIdSchema.safeParse(data.loudnessByFileId).data,
     eventArtworkFileId: typeof event.artworkFileId === "string" ? event.artworkFileId : null,
     eventId: event.id,
     eventTitle: event.title,

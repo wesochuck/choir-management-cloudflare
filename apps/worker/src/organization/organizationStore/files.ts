@@ -64,10 +64,11 @@ export async function finalizePrivateFile(
   const uploadedAt = new Date().toISOString();
   const ready = storage.transactionSync(() => {
     const result = storage.sql.exec(
-      `UPDATE private_files SET status = 'ready', ready_at = ?
+      `UPDATE private_files SET status = 'ready', ready_at = ?, r2_version = ?
        WHERE id = ? AND storage_key = ? AND uploaded_by = ? AND request_id = ?
          AND status = 'pending'`,
       uploadedAt,
+      parsed.data.r2Version ?? null,
       parsed.data.fileId,
       parsed.data.storageKey,
       parsed.data.actorUserId,
@@ -238,14 +239,16 @@ export async function finishPrivateFileReclamation(
     return Response.json({ code: "invalid_private_file_transition" }, { status: 400 });
   const reclaimed = storage.transactionSync(() => {
     const deleted =
-      storage.sql.exec(
-        `DELETE FROM private_files WHERE id = ? AND storage_key = ? AND uploaded_by = ?
-       AND request_id = ? AND status = 'pending'`,
-        parsed.data.fileId,
-        parsed.data.storageKey,
-        parsed.data.actorUserId,
-        parsed.data.requestId,
-      ).rowsWritten === 1;
+      storage.sql
+        .exec(
+          `DELETE FROM private_files WHERE id = ? AND storage_key = ? AND uploaded_by = ?
+       AND request_id = ? AND status = 'pending' RETURNING id`,
+          parsed.data.fileId,
+          parsed.data.storageKey,
+          parsed.data.actorUserId,
+          parsed.data.requestId,
+        )
+        .toArray().length === 1;
     if (!deleted) return false;
     storage.sql.exec(
       `INSERT INTO audit_events

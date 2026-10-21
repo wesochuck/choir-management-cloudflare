@@ -228,6 +228,10 @@ export async function deployStaging(options = {}) {
     );
   }
 
+  // Issue 277: Enable practice loudness normalization in staging builds for operator qualification.
+  process.env.VITE_PRACTICE_LOUDNESS_ENABLED ??=
+    options.env?.VITE_PRACTICE_LOUDNESS_ENABLED ?? "true";
+
   console.log("Verifying clean, current main checkout...");
   const checkoutVerifier = options.verifyCheckout ?? verifyCheckout;
   const commitSha = checkoutVerifier();

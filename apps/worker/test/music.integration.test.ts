@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   organizationEventSchema,
   organizationMusicBulkDeleteResponseSchema,
@@ -92,6 +93,86 @@ afterEach(async () => {
 });
 
 describe("Organization music catalog", () => {
+  it("authorizes version-bound loudness claims, preserves bytes and excludes foreign results", async () => {
+    const cookie = await signIn();
+    const fileId = crypto.randomUUID();
+    const bytes = new TextEncoder().encode("unchanged-original-audio");
+    const upload = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${fileId}`, cookie, {
+        method: "PUT",
+        body: bytes,
+        headers: {
+          "content-type": "audio/mpeg",
+          "content-length": String(bytes.length),
+          "x-file-name": "track.mp3",
+        },
+      }),
+    );
+    expect(upload.status).toBe(201);
+    const piece = organizationMusicPieceResponseSchema.parse(
+      await (
+        await write("alpha.localhost", "/api/organization/music", cookie, {
+          title: "Measured piece",
+          trackFileIds: { tutti: fileId },
+        })
+      ).json(),
+    );
+    const base = "/api/organization/music/loudness";
+    expect((await write("alpha.localhost", `${base}/start`, cookie, {})).status).toBe(200);
+    const claimResponse = z
+      .object({
+        claim: z.object({ fileId: z.string(), claimId: z.string(), contentVersion: z.string() }),
+      })
+      .parse(await (await write("alpha.localhost", `${base}/claim`, cookie, {})).json());
+    expect(claimResponse.claim.fileId).toBe(fileId);
+    const submission = {
+      fileId,
+      claimId: claimResponse.claim.claimId,
+      result: {
+        status: "ready",
+        analysisVersion: 1,
+        contentVersion: claimResponse.claim.contentVersion,
+        integratedLufs: -26,
+        truePeakDbtp: -3,
+      },
+    };
+    expect((await write("bravo.localhost", `${base}/result`, cookie, submission)).status).toBe(409);
+    expect((await write("alpha.localhost", `${base}/result`, cookie, submission)).status).toBe(200);
+    const library = singerLearningTrackPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/singer/music", cookie))
+      ).json(),
+    );
+    expect(
+      library.pieces.find((row) => row.id === piece.id)?.loudnessByFileId?.[fileId]?.integratedLufs,
+    ).toBe(-26);
+    const foreign = singerLearningTrackPiecesResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("bravo.localhost", "/api/singer/music", cookie))
+      ).json(),
+    );
+    expect(foreign.pieces).toEqual([]);
+    const download = await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${fileId}`, cookie),
+    );
+    expect(new Uint8Array(await download.arrayBuffer())).toEqual(bytes);
+    await database
+      .prepare("UPDATE member SET role = 'member' WHERE userId = 'music-manager'")
+      .run();
+    for (const path of ["start", "claim", "renew", "result"])
+      expect(
+        (
+          await write(
+            "alpha.localhost",
+            `${base}/${path}`,
+            cookie,
+            path === "result" ? submission : {},
+          )
+        ).status,
+      ).toBe(403);
+    expect((await exports.default.fetch(api("alpha.localhost", base, cookie))).status).toBe(403);
+  });
+
   it("persists default movement order, preserves legacy edits, and enforces Organization and parent relationships", async () => {
     const cookie = await signIn();
     async function create(title: string, parentId: string | null = null, host = "alpha.localhost") {

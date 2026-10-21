@@ -1,3 +1,4 @@
+import { loudnessByFileIdSchema } from "./loudness";
 import { z } from "zod";
 import { musicTrackFileIdsSchema } from "./music";
 export const playerPlaylistItemSchema = z.object({
@@ -20,6 +21,7 @@ export const playerBrandingSchema = z.object({
 export type PlayerBranding = z.infer<typeof playerBrandingSchema>;
 
 export const publicPlayerDetailsResponseSchema = z.object({
+  loudnessByFileId: loudnessByFileIdSchema.optional(),
   eventArtworkFileId: z.uuid().nullable().optional(),
   eventId: z.uuid(),
   eventTitle: z.string(),
@@ -35,6 +37,7 @@ export const publicPlayerDetailsResponseSchema = z.object({
 export type PublicPlayerDetailsResponse = z.infer<typeof publicPlayerDetailsResponseSchema>;
 
 export const publicPlayerPlaylistResponseSchema = z.object({
+  loudnessByFileId: loudnessByFileIdSchema.optional(),
   allPieces: z.array(playerPlaylistItemSchema),
   event: z.object({
     artworkFileId: z.uuid().nullable(),

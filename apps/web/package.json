@@ -25,7 +25,9 @@
     "qrcode": "^1.5.4",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "zod": "4.4.3"
+    "zod": "4.4.3",
+    "mpg123-decoder": "1.0.3",
+    "bravoh-loudness": "0.1.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -33,6 +35,6 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.3",
     "tailwindcss": "^4.3.3",
-    "vite": "8.1.5"
+    "vite": "8.1.6"
   }
 }

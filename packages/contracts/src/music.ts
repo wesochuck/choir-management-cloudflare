@@ -1,3 +1,4 @@
+import { loudnessByFileIdSchema } from "./loudness";
 import { z } from "zod";
 import { requestIdSchema } from "./primitives";
 import type {
@@ -216,6 +217,7 @@ export const organizationMusicGenreBatchAddRequestSchema = z
   .strict();
 
 export const organizationMusicPieceSchema = organizationMusicPieceRequestSchema.extend({
+  loudnessByFileId: loudnessByFileIdSchema.optional(),
   createdAt: z.iso.datetime(),
   id: z.uuid(),
   lastPerformedAt: z.iso.datetime().nullable().default(null),
@@ -240,6 +242,7 @@ export const organizationMusicGenreMutationResponseSchema = z.object({
 
 export const singerLearningTrackPieceSchema = organizationMusicPieceSchema
   .pick({
+    loudnessByFileId: true,
     arranger: true,
     composer: true,
     durationSeconds: true,

@@ -355,9 +355,10 @@ describe("PublicPlayerView UI & Branding", () => {
       });
 
       let currentOfflineUrl: string | null = null;
-      vi.spyOn(usePlayerOfflineModule, "useOfflineAudioUrl").mockImplementation(
-        () => currentOfflineUrl,
-      );
+      vi.spyOn(usePlayerOfflineModule, "useOfflineAudio").mockImplementation(() => ({
+        url: currentOfflineUrl,
+        contentVersion: null,
+      }));
 
       function Wrapper() {
         return (

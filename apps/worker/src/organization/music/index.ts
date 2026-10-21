@@ -1,3 +1,4 @@
+import { readLoudness } from "../loudnessStore";
 import {
   addPerformanceHistory,
   identityMatches,
@@ -61,7 +62,20 @@ export function listMusicPiecesFromStore(
       )
       .toArray()
       .map(parseStoredPiece);
-    return Response.json({ pieces: addPerformanceHistory(storage, pieces) });
+    const measurements = readLoudness(
+      storage,
+      pieces.flatMap((piece) => Object.values(piece.trackFileIds)),
+    );
+    return Response.json({
+      pieces: addPerformanceHistory(storage, pieces).map((piece) => ({
+        ...piece,
+        loudnessByFileId: Object.fromEntries(
+          Object.values(piece.trackFileIds).flatMap((id) =>
+            measurements[id] ? [[id, measurements[id]]] : [],
+          ),
+        ),
+      })),
+    });
   } catch {
     return Response.json({ code: "music_catalog_corrupt" }, { status: 500 });
   }

@@ -1,3 +1,4 @@
+import { useLoudnessGain } from "./useLoudnessGain";
 import { useCallback, useEffect, useMemo, useRef, useState, type SyntheticEvent } from "react";
 import { Sheet } from "@choir/ui";
 
@@ -20,7 +21,7 @@ import {
 import type { PracticeTrackSource } from "./source";
 import type { PlayerDetails, PlayerPlaylistItem, ResolvedTrack } from "./types";
 import { useAudioSession, type AudioSessionHandlers } from "./useAudioSession";
-import { useAutoCacheOfflineCopies, useOfflineAudioUrl } from "./usePlayerOffline";
+import { useAutoCacheOfflineCopies, useOfflineAudio } from "./usePlayerOffline";
 import { subscribeNetworkStatus } from "../../offline/network";
 import { useOfflineCopies } from "../../offline/useOfflineCopies";
 
@@ -469,13 +470,23 @@ export function PublicPracticePlayer({
   const currentItem = playableItems[safeSelectedItemIndex] ?? null;
   const currentTrack = currentItem ? resolveTrack(currentItem, activeTrackKey) : null;
   const currentIndex = currentItem ? playableItems.indexOf(currentItem) : -1;
-  const offlineUrl = useOfflineAudioUrl(
+  const offlineAudio = useOfflineAudio(
     resolveOfflineUrl,
     currentTrack?.fileId,
     offlineIds,
     acquireOfflineUrl,
   );
+  const offlineUrl = offlineAudio.url;
   const audioSrc = computeAudioSrc(offlineUrl, currentTrack, source);
+  const prepareLoudness = useTrackLoudness(
+    audioRef,
+    currentTrack,
+    currentItem,
+    details,
+    audioSrc,
+    offlineUrl !== null,
+    offlineAudio.contentVersion,
+  );
   const eventArtworkUrl = details.eventArtworkFileId
     ? source.artworkUrl(details.eventArtworkFileId)
     : null;
@@ -578,7 +589,7 @@ export function PublicPracticePlayer({
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume / 100;
-  }, [volume]);
+  }, [volume, currentTrack?.fileId]);
 
   useEffect(() => {
     return () => {
@@ -588,6 +599,7 @@ export function PublicPracticePlayer({
   }, []);
 
   function playCurrent(): void {
+    prepareLoudness();
     wantPlayingRef.current = true;
     if (userOverrideTrackKey === null) {
       setUserOverrideTrackKey(selectedTrackKey);
@@ -603,6 +615,7 @@ export function PublicPracticePlayer({
   }
 
   function selectItem(index: number, autoplay = true): void {
+    prepareLoudness();
     if (index < 0 || index >= playableItems.length) return;
     if (gapTimerRef.current !== null) {
       window.clearInterval(gapTimerRef.current);
@@ -623,6 +636,7 @@ export function PublicPracticePlayer({
   }
 
   function selectTrackKey(key: string): void {
+    prepareLoudness();
     if (key === selectedTrackKey) return;
     setUserOverrideTrackKey(key);
     autoplayRef.current = playing;
@@ -1100,5 +1114,23 @@ export function PublicPracticePlayer({
         </div>
       </Sheet>
     </div>
+  );
+}
+
+function useTrackLoudness(
+  audioRef: React.RefObject<HTMLAudioElement | null>,
+  track: ResolvedTrack | null,
+  item: PlayerPlaylistItem | null,
+  details: PlayerDetails,
+  src: string,
+  offline: boolean,
+  cachedVersion: string | null,
+) {
+  const id = track?.fileId ?? "";
+  const measurement = details.loudnessByFileId?.[id] ?? item?.loudnessByFileId?.[id];
+  return useLoudnessGain(
+    audioRef,
+    `${id}:${src}`,
+    offline && measurement?.contentVersion !== cachedVersion ? undefined : measurement,
   );
 }

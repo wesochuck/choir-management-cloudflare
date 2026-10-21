@@ -1,3 +1,4 @@
+import { LoudnessAnalysisPanel } from "./loudness/LoudnessAnalysisPanel";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { OrganizationMusicLibrarySettings, OrganizationMusicPiece } from "@choir/contracts";
 import { NumberInput, DataTable, type DataTableColumn, useConfirmation } from "@choir/ui";
@@ -704,6 +705,7 @@ export function MusicLibrarySettingsPage({
             savedTemplate={savedSettings?.publisherSearchTemplate}
             template={settings.publisherSearchTemplate}
           />
+          <LoudnessAnalysisPanel />
           <MusicPracticeSettingsSection
             busy={saving}
             lifetimeDays={settings.practicePlayerLinkLifetimeDays}

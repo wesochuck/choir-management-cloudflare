@@ -20,18 +20,18 @@ describe("Worker foundation", () => {
     expect(response1.headers.get("x-content-type-options")).toBe("nosniff");
     const csp1 = response1.headers.get("content-security-policy") ?? "";
     expect(csp1).toMatch(
-      /script-src 'self' 'nonce-[0-9a-f]{32}' https:\/\/static\.cloudflareinsights\.com https:\/\/challenges\.cloudflare\.com/,
+      /script-src 'self' 'wasm-unsafe-eval' 'nonce-[0-9a-f]{32}' https:\/\/static\.cloudflareinsights\.com https:\/\/challenges\.cloudflare\.com/,
     );
     expect(csp1).toContain("https://static.cloudflareinsights.com");
     expect(csp1).toContain("https://challenges.cloudflare.com");
     expect(csp1).toContain("https://cloudflareinsights.com");
-    expect(csp1).not.toContain("script-src 'self' 'unsafe-inline'");
+    expect(csp1).not.toContain("script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'");
 
     const response2 = await exports.default.fetch(
       new Request("https://choir-management.local/api/health"),
     );
     const csp2 = response2.headers.get("content-security-policy") ?? "";
-    expect(csp2).toMatch(/script-src 'self' 'nonce-[0-9a-f]{32}'/);
+    expect(csp2).toMatch(/script-src 'self' 'wasm-unsafe-eval' 'nonce-[0-9a-f]{32}'/);
     expect(csp1).not.toBe(csp2);
   });
 
@@ -58,7 +58,7 @@ describe("Worker foundation", () => {
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
     expect(response.headers.get("x-frame-options")).toBe("DENY");
     const csp = response.headers.get("content-security-policy") ?? "";
-    expect(csp).toMatch(/script-src 'self' 'nonce-[0-9a-f]{32}'/);
+    expect(csp).toMatch(/script-src 'self' 'wasm-unsafe-eval' 'nonce-[0-9a-f]{32}'/);
     expect(response.headers.get("referrer-policy")).toBe("strict-origin-when-cross-origin");
     expect(response.headers.get("content-type")).toContain("text/html");
   });
@@ -76,6 +76,6 @@ describe("Worker foundation", () => {
     expect(response.status).toBe(413);
     expect(body).toMatchObject({ code: "request_body_too_large" });
     const csp = response.headers.get("content-security-policy") ?? "";
-    expect(csp).toMatch(/script-src 'self' 'nonce-[0-9a-f]{32}'/);
+    expect(csp).toMatch(/script-src 'self' 'wasm-unsafe-eval' 'nonce-[0-9a-f]{32}'/);
   });
 });

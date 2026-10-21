@@ -1,3 +1,4 @@
+import { analyzeUploadedTrack } from "../../loudness/client";
 import type {
   OrganizationMusicBulkUpdateRequest,
   OrganizationMusicPiece,
@@ -90,6 +91,7 @@ export function MusicAudioTracks({
         const durationSeconds = await extractAudioDuration(file);
         await saveMapping(key, uploaded.id, durationSeconds);
         onTrackDurationDetected(key, durationSeconds);
+        analyzeUploadedTrack(uploaded.id, file);
       } catch (caught: unknown) {
         await deletePrivateOrganizationFile(uploaded.id).catch(() => undefined);
         throw caught;
@@ -191,6 +193,8 @@ export function MusicAudioTracks({
               {fileId ? (
                 <div className="music-audio-track__controls">
                   <MusicInlineAudioPlayer
+                    fileId={piece.trackFileIds[key] ?? ""}
+                    measurement={piece.loudnessByFileId?.[piece.trackFileIds[key] ?? ""]}
                     label={key === "tutti" ? "Tutti" : key}
                     src={`/api/organization/files/${fileId}`}
                   />

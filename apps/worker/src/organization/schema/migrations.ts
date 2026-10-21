@@ -2053,6 +2053,36 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE scheduler_state ADD COLUMN fee_reconciliation_cursor TEXT NOT NULL DEFAULT ''",
     ],
   },
+  {
+    version: 120,
+    statements: [
+      "ALTER TABLE private_files ADD COLUMN r2_version TEXT",
+      `CREATE TABLE audio_loudness (
+        file_id TEXT PRIMARY KEY REFERENCES private_files(id) ON DELETE CASCADE,
+        piece_ids_json TEXT NOT NULL,
+        content_version TEXT,
+        analysis_version INTEGER NOT NULL DEFAULT 1,
+        status TEXT NOT NULL CHECK (status IN ('pending','processing','ready','failed','unsupported')),
+        claim_id TEXT, actor_id TEXT, lease_until INTEGER,
+        integrated_lufs REAL, true_peak_dbtp REAL, reason_code TEXT,
+        analyzed_at TEXT, decoder_name TEXT, decoder_version TEXT, meter_name TEXT, meter_version TEXT
+      ) STRICT`,
+      // Claim selection and progress polling use this status partition, never music JSON scans.
+      "CREATE INDEX audio_loudness_status ON audio_loudness(status, file_id)",
+      "CREATE TABLE audio_loudness_counts (status TEXT PRIMARY KEY, count INTEGER NOT NULL DEFAULT 0 CHECK (count >= 0)) STRICT",
+      "INSERT INTO audio_loudness_counts(status) VALUES ('pending'),('processing'),('ready'),('failed'),('unsupported')",
+      `CREATE TRIGGER audio_loudness_count_insert AFTER INSERT ON audio_loudness BEGIN
+        UPDATE audio_loudness_counts SET count = count + 1 WHERE status = NEW.status;
+      END`,
+      `CREATE TRIGGER audio_loudness_count_delete AFTER DELETE ON audio_loudness BEGIN
+        UPDATE audio_loudness_counts SET count = count - 1 WHERE status = OLD.status;
+      END`,
+      `CREATE TRIGGER audio_loudness_count_update AFTER UPDATE OF status ON audio_loudness WHEN NEW.status <> OLD.status BEGIN
+        UPDATE audio_loudness_counts SET count = count - 1 WHERE status = OLD.status;
+        UPDATE audio_loudness_counts SET count = count + 1 WHERE status = NEW.status;
+      END`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

@@ -378,3 +378,4 @@ export { coverImageOverflow, shiftCoverImagePosition } from "./imagePosition";
 export { eventWebsiteVisibility } from "./eventWebsiteVisibility";
 
 export { prioritizeTicketedPerformances } from "./performanceOrdering";
+export * from "./loudness";

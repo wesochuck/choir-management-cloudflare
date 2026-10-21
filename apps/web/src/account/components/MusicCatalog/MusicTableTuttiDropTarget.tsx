@@ -1,3 +1,4 @@
+import { analyzeUploadedTrack } from "../../loudness/client";
 import type { OrganizationMusicPiece, OrganizationRosterConfiguration } from "@choir/contracts";
 import { useState, type ChangeEvent, type DragEvent } from "react";
 import {
@@ -88,6 +89,7 @@ export function MusicTableTuttiDropTarget({
         void deletePrivateOrganizationFile(previousTuttiFileId).catch(() => undefined);
       }
 
+      analyzeUploadedTrack(uploaded.id, file);
       onSaved?.(saved, `Tutti practice track attached for “${piece.title}”.`);
     } catch (caught: unknown) {
       if (uploadedFileId) {

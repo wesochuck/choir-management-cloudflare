@@ -1,3 +1,4 @@
+import { registerAudioLoudnessRoutes } from "./organizationAudioLoudness";
 import { type ProblemDetails } from "@choir/contracts";
 import { timestampedExportFilename, renderMusicCsv } from "@choir/domain";
 import { listOrganizationMusicPieces } from "../organization/organizationMusic";
@@ -9,6 +10,7 @@ import type { WorkerHonoEnvironment } from "./helpers";
 import { authorizeCalendarRoute } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
+  registerAudioLoudnessRoutes(router);
   router.get("/api/organization/music", async (context) => {
     const authorization = await authorizeCalendarRoute(context, true);
     if (!authorization.ok) {
