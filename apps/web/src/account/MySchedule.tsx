@@ -208,8 +208,8 @@ function ScheduleEventDeadline({
     <p
       className={`schedule-card__deadline ${event.rsvpDeadlinePassed ? "notice notice--warning" : ""}`}
     >
-      {deadlineText} {event.rsvpDeadlinePassed ? "Member self-service RSVP is closed." : null}{" "}
-      <a href="/admin/roster?section=settings">Roster Settings</a>
+      {deadlineText}
+      {event.rsvpDeadlinePassed ? " Member self-service RSVP is closed." : null}
     </p>
   );
 }

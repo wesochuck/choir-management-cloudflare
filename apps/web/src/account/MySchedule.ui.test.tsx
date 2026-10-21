@@ -435,4 +435,65 @@ describe("MySchedule event details and seating link (#192)", () => {
     expect(screen.getByText("Committed")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Withdraw" })).toBeInTheDocument();
   });
+
+  describe("MySchedule RSVP deadline presentation", () => {
+    it("renders active RSVP deadline and no admin roster settings link", async () => {
+      const performance = createSampleEvent({
+        id: "perf-active-1",
+        rsvpDeadlineAt: "2026-10-30T23:59:59.000Z",
+        rsvpDeadlineDate: "2026-10-30",
+        rsvpDeadlinePassed: false,
+        title: "Fall Showcase",
+        type: "Performance",
+      });
+
+      vi.mocked(getMySchedule).mockResolvedValueOnce({
+        events: [performance],
+        profileId: "00000000-0000-4000-8000-000000000001",
+        requestId: "req-test-1",
+        timezone: "America/New_York",
+      });
+
+      render(<MySchedule enabled />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Fall Showcase")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/RSVP by Oct 30, 2026 through 11:59 p\.m\./)).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Roster Settings" })).not.toBeInTheDocument();
+    });
+
+    it("renders closed RSVP deadline notice and no admin roster settings link", async () => {
+      const performance = createSampleEvent({
+        id: "perf-passed-1",
+        rsvpDeadlineAt: "2026-10-10T23:59:59.000Z",
+        rsvpDeadlineDate: "2026-10-10",
+        rsvpDeadlinePassed: true,
+        rsvpSelfServiceOpen: false,
+        title: "Opening Night",
+        type: "Performance",
+      });
+
+      vi.mocked(getMySchedule).mockResolvedValueOnce({
+        events: [performance],
+        profileId: "00000000-0000-4000-8000-000000000001",
+        requestId: "req-test-1",
+        timezone: "America/New_York",
+      });
+
+      render(<MySchedule enabled />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Opening Night")).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText(
+          /RSVP deadline passed on Oct 10, 2026\. Member self-service RSVP is closed\./,
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Roster Settings" })).not.toBeInTheDocument();
+    });
+  });
 });
