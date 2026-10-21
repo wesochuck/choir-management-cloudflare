@@ -37,7 +37,7 @@ export function LoudnessAnalysisPanel() {
           );
         })
         .catch(() => {
-          if (!cancelled) setError("Audio analysis status is unavailable.");
+          if (!cancelled) setSummary("Audio analysis status is unavailable.");
         })
         .finally(() => {
           if (!cancelled) timer = setTimeout(poll, 5000);

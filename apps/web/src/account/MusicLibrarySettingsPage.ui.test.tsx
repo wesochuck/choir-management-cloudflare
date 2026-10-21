@@ -154,18 +154,21 @@ describe("MusicLibrarySettingsPage genre management with DataTable & batch add",
       expect(screen.getByLabelText("Add genre labels")).toBeInTheDocument();
     });
 
-    const input = screen.getByLabelText("Add genre labels");
+    const genreSection = screen.getByRole("group", { name: "Genres in your catalog" });
+    const input = within(genreSection).getByLabelText("Add genre labels");
     await user.type(input, "classical");
-    await user.click(screen.getByRole("button", { name: "Add to list" }));
+    await user.click(within(genreSection).getByRole("button", { name: "Add to list" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent('Genre label "classical" already exists.');
+    expect(within(genreSection).getByRole("alert")).toHaveTextContent(
+      'Genre label "classical" already exists.',
+    );
 
     // Duplicated within input
     await user.clear(input);
     await user.type(input, "Rock, rock");
-    await user.click(screen.getByRole("button", { name: "Add to list" }));
+    await user.click(within(genreSection).getByRole("button", { name: "Add to list" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
+    expect(within(genreSection).getByRole("alert")).toHaveTextContent(
       'Genre label "rock" is duplicated in your input.',
     );
   });
