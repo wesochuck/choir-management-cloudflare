@@ -8,6 +8,13 @@ import { useImportSession } from "./useImportSession";
 const uploadCalls: { clientFileId: string }[] = [];
 const commitKeys: string[] = [];
 const failOnceFor = new Set<string>();
+const mockAnalyzeUploadedTrack = vi.fn();
+
+vi.mock("../../../loudness/client", () => ({
+  analyzeUploadedTrack: (fileId: string, file: File): void => {
+    mockAnalyzeUploadedTrack(fileId, file);
+  },
+}));
 
 vi.mock("../../../../api/musicTrackImport", () => ({
   commitMusicTrackImportSession: vi.fn((_sessionId: string, body: { commitKey: string }) => {
@@ -174,5 +181,17 @@ describe("useImportSession", () => {
     expect(uploadMusicTrackImportFile).toHaveBeenCalledTimes(1);
     expect(commitMusicTrackImportSession).toHaveBeenCalledTimes(1);
     expect(result.current.phase).toBe("done");
+  });
+
+  it("triggers background loudness analysis for attached files upon commit", async () => {
+    const { result } = renderHook(() => useImportSession());
+    const file1 = plannedFile("file-1", "soprano");
+    const file2 = plannedFile("file-2", "alto");
+    await act(async () => {
+      await result.current.startRun([file1, file2]);
+    });
+    expect(mockAnalyzeUploadedTrack).toHaveBeenCalledTimes(2);
+    expect(mockAnalyzeUploadedTrack).toHaveBeenCalledWith("server-file-1", file1.file);
+    expect(mockAnalyzeUploadedTrack).toHaveBeenCalledWith("server-file-2", file2.file);
   });
 });

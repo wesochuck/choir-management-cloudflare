@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { MUSIC_TRACK_IMPORT_UPLOAD_CONCURRENCY } from "@choir/domain";
 import { AuthApiError } from "../../../../api/client";
+import { analyzeUploadedTrack } from "../../../loudness/client";
 import {
   commitMusicTrackImportSession,
   createMusicTrackImportSession,
@@ -114,6 +115,7 @@ export function useImportSession() {
   const [commitSummary, setCommitSummary] = useState<ImportCommitSummary | null>(null);
   const batchKeyRef = useRef<string | null>(null);
   const commitKeyByRevisionRef = useRef(new Map<number, string>());
+  const localFilesByClientIdRef = useRef(new Map<string, File>());
   const filesRef = useRef(files);
   useEffect(() => {
     filesRef.current = files;
@@ -202,6 +204,9 @@ export function useImportSession() {
       setSessionId(created.sessionId);
       setManifestRevision(created.manifestRevision);
       persistContext(created.sessionId, batchKey, planned, digests);
+      for (const file of planned) {
+        localFilesByClientIdRef.current.set(file.clientFileId, file.file);
+      }
       const statusById = new Map(created.items.map((item) => [item.clientFileId, item.status]));
       const states: ImportFileState[] = planned.map((file) => ({
         ...file,
@@ -305,7 +310,12 @@ export function useImportSession() {
             return { ...file, error: file.error, status: "skipped" as const };
           }
           if (result.status === "attached") {
-            return { ...file, error: null, status: "committed" as const };
+            return {
+              ...file,
+              error: null,
+              fileId: result.fileId ?? file.fileId,
+              status: "committed" as const,
+            };
           }
           if (result.status === "conflict") {
             return {
@@ -324,6 +334,14 @@ export function useImportSession() {
           return { ...file, error: null, status: "skipped" as const };
         }),
       );
+      for (const result of receipt.results) {
+        if (result.status === "attached" && result.fileId) {
+          const file = localFilesByClientIdRef.current.get(result.clientFileId);
+          if (file) {
+            analyzeUploadedTrack(result.fileId, file);
+          }
+        }
+      }
       return {
         commitSummary: { ...receipt.summary },
         manifestRevision: receipt.manifestRevision,
@@ -419,6 +437,7 @@ export function useImportSession() {
       clearImportSessionContext();
       batchKeyRef.current = null;
       commitKeyByRevisionRef.current.clear();
+      localFilesByClientIdRef.current.clear();
       setSessionId(null);
       setFiles([]);
       setPhase("idle");
@@ -482,6 +501,9 @@ export function useImportSession() {
           ]),
         ),
       );
+      for (const file of planned) {
+        localFilesByClientIdRef.current.set(file.clientFileId, file.file);
+      }
       const statusById = new Map(updated.items.map((item) => [item.clientFileId, item.status]));
       setFiles((current) =>
         current.map((file) => ({
@@ -560,6 +582,9 @@ export function useImportSession() {
       pieceTitles: ReadonlyMap<string, string>,
     ): void => {
       batchKeyRef.current = null;
+      for (const [id, file] of filesByClientId) {
+        localFilesByClientIdRef.current.set(id, file);
+      }
       setSessionId(session.sessionId);
       setManifestRevision(session.manifestRevision);
       setCommitSummary(null);
