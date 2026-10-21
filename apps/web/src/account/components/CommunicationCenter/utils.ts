@@ -92,6 +92,7 @@ export function getEmptyStateText(
 }
 
 export interface InitialNavigationState {
+  readonly contactListId?: string;
   readonly draftId: string | null;
   readonly messageMode: MessageWorkspaceMode;
   readonly originFilter: MessageOriginFilter;
@@ -152,7 +153,9 @@ export function parseCommunicationSearch(search: string): InitialNavigationState
   }
 
   const { messageMode, section } = parseNavigationMode(tab);
+  const contactListId = params.get("contactListId");
   return {
+    ...(messageMode === "compose" && contactListId !== null ? { contactListId } : {}),
     draftId: null,
     messageMode,
     originFilter: parseSearchOrigin(rawType, rawStatus, tab),

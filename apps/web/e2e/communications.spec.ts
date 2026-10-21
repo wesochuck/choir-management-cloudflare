@@ -1248,3 +1248,70 @@ test("wide composer keeps recipient summary, writing, and preview together", asy
   await page.getByRole("button", { name: "Review & send", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Review message" })).toBeVisible();
 });
+
+for (const entryPoint of ["table", "members"] as const) {
+  test(`launches existing composer from contact list ${entryPoint} with only that list selected`, async ({
+    page,
+  }) => {
+    const previewBodies: unknown[] = [];
+    const sendBodies: unknown[] = [];
+    const listId = "33333333-3333-4333-8333-333333333333";
+    await page.route("**/api/**", (route) => handleRoute(route, previewBodies, sendBodies));
+    await page.route("**/api/organization/contact-lists", (route) =>
+      fulfillJson(route, {
+        lists: [
+          {
+            id: listId,
+            name: "Concert friends",
+            description: null,
+            createdAt: "2026-08-01T00:00:00.000Z",
+            updatedAt: "2026-08-01T00:00:00.000Z",
+          },
+        ],
+        requestId,
+      }),
+    );
+    await page.route("**/api/organization/contacts?*", (route) =>
+      fulfillJson(route, {
+        contacts: [],
+        preferences: [],
+        memberships: [],
+        hasMore: false,
+        nextCursor: null,
+        requestId,
+      }),
+    );
+    await page.goto("/admin/contacts");
+    await page.getByRole("tab", { name: "Contact lists", exact: true }).click();
+    if (entryPoint === "members") {
+      await page.locator('button[aria-label="View members of Concert friends"]:visible').click();
+      await page
+        .getByRole("dialog")
+        .getByRole("link", { name: "New message to Concert friends" })
+        .click();
+    } else {
+      await page.getByRole("link", { name: "New message to Concert friends" }).click();
+    }
+    await expect(page).toHaveURL(`/admin/communications?tab=compose&contactListId=${listId}`);
+    await editRecipients(page);
+    const recipients = page.locator(".communication-recipient-panel");
+    await expect(recipients.getByRole("checkbox", { name: "Contacts", exact: true })).toBeChecked();
+    await expect(
+      recipients.getByRole("checkbox", { name: "Members", exact: true }),
+    ).not.toBeChecked();
+    await expect(
+      recipients.getByRole("checkbox", { name: "Concert friends", exact: true }),
+    ).toBeChecked();
+    await expect
+      .poll(() => previewBodies)
+      .toContainEqual(
+        expect.objectContaining({
+          audience: expect.objectContaining({
+            targetAudiences: ["Contacts"],
+            contactListIds: [listId],
+          }),
+        }),
+      );
+    expect(sendBodies).toEqual([]);
+  });
+}

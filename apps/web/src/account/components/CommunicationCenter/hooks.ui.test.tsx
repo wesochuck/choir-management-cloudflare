@@ -49,6 +49,31 @@ afterEach(() => {
 });
 
 describe("useCommunicationCenterController filters", () => {
+  it("opens a new message addressed only to the linked contact list", () => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(
+      null,
+      "",
+      "/admin/communications?tab=compose&contactListId=33333333-3333-4333-8333-333333333333",
+    );
+    try {
+      const { result } = renderHook(() => useCommunicationCenterController({ enabled: false }));
+      expect(result.current.messageMode).toBe("compose");
+      expect(result.current.audience.targetAudiences).toEqual(["Contacts"]);
+      expect(result.current.audience.contactListIds).toEqual([
+        "33333333-3333-4333-8333-333333333333",
+      ]);
+      expect(result.current.subject).toBe("");
+      act(() => {
+        result.current.openNewMessage();
+      });
+      expect(result.current.audience.targetAudiences).toEqual(["Members"]);
+      expect(result.current.audience.contactListIds).toEqual([]);
+    } finally {
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+
   it("initializes with default filters and queries history", async () => {
     const historySpy = vi
       .spyOn(apiModule, "getOrganizationCommunicationHistory")

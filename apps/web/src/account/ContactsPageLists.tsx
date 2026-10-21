@@ -21,6 +21,19 @@ import {
   type ContactListFormValues,
 } from "./contactListUtils";
 
+function ContactListMessageLink({ list }: { readonly list: ContactList }) {
+  const search = new URLSearchParams({ tab: "compose", contactListId: list.id });
+  return (
+    <a
+      aria-label={`New message to ${list.name}`}
+      className="button button--secondary button--small"
+      href={`/admin/communications?${search.toString()}`}
+    >
+      New message
+    </a>
+  );
+}
+
 function listDescriptionLabel(list: ContactList): string {
   if (!list.description) return "No description";
   return list.description;
@@ -126,6 +139,7 @@ export function ContactListsTable({
           mobileLabel: "Manage",
           render: (list) => (
             <div className="table-actions">
+              <ContactListMessageLink list={list} />
               <button
                 aria-label={`View members of ${list.name}`}
                 className="button button--secondary button--small"
@@ -482,6 +496,7 @@ export function ContactsListsTab({ enabled }: { readonly enabled: boolean }) {
             {success}
           </p>
         ) : null}
+        {viewingList ? <ContactListMessageLink list={viewingList} /> : null}
         <ContactListMembersList
           busy={busy || removingId !== null}
           members={viewingMembers}

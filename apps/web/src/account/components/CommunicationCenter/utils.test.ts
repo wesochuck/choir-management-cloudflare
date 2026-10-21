@@ -91,6 +91,18 @@ describe("parseCommunicationSearch", () => {
     });
   });
 
+  it("keeps contact list preselection limited to a new compose link", () => {
+    expect(parseCommunicationSearch("?tab=compose&contactListId=list-1").contactListId).toBe(
+      "list-1",
+    );
+    expect(parseCommunicationSearch("?contactListId=list-1").contactListId).toBeUndefined();
+    expect(
+      parseCommunicationSearch("?tab=compose&draftId=draft-1&contactListId=list-1").contactListId,
+    ).toBeUndefined();
+    // Keep malformed selections restrictive so API validation rejects them rather than broadening the audience.
+    expect(parseCommunicationSearch("?tab=compose&contactListId=").contactListId).toBe("");
+  });
+
   it("handles other navigation tabs", () => {
     expect(parseCommunicationSearch("?tab=compose").messageMode).toBe("compose");
     expect(parseCommunicationSearch("?tab=templates").section).toBe("templates");

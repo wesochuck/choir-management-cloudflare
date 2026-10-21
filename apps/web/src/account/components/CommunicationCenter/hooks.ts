@@ -136,8 +136,19 @@ export function useCommunicationCenterController({
   const [originFilter, setOriginFilter] = useState<MessageOriginFilter>(initialNav.originFilter);
   const historyAbortControllerRef = useRef<AbortController | null>(null);
 
-  const [audience, setAudience] = useState<CommunicationAudienceRequest>(defaultAudience);
-  const audienceRef = useRef<CommunicationAudienceRequest>(defaultAudience);
+  const initialAudience = useMemo<CommunicationAudienceRequest>(
+    () =>
+      initialNav.contactListId !== undefined
+        ? {
+            ...defaultAudience,
+            targetAudiences: ["Contacts"],
+            contactListIds: [initialNav.contactListId],
+          }
+        : defaultAudience,
+    [initialNav.contactListId],
+  );
+  const [audience, setAudience] = useState<CommunicationAudienceRequest>(initialAudience);
+  const audienceRef = useRef<CommunicationAudienceRequest>(initialAudience);
   const [recipientsExpanded, setRecipientsExpanded] = useState(false);
 
   const [channel, setChannel] = useState<CommunicationChannel>("Email");

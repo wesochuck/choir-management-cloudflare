@@ -162,6 +162,10 @@ describe("ContactListsTable", () => {
     expect(html).toContain("12");
     expect(html).toContain('aria-label="Delete Newsletter"');
     expect(html).toContain('aria-label="Rename Newsletter"');
+    expect(html).toContain('aria-label="New message to Newsletter"');
+    expect(html).toContain(
+      `/admin/communications?tab=compose&amp;contactListId=${LIST_NEWSLETTER}`,
+    );
     expect(html).toContain('aria-label="View members of Concert Audience"');
   });
 
@@ -270,6 +274,10 @@ describe("ContactsListsTab", () => {
     expect(html).toContain("Newsletter");
     expect(html).toContain('aria-label="Delete Newsletter"');
     expect(html).toContain('aria-label="Rename Newsletter"');
+    expect(html).toContain('aria-label="New message to Newsletter"');
+    expect(html).toContain(
+      `/admin/communications?tab=compose&amp;contactListId=${LIST_NEWSLETTER}`,
+    );
     expect(html).toContain('aria-label="View members of Concert Audience"');
     // Deleting a list preserves contacts: the confirmation copy says so and
     // the members dialog keeps contacts with per-member removal instead.
