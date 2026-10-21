@@ -3,6 +3,7 @@ import {
   loudnessSubmitSchema,
   loudnessMeasurementSchema,
   type LoudnessMeasurement,
+  type LoudnessFailure,
 } from "@choir/contracts";
 import type { SqlStorageValue } from "@cloudflare/workers-types";
 
@@ -121,6 +122,37 @@ export function loudnessStatus(storage: LoudnessStorage, organizationId: string)
   return storage.sql
     .exec<{ status: string; count: number }>(
       "SELECT status, count FROM audio_loudness_counts ORDER BY status",
+    )
+    .toArray();
+}
+export function loudnessFailures(
+  storage: LoudnessStorage,
+  organizationId: string,
+): LoudnessFailure[] {
+  verifyLoudnessScope(storage, organizationId);
+  return storage.sql
+    .exec<{
+      fileId: string;
+      fileName: string;
+      pieceTitle: string;
+      status: "failed" | "unsupported";
+      reasonCode:
+        "invalid_audio" | "unsupported_format" | "processing_limit" | "analysis_unavailable" | null;
+    }>(
+      `SELECT
+        a.file_id AS fileId,
+        COALESCE(f.file_name, a.file_id) AS fileName,
+        COALESCE(
+          (SELECT GROUP_CONCAT(m.title, ', ') FROM music_pieces m WHERE m.id IN (SELECT value FROM json_each(a.piece_ids_json))),
+          'Unassigned'
+        ) AS pieceTitle,
+        a.status,
+        a.reason_code AS reasonCode
+      FROM audio_loudness a
+      LEFT JOIN private_files f ON f.id = a.file_id
+      WHERE a.status IN ('failed', 'unsupported')
+      ORDER BY a.status, fileName
+      LIMIT 100`,
     )
     .toArray();
 }

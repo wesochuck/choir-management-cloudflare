@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { loudnessResultSchema, type LoudnessMeasurement } from "@choir/contracts";
+import {
+  loudnessFailureSchema,
+  loudnessResultSchema,
+  type LoudnessMeasurement,
+} from "@choir/contracts";
 const claimSchema = z.object({
   claim: z
     .object({
@@ -12,6 +16,7 @@ const claimSchema = z.object({
 });
 export const statusesSchema = z.object({
   statuses: z.array(z.object({ status: z.string(), count: z.number().int().nonnegative() })),
+  failures: z.array(loudnessFailureSchema).default([]),
 });
 export async function loudnessRequest(path: string, body?: unknown): Promise<unknown> {
   const response = await fetch(`/api/organization/music/loudness${path}`, {
@@ -45,7 +50,7 @@ export function loudnessAnalysisEnabled(): boolean {
   return import.meta.env.VITE_PRACTICE_LOUDNESS_ENABLED === "true";
 }
 export async function runLoudnessBatch(
-  options: { mode: "resume" | "retry_failed" | "reanalyze_all"; fileId?: string },
+  options: { mode: "resume" | "retry_failed" | "reanalyze_all"; fileId?: string | undefined },
   sourceSignal: AbortSignal,
   onProgress: (text: string) => void,
   localFile?: File,

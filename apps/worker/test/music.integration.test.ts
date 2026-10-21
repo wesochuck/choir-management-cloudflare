@@ -138,6 +138,14 @@ describe("Organization music catalog", () => {
     };
     expect((await write("bravo.localhost", `${base}/result`, cookie, submission)).status).toBe(409);
     expect((await write("alpha.localhost", `${base}/result`, cookie, submission)).status).toBe(200);
+    const statusData = z
+      .object({
+        statuses: z.array(z.object({ status: z.string(), count: z.number() })),
+        failures: z.array(z.unknown()),
+      })
+      .parse(await (await exports.default.fetch(api("alpha.localhost", base, cookie))).json());
+    expect(statusData.statuses.find((row) => row.status === "ready")?.count).toBe(1);
+    expect(statusData.failures).toEqual([]);
     const library = singerLearningTrackPiecesResponseSchema.parse(
       await (
         await exports.default.fetch(api("alpha.localhost", "/api/singer/music", cookie))

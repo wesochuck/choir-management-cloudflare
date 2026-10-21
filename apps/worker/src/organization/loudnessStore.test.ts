@@ -6,6 +6,7 @@ import {
   startLoudness,
   enqueueAttachedLoudness,
   loudnessStatus,
+  loudnessFailures,
   claimLoudness,
   bindLoudnessVersion,
   submitLoudness,
@@ -120,6 +121,19 @@ describe("Organization audio analysis claims", () => {
     startLoudness(storage, { ...scope, options: {} });
     expect(loudnessStatus(storage, "org-a").find((row) => row.status === "pending")?.count).toBe(1);
     expect(loudnessStatus(storage, "org-a").find((row) => row.status === "ready")?.count).toBe(0);
+    storage.sql.exec(
+      "UPDATE audio_loudness SET status = 'failed', reason_code = 'invalid_audio' WHERE file_id = ?",
+      fileId,
+    );
+    const failures = loudnessFailures(storage, "org-a");
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toEqual({
+      fileId,
+      fileName: "track.mp3",
+      pieceTitle: "Piece",
+      status: "failed",
+      reasonCode: "invalid_audio",
+    });
   });
   it("uses selective indexes for claims and lease recovery", () => {
     const { storage } = setup();
@@ -130,6 +144,10 @@ describe("Organization audio analysis claims", () => {
       ],
       [
         "SELECT file_id FROM audio_loudness WHERE status = 'processing' AND lease_until <= 0",
+        "audio_loudness_status",
+      ],
+      [
+        "SELECT a.file_id FROM audio_loudness a WHERE a.status IN ('failed', 'unsupported')",
         "audio_loudness_status",
       ],
     ]) {

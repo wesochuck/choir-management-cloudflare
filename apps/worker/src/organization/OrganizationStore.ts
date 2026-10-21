@@ -1,6 +1,7 @@
 import {
   startLoudness,
   loudnessStatus,
+  loudnessFailures,
   claimLoudness,
   bindLoudnessVersion,
   renewLoudness,
@@ -634,7 +635,10 @@ export class OrganizationStore extends DurableObject {
     return startLoudness(this.ctx.storage, input);
   }
   audioLoudnessStatus(input: { organizationId: string }) {
-    return loudnessStatus(this.ctx.storage, input.organizationId);
+    return {
+      statuses: loudnessStatus(this.ctx.storage, input.organizationId),
+      failures: loudnessFailures(this.ctx.storage, input.organizationId),
+    };
   }
   claimAudioLoudness(input: Parameters<typeof claimLoudness>[1]) {
     return claimLoudness(this.ctx.storage, input);

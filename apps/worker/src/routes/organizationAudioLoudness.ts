@@ -11,11 +11,13 @@ export function registerAudioLoudnessRoutes(router: Hono<WorkerHonoEnvironment>)
     const auth = await authorizeCalendarRoute(context, true);
     if (!auth.ok)
       return context.json({ ...auth, requestId: context.get("requestId") }, auth.status);
-    const statuses = await organizationStoreStub(
+    const result = await organizationStoreStub(
       context.env,
       auth.organizationId,
     ).audioLoudnessStatus({ organizationId: auth.organizationId });
-    return context.json({ statuses }, 200, { "cache-control": "private, no-store" });
+    const statuses = Array.isArray(result) ? result : result.statuses;
+    const failures = Array.isArray(result) ? [] : result.failures;
+    return context.json({ statuses, failures }, 200, { "cache-control": "private, no-store" });
   });
   router.post("/api/organization/music/loudness/start", async (context) => {
     const auth = await authorizeCalendarRoute(context, true);
