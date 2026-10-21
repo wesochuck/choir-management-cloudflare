@@ -482,6 +482,78 @@
     transform: rotate(180deg);
   }
 
+  /* Voice-part nudge: subtle static accent on the existing selector while the
+     hint is visible. No animation; honors reduced-motion by construction. */
+  .public-player__part-selector-container--hinted {
+    position: relative;
+  }
+
+  .public-player__part-selector-container--hinted .public-player__part-picker-mobile,
+  .public-player__part-selector-container--hinted .public-player__part-trigger {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface-raised));
+  }
+
+  .public-player__part-hint-pointer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: baseline;
+    gap: var(--spacing-2xs);
+    margin: 0 var(--spacing-xs) var(--spacing-2xs) 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-muted);
+  }
+
+  .public-player__part-hint-pointer-arrow {
+    font-size: var(--font-size-sm);
+    line-height: 1;
+  }
+
+  .public-player__part-hint {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
+    margin: var(--spacing-xs) 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+  }
+
+  .public-player__part-hint-icon {
+    flex-shrink: 0;
+    width: 1rem;
+    height: 1rem;
+    margin-top: var(--spacing-3xs);
+  }
+
+  .public-player__part-hint-text {
+    flex: 1 1 auto;
+    margin: 0;
+  }
+
+  .public-player__part-hint-dismiss {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.75rem;
+    min-height: 1.75rem;
+    padding: 0 var(--spacing-2xs);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: var(--font-size-md);
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .public-player__part-hint-dismiss:hover,
+  .public-player__part-hint-dismiss:focus-visible {
+    color: var(--color-text);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  }
+
   .public-player__part-options {
     display: flex;
     flex-direction: column;

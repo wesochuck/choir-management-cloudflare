@@ -9,6 +9,7 @@ export * from "./components/PlayerPartSelector";
 export * from "./components/PlayerProgress";
 export * from "./components/PlayerRehearsalOptions";
 export * from "./components/PlayerSetList";
+export * from "./components/PlayerVoicePartHint";
 export * from "./PublicPracticePlayer";
 export * from "./source";
 export * from "./useAudioSession";

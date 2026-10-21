@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { PlayerPartSelector } from "./PlayerPartSelector";
 import { PlayerProgress, PlayerTransport } from "./PlayerProgress";
+import { organizationTerminologyContext } from "../../../account/organizationTerminologyContext";
 
 // Interaction coverage for music-player controls (plan §4.13), including the
 // mobile-relevant voice-part sheet: transport disabled states, Play/Pause
@@ -243,5 +244,133 @@ describe("PlayerPartSelector interaction", () => {
     expect(radioLabels).toContain("Tenor 1");
     expect(radioLabels).toContain("Full Chorus");
     expect(radioLabels).toContain("Choir Mix");
+  });
+});
+
+describe("PlayerPartSelector voice-part nudge", () => {
+  const hintText =
+    "Your individual part may have its own recording. Select your part above to hear it when available.";
+
+  function renderHinted(extra: Record<string, unknown> = {}) {
+    const handlers = {
+      onDismissHint: vi.fn(),
+      onEngage: vi.fn(),
+      onSelectTrackKey: vi.fn(),
+    };
+    render(
+      <PlayerPartSelector
+        activeTrackKey="tutti"
+        onDismissHint={handlers.onDismissHint}
+        onEngage={handlers.onEngage}
+        onSelectTrackKey={handlers.onSelectTrackKey}
+        showVoicePartHint
+        trackKeys={["tutti", "s1", "s2"]}
+        {...extra}
+      />,
+    );
+    return handlers;
+  }
+
+  it("renders the pointer and hint row with accessible dismissal when shown", () => {
+    renderHinted();
+
+    expect(screen.getByText("Choose yours")).toBeInTheDocument();
+    expect(screen.getByText(hintText)).toBeInTheDocument();
+    const dismiss = screen.getByRole("button", { name: "Dismiss voice-part tip" });
+    expect(dismiss).toBeInTheDocument();
+
+    // Both the mobile select and the desktop trigger describe the hint.
+    const select = screen.getByRole("combobox", { name: /Voice Part/i });
+    const trigger = screen.getByRole("button", { name: /Voice Part/i });
+    const hintId = screen.getByText(hintText).getAttribute("id");
+    expect(hintId).toBeTruthy();
+    expect(select).toHaveAttribute("aria-describedby", hintId);
+    expect(trigger).toHaveAttribute("aria-describedby", hintId);
+  });
+
+  it("renders no pointer, hint, or dismiss control when hidden", () => {
+    render(
+      <PlayerPartSelector
+        activeTrackKey="tutti"
+        onSelectTrackKey={vi.fn()}
+        trackKeys={["tutti", "s1"]}
+      />,
+    );
+
+    expect(screen.queryByText("Choose yours")).not.toBeInTheDocument();
+    expect(screen.queryByText(hintText)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Dismiss voice-part tip" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /Voice Part/i })).not.toHaveAttribute(
+      "aria-describedby",
+    );
+  });
+
+  it("notifies engagement on mobile select activation but not on Tab focus alone", async () => {
+    const user = userEvent.setup();
+    const { onEngage, onSelectTrackKey } = renderHinted();
+
+    const select = screen.getByRole("combobox", { name: /Voice Part/i });
+    select.focus();
+    expect(select).toHaveFocus();
+    expect(onEngage).not.toHaveBeenCalled();
+
+    fireEvent.click(select);
+    expect(onEngage).toHaveBeenCalledTimes(1);
+
+    // Choosing the already-displayed default still reports the selection.
+    await user.selectOptions(select, "tutti");
+    expect(onSelectTrackKey).toHaveBeenCalledWith("tutti");
+  });
+
+  it("notifies engagement when opening the desktop sheet and keeps manual choice", async () => {
+    const user = userEvent.setup();
+    const { onEngage } = renderHinted();
+
+    const trigger = screen.getByRole("button", { name: /Voice Part/i });
+    await user.click(trigger);
+    expect(onEngage).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole("dialog", { name: "Choose Voice Part" })).toBeVisible();
+  });
+
+  it("dismisses the hint and returns focus to the visible selector control", async () => {
+    const user = userEvent.setup();
+    const { onDismissHint } = renderHinted();
+
+    const dismiss = screen.getByRole("button", { name: "Dismiss voice-part tip" });
+    await user.click(dismiss);
+    expect(onDismissHint).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("combobox", { name: /Voice Part/i })).toHaveFocus();
+  });
+
+  it("uses section terminology when the Organization labels parts as sections", () => {
+    render(
+      <organizationTerminologyContext.Provider
+        value={{
+          partLabel: "Section",
+          partLabelPlural: "Sections",
+          performerLabel: "Singer",
+          performerLabelPlural: "Singers",
+          setPerformerLabel: () => undefined,
+        }}
+      >
+        <PlayerPartSelector
+          activeTrackKey="tutti"
+          onSelectTrackKey={vi.fn()}
+          showVoicePartHint
+          trackKeys={["tutti", "s1"]}
+        />
+      </organizationTerminologyContext.Provider>,
+    );
+    expect(
+      screen.getByText(
+        "Your section may have its own recording. Select your section above to hear it when available.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dismiss section tip" })).toBeInTheDocument();
+    expect(document.querySelector(".public-player__part-trigger-label")).toHaveTextContent(
+      "Section",
+    );
   });
 });

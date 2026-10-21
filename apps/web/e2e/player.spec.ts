@@ -205,6 +205,193 @@ test("renders practice player with artwork, track navigation, and set list @webk
   }
 });
 
+test("shows a dismissible voice-part nudge for visitors without an assigned part", async ({
+  page,
+}, testInfo) => {
+  await page.route("**/api/singer/profile", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ code: "unauthorized", error: "No session", requestId }),
+      contentType: "application/json",
+      status: 401,
+    });
+  });
+  await page.route("**/api/public/player-details", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        eventId: "event-123",
+        eventStartsAt: futureIsoDate({ days: 60 }),
+        eventTitle: "Summer Showcase",
+        items: [
+          {
+            composer: "Composer Name",
+            durationSeconds: 180,
+            pieceId: "piece-1",
+            title: "Hallelujah Chorus",
+            trackFileIds: {
+              alto: "file-alto-1",
+              soprano: "file-sop-1",
+              tutti: "file-tutti-1",
+            },
+          },
+        ],
+        profileName: "Jane Doe",
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/player?token=valid-player-token");
+  const nowPlaying = page.locator(".public-player__now-playing-card");
+  await expect(nowPlaying.getByRole("heading", { name: "Hallelujah Chorus" })).toBeVisible();
+
+  // Exact nudge copy next to the unmodified selector.
+  await expect(nowPlaying.getByText("Choose yours")).toBeVisible();
+  await expect(
+    nowPlaying.getByText(
+      "Your individual part may have its own recording. Select your part above to hear it when available.",
+    ),
+  ).toBeVisible();
+  await expect(nowPlaying.getByRole("button", { name: "Dismiss voice-part tip" })).toBeVisible();
+  await testInfo.attach("voice-part-nudge-visible", {
+    body: await page.screenshot(),
+    contentType: "image/png",
+  });
+
+  // Dismissing hides the nudge and it stays hidden after a same-tab reload.
+  await nowPlaying.getByRole("button", { name: "Dismiss voice-part tip" }).click();
+  await expect(nowPlaying.getByText("Choose yours")).not.toBeVisible();
+  await page.reload();
+  const reloaded = page.locator(".public-player__now-playing-card");
+  await expect(reloaded.getByRole("heading", { name: "Hallelujah Chorus" })).toBeVisible();
+  await expect(reloaded.getByText("Choose yours")).not.toBeVisible();
+  await testInfo.attach("voice-part-nudge-dismissed", {
+    body: await page.screenshot(),
+    contentType: "image/png",
+  });
+});
+
+test("suppresses the voice-part nudge for assigned parts and after manual selection", async ({
+  page,
+}) => {
+  await page.route("**/api/singer/profile", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        displayName: "Jane Doe",
+        email: "",
+        globalStatus: "Active",
+        id: "00000000-0000-4000-8000-000000000000",
+        phone: "",
+        photoFileId: null,
+        receiveOtherEventReminders: true,
+        receivePerformanceReminders: true,
+        receiveRehearsalReminders: true,
+        requestId,
+        showInDirectory: true,
+        voicePart: "Alto",
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/public/player-details", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        eventId: "event-123",
+        eventStartsAt: futureIsoDate({ days: 60 }),
+        eventTitle: "Summer Showcase",
+        items: [
+          {
+            composer: "Composer Name",
+            durationSeconds: 180,
+            pieceId: "piece-1",
+            title: "Hallelujah Chorus",
+            trackFileIds: {
+              alto: "file-alto-1",
+              soprano: "file-sop-1",
+              tutti: "file-tutti-1",
+            },
+          },
+        ],
+        profileName: "Jane Doe",
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/player?token=valid-player-token");
+  const nowPlaying = page.locator(".public-player__now-playing-card");
+  await expect(nowPlaying.getByRole("heading", { name: "Hallelujah Chorus" })).toBeVisible();
+
+  // Assigned Alto resolves to the alto track and never shows the nudge.
+  await expect(nowPlaying.locator(".public-player__track-badge")).toHaveText("ALTO");
+  await expect(nowPlaying.getByText("Choose yours")).not.toBeVisible();
+});
+
+test("retains the selected part across reloads without a login", async ({ page }, testInfo) => {
+  const isMobile = testInfo.project.name.includes("mobile");
+  await page.route("**/api/singer/profile", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ code: "unauthorized", error: "No session", requestId }),
+      contentType: "application/json",
+      status: 401,
+    });
+  });
+  await page.route("**/api/public/player-details", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        eventId: "event-123",
+        eventStartsAt: futureIsoDate({ days: 60 }),
+        eventTitle: "Summer Showcase",
+        items: [
+          {
+            composer: "Composer Name",
+            durationSeconds: 180,
+            pieceId: "piece-1",
+            title: "Hallelujah Chorus",
+            trackFileIds: {
+              alto: "file-alto-1",
+              soprano: "file-sop-1",
+              tutti: "file-tutti-1",
+            },
+          },
+        ],
+        profileName: "Jane Doe",
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/player?token=valid-player-token");
+  const nowPlaying = page.locator(".public-player__now-playing-card");
+  await expect(nowPlaying.getByRole("heading", { name: "Hallelujah Chorus" })).toBeVisible();
+  await expect(nowPlaying.getByText("Choose yours")).toBeVisible();
+
+  if (isMobile) {
+    await page.locator("#mobile-voice-part-select").selectOption("soprano");
+  } else {
+    await nowPlaying.getByRole("button", { name: /Voice Part/i }).click();
+    await page
+      .getByRole("dialog", { name: "Choose Voice Part" })
+      .getByRole("radio", {
+        name: "Soprano",
+      })
+      .click();
+  }
+  await expect(nowPlaying.locator(".public-player__track-badge")).toHaveText("SOPRANO");
+
+  await page.reload();
+  const reloaded = page.locator(".public-player__now-playing-card");
+  await expect(reloaded.getByRole("heading", { name: "Hallelujah Chorus" })).toBeVisible();
+  await expect(reloaded.locator(".public-player__track-badge")).toHaveText("SOPRANO");
+  await expect(reloaded.getByText("Choose yours")).not.toBeVisible();
+});
+
 test("opens and interacts with rehearsal settings drawer", async ({ page }) => {
   await page.route("**/api/public/player-details", async (route) => {
     await route.fulfill({

@@ -14,14 +14,17 @@ import { PlayerSetList } from "./components/PlayerSetList";
 import {
   availableTrackKeys,
   formatTrackKey,
+  isFullMixKey,
   resolveTrack,
   resolveTrackKey,
   updateMediaSessionPosition,
 } from "./format";
 import type { PracticeTrackSource } from "./source";
 import type { PlayerDetails, PlayerPlaylistItem, ResolvedTrack } from "./types";
+import type { RosterPartResolution } from "./useRosterPart";
 import { useAudioSession, type AudioSessionHandlers } from "./useAudioSession";
 import { useAutoCacheOfflineCopies, useOfflineAudio } from "./usePlayerOffline";
+import { useVoicePartNudge } from "./voicePartHint";
 import { subscribeNetworkStatus } from "../../offline/network";
 import { useOfflineCopies } from "../../offline/useOfflineCopies";
 
@@ -117,6 +120,32 @@ function computeAudioSrc(
 
 const MAX_STREAM_RETRIES = 3;
 const STREAM_RETRY_DELAYS = [300, 1000, 2500] as const;
+
+/**
+ * Tab-scoped persistence for an explicitly chosen practice part, so the
+ * choice survives refreshes and reloads even for visitors without a login
+ * (who have no roster part to restore from). Session storage is
+ * origin-bound, and one hostname resolves to one Organization. A roster
+ * assigned part always wins over this cache; the cache only fills the gap
+ * when no assigned part exists.
+ */
+const PERSISTED_TRACK_KEY_STORAGE_KEY = "choir.selected-part:v1";
+
+function readPersistedTrackKey(): string | null {
+  try {
+    return sessionStorage.getItem(PERSISTED_TRACK_KEY_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedTrackKey(key: string): void {
+  try {
+    sessionStorage.setItem(PERSISTED_TRACK_KEY_STORAGE_KEY, key);
+  } catch {
+    // Private-mode storage failures must not break playback.
+  }
+}
 
 interface PlayerAudioProps {
   readonly audioRef: React.RefObject<HTMLAudioElement | null>;
@@ -366,6 +395,31 @@ function PlayerEmptyState({
   );
 }
 
+/**
+ * Tab-scoped persistence for an explicitly chosen practice part, so the
+ * choice survives refreshes and reloads even for visitors without a login
+ * (who have no roster part to restore from). A roster assigned part always
+ * wins; the cache only fills the gap when no assigned part exists, and keys
+ * that do not resolve against the current playlist fall back to the
+ * default. Fresh in-session choices take precedence over the cached value.
+ */
+function usePersistedTrackKeyOverride(
+  allTrackKeys: readonly string[],
+  trackLabels: Record<string, string> | undefined,
+  rosterProfile: RosterPartResolution | undefined,
+): string | null {
+  const hasAssignedRosterPart =
+    rosterProfile?.status === "assigned" &&
+    rosterProfile.voicePart !== null &&
+    !isFullMixKey(rosterProfile.voicePart);
+  return useMemo(() => {
+    if (hasAssignedRosterPart) return null;
+    const persisted = readPersistedTrackKey();
+    if (!persisted) return null;
+    return resolveTrackKey(allTrackKeys, persisted, trackLabels);
+  }, [allTrackKeys, hasAssignedRosterPart, trackLabels]);
+}
+
 function getPlayerMetadata(
   currentItem: PlayerPlaylistItem | null,
   currentTrack: ResolvedTrack | null,
@@ -385,12 +439,14 @@ export function PublicPracticePlayer({
   initialPieceId,
   initialTrackKey,
   onTrackKeyChange,
+  rosterProfile,
   source,
 }: {
   readonly details: PlayerDetails;
   readonly initialPieceId?: string | undefined;
   readonly initialTrackKey?: string | undefined;
   readonly onTrackKeyChange?: ((key: string) => void) | undefined;
+  readonly rosterProfile?: RosterPartResolution | undefined;
   readonly source: PracticeTrackSource;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -438,17 +494,28 @@ export function PublicPracticePlayer({
   } = useOfflineCopies({ scope, source });
 
   const allTrackKeys = useMemo(() => availableTrackKeys(details.items), [details.items]);
+  const persistedOverrideKey = usePersistedTrackKeyOverride(
+    allTrackKeys,
+    details.trackLabels,
+    rosterProfile,
+  );
   const [userOverrideTrackKey, setUserOverrideTrackKey] = useState<string | null>(null);
 
   const selectedTrackKey = useMemo(
     () =>
       resolveSelectedTrackKey(
-        userOverrideTrackKey,
+        userOverrideTrackKey ?? persistedOverrideKey,
         initialTrackKey,
         allTrackKeys,
         details.trackLabels,
       ),
-    [allTrackKeys, details.trackLabels, initialTrackKey, userOverrideTrackKey],
+    [
+      allTrackKeys,
+      details.trackLabels,
+      initialTrackKey,
+      persistedOverrideKey,
+      userOverrideTrackKey,
+    ],
   );
 
   const activeTrackKey = useMemo(
@@ -637,6 +704,12 @@ export function PublicPracticePlayer({
 
   function selectTrackKey(key: string): void {
     prepareLoudness();
+    // Any manual choice counts as engagement — even re-choosing the
+    // displayed automatic default — while playback-driven overrides below
+    // (playCurrent) deliberately do not. The explicit choice also persists
+    // across refreshes/reloads for visitors without a roster part.
+    markSelectorEngaged();
+    writePersistedTrackKey(key);
     if (key === selectedTrackKey) return;
     setUserOverrideTrackKey(key);
     autoplayRef.current = playing;
@@ -917,6 +990,14 @@ export function PublicPracticePlayer({
     details.eventId,
   );
 
+  // Voice-part nudge (issue #279): explicit selector engagement is tracked
+  // separately from playback-driven overrides; playback itself never counts.
+  const { dismissVoicePartHint, markSelectorEngaged, showVoicePartHint } = useVoicePartNudge({
+    playerReady: currentTrack !== null,
+    rosterProfile,
+    trackKeys: allTrackKeys,
+  });
+
   if (details.items.length === 0) {
     return (
       <PlayerEmptyState
@@ -986,7 +1067,10 @@ export function PublicPracticePlayer({
           {/* Voice Part selection */}
           <PlayerPartSelector
             activeTrackKey={activeTrackKey}
+            onDismissHint={dismissVoicePartHint}
+            onEngage={markSelectorEngaged}
             onSelectTrackKey={selectTrackKey}
+            showVoicePartHint={showVoicePartHint}
             trackKeys={allTrackKeys}
             trackLabels={details.trackLabels}
           />

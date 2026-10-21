@@ -9,7 +9,7 @@ import {
   fetchPublicPlayerPlaylist,
   type PageStatus,
 } from "./player";
-import { useRosterPart } from "./player/useRosterPart";
+import { useRosterPartStatus } from "./player/useRosterPart";
 
 export type { PlayerDetails, PlayerPlaylistItem } from "./player";
 
@@ -30,7 +30,8 @@ export function PublicPlayerView() {
   const [pageStatus, setPageStatus] = useState<PageStatus>({
     type: token ? "loading" : "no_token",
   });
-  const rosterPart = useRosterPart();
+  const rosterResolution = useRosterPartStatus();
+  const rosterPart = rosterResolution.status === "assigned" ? rosterResolution.voicePart : null;
   const currentToken = token;
 
   const [retryCount, setRetryCount] = useState(0);
@@ -186,6 +187,7 @@ export function PublicPlayerView() {
         <PublicPracticePlayer
           details={details}
           initialTrackKey={rosterPart ?? undefined}
+          rosterProfile={rosterResolution}
           source={source}
         />
       </section>

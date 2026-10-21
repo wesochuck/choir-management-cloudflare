@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -9,18 +10,25 @@ import { Sheet } from "@choir/ui";
 
 import { displayTrackName, sortVoiceParts } from "../../playerVoiceParts";
 import { useOrganizationTerminology } from "../../../account/organizationTerminologyContext";
+import { PlayerVoicePartHintPointer, PlayerVoicePartHintRow } from "./PlayerVoicePartHint";
 
 export function PlayerPartSelector({
   activeTrackKey,
   defaultOpen = false,
+  onDismissHint,
+  onEngage,
   onSelectTrackKey,
+  showVoicePartHint = false,
   trackKeys,
   trackLabels,
   voicePartKeys,
 }: {
   readonly activeTrackKey: string;
   readonly defaultOpen?: boolean;
+  readonly onDismissHint?: (() => void) | undefined;
+  readonly onEngage?: (() => void) | undefined;
   readonly onSelectTrackKey: (key: string) => void;
+  readonly showVoicePartHint?: boolean | undefined;
   readonly trackKeys: readonly string[];
   readonly trackLabels?: Readonly<Record<string, string>> | undefined;
   readonly voicePartKeys?: readonly string[] | undefined;
@@ -29,6 +37,8 @@ export function PlayerPartSelector({
   const assignmentLabel = partLabel === "Section" ? "Section" : "Voice Part";
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const selectRef = useRef<HTMLSelectElement | null>(null);
+  const hintTextId = useId();
   const selectedOptionRef = useRef<HTMLButtonElement | null>(null);
   const optionsListRef = useRef<HTMLDivElement | null>(null);
 
@@ -79,8 +89,28 @@ export function PlayerPartSelector({
     }
   };
 
+  const handleDismissHint = () => {
+    onDismissHint?.();
+    // Keep keyboard users in context: the hint's call to action is the
+    // selector itself, so focus the visible control after dismissal.
+    const useDesktop =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(min-width: 48rem)").matches;
+    if (useDesktop) {
+      triggerRef.current?.focus();
+    } else {
+      selectRef.current?.focus();
+    }
+  };
+
   return (
-    <div className="public-player__part-selector-container">
+    <div
+      className={`public-player__part-selector-container${showVoicePartHint ? " public-player__part-selector-container--hinted" : ""}`}
+    >
+      {showVoicePartHint ? (
+        <PlayerVoicePartHintPointer isSectionTerminology={partLabel === "Section"} />
+      ) : null}
       {/* Mobile Native Picker (< 48rem) */}
       <label className="public-player__part-picker-mobile" htmlFor="mobile-voice-part-select">
         <span className="public-player__part-picker-lead">
@@ -119,12 +149,17 @@ export function PlayerPartSelector({
           </svg>
         </span>
         <select
+          aria-describedby={showVoicePartHint ? hintTextId : undefined}
           aria-label={assignmentLabel}
           className="public-player__part-picker-select"
           id="mobile-voice-part-select"
           onChange={(event) => {
             onSelectTrackKey(event.target.value);
           }}
+          onClick={() => {
+            onEngage?.();
+          }}
+          ref={selectRef}
           value={activeTrackKey}
         >
           {allKeys.map((key) => (
@@ -139,10 +174,12 @@ export function PlayerPartSelector({
       <div className="public-player__part-selector-desktop">
         <button
           aria-controls="voice-part-sheet"
+          aria-describedby={showVoicePartHint ? hintTextId : undefined}
           aria-expanded={isOpen}
           aria-haspopup="dialog"
           className="public-player__part-trigger"
           onClick={() => {
+            if (!isOpen) onEngage?.();
             setIsOpen((prev) => !prev);
           }}
           ref={triggerRef}
@@ -255,6 +292,13 @@ export function PlayerPartSelector({
           </div>
         </Sheet>
       </div>
+      {showVoicePartHint ? (
+        <PlayerVoicePartHintRow
+          hintTextId={hintTextId}
+          isSectionTerminology={partLabel === "Section"}
+          onDismiss={handleDismissHint}
+        />
+      ) : null}
     </div>
   );
 }

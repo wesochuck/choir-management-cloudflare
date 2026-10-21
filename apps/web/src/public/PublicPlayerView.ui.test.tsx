@@ -466,3 +466,227 @@ describe("PublicPlayerView UI & Branding", () => {
     });
   });
 });
+
+describe("PublicPracticePlayer voice-part nudge", () => {
+  const nudgeDetails: PlayerDetails = {
+    eventArtworkFileId: null,
+    eventId: "event-nudge",
+    eventStartsAt: "2026-10-21T19:00:00.000Z",
+    eventTitle: "Nudge Rehearsal",
+    items: [
+      {
+        composer: "Composer",
+        durationSeconds: 180,
+        pieceId: "piece-nudge-1",
+        title: "Anthem",
+        trackFileIds: {
+          s1: "file-s1",
+          t2: "file-t2",
+          tutti: "file-tutti",
+        },
+      },
+    ],
+    organizationName: "Test Chorus",
+    performerLabel: "Singer",
+    profileName: "Pat",
+  };
+
+  const hintText =
+    "Your individual part may have its own recording. Select your part above to hear it when available.";
+
+  function renderNudgedPlayer(
+    rosterProfile:
+      | { status: "loading" | "assigned" | "unassigned" | "unavailable"; voicePart: string | null }
+      | undefined,
+  ) {
+    const source = createTokenTrackSource("token-nudge");
+    const utils = render(
+      <PublicPracticePlayer details={nudgeDetails} rosterProfile={rosterProfile} source={source} />,
+    );
+    return { ...utils, audio: utils.container.querySelector("audio") };
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.useRealTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    sessionStorage.clear();
+  });
+
+  it("shows the hint for an unassigned profile with meaningful alternatives", () => {
+    renderNudgedPlayer({ status: "unassigned", voicePart: null });
+
+    expect(screen.getByText("Choose yours")).toBeInTheDocument();
+    expect(screen.getByText(hintText)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dismiss voice-part tip" })).toBeInTheDocument();
+  });
+
+  it("shows the hint for anonymous visitors and full-mix preferences", () => {
+    const { unmount } = renderNudgedPlayer({ status: "unavailable", voicePart: null });
+    expect(screen.getByText(hintText)).toBeInTheDocument();
+    unmount();
+
+    renderNudgedPlayer({ status: "assigned", voicePart: "Choir Mix" });
+    expect(screen.getByText(hintText)).toBeInTheDocument();
+  });
+
+  it("hides the hint for an assigned individual part and single-choice players", () => {
+    const { unmount } = renderNudgedPlayer({ status: "assigned", voicePart: "Tenor 2" });
+    expect(screen.queryByText(hintText)).not.toBeInTheDocument();
+    unmount();
+
+    const singleKeyDetails: PlayerDetails = {
+      ...nudgeDetails,
+      items: [
+        {
+          composer: "Composer",
+          durationSeconds: 180,
+          pieceId: "piece-solo",
+          title: "Solo",
+          trackFileIds: { tutti: "file-tutti" },
+        },
+      ],
+    };
+    render(
+      <PublicPracticePlayer
+        details={singleKeyDetails}
+        rosterProfile={{ status: "unassigned", voicePart: null }}
+        source={createTokenTrackSource("token-nudge")}
+      />,
+    );
+    expect(screen.queryByText(hintText)).not.toBeInTheDocument();
+  });
+
+  it("waits out the grace window, then hides on late arrival without changing playback", () => {
+    vi.useFakeTimers();
+    const { rerender } = renderNudgedPlayer({ status: "loading", voicePart: null });
+    expect(screen.queryByText(hintText)).not.toBeInTheDocument();
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(screen.getByText(hintText)).toBeInTheDocument();
+    const audio = document.querySelector("audio");
+    expect(audio?.getAttribute("src")).toContain("file-tutti");
+
+    rerender(
+      <PublicPracticePlayer
+        details={nudgeDetails}
+        rosterProfile={{ status: "assigned", voicePart: "Bass 1" }}
+        source={createTokenTrackSource("token-nudge")}
+      />,
+    );
+    expect(screen.queryByText(hintText)).not.toBeInTheDocument();
+    expect(audio?.getAttribute("src")).toContain("file-tutti");
+  });
+
+  it("dismisses on explicit selection of the displayed default and persists the choice", () => {
+    renderNudgedPlayer({ status: "unassigned", voicePart: null });
+    expect(screen.getByText(hintText)).toBeInTheDocument();
+
+    // Choosing the already-displayed Tutti default still counts as engagement.
+    const select = screen.getByRole("combobox", { name: /Voice Part/i });
+    fireEvent.change(select, { target: { value: "tutti" } });
+
+    expect(screen.queryByText(hintText)).not.toBeInTheDocument();
+    expect(sessionStorage.getItem("choir.voice-part-hint:v1")).toBe("suppressed");
+  });
+
+  it("dismisses via the close control, restores focus, and stays hidden on revisit", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderNudgedPlayer({ status: "unassigned", voicePart: null });
+
+    await user.click(screen.getByRole("button", { name: "Dismiss voice-part tip" }));
+    expect(screen.queryByText(hintText)).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /Voice Part/i })).toHaveFocus();
+    unmount();
+
+    renderNudgedPlayer({ status: "unassigned", voicePart: null });
+    expect(screen.queryByText(hintText)).not.toBeInTheDocument();
+  });
+});
+
+describe("PublicPracticePlayer persisted part selection", () => {
+  const persistDetails: PlayerDetails = {
+    eventArtworkFileId: null,
+    eventId: "event-persist",
+    eventStartsAt: "2026-10-21T19:00:00.000Z",
+    eventTitle: "Persist Rehearsal",
+    items: [
+      {
+        composer: "Composer",
+        durationSeconds: 180,
+        pieceId: "piece-persist-1",
+        title: "Anthem",
+        trackFileIds: { s1: "file-s1", t2: "file-t2", tutti: "file-tutti" },
+      },
+    ],
+    organizationName: "Test Chorus",
+    performerLabel: "Singer",
+    profileName: "Pat",
+  };
+
+  function renderPersistedPlayer(rosterProfile?: {
+    status: "loading" | "assigned" | "unassigned" | "unavailable";
+    voicePart: string | null;
+  }) {
+    const utils = render(
+      <PublicPracticePlayer
+        details={persistDetails}
+        rosterProfile={rosterProfile}
+        source={createTokenTrackSource("token-persist")}
+      />,
+    );
+    return { ...utils, audio: utils.container.querySelector("audio") };
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  it("retains an explicitly selected part across remounts without a login", () => {
+    const { unmount } = renderPersistedPlayer({ status: "unavailable", voicePart: null });
+    fireEvent.change(screen.getByRole("combobox", { name: /Voice Part/i }), {
+      target: { value: "s1" },
+    });
+    expect(sessionStorage.getItem("choir.selected-part:v1")).toBe("s1");
+    unmount();
+
+    const { audio } = renderPersistedPlayer({ status: "unavailable", voicePart: null });
+    expect(audio?.getAttribute("src")).toContain("file-s1");
+    expect(screen.getByRole("combobox", { name: /Voice Part/i })).toHaveValue("s1");
+  });
+
+  it("falls back to the default when the persisted key does not resolve", () => {
+    sessionStorage.setItem("choir.selected-part:v1", "bass9");
+    const { audio } = renderPersistedPlayer({ status: "unavailable", voicePart: null });
+    expect(audio?.getAttribute("src")).toContain("file-tutti");
+  });
+
+  it("applies a persisted selection when no roster part is assigned", () => {
+    sessionStorage.setItem("choir.selected-part:v1", "s1");
+    const { audio } = renderPersistedPlayer({ status: "unassigned", voicePart: null });
+    // Sanity: without an assigned roster part the persisted pick applies.
+    expect(audio?.getAttribute("src")).toContain("file-s1");
+  });
+
+  it("lets an assigned roster part win over a persisted manual choice", () => {
+    sessionStorage.setItem("choir.selected-part:v1", "s1");
+    const { container } = render(
+      <PublicPracticePlayer
+        details={persistDetails}
+        initialTrackKey="Tenor 2"
+        rosterProfile={{ status: "assigned", voicePart: "Tenor 2" }}
+        source={createTokenTrackSource("token-persist")}
+      />,
+    );
+    expect(container.querySelector("audio")?.getAttribute("src")).toContain("file-t2");
+  });
+});

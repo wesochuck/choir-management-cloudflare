@@ -11,7 +11,7 @@ import {
   resolveTrack,
   type PracticeTrackSource,
 } from "../public/player";
-import { useRosterPart } from "../public/player/useRosterPart";
+import { useRosterPartStatus, type RosterPartResolution } from "../public/player/useRosterPart";
 import {
   filterLibraryPieces,
   filterPlaylistItems,
@@ -100,6 +100,7 @@ function PublishedSetListsTabContent({
   onTrackKeyChange,
   pieceIdParam,
   playableOnly,
+  rosterProfile,
   setListPlayableCount,
   setListQuery,
   setListTotalMusicCount,
@@ -108,6 +109,7 @@ function PublishedSetListsTabContent({
   readonly approvedSetLists: readonly ApprovedSetListOption[];
   readonly currentSetList: ApprovedSetListOption | null;
   readonly effectivePart: string;
+  readonly rosterProfile: RosterPartResolution;
   readonly filteredSetListItems: PlayerPlaylistItem[];
   readonly onPlayableOnlyChange: (checked: boolean) => void;
   readonly onSelectEventId: (id: string) => void;
@@ -207,6 +209,7 @@ function PublishedSetListsTabContent({
           initialPieceId={pieceIdParam ?? undefined}
           initialTrackKey={effectivePart || undefined}
           onTrackKeyChange={onTrackKeyChange}
+          rosterProfile={rosterProfile}
           source={source}
         />
       )}
@@ -225,6 +228,7 @@ function AllTracksTabContent({
   onTrackKeyChange,
   pieceIdParam,
   playableOnly,
+  rosterProfile,
   source,
 }: {
   readonly allTracksPlayableCount: number;
@@ -237,6 +241,7 @@ function AllTracksTabContent({
   readonly onTrackKeyChange: (key: string) => void;
   readonly pieceIdParam: string | null;
   readonly playableOnly: boolean;
+  readonly rosterProfile: RosterPartResolution;
   readonly source: PracticeTrackSource;
 }) {
   return (
@@ -288,6 +293,7 @@ function AllTracksTabContent({
           initialPieceId={pieceIdParam ?? undefined}
           initialTrackKey={effectivePart || undefined}
           onTrackKeyChange={onTrackKeyChange}
+          rosterProfile={rosterProfile}
           source={source}
         />
       )}
@@ -302,7 +308,8 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
   );
   const eventIdParam = params.get("eventId");
   const pieceIdParam = params.get("pieceId");
-  const rosterPart = useRosterPart();
+  const rosterResolution = useRosterPartStatus();
+  const rosterPart = rosterResolution.status === "assigned" ? rosterResolution.voicePart : null;
   const source = useMemo(() => createSessionTrackSource(), []);
 
   const [pieces, setPieces] = useState<readonly SingerLearningTrackPiece[]>([]);
@@ -467,6 +474,7 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
               onTrackKeyChange={setUserSelectedPart}
               pieceIdParam={pieceIdParam}
               playableOnly={playableOnly}
+              rosterProfile={rosterResolution}
               setListPlayableCount={setListPlayableCount}
               setListQuery={setListQuery}
               setListTotalMusicCount={currentSetListMusicSelections.length}
@@ -486,6 +494,7 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
               onTrackKeyChange={setUserSelectedPart}
               pieceIdParam={pieceIdParam}
               playableOnly={playableOnly}
+              rosterProfile={rosterResolution}
               source={source}
             />
           </TabsContent>

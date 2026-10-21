@@ -1,3 +1,4 @@
+import type * as apiModule from "../api";
 import * as singerApi from "../api/singer";
 import * as api from "../auth/api";
 import { MemberPracticeView } from "./MemberPracticeView";
@@ -12,6 +13,18 @@ vi.mock("../auth/api", async (importOriginal) => {
     ...actual,
     listOrganizationEvents: vi.fn(),
     listSingerLearningTracks: vi.fn(),
+  };
+});
+
+const mockApiGetMemberProfile = vi.fn((): Promise<unknown> =>
+  Promise.reject(new Error("no session")),
+);
+
+vi.mock("../api", async (importOriginal) => {
+  const actual = await importOriginal<typeof apiModule>();
+  return {
+    ...actual,
+    getMemberProfile: () => mockApiGetMemberProfile(),
   };
 });
 
@@ -302,5 +315,81 @@ describe("MemberPracticeView published set lists and selection", () => {
     // Falls back to All tracks tab
     const allTracksTab = screen.getByRole("tab", { name: "All tracks" });
     expect(allTracksTab).toHaveAttribute("aria-selected", "true");
+  });
+});
+
+describe("MemberPracticeView voice-part nudge", () => {
+  const hintText =
+    "Your individual part may have its own recording. Select your part above to hear it when available.";
+
+  function mockProfile(voicePart: string | null) {
+    if (voicePart === null) {
+      mockApiGetMemberProfile.mockRejectedValue(new Error("no session"));
+      return;
+    }
+    mockApiGetMemberProfile.mockResolvedValue({
+      email: "",
+      globalStatus: "Active",
+      id: "00000000-0000-4000-8000-000000000000",
+      phone: "",
+      photoFileId: null,
+      receiveOtherEventReminders: true,
+      receivePerformanceReminders: true,
+      receiveRehearsalReminders: true,
+      voicePart,
+    });
+  }
+
+  beforeEach(() => {
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    sessionStorage.clear();
+  });
+
+  it("shows the hint for a member without an assigned part", async () => {
+    mockProfile("");
+    renderWithEvent(EVENT_WITH_ART_ID);
+
+    expect(await screen.findByText(hintText)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dismiss voice-part tip" })).toBeInTheDocument();
+  });
+
+  it("hides the hint once the member has an assigned individual part", async () => {
+    mockProfile("Alto");
+    renderWithEvent(EVENT_WITH_ART_ID);
+
+    await screen.findByRole("heading", { name: "Alleluia" });
+    expect(screen.queryByText(hintText)).not.toBeInTheDocument();
+  });
+
+  it("dismisses on part selection and keeps the choice", async () => {
+    const user = userEvent.setup();
+    mockProfile("");
+    renderWithEvent(EVENT_WITH_ART_ID);
+
+    expect(await screen.findByText(hintText)).toBeInTheDocument();
+    const select = screen.getByRole("combobox", { name: /Voice Part/i });
+    await user.selectOptions(select, "alto");
+
+    await waitFor(() => {
+      expect(screen.queryByText(hintText)).not.toBeInTheDocument();
+    });
+    expect(sessionStorage.getItem("choir.voice-part-hint:v1")).toBe("suppressed");
+  });
+
+  it("keeps the hint dismissed across set-list tabs in the same session", async () => {
+    const user = userEvent.setup();
+    mockProfile("");
+    renderWithEvent(EVENT_WITH_ART_ID);
+
+    expect(await screen.findByText(hintText)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Dismiss voice-part tip" }));
+    expect(screen.queryByText(hintText)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "All tracks" }));
+    expect(await screen.findByRole("heading", { name: "Alleluia" })).toBeInTheDocument();
+    expect(screen.queryByText(hintText)).not.toBeInTheDocument();
   });
 });
