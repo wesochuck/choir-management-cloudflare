@@ -1,12 +1,10 @@
 import type { NavigationGroup } from "../components/AuthenticatedShell/types";
 import type { CommandPaletteAction } from "../components/CommandPalette/types";
-import { organizationFeatureIcons } from "./icons";
 import {
-  dashboardGroups,
+  organizationFeatureGroups,
   organizationFeatures,
   organizationPaletteShortcuts,
   organizationQuickActions,
-  sidebarGroupLabels,
 } from "./registry";
 import type { OrganizationFeature, OrganizationFeatureContext } from "./types";
 
@@ -59,38 +57,55 @@ function copy(text: string, context: OrganizationFeatureContext): string {
     .replaceAll("{performer}", context.performerLabel ?? "Performer")
     .replaceAll("{performers}", (context.performerLabelPlural ?? "Performers").toLowerCase());
 }
+function featureItem(feature: OrganizationFeature, context: OrganizationFeatureContext) {
+  return {
+    featureId: feature.id,
+    iconId: feature.iconId,
+    href: feature.sidebar?.href ?? feature.href,
+    label: copy(feature.label, context),
+    ...(feature.requiredModule ? { module: feature.requiredModule } : {}),
+  };
+}
 export function getOrganizationSidebarGroups(
   context: OrganizationFeatureContext,
 ): readonly NavigationGroup[] {
-  if (context.scopedReadOnly)
-    return [{ label: "Organization", items: [{ href: "/admin", label: "Overview" }] }];
-  return sidebarGroupLabels
-    .map((label, group) => ({
-      label,
+  const home = organizationFeatures.find((f) => f.id === "admin-overview");
+  const landing = home
+    ? [
+        {
+          id: "home" as const,
+          label: copy(home.label, context),
+          iconId: home.iconId,
+          items: [featureItem(home, context)],
+        },
+      ]
+    : [];
+  if (context.scopedReadOnly) return landing;
+  return [
+    ...landing,
+    ...organizationFeatureGroups.map((group) => ({
+      ...group,
       items: organizationFeatures
-        .filter((f) => f.sidebar?.group === group && eligible(f, context))
+        .filter((f) => f.groupId === group.id && f.sidebar && eligible(f, context))
         .toSorted((a, b) => (a.sidebar?.position ?? 0) - (b.sidebar?.position ?? 0))
-        .map((f) => ({
-          href: f.sidebar?.href ?? f.href,
-          label: f.label,
-          ...(f.requiredModule ? { module: f.requiredModule } : {}),
-        })),
-    }))
-    .filter((g) => g.items.length > 0);
+        .map((feature) => featureItem(feature, context)),
+    })),
+  ].filter((g) => g.items.length > 0);
 }
 export function getOrganizationDashboardSections(context: OrganizationFeatureContext) {
-  return dashboardGroups
-    .map((group, index) => ({
+  return organizationFeatureGroups
+    .map((group) => ({
       ...group,
       cards: organizationFeatures
-        .filter((f) => f.dashboard?.group === index && eligible(f, context))
+        .filter((f) => f.groupId === group.id && f.dashboard && eligible(f, context))
         .toSorted((a, b) => (a.dashboard?.position ?? 0) - (b.dashboard?.position ?? 0))
         .flatMap((f) =>
           f.dashboard
             ? [
                 {
+                  featureId: f.id,
+                  iconId: f.iconId,
                   href: f.href,
-                  icon: organizationFeatureIcons[f.iconId],
                   label: copy(f.dashboard.label, context),
                   description: copy(f.dashboard.description, context),
                   tone: f.dashboard.tone,
@@ -99,20 +114,23 @@ export function getOrganizationDashboardSections(context: OrganizationFeatureCon
             : [],
         ),
     }))
-    .filter((g) => g.cards.length > 0);
+    .filter((group) => group.cards.length > 0);
 }
 export function getOrganizationQuickActions(context: OrganizationFeatureContext) {
   if (context.scopedReadOnly) return [];
-  return organizationQuickActions
-    .filter((action) => {
-      const feature = byId.get(action.featureId);
-      return feature && eligible(feature, context);
-    })
-    .map((action) => ({
-      href: action.href,
-      icon: organizationFeatureIcons[action.iconId],
-      label: copy(action.label, context),
-    }));
+  return organizationQuickActions.flatMap((action) => {
+    const feature = byId.get(action.featureId);
+    return feature && eligible(feature, context)
+      ? [
+          {
+            featureId: feature.id,
+            iconId: feature.iconId,
+            href: action.href,
+            label: copy(action.label, context),
+          },
+        ]
+      : [];
+  });
 }
 export function getOrganizationPaletteEntries(
   context: OrganizationFeatureContext,

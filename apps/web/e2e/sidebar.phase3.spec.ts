@@ -1,5 +1,18 @@
 import { expect, test } from "@playwright/test";
-import { installOrganizationApi } from "./fixtures/apiMocks";
+import { installOrganizationApi as installApi } from "./fixtures/apiMocks";
+import type { OrganizationApiOptions } from "./fixtures/apiMocks";
+import type { Page } from "@playwright/test";
+async function installOrganizationApi(page: Page, options: OrganizationApiOptions) {
+  await page.addInitScript(() => {
+    const key = `choir-organization-navigation:v1:${window.location.hostname}:organization:groups`;
+    if (window.localStorage.getItem(key) === null)
+      window.localStorage.setItem(
+        key,
+        JSON.stringify(["people", "events", "music", "communications", "insights"]),
+      );
+  });
+  return installApi(page, options);
+}
 import { buildSingerDashboardResponse } from "./fixtures/builders";
 import { fulfillJson } from "./fixtures/session";
 
@@ -17,8 +30,10 @@ test("pinned layout shares heading, marks one current link, and persists", async
   await expect(page.locator(".signed-in-shell")).toHaveAttribute("data-sidebar-pinned", "true");
 
   // Shared heading hierarchy in the pinned sidebar, no eyebrow kickers.
-  const sidebarHeading = sidebar.getByRole("heading", { level: 2, name: "Organization Admin" });
-  await expect(sidebarHeading).toBeVisible();
+  await expect(sidebar.getByText("Organization Alpha", { exact: true })).toHaveCount(0);
+  await expect(
+    sidebar.getByRole("button", { name: "People & membership", exact: true }),
+  ).toBeVisible();
   await expect(page.locator(".eyebrow")).toHaveCount(0);
   await expect(sidebar.locator(".workspace-nav__dot")).toHaveCount(0);
 
@@ -47,12 +62,14 @@ test("pin, unpin, and collapse move focus to a visible control", async ({ page }
   await expect(collapse).toBeVisible();
 
   await collapse.click();
-  await expect(page.locator(".signed-in-sidebar")).toHaveCount(0);
-  const trigger = page.getByRole("button", { name: "Open workspace navigation" });
-  await expect(trigger).toBeVisible();
-  await expect(trigger).toBeFocused();
-
-  await trigger.click();
+  await expect(page.locator(".signed-in-shell")).toHaveAttribute(
+    "data-organization-navigation",
+    "compact",
+  );
+  const expand = page.getByRole("button", { name: "Expand navigation" });
+  await expect(expand).toBeFocused();
+  await expand.click();
+  await page.getByRole("button", { name: "Unpin sidebar" }).click();
   const drawer = page.getByRole("dialog", { name: "Workspace navigation" });
   await expect(drawer).toBeVisible();
   const pin = drawer.getByRole("button", { name: "Keep sidebar open" });
@@ -511,10 +528,11 @@ test("breakpoints, long labels, zoom, keyboard, and reduced motion", async ({ pa
 
   // Long organization names wrap without clipping the controls.
   await page.setViewportSize({ height: 900, width: 1280 });
-  const orgLabel = page.locator(".signed-in-sidebar .sidebar-context__org");
+  const orgLabel = page.locator(".signed-in-header__brand > a");
+  await expect(page.locator(".signed-in-sidebar .sidebar-context__org")).toHaveCount(0);
   await expect(orgLabel).toContainText("Montgomery-Wellington");
   const labelBox = await orgLabel.boundingBox();
-  const headerBox = await page.locator(".signed-in-sidebar .sidebar-header").boundingBox();
+  const headerBox = await page.locator(".signed-in-header").boundingBox();
   expect(labelBox).not.toBeNull();
   expect(headerBox).not.toBeNull();
   if (labelBox && headerBox) {
@@ -574,7 +592,7 @@ test("light and dark themes keep navigation readable", async ({ page }) => {
     await expect(page.locator(".signed-in-sidebar")).toBeVisible();
     await expect(page.locator(".signed-in-sidebar a[aria-current='page']")).toBeVisible();
     const colors = await page
-      .locator(".signed-in-sidebar .workspace-nav__items a")
+      .locator(".signed-in-sidebar .organization-nav__link")
       .first()
       .evaluate((node) => {
         const style = window.getComputedStyle(node);

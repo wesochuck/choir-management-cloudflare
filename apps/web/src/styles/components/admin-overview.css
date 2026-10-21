@@ -727,3 +727,20 @@
     }
   }
 }
+
+@layer components {
+  .admin-overview__card-icon svg {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  .admin-overview__quick-btn-icon svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+}
+
+@layer components {
+  .admin-overview__section--blue .admin-overview__section-dot {
+    background: var(--color-navigation-music);
+  }
+}

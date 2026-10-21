@@ -1,3 +1,5 @@
+import { OrganizationAdminNavigation } from "../../organizationFeatures/OrganizationAdminNavigation";
+import { useOrganizationNavigationPreferences } from "../../organizationFeatures/navigationPreferences";
 import { useOrganizationModuleState } from "../../organizationFeatures/useOrganizationModuleState";
 import { organizationModuleContext } from "../../organizationFeatures/moduleStateContext";
 import { getOrganizationSidebarGroups } from "../../organizationFeatures/selectors";
@@ -97,6 +99,10 @@ function AuthenticatedOrganizationShell({
   readonly onSignedOut: () => void;
 }) {
   const [route, navigate] = useRoute();
+  const organizationNavigation = useOrganizationNavigationPreferences(
+    window.location.hostname,
+    `${route.pathname}${route.search}`,
+  );
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [sidebarPinned, setSidebarPinned] = useState(readSidebarPinned);
   const [isNarrowViewport, setIsNarrowViewport] = useState(readNarrowViewport);
@@ -509,6 +515,11 @@ function AuthenticatedOrganizationShell({
   }
 
   function collapseWorkspaceNavigation() {
+    if (selectedWorkspace === "organization" && !isNarrowViewport) {
+      organizationNavigation.toggleCompact();
+      sidebarCollapseRef.current?.focus();
+      return;
+    }
     focusMobileTriggerRef.current = true;
     setSidebarPinned(false);
     setMobileNavOpen(false);
@@ -609,6 +620,13 @@ function AuthenticatedOrganizationShell({
         className="signed-in-shell"
         data-sidebar-pinned={sidebarPinned ? "true" : "false"}
         data-theme={themePreference}
+        data-organization-navigation={
+          selectedWorkspace === "organization"
+            ? organizationNavigation.compact
+              ? "compact"
+              : "expanded"
+            : undefined
+        }
       >
         <a className="skip-link" href="#signed-in-main">
           Skip to main content
@@ -741,17 +759,27 @@ function AuthenticatedOrganizationShell({
           {sidebarPinned ? (
             <aside className="signed-in-sidebar">
               <div className="sidebar-header">
-                <SidebarWorkspaceHeading
-                  organizationName={organizationName}
-                  workspaceName={workspaceLabel(selectedWorkspace)}
-                />
+                {selectedWorkspace !== "organization" ? (
+                  <SidebarWorkspaceHeading
+                    organizationName={organizationName}
+                    workspaceName={workspaceLabel(selectedWorkspace)}
+                  />
+                ) : null}
                 <div className="sidebar-toolbar" role="group" aria-label="Navigation controls">
                   <button
-                    aria-label="Collapse navigation"
+                    aria-label={
+                      selectedWorkspace === "organization" && organizationNavigation.compact
+                        ? "Expand navigation"
+                        : "Collapse navigation"
+                    }
                     className="sidebar-toolbar__button"
                     onClick={collapseWorkspaceNavigation}
                     ref={sidebarCollapseRef}
-                    title="Collapse navigation"
+                    title={
+                      selectedWorkspace === "organization" && organizationNavigation.compact
+                        ? "Expand navigation"
+                        : "Collapse navigation"
+                    }
                     type="button"
                   >
                     <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
@@ -774,19 +802,28 @@ function AuthenticatedOrganizationShell({
                   </button>
                 </div>
               </div>
-              {selectedWorkspace === "organization" ? (
-                <QuickSearchTrigger onClick={openPaletteFromSidebar} variant="sidebar" />
-              ) : null}
               <div
                 className="sidebar-nav-scroll"
                 onScroll={handleNavScroll(selectedWorkspace)}
                 ref={sidebarScrollRef}
               >
-                <Navigation
-                  groups={navGroups}
-                  navigate={handleVoidNavigate}
-                  pathname={route.pathname}
-                />
+                {selectedWorkspace === "organization" ? (
+                  <OrganizationAdminNavigation
+                    groups={navGroups}
+                    path={`${route.pathname}${route.search}`}
+                    compact={organizationNavigation.compact && !isNarrowViewport}
+                    expanded={organizationNavigation.expanded}
+                    toggleGroup={organizationNavigation.toggleGroup}
+                    navigate={navigate}
+                    onSearch={openPaletteFromSidebar}
+                  />
+                ) : (
+                  <Navigation
+                    groups={navGroups}
+                    navigate={handleVoidNavigate}
+                    pathname={route.pathname}
+                  />
+                )}
               </div>
             </aside>
           ) : null}
@@ -871,10 +908,14 @@ function AuthenticatedOrganizationShell({
           title="Workspace navigation"
         >
           <div className="sheet__header sidebar-drawer__header">
-            <SidebarWorkspaceHeading
-              organizationName={organizationName}
-              workspaceName={workspaceLabel(selectedWorkspace)}
-            />
+            {selectedWorkspace === "organization" ? (
+              <h2 className="organization-nav__drawer-title">Organization Admin</h2>
+            ) : (
+              <SidebarWorkspaceHeading
+                organizationName={organizationName}
+                workspaceName={workspaceLabel(selectedWorkspace)}
+              />
+            )}
             {shouldShowDrawerPin(sidebarPinned, isNarrowViewport) ? (
               <button
                 aria-label="Keep sidebar open"
@@ -891,19 +932,31 @@ function AuthenticatedOrganizationShell({
               </button>
             ) : null}
           </div>
-          {selectedWorkspace === "organization" ? (
-            <QuickSearchTrigger onClick={openPaletteFromDrawer} variant="sidebar" />
-          ) : null}
           <div
             className="sidebar-nav-scroll"
             onScroll={handleNavScroll(selectedWorkspace)}
             ref={drawerScrollRef}
           >
-            <Navigation
-              groups={navGroups}
-              navigate={handleDrawerNavigate}
-              pathname={route.pathname}
-            />
+            {selectedWorkspace === "organization" ? (
+              <OrganizationAdminNavigation
+                groups={navGroups}
+                path={`${route.pathname}${route.search}`}
+                expanded={organizationNavigation.expanded}
+                toggleGroup={organizationNavigation.toggleGroup}
+                navigate={async (href) => {
+                  const allowed = await navigate(href);
+                  if (allowed) setMobileNavOpen(false);
+                  return allowed;
+                }}
+                onSearch={openPaletteFromDrawer}
+              />
+            ) : (
+              <Navigation
+                groups={navGroups}
+                navigate={handleDrawerNavigate}
+                pathname={route.pathname}
+              />
+            )}
           </div>
         </Sheet>
         {canAccessPalette ? (

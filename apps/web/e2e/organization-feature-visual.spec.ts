@@ -30,7 +30,7 @@ for (const theme of ["light", "dark"] as const) {
       });
     });
     await page.goto("/admin");
-    await expect(page.locator(".admin-overview__card")).toHaveCount(18);
+    await expect(page.locator(".admin-overview__card")).toHaveCount(22);
     await expect(page.locator(".admin-overview__kpi").first()).toContainText("88");
     await expect(page.locator(".admin-overview__kpi").nth(2)).toContainText("0");
     await expect(page.getByText("Loading Organization modules…")).toHaveCount(0);

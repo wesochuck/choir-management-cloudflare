@@ -1,4 +1,10 @@
 import type {
+  OrganizationFeatureId,
+  OrganizationGroupId,
+  OverviewTone,
+} from "../../organizationFeatures/types";
+import type { OrganizationIconId } from "../../organizationFeatures/icons";
+import type {
   ModuleId,
   ModuleState,
   OrganizationAuthStatusResponse,
@@ -40,12 +46,17 @@ export type AccessState =
     };
 
 export interface NavigationItem {
+  readonly featureId?: OrganizationFeatureId;
+  readonly iconId?: OrganizationIconId;
   readonly href: string;
   readonly label: string;
   readonly module?: ModuleId;
 }
 
 export interface NavigationGroup {
+  readonly id?: OrganizationGroupId | "home";
+  readonly iconId?: OrganizationIconId;
+  readonly tone?: OverviewTone;
   readonly items: readonly NavigationItem[];
   readonly label: string;
 }

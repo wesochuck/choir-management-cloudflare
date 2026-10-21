@@ -23,24 +23,45 @@ const allHrefs = (context: OrganizationFeatureContext) => ({
   palette: getOrganizationPaletteEntries(context).map((i) => i.href),
 });
 describe("Organization feature registry characterization", () => {
-  it("preserves all 25 sidebar links and dashboard 7/6/3/2 cards including all copy, glyphs and tones", () => {
-    expect(getOrganizationSidebarGroups(ready)).toEqual(baseline.sidebar);
-    expect(getOrganizationSidebarGroups(ready).flatMap((g) => g.items)).toHaveLength(25);
-    const resolved = JSON.parse(
-      JSON.stringify(baseline.sections)
-        .replaceAll("{performer}", "Performer")
-        .replaceAll("{performers}", "performers"),
-    ) as unknown;
-    expect(getOrganizationDashboardSections(ready)).toEqual(resolved);
-    expect(getOrganizationDashboardSections(ready).map((g) => g.cards.length)).toEqual([
-      7, 6, 3, 2,
-    ]);
-    expect(getOrganizationQuickActions(ready)).toEqual(
-      baseline.actions.map((a) => ({
-        ...a,
-        label: a.label === "Add performer" ? "Add Performer" : a.label,
+  it("derives the approved shared groups and full primary-feature parity", () => {
+    const sidebar = getOrganizationSidebarGroups(ready);
+    const dashboard = getOrganizationDashboardSections(ready);
+    expect(sidebar.flatMap((g) => g.items)).toHaveLength(25);
+    expect(dashboard.map((g) => g.cards.length)).toEqual([5, 5, 4, 6, 2]);
+    expect(sidebar.slice(1).map((g) => [g.id, g.label])).toEqual(
+      dashboard.map((g) => [g.id, g.label]),
+    );
+    const byId = new Map(organizationFeatures.map((f) => [f.id, f]));
+    for (const context of [
+      ready,
+      { ...ready, status: "loading" as const },
+      { ...ready, status: "error" as const },
+      ...moduleIdSchema.options.map((id) => ({ ...ready, modules: [{ id, enabled: false }] })),
+      { ...ready, modules: moduleIdSchema.options.map((id) => ({ id, enabled: false })) },
+    ]) {
+      const links = getOrganizationSidebarGroups(context)
+        .flatMap((g) => g.items)
+        .filter((item) => item.featureId && !byId.get(item.featureId)?.coverageReason);
+      const cards = getOrganizationDashboardSections(context)
+        .flatMap((g) => g.cards)
+        .filter((card) => !byId.get(card.featureId)?.coverageReason);
+      expect(links.map((item) => item.featureId).toSorted()).toEqual(
+        cards.map((card) => card.featureId).toSorted(),
+      );
+      const icons = new Map(cards.map((card) => [card.featureId, card.iconId]));
+      for (const link of links)
+        expect(link.iconId).toBe(link.featureId ? icons.get(link.featureId) : undefined);
+      for (const action of getOrganizationQuickActions(context))
+        expect(action.iconId).toBe(byId.get(action.featureId)?.iconId);
+    }
+    expect(getOrganizationQuickActions(ready).map(({ href, label }) => ({ href, label }))).toEqual(
+      baseline.actions.map(({ href, label }) => ({
+        href,
+        label: label === "Add performer" ? "Add Performer" : label,
       })),
     );
+    for (const id of ["contacts", "membership-invitations", "seasons-dues", "reports"])
+      expect(organizationFeatures.find((f) => f.id === id)?.iconId).not.toBe("settings");
   });
   it("has unique identities, explicit surface coverage and valid module/icon references", () => {
     expect(new Set(organizationFeatures.map((f) => f.id)).size).toBe(organizationFeatures.length);
@@ -55,9 +76,6 @@ describe("Organization feature registry characterization", () => {
       expect(organizationFeatureIcons[f.iconId]).toBeTruthy();
       expect(f.dashboard ?? f.coverageReason).toBeTruthy();
     }
-    expect(
-      organizationFeatures.filter((f) => f.coverageReason === "parity-gap").map((f) => f.id),
-    ).toEqual(["contacts", "membership-invitations", "seasons-dues", "reports"]);
     expect(organizationFeatures.some((f) => f.requiredModule === "practice_player")).toBe(false);
     expect(
       organizationFeatures.filter((f) => f.coverageReason === "configuration").map((f) => f.id),
@@ -81,8 +99,9 @@ describe("Organization feature registry characterization", () => {
     ]);
     for (const old of original) {
       const item = actual.find((p) => p.id === old.id);
-      expect(item?.title).toBe(old.title);
-      expect(item?.subtitle).toBe(old.subtitle);
+      expect(item?.title).toBe(old.id === "nav-admin-overview" ? "Dashboard" : old.title);
+      if (old.id === "nav-admin-overview") expect(item?.subtitle).toContain("Admin Overview");
+      else expect(item?.subtitle).toBe(old.subtitle);
     }
     expect(actual.find((p) => p.id === "nav-website")?.requiredModule).toBe("public_website");
     expect(actual.find((p) => p.id === "set-roster-automation")?.href).toBe(
@@ -121,7 +140,7 @@ describe("Organization feature registry characterization", () => {
       expect(result.sidebar).toContain("/admin/settings/modules");
       expect(result.sidebar).not.toContain("/admin/roster");
       expect(result.actions).toEqual([]);
-      expect(result.dashboard).toEqual(["/admin/settings"]);
+      expect(result.dashboard).toEqual(["/admin/contacts", "/admin/settings"]);
       expect(allHrefs(ready).sidebar).toContain("/admin/roster");
     },
   );
@@ -170,9 +189,11 @@ describe("Organization feature registry characterization", () => {
         (p) => p.id === "set-payment",
       ),
     ).toBe(false);
-    expect(getOrganizationSidebarGroups({ ...ready, scopedReadOnly: true })).toEqual([
-      { label: "Organization", items: [{ href: "/admin", label: "Overview" }] },
-    ]);
+    expect(
+      getOrganizationSidebarGroups({ ...ready, scopedReadOnly: true })
+        .flatMap((g) => g.items)
+        .map((i) => i.href),
+    ).toEqual(["/admin"]);
     expect(getOrganizationPaletteEntries({ ...ready, scopedReadOnly: true })).toEqual([]);
   });
   it("filters cached entity/static recents without deleting history and refreshes registered titles", () => {

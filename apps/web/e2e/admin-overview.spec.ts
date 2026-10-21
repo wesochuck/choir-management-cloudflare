@@ -114,9 +114,9 @@ test.describe("Organization Admin Overview", () => {
     await expect(peopleSection).toBeVisible();
     await expect(peopleSection.getByRole("heading", { name: "People & membership" })).toBeVisible();
     await expect(
-      peopleSection.getByText("Profiles, communications, and supporter relationships"),
+      peopleSection.getByText("Profiles, contacts, invitations, and membership"),
     ).toBeVisible();
-    await expect(peopleSection.getByText("7 tools")).toBeVisible();
+    await expect(peopleSection.getByText("5 tools")).toBeVisible();
 
     // Verify 3 columns grid on desktop
     const cardsGrid = peopleSection.locator(".admin-overview__cards");
@@ -257,7 +257,7 @@ test.describe("Organization Admin Overview", () => {
     await expect(overview.getByRole("link", { name: "New Event" })).toBeVisible();
     await expect(overview.getByRole("link", { name: /Manage Roster/ })).toBeVisible();
     await expect(
-      overview.getByRole("region", { name: "People & membership" }).getByText("1 tool"),
+      overview.getByRole("region", { name: "People & membership" }).getByText("3 tools"),
     ).toBeVisible();
     await expect(overview.getByText("Pending Inquiries")).toHaveCount(0);
     await expect(overview.getByText("Active Performers")).toBeVisible();

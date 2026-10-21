@@ -1,3 +1,4 @@
+import { OrganizationFeatureIcon } from "./organizationFeatures/OrganizationFeatureIcon";
 import {
   getOrganizationDashboardSections,
   getOrganizationQuickActions,
@@ -229,7 +230,7 @@ function QuickActionsSection({
             onNavigate={navigate}
           >
             <span aria-hidden="true" className="admin-overview__quick-btn-icon">
-              {action.icon}
+              <OrganizationFeatureIcon iconId={action.iconId} />
             </span>
             <span>{action.label}</span>
           </DashboardLink>
@@ -343,7 +344,7 @@ function OverviewCardItem({
       aria-hidden="true"
       className={`admin-overview__card-icon admin-overview__card-icon--${card.tone}`}
     >
-      {card.icon}
+      <OrganizationFeatureIcon iconId={card.iconId} />
     </span>
   );
   const copy = (
@@ -490,7 +491,8 @@ export function OrganizationAdminOverview({
     performerLabel,
     performerLabelPlural,
   );
-  const isNewOrgOrSetupPending = sections.length <= 1;
+  const isNewOrgOrSetupPending =
+    sections.reduce((count, section) => count + section.cards.length, 0) <= 2;
 
   const summaryError = summary.status === "error";
   const activeProfileCount = summary.status === "ready" ? summary.data.activeProfileCount : null;
@@ -540,13 +542,13 @@ export function OrganizationAdminOverview({
           <section
             className={`admin-overview__section admin-overview__section--${section.tone}`}
             key={section.label}
-            aria-labelledby={`admin-section-${section.tone}`}
+            aria-labelledby={`admin-section-${section.id}`}
           >
             <div className="admin-overview__section-heading">
               <div>
                 <h2
                   className={`admin-overview__section-title admin-overview__section-heading--${section.tone}`}
-                  id={`admin-section-${section.tone}`}
+                  id={`admin-section-${section.id}`}
                 >
                   <span aria-hidden="true" className="admin-overview__section-dot" />
                   {section.label}

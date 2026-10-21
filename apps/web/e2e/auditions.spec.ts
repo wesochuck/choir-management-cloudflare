@@ -623,6 +623,9 @@ test("admin manages auditions: list, edit, and save", async ({ page }, testInfo)
   if (await openWorkspaceNavigation.isVisible()) {
     await openWorkspaceNavigation.click();
     const navigationDrawer = page.getByRole("dialog");
+    await navigationDrawer
+      .getByRole("button", { name: "Communications & finance", exact: true })
+      .click();
     const communicationsLink = navigationDrawer.getByRole("link", {
       name: "Communications",
       exact: true,
@@ -630,6 +633,7 @@ test("admin manages auditions: list, edit, and save", async ({ page }, testInfo)
     await communicationsLink.focus();
     await communicationsLink.press("Enter");
   } else {
+    await page.getByRole("button", { name: "Communications & finance", exact: true }).click();
     await page.getByRole("link", { name: "Communications", exact: true }).click();
   }
   const navigationDialog = page.getByRole("dialog");

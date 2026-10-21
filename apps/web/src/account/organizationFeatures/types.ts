@@ -2,6 +2,14 @@ import type { ModuleId, ModuleState } from "@choir/contracts";
 import type { OrganizationIconId } from "./icons";
 
 export type OverviewTone = "green" | "blue" | "amber" | "pink" | "cyan" | "slate";
+export type OrganizationGroupId = "people" | "events" | "music" | "communications" | "insights";
+export interface OrganizationFeatureGroup {
+  readonly id: OrganizationGroupId;
+  readonly iconId: OrganizationIconId;
+  readonly label: string;
+  readonly description: string;
+  readonly tone: OverviewTone;
+}
 export interface DashboardGroup {
   readonly label: string;
   readonly description: string;
@@ -45,6 +53,7 @@ export type OrganizationFeatureId =
   | "organization-security";
 interface FeatureIdentity {
   readonly id: OrganizationFeatureId;
+  readonly groupId: OrganizationGroupId | "home";
   readonly href: string;
   readonly aliases?: readonly string[];
   readonly requiredModule: ModuleId | null;
@@ -53,7 +62,6 @@ interface FeatureIdentity {
   readonly pageTitle: string;
   readonly description: string;
   readonly sidebar?: {
-    readonly group: 0 | 1 | 2 | 3 | 4 | 5;
     readonly position: number;
     readonly href?: string;
   };
@@ -63,14 +71,13 @@ export type OrganizationFeature = FeatureIdentity &
   (
     | {
         readonly dashboard: DashboardGroup & {
-          readonly group: 0 | 1 | 2 | 3;
           readonly position: number;
         };
         readonly coverageReason?: "contextual";
       }
     | {
         readonly dashboard?: undefined;
-        readonly coverageReason: "parity-gap" | "landing" | "configuration";
+        readonly coverageReason: "landing" | "configuration";
       }
   );
 export interface PaletteShortcut extends PaletteEntry {
@@ -80,7 +87,6 @@ export interface PaletteShortcut extends PaletteEntry {
 export interface QuickShortcut {
   readonly featureId: OrganizationFeatureId;
   readonly href: string;
-  readonly iconId: OrganizationIconId;
   readonly label: string;
 }
 export interface OrganizationFeatureContext {
