@@ -1,5 +1,6 @@
 /** One semantic SVG path catalog shared by every Organization feature surface. */
 export const organizationFeatureIcons = {
+  headphones: "M3 14v-3a9 9 0 0 1 18 0v3M3 13h4v8H5a2 2 0 0 1-2-2v-6M21 13h-4v8h2a2 2 0 0 0 2-2v-6",
   home: "m3 10 9-7 9 7M5 9v12h5v-7h4v7h5V9",
   roster:
     "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0",

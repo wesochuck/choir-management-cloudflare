@@ -161,3 +161,133 @@ persistence, or deployment changes are included.
 - P3: desktop/mobile sizes approximate email widths and do not emulate individual email clients.
 
 final result: passed
+
+---
+
+# Member event cards — visual QA
+
+Date: October 21, 2026.
+
+final result: passed
+
+## Source and scope
+
+- Selected visual:
+  `/Users/wesosborn/.codex/generated_images/01a16036-914d-7383-be3a-0224dc7257c8/exec-a6459e60-733a-4412-92ff-a848e62d663e.png`
+  (1518 × 1036 pixels).
+- Implementation: `/tmp/member-events-schedule-1519-dark.png` (1519 × 1036 pixels, desktop DPR 1,
+  CSS viewport 1519 × 1036).
+- Dashboard: `/tmp/member-events-dashboard-1519-dark.png`.
+- Full comparison: `/tmp/member-event-comparison.png`.
+- Focused first-event comparison: `/tmp/member-event-region-comparison.png`.
+- Additional captures: `/tmp/member-events-{schedule,dashboard}-{1519,900,390}-{light,dark}.png`.
+
+The implementation uses the existing application shell, fonts, tokens and Organization Alpha test
+branding. The fixture contains the first reference event only; the source contains three. The
+calendar subscription's unavailable-state notice is a fixture limitation outside the changed card.
+Whole-page content counts and branding are therefore not pixel-equivalent. The first card's event,
+timezone, arrival, duration, venue, address, seating, RSVP deadline and practice availability match
+the reference state. The dashboard intentionally retains its existing right-hand updates panel, per
+the user's correction.
+
+## Findings and comparison history
+
+1. Initial captures showed low-contrast light-theme arrival/status text and low-contrast secondary
+   text against the raised dark surface. Adjusted card text colors using theme-token mixtures.
+   Restored blue emphasis for Practice and the settings link. A follow-up audit caught the settings
+   link's dark-theme contrast; corrected that color as well.
+2. The dashboard events container initially stretched to match the right-hand panel height. Applied
+   `align-self: start`, preserving the panel while keeping the events region compact.
+3. Final full-view and first-card comparisons confirm the intended hierarchy: date column, title and
+   visible timing, venue/address, right-aligned status/seating, and a compact action footer. No
+   Event details disclosure remains. Extra notes remain visible; repertoire uses a separate set-list
+   disclosure to avoid expanding long lists by default.
+4. Final axe scans report no serious or critical violations inside the event cards at all three
+   widths in either theme. There is no horizontal overflow at those widths. Existing
+   RSVP/decline-dialog and signed-in overflow browser tests pass on desktop and mobile Chromium.
+
+## Implementation checklist
+
+- Shared presentation in `MemberEventCard.tsx`; workspace actions remain with their existing owners.
+- My schedule has a practice link action, including failure feedback and retry.
+- Dashboard's right-hand updates panel retained.
+- Published score downloads, set lists, notes and seating links retained.
+- Component tests cover visible timing, seating, deep-link visibility, RSVP pending state and
+  practice failure recovery.
+
+## Follow-up polish and limits
+
+The reference's large date numeral and play glyph are approximated with the existing product type
+scale and a text Practice button. These do not block readability or access. Long notes, long titles
+and mobile wrapping can increase height intentionally. Physical-device Safari and exhaustive
+combinations of unusually long notes were not qualified in this UI iteration.
+
+## Regeneration
+
+Run
+`npx playwright test --config playwright.config.ts member-event-cards.spec.ts --project=chromium --workers=1`
+to regenerate the screenshots and rerun the card accessibility checks. The browser tests use local
+API fixtures, not hosted resources. Build web assets with `npm run build -w @choir/web`.
+
+---
+
+# Calendar subscription and Practice icons — October 21, 2026
+
+final result: passed
+
+## Visual evidence
+
+- Source:
+  `/Users/wesosborn/.codex/generated_images/01a16036-914d-7383-be3a-0224dc7257c8/exec-a7dbd6e5-331f-4845-8908-54e7812c4b8a.png`
+  (1518 × 1036).
+- Implementation: `/tmp/member-events-schedule-1519-dark.png` (1519 × 1036; desktop DPR 1).
+- Full comparison: `/tmp/calendar-refinement-comparison.png`.
+- Focused comparison: `/tmp/calendar-refinement-region.png`, including
+  `/tmp/calendar-panel-1519-dark.png` (1135 × 250).
+- Other options: `/tmp/calendar-other-options.png` (synthetic test address only).
+- Additional captures cover CSS widths 900 and 390, light and dark themes. Desktop captures are
+  unscaled; mobile-project captures use the device's DPR and are normalized to CSS dimensions for
+  comparison.
+
+The app shell and existing product type/color tokens are retained. The fixture contains one event
+rather than the source's two, so the calendar's vertical page position differs intentionally. The
+source's branded calendar illustrations are replaced by the existing product calendar icon,
+preserving the actual supported Google and webcal actions. No provider connection status is
+invented.
+
+## Findings
+
+No actionable P0/P1/P2 findings remain. The default view has a clear heading, explanation, two
+calendar choices, refresh-delay note and closed Other options disclosure. The long address and reset
+controls appear only inside Other options. The private-link guidance and reset confirmation remain
+available. Headphone icons appear beside Practice on both schedule and dashboard cards and are
+decorative for assistive technology.
+
+## Verification
+
+- 25 focused component tests passed, covering calendar link construction, copying, privacy guidance,
+  reset confirmation/cancellation and the existing event flows.
+- 10 desktop/mobile browser tests passed; the final desktop capture run passed all 3 selected tests.
+- Browser coverage includes keyboard disclosure toggling, copying, reset cancellation, both themes,
+  three widths, overflow checks and axe scans of the schedule including the calendar panel.
+- Lint, web typecheck, spacing, control alignment, no-eyebrows checks and the web build passed.
+- Copy/reset behavior uses fixtures and mocks. No hosted credentials were reset, and calendar apps
+  were not opened during verification.
+
+## Regeneration and limits
+
+Run
+`npx playwright test --config playwright.config.ts member-event-cards.spec.ts --project=chromium --workers=1`
+for captures and checks. Run `npm run build -w @choir/web` for generated web assets. No migrations
+or API changes; rollback is a frontend rebuild of the prior source. Full release qualification and
+Worker integration tests were not run for this frontend-only iteration; no push or promotion is
+included. Provider application subscription acceptance remains outside local fixture verification.
+
+## Pre-push release qualification
+
+`npm run check:release` passed on October 21, 2026: 2,007 unit tests, 890 UI tests, 552 Worker
+integration tests, and 646 browser tests passed; 2 browser tests were skipped. All static, artifact
+and build checks passed. The first full browser run encountered an intermittent mobile
+communications placeholder-removal failure outside these changes. That test passed independently and
+in the subsequent complete passing release run. No gate or unrelated communications code was
+changed.

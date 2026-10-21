@@ -1,11 +1,12 @@
+import { OrganizationFeatureIcon } from "./organizationFeatures/OrganizationFeatureIcon";
 import type { SingerEvent, SingerEventsResponse } from "@choir/contracts";
 import { normalizeSetListDuration } from "@choir/domain";
 import { Dialog, DialogClose } from "@choir/ui";
 import { useCallback, useEffect, useState } from "react";
 
-import { AuthApiError, getMySchedule, setMyEventRsvp } from "../auth/api";
+import { AuthApiError, getMySchedule, getMemberPracticeLink, setMyEventRsvp } from "../auth/api";
+import { MemberEventCard } from "./MemberEventCard";
 import { CalendarSubscription } from "./CalendarSubscription";
-import { AppLink } from "./components/AuthenticatedShell/navigation";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
@@ -14,14 +15,6 @@ type ScheduleState =
   | { readonly status: "loading" }
   | { readonly status: "missing" }
   | ({ readonly status: "ready" } & SingerEventsResponse);
-
-function displayDate(value: string, timezone: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "full",
-    timeStyle: "short",
-    timeZone: timezone,
-  }).format(new Date(value));
-}
 
 function displayRsvpDeadline(event: SingerEvent, timezone: string): string | null {
   if (!event.rsvpDeadlineAt || !event.rsvpDeadlineDate) return null;
@@ -32,13 +25,6 @@ function displayRsvpDeadline(event: SingerEvent, timezone: string): string | nul
   return event.rsvpDeadlinePassed
     ? `RSVP deadline passed on ${date}.`
     : `RSVP by ${date} through 11:59 p.m.`;
-}
-
-function eventLocation(event: SingerEvent): string {
-  if (event.venueName) {
-    return event.venueAddress ? `${event.venueName}, ${event.venueAddress}` : event.venueName;
-  }
-  return event.location;
 }
 
 function performerCredit(
@@ -220,9 +206,7 @@ function ScheduleEventDeadline({
   }
   return (
     <p
-      className={`schedule-card__deadline ${
-        event.rsvpDeadlinePassed ? "notice notice--warning" : "notice notice--info"
-      }`}
+      className={`schedule-card__deadline ${event.rsvpDeadlinePassed ? "notice notice--warning" : ""}`}
     >
       {deadlineText} {event.rsvpDeadlinePassed ? "Member self-service RSVP is closed." : null}{" "}
       <a href="/admin/roster?section=settings">Roster Settings</a>
@@ -242,8 +226,10 @@ function ScheduleEventSetList({
   }
   const hasScores = event.setList.some((item) => Boolean(item.pieceId && item.scoreAvailable));
   return (
-    <fieldset className="schedule-set-list">
-      <legend className="schedule-set-list__legend">Approved set list</legend>
+    <details className="schedule-set-list">
+      <summary className="schedule-set-list__legend">
+        View set list ({event.setList.length} items)
+      </summary>
       {hasScores ? (
         <div className="schedule-set-list__actions">
           <a
@@ -281,118 +267,6 @@ function ScheduleEventSetList({
           );
         })}
       </ol>
-    </fieldset>
-  );
-}
-
-function seatingLabel(event: SingerEvent): string {
-  if (event.seating.status === "available") return "View assigned seat";
-  return "Seat not assigned";
-}
-
-function ScheduleEventTimingAndVenue({
-  callTime,
-  durationMinutes,
-  venueAddress,
-  venueName,
-}: {
-  readonly callTime: string;
-  readonly durationMinutes: number | null;
-  readonly venueAddress: string;
-  readonly venueName: string;
-}) {
-  const hasVenue = venueName.length > 0 || venueAddress.length > 0;
-  return (
-    <>
-      {callTime ? (
-        <p className="schedule-event-accordion__item">
-          <strong>Call time:</strong> <span>{callTime}</span>
-        </p>
-      ) : null}
-      {durationMinutes ? (
-        <p className="schedule-event-accordion__item">
-          <strong>Duration:</strong> <span>{durationMinutes} minutes</span>
-        </p>
-      ) : null}
-      {hasVenue ? (
-        <p className="schedule-event-accordion__item">
-          <strong>Venue & directions:</strong>{" "}
-          <span>
-            {venueName}
-            {venueAddress ? ` — ${venueAddress}` : ""}
-          </span>
-        </p>
-      ) : null}
-    </>
-  );
-}
-
-function ScheduleEventAccordion({
-  event,
-  navigate,
-  performerLabelPlural,
-  targetEventId,
-}: {
-  readonly event: SingerEvent;
-  readonly navigate?: ((href: string) => void) | undefined;
-  readonly performerLabelPlural: string;
-  readonly targetEventId?: string | null | undefined;
-}) {
-  const seatingEnabled =
-    event.type === "Performance" &&
-    event.seating.status !== "not_published" &&
-    event.seating.status !== "declined";
-
-  const hasDetails =
-    Boolean(event.callTime) ||
-    Boolean(event.durationMinutes) ||
-    event.venueName.length > 0 ||
-    event.venueAddress.length > 0 ||
-    Boolean(event.details) ||
-    seatingEnabled ||
-    event.setList.length > 0;
-
-  return (
-    <details
-      className="schedule-event-accordion"
-      open={targetEventId === event.id ? true : undefined}
-    >
-      <summary className="schedule-event-accordion__toggle">Event details</summary>
-      <div className="schedule-event-accordion__content">
-        <ScheduleEventTimingAndVenue
-          callTime={event.callTime}
-          durationMinutes={event.durationMinutes}
-          venueAddress={event.venueAddress}
-          venueName={event.venueName}
-        />
-        {event.details ? (
-          <div className="schedule-event-accordion__item schedule-event-accordion__item--block">
-            <strong>Notes & attire:</strong>
-            <div className="schedule-card__notes">{event.details}</div>
-          </div>
-        ) : null}
-        {seatingEnabled ? (
-          <div className="schedule-event-accordion__item schedule-event-accordion__seating">
-            <strong>Seating:</strong>
-            <AppLink
-              className="button button--secondary button--small"
-              href={`/seating/${event.id}`}
-              onNavigate={
-                navigate ??
-                ((href) => {
-                  window.location.assign(href);
-                })
-              }
-            >
-              {seatingLabel(event)}
-            </AppLink>
-          </div>
-        ) : null}
-        <ScheduleEventSetList event={event} performerLabelPlural={performerLabelPlural} />
-        {!hasDetails ? (
-          <p className="empty-state">No additional details published for this event.</p>
-        ) : null}
-      </div>
     </details>
   );
 }
@@ -430,6 +304,41 @@ function ScheduleCardBadges({
   );
 }
 
+function SchedulePracticeButton({ event }: { readonly event: SingerEvent }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+  if (event.practice.status !== "available" || !event.practice.sourceEventId) return null;
+  async function open() {
+    const sourceId = event.practice.sourceEventId;
+    if (!sourceId) return;
+    setBusy(true);
+    setError(false);
+    try {
+      const href = await getMemberPracticeLink(sourceId);
+      window.location.assign(href);
+    } catch {
+      setError(true);
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <button
+        type="button"
+        className="button button--secondary member-event-card__practice"
+        aria-label="Open practice player"
+        aria-busy={busy}
+        disabled={busy}
+        onClick={() => void open()}
+      >
+        <OrganizationFeatureIcon iconId="headphones" className="member-event-card__action-icon" />
+        {busy ? "Opening…" : "Practice"}
+      </button>
+      {error ? <span role="alert">The practice player could not be opened.</span> : null}
+    </>
+  );
+}
+
 function ScheduleEventCard({
   busy,
   event,
@@ -438,7 +347,6 @@ function ScheduleEventCard({
   onRsvp,
   pendingStatus,
   performerLabelPlural,
-  targetEventId,
   timezone,
 }: {
   readonly busy: boolean;
@@ -448,10 +356,8 @@ function ScheduleEventCard({
   readonly onRsvp: (event: SingerEvent, rsvp: "No" | "Yes") => void;
   readonly pendingStatus?: "No" | "Yes" | null | undefined;
   readonly performerLabelPlural: string;
-  readonly targetEventId?: string | null | undefined;
   readonly timezone: string;
 }) {
-  const location = eventLocation(event);
   const isOther = event.type === "Other";
   const isOtherOff = isOther && event.otherEventRsvpMode === "off";
   const isVolunteerMode =
@@ -461,9 +367,12 @@ function ScheduleEventCard({
 
   return (
     <li className="schedule-card-item" key={event.id}>
-      <fieldset className="schedule-card schedule-rsvp">
-        <legend className="schedule-card__legend">
-          <h3 className="schedule-card__title">{event.title}</h3>
+      <MemberEventCard
+        event={event}
+        timezone={timezone}
+        navigate={navigate}
+        className="schedule-rsvp"
+        status={
           <div className="schedule-card__legend-badges">
             {event.inheritedFromParent ? (
               <span className="schedule-card__badge schedule-card__badge--inherited">
@@ -476,20 +385,31 @@ function ScheduleEventCard({
               isVolunteerMode={isVolunteerMode}
             />
           </div>
-        </legend>
-
-        <p className="schedule-card__date">
-          <span className="schedule-card__type">{event.type}</span>{" "}
-          <span aria-hidden="true">•</span>{" "}
-          <span>
-            {displayDate(event.startsAt, timezone)} ({timezone})
-          </span>
-        </p>
-
-        <div className="schedule-card__details">
-          <span>{location || "Location to be announced"}</span>
-        </div>
-
+        }
+        footer={
+          <>
+            <div className="member-event-card__footer-info">
+              <ScheduleEventDeadline event={event} timezone={timezone} />
+              {event.type === "Rehearsal" && event.directRsvp === "No" && event.rsvpNote ? (
+                <p className="schedule-rsvp__note">
+                  <strong>Decline note:</strong> {event.rsvpNote}
+                </p>
+              ) : null}
+              <ScheduleRsvpFooter event={event} />
+            </div>
+            <div className="member-event-card__buttons">
+              <SchedulePracticeButton event={event} />
+              <ScheduleRsvpButtons
+                busy={busy}
+                event={event}
+                onDeclineRehearsal={onDeclineRehearsal}
+                onRsvp={onRsvp}
+                pendingStatus={pendingStatus}
+              />
+            </div>
+          </>
+        }
+      >
         {isOther ? (
           <OtherEventProgressLine
             volunteerCount={event.volunteerCount}
@@ -497,33 +417,8 @@ function ScheduleEventCard({
           />
         ) : null}
 
-        <ScheduleEventDeadline event={event} timezone={timezone} />
-
-        <ScheduleEventAccordion
-          event={event}
-          navigate={navigate}
-          performerLabelPlural={performerLabelPlural}
-          targetEventId={targetEventId}
-        />
-
-        <div className="schedule-card__actions">
-          <div className="schedule-card__actions-left">
-            {event.type === "Rehearsal" && event.directRsvp === "No" && event.rsvpNote ? (
-              <p className="schedule-rsvp__note">
-                <strong>Decline note:</strong> {event.rsvpNote}
-              </p>
-            ) : null}
-            <ScheduleRsvpFooter event={event} />
-          </div>
-          <ScheduleRsvpButtons
-            busy={busy}
-            event={event}
-            onDeclineRehearsal={onDeclineRehearsal}
-            onRsvp={onRsvp}
-            pendingStatus={pendingStatus}
-          />
-        </div>
-      </fieldset>
+        <ScheduleEventSetList event={event} performerLabelPlural={performerLabelPlural} />
+      </MemberEventCard>
     </li>
   );
 }
@@ -684,10 +579,6 @@ export function MySchedule({
   const [declineNote, setDeclineNote] = useState("");
   const [state, setState] = useState<ScheduleState>({ status: "loading" });
   const [showPastEvents, setShowPastEvents] = useState(false);
-  const targetEventId =
-    typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("eventId")
-      : null;
 
   const loadSchedule = useCallback(
     async (past = showPastEvents): Promise<void> => {
@@ -825,7 +716,6 @@ export function MySchedule({
                 }}
                 pendingStatus={pendingRsvp?.eventId === event.id ? pendingRsvp.status : null}
                 performerLabelPlural={performerLabelPlural}
-                targetEventId={targetEventId}
                 timezone={state.timezone}
               />
             ))}

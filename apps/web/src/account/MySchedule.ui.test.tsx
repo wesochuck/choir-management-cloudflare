@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SingerEvent } from "@choir/contracts";
 
-import { AuthApiError, getMySchedule, setMyEventRsvp } from "../auth/api";
+import { AuthApiError, getMySchedule, getMemberPracticeLink, setMyEventRsvp } from "../auth/api";
 import { MySchedule } from "./MySchedule";
 
 vi.mock("./CalendarSubscription", () => ({
@@ -26,6 +26,7 @@ vi.mock("../auth/api", () => ({
     }
   },
   getMySchedule: vi.fn(),
+  getMemberPracticeLink: vi.fn(),
   setMyEventRsvp: vi.fn(),
 }));
 
@@ -175,6 +176,28 @@ describe("MySchedule RSVP pending state (#196)", () => {
     expect(screen.getByRole("button", { name: "No" })).not.toBeDisabled();
   });
 
+  it("shows practice only when available and reports a link failure without losing the schedule", async () => {
+    const event = createSampleEvent({
+      practice: { status: "available", sourceEventId: "source-performance", trackCount: 2 },
+    });
+    vi.mocked(getMySchedule).mockResolvedValueOnce({
+      events: [event],
+      profileId: "profile",
+      requestId: "request",
+      timezone: "America/New_York",
+    });
+    vi.mocked(getMemberPracticeLink).mockRejectedValueOnce(new Error("unavailable"));
+    render(<MySchedule enabled />);
+    const practice = await screen.findByRole("button", { name: "Open practice player" });
+    await userEvent.click(practice);
+    expect(getMemberPracticeLink).toHaveBeenCalledWith("source-performance");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The practice player could not be opened.",
+    );
+    expect(practice).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Yes" })).toBeEnabled();
+  });
+
   it("renders event type and date with accessible spacing (#177)", async () => {
     const event = createSampleEvent({ type: "Rehearsal" });
     vi.mocked(getMySchedule).mockResolvedValueOnce({
@@ -186,10 +209,8 @@ describe("MySchedule RSVP pending state (#196)", () => {
 
     render(<MySchedule enabled />);
 
-    const dateParagraph = await screen.findByText("Rehearsal");
-    const parentP = dateParagraph.closest("p");
-    expect(parentP).not.toBeNull();
-    expect(parentP?.textContent).toMatch(/Rehearsal\s+•\s+/);
+    expect(await screen.findByText("Rehearsal")).toBeVisible();
+    expect(screen.getByLabelText(/August.*2026/)).toBeVisible();
   });
 });
 
@@ -198,7 +219,7 @@ describe("MySchedule event details and seating link (#192)", () => {
     vi.clearAllMocks();
   });
 
-  it("renders expandable accordion revealing call time, duration, venue notes, directions, and attire", async () => {
+  it("shows timing, venue, seating and notes without expanding event details", async () => {
     const event = createSampleEvent({
       callTime: "17:15",
       details: "Concert black attire. Enter through stage door B.",
@@ -220,17 +241,11 @@ describe("MySchedule event details and seating link (#192)", () => {
       expect(screen.getByText("Summer Concert")).toBeInTheDocument();
     });
 
-    // Accordion toggle summary is present
-    const summary = screen.getByText("Event details");
-    expect(summary).toBeInTheDocument();
-
-    // Accordion contents
-    expect(screen.getByText("Call time:")).toBeInTheDocument();
-    expect(screen.getByText("17:15")).toBeInTheDocument();
-    expect(screen.getByText("Duration:")).toBeInTheDocument();
-    expect(screen.getByText("120 minutes")).toBeInTheDocument();
-    expect(screen.getByText("Venue & directions:")).toBeInTheDocument();
-    expect(screen.getByText(/Symphony Hall — 123 Symphony Way/)).toBeInTheDocument();
+    expect(screen.queryByText("Event details")).not.toBeInTheDocument();
+    expect(screen.getByText("Arrive 5:15 PM")).toBeVisible();
+    expect(screen.getByText("2 hours")).toBeVisible();
+    expect(screen.getByText("Symphony Hall")).toBeVisible();
+    expect(screen.getByText("123 Symphony Way")).toBeVisible();
     expect(screen.getByText("Notes & attire:")).toBeInTheDocument();
     expect(
       screen.getByText("Concert black attire. Enter through stage door B."),
@@ -295,7 +310,7 @@ describe("MySchedule event details and seating link (#192)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("auto-opens accordion when eventId query param matches", async () => {
+  it("keeps event details visible when arriving through an event deep link", async () => {
     const event = createSampleEvent({
       id: "target-event-123",
       title: "Featured Performance",
@@ -317,8 +332,8 @@ describe("MySchedule event details and seating link (#192)", () => {
         expect(screen.getByText("Featured Performance")).toBeInTheDocument();
       });
 
-      const detailsElement = screen.getByText("Event details").closest("details");
-      expect(detailsElement).toHaveAttribute("open");
+      expect(screen.queryByText("Event details")).not.toBeInTheDocument();
+      expect(screen.getByText(/Starts /)).toBeVisible();
     } finally {
       window.history.pushState({}, "", "/schedule");
     }

@@ -1104,9 +1104,7 @@ test("member RSVP actions show feedback and use a decline modal", async ({ page 
   });
 
   await page.goto("/dashboard");
-  const eventCard = page
-    .locator(".member-dashboard__event-card")
-    .filter({ hasText: "Weekly Rehearsal" });
+  const eventCard = page.locator(".member-event-card").filter({ hasText: "Weekly Rehearsal" });
   await expect(eventCard).toBeVisible();
   await eventCard.getByRole("button", { name: "Attend", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Your RSVP was updated.");

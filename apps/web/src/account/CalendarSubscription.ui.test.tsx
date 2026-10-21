@@ -48,16 +48,20 @@ describe("CalendarSubscription UI", () => {
     });
   });
 
-  it("displays full calendar URL by default with copy link button and explains privacy policy", async () => {
+  it("hides advanced link controls by default and reveals the address with its privacy guidance", async () => {
     vi.mocked(api.getCalendarFeedUrls).mockResolvedValue(sampleFeedUrls);
 
     render(<CalendarSubscription enabled />);
+    await screen.findByRole("link", { name: "Google Calendar" });
+    expect(screen.getByLabelText("Calendar subscription link")).not.toBeVisible();
+    expect(screen.getByRole("button", { name: "Reset calendar address" })).not.toBeVisible();
+    await userEvent.click(await screen.findByText("Other options", { exact: true }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText("HTTPS calendar address")).toBeInTheDocument();
+      expect(screen.getByLabelText("Calendar subscription link")).toBeInTheDocument();
     });
 
-    const input = screen.getByLabelText<HTMLInputElement>("HTTPS calendar address");
+    const input = screen.getByLabelText<HTMLInputElement>("Calendar subscription link");
     expect(input.value).toBe(sampleFeedUrls.httpsUrl);
     expect(screen.queryByRole("button", { name: "Reveal address" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Hide address" })).not.toBeInTheDocument();
@@ -74,14 +78,14 @@ describe("CalendarSubscription UI", () => {
     render(<CalendarSubscription enabled />);
 
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Subscribe in calendar app" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Apple Calendar / Other app" })).toBeInTheDocument();
     });
 
-    const calendarAppLink = screen.getByRole("link", { name: "Subscribe in calendar app" });
+    const calendarAppLink = screen.getByRole("link", { name: "Apple Calendar / Other app" });
     expect(calendarAppLink).toHaveAttribute("href", sampleFeedUrls.webcalUrl);
 
     const googleCalendarLink = screen.getByRole("link", {
-      name: "Subscribe in Google Calendar",
+      name: "Google Calendar",
     });
     expect(googleCalendarLink).toHaveAttribute(
       "href",
@@ -103,6 +107,7 @@ describe("CalendarSubscription UI", () => {
     });
 
     render(<CalendarSubscription enabled />);
+    await userEvent.click(await screen.findByText("Other options", { exact: true }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Copy link" })).toBeInTheDocument();
@@ -122,6 +127,7 @@ describe("CalendarSubscription UI", () => {
     vi.mocked(api.resetCalendarFeedUrls).mockResolvedValue(updatedFeedUrls);
 
     render(<CalendarSubscription enabled />);
+    await userEvent.click(await screen.findByText("Other options", { exact: true }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Reset calendar address" })).toBeInTheDocument();
@@ -157,7 +163,7 @@ describe("CalendarSubscription UI", () => {
       ).toBeInTheDocument();
     });
 
-    const input = screen.getByLabelText<HTMLInputElement>("HTTPS calendar address");
+    const input = screen.getByLabelText<HTMLInputElement>("Calendar subscription link");
     expect(input.value).toBe(updatedFeedUrls.httpsUrl);
   });
 
@@ -166,6 +172,7 @@ describe("CalendarSubscription UI", () => {
     vi.mocked(api.getCalendarFeedUrls).mockResolvedValue(sampleFeedUrls);
 
     render(<CalendarSubscription enabled />);
+    await userEvent.click(await screen.findByText("Other options", { exact: true }));
 
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Reset calendar address" })).toBeInTheDocument();

@@ -1,37 +1,23 @@
+import { OrganizationFeatureIcon } from "./organizationFeatures/OrganizationFeatureIcon";
 import type { MemberDashboardResponse } from "@choir/contracts";
 import { Dialog, DialogClose } from "@choir/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { getMemberDashboard, getMemberPracticeLink, setMyEventRsvp } from "../auth/api";
+import { MemberEventCard } from "./MemberEventCard";
 import { renderCommunicationMarkdownPreview } from "./communicationMarkdown";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 import { AppLink } from "./components/AuthenticatedShell/navigation";
 import type { AccessState } from "./components/AuthenticatedShell/types";
-import {
-  formatCallTime,
-  formatEventDateTile,
-  formatEventTimeRange,
-  formatRsvpDeadline,
-} from "./dashboardFormatters";
+import { formatRsvpDeadline } from "./dashboardFormatters";
 
 type DashboardEvent = MemberDashboardResponse["events"][number];
 type MemberWorkspaceAccessStatus = AccessState["status"];
-
-function eventTypeLabel(event: DashboardEvent): string {
-  if (event.type === "Performance") return "Performance";
-  if (event.type === "Other") return "Other";
-  return "Rehearsal";
-}
 
 function rsvpLabel(value: DashboardEvent["resolvedRsvp"]): string {
   if (value === "Yes") return "Attending";
   if (value === "No") return "Declined";
   return "Needs response";
-}
-
-function seatingLabel(event: DashboardEvent): string {
-  if (event.seating.status === "available") return "Seating";
-  return "Seat not assigned";
 }
 
 function bulletinDialogTitle(
@@ -113,91 +99,41 @@ function DashboardEventPracticeStrip({
   readonly onOpenPractice: (event: DashboardEvent) => void;
   readonly userVoicePart?: string | null | undefined;
 }) {
-  const trackCount = event.practice.trackCount;
-  const countLabel =
-    trackCount > 0
-      ? `${String(trackCount)} ${trackCount === 1 ? "track" : "tracks"} available`
-      : "Practice tracks available";
   const trimmedPart = userVoicePart?.trim();
   const { partLabel } = useOrganizationTerminology();
-
   return (
-    <div className="member-dashboard__practice-strip">
-      <div className="member-dashboard__practice-strip-icon" aria-hidden="true">
-        <svg
-          fill="none"
-          height="20"
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth="2"
-          viewBox="0 0 24 24"
-          width="20"
-        >
-          <path d="M9 18V5l12-2v13" />
-          <circle cx="6" cy="18" r="3" />
-          <circle cx="18" cy="16" r="3" />
-        </svg>
-      </div>
-      <div className="member-dashboard__practice-strip-info">
-        <strong className="member-dashboard__practice-strip-title">Practice music</strong>
-        <div className="member-dashboard__practice-strip-meta">
-          <span>{countLabel}</span>
-          {trimmedPart ? (
-            <>
-              <span aria-hidden="true">•</span>
-              <span className="member-dashboard__practice-strip-voice-part">
-                Your {partLabel.toLowerCase()}: {trimmedPart}
-              </span>
-            </>
-          ) : null}
-        </div>
-      </div>
-      <button
-        aria-busy={busy}
-        className="button button--secondary member-dashboard__practice-cta"
-        disabled={busy}
-        onClick={() => {
-          onOpenPractice(event);
-        }}
-        type="button"
-      >
-        {busy ? "Opening…" : "Open practice player"}
-      </button>
-    </div>
+    <button
+      aria-label="Open practice player"
+      aria-busy={busy}
+      className="button button--secondary member-event-card__practice"
+      disabled={busy}
+      title={`${String(event.practice.trackCount)} tracks available${trimmedPart ? ` · Your ${partLabel.toLowerCase()}: ${trimmedPart}` : ""}`}
+      onClick={() => {
+        onOpenPractice(event);
+      }}
+      type="button"
+    >
+      <OrganizationFeatureIcon iconId="headphones" className="member-event-card__action-icon" />
+      {busy ? "Opening…" : "Practice"}
+    </button>
   );
 }
 
 function DashboardEventActions({
   event,
   busyEventId,
-  navigate,
   onDeclineRehearsal,
   onRsvp,
 }: {
   readonly event: DashboardEvent;
   readonly busyEventId: string | null;
-  readonly navigate: (href: string) => void;
   readonly onDeclineRehearsal: (event: DashboardEvent) => void;
   readonly onRsvp: (event: DashboardEvent, rsvp: "No" | "Yes") => void;
 }) {
-  const seatingEnabled =
-    event.type === "Performance" &&
-    event.seating.status !== "not_published" &&
-    event.seating.status !== "declined";
   const actionDisabled = isActionDisabled(event);
   const busy = busyEventId === event.id;
   return (
     <div className="member-dashboard__event-actions">
-      {seatingEnabled ? (
-        <div className="member-dashboard__secondary-actions">
-          <AppLink href={`/seating/${event.id}`} onNavigate={navigate}>
-            {seatingLabel(event)}
-          </AppLink>
-        </div>
-      ) : (
-        <div className="member-dashboard__secondary-actions" />
-      )}
       <div className="member-dashboard__rsvp-actions" aria-label={`${event.title} RSVP`}>
         <button
           className={
@@ -269,69 +205,48 @@ function DashboardEventCard({
   readonly timezone: string;
   readonly userVoicePart?: string | null | undefined;
 }) {
-  const dateTile = formatEventDateTile(event.startsAt, timezone);
-  const timeRange = formatEventTimeRange(event.startsAt, event.durationMinutes, timezone);
-  const callTimeFormatted = formatCallTime(event.callTime);
   const rsvpDeadlineFormatted = formatRsvpDeadline(event.rsvpDeadlineDate);
-  const practiceEnabled = event.practice.status === "available";
-
   return (
-    <fieldset className="member-dashboard__event-card">
-      <legend className="member-dashboard__event-legend">
-        <span className="member-dashboard__event-legend-left">
+    <MemberEventCard
+      event={event}
+      timezone={timezone}
+      navigate={navigate}
+      status={
+        <>
           {isNextUp ? <span className="member-dashboard__next-badge">Next up</span> : null}
-          <strong className="member-dashboard__event-title">{event.title}</strong>
-        </span>
-        <span className={`rsvp-status-badge rsvp-status-badge--${event.resolvedRsvp}`}>
-          {rsvpLabel(event.resolvedRsvp)}
-        </span>
-      </legend>
-      <div className="member-dashboard__event-main">
-        <time
-          className="member-dashboard__date-tile"
-          dateTime={event.startsAt}
-          aria-label={dateTile.fullLabel}
-        >
-          <span className="member-dashboard__date-tile-weekday">{dateTile.weekday}</span>
-          <span className="member-dashboard__date-tile-day">{dateTile.day}</span>
-          <span className="member-dashboard__date-tile-month">{dateTile.month}</span>
-        </time>
-        <div className="member-dashboard__event-details-column">
-          <div className="member-dashboard__event-time-row">
-            <span className="member-dashboard__event-type">{eventTypeLabel(event)}</span>
-            <span aria-hidden="true" className="member-dashboard__event-dot">
-              •
-            </span>
-            <span className="member-dashboard__event-time-range">{timeRange}</span>
+          <span className={`rsvp-status-badge rsvp-status-badge--${event.resolvedRsvp}`}>
+            {rsvpLabel(event.resolvedRsvp)}
+          </span>
+        </>
+      }
+      footer={
+        <>
+          <div className="member-event-card__footer-info">
+            {rsvpDeadlineFormatted ? <span>RSVP by {rsvpDeadlineFormatted}</span> : null}
+            <DashboardEventFooter event={event} />
           </div>
-          <div className="member-dashboard__event-details">
-            <span>{event.venueName || event.location || "Location to be announced"}</span>
-            {callTimeFormatted ? <span>Call {callTimeFormatted}</span> : null}
-            {rsvpDeadlineFormatted && event.resolvedRsvp === "Pending" ? (
-              <span>RSVP by {rsvpDeadlineFormatted}</span>
+          <div className="member-event-card__buttons">
+            {event.practice.status === "available" && event.practice.sourceEventId ? (
+              <DashboardEventPracticeStrip
+                busy={busyEventId === event.id}
+                event={event}
+                onOpenPractice={onOpenPractice}
+                userVoicePart={userVoicePart}
+              />
             ) : null}
+            <DashboardEventActions
+              busyEventId={busyEventId}
+              event={event}
+              onDeclineRehearsal={onDeclineRehearsal}
+              onRsvp={onRsvp}
+            />
           </div>
-          <DashboardEventHighlights event={event} />
-          <DashboardEventSetList event={event} />
-        </div>
-      </div>
-      {practiceEnabled ? (
-        <DashboardEventPracticeStrip
-          busy={busyEventId === event.id}
-          event={event}
-          onOpenPractice={onOpenPractice}
-          userVoicePart={userVoicePart}
-        />
-      ) : null}
-      <DashboardEventActions
-        busyEventId={busyEventId}
-        event={event}
-        navigate={navigate}
-        onDeclineRehearsal={onDeclineRehearsal}
-        onRsvp={onRsvp}
-      />
-      <DashboardEventFooter event={event} />
-    </fieldset>
+        </>
+      }
+    >
+      <DashboardEventHighlights event={event} />
+      <DashboardEventSetList event={event} />
+    </MemberEventCard>
   );
 }
 

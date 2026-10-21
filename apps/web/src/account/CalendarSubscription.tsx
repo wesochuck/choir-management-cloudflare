@@ -3,6 +3,7 @@ import type { CalendarFeedUrlsResponse } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
 import { getCalendarFeedUrls, resetCalendarFeedUrls } from "../auth/api";
+import { OrganizationFeatureIcon } from "./organizationFeatures/OrganizationFeatureIcon";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 
 type CalendarState =
@@ -38,56 +39,74 @@ function CalendarFeedReadyContent({
 
   return (
     <>
-      <p>
-        Subscribe from a calendar app or copy the HTTPS address. Resetting immediately revokes the
-        current address on every device.
+      <p className="calendar-subscription-card__description">
+        Keep rehearsals and performances in your calendar. Changes update automatically.
       </p>
-      <div className="form-stack">
-        <div className="button-row">
-          <a className="button button--primary" href={urls.webcalUrl}>
-            Subscribe in calendar app
-          </a>
-          <a
-            className="button button--secondary"
-            href={googleCalendarUrl}
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            Subscribe in Google Calendar
-          </a>
-        </div>
-        <label htmlFor="calendar-feed-url">HTTPS calendar address</label>
-        <div className="calendar-feed-url-row">
-          <input id="calendar-feed-url" readOnly type="text" value={urls.httpsUrl} />
-          <button className="button button--secondary" onClick={onCopy} type="button">
-            {copyState === "copied" ? "✓ Copied!" : "Copy link"}
-          </button>
-        </div>
-        {copyState === "copied" ? (
-          <span className="sr-only" role="status">
-            Calendar link copied to clipboard.
-          </span>
-        ) : null}
-        <p className="field-help">Anyone with this link can view your calendar. Do not share it.</p>
-        <p className="field-help">
-          In Google Calendar, choose <strong>Other calendars</strong> → <strong>From URL</strong>{" "}
-          and paste this address, or click <strong>Subscribe in Google Calendar</strong>. Use the
-          Subscribe in calendar app button for Apple Calendar and other apps that support webcal.
-        </p>
-        {copyState === "error" ? (
-          <p className="notice notice--warning" role="status">
-            Copy was blocked by the browser. Select the address and copy it manually.
-          </p>
-        ) : null}
-        {resetNotice ? (
-          <p className="notice notice--success" role="status">
-            {resetNotice}
-          </p>
-        ) : null}
+      <div className="calendar-subscription-card__choices">
+        <a
+          className="button button--primary"
+          href={googleCalendarUrl}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          <OrganizationFeatureIcon iconId="events" className="calendar-subscription-card__icon" />
+          Google Calendar
+        </a>
+        <a className="button button--secondary" href={urls.webcalUrl}>
+          <OrganizationFeatureIcon iconId="events" className="calendar-subscription-card__icon" />
+          Apple Calendar / Other app
+        </a>
       </div>
-      <button className="button button--secondary" onClick={onRequestReset} type="button">
-        Reset calendar address
-      </button>
+      <p className="field-help">Calendar apps may take time to show changes.</p>
+      <details className="calendar-subscription-card__options">
+        <summary>
+          <span>Other options</span>
+          <span className="calendar-subscription-card__options-hint">
+            Copy calendar link or reset subscription
+          </span>
+        </summary>
+        <div className="form-stack calendar-subscription-card__options-body">
+          <label htmlFor="calendar-feed-url">Calendar subscription link</label>
+          <div className="calendar-feed-url-row">
+            <input id="calendar-feed-url" readOnly type="text" value={urls.httpsUrl} />
+            <button className="button button--secondary" onClick={onCopy} type="button">
+              {copyState === "copied" ? "✓ Copied!" : "Copy link"}
+            </button>
+          </div>
+          {copyState === "copied" ? (
+            <span className="sr-only" role="status">
+              Calendar link copied to clipboard.
+            </span>
+          ) : null}
+          <p className="field-help">
+            Anyone with this link can view your calendar. Do not share it.
+          </p>
+          <p className="field-help">
+            In Google Calendar, choose <strong>Other calendars</strong> → <strong>From URL</strong>{" "}
+            and paste this address, or click <strong>Google Calendar</strong>. Use the Apple
+            Calendar / Other app button to open a compatible calendar app.
+          </p>
+          {copyState === "error" ? (
+            <p className="notice notice--warning" role="status">
+              Copy was blocked by the browser. Select the address and copy it manually.
+            </p>
+          ) : null}
+          {resetNotice ? (
+            <p className="notice notice--success" role="status">
+              {resetNotice}
+            </p>
+          ) : null}
+          <div className="calendar-subscription-card__reset">
+            <p className="field-help">
+              Resetting stops updates for existing subscriptions on all your devices until you add
+              the new link.
+            </p>
+            <button className="button button--secondary" onClick={onRequestReset} type="button">
+              Reset calendar address
+            </button>
+          </div>
+        </div>
+      </details>
       <ConfirmDialog
         confirmLabel={busy ? "Resetting…" : "Reset address"}
         description="Existing calendar subscriptions on all your devices will stop updating immediately until updated with the new address."
@@ -161,8 +180,11 @@ export function CalendarSubscription({ enabled }: { readonly enabled: boolean })
   }
 
   return (
-    <fieldset className="calendar-subscription-card">
-      <legend className="calendar-subscription-card__legend">Calendar subscription</legend>
+    <section className="calendar-subscription-card" aria-labelledby="calendar-subscription-title">
+      <h2 id="calendar-subscription-title" className="calendar-subscription-card__heading">
+        <OrganizationFeatureIcon iconId="events" className="calendar-subscription-card__icon" />
+        Add to your calendar
+      </h2>
       {!enabled ? (
         <OrganizationMfaPrompt message="Verify Organization MFA to manage this feed." />
       ) : null}
@@ -198,6 +220,6 @@ export function CalendarSubscription({ enabled }: { readonly enabled: boolean })
           urls={state.urls}
         />
       ) : null}
-    </fieldset>
+    </section>
   );
 }

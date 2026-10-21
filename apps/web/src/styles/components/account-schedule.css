@@ -145,7 +145,7 @@
     margin-top: var(--spacing-2xs);
   }
 
-  fieldset.schedule-set-list {
+  .schedule-set-list {
     min-width: 0;
     margin: var(--spacing-3xs) 0 0;
     padding: var(--spacing-sm) var(--spacing-md);
@@ -180,22 +180,6 @@
     padding: var(--spacing-3xs) var(--spacing-xs);
     font-size: var(--font-size-xs);
     text-decoration: none;
-  }
-
-  fieldset.calendar-subscription-card {
-    min-width: 0;
-    margin: var(--spacing-xl) 0 0;
-    padding: var(--spacing-lg) var(--spacing-xl);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-card);
-    background: var(--color-surface);
-  }
-
-  .calendar-subscription-card__legend {
-    padding: 0 var(--spacing-xs);
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-bold);
-    color: var(--color-text);
   }
 
   .schedule-card__actions {
@@ -366,6 +350,267 @@
       grid-column: auto;
       grid-row: auto;
       justify-content: flex-start;
+    }
+  }
+}
+
+@layer components {
+  fieldset.member-event-card {
+    --member-event-muted: color-mix(in srgb, var(--color-text-muted) 80%, var(--color-text));
+    min-width: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: 6rem minmax(0, 1fr) auto;
+    gap: var(--spacing-sm) var(--spacing-lg);
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-raised);
+  }
+  .member-event-card__date {
+    grid-row: 1 / 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-right: var(--spacing-md);
+    border-right: 1px solid var(--color-border);
+    color: var(--member-event-muted);
+    font-size: var(--font-size-base);
+  }
+  .member-event-card__date strong {
+    font-size: var(--font-size-4xl);
+    line-height: var(--line-height-tight);
+    color: var(--color-text);
+  }
+  .member-event-card__body {
+    min-width: 0;
+  }
+  .member-event-card__heading,
+  .member-event-card__timing {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--spacing-2xs) var(--spacing-md);
+  }
+  .member-event-card__heading h3 {
+    margin: 0;
+    font-size: var(--font-size-xl);
+    overflow-wrap: anywhere;
+  }
+  .member-event-card__type,
+  .member-event-card__timing > span {
+    color: var(--member-event-muted);
+  }
+  .member-event-card__timing {
+    font-size: var(--font-size-body);
+    margin-top: var(--spacing-xs);
+  }
+  .member-event-card__arrival {
+    color: color-mix(in srgb, var(--color-accent) 75%, var(--color-text));
+  }
+  .member-event-card .rsvp-status-badge--Yes {
+    color: color-mix(in srgb, var(--color-success) 60%, var(--color-text));
+  }
+  .member-event-card__venue {
+    display: grid;
+    margin-top: var(--spacing-xs);
+    overflow-wrap: anywhere;
+  }
+  .member-event-card__venue > span {
+    color: var(--member-event-muted);
+  }
+  .member-event-card__status {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--spacing-xs);
+    font-size: var(--font-size-base);
+  }
+  .member-event-card__status > a {
+    color: var(--member-event-muted);
+  }
+  .member-event-card__extra,
+  .member-event-card__footer {
+    grid-column: 2 / -1;
+    min-width: 0;
+  }
+  .member-event-card__extra:empty {
+    display: none;
+  }
+  .member-event-card__notes {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .member-event-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--spacing-xs);
+  }
+  .member-event-card__footer-info {
+    display: grid;
+    gap: var(--spacing-3xs);
+    color: var(--member-event-muted);
+  }
+  .member-event-card__footer-info p {
+    margin: 0;
+  }
+  .member-event-card__buttons,
+  .member-event-card .member-dashboard__event-actions,
+  .member-event-card .member-dashboard__rsvp-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .member-event-card__buttons > .button,
+  .member-event-card__buttons .button {
+    min-height: var(--control-height);
+    padding: var(--spacing-xs) var(--spacing-md);
+  }
+  .member-event-card .schedule-card__deadline {
+    margin: 0;
+    padding: 0;
+    font-size: var(--font-size-base);
+  }
+  .member-event-card__footer-info a {
+    color: color-mix(in srgb, var(--color-primary) 80%, var(--color-text));
+    text-decoration: underline;
+  }
+  .member-event-card__buttons .member-event-card__practice {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+  .member-dashboard__events {
+    align-self: start;
+  }
+  @media (max-width: 64rem) {
+    fieldset.member-event-card {
+      grid-template-columns: 5rem minmax(0, 1fr);
+    }
+    .member-event-card__status {
+      grid-column: 2;
+      align-items: flex-start;
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+    .member-event-card__date {
+      grid-row: 1 / 5;
+    }
+  }
+  @media (max-width: 40rem) {
+    fieldset.member-event-card {
+      gap: var(--spacing-sm);
+      padding: var(--spacing-sm);
+    }
+    .member-event-card__footer {
+      grid-column: 1 / -1;
+    }
+    .member-event-card__date {
+      grid-row: 1 / 3;
+    }
+    .member-event-card__extra {
+      grid-column: 1 / -1;
+    }
+    .member-event-card__buttons {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
+  @media print {
+    fieldset.member-event-card {
+      break-inside: avoid;
+    }
+    .member-event-card__buttons {
+      display: none;
+    }
+  }
+}
+
+@layer components {
+  .calendar-subscription-card {
+    min-width: 0;
+    margin: var(--spacing-xl) 0 0;
+    padding: var(--spacing-lg) var(--spacing-xl);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+  }
+  .calendar-subscription-card__heading {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin: 0 0 var(--spacing-xs);
+    font-size: var(--font-size-2xl);
+  }
+  .calendar-subscription-card__description {
+    margin: 0 0 var(--spacing-md);
+    color: var(--color-text-muted);
+  }
+  .calendar-subscription-card__icon,
+  .member-event-card__action-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    flex: 0 0 auto;
+  }
+  .member-event-card__practice {
+    gap: var(--spacing-xs);
+  }
+  .calendar-subscription-card__choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-md);
+  }
+  .calendar-subscription-card__choices .button {
+    gap: var(--spacing-sm);
+    white-space: normal;
+    text-align: center;
+  }
+  .calendar-subscription-card__options {
+    margin-top: var(--spacing-md);
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--spacing-md);
+  }
+  .calendar-subscription-card__options summary {
+    cursor: pointer;
+    font-weight: var(--font-weight-semibold);
+  }
+  .calendar-subscription-card__options summary:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-control);
+  }
+  .calendar-subscription-card__options-hint {
+    display: block;
+    margin-left: var(--spacing-lg);
+    color: var(--color-text-muted);
+    font-weight: var(--font-weight-regular);
+  }
+  .calendar-subscription-card__options-body {
+    margin-top: var(--spacing-md);
+  }
+  .calendar-subscription-card__reset {
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--spacing-sm);
+  }
+  @media (max-width: 40rem) {
+    .calendar-subscription-card {
+      padding: var(--spacing-md);
+    }
+    .calendar-subscription-card__choices {
+      grid-template-columns: 1fr;
+      gap: var(--spacing-sm);
+    }
+  }
+  @media print {
+    .calendar-subscription-card {
+      display: none;
     }
   }
 }

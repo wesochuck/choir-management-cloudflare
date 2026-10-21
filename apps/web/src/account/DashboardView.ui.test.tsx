@@ -131,15 +131,15 @@ describe("DashboardView", () => {
       expect(dateTile).toHaveTextContent("Oct");
 
       // Time range and details
-      expect(screen.getByText("7:00 PM – 9:00 PM")).toBeInTheDocument();
+      expect(screen.getByText("Starts 7:00 PM EDT")).toBeInTheDocument();
       expect(screen.getByText("Symphony Hall")).toBeInTheDocument();
-      expect(screen.getByText("Call 6:45 PM")).toBeInTheDocument();
+      expect(screen.getByText("Arrive 6:45 PM")).toBeInTheDocument();
       expect(screen.getByText("RSVP by Oct 20, 2026")).toBeInTheDocument();
       expect(screen.getByText("Next up")).toBeInTheDocument();
     },
   );
 
-  it("renders dedicated practice music strip with track count and voice part and opens practice player", async () => {
+  it("renders compact practice action with track count and voice part and opens practice player", async () => {
     const dashboardWithPractice: MemberDashboardResponse = {
       ...mockDashboard,
       events: [
@@ -203,11 +203,13 @@ describe("DashboardView", () => {
       render(<DashboardView accessStatus="ready" enabled={true} navigate={vi.fn()} />);
 
       await waitFor(() => {
-        expect(screen.getByText("Practice music")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Open practice player" })).toBeInTheDocument();
       });
 
-      expect(screen.getByText("6 tracks available")).toBeInTheDocument();
-      expect(screen.getByText("Your part: Tenor 2")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Open practice player" })).toHaveAttribute(
+        "title",
+        "6 tracks available · Your part: Tenor 2",
+      );
 
       const openPracticeButton = screen.getByRole("button", { name: "Open practice player" });
       fireEvent.click(openPracticeButton);
@@ -275,7 +277,7 @@ describe("DashboardView", () => {
 
     expect(screen.queryByText("Practice music")).not.toBeInTheDocument();
 
-    const seatingLink = screen.getByRole("link", { name: "Seating" });
+    const seatingLink = screen.getByRole("link", { name: "View assigned seat" });
     expect(seatingLink).toHaveAttribute("href", "/seating/event-perf-5678");
 
     fireEvent.click(seatingLink);
