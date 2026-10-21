@@ -325,7 +325,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(page.locator(".signed-in-sidebar")).toHaveCSS("top", "60px");
   await expect(page.locator(".sidebar-toolbar__button--pin path")).toHaveAttribute(
     "d",
-    "M8 4h8v5l3 3H5l3-3V4M12 12v8",
+    "m16 3 5 5-4 1-4 4v4l-2 2-6-6 2-2h4l4-4 1-4M2 22l6-6",
   );
   await collapseNavigation.click();
   await expect(page.getByRole("button", { name: "Expand navigation" })).toBeVisible();
@@ -344,7 +344,10 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(closeNavigation).toHaveCSS("width", "36px");
   await expect(closeNavigation).toHaveCSS("height", "36px");
   await expect(pinNavigation.locator("svg")).toHaveCSS("overflow", "visible");
-  await expect(pinNavigation.locator("path")).toHaveAttribute("d", "M8 4h8v5l3 3H5l3-3V4M12 12v8");
+  await expect(pinNavigation.locator("path")).toHaveAttribute(
+    "d",
+    "m16 3 5 5-4 1-4 4v4l-2 2-6-6 2-2h4l4-4 1-4M2 22l6-6",
+  );
 
   const desktopPinBox = await pinNavigation.boundingBox();
   const desktopCloseBox = await closeNavigation.boundingBox();

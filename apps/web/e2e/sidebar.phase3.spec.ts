@@ -42,6 +42,11 @@ test("pinned layout shares heading, marks one current link, and persists", async
   await expect(currentLinks).toHaveCount(1);
   await expect(currentLinks).toHaveAttribute("href", "/admin/roster");
 
+  const toolbarBox = await sidebar.locator(":scope > .sidebar-toolbar").boundingBox();
+  const sidebarBox = await sidebar.boundingBox();
+  if (!toolbarBox || !sidebarBox) throw new Error("Sidebar controls must have visible bounds");
+  expect(toolbarBox.y).toBeGreaterThan(sidebarBox.y + sidebarBox.height - 100);
+
   // Main content stays interactive while pinned.
   await expect(page.getByRole("button", { name: "Add Profile" })).toBeEnabled();
 
@@ -457,6 +462,12 @@ test("workspace roles gate destinations without adding routes", async ({ page })
   await expect(
     page.locator(".signed-in-sidebar").getByRole("link", { name: "Dashboard" }),
   ).toBeVisible();
+  const toolbar = page.locator(".signed-in-sidebar > .sidebar-toolbar");
+  await expect(toolbar.getByRole("button", { name: "Unpin sidebar" })).toBeVisible();
+  const toolbarBox = await toolbar.boundingBox();
+  const sidebarBox = await page.locator(".signed-in-sidebar").boundingBox();
+  if (!toolbarBox || !sidebarBox) throw new Error("Sidebar controls must have visible bounds");
+  expect(toolbarBox.y).toBeGreaterThan(sidebarBox.y + sidebarBox.height - 100);
   memberApi.assertNoUnexpectedRequests();
 });
 

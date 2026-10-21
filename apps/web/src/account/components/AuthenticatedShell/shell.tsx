@@ -765,42 +765,6 @@ function AuthenticatedOrganizationShell({
                     workspaceName={workspaceLabel(selectedWorkspace)}
                   />
                 ) : null}
-                <div className="sidebar-toolbar" role="group" aria-label="Navigation controls">
-                  <button
-                    aria-label={
-                      selectedWorkspace === "organization" && organizationNavigation.compact
-                        ? "Expand navigation"
-                        : "Collapse navigation"
-                    }
-                    className="sidebar-toolbar__button"
-                    onClick={collapseWorkspaceNavigation}
-                    ref={sidebarCollapseRef}
-                    title={
-                      selectedWorkspace === "organization" && organizationNavigation.compact
-                        ? "Expand navigation"
-                        : "Collapse navigation"
-                    }
-                    type="button"
-                  >
-                    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                      <path d="m14 6-6 6 6 6" />
-                    </svg>
-                    <span className="sr-only">Collapse navigation</span>
-                  </button>
-                  <button
-                    aria-label="Unpin sidebar"
-                    aria-pressed={sidebarPinned}
-                    className="sidebar-toolbar__button sidebar-toolbar__button--pin"
-                    onClick={unpinWorkspaceNavigation}
-                    title="Unpin sidebar"
-                    type="button"
-                  >
-                    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                      <path d="M8 4h8v5l3 3H5l3-3V4M12 12v8" />
-                    </svg>
-                    <span className="sr-only">Unpin sidebar</span>
-                  </button>
-                </div>
               </div>
               <div
                 className="sidebar-nav-scroll"
@@ -824,6 +788,42 @@ function AuthenticatedOrganizationShell({
                     pathname={route.pathname}
                   />
                 )}
+              </div>
+              <div className="sidebar-toolbar" role="group" aria-label="Navigation controls">
+                <button
+                  aria-label={
+                    selectedWorkspace === "organization" && organizationNavigation.compact
+                      ? "Expand navigation"
+                      : "Collapse navigation"
+                  }
+                  className="sidebar-toolbar__button"
+                  onClick={collapseWorkspaceNavigation}
+                  ref={sidebarCollapseRef}
+                  title={
+                    selectedWorkspace === "organization" && organizationNavigation.compact
+                      ? "Expand navigation"
+                      : "Collapse navigation"
+                  }
+                  type="button"
+                >
+                  <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                    <path d="m14 6-6 6 6 6" />
+                  </svg>
+                  <span className="sr-only">Collapse navigation</span>
+                </button>
+                <button
+                  aria-label="Unpin sidebar"
+                  aria-pressed={sidebarPinned}
+                  className="sidebar-toolbar__button sidebar-toolbar__button--pin"
+                  onClick={unpinWorkspaceNavigation}
+                  title="Unpin sidebar"
+                  type="button"
+                >
+                  <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                    <path d="m16 3 5 5-4 1-4 4v4l-2 2-6-6 2-2h4l4-4 1-4M2 22l6-6" />
+                  </svg>
+                  <span className="sr-only">Unpin sidebar</span>
+                </button>
               </div>
             </aside>
           ) : null}
@@ -926,7 +926,7 @@ function AuthenticatedOrganizationShell({
                 type="button"
               >
                 <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                  <path d="M8 4h8v5l3 3H5l3-3V4M12 12v8" />
+                  <path d="m16 3 5 5-4 1-4 4v4l-2 2-6-6 2-2h4l4-4 1-4M2 22l6-6" />
                 </svg>
                 <span className="sr-only">Keep sidebar open</span>
               </button>
