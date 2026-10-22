@@ -56,6 +56,49 @@ describe("sidebar navigation behavior", () => {
     expect(navigate).toHaveBeenCalledWith("/dues");
   });
 
+  it("renders Member compact icon rail with accessible tooltips, active highlights, and group expansion", () => {
+    const navigate = vi.fn();
+    const onExpandGroup = vi.fn();
+    const { rerender } = render(
+      <Navigation
+        memberStyle
+        compact
+        groups={memberGroups}
+        navigate={navigate}
+        pathname="/dashboard"
+        onExpandGroup={onExpandGroup}
+      />,
+    );
+
+    // In compact mode, only top-level items appear (Dashboard direct link + 2 group buttons)
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "/dashboard");
+    expect(links[0]).toHaveAttribute("aria-current", "page");
+
+    const membershipBtn = screen.getByRole("button", { name: "Your membership" });
+    const practiceBtn = screen.getByRole("button", { name: "Practice & resources" });
+    expect(membershipBtn).toBeVisible();
+    expect(practiceBtn).toBeVisible();
+
+    // Clicking a compact group icon triggers onExpandGroup with the group id
+    fireEvent.click(membershipBtn);
+    expect(onExpandGroup).toHaveBeenCalledWith("people");
+
+    // Switching route to /practice marks the Practice group active in compact mode
+    rerender(
+      <Navigation
+        memberStyle
+        compact
+        groups={memberGroups}
+        navigate={navigate}
+        pathname="/practice"
+        onExpandGroup={onExpandGroup}
+      />,
+    );
+    expect(practiceBtn).toHaveAttribute("data-active", "true");
+  });
+
   it("shares one workspace heading hierarchy", () => {
     const { container } = render(
       <SidebarWorkspaceHeading organizationName="Alpha Choir" workspaceName="Organization Admin" />,

@@ -1,8 +1,10 @@
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  navigationStorageKey,
   organizationNavigationKey,
   useOrganizationNavigationPreferences,
+  useWorkspaceNavigationPreferences,
 } from "./navigationPreferences";
 import { OrganizationAdminNavigation } from "./OrganizationAdminNavigation";
 import { getOrganizationSidebarGroups } from "./selectors";
@@ -22,6 +24,7 @@ beforeEach(() => {
     },
   });
 });
+
 describe("Organization-only navigation preferences", () => {
   it("defaults to People, expands aliases on navigation, and respects manual collapse until the next navigation", () => {
     const { result, rerender } = renderHook(
@@ -47,7 +50,8 @@ describe("Organization-only navigation preferences", () => {
     rerender({ path: "/admin/roster?section=settings" });
     expect(result.current.expanded).toEqual(["events", "people"]);
   });
-  it("restores valid group preferences, isolates hosts, and does not touch the legacy pinned preference", () => {
+
+  it("migrates legacy pinned=false to compact, restores valid group preferences, isolates hosts, and does not touch the legacy pinned preference", () => {
     window.localStorage.setItem(
       organizationNavigationKey("alpha.example", "groups"),
       '["unknown","music"]',
@@ -58,20 +62,49 @@ describe("Organization-only navigation preferences", () => {
       { initialProps: { host: "alpha.example" } },
     );
     expect(result.current.expanded).toEqual(["music"]);
+    // Legacy choir-sidebar-pinned:false is migrated to compact=true
+    expect(result.current.compact).toBe(true);
     act(() => {
       result.current.toggleCompact();
     });
     expect(window.localStorage.getItem(organizationNavigationKey("alpha.example", "compact"))).toBe(
-      "true",
+      "false",
     );
     expect(window.localStorage.getItem("choir-sidebar-pinned:alpha.example")).toBe("false");
     rerender({ host: "beta.example" });
     expect(result.current.compact).toBe(false);
     expect(result.current.expanded).toEqual(["people"]);
     rerender({ host: "alpha.example" });
-    expect(result.current.compact).toBe(true);
+    expect(result.current.compact).toBe(false);
     expect(result.current.expanded).toEqual(["music"]);
   });
+
+  it("supports Member workspace navigation preferences with auto-revealing route and independent compact state", () => {
+    const { result, rerender } = renderHook(
+      ({ path }) => useWorkspaceNavigationPreferences("alpha.example", path, "member"),
+      { initialProps: { path: "/dashboard" } },
+    );
+    expect(result.current.expanded).toEqual(["people", "music"]);
+    expect(result.current.compact).toBe(false);
+
+    act(() => {
+      result.current.toggleCompact();
+    });
+    expect(result.current.compact).toBe(true);
+    expect(
+      window.localStorage.getItem(navigationStorageKey("alpha.example", "member", "compact")),
+    ).toBe("true");
+
+    act(() => {
+      result.current.expandGroup("people");
+    });
+    expect(result.current.compact).toBe(false);
+    expect(result.current.expanded).toContain("people");
+
+    rerender({ path: "/practice" });
+    expect(result.current.expanded).toContain("music");
+  });
+
   it("retains valid expanded IDs when modules change while hiding empty groups", () => {
     function Navigation() {
       const state = useOrganizationNavigationPreferences("alpha.example", "/admin");
@@ -103,6 +136,29 @@ describe("Organization-only navigation preferences", () => {
     expect(people).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
   });
+
+  it("calls onExpandGroup and expands in place instead of rendering a popover in compact mode", () => {
+    const onExpandGroup = vi.fn();
+    render(
+      <OrganizationAdminNavigation
+        groups={getOrganizationSidebarGroups({ status: "ready", modules: [] })}
+        path="/admin"
+        compact={true}
+        expanded={["people"]}
+        toggleGroup={() => undefined}
+        onExpandGroup={onExpandGroup}
+        navigate={() => Promise.resolve(true)}
+        onSearch={() => undefined}
+      />,
+    );
+
+    const people = screen.getByRole("button", { name: "People & membership" });
+    fireEvent.click(people);
+    expect(onExpandGroup).toHaveBeenCalledWith("people");
+    // Popover is no longer rendered
+    expect(document.querySelector(".organization-nav__flyout")).toBeNull();
+  });
+
   it("survives unavailable storage and keeps independent group controls usable", () => {
     Object.defineProperty(window, "localStorage", {
       configurable: true,

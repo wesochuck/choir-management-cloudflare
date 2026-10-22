@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { moduleIdSchema } from "@choir/contracts";
 import { installOrganizationApi } from "./fixtures/apiMocks";
+import { buildSingerDashboardResponse } from "./fixtures/builders";
 import { fulfillJson } from "./fixtures/session";
 
 // These mocked API journeys reload the shell. Block SW interception so WebKit
@@ -59,34 +60,35 @@ for (const theme of ["dark", "light"] as const) {
     await expect(
       page.getByRole("button", { name: "Expand navigation", exact: true }),
     ).toBeFocused();
+    await expect(page.locator(".signed-in-shell")).toHaveAttribute(
+      "data-organization-navigation",
+      "compact",
+    );
+
     const people = sidebar.getByRole("button", { name: "People & membership", exact: true });
-    await people.focus();
-    await page.keyboard.press("Enter");
-    const popup = page.locator(".organization-nav__flyout:popover-open");
-    await expect(popup).toBeVisible();
-    await expect(popup.getByRole("link", { name: "Contacts", exact: true })).toBeVisible();
-    const rect = await popup.boundingBox();
-    expect(rect).not.toBeNull();
-    expect((rect?.x ?? 0) + (rect?.width ?? 0)).toBeLessThanOrEqual(1440);
-    await page.keyboard.press("Escape");
-    await expect(popup).toHaveCount(0);
-    await expect(people).toBeFocused();
     await people.click();
-    await expect(popup).toBeVisible();
-    await page.locator("#admin-overview-greeting").click();
-    await expect(popup).toHaveCount(0);
-    await people.focus();
-    await page.keyboard.press("Space");
-    await expect(popup).toBeVisible();
-    await popup.getByRole("link", { name: "Contacts", exact: true }).click();
+    await expect(page.locator(".signed-in-shell")).toHaveAttribute(
+      "data-organization-navigation",
+      "expanded",
+    );
+    await expect(
+      sidebar.getByRole("button", { name: "People & membership", exact: true }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await expect(sidebar.getByRole("link", { name: "Contacts", exact: true })).toBeVisible();
+
+    await sidebar.getByRole("link", { name: "Contacts", exact: true }).click();
     await expect(page).toHaveURL(/\/admin\/contacts$/);
-    await expect(popup).toHaveCount(0);
-    await sidebar.getByRole("link", { name: "Dashboard", exact: true }).click();
+
+    await sidebar.getByRole("link", { name: /^Dashboard/ }).click();
     await expect(page.locator(".admin-overview__card")).toHaveCount(22);
+
+    await page.getByRole("button", { name: "Collapse navigation", exact: true }).click();
     await shot(`compact-${theme}`);
     await sidebar.getByRole("button", { name: "Quick search", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Command Palette" })).toBeVisible();
     await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Command Palette" })).toHaveCount(0);
+
     await page.reload();
     await expect(page.locator(".signed-in-shell")).toHaveAttribute(
       "data-organization-navigation",
@@ -117,6 +119,7 @@ for (const theme of ["dark", "light"] as const) {
     await drawer.getByRole("link", { name: "Contacts", exact: true }).click();
     await expect(drawer).toHaveCount(0);
     await expect(page).toHaveURL(/\/admin\/contacts$/);
+    await expect(page.locator(".signed-in-sidebar")).toBeVisible();
     await page.getByRole("button", { name: "Open workspace navigation" }).click();
     await expect(drawer.locator('a[aria-current="page"]')).toHaveCount(1);
     await expect(drawer.getByRole("link", { name: "Contacts", exact: true })).toHaveAttribute(
@@ -189,5 +192,81 @@ for (const theme of ["dark", "light"] as const) {
         true,
       );
     }
+  });
+}
+
+for (const theme of ["dark", "light"] as const) {
+  test(`Member workspace expanded and compact rail navigation in ${theme} @webkit-smoke`, async ({
+    page,
+  }, info) => {
+    const api = await installOrganizationApi(page, {
+      modules: moduleIdSchema.options,
+      role: "member",
+    });
+    api.setSingerDashboard(
+      buildSingerDashboardResponse({
+        organizationName: "Test Chorus",
+      }),
+    );
+    await page.addInitScript((theme) => {
+      window.localStorage.setItem(`choir-theme:${window.location.hostname}`, theme);
+    }, theme);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto("/dashboard");
+
+    const sidebar = page.locator(".signed-in-sidebar");
+    await expect(sidebar.getByRole("link", { name: /^Dashboard/ })).toBeVisible();
+    await expect(
+      sidebar.getByRole("button", { name: "Your membership", exact: true }),
+    ).toBeVisible();
+
+    const shot = async (name: string) => {
+      const path = info.outputPath(`${name}.png`);
+      await page.screenshot({ path, fullPage: true, animations: "disabled" });
+      await info.attach(name, { path, contentType: "image/png" });
+    };
+
+    await shot(`member-expanded-${theme}`);
+
+    await page.getByRole("button", { name: "Collapse navigation", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Expand navigation", exact: true }),
+    ).toBeFocused();
+    await expect(page.locator(".signed-in-shell")).toHaveAttribute(
+      "data-navigation-mode",
+      "compact",
+    );
+    await shot(`member-compact-${theme}`);
+
+    const memberBtn = sidebar.getByRole("button", {
+      name: "Your membership",
+      exact: true,
+    });
+    await expect(memberBtn).toBeVisible();
+    await memberBtn.click();
+    await expect(page.locator(".signed-in-shell")).toHaveAttribute(
+      "data-navigation-mode",
+      "expanded",
+    );
+    await expect(
+      sidebar.getByRole("button", { name: "Your membership", exact: true }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await expect(sidebar.getByRole("link", { name: "My schedule", exact: true })).toBeVisible();
+
+    await sidebar.getByRole("link", { name: "My schedule", exact: true }).click();
+    await expect(page).toHaveURL(/\/schedule$/);
+
+    await page.getByRole("button", { name: "Collapse navigation", exact: true }).click();
+    await page.reload();
+    await expect(page.locator(".signed-in-shell")).toHaveAttribute(
+      "data-navigation-mode",
+      "compact",
+    );
+
+    await page.getByRole("button", { name: "Expand navigation", exact: true }).click();
+    await expect(page.locator(".signed-in-shell")).toHaveAttribute(
+      "data-navigation-mode",
+      "expanded",
+    );
   });
 }

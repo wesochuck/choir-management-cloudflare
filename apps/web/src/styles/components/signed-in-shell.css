@@ -123,7 +123,8 @@
   /* Keep workspace context above the scrollable navigation. */
   .sidebar-header {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
+    justify-content: space-between;
     gap: var(--spacing-xs);
     margin-bottom: var(--spacing-sm);
   }
@@ -136,9 +137,18 @@
   .sidebar-toolbar {
     display: flex;
     flex: 0 0 auto;
-    justify-content: space-between;
-    margin-top: var(--spacing-sm);
+    margin-top: 0;
     gap: var(--spacing-3xs);
+  }
+
+  .signed-in-shell:is([data-navigation-mode="compact"], [data-organization-navigation="compact"])
+    .sidebar-header {
+    justify-content: center;
+  }
+
+  .signed-in-shell:is([data-navigation-mode="compact"], [data-organization-navigation="compact"])
+    .sidebar-toolbar {
+    margin: 0 auto;
   }
 
   .sidebar-toolbar__button {
@@ -388,12 +398,40 @@
       display: none;
     }
 
-    .signed-in-body {
+    /* Workspaces without compact rails (Account, Platform) use drawer overlay only */
+    .signed-in-shell:not([data-workspace="organization"]):not([data-workspace="member"])
+      .signed-in-body {
       display: block;
     }
 
-    .signed-in-sidebar {
+    .signed-in-shell:not([data-workspace="organization"]):not([data-workspace="member"])
+      .signed-in-sidebar {
       display: none;
+    }
+
+    /* Organization and Member workspaces retain a persistent 4.25rem icon rail */
+    .signed-in-shell:is([data-workspace="organization"], [data-workspace="member"])
+      .signed-in-body {
+      display: grid;
+      grid-template-columns: 4.25rem minmax(0, 1fr);
+    }
+
+    .signed-in-shell:is([data-workspace="organization"], [data-workspace="member"])
+      .signed-in-sidebar {
+      display: flex;
+      width: 4.25rem;
+      padding-inline: var(--spacing-2xs);
+    }
+
+    .signed-in-shell:is([data-workspace="organization"], [data-workspace="member"])
+      .sidebar-header {
+      justify-content: center;
+    }
+
+    .signed-in-shell:is([data-workspace="organization"], [data-workspace="member"])
+      .sidebar-toolbar__button
+      svg {
+      transform: rotate(180deg);
     }
 
     .mobile-nav-trigger {
@@ -621,15 +659,22 @@
   .signed-in-shell[data-organization-navigation] .sidebar-nav-scroll {
     flex: 1;
   }
+  .organization-nav__rail-button[data-active="true"],
+  .organization-nav__rail-button[aria-current="true"] {
+    background: color-mix(in srgb, var(--nav-accent, var(--color-primary)) 18%, transparent);
+    box-shadow: inset 3px 0 var(--nav-accent, var(--color-primary));
+  }
   @media (min-width: 48.001rem) {
-    .signed-in-shell[data-organization-navigation="compact"][data-sidebar-pinned="true"]
+    .signed-in-shell:is([data-navigation-mode="compact"], [data-organization-navigation="compact"])
       .signed-in-body {
       grid-template-columns: 4.25rem minmax(0, 1fr);
     }
-    .signed-in-shell[data-organization-navigation="compact"] .signed-in-sidebar {
+    .signed-in-shell:is([data-navigation-mode="compact"], [data-organization-navigation="compact"])
+      .signed-in-sidebar {
       padding-inline: var(--spacing-2xs);
     }
-    .signed-in-shell[data-organization-navigation="compact"] .sidebar-toolbar {
+    .signed-in-shell:is([data-navigation-mode="compact"], [data-organization-navigation="compact"])
+      .sidebar-toolbar {
       flex-direction: column;
       align-items: center;
     }
@@ -642,8 +687,8 @@
 }
 
 @layer components {
-  .signed-in-shell[data-organization-navigation="compact"]
-    .sidebar-toolbar__button:first-child
+  .signed-in-shell:is([data-navigation-mode="compact"], [data-organization-navigation="compact"])
+    .sidebar-toolbar__button
     svg {
     transform: rotate(180deg);
   }

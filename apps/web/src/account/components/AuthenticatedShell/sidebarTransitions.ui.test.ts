@@ -74,6 +74,18 @@ describe("sidebar phase 2 transitions", () => {
     expect(isMobileTriggerVisible(true, true)).toBe(true);
   });
 
+  it("keeps persistent rail visible on narrow viewports for organization and member workspaces", () => {
+    expect(isSidebarVisible(true, true, "organization")).toBe(true);
+    expect(isSidebarVisible(true, true, "member")).toBe(true);
+    expect(isSidebarVisible(true, true, "account")).toBe(false);
+    expect(isSidebarVisible(true, true, "platform")).toBe(false);
+
+    expect(isMobileTriggerVisible(true, false, "organization")).toBe(false);
+    expect(isMobileTriggerVisible(true, true, "organization")).toBe(true);
+    expect(isMobileTriggerVisible(true, false, "member")).toBe(false);
+    expect(isMobileTriggerVisible(true, true, "member")).toBe(true);
+  });
+
   it("detects when the active item is outside the visible nav area", () => {
     const container = { bottom: 400, top: 100 };
     expect(isActiveOutsideView(container, { bottom: 90, top: 70 })).toBe(true);

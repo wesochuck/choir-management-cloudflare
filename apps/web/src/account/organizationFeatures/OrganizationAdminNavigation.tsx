@@ -1,5 +1,5 @@
 import { QuickSearchTrigger } from "../components/CommandPalette/QuickSearchTrigger";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId } from "react";
 import { Tooltip } from "@choir/ui";
 import { AppLink } from "../components/AuthenticatedShell/navigation";
 import type { NavigationGroup, NavigationItem } from "../components/AuthenticatedShell/types";
@@ -23,6 +23,7 @@ function activeHref(groups: readonly NavigationGroup[], path: string): string | 
     })
     .toSorted((a, b) => b.href.length - a.href.length)[0]?.href;
 }
+
 function FeatureLinks({
   items,
   currentHref,
@@ -49,107 +50,23 @@ function FeatureLinks({
     </>
   );
 }
-function RailGroup({
-  group,
-  currentHref,
-  navigate,
-  routeKey,
-}: {
-  readonly group: NavigationGroup;
-  readonly currentHref: string | undefined;
-  readonly routeKey: string;
-  readonly navigate: (href: string) => Promise<boolean>;
-}) {
-  const id = useId();
-  const trigger = useRef<HTMLButtonElement>(null);
-  const flyout = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  // Native auto popovers provide top-layer positioning, outside dismissal and Escape focus return.
-  const position = () => {
-    const button = trigger.current;
-    const popup = flyout.current;
-    if (!button || !popup) return;
-    const rect = button.getBoundingClientRect();
-    const height = popup.getBoundingClientRect().height;
-    popup.style.left = `${String(Math.min(rect.right + 8, Math.max(8, window.innerWidth - 296)))}px`;
-    popup.style.top = `${String(Math.max(8, Math.min(rect.top, window.innerHeight - height - 8)))}px`;
-  };
-  useEffect(() => {
-    flyout.current?.hidePopover();
-  }, [routeKey]);
-  useEffect(() => {
-    const close = () => {
-      flyout.current?.hidePopover();
-    };
-    window.addEventListener("resize", close);
-    return () => {
-      window.removeEventListener("resize", close);
-    };
-  }, []);
-  return (
-    <div className="organization-nav__rail-group">
-      <Tooltip content={group.label} disabled={open}>
-        <button
-          ref={trigger}
-          type="button"
-          aria-label={group.label}
-          aria-expanded={open}
-          aria-controls={id}
-          popoverTarget={id}
-          className="organization-nav__rail-button"
-          data-tone={group.tone}
-          onClick={() => {
-            requestAnimationFrame(position);
-          }}
-        >
-          {group.iconId ? <OrganizationFeatureIcon iconId={group.iconId} /> : null}
-        </button>
-      </Tooltip>
-      <div
-        ref={flyout}
-        id={id}
-        popover="auto"
-        role="region"
-        aria-label={group.label}
-        className="organization-nav__flyout"
-        onToggle={(event) => {
-          setOpen(event.newState === "open");
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            flyout.current?.hidePopover();
-            trigger.current?.focus();
-          }
-        }}
-      >
-        <h2>{group.label}</h2>
-        <FeatureLinks
-          items={group.items}
-          currentHref={currentHref}
-          navigate={(href) => {
-            void navigate(href).then((allowed) => {
-              if (allowed) flyout.current?.hidePopover();
-            });
-          }}
-        />
-      </div>
-    </div>
-  );
-}
+
 export function OrganizationAdminNavigation({
   groups,
   path,
   compact = false,
   expanded,
   toggleGroup,
+  onExpandGroup,
   navigate,
   onSearch,
 }: {
   readonly groups: readonly NavigationGroup[];
   readonly path: string;
-  readonly compact?: boolean;
+  readonly compact?: boolean | undefined;
   readonly expanded: readonly OrganizationGroupId[];
   readonly toggleGroup: (id: OrganizationGroupId) => void;
+  readonly onExpandGroup?: ((id: OrganizationGroupId) => void) | undefined;
   readonly navigate: (href: string) => Promise<boolean>;
   readonly onSearch: () => void;
 }) {
@@ -163,13 +80,32 @@ export function OrganizationAdminNavigation({
       className={`organization-nav ${compact ? "organization-nav--compact" : ""}`}
     >
       {home ? (
-        <FeatureLinks
-          items={home.items}
-          currentHref={current}
-          navigate={(href) => {
-            void navigate(href);
-          }}
-        />
+        compact ? (
+          home.items.map((item) => (
+            <Tooltip key={item.href} content={item.label}>
+              <AppLink
+                href={item.href}
+                onNavigate={(href) => {
+                  void navigate(href);
+                }}
+                ariaLabel={item.label}
+                ariaCurrent={item.href === current ? "page" : undefined}
+                className="organization-nav__link"
+              >
+                {item.iconId ? <OrganizationFeatureIcon iconId={item.iconId} /> : null}
+                <span>{item.label}</span>
+              </AppLink>
+            </Tooltip>
+          ))
+        ) : (
+          <FeatureLinks
+            items={home.items}
+            currentHref={current}
+            navigate={(href) => {
+              void navigate(href);
+            }}
+          />
+        )
       ) : null}
       {compact ? (
         <Tooltip content="Global search">
@@ -197,16 +133,34 @@ export function OrganizationAdminNavigation({
       {categories.map((group) => {
         const id = group.id;
         if (!id || id === "home") return null;
-        if (compact)
+        if (compact) {
+          const isGroupActive = group.items.some((item) => {
+            const target = item.href.split("?")[0];
+            return (
+              target === current ||
+              (target && target !== "/admin" && current?.startsWith(`${target}/`))
+            );
+          });
           return (
-            <RailGroup
-              key={id}
-              group={group}
-              currentHref={current}
-              navigate={navigate}
-              routeKey={path}
-            />
+            <div key={id} className="organization-nav__rail-group" data-tone={group.tone}>
+              <Tooltip content={group.label}>
+                <button
+                  type="button"
+                  aria-label={group.label}
+                  className="organization-nav__rail-button"
+                  data-tone={group.tone}
+                  data-active={isGroupActive ? "true" : undefined}
+                  aria-current={isGroupActive ? "true" : undefined}
+                  onClick={() => {
+                    onExpandGroup?.(id);
+                  }}
+                >
+                  {group.iconId ? <OrganizationFeatureIcon iconId={group.iconId} /> : null}
+                </button>
+              </Tooltip>
+            </div>
           );
+        }
         const isExpanded = expanded.includes(id);
         const controls = `${prefix}-${id}`;
         return (

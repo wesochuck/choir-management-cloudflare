@@ -16,8 +16,6 @@ async function installOrganizationApi(page: Page, options: OrganizationApiOption
 import { buildSingerDashboardResponse } from "./fixtures/builders";
 import { fulfillJson } from "./fixtures/session";
 
-const PIN_KEY_SUFFIX = "choir-sidebar-pinned";
-
 test("pinned layout shares heading, marks one current link, and persists", async ({ page }) => {
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });
   await page.setViewportSize({ height: 900, width: 1280 });
@@ -42,10 +40,10 @@ test("pinned layout shares heading, marks one current link, and persists", async
   await expect(currentLinks).toHaveCount(1);
   await expect(currentLinks).toHaveAttribute("href", "/admin/roster");
 
-  const toolbarBox = await sidebar.locator(":scope > .sidebar-toolbar").boundingBox();
+  const toolbarBox = await sidebar.locator(".sidebar-toolbar").boundingBox();
   const sidebarBox = await sidebar.boundingBox();
   if (!toolbarBox || !sidebarBox) throw new Error("Sidebar controls must have visible bounds");
-  expect(toolbarBox.y).toBeGreaterThan(sidebarBox.y + sidebarBox.height - 100);
+  expect(toolbarBox.y).toBeLessThan(sidebarBox.y + 100);
 
   // Main content stays interactive while pinned.
   await expect(page.getByRole("button", { name: "Add Profile" })).toBeEnabled();
@@ -59,7 +57,7 @@ test("pinned layout shares heading, marks one current link, and persists", async
   api.assertNoUnexpectedRequests();
 });
 
-test("pin, unpin, and collapse move focus to a visible control", async ({ page }) => {
+test("expand and collapse navigation preserves rail and moves focus", async ({ page }) => {
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });
   await page.setViewportSize({ height: 800, width: 1280 });
   await page.goto("/admin/roster");
@@ -71,37 +69,33 @@ test("pin, unpin, and collapse move focus to a visible control", async ({ page }
     "data-organization-navigation",
     "compact",
   );
+  await expect(page.locator(".signed-in-sidebar")).toBeVisible();
   const expand = page.getByRole("button", { name: "Expand navigation" });
   await expect(expand).toBeFocused();
   await expand.click();
-  await page.getByRole("button", { name: "Unpin sidebar" }).click();
-  const drawer = page.getByRole("dialog", { name: "Workspace navigation" });
-  await expect(drawer).toBeVisible();
-  const pin = drawer.getByRole("button", { name: "Keep sidebar open" });
-  await expect(pin).toBeVisible();
-  await pin.click();
-  await expect(drawer).toHaveCount(0);
-  await expect(page.locator(".signed-in-sidebar")).toBeVisible();
+  await expect(page.locator(".signed-in-shell")).toHaveAttribute(
+    "data-organization-navigation",
+    "expanded",
+  );
   await expect(page.getByRole("button", { name: "Collapse navigation" })).toBeFocused();
 
-  // Reload persists the pinned preference.
+  // Reload persists the preference.
   await page.reload();
   await expect(page.locator(".signed-in-sidebar")).toBeVisible();
-
-  // Unpin keeps navigation available in the drawer.
-  await page.getByRole("button", { name: "Unpin sidebar" }).click();
-  await expect(page.locator(".signed-in-sidebar")).toHaveCount(0);
-  await expect(page.getByRole("dialog", { name: "Workspace navigation" })).toBeVisible();
+  await expect(page.locator(".signed-in-sidebar a[aria-current='page']")).toHaveAttribute(
+    "href",
+    "/admin/roster",
+  );
   api.assertNoUnexpectedRequests();
 });
 
 test("drawer closes by escape, backdrop, and button with focus restoration", async ({ page }) => {
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });
-  await page.setViewportSize({ height: 800, width: 1280 });
+  await page.setViewportSize({ height: 800, width: 600 });
   await page.goto("/admin/roster");
-  await page.getByRole("button", { name: "Unpin sidebar" }).click();
-  const drawer = page.getByRole("dialog", { name: "Workspace navigation" });
   const trigger = page.getByRole("button", { name: "Open workspace navigation" });
+  await trigger.click();
+  const drawer = page.getByRole("dialog", { name: "Workspace navigation" });
 
   // Focus containment: tabbing from the close button stays inside the modal.
   await expect(drawer).toBeVisible();
@@ -123,14 +117,14 @@ test("drawer closes by escape, backdrop, and button with focus restoration", asy
   await trigger.click();
   await expect(drawer).toBeVisible();
   // Backdrop click dismisses without navigating.
-  await page.locator(".dialog__overlay").click({ position: { x: 700, y: 400 } });
+  await page.locator(".dialog__overlay").click({ position: { x: 500, y: 400 } });
   await expect(drawer).toHaveCount(0);
   await expect(page).toHaveURL(/\/admin\/roster$/);
   await expect(trigger).toBeFocused();
   api.assertNoUnexpectedRequests();
 });
 
-test("narrow viewports use drawer only and never overwrite the desktop preference", async ({
+test("narrow viewports keep persistent icon rail and never overwrite the desktop preference", async ({
   page,
 }) => {
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });
@@ -139,26 +133,22 @@ test("narrow viewports use drawer only and never overwrite the desktop preferenc
   await expect(page.locator(".signed-in-sidebar")).toBeVisible();
 
   await page.setViewportSize({ height: 800, width: 390 });
-  // Narrow CSS hides the pinned sidebar; the drawer is the only navigation.
-  await expect(page.locator(".signed-in-sidebar")).toBeHidden();
+  // Persistent compact rail stays visible on narrow viewports
+  await expect(page.locator(".signed-in-sidebar")).toBeVisible();
+  await expect(page.locator(".signed-in-sidebar .organization-nav--compact")).toBeVisible();
   const trigger = page.getByRole("button", { name: "Open workspace navigation" });
   await expect(trigger).toBeVisible();
   await trigger.click();
   const drawer = page.getByRole("dialog", { name: "Workspace navigation" });
   await expect(drawer).toBeVisible();
-  // Pin control stays hidden on narrow viewports even when rendered.
+  // Pin control is removed
   await expect(drawer.getByRole("button", { name: "Keep sidebar open" })).toHaveCount(0);
 
-  // Resizing back to desktop restores the saved pinned layout and cleans up.
+  // Resizing back to desktop restores the saved expanded layout without overwriting
   await page.keyboard.press("Escape");
   await page.setViewportSize({ height: 800, width: 1280 });
   await expect(page.locator(".signed-in-sidebar")).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Workspace navigation" })).toHaveCount(0);
-  const persisted = await page.evaluate(
-    (suffix) => window.localStorage.getItem(`${suffix}:${window.location.hostname}`),
-    PIN_KEY_SUFFIX,
-  );
-  expect(persisted).not.toBe("false");
   api.assertNoUnexpectedRequests();
 });
 
@@ -195,7 +185,8 @@ test("navigation works when storage is unavailable", async ({ page }) => {
 
   // Narrow viewport does not crash and does not persist a new preference.
   await page.setViewportSize({ height: 800, width: 390 });
-  await expect(page.locator(".signed-in-sidebar")).toBeHidden();
+  await expect(page.locator(".signed-in-sidebar")).toBeVisible();
+  await expect(page.locator(".signed-in-sidebar .organization-nav--compact")).toBeVisible();
   await page.getByRole("button", { name: "Open workspace navigation" }).click();
   await expect(page.getByRole("dialog", { name: "Workspace navigation" })).toBeVisible();
   await page.keyboard.press("Escape");
@@ -329,7 +320,8 @@ test("drawer dirty cancel keeps drawer open; accept closes it", async ({ page })
   await page.getByLabel("IANA timezone").selectOption("America/Chicago");
   await expect(page.getByRole("region", { name: "Unsaved changes" })).toBeVisible();
 
-  await page.getByRole("button", { name: "Unpin sidebar" }).click();
+  await page.setViewportSize({ height: 900, width: 390 });
+  await page.getByRole("button", { name: "Open workspace navigation" }).click();
   const drawer = page.getByRole("dialog", { name: "Workspace navigation" });
   await expect(drawer).toBeVisible();
   await drawer.getByRole("link", { name: "Roster" }).click();
@@ -374,7 +366,8 @@ test("search works from pinned and drawer with shortcut and focus restoration", 
   await expect(palette).toHaveCount(0);
 
   // Drawer-to-palette handoff closes the drawer and restores the trigger.
-  await page.getByRole("button", { name: "Unpin sidebar" }).click();
+  await page.setViewportSize({ height: 900, width: 390 });
+  await page.getByRole("button", { name: "Open workspace navigation" }).click();
   const drawer = page.getByRole("dialog", { name: "Workspace navigation" });
   await expect(drawer).toBeVisible();
   await drawer.getByRole("button", { name: "Quick search" }).click();
@@ -397,7 +390,8 @@ test("exactly one current link on nested routes; modified click stays put", asyn
     "/admin/settings/modules",
   );
 
-  await page.getByRole("button", { name: "Unpin sidebar" }).click();
+  await page.setViewportSize({ height: 900, width: 390 });
+  await page.getByRole("button", { name: "Open workspace navigation" }).click();
   const drawer = page.getByRole("dialog", { name: "Workspace navigation" });
   const eventsLink = drawer.getByRole("link", { name: "Events" });
   await expect(eventsLink).toBeVisible();
@@ -462,12 +456,12 @@ test("workspace roles gate destinations without adding routes", async ({ page })
   await expect(
     page.locator(".signed-in-sidebar").getByRole("link", { name: "Dashboard" }),
   ).toBeVisible();
-  const toolbar = page.locator(".signed-in-sidebar > .sidebar-toolbar");
-  await expect(toolbar.getByRole("button", { name: "Unpin sidebar" })).toBeVisible();
+  const toolbar = page.locator(".signed-in-sidebar .sidebar-toolbar");
+  await expect(toolbar.getByRole("button", { name: "Collapse navigation" })).toBeVisible();
   const toolbarBox = await toolbar.boundingBox();
   const sidebarBox = await page.locator(".signed-in-sidebar").boundingBox();
   if (!toolbarBox || !sidebarBox) throw new Error("Sidebar controls must have visible bounds");
-  expect(toolbarBox.y).toBeGreaterThan(sidebarBox.y + sidebarBox.height - 100);
+  expect(toolbarBox.y).toBeLessThan(sidebarBox.y + 100);
   memberApi.assertNoUnexpectedRequests();
 });
 
@@ -531,9 +525,10 @@ test("breakpoints, long labels, zoom, keyboard, and reduced motion", async ({ pa
     );
   }
 
-  // Breakpoint boundaries: 768px and below use drawer-only navigation.
+  // Breakpoint boundaries: 768px and below use persistent compact rail.
   await page.setViewportSize({ height: 900, width: 767 });
-  await expect(page.locator(".signed-in-sidebar")).toBeHidden();
+  await expect(page.locator(".signed-in-sidebar")).toBeVisible();
+  await expect(page.locator(".signed-in-sidebar .organization-nav--compact")).toBeVisible();
   await page.setViewportSize({ height: 900, width: 769 });
   await expect(page.locator(".signed-in-sidebar")).toBeVisible();
 
@@ -565,12 +560,12 @@ test("breakpoints, long labels, zoom, keyboard, and reduced motion", async ({ pa
   });
 
   // Keyboard-only: trigger opens the drawer and Escape returns focus.
-  await page.getByRole("button", { name: "Unpin sidebar" }).click();
+  await page.setViewportSize({ height: 900, width: 390 });
+  const trigger = page.getByRole("button", { name: "Open workspace navigation" });
+  await trigger.click();
   await expect(page.getByRole("dialog", { name: "Workspace navigation" })).toBeVisible();
   await page.keyboard.press("Escape");
-  const trigger = page.getByRole("button", { name: "Open workspace navigation" });
-  await expect(trigger).toBeVisible();
-  await trigger.focus();
+  await expect(trigger).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("dialog", { name: "Workspace navigation" })).toBeVisible();
   await page.keyboard.press("Escape");

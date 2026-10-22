@@ -40,17 +40,31 @@ export function shouldShowDrawerPin(sidebarPinned: boolean, isNarrowViewport: bo
 export function shouldCloseStaleDrawer(args: {
   readonly isNarrow: boolean;
   readonly mobileOpen: boolean;
-  readonly sidebarPinned: boolean;
+  readonly sidebarPinned?: boolean;
   readonly wasNarrow: boolean;
 }): boolean {
-  return args.wasNarrow && !args.isNarrow && args.mobileOpen && args.sidebarPinned;
+  return args.wasNarrow && !args.isNarrow && args.mobileOpen && args.sidebarPinned !== false;
 }
 
-export function isSidebarVisible(sidebarPinned: boolean, isNarrow: boolean): boolean {
+export function isSidebarVisible(
+  sidebarPinned: boolean,
+  isNarrow: boolean,
+  workspace?: Workspace,
+): boolean {
+  if (workspace === "organization" || workspace === "member") {
+    return true;
+  }
   return sidebarPinned && !isNarrow;
 }
 
-export function isMobileTriggerVisible(sidebarPinned: boolean, isNarrow: boolean): boolean {
+export function isMobileTriggerVisible(
+  sidebarPinned: boolean,
+  isNarrow: boolean,
+  workspace?: Workspace,
+): boolean {
+  if (workspace === "organization" || workspace === "member") {
+    return isNarrow;
+  }
   return !sidebarPinned || isNarrow;
 }
 

@@ -1,5 +1,9 @@
 import { OrganizationAdminNavigation } from "../../organizationFeatures/OrganizationAdminNavigation";
-import { useOrganizationNavigationPreferences } from "../../organizationFeatures/navigationPreferences";
+import {
+  useOrganizationNavigationPreferences,
+  useWorkspaceNavigationPreferences,
+} from "../../organizationFeatures/navigationPreferences";
+import type { OrganizationGroupId } from "../../organizationFeatures/types";
 import { useOrganizationModuleState } from "../../organizationFeatures/useOrganizationModuleState";
 import { organizationModuleContext } from "../../organizationFeatures/moduleStateContext";
 import { getOrganizationSidebarGroups } from "../../organizationFeatures/selectors";
@@ -47,7 +51,6 @@ import {
   revealActiveIfOutside,
   shouldCloseDrawerAfterNavigate,
   shouldCloseStaleDrawer,
-  shouldShowDrawerPin,
 } from "./sidebarTransitions";
 
 import type { AccessState, ThemePreference, Workspace } from "./types";
@@ -77,19 +80,6 @@ function isSignalAborted(signal: AbortSignal): boolean {
   return signal.aborted;
 }
 
-function sidebarPinnedStorageKey(): string {
-  return `choir-sidebar-pinned:${window.location.hostname}`;
-}
-
-function readSidebarPinned(): boolean {
-  if (typeof window === "undefined") return true;
-  try {
-    return window.localStorage.getItem(sidebarPinnedStorageKey()) !== "false";
-  } catch {
-    return true;
-  }
-}
-
 // eslint-disable-next-line complexity -- the shell coordinates pinned and modal navigation states.
 function AuthenticatedOrganizationShell({
   currentSession,
@@ -102,14 +92,19 @@ function AuthenticatedOrganizationShell({
   const organizationNavigation = useOrganizationNavigationPreferences(
     window.location.hostname,
     `${route.pathname}${route.search}`,
+    "organization",
+  );
+  const memberNavigation = useWorkspaceNavigationPreferences(
+    window.location.hostname,
+    `${route.pathname}${route.search}`,
+    "member",
   );
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [sidebarPinned, setSidebarPinned] = useState(readSidebarPinned);
   const [isNarrowViewport, setIsNarrowViewport] = useState(readNarrowViewport);
   const mobileNavTriggerRef = useRef<HTMLButtonElement | null>(null);
   const sidebarCollapseRef = useRef<HTMLButtonElement | null>(null);
+  const navOpenerRef = useRef<HTMLElement | null>(null);
   const focusPinnedSidebarRef = useRef(false);
-  const focusMobileTriggerRef = useRef(false);
   const paletteOpenerRef = useRef<HTMLElement | null>(null);
   const paletteWasOpenRef = useRef(false);
   const [navScrollStore] = useState(() => new NavScrollStore());
@@ -137,6 +132,12 @@ function AuthenticatedOrganizationShell({
   } | null>(null);
   const [impersonation, setImpersonation] =
     useState<OrganizationImpersonationStatusResponse | null>(null);
+
+  const isCollapsibleWorkspace =
+    selectedWorkspace === "organization" || selectedWorkspace === "member";
+  const currentNavPrefs =
+    selectedWorkspace === "organization" ? organizationNavigation : memberNavigation;
+  const isCompact = isCollapsibleWorkspace && (currentNavPrefs.compact || isNarrowViewport);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -174,14 +175,6 @@ function AuthenticatedOrganizationShell({
   }, [themePreference]);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(sidebarPinnedStorageKey(), String(sidebarPinned));
-    } catch {
-      // Restricted storage should not prevent the navigation drawer from working.
-    }
-  }, [sidebarPinned]);
-
-  useEffect(() => {
     if (mobileNavOpen || !focusPinnedSidebarRef.current) return;
     focusPinnedSidebarRef.current = false;
     window.requestAnimationFrame(() => {
@@ -189,18 +182,8 @@ function AuthenticatedOrganizationShell({
     });
   }, [mobileNavOpen]);
 
-  // Phase 2 gap 1: collapsing the pinned sidebar hides it and focuses the
-  // visible navigation trigger instead of leaving focus in the removed tree.
-  useEffect(() => {
-    if (sidebarPinned || !focusMobileTriggerRef.current) return;
-    focusMobileTriggerRef.current = false;
-    window.requestAnimationFrame(() => {
-      mobileNavTriggerRef.current?.focus();
-    });
-  }, [sidebarPinned]);
-
-  // Phase 2 gaps 3-4: track the narrow breakpoint without ever overwriting
-  // the saved desktop pin preference. Viewport changes only affect drawer
+  // Track the narrow breakpoint without ever overwriting
+  // the saved desktop preference. Viewport changes only affect drawer
   // visibility and focus placement.
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
@@ -217,7 +200,7 @@ function AuthenticatedOrganizationShell({
     return () => undefined;
   }, []);
 
-  // Phase 2 gap 4: widening past 48rem with a stale drawer over a restored
+  // Widening past 48rem with a stale drawer over a restored
   // pinned layout closes the modal layer. Focus moves only when its element
   // is no longer visible; ordinary layout changes never steal focus.
   useEffect(() => {
@@ -229,7 +212,6 @@ function AuthenticatedOrganizationShell({
         shouldCloseStaleDrawer({
           isNarrow: isNarrowViewport,
           mobileOpen: mobileNavOpen,
-          sidebarPinned,
           wasNarrow,
         })
       ) {
@@ -241,7 +223,7 @@ function AuthenticatedOrganizationShell({
       const active = focused instanceof HTMLElement ? focused : null;
       if (active && !isElementVisible(active)) {
         window.requestAnimationFrame(() => {
-          if (sidebarPinned && isElementVisible(sidebarCollapseRef.current)) {
+          if (isElementVisible(sidebarCollapseRef.current)) {
             sidebarCollapseRef.current?.focus();
           } else if (isElementVisible(mobileNavTriggerRef.current)) {
             mobileNavTriggerRef.current?.focus();
@@ -265,7 +247,7 @@ function AuthenticatedOrganizationShell({
         }
       });
     }
-  }, [isNarrowViewport, mobileNavOpen, sidebarPinned]);
+  }, [isNarrowViewport, mobileNavOpen]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -485,10 +467,8 @@ function AuthenticatedOrganizationShell({
         drawerScrollRef.current.scrollTop = saved;
       }
     });
-  }, [selectedWorkspace, sidebarPinned, mobileNavOpen, isNarrowViewport, navScrollStore]);
+  }, [selectedWorkspace, isCompact, mobileNavOpen, isNarrowViewport, navScrollStore]);
 
-  // Phase 2 gap 6: after a route or workspace change, reveal the active item
-  // only when it is outside the visible navigation area. Never moves focus.
   useEffect(() => {
     window.requestAnimationFrame(() => {
       revealActiveIfOutside(sidebarScrollRef.current);
@@ -496,7 +476,7 @@ function AuthenticatedOrganizationShell({
         revealActiveIfOutside(drawerScrollRef.current);
       }
     });
-  }, [route.pathname, selectedWorkspace, mobileNavOpen, sidebarPinned, isNarrowViewport]);
+  }, [route.pathname, selectedWorkspace, mobileNavOpen, isCompact, isNarrowViewport]);
 
   function switchWorkspace(next: Workspace) {
     void requestGlobalLeave({
@@ -514,26 +494,43 @@ function AuthenticatedOrganizationShell({
     });
   }
 
-  function collapseWorkspaceNavigation() {
-    if (selectedWorkspace === "organization" && !isNarrowViewport) {
-      organizationNavigation.toggleCompact();
-      sidebarCollapseRef.current?.focus();
+  function handleToggleNavigation() {
+    if (!isCollapsibleWorkspace) return;
+    if (isNarrowViewport) {
+      navOpenerRef.current = sidebarCollapseRef.current;
+      setMobileNavOpen(true);
       return;
     }
-    focusMobileTriggerRef.current = true;
-    setSidebarPinned(false);
-    setMobileNavOpen(false);
+    currentNavPrefs.toggleCompact();
+    window.requestAnimationFrame(() => {
+      sidebarCollapseRef.current?.focus();
+    });
   }
 
-  function unpinWorkspaceNavigation() {
-    setSidebarPinned(false);
-    setMobileNavOpen(true);
+  function handleExpandAdminGroup(groupId: OrganizationGroupId) {
+    if (isNarrowViewport) {
+      organizationNavigation.expandGroup(groupId);
+      navOpenerRef.current = sidebarCollapseRef.current;
+      setMobileNavOpen(true);
+      return;
+    }
+    organizationNavigation.expandGroup(groupId);
+    window.requestAnimationFrame(() => {
+      sidebarCollapseRef.current?.focus();
+    });
   }
 
-  function pinWorkspaceNavigation() {
-    focusPinnedSidebarRef.current = true;
-    setSidebarPinned(true);
-    setMobileNavOpen(false);
+  function handleExpandMemberGroup(groupId: string) {
+    if (isNarrowViewport) {
+      memberNavigation.expandGroup(groupId);
+      navOpenerRef.current = sidebarCollapseRef.current;
+      setMobileNavOpen(true);
+      return;
+    }
+    memberNavigation.expandGroup(groupId);
+    window.requestAnimationFrame(() => {
+      sidebarCollapseRef.current?.focus();
+    });
   }
 
   // Phase 2 gap 2: drawer destinations close only after the unsaved-change
@@ -618,8 +615,12 @@ function AuthenticatedOrganizationShell({
     <SaveCoordinatorProvider>
       <div
         className="signed-in-shell"
-        data-sidebar-pinned={sidebarPinned ? "true" : "false"}
+        data-sidebar-pinned="true"
         data-theme={themePreference}
+        data-workspace={selectedWorkspace}
+        data-navigation-mode={
+          isCollapsibleWorkspace ? (isCompact ? "compact" : "expanded") : "expanded"
+        }
         data-organization-navigation={
           selectedWorkspace === "organization"
             ? organizationNavigation.compact
@@ -636,6 +637,7 @@ function AuthenticatedOrganizationShell({
             <button
               className="mobile-nav-trigger"
               onClick={() => {
+                navOpenerRef.current = mobileNavTriggerRef.current;
                 setMobileNavOpen(true);
               }}
               ref={(element) => {
@@ -756,78 +758,64 @@ function AuthenticatedOrganizationShell({
           </aside>
         ) : null}
         <div className="signed-in-body">
-          {sidebarPinned ? (
-            <aside className="signed-in-sidebar">
-              <div className="sidebar-header">
-                {selectedWorkspace !== "organization" ? (
-                  <SidebarWorkspaceHeading
-                    organizationName={organizationName}
-                    workspaceName={workspaceLabel(selectedWorkspace)}
-                  />
-                ) : null}
-              </div>
-              <div
-                className="sidebar-nav-scroll"
-                onScroll={handleNavScroll(selectedWorkspace)}
-                ref={sidebarScrollRef}
-              >
-                {selectedWorkspace === "organization" ? (
-                  <OrganizationAdminNavigation
-                    groups={navGroups}
-                    path={`${route.pathname}${route.search}`}
-                    compact={organizationNavigation.compact && !isNarrowViewport}
-                    expanded={organizationNavigation.expanded}
-                    toggleGroup={organizationNavigation.toggleGroup}
-                    navigate={navigate}
-                    onSearch={openPaletteFromSidebar}
-                  />
-                ) : (
-                  <Navigation
-                    memberStyle={selectedWorkspace === "member"}
-                    groups={navGroups}
-                    navigate={handleVoidNavigate}
-                    pathname={route.pathname}
-                  />
-                )}
-              </div>
-              <div className="sidebar-toolbar" role="group" aria-label="Navigation controls">
-                <button
-                  aria-label={
-                    selectedWorkspace === "organization" && organizationNavigation.compact
-                      ? "Expand navigation"
-                      : "Collapse navigation"
-                  }
-                  className="sidebar-toolbar__button"
-                  onClick={collapseWorkspaceNavigation}
-                  ref={sidebarCollapseRef}
-                  title={
-                    selectedWorkspace === "organization" && organizationNavigation.compact
-                      ? "Expand navigation"
-                      : "Collapse navigation"
-                  }
-                  type="button"
-                >
-                  <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                    <path d="m14 6-6 6 6 6" />
-                  </svg>
-                  <span className="sr-only">Collapse navigation</span>
-                </button>
-                <button
-                  aria-label="Unpin sidebar"
-                  aria-pressed={sidebarPinned}
-                  className="sidebar-toolbar__button sidebar-toolbar__button--pin"
-                  onClick={unpinWorkspaceNavigation}
-                  title="Unpin sidebar"
-                  type="button"
-                >
-                  <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                    <path d="m16 3 5 5-4 1-4 4v4l-2 2-6-6 2-2h4l4-4 1-4M2 22l6-6" />
-                  </svg>
-                  <span className="sr-only">Unpin sidebar</span>
-                </button>
-              </div>
-            </aside>
-          ) : null}
+          <aside className="signed-in-sidebar">
+            <div className="sidebar-header">
+              {selectedWorkspace !== "organization" && !isCompact ? (
+                <SidebarWorkspaceHeading
+                  organizationName={organizationName}
+                  workspaceName={workspaceLabel(selectedWorkspace)}
+                />
+              ) : null}
+              {isCollapsibleWorkspace ? (
+                <div className="sidebar-toolbar" role="group" aria-label="Navigation controls">
+                  <button
+                    aria-label={isCompact ? "Expand navigation" : "Collapse navigation"}
+                    className="sidebar-toolbar__button"
+                    onClick={handleToggleNavigation}
+                    ref={sidebarCollapseRef}
+                    title={isCompact ? "Expand navigation" : "Collapse navigation"}
+                    type="button"
+                  >
+                    <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
+                      <path d="m14 6-6 6 6 6" />
+                    </svg>
+                    <span className="sr-only">
+                      {isCompact ? "Expand navigation" : "Collapse navigation"}
+                    </span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
+            <div
+              className="sidebar-nav-scroll"
+              onScroll={handleNavScroll(selectedWorkspace)}
+              ref={sidebarScrollRef}
+            >
+              {selectedWorkspace === "organization" ? (
+                <OrganizationAdminNavigation
+                  groups={navGroups}
+                  path={`${route.pathname}${route.search}`}
+                  compact={isCompact}
+                  expanded={organizationNavigation.expanded}
+                  toggleGroup={organizationNavigation.toggleGroup}
+                  onExpandGroup={handleExpandAdminGroup}
+                  navigate={navigate}
+                  onSearch={openPaletteFromSidebar}
+                />
+              ) : (
+                <Navigation
+                  memberStyle={selectedWorkspace === "member"}
+                  groups={navGroups}
+                  navigate={handleVoidNavigate}
+                  pathname={route.pathname}
+                  compact={isCompact}
+                  expandedGroups={memberNavigation.expanded}
+                  toggleGroup={memberNavigation.toggleGroup}
+                  onExpandGroup={handleExpandMemberGroup}
+                />
+              )}
+            </div>
+          </aside>
           <main
             className={[
               "signed-in-main",
@@ -905,7 +893,7 @@ function AuthenticatedOrganizationShell({
             setMobileNavOpen(false);
           }}
           open={mobileNavOpen}
-          restoreFocusRef={mobileNavTriggerRef}
+          restoreFocusRef={navOpenerRef}
           title="Workspace navigation"
         >
           <div className="sheet__header sidebar-drawer__header">
@@ -917,21 +905,6 @@ function AuthenticatedOrganizationShell({
                 workspaceName={workspaceLabel(selectedWorkspace)}
               />
             )}
-            {shouldShowDrawerPin(sidebarPinned, isNarrowViewport) ? (
-              <button
-                aria-label="Keep sidebar open"
-                aria-pressed="false"
-                className="sidebar-drawer__pin"
-                onClick={pinWorkspaceNavigation}
-                title="Keep sidebar open"
-                type="button"
-              >
-                <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                  <path d="m16 3 5 5-4 1-4 4v4l-2 2-6-6 2-2h4l4-4 1-4M2 22l6-6" />
-                </svg>
-                <span className="sr-only">Keep sidebar open</span>
-              </button>
-            ) : null}
           </div>
           <div
             className="sidebar-nav-scroll"
@@ -942,6 +915,7 @@ function AuthenticatedOrganizationShell({
               <OrganizationAdminNavigation
                 groups={navGroups}
                 path={`${route.pathname}${route.search}`}
+                compact={false}
                 expanded={organizationNavigation.expanded}
                 toggleGroup={organizationNavigation.toggleGroup}
                 navigate={async (href) => {
@@ -957,6 +931,9 @@ function AuthenticatedOrganizationShell({
                 groups={navGroups}
                 navigate={handleDrawerNavigate}
                 pathname={route.pathname}
+                compact={false}
+                expandedGroups={memberNavigation.expanded}
+                toggleGroup={memberNavigation.toggleGroup}
               />
             )}
           </div>
