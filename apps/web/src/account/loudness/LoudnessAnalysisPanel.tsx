@@ -147,6 +147,7 @@ export function LoudnessAnalysisPanel({
             <div className="form-stack">
               {piecesByFile.get(row.fileId)?.map((piece) => (
                 <AppLink
+                  className="text-link underline"
                   key={piece.id}
                   href={`/admin/library?${new URLSearchParams({ pieceId: piece.id, returnTo: "/admin/library/settings" }).toString()}`}
                   onNavigate={navigate}

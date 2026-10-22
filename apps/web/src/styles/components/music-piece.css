@@ -338,8 +338,17 @@
     gap: var(--spacing-xs);
   }
 
+  .music-audio-tracks--repair .music-audio-track {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .music-audio-tracks--repair .music-audio-track__controls {
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .music-audio-tracks--repair .music-audio-track__player {
+    flex: 1 0 100%;
   }
 
   .music-audio-track-add {

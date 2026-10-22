@@ -45,6 +45,11 @@
     box-sizing: border-box;
   }
 
+  .dialog--responsive.dialog--recording-repair {
+    width: min(64rem, calc(100% - 2rem));
+    max-width: min(64rem, calc(100% - 2rem));
+  }
+
   .dialog--responsive.dialog--event-editor,
   .dialog--responsive.dialog--profile-editor,
   .dialog--responsive.dialog--bulk-track-import {

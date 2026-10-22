@@ -1055,6 +1055,32 @@ for (const theme of ["light", "dark"] as const) {
     const repair = page.getByRole("dialog", { name: "Replace practice recording", exact: true });
     const fileInput = repair.getByLabel("Replace tutti learning track for First Work");
     await expect(fileInput).toBeVisible();
+    const layoutProblems = await repair.locator(".music-audio-track").evaluateAll((tracks) =>
+      tracks.flatMap((track) => {
+        const bounds = track.getBoundingClientRect();
+        const controls = Array.from(
+          track.querySelectorAll(
+            ".music-audio-track__player button, .music-audio-track__scrubber, .music-audio-track__time, .music-audio-track__controls > a, .music-audio-track__controls > label, .music-audio-track__controls > button",
+          ),
+        )
+          .map((control) => control.getBoundingClientRect())
+          .filter((rect) => rect.width > 0 && rect.height > 0);
+        const problems: string[] = [];
+        controls.forEach((rect, index) => {
+          if (rect.left < bounds.left - 1 || rect.right > bounds.right + 1)
+            problems.push(`Control ${String(index)} overflows its track`);
+          controls.slice(index + 1).forEach((other) => {
+            if (
+              Math.min(rect.right, other.right) - Math.max(rect.left, other.left) > 1 &&
+              Math.min(rect.bottom, other.bottom) - Math.max(rect.top, other.top) > 1
+            )
+              problems.push(`Control ${String(index)} overlaps another control`);
+          });
+        });
+        return problems;
+      }),
+    );
+    expect(layoutProblems).toEqual([]);
     await page.screenshot({
       path: info.outputPath(`recording-repair-${theme}.png`),
       fullPage: true,

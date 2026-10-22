@@ -37,6 +37,7 @@ export function LoudnessRecordingRepair({
   }, []);
   return (
     <Dialog
+      className="dialog--recording-repair"
       open
       onClose={onClose}
       title="Replace practice recording"
