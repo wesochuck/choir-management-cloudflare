@@ -1,3 +1,6 @@
+import { TuttiSuggestions } from "./TuttiSuggestionActions";
+import type { useTuttiSuggestions } from "./useTuttiSuggestions";
+import { canSuggestTutti } from "./tuttiSuggestions";
 import { presentAiMatch } from "./aiMatchPresentation";
 import { rankCandidatePiecesForGroup, recalculateTrackImportGroup } from "@choir/domain";
 import { DataTable, type DataTableColumn } from "@choir/ui";
@@ -84,6 +87,42 @@ function reviewFileBadgeStatus(
   return "needs_review";
 }
 
+function TuttiFileHint({
+  file,
+  groupSkipped,
+  matching,
+  onPartChanged,
+}: {
+  readonly file: GroupFileAssignment;
+  readonly groupSkipped: boolean;
+  readonly matching: boolean;
+  readonly onPartChanged: (part: string) => void;
+}) {
+  if (groupSkipped || !canSuggestTutti(file)) return null;
+  return (
+    <div className="track-import-tutti-hint">
+      <span>
+        <strong>Tutti · suggested</strong> — No voice part found in the filename.
+      </span>
+      <button
+        className="button button--secondary"
+        type="button"
+        disabled={matching}
+        aria-label={`Use Tutti for ${file.fileName}`}
+        onClick={(event) => {
+          onPartChanged("tutti");
+          event.currentTarget
+            .closest(".track-import-review-file__mapping")
+            ?.querySelector("select")
+            ?.focus();
+        }}
+      >
+        Use Tutti
+      </button>
+    </div>
+  );
+}
+
 function FileReviewRow({
   duplicatePart,
   excluded,
@@ -168,6 +207,12 @@ function FileReviewRow({
             ))}
           </select>
         </label>
+        <TuttiFileHint
+          file={file}
+          groupSkipped={groupSkipped}
+          matching={matching}
+          onPartChanged={onPartChanged}
+        />
         <div className="track-import-review-file__actions">
           <button
             aria-label={excluded ? `Restore ${file.fileName} for review` : `Skip ${file.fileName}`}
@@ -1422,6 +1467,7 @@ function useReviewAction(
 }
 
 export function StepReviewMatches({
+  tuttiActions,
   groups,
   matching,
   matchError,
@@ -1439,6 +1485,7 @@ export function StepReviewMatches({
   roster,
   validPartKeys,
 }: {
+  readonly tuttiActions: ReturnType<typeof useTuttiSuggestions>;
   readonly groups: readonly GroupReviewItem[];
   readonly matching: boolean;
   readonly matchError: string | null;
@@ -1632,6 +1679,7 @@ export function StepReviewMatches({
         groupCount={groups.length}
         totalFiles={totalFiles}
       />
+      <TuttiSuggestions actions={tuttiActions} matching={matching} />
       <ReviewNotices groups={groups} matchError={matchError} matching={matching} />
       <ReviewToolbar matching={matching} onAiMatch={onAiMatch} onViewChange={setView} view={view} />
       <ReviewModePanel

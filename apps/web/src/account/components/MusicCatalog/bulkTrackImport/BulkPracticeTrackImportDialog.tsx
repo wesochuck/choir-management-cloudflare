@@ -1,3 +1,4 @@
+import { useTuttiSuggestions } from "./useTuttiSuggestions";
 import { Dialog } from "@choir/ui";
 import {
   groupPracticeTrackFiles,
@@ -299,6 +300,7 @@ export function BulkPracticeTrackImportDialog({
   const [inspecting] = useState(false);
   const [domainGroups, setDomainGroups] = useState<readonly TrackImportGroup[]>([]);
   const [groups, setGroups] = useState<readonly GroupReviewItem[]>([]);
+  const tuttiActions = useTuttiSuggestions(groups, setGroups);
   const [matching, setMatching] = useState(false);
   const [matchError, setMatchError] = useState<string | null>(null);
   const matchController = useRef<AbortController | null>(null);
@@ -511,6 +513,7 @@ export function BulkPracticeTrackImportDialog({
                   ...file,
                   excluded: false,
                   partKey,
+                  tuttiAssignmentId: undefined,
                   partProvenance: "manual" as const,
                   partSelectionChanged: true,
                 }
@@ -536,7 +539,7 @@ export function BulkPracticeTrackImportDialog({
             ...group,
             files: group.files.map((file) =>
               file.clientFileId === clientFileId
-                ? { ...file, excluded, partSelectionChanged: true }
+                ? { ...file, excluded, partSelectionChanged: true, tuttiAssignmentId: undefined }
                 : file,
             ),
             reviewedMappingKey: null,
@@ -885,6 +888,7 @@ export function BulkPracticeTrackImportDialog({
 
         {step === "review" ? (
           <StepReviewMatches
+            tuttiActions={tuttiActions}
             matching={matching}
             matchError={matchError}
             onAiMatch={() => {

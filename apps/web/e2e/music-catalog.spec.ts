@@ -1226,3 +1226,44 @@ for (const theme of ["light", "dark"] as const) {
     await expect(dialog.getByRole("button", { name: "Mark reviewed & next" })).toBeEnabled();
   });
 }
+
+for (const theme of ["light", "dark"] as const) {
+  test(`accepts and undoes counted Tutti suggestions before explicit review in ${theme} theme`, async ({
+    page,
+  }, testInfo) => {
+    await installRoutes(page);
+    await page.addInitScript((value) => {
+      window.localStorage.setItem(`choir-theme:${window.location.hostname}`, value);
+    }, theme);
+    await page.goto("/admin/library");
+    await page.getByRole("button", { name: "Bulk upload practice tracks", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Bulk upload practice tracks" });
+    await dialog.locator('input[type="file"]').setInputFiles({
+      buffer: Buffer.from("invalid-audio"),
+      mimeType: "audio/mpeg",
+      name: "First Work.mp3",
+    });
+    await expect(dialog.getByText("First Work.mp3")).toBeVisible();
+    await dialog.getByRole("radio", { name: /Entire Music Library/ }).check();
+    await dialog.getByRole("button", { name: "Review groups" }).click();
+    const batch = dialog.getByRole("region", { name: "Tutti suggestions" });
+    await batch.screenshot({ path: testInfo.outputPath(`tutti-batch-${theme}.png`) });
+    const apply = batch.getByRole("button", { name: "Use Tutti for 1 unlabeled recording" });
+    await apply.focus();
+    await page.keyboard.press("Enter");
+    const part = dialog.getByRole("combobox", { name: "Section or voice part for First Work.mp3" });
+    await expect(part).toHaveValue("tutti");
+    await expect(batch.getByRole("button", { name: "Undo Tutti assignments" })).toBeFocused();
+    await expect(dialog.getByRole("button", { name: "Continue to confirmation" })).toHaveCount(0);
+    await batch.getByRole("button", { name: "Undo Tutti assignments" }).click();
+    await expect(part).toHaveValue("");
+    await expect(apply).toBeFocused();
+    await expect(dialog.getByText("Tutti · suggested")).toBeVisible();
+    await dialog.getByRole("button", { name: "Use Tutti for First Work.mp3" }).click();
+    await expect(part).toHaveValue("tutti");
+    await expect(part).toBeFocused();
+    await dialog.getByRole("button", { name: "Mark reviewed & next" }).click();
+    await expect(dialog.getByRole("button", { name: "Continue to confirmation" })).toBeEnabled();
+    expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  });
+}

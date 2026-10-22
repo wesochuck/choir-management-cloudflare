@@ -645,6 +645,28 @@
     overflow: visible;
   }
 
+  .track-import-tutti-suggestions,
+  .track-import-tutti-hint {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+  }
+
+  .track-import-tutti-suggestions p {
+    margin: var(--spacing-xs) 0 0;
+    color: var(--color-text-muted);
+  }
+
+  .track-import-tutti-hint {
+    margin-block: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+  }
+
   .track-import-review-summary {
     display: flex;
     flex-wrap: wrap;

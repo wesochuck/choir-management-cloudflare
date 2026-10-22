@@ -35,6 +35,7 @@ export interface GroupFileAssignment {
   readonly file: File;
   readonly fileName: string;
   readonly metadata?: ParsedId3Metadata | null | undefined;
+  readonly tuttiAssignmentId?: string | undefined;
   readonly partKey: string | null;
   readonly partProvenance?: PartProvenance | undefined;
   readonly partSelectionChanged?: boolean | undefined;

@@ -821,6 +821,47 @@ async function openAiReview(
   fireEvent.click(screen.getByRole("button", { name: "Review groups" }));
 }
 
+describe("Tutti suggestions for unlabeled recordings", () => {
+  it("offers a visible suggestion, counts batch assignments and allows undo before review", async () => {
+    await openAiReview("Hallelujah Chorus.mp3");
+    const part = screen.getByRole("combobox", {
+      name: "Section or voice part for Hallelujah Chorus.mp3",
+    });
+    expect(part).toHaveValue("");
+    expect(screen.getByText("Tutti · suggested")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use Tutti for 1 unlabeled recording" }));
+    expect(part).toHaveValue("tutti");
+    expect(screen.getByRole("button", { name: "Mark reviewed & next" })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Continue to confirmation" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Undo Tutti assignments" }));
+    expect(part).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "Use Tutti for Hallelujah Chorus.mp3" }));
+    expect(part).toHaveValue("tutti");
+    fireEvent.click(screen.getByRole("button", { name: "Mark reviewed & next" }));
+    expect(screen.getByRole("button", { name: "Continue to confirmation" })).toBeEnabled();
+  });
+
+  it("keeps an existing Tutti recording as a blocking conflict and preserves manual corrections", async () => {
+    await openAiReview("Hallelujah Chorus.mp3", [
+      { ...samplePiece, trackFileIds: { tutti: "existing" } },
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Use Tutti for 1 unlabeled recording" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("tutti already has a recording");
+    expect(screen.queryByRole("button", { name: "Mark reviewed & next" })).not.toBeInTheDocument();
+    const part = screen.getByRole("combobox", {
+      name: "Section or voice part for Hallelujah Chorus.mp3",
+    });
+    fireEvent.change(part, { target: { value: "alto" } });
+    expect(
+      screen.queryByRole("button", { name: "Undo Tutti assignments" }),
+    ).not.toBeInTheDocument();
+    expect(part).toHaveValue("alto");
+    expect(screen.getByRole("button", { name: "Mark reviewed & next" })).toBeEnabled();
+  });
+});
+
 describe("optional Clef Flash matching", () => {
   afterEach(() => {
     mockMatchBulkPracticeTracks.mockReset();
