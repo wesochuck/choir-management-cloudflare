@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { organizationProfileRequestSchema, organizationProfileSchema } from "@choir/contracts";
 import {
   createOrganizationProfile,
+  deleteOrganizationProfile,
   importOrganizationProfilesCsv,
   updateOrganizationProfile,
 } from "./profiles";
@@ -68,4 +69,49 @@ it.each([400, 401, 403])("preserves validation and authorization failures (%s)",
   await expect(
     createOrganizationProfile(organizationProfileRequestSchema.parse(profile)),
   ).rejects.toMatchObject({ status, code: "contact_duplicate_email" });
+});
+
+it.each(["keep", "delete_unused"] as const)(
+  "sends explicit profile deletion contact choice %s",
+  async (contacts) => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ deleted: true, profileId: profile.id, requestId }));
+    vi.stubGlobal("fetch", fetchMock);
+    await deleteOrganizationProfile(profile.id, { contacts });
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/organization/profiles/${profile.id}?contacts=${contacts}`,
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  },
+);
+it("defaults old browser callers to retaining Contacts", async () => {
+  const fetchMock = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(Response.json({ deleted: true, profileId: profile.id, requestId }));
+  vi.stubGlobal("fetch", fetchMock);
+  await deleteOrganizationProfile(profile.id);
+  expect(fetchMock.mock.calls[0]?.[0]).toBe(
+    `/api/organization/profiles/${profile.id}?contacts=keep`,
+  );
+});
+it.each([400, 401, 403, 409, 503])("preserves profile deletion errors (%s)", async (status) => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json(
+        {
+          code: "deletion_blocked",
+          message: "Keep the Contact or archive the Profile.",
+          requestId,
+        },
+        { status },
+      ),
+    ),
+  );
+  await expect(deleteOrganizationProfile(profile.id)).rejects.toMatchObject({
+    status,
+    code: "deletion_blocked",
+    message: "Keep the Contact or archive the Profile.",
+  });
 });

@@ -1,5 +1,6 @@
 import type {
   OrganizationProfile,
+  OrganizationProfileDeleteRequest,
   OrganizationProfileFolderNumber,
   OrganizationProfileRequest,
   OrganizationRosterConfiguration,
@@ -727,7 +728,10 @@ export function useRosterPageController({
     }
   }
 
-  async function deleteProfilePermanently(profileId: string): Promise<void> {
+  async function deleteProfilePermanently(
+    profileId: string,
+    contacts: OrganizationProfileDeleteRequest["contacts"],
+  ): Promise<void> {
     const candidate =
       roster.status === "ready" ? roster.profiles.find((p) => p.id === profileId) : undefined;
     if (!candidate) return;
@@ -735,7 +739,7 @@ export function useRosterPageController({
     setError(null);
     setSuccess(null);
     try {
-      await deleteOrganizationProfile(profileId);
+      await deleteOrganizationProfile(profileId, { contacts });
       setRoster((current) =>
         current.status === "ready"
           ? {

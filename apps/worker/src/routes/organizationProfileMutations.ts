@@ -1,4 +1,8 @@
-import { organizationProfileRequestSchema, type ProblemDetails } from "@choir/contracts";
+import {
+  organizationProfileRequestSchema,
+  organizationProfileDeleteRequestSchema,
+  type ProblemDetails,
+} from "@choir/contracts";
 import { z } from "zod";
 import { parseRosterCsv, RosterCsvError } from "@choir/domain";
 import { createAuth } from "../auth/config";
@@ -297,6 +301,17 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         400,
       );
     }
+    const deletion = organizationProfileDeleteRequestSchema.safeParse(context.req.query());
+    if (!deletion.success) {
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Choose whether to keep Contacts or delete unused roster-email Contacts.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        400,
+      );
+    }
     const callerMember = await context.env.CONTROL_DB.prepare(
       "SELECT id, profileId FROM member WHERE organizationId = ? AND userId = ? LIMIT 1",
     )
@@ -347,6 +362,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
     try {
       const deleted = await deleteOrganizationProfile(context.env, {
+        contacts: deletion.data.contacts,
         actorUserId: authorization.userId,
         organizationId: authorization.organizationId,
         profileId: profileId.data,

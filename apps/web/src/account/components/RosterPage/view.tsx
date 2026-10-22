@@ -23,6 +23,7 @@ import { RosterAutomationSettings } from "../../RosterAutomationSettings";
 import { RosterConfiguration } from "../../RosterConfiguration";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
+import { DeleteProfileDialog } from "./DeleteProfileDialog";
 import { RosterConfigurationDraftProvider } from "../../RosterConfigurationDraftProvider";
 import { ResolveDuplicateDialog } from "../../ResolveDuplicateDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -145,16 +146,10 @@ export function RosterPageView({
     }
   }
 
-  async function handleDeleteProfile(candidate: OrganizationProfile) {
-    const confirmed = await confirm({
-      confirmLabel: "Delete permanently",
-      description: `Are you sure you want to permanently delete ${candidate.displayName}? This cannot be undone and is only allowed for profiles with no linked contacts, attendance or RSVP history, dues, folder assignments, invite enrollments, or Organization Memberships. A saved roster email creates a linked Contact even without a login account. If linked records exist, use Archive Profile to remove the profile from the active roster while preserving those records.`,
-      destructive: true,
-      title: `Permanently delete ${candidate.displayName}?`,
-    });
-    if (confirmed) {
-      await model.deleteProfilePermanently(candidate.id);
-    }
+  const [deleteCandidate, setDeleteCandidate] = useState<OrganizationProfile | null>(null);
+
+  function handleDeleteProfile(candidate: OrganizationProfile) {
+    setDeleteCandidate(candidate);
   }
 
   const selectAllVisibleRef = useRef<HTMLInputElement>(null);
@@ -668,7 +663,7 @@ export function RosterPageView({
                               className="button button--danger button--small"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                void handleDeleteProfile(candidate);
+                                handleDeleteProfile(candidate);
                               }}
                               title={`Delete ${candidate.displayName}`}
                               type="button"
@@ -721,7 +716,7 @@ export function RosterPageView({
         onDeletePermanently={
           editingId && editingProfileRecord && !isEditingAdmin
             ? () => {
-                void handleDeleteProfile(editingProfileRecord);
+                handleDeleteProfile(editingProfileRecord);
               }
             : undefined
         }
@@ -845,6 +840,18 @@ export function RosterPageView({
           setViewerPhoto(null);
         }}
         photoSrc={viewerPhoto?.src ?? null}
+      />
+      <DeleteProfileDialog
+        candidate={deleteCandidate}
+        onCancel={() => {
+          setDeleteCandidate(null);
+        }}
+        onConfirm={(contacts) => {
+          if (!deleteCandidate) return;
+          const profileId = deleteCandidate.id;
+          setDeleteCandidate(null);
+          void model.deleteProfilePermanently(profileId, contacts);
+        }}
       />
       {confirmationDialog}
     </RosterConfigurationDraftProvider>

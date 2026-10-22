@@ -6,6 +6,8 @@ import {
   organizationMembershipsResponseSchema,
   organizationProfileResponseSchema,
   organizationProfileDeleteResponseSchema,
+  organizationProfileDeleteRequestSchema,
+  type OrganizationProfileDeleteRequest,
   organizationProfilesResponseSchema,
   organizationProfileImportResponseSchema,
   organizationProfileFolderNumberSchema,
@@ -116,10 +118,15 @@ export async function updateOrganizationProfile(
 
 export async function deleteOrganizationProfile(
   profileId: string,
+  options: OrganizationProfileDeleteRequest = { contacts: "keep" },
 ): Promise<OrganizationProfileDeleteResponse> {
-  const response = await request(`/api/organization/profiles/${encodeURIComponent(profileId)}`, {
-    method: "DELETE",
-  });
+  const { contacts } = organizationProfileDeleteRequestSchema.parse(options);
+  const response = await request(
+    `/api/organization/profiles/${encodeURIComponent(profileId)}?contacts=${contacts}`,
+    {
+      method: "DELETE",
+    },
+  );
   return organizationProfileDeleteResponseSchema.parse(await response.json());
 }
 

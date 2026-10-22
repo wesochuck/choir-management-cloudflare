@@ -228,6 +228,7 @@ export class OrganizationProfileDeletionError extends Error {
 export async function deleteOrganizationProfile(
   env: Pick<Env, "ORGANIZATION_STORE">,
   input: {
+    readonly contacts?: "keep" | "delete_unused";
     readonly actorUserId: string;
     readonly organizationId: string;
     readonly profileId: string;

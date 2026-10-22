@@ -61,6 +61,13 @@ export const organizationProfileImportResponseSchema = z.object({
   requestId: requestIdSchema,
 });
 
+export const organizationProfileDeleteRequestSchema = z.object({
+  contacts: z.enum(["keep", "delete_unused"]).default("keep"),
+});
+export type OrganizationProfileDeleteRequest = z.infer<
+  typeof organizationProfileDeleteRequestSchema
+>;
+
 export const organizationProfileDeleteResponseSchema = z.object({
   deleted: z.literal(true),
   profileId: z.uuid(),

@@ -516,13 +516,283 @@ describe("Organization Profiles", () => {
     expect(auditCount).toBe(2);
   });
 
+  it.each(["keep", "delete_unused"] as const)(
+    "deletes CSV-imported Profiles with contact policy %s atomically and in one Organization",
+    async (contacts) => {
+      const cookie = await signIn();
+      const imported = await exports.default.fetch(
+        apiRequest("alpha.localhost", "/api/organization/profiles/import", cookie, {
+          method: "POST",
+          headers: { "content-type": "text/csv" },
+          body: "Name,Email,Phone\nImported Person,import-delete@example.test,+12025550123",
+        }),
+      );
+      expect(imported.status).toBe(201);
+      const list = await exports.default.fetch(
+        apiRequest("alpha.localhost", "/api/organization/profiles", cookie),
+      );
+      const profile = organizationProfilesResponseSchema
+        .parse(await list.json())
+        .profiles.find((p) => p.email === "import-delete@example.test");
+      if (!profile) throw new Error("Imported profile missing");
+      const alphaStub = organizationStore.get(organizationStore.idFromName("organization-alpha"));
+      const bravoStub = organizationStore.get(organizationStore.idFromName("organization-bravo"));
+      const contactId = await runInDurableObject<OrganizationStore, string>(
+        alphaStub,
+        (_instance, state) => {
+          const id = state.storage.sql
+            .exec<{ id: string }>("SELECT id FROM contacts WHERE profile_id = ?", profile.id)
+            .one().id;
+          // Force a failure after contact mutations to prove the entire operation rolls back.
+          state.storage.sql.exec(
+            `CREATE TRIGGER reject_profile_delete BEFORE DELETE ON profiles BEGIN SELECT RAISE(ABORT, 'test rollback'); END`,
+          );
+          return id;
+        },
+      );
+      await runInDurableObject<OrganizationStore, undefined>(bravoStub, (_instance, state) => {
+        // Identical IDs in another Organization must remain untouched.
+        state.storage.sql.exec(
+          "INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES (?, 'Bravo Person', 'now', 'now')",
+          profile.id,
+        );
+        state.storage.sql.exec(
+          "INSERT INTO contacts (id, profile_id, source, email, normalized_email, created_at, updated_at) VALUES (?, ?, 'roster', 'import-delete@example.test', 'import-delete@example.test', 'now', 'now')",
+          contactId,
+          profile.id,
+        );
+      });
+      const remove = () =>
+        exports.default.fetch(
+          apiRequest(
+            "alpha.localhost",
+            `/api/organization/profiles/${profile.id}?contacts=${contacts}`,
+            cookie,
+            { method: "DELETE" },
+          ),
+        );
+      expect((await remove()).status).toBe(503);
+      await runInDurableObject<OrganizationStore, undefined>(alphaStub, (_instance, state) => {
+        expect(
+          state.storage.sql.exec("SELECT id FROM profiles WHERE id = ?", profile.id).toArray(),
+        ).toHaveLength(1);
+        expect(
+          state.storage.sql
+            .exec<{ profileId: string }>(
+              "SELECT profile_id AS profileId FROM contacts WHERE id = ?",
+              contactId,
+            )
+            .one().profileId,
+        ).toBe(profile.id);
+        expect(
+          state.storage.sql
+            .exec("SELECT 1 FROM contact_communication_preferences WHERE contact_id = ?", contactId)
+            .toArray(),
+        ).toHaveLength(2);
+        expect(
+          state.storage.sql
+            .exec(
+              "SELECT 1 FROM audit_events WHERE action IN ('contact.deleted', 'contact.profile_unlinked') AND target_id = ?",
+              contactId,
+            )
+            .toArray(),
+        ).toHaveLength(0);
+        state.storage.sql.exec("DROP TRIGGER reject_profile_delete");
+      });
+      expect((await remove()).status).toBe(200);
+      await runInDurableObject<OrganizationStore, undefined>(alphaStub, (_instance, state) => {
+        expect(
+          state.storage.sql.exec("SELECT id FROM profiles WHERE id = ?", profile.id).toArray(),
+        ).toHaveLength(0);
+        const retained = state.storage.sql
+          .exec<{ profileId: string | null }>(
+            "SELECT profile_id AS profileId FROM contacts WHERE id = ?",
+            contactId,
+          )
+          .toArray();
+        expect(retained).toEqual(contacts === "keep" ? [{ profileId: null }] : []);
+        expect(
+          state.storage.sql
+            .exec("SELECT 1 FROM contact_communication_preferences WHERE contact_id = ?", contactId)
+            .toArray(),
+        ).toHaveLength(contacts === "keep" ? 2 : 0);
+        expect(
+          state.storage.sql
+            .exec(
+              "SELECT 1 FROM audit_events WHERE action = ? AND target_id = ?",
+              contacts === "keep" ? "contact.profile_unlinked" : "contact.deleted",
+              contactId,
+            )
+            .toArray(),
+        ).toHaveLength(1);
+      });
+      await runInDurableObject<OrganizationStore, undefined>(bravoStub, (_instance, state) => {
+        expect(
+          state.storage.sql.exec("SELECT id FROM profiles WHERE id = ?", profile.id).toArray(),
+        ).toHaveLength(1);
+        expect(
+          state.storage.sql
+            .exec<{ profileId: string }>(
+              "SELECT profile_id AS profileId FROM contacts WHERE id = ?",
+              contactId,
+            )
+            .one().profileId,
+        ).toBe(profile.id);
+      });
+      expect((await remove()).status).toBe(404);
+    },
+  );
+
+  it("keeps protected Contacts by default, rejects unsafe cleanup, and validates the deletion policy", async () => {
+    const cookie = await signIn();
+    const created = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", cookie, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ displayName: "Keep Contact", email: "keep-contact@example.test" }),
+      }),
+    );
+    const profile = organizationProfileResponseSchema.parse(await created.json());
+    const stub = organizationStore.get(organizationStore.idFromName("organization-alpha"));
+    const contactId = await runInDurableObject<OrganizationStore, string>(
+      stub,
+      (_instance, state) => {
+        const id = state.storage.sql
+          .exec<{ id: string }>("SELECT id FROM contacts WHERE profile_id = ?", profile.id)
+          .one().id;
+        state.storage.sql.exec(
+          "UPDATE contact_communication_preferences SET status = 'unsubscribed' WHERE contact_id = ? AND channel = 'email'",
+          id,
+        );
+        state.storage.sql.exec(
+          "INSERT INTO contact_lists (id, name, created_at, updated_at) VALUES ('list', 'List', 'now', 'now')",
+        );
+        state.storage.sql.exec(
+          "INSERT INTO contact_list_memberships (contact_id, list_id, created_at) VALUES (?, 'list', 'now')",
+          id,
+        );
+        return id;
+      },
+    );
+    const remove = (query = "") =>
+      exports.default.fetch(
+        apiRequest("alpha.localhost", `/api/organization/profiles/${profile.id}${query}`, cookie, {
+          method: "DELETE",
+        }),
+      );
+    expect((await remove("?contacts=delete_all")).status).toBe(400);
+    const cleanup = await remove("?contacts=delete_unused");
+    expect(cleanup.status).toBe(409);
+    expect(await cleanup.json()).toMatchObject({
+      code: "profile_contact_history_requires_inactive",
+      message: expect.stringContaining("consent"),
+    });
+    expect((await remove()).status).toBe(200);
+    await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+      expect(
+        state.storage.sql
+          .exec<{ profileId: string | null }>(
+            "SELECT profile_id AS profileId FROM contacts WHERE id = ?",
+            contactId,
+          )
+          .one().profileId,
+      ).toBeNull();
+      expect(
+        state.storage.sql
+          .exec<{ status: string }>(
+            "SELECT status FROM contact_communication_preferences WHERE contact_id = ? AND channel = 'email'",
+            contactId,
+          )
+          .one().status,
+      ).toBe("unsubscribed");
+      expect(
+        state.storage.sql
+          .exec("SELECT 1 FROM contact_list_memberships WHERE contact_id = ?", contactId)
+          .toArray(),
+      ).toHaveLength(1);
+    });
+  });
+
+  it.each([
+    "suppression",
+    "inactive suppression",
+    "unsubscribe flag",
+    "provider flag",
+    "RSVP history",
+  ] as const)(
+    "preserves Profile %s even when Contacts would otherwise be disposable",
+    async (history) => {
+      const cookie = await signIn();
+      const created = await exports.default.fetch(
+        apiRequest("alpha.localhost", "/api/organization/profiles", cookie, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            displayName: "Protected",
+            email: "protected-contact@example.test",
+          }),
+        }),
+      );
+      const profile = organizationProfileResponseSchema.parse(await created.json());
+      const stub = organizationStore.get(organizationStore.idFromName("organization-alpha"));
+      await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+        if (history === "suppression" || history === "inactive suppression") {
+          state.storage.sql.exec(
+            "INSERT INTO communication_suppressions (id, profile_id, channel, reason, active, created_at, updated_at) VALUES ('suppression', ?, 'email', 'provider', ?, 'now', 'now')",
+            profile.id,
+            history === "suppression" ? 1 : 0,
+          );
+        } else if (history === "unsubscribe flag") {
+          state.storage.sql.exec("UPDATE profiles SET do_not_email = 1 WHERE id = ?", profile.id);
+        } else if (history === "provider flag") {
+          state.storage.sql.exec(
+            "UPDATE profiles SET provider_email_suppressed = 1 WHERE id = ?",
+            profile.id,
+          );
+        } else {
+          state.storage.sql.exec(
+            "INSERT INTO event_rsvp_history (id, event_id, profile_id, previous_rsvp, new_rsvp, reason, actor_type, occurred_at) VALUES ('rsvp', 'event', ?, 'Pending', 'Yes', 'response', 'organization_member', 'now')",
+            profile.id,
+          );
+        }
+      });
+      for (const contacts of ["keep", "delete_unused"]) {
+        const response = await exports.default.fetch(
+          apiRequest(
+            "alpha.localhost",
+            `/api/organization/profiles/${profile.id}?contacts=${contacts}`,
+            cookie,
+            { method: "DELETE" },
+          ),
+        );
+        expect(response.status).toBe(409);
+        expect(await response.json()).toMatchObject({
+          code:
+            history === "RSVP history"
+              ? "profile_event_history_requires_inactive"
+              : "profile_suppression_history_requires_inactive",
+        });
+      }
+      await runInDurableObject<OrganizationStore, undefined>(stub, (_instance, state) => {
+        expect(
+          state.storage.sql.exec("SELECT id FROM profiles WHERE id = ?", profile.id).toArray(),
+        ).toHaveLength(1);
+        expect(
+          state.storage.sql
+            .exec("SELECT id FROM contacts WHERE profile_id = ?", profile.id)
+            .toArray(),
+        ).toHaveLength(1);
+      });
+    },
+  );
+
   it("deletes safe unreferenced Profiles and rejects non-admin, IDOR, self-removal, and historical records", async () => {
     const adminCookie = await signIn();
 
     // 1. Create a safe unreferenced profile in Alpha
     const createRes = await exports.default.fetch(
       apiRequest("alpha.localhost", "/api/organization/profiles", adminCookie, {
-        body: JSON.stringify({ displayName: "Safe Profile" }),
+        body: JSON.stringify({ displayName: "Safe Profile", email: "safe-profile@example.test" }),
         headers: { "content-type": "application/json" },
         method: "POST",
       }),

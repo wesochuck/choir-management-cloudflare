@@ -259,21 +259,48 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
     ).toBeInTheDocument();
 
     expect(
-      screen.getByText(
-        /A saved roster email creates a linked Contact even without a login account/,
-      ),
+      screen.getByText(/Remove the roster profile and unlink its Contacts/),
     ).toBeInTheDocument();
 
     const confirmDeleteBtn = screen.getByRole("button", { name: "Delete permanently" });
     await user.click(confirmDeleteBtn);
 
     await waitFor(() => {
-      expect(deleteOrganizationProfile).toHaveBeenCalledWith(activeProfile.id);
+      expect(deleteOrganizationProfile).toHaveBeenCalledWith(activeProfile.id, {
+        contacts: "keep",
+      });
     });
 
     expect(
       await screen.findByText("Active Singer has been permanently deleted."),
     ).toBeInTheDocument();
+  });
+
+  it("lets managers explicitly delete unused Contacts and resets to Keep Contacts after cancel", async () => {
+    const user = userEvent.setup();
+    vi.mocked(deleteOrganizationProfile).mockResolvedValue({
+      deleted: true,
+      profileId: activeProfile.id,
+      requestId: "req-delete-contacts",
+    });
+    render(<RosterPage enabled />);
+    const buttons = await screen.findAllByRole("button", { name: "Delete Active Singer" });
+    const button = buttons[0];
+    if (!button) throw new Error("Missing delete action");
+    await user.click(button);
+    expect(screen.getByRole("radio", { name: "Keep Contacts" })).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: "Delete unused roster-email Contacts" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(deleteOrganizationProfile).not.toHaveBeenCalled();
+    await user.click(button);
+    expect(screen.getByRole("radio", { name: "Keep Contacts" })).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: "Delete unused roster-email Contacts" }));
+    await user.click(screen.getByRole("button", { name: "Delete permanently" }));
+    await waitFor(() => {
+      expect(deleteOrganizationProfile).toHaveBeenCalledWith(activeProfile.id, {
+        contacts: "delete_unused",
+      });
+    });
   });
 
   it("displays error message if deletion is rejected due to historical dependencies", async () => {

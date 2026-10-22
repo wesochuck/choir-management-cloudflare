@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   memberProfileUpdateRequestSchema,
   organizationProfileRequestSchema,
+  organizationProfileDeleteRequestSchema,
 } from "@choir/contracts";
 
 export const completionSchema = z.object({
@@ -42,7 +43,7 @@ export const profileCreateSchema = z.object({
   requestId: z.uuid(),
 });
 export const profileUpdateSchema = profileCreateSchema;
-export const profileDeleteSchema = z.object({
+export const profileDeleteSchema = organizationProfileDeleteRequestSchema.extend({
   actorUserId: z.string().min(1).max(128),
   organizationId: z.string().min(1).max(128),
   profileId: z.uuid(),

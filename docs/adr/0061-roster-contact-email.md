@@ -14,9 +14,11 @@ Contact. Account invitations remain an explicit action in Organization invitatio
 
 Where existing data has several linked Contacts, the primary is the oldest `created_at`, with ID as
 the deterministic tie-breaker. Reads and edits use this same primary. Clearing its email retains the
-Contact and preferences. Omitted email in older API payloads preserves the saved value. Effective
-roster and Members delivery email is the primary Contact email, otherwise linked Membership email;
-only one destination is selected. The roster editor displays contact and sign-in email separately.
+Contact and preferences. Explicit permanent Profile deletion may remove an unused roster-email
+Contact under [ADR 0062](0062-safe-roster-contact-deletion.md). Omitted email in older API payloads
+preserves the saved value. Effective roster and Members delivery email is the primary Contact email,
+otherwise linked Membership email; only one destination is selected. The roster editor displays
+contact and sign-in email separately.
 
 Roster contact mutations run in the same short SQLite transaction as the Profile mutation, using
 existing Contact validation, normalized-email uniqueness, audit, and preference code. They never

@@ -123,3 +123,19 @@ describe("directory contact visibility preferences", () => {
     expect(parsed).toMatchObject({ showEmailInDirectory: true, showPhoneInDirectory: true });
   });
 });
+
+// Older DELETE callers omit the contact policy; retention is the safe default.
+it("defaults profile deletion to retaining Contacts and rejects unknown policies", async () => {
+  const { organizationProfileDeleteRequestSchema } = await import("./profiles");
+  expect(organizationProfileDeleteRequestSchema.parse({})).toEqual({ contacts: "keep" });
+  expect(organizationProfileDeleteRequestSchema.parse({ contacts: undefined })).toEqual({
+    contacts: "keep",
+  });
+  expect(organizationProfileDeleteRequestSchema.parse({ contacts: "delete_unused" })).toEqual({
+    contacts: "delete_unused",
+  });
+  expect(organizationProfileDeleteRequestSchema.safeParse({ contacts: null }).success).toBe(false);
+  expect(organizationProfileDeleteRequestSchema.safeParse({ contacts: "delete_all" }).success).toBe(
+    false,
+  );
+});
