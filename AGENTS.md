@@ -119,7 +119,13 @@ Three clearly differentiated verification levels govern local work:
 2. **Browser-free comprehensive check:** Run `npm run check:ci`. This is the canonical browser-free
    local verification gate. It runs dependency audits, lockfile verification, DO runtime checks,
    formatting, lint, Knip, contracts, route checks, unit tests, artifact packaging verification, and
-   workerd integration tests without launching browser processes.
+   workerd integration tests without launching browser processes. `npm run check:ci` is strict: a
+   recognized transient npm-registry outage still runs the remaining checks for diagnostics but
+   exits nonzero and is never release-qualified. For local development only, `npm run check:ci:dev`
+   runs the same checks and may exit 0 as explicitly labeled DEGRADED when the audit alone is
+   unverified and everything else passes; see `docs/runbooks/dependency-audit-outage.md`. Pushing
+   `main` or promoting always requires the strict gate (`npm run check:release`), never a degraded
+   result.
 3. **Complete release qualification:** Run `npm run check:release` on the clean committed candidate
    before pushing `main`. Staging reuses matching recent evidence or runs this gate itself. It runs
    `npm run check:ci`, followed by the full Chromium desktop and mobile E2E suites with

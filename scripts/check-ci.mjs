@@ -1,17 +1,16 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 
+import { runCheckCi } from "./check-ci-runner.mjs";
+
 const manifestName = "release-manifest.json";
 
 // Enforces the local release qualification checks before promotion.
 // The browser E2E job is not run here because it needs Playwright browsers installed; see the note below.
+// Usage: `npm run check:ci` (strict) or `npm run check:ci:dev` (explicit development mode:
+// same checks, but a recognized transient audit outage with all other checks passing exits 0
+// and is clearly labeled DEGRADED instead of qualified).
 const steps = [
-  {
-    job: "static",
-    label: "Audit high-severity dependencies",
-    command: "npm",
-    args: ["run", "audit"],
-  },
   {
     job: "static",
     label: "Verify lockfile matches manifests",
@@ -123,41 +122,45 @@ function runStep(step) {
   execFileSync(step.command, args, { stdio: "inherit", cwd: process.cwd() });
 }
 
-const results = [];
-try {
-  for (const step of steps) {
+// The strict audit wrapper prints its typed outcome as JSON to stdout and
+// human diagnostics to stderr. Nonzero exits still carry a parseable
+// outcome; anything else is an unknown audit failure.
+function runAuditJson() {
+  const args = ["scripts/run-dependency-audit.mjs", "--format=json"];
+  process.stdout.write("\n=== Audit high-severity dependencies (CI static job)\n");
+  try {
+    const stdout = execFileSync("node", args, {
+      cwd: process.cwd(),
+      encoding: "utf8",
+    });
+    return JSON.parse(stdout);
+  } catch (error) {
+    const stdout = typeof error?.stdout === "string" ? error.stdout : String(error?.stdout ?? "");
     try {
-      runStep(step);
-      results.push({ ...step, ok: true });
-    } catch (error) {
-      results.push({ ...step, ok: false });
-      console.error(`\n✗ ${step.label} failed with exit ${error.status ?? error.message}.`);
-      break;
+      return JSON.parse(stdout);
+    } catch {
+      return {
+        attempts: 0,
+        outcome: "failed_unknown",
+        reason: "audit wrapper produced no parseable outcome",
+      };
     }
   }
-} finally {
-  restoreManifest();
 }
 
-const failed = results.filter((result) => !result.ok);
-const ran = results.length;
-const jobs = [...new Set(results.map((result) => result.job))];
-
-console.log("\nLocal CI mirror summary:");
-for (const result of results) {
-  console.log(`  ${result.ok ? "✓" : "✗"} ${result.job.padEnd(14)} ${result.label}`);
-}
-if (failed.length > 0) {
-  const failedJob = new Set(failed.map((result) => result.job));
-  console.error(
-    `\n${failed.length}/${ran} steps failed (CI ${[...failedJob].join(", ")} job(s) would fail). ` +
-      "Fix and re-run `npm run check:ci` before pushing.",
-  );
-  process.exitCode = 1;
-} else {
+const dev = process.argv.includes("--dev");
+if (dev) {
   console.log(
-    `\nAll ${ran} steps passed (CI ${jobs.join(", ")} jobs). ` +
-      "The browser E2E job is not covered here: run `npx playwright install chromium && npm run test:e2e` " +
-      "to cover it locally before pushing.",
+    "Development mode: same browser-free checks; a recognized transient audit outage " +
+      "with all other checks passing exits 0 and is labeled DEGRADED (never release-qualified).",
   );
 }
+
+const { exitCode } = await runCheckCi({
+  dev,
+  restoreManifest,
+  runAuditJson,
+  runStep: async (step) => runStep(step),
+  steps,
+});
+process.exitCode = exitCode;
