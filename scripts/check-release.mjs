@@ -14,6 +14,7 @@
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { collectReleaseManifest } from "./release-artifact.mjs";
+import { applyReleaseBuildDefaults } from "./release-environment.mjs";
 import {
   invalidateQualification,
   qualificationInputs,
@@ -37,6 +38,7 @@ const steps = [
 ];
 
 export async function checkRelease(options = {}) {
+  applyReleaseBuildDefaults();
   const root = options.root ?? process.cwd();
   const runner = options.runner ?? execFileSync;
   const startedAt = Date.now();
@@ -44,9 +46,11 @@ export async function checkRelease(options = {}) {
   let inputs;
   try {
     inputs = await qualificationInputs(root);
-  } catch {
+  } catch (error) {
     console.log(
-      "This checkout cannot produce reusable qualification evidence; the full gate will still run.",
+      `Cannot save reusable qualification evidence: ${error.message}. ` +
+        "The full gate will still run. Commit changes first, then qualify the clean commit " +
+        "before pushing to let staging reuse the result.",
     );
   }
   let manifest;

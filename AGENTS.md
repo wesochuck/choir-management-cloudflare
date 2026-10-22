@@ -106,8 +106,9 @@ Classify work by its actual risk:
 - **Material:** changes to application behavior, shared components, contracts, Worker logic,
   persistence, authentication, payments, communications, queues, or tenant-scoped data. Run focused
   tests and the affected build/integration gates. Report risks and rollback implications.
-- **Release-bound:** anything being pushed to `main` or promoted to staging. Run the complete local
-  release gate described below.
+- **Release-bound:** anything being pushed to `main` or promoted to staging. Qualify the clean
+  committed candidate with the complete local release gate described below; staging may reuse
+  matching evidence under ADR 0051.
 
 When uncertain, treat the change as material.
 
@@ -119,8 +120,8 @@ Three clearly differentiated verification levels govern local work:
    local verification gate. It runs dependency audits, lockfile verification, DO runtime checks,
    formatting, lint, Knip, contracts, route checks, unit tests, artifact packaging verification, and
    workerd integration tests without launching browser processes.
-3. **Complete release qualification:** Run `npm run check:release`. This is the canonical
-   pre-promotion release gate required before pushing `main` or promoting to staging. It runs
+3. **Complete release qualification:** Run `npm run check:release` on the clean committed candidate
+   before pushing `main`. Staging reuses matching recent evidence or runs this gate itself. It runs
    `npm run check:ci`, followed by the full Chromium desktop and mobile E2E suites with
    `RELEASE_QUALIFICATION=1`, which rejects committed `.only` tests and captures failure artifacts.
 
@@ -145,8 +146,16 @@ Additional rules:
 - Run focused checks while iterating.
 - After any route change, run `npm run check:routes`.
 - Build the deployable artifact before `npm run test:integration:prepared`.
-- Before pushing `main` or promoting to staging, run `npm run check:release`. Do not manually
-  reproduce release qualification with separate ad-hoc commands.
+- Use this release order: focused development checks → commit locally → run `npm run check:release`
+  on the clean committed candidate → push → `npm run deploy:staging -- --yes` when deployment is
+  authorized. If checks require fixes, commit those fixes and qualify the resulting clean commit
+  before pushing. Local commits do not require prior full qualification; pushing `main` does. Dirty
+  full-gate runs cannot save reusable evidence.
+- Do not run `check:ci`, full test suites, or a separate build immediately before `check:release`
+  merely to repeat its included steps. Use focused checks during development and let the canonical
+  gate own complete qualification. An explicit `check:release` always reruns; staging deployment
+  owns evidence reuse. See [the staging runbook](docs/runbooks/staging-deployment.md) for reuse
+  conditions, commands, and fresh hosted checks. Do not reproduce the gate with ad-hoc commands.
 - Treat bundle-size and build-output warnings as actionable. Preserve route-level code splitting and
   inspect generated output.
 

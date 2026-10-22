@@ -59,6 +59,28 @@ avoid repeating qualification. The record is local to that checkout; a different
 qualify independently. It is a trusted workstation cache, not a signed attestation of dependency
 contents or authorization to deploy.
 
+The normal feature-to-staging sequence is:
+
+1. Run focused tests and relevant static/browser checks while developing.
+2. Commit the candidate locally; do not push yet.
+3. Run `npm run check:release` once on that clean commit. It already includes `check:ci`, the
+   deployable build, integration tests, and desktop/mobile Chromium tests. If it fails, fix and
+   commit the changes, then qualify the new clean commit.
+4. Push the qualified commit to `main`.
+5. When staging deployment is authorized, run `npm run deploy:staging -- --yes` from the same
+   checkout within the four-hour window. Look for “Reusing verified check:release evidence”.
+
+Standalone qualification and staging deployment share effective release build defaults through
+`scripts/release-environment.mjs`, including `VITE_PRACTICE_LOUDNESS_ENABLED=true`. An explicit
+value (including `false`) takes precedence and must match across qualification and deployment. Do
+not reinstall dependencies, rebuild artifacts, or change build/test settings between these steps
+unless you intend to qualify again. No extra manual full-gate invocation is needed before deployment
+when the receipt still matches.
+
+When evidence cannot be reused, the command reports the affected input categories (such as commit,
+dependency installation, local configuration, or build/test environment), expiration, missing
+evidence/artifacts, or artifact verification failure. Diagnostics never print configuration values.
+
 To force fresh checks during deployment:
 
 ```bash

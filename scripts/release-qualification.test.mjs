@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { collectReleaseManifest, createReleaseManifest } from "./release-artifact.mjs";
+import { applyReleaseBuildDefaults } from "./release-environment.mjs";
 import { checkRelease } from "./check-release.mjs";
 import { deployStaging, runReleaseGate } from "./deploy-staging-local.mjs";
 import {
@@ -102,16 +103,67 @@ describe("reusable local release qualification", () => {
       "-m",
       "new commit",
     );
-    expect((await readQualification({ root })).receipt).toBeNull();
+    expect(await readQualification({ root })).toMatchObject({
+      receipt: null,
+      reason: "release inputs changed: commit",
+    });
+  });
+
+  it("reuses standalone qualification under staging defaults without rerunning the gate", async () => {
+    const root = await fixture();
+    vi.stubEnv("VITE_PRACTICE_LOUDNESS_ENABLED", undefined);
+    const runner = vi.fn();
+    expect(await checkRelease({ root, runner })).toBe(true);
+    for (const call of runner.mock.calls) {
+      expect(call[2].env.VITE_PRACTICE_LOUDNESS_ENABLED).toBe("true");
+    }
+    // A later process starts without the exported default. It must still match.
+    delete process.env.VITE_PRACTICE_LOUDNESS_ENABLED;
+    expect((await readQualification({ root })).receipt).not.toBeNull();
+    applyReleaseBuildDefaults();
+    const deployRunner = vi.fn();
+    expect(await runReleaseGate({ root, runner: deployRunner })).toMatchObject({
+      gate: "check:release",
+    });
+    expect(deployRunner).not.toHaveBeenCalled();
+  });
+
+  it("preserves explicit release settings and rejects a later different value", async () => {
+    const root = await fixture();
+    vi.stubEnv("VITE_PRACTICE_LOUDNESS_ENABLED", "false");
+    const runner = vi.fn();
+    expect(await checkRelease({ root, runner })).toBe(true);
+    for (const call of runner.mock.calls) {
+      expect(call[2].env.VITE_PRACTICE_LOUDNESS_ENABLED).toBe("false");
+    }
+    applyReleaseBuildDefaults(process.env, { VITE_PRACTICE_LOUDNESS_ENABLED: "true" });
+    expect((await readQualification({ root })).receipt).not.toBeNull();
+    vi.stubEnv("VITE_PRACTICE_LOUDNESS_ENABLED", "true");
+    expect(await readQualification({ root })).toMatchObject({
+      receipt: null,
+      reason: "release inputs changed: build/test environment",
+    });
+  });
+
+  it("reports changed dependency and local configuration categories without values", async () => {
+    const root = await fixture();
+    await qualify(root);
+    await writeFile(join(root, "node_modules/.package-lock.json"), "changed installation");
+    await writeFile(join(root, "apps/worker/.dev.vars"), "SECRET=never-display-this");
+    expect(await readQualification({ root })).toEqual({
+      receipt: null,
+      reason: "release inputs changed: dependency installation, local configuration",
+    });
   });
 
   it("rejects expired, future-dated, corrupt, incomplete, or missing evidence", async () => {
     const root = await fixture();
     const now = Date.now();
     const receipt = await qualify(root, now);
-    expect(
-      (await readQualification({ root, now: now + QUALIFICATION_MAX_AGE_MS })).receipt,
-    ).toBeNull();
+    expect(await readQualification({ root, now: now + QUALIFICATION_MAX_AGE_MS })).toMatchObject({
+      receipt: null,
+      reason: "qualification expired (four-hour limit from gate start)",
+    });
     expect((await readQualification({ root, now: now - 1 })).receipt).toBeNull();
     for (const content of [
       "invalid json",
@@ -122,7 +174,10 @@ describe("reusable local release qualification", () => {
       expect((await readQualification({ root })).receipt).toBeNull();
     }
     await rm(receiptPath(root));
-    expect((await readQualification({ root })).receipt).toBeNull();
+    expect(await readQualification({ root })).toMatchObject({
+      receipt: null,
+      reason: "qualification record is missing (qualify a clean committed checkout first)",
+    });
   });
 
   it("rejects missing artifacts and a changed build/test environment", async () => {
@@ -132,7 +187,10 @@ describe("reusable local release qualification", () => {
     expect((await readQualification({ root })).receipt).toBeNull();
     vi.unstubAllEnvs();
     await rm(join(root, "apps/worker/dist/index.js"));
-    expect((await readQualification({ root })).receipt).toBeNull();
+    expect(await readQualification({ root })).toMatchObject({
+      receipt: null,
+      reason: expect.stringMatching(/(?:build files.*missing|artifact verification failed)/u),
+    });
   });
 
   it("invalidates previous success before a failed rerun", async () => {
@@ -196,9 +254,10 @@ describe("reusable local release qualification", () => {
   it("permits dirty development qualification without publishing reusable evidence", async () => {
     const root = await fixture();
     await writeFile(join(root, "source.js"), "uncommitted work");
-    vi.spyOn(console, "log").mockImplementation(vi.fn());
+    const log = vi.spyOn(console, "log").mockImplementation(vi.fn());
     expect(await checkRelease({ root, runner: vi.fn() })).toBe(true);
     expect((await readQualification({ root })).receipt).toBeNull();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Commit changes first"));
   });
 
   it("rejects artifact drift during deployment before touching hosted resources", async () => {

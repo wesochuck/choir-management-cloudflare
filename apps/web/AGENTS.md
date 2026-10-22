@@ -127,5 +127,7 @@ These instructions inherit the repository root `AGENTS.md` and apply under `apps
 - Run focused component or browser tests for changed flows.
 - Check light and dark themes, responsive layouts, focus states, keyboard interactions, and relevant
   print views after visual-system changes.
-- Before pushing `main` or promoting to staging, run the canonical release qualification gate:
-  `npm run check:release`.
+- Follow the root release order: commit the candidate locally, qualify the clean commit with
+  `npm run check:release`, then push. Staging reuses matching evidence under ADR 0051; see
+  `docs/runbooks/staging-deployment.md`. Do not repeat the full gate solely because deployment is
+  the next step.

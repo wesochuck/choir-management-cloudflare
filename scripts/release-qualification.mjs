@@ -5,6 +5,7 @@ import { readFile, readdir, realpath, rm, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 import { verifyReleaseManifest } from "./release-artifact.mjs";
+import { applyReleaseBuildDefaults } from "./release-environment.mjs";
 import { writeReceiptAtomic } from "./release-shared.mjs";
 
 export const QUALIFICATION_MAX_AGE_MS = 4 * 60 * 60 * 1000;
@@ -29,7 +30,7 @@ export async function qualificationInputs(root = process.cwd(), env = process.en
   const installPath = join(root, "node_modules/.package-lock.json");
   const installStat = await stat(installPath);
   const modulesStat = await stat(join(root, "node_modules"));
-  const environment = Object.entries(env)
+  const environment = Object.entries(applyReleaseBuildDefaults({ ...env }))
     .filter(([key]) => /^(?:CI|TZ|BUILD_VERSION|NODE_.*|VITE_.*|PLAYWRIGHT_.*)$/u.test(key))
     .sort(([left], [right]) => left.localeCompare(right));
   return {
@@ -81,8 +82,11 @@ export async function recordQualification({
 }
 
 export async function readQualification({ root = process.cwd(), now = Date.now() } = {}) {
+  let recordLoaded = false;
   try {
-    const receipt = JSON.parse(await readFile(receiptPath(root), "utf8"));
+    const raw = await readFile(receiptPath(root), "utf8");
+    recordLoaded = true;
+    const receipt = JSON.parse(raw);
     if (receipt.schemaVersion !== 1 || receipt.gate !== "check:release") {
       throw new Error("unsupported qualification record");
     }
@@ -90,14 +94,32 @@ export async function readQualification({ root = process.cwd(), now = Date.now()
       !Number.isFinite(receipt.startedAt) ||
       !Number.isFinite(receipt.qualifiedAt) ||
       receipt.startedAt > receipt.qualifiedAt ||
-      receipt.qualifiedAt > now ||
-      now - receipt.startedAt >= QUALIFICATION_MAX_AGE_MS
+      receipt.qualifiedAt > now
     ) {
-      throw new Error("qualification expired or has invalid timestamps");
+      throw new Error("qualification timestamps are invalid or future-dated");
+    }
+    if (now - receipt.startedAt >= QUALIFICATION_MAX_AGE_MS) {
+      throw new Error("qualification expired (four-hour limit from gate start)");
     }
     const current = await qualificationInputs(root);
     if (JSON.stringify(receipt.inputs) !== JSON.stringify(current)) {
-      throw new Error("commit, dependencies, runtime, environment, or local configuration changed");
+      const labels = {
+        checkout: "checkout location",
+        commitSha: "commit",
+        lockfileSha256: "lockfile",
+        runtime: "Node runtime/platform",
+        installationSha256: "dependency installation",
+        localConfigurationSha256: "local configuration",
+        environmentSha256: "build/test environment",
+      };
+      const changed = Object.entries(labels)
+        .filter(([key]) => receipt.inputs?.[key] !== current[key])
+        .map(([, label]) => label);
+      throw new Error(
+        changed.length > 0
+          ? `release inputs changed: ${changed.join(", ")}`
+          : "qualification input format changed",
+      );
     }
     // Always rehash the complete file set, detecting additions, removals, and changed bytes.
     if (!receipt.manifest) throw new Error("qualification has no artifact evidence");
@@ -106,7 +128,14 @@ export async function readQualification({ root = process.cwd(), now = Date.now()
   } catch (error) {
     return {
       receipt: null,
-      reason: error?.code === "ENOENT" ? "qualification or built files are missing" : error.message,
+      reason:
+        error?.code === "ENOENT"
+          ? recordLoaded
+            ? "qualified build files or dependency installation are missing"
+            : "qualification record is missing (qualify a clean committed checkout first)"
+          : error instanceof SyntaxError
+            ? "qualification record is malformed"
+            : error.message,
     };
   }
 }

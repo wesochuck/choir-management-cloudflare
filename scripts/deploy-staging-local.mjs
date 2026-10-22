@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 
 import { createReleaseManifest, verifyReleaseManifest } from "./release-artifact.mjs";
 import { invalidateQualification, readQualification } from "./release-qualification.mjs";
+import { applyReleaseBuildDefaults } from "./release-environment.mjs";
 import {
   activeVersionId as sharedActiveVersionId,
   artifactDirForSha,
@@ -228,9 +229,7 @@ export async function deployStaging(options = {}) {
     );
   }
 
-  // Issue 277: Enable practice loudness normalization in staging builds for operator qualification.
-  process.env.VITE_PRACTICE_LOUDNESS_ENABLED ??=
-    options.env?.VITE_PRACTICE_LOUDNESS_ENABLED ?? "true";
+  applyReleaseBuildDefaults(process.env, options.env);
 
   console.log("Verifying clean, current main checkout...");
   const checkoutVerifier = options.verifyCheckout ?? verifyCheckout;
