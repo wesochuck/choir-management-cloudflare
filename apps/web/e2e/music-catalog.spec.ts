@@ -775,7 +775,7 @@ for (const theme of ["light", "dark"] as const) {
     const applauseQueueItem = queue.getByRole("button", { name: /Applause/ });
     const firstWorkQueueItem = queue.getByRole("button", { name: /First Work/ });
     await expect(applauseQueueItem).toBeVisible();
-    await expect(firstWorkQueueItem).toContainText("Needs review");
+    await expect(firstWorkQueueItem).toContainText("Ready to review");
 
     const applauseGroup = dialog.getByRole("region", { name: "Applause" });
     await expect(applauseGroup.getByRole("heading", { name: "Applause", level: 2 })).toBeVisible();
@@ -806,7 +806,7 @@ for (const theme of ["light", "dark"] as const) {
     await trackAssignment.selectOption("S");
     await expect(trackAssignment).toHaveValue("S");
     await expect(dialog.getByRole("button", { name: "Mark reviewed & next" })).toBeEnabled();
-    await expect(firstWorkQueueItem).toContainText("Needs review");
+    await expect(firstWorkQueueItem).toContainText("Ready to review");
     await expect(dialog.getByText("Strong suggestion", { exact: true })).toHaveCount(0);
 
     await applauseQueueItem.click();
@@ -1157,7 +1157,17 @@ for (const theme of ["light", "dark"] as const) {
     await expect(dialog.getByText("Ave Maria.mp3")).toBeVisible();
     await dialog.getByRole("radio", { name: /Entire Music Library/ }).check();
     await dialog.getByRole("button", { name: "Review groups" }).click();
-    await dialog.getByRole("button", { name: "AI Match" }).click();
+    const summary = dialog.locator(".track-import-review-summary");
+    expect((await summary.boundingBox())?.height).toBeLessThan(60);
+    await expect(dialog.getByText("Your recordings:")).toBeVisible();
+    await dialog.screenshot({ path: testInfo.outputPath(`review-tidy-${theme}.png`) });
+    await dialog.getByRole("button", { name: "Choose destination", exact: true }).click();
+    await expect(
+      dialog.getByRole("searchbox", {
+        name: "Search titles, composers, or arrangers",
+      }),
+    ).toBeFocused();
+    await dialog.getByRole("button", { name: "AI Match batch" }).click();
     await expect(
       dialog.getByRole("heading", { name: "AI couldn’t find a reliable match" }),
     ).toBeVisible();
@@ -1172,7 +1182,7 @@ for (const theme of ["light", "dark"] as const) {
     await dialog
       .locator(".track-import-review-destination")
       .screenshot({ path: testInfo.outputPath(`ai-no-match-${theme}.png`) });
-    await dialog.getByRole("button", { name: "AI Match" }).click();
+    await dialog.getByRole("button", { name: "AI Match batch" }).click();
     await expect(dialog.getByRole("heading", { name: "Possible destinations" })).toBeVisible();
     await expect(dialog.getByRole("button", { name: /Select destination:/ })).toHaveCount(2);
     const picker = dialog.locator(".track-import-piece-picker");
@@ -1206,5 +1216,13 @@ for (const theme of ["light", "dark"] as const) {
       "Franz Biebl",
     );
     await expect(dialog.getByRole("button", { name: "Continue to confirmation" })).toHaveCount(0);
+    await dialog.getByRole("button", { name: "Choose voice part", exact: true }).click();
+    const part = dialog.getByRole("combobox", { name: "Section or voice part for Ave Maria.mp3" });
+    await expect(part).toBeFocused();
+    const partBox = await part.boundingBox();
+    if (!partBox) throw new Error("Missing focused voice-part control");
+    expect(partBox.y + partBox.height).toBeLessThanOrEqual(footerBox.y + 1);
+    await part.selectOption("S1");
+    await expect(dialog.getByRole("button", { name: "Mark reviewed & next" })).toBeEnabled();
   });
 }

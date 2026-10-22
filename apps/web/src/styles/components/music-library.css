@@ -646,31 +646,41 @@
   }
 
   .track-import-review-summary {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--spacing-sm);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm) var(--spacing-lg);
+    color: var(--color-text-muted);
   }
 
   .track-import-review-summary > div {
     display: flex;
-    min-width: 0;
-    flex-direction: column;
-    gap: var(--spacing-3xs);
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: var(--color-surface-subtle, var(--color-surface));
+    align-items: baseline;
+    gap: var(--spacing-xs);
   }
 
   .track-import-review-summary strong {
     color: var(--color-text);
-    font-size: var(--font-size-xl);
-    line-height: var(--line-height-tight);
+    font-size: var(--font-size-md);
   }
 
   .track-import-review-summary span {
+    font-size: var(--font-size-sm);
+  }
+
+  .track-import-review-ai-action {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+  }
+
+  .track-import-review-ai-action small {
+    max-width: 22rem;
     color: var(--color-text-muted);
-    font-size: var(--font-size-xs);
+  }
+
+  .track-import-review-source {
+    overflow-wrap: anywhere;
   }
 
   .track-import-review-summary__conflicts strong,
@@ -1416,20 +1426,6 @@
     gap: var(--spacing-sm);
   }
 
-  .track-import-review-footer__progress-mark {
-    display: grid;
-    min-width: 3.5rem;
-    min-height: 3rem;
-    place-items: center;
-    padding: 0 var(--spacing-xs);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: var(--color-info-surface);
-    color: var(--color-primary);
-    font-size: var(--font-size-sm);
-    font-weight: var(--font-weight-bold);
-  }
-
   .track-import-review-footer__progress strong {
     color: var(--color-text);
     font-size: var(--font-size-sm);
@@ -1486,8 +1482,9 @@
   }
 
   @media (max-width: 600px) {
-    .track-import-review-summary {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    .track-import-review-ai-action {
+      align-items: stretch;
+      flex-direction: column;
     }
 
     .track-import-review-toolbar,

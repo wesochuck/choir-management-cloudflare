@@ -518,7 +518,7 @@ describe("BulkPracticeTrackImportDialog", () => {
     await waitFor(() => expect(screen.getByText("Applause.mp3")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Review groups" }));
     expect(screen.getByRole("heading", { name: "Applause" })).toBeInTheDocument();
-    expect(screen.getAllByText("Needs review").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Needs piece").length).toBeGreaterThan(0);
     expect(
       screen.getByRole("button", { name: "Search library to change piece" }),
     ).toBeInTheDocument();
@@ -612,7 +612,7 @@ describe("BulkPracticeTrackImportDialog", () => {
       },
     );
     await waitFor(() => {
-      expect(screen.getAllByText("Needs review").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Ready to review").length).toBeGreaterThan(0);
       expect(
         screen.queryByRole("button", { name: "Continue to confirmation" }),
       ).not.toBeInTheDocument();
@@ -652,6 +652,14 @@ describe("BulkPracticeTrackImportDialog", () => {
       screen.queryByRole("button", { name: "Continue to confirmation" }),
     ).not.toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: "Resolve conflicts" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("combobox", {
+          name: "Section or voice part for Hallelujah - Soprano.mp3",
+        }),
+      ).toHaveFocus(),
+    );
     fireEvent.change(
       screen.getByRole("combobox", { name: "Section or voice part for Hallelujah - Soprano.mp3" }),
       {
@@ -818,6 +826,35 @@ describe("optional Clef Flash matching", () => {
     mockMatchBulkPracticeTracks.mockReset();
   });
 
+  it("guides missing destination and voice-part choices from either review view", async () => {
+    await openAiReview("Unidentified recording.mp3");
+    expect(screen.getAllByText("Needs piece").length).toBeGreaterThan(0);
+    expect(screen.getByText("Your recordings:")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "AI Match batch" })).toHaveAccessibleDescription(
+      "Optional suggestions for the whole batch. Your edits and reviewed groups stay protected.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Batch overview" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose destination" }));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("searchbox", {
+          name: "Search titles, composers, or arrangers",
+        }),
+      ).toHaveFocus(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Hallelujah Chorus/ }));
+    expect(screen.getAllByText("Needs voice part").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Choose voice part" }));
+    const part = screen.getByRole("combobox", {
+      name: "Section or voice part for Unidentified recording.mp3",
+    });
+    await waitFor(() => expect(part).toHaveFocus());
+    fireEvent.change(part, { target: { value: "soprano" } });
+    expect(screen.getAllByText("Ready to review").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Mark reviewed & next" }));
+    expect(screen.getByRole("button", { name: "Continue to confirmation" })).toBeEnabled();
+  });
+
   it("keeps a matched recording without a detected part unassigned", async () => {
     await openAiReview("Hallelujah Chorus.mp3");
     expect(
@@ -867,7 +904,7 @@ describe("optional Clef Flash matching", () => {
       }),
     );
     await openAiReview("Unidentified recording.mp3");
-    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Match batch" }));
     await waitFor(() =>
       expect(
         screen.getByRole("combobox", {
@@ -898,7 +935,7 @@ describe("optional Clef Flash matching", () => {
       }),
     );
     await openAiReview("Unidentified recording.mp3");
-    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Match batch" }));
     await waitFor(() =>
       expect(
         screen.getByRole("combobox", {
@@ -924,7 +961,7 @@ describe("optional Clef Flash matching", () => {
     );
     await openAiReview();
     expect(mockMatchBulkPracticeTracks).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Match batch" }));
     await waitFor(() => {
       expect(screen.getByText(/AI metadata suggestion/)).toBeInTheDocument();
     });
@@ -955,7 +992,7 @@ describe("optional Clef Flash matching", () => {
     await openAiReview();
     fireEvent.click(screen.getByRole("button", { name: "Mark reviewed & next" }));
     expect(screen.getByRole("button", { name: "Continue to confirmation" })).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Match batch" }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Continue to confirmation" })).toBeEnabled();
     });
@@ -964,12 +1001,12 @@ describe("optional Clef Flash matching", () => {
   it("preserves manual selections on failure and allows retry", async () => {
     mockMatchBulkPracticeTracks.mockRejectedValueOnce(new Error("AI matching is unavailable."));
     await openAiReview();
-    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Match batch" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Your current selections are preserved",
     );
     expect(screen.getByRole("button", { name: "Mark reviewed & next" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "AI Match" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "AI Match batch" })).toBeEnabled();
   });
 
   it("locks editing while a request runs and leaves uncertain choices for manual assignment", async () => {
@@ -982,7 +1019,7 @@ describe("optional Clef Flash matching", () => {
     );
     await openAiReview("Unidentified recording.mp3");
     expect(screen.getByText("No destination piece selected")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Match batch" }));
     expect(screen.getByRole("button", { name: "Matching with AI…" })).toBeDisabled();
     expect(
       screen.getAllByRole("combobox").every((element) => element.hasAttribute("disabled")),
@@ -1002,7 +1039,7 @@ describe("optional Clef Flash matching", () => {
       ],
     });
     await screen.findByText("No destination piece selected");
-    expect(screen.getByRole("button", { name: "AI Match" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "AI Match batch" })).toBeEnabled();
   });
 
   it("never clears an existing destination when AI returns none", async () => {
@@ -1020,9 +1057,9 @@ describe("optional Clef Flash matching", () => {
     );
     await openAiReview("Hallelujah - Soprano.mp3");
     expect(screen.getAllByText("Hallelujah Chorus").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Match batch" }));
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "AI Match" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "AI Match batch" })).toBeEnabled();
     });
     expect(screen.getAllByText("Hallelujah Chorus").length).toBeGreaterThan(0);
     expect(screen.queryByText("No destination piece selected")).not.toBeInTheDocument();
@@ -1054,8 +1091,10 @@ it("preserves explicit manual destination and part across repeated AI suggestion
   });
   fireEvent.change(part, { target: { value: "soprano" } });
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "AI Match" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "AI Match batch" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "AI Match batch" })).toBeEnabled(),
+    );
     expect(screen.getAllByText("Hallelujah Chorus").length).toBeGreaterThan(0);
     expect(part).toHaveValue("soprano");
   }

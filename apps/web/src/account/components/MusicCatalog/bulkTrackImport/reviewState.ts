@@ -153,3 +153,21 @@ export function areAllReviewGroupsResolved(
     return status === "reviewed" || status === "skipped";
   });
 }
+
+export function getReviewStatusLabel(state: ReviewGroupState, hasDestination: boolean): string {
+  if (state.groupStatus === "reviewed") return "Reviewed";
+  if (state.groupStatus === "skipped") return "Skipped";
+  if (state.groupStatus === "conflict") return "Conflict";
+  if (!hasDestination) return "Needs piece";
+  return state.isEligibleForReview ? "Ready to review" : "Needs voice part";
+}
+
+export function getReviewNextAction(
+  state: ReviewGroupState,
+  hasDestination: boolean,
+): "piece" | "part" | "conflict" | "review" | "next" {
+  if (state.groupStatus === "reviewed" || state.groupStatus === "skipped") return "next";
+  if (!hasDestination) return "piece";
+  if (state.groupStatus === "conflict") return "conflict";
+  return state.isEligibleForReview ? "review" : "part";
+}

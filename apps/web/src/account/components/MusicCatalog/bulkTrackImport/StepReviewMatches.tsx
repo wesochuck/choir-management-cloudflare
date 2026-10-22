@@ -2,7 +2,7 @@ import { presentAiMatch } from "./aiMatchPresentation";
 import { rankCandidatePiecesForGroup, recalculateTrackImportGroup } from "@choir/domain";
 import { DataTable, type DataTableColumn } from "@choir/ui";
 import type { OrganizationMusicPiece, OrganizationRosterConfiguration } from "@choir/contracts";
-import { useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import {
   DestinationPiecePicker,
   type DestinationPieceOption,
@@ -12,6 +12,8 @@ import { TrackFileAudioPlayer } from "./TrackFileAudioPlayer";
 import {
   areAllReviewGroupsResolved,
   getReviewGroupState,
+  getReviewStatusLabel,
+  getReviewNextAction,
   type ReviewGroupStatus,
 } from "./reviewState";
 import type { GroupFileAssignment, GroupReviewItem } from "./types";
@@ -33,19 +35,6 @@ const FILTERS: readonly { readonly id: ReviewFilter; readonly label: string }[] 
   { id: "reviewed", label: "Reviewed" },
   { id: "skipped", label: "Skipped" },
 ];
-
-function statusLabel(status: ReviewGroupStatus): string {
-  switch (status) {
-    case "conflict":
-      return "Conflict";
-    case "needs_review":
-      return "Needs review";
-    case "reviewed":
-      return "Reviewed";
-    case "skipped":
-      return "Skipped";
-  }
-}
 
 function statusClass(status: ReviewGroupStatus): string {
   return `track-import-review-status track-import-review-status--${status}`;
@@ -210,34 +199,28 @@ function FileReviewRow({
 function ReviewSummary({
   blockingConflicts,
   groupCount,
-  reviewedGroups,
   totalFiles,
 }: {
   readonly blockingConflicts: number;
   readonly groupCount: number;
-  readonly reviewedGroups: number;
   readonly totalFiles: number;
 }) {
   return (
     <section aria-label="Import review summary" className="track-import-review-summary">
       <div>
         <strong>{String(totalFiles)}</strong>
-        <span>Files</span>
+        <span>{totalFiles === 1 ? "File" : "Files"}</span>
       </div>
       <div>
         <strong>{String(groupCount)}</strong>
-        <span>Song groups</span>
+        <span>{groupCount === 1 ? "Song group" : "Song groups"}</span>
       </div>
-      <div className={blockingConflicts > 0 ? "track-import-review-summary__conflicts" : ""}>
-        <strong>{String(blockingConflicts)}</strong>
-        <span>Blocking conflicts</span>
-      </div>
-      <div>
-        <strong>
-          {String(reviewedGroups)} / {String(groupCount)}
-        </strong>
-        <span>Reviewed</span>
-      </div>
+      {blockingConflicts > 0 ? (
+        <div className="track-import-review-summary__conflicts">
+          <strong>{String(blockingConflicts)}</strong>
+          <span>Blocking conflicts</span>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -279,14 +262,20 @@ function ReviewToolbar({
           Batch overview
         </button>
       </div>
-      <button
-        className="button button--secondary"
-        disabled={matching}
-        type="button"
-        onClick={onAiMatch}
-      >
-        {matching ? "Matching with AI…" : "AI Match"}
-      </button>
+      <div className="track-import-review-ai-action">
+        <button
+          className="button button--secondary"
+          disabled={matching}
+          type="button"
+          onClick={onAiMatch}
+          aria-describedby="track-import-ai-scope"
+        >
+          {matching ? "Matching with AI…" : "AI Match batch"}
+        </button>
+        <small id="track-import-ai-scope">
+          Optional suggestions for the whole batch. Your edits and reviewed groups stay protected.
+        </small>
+      </div>
     </div>
   );
 }
@@ -322,7 +311,9 @@ function ReviewQueueItem({
           {pieceLabel}
         </small>
       </span>
-      <span className={statusClass(state.groupStatus)}>{statusLabel(state.groupStatus)}</span>
+      <span className={statusClass(state.groupStatus)}>
+        {getReviewStatusLabel(state, Boolean(piece))}
+      </span>
     </button>
   );
 }
@@ -432,6 +423,7 @@ function ReviewQueue({
 }
 
 function GroupDetailHeader({
+  reviewLabel,
   groupStatus,
   group,
   groupCount,
@@ -439,6 +431,7 @@ function GroupDetailHeader({
   ordinal,
   onNavigate,
 }: {
+  readonly reviewLabel: string;
   readonly group: GroupReviewItem;
   readonly groupStatus: ReviewGroupStatus;
   readonly groupCount: number;
@@ -451,12 +444,20 @@ function GroupDetailHeader({
       <div>
         <div className="track-import-review-detail__ordinal">
           Song {String(ordinal)} of {String(groupCount)}
-          <span className={statusClass(groupStatus)}>{statusLabel(groupStatus)}</span>
+          <span className={statusClass(groupStatus)}>{reviewLabel}</span>
         </div>
         <h2 id="track-import-review-group-heading">{group.inferredTitle}</h2>
         <p>
           {String(group.files.length)} {group.files.length === 1 ? "file" : "files"}
           {group.sequenceNumber ? ` · Set-list item ${group.sequenceNumber}` : ""}
+        </p>
+        <p className="track-import-review-source">
+          <strong>Your recordings:</strong>{" "}
+          {group.files
+            .slice(0, 2)
+            .map((file) => file.fileName)
+            .join(" · ")}
+          {group.files.length > 2 ? ` · +${String(group.files.length - 2)} more` : ""}
         </p>
       </div>
       <div className="track-import-review-detail__navigation">
@@ -661,7 +662,7 @@ function FilesSection({
   return (
     <section aria-label="Files in this song group" className="track-import-review-files">
       <div className="track-import-review-files__heading">
-        <h3>Files and track assignments</h3>
+        <h3>Your recordings and voice parts</h3>
         <span>
           {String(groupState.uploadableFileCount)} ready · {String(groupState.excludedFileCount)}{" "}
           excluded
@@ -1164,15 +1165,19 @@ function OverviewVoicePartsCell({
 }
 
 function OverviewStatusCell({
+  hasDestination,
   group,
   state,
 }: {
+  readonly hasDestination: boolean;
   readonly group: GroupReviewItem;
   readonly state: ReviewState;
 }) {
   return (
     <span>
-      <span className={statusClass(state.groupStatus)}>{statusLabel(state.groupStatus)}</span>
+      <span className={statusClass(state.groupStatus)}>
+        {getReviewStatusLabel(state, hasDestination)}
+      </span>
       {state.blockingConflictCount > 0 ? (
         <small className="track-import-overview-subtext">
           {String(state.blockingConflictCount)} conflict
@@ -1230,7 +1235,13 @@ function buildOverviewColumns(
       header: "Review status",
       id: "status",
       mobileLabel: "Review status",
-      render: ({ group, state }) => <OverviewStatusCell group={group} state={state} />,
+      render: ({ group, state }) => (
+        <OverviewStatusCell
+          group={group}
+          state={state}
+          hasDestination={pieceMap.has(group.selectedPieceId ?? "")}
+        />
+      ),
       sortValue: ({ state }) =>
         ({ conflict: 0, needs_review: 1, reviewed: 2, skipped: 3 })[state.groupStatus],
     },
@@ -1254,6 +1265,9 @@ function buildOverviewColumns(
 }
 
 function ReviewFooter({
+  resolveLabel,
+  onResolveCurrent,
+  canResolveCurrent,
   activeGroup,
   activeState,
   allResolved,
@@ -1270,6 +1284,9 @@ function ReviewFooter({
   skippedGroups,
   hasOtherUnresolvedGroup,
 }: {
+  readonly resolveLabel: string;
+  readonly onResolveCurrent: () => void;
+  readonly canResolveCurrent: boolean;
   readonly activeGroup: GroupReviewItem;
   readonly activeState: ReturnType<typeof getReviewGroupState>;
   readonly allResolved: boolean;
@@ -1286,16 +1303,9 @@ function ReviewFooter({
   readonly resolvedGroups: number;
   readonly skippedGroups: number;
 }) {
-  let nextLabel = "Assign a destination and voice part";
-  if (hasOtherUnresolvedGroup) nextLabel = "Review next unresolved";
-  else if (activeState.groupStatus === "conflict") nextLabel = "Resolve conflicts above";
-
   return (
     <footer className="track-import-review-footer">
       <div aria-live="polite" className="track-import-review-footer__progress" role="status">
-        <div aria-hidden="true" className="track-import-review-footer__progress-mark">
-          {String(resolvedGroups)} / {String(groupCount)}
-        </div>
         <div>
           <strong>
             {String(resolvedGroups)} of {String(groupCount)} groups resolved
@@ -1346,16 +1356,69 @@ function ReviewFooter({
         ) : (
           <button
             className="button button--primary"
-            disabled={matching || !hasOtherUnresolvedGroup}
+            disabled={matching || (!canResolveCurrent && !hasOtherUnresolvedGroup)}
             type="button"
-            onClick={onSelectNext}
+            onClick={canResolveCurrent ? onResolveCurrent : onSelectNext}
           >
-            {nextLabel}
+            {canResolveCurrent ? resolveLabel : "Review next unresolved"}
           </button>
         )}
       </div>
     </footer>
   );
+}
+
+function useReviewAction(
+  activeState: ReturnType<typeof getActiveGroupState>,
+  hasDestination: boolean,
+  view: ReviewView,
+  setView: (view: ReviewView) => void,
+  destinationPickerRef: RefObject<DestinationPiecePickerHandle | null>,
+  partSelectRefs: RefObject<Map<string, HTMLSelectElement>>,
+) {
+  const pendingFocus = useRef<{ kind: "piece" } | { kind: "part"; clientFileId: string } | null>(
+    null,
+  );
+  const [focusRequest, setFocusRequest] = useState(0);
+  useEffect(() => {
+    if (view !== "guided") return;
+    const target = pendingFocus.current;
+    pendingFocus.current = null;
+    if (!target) return;
+    if (target.kind === "piece") destinationPickerRef.current?.openSearch();
+    else {
+      const select = partSelectRefs.current.get(target.clientFileId);
+      if (select && typeof select.scrollIntoView === "function")
+        select.scrollIntoView({ block: "center" });
+      select?.focus();
+    }
+  }, [destinationPickerRef, focusRequest, partSelectRefs, view]);
+
+  const nextAction = activeState ? getReviewNextAction(activeState, hasDestination) : "next";
+  const resolveLabel =
+    nextAction === "piece"
+      ? "Choose destination"
+      : nextAction === "conflict"
+        ? "Resolve conflicts"
+        : "Choose voice part";
+  function resolveCurrentGroup(): void {
+    if (!activeState) return;
+    if (nextAction === "piece") pendingFocus.current = { kind: "piece" };
+    else {
+      const file = activeState.files.find(
+        (file) => file.status === (nextAction === "conflict" ? "conflict" : "needs_review"),
+      );
+      if (!file) return;
+      pendingFocus.current = { kind: "part", clientFileId: file.clientFileId };
+    }
+    setView("guided");
+    setFocusRequest((value) => value + 1);
+  }
+  return {
+    canResolveCurrent: nextAction === "piece" || nextAction === "part" || nextAction === "conflict",
+    resolveLabel,
+    resolveCurrentGroup,
+  };
 }
 
 export function StepReviewMatches({
@@ -1460,6 +1523,14 @@ export function StepReviewMatches({
   }
 
   const hasOtherUnresolvedGroup = nextUnresolvedGroup !== undefined;
+  const { canResolveCurrent, resolveLabel, resolveCurrentGroup } = useReviewAction(
+    activeState,
+    Boolean(getSelectedPiece(activeGroup, pieceMap)),
+    view,
+    setView,
+    destinationPickerRef,
+    partSelectRefs,
+  );
   const selectedPiece = getSelectedPiece(activeGroup, pieceMap);
   const activeFileStates = getActiveFileStateMap(activeState);
   const activeGroupFilesById = getGroupFileMap(activeGroup);
@@ -1501,6 +1572,7 @@ export function StepReviewMatches({
           group={activeGroup}
           groupCount={groups.length}
           groupStatus={activeState.groupStatus}
+          reviewLabel={getReviewStatusLabel(activeState, Boolean(selectedPiece))}
           matching={matching}
           onNavigate={navigateGroup}
           ordinal={groupOrdinals.get(activeGroup.groupId) ?? 1}
@@ -1558,7 +1630,6 @@ export function StepReviewMatches({
       <ReviewSummary
         blockingConflicts={blockingConflicts}
         groupCount={groups.length}
-        reviewedGroups={reviewedGroups}
         totalFiles={totalFiles}
       />
       <ReviewNotices groups={groups} matchError={matchError} matching={matching} />
@@ -1570,6 +1641,9 @@ export function StepReviewMatches({
         view={view}
       />
       <ReviewFooter
+        resolveLabel={resolveLabel}
+        onResolveCurrent={resolveCurrentGroup}
+        canResolveCurrent={canResolveCurrent}
         activeGroup={activeGroup}
         activeState={activeState}
         allResolved={allResolved}
