@@ -151,6 +151,7 @@ export function DestinationPiecePicker({
         />
       ) : null}
       <button
+        aria-label="Search library to change piece"
         aria-controls={resultsId}
         aria-expanded={isOpen}
         className="track-import-library-search__trigger"
@@ -165,7 +166,7 @@ export function DestinationPiecePicker({
           <circle cx="10.8" cy="10.8" r="6.8" />
           <path d="m16 16 5 5" />
         </svg>
-        <span>Search library to change piece</span>
+        <span>{selected ? "Change piece" : "Search Music Library"}</span>
         <span aria-hidden="true" className="track-import-library-search__chevron">
           {isOpen ? "⌃" : "⌄"}
         </span>

@@ -14,8 +14,7 @@ const OUTCOMES: Record<AiMatchOutcome, { readonly title: string; readonly instru
   },
   kept: {
     title: "Your current destination is kept",
-    instruction:
-      "AI found no convincing alternative. Check your selection and the voice parts before marking this group reviewed.",
+    instruction: "AI found no convincing alternative.",
   },
   alternatives: {
     title: "Possible destinations",
@@ -37,7 +36,11 @@ export function AiMatchResult({
 }) {
   const message = OUTCOMES[outcome];
   return (
-    <section aria-label="AI matching result" className="track-import-ai-result" role="status">
+    <section
+      aria-label="AI matching result"
+      className={`track-import-ai-result track-import-ai-result--${outcome}`}
+      role="status"
+    >
       <h4>{message.title}</h4>
       <p>{message.instruction}</p>
       {alternatives.length > 0 ? (

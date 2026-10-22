@@ -20,13 +20,6 @@ export function TuttiSuggestions({
   if (actions.count === 0 && !actions.canUndo) return null;
   return (
     <section aria-label="Tutti suggestions" className="track-import-tutti-suggestions">
-      <div>
-        <strong>Tutti for unlabeled recordings</strong>
-        <p>
-          Use Tutti where no voice part was detected, then review each group. Conflicts still
-          require a choice.
-        </p>
-      </div>
       {actions.count > 0 ? (
         <button
           className="button button--secondary"
@@ -41,6 +34,9 @@ export function TuttiSuggestions({
           Use Tutti for {actions.count} unlabeled {actions.count === 1 ? "recording" : "recordings"}
         </button>
       ) : null}
+      <small>
+        Keeps your edits, reviewed groups and skipped files. Review each group before uploading.
+      </small>
       {actions.canUndo ? (
         <div role="status">
           Tutti applied. Later edits and reviewed groups will be kept.

@@ -816,6 +816,13 @@ for (const theme of ["light", "dark"] as const) {
     await destination.focus();
     await expect(destination).toBeFocused();
     await page.keyboard.press("Tab");
+    const evidence = applauseGroup.locator(".track-import-review-evidence");
+    await expect(evidence.locator("summary")).toBeFocused();
+    await expect(evidence).not.toHaveAttribute("open");
+    await page.keyboard.press("Enter");
+    await expect(evidence).toHaveAttribute("open");
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Tab");
     await expect(applauseGroup.getByRole("button", { name: "Play Applause.mp3" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(applauseGroup.getByLabel("Section or voice part for Applause.mp3")).toBeFocused();
@@ -1159,7 +1166,9 @@ for (const theme of ["light", "dark"] as const) {
     await dialog.getByRole("button", { name: "Review groups" }).click();
     const summary = dialog.locator(".track-import-review-summary");
     expect((await summary.boundingBox())?.height).toBeLessThan(60);
-    await expect(dialog.getByText("Your recordings:")).toBeVisible();
+    await expect(
+      dialog.getByRole("heading", { name: "Your recordings and voice parts" }),
+    ).toBeVisible();
     await dialog.screenshot({ path: testInfo.outputPath(`review-tidy-${theme}.png`) });
     await dialog.getByRole("button", { name: "Choose destination", exact: true }).click();
     await expect(
@@ -1265,5 +1274,119 @@ for (const theme of ["light", "dark"] as const) {
     await dialog.getByRole("button", { name: "Mark reviewed & next" }).click();
     await expect(dialog.getByRole("button", { name: "Continue to confirmation" })).toBeEnabled();
     expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`streamlines a large review batch without hiding Tutti or destination controls in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    const browserErrors: string[] = [];
+    page.on("pageerror", (error) => {
+      browserErrors.push(error.message);
+    });
+    page.on("console", (message) => {
+      if (message.type() === "error" && /same key|unique.*key/iu.test(message.text())) {
+        browserErrors.push(message.text());
+      }
+    });
+    const mobile = testInfo.project.name.includes("mobile");
+    await page.setViewportSize({ width: mobile ? 390 : 1443, height: mobile ? 844 : 1090 });
+    const names = [
+      "Winter Song",
+      "Let It Snow",
+      "A Merry Little Christmas",
+      "Jingle Bell Rock",
+      "Don't Fence Me In",
+      "Blue Moon",
+      "Christmas Time is Here",
+      "Great Balls of Fire",
+      "Duct Tape Madrigal",
+    ];
+    const titles = Array.from(
+      { length: 40 },
+      (_, i) =>
+        names[i] ??
+        `Choral${String.fromCharCode(65 + Math.floor(i / 26))}${String.fromCharCode(65 + (i % 26))}`,
+    );
+    const pieces = titles
+      .slice(0, 7)
+      .map((title, index) =>
+        piece(
+          `11111111-1111-4111-8111-${String(index + 1).padStart(12, "0")}`,
+          title,
+          "",
+          "Mendelson / Guaraldi / Sharon",
+        ),
+      );
+    await installRoutes(page, pieces);
+    await page.addInitScript((value) => {
+      window.localStorage.setItem(`choir-theme:${window.location.hostname}`, value);
+    }, theme);
+    await page.route("**/api/organization/music/track-import/match", async (route) => {
+      const request = musicTrackImportMatchRequestSchema.parse(route.request().postDataJSON());
+      await fulfill(route, {
+        model: "internal",
+        requestId,
+        suggestions: request.groups.map((group) => ({
+          groupId: group.groupId,
+          confidence: "none",
+          suggestedPieceId: null,
+          noneProbability: 0.9,
+          topCandidates: [],
+        })),
+      });
+    });
+    await page.goto("/admin/library");
+    await page.getByRole("button", { name: "Bulk upload practice tracks", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Bulk upload practice tracks" });
+    await dialog.locator('input[type="file"]').setInputFiles(
+      titles.map((title, index) => ({
+        buffer: Buffer.from("invalid-audio"),
+        mimeType: "audio/mpeg",
+        name: `${String(index + 1).padStart(2, "0")} ${title}${index === 6 || index >= 29 ? "" : " Tutti"}.mp3`,
+      })),
+    );
+    await dialog.getByRole("radio", { name: /Entire Music Library/ }).check();
+    await dialog.getByRole("button", { name: "Review groups" }).click();
+    await expect(dialog.getByRole("region", { name: "Import review summary" })).toContainText(
+      "40Song groups",
+    );
+    await dialog.getByRole("button", { name: "AI Match batch" }).click();
+    await expect(dialog.getByText(/AI matching complete/)).toBeVisible();
+    await dialog
+      .getByRole("complementary", { name: "Song group queue" })
+      .getByRole("button", { name: /Christmas Time is Here/ })
+      .click();
+    const detail = dialog.getByRole("region", { name: "Christmas Time is Here", exact: true });
+    await expect(detail.getByRole("button", { name: "Search library to change piece" })).toHaveText(
+      /Change piece/,
+    );
+    await expect(
+      dialog.getByRole("button", { name: "Use Tutti for 12 unlabeled recordings" }),
+    ).toBeVisible();
+    await expect(detail.locator(".track-import-review-evidence")).not.toHaveAttribute("open");
+    await dialog.locator(".dialog__body").evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    if (!mobile) {
+      const mapping = await detail.getByRole("combobox").boundingBox();
+      const footer = await dialog.locator(".track-import-review-footer").boundingBox();
+      if (!mapping || !footer) throw new Error("Missing persistent review controls");
+      expect(mapping.y + mapping.height).toBeLessThanOrEqual(footer.y + 1);
+    }
+    await page.screenshot({ path: testInfo.outputPath(`streamlined-review-${theme}.png`) });
+    await dialog.getByRole("button", { name: "Choose voice part", exact: true }).click();
+    await expect(detail.getByRole("combobox")).toBeFocused();
+    const focused = await detail.getByRole("combobox").boundingBox();
+    const footer = await dialog.locator(".track-import-review-footer").boundingBox();
+    if (!focused || !footer) throw new Error("Missing focused control geometry");
+    expect(focused.y + focused.height).toBeLessThanOrEqual(footer.y + 1);
+    await page.screenshot({ path: testInfo.outputPath(`streamlined-focused-${theme}.png`) });
+    await detail.getByRole("button", { name: /Use Tutti for .*Christmas Time is Here/ }).click();
+    await expect(detail.getByRole("combobox")).toHaveValue("tutti");
+    await expect(dialog.getByRole("button", { name: "Mark reviewed & next" })).toBeEnabled();
+    expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    expect(browserErrors).toEqual([]);
   });
 }

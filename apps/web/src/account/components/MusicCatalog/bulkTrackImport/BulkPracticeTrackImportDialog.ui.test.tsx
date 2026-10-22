@@ -870,7 +870,9 @@ describe("optional Clef Flash matching", () => {
   it("guides missing destination and voice-part choices from either review view", async () => {
     await openAiReview("Unidentified recording.mp3");
     expect(screen.getAllByText("Needs piece").length).toBeGreaterThan(0);
-    expect(screen.getByText("Your recordings:")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Your recordings and voice parts" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "AI Match batch" })).toHaveAccessibleDescription(
       "Optional suggestions for the whole batch. Your edits and reviewed groups stay protected.",
     );

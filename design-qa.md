@@ -1,293 +1,62 @@
-# Music movement editor design QA
+# Bulk track review design QA
 
-## Findings
+final result: passed
 
-No actionable P0, P1, or P2 findings remain in the selected movement editor flow.
+## Visual target and evidence
 
-## Comparison evidence
-
-- Source:
-  `/Users/wesosborn/.codex/generated_images/01a14273-28d1-7781-82e8-60e8391e5488/exec-59410b02-a389-4f51-b9d9-449374baa9c2.png`
-  (first selected mockup, 1487 × 1058 pixels).
-- Implementation:
-  `test-results/music-catalog-orders-movem-4d5d8-parent-draft-in-light-theme-chromium/music-movements-light.png`
-  (1440 × 1024 pixels; CSS viewport 1440 × 1024, device scale factor 1).
-- State: saved Sunrise Mass parent, Movements selected, four movements, light theme.
-- Source and implementation were opened together in one comparison input. Their near-identical
-  aspect ratios allow a relative composition comparison; this is not a pixel-exact claim. Browser
-  chrome is excluded.
-- Full-view comparison: wide modal, left section rail, orange selected section, numbered movement
-  list, durations, reorder controls, Add movement, and persistent save footer all carry through.
-- Focused crops were unnecessary: movement titles, controls, section labels, and footer copy are
-  readable in the full-size images.
-- Additional browser captures cover light/dark themes and desktop/mobile. Mobile uses a native
-  section dropdown, internally scrolling content, and a persistent stacked footer.
-
-## Required fidelity surfaces
-
-- **Typography:** existing product font and tokens replace the generated mockup's approximate
-  typography. Title and section hierarchy, bold movement titles, muted descriptions, and wrapping
-  remain clear. This is an intentional integration with the existing app.
-- **Spacing:** the 17rem rail, wide content area, separated rows, and bottom action region preserve
-  the composition. The product's header spans the dialog; content starts below it. Mobile removes
-  the rail to retain usable content width.
-- **Colors:** existing semantic tokens provide orange selection, navy primary action, quiet borders,
-  muted secondary copy, and matching dark-mode surfaces.
-- **Assets:** no imagery is required in the editor. The existing drag handle is reused. Decorative
-  rail icons from the generated mockup are intentionally omitted, and explicit Move up/Move down
-  labels provide accessible controls in place of arrow-only buttons.
-- **Copy:** real work and movement names match the selected example. Helper copy explains saved
-  default order and return navigation. Existing accessible dialog naming and Cancel/Delete actions
-  remain available.
+- Source: user-approved refined split-workspace mock, generated image
+  `exec-e576ba67-ed61-4bdd-8913-bd89514ad8a7.png` in this chat's generated-image directory.
+- Desktop implementation:
+  `test-results/music-catalog-streamlines--adc32-estination-controls-in-dark-chromium/streamlined-review-dark.png`.
+- Mobile focused state:
+  `test-results/music-catalog-streamlines--adc32-estination-controls-in-dark-mobile-chromium/streamlined-focused-dark.png`.
+- Equivalent light-theme captures use the light test directories and filename suffixes.
+- Regenerate with `npm run test:e2e -- --grep 'streamlines a large review'`.
+- Desktop source and capture: 1443 × 1090 pixels, CSS viewport 1443 × 1090, DPR 1. Source and
+  implementation were opened together in one comparison input.
+- Mobile: CSS viewport 390 × 844, capture 1024 × 2216 at the mobile project's DPR 2.625. Mobile is a
+  responsive adaptation; the source supplies no mobile design.
+- State: Christmas Time is Here, song 7 of 40, destination selected, voice part missing, 12 eligible
+  Tutti suggestions, AI result kept, evidence disclosure collapsed. Fixture uses 40 synthetic audio
+  files rather than the mock's 41; duration is unavailable because these files intentionally do not
+  contain playable audio.
 
 ## Comparison history
 
-1. Initial implementation exposed the mobile selector on desktop because a shared field rule
-   overrode its display. It disrupted the grid and overlapped movement controls (P1). A
-   dialog-scoped selector now hides it above the mobile breakpoint.
-2. Narrow title layout could collide with duration/control regions (P2). Movement titles now wrap
-   with a zero minimum width.
-3. Final recapture, shown alongside the source, confirms both fixes. Desktop and mobile browser
-   flows pass in both themes.
+1. Initial capture: nested borders were removed, but an inherited global footer width let content
+   peek beside the action bar. Desktop height also hid assignment controls. Fixed with a full-width
+   review footer and a larger desktop bulk-import dialog.
+2. Further comparison: source text was repeated above the recording, AI copy was too long, and
+   inherited search-input styling recreated a nested box. Removed repetition, shortened the
+   kept-result copy, restored a single search-field surface, and adjusted title hierarchy.
+3. Mobile capture: desktop dialog sizing left an unnecessary side gap; three stacked footer buttons
+   consumed too much space. Restored full viewport sizing for this dialog and placed secondary
+   actions side by side. Post-fix captures show the focused selector, Tutti action, and file
+   exclusion action above the opaque footer.
 
-## Interaction evidence
+## Fidelity surfaces and interaction checks
 
-- Drag or Move up/Move down reorders movements; saved order survives reopening.
-- Selecting a movement opens its editor. Save returns to the parent with its pending changes and
-  selected movement focus preserved.
-- Back with unsaved movement changes offers discard confirmation; cancel keeps the child open, and
-  discard restores the parent.
-- Adding the whole work to a set list sends movements in the saved order.
-- Browser page errors were collected and none were raised in the focused flows.
+- Typography: existing sans UI family and serif song heading retained, with the song title enlarged
+  using the existing scale. Application token sizes are retained for other text.
+- Layout: queue/detail split, one vertical rule, open destination/recording sections, compact Change
+  piece action, inline Tutti batch action, and collapsible matching evidence match the approved
+  direction. Existing Guided review/Batch overview controls remain available.
+- Colors: repository light/dark semantic tokens retained. Existing state pills, selected queue tint,
+  focus outlines, and danger conflict treatment remain meaningful.
+- Assets: no raster artwork is required. Existing playback and native select controls are retained;
+  the mock's decorative audio controls do not add new playback behavior.
+- Copy: source filenames remain next to the actual player. Review requirements and manual-edit
+  protection remain explicit. The ordinary kept-result explanation is shorter.
+- Focused comparison: recording selector and Tutti controls were inspected in desktop and mobile
+  captures; focused selectors remain above the footer. No horizontal overflow.
+- Tested interactions: queue switching, destination search, keyboard evidence toggle, part choice,
+  individual/batch Tutti acceptance, Undo, explicit review, and protected conflicts.
+- Browser checks cover uncaught page errors and duplicate React-key errors in the large batch. These
+  are UI/layout tests, not real audio codec qualification.
+- No relevant print surface changed.
 
-Regenerate captures with the repository Playwright command for `apps/web/e2e/music-catalog.spec.ts`,
-selecting the movement-order cases. Screenshot paths are generated by Playwright and may be replaced
-by later runs.
+## Findings and follow-up
 
-## Implementation checklist
-
-- [x] Fix desktop navigation layout and narrow movement title wrapping.
-- [x] Compare final rendered screen with the selected source.
-- [x] Exercise parent/child navigation and saved order in desktop/mobile, light/dark.
-- [x] Preserve existing app typography, tokens, and accessible native controls.
-
-## Follow-up polish
-
-None required for this flow. The generated source does not specify empty works or mobile; those use
-existing product patterns.
-
-final result: passed
-
----
-
-# Communications composer visual QA
-
-Date: October 16, 2026. Selected target: first displayed Communications mockup.
-
-## Evidence and normalization
-
-- Source:
-  `/Users/wesosborn/.codex/generated_images/01a1461b-7294-79e0-9de8-dee1a4afa32c/exec-ad625b1c-cc84-42ea-8fea-c3e000635123.png`
-  (1606 × 979 pixels).
-- Desktop:
-  `test-results/communications-wide-compos-5938e-riting-and-preview-together-chromium/wide-composer-dark.png`
-  and `wide-composer-light.png` in the same directory. Browser viewport: 1920 × 1248 CSS pixels,
-  device scale factor 1. Main-content capture: 1632 × 1188 pixels.
-- Mobile: corresponding
-  `communications-wide-compos-5938e-riting-and-preview-together-mobile-chromium` captures. Pixel 7
-  viewport: 393 × 727 CSS pixels, device scale factor 2.75; full-page capture: 1082 × 5709 pixels.
-- State: Email draft, collapsed default member audience, matching rehearsal subject and message,
-  desktop preview selected. Fixture recipient counts, name, and delivery mode differ intentionally
-  from illustrative mock data.
-- Source and final desktop capture were opened together for comparison. Compare the content region
-  at equal width (source-to-desktop width factor 1.016), excluding the implementation's trailing
-  page padding. Mobile is a responsive adaptation, not a mobile source reproduction. Density
-  differences are not fidelity findings.
-
-## Findings and comparison history
-
-- Initial capture: preview bullets were hidden by the existing reset. Restored scoped list markers
-  and list spacing; final desktop and mobile captures show the formatted lists.
-- Initial capture framing: an element screenshot taller than its viewport introduced a sticky-shell
-  overlay. Recaptured desktop at a wide viewport and mobile as a full page from scroll position
-  zero.
-- Accessibility iteration: theme transitions temporarily mixed foreground and background colors
-  during the scan. The test now waits for active workspace animations to finish; both theme scans
-  pass without rule exclusions.
-- Final comparison: no outstanding P0/P1/P2 findings. The recipient summary, aligned editor/preview
-  columns, light email canvas, and review action reproduce the selected layout's hierarchy. Focused
-  inspection covered recipient text, subject, toolbar, rendered bullets/bold, preview-size controls,
-  and footer actions.
-
-## Required fidelity surfaces
-
-- Typography: existing product sans-serif and type scale retained. Editor and preview body use the
-  readable base size; helper text remains subordinate. Wrapping checked on mobile.
-- Layout: inner content uses the available width; template and subject belong to the editor column.
-  Columns stack on narrow screens. The desktop action bar remains visible while scrolling; mobile
-  actions remain in normal flow. Existing explanatory text adds some height relative to the mock.
-- Colors: existing theme tokens retained. Dedicated email-preview tokens preserve a light inbox
-  canvas and contrasting text/links in both themes. WCAG A/AA scans report no serious or critical
-  violations in the composer.
-- Assets: no raster artwork is required. Existing labeled formatting controls are retained rather
-  than introducing an icon dependency.
-- Copy: real provider-mode text, valid `{recipientName}` syntax, fixed sample recipient, and
-  existing Save as template action are retained. No unsupported recipient selector, autosave status,
-  or overflow action was introduced merely to match illustrative chrome.
-
-## Validation and regeneration
-
-Full Communications browser suite: 34 passed. After final typography and keyboard polish, four
-affected desktop/mobile tests passed. Recipient expansion, audience changes, contextual templates,
-draft behavior, personalization, rendered preview, size toggles, keyboard Escape, and review were
-exercised. Browser console logging is not asserted by this suite; runtime interactions and requests
-are verified by its fixtures.
-
-Regenerate screenshots and accessibility evidence with:
-
-```bash
-npm run test:e2e -- apps/web/e2e/communications.spec.ts --grep 'wide composer'
-```
-
-Unit/UI tests, web typecheck/build, lint, formatting, spacing, control alignment, and no-eyebrows
-checks passed. Worker integration and full release qualification were not run: no Worker, API,
-persistence, or deployment changes are included.
-
-## Follow-up polish
-
-- P3: the mock's compact icon toolbar and overflow action differ from the product's existing labeled
-  controls and explicit Save as template button; preserving the established interactions is
-  intentional.
-- P3: desktop/mobile sizes approximate email widths and do not emulate individual email clients.
-
-final result: passed
-
----
-
-# Member event cards — visual QA
-
-Date: October 21, 2026.
-
-final result: passed
-
-## Source and scope
-
-- Selected visual:
-  `/Users/wesosborn/.codex/generated_images/01a16036-914d-7383-be3a-0224dc7257c8/exec-a6459e60-733a-4412-92ff-a848e62d663e.png`
-  (1518 × 1036 pixels).
-- Implementation: `/tmp/member-events-schedule-1519-dark.png` (1519 × 1036 pixels, desktop DPR 1,
-  CSS viewport 1519 × 1036).
-- Dashboard: `/tmp/member-events-dashboard-1519-dark.png`.
-- Full comparison: `/tmp/member-event-comparison.png`.
-- Focused first-event comparison: `/tmp/member-event-region-comparison.png`.
-- Additional captures: `/tmp/member-events-{schedule,dashboard}-{1519,900,390}-{light,dark}.png`.
-
-The implementation uses the existing application shell, fonts, tokens and Organization Alpha test
-branding. The fixture contains the first reference event only; the source contains three. The
-calendar subscription's unavailable-state notice is a fixture limitation outside the changed card.
-Whole-page content counts and branding are therefore not pixel-equivalent. The first card's event,
-timezone, arrival, duration, venue, address, seating, RSVP deadline and practice availability match
-the reference state. The dashboard intentionally retains its existing right-hand updates panel, per
-the user's correction.
-
-## Findings and comparison history
-
-1. Initial captures showed low-contrast light-theme arrival/status text and low-contrast secondary
-   text against the raised dark surface. Adjusted card text colors using theme-token mixtures.
-   Restored blue emphasis for Practice and the settings link. A follow-up audit caught the settings
-   link's dark-theme contrast; corrected that color as well.
-2. The dashboard events container initially stretched to match the right-hand panel height. Applied
-   `align-self: start`, preserving the panel while keeping the events region compact.
-3. Final full-view and first-card comparisons confirm the intended hierarchy: date column, title and
-   visible timing, venue/address, right-aligned status/seating, and a compact action footer. No
-   Event details disclosure remains. Extra notes remain visible; repertoire uses a separate set-list
-   disclosure to avoid expanding long lists by default.
-4. Final axe scans report no serious or critical violations inside the event cards at all three
-   widths in either theme. There is no horizontal overflow at those widths. Existing
-   RSVP/decline-dialog and signed-in overflow browser tests pass on desktop and mobile Chromium.
-
-## Implementation checklist
-
-- Shared presentation in `MemberEventCard.tsx`; workspace actions remain with their existing owners.
-- My schedule has a practice link action, including failure feedback and retry.
-- Dashboard's right-hand updates panel retained.
-- Published score downloads, set lists, notes and seating links retained.
-- Component tests cover visible timing, seating, deep-link visibility, RSVP pending state and
-  practice failure recovery.
-
-## Follow-up polish and limits
-
-The reference's large date numeral and play glyph are approximated with the existing product type
-scale and a text Practice button. These do not block readability or access. Long notes, long titles
-and mobile wrapping can increase height intentionally. Physical-device Safari and exhaustive
-combinations of unusually long notes were not qualified in this UI iteration.
-
-## Regeneration
-
-Run
-`npx playwright test --config playwright.config.ts member-event-cards.spec.ts --project=chromium --workers=1`
-to regenerate the screenshots and rerun the card accessibility checks. The browser tests use local
-API fixtures, not hosted resources. Build web assets with `npm run build -w @choir/web`.
-
----
-
-# Calendar subscription and Practice icons — October 21, 2026
-
-final result: passed
-
-## Visual evidence
-
-- Source:
-  `/Users/wesosborn/.codex/generated_images/01a16036-914d-7383-be3a-0224dc7257c8/exec-a7dbd6e5-331f-4845-8908-54e7812c4b8a.png`
-  (1518 × 1036).
-- Implementation: `/tmp/member-events-schedule-1519-dark.png` (1519 × 1036; desktop DPR 1).
-- Full comparison: `/tmp/calendar-refinement-comparison.png`.
-- Focused comparison: `/tmp/calendar-refinement-region.png`, including
-  `/tmp/calendar-panel-1519-dark.png` (1135 × 250).
-- Other options: `/tmp/calendar-other-options.png` (synthetic test address only).
-- Additional captures cover CSS widths 900 and 390, light and dark themes. Desktop captures are
-  unscaled; mobile-project captures use the device's DPR and are normalized to CSS dimensions for
-  comparison.
-
-The app shell and existing product type/color tokens are retained. The fixture contains one event
-rather than the source's two, so the calendar's vertical page position differs intentionally. The
-source's branded calendar illustrations are replaced by the existing product calendar icon,
-preserving the actual supported Google and webcal actions. No provider connection status is
-invented.
-
-## Findings
-
-No actionable P0/P1/P2 findings remain. The default view has a clear heading, explanation, two
-calendar choices, refresh-delay note and closed Other options disclosure. The long address and reset
-controls appear only inside Other options. The private-link guidance and reset confirmation remain
-available. Headphone icons appear beside Practice on both schedule and dashboard cards and are
-decorative for assistive technology.
-
-## Verification
-
-- 25 focused component tests passed, covering calendar link construction, copying, privacy guidance,
-  reset confirmation/cancellation and the existing event flows.
-- 10 desktop/mobile browser tests passed; the final desktop capture run passed all 3 selected tests.
-- Browser coverage includes keyboard disclosure toggling, copying, reset cancellation, both themes,
-  three widths, overflow checks and axe scans of the schedule including the calendar panel.
-- Lint, web typecheck, spacing, control alignment, no-eyebrows checks and the web build passed.
-- Copy/reset behavior uses fixtures and mocks. No hosted credentials were reset, and calendar apps
-  were not opened during verification.
-
-## Regeneration and limits
-
-Run
-`npx playwright test --config playwright.config.ts member-event-cards.spec.ts --project=chromium --workers=1`
-for captures and checks. Run `npm run build -w @choir/web` for generated web assets. No migrations
-or API changes; rollback is a frontend rebuild of the prior source. Full release qualification and
-Worker integration tests were not run for this frontend-only iteration; no push or promotion is
-included. Provider application subscription acceptance remains outside local fixture verification.
-
-## Pre-push release qualification
-
-`npm run check:release` passed on October 21, 2026: 2,007 unit tests, 890 UI tests, 552 Worker
-integration tests, and 646 browser tests passed; 2 browser tests were skipped. All static, artifact
-and build checks passed. The first full browser run encountered an intermittent mobile
-communications placeholder-removal failure outside these changes. That test passed independently and
-in the subsequent complete passing release run. No gate or unrelated communications code was
-changed.
+No actionable P0/P1/P2 visual findings remain. Existing component/token typography and native
+controls intentionally take precedence over decorative details in the generated mock. There are no
+required implementation follow-ups from this comparison.

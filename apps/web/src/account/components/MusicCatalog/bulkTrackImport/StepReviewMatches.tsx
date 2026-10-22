@@ -496,14 +496,6 @@ function GroupDetailHeader({
           {String(group.files.length)} {group.files.length === 1 ? "file" : "files"}
           {group.sequenceNumber ? ` · Set-list item ${group.sequenceNumber}` : ""}
         </p>
-        <p className="track-import-review-source">
-          <strong>Your recordings:</strong>{" "}
-          {group.files
-            .slice(0, 2)
-            .map((file) => file.fileName)
-            .join(" · ")}
-          {group.files.length > 2 ? ` · +${String(group.files.length - 2)} more` : ""}
-        </p>
       </div>
       <div className="track-import-review-detail__navigation">
         <button
@@ -563,7 +555,6 @@ function DestinationSection({
       <div className="track-import-review-destination__heading">
         <div>
           <h3>Music Library destination</h3>
-          <p>One destination piece applies to every included file in this song group.</p>
         </div>
       </div>
       <DestinationPiecePicker
@@ -578,9 +569,10 @@ function DestinationSection({
         suggestedAlternatives={aiPresentation.alternatives}
         aiMatchOutcome={aiPresentation.outcome}
       />
-      <p className="track-import-review-evidence">
-        <strong>Why this match?</strong> <span>{evidence}</span>
-      </p>
+      <details className="track-import-review-evidence" key={`evidence-${group.groupId}`}>
+        <summary>Why this match?</summary>
+        <p>{evidence}</p>
+      </details>
     </section>
   );
 }
@@ -1679,9 +1671,9 @@ export function StepReviewMatches({
         groupCount={groups.length}
         totalFiles={totalFiles}
       />
-      <TuttiSuggestions actions={tuttiActions} matching={matching} />
       <ReviewNotices groups={groups} matchError={matchError} matching={matching} />
       <ReviewToolbar matching={matching} onAiMatch={onAiMatch} onViewChange={setView} view={view} />
+      <TuttiSuggestions actions={tuttiActions} matching={matching} />
       <ReviewModePanel
         columns={overviewColumns}
         guidedContent={guidedContent}
