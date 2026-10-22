@@ -117,7 +117,9 @@ export function DestinationPiecePicker({
   }
 
   return (
-    <div className="track-import-piece-picker">
+    <div
+      className={`track-import-piece-picker${selected ? "" : " track-import-piece-picker--unmatched"}`}
+    >
       <div className="track-import-piece-picker__summary" aria-live="polite">
         {selected ? (
           <>
@@ -137,8 +139,11 @@ export function DestinationPiecePicker({
           </>
         ) : (
           <>
-            <h3>No destination piece selected</h3>
-            <p>Choose a piece in this Organization’s Music Library before reviewing.</p>
+            <h3>No Music Library piece selected</h3>
+            <p>
+              These recordings aren’t linked to a library piece yet. Search Music Library to choose
+              where they belong.
+            </p>
           </>
         )}
       </div>
@@ -151,7 +156,6 @@ export function DestinationPiecePicker({
         />
       ) : null}
       <button
-        aria-label="Search library to change piece"
         aria-controls={resultsId}
         aria-expanded={isOpen}
         className="track-import-library-search__trigger"
@@ -167,9 +171,6 @@ export function DestinationPiecePicker({
           <path d="m16 16 5 5" />
         </svg>
         <span>{selected ? "Change piece" : "Search Music Library"}</span>
-        <span aria-hidden="true" className="track-import-library-search__chevron">
-          {isOpen ? "⌃" : "⌄"}
-        </span>
       </button>
       <section
         aria-label="Music Library search"

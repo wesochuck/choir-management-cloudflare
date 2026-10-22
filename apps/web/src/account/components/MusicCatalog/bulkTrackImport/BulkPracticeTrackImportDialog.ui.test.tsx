@@ -311,7 +311,7 @@ describe("BulkPracticeTrackImportDialog", () => {
     await waitFor(() => {
       expect(screen.getByText("Why this match?")).toBeInTheDocument();
       expect(
-        screen.getByRole("heading", { level: 2, name: "Hallelujah Chorus" }),
+        screen.getByRole("heading", { level: 2, name: "Recording group 1 of 1" }),
       ).toBeInTheDocument();
       expect(screen.getAllByText("Handel").length).toBeGreaterThan(0);
     });
@@ -517,14 +517,16 @@ describe("BulkPracticeTrackImportDialog", () => {
     });
     await waitFor(() => expect(screen.getByText("Applause.mp3")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Review groups" }));
-    expect(screen.getByRole("heading", { name: "Applause" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Recording group 1 of 1" })).toBeInTheDocument();
     expect(screen.getAllByText("Needs piece").length).toBeGreaterThan(0);
     expect(
-      screen.getByRole("button", { name: "Search library to change piece" }),
+      screen.getByRole("button", { name: /^(?:Change piece|Search Music Library)$/u }),
     ).toBeInTheDocument();
     expect(screen.getByText("Part needed")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Match separately" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Search library to change piece" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^(?:Change piece|Search Music Library)$/u }),
+    );
     fireEvent.change(
       screen.getByRole("searchbox", { name: "Search titles, composers, or arrangers" }),
       {
@@ -744,7 +746,7 @@ describe("BulkPracticeTrackImportDialog", () => {
     expect(amazingGraceRow).toBeDefined();
     if (!amazingGraceRow) return;
     fireEvent.click(within(amazingGraceRow).getByRole("button", { name: "Review" }));
-    expect(screen.getByRole("heading", { name: "Amazing Grace" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Amazing Grace" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Guided review" })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -877,7 +879,12 @@ describe("optional Clef Flash matching", () => {
       "Optional suggestions for the whole batch. Your edits and reviewed groups stay protected.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Batch overview" }));
-    fireEvent.click(screen.getByRole("button", { name: "Choose destination" }));
+    expect(screen.getByRole("button", { name: "Mark reviewed & next" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Choose destination" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Guided review" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^(?:Change piece|Search Music Library)$/u }),
+    );
     await waitFor(() =>
       expect(
         screen.getByRole("searchbox", {
@@ -912,12 +919,16 @@ describe("optional Clef Flash matching", () => {
       name: "Section or voice part for Unidentified recording.mp3",
     });
     expect(part).toHaveValue("");
-    fireEvent.click(screen.getByRole("button", { name: "Search library to change piece" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^(?:Change piece|Search Music Library)$/u }),
+    );
     fireEvent.click(screen.getByRole("button", { name: /Hallelujah Chorus/ }));
     expect(part).toHaveValue("");
     fireEvent.click(screen.getByRole("button", { name: "Skip Unidentified recording.mp3" }));
     expect(part).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Search library to change piece" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /^(?:Change piece|Search Music Library)$/u }),
+    );
     fireEvent.change(
       screen.getByRole("searchbox", { name: "Search titles, composers, or arrangers" }),
       {
@@ -1061,7 +1072,7 @@ describe("optional Clef Flash matching", () => {
         }),
     );
     await openAiReview("Unidentified recording.mp3");
-    expect(screen.getByText("No destination piece selected")).toBeInTheDocument();
+    expect(screen.getByText("No Music Library piece selected")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "AI Match batch" }));
     expect(screen.getByRole("button", { name: "Matching with AI…" })).toBeDisabled();
     expect(
@@ -1081,7 +1092,7 @@ describe("optional Clef Flash matching", () => {
         },
       ],
     });
-    await screen.findByText("No destination piece selected");
+    await screen.findByText("No Music Library piece selected");
     expect(screen.getByRole("button", { name: "AI Match batch" })).toBeEnabled();
   });
 
@@ -1105,7 +1116,7 @@ describe("optional Clef Flash matching", () => {
       expect(screen.getByRole("button", { name: "AI Match batch" })).toBeEnabled();
     });
     expect(screen.getAllByText("Hallelujah Chorus").length).toBeGreaterThan(0);
-    expect(screen.queryByText("No destination piece selected")).not.toBeInTheDocument();
+    expect(screen.queryByText("No Music Library piece selected")).not.toBeInTheDocument();
   });
 });
 
@@ -1127,7 +1138,7 @@ it("preserves explicit manual destination and part across repeated AI suggestion
     }),
   );
   await openAiReview("Unidentified recording.mp3", [samplePiece, alternatePiece]);
-  fireEvent.click(screen.getByRole("button", { name: "Search library to change piece" }));
+  fireEvent.click(screen.getByRole("button", { name: /^(?:Change piece|Search Music Library)$/u }));
   fireEvent.click(screen.getByRole("button", { name: /Hallelujah Chorus/ }));
   const part = screen.getByRole("combobox", {
     name: "Section or voice part for Unidentified recording.mp3",

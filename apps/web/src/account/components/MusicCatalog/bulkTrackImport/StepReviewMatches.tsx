@@ -92,34 +92,37 @@ function TuttiFileHint({
   groupSkipped,
   matching,
   onPartChanged,
+  action = false,
 }: {
+  readonly action?: boolean;
   readonly file: GroupFileAssignment;
   readonly groupSkipped: boolean;
   readonly matching: boolean;
   readonly onPartChanged: (part: string) => void;
 }) {
   if (groupSkipped || !canSuggestTutti(file)) return null;
-  return (
-    <div className="track-import-tutti-hint">
-      <span>
+  if (!action)
+    return (
+      <p className="track-import-tutti-hint">
         <strong>Tutti · suggested</strong> — No voice part found in the filename.
-      </span>
-      <button
-        className="button button--secondary"
-        type="button"
-        disabled={matching}
-        aria-label={`Use Tutti for ${file.fileName}`}
-        onClick={(event) => {
-          onPartChanged("tutti");
-          event.currentTarget
-            .closest(".track-import-review-file__mapping")
-            ?.querySelector("select")
-            ?.focus();
-        }}
-      >
-        Use Tutti
-      </button>
-    </div>
+      </p>
+    );
+  return (
+    <button
+      className="button button--secondary"
+      type="button"
+      disabled={matching}
+      aria-label={`Use Tutti for ${file.fileName}`}
+      onClick={(event) => {
+        onPartChanged("tutti");
+        event.currentTarget
+          .closest(".track-import-review-file__mapping")
+          ?.querySelector("select")
+          ?.focus();
+      }}
+    >
+      Use Tutti
+    </button>
   );
 }
 
@@ -214,9 +217,16 @@ function FileReviewRow({
           onPartChanged={onPartChanged}
         />
         <div className="track-import-review-file__actions">
+          <TuttiFileHint
+            action
+            file={file}
+            groupSkipped={groupSkipped}
+            matching={matching}
+            onPartChanged={onPartChanged}
+          />
           <button
             aria-label={excluded ? `Restore ${file.fileName} for review` : `Skip ${file.fileName}`}
-            className="button button--secondary"
+            className="button button--ghost track-import-review-file__skip"
             disabled={groupSkipped || matching}
             type="button"
             onClick={() => {
@@ -488,10 +498,11 @@ function GroupDetailHeader({
     <div className="track-import-review-detail__header">
       <div>
         <div className="track-import-review-detail__ordinal">
-          Song {String(ordinal)} of {String(groupCount)}
+          <h2 id="track-import-review-group-heading">
+            Recording group {String(ordinal)} of {String(groupCount)}
+          </h2>
           <span className={statusClass(groupStatus)}>{reviewLabel}</span>
         </div>
-        <h2 id="track-import-review-group-heading">{group.inferredTitle}</h2>
         <p>
           {String(group.files.length)} {group.files.length === 1 ? "file" : "files"}
           {group.sequenceNumber ? ` · Set-list item ${group.sequenceNumber}` : ""}
@@ -569,10 +580,12 @@ function DestinationSection({
         suggestedAlternatives={aiPresentation.alternatives}
         aiMatchOutcome={aiPresentation.outcome}
       />
-      <details className="track-import-review-evidence" key={`evidence-${group.groupId}`}>
-        <summary>Why this match?</summary>
-        <p>{evidence}</p>
-      </details>
+      {group.selectedPieceId ? (
+        <details className="track-import-review-evidence" key={`evidence-${group.groupId}`}>
+          <summary>Why this match?</summary>
+          <p>{evidence}</p>
+        </details>
+      ) : null}
     </section>
   );
 }
@@ -1302,6 +1315,7 @@ function buildOverviewColumns(
 }
 
 function ReviewFooter({
+  needsDestination,
   resolveLabel,
   onResolveCurrent,
   canResolveCurrent,
@@ -1321,6 +1335,7 @@ function ReviewFooter({
   skippedGroups,
   hasOtherUnresolvedGroup,
 }: {
+  readonly needsDestination: boolean;
   readonly resolveLabel: string;
   readonly onResolveCurrent: () => void;
   readonly canResolveCurrent: boolean;
@@ -1351,6 +1366,7 @@ function ReviewFooter({
             {String(reviewedGroups)} reviewed · {String(skippedGroups)} skipped
             {blockingConflicts > 0 ? ` · ${String(blockingConflicts)} blocking conflicts` : ""}
           </p>
+          {needsDestination ? <p>Select a Music Library piece to enable review.</p> : null}
         </div>
       </div>
       <div className="track-import-review-footer__actions">
@@ -1390,6 +1406,10 @@ function ReviewFooter({
           >
             Mark reviewed &amp; next
           </button>
+        ) : needsDestination ? (
+          <button className="button button--primary" disabled type="button">
+            Mark reviewed &amp; next
+          </button>
         ) : (
           <button
             className="button button--primary"
@@ -1410,49 +1430,36 @@ function useReviewAction(
   hasDestination: boolean,
   view: ReviewView,
   setView: (view: ReviewView) => void,
-  destinationPickerRef: RefObject<DestinationPiecePickerHandle | null>,
   partSelectRefs: RefObject<Map<string, HTMLSelectElement>>,
 ) {
-  const pendingFocus = useRef<{ kind: "piece" } | { kind: "part"; clientFileId: string } | null>(
-    null,
-  );
+  const pendingFocus = useRef<string | null>(null);
   const [focusRequest, setFocusRequest] = useState(0);
   useEffect(() => {
     if (view !== "guided") return;
     const target = pendingFocus.current;
     pendingFocus.current = null;
     if (!target) return;
-    if (target.kind === "piece") destinationPickerRef.current?.openSearch();
-    else {
-      const select = partSelectRefs.current.get(target.clientFileId);
-      if (select && typeof select.scrollIntoView === "function")
-        select.scrollIntoView({ block: "center" });
-      select?.focus();
-    }
-  }, [destinationPickerRef, focusRequest, partSelectRefs, view]);
+    const select = partSelectRefs.current.get(target);
+    if (select && typeof select.scrollIntoView === "function")
+      select.scrollIntoView({ block: "center" });
+    select?.focus();
+  }, [focusRequest, partSelectRefs, view]);
 
   const nextAction = activeState ? getReviewNextAction(activeState, hasDestination) : "next";
-  const resolveLabel =
-    nextAction === "piece"
-      ? "Choose destination"
-      : nextAction === "conflict"
-        ? "Resolve conflicts"
-        : "Choose voice part";
+  const resolveLabel = nextAction === "conflict" ? "Resolve conflicts" : "Choose voice part";
   function resolveCurrentGroup(): void {
     if (!activeState) return;
-    if (nextAction === "piece") pendingFocus.current = { kind: "piece" };
-    else {
-      const file = activeState.files.find(
-        (file) => file.status === (nextAction === "conflict" ? "conflict" : "needs_review"),
-      );
-      if (!file) return;
-      pendingFocus.current = { kind: "part", clientFileId: file.clientFileId };
-    }
+    const file = activeState.files.find(
+      (file) => file.status === (nextAction === "conflict" ? "conflict" : "needs_review"),
+    );
+    if (!file) return;
+    pendingFocus.current = file.clientFileId;
     setView("guided");
     setFocusRequest((value) => value + 1);
   }
   return {
-    canResolveCurrent: nextAction === "piece" || nextAction === "part" || nextAction === "conflict",
+    needsDestination: nextAction === "piece",
+    canResolveCurrent: nextAction === "part" || nextAction === "conflict",
     resolveLabel,
     resolveCurrentGroup,
   };
@@ -1562,14 +1569,14 @@ export function StepReviewMatches({
   }
 
   const hasOtherUnresolvedGroup = nextUnresolvedGroup !== undefined;
-  const { canResolveCurrent, resolveLabel, resolveCurrentGroup } = useReviewAction(
-    activeState,
-    Boolean(getSelectedPiece(activeGroup, pieceMap)),
-    view,
-    setView,
-    destinationPickerRef,
-    partSelectRefs,
-  );
+  const { needsDestination, canResolveCurrent, resolveLabel, resolveCurrentGroup } =
+    useReviewAction(
+      activeState,
+      Boolean(getSelectedPiece(activeGroup, pieceMap)),
+      view,
+      setView,
+      partSelectRefs,
+    );
   const selectedPiece = getSelectedPiece(activeGroup, pieceMap);
   const activeFileStates = getActiveFileStateMap(activeState);
   const activeGroupFilesById = getGroupFileMap(activeGroup);
@@ -1603,10 +1610,7 @@ export function StepReviewMatches({
         pieceMap={pieceMap}
         queueSearch={queueSearch}
       />
-      <section
-        aria-labelledby="track-import-review-group-heading"
-        className="track-import-review-detail"
-      >
+      <section aria-label={activeGroup.inferredTitle} className="track-import-review-detail">
         <GroupDetailHeader
           group={activeGroup}
           groupCount={groups.length}
@@ -1681,6 +1685,7 @@ export function StepReviewMatches({
         view={view}
       />
       <ReviewFooter
+        needsDestination={needsDestination}
         resolveLabel={resolveLabel}
         onResolveCurrent={resolveCurrentGroup}
         canResolveCurrent={canResolveCurrent}

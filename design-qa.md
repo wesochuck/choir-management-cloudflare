@@ -2,6 +2,23 @@
 
 final result: passed
 
+## Current annotation follow-up
+
+The user's October 22 screenshots supersede the mock's large filename-derived heading. The current
+implementation uses a compact Recording group heading, explicitly states when no Music Library piece
+is selected, places search beneath that explanation without a caret, and aligns Use Tutti with Skip
+this file on desktop. Missing destinations have a disabled Mark reviewed & next button rather than
+another search-launching footer action. The footer explains that selecting a Music Library piece
+enables review. Unmatched groups do not show Why this match. The recording filename remains next to
+playback; it is never presented as a selected library title.
+
+Current focused evidence: `ai-no-match-dark.png` in the weak-AI music-catalog test directory and
+`streamlined-focused-dark.png` in the large-batch desktop/mobile directories. These captures were
+inspected together after the change. Focused tests check no duplicate destination action, no search
+caret, missing-destination messaging, native selector focus, and same-row recording actions. The
+existing template typography and colors are retained; source instructions and the visible search
+label now have matching accessible names. No new image assets are required.
+
 ## Visual target and evidence
 
 - Source: user-approved refined split-workspace mock, generated image

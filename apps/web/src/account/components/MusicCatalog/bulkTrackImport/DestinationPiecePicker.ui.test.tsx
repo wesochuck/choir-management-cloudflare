@@ -63,7 +63,9 @@ describe("Music Library destination search", () => {
     const user = userEvent.setup();
     render(<Harness />);
     expect(screen.getByRole("heading", { name: "Blue Skies" })).toBeInTheDocument();
-    const trigger = screen.getByRole("button", { name: "Search library to change piece" });
+    const trigger = screen.getByRole("button", {
+      name: /^(?:Change piece|Search Music Library)$/u,
+    });
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     await user.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
@@ -84,7 +86,9 @@ describe("Music Library destination search", () => {
       const user = userEvent.setup();
       const onSelect = vi.fn();
       render(<Harness onSelect={onSelect} />);
-      await user.click(screen.getByRole("button", { name: "Search library to change piece" }));
+      await user.click(
+        screen.getByRole("button", { name: /^(?:Change piece|Search Music Library)$/u }),
+      );
       const search = screen.getByRole("searchbox", {
         name: "Search titles, composers, or arrangers",
       });
@@ -99,14 +103,18 @@ describe("Music Library destination search", () => {
       await user.click(results.getByRole("button", { name: /Ave Maria/ }));
       expect(onSelect).toHaveBeenCalledWith("two");
       expect(screen.getByRole("heading", { name: "Ave Maria" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Search library to change piece" })).toHaveFocus();
+      expect(
+        screen.getByRole("button", { name: /^(?:Change piece|Search Music Library)$/u }),
+      ).toHaveFocus();
     },
   );
 
   it("keeps the current selection on empty results and lets staff cancel with keyboard", async () => {
     const user = userEvent.setup();
     render(<Harness />);
-    const trigger = screen.getByRole("button", { name: "Search library to change piece" });
+    const trigger = screen.getByRole("button", {
+      name: /^(?:Change piece|Search Music Library)$/u,
+    });
     await user.click(trigger);
     const search = screen.getByRole("searchbox", {
       name: "Search titles, composers, or arrangers",
@@ -123,7 +131,9 @@ describe("Music Library destination search", () => {
 
   it("disables the search action during Clef Flash matching", () => {
     render(<Harness disabled />);
-    expect(screen.getByRole("button", { name: "Search library to change piece" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /^(?:Change piece|Search Music Library)$/u }),
+    ).toBeDisabled();
   });
 });
 
@@ -143,7 +153,9 @@ it("explains no reliable AI match while preserving the prominent library search"
   expect(screen.getByRole("status")).toHaveTextContent(
     "Search the Music Library to choose a destination",
   );
-  expect(screen.getByRole("button", { name: "Search library to change piece" })).toBeEnabled();
+  expect(
+    screen.getByRole("button", { name: /^(?:Change piece|Search Music Library)$/u }),
+  ).toBeEnabled();
   expect(screen.queryByRole("list", { name: "Possible AI destinations" })).not.toBeInTheDocument();
 });
 

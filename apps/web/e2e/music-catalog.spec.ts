@@ -778,16 +778,18 @@ for (const theme of ["light", "dark"] as const) {
     await expect(firstWorkQueueItem).toContainText("Ready to review");
 
     const applauseGroup = dialog.getByRole("region", { name: "Applause" });
-    await expect(applauseGroup.getByRole("heading", { name: "Applause", level: 2 })).toBeVisible();
     await expect(
-      applauseGroup.getByRole("heading", { name: "No destination piece selected" }),
+      applauseGroup.getByRole("heading", { name: "Recording group 1 of 2", level: 2 }),
+    ).toBeVisible();
+    await expect(
+      applauseGroup.getByRole("heading", { name: "No Music Library piece selected" }),
     ).toBeVisible();
     await expect(applauseGroup.getByText("Part needed")).toBeVisible();
 
     await firstWorkQueueItem.click();
     const firstWorkGroup = dialog.getByRole("region", { name: "First Work" });
     await expect(
-      firstWorkGroup.getByRole("heading", { name: "First Work", level: 2 }),
+      firstWorkGroup.getByRole("heading", { name: "Recording group 2 of 2", level: 2 }),
     ).toBeVisible();
     await expect(
       firstWorkGroup.getByRole("heading", { name: "First Work", level: 3 }),
@@ -811,18 +813,12 @@ for (const theme of ["light", "dark"] as const) {
 
     await applauseQueueItem.click();
     const destination = applauseGroup.getByRole("button", {
-      name: "Search library to change piece",
+      name: /^(?:Change piece|Search Music Library)$/u,
     });
     await destination.focus();
     await expect(destination).toBeFocused();
     await page.keyboard.press("Tab");
-    const evidence = applauseGroup.locator(".track-import-review-evidence");
-    await expect(evidence.locator("summary")).toBeFocused();
-    await expect(evidence).not.toHaveAttribute("open");
-    await page.keyboard.press("Enter");
-    await expect(evidence).toHaveAttribute("open");
-    await page.keyboard.press("Enter");
-    await page.keyboard.press("Tab");
+    await expect(applauseGroup.locator(".track-import-review-evidence")).toHaveCount(0);
     await expect(applauseGroup.getByRole("button", { name: "Play Applause.mp3" })).toBeFocused();
     await page.keyboard.press("Tab");
     await expect(applauseGroup.getByLabel("Section or voice part for Applause.mp3")).toBeFocused();
@@ -1170,7 +1166,16 @@ for (const theme of ["light", "dark"] as const) {
       dialog.getByRole("heading", { name: "Your recordings and voice parts" }),
     ).toBeVisible();
     await dialog.screenshot({ path: testInfo.outputPath(`review-tidy-${theme}.png`) });
-    await dialog.getByRole("button", { name: "Choose destination", exact: true }).click();
+    await expect(dialog.getByRole("button", { name: "Mark reviewed & next" })).toBeDisabled();
+    await expect(
+      dialog.getByRole("heading", { name: "No Music Library piece selected" }),
+    ).toBeVisible();
+    await expect(dialog.locator(".track-import-library-search__chevron")).toHaveCount(0);
+    await expect(dialog.getByRole("heading", { name: "Ave Maria", level: 2 })).toHaveCount(0);
+    await expect(
+      dialog.getByRole("button", { name: "Choose destination", exact: true }),
+    ).toHaveCount(0);
+    await dialog.getByRole("button", { name: /^(?:Change piece|Search Music Library)$/u }).click();
     await expect(
       dialog.getByRole("searchbox", {
         name: "Search titles, composers, or arrangers",
@@ -1184,7 +1189,7 @@ for (const theme of ["light", "dark"] as const) {
       "0 of 1 included song groups have a destination",
     );
     await expect(dialog.getByRole("button", { name: /Select destination:/ })).toHaveCount(0);
-    const search = dialog.getByRole("button", { name: "Search library to change piece" });
+    const search = dialog.getByRole("button", { name: /^(?:Change piece|Search Music Library)$/u });
     await expect(search).toBeVisible();
     const searchBox = await search.boundingBox();
     expect(searchBox?.width).toBeGreaterThan(180);
@@ -1359,9 +1364,9 @@ for (const theme of ["light", "dark"] as const) {
       .getByRole("button", { name: /Christmas Time is Here/ })
       .click();
     const detail = dialog.getByRole("region", { name: "Christmas Time is Here", exact: true });
-    await expect(detail.getByRole("button", { name: "Search library to change piece" })).toHaveText(
-      /Change piece/,
-    );
+    await expect(
+      detail.getByRole("button", { name: /^(?:Change piece|Search Music Library)$/u }),
+    ).toHaveText(/Change piece/);
     await expect(
       dialog.getByRole("button", { name: "Use Tutti for 12 unlabeled recordings" }),
     ).toBeVisible();
@@ -1382,6 +1387,17 @@ for (const theme of ["light", "dark"] as const) {
     const footer = await dialog.locator(".track-import-review-footer").boundingBox();
     if (!focused || !footer) throw new Error("Missing focused control geometry");
     expect(focused.y + focused.height).toBeLessThanOrEqual(footer.y + 1);
+    const tuttiAction = detail.getByRole("button", {
+      name: /Use Tutti for .*Christmas Time is Here/,
+    });
+    const skipAction = detail.getByRole("button", { name: /Skip .*Christmas Time is Here/ });
+    if (!mobile) {
+      const tuttiBox = await tuttiAction.boundingBox();
+      const skipBox = await skipAction.boundingBox();
+      if (!tuttiBox || !skipBox) throw new Error("Missing recording actions");
+      expect(Math.abs(tuttiBox.y - skipBox.y)).toBeLessThanOrEqual(1);
+      expect(skipBox.x).toBeGreaterThan(tuttiBox.x + tuttiBox.width);
+    }
     await page.screenshot({ path: testInfo.outputPath(`streamlined-focused-${theme}.png`) });
     await detail.getByRole("button", { name: /Use Tutti for .*Christmas Time is Here/ }).click();
     await expect(detail.getByRole("combobox")).toHaveValue("tutti");
