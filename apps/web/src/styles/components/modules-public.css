@@ -795,6 +795,10 @@
       align-items: stretch;
     }
 
+    .music-audio-tracks--repair .music-audio-track__controls {
+      grid-template-columns: 1fr;
+    }
+
     .music-audio-track-add label {
       grid-template-columns: 1fr;
     }

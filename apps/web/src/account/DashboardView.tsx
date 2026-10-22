@@ -307,6 +307,66 @@ function DashboardSchedule({
   );
 }
 
+function DashboardDuesWidget({
+  dashboard,
+  activeSeasonLabel,
+  navigate,
+}: {
+  readonly dashboard: MemberDashboardResponse;
+  readonly activeSeasonLabel: string;
+  readonly navigate: (href: string) => void;
+}) {
+  if (dashboard.activeSeasonState === "unavailable")
+    return (
+      <fieldset className="member-dashboard__widget">
+        <legend className="member-dashboard__widget-legend">Season dues</legend>
+        <p className="notice notice--warning" role="status">
+          Season dues are temporarily unavailable.
+        </p>
+      </fieldset>
+    );
+  if (!dashboard.activeSeason) return null;
+  const isPaid = dashboard.activeSeason.duesStatus === "paid";
+  return (
+    <fieldset
+      className={`member-dashboard__widget${isPaid ? " member-dashboard__widget--paid" : ""}`}
+    >
+      <legend className="member-dashboard__widget-legend">Season dues</legend>
+      <div className="member-dashboard__widget-dues">
+        <span className="member-dashboard__widget-dues-name">
+          {dashboard.activeSeason.season.name}
+        </span>
+        {!isPaid ? (
+          <span className="member-dashboard__widget-status">{activeSeasonLabel}</span>
+        ) : null}
+      </div>
+      {isPaid ? (
+        <>
+          <p className="member-dashboard__dues-paid">
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="m7 12 3 3 7-7" />
+            </svg>
+            Paid in full
+          </p>
+          <p className="member-dashboard__dues-thanks">
+            Thank you! Your dues are paid for this season.
+          </p>
+        </>
+      ) : null}
+      <AppLink href="/dues" onNavigate={navigate}>
+        View dues details
+      </AppLink>
+    </fieldset>
+  );
+}
+
 function DashboardWidgets({
   activeSeasonLabel,
   dashboard,
@@ -318,29 +378,18 @@ function DashboardWidgets({
   readonly navigate: (href: string) => void;
   readonly onSelectBulletin: (id: string) => void;
 }) {
+  const isPaid =
+    dashboard.activeSeasonState === "ready" && dashboard.activeSeason?.duesStatus === "paid";
+  const duesWidget = (
+    <DashboardDuesWidget
+      dashboard={dashboard}
+      activeSeasonLabel={activeSeasonLabel}
+      navigate={navigate}
+    />
+  );
   return (
     <aside className="member-dashboard__widgets" aria-label="Member updates">
-      {dashboard.activeSeasonState === "unavailable" ? (
-        <fieldset className="member-dashboard__widget">
-          <legend className="member-dashboard__widget-legend">Season dues</legend>
-          <p className="notice notice--warning" role="status">
-            Season dues are temporarily unavailable.
-          </p>
-        </fieldset>
-      ) : dashboard.activeSeason ? (
-        <fieldset className="member-dashboard__widget">
-          <legend className="member-dashboard__widget-legend">Season dues</legend>
-          <div className="member-dashboard__widget-dues">
-            <span className="member-dashboard__widget-dues-name">
-              {dashboard.activeSeason.season.name}
-            </span>
-            <span className="member-dashboard__widget-status">{activeSeasonLabel}</span>
-          </div>
-          <AppLink href="/dues" onNavigate={navigate}>
-            View dues details
-          </AppLink>
-        </fieldset>
-      ) : null}
+      {!isPaid ? duesWidget : null}
       {dashboard.pollsState === "unavailable" ? (
         <fieldset className="member-dashboard__widget">
           <legend className="member-dashboard__widget-legend">Polls</legend>
@@ -420,6 +469,7 @@ function DashboardWidgets({
           View all resources
         </AppLink>
       </fieldset>
+      {isPaid ? duesWidget : null}
     </aside>
   );
 }

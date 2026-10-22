@@ -58,6 +58,8 @@ export function listProfiles(
     .exec<OrganizationProfileRow>(
       `SELECT id, display_name AS displayName, phone, voice_part AS voicePart,
           global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
+          show_email_in_directory AS showEmailInDirectory,
+          show_phone_in_directory AS showPhoneInDirectory,
           do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
           receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
           receive_admin_notifications AS receiveAdminNotifications,
@@ -96,6 +98,8 @@ function readProfile(storage: DurableObjectStorage, profileId: string) {
     .exec<OrganizationProfileRow>(
       `SELECT id, display_name AS displayName, phone, voice_part AS voicePart,
           global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
+          show_email_in_directory AS showEmailInDirectory,
+          show_phone_in_directory AS showPhoneInDirectory,
           do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
           receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
           receive_admin_notifications AS receiveAdminNotifications,
@@ -167,9 +171,12 @@ export function listDirectoryProfiles(
       readonly id: string;
       readonly photoFileId: string | null;
       readonly phone: string;
+      readonly showEmailInDirectory: number;
       readonly voicePart: string;
     }>(
-      `SELECT id, display_name AS displayName, phone, voice_part AS voicePart,
+      `SELECT id, display_name AS displayName,
+         CASE WHEN show_phone_in_directory = 1 THEN phone ELSE '' END AS phone,
+         show_email_in_directory AS showEmailInDirectory, voice_part AS voicePart,
          photo_file_id AS photoFileId
        FROM profiles
        WHERE global_status != 'Inactive' AND show_in_directory = 1 AND hidden = 0
@@ -714,9 +721,11 @@ export async function updateMemberProfile(
     return Response.json({ code: "profile_not_found" }, { status: 404 });
   }
   const occurredAt = new Date().toISOString();
-  // Singer-owned reminder preferences are only overwritten when explicitly
+  // Singer-owned directory and reminder preferences are only overwritten when explicitly
   // provided, so older payloads preserve saved values.
   const selfPreferenceFields = [
+    { column: "show_email_in_directory", key: "showEmailInDirectory" },
+    { column: "show_phone_in_directory", key: "showPhoneInDirectory" },
     { column: "receive_other_event_reminders", key: "receiveOtherEventReminders" },
     { column: "receive_performance_reminders", key: "receivePerformanceReminders" },
     { column: "receive_rehearsal_reminders", key: "receiveRehearsalReminders" },

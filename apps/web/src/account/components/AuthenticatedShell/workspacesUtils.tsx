@@ -224,7 +224,13 @@ function renderMusicPage({
       initialPieceId={musicPieceId}
       navigate={navigate}
       onClearCreditFilter={handleClearCreditFilter}
-      returnTo={returnToSetList ? "/admin/setlists" : null}
+      returnTo={
+        returnToSetList
+          ? "/admin/setlists"
+          : new URLSearchParams(search).get("returnTo") === "/admin/library/settings"
+            ? "/admin/library/settings"
+            : null
+      }
       view={musicCatalogView}
     />
   );

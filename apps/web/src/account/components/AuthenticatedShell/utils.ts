@@ -55,20 +55,30 @@ export const accountGroups: readonly NavigationGroup[] = [
 
 export const memberGroups: readonly NavigationGroup[] = [
   {
+    id: "home",
     label: "Overview",
+    items: [{ href: "/dashboard", label: "Dashboard", iconId: "home" }],
+  },
+  {
+    id: "people",
+    label: "Your membership",
+    iconId: "contacts",
+    tone: "green",
     items: [
-      { href: "/dashboard", label: "Dashboard" },
-      { href: "/schedule", label: "My schedule", module: "events" },
-      { href: "/profile", label: "My Profile", module: "roster" },
-      { href: "/directory", label: "Directory", module: "directory" },
-      { href: "/dues", label: "Season dues", module: "dues" },
+      { href: "/schedule", label: "My schedule", module: "events", iconId: "events" },
+      { href: "/profile", label: "My Profile", module: "roster", iconId: "contacts" },
+      { href: "/directory", label: "Directory", module: "directory", iconId: "roster" },
+      { href: "/dues", label: "Season dues", module: "dues", iconId: "wallet" },
     ],
   },
   {
+    id: "music",
     label: "Practice & resources",
+    iconId: "music",
+    tone: "blue",
     items: [
-      { href: "/practice", label: "Practice", module: "practice_player" },
-      { href: "/member/resources", label: "Resources", module: "resources" },
+      { href: "/practice", label: "Practice", module: "practice_player", iconId: "headphones" },
+      { href: "/member/resources", label: "Resources", module: "resources", iconId: "resources" },
     ],
   },
 ];

@@ -41,6 +41,8 @@ const memberProfile: MemberProfile = {
   receivePerformanceReminders: false,
   receiveRehearsalReminders: true,
   showInDirectory: true,
+  showEmailInDirectory: true,
+  showPhoneInDirectory: true,
   voicePart: "S1",
 };
 
@@ -73,6 +75,40 @@ beforeEach(() => {
   );
   vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock-photo");
   vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+});
+
+describe("directory contact visibility", () => {
+  it("saves independent choices and retains them while directory listing is disabled", async () => {
+    const user = await setup();
+    const email = screen.getByRole("checkbox", { name: "Show my email in the directory" });
+    const phone = screen.getByRole("checkbox", { name: "Show my phone number in the directory" });
+    expect(email).toBeChecked();
+    expect(phone).toBeChecked();
+    await user.click(email);
+    expect(phone).toBeChecked();
+    await user.click(
+      screen.getByRole("checkbox", { name: "List me in the Organization member directory" }),
+    );
+    expect(email).toBeDisabled();
+    expect(phone).toBeDisabled();
+    await user.click(
+      screen.getByRole("checkbox", { name: "List me in the Organization member directory" }),
+    );
+    expect(email).not.toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => {
+      expect(profilesApi.updateMemberProfile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          showInDirectory: true,
+          showEmailInDirectory: false,
+          showPhoneInDirectory: true,
+        }),
+      );
+    });
+    expect(screen.getByText("Current sign-in email:").parentElement).toHaveTextContent(
+      "casey@example.test",
+    );
+  });
 });
 
 describe("MemberProfileDirectory profile photo dirty state", () => {

@@ -287,6 +287,14 @@ export async function installOrganizationApi(
               ? update.displayName
               : memberProfile.get().displayName,
           phone: typeof update.phone === "string" ? update.phone : memberProfile.get().phone,
+          showEmailInDirectory:
+            typeof update.showEmailInDirectory === "boolean"
+              ? update.showEmailInDirectory
+              : memberProfile.get().showEmailInDirectory,
+          showPhoneInDirectory:
+            typeof update.showPhoneInDirectory === "boolean"
+              ? update.showPhoneInDirectory
+              : memberProfile.get().showPhoneInDirectory,
           showInDirectory:
             typeof update.showInDirectory === "boolean"
               ? update.showInDirectory
@@ -304,9 +312,9 @@ export async function installOrganizationApi(
           ? [
               {
                 displayName: current.displayName,
-                email: current.email,
+                email: current.showEmailInDirectory ? current.email : "",
                 id: current.id,
-                phone: current.phone,
+                phone: current.showPhoneInDirectory ? current.phone : "",
                 voicePart: current.voicePart,
               },
             ]

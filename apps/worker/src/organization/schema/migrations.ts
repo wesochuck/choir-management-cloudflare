@@ -2178,6 +2178,19 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       ) STRICT`,
     ],
   },
+  {
+    version: 122,
+    statements: [
+      "ALTER TABLE profiles ADD COLUMN show_email_in_directory INTEGER NOT NULL DEFAULT 1 CHECK (show_email_in_directory IN (0, 1))",
+      "ALTER TABLE profiles ADD COLUMN show_phone_in_directory INTEGER NOT NULL DEFAULT 1 CHECK (show_phone_in_directory IN (0, 1))",
+    ],
+  },
+  {
+    version: 123,
+    statements: [
+      "ALTER TABLE organization_metadata ADD COLUMN practice_loudness_target_lufs REAL NOT NULL DEFAULT -18 CHECK (practice_loudness_target_lufs >= -30 AND practice_loudness_target_lufs <= -10)",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

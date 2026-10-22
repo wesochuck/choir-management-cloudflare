@@ -9,6 +9,8 @@ import {
 } from "@choir/contracts";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+test.use({ serviceWorkers: "block" });
+
 const requestId = "90909090-9090-4090-8090-909090909090";
 
 function piece(id: string, title: string, composer: string, arranger: string) {
@@ -974,5 +976,102 @@ for (const theme of ["light", "dark"] as const) {
       movements[3]?.id,
     ]);
     expect(runtimeErrors).toEqual([]);
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`repairs loudness recordings and configures the target in ${theme} theme`, async ({
+    page,
+  }, info) => {
+    const fileId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const otherId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const current = {
+      ...piece("11111111-1111-4111-8111-111111111111", "First Work", "Jane Doe", ""),
+      trackFileIds: { tutti: fileId, S1: otherId },
+    };
+    await installRoutes(page, [current]);
+    let settings = organizationMusicLibrarySettingsRequestSchema.parse({
+      practiceLoudnessTargetLufs: -18,
+    });
+    await page.route("**/api/organization/music-library-settings", async (route) => {
+      if (route.request().method() === "PUT")
+        settings = organizationMusicLibrarySettingsRequestSchema.parse(
+          route.request().postDataJSON(),
+        );
+      await fulfill(route, { ...settings, requestId });
+    });
+    await page.route("**/api/organization/music/loudness**", async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith("/claim")) {
+        await fulfill(route, { claim: null });
+        return;
+      }
+      if (route.request().method() === "POST") {
+        await fulfill(route, { queued: 1 });
+        return;
+      }
+      await fulfill(route, {
+        statuses: [{ status: "failed", count: 1 }],
+        failures: [
+          {
+            fileId,
+            fileName: "original.mp3",
+            pieceTitle: "First Work",
+            status: "failed",
+            reasonCode: "invalid_audio",
+          },
+        ],
+      });
+    });
+    await page.route(`**/api/organization/files/${fileId}`, async (route) => {
+      if (route.request().method() === "DELETE") {
+        await fulfill(route, { deleted: true, requestId });
+        return;
+      }
+      await route.fulfill({
+        body: "original-file-bytes",
+        contentType: "audio/mpeg",
+        headers: { "content-disposition": 'attachment; filename="original.mp3"' },
+      });
+    });
+    await page.addInitScript((value) => {
+      window.localStorage.setItem(`choir-theme:${window.location.hostname}`, value);
+    }, theme);
+    await page.goto("/admin/library/settings");
+    const panel = page.getByRole("group", { name: "Practice recording loudness", exact: true });
+    await expect(panel).toBeVisible();
+    await panel.getByLabel("Target loudness (LUFS)").fill("-14");
+    await panel.getByRole("button", { name: "Save loudness target" }).click();
+    await expect(page.getByText("Music library settings saved.")).toBeVisible();
+    expect(settings.practiceLoudnessTargetLufs).toBe(-14);
+    const downloadPromise = page.waitForEvent("download");
+    await panel.getByRole("link", { name: "Download", exact: true }).click();
+    expect((await downloadPromise).suggestedFilename()).toBe("original.mp3");
+    await panel.getByRole("link", { name: "First Work", exact: true }).click();
+    const editor = page.getByRole("dialog", { name: "Edit music piece: First Work", exact: true });
+    await expect(editor).toBeVisible();
+    await editor.getByRole("link", { name: "← Back to Library Settings", exact: true }).click();
+    await panel.getByRole("button", { name: "Replace recording original.mp3" }).click();
+    const repair = page.getByRole("dialog", { name: "Replace practice recording", exact: true });
+    const fileInput = repair.getByLabel("Replace tutti learning track for First Work");
+    await expect(fileInput).toBeVisible();
+    await page.screenshot({
+      path: info.outputPath(`recording-repair-${theme}.png`),
+      fullPage: true,
+    });
+    const updatePromise = page.waitForRequest(
+      (request) =>
+        request.method() === "PUT" &&
+        new URL(request.url()).pathname === `/api/organization/music/${current.id}`,
+    );
+    await fileInput.setInputFiles("apps/web/src/account/loudness/fixtures/44100-1-vbr.mp3");
+    const updated = organizationMusicPieceRequestSchema.parse((await updatePromise).postDataJSON());
+    expect(updated.trackFileIds.S1).toBe(otherId);
+    expect(updated.trackFileIds.tutti).not.toBe(fileId);
+    await expect(repair).toBeHidden();
+    await page.screenshot({
+      path: info.outputPath(`loudness-settings-${theme}.png`),
+      fullPage: true,
+    });
   });
 }

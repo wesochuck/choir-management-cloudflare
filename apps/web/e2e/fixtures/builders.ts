@@ -284,6 +284,8 @@ export function buildOrganizationProfile(
     receiveRehearsalReminders: true,
     receiveRsvpDeclineNotices: false,
     showInDirectory: true,
+    showEmailInDirectory: true,
+    showPhoneInDirectory: true,
     hidden: false,
     statusChangedAt: "2026-07-20T20:00:00.000Z",
     statusChangeReason: "Initial status",
@@ -325,6 +327,8 @@ export function buildMemberProfile(overrides: Partial<MemberProfile> = {}): Memb
     receivePerformanceReminders: true,
     receiveRehearsalReminders: true,
     showInDirectory: true,
+    showEmailInDirectory: true,
+    showPhoneInDirectory: true,
     voicePart: "S2",
     ...overrides,
   };

@@ -50,6 +50,55 @@ function readTaskApplicable(
 }
 
 describe("organization schema migrations", () => {
+  it("v123 preserves Organization metadata and defaults the practice target to -18", () => {
+    const adapter = setupThrough(122);
+    applyVersion(adapter, 123);
+    expect(
+      adapter.storage.sql
+        .exec("SELECT name, practice_loudness_target_lufs FROM organization_metadata")
+        .toArray(),
+    ).toEqual([{ name: "Test Choir", practice_loudness_target_lufs: -18 }]);
+    expect(() =>
+      adapter.storage.sql.exec(
+        "UPDATE organization_metadata SET practice_loudness_target_lufs = -9",
+      ),
+    ).toThrow();
+    expect(() =>
+      adapter.storage.sql.exec(
+        "UPDATE organization_metadata SET practice_loudness_target_lufs = -31",
+      ),
+    ).toThrow();
+  });
+
+  it("v122 defaults existing and new directory contacts to visible without changing directory opt-in", () => {
+    const adapter = setupThrough(121);
+    adapter.storage.sql.exec(
+      "INSERT INTO profiles (id, display_name, show_in_directory, created_at, updated_at) VALUES ('existing', 'Existing', 0, '2026-01-01', '2026-01-01')",
+    );
+    applyVersion(adapter, 122);
+    adapter.storage.sql.exec(
+      "INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES ('new', 'New', '2026-01-01', '2026-01-01')",
+    );
+    expect(
+      adapter.storage.sql
+        .exec(
+          "SELECT id, show_in_directory, show_email_in_directory, show_phone_in_directory FROM profiles ORDER BY id",
+        )
+        .toArray(),
+    ).toEqual([
+      {
+        id: "existing",
+        show_in_directory: 0,
+        show_email_in_directory: 1,
+        show_phone_in_directory: 1,
+      },
+      { id: "new", show_in_directory: 1, show_email_in_directory: 1, show_phone_in_directory: 1 },
+    ]);
+    expect(() =>
+      adapter.storage.sql.exec("UPDATE profiles SET show_email_in_directory = 2 WHERE id = 'new'"),
+    ).toThrow();
+  });
+
   it("v118 marks existing ticket-enabled Performances public without changing other events", () => {
     const adapter = setupThrough(117);
     for (const [id, type, ticketing, published] of [

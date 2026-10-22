@@ -28,6 +28,7 @@ const uniqueMusicLabelsSchema = z
 const organizationMusicLibrarySettingsFieldsSchema = z.object({
   defaultPageSize: z.number().int().min(10).max(500).default(100),
   genres: uniqueMusicLabelsSchema.default([]),
+  practiceLoudnessTargetLufs: z.number().min(-30).max(-10).optional(),
   practicePlayerLinkLifetimeDays: z.number().int().min(1).max(3_650).default(180),
   publisherSearchTemplate: z.string().trim().max(2_000).default(""),
 });
@@ -64,7 +65,10 @@ export const organizationMusicLibrarySettingsRequestSchema =
 
 export const organizationMusicLibrarySettingsResponseSchema =
   organizationMusicLibrarySettingsFieldsSchema
-    .extend({ requestId: requestIdSchema })
+    .extend({
+      requestId: requestIdSchema,
+      practiceLoudnessTargetLufs: z.number().min(-30).max(-10).default(-18),
+    })
     .superRefine(validateMusicLibrarySettings);
 
 export type OrganizationMusicLibrarySettings = z.infer<

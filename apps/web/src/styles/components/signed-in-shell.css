@@ -552,6 +552,17 @@
   .organization-nav__children[hidden] {
     display: none;
   }
+  .member-nav .organization-nav__link > svg {
+    color: var(--nav-accent, var(--color-text-muted));
+  }
+  .member-nav .organization-nav__link[aria-current="page"] {
+    color: var(--color-text);
+    box-shadow: inset 3px 0 var(--color-accent);
+  }
+  .member-nav .organization-nav__link[aria-current="page"] > svg {
+    color: var(--color-accent);
+  }
+
   .organization-nav__drawer-title {
     margin: 0;
     font-size: var(--font-size-lg);

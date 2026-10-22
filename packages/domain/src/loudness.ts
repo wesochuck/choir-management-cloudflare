@@ -11,6 +11,7 @@ export function practiceLoudnessGain(
         readonly contentVersion: string;
         readonly integratedLufs: number;
         readonly truePeakDbtp: number;
+        readonly targetLufs?: number | undefined;
       }
     | null
     | undefined,
@@ -28,7 +29,12 @@ export function practiceLoudnessGain(
     peak > 12
   )
     return unity;
-  const requestedGainDb = LOUDNESS_TARGET_LUFS - loudness;
+  const target = measurement.targetLufs;
+  const targetLufs =
+    target !== undefined && Number.isFinite(target) && target >= -30 && target <= -10
+      ? target
+      : LOUDNESS_TARGET_LUFS;
+  const requestedGainDb = targetLufs - loudness;
   const headroom = LOUDNESS_CEILING_DBTP - peak;
   const appliedGainDb = Math.min(requestedGainDb, headroom, MAX_BOOST_DB);
   return {

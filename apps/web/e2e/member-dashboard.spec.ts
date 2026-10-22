@@ -142,3 +142,57 @@ test("offers published practice and set-list actions before RSVP", async ({ page
   await expect(page.getByText("View set list (1 items)")).toBeVisible();
   api.assertNoUnexpectedRequests();
 });
+
+test("paid dues are clearly confirmed at the bottom while unpaid dues remain first", async ({
+  page,
+}, info) => {
+  const api = await installOrganizationApi(page, { role: "member", strict: true });
+  for (const theme of ["light", "dark"] as const) {
+    for (const duesStatus of ["paid", null] as const) {
+      api.setSingerDashboard(
+        buildSingerDashboardResponse({
+          activeSeasonState: "ready",
+          activeSeason: {
+            duesStatus,
+            season: {
+              id: "33333333-3333-4333-8333-333333333333",
+              name: "Current season",
+              createdAt: "2026-08-01T00:00:00.000Z",
+              updatedAt: "2026-08-01T00:00:00.000Z",
+              startsAt: "2026-09-01T00:00:00.000Z",
+              endsAt: "2027-05-01T00:00:00.000Z",
+              duesAmountCents: 2000,
+              isActive: true,
+            },
+          },
+        }),
+      );
+      await page.goto("/dashboard");
+      await expect(page.getByText("Current season", { exact: true })).toBeVisible();
+      const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
+      if (await toggle.isVisible()) await toggle.click();
+      const widgets = page
+        .getByRole("complementary", { name: "Member updates" })
+        .getByRole("group");
+      if (duesStatus === "paid") {
+        await expect(widgets.last()).toHaveAccessibleName("Season dues");
+        await expect(widgets.last().getByText("Paid in full")).toBeVisible();
+        await expect(
+          widgets.last().getByText("Thank you! Your dues are paid for this season."),
+        ).toBeVisible();
+      } else {
+        await expect(widgets.first()).toHaveAccessibleName("Season dues");
+        await expect(widgets.first().getByText("Not paid", { exact: true })).toBeVisible();
+        await expect(page.getByText("Paid in full", { exact: true })).toHaveCount(0);
+      }
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+      await page.screenshot({
+        path: info.outputPath(`dues-${duesStatus ?? "unpaid"}-${theme}.png`),
+        fullPage: true,
+      });
+    }
+  }
+  api.assertNoUnexpectedRequests();
+});

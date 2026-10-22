@@ -56,3 +56,44 @@ describe("organizationProfileDeleteResponseSchema", () => {
     expect(parsed.profileId).toBe("11111111-1111-4111-8111-111111111111");
   });
 });
+
+describe("directory contact visibility preferences", () => {
+  it("keeps omitted update fields absent for backward-compatible writes", () => {
+    const parsed = memberProfileUpdateRequestSchema.parse({ displayName: "Singer" });
+    expect(parsed.showEmailInDirectory).toBeUndefined();
+    expect(parsed.showPhoneInDirectory).toBeUndefined();
+  });
+  it.each([true, false, undefined])("accepts boolean or omitted preferences (%s)", (value) => {
+    expect(
+      memberProfileUpdateRequestSchema.parse({
+        displayName: "Singer",
+        showEmailInDirectory: value,
+        showPhoneInDirectory: value,
+      }),
+    ).toMatchObject({ displayName: "Singer" });
+  });
+  it.each([null, "false", 0])("rejects invalid preference values (%s)", (value) => {
+    expect(
+      memberProfileUpdateRequestSchema.safeParse({
+        displayName: "Singer",
+        showEmailInDirectory: value,
+      }).success,
+    ).toBe(false);
+    expect(
+      memberProfileUpdateRequestSchema.safeParse({
+        displayName: "Singer",
+        showPhoneInDirectory: value,
+      }).success,
+    ).toBe(false);
+  });
+  it("defaults missing read fields to visible for older responses", () => {
+    const parsed = memberProfileSchema.parse({
+      displayName: "Singer",
+      email: "singer@example.test",
+      globalStatus: "Active",
+      id: "11111111-1111-4111-8111-111111111111",
+      voicePart: "",
+    });
+    expect(parsed).toMatchObject({ showEmailInDirectory: true, showPhoneInDirectory: true });
+  });
+});

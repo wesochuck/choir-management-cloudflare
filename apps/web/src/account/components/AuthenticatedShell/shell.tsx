@@ -783,6 +783,7 @@ function AuthenticatedOrganizationShell({
                   />
                 ) : (
                   <Navigation
+                    memberStyle={selectedWorkspace === "member"}
                     groups={navGroups}
                     navigate={handleVoidNavigate}
                     pathname={route.pathname}
@@ -952,6 +953,7 @@ function AuthenticatedOrganizationShell({
               />
             ) : (
               <Navigation
+                memberStyle={selectedWorkspace === "member"}
                 groups={navGroups}
                 navigate={handleDrawerNavigate}
                 pathname={route.pathname}

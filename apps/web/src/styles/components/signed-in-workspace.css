@@ -1056,7 +1056,33 @@
     display: flex;
     align-items: baseline;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: var(--spacing-xs);
+  }
+
+  fieldset.member-dashboard__widget--paid {
+    border-color: var(--color-success);
+  }
+
+  .member-dashboard__dues-paid {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin: 0;
+    color: var(--color-success-text);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .member-dashboard__dues-paid svg {
+    width: 1.5rem;
+    height: 1.5rem;
+    flex-shrink: 0;
+  }
+
+  .member-dashboard__dues-thanks {
+    margin: 0;
+    color: var(--color-text);
   }
 
   .member-dashboard__widget-dues-name {

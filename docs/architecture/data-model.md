@@ -120,3 +120,23 @@ Organization Export is a resumable logical snapshot, not a database backup. It p
 ZIP with a versioned manifest, checksums, baseline CSV contracts, structured JSON, audit history,
 original R2 files, and a file index. v1 intentionally provides no whole-archive import, restore,
 Organization deletion, recovery window, or purge automation.
+
+## Member directory contact visibility
+
+Organization schema version 122 adds `profiles.show_email_in_directory` and
+`profiles.show_phone_in_directory`, both boolean SQLite integers defaulting to 1. Existing and new
+Profiles retain the prior directory behavior by default. `show_in_directory` remains the overall
+opt-in; inactive, hidden, or opted-out Profiles remain excluded regardless of the contact settings.
+
+Members may independently change contact visibility through their own linked Profile. The member
+update fields `showEmailInDirectory` and `showPhoneInDirectory` are optional so older requests
+preserve stored choices. Manager Profile edits also preserve these member-owned preferences.
+Directory projections redact hidden phone numbers inside the Organization store and omit hidden
+email values when joining Organization-scoped identity data. Directory responses use empty strings
+for hidden contact details, preserving the existing response shape. Sign-in identity and
+Organization communications retain the original contact data.
+
+The migration is additive and requires no indexes or D1 changes. Keep its columns during rollback.
+Code predating this feature does not enforce these preferences, so any rollback after members opt
+out must retain the directory redaction behavior (or temporarily disable directory access) to honor
+those choices.

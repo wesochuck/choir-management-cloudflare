@@ -150,6 +150,7 @@ export const defaultMusicLibrarySettings: OrganizationMusicLibrarySettings = {
   defaultPageSize: 100,
   genres: [],
   practicePlayerLinkLifetimeDays: 180,
+  practiceLoudnessTargetLufs: -18,
   publisherSearchTemplate: "",
 };
 

@@ -38,6 +38,8 @@ interface ProfileDraft {
   receivePerformanceReminders: boolean;
   receiveRehearsalReminders: boolean;
   showInDirectory: boolean;
+  showEmailInDirectory: boolean;
+  showPhoneInDirectory: boolean;
 }
 
 // eslint-disable-next-line complexity -- the editor coordinates Profile fields and the verified email-change request state.
@@ -75,6 +77,8 @@ function MemberProfileEditor({
                 receivePerformanceReminders: saved.receivePerformanceReminders,
                 receiveRehearsalReminders: saved.receiveRehearsalReminders,
                 showInDirectory: saved.showInDirectory,
+                showEmailInDirectory: saved.showEmailInDirectory,
+                showPhoneInDirectory: saved.showPhoneInDirectory,
               },
               status: "ready",
             }
@@ -93,6 +97,8 @@ function MemberProfileEditor({
         receivePerformanceReminders: updated.receivePerformanceReminders,
         receiveRehearsalReminders: updated.receiveRehearsalReminders,
         showInDirectory: updated.showInDirectory,
+        showEmailInDirectory: updated.showEmailInDirectory,
+        showPhoneInDirectory: updated.showPhoneInDirectory,
       };
     },
   });
@@ -111,6 +117,8 @@ function MemberProfileEditor({
           receivePerformanceReminders: profile.receivePerformanceReminders,
           receiveRehearsalReminders: profile.receiveRehearsalReminders,
           showInDirectory: profile.showInDirectory,
+          showEmailInDirectory: profile.showEmailInDirectory,
+          showPhoneInDirectory: profile.showPhoneInDirectory,
         });
       })
       .catch((error: unknown) => {
@@ -290,6 +298,33 @@ function MemberProfileEditor({
             />
             List me in the Organization member directory
           </label>
+          <fieldset className="field" disabled={busy || !draft.showInDirectory}>
+            <legend>Directory contact details</legend>
+            <p className="field-help">
+              Choose what other Organization members can see in the directory. These settings do not
+              change your sign-in email or how the Organization contacts you.
+            </p>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={draft.showEmailInDirectory}
+                onChange={(event) => {
+                  updateField("showEmailInDirectory", event.target.checked);
+                }}
+              />
+              Show my email in the directory
+            </label>
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={draft.showPhoneInDirectory}
+                onChange={(event) => {
+                  updateField("showPhoneInDirectory", event.target.checked);
+                }}
+              />
+              Show my phone number in the directory
+            </label>
+          </fieldset>
           <fieldset className="field" disabled={busy}>
             <legend>Email reminder preferences</legend>
             <p className="field-help" id="reminder-preferences-help">

@@ -150,6 +150,18 @@ describe("versioned loudness metadata parsing", () => {
       }).loudnessByFileId,
     ).toEqual(parsed.loudnessByFileId);
   });
+  it("preserves the configured target in signed-player and offline payloads", () => {
+    const configured = { ...measurement, targetLufs: -14 };
+    const parsed = parsePlayerDetails({ ...details, loudnessByFileId: { [fileId]: configured } });
+    expect(parsePlayerDetails(parsed).loudnessByFileId?.[fileId]?.targetLufs).toBe(-14);
+    expect(
+      parsePublicPlaylistDetails({
+        event: { id: "event", title: "Practice", date: "" },
+        pieces: details.items,
+        loudnessByFileId: parsed.loudnessByFileId,
+      }).loudnessByFileId?.[fileId]?.targetLufs,
+    ).toBe(-14);
+  });
   it("keeps old and malformed analysis payloads playable at unity", () => {
     for (const value of [
       undefined,

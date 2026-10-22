@@ -160,6 +160,8 @@ export interface OrganizationProfileRow {
   readonly receiveRehearsalReminders: number;
   readonly receiveRsvpDeclineNotices: number;
   readonly showInDirectory: number;
+  readonly showEmailInDirectory: number;
+  readonly showPhoneInDirectory: number;
   readonly statusChangedAt: string;
   readonly statusChangeReason: string;
   readonly statusIsManual: number;
@@ -191,6 +193,8 @@ export function profileResult(row: OrganizationProfileRow, onBreakInactiveAt: st
     receiveRehearsalReminders: row.receiveRehearsalReminders === 1,
     receiveRsvpDeclineNotices: row.receiveRsvpDeclineNotices === 1,
     showInDirectory: row.showInDirectory === 1,
+    showEmailInDirectory: row.showEmailInDirectory === 1,
+    showPhoneInDirectory: row.showPhoneInDirectory === 1,
     statusChangedAt: row.statusChangedAt || row.createdAt,
     statusChangeReason: row.statusChangeReason || "Initial status",
     statusIsManual: row.statusIsManual === 1,

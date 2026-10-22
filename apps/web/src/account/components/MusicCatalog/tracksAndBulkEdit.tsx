@@ -24,11 +24,13 @@ import { trackKeys, trackDescription, validateAudioFile } from "./tableUtils";
 import { MusicInlineAudioPlayer } from "./performances";
 
 export function MusicAudioTracks({
+  onlyFileId,
   configuration,
   onSaved,
   onTrackDurationDetected,
   piece,
 }: {
+  readonly onlyFileId?: string | undefined;
   readonly configuration: OrganizationRosterConfiguration;
   readonly onSaved: (piece: OrganizationMusicPiece, message: string) => void;
   readonly onTrackDurationDetected: (trackKey: string, durationSeconds: number | null) => void;
@@ -144,13 +146,15 @@ export function MusicAudioTracks({
     }
   }
 
-  const visibleKeys = trackKeys(piece, configuration, addedVoicePartLabels);
+  const visibleKeys = trackKeys(piece, configuration, addedVoicePartLabels).filter(
+    (key) => onlyFileId === undefined || piece.trackFileIds[key] === onlyFileId,
+  );
   const addableVoiceParts = configuration.voiceParts.filter(
     ({ label }) => !visibleKeys.includes(label),
   );
 
   return (
-    <fieldset className="music-audio-tracks">
+    <fieldset className={`music-audio-tracks${onlyFileId ? " music-audio-tracks--repair" : ""}`}>
       <legend>Learning tracks{piece.title ? `: ${piece.title}` : ""}</legend>
       <p className="field-help">
         Attach a full mix, section, or {partLabel.toLowerCase()} track
@@ -201,6 +205,20 @@ export function MusicAudioTracks({
                   <a download href={`/api/organization/files/${fileId}`}>
                     Download
                   </a>
+                  {onlyFileId ? (
+                    <label className="button button--secondary button--small">
+                      Replace file
+                      <input
+                        accept="audio/*"
+                        disabled={busy}
+                        type="file"
+                        aria-label={`Replace ${key} learning track for ${piece.title}`}
+                        onChange={(event) => {
+                          handleFileSelection(key, event);
+                        }}
+                      />
+                    </label>
+                  ) : null}
                   <button
                     className="button button--danger"
                     disabled={busy}
@@ -232,7 +250,7 @@ export function MusicAudioTracks({
           );
         })}
       </div>
-      {addableVoiceParts.length > 0 ? (
+      {onlyFileId === undefined && addableVoiceParts.length > 0 ? (
         <div className="music-audio-track-add">
           <label htmlFor="music-add-voice-part">
             Add {partLabel.toLowerCase()} track slot

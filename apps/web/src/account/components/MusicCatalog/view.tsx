@@ -200,7 +200,10 @@ export function MusicCatalogView({
       {returnTo && !dialogOpen ? (
         <div className="music-library-return">
           <AppLink className="button button--secondary" href={returnTo} onNavigate={navigate}>
-            ← Back to set list
+            ←{" "}
+            {returnTo === "/admin/library/settings"
+              ? "Back to Library Settings"
+              : "Back to set list"}
           </AppLink>
         </div>
       ) : null}
@@ -430,7 +433,10 @@ export function MusicCatalogView({
             {returnTo ? (
               <div className="music-library-return">
                 <AppLink className="button button--secondary" href={returnTo} onNavigate={navigate}>
-                  ← Back to set list
+                  ←{" "}
+                  {returnTo === "/admin/library/settings"
+                    ? "Back to Library Settings"
+                    : "Back to set list"}
                 </AppLink>
               </div>
             ) : null}

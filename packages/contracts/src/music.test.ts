@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   organizationMusicCreditRenameRequestSchema,
+  organizationMusicLibrarySettingsRequestSchema,
+  organizationMusicLibrarySettingsResponseSchema,
   organizationMusicPiecesResponseSchema,
   organizationMusicPieceRequestSchema,
 } from "./music";
@@ -103,4 +105,35 @@ describe("organizationMusicPiecesResponseSchema", () => {
       }).success,
     ).toBe(false);
   });
+});
+
+describe("practice loudness target settings", () => {
+  it("preserves omitted update values and defaults old responses", () => {
+    expect(
+      organizationMusicLibrarySettingsRequestSchema.parse({}).practiceLoudnessTargetLufs,
+    ).toBeUndefined();
+    expect(
+      organizationMusicLibrarySettingsResponseSchema.parse({
+        requestId: "00000000-0000-4000-8000-000000000001",
+      }).practiceLoudnessTargetLufs,
+    ).toBe(-18);
+  });
+  it.each([-30, -24, -18, -14.5, -10])(
+    "accepts bounded targets (%s)",
+    (practiceLoudnessTargetLufs) => {
+      expect(
+        organizationMusicLibrarySettingsRequestSchema.safeParse({ practiceLoudnessTargetLufs })
+          .success,
+      ).toBe(true);
+    },
+  );
+  it.each([null, "-18", NaN, Infinity, -30.1, -9.9])(
+    "rejects invalid targets (%s)",
+    (practiceLoudnessTargetLufs) => {
+      expect(
+        organizationMusicLibrarySettingsRequestSchema.safeParse({ practiceLoudnessTargetLufs })
+          .success,
+      ).toBe(false);
+    },
+  );
 });

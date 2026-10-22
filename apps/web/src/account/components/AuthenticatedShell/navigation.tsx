@@ -1,5 +1,6 @@
 import { getAdminFeatureForPath } from "../../organizationFeatures/selectors";
-import { type ReactNode } from "react";
+import { type ReactNode, useId, useState } from "react";
+import { OrganizationFeatureIcon } from "../../organizationFeatures/OrganizationFeatureIcon";
 import type { NavigationGroup, ThemePreference } from "./types";
 
 export function ThemeIcon({ preference }: { readonly preference: ThemePreference }) {
@@ -70,11 +71,100 @@ export function SidebarWorkspaceHeading({
   );
 }
 
+function MemberNavigation({
+  groups,
+  currentHref,
+  navigate,
+}: {
+  readonly groups: readonly NavigationGroup[];
+  readonly currentHref: string | undefined;
+  readonly navigate: (href: string) => void;
+}) {
+  const prefix = useId();
+  const [state, setState] = useState<{
+    readonly href: string | undefined;
+    readonly collapsed: readonly string[];
+  }>({ href: currentHref, collapsed: [] });
+  if (state.href !== currentHref) {
+    const activeGroup = groups.find((group) =>
+      group.items.some((item) => item.href === currentHref),
+    );
+    setState({
+      href: currentHref,
+      collapsed: state.collapsed.filter((label) => label !== activeGroup?.label),
+    });
+  }
+
+  function links(group: NavigationGroup) {
+    return group.items.map((item) => (
+      <AppLink
+        key={item.href}
+        href={item.href}
+        onNavigate={navigate}
+        ariaCurrent={item.href === currentHref ? "page" : undefined}
+        className="organization-nav__link"
+      >
+        {item.iconId ? <OrganizationFeatureIcon iconId={item.iconId} /> : null}
+        <span>{item.label}</span>
+        {item.href === currentHref ? <span className="sr-only"> (current)</span> : null}
+      </AppLink>
+    ));
+  }
+
+  return (
+    <nav aria-label="Workspace navigation" className="organization-nav member-nav">
+      {groups.map((group) => {
+        if (group.id === "home") return <div key={group.label}>{links(group)}</div>;
+        const expanded = !state.collapsed.includes(group.label);
+        const controls = `${prefix}-${encodeURIComponent(group.label)}`;
+        return (
+          <div key={group.label} className="organization-nav__group" data-tone={group.tone}>
+            <button
+              type="button"
+              className="organization-nav__group-button"
+              aria-expanded={expanded}
+              aria-controls={controls}
+              onClick={() => {
+                setState((current) => ({
+                  ...current,
+                  collapsed: expanded
+                    ? [...current.collapsed, group.label]
+                    : current.collapsed.filter((label) => label !== group.label),
+                }));
+              }}
+            >
+              <span className="organization-nav__chip">
+                {group.iconId ? <OrganizationFeatureIcon iconId={group.iconId} /> : null}
+              </span>
+              <span>{group.label}</span>
+              <svg
+                aria-hidden="true"
+                className="organization-nav__chevron"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="m7 10 5 5 5-5" />
+              </svg>
+            </button>
+            <div id={controls} hidden={!expanded} className="organization-nav__children">
+              {links(group)}
+            </div>
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function Navigation({
+  memberStyle = false,
   groups,
   navigate,
   pathname,
 }: {
+  readonly memberStyle?: boolean;
   readonly groups: readonly NavigationGroup[];
   readonly navigate: (href: string) => void;
   readonly pathname: string;
@@ -102,6 +192,9 @@ export function Navigation({
       );
     })?.href ??
     matchingItems.toSorted((left, right) => right.href.length - left.href.length)[0]?.href;
+
+  if (memberStyle)
+    return <MemberNavigation groups={groups} currentHref={currentHref} navigate={navigate} />;
 
   return (
     <nav aria-label="Workspace navigation" className="workspace-nav">

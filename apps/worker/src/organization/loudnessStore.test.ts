@@ -62,7 +62,15 @@ describe("Organization audio analysis claims", () => {
     expect(submitLoudness(storage, { ...scope, actorUserId: "other", submission })).toBe(false);
     expect(submitLoudness(storage, { ...scope, submission })).toBe(true);
     expect(submitLoudness(storage, { ...scope, submission })).toBe(true);
-    expect(readLoudness(storage, [fileId])[fileId]?.integratedLufs).toBe(-26);
+    expect(readLoudness(storage, [fileId])[fileId]).toMatchObject({
+      integratedLufs: -26,
+      targetLufs: -18,
+    });
+    storage.sql.exec("UPDATE organization_metadata SET practice_loudness_target_lufs = -14");
+    expect(readLoudness(storage, [fileId])[fileId]).toMatchObject({
+      integratedLufs: -26,
+      targetLufs: -14,
+    });
     expect(readLoudness(storage, [])).toEqual({});
     storage.sql.exec("UPDATE private_files SET r2_version = 'v2' WHERE id = ?", fileId);
     expect(readLoudness(storage, [fileId])).toEqual({});

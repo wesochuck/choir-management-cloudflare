@@ -21,6 +21,8 @@ export const organizationProfileRequestSchema = z.object({
 });
 
 export const organizationProfileSchema = organizationProfileRequestSchema.extend({
+  showEmailInDirectory: z.boolean().default(true),
+  showPhoneInDirectory: z.boolean().default(true),
   bounceReason: z.string().max(500).default(""),
   createdAt: z.iso.datetime(),
   id: z.uuid(),
@@ -71,10 +73,14 @@ export const memberProfileUpdateRequestSchema = z.object({
   receiveOtherEventReminders: z.boolean().optional(),
   receivePerformanceReminders: z.boolean().optional(),
   receiveRehearsalReminders: z.boolean().optional(),
+  showEmailInDirectory: z.boolean().optional(),
+  showPhoneInDirectory: z.boolean().optional(),
   showInDirectory: z.boolean().default(true),
 });
 
 export const memberProfileSchema = memberProfileUpdateRequestSchema.extend({
+  showEmailInDirectory: z.boolean().default(true),
+  showPhoneInDirectory: z.boolean().default(true),
   email: z.union([z.literal(""), emailAddressSchema]),
   globalStatus: z.enum(["Active", "Idle", "Inactive"]),
   id: z.uuid(),

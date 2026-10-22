@@ -5,7 +5,7 @@ import type { ModuleState } from "@choir/contracts";
 
 import { AppLink, Navigation, SidebarWorkspaceHeading } from "./navigation";
 import type { NavigationGroup } from "./types";
-import { organizationGroups, pageDescription, routeHasModule } from "./utils";
+import { memberGroups, organizationGroups, pageDescription, routeHasModule } from "./utils";
 import { renderOrganizationPage, workspaceNavigation } from "./workspacesUtils";
 
 const groups: readonly NavigationGroup[] = [
@@ -30,6 +30,32 @@ function currentLinks(): readonly HTMLAnchorElement[] {
 }
 
 describe("sidebar navigation behavior", () => {
+  it("shows member icons and supports collapsing groups and revealing the active destination", () => {
+    const navigate = vi.fn();
+    const { rerender } = render(
+      <Navigation memberStyle groups={memberGroups} navigate={navigate} pathname="/dashboard" />,
+    );
+    expect(screen.getAllByRole("link")).toHaveLength(7);
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
+    }
+    const membership = screen.getByRole("button", { name: "Your membership" });
+    fireEvent.click(membership);
+    expect(membership).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "My schedule" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Practice" })).toBeVisible();
+    rerender(
+      <Navigation memberStyle groups={memberGroups} navigate={navigate} pathname="/profile" />,
+    );
+    expect(membership).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: /My Profile/ })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    fireEvent.click(screen.getByRole("link", { name: "Season dues" }));
+    expect(navigate).toHaveBeenCalledWith("/dues");
+  });
+
   it("shares one workspace heading hierarchy", () => {
     const { container } = render(
       <SidebarWorkspaceHeading organizationName="Alpha Choir" workspaceName="Organization Admin" />,

@@ -613,3 +613,38 @@ test("light and dark themes keep navigation readable", async ({ page }) => {
   }
   api.assertNoUnexpectedRequests();
 });
+
+test("member sidebar uses icon groups on desktop and mobile in both themes", async ({
+  page,
+}, info) => {
+  const api = await installOrganizationApi(page, { role: "member", strict: true });
+  api.setSingerDashboard(buildSingerDashboardResponse({ organizationName: "Organization Alpha" }));
+  await page.goto("/dashboard");
+  await expect(page.getByRole("heading", { name: "Dashboard", exact: true })).toBeVisible();
+  for (const theme of ["light", "dark"] as const) {
+    const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await toggle.isVisible()) await toggle.click();
+    const opener = page.getByRole("button", { name: "Open workspace navigation" });
+    const mobile = info.project.name === "mobile-chromium";
+    if (mobile) await opener.click();
+    const nav = mobile
+      ? page.getByRole("dialog", { name: "Workspace navigation" })
+      : page.locator(".signed-in-sidebar");
+    const membership = nav.getByRole("button", { name: "Your membership", exact: true });
+    await expect(membership).toHaveAttribute("aria-expanded", "true");
+    await expect(nav.locator('.member-nav a[aria-current="page"]')).toHaveCount(1);
+    await expect(nav.locator(".member-nav a svg")).toHaveCount(7);
+    await membership.click();
+    await expect(nav.getByRole("link", { name: "My schedule", exact: true })).toBeHidden();
+    await membership.click();
+    await expect(nav.getByRole("link", { name: "My schedule", exact: true })).toBeVisible();
+    const practice = nav.getByRole("button", { name: "Practice & resources", exact: true });
+    await practice.click();
+    await expect(nav.getByRole("link", { name: "Practice", exact: true })).toBeHidden();
+    await practice.click();
+    expect(await nav.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+    await page.screenshot({ path: info.outputPath(`member-sidebar-${theme}.png`) });
+    if (mobile) await page.keyboard.press("Escape");
+  }
+  api.assertNoUnexpectedRequests();
+});

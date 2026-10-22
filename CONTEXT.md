@@ -989,3 +989,9 @@ controls in the Organization Admin workspace. It enables administrators and owne
 to administrative pages, feature configuration sub-tabs, roster profiles, events, music pieces, and
 quick actions within the active Organization Scope. _Avoid_: Global search across Organizations,
 Member command palette
+
+## Practice Loudness Target
+
+The Organization's desired listening level for practice recordings, expressed in LUFS. A
+less-negative target requests louder playback. A recording's peaks can limit how closely playback
+reaches that target; changing the target does not change the original recording.

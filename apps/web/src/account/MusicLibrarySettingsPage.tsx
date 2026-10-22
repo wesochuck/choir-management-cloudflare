@@ -705,7 +705,22 @@ export function MusicLibrarySettingsPage({
             savedTemplate={savedSettings?.publisherSearchTemplate}
             template={settings.publisherSearchTemplate}
           />
-          <LoudnessAnalysisPanel />
+          <LoudnessAnalysisPanel
+            pieces={pieces}
+            navigate={navigate}
+            targetLufs={settings.practiceLoudnessTargetLufs ?? -18}
+            savedTargetLufs={savedSettings?.practiceLoudnessTargetLufs ?? -18}
+            saving={saving}
+            onTargetChange={(value) => {
+              updateField("practiceLoudnessTargetLufs", value);
+            }}
+            onSaveTarget={() => {
+              void save();
+            }}
+            onPieceSaved={(piece) => {
+              mergeUpdatedPieces([piece]);
+            }}
+          />
           <MusicPracticeSettingsSection
             busy={saving}
             lifetimeDays={settings.practicePlayerLinkLifetimeDays}

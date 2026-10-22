@@ -406,6 +406,46 @@ describe("Organization music catalog", () => {
     ).toMatchObject({ status: 403 });
   });
 
+  it("saves the Organization loudness target and preserves it for older clients", async () => {
+    const cookie = await signIn();
+    const path = "/api/organization/music-library-settings";
+    const response = await write(
+      "alpha.localhost",
+      path,
+      cookie,
+      { practiceLoudnessTargetLufs: -14 },
+      "PUT",
+    );
+    expect(response.status).toBe(200);
+    expect(
+      organizationMusicLibrarySettingsResponseSchema.parse(await response.json())
+        .practiceLoudnessTargetLufs,
+    ).toBe(-14);
+    const legacyUpdate = await write(
+      "alpha.localhost",
+      path,
+      cookie,
+      { defaultPageSize: 50 },
+      "PUT",
+    );
+    expect(
+      organizationMusicLibrarySettingsResponseSchema.parse(await legacyUpdate.json())
+        .practiceLoudnessTargetLufs,
+    ).toBe(-14);
+    const bravo = await exports.default.fetch(api("bravo.localhost", path, cookie));
+    expect(
+      organizationMusicLibrarySettingsResponseSchema.parse(await bravo.json())
+        .practiceLoudnessTargetLufs,
+    ).toBe(-18);
+    for (const value of [-31, -9, null, "-18"]) {
+      expect(
+        (await write("alpha.localhost", path, cookie, { practiceLoudnessTargetLufs: value }, "PUT"))
+          .status,
+      ).toBe(400);
+    }
+    expect((await exports.default.fetch(api("alpha.localhost", path))).status).toBe(401);
+  });
+
   it("stores publisher search templates per Organization and enforces HTTPS placeholders", async () => {
     const cookie = await signIn();
     const initial = organizationMusicLibrarySettingsResponseSchema.parse(

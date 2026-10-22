@@ -1,5 +1,5 @@
-import type { MemberDashboardResponse } from "@choir/contracts";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { seasonSchema, type MemberDashboardResponse } from "@choir/contracts";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as authApi from "../auth/api";
@@ -35,6 +35,48 @@ describe("DashboardView", () => {
     resourcesState: "ready",
     timezone: "America/New_York",
   };
+
+  it.each(["paid", null, "pending", "expired", "refunded"] as const)(
+    "places dues appropriately and confirms payment only for status %s",
+    async (duesStatus) => {
+      vi.spyOn(authApi, "getMemberDashboard").mockResolvedValueOnce({
+        ...mockDashboard,
+        activeSeason: {
+          duesStatus,
+          season: seasonSchema.parse({
+            id: "33333333-3333-4333-8333-333333333333",
+            name: "Current season",
+            createdAt: "2026-08-01T00:00:00.000Z",
+            updatedAt: "2026-08-01T00:00:00.000Z",
+            startsAt: "2026-09-01T00:00:00.000Z",
+            endsAt: "2027-05-01T00:00:00.000Z",
+            duesAmountCents: 2000,
+            isActive: true,
+          }),
+        },
+      });
+      render(<DashboardView accessStatus="ready" enabled navigate={vi.fn()} />);
+      await screen.findByText("Current season");
+      const updates = screen.getByRole("complementary", { name: "Member updates" });
+      const widgets = within(updates).getAllByRole("group");
+      const dues = within(updates).getByRole("group", { name: "Season dues" });
+      if (duesStatus === "paid") {
+        expect(widgets.at(-1)).toBe(dues);
+        expect(within(dues).getByText("Paid in full")).toBeVisible();
+        expect(
+          within(dues).getByText("Thank you! Your dues are paid for this season."),
+        ).toBeVisible();
+      } else {
+        expect(widgets[0]).toBe(dues);
+        expect(within(dues).queryByText("Paid in full")).not.toBeInTheDocument();
+        expect(within(dues).queryByText(/Thank you/)).not.toBeInTheDocument();
+      }
+      expect(within(dues).getByRole("link", { name: "View dues details" })).toHaveAttribute(
+        "href",
+        "/dues",
+      );
+    },
+  );
 
   beforeEach(() => {
     vi.restoreAllMocks();

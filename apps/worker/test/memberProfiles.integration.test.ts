@@ -59,6 +59,144 @@ afterEach(async () => {
 });
 
 describe("linked-member Profile and directory", () => {
+  it("persists independent directory contact choices and never returns hidden values", async () => {
+    const cookie = await signIn();
+    const create = async (host: string) =>
+      organizationProfileResponseSchema.parse(
+        await (
+          await write(host, "/api/organization/profiles", cookie, {
+            displayName: "Directory Singer",
+            phone: "555-0321",
+          })
+        ).json(),
+      );
+    const own = await create("alpha.localhost");
+    const bravo = await create("bravo.localhost");
+    for (const [organizationId, profileId] of [
+      ["organization-alpha", own.id],
+      ["organization-bravo", bravo.id],
+    ]) {
+      await database
+        .prepare(
+          "UPDATE member SET profileId = ?, role = 'member' WHERE organizationId = ? AND userId = 'member-profile-user'",
+        )
+        .bind(profileId, organizationId)
+        .run();
+    }
+    const readSelf = async (host = "alpha.localhost") =>
+      memberProfileResponseSchema.parse(
+        await (await exports.default.fetch(api(host, "/api/singer/profile", cookie))).json(),
+      );
+    const readDirectory = async () =>
+      organizationDirectoryResponseSchema.parse(
+        await (
+          await exports.default.fetch(api("alpha.localhost", "/api/singer/directory", cookie))
+        ).json(),
+      );
+    expect(await readSelf()).toMatchObject({
+      showEmailInDirectory: true,
+      showPhoneInDirectory: true,
+    });
+    for (const [showEmailInDirectory, showPhoneInDirectory] of [
+      [true, true],
+      [false, true],
+      [true, false],
+      [false, false],
+    ]) {
+      const response = await write(
+        "alpha.localhost",
+        "/api/singer/profile",
+        cookie,
+        {
+          displayName: "Directory Singer",
+          phone: "555-0321",
+          showInDirectory: true,
+          showEmailInDirectory,
+          showPhoneInDirectory,
+          profileId: bravo.id,
+        },
+        "PUT",
+      );
+      expect(response.status).toBe(200);
+      expect(memberProfileResponseSchema.parse(await response.json())).toMatchObject({
+        id: own.id,
+        showEmailInDirectory,
+        showPhoneInDirectory,
+        email: USER_EMAIL,
+        phone: "555-0321",
+      });
+      expect((await readDirectory()).profiles).toEqual([
+        expect.objectContaining({
+          id: own.id,
+          email: showEmailInDirectory ? USER_EMAIL : "",
+          phone: showPhoneInDirectory ? "555-0321" : "",
+        }),
+      ]);
+    }
+    // Omitted settings from older member clients preserve both saved opt-outs.
+    await write(
+      "alpha.localhost",
+      "/api/singer/profile",
+      cookie,
+      { displayName: "Renamed Singer", phone: "555-0321" },
+      "PUT",
+    );
+    expect(await readSelf()).toMatchObject({
+      showEmailInDirectory: false,
+      showPhoneInDirectory: false,
+    });
+    expect(await readSelf("bravo.localhost")).toMatchObject({
+      showEmailInDirectory: true,
+      showPhoneInDirectory: true,
+    });
+    for (const showInDirectory of [false, true]) {
+      await write(
+        "alpha.localhost",
+        "/api/singer/profile",
+        cookie,
+        { displayName: "Renamed Singer", phone: "555-0321", showInDirectory },
+        "PUT",
+      );
+      expect((await readDirectory()).profiles).toHaveLength(showInDirectory ? 1 : 0);
+    }
+    expect((await readDirectory()).profiles[0]).toMatchObject({ email: "", phone: "" });
+    expect(
+      (
+        await write(
+          "alpha.localhost",
+          "/api/singer/profile",
+          cookie,
+          {
+            displayName: "Bad request",
+            showEmailInDirectory: "false",
+          },
+          "PUT",
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (await exports.default.fetch(api("alpha.localhost", "/api/singer/directory"))).status,
+    ).toBe(401);
+    // Manager edits must also preserve member-owned directory choices.
+    await database
+      .prepare(
+        "UPDATE member SET role = 'admin' WHERE organizationId = 'organization-alpha' AND userId = 'member-profile-user'",
+      )
+      .run();
+    const adminEdit = await write(
+      "alpha.localhost",
+      `/api/organization/profiles/${own.id}`,
+      cookie,
+      { displayName: "Manager edit", phone: "555-0321" },
+      "PUT",
+    );
+    expect(adminEdit.status).toBe(200);
+    expect(await readSelf()).toMatchObject({
+      showEmailInDirectory: false,
+      showPhoneInDirectory: false,
+    });
+  });
+
   it("limits self-service fields and exposes only opted-in non-Inactive directory entries", async () => {
     const cookie = await signIn();
     const own = organizationProfileResponseSchema.parse(

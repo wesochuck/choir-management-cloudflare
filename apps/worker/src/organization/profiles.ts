@@ -22,7 +22,13 @@ interface ProfileEmailRow {
 }
 
 const directoryStoreResponseSchema = z.object({
-  profiles: z.array(organizationDirectoryProfileSchema.omit({ email: true })).max(500),
+  profiles: z
+    .array(
+      organizationDirectoryProfileSchema.omit({ email: true }).extend({
+        showEmailInDirectory: z.union([z.literal(0), z.literal(1)]).default(1),
+      }),
+    )
+    .max(500),
 });
 
 export class OrganizationProfileMutationError extends Error {
@@ -152,10 +158,12 @@ export async function listOrganizationDirectoryProfiles(
     listOrganizationProfileEmails(database, organizationId),
   ]);
   if (!response.ok) throw new Error("The Organization store rejected the directory request.");
-  return directoryStoreResponseSchema.parse(await response.json()).profiles.map((profile) => ({
-    ...profile,
-    email: emails.get(profile.id) ?? "",
-  }));
+  return directoryStoreResponseSchema
+    .parse(await response.json())
+    .profiles.map(({ showEmailInDirectory, ...profile }) => ({
+      ...profile,
+      email: showEmailInDirectory === 1 ? (emails.get(profile.id) ?? "") : "",
+    }));
 }
 
 export async function createOrganizationProfile(

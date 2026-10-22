@@ -17,6 +17,23 @@ describe("constant peak-safe practice gain", () => {
     expect(practiceLoudnessGain(measurement(-26, 3)).appliedGainDb).toBe(-4);
     expect(practiceLoudnessGain(measurement(-70, -100)).appliedGainDb).toBe(18);
   });
+  it("uses the Organization target without removing peak and boost protection", () => {
+    expect(practiceLoudnessGain({ ...measurement(-26, -20), targetLufs: -14 }).appliedGainDb).toBe(
+      12,
+    );
+    expect(practiceLoudnessGain({ ...measurement(-26, -3), targetLufs: -10 }).appliedGainDb).toBe(
+      2,
+    );
+    expect(practiceLoudnessGain({ ...measurement(-70, -100), targetLufs: -10 }).appliedGainDb).toBe(
+      18,
+    );
+    expect(practiceLoudnessGain({ ...measurement(-12, -2), targetLufs: -24 }).appliedGainDb).toBe(
+      -12,
+    );
+    for (const targetLufs of [NaN, Infinity, -31, -9]) {
+      expect(practiceLoudnessGain({ ...measurement(-26, -20), targetLufs }).appliedGainDb).toBe(8);
+    }
+  });
   it("uses unity for absent, nonfinite, out-of-range and outdated results", () => {
     for (const value of [
       undefined,

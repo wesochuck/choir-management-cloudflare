@@ -309,7 +309,7 @@ export function readLoudness(
         integratedLufs: number;
         truePeakDbtp: number;
       }>(
-        `SELECT a.file_id AS fileId, a.analysis_version AS analysisVersion, a.content_version AS contentVersion, a.integrated_lufs AS integratedLufs, a.true_peak_dbtp AS truePeakDbtp FROM audio_loudness a JOIN private_files f ON f.id = a.file_id WHERE a.status = 'ready' AND f.status = 'ready' AND a.content_version = f.r2_version AND a.file_id IN (${batch.map(() => "?").join(",")})`,
+        `SELECT (SELECT practice_loudness_target_lufs FROM organization_metadata LIMIT 1) AS targetLufs, a.file_id AS fileId, a.analysis_version AS analysisVersion, a.content_version AS contentVersion, a.integrated_lufs AS integratedLufs, a.true_peak_dbtp AS truePeakDbtp FROM audio_loudness a JOIN private_files f ON f.id = a.file_id WHERE a.status = 'ready' AND f.status = 'ready' AND a.content_version = f.r2_version AND a.file_id IN (${batch.map(() => "?").join(",")})`,
         ...batch,
       )
       .toArray();

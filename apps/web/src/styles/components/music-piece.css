@@ -338,6 +338,10 @@
     gap: var(--spacing-xs);
   }
 
+  .music-audio-tracks--repair .music-audio-track__controls {
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+  }
+
   .music-audio-track-add {
     padding-top: var(--spacing-sm);
     border-top: 1px dashed var(--color-border);

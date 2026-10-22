@@ -8,12 +8,13 @@ export function storedMusicLibrarySettings(storage: DurableObjectStorage) {
   try {
     const raw = storage.sql
       .exec<{
+        readonly targetLufs: number;
         readonly defaultPageSize: number | null;
         readonly genresJson: string;
         readonly lifetimeDays: number;
         readonly template: string;
       }>(
-        `SELECT music_genres_json AS genresJson,
+        `SELECT practice_loudness_target_lufs AS targetLufs, music_genres_json AS genresJson,
            music_publisher_search_template AS template,
            practice_player_link_lifetime_days AS lifetimeDays,
            music_default_page_size AS defaultPageSize
@@ -24,6 +25,7 @@ export function storedMusicLibrarySettings(storage: DurableObjectStorage) {
     return organizationMusicLibrarySettingsRequestSchema.parse({
       defaultPageSize: raw?.defaultPageSize ?? 100,
       genres: raw === undefined ? [] : (JSON.parse(raw.genresJson) as unknown),
+      practiceLoudnessTargetLufs: raw?.targetLufs ?? -18,
       practicePlayerLinkLifetimeDays: raw?.lifetimeDays ?? 180,
       publisherSearchTemplate: raw?.template ?? "",
     });
@@ -53,11 +55,13 @@ export function updateMusicLibrarySettings(
          music_publisher_search_template = ?,
          practice_player_link_lifetime_days = ?,
          music_default_page_size = ?,
+         practice_loudness_target_lufs = COALESCE(?, practice_loudness_target_lufs),
          updated_at = ?`,
       JSON.stringify(operation.settings.genres),
       operation.settings.publisherSearchTemplate,
       operation.settings.practicePlayerLinkLifetimeDays,
       operation.settings.defaultPageSize,
+      operation.settings.practiceLoudnessTargetLufs ?? null,
       occurredAt,
     );
     storage.sql.exec(
@@ -72,6 +76,9 @@ export function updateMusicLibrarySettings(
       operation.requestId,
       JSON.stringify({
         defaultPageSize: operation.settings.defaultPageSize,
+        ...(operation.settings.practiceLoudnessTargetLufs !== undefined
+          ? { practiceLoudnessTargetLufs: operation.settings.practiceLoudnessTargetLufs }
+          : {}),
         genres: operation.settings.genres,
         practicePlayerLinkLifetimeDays: operation.settings.practicePlayerLinkLifetimeDays,
         publisherSearchTemplate: operation.settings.publisherSearchTemplate,
@@ -79,5 +86,5 @@ export function updateMusicLibrarySettings(
       occurredAt,
     );
   });
-  return Response.json(operation.settings);
+  return Response.json(storedMusicLibrarySettings(storage));
 }

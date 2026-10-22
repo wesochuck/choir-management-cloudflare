@@ -62,6 +62,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         receiveRehearsalReminders: profile.receiveRehearsalReminders,
         requestId: context.get("requestId"),
         showInDirectory: profile.showInDirectory,
+        showEmailInDirectory: profile.showEmailInDirectory,
+        showPhoneInDirectory: profile.showPhoneInDirectory,
         voicePart: profile.voicePart,
       });
     } catch {
@@ -243,6 +245,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         receiveRehearsalReminders: profile.receiveRehearsalReminders,
         requestId: context.get("requestId"),
         showInDirectory: profile.showInDirectory,
+        showEmailInDirectory: profile.showEmailInDirectory,
+        showPhoneInDirectory: profile.showPhoneInDirectory,
         voicePart: profile.voicePart,
       });
     } catch {

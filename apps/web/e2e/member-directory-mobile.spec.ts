@@ -81,3 +81,44 @@ for (const theme of ["light", "dark"] as const) {
     });
   }
 }
+
+test("members independently control directory email and phone visibility", async ({
+  page,
+}, info) => {
+  const api = await installOrganizationApi(page, { role: "member", strict: true });
+  for (const theme of ["light", "dark"] as const) {
+    await page.goto("/profile");
+    const email = page.getByRole("checkbox", { name: "Show my email in the directory" });
+    const phone = page.getByRole("checkbox", { name: "Show my phone number in the directory" });
+    await expect(email).toBeChecked();
+    await expect(phone).toBeChecked();
+    const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await toggle.isVisible()) await toggle.click();
+    await email.uncheck();
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect(page.getByText("Your Organization Profile was updated.")).toBeVisible();
+    expect(api.memberProfile.get().showEmailInDirectory).toBe(false);
+    expect(api.memberProfile.get().showPhoneInDirectory).toBe(true);
+    await page.reload();
+    await expect(email).not.toBeChecked();
+    await expect(phone).toBeChecked();
+    await phone.uncheck();
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect(page.getByText("Your Organization Profile was updated.")).toBeVisible();
+    await page.screenshot({
+      path: info.outputPath(`directory-preferences-${theme}.png`),
+      fullPage: true,
+    });
+    await page.goto("/directory");
+    const own = page.getByRole("listitem", { name: "Directory Profile: Browser Singer" });
+    await expect(own).toBeVisible();
+    await expect(own.locator('a[href^="mailto:"]')).toHaveCount(0);
+    await expect(own.locator('a[href^="tel:"]')).toHaveCount(0);
+    await page.goto("/profile");
+    await email.check();
+    await phone.check();
+    await page.getByRole("button", { name: "Save changes", exact: true }).click();
+    await expect(page.getByText("Your Organization Profile was updated.")).toBeVisible();
+  }
+  api.assertNoUnexpectedRequests();
+});

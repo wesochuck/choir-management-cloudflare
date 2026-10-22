@@ -1,6 +1,8 @@
 import { z } from "zod";
 
+// targetLufs is current playback configuration, independent of the stored measurement.
 export const loudnessMeasurementSchema = z.object({
+  targetLufs: z.number().min(-30).max(-10).optional(),
   analysisVersion: z.literal(1),
   contentVersion: z.string().min(1).max(256),
   integratedLufs: z.number().min(-70).max(0),

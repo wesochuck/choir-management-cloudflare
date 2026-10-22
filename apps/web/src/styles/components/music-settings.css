@@ -1,6 +1,7 @@
 /* Music publisher and practice settings. */
 @layer components {
   /* Music publisher and practice settings */
+  .music-loudness-settings,
   .music-publisher-settings,
   .music-practice-settings,
   .music-library-genre-settings {
@@ -14,6 +15,7 @@
     background: var(--color-surface-raised);
   }
 
+  .music-loudness-settings legend,
   .music-publisher-settings legend,
   .music-practice-settings legend,
   .music-library-genre-settings legend {
@@ -23,6 +25,14 @@
     font-weight: var(--font-weight-semibold);
   }
 
+  .music-loudness-settings > p,
+  .music-loudness-settings .loudness-failures > h3,
+  .music-loudness-settings .loudness-failures > p {
+    margin: 0;
+  }
+  .music-loudness-settings .table-actions {
+    flex-wrap: wrap;
+  }
   .music-publisher-settings__form,
   .music-catalog-settings__form {
     display: grid;
