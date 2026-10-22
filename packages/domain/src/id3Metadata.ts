@@ -252,11 +252,25 @@ function applyV23And4Frame(frameId: string, frameData: Uint8Array, target: V2Fra
   }
 }
 
+function transformTextFrame(
+  data: Uint8Array,
+  version: number,
+  flags: number,
+  unsync: boolean,
+): Uint8Array | null {
+  if ((version === 3 && (flags & 0xe0) !== 0) || (version === 4 && (flags & 0x4c) !== 0))
+    return null;
+  if (version !== 4) return data;
+  const decoded = unsync || (flags & 0x02) !== 0 ? removeUnsynchronization(data) : data;
+  return (flags & 0x01) !== 0 ? decoded.subarray(4) : decoded;
+}
+
 function parseId3v23And4Frames(
   body: Uint8Array,
   startOffset: number,
   majorVersion: number,
   target: V2FramesResult,
+  tagUnsync = false,
 ) {
   let offset = startOffset;
   while (offset + 10 <= body.length) {
@@ -273,11 +287,15 @@ function parseId3v23And4Frames(
     const b7 = getByte(body, offset + 7);
     const frameSize =
       majorVersion === 4 ? readSynchsafe32(b4, b5, b6, b7) : readUint32BE(b4, b5, b6, b7);
+    const formatFlags = getByte(body, offset + 9);
     offset += 10;
     if (frameSize <= 0 || offset + frameSize > body.length) break;
 
-    const frameData = body.subarray(offset, offset + frameSize);
+    let frameData = body.subarray(offset, offset + frameSize);
     offset += frameSize;
+    const transformed = transformTextFrame(frameData, majorVersion, formatFlags, tagUnsync);
+    if (!transformed) continue;
+    frameData = transformed;
     applyV23And4Frame(frameId, frameData, target);
   }
 }
@@ -288,7 +306,7 @@ function parseId3v2Tag(tagHeader: Uint8Array, tagBody: Uint8Array): Partial<Pars
   const unsync = (flags & 0x80) !== 0;
   const extendedHeader = (flags & 0x40) !== 0;
 
-  const body = unsync ? removeUnsynchronization(tagBody) : tagBody;
+  const body = unsync && majorVersion < 4 ? removeUnsynchronization(tagBody) : tagBody;
 
   let offset = 0;
   if (extendedHeader && body.length >= 4) {
@@ -315,7 +333,7 @@ function parseId3v2Tag(tagHeader: Uint8Array, tagBody: Uint8Array): Partial<Pars
   if (majorVersion === 2) {
     parseId3v22Frames(body, offset, result);
   } else if (majorVersion === 3 || majorVersion === 4) {
-    parseId3v23And4Frames(body, offset, majorVersion, result);
+    parseId3v23And4Frames(body, offset, majorVersion, result, unsync);
   }
 
   return result;
@@ -341,7 +359,52 @@ function isId3v2Header(header: Uint8Array): boolean {
     return false;
   }
   const v = getByte(header, 3);
-  return v === 2 || v === 3 || v === 4;
+  return (v === 2 || v === 3 || v === 4) && header.subarray(6, 10).every((byte) => byte < 128);
+}
+
+function supportsFrameTraversal(header: Uint8Array): boolean {
+  return [3, 4].includes(getByte(header, 3)) && getByte(header, 5) === 0;
+}
+
+async function readV2Metadata(
+  reader: AsyncByteSliceReader,
+  header: Uint8Array,
+  declaredTagSize: number,
+  readLength: number,
+): Promise<Partial<ParsedId3Metadata>> {
+  if (!supportsFrameTraversal(header)) return parseId3v2Tag(header, await reader(10, readLength));
+  const textFrames: number[] = [];
+  let offset = 0;
+  let consumed = 0;
+  while (offset + 10 <= declaredTagSize && consumed + 10 <= readLength) {
+    const frame = await reader(10 + offset, 10);
+    consumed += 10;
+    if (frame.length !== 10) break;
+    const id = String.fromCharCode(...frame.subarray(0, 4));
+    if (!/^[A-Z0-9]{4}$/u.test(id)) break;
+    const size =
+      getByte(header, 3) === 4
+        ? readSynchsafe32(
+            getByte(frame, 4),
+            getByte(frame, 5),
+            getByte(frame, 6),
+            getByte(frame, 7),
+          )
+        : readUint32BE(getByte(frame, 4), getByte(frame, 5), getByte(frame, 6), getByte(frame, 7));
+    if (size <= 0 || offset + 10 + size > declaredTagSize) break;
+    if (
+      ["TIT2", "TPE1", "TCOM", "TALB", "TRCK", "COMM"].includes(id) &&
+      size <= readLength - consumed
+    ) {
+      const data = await reader(20 + offset, size);
+      consumed += size;
+      if (data.length !== size) break;
+      textFrames.push(...frame);
+      for (const byte of data) textFrames.push(byte);
+    }
+    offset += 10 + size;
+  }
+  return parseId3v2Tag(header, new Uint8Array(textFrames));
 }
 
 export async function parseId3MetadataFromReader(
@@ -360,10 +423,12 @@ export async function parseId3MetadataFromReader(
           getByte(header, 8),
           getByte(header, 9),
         );
-        if (declaredTagSize > 0) {
-          const readLength = Math.min(declaredTagSize, maxBudgetBytes);
-          const body = await reader(10, readLength);
-          v2Meta = parseId3v2Tag(header, body);
+        if (declaredTagSize > 0 && declaredTagSize <= fileSizeBytes - 10) {
+          const readLength = Math.min(
+            declaredTagSize,
+            Math.max(0, Math.min(maxBudgetBytes, DEFAULT_ID3_MAX_BUDGET_BYTES)),
+          );
+          v2Meta = await readV2Metadata(reader, header, declaredTagSize, readLength);
         }
       }
     }
@@ -398,7 +463,10 @@ export function parseId3MetadataFromBytes(
       getByte(bytes, 9),
     );
     if (declaredTagSize > 0) {
-      const readLength = Math.min(declaredTagSize, maxBudgetBytes);
+      const readLength = Math.min(
+        declaredTagSize,
+        Math.max(0, Math.min(maxBudgetBytes, DEFAULT_ID3_MAX_BUDGET_BYTES)),
+      );
       const body = bytes.subarray(10, Math.min(bytes.length, 10 + readLength));
       v2Meta = parseId3v2Tag(bytes.subarray(0, 10), body);
     }

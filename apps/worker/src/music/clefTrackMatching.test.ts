@@ -36,7 +36,7 @@ describe("Clef track matching", () => {
     );
   });
 
-  it.each(["none", "p0"])("keeps %s uncertain decisions unassigned", async (choice) => {
+  it.each(["none"])("keeps %s uncertain decisions unassigned", async (choice) => {
     const run = vi.fn().mockResolvedValue(answer(choice, 0.4));
     expect((await suggestClefTrackMatches(request, run))[0]).toMatchObject({
       confidence: "none",
@@ -89,16 +89,15 @@ describe("Clef track matching", () => {
       fileNames: ["track.mp3"],
       detectedParts: [],
     }));
-    const run = vi
-      .fn()
-      .mockResolvedValueOnce({
+    const run = vi.fn().mockImplementation((input: { questions: Record<string, unknown> }) =>
+      Promise.resolve({
         answers: Object.fromEntries(
-          Array.from({ length: 5 }, (_, index) => [`g${String(index)}`, answer().answers.g0]),
+          Object.keys(input.questions).map((id) => [id, answer().answers.g0]),
         ),
-      })
-      .mockResolvedValueOnce(answer());
+      }),
+    );
     const result = await suggestClefTrackMatches({ ...request, groups }, run);
-    expect(run).toHaveBeenCalledTimes(2);
+    expect(run).toHaveBeenCalledTimes(1);
     expect(result.map((suggestion) => suggestion.groupId)).toEqual(
       groups.map((group) => group.groupId),
     );
@@ -194,4 +193,147 @@ describe("Clef track matching", () => {
       },
     ]);
   });
+});
+
+describe("AI matching safety boundaries", () => {
+  it.each([0.5, 0.69])("retains a %s alternative without preselecting", async (probability) => {
+    const result = await suggestClefTrackMatches(
+      request,
+      vi.fn().mockResolvedValue(answer("p0", probability)),
+    );
+    expect(result[0]?.suggestedPieceId).toBeNull();
+    expect(result[0]?.topCandidates?.[0]?.probability).toBe(probability);
+    expect(result[0]?.noneProbability).toBeCloseTo(1 - probability);
+  });
+
+  it("does not preselect a strong model estimate supported only by duration", async () => {
+    const result = await suggestClefTrackMatches(
+      {
+        ...request,
+        groups: [
+          { groupId: "unknown", fileNames: ["Part2.mp3"], detectedParts: [], durationSeconds: 180 },
+        ],
+      },
+      vi.fn().mockResolvedValue(answer()),
+    );
+    expect(result[0]?.suggestedPieceId).toBeNull();
+  });
+
+  it("packs many ambiguous files by bytes and questions with bounded concurrency", async () => {
+    let active = 0;
+    let peak = 0;
+    const groups = Array.from({ length: 8 }, (_, g) => ({
+      groupId: `group-${String(g)}`,
+      detectedParts: [],
+      fileNames: Array.from({ length: 50 }, (_, f) => `Song_${String(g)}_${String(f)}.mp3`),
+      fileMetadata: Array.from({ length: 50 }, (_, f) => ({
+        clientFileId: `${String(g)}-${String(f)}`,
+        fileName: `Song_${String(g)}_${String(f)}.mp3`,
+        title: "Song",
+      })),
+    }));
+    const run = vi.fn(async (input: Record<string, unknown>) => {
+      const parsed = input.questions;
+      if (!parsed || typeof parsed !== "object") throw new Error("Missing questions");
+      expect(Object.keys(parsed).length).toBeLessThanOrEqual(64);
+      expect(new TextEncoder().encode(JSON.stringify(input)).length).toBeLessThanOrEqual(20_000);
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      active -= 1;
+      return {
+        answers: Object.fromEntries(
+          Object.keys(parsed).map((id) => [
+            id,
+            id.startsWith("f_")
+              ? { choice: "none", confidence: 1, probabilities: { none: 1 }, type: "choice" }
+              : answer().answers.g0,
+          ]),
+        ),
+      };
+    });
+    const results = await suggestClefTrackMatches(
+      { ...request, groups, configuredPartKeys: ["Low"] },
+      run,
+    );
+    expect(peak).toBe(2);
+    expect(run.mock.calls.length).toBeGreaterThan(6);
+    expect(results.map((r) => r.groupId)).toEqual(groups.map((g) => g.groupId));
+    for (const result of results)
+      expect(result.filePartSuggestions?.map((f) => f.clientFileId)).toEqual(
+        groups.find((g) => g.groupId === result.groupId)?.fileMetadata.map((f) => f.clientFileId),
+      );
+  });
+
+  it("enforces the shared deadline even when the provider ignores cancellation", async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new AbortController();
+      const pending = suggestClefTrackMatches(
+        request,
+        () =>
+          new Promise(() => {
+            /* Provider deliberately ignores cancellation. */
+          }),
+        controller.signal,
+      );
+      const rejection = expect(pending).rejects.toMatchObject({ code: "service_unavailable" });
+      controller.abort();
+      await rejection;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("preflights every planned call before starting inference", async () => {
+    const run = vi.fn();
+    await expect(
+      suggestClefTrackMatches(
+        {
+          ...request,
+          groups: [
+            { groupId: "small", detectedParts: [], fileNames: ["Song.mp3"] },
+            {
+              groupId: "oversized",
+              detectedParts: [],
+              fileNames: Array.from({ length: 50 }, () => "x".repeat(500)),
+            },
+          ],
+        },
+        run,
+      ),
+    ).rejects.toMatchObject({ code: "validation_failed" });
+    expect(run).not.toHaveBeenCalled();
+  });
+});
+
+it.each([
+  { choice: "foreign", probabilities: { foreign: 1, none: 0 } },
+  { choice: "Low", probabilities: { Low: 0.9, none: 0.9 } },
+  { choice: "Low", probabilities: { Low: 0.9, foreign: 0.1, none: 0 } },
+  { choice: "Low", probabilities: { Low: 0.2, none: 0.8 } },
+])("rejects invalid part distributions before applying any suggestions", async (value) => {
+  const partRequest = {
+    ...request,
+    configuredPartKeys: ["Low"],
+    groups: [
+      {
+        groupId: "group-1",
+        detectedParts: [],
+        fileNames: ["Song.mp3"],
+        fileMetadata: [{ clientFileId: "stable", fileName: "Song.mp3" }],
+      },
+    ],
+  };
+  await expect(
+    suggestClefTrackMatches(
+      partRequest,
+      vi.fn().mockResolvedValue({
+        answers: {
+          ...answer().answers,
+          f_0_0: { ...value, confidence: 0.9, type: "choice" },
+        },
+      }),
+    ),
+  ).rejects.toMatchObject({ code: "service_unavailable" });
 });

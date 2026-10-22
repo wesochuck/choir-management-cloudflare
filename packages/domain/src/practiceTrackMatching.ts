@@ -88,7 +88,7 @@ const DEFAULT_PART_ALIASES: readonly {
   { alias: "full", key: "tutti", label: "Tutti" },
   { alias: "mix", key: "tutti", label: "Tutti" },
   { alias: "all", key: "tutti", label: "Tutti" },
-  { alias: "choir", key: "tutti", label: "Tutti" },
+
   { alias: "ensemble", key: "tutti", label: "Tutti" },
 
   // Soprano
@@ -160,6 +160,14 @@ function normalizePartName(value: string): string {
     .replace(/^basses$/u, "bass");
 }
 
+function skipUnconfiguredPart(
+  parts: readonly ConfiguredPartOption[],
+  match: ConfiguredPartOption | null | undefined,
+  key: string,
+): boolean {
+  return parts.length > 0 && !match && !["tutti", "accompaniment"].includes(key);
+}
+
 function buildPartCandidates(
   configuredParts: readonly ConfiguredPartOption[],
 ): { alias: string; key: string; label: string }[] {
@@ -195,6 +203,7 @@ function buildPartCandidates(
     if (aliases.has(def.alias)) continue;
     const configuredMatch =
       configuredByKey.get(normalizePartName(def.key)) ?? configuredByName.get(def.key);
+    if (skipUnconfiguredPart(configuredParts, configuredMatch, def.key)) continue;
     candidates.push({
       alias: def.alias,
       key: configuredMatch?.key ?? def.key,
@@ -255,19 +264,10 @@ function cleanInferredTitle(
   return inferredTitle.length > 0 ? inferredTitle : baseName;
 }
 
-function extractSequenceNumber(
-  baseName: string,
-  metadata?: ParsedId3Metadata | null,
-): string | null {
+function extractSequenceNumber(baseName: string): string | null {
   const seqMatch = /(?:^|[^0-9])(\d{1,3})(?=[_\s-]|$)/u.exec(baseName);
   if (seqMatch?.[1]) {
     return seqMatch[1].padStart(2, "0");
-  }
-  if (metadata?.trackNumber) {
-    const trckMatch = /(?:^|[^0-9])(\d{1,3})(?=[/_\s-]|$)/u.exec(metadata.trackNumber);
-    if (trckMatch?.[1]) {
-      return trckMatch[1].padStart(2, "0");
-    }
   }
   return null;
 }
@@ -279,7 +279,7 @@ function resolveInferredTitle(
   metadata?: ParsedId3Metadata | null,
 ): { inferredTitle: string; sequenceNumber: string | null } {
   let inferredTitle = cleanInferredTitle(baseName, detectedAlias, sequenceNumber);
-  let resolvedSeq = sequenceNumber;
+  const resolvedSeq = sequenceNumber;
 
   if (metadata?.title && metadata.title.trim().length > 0) {
     const isGeneric =
@@ -287,12 +287,6 @@ function resolveInferredTitle(
       inferredTitle.length <= 2;
     if (isGeneric) {
       inferredTitle = metadata.title.trim();
-      if (metadata.trackNumber) {
-        const trckMatch = /(?:^|[^0-9])(\d{1,3})(?=[/_\s-]|$)/u.exec(metadata.trackNumber);
-        if (trckMatch?.[1]) {
-          resolvedSeq = trckMatch[1].padStart(2, "0");
-        }
-      }
     }
   }
 
@@ -307,9 +301,19 @@ export function parsePracticeTrackFilename(
   metadata?: ParsedId3Metadata | null,
 ): ParsedTrackFile {
   const baseName = fileName.replace(/\.[a-zA-Z0-9]+$/u, "").trim();
-  const rawSeq = extractSequenceNumber(baseName, metadata);
+  const rawSeq = extractSequenceNumber(baseName);
   const partCandidates = buildPartCandidates(configuredParts);
-  const detected = detectVoicePart(baseName, partCandidates);
+  const unsupportedNumberedPart = /\b(soprano|alto|tenor|bass|sop|alt|ten)\s*([12])\b/iu.exec(
+    baseName.replaceAll(/[_-]/gu, " "),
+  );
+  const detectedCandidate = detectVoicePart(baseName, partCandidates);
+  const detected =
+    unsupportedNumberedPart &&
+    detectedCandidate &&
+    !/[12]$/u.test(normalizePartName(detectedCandidate.key)) &&
+    !/[12]$/u.test(normalizePartName(detectedCandidate.label))
+      ? null
+      : detectedCandidate;
   const { inferredTitle, sequenceNumber } = resolveInferredTitle(
     baseName,
     detected?.alias ?? null,

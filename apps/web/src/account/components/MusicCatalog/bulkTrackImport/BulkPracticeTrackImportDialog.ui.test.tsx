@@ -1028,3 +1028,36 @@ describe("optional Clef Flash matching", () => {
     expect(screen.queryByText("No destination piece selected")).not.toBeInTheDocument();
   });
 });
+
+it("preserves explicit manual destination and part across repeated AI suggestions", async () => {
+  mockMatchBulkPracticeTracks.mockImplementation((request) =>
+    Promise.resolve({
+      model: "internal",
+      requestId: "req",
+      suggestions: request.groups.map((group) => ({
+        groupId: group.groupId,
+        confidence: "high",
+        suggestedPieceId: alternatePiece.id,
+        filePartSuggestions: group.fileMetadata?.map((file) => ({
+          clientFileId: file.clientFileId,
+          suggestedPartKey: "alto",
+          probability: 0.95,
+        })),
+      })),
+    }),
+  );
+  await openAiReview("Unidentified recording.mp3", [samplePiece, alternatePiece]);
+  fireEvent.click(screen.getByRole("button", { name: "Search library to change piece" }));
+  fireEvent.click(screen.getByRole("button", { name: /Hallelujah Chorus/ }));
+  const part = screen.getByRole("combobox", {
+    name: "Section or voice part for Unidentified recording.mp3",
+  });
+  fireEvent.change(part, { target: { value: "soprano" } });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    fireEvent.click(screen.getByRole("button", { name: "AI Match" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "AI Match" })).toBeEnabled());
+    expect(screen.getAllByText("Hallelujah Chorus").length).toBeGreaterThan(0);
+    expect(part).toHaveValue("soprano");
+  }
+  mockMatchBulkPracticeTracks.mockReset();
+});

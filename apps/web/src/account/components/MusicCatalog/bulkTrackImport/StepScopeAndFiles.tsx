@@ -5,7 +5,7 @@ import {
   parsePracticeTrackFilename,
   type ConfiguredPartOption,
 } from "@choir/domain";
-import { useCallback, useId, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { extractAudioDuration } from "../../../audioDuration";
 import { TrackFileAudioPlayer } from "./TrackFileAudioPlayer";
 import type { InspectedTrackFile, TrackImportScope } from "./types";
@@ -19,13 +19,14 @@ function formatDuration(seconds: number | null): string {
 
 async function inspectSingleFile(
   file: File,
-  index: number,
   configuredParts: readonly ConfiguredPartOption[],
+  signal: AbortSignal,
 ): Promise<InspectedTrackFile> {
-  const clientFileId = `file-${String(Date.now())}-${String(index)}-${file.name}`;
-  const durationSeconds = await extractAudioDuration(file).catch(() => null);
+  const clientFileId = crypto.randomUUID();
+  const durationSeconds = await extractAudioDuration(file, signal).catch(() => null);
 
   const metadata = await parseId3MetadataFromReader(async (offset, length) => {
+    signal.throwIfAborted();
     const slice = file.slice(offset, offset + length);
     const buffer = await slice.arrayBuffer();
     return new Uint8Array(buffer);
@@ -75,6 +76,15 @@ export function StepScopeAndFiles({
   readonly scope: TrackImportScope;
   readonly selectedEventId: string | null;
 }) {
+  const inspectionController = useRef<AbortController | null>(null);
+  const [fileNotice, setFileNotice] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  useEffect(
+    () => () => {
+      inspectionController.current?.abort();
+    },
+    [],
+  );
   const [dragOver, setDragOver] = useState(false);
   const fileInputId = useId();
 
@@ -90,14 +100,27 @@ export function StepScopeAndFiles({
 
   const handleProcessRawFiles = useCallback(
     async (rawFiles: FileList | readonly File[]) => {
-      const fileArray = Array.from(rawFiles).filter(
-        (f) =>
-          f.name.toLowerCase().endsWith(".mp3") ||
-          f.type === "audio/mpeg" ||
-          f.type === "audio/mp3",
+      if (inspectionController.current) return;
+      const fileArray = Array.from(rawFiles)
+        .slice(0, Math.max(0, 100 - files.length))
+        .filter(
+          (f) =>
+            f.size > 0 &&
+            f.size <= 20 * 1024 * 1024 &&
+            (f.name.toLowerCase().endsWith(".mp3") ||
+              f.type === "audio/mpeg" ||
+              f.type === "audio/mp3"),
+        );
+      setFileNotice(
+        fileArray.length < Array.from(rawFiles).length
+          ? "Some files were omitted: choose up to 100 MP3s, each no larger than 20 MiB."
+          : null,
       );
       if (fileArray.length === 0) return;
 
+      const controller = new AbortController();
+      inspectionController.current = controller;
+      setProcessing(true);
       const results: (InspectedTrackFile | undefined)[] = Array.from({
         length: fileArray.length,
       });
@@ -105,15 +128,15 @@ export function StepScopeAndFiles({
       let currentIndex = 0;
 
       const workers = Array.from({ length: Math.min(fileArray.length, concurrency) }, async () => {
-        while (currentIndex < fileArray.length) {
+        while (!controller.signal.aborted && currentIndex < fileArray.length) {
           const index = currentIndex;
           currentIndex += 1;
           const file = fileArray[index];
           if (!file) continue;
           try {
-            results[index] = await inspectSingleFile(file, index, configuredParts);
+            results[index] = await inspectSingleFile(file, configuredParts, controller.signal);
           } catch {
-            const clientFileId = `file-${String(Date.now())}-${String(index)}-${file.name}`;
+            const clientFileId = crypto.randomUUID();
             const parsed = parsePracticeTrackFilename(
               file.name,
               configuredParts,
@@ -136,6 +159,9 @@ export function StepScopeAndFiles({
       });
 
       await Promise.all(workers);
+      if (controller.signal.aborted) return;
+      inspectionController.current = null;
+      setProcessing(false);
       onFilesChanged([
         ...files,
         ...results.filter((r): r is InspectedTrackFile => r !== undefined),
@@ -245,6 +271,7 @@ export function StepScopeAndFiles({
           >
             <input
               multiple
+              disabled={processing}
               accept=".mp3,audio/mpeg,audio/mp3"
               className="track-import-file-input"
               id={fileInputId}
@@ -260,18 +287,17 @@ export function StepScopeAndFiles({
                 🎧
               </span>
               <span className="track-import-dropzone__heading">Drop MP3s here or browse files</span>
-              <span className="track-import-dropzone__hint">
-                Multiple files or a folder, where supported
-              </span>
+              <span className="track-import-dropzone__hint">Up to 100 MP3s, 20 MiB each</span>
             </label>
           </div>
 
+          {fileNotice ? <p role="status">{fileNotice}</p> : null}
           <div className="track-import-file-list-section">
             <div className="track-import-file-list-header">
               <span className="track-import-file-list-header__count">
                 {String(files.length)} files selected
               </span>
-              {inspecting ? (
+              {processing || inspecting ? (
                 <span className="badge badge--warning">Inspecting audio…</span>
               ) : files.length > 0 ? (
                 <span className="badge badge--success">Inspection complete</span>
@@ -368,7 +394,7 @@ export function StepScopeAndFiles({
           </DialogClose>
           <button
             className="button button--primary"
-            disabled={inspecting || files.length === 0}
+            disabled={processing || inspecting || files.length === 0}
             type="button"
             onClick={onNext}
           >

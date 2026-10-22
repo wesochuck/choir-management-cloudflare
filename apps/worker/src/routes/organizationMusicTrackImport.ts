@@ -10,6 +10,7 @@ import {
   type MusicTrackImportSessionSummary,
   type ProblemDetails,
 } from "@choir/contracts";
+import { readOrganizationRosterConfiguration } from "../calendar/organizationCalendar";
 import type { Hono } from "hono";
 import {
   CLEF_TRACK_MATCH_MODEL,
@@ -18,6 +19,7 @@ import {
 } from "../music/clefTrackMatching";
 import {
   attachOrganizationMusicTracks,
+  listOrganizationMusicPieces,
   MusicRepositoryError,
 } from "../organization/organizationMusic";
 import { organizationStoreStub } from "../organization/rpc/client";
@@ -56,7 +58,7 @@ function scoreCandidate(
     typeof groupDuration === "number" &&
     Math.abs(candidate.durationSeconds - groupDuration) <= 4
   ) {
-    score += 25;
+    if (score > 0) score += 25;
   }
   return score;
 }
@@ -198,18 +200,71 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         );
       }
       try {
+        const startedAt = Date.now();
+        let providerCalls = 0;
+        let questions = 0;
+        let inputBytes = 0;
+        const [catalog, roster] = await Promise.all([
+          listOrganizationMusicPieces(context.env, authorization.organizationId),
+          readOrganizationRosterConfiguration(context.env, authorization.organizationId),
+        ]);
+        const catalogById = new Map(catalog.map((piece) => [piece.id, piece]));
+        if (body.data.candidates.some((candidate) => !catalogById.has(candidate.pieceId))) {
+          throw new TrackMatchingError(
+            "validation_failed",
+            "Choose pieces from this Organization's Music Library.",
+          );
+        }
+        const configuredParts = [
+          ...roster.voiceParts.map((part) => ({ key: part.label, label: part.fullName })),
+          ...roster.sections.map((section) => ({ key: section.code, label: section.name })),
+        ];
+        const trustedRequest = {
+          ...body.data,
+          configuredParts,
+          configuredPartKeys: [...new Set(configuredParts.map((part) => part.key))],
+          candidates: body.data.candidates.map((candidate) => {
+            const piece = catalogById.get(candidate.pieceId);
+            if (!piece) throw new TrackMatchingError("validation_failed", "Unknown piece.");
+            return {
+              pieceId: piece.id,
+              title: piece.title,
+              composer: piece.composer,
+              arranger: piece.arranger,
+              durationSeconds: piece.durationSeconds,
+              occupiedPartKeys: Object.keys(piece.trackFileIds),
+            };
+          }),
+        };
         const digest = await crypto.subtle.digest(
           "SHA-256",
           new TextEncoder().encode(authorization.organizationId),
         );
         const organizationTag = `org:${Array.from(new Uint8Array(digest).slice(0, 20), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-        const suggestions = await suggestClefTrackMatches(body.data, (input, signal) =>
-          ai.run(CLEF_TRACK_MATCH_MODEL, input, {
-            signal,
-            tags: ["music-track-import", organizationTag],
-          }),
+        const suggestions = await suggestClefTrackMatches(
+          trustedRequest,
+          (input, signal) => {
+            providerCalls += 1;
+            questions +=
+              typeof input.questions === "object" && input.questions !== null
+                ? Object.keys(input.questions).length
+                : 0;
+            inputBytes += new TextEncoder().encode(JSON.stringify(input)).length;
+            return ai.run(CLEF_TRACK_MATCH_MODEL, input, {
+              signal,
+              tags: ["music-track-import", organizationTag],
+            });
+          },
+          context.req.raw.signal,
         );
         return context.json({
+          diagnostics: {
+            latencyMs: Date.now() - startedAt,
+            providerCalls,
+            questions,
+            inputBytes,
+            estimatedInputTokens: Math.ceil(inputBytes / 4),
+          },
           model: CLEF_TRACK_MATCH_MODEL,
           requestId: context.get("requestId"),
           suggestions,

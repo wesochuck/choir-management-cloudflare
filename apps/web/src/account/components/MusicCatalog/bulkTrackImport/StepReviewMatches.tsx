@@ -1,3 +1,4 @@
+import { rankCandidatePiecesForGroup, recalculateTrackImportGroup } from "@choir/domain";
 import { DataTable, type DataTableColumn } from "@choir/ui";
 import type { OrganizationMusicPiece, OrganizationRosterConfiguration } from "@choir/contracts";
 import { useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
@@ -1059,11 +1060,32 @@ function getGroupConflictAnalysis(group: GroupReviewItem, state: ReviewState) {
   };
 }
 
-function getGroupEvidence(group: GroupReviewItem | undefined): readonly string[] {
+function getGroupEvidence(
+  group: GroupReviewItem | undefined,
+  pieces: readonly OrganizationMusicPiece[],
+  performancePieceIds: readonly string[],
+): readonly string[] {
   if (!group?.selectedPieceId) return [];
 
   // 1. Deterministic evidence for the selected piece
-  const candidate = group.candidates.find((c) => c.piece.id === group.selectedPieceId);
+  const currentGroup = recalculateTrackImportGroup({
+    ...group,
+    files: group.files
+      .filter((file) => !file.excluded)
+      .map((file) => ({
+        ...file,
+        metadata: file.metadata ?? null,
+        detectedPartKey: file.partKey,
+        detectedPartLabel: null,
+        inferredTitle: group.inferredTitle,
+        sequenceNumber: group.sequenceNumber,
+      })),
+  });
+  const candidate = rankCandidatePiecesForGroup(
+    currentGroup,
+    pieces.filter((piece) => piece.id === group.selectedPieceId),
+    performancePieceIds,
+  ).candidatePieces[0];
   const evidenceList: string[] = candidate ? [...candidate.evidence] : [];
 
   // 2. Separate AI estimate if AI suggestion matches the currently selected piece
@@ -1074,7 +1096,9 @@ function getGroupEvidence(group: GroupReviewItem | undefined): readonly string[]
   if (aiMatchesSelection && group.aiSuggestion) {
     const top = group.aiSuggestion.topCandidates?.find((c) => c.pieceId === group.selectedPieceId);
     if (top && typeof top.probability === "number") {
-      evidenceList.push(`AI estimate (~${String(Math.round(top.probability * 100))}% confidence)`);
+      evidenceList.push(
+        `AI estimate (~${String(Math.round(top.probability * 100))}% model estimate; not calibrated accuracy)`,
+      );
     } else if (group.aiSuggestion.rationale) {
       evidenceList.push(group.aiSuggestion.rationale);
     }
@@ -1412,7 +1436,7 @@ export function StepReviewMatches({
     () => filterReviewQueueRows(queueRows, filter, queueSearch, pieceMap),
     [filter, pieceMap, queueRows, queueSearch],
   );
-  const activeEvidence = getGroupEvidence(activeGroup);
+  const activeEvidence = getGroupEvidence(activeGroup, pieces, performancePieceIds);
 
   const overviewColumns = useMemo(
     () =>

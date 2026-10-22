@@ -240,7 +240,7 @@ function applyAiSuggestionToGroup(
 ): GroupReviewItem {
   if (!suggestion) return group;
 
-  if (group.reviewedMappingKey) {
+  if (group.reviewedMappingKey || group.groupSkipped) {
     return {
       ...group,
       aiSuggestion: suggestion,
@@ -334,6 +334,8 @@ export function BulkPracticeTrackImportDialog({
   // confirmed close never leaks run state into the next open.
   const resetWizard = useCallback(() => {
     setStep("scope_files");
+    matchController.current?.abort();
+    setMatching(false);
     setScope("set_list");
     setFiles([]);
     setDomainGroups([]);
@@ -430,6 +432,7 @@ export function BulkPracticeTrackImportDialog({
             pieceId: piece.id,
             title: piece.title,
           })),
+          configuredParts,
           configuredPartKeys: Array.from(validPartKeys).filter(
             (k) => k !== "tutti" && k !== "accompaniment",
           ),
@@ -441,20 +444,22 @@ export function BulkPracticeTrackImportDialog({
         },
         controller.signal,
       );
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || matchController.current !== controller) return;
       const allowedIds = new Set(candidates.map((piece) => piece.id));
       const suggestions = new Map(
         response.suggestions.map((suggestion) => [suggestion.groupId, suggestion]),
       );
       setGroups((current) =>
-        current.map((group) =>
-          applyAiSuggestionToGroup(
-            group,
-            suggestions.get(group.groupId),
-            allowedIds,
-            validPartKeys,
-          ),
-        ),
+        controller.signal.aborted
+          ? current
+          : current.map((group) =>
+              applyAiSuggestionToGroup(
+                group,
+                suggestions.get(group.groupId),
+                allowedIds,
+                validPartKeys,
+              ),
+            ),
       );
     } catch (error: unknown) {
       if (!controller.signal.aborted)
@@ -481,7 +486,8 @@ export function BulkPracticeTrackImportDialog({
     setGroups((prev) =>
       prev.map((g) => {
         if (g.groupId !== groupId) return g;
-        if (g.selectedPieceId === pieceId) return g;
+        if (g.selectedPieceId === pieceId)
+          return { ...g, destinationProvenance: "manual", destinationSelectionChanged: true };
         return {
           ...g,
           destinationProvenance: "manual",
@@ -581,6 +587,8 @@ export function BulkPracticeTrackImportDialog({
 
   const handleSplitFile = useCallback(
     (clientFileId: string) => {
+      matchController.current?.abort();
+      setMatching(false);
       const updatedDomainGroups = splitFileToNewTrackImportGroup(domainGroups, clientFileId);
       if (updatedDomainGroups === domainGroups) return null;
       const previousFileState = new Map(
@@ -633,7 +641,9 @@ export function BulkPracticeTrackImportDialog({
           inferredTitle: domainGroup.inferredTitle,
           selectedPieceId: previousGroup.selectedPieceId,
           sequenceNumber: domainGroup.sequenceNumber,
-          groupSkipped: false,
+          destinationSelectionChanged: true,
+          destinationProvenance: "manual",
+          groupSkipped: previousGroup.groupSkipped,
           reviewedMappingKey: null,
         } satisfies GroupReviewItem;
       });
@@ -861,8 +871,14 @@ export function BulkPracticeTrackImportDialog({
               selectedEventId={selectedEventId}
               onFilesChanged={setFiles}
               onNext={handleAdvanceToReview}
-              onScopeChanged={setScope}
-              onSelectedEventChanged={setSelectedEventId}
+              onScopeChanged={(value) => {
+                matchController.current?.abort();
+                setScope(value);
+              }}
+              onSelectedEventChanged={(value) => {
+                matchController.current?.abort();
+                setSelectedEventId(value);
+              }}
             />
           </>
         ) : null}

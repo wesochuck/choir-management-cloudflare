@@ -428,3 +428,36 @@ describe("musicTrackImport contracts", () => {
     });
   });
 });
+
+it("rejects duplicate group, candidate and cross-group source identities", () => {
+  const candidate = { pieceId: "11111111-1111-4111-8111-111111111111", title: "Song" };
+  const group = {
+    groupId: "one",
+    fileNames: ["Song.mp3"],
+    fileMetadata: [{ clientFileId: "stable", fileName: "Song.mp3" }],
+  };
+  expect(
+    musicTrackImportMatchRequestSchema.safeParse({
+      candidates: [candidate, candidate],
+      groups: [group],
+    }).success,
+  ).toBe(false);
+  expect(
+    musicTrackImportMatchRequestSchema.safeParse({
+      candidates: [candidate],
+      groups: [group, group],
+    }).success,
+  ).toBe(false);
+  expect(
+    musicTrackImportMatchRequestSchema.safeParse({
+      candidates: [candidate],
+      groups: [group, { ...group, groupId: "two" }],
+    }).success,
+  ).toBe(false);
+  expect(
+    musicTrackImportMatchRequestSchema.safeParse({
+      candidates: [candidate],
+      groups: [{ ...group, fileMetadata: [] }],
+    }).success,
+  ).toBe(false);
+});

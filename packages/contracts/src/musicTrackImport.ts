@@ -40,10 +40,10 @@ export type MusicTrackAttachmentResult = z.infer<typeof musicTrackAttachmentResu
 export type MusicTrackImportAttachResponse = z.infer<typeof musicTrackImportAttachResponseSchema>;
 
 export const musicTrackImportMatchCandidateSchema = z.object({
-  arranger: z.string().optional(),
-  composer: z.string().optional(),
+  arranger: z.string().max(500).optional(),
+  composer: z.string().max(500).optional(),
   durationSeconds: z.number().int().nullable().optional(),
-  occupiedPartKeys: z.array(z.string()).default([]),
+  occupiedPartKeys: z.array(z.string().max(100)).max(102).default([]),
   pieceId: z.uuid(),
   title: z.string().min(1).max(500),
 });
@@ -77,17 +77,26 @@ export const musicTrackImportFileMetadataSchema = z.object({
 });
 
 export const musicTrackImportGroupMetadataSchema = z.object({
-  detectedParts: z.array(z.string()).default([]),
+  detectedParts: z.array(z.string().max(100)).max(50).default([]),
   durationSeconds: z.number().int().nullable().optional(),
   fileMetadata: z.array(musicTrackImportFileMetadataSchema).max(50).optional(),
   fileNames: z.array(z.string().min(1).max(500)).min(1).max(50),
   groupId: z.string().min(1).max(100),
-  inferredTitle: z.string().optional(),
-  sequenceNumber: z.string().optional(),
+  inferredTitle: z.string().max(500).optional(),
+  sequenceNumber: z.string().max(50).optional(),
 });
 
-export const musicTrackImportMatchRequestSchema = z.object({
+const musicTrackImportMatchRequestObjectSchema = z.object({
   candidates: z.array(musicTrackImportMatchCandidateSchema).min(1).max(200),
+  configuredParts: z
+    .array(
+      z.object({
+        key: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+        label: z.string().min(1).max(300),
+      }),
+    )
+    .max(100)
+    .optional(),
   configuredPartKeys: z
     .array(z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/))
     .max(100)
@@ -97,8 +106,38 @@ export const musicTrackImportMatchRequestSchema = z.object({
   useAi: z.boolean().optional(),
 });
 
+export const musicTrackImportMatchRequestSchema =
+  musicTrackImportMatchRequestObjectSchema.superRefine((request, ctx) => {
+    const keys = request.configuredPartKeys ?? [];
+    if (new Set(keys).size !== keys.length || keys.includes("none"))
+      ctx.addIssue({
+        code: "custom",
+        message: "Configured keys must be unique; none is reserved.",
+      });
+    const groups = new Set<string>();
+    const files = new Set<string>();
+    const pieces = new Set<string>();
+    for (const candidate of request.candidates) {
+      if (pieces.has(candidate.pieceId))
+        ctx.addIssue({ code: "custom", message: "Duplicate candidate." });
+      pieces.add(candidate.pieceId);
+    }
+    for (const group of request.groups) {
+      if (groups.has(group.groupId)) ctx.addIssue({ code: "custom", message: "Duplicate group." });
+      groups.add(group.groupId);
+      if (group.fileMetadata && group.fileMetadata.length !== group.fileNames.length)
+        ctx.addIssue({ code: "custom", message: "Metadata must identify each source file." });
+      for (const file of group.fileMetadata ?? []) {
+        if (files.has(file.clientFileId))
+          ctx.addIssue({ code: "custom", message: "Duplicate source file." });
+        files.add(file.clientFileId);
+      }
+    }
+  });
+
 export const musicTrackImportGroupSuggestionSchema = z.object({
   confidence: z.enum(["high", "medium", "low", "none"]),
+  noneProbability: z.number().min(0).max(1).optional(),
   filePartSuggestions: z.array(filePartSuggestionSchema).max(50).optional(),
   groupId: z.string(),
   rationale: z.string().max(500).optional(),
@@ -107,6 +146,15 @@ export const musicTrackImportGroupSuggestionSchema = z.object({
 });
 
 export const musicTrackImportMatchResponseSchema = z.object({
+  diagnostics: z
+    .object({
+      latencyMs: z.number().nonnegative(),
+      providerCalls: z.number().int().nonnegative(),
+      questions: z.number().int().nonnegative(),
+      inputBytes: z.number().int().nonnegative(),
+      estimatedInputTokens: z.number().int().nonnegative(),
+    })
+    .optional(),
   model: z.string(),
   requestId: requestIdSchema,
   suggestions: z.array(musicTrackImportGroupSuggestionSchema),

@@ -231,3 +231,46 @@ describe("id3Metadata parser", () => {
     expect(parsed.title).toBe("Dirty Song Title");
   });
 });
+
+it("skips artwork bytes while reading later text by bounded ranges", async () => {
+  const size = 900_000;
+  const title = encodeFrame("TIT2", "After artwork");
+  const art = [
+    65,
+    80,
+    73,
+    67,
+    (size >>> 24) & 255,
+    (size >>> 16) & 255,
+    (size >>> 8) & 255,
+    size & 255,
+    0,
+    0,
+  ];
+  const bytes = new Uint8Array(10 + 10 + size + title.length);
+  bytes.set([73, 68, 51, 3, 0, 0, ...makeSynchsafe(bytes.length - 10)]);
+  bytes.set(art, 10);
+  bytes.set(title, 20 + size);
+  const reads: { offset: number; length: number }[] = [];
+  const result = await parseId3MetadataFromReader((offset, length) => {
+    reads.push({ offset, length });
+    return Promise.resolve(bytes.slice(offset, offset + length));
+  }, bytes.length);
+  expect(result.title).toBe("After artwork");
+  expect(reads.reduce((total, read) => total + read.length, 0)).toBeLessThan(512 * 1024 + 138);
+  expect(reads.some((read) => read.offset === 20)).toBe(false);
+});
+
+it("rejects a tag size larger than the file without reading the declared body", async () => {
+  const bytes = new Uint8Array([73, 68, 51, 3, 0, 0, ...makeSynchsafe(100_000)]);
+  const ranges: number[] = [];
+  expect(
+    (
+      await parseId3MetadataFromReader(async (offset, length) => {
+        ranges.push(length);
+        return Promise.resolve(bytes.slice(offset, offset + length));
+      }, bytes.length)
+    ).title,
+  ).toBeNull();
+  expect(ranges).toEqual([10]);
+});

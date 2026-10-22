@@ -84,9 +84,9 @@ describe("practiceTrackMatching", () => {
     });
 
     it("does not collapse an unconfigured numbered part into a section", () => {
-      expect(parsePracticeTrackFilename("Song - Bass 2.mp3", sectionParts).detectedPartKey).toBe(
-        "bass2",
-      );
+      expect(
+        parsePracticeTrackFilename("Song - Bass 2.mp3", sectionParts).detectedPartKey,
+      ).toBeNull();
     });
 
     it("leaves ambiguous generic names unresolved", () => {
@@ -94,7 +94,7 @@ describe("practiceTrackMatching", () => {
         { key: "tenors-a", label: "Tenors" },
         { key: "tenors-b", label: "Tenor" },
       ];
-      expect(parsePracticeTrackFilename("Song - Ten.mp3", parts).detectedPartKey).toBe("tenor");
+      expect(parsePracticeTrackFilename("Song - Ten.mp3", parts).detectedPartKey).toBeNull();
     });
 
     it("parses standard title, number, and part", () => {
@@ -329,7 +329,7 @@ describe("practiceTrackMatching", () => {
         trackNumber: "02/10",
       });
       expect(parsed.inferredTitle).toBe("Ave Verum Corpus");
-      expect(parsed.sequenceNumber).toBe("02");
+      expect(parsed.sequenceNumber).toBe("01");
     });
 
     it("matches composer from ID3 metadata and does not treat artist as composer", () => {
@@ -398,4 +398,27 @@ describe("practiceTrackMatching", () => {
       expect(groups[1]?.inferredTitle).toBe("Hallelujah");
     });
   });
+});
+
+it("keeps context-poor Choir_Hi unassigned with a non-SATB roster", () => {
+  expect(
+    parsePracticeTrackFilename("Choir_Hi.mp3", [{ key: "Low", label: "Low voices" }])
+      .detectedPartKey,
+  ).toBeNull();
+  expect(
+    parsePracticeTrackFilename("Song - Low.mp3", [{ key: "Low", label: "Low voices" }])
+      .detectedPartKey,
+  ).toBe("Low");
+});
+
+it("does not use an ID3 album track number as a set-list position", () => {
+  const file = parsePracticeTrackFilename("Recording.mp3", [], "stable", 180, {
+    title: null,
+    artist: null,
+    composer: null,
+    album: "Album",
+    trackNumber: "02/12",
+    comment: null,
+  });
+  expect(file.sequenceNumber).toBeNull();
 });
