@@ -109,6 +109,21 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
     });
   });
 
+  it("labels login linkage separately from a saved contact email", async () => {
+    vi.mocked(listOrganizationProfiles).mockResolvedValue([
+      { ...activeProfile, email: "singer@example.test" },
+      adminProfile,
+    ]);
+    render(<RosterPage enabled />);
+
+    const emails = await screen.findAllByRole("link", { name: "singer@example.test" });
+    const row = emails.map((email) => email.closest("tr")).find(Boolean);
+    expect(row).not.toBeNull();
+    expect(row).toHaveTextContent("No login account");
+    expect(screen.getByRole("columnheader", { name: /Login account/ })).toBeInTheDocument();
+    expect(screen.getAllByText("Linked login account").length).toBeGreaterThan(0);
+  });
+
   it("archives an active profile with confirmation modal and updates UI", async () => {
     const user = userEvent.setup();
     const updated = {
@@ -240,6 +255,12 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
     expect(
       screen.getByText(
         /Are you sure you want to permanently delete Active Singer\? This cannot be undone/,
+      ),
+    ).toBeInTheDocument();
+
+    expect(
+      screen.getByText(
+        /A saved roster email creates a linked Contact even without a login account/,
       ),
     ).toBeInTheDocument();
 

@@ -148,7 +148,7 @@ export function RosterPageView({
   async function handleDeleteProfile(candidate: OrganizationProfile) {
     const confirmed = await confirm({
       confirmLabel: "Delete permanently",
-      description: `Are you sure you want to permanently delete ${candidate.displayName}? This cannot be undone and is only allowed for profiles with zero event attendance, dues, folder assignments, or active memberships. If records exist, the profile must be archived instead.`,
+      description: `Are you sure you want to permanently delete ${candidate.displayName}? This cannot be undone and is only allowed for profiles with no linked contacts, attendance or RSVP history, dues, folder assignments, invite enrollments, or Organization Memberships. A saved roster email creates a linked Contact even without a login account. If linked records exist, use Archive Profile to remove the profile from the active roster while preserving those records.`,
       destructive: true,
       title: `Permanently delete ${candidate.displayName}?`,
     });
@@ -492,12 +492,16 @@ export function RosterPageView({
                       candidate.email || (membershipByProfileId.get(candidate.id)?.email ?? ""),
                   },
                   {
-                    header: "Account",
+                    header: "Login account",
                     id: "account",
                     render: (candidate) =>
-                      membershipByProfileId.has(candidate.id) ? "Linked account" : "No account",
+                      membershipByProfileId.has(candidate.id)
+                        ? "Linked login account"
+                        : "No login account",
                     sortValue: (candidate) =>
-                      membershipByProfileId.has(candidate.id) ? "Linked account" : "No account",
+                      membershipByProfileId.has(candidate.id)
+                        ? "Linked login account"
+                        : "No login account",
                   },
                   {
                     header: partLabel,
