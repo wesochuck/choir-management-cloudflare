@@ -27,23 +27,41 @@ vendor or model branding.
 - A returned `none` or ambiguous alternative never clears a previously matched or chosen destination
   piece.
 
-## Question Packing, Limits, and Bounded Concurrency
+## Multi-Stage Workflow, Limits, and Bounded Concurrency
 
-- **Limits**: The endpoint supports up to 200 candidate pieces, 50 song groups, and 50 files per
-  group.
+- **Limits**: The matching endpoint supports up to 1,000 candidate pieces, 200 song groups, and up
+  to 50 files per group. The independent durable track upload session cap of 100 files remains
+  strictly enforced when moving from match review to physical upload.
+- **Three-stage execution**:
+  1. `group_repair`: Evaluates cross-group and within-group suspicious grouping patterns (e.g.,
+     duplicate voice parts in a single group, identical sequence numbers across groups). Proposes
+     transparent repairs (`merge_groups`, `split_group`, `move_files`) for human review under a
+     "Suggested group changes" banner. Staff can choose **Accept** or **Dismiss**; files are never
+     silently regrouped or reorganized.
+  2. `piece_matching`: Evaluates catalog piece destinations using deterministic per-group
+     shortlisting (10–20 candidates per group selected by title/text similarity, set list context,
+     and occupied parts). Shortlisting prevents combinatorial explosions for large catalog libraries
+     (up to 1,000 pieces) while keeping questions focused and accurate.
+  3. `part_review`: Evaluates voice-part classifications using configured roster voice parts,
+     formatting labels as `{label} ({key})` (e.g., `Tenor 1 (T1)`) so the model understands both
+     display and canonical keys. Proposes part assignments with confidence, alternatives, and
+     evidence. Staff retain full authority with explicit **Use suggestion** and **Keep current**
+     actions; manual edits or reviewed parts are never overwritten.
 - **Preflight validation**: Each serialized provider call must not exceed 20,000 UTF-8 bytes before
-  any inference calls begin.
-- **Question packing**: Each provider call is bounded to at most 64 total questions (covering piece
-  selection and metadata-only per-file voice-part classification). If a batch exceeds the question
-  budget, it is partitioned into sub-batches.
-- **Bounded concurrency**: Worker sub-batch requests execute with bounded concurrency (concurrency
-  limit 2) under a single shared 25-second deadline and no automatic retries.
+  any inference calls begin. Oversized groups throw early validation errors before model execution.
+- **Question packing**: Each provider call is bounded to at most 64 total questions. If a stage
+  exceeds the question budget, it is partitioned into sub-batches.
+- **Bounded concurrency and partial result settlement**: Worker sub-batch requests execute with
+  bounded concurrency (concurrency limit 2) under a single shared 25-second deadline per stage and
+  no automatic retries. If a timeout or provider error occurs, already-completed batch suggestions
+  are preserved and returned with `stageStatus: "partial"` along with `completedGroupIds` and
+  `completedFileIds`, ensuring partial progress is never discarded.
 - **Arrangement disambiguation**: When candidates are within a 0.15 score differential, the server
   retains runner-up probabilities in `topCandidates` for staff 1-click selection rather than forcing
   an uncertain single guess.
-- **Part suggestions**: Confident voice parts (>= 0.7 probability) are preselected for unassigned
-  tracks; uncertain parts remain unassigned (`partKey: null`, displaying "Part needed") rather than
-  coercing to Tutti.
+- **Part suggestions**: Confident voice parts (>= 0.7 probability) are offered or preselected for
+  unassigned tracks; uncertain parts remain unassigned (`partKey: null`, displaying "Part needed")
+  rather than coercing to Tutti. Manual assignments and dismissed suggestions are preserved.
 
 ## Fallback and Environment Behavior
 

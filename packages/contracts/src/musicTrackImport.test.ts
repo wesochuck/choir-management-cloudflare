@@ -229,6 +229,110 @@ describe("musicTrackImport contracts", () => {
         }),
       ).toThrow();
     });
+
+    it("accepts performanceContext, configuredParts with kinds, stage, >200 candidates, and >50 groups in request", () => {
+      const candidates = Array.from({ length: 250 }, (_, i) => ({
+        pieceId: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+        title: `Piece ${String(i)}`,
+      }));
+      const groups = Array.from({ length: 55 }, (_, i) => ({
+        fileNames: [`Track_${String(i)}.mp3`],
+        groupId: `group-${String(i)}`,
+      }));
+
+      const parsed = musicTrackImportMatchRequestSchema.parse({
+        candidates,
+        configuredParts: [
+          { key: "S", kind: "section", label: "Soprano" },
+          { key: "T1", kind: "voice_part", label: "Tenor 1" },
+        ],
+        groups,
+        performanceContext: {
+          eventTitle: "Annual Gala",
+          setList: [
+            { pieceId, position: 1, title: "Opening Anthem" },
+            { position: 2, title: "Intermission", type: "break" },
+            { pieceId: null, position: 3, title: "Unlinked Song" },
+          ],
+        },
+        stage: "group_repair",
+        useAi: true,
+      });
+
+      expect(parsed.candidates).toHaveLength(250);
+      expect(parsed.groups).toHaveLength(55);
+      expect(parsed.stage).toBe("group_repair");
+      expect(parsed.performanceContext?.setList).toHaveLength(3);
+      expect(parsed.configuredParts?.[0]?.kind).toBe("section");
+    });
+
+    it("accepts groupRepairSuggestions, stage metadata, and part alternatives in response", () => {
+      const parsed = musicTrackImportMatchResponseSchema.parse({
+        completedGroupIds: ["group-1", "group-2"],
+        completedFileIds: ["f-1", "f-2"],
+        failedCount: 0,
+        groupRepairSuggestions: [
+          {
+            confidence: 0.92,
+            evidence: "Matching normalized title and compatible duration",
+            groupIds: ["group-1", "group-2"],
+            kind: "merge_groups",
+            targetGroupId: "group-1",
+          },
+          {
+            confidence: 0.88,
+            evidence: "Distinct song movements detected",
+            fileSubsets: [
+              { clientFileIds: ["f-1", "f-2"], suggestedTitle: "Movement 1" },
+              { clientFileIds: ["f-3", "f-4"], suggestedTitle: "Movement 2" },
+            ],
+            kind: "split_group",
+            sourceGroupId: "group-3",
+          },
+          {
+            clientFileIds: ["f-5"],
+            confidence: 0.85,
+            evidence: "Track belongs to target song group",
+            kind: "move_files",
+            sourceGroupId: "group-4",
+            targetGroupId: "group-1",
+          },
+        ],
+        model: "@cf/cloudflare/clef-flash",
+        requestId,
+        stage: "group_repair",
+        stageStatus: "partial",
+        suggestions: [
+          {
+            confidence: "medium",
+            filePartSuggestions: [
+              {
+                alternatives: [
+                  { partKey: "alto1", probability: 0.82 },
+                  { partKey: "soprano2", probability: 0.15 },
+                ],
+                clientFileId: "f-1",
+                evidence: "ID3 comment and register indicate Alto 1",
+                probability: 0.82,
+                reason: "correction",
+                suggestedPartKey: "alto1",
+              },
+            ],
+            groupId: "group-1",
+            suggestedPieceId: pieceId,
+          },
+        ],
+        unansweredCount: 2,
+      });
+
+      expect(parsed.stage).toBe("group_repair");
+      expect(parsed.stageStatus).toBe("partial");
+      expect(parsed.groupRepairSuggestions).toHaveLength(3);
+      expect(parsed.suggestions[0]?.filePartSuggestions?.[0]?.reason).toBe("correction");
+      expect(parsed.suggestions[0]?.filePartSuggestions?.[0]?.alternatives?.[0]?.partKey).toBe(
+        "alto1",
+      );
+    });
   });
 
   describe("session-backed import contracts", () => {

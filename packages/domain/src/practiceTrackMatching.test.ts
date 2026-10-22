@@ -1,14 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyGroupRepairSuggestion,
+  detectCrossGroupRepairCandidates,
+  detectSuspiciousWithinGroupFiles,
   groupPracticeTrackFiles,
+  mergeTrackImportGroups,
   moveFileBetweenTrackImportGroups,
+  moveFilesBetweenTrackImportGroups,
+  nextUniqueGroupId,
   parsePracticeTrackFilename,
   rankCandidatePiecesForGroup,
   resolvePracticeTrackAssignments,
+  shortlistCandidatePiecesForGroup,
   splitFileToNewTrackImportGroup,
+  splitFilesToNewTrackImportGroup,
   updateFileInTrackImportGroup,
+  validateGroupRepairSuggestion,
   type ConfiguredPartOption,
+  type GroupRepairAction,
   type LibraryPieceOption,
+  type OrderedSetListItem,
 } from "./practiceTrackMatching";
 
 describe("default practice track assignments", () => {
@@ -421,4 +432,179 @@ it("does not use an ID3 album track number as a set-list position", () => {
     comment: null,
   });
   expect(file.sequenceNumber).toBeNull();
+});
+
+describe("shortlistCandidatePiecesForGroup", () => {
+  it("bounds candidate pieces to limit even when library has 450+ pieces", () => {
+    const group = {
+      averageDurationSeconds: 180,
+      duplicatePartKeys: [],
+      files: [],
+      groupId: "g-1",
+      hasDuplicatePart: false,
+      inferredTitle: "Shenandoah",
+      sequenceNumber: "01",
+    };
+
+    const pieces: LibraryPieceOption[] = Array.from({ length: 450 }, (_, i) => ({
+      id: `p-${String(i)}`,
+      title: i === 42 ? "Shenandoah" : `Unrelated Song ${String(i)}`,
+      durationSeconds: 180,
+    }));
+
+    const shortlisted = shortlistCandidatePiecesForGroup(group, pieces, 20);
+    expect(shortlisted.length).toBeLessThanOrEqual(20);
+    expect(shortlisted[0]?.id).toBe("p-42");
+    expect(shortlisted[0]?.title).toBe("Shenandoah");
+  });
+
+  it("matches sequence number against OrderedSetListItem position without drifting", () => {
+    const group = {
+      averageDurationSeconds: 150,
+      duplicatePartKeys: [],
+      files: [],
+      groupId: "g-1",
+      hasDuplicatePart: false,
+      inferredTitle: "Song 3",
+      sequenceNumber: "03",
+    };
+
+    const pieces: LibraryPieceOption[] = [
+      { id: "p-anthem", title: "Opening Anthem" },
+      { id: "p-third", title: "Third Song" },
+    ];
+
+    // Set list has position 2 as an intermission / unlinked item
+    const setList: OrderedSetListItem[] = [
+      { pieceId: "p-anthem", position: 1, title: "Opening Anthem" },
+      { pieceId: null, position: 2, title: "Intermission" },
+      { pieceId: "p-third", position: 3, title: "Third Song" },
+    ];
+
+    const ranked = rankCandidatePiecesForGroup(group, pieces, setList);
+    expect(ranked.suggestedPiece?.piece.id).toBe("p-third");
+    expect(ranked.suggestedPiece?.evidence).toContain("Shared sequence number #03");
+  });
+});
+
+describe("group repair domain operations", () => {
+  const fileA1 = parsePracticeTrackFilename("Song_A_Soprano.mp3", [], "f-a1", 180);
+  const fileA2 = parsePracticeTrackFilename("Song_A_Alto.mp3", [], "f-a2", 180);
+  const fileB1 = parsePracticeTrackFilename("Song_B_Tenor.mp3", [], "f-b1", 240);
+  const fileB2 = parsePracticeTrackFilename("Song_B_Bass.mp3", [], "f-b2", 240);
+
+  it("nextUniqueGroupId returns non-colliding group ID", () => {
+    expect(nextUniqueGroupId([{ groupId: "group-1" }, { groupId: "group-2" }])).toBe("group-3");
+    expect(nextUniqueGroupId([{ groupId: "group-2" }, { groupId: "group-3" }])).toBe("group-1");
+  });
+
+  it("merges multiple groups cleanly and preserves clientFileIds", () => {
+    const initialGroups = groupPracticeTrackFiles([fileA1, fileA2]);
+    const secondGroup = groupPracticeTrackFiles([fileB1, fileB2]);
+    const allGroups = [...initialGroups, ...secondGroup];
+    const g0 = allGroups[0];
+    const g1 = allGroups[1];
+    expect(g0).toBeDefined();
+    expect(g1).toBeDefined();
+    if (!g0 || !g1) throw new Error("Expected at least two groups");
+
+    const merged = mergeTrackImportGroups(allGroups, [g0.groupId, g1.groupId]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.files).toHaveLength(4);
+    expect(merged[0]?.files.map((f) => f.clientFileId).sort()).toEqual([
+      "f-a1",
+      "f-a2",
+      "f-b1",
+      "f-b2",
+    ]);
+  });
+
+  it("splits files into a new group and leaves source group intact", () => {
+    const joinedGroups = groupPracticeTrackFiles([fileA1, fileA2, fileB1, fileB2]);
+    const split = splitFilesToNewTrackImportGroup(joinedGroups, ["f-b1", "f-b2"]);
+    expect(split.length).toBeGreaterThanOrEqual(2);
+    const g1Files = split[0]?.files.map((f) => f.clientFileId);
+    const g2Files = split[split.length - 1]?.files.map((f) => f.clientFileId);
+    expect(g1Files).toEqual(["f-a1", "f-a2"]);
+    expect(g2Files).toEqual(["f-b1", "f-b2"]);
+  });
+
+  it("moves files between groups", () => {
+    const groups = groupPracticeTrackFiles([fileA1, fileA2, fileB1]);
+    expect(groups).toHaveLength(2);
+    const targetGroup = groups[1];
+    expect(targetGroup).toBeDefined();
+    if (!targetGroup) throw new Error("Expected target group");
+    const moved = moveFilesBetweenTrackImportGroups(groups, ["f-a2"], targetGroup.groupId);
+    expect(moved[0]?.files.map((f) => f.clientFileId)).toEqual(["f-a1"]);
+    expect(moved[1]?.files.map((f) => f.clientFileId)).toEqual(["f-b1", "f-a2"]);
+  });
+
+  it("validates and applies GroupRepairAction proposals", () => {
+    const group1 = groupPracticeTrackFiles([fileA1, fileA2]);
+    const group2 = groupPracticeTrackFiles([fileB1, fileB2]);
+    const groups = [...group1, ...group2];
+    const g0 = groups[0];
+    const g1 = groups[1];
+    expect(g0).toBeDefined();
+    expect(g1).toBeDefined();
+    if (!g0 || !g1) throw new Error("Expected two groups");
+
+    const mergeAction: GroupRepairAction = {
+      confidence: 0.95,
+      evidence: "Same song movements",
+      groupIds: [g0.groupId, g1.groupId],
+      kind: "merge_groups",
+    };
+    expect(validateGroupRepairSuggestion(mergeAction, groups)).toBe(true);
+
+    const merged = applyGroupRepairSuggestion(groups, mergeAction);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.files).toHaveLength(4);
+
+    // Invalid action: non-existent group
+    expect(
+      validateGroupRepairSuggestion(
+        {
+          ...mergeAction,
+          groupIds: ["non-existent-1", "non-existent-2"],
+        },
+        groups,
+      ),
+    ).toBe(false);
+  });
+
+  it("detects suspicious within-group files and cross-group repair candidates", () => {
+    const dup1 = parsePracticeTrackFilename(
+      "Song_Soprano_Take1.mp3",
+      [{ key: "S", label: "Soprano" }],
+      "d1",
+      180,
+    );
+    const dup2 = parsePracticeTrackFilename(
+      "Song_Soprano_Take2.mp3",
+      [{ key: "S", label: "Soprano" }],
+      "d2",
+      180,
+    );
+    const withinGroup = groupPracticeTrackFiles([dup1, dup2]);
+    const wg0 = withinGroup[0];
+    expect(wg0).toBeDefined();
+    if (!wg0) throw new Error("Expected group");
+    const suspicious = detectSuspiciousWithinGroupFiles(wg0);
+    expect(suspicious.length).toBeGreaterThan(0);
+    expect(suspicious[0]?.reason).toContain("Duplicate part 'S'");
+
+    const gA = groupPracticeTrackFiles([fileA1]);
+    const gB = groupPracticeTrackFiles([fileA2]);
+    const ga0 = gA[0];
+    const gb0 = gB[0];
+    expect(ga0).toBeDefined();
+    expect(gb0).toBeDefined();
+    if (!ga0 || !gb0) throw new Error("Expected groups");
+    const cross = detectCrossGroupRepairCandidates([...gA, ...gB]);
+    expect(cross.length).toBeGreaterThan(0);
+    expect(cross[0]?.groupAId).toBe(ga0.groupId);
+    expect(cross[0]?.groupBId).toBe(gb0.groupId);
+  });
 });

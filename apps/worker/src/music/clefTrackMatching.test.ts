@@ -337,3 +337,246 @@ it.each([
     ),
   ).rejects.toMatchObject({ code: "service_unavailable" });
 });
+
+describe("Clef 3-stage track import matching (#289)", () => {
+  it("proposes merge_groups in group_repair stage when AI confirms complementary song groups", async () => {
+    const repairRequest = musicTrackImportMatchRequestSchema.parse({
+      candidates: [{ pieceId: "11111111-1111-4111-8111-111111111111", title: "O Shenandoah" }],
+      groups: [
+        {
+          detectedParts: ["soprano"],
+          fileNames: ["Shenandoah_Soprano.mp3"],
+          groupId: "group-1",
+          inferredTitle: "Shenandoah",
+        },
+        {
+          detectedParts: ["alto"],
+          fileNames: ["Shenandoah_Alto.mp3"],
+          groupId: "group-2",
+          inferredTitle: "Shenandoah",
+        },
+      ],
+      stage: "group_repair",
+      useAi: true,
+    });
+
+    const run = vi.fn().mockResolvedValue({
+      answers: {
+        rm_0: {
+          choice: "same_song",
+          confidence: 0.92,
+          probabilities: { different_song: 0.05, same_song: 0.92, uncertain: 0.03 },
+          type: "choice",
+        },
+      },
+    });
+
+    const result = await suggestClefTrackMatches(repairRequest, run);
+    expect(result.stage).toBe("group_repair");
+    expect(result.stageStatus).toBe("complete");
+    expect(result.groupRepairSuggestions).toEqual([
+      expect.objectContaining({
+        confidence: 0.92,
+        groupIds: ["group-1", "group-2"],
+        kind: "merge_groups",
+      }),
+    ]);
+  });
+
+  it("proposes split_group in group_repair stage when AI detects unrelated files in same group", async () => {
+    const repairRequest = musicTrackImportMatchRequestSchema.parse({
+      candidates: [{ pieceId: "11111111-1111-4111-8111-111111111111", title: "O Shenandoah" }],
+      groups: [
+        {
+          detectedParts: ["tenor", "tenor"],
+          fileMetadata: [
+            {
+              clientFileId: "f1",
+              detectedPartKey: "tenor",
+              fileName: "Shenandoah_Tenor.mp3",
+              inferredTitle: "Shenandoah",
+            },
+            {
+              clientFileId: "f2",
+              detectedPartKey: "tenor",
+              fileName: "Hallelujah_Tenor.mp3",
+              inferredTitle: "Hallelujah",
+            },
+          ],
+          fileNames: ["Shenandoah_Tenor.mp3", "Hallelujah_Tenor.mp3"],
+          groupId: "group-mixed",
+          inferredTitle: "Mixed Group",
+        },
+      ],
+      stage: "group_repair",
+      useAi: true,
+    });
+
+    const run = vi.fn().mockResolvedValue({
+      answers: {
+        rs_0: {
+          choice: "different_song",
+          confidence: 0.88,
+          probabilities: { different_song: 0.88, same_song: 0.08, uncertain: 0.04 },
+          type: "choice",
+        },
+      },
+    });
+
+    const result = await suggestClefTrackMatches(repairRequest, run);
+    expect(result.stage).toBe("group_repair");
+    expect(result.stageStatus).toBe("complete");
+    expect(result.groupRepairSuggestions).toEqual([
+      expect.objectContaining({
+        confidence: 0.88,
+        kind: "split_group",
+        sourceGroupId: "group-mixed",
+      }),
+    ]);
+  });
+
+  it("scales beyond 200 candidates and 50 groups via deterministic shortlisting and batching", async () => {
+    const manyCandidates = Array.from({ length: 250 }, (_, i) => ({
+      pieceId: `11111111-1111-4111-8111-${String(i).padStart(12, "0")}`,
+      title: i === 0 ? "Shenandoah" : `Catalog Song ${String(i)}`,
+    }));
+    const manyGroups = Array.from({ length: 65 }, (_, i) => ({
+      fileNames: [`track_${String(i)}.mp3`],
+      groupId: `g_${String(i)}`,
+      inferredTitle: i === 0 ? "Shenandoah" : `Song ${String(i)}`,
+    }));
+
+    const bigRequest = musicTrackImportMatchRequestSchema.parse({
+      candidates: manyCandidates,
+      groups: manyGroups,
+      stage: "piece_matching",
+      useAi: true,
+    });
+
+    const run = vi.fn().mockImplementation((input: { questions: Record<string, unknown> }) => {
+      // Must not exceed 64 questions per Clef call
+      expect(Object.keys(input.questions).length).toBeLessThanOrEqual(64);
+      return Promise.resolve({
+        answers: Object.fromEntries(
+          Object.keys(input.questions).map((qId) => [
+            qId,
+            {
+              choice: "none",
+              confidence: 0.5,
+              probabilities: { none: 1 },
+              type: "choice",
+            },
+          ]),
+        ),
+      });
+    });
+
+    const result = await suggestClefTrackMatches(bigRequest, run);
+    expect(result.length).toBe(65);
+    expect(result.stage).toBe("piece_matching");
+    expect(result.stageStatus).toBe("complete");
+    expect(run.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("returns partial results across stage timeout or batch failure instead of dropping all answers", async () => {
+    const multiBatchRequest = musicTrackImportMatchRequestSchema.parse({
+      candidates: [{ pieceId: "11111111-1111-4111-8111-111111111111", title: "Shenandoah" }],
+      groups: Array.from({ length: 65 }, (_, i) => ({
+        fileNames: [`track_${String(i)}.mp3`],
+        groupId: `g_${String(i)}`,
+        inferredTitle: `Song ${String(i)}`,
+      })),
+      stage: "piece_matching",
+      useAi: true,
+    });
+
+    let callCount = 0;
+    const run = vi.fn().mockImplementation((input: { questions: Record<string, unknown> }) => {
+      callCount += 1;
+      if (callCount === 2) {
+        return Promise.reject(new Error("Transient provider timeout in batch 2"));
+      }
+      return Promise.resolve({
+        answers: Object.fromEntries(
+          Object.keys(input.questions).map((qId) => [
+            qId,
+            {
+              choice: "none",
+              confidence: 0.8,
+              probabilities: { none: 1 },
+              type: "choice",
+            },
+          ]),
+        ),
+      });
+    });
+
+    const result = await suggestClefTrackMatches(multiBatchRequest, run);
+    expect(result.stageStatus).toBe("partial");
+    expect(result.completedGroupIds?.length).toBeGreaterThan(0);
+    expect(result.failedCount).toBe(1);
+    expect(result.reason).toContain("partially");
+  });
+
+  it("returns part alternatives, reason, and readable roster part labels in part_review stage", async () => {
+    const reviewRequest = musicTrackImportMatchRequestSchema.parse({
+      candidates: [{ pieceId: "11111111-1111-4111-8111-111111111111", title: "Shenandoah" }],
+      configuredParts: [
+        { key: "T1", kind: "voice_part", label: "Tenor 1" },
+        { key: "T2", kind: "voice_part", label: "Tenor 2" },
+      ],
+      configuredPartKeys: ["T1", "T2"],
+      groups: [
+        {
+          fileMetadata: [
+            {
+              clientFileId: "f-review-1",
+              detectedPartKey: "T1",
+              fileName: "Shenandoah_T1.mp3",
+              inferredTitle: "Shenandoah",
+            },
+          ],
+          fileNames: ["Shenandoah_T1.mp3"],
+          groupId: "g-part",
+          inferredTitle: "Shenandoah",
+        },
+      ],
+      stage: "part_review",
+      useAi: true,
+    });
+
+    const run = vi
+      .fn()
+      .mockImplementation(
+        (input: { questions: Record<string, { criteria: Record<string, string> }> }) => {
+          const q = input.questions.f_0_0;
+          expect(q?.criteria.T1).toBe("Tenor 1 (T1)");
+          expect(q?.criteria.T2).toBe("Tenor 2 (T2)");
+          return Promise.resolve({
+            answers: {
+              f_0_0: {
+                choice: "T2",
+                confidence: 0.8,
+                probabilities: { T1: 0.18, T2: 0.8, none: 0.02 },
+                type: "choice",
+              },
+            },
+          });
+        },
+      );
+
+    const result = await suggestClefTrackMatches(reviewRequest, run);
+    expect(result.stage).toBe("part_review");
+    expect(result.stageStatus).toBe("complete");
+    const partSuggestions = result[0]?.filePartSuggestions;
+    expect(partSuggestions).toHaveLength(1);
+    expect(partSuggestions?.[0]).toMatchObject({
+      alternatives: [{ partKey: "T1", probability: 0.18 }],
+      clientFileId: "f-review-1",
+      evidence: expect.stringContaining("80%"),
+      probability: 0.8,
+      reason: "correction",
+      suggestedPartKey: "T2",
+    });
+  });
+});

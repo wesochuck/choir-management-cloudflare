@@ -1,13 +1,16 @@
 import { useTuttiSuggestions } from "./useTuttiSuggestions";
 import { Dialog } from "@choir/ui";
 import {
+  applyGroupRepairSuggestion,
   groupPracticeTrackFiles,
   parsePracticeTrackFilename,
   rankCandidatePiecesForGroup,
+  recalculateTrackImportGroup,
   resolvePracticeTrackAssignments,
   splitFileToNewTrackImportGroup,
   type TrackImportGroup,
 } from "@choir/domain";
+import type { FilePartSuggestion, MusicTrackImportGroupRepairSuggestion } from "@choir/contracts";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { matchBulkPracticeTracks } from "../../../../api/music";
 import {
@@ -61,9 +64,12 @@ function buildReviewGroups(
         durationSeconds: f.durationSeconds,
         file: original?.file ?? new File([], f.fileName),
         fileName: f.fileName,
+        inferredTitle:
+          f.inferredTitle.length > 0 ? f.inferredTitle : (original?.inferredTitle ?? f.fileName),
         metadata: original?.metadata ?? null,
         partKey: f.detectedPartKey,
         partProvenance: f.detectedPartKey ? ("deterministic" as const) : undefined,
+        sequenceNumber: f.sequenceNumber ?? original?.sequenceNumber ?? null,
       };
     });
 
@@ -157,28 +163,30 @@ function ResumeImportBanner({
   );
 }
 
-function buildFileMetadata(file: GroupFileAssignment) {
-  const meta = file.metadata;
-  if (!meta) {
-    return {
-      clientFileId: file.clientFileId,
-      detectedPartKey: file.detectedPartKey ?? undefined,
-      durationSeconds: file.durationSeconds,
-      fileName: file.fileName,
-    };
-  }
+function extractId3MetadataFields(meta: GroupFileAssignment["metadata"]) {
+  if (!meta) return {};
   return {
     album: meta.album ?? undefined,
     artist: meta.artist ?? undefined,
-    clientFileId: file.clientFileId,
     composer: meta.composer ?? undefined,
-    detectedPartKey: file.detectedPartKey ?? undefined,
-    durationSeconds: file.durationSeconds,
-    fileName: file.fileName,
-    inferredTitle: meta.title ?? undefined,
-    sequenceNumber: meta.trackNumber ?? undefined,
     title: meta.title ?? undefined,
     trackNumber: meta.trackNumber ?? undefined,
+  };
+}
+
+function buildFileMetadata(file: GroupFileAssignment) {
+  return {
+    ...extractId3MetadataFields(file.metadata),
+    clientFileId: file.clientFileId,
+    currentPartKey: file.partKey ?? undefined,
+    detectedPartKey: file.detectedPartKey ?? undefined,
+    detectedPartLabel: file.detectedPartLabel ?? undefined,
+    durationSeconds: file.durationSeconds,
+    excluded: file.excluded,
+    fileName: file.fileName,
+    inferredTitle: file.inferredTitle ?? undefined,
+    manualPart: file.partProvenance === "manual" || file.partSelectionChanged,
+    sequenceNumber: file.sequenceNumber ?? undefined,
   };
 }
 
@@ -194,43 +202,49 @@ function buildMatchRequestGroup(group: GroupReviewItem) {
   };
 }
 
+function extractFileSuggestionFields(
+  file: GroupFileAssignment,
+  partSuggestion: FilePartSuggestion | undefined,
+) {
+  return {
+    partAlternatives: partSuggestion?.alternatives ?? file.partAlternatives,
+    partSuggestionEvidence: partSuggestion?.evidence ?? file.partSuggestionEvidence,
+    partSuggestionReason: partSuggestion?.reason ?? file.partSuggestionReason,
+    suggestedPartKey: partSuggestion?.suggestedPartKey ?? file.suggestedPartKey,
+    suggestedPartProbability: partSuggestion?.probability ?? file.suggestedPartProbability,
+  };
+}
+
+function shouldAutoAssignPart(
+  file: GroupFileAssignment,
+  partSuggestion: FilePartSuggestion | undefined,
+  validPartKeys: ReadonlySet<string>,
+): boolean {
+  if (file.partKey !== null || !partSuggestion?.suggestedPartKey) return false;
+  return partSuggestion.probability >= 0.7 && validPartKeys.has(partSuggestion.suggestedPartKey);
+}
+
 function applyAiSuggestionToFile(
   file: GroupFileAssignment,
-  partSuggestion:
-    { readonly probability: number; readonly suggestedPartKey: string | null } | undefined,
+  partSuggestion: FilePartSuggestion | undefined,
   validPartKeys: ReadonlySet<string>,
 ): GroupFileAssignment {
-  const suggestedPartKey = partSuggestion?.suggestedPartKey ?? file.suggestedPartKey;
-  const suggestedPartProbability = partSuggestion?.probability ?? file.suggestedPartProbability;
+  const fields = extractFileSuggestionFields(file, partSuggestion);
 
   if (file.partSelectionChanged || file.excluded) {
-    return {
-      ...file,
-      suggestedPartKey,
-      suggestedPartProbability,
-    };
+    return { ...file, ...fields };
   }
 
-  if (
-    file.partKey === null &&
-    partSuggestion?.suggestedPartKey &&
-    partSuggestion.probability >= 0.7 &&
-    validPartKeys.has(partSuggestion.suggestedPartKey)
-  ) {
+  if (shouldAutoAssignPart(file, partSuggestion, validPartKeys)) {
     return {
       ...file,
-      partKey: partSuggestion.suggestedPartKey,
+      ...fields,
+      partKey: partSuggestion?.suggestedPartKey ?? null,
       partProvenance: "ai" as const,
-      suggestedPartKey,
-      suggestedPartProbability,
     };
   }
 
-  return {
-    ...file,
-    suggestedPartKey,
-    suggestedPartProbability,
-  };
+  return { ...file, ...fields };
 }
 
 function applyAiSuggestionToGroup(
@@ -281,6 +295,95 @@ function applyAiSuggestionToGroup(
   };
 }
 
+async function runGroupRepairStep(
+  baseRequest: Omit<Parameters<typeof matchBulkPracticeTracks>[0], "stage">,
+  signal: AbortSignal,
+  onSuggestions: (repairs: MusicTrackImportGroupRepairSuggestion[]) => void,
+) {
+  try {
+    const res = await matchBulkPracticeTracks({ ...baseRequest, stage: "group_repair" }, signal);
+    if ((res.groupRepairSuggestions?.length ?? 0) > 0) {
+      onSuggestions(res.groupRepairSuggestions ?? []);
+    }
+  } catch {
+    // Tolerated partial stage failure
+  }
+}
+
+async function runPieceMatchingStep(
+  baseRequest: Omit<Parameters<typeof matchBulkPracticeTracks>[0], "stage">,
+  signal: AbortSignal,
+  allowedIds: ReadonlySet<string>,
+  validPartKeys: ReadonlySet<string>,
+  setGroups: React.Dispatch<React.SetStateAction<readonly GroupReviewItem[]>>,
+  setMatchError: (error: string | null) => void,
+) {
+  try {
+    const pieceRes = await matchBulkPracticeTracks(
+      { ...baseRequest, stage: "piece_matching" },
+      signal,
+    );
+    if (pieceRes.suggestions.length > 0) {
+      const suggestions = new Map(pieceRes.suggestions.map((s) => [s.groupId, s]));
+      setGroups((current) =>
+        current.map((group) =>
+          applyAiSuggestionToGroup(
+            group,
+            suggestions.get(group.groupId),
+            allowedIds,
+            validPartKeys,
+          ),
+        ),
+      );
+    }
+    if (pieceRes.stageStatus === "partial") {
+      setMatchError(
+        "AI piece matching completed partially within the time limit. Some songs were not matched automatically.",
+      );
+    }
+  } catch (error: unknown) {
+    setMatchError(
+      error instanceof Error
+        ? error.message
+        : "AI piece matching failed. Continue with manual matching or try again.",
+    );
+  }
+}
+
+async function runPartReviewStep(
+  baseRequest: Omit<Parameters<typeof matchBulkPracticeTracks>[0], "stage">,
+  signal: AbortSignal,
+  validPartKeys: ReadonlySet<string>,
+  setGroups: React.Dispatch<React.SetStateAction<readonly GroupReviewItem[]>>,
+) {
+  try {
+    const partRes = await matchBulkPracticeTracks({ ...baseRequest, stage: "part_review" }, signal);
+    if (partRes.suggestions.length > 0) {
+      const suggestions = new Map(partRes.suggestions.map((s) => [s.groupId, s]));
+      setGroups((current) =>
+        current.map((group) => {
+          const sugg = suggestions.get(group.groupId);
+          if ((sugg?.filePartSuggestions?.length ?? 0) === 0) {
+            return group;
+          }
+          const partMap = new Map(
+            sugg?.filePartSuggestions?.map((part) => [part.clientFileId, part]) ?? [],
+          );
+          const updatedFiles = group.files.map((file) =>
+            applyAiSuggestionToFile(file, partMap.get(file.clientFileId), validPartKeys),
+          );
+          return {
+            ...group,
+            ...resolvePracticeTrackAssignments(updatedFiles, group.selectedPieceId),
+          };
+        }),
+      );
+    }
+  } catch {
+    // Tolerated stage 3 failure: stages 1 & 2 results remain intact!
+  }
+}
+
 export function BulkPracticeTrackImportDialog({
   events,
   onClose,
@@ -300,6 +403,9 @@ export function BulkPracticeTrackImportDialog({
   const [inspecting] = useState(false);
   const [domainGroups, setDomainGroups] = useState<readonly TrackImportGroup[]>([]);
   const [groups, setGroups] = useState<readonly GroupReviewItem[]>([]);
+  const [pendingGroupRepairs, setPendingGroupRepairs] = useState<
+    readonly MusicTrackImportGroupRepairSuggestion[]
+  >([]);
   const tuttiActions = useTuttiSuggestions(groups, setGroups);
   const [matching, setMatching] = useState(false);
   const [matchError, setMatchError] = useState<string | null>(null);
@@ -342,6 +448,7 @@ export function BulkPracticeTrackImportDialog({
     setFiles([]);
     setDomainGroups([]);
     setGroups([]);
+    setPendingGroupRepairs([]);
     setMatchError(null);
     setSummary({ attached: 0, conflict: 0, failed: 0, skipped: 0 });
     setResumeOffer(null);
@@ -410,12 +517,12 @@ export function BulkPracticeTrackImportDialog({
       return;
     }
     if (
-      candidates.length > 200 ||
-      groups.length > 50 ||
+      candidates.length > 1000 ||
+      groups.length > 200 ||
       groups.some((group) => group.files.length > 50)
     ) {
       setMatchError(
-        "AI matching supports up to 200 candidate pieces, 50 song sets, and 50 files per song set. Select a smaller set list or fewer files, or continue with manual matching.",
+        "AI matching supports up to 1,000 candidate pieces, 200 song sets, and 50 files per song set. Select a smaller set list or fewer files, or continue with manual matching.",
       );
       return;
     }
@@ -423,57 +530,141 @@ export function BulkPracticeTrackImportDialog({
     matchController.current = controller;
     setMatching(true);
     setMatchError(null);
+
+    const candidatePayload = candidates.map((piece) => ({
+      arranger: piece.arranger,
+      composer: piece.composer,
+      durationSeconds: piece.durationSeconds,
+      occupiedPartKeys: Object.keys(piece.trackFileIds),
+      pieceId: piece.id,
+      title: piece.title,
+    }));
+    const configuredPartKeysList = Array.from(validPartKeys).filter(
+      (k) => k !== "tutti" && k !== "accompaniment",
+    );
+    const performanceContext =
+      scope === "set_list" && selectedEvent
+        ? {
+            eventTitle: selectedEvent.title,
+            setList: selectedEvent.setList.map((item, idx) => ({
+              pieceId: item.pieceId ?? null,
+              position: idx + 1,
+              title: item.title,
+            })),
+          }
+        : undefined;
+    const allowedIds = new Set(candidates.map((piece) => piece.id));
+
+    const baseRequest = {
+      candidates: candidatePayload,
+      configuredParts,
+      configuredPartKeys: configuredPartKeysList,
+      groups: groups.map(buildMatchRequestGroup),
+      performanceContext,
+      performanceTitle: scope === "set_list" && selectedEvent ? selectedEvent.title : undefined,
+      useAi: true,
+    };
+
     try {
-      const response = await matchBulkPracticeTracks(
-        {
-          candidates: candidates.map((piece) => ({
-            arranger: piece.arranger,
-            composer: piece.composer,
-            durationSeconds: piece.durationSeconds,
-            occupiedPartKeys: Object.keys(piece.trackFileIds),
-            pieceId: piece.id,
-            title: piece.title,
-          })),
-          configuredParts,
-          configuredPartKeys: Array.from(validPartKeys).filter(
-            (k) => k !== "tutti" && k !== "accompaniment",
-          ),
-          groups: groups.map(buildMatchRequestGroup),
-          ...(scope === "set_list" && selectedEvent
-            ? { performanceTitle: selectedEvent.title }
-            : {}),
-          useAi: true,
-        },
+      await runGroupRepairStep(baseRequest, controller.signal, setPendingGroupRepairs);
+      if (matchController.current !== controller) return;
+
+      await runPieceMatchingStep(
+        baseRequest,
         controller.signal,
+        allowedIds,
+        validPartKeys,
+        setGroups,
+        setMatchError,
       );
-      if (controller.signal.aborted || matchController.current !== controller) return;
-      const allowedIds = new Set(candidates.map((piece) => piece.id));
-      const suggestions = new Map(
-        response.suggestions.map((suggestion) => [suggestion.groupId, suggestion]),
-      );
-      setGroups((current) =>
-        controller.signal.aborted
-          ? current
-          : current.map((group) =>
-              applyAiSuggestionToGroup(
-                group,
-                suggestions.get(group.groupId),
-                allowedIds,
-                validPartKeys,
-              ),
-            ),
-      );
-    } catch (error: unknown) {
-      if (!controller.signal.aborted)
-        setMatchError(
-          error instanceof Error
-            ? error.message
-            : "AI matching failed. Continue with manual matching or try again.",
-        );
+      if (matchController.current !== controller) return;
+
+      await runPartReviewStep(baseRequest, controller.signal, validPartKeys, setGroups);
     } finally {
       if (matchController.current === controller) setMatching(false);
     }
   };
+
+  const handleAcceptGroupRepair = useCallback(
+    (suggestion: MusicTrackImportGroupRepairSuggestion) => {
+      const currentDomainGroups = groups.map((g) =>
+        recalculateTrackImportGroup({
+          files: g.files.map((f) => {
+            const original = fileLookup.get(f.clientFileId);
+            return {
+              ...parsePracticeTrackFilename(
+                f.fileName,
+                [],
+                f.clientFileId,
+                f.durationSeconds,
+                original?.metadata ?? null,
+              ),
+              detectedPartKey: f.partKey,
+              inferredTitle: f.inferredTitle ?? f.fileName,
+              sequenceNumber: f.sequenceNumber ?? null,
+            };
+          }),
+          groupId: g.groupId,
+          inferredTitle: g.inferredTitle,
+          sequenceNumber: g.sequenceNumber,
+        }),
+      );
+
+      const updatedDomainGroups = applyGroupRepairSuggestion(currentDomainGroups, suggestion);
+      setDomainGroups(updatedDomainGroups);
+      const reviewItems = buildReviewGroups(
+        updatedDomainGroups,
+        pieces,
+        performancePieceIds,
+        fileLookup,
+      );
+      setGroups(reviewItems);
+
+      setPendingGroupRepairs((prev) =>
+        prev.filter((p) => {
+          if (p === suggestion) return false;
+          if (suggestion.kind === "merge_groups" && p.kind === "merge_groups") {
+            return !p.groupIds.some((id) => suggestion.groupIds.includes(id));
+          }
+          if (suggestion.kind === "split_group" && p.kind === "split_group") {
+            return p.sourceGroupId !== suggestion.sourceGroupId;
+          }
+          return true;
+        }),
+      );
+    },
+    [fileLookup, groups, performancePieceIds, pieces],
+  );
+
+  const handleDismissGroupRepair = useCallback(
+    (suggestion: MusicTrackImportGroupRepairSuggestion) => {
+      setPendingGroupRepairs((prev) => prev.filter((p) => p !== suggestion));
+    },
+    [],
+  );
+
+  const handleDismissPartSuggestion = useCallback((groupId: string, clientFileId: string) => {
+    setGroups((prev) =>
+      prev.map((g) => {
+        if (g.groupId !== groupId) return g;
+        return {
+          ...g,
+          files: g.files.map((f) =>
+            f.clientFileId === clientFileId
+              ? {
+                  ...f,
+                  partAlternatives: undefined,
+                  partSuggestionEvidence: undefined,
+                  partSuggestionReason: undefined,
+                  suggestedPartKey: undefined,
+                  suggestedPartProbability: undefined,
+                }
+              : f,
+          ),
+        };
+      }),
+    );
+  }, []);
 
   const handleAdvanceToReview = useCallback(() => {
     const rawDomainGroups = groupPracticeTrackFiles(files);
@@ -891,6 +1082,10 @@ export function BulkPracticeTrackImportDialog({
             tuttiActions={tuttiActions}
             matching={matching}
             matchError={matchError}
+            pendingGroupRepairs={pendingGroupRepairs}
+            onAcceptGroupRepair={handleAcceptGroupRepair}
+            onDismissGroupRepair={handleDismissGroupRepair}
+            onDismissPartSuggestion={handleDismissPartSuggestion}
             onAiMatch={() => {
               void handleAiMatch();
             }}

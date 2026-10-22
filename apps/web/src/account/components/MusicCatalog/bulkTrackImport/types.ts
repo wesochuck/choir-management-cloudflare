@@ -4,6 +4,7 @@ import type {
   OrganizationRosterConfiguration,
   MusicTrackImportGroupSuggestion,
 } from "@choir/contracts";
+export type { MusicTrackImportGroupRepairSuggestion } from "@choir/contracts";
 import type { ParsedId3Metadata, RankedPieceCandidate } from "@choir/domain";
 
 export type TrackImportScope = "set_list" | "entire_library";
@@ -34,13 +35,19 @@ export interface GroupFileAssignment {
   readonly excluded?: boolean | undefined;
   readonly file: File;
   readonly fileName: string;
+  readonly inferredTitle?: string | undefined;
   readonly metadata?: ParsedId3Metadata | null | undefined;
-  readonly tuttiAssignmentId?: string | undefined;
+  readonly partAlternatives?:
+    readonly { partKey: string | null; probability: number }[] | undefined;
   readonly partKey: string | null;
   readonly partProvenance?: PartProvenance | undefined;
   readonly partSelectionChanged?: boolean | undefined;
+  readonly partSuggestionEvidence?: string | undefined;
+  readonly partSuggestionReason?: "missing" | "conflict" | "correction" | undefined;
+  readonly sequenceNumber?: string | null | undefined;
   readonly suggestedPartKey?: string | null | undefined;
   readonly suggestedPartProbability?: number | null | undefined;
+  readonly tuttiAssignmentId?: string | undefined;
 }
 
 export interface GroupReviewItem {

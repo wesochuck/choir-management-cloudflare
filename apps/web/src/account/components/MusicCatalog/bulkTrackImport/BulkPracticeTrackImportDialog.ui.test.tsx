@@ -1065,10 +1065,22 @@ describe("optional Clef Flash matching", () => {
 
   it("locks editing while a request runs and leaves uncertain choices for manual assignment", async () => {
     let resolveMatch: ((response: MusicTrackImportMatchResponse) => void) | undefined;
+    let resolved = false;
     mockMatchBulkPracticeTracks.mockImplementation(
       () =>
         new Promise((resolve) => {
-          resolveMatch = resolve;
+          if (resolved) {
+            resolve({
+              model: "@cf/cloudflare/clef-flash",
+              requestId: "req-subsequent",
+              suggestions: [],
+            });
+            return;
+          }
+          resolveMatch = (resp) => {
+            resolved = true;
+            resolve(resp);
+          };
         }),
     );
     await openAiReview("Unidentified recording.mp3");
@@ -1153,4 +1165,134 @@ it("preserves explicit manual destination and part across repeated AI suggestion
     expect(part).toHaveValue("soprano");
   }
   mockMatchBulkPracticeTracks.mockReset();
+});
+
+describe("Clef AI repairs, part review, and sequence formatting (#289)", () => {
+  it("formats file sequence numbers as Track # and distinguishes from set list position", async () => {
+    await openAiReview("01_Shenandoah - Soprano.mp3");
+    expect(screen.getByText(/Track #01/)).toBeInTheDocument();
+    expect(screen.queryByText(/Set-list item/)).not.toBeInTheDocument();
+  });
+
+  it("displays group repair proposals and applies merge on Accept", async () => {
+    mockMatchBulkPracticeTracks.mockImplementation((request) => {
+      if (request.stage === "group_repair") {
+        return Promise.resolve({
+          groupRepairSuggestions: [
+            {
+              confidence: 0.9,
+              evidence: "Complementary soprano and alto parts for Shenandoah",
+              groupIds: [request.groups[0]?.groupId ?? "g1", request.groups[1]?.groupId ?? "g2"],
+              kind: "merge_groups",
+            },
+          ],
+          model: "@cf/cloudflare/clef-flash",
+          requestId: "req-repair",
+          stage: "group_repair",
+          stageStatus: "complete",
+          suggestions: [],
+        });
+      }
+      return Promise.resolve({
+        model: "@cf/cloudflare/clef-flash",
+        requestId: "req-piece",
+        suggestions: request.groups.map((g) => ({
+          confidence: "high",
+          groupId: g.groupId,
+          suggestedPieceId: samplePieceId,
+        })),
+      });
+    });
+
+    render(
+      <BulkPracticeTrackImportDialog
+        events={[sampleEvent]}
+        onClose={vi.fn()}
+        onTracksAttached={vi.fn()}
+        open
+        pieces={[samplePiece]}
+        roster={sampleRoster}
+      />,
+    );
+
+    const input = screen.getByLabelText(/Drop MP3s here or browse files/i);
+    fireEvent.change(input, {
+      target: {
+        files: [
+          new File(["dummy audio"], "Shenandoah - Soprano.mp3", { type: "audio/mpeg" }),
+          new File(["dummy audio"], "Shenandoah - Alto.mp3", { type: "audio/mpeg" }),
+        ],
+      },
+    });
+
+    await screen.findByRole("button", { name: "Review groups" });
+    fireEvent.click(screen.getByRole("button", { name: "Review groups" }));
+
+    await screen.findByRole("button", { name: "AI Match batch" });
+    fireEvent.click(screen.getByRole("button", { name: "AI Match batch" }));
+
+    await screen.findByText("Suggested group changes");
+    expect(screen.getByText(/Complementary soprano and alto parts/)).toBeInTheDocument();
+
+    const acceptBtn = screen.getByRole("button", { name: "Accept" });
+    fireEvent.click(acceptBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Suggested group changes")).not.toBeInTheDocument();
+    });
+  });
+
+  it("offers Use suggestion and Keep current for AI part corrections on existing parts", async () => {
+    mockMatchBulkPracticeTracks.mockImplementation((request) => {
+      if (request.stage === "part_review") {
+        return Promise.resolve({
+          model: "@cf/cloudflare/clef-flash",
+          requestId: "req-part",
+          stage: "part_review",
+          stageStatus: "complete",
+          suggestions: request.groups.map((g) => ({
+            confidence: "high",
+            filePartSuggestions: [
+              {
+                alternatives: [{ partKey: "soprano", probability: 0.15 }],
+                clientFileId: g.fileMetadata?.[0]?.clientFileId ?? "f1",
+                evidence: "AI classified as Alto based on vocal cues",
+                probability: 0.85,
+                reason: "correction",
+                suggestedPartKey: "alto",
+              },
+            ],
+            groupId: g.groupId,
+            suggestedPieceId: samplePieceId,
+          })),
+        });
+      }
+      return Promise.resolve({
+        model: "@cf/cloudflare/clef-flash",
+        requestId: "req-def",
+        suggestions: request.groups.map((g) => ({
+          confidence: "high",
+          groupId: g.groupId,
+          suggestedPieceId: samplePieceId,
+        })),
+      });
+    });
+
+    await openAiReview("Hallelujah - Soprano.mp3");
+    const partSelect = screen.getByRole("combobox", {
+      name: "Section or voice part for Hallelujah - Soprano.mp3",
+    });
+    expect(partSelect).toHaveValue("soprano");
+
+    fireEvent.click(screen.getByRole("button", { name: "AI Match batch" }));
+
+    await screen.findByText(/Suggested:/);
+    expect(screen.getByText(/85% confidence/)).toBeInTheDocument();
+    expect(partSelect).toHaveValue("soprano"); // Never silently overwritten!
+
+    // Clicking "Use suggestion" updates the part
+    const useSuggestionBtn = screen.getByRole("button", { name: "Use suggestion" });
+    fireEvent.click(useSuggestionBtn);
+    expect(partSelect).toHaveValue("alto");
+  });
 });

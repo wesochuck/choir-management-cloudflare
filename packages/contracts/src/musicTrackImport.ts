@@ -53,9 +53,20 @@ export const rankedPieceSuggestionSchema = z.object({
   probability: z.number().min(0).max(1),
 });
 
-export const filePartSuggestionSchema = z.object({
-  clientFileId: z.string().min(1).max(100),
+export const filePartAlternativeSchema = z.object({
+  partKey: z
+    .string()
+    .regex(/^[a-zA-Z0-9_-]{1,100}$/)
+    .nullable(),
   probability: z.number().min(0).max(1),
+});
+
+export const filePartSuggestionSchema = z.object({
+  alternatives: z.array(filePartAlternativeSchema).max(5).optional(),
+  clientFileId: z.string().min(1).max(100),
+  evidence: z.string().max(500).optional(),
+  probability: z.number().min(0).max(1),
+  reason: z.enum(["missing", "conflict", "correction"]).optional(),
   suggestedPartKey: z
     .string()
     .regex(/^[a-zA-Z0-9_-]{1,100}$/)
@@ -67,10 +78,15 @@ export const musicTrackImportFileMetadataSchema = z.object({
   artist: z.string().max(500).optional(),
   clientFileId: z.string().min(1).max(100),
   composer: z.string().max(500).optional(),
+  currentPartKey: z.string().max(100).optional(),
   detectedPartKey: z.string().max(100).optional(),
+  detectedPartLabel: z.string().max(100).optional(),
   durationSeconds: z.number().int().min(1).max(86_400).nullable().optional(),
+  excluded: z.boolean().optional(),
   fileName: z.string().min(1).max(500),
   inferredTitle: z.string().max(500).optional(),
+  manualPart: z.boolean().optional(),
+  reviewed: z.boolean().optional(),
   sequenceNumber: z.string().max(50).optional(),
   title: z.string().max(500).optional(),
   trackNumber: z.string().max(50).optional(),
@@ -86,23 +102,75 @@ export const musicTrackImportGroupMetadataSchema = z.object({
   sequenceNumber: z.string().max(50).optional(),
 });
 
+export const musicTrackImportSetListItemSchema = z.object({
+  pieceId: z.uuid().nullable().optional(),
+  position: z.number().int().min(1),
+  title: z.string().min(1).max(500),
+  type: z.string().max(100).optional(),
+});
+
+export const musicTrackImportPerformanceContextSchema = z.object({
+  eventTitle: z.string().min(1).max(500),
+  setList: z.array(musicTrackImportSetListItemSchema).max(200),
+});
+
+export const musicTrackImportConfiguredPartOptionSchema = z.object({
+  key: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
+  kind: z.enum(["section", "voice_part", "special"]).optional(),
+  label: z.string().min(1).max(300),
+});
+
+export const musicTrackImportGroupRepairSuggestionSchema = z.discriminatedUnion("kind", [
+  z.object({
+    confidence: z.number().min(0).max(1),
+    evidence: z.string().max(500),
+    groupIds: z.array(z.string().min(1).max(100)).min(2).max(50),
+    kind: z.literal("merge_groups"),
+    targetGroupId: z.string().min(1).max(100).optional(),
+  }),
+  z.object({
+    confidence: z.number().min(0).max(1),
+    evidence: z.string().max(500),
+    fileSubsets: z
+      .array(
+        z.object({
+          clientFileIds: z.array(z.string().min(1).max(100)).min(1),
+          suggestedTitle: z.string().max(500).optional(),
+        }),
+      )
+      .min(2),
+    kind: z.literal("split_group"),
+    sourceGroupId: z.string().min(1).max(100),
+  }),
+  z.object({
+    clientFileIds: z.array(z.string().min(1).max(100)).min(1),
+    confidence: z.number().min(0).max(1),
+    evidence: z.string().max(500),
+    kind: z.literal("move_files"),
+    sourceGroupId: z.string().min(1).max(100),
+    targetGroupId: z.string().min(1).max(100),
+  }),
+]);
+
+export const musicTrackImportStageSchema = z.enum([
+  "group_repair",
+  "piece_matching",
+  "part_review",
+]);
+
+export const musicTrackImportStageStatusSchema = z.enum(["complete", "partial", "unavailable"]);
+
 const musicTrackImportMatchRequestObjectSchema = z.object({
-  candidates: z.array(musicTrackImportMatchCandidateSchema).min(1).max(200),
-  configuredParts: z
-    .array(
-      z.object({
-        key: z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/),
-        label: z.string().min(1).max(300),
-      }),
-    )
-    .max(100)
-    .optional(),
+  candidates: z.array(musicTrackImportMatchCandidateSchema).min(1).max(1000),
+  configuredParts: z.array(musicTrackImportConfiguredPartOptionSchema).max(100).optional(),
   configuredPartKeys: z
     .array(z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/))
     .max(100)
     .optional(),
-  groups: z.array(musicTrackImportGroupMetadataSchema).min(1).max(50),
+  groups: z.array(musicTrackImportGroupMetadataSchema).min(1).max(200),
+  performanceContext: musicTrackImportPerformanceContextSchema.optional(),
   performanceTitle: z.string().max(500).optional(),
+  stage: musicTrackImportStageSchema.optional(),
   useAi: z.boolean().optional(),
 });
 
@@ -137,37 +205,58 @@ export const musicTrackImportMatchRequestSchema =
 
 export const musicTrackImportGroupSuggestionSchema = z.object({
   confidence: z.enum(["high", "medium", "low", "none"]),
-  noneProbability: z.number().min(0).max(1).optional(),
   filePartSuggestions: z.array(filePartSuggestionSchema).max(50).optional(),
   groupId: z.string(),
+  noneProbability: z.number().min(0).max(1).optional(),
   rationale: z.string().max(500).optional(),
   suggestedPieceId: z.uuid().nullable(),
   topCandidates: z.array(rankedPieceSuggestionSchema).max(3).optional(),
 });
 
 export const musicTrackImportMatchResponseSchema = z.object({
+  completedFileIds: z.array(z.string()).optional(),
+  completedGroupIds: z.array(z.string()).optional(),
   diagnostics: z
     .object({
+      estimatedInputTokens: z.number().int().nonnegative(),
+      inputBytes: z.number().int().nonnegative(),
       latencyMs: z.number().nonnegative(),
       providerCalls: z.number().int().nonnegative(),
       questions: z.number().int().nonnegative(),
-      inputBytes: z.number().int().nonnegative(),
-      estimatedInputTokens: z.number().int().nonnegative(),
     })
     .optional(),
+  failedCount: z.number().int().nonnegative().optional(),
+  groupRepairSuggestions: z.array(musicTrackImportGroupRepairSuggestionSchema).optional(),
   model: z.string(),
+  reason: z.string().max(500).optional(),
   requestId: requestIdSchema,
+  stage: musicTrackImportStageSchema.optional(),
+  stageStatus: musicTrackImportStageStatusSchema.optional(),
   suggestions: z.array(musicTrackImportGroupSuggestionSchema),
+  unansweredCount: z.number().int().nonnegative().optional(),
 });
 
 export type RankedPieceSuggestion = z.infer<typeof rankedPieceSuggestionSchema>;
+export type FilePartAlternative = z.infer<typeof filePartAlternativeSchema>;
 export type FilePartSuggestion = z.infer<typeof filePartSuggestionSchema>;
+export type MusicTrackImportConfiguredPartOption = z.infer<
+  typeof musicTrackImportConfiguredPartOptionSchema
+>;
 export type MusicTrackImportFileMetadata = z.infer<typeof musicTrackImportFileMetadataSchema>;
-export type MusicTrackImportMatchCandidate = z.infer<typeof musicTrackImportMatchCandidateSchema>;
 export type MusicTrackImportGroupMetadata = z.infer<typeof musicTrackImportGroupMetadataSchema>;
-export type MusicTrackImportMatchRequest = z.infer<typeof musicTrackImportMatchRequestSchema>;
+export type MusicTrackImportGroupRepairSuggestion = z.infer<
+  typeof musicTrackImportGroupRepairSuggestionSchema
+>;
 export type MusicTrackImportGroupSuggestion = z.infer<typeof musicTrackImportGroupSuggestionSchema>;
+export type MusicTrackImportMatchCandidate = z.infer<typeof musicTrackImportMatchCandidateSchema>;
+export type MusicTrackImportMatchRequest = z.infer<typeof musicTrackImportMatchRequestSchema>;
 export type MusicTrackImportMatchResponse = z.infer<typeof musicTrackImportMatchResponseSchema>;
+export type MusicTrackImportPerformanceContext = z.infer<
+  typeof musicTrackImportPerformanceContextSchema
+>;
+export type MusicTrackImportSetListItem = z.infer<typeof musicTrackImportSetListItemSchema>;
+export type MusicTrackImportStage = z.infer<typeof musicTrackImportStageSchema>;
+export type MusicTrackImportStageStatus = z.infer<typeof musicTrackImportStageStatusSchema>;
 
 // Session-backed durable import (issue #278). The browser wizard stages
 // reviewed manifest rows in a server-owned session; uploads, assignments,

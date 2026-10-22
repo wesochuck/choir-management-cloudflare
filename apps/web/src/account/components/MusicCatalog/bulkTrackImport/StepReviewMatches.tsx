@@ -4,7 +4,11 @@ import { canSuggestTutti } from "./tuttiSuggestions";
 import { presentAiMatch } from "./aiMatchPresentation";
 import { rankCandidatePiecesForGroup, recalculateTrackImportGroup } from "@choir/domain";
 import { DataTable, type DataTableColumn } from "@choir/ui";
-import type { OrganizationMusicPiece, OrganizationRosterConfiguration } from "@choir/contracts";
+import type {
+  MusicTrackImportGroupRepairSuggestion,
+  OrganizationMusicPiece,
+  OrganizationRosterConfiguration,
+} from "@choir/contracts";
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import {
   DestinationPiecePicker,
@@ -126,6 +130,107 @@ function TuttiFileHint({
   );
 }
 
+function FilePartSuggestionPrompt({
+  disabled,
+  file,
+  onDismissPartSuggestion,
+  onPartChanged,
+  roster,
+}: {
+  readonly disabled: boolean;
+  readonly file: GroupFileAssignment;
+  readonly onDismissPartSuggestion: () => void;
+  readonly onPartChanged: (partKey: string | null) => void;
+  readonly roster: OrganizationRosterConfiguration | null;
+}) {
+  if (!file.suggestedPartKey || file.suggestedPartKey === file.partKey) return null;
+
+  return (
+    <div className="track-import-review-file__suggestion">
+      <p>
+        Suggested: <strong>{voicePartLabel(file.suggestedPartKey, roster)}</strong>
+        {typeof file.suggestedPartProbability === "number"
+          ? ` (${String(Math.round(file.suggestedPartProbability * 100))}% confidence)`
+          : ""}
+        {file.partSuggestionReason === "conflict" ? " · Resolves duplicate part" : ""}
+      </p>
+      <div className="track-import-actions__buttons">
+        <button
+          className="button button--secondary button--small"
+          disabled={disabled}
+          type="button"
+          onClick={() => {
+            onPartChanged(file.suggestedPartKey ?? null);
+          }}
+        >
+          Use suggestion
+        </button>
+        <button
+          className="button button--ghost button--small"
+          disabled={disabled}
+          type="button"
+          onClick={onDismissPartSuggestion}
+        >
+          Keep current
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FileReviewRowActions({
+  canSplitGroup,
+  excluded,
+  file,
+  groupSkipped,
+  matching,
+  onExclusionChanged,
+  onPartChanged,
+  onSplitFile,
+}: {
+  readonly canSplitGroup: boolean;
+  readonly excluded: boolean;
+  readonly file: GroupFileAssignment;
+  readonly groupSkipped: boolean;
+  readonly matching: boolean;
+  readonly onExclusionChanged: (excluded: boolean) => void;
+  readonly onPartChanged: (partKey: string | null) => void;
+  readonly onSplitFile: () => void;
+}) {
+  return (
+    <div className="track-import-review-file__actions">
+      <TuttiFileHint
+        action
+        file={file}
+        groupSkipped={groupSkipped}
+        matching={matching}
+        onPartChanged={onPartChanged}
+      />
+      <button
+        aria-label={excluded ? `Restore ${file.fileName} for review` : `Skip ${file.fileName}`}
+        className="button button--ghost track-import-review-file__skip"
+        disabled={groupSkipped || matching}
+        type="button"
+        onClick={() => {
+          onExclusionChanged(!excluded);
+        }}
+      >
+        {excluded ? "Restore file" : "Skip this file"}
+      </button>
+      {!groupSkipped && canSplitGroup ? (
+        <button
+          className="button button--ghost"
+          disabled={matching}
+          type="button"
+          onClick={onSplitFile}
+        >
+          Match separately
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function FileReviewRow({
   duplicatePart,
   excluded,
@@ -133,6 +238,7 @@ function FileReviewRow({
   canSplitGroup,
   groupSkipped,
   matching,
+  onDismissPartSuggestion,
   onExclusionChanged,
   onPartChanged,
   onSplitFile,
@@ -148,6 +254,7 @@ function FileReviewRow({
   readonly canSplitGroup: boolean;
   readonly groupSkipped: boolean;
   readonly matching: boolean;
+  readonly onDismissPartSuggestion: () => void;
   readonly onExclusionChanged: (excluded: boolean) => void;
   readonly onPartChanged: (partKey: string | null) => void;
   readonly onSplitFile: () => void;
@@ -162,6 +269,7 @@ function FileReviewRow({
     file.partKey !== null && !partOptions.some((option) => option.key === file.partKey);
   const label = reviewFileLabel(reviewStatus, excluded, duplicatePart, occupied, file.partKey);
   const badgeStatus = reviewFileBadgeStatus(reviewStatus);
+  const disabledActions = excluded || groupSkipped || matching;
 
   return (
     <article className={`track-import-review-file track-import-review-file--${reviewStatus}`}>
@@ -187,7 +295,7 @@ function FileReviewRow({
           </span>
           <select
             aria-label={`Section or voice part for ${file.fileName}`}
-            disabled={excluded || groupSkipped || matching}
+            disabled={disabledActions}
             onChange={(event) => {
               onPartChanged(event.target.value || null);
             }}
@@ -210,42 +318,29 @@ function FileReviewRow({
             ))}
           </select>
         </label>
+        <FilePartSuggestionPrompt
+          disabled={disabledActions}
+          file={file}
+          onDismissPartSuggestion={onDismissPartSuggestion}
+          onPartChanged={onPartChanged}
+          roster={roster}
+        />
         <TuttiFileHint
           file={file}
           groupSkipped={groupSkipped}
           matching={matching}
           onPartChanged={onPartChanged}
         />
-        <div className="track-import-review-file__actions">
-          <TuttiFileHint
-            action
-            file={file}
-            groupSkipped={groupSkipped}
-            matching={matching}
-            onPartChanged={onPartChanged}
-          />
-          <button
-            aria-label={excluded ? `Restore ${file.fileName} for review` : `Skip ${file.fileName}`}
-            className="button button--ghost track-import-review-file__skip"
-            disabled={groupSkipped || matching}
-            type="button"
-            onClick={() => {
-              onExclusionChanged(!excluded);
-            }}
-          >
-            {excluded ? "Restore file" : "Skip this file"}
-          </button>
-          {!groupSkipped && canSplitGroup ? (
-            <button
-              className="button button--ghost"
-              disabled={matching}
-              type="button"
-              onClick={onSplitFile}
-            >
-              Match separately
-            </button>
-          ) : null}
-        </div>
+        <FileReviewRowActions
+          canSplitGroup={canSplitGroup}
+          excluded={excluded}
+          file={file}
+          groupSkipped={groupSkipped}
+          matching={matching}
+          onExclusionChanged={onExclusionChanged}
+          onPartChanged={onPartChanged}
+          onSplitFile={onSplitFile}
+        />
       </div>
     </article>
   );
@@ -505,7 +600,7 @@ function GroupDetailHeader({
         </div>
         <p>
           {String(group.files.length)} {group.files.length === 1 ? "file" : "files"}
-          {group.sequenceNumber ? ` · Set-list item ${group.sequenceNumber}` : ""}
+          {group.sequenceNumber ? ` · Track #${group.sequenceNumber}` : ""}
         </p>
       </div>
       <div className="track-import-review-detail__navigation">
@@ -679,6 +774,7 @@ function FilesSection({
   group,
   groupState,
   matching,
+  onDismissPartSuggestion,
   onFileExclusionChanged,
   onPartChanged,
   onSplitFile,
@@ -696,6 +792,7 @@ function FilesSection({
   readonly group: GroupReviewItem;
   readonly groupState: ReturnType<typeof getReviewGroupState>;
   readonly matching: boolean;
+  readonly onDismissPartSuggestion: (groupId: string, clientFileId: string) => void;
   readonly onFileExclusionChanged: (
     groupId: string,
     clientFileId: string,
@@ -729,6 +826,9 @@ function FilesSection({
             groupSkipped={group.groupSkipped === true}
             matching={matching}
             key={file.clientFileId}
+            onDismissPartSuggestion={() => {
+              onDismissPartSuggestion(group.groupId, file.clientFileId);
+            }}
             onExclusionChanged={(excluded) => {
               onFileExclusionChanged(group.groupId, file.clientFileId, excluded);
             }}
@@ -1465,13 +1565,80 @@ function useReviewAction(
   };
 }
 
+function GroupRepairSuggestions({
+  matching,
+  onAcceptProposal,
+  onDismissProposal,
+  proposals,
+}: {
+  readonly matching: boolean;
+  readonly onAcceptProposal?:
+    ((suggestion: MusicTrackImportGroupRepairSuggestion) => void) | undefined;
+  readonly onDismissProposal?:
+    ((suggestion: MusicTrackImportGroupRepairSuggestion) => void) | undefined;
+  readonly proposals?: readonly MusicTrackImportGroupRepairSuggestion[] | undefined;
+}) {
+  if (!proposals || proposals.length === 0) return null;
+
+  return (
+    <section
+      aria-label="Suggested song group changes"
+      className="notice notice--info track-import-group-repairs"
+    >
+      <h4>Suggested group changes</h4>
+      <p>
+        Clef AI identified potential song grouping improvements. Review and accept to reorganize.
+      </p>
+      <ul>
+        {proposals.map((proposal, index) => {
+          const description =
+            proposal.kind === "merge_groups"
+              ? `Merge song groups ${proposal.groupIds.join(" and ")} into one group.`
+              : proposal.kind === "split_group"
+                ? `Split group ${proposal.sourceGroupId} into ${String(proposal.fileSubsets.length)} separate song groups.`
+                : `Move files from ${proposal.sourceGroupId} to ${proposal.targetGroupId}.`;
+          return (
+            <li key={`proposal-${String(index)}-${proposal.kind}`}>
+              <div>
+                <strong>{description}</strong>
+                <p>{proposal.evidence}</p>
+              </div>
+              <div className="track-import-actions__buttons">
+                <button
+                  className="button button--secondary"
+                  disabled={matching}
+                  type="button"
+                  onClick={() => onAcceptProposal?.(proposal)}
+                >
+                  Accept
+                </button>
+                <button
+                  className="button button--ghost"
+                  disabled={matching}
+                  type="button"
+                  onClick={() => onDismissProposal?.(proposal)}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 export function StepReviewMatches({
   tuttiActions,
   groups,
   matching,
   matchError,
+  onAcceptGroupRepair,
   onAiMatch,
   onBack,
+  onDismissGroupRepair,
+  onDismissPartSuggestion,
   onFileExclusionChanged,
   onGroupPieceChanged,
   onGroupSkipToggled,
@@ -1479,6 +1646,7 @@ export function StepReviewMatches({
   onNext,
   onPartChanged,
   onSplitFile,
+  pendingGroupRepairs,
   performancePieceIds,
   pieces,
   roster,
@@ -1488,8 +1656,13 @@ export function StepReviewMatches({
   readonly groups: readonly GroupReviewItem[];
   readonly matching: boolean;
   readonly matchError: string | null;
+  readonly onAcceptGroupRepair?:
+    ((suggestion: MusicTrackImportGroupRepairSuggestion) => void) | undefined;
   readonly onAiMatch: () => void;
   readonly onBack: () => void;
+  readonly onDismissGroupRepair?:
+    ((suggestion: MusicTrackImportGroupRepairSuggestion) => void) | undefined;
+  readonly onDismissPartSuggestion?: ((groupId: string, clientFileId: string) => void) | undefined;
   readonly onFileExclusionChanged: (
     groupId: string,
     clientFileId: string,
@@ -1501,6 +1674,7 @@ export function StepReviewMatches({
   readonly onNext: () => void;
   readonly onPartChanged: (groupId: string, clientFileId: string, partKey: string | null) => void;
   readonly onSplitFile: (clientFileId: string) => string | null;
+  readonly pendingGroupRepairs?: readonly MusicTrackImportGroupRepairSuggestion[] | undefined;
   readonly performancePieceIds: readonly string[];
   readonly pieces: readonly OrganizationMusicPiece[];
   readonly roster: OrganizationRosterConfiguration | null;
@@ -1655,6 +1829,7 @@ export function StepReviewMatches({
           group={activeGroup}
           groupState={activeState}
           matching={matching}
+          onDismissPartSuggestion={onDismissPartSuggestion ?? (() => undefined)}
           onFileExclusionChanged={onFileExclusionChanged}
           onPartChanged={onPartChanged}
           onSplitFile={onSplitFile}
@@ -1677,6 +1852,12 @@ export function StepReviewMatches({
       />
       <ReviewNotices groups={groups} matchError={matchError} matching={matching} />
       <ReviewToolbar matching={matching} onAiMatch={onAiMatch} onViewChange={setView} view={view} />
+      <GroupRepairSuggestions
+        matching={matching}
+        onAcceptProposal={onAcceptGroupRepair}
+        onDismissProposal={onDismissGroupRepair}
+        proposals={pendingGroupRepairs}
+      />
       <TuttiSuggestions actions={tuttiActions} matching={matching} />
       <ReviewModePanel
         columns={overviewColumns}

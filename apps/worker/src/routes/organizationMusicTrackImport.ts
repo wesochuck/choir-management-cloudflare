@@ -216,23 +216,35 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           );
         }
         const configuredParts = [
-          ...roster.voiceParts.map((part) => ({ key: part.label, label: part.fullName })),
-          ...roster.sections.map((section) => ({ key: section.code, label: section.name })),
+          ...roster.voiceParts.map((part) => ({
+            key: part.label,
+            kind: "voice_part" as const,
+            label: part.fullName,
+          })),
+          ...roster.sections.map((section) => ({
+            key: section.code,
+            kind: "section" as const,
+            label: section.name,
+          })),
         ];
+        const activeConfiguredParts =
+          body.data.configuredParts && body.data.configuredParts.length > 0
+            ? body.data.configuredParts
+            : configuredParts;
         const trustedRequest = {
           ...body.data,
-          configuredParts,
-          configuredPartKeys: [...new Set(configuredParts.map((part) => part.key))],
+          configuredParts: activeConfiguredParts,
+          configuredPartKeys: [...new Set(activeConfiguredParts.map((part) => part.key))],
           candidates: body.data.candidates.map((candidate) => {
             const piece = catalogById.get(candidate.pieceId);
             if (!piece) throw new TrackMatchingError("validation_failed", "Unknown piece.");
             return {
-              pieceId: piece.id,
-              title: piece.title,
-              composer: piece.composer,
               arranger: piece.arranger,
+              composer: piece.composer,
               durationSeconds: piece.durationSeconds,
               occupiedPartKeys: Object.keys(piece.trackFileIds),
+              pieceId: piece.id,
+              title: piece.title,
             };
           }),
         };
@@ -241,7 +253,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           new TextEncoder().encode(authorization.organizationId),
         );
         const organizationTag = `org:${Array.from(new Uint8Array(digest).slice(0, 20), (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-        const suggestions = await suggestClefTrackMatches(
+        const matchResult = await suggestClefTrackMatches(
           trustedRequest,
           (input, signal) => {
             providerCalls += 1;
@@ -258,16 +270,24 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           context.req.raw.signal,
         );
         return context.json({
+          completedFileIds: matchResult.completedFileIds,
+          completedGroupIds: matchResult.completedGroupIds,
           diagnostics: {
+            estimatedInputTokens: Math.ceil(inputBytes / 4),
+            inputBytes,
             latencyMs: Date.now() - startedAt,
             providerCalls,
             questions,
-            inputBytes,
-            estimatedInputTokens: Math.ceil(inputBytes / 4),
           },
+          failedCount: matchResult.failedCount,
+          groupRepairSuggestions: matchResult.groupRepairSuggestions,
           model: CLEF_TRACK_MATCH_MODEL,
+          reason: matchResult.reason,
           requestId: context.get("requestId"),
-          suggestions,
+          stage: matchResult.stage,
+          stageStatus: matchResult.stageStatus,
+          suggestions: matchResult,
+          unansweredCount: matchResult.unansweredCount,
         });
       } catch (error: unknown) {
         if (!(error instanceof TrackMatchingError)) throw error;
@@ -285,6 +305,8 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     return context.json({
       model: "heuristic-v1",
       requestId: context.get("requestId"),
+      stage: body.data.stage,
+      stageStatus: "complete",
       suggestions,
     });
   });
