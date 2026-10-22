@@ -29,7 +29,6 @@ describe("check:release strictness", () => {
   it("returns false when the strict gate fails, before any qualification evidence", async () => {
     const calls = [];
     const root = mkdtempSync(join(tmpdir(), "check-release-test-"));
-    const env = { ...process.env };
     const result = await checkRelease({
       root,
       runner: (command, args) => {
@@ -43,8 +42,12 @@ describe("check:release strictness", () => {
       },
     });
     expect(result).toBe(false);
+    // The gate is the only step that runs: no Playwright, no recorded evidence.
+    // Strictness holds by construction: dev mode is opt-in via a --dev flag
+    // on check:ci, and check:release never forwards one, regardless of the
+    // parent environment (which legitimately carries RELEASE_QUALIFICATION=1).
     expect(calls).toEqual([["npm", ["run", "check:ci"]]]);
-    expect(env.RELEASE_QUALIFICATION).toBeUndefined();
+    expect(calls[0][1]).not.toContain("--dev");
   });
 
   it("passes RELEASE_QUALIFICATION=1 into the Playwright suite", async () => {
