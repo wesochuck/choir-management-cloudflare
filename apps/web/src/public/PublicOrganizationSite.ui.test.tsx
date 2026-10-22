@@ -1,5 +1,5 @@
 import type { PublishedOrganizationProjection } from "@choir/contracts";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as authApi from "../auth/api";
@@ -291,9 +291,13 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
     const { rerender } = render(<PublicOrganizationSite fallback={<p>Fallback</p>} pathname="/" />);
 
     await screen.findByRole("heading", { name: "Welcome to Our Choir" });
-    expect(document.title).toBe("City Chorale");
+    await waitFor(() => {
+      expect(document.title).toBe("City Chorale");
+    });
 
     rerender(<PublicOrganizationSite fallback={<p>Fallback</p>} pathname="/history" />);
-    expect(document.title).toBe("History · City Chorale");
+    await waitFor(() => {
+      expect(document.title).toBe("History · City Chorale");
+    });
   });
 });
