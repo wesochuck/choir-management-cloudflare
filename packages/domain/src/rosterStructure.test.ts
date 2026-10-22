@@ -1,6 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { rosterAssignmentConversion } from "./rosterStructure";
+import { getAssignableVoiceParts, rosterAssignmentConversion } from "./rosterStructure";
 import { isPerformer } from "./index";
+
+describe("getAssignableVoiceParts", () => {
+  it("filters out parts belonging to track-only sections", () => {
+    const sections = [
+      { code: "T", name: "Tenor", trackOnly: false },
+      { code: "B", name: "Bass", trackOnly: false },
+      { code: "O", name: "Other", trackOnly: true },
+    ];
+    const voiceParts = [
+      { label: "T1", fullName: "Tenor 1", sectionCode: "T" },
+      { label: "T2", fullName: "Tenor 2", sectionCode: "T" },
+      { label: "B1", fullName: "Bass 1", sectionCode: "B" },
+      { label: "SATB", fullName: "SATB Recordings", sectionCode: "O" },
+      { label: "TP", fullName: "Two Part", sectionCode: "O" },
+    ];
+    const assignable = getAssignableVoiceParts(sections, voiceParts);
+    expect(assignable.map(({ label }) => label)).toEqual(["T1", "T2", "B1"]);
+  });
+
+  it("returns all parts when no sections are track-only", () => {
+    const sections = [{ code: "T", trackOnly: false }];
+    const voiceParts = [{ label: "T1", sectionCode: "T" }];
+    expect(getAssignableVoiceParts(sections, voiceParts)).toEqual(voiceParts);
+  });
+});
 
 describe("section-only assignments", () => {
   const previous = {

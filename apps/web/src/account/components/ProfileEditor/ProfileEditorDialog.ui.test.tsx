@@ -2,6 +2,7 @@ import {
   organizationProfileSchema,
   type OrganizationProfile,
   type OrganizationProfileRequest,
+  type OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -40,13 +41,18 @@ const sampleProfile: OrganizationProfile = organizationProfileSchema.parse({
 
 function ProfileEditorHarness({
   onSaved,
+  rosterConfiguration,
+  sampleToOpen,
   saveLabel,
 }: {
   readonly onSaved?: (saved: OrganizationProfile) => void;
+  readonly rosterConfiguration?: OrganizationRosterConfiguration;
+  readonly sampleToOpen?: OrganizationProfile;
   readonly saveLabel?: string;
 }) {
   const editor = useProfileEditor({
     onSaved,
+    rosterConfiguration,
   });
   const [addOpen, setAddOpen] = useState(false);
   const [addProfile, setAddProfile] = useState<OrganizationProfileRequest>(emptyProfile);
@@ -55,7 +61,7 @@ function ProfileEditorHarness({
     <div>
       <button
         onClick={() => {
-          editor.openProfile(sampleProfile);
+          editor.openProfile(sampleToOpen ?? sampleProfile);
         }}
         type="button"
       >
@@ -386,5 +392,86 @@ describe("ProfileEditorDialog photo save coordination", () => {
 
     // Dialog closes on success
     expect(screen.queryByRole("dialog", { name: "Edit Profile" })).not.toBeInTheDocument();
+  });
+
+  it("omits track-only voice parts from the profile editor selection", async () => {
+    const user = userEvent.setup();
+    const config: OrganizationRosterConfiguration = {
+      attendanceReportWarningThreshold: 1,
+      onBreakTimeoutDays: 365,
+      onBreakTimeoutEnabled: true,
+      performerLabel: "Performer",
+      rehearsalAttendanceReportsEnabled: true,
+      rsvpExpiryEnabled: true,
+      rsvpFollowUpEnabled: true,
+      rsvpFollowUpLeadHours: 48,
+      sections: [
+        { code: "T", color: "#2563eb", name: "Tenors", trackOnly: false },
+        { code: "O", color: "#9333ea", name: "Other Tracks", trackOnly: true },
+      ],
+      statusAutomationEnabled: true,
+      statusAutomationMissThreshold: 3,
+      statusAutomationRecoveryEnabled: true,
+      voiceParts: [
+        { fullName: "Tenor 1", label: "T1", sectionCode: "T" },
+        { fullName: "SATB Reference", label: "SATB", sectionCode: "O" },
+      ],
+    };
+
+    render(
+      <ProfileEditorHarness
+        rosterConfiguration={config}
+        sampleToOpen={{ ...sampleProfile, voicePart: "T1" }}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Open Editor" }));
+
+    const voicePartSelect = screen.getByLabelText("Part");
+    expect(
+      within(voicePartSelect).getByRole("option", { name: "Tenor 1 (T1)" }),
+    ).toBeInTheDocument();
+    expect(within(voicePartSelect).queryByText(/SATB/)).not.toBeInTheDocument();
+  });
+
+  it("displays warning banner and disabled option for legacy track-only profile assignment", async () => {
+    const user = userEvent.setup();
+    const config: OrganizationRosterConfiguration = {
+      attendanceReportWarningThreshold: 1,
+      onBreakTimeoutDays: 365,
+      onBreakTimeoutEnabled: true,
+      performerLabel: "Performer",
+      rehearsalAttendanceReportsEnabled: true,
+      rsvpExpiryEnabled: true,
+      rsvpFollowUpEnabled: true,
+      rsvpFollowUpLeadHours: 48,
+      sections: [
+        { code: "T", color: "#2563eb", name: "Tenors", trackOnly: false },
+        { code: "O", color: "#9333ea", name: "Other Tracks", trackOnly: true },
+      ],
+      statusAutomationEnabled: true,
+      statusAutomationMissThreshold: 3,
+      statusAutomationRecoveryEnabled: true,
+      voiceParts: [
+        { fullName: "Tenor 1", label: "T1", sectionCode: "T" },
+        { fullName: "SATB Reference", label: "SATB", sectionCode: "O" },
+      ],
+    };
+
+    render(
+      <ProfileEditorHarness
+        rosterConfiguration={config}
+        sampleToOpen={{ ...sampleProfile, voicePart: "SATB" }}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Open Editor" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /configured as track-only for recordings and cannot be assigned to members/i,
+    );
+    const legacyOption = screen.getByRole("option", {
+      name: /SATB Reference \(SATB\) \[Track-only — needs correction\]/,
+    });
+    expect(legacyOption).toBeInTheDocument();
+    expect(legacyOption).toBeDisabled();
   });
 });

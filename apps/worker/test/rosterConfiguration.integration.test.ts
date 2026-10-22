@@ -332,4 +332,218 @@ describe("Organization roster configuration", () => {
     );
     expect(auditCount).toBe(1);
   });
+
+  it("keeps track-only sections and parts out of roster profile assignments and blocks making in-use parts track-only", async () => {
+    const cookie = await signIn();
+    const configWithTrackOnly = {
+      ...defaultRosterConfiguration,
+      sections: [
+        { code: "T", color: "#2563eb", name: "Tenor", trackOnly: false },
+        { code: "B", color: "#16a34a", name: "Bass", trackOnly: false },
+        { code: "O", color: "#9333ea", name: "Other", trackOnly: true },
+      ],
+      voiceParts: [
+        { fullName: "Tenor 1", label: "T1", sectionCode: "T" },
+        { fullName: "Bass 1", label: "B1", sectionCode: "B" },
+        { fullName: "SATB Recordings", label: "SATB", sectionCode: "O" },
+        { fullName: "Two Part", label: "TP", sectionCode: "O" },
+      ],
+    };
+
+    const updateResponse = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/roster-configuration", cookie, {
+        body: JSON.stringify(configWithTrackOnly),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(updateResponse.status).toBe(200);
+
+    // Creating profile with track-only part label is rejected
+    const createTrackOnly = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", cookie, {
+        body: JSON.stringify({ displayName: "Track Only Singer", voicePart: "SATB" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(createTrackOnly.status).toBe(400);
+    const createTrackOnlyJson = await createTrackOnly.json();
+    expect(createTrackOnlyJson).toMatchObject({
+      code: "voice_part_not_configured",
+    });
+    if (
+      typeof createTrackOnlyJson === "object" &&
+      createTrackOnlyJson !== null &&
+      "message" in createTrackOnlyJson &&
+      typeof createTrackOnlyJson.message === "string"
+    ) {
+      expect(createTrackOnlyJson.message).toContain("Configured voice parts: T1, B1.");
+      expect(createTrackOnlyJson.message).not.toContain("SATB");
+    }
+
+    // Creating profile with track-only full name is also rejected
+    const createTrackOnlyFullName = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", cookie, {
+        body: JSON.stringify({ displayName: "Track Only Singer", voicePart: "Two Part" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(createTrackOnlyFullName.status).toBe(400);
+    expect(await createTrackOnlyFullName.json()).toMatchObject({
+      code: "voice_part_not_configured",
+    });
+
+    // Creating profile with valid part succeeds
+    const createValid = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles", cookie, {
+        body: JSON.stringify({ displayName: "Valid Singer", voicePart: "T1" }),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      }),
+    );
+    expect(createValid.status).toBe(201);
+    const validProfile = organizationProfileResponseSchema.parse(await createValid.json());
+    expect(validProfile.voicePart).toBe("T1");
+
+    // Updating profile to track-only part is rejected
+    const updateToTrackOnly = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${validProfile.id}`, cookie, {
+        body: JSON.stringify({
+          displayName: "Valid Singer Updated",
+          voicePart: "SATB",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(updateToTrackOnly.status).toBe(400);
+    expect(await updateToTrackOnly.json()).toMatchObject({
+      code: "voice_part_not_configured",
+    });
+
+    // Updating valid profile to another valid part or empty succeeds
+    const updateToEmpty = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${validProfile.id}`, cookie, {
+        body: JSON.stringify({
+          displayName: "Valid Singer Cleared",
+          voicePart: "",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(updateToEmpty.status).toBe(200);
+    expect(organizationProfileResponseSchema.parse(await updateToEmpty.json()).voicePart).toBe("");
+
+    // Reassign back to T1
+    await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${validProfile.id}`, cookie, {
+        body: JSON.stringify({
+          displayName: "Valid Singer",
+          voicePart: "T1",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+
+    // Pre-seed a legacy profile with track-only part in the DO storage
+    const legacyProfileId = "00000000-0000-4000-8000-000000000099";
+    const stub = organizationStore.get(organizationStore.idFromName("organization-alpha"));
+    await runInDurableObject(stub, (_instance: OrganizationStore, state) => {
+      state.storage.sql.exec(
+        `INSERT INTO profiles (id, display_name, phone, voice_part, global_status, notes, show_in_directory, do_not_email, receive_attendance_reports, receive_rsvp_decline_notices, receive_admin_notifications, receive_financial_alerts, is_section_leader, receive_rehearsal_reminders, receive_performance_reminders, receive_other_event_reminders, status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
+         VALUES (?, 'Legacy Singer', '555-1234', 'SATB', 'Active', '', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '2026-01-01T00:00:00Z', '', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 0)`,
+        legacyProfileId,
+      );
+    });
+
+    // Updating unrelated fields on legacy profile without changing voicePart succeeds
+    const updateLegacyOtherFields = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${legacyProfileId}`, cookie, {
+        body: JSON.stringify({
+          displayName: "Legacy Singer Renamed",
+          phone: "555-9999",
+          voicePart: "SATB",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(updateLegacyOtherFields.status).toBe(200);
+    const updatedLegacy = organizationProfileResponseSchema.parse(
+      await updateLegacyOtherFields.json(),
+    );
+    expect(updatedLegacy.displayName).toBe("Legacy Singer Renamed");
+    expect(updatedLegacy.phone).toBe("555-9999");
+    expect(updatedLegacy.voicePart).toBe("SATB");
+
+    // Updating legacy profile to a valid part succeeds
+    const fixLegacyPart = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${legacyProfileId}`, cookie, {
+        body: JSON.stringify({
+          displayName: "Legacy Singer Renamed",
+          voicePart: "B1",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(fixLegacyPart.status).toBe(200);
+    expect(organizationProfileResponseSchema.parse(await fixLegacyPart.json()).voicePart).toBe(
+      "B1",
+    );
+
+    // Once fixed, attempting to re-assign SATB is rejected
+    const reassignTrackOnly = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${legacyProfileId}`, cookie, {
+        body: JSON.stringify({
+          displayName: "Legacy Singer Renamed",
+          voicePart: "SATB",
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(reassignTrackOnly.status).toBe(400);
+
+    // Attempting to toggle in-use section 'T' to trackOnly=true is blocked with 409
+    const toggleInUseToTrackOnly = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/roster-configuration", cookie, {
+        body: JSON.stringify({
+          ...configWithTrackOnly,
+          sections: [
+            { code: "T", color: "#2563eb", name: "Tenor", trackOnly: true },
+            { code: "B", color: "#16a34a", name: "Bass", trackOnly: false },
+            { code: "O", color: "#9333ea", name: "Other", trackOnly: true },
+          ],
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(toggleInUseToTrackOnly.status).toBe(409);
+    expect(await toggleInUseToTrackOnly.json()).toMatchObject({ code: "voice_part_in_use" });
+
+    // Attempting to move in-use part 'T1' into track-only section 'O' is blocked with 409
+    const moveInUseToTrackOnly = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/roster-configuration", cookie, {
+        body: JSON.stringify({
+          ...configWithTrackOnly,
+          voiceParts: [
+            { fullName: "Tenor 1", label: "T1", sectionCode: "O" },
+            { fullName: "Bass 1", label: "B1", sectionCode: "B" },
+            { fullName: "SATB Recordings", label: "SATB", sectionCode: "O" },
+            { fullName: "Two Part", label: "TP", sectionCode: "O" },
+          ],
+        }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(moveInUseToTrackOnly.status).toBe(409);
+    expect(await moveInUseToTrackOnly.json()).toMatchObject({ code: "voice_part_in_use" });
+  });
 });

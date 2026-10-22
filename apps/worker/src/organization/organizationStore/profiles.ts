@@ -1,4 +1,8 @@
-import { calculateOnBreakInactiveAt, resolveVoicePartLabel } from "@choir/domain";
+import {
+  calculateOnBreakInactiveAt,
+  getAssignableVoiceParts,
+  resolveVoicePartLabel,
+} from "@choir/domain";
 import {
   organizationRosterConfigurationRequestSchema,
   type OrganizationProfileRequest,
@@ -208,13 +212,14 @@ function resolveConfiguredVoicePart(
     const configuration: unknown = JSON.parse(raw);
     const parsed = organizationRosterConfigurationRequestSchema.safeParse(configuration);
     if (!parsed.success) return { valid: false, configuredVoiceParts: [] };
-    const resolution = resolveVoicePartLabel(trimmed, parsed.data.voiceParts);
+    const assignableParts = getAssignableVoiceParts(parsed.data.sections, parsed.data.voiceParts);
+    const resolution = resolveVoicePartLabel(trimmed, assignableParts);
     if (resolution.matched) {
       return { valid: true, canonicalLabel: resolution.canonicalLabel };
     }
     return {
       valid: false,
-      configuredVoiceParts: parsed.data.voiceParts.map((vp) => vp.label),
+      configuredVoiceParts: assignableParts.map((vp) => vp.label),
     };
   } catch {
     return { valid: false, configuredVoiceParts: [] };
@@ -390,10 +395,20 @@ export async function updateProfile(
   if (organizationIdentity(storage)?.organizationId !== parsed.data.organizationId) {
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
-  const exists = storage.sql
-    .exec("SELECT 1 FROM profiles WHERE id = ? LIMIT 1", parsed.data.profileId)
-    .toArray().length;
-  if (exists === 0) return Response.json({ code: "profile_not_found" }, { status: 404 });
+  const existing = storage.sql
+    .exec<{
+      readonly [column: string]: SqlStorageValue;
+      readonly globalStatus: "Active" | "Idle" | "Inactive";
+      readonly statusChangedAt: string;
+      readonly statusIsManual: number;
+      readonly voicePart: string;
+    }>(
+      "SELECT global_status AS globalStatus, status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt, voice_part AS voicePart FROM profiles WHERE id = ? LIMIT 1",
+      parsed.data.profileId,
+    )
+    .toArray()
+    .at(0);
+  if (!existing) return Response.json({ code: "profile_not_found" }, { status: 404 });
   const occurredAt = new Date().toISOString();
   const profile = parsed.data.profile;
   if (rosterContactConflict(storage, parsed.data.profileId, profile.email)) {
@@ -405,32 +420,26 @@ export async function updateProfile(
       { status: 400 },
     );
   }
-  const voicePartResolution = resolveConfiguredVoicePart(storage, profile.voicePart);
-  if (!voicePartResolution.valid) {
-    return Response.json(
-      {
-        code: "voice_part_not_configured",
-        configuredVoiceParts: voicePartResolution.configuredVoiceParts,
-        performerLabel: performerLabel(storage),
-        rejectedValue: profile.voicePart,
-      },
-      { status: 400 },
-    );
+  let canonicalVoicePart: string;
+  if (profile.voicePart === existing.voicePart) {
+    // A preexisting track-only or legacy assignment is preserved when unrelated Profile fields
+    // are saved, without losing that value or blocking edits.
+    canonicalVoicePart = existing.voicePart;
+  } else {
+    const voicePartResolution = resolveConfiguredVoicePart(storage, profile.voicePart);
+    if (!voicePartResolution.valid) {
+      return Response.json(
+        {
+          code: "voice_part_not_configured",
+          configuredVoiceParts: voicePartResolution.configuredVoiceParts,
+          performerLabel: performerLabel(storage),
+          rejectedValue: profile.voicePart,
+        },
+        { status: 400 },
+      );
+    }
+    canonicalVoicePart = voicePartResolution.canonicalLabel;
   }
-  const canonicalVoicePart = voicePartResolution.canonicalLabel;
-  const existing = storage.sql
-    .exec<{
-      readonly [column: string]: SqlStorageValue;
-      readonly globalStatus: "Active" | "Idle" | "Inactive";
-      readonly statusChangedAt: string;
-      readonly statusIsManual: number;
-    }>(
-      "SELECT global_status AS globalStatus, status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt FROM profiles WHERE id = ? LIMIT 1",
-      parsed.data.profileId,
-    )
-    .toArray()
-    .at(0);
-  if (!existing) return Response.json({ code: "profile_not_found" }, { status: 404 });
   storage.transactionSync(() => {
     if (profile.globalStatus !== existing.globalStatus) {
       recordProfileStatusChange(storage, {

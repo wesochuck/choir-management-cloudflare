@@ -56,7 +56,12 @@ export {
   type RosterCsvInspection,
 } from "./rosterCsv";
 export { defaultRosterConfiguration } from "./rosterConfiguration";
-export { rosterAssignmentConversion } from "./rosterStructure";
+export {
+  getAssignableVoiceParts,
+  rosterAssignmentConversion,
+  type RosterSectionLike,
+  type RosterVoicePartLike,
+} from "./rosterStructure";
 export {
   calculateOnBreakInactiveAt,
   calculateRsvpDeadline,

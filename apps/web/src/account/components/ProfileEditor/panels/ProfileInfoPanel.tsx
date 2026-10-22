@@ -3,6 +3,7 @@ import type {
   OrganizationProfileRequest,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
+import { getAssignableVoiceParts } from "@choir/domain";
 import { ProfilePhotoEditor } from "../../../MemberProfileDirectory";
 import { formatProfileTransitionDate, statusLabel } from "../../RosterPage/utils";
 import type { ProfileStatusHistoryState } from "../types";
@@ -125,25 +126,53 @@ export function ProfileInfoPanel({
         ) : null}
       </div>
 
-      <div className="field">
-        <label htmlFor="roster-profile-voice-part">{partLabel}</label>
-        <select
-          id="roster-profile-voice-part"
-          onChange={(event) => {
-            setProfile((current) => ({ ...current, voicePart: event.target.value }));
-          }}
-          value={profile.voicePart}
-        >
-          <option value="">No {partLabel.toLowerCase()}</option>
-          {rosterConfiguration
-            ? rosterConfiguration.voiceParts.map(({ fullName, label }) => (
+      {(() => {
+        const assignableVoiceParts = rosterConfiguration
+          ? getAssignableVoiceParts(rosterConfiguration.sections, rosterConfiguration.voiceParts)
+          : [];
+        const isLegacyTrackOnlyPart = Boolean(
+          profile.voicePart &&
+          !assignableVoiceParts.some((part) => part.label === profile.voicePart),
+        );
+        const legacyPart = isLegacyTrackOnlyPart
+          ? rosterConfiguration?.voiceParts.find((part) => part.label === profile.voicePart)
+          : null;
+        const legacyOptionLabel = legacyPart
+          ? `${legacyPart.fullName} (${legacyPart.label}) [Track-only — needs correction]`
+          : `${profile.voicePart} [Needs correction]`;
+
+        return (
+          <div className="field">
+            <label htmlFor="roster-profile-voice-part">{partLabel}</label>
+            <select
+              id="roster-profile-voice-part"
+              onChange={(event) => {
+                setProfile((current) => ({ ...current, voicePart: event.target.value }));
+              }}
+              value={profile.voicePart}
+            >
+              <option value="">No {partLabel.toLowerCase()}</option>
+              {isLegacyTrackOnlyPart ? (
+                <option value={profile.voicePart} disabled>
+                  {legacyOptionLabel}
+                </option>
+              ) : null}
+              {assignableVoiceParts.map(({ fullName, label }) => (
                 <option key={label} value={label}>
                   {fullName} ({label})
                 </option>
-              ))
-            : null}
-        </select>
-      </div>
+              ))}
+            </select>
+            {isLegacyTrackOnlyPart ? (
+              <p className="notice notice--warning" role="alert">
+                This {partLabel.toLowerCase()} is configured as track-only for recordings and cannot
+                be assigned to members. Please assign a valid roster {partLabel.toLowerCase()} or
+                clear it.
+              </p>
+            ) : null}
+          </div>
+        );
+      })()}
 
       <div className="field">
         <label htmlFor="roster-profile-status">Status</label>

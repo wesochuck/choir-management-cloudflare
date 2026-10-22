@@ -1,4 +1,5 @@
 import type { OrganizationProfile } from "@choir/contracts";
+import { getAssignableVoiceParts } from "@choir/domain";
 import { Dialog } from "@choir/ui";
 import { useMemo, useState } from "react";
 
@@ -227,12 +228,13 @@ export function RosterConfiguration({ enabled }: Props) {
             <legend>Sections</legend>
             <div className="roster-configuration-list">
               {configuration.sections.map((section, index) => {
+                const hasAssignedMembers = assignedSectionCodes.has(section.code);
                 const canManageAssignments =
                   savedConfiguration?.rosterStructure === "sections_only" &&
                   assignedProfilesByLabel.has(section.code);
                 const referenced =
                   configuration.rosterStructure === "sections_only"
-                    ? assignedSectionCodes.has(section.code)
+                    ? hasAssignedMembers
                     : configuration.voiceParts.some(
                         ({ sectionCode }) => sectionCode === section.code,
                       );
@@ -301,10 +303,18 @@ export function RosterConfiguration({ enabled }: Props) {
                     <label className="checkbox-row">
                       <input
                         checked={section.trackOnly}
-                        disabled={canManageAssignments}
+                        disabled={
+                          canManageAssignments || (!section.trackOnly && hasAssignedMembers)
+                        }
+                        title={
+                          !section.trackOnly && hasAssignedMembers
+                            ? `Reassign members in this section before marking it track-only.`
+                            : undefined
+                        }
                         type="checkbox"
                         onChange={(event) => {
                           const trackOnly = event.target.checked;
+                          if (trackOnly && hasAssignedMembers) return;
                           setConfiguration((current) => ({
                             ...current,
                             sections: current.sections.map((item, itemIndex) =>
@@ -429,6 +439,10 @@ export function RosterConfiguration({ enabled }: Props) {
                             value={voicePart.sectionCode}
                             onChange={(event) => {
                               const sectionCode = event.target.value;
+                              const targetSection = configuration.sections.find(
+                                (item) => item.code === sectionCode,
+                              );
+                              if (assigned && targetSection?.trackOnly) return;
                               setConfiguration((current) => ({
                                 ...current,
                                 voiceParts: current.voiceParts.map((item, itemIndex) =>
@@ -437,9 +451,18 @@ export function RosterConfiguration({ enabled }: Props) {
                               }));
                             }}
                           >
-                            {configuration.sections.map(({ code, name }) => (
-                              <option key={code} value={code}>
-                                {name}
+                            {configuration.sections.map(({ code, name, trackOnly }) => (
+                              <option
+                                key={code}
+                                value={code}
+                                disabled={assigned && trackOnly}
+                                title={
+                                  assigned && trackOnly
+                                    ? `Cannot move an assigned part into a track-only section.`
+                                    : undefined
+                                }
+                              >
+                                {name} {assigned && trackOnly ? "(Track-only)" : ""}
                               </option>
                             ))}
                           </select>
@@ -565,13 +588,20 @@ export function RosterConfiguration({ enabled }: Props) {
             }}
           >
             <option value="">No {partTerm} (clear assignment)</option>
-            {(savedConfiguration?.voiceParts ?? configuration?.voiceParts ?? [])
-              .filter(({ label }) => label !== reassigningLabel)
-              .map(({ label, fullName }) => (
-                <option key={label} value={label}>
-                  {label} — {fullName}
-                </option>
-              ))}
+            {(() => {
+              const activeConfig = savedConfiguration ?? configuration;
+              const allParts = savedConfiguration?.voiceParts ?? configuration?.voiceParts ?? [];
+              const assignableParts = activeConfig
+                ? getAssignableVoiceParts(activeConfig.sections, allParts)
+                : allParts;
+              return assignableParts
+                .filter(({ label }) => label !== reassigningLabel)
+                .map(({ label, fullName }) => (
+                  <option key={label} value={label}>
+                    {label} — {fullName}
+                  </option>
+                ));
+            })()}
           </select>
         </div>
         <ul className="account-list">

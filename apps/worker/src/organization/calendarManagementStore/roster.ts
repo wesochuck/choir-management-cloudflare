@@ -1,5 +1,5 @@
 import { type ManagementRequest } from "./contracts";
-import { rosterAssignmentConversion } from "@choir/domain";
+import { getAssignableVoiceParts, rosterAssignmentConversion } from "@choir/domain";
 import { insertAudit, rosterConfigurationFromStore } from "./shared";
 import { runRosterAutomations } from "../statusAutomationStore";
 import { convertRosterReferences } from "./rosterStructureConversion";
@@ -11,7 +11,11 @@ export function updateRosterConfiguration(
 ): Response {
   const previous = rosterConfigurationFromStore(storage);
   const conversion = rosterAssignmentConversion(previous, operation.configuration);
-  const labels = new Set(operation.configuration.voiceParts.map(({ label }) => label));
+  const assignableVoiceParts = getAssignableVoiceParts(
+    operation.configuration.sections,
+    operation.configuration.voiceParts,
+  );
+  const assignableLabels = new Set(assignableVoiceParts.map(({ label }) => label));
   const assignedVoiceParts = storage.sql
     .exec<{ readonly [column: string]: SqlStorageValue; readonly voicePart: string }>(
       `SELECT DISTINCT voice_part AS voicePart FROM profiles
@@ -19,7 +23,9 @@ export function updateRosterConfiguration(
     )
     .toArray();
   if (
-    assignedVoiceParts.some(({ voicePart }) => !labels.has(conversion.get(voicePart) ?? voicePart))
+    assignedVoiceParts.some(
+      ({ voicePart }) => !assignableLabels.has(conversion.get(voicePart) ?? voicePart),
+    )
   ) {
     return Response.json({ code: "voice_part_in_use" }, { status: 409 });
   }
