@@ -123,7 +123,7 @@ export function DestinationPiecePicker({
       <div className="track-import-piece-picker__summary" aria-live="polite">
         {selected ? (
           <>
-            <h3>{selected.title}</h3>
+            <h3 className="track-import-piece-picker__title">{selected.title}</h3>
             <p>
               {[selected.composer, selected.arranger ? `arr. ${selected.arranger}` : ""]
                 .filter(Boolean)
