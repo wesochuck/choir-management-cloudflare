@@ -1014,13 +1014,15 @@
 
   .track-import-piece-picker {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(13rem, auto);
+    grid-template-columns: minmax(0, 1fr) minmax(13rem, 18rem);
     gap: var(--spacing-sm);
     align-items: stretch;
     margin-top: var(--spacing-sm);
   }
 
   .track-import-piece-picker__summary {
+    grid-column: 1;
+    grid-row: 1;
     min-width: 0;
     padding: var(--spacing-sm) var(--spacing-md);
     border: 1px solid var(--color-border);
@@ -1043,7 +1045,67 @@
     font-size: var(--font-size-xs);
   }
 
+  .track-import-ai-result {
+    grid-column: 1 / -1;
+    min-width: 0;
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+  }
+
+  .track-import-ai-result h4 {
+    margin: 0;
+    font-size: var(--font-size-md);
+  }
+
+  .track-import-ai-result p {
+    margin: var(--spacing-xs) 0 0;
+    color: var(--color-text-muted);
+  }
+
+  .track-import-ai-result__options {
+    display: grid;
+    gap: var(--spacing-sm);
+    margin: var(--spacing-md) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .track-import-ai-result__options li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+  }
+
+  .track-import-ai-result__copy {
+    flex: 1 1 16rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .track-import-ai-result__copy strong,
+  .track-import-ai-result__copy span {
+    display: block;
+  }
+
+  .track-import-ai-result__copy span {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .track-import-ai-result__options .button {
+    flex: 0 0 auto;
+  }
+
   .track-import-library-search__trigger {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
     display: inline-flex;
     min-height: 4rem;
     align-items: center;
@@ -1454,6 +1516,11 @@
     .track-import-piece-picker,
     .track-import-review-file {
       grid-template-columns: minmax(0, 1fr);
+    }
+
+    .track-import-library-search__trigger {
+      grid-column: 1;
+      grid-row: 2;
     }
 
     .track-import-review-filters {

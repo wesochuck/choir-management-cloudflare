@@ -1,5 +1,6 @@
 import type { OrganizationEvent, OrganizationMusicPiece } from "@choir/contracts";
 import {
+  musicTrackImportMatchRequestSchema,
   organizationEventRequestSchema,
   organizationMusicGenreBatchAddRequestSchema,
   organizationMusicGenreDeleteRequestSchema,
@@ -1099,5 +1100,109 @@ for (const theme of ["light", "dark"] as const) {
       path: info.outputPath(`loudness-settings-${theme}.png`),
       fullPage: true,
     });
+  });
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`explains weak AI matches and keeps arrangement choices readable in ${theme} theme`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({
+      width: testInfo.project.name.includes("mobile") ? 390 : 1440,
+      height: testInfo.project.name.includes("mobile") ? 2000 : 1400,
+    });
+    const first = piece(
+      "11111111-1111-4111-8111-111111111111",
+      "Ave Maria",
+      "Franz Biebl",
+      "A long arranger credit with multiple collaborators and an extended edition description",
+    );
+    const second = piece(
+      "22222222-2222-4222-8222-222222222222",
+      "Ave Maria",
+      "Tomás Luis de Victoria",
+      "Another arrangement with a long publisher and editor credit",
+    );
+    await installRoutes(page, [first, second]);
+    await page.addInitScript((value) => {
+      window.localStorage.setItem(`choir-theme:${window.location.hostname}`, value);
+    }, theme);
+    let attempt = 0;
+    await page.route("**/api/organization/music/track-import/match", async (route) => {
+      const body = musicTrackImportMatchRequestSchema.parse(route.request().postDataJSON());
+      attempt += 1;
+      await fulfill(route, {
+        model: "internal",
+        requestId,
+        suggestions: body.groups.map((group) => ({
+          groupId: group.groupId,
+          confidence: "none",
+          suggestedPieceId: null,
+          noneProbability: attempt === 1 ? 0.67 : 0.1,
+          topCandidates: [
+            { pieceId: first.id, probability: attempt === 1 ? 0.2 : 0.48 },
+            { pieceId: second.id, probability: attempt === 1 ? 0.13 : 0.42 },
+          ],
+        })),
+      });
+    });
+    await page.goto("/admin/library");
+    await page.getByRole("button", { name: "Bulk upload practice tracks", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Bulk upload practice tracks" });
+    await dialog.locator('input[type="file"]').setInputFiles({
+      buffer: Buffer.from("invalid-audio"),
+      mimeType: "audio/mpeg",
+      name: "Ave Maria.mp3",
+    });
+    await expect(dialog.getByText("Ave Maria.mp3")).toBeVisible();
+    await dialog.getByRole("radio", { name: /Entire Music Library/ }).check();
+    await dialog.getByRole("button", { name: "Review groups" }).click();
+    await dialog.getByRole("button", { name: "AI Match" }).click();
+    await expect(
+      dialog.getByRole("heading", { name: "AI couldn’t find a reliable match" }),
+    ).toBeVisible();
+    await expect(dialog.getByText(/AI matching complete/)).toContainText("1 still need one");
+    await expect(dialog.getByRole("button", { name: /Select destination:/ })).toHaveCount(0);
+    const search = dialog.getByRole("button", { name: "Search library to change piece" });
+    await expect(search).toBeVisible();
+    const searchBox = await search.boundingBox();
+    expect(searchBox?.width).toBeGreaterThan(180);
+    await dialog
+      .locator(".track-import-review-destination")
+      .screenshot({ path: testInfo.outputPath(`ai-no-match-${theme}.png`) });
+    await dialog.getByRole("button", { name: "AI Match" }).click();
+    await expect(dialog.getByRole("heading", { name: "Possible destinations" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Select destination:/ })).toHaveCount(2);
+    const picker = dialog.locator(".track-import-piece-picker");
+    expect(await picker.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(
+      true,
+    );
+    const result = dialog.getByRole("status", { name: "AI matching result" });
+    await expect(result).not.toContainText("48%");
+    if (testInfo.project.name.includes("mobile")) {
+      const cards = result.getByRole("listitem");
+      await cards
+        .nth(0)
+        .screenshot({ path: testInfo.outputPath(`ai-first-alternative-${theme}.png`) });
+      await cards
+        .nth(1)
+        .screenshot({ path: testInfo.outputPath(`ai-second-alternative-${theme}.png`) });
+    } else {
+      await result.screenshot({ path: testInfo.outputPath(`ai-alternatives-${theme}.png`) });
+    }
+    const choose = dialog.getByRole("button", {
+      name: /Select destination: Ave Maria, arranged by A long/,
+    });
+    await choose.scrollIntoViewIfNeeded();
+    const choiceBox = await choose.boundingBox();
+    const footerBox = await dialog.locator(".track-import-review-footer").boundingBox();
+    if (!choiceBox || !footerBox) throw new Error("Missing destination action geometry");
+    expect(choiceBox.y + choiceBox.height).toBeLessThanOrEqual(footerBox.y + 1);
+    await choose.focus();
+    await page.keyboard.press("Enter");
+    await expect(dialog.locator(".track-import-piece-picker__summary")).toContainText(
+      "Franz Biebl",
+    );
+    await expect(dialog.getByRole("button", { name: "Continue to confirmation" })).toHaveCount(0);
   });
 }

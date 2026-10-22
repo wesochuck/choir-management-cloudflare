@@ -1,3 +1,4 @@
+import { presentAiMatch } from "./aiMatchPresentation";
 import { rankCandidatePiecesForGroup, recalculateTrackImportGroup } from "@choir/domain";
 import { DataTable, type DataTableColumn } from "@choir/ui";
 import type { OrganizationMusicPiece, OrganizationRosterConfiguration } from "@choir/contracts";
@@ -503,21 +504,7 @@ function DestinationSection({
   readonly performanceIds: ReadonlySet<string>;
   readonly pickerRef: RefObject<DestinationPiecePickerHandle | null>;
 }) {
-  const suggestedAlternatives = useMemo(() => {
-    if (!group.aiSuggestion?.topCandidates || group.aiSuggestion.topCandidates.length === 0) {
-      return undefined;
-    }
-    return group.aiSuggestion.topCandidates.map((c) => {
-      const opt = options.find((o) => o.id === c.pieceId);
-      return {
-        arranger: opt?.arranger ?? null,
-        composer: opt?.composer ?? null,
-        pieceId: c.pieceId,
-        probability: c.probability,
-        title: opt?.title ?? "Unknown piece",
-      };
-    });
-  }, [group.aiSuggestion, options]);
+  const aiPresentation = useMemo(() => presentAiMatch(group, options), [group, options]);
 
   const evidence =
     activeEvidence.length > 0
@@ -542,7 +529,8 @@ function DestinationSection({
         performancePieceIds={performanceIds}
         ref={pickerRef}
         selectedPieceId={group.selectedPieceId}
-        suggestedAlternatives={suggestedAlternatives}
+        suggestedAlternatives={aiPresentation.alternatives}
+        aiMatchOutcome={aiPresentation.outcome}
       />
       <p className="track-import-review-evidence">
         <strong>Why this match?</strong> <span>{evidence}</span>
@@ -740,16 +728,28 @@ function BatchOverview({
 }
 
 function ReviewNotices({
+  groups,
   matchError,
   matching,
 }: {
+  readonly groups: readonly GroupReviewItem[];
   readonly matchError: string | null;
   readonly matching: boolean;
 }) {
+  const aiChecked = groups.filter((group) => group.aiSuggestion).length;
+  const destinations = groups.filter((group) => group.selectedPieceId).length;
   return (
     <>
       {matchError ? <p role="alert">{matchError} Your current selections are preserved.</p> : null}
-      {matching ? <p role="status">Getting AI suggestions…</p> : null}
+      {matching ? (
+        <p role="status">Getting AI suggestions…</p>
+      ) : aiChecked > 0 && !matchError ? (
+        <p role="status" className="track-import-ai-batch-result">
+          AI matching complete. {String(destinations)} of {String(groups.length)} song groups have a
+          destination; {String(groups.length - destinations)} still need one. Review each
+          destination and voice part before uploading.
+        </p>
+      ) : null}
     </>
   );
 }
@@ -1558,7 +1558,7 @@ export function StepReviewMatches({
         reviewedGroups={reviewedGroups}
         totalFiles={totalFiles}
       />
-      <ReviewNotices matchError={matchError} matching={matching} />
+      <ReviewNotices groups={groups} matchError={matchError} matching={matching} />
       <ReviewToolbar matching={matching} onAiMatch={onAiMatch} onViewChange={setView} view={view} />
       <ReviewModePanel
         columns={overviewColumns}

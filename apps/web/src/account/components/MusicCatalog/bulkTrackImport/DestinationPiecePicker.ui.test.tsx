@@ -126,3 +126,58 @@ describe("Music Library destination search", () => {
     expect(screen.getByRole("button", { name: "Search library to change piece" })).toBeDisabled();
   });
 });
+
+it("explains no reliable AI match while preserving the prominent library search", () => {
+  render(
+    <DestinationPiecePicker
+      disabled={false}
+      id="no-match"
+      onSelect={vi.fn()}
+      options={options}
+      performancePieceIds={performancePieceIds}
+      selectedPieceId={null}
+      aiMatchOutcome="no_match"
+    />,
+  );
+  expect(screen.getByRole("status")).toHaveTextContent("AI couldn’t find a reliable match");
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Search the Music Library to choose a destination",
+  );
+  expect(screen.getByRole("button", { name: "Search library to change piece" })).toBeEnabled();
+  expect(screen.queryByRole("list", { name: "Possible AI destinations" })).not.toBeInTheDocument();
+});
+
+it("separates arrangement credits and an explicit keyboard-accessible selection action", async () => {
+  const onSelect = vi.fn();
+  const user = userEvent.setup();
+  render(
+    <DestinationPiecePicker
+      disabled={false}
+      id="alternatives"
+      onSelect={onSelect}
+      options={options}
+      performancePieceIds={performancePieceIds}
+      selectedPieceId={null}
+      aiMatchOutcome="alternatives"
+      suggestedAlternatives={[
+        {
+          pieceId: "two",
+          title: "Ave Maria",
+          composer: "Gounod",
+          arranger: "Jane Smith",
+          probability: 0.48,
+        },
+      ]}
+    />,
+  );
+  const result = screen.getByRole("status");
+  expect(result).toHaveTextContent("Possible destinations");
+  expect(result).toHaveTextContent("Gounod · arr. Jane Smith");
+  expect(result).not.toHaveTextContent("48%");
+  const select = screen.getByRole("button", {
+    name: "Select destination: Ave Maria, arranged by Jane Smith",
+  });
+  select.focus();
+  await user.keyboard("{Enter}");
+  expect(onSelect).toHaveBeenCalledWith("two");
+});

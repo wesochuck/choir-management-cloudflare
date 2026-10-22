@@ -1,3 +1,5 @@
+import { AiMatchResult } from "./AiMatchResult";
+import type { AiMatchOutcome } from "./aiMatchPresentation";
 import { useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
 
 export interface DestinationPiecePickerHandle {
@@ -23,6 +25,7 @@ export interface DestinationPieceOption {
 }
 
 export function DestinationPiecePicker({
+  aiMatchOutcome,
   disabled,
   id,
   onSelect,
@@ -32,6 +35,7 @@ export function DestinationPiecePicker({
   selectedPieceId,
   suggestedAlternatives,
 }: {
+  readonly aiMatchOutcome?: AiMatchOutcome | undefined;
   readonly disabled: boolean;
   readonly id: string;
   readonly onSelect: (pieceId: string | null) => void;
@@ -138,42 +142,13 @@ export function DestinationPiecePicker({
           </>
         )}
       </div>
-      {suggestedAlternatives && suggestedAlternatives.length > 0 ? (
-        <div aria-label="AI suggested destinations" className="track-import-suggested-destinations">
-          <span className="track-import-suggested-destinations__label">
-            AI suggested destinations:
-          </span>
-          <div className="track-import-suggested-destinations__list" role="group">
-            {suggestedAlternatives.map((alt) => {
-              const isSelected = alt.pieceId === selectedPieceId;
-              const probText =
-                typeof alt.probability === "number" && alt.probability > 0
-                  ? ` (~${String(Math.round(alt.probability * 100))}% estimate)`
-                  : "";
-              const credit = [alt.composer, alt.arranger ? `arr. ${alt.arranger}` : ""]
-                .filter(Boolean)
-                .join(" · ");
-              return (
-                <button
-                  aria-pressed={isSelected}
-                  className={`button button--secondary button--sm track-import-suggested-destination-btn ${
-                    isSelected ? "button--selected" : ""
-                  }`}
-                  disabled={disabled}
-                  key={alt.pieceId}
-                  type="button"
-                  onClick={() => {
-                    onSelect(alt.pieceId);
-                  }}
-                >
-                  <strong>{alt.title}</strong>
-                  {credit ? <span> ({credit})</span> : null}
-                  {probText ? <small>{probText}</small> : null}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+      {aiMatchOutcome ? (
+        <AiMatchResult
+          outcome={aiMatchOutcome}
+          alternatives={suggestedAlternatives ?? []}
+          disabled={disabled}
+          onSelect={onSelect}
+        />
       ) : null}
       <button
         aria-controls={resultsId}
