@@ -737,7 +737,10 @@ function ReviewNotices({
   readonly matching: boolean;
 }) {
   const aiChecked = groups.filter((group) => group.aiSuggestion).length;
-  const destinations = groups.filter((group) => group.selectedPieceId).length;
+  const includedGroups = groups.filter(
+    (group) => !group.groupSkipped && group.files.some((file) => !file.excluded),
+  );
+  const destinations = includedGroups.filter((group) => group.selectedPieceId).length;
   return (
     <>
       {matchError ? <p role="alert">{matchError} Your current selections are preserved.</p> : null}
@@ -745,9 +748,9 @@ function ReviewNotices({
         <p role="status">Getting AI suggestions…</p>
       ) : aiChecked > 0 && !matchError ? (
         <p role="status" className="track-import-ai-batch-result">
-          AI matching complete. {String(destinations)} of {String(groups.length)} song groups have a
-          destination; {String(groups.length - destinations)} still need one. Review each
-          destination and voice part before uploading.
+          AI matching complete. {String(destinations)} of {String(includedGroups.length)} included
+          song groups have a destination. Review each included destination and voice part before
+          uploading.
         </p>
       ) : null}
     </>

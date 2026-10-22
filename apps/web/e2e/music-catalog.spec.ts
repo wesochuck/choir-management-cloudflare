@@ -1161,7 +1161,9 @@ for (const theme of ["light", "dark"] as const) {
     await expect(
       dialog.getByRole("heading", { name: "AI couldn’t find a reliable match" }),
     ).toBeVisible();
-    await expect(dialog.getByText(/AI matching complete/)).toContainText("1 still need one");
+    await expect(dialog.getByText(/AI matching complete/)).toContainText(
+      "0 of 1 included song groups have a destination",
+    );
     await expect(dialog.getByRole("button", { name: /Select destination:/ })).toHaveCount(0);
     const search = dialog.getByRole("button", { name: "Search library to change piece" });
     await expect(search).toBeVisible();
@@ -1191,7 +1193,7 @@ for (const theme of ["light", "dark"] as const) {
       await result.screenshot({ path: testInfo.outputPath(`ai-alternatives-${theme}.png`) });
     }
     const choose = dialog.getByRole("button", {
-      name: /Select destination: Ave Maria, arranged by A long/,
+      name: /Select destination: Ave Maria, by Franz Biebl, arranged by A long/,
     });
     await choose.scrollIntoViewIfNeeded();
     const choiceBox = await choose.boundingBox();

@@ -175,7 +175,7 @@ it("separates arrangement credits and an explicit keyboard-accessible selection 
   expect(result).toHaveTextContent("Gounod · arr. Jane Smith");
   expect(result).not.toHaveTextContent("48%");
   const select = screen.getByRole("button", {
-    name: "Select destination: Ave Maria, arranged by Jane Smith",
+    name: "Select destination: Ave Maria, by Gounod, arranged by Jane Smith",
   });
   select.focus();
   await user.keyboard("{Enter}");

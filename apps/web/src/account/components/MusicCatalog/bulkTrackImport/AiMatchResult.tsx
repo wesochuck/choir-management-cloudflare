@@ -56,7 +56,7 @@ export function AiMatchResult({
                 className="button button--secondary"
                 disabled={disabled}
                 type="button"
-                aria-label={`Select destination: ${alt.title}${alt.arranger ? `, arranged by ${alt.arranger}` : ""}`}
+                aria-label={`Select destination: ${alt.title}${alt.composer ? `, by ${alt.composer}` : ""}${alt.arranger ? `, arranged by ${alt.arranger}` : ""}`}
                 onClick={() => {
                   onSelect(alt.pieceId);
                 }}
