@@ -4,11 +4,14 @@ import type {
   OrganizationRosterConfiguration,
   MusicTrackImportGroupSuggestion,
 } from "@choir/contracts";
-import type { RankedPieceCandidate } from "@choir/domain";
+import type { ParsedId3Metadata, RankedPieceCandidate } from "@choir/domain";
 
 export type TrackImportScope = "set_list" | "entire_library";
 
 export type TrackImportStep = "scope_files" | "review" | "upload" | "results";
+
+export type PartProvenance = "deterministic" | "ai" | "manual";
+export type DestinationProvenance = "deterministic" | "ai" | "manual";
 
 export interface InspectedTrackFile {
   readonly clientFileId: string;
@@ -18,33 +21,43 @@ export interface InspectedTrackFile {
   readonly file: File;
   readonly fileName: string;
   readonly inferredTitle: string;
+  readonly metadata?: ParsedId3Metadata | null;
   readonly sequenceNumber: string | null;
 }
 
 export interface GroupFileAssignment {
   readonly clientFileId: string;
+  readonly conflictReason?: string | null | undefined;
+  readonly detectedPartKey?: string | null | undefined;
+  readonly detectedPartLabel?: string | null | undefined;
   readonly durationSeconds: number | null;
+  readonly excluded?: boolean | undefined;
   readonly file: File;
   readonly fileName: string;
-  readonly excluded?: boolean;
+  readonly metadata?: ParsedId3Metadata | null | undefined;
   readonly partKey: string | null;
-  readonly partSelectionChanged?: boolean;
+  readonly partProvenance?: PartProvenance | undefined;
+  readonly partSelectionChanged?: boolean | undefined;
+  readonly suggestedPartKey?: string | null | undefined;
+  readonly suggestedPartProbability?: number | null | undefined;
 }
 
 export interface GroupReviewItem {
   readonly aiSuggestion?: MusicTrackImportGroupSuggestion | undefined;
   readonly averageDurationSeconds: number | null;
   readonly candidates: readonly RankedPieceCandidate[];
+  readonly destinationProvenance?: DestinationProvenance | undefined;
+  readonly destinationSelectionChanged?: boolean | undefined;
   readonly duplicatePartKeys: readonly string[];
   readonly evidence: readonly string[];
   readonly files: readonly GroupFileAssignment[];
   readonly groupId: string;
+  readonly groupSkipped?: boolean | undefined;
   readonly hasDuplicatePart: boolean;
   readonly inferredTitle: string;
-  readonly groupSkipped?: boolean;
+  readonly reviewedMappingKey?: string | null | undefined;
   readonly selectedPieceId: string | null;
   readonly sequenceNumber: string | null;
-  readonly reviewedMappingKey?: string | null;
 }
 
 export interface UploadProgressState {

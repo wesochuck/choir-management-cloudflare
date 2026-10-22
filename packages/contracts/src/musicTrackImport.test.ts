@@ -131,6 +131,36 @@ describe("musicTrackImport contracts", () => {
         musicTrackImportMatchRequestSchema.safeParse({ ...parsed, useAi: "true" }).success,
       ).toBe(false);
     });
+
+    it("accepts optional configuredPartKeys and per-file metadata", () => {
+      const parsed = musicTrackImportMatchRequestSchema.parse({
+        candidates: [{ pieceId, title: "O Shenandoah" }],
+        configuredPartKeys: ["soprano1", "alto1", "tenor1", "bass1"],
+        groups: [
+          {
+            fileMetadata: [
+              {
+                album: "Folk Songs",
+                artist: "American Choir",
+                clientFileId: "f-1",
+                composer: "Trad.",
+                detectedPartKey: "tenor1",
+                durationSeconds: 220,
+                fileName: "Shenandoah_T1.mp3",
+                inferredTitle: "Shenandoah",
+                sequenceNumber: "01",
+                title: "O Shenandoah",
+                trackNumber: "01/10",
+              },
+            ],
+            fileNames: ["Shenandoah_T1.mp3"],
+            groupId: "g-1",
+          },
+        ],
+      });
+      expect(parsed.configuredPartKeys).toEqual(["soprano1", "alto1", "tenor1", "bass1"]);
+      expect(parsed.groups[0]?.fileMetadata?.[0]?.clientFileId).toBe("f-1");
+    });
   });
 
   describe("musicTrackImportMatchResponseSchema", () => {
@@ -148,6 +178,56 @@ describe("musicTrackImport contracts", () => {
         ],
       });
       expect(parsed.suggestions[0]?.confidence).toBe("high");
+    });
+
+    it("accepts optional topCandidates and filePartSuggestions with probabilities", () => {
+      const parsed = musicTrackImportMatchResponseSchema.parse({
+        model: "@cf/cloudflare/clef-flash",
+        requestId,
+        suggestions: [
+          {
+            confidence: "high",
+            filePartSuggestions: [
+              {
+                clientFileId: "f-1",
+                probability: 0.95,
+                suggestedPartKey: "soprano1",
+              },
+              {
+                clientFileId: "f-2",
+                probability: 0.2,
+                suggestedPartKey: null,
+              },
+            ],
+            groupId: "group-1",
+            rationale: "Strong arrangement match",
+            suggestedPieceId: pieceId,
+            topCandidates: [
+              { pieceId, probability: 0.88 },
+              { pieceId: "55555555-5555-4555-8555-555555555555", probability: 0.12 },
+            ],
+          },
+        ],
+      });
+      expect(parsed.suggestions[0]?.topCandidates).toHaveLength(2);
+      expect(parsed.suggestions[0]?.filePartSuggestions?.[0]?.suggestedPartKey).toBe("soprano1");
+      expect(parsed.suggestions[0]?.filePartSuggestions?.[1]?.suggestedPartKey).toBeNull();
+
+      // Rejects invalid probability
+      expect(() =>
+        musicTrackImportMatchResponseSchema.parse({
+          model: "clef",
+          requestId,
+          suggestions: [
+            {
+              confidence: "high",
+              groupId: "g-1",
+              suggestedPieceId: null,
+              topCandidates: [{ pieceId, probability: 1.5 }],
+            },
+          ],
+        }),
+      ).toThrow();
     });
   });
 

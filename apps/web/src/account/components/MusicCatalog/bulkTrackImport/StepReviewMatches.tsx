@@ -146,7 +146,12 @@ function FileReviewRow({
       </div>
       <div className="track-import-review-file__mapping">
         <label>
-          <span>Section or voice part</span>
+          <span className="track-import-review-file__part-label">
+            Section or voice part
+            {file.partProvenance === "ai" ? (
+              <span className="badge badge--accent track-import-ai-badge">AI suggested</span>
+            ) : null}
+          </span>
           <select
             aria-label={`Section or voice part for ${file.fileName}`}
             disabled={excluded || groupSkipped || matching}
@@ -165,6 +170,9 @@ function FileReviewRow({
             {partOptions.map((option) => (
               <option key={option.key} value={option.key}>
                 {option.label}
+                {file.partProvenance === "ai" && file.partKey === option.key
+                  ? " (AI suggested)"
+                  : ""}
               </option>
             ))}
           </select>
@@ -494,6 +502,22 @@ function DestinationSection({
   readonly performanceIds: ReadonlySet<string>;
   readonly pickerRef: RefObject<DestinationPiecePickerHandle | null>;
 }) {
+  const suggestedAlternatives = useMemo(() => {
+    if (!group.aiSuggestion?.topCandidates || group.aiSuggestion.topCandidates.length === 0) {
+      return undefined;
+    }
+    return group.aiSuggestion.topCandidates.map((c) => {
+      const opt = options.find((o) => o.id === c.pieceId);
+      return {
+        arranger: opt?.arranger ?? null,
+        composer: opt?.composer ?? null,
+        pieceId: c.pieceId,
+        probability: c.probability,
+        title: opt?.title ?? "Unknown piece",
+      };
+    });
+  }, [group.aiSuggestion, options]);
+
   const evidence =
     activeEvidence.length > 0
       ? activeEvidence.join(" · ")
@@ -517,9 +541,10 @@ function DestinationSection({
         performancePieceIds={performanceIds}
         ref={pickerRef}
         selectedPieceId={group.selectedPieceId}
+        suggestedAlternatives={suggestedAlternatives}
       />
       <p className="track-import-review-evidence">
-        <strong>Why this match?</strong> {evidence}
+        <strong>Why this match?</strong> <span>{evidence}</span>
       </p>
     </section>
   );
@@ -1035,12 +1060,27 @@ function getGroupConflictAnalysis(group: GroupReviewItem, state: ReviewState) {
 }
 
 function getGroupEvidence(group: GroupReviewItem | undefined): readonly string[] {
-  if (!group) return [];
-  if (group.aiSuggestion?.rationale) return [group.aiSuggestion.rationale];
-  return (
-    group.candidates.find((candidate) => candidate.piece.id === group.selectedPieceId)?.evidence ??
-    []
-  );
+  if (!group?.selectedPieceId) return [];
+
+  // 1. Deterministic evidence for the selected piece
+  const candidate = group.candidates.find((c) => c.piece.id === group.selectedPieceId);
+  const evidenceList: string[] = candidate ? [...candidate.evidence] : [];
+
+  // 2. Separate AI estimate if AI suggestion matches the currently selected piece
+  const aiMatchesSelection =
+    group.aiSuggestion?.suggestedPieceId === group.selectedPieceId ||
+    group.aiSuggestion?.topCandidates?.some((c) => c.pieceId === group.selectedPieceId);
+
+  if (aiMatchesSelection && group.aiSuggestion) {
+    const top = group.aiSuggestion.topCandidates?.find((c) => c.pieceId === group.selectedPieceId);
+    if (top && typeof top.probability === "number") {
+      evidenceList.push(`AI estimate (~${String(Math.round(top.probability * 100))}% confidence)`);
+    } else if (group.aiSuggestion.rationale) {
+      evidenceList.push(group.aiSuggestion.rationale);
+    }
+  }
+
+  return evidenceList;
 }
 
 function OverviewSongCell({ row }: { readonly row: ReviewQueueRow }) {

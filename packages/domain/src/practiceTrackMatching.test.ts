@@ -12,20 +12,23 @@ import {
 } from "./practiceTrackMatching";
 
 describe("default practice track assignments", () => {
-  it("defaults undetected parts only when a piece is selected", () => {
+  it("keeps undetected parts as null/unassigned even when a piece is selected", () => {
     expect(resolvePracticeTrackAssignments([{ partKey: null }], null).files[0]?.partKey).toBeNull();
-    expect(resolvePracticeTrackAssignments([{ partKey: null }], "piece").files[0]?.partKey).toBe(
-      "tutti",
-    );
+    expect(
+      resolvePracticeTrackAssignments([{ partKey: null }], "piece").files[0]?.partKey,
+    ).toBeNull();
   });
   it("preserves detected parts and explicit skips", () => {
     const files = [{ partKey: "soprano" }, { partKey: null, partSelectionChanged: true }];
     expect(resolvePracticeTrackAssignments(files, "piece").files).toEqual(files);
   });
-  it("reports duplicate Tutti assignments instead of silently attaching competing recordings", () => {
+  it("preserves intentional tutti assignments and detects duplicate tutti files", () => {
+    expect(
+      resolvePracticeTrackAssignments([{ partKey: "tutti" }, { partKey: "tutti" }], "piece"),
+    ).toMatchObject({ duplicatePartKeys: ["tutti"], hasDuplicatePart: true });
     expect(
       resolvePracticeTrackAssignments([{ partKey: null }, { partKey: "tutti" }], "piece"),
-    ).toMatchObject({ duplicatePartKeys: ["tutti"], hasDuplicatePart: true });
+    ).toMatchObject({ duplicatePartKeys: [], hasDuplicatePart: false });
   });
 });
 
@@ -314,6 +317,85 @@ describe("practiceTrackMatching", () => {
       expect(match.suggestedPiece?.piece.id).toBe("22222222-2222-4222-8222-222222222222");
       expect(match.suggestedPiece?.evidence).toContain("Linked to selected set list");
       expect(match.suggestedPiece?.conflicts).toContain("soprano1");
+    });
+
+    it("uses ID3 metadata title for generic filename like Track01.mp3", () => {
+      const parsed = parsePracticeTrackFilename("Track01.mp3", configuredParts, "f1", 180, {
+        album: "Choral Classics",
+        artist: "London Choir",
+        comment: null,
+        composer: "W.A. Mozart",
+        title: "Ave Verum Corpus",
+        trackNumber: "02/10",
+      });
+      expect(parsed.inferredTitle).toBe("Ave Verum Corpus");
+      expect(parsed.sequenceNumber).toBe("02");
+    });
+
+    it("matches composer from ID3 metadata and does not treat artist as composer", () => {
+      const parsedWithComposer = parsePracticeTrackFilename(
+        "Track01.mp3",
+        configuredParts,
+        "f1",
+        180,
+        {
+          album: "Sacred",
+          artist: "Some Choir",
+          comment: null,
+          composer: "Mozart",
+          title: "Ave Verum",
+          trackNumber: "02",
+        },
+      );
+      const [group] = groupPracticeTrackFiles([parsedWithComposer]);
+      if (!group) throw new Error("Missing group");
+
+      const match = rankCandidatePiecesForGroup(group, pieces);
+      expect(match.suggestedPiece?.piece.title).toBe("Ave Verum Corpus");
+      expect(match.suggestedPiece?.evidence.some((e) => e.includes("Composer match"))).toBe(true);
+
+      // Now with artist only - artist must NOT match composer
+      const parsedWithArtistOnly = parsePracticeTrackFilename(
+        "Track01.mp3",
+        configuredParts,
+        "f1",
+        180,
+        {
+          album: "Sacred",
+          artist: "Mozart", // artist, not composer
+          comment: null,
+          composer: null,
+          title: "Ave Verum",
+          trackNumber: null,
+        },
+      );
+      const [group2] = groupPracticeTrackFiles([parsedWithArtistOnly]);
+      if (!group2) throw new Error("Missing group");
+      const match2 = rankCandidatePiecesForGroup(group2, pieces);
+      expect(match2.suggestedPiece?.evidence.some((e) => e.includes("Composer match"))).toBe(false);
+    });
+
+    it("does not merge distinct songs on duration alone", () => {
+      const file1 = parsePracticeTrackFilename("Track01.mp3", configuredParts, "f1", 200, {
+        album: null,
+        artist: null,
+        comment: null,
+        composer: null,
+        title: "Ave Maria",
+        trackNumber: null,
+      });
+      const file2 = parsePracticeTrackFilename("Track02.mp3", configuredParts, "f2", 200, {
+        album: null,
+        artist: null,
+        comment: null,
+        composer: null,
+        title: "Hallelujah",
+        trackNumber: null,
+      });
+      const groups = groupPracticeTrackFiles([file1, file2]);
+      expect(groups).toHaveLength(2);
+      expect(groups[0]?.inferredTitle).toBe("Ave Maria");
+      expect(groups[1]?.inferredTitle).toBe("Hallelujah");
     });
   });
 });

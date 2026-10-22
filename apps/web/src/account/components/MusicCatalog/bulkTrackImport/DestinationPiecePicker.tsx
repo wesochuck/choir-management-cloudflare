@@ -4,6 +4,14 @@ export interface DestinationPiecePickerHandle {
   openSearch: () => void;
 }
 
+export interface SuggestedPieceAlternative {
+  readonly arranger?: string | null;
+  readonly composer?: string | null;
+  readonly pieceId: string;
+  readonly probability?: number | null;
+  readonly title: string;
+}
+
 export interface DestinationPieceOption {
   readonly arranger: string;
   readonly composer: string;
@@ -22,6 +30,7 @@ export function DestinationPiecePicker({
   performancePieceIds,
   ref,
   selectedPieceId,
+  suggestedAlternatives,
 }: {
   readonly disabled: boolean;
   readonly id: string;
@@ -30,6 +39,7 @@ export function DestinationPiecePicker({
   readonly performancePieceIds: ReadonlySet<string>;
   readonly ref?: Ref<DestinationPiecePickerHandle>;
   readonly selectedPieceId: string | null;
+  readonly suggestedAlternatives?: readonly SuggestedPieceAlternative[] | undefined;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -128,6 +138,43 @@ export function DestinationPiecePicker({
           </>
         )}
       </div>
+      {suggestedAlternatives && suggestedAlternatives.length > 0 ? (
+        <div aria-label="AI suggested destinations" className="track-import-suggested-destinations">
+          <span className="track-import-suggested-destinations__label">
+            AI suggested destinations:
+          </span>
+          <div className="track-import-suggested-destinations__list" role="group">
+            {suggestedAlternatives.map((alt) => {
+              const isSelected = alt.pieceId === selectedPieceId;
+              const probText =
+                typeof alt.probability === "number" && alt.probability > 0
+                  ? ` (~${String(Math.round(alt.probability * 100))}% estimate)`
+                  : "";
+              const credit = [alt.composer, alt.arranger ? `arr. ${alt.arranger}` : ""]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <button
+                  aria-pressed={isSelected}
+                  className={`button button--secondary button--sm track-import-suggested-destination-btn ${
+                    isSelected ? "button--selected" : ""
+                  }`}
+                  disabled={disabled}
+                  key={alt.pieceId}
+                  type="button"
+                  onClick={() => {
+                    onSelect(alt.pieceId);
+                  }}
+                >
+                  <strong>{alt.title}</strong>
+                  {credit ? <span> ({credit})</span> : null}
+                  {probText ? <small>{probText}</small> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
       <button
         aria-controls={resultsId}
         aria-expanded={isOpen}

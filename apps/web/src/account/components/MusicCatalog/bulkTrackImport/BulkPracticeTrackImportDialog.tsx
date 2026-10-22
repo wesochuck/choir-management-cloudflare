@@ -55,16 +55,22 @@ function buildReviewGroups(
       const original = fileLookup.get(f.clientFileId);
       return {
         clientFileId: f.clientFileId,
+        detectedPartKey: f.detectedPartKey,
+        detectedPartLabel: f.detectedPartLabel,
         durationSeconds: f.durationSeconds,
         file: original?.file ?? new File([], f.fileName),
         fileName: f.fileName,
+        metadata: original?.metadata ?? null,
         partKey: f.detectedPartKey,
+        partProvenance: f.detectedPartKey ? ("deterministic" as const) : undefined,
       };
     });
 
     return {
       averageDurationSeconds: group.averageDurationSeconds,
       candidates: match.candidatePieces,
+      destinationProvenance: selectedPieceId ? ("deterministic" as const) : undefined,
+      destinationSelectionChanged: false,
       evidence: match.suggestedPiece?.evidence ?? [],
       ...resolvePracticeTrackAssignments(files, selectedPieceId),
       groupId: group.groupId,
@@ -148,6 +154,130 @@ function ResumeImportBanner({
       </div>
     </section>
   );
+}
+
+function buildFileMetadata(file: GroupFileAssignment) {
+  const meta = file.metadata;
+  if (!meta) {
+    return {
+      clientFileId: file.clientFileId,
+      detectedPartKey: file.detectedPartKey ?? undefined,
+      durationSeconds: file.durationSeconds,
+      fileName: file.fileName,
+    };
+  }
+  return {
+    album: meta.album ?? undefined,
+    artist: meta.artist ?? undefined,
+    clientFileId: file.clientFileId,
+    composer: meta.composer ?? undefined,
+    detectedPartKey: file.detectedPartKey ?? undefined,
+    durationSeconds: file.durationSeconds,
+    fileName: file.fileName,
+    inferredTitle: meta.title ?? undefined,
+    sequenceNumber: meta.trackNumber ?? undefined,
+    title: meta.title ?? undefined,
+    trackNumber: meta.trackNumber ?? undefined,
+  };
+}
+
+function buildMatchRequestGroup(group: GroupReviewItem) {
+  return {
+    detectedParts: group.files.flatMap((file) => (file.partKey ? [file.partKey] : [])),
+    durationSeconds: group.averageDurationSeconds,
+    fileMetadata: group.files.map(buildFileMetadata),
+    fileNames: group.files.map((file) => file.fileName),
+    groupId: group.groupId,
+    inferredTitle: group.inferredTitle,
+    ...(group.sequenceNumber ? { sequenceNumber: group.sequenceNumber } : {}),
+  };
+}
+
+function applyAiSuggestionToFile(
+  file: GroupFileAssignment,
+  partSuggestion:
+    { readonly probability: number; readonly suggestedPartKey: string | null } | undefined,
+  validPartKeys: ReadonlySet<string>,
+): GroupFileAssignment {
+  const suggestedPartKey = partSuggestion?.suggestedPartKey ?? file.suggestedPartKey;
+  const suggestedPartProbability = partSuggestion?.probability ?? file.suggestedPartProbability;
+
+  if (file.partSelectionChanged || file.excluded) {
+    return {
+      ...file,
+      suggestedPartKey,
+      suggestedPartProbability,
+    };
+  }
+
+  if (
+    file.partKey === null &&
+    partSuggestion?.suggestedPartKey &&
+    partSuggestion.probability >= 0.7 &&
+    validPartKeys.has(partSuggestion.suggestedPartKey)
+  ) {
+    return {
+      ...file,
+      partKey: partSuggestion.suggestedPartKey,
+      partProvenance: "ai" as const,
+      suggestedPartKey,
+      suggestedPartProbability,
+    };
+  }
+
+  return {
+    ...file,
+    suggestedPartKey,
+    suggestedPartProbability,
+  };
+}
+
+function applyAiSuggestionToGroup(
+  group: GroupReviewItem,
+  suggestion: GroupReviewItem["aiSuggestion"],
+  allowedIds: ReadonlySet<string>,
+  validPartKeys: ReadonlySet<string>,
+): GroupReviewItem {
+  if (!suggestion) return group;
+
+  if (group.reviewedMappingKey) {
+    return {
+      ...group,
+      aiSuggestion: suggestion,
+    };
+  }
+
+  const isManualDestination = group.destinationSelectionChanged === true;
+  let nextSelectedPieceId = group.selectedPieceId;
+  let nextDestinationProvenance = group.destinationProvenance;
+
+  if (!isManualDestination) {
+    if (suggestion.suggestedPieceId && allowedIds.has(suggestion.suggestedPieceId)) {
+      nextSelectedPieceId = suggestion.suggestedPieceId;
+      nextDestinationProvenance = "ai";
+    }
+  }
+
+  const partSuggestionsByFileId = new Map(
+    (suggestion.filePartSuggestions ?? []).map((s) => [s.clientFileId, s]),
+  );
+
+  const updatedFiles = group.files.map((file) =>
+    applyAiSuggestionToFile(file, partSuggestionsByFileId.get(file.clientFileId), validPartKeys),
+  );
+
+  const destinationChanged = nextSelectedPieceId !== group.selectedPieceId;
+  const partsChanged = updatedFiles.some((f, idx) => f.partKey !== group.files[idx]?.partKey);
+  const needsInvalidation = destinationChanged || partsChanged;
+
+  return {
+    ...group,
+    aiSuggestion: suggestion,
+    destinationProvenance: nextDestinationProvenance,
+    ...resolvePracticeTrackAssignments(updatedFiles, nextSelectedPieceId),
+    selectedPieceId: nextSelectedPieceId,
+    reviewedMappingKey: needsInvalidation ? null : group.reviewedMappingKey,
+  };
 }
 
 export function BulkPracticeTrackImportDialog({
@@ -300,14 +430,10 @@ export function BulkPracticeTrackImportDialog({
             pieceId: piece.id,
             title: piece.title,
           })),
-          groups: groups.map((group) => ({
-            detectedParts: group.files.flatMap((file) => (file.partKey ? [file.partKey] : [])),
-            durationSeconds: group.averageDurationSeconds,
-            fileNames: group.files.map((file) => file.fileName),
-            groupId: group.groupId,
-            inferredTitle: group.inferredTitle,
-            ...(group.sequenceNumber ? { sequenceNumber: group.sequenceNumber } : {}),
-          })),
+          configuredPartKeys: Array.from(validPartKeys).filter(
+            (k) => k !== "tutti" && k !== "accompaniment",
+          ),
+          groups: groups.map(buildMatchRequestGroup),
           ...(scope === "set_list" && selectedEvent
             ? { performanceTitle: selectedEvent.title }
             : {}),
@@ -321,21 +447,14 @@ export function BulkPracticeTrackImportDialog({
         response.suggestions.map((suggestion) => [suggestion.groupId, suggestion]),
       );
       setGroups((current) =>
-        current.map((group) => {
-          const suggestion = suggestions.get(group.groupId);
-          if (
-            !suggestion ||
-            (suggestion.suggestedPieceId && !allowedIds.has(suggestion.suggestedPieceId))
-          )
-            return group;
-          return {
-            ...group,
-            aiSuggestion: suggestion,
-            ...resolvePracticeTrackAssignments(group.files, suggestion.suggestedPieceId),
-            selectedPieceId: suggestion.suggestedPieceId,
-            reviewedMappingKey: null,
-          };
-        }),
+        current.map((group) =>
+          applyAiSuggestionToGroup(
+            group,
+            suggestions.get(group.groupId),
+            allowedIds,
+            validPartKeys,
+          ),
+        ),
       );
     } catch (error: unknown) {
       if (!controller.signal.aborted)
@@ -365,7 +484,8 @@ export function BulkPracticeTrackImportDialog({
         if (g.selectedPieceId === pieceId) return g;
         return {
           ...g,
-          aiSuggestion: undefined,
+          destinationProvenance: "manual",
+          destinationSelectionChanged: true,
           ...resolvePracticeTrackAssignments(g.files, pieceId),
           selectedPieceId: pieceId,
           reviewedMappingKey: null,
@@ -381,7 +501,13 @@ export function BulkPracticeTrackImportDialog({
           if (group.groupId !== groupId) return group;
           const updatedFiles = group.files.map((file) =>
             file.clientFileId === clientFileId
-              ? { ...file, excluded: false, partKey, partSelectionChanged: true }
+              ? {
+                  ...file,
+                  excluded: false,
+                  partKey,
+                  partProvenance: "manual" as const,
+                  partSelectionChanged: true,
+                }
               : file,
           );
           return {
@@ -484,10 +610,14 @@ export function BulkPracticeTrackImportDialog({
           const original = fileLookup.get(file.clientFileId);
           return {
             clientFileId: file.clientFileId,
+            detectedPartKey: file.detectedPartKey,
+            detectedPartLabel: file.detectedPartLabel,
             durationSeconds: file.durationSeconds,
             file: original?.file ?? new File([], file.fileName),
             fileName: file.fileName,
+            metadata: original?.metadata ?? null,
             partKey: file.detectedPartKey,
+            partProvenance: file.detectedPartKey ? ("deterministic" as const) : undefined,
           };
         });
         const resolved = resolvePracticeTrackAssignments(nextFiles, previousGroup.selectedPieceId);

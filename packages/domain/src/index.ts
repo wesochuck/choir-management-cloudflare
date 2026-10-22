@@ -392,6 +392,13 @@ export {
 } from "./digitalScore";
 
 export * from "./practiceTrackMatching";
+export {
+  DEFAULT_ID3_MAX_BUDGET_BYTES,
+  parseId3MetadataFromBytes,
+  parseId3MetadataFromReader,
+  type AsyncByteSliceReader,
+  type ParsedId3Metadata,
+} from "./id3Metadata";
 
 export { ticketSlugBase, ticketSalesPath } from "./ticketLinks";
 export { availableTicketBundlesForEvent } from "./ticketing";

@@ -103,4 +103,95 @@ describe("Clef track matching", () => {
       groups.map((group) => group.groupId),
     );
   });
+
+  it("exposes close arrangement alternatives without silently choosing one", async () => {
+    const multiCandidateRequest = musicTrackImportMatchRequestSchema.parse({
+      candidates: [
+        {
+          composer: "Franz Biebl",
+          pieceId: "11111111-1111-4111-8111-111111111111",
+          title: "Ave Maria",
+        },
+        {
+          composer: "Tomás Luis de Victoria",
+          pieceId: "22222222-2222-4222-8222-222222222222",
+          title: "Ave Maria",
+        },
+      ],
+      groups: [{ groupId: "group-1", fileNames: ["Ave_Maria.mp3"] }],
+      useAi: true,
+    });
+    // Two close arrangements (prob 0.48 and 0.42, difference 0.06 <= 0.15)
+    const run = vi.fn().mockResolvedValue({
+      answers: {
+        g0: {
+          choice: "p0",
+          confidence: 0.48,
+          probabilities: { none: 0.1, p0: 0.48, p1: 0.42 },
+          type: "choice",
+        },
+      },
+    });
+
+    const result = await suggestClefTrackMatches(multiCandidateRequest, run);
+    expect(result[0]?.suggestedPieceId).toBeNull();
+    expect(result[0]?.confidence).toBe("none");
+    expect(result[0]?.rationale).toContain("close arrangements");
+    expect(result[0]?.topCandidates).toHaveLength(2);
+    expect(result[0]?.topCandidates?.[0]?.pieceId).toBe("11111111-1111-4111-8111-111111111111");
+    expect(result[0]?.topCandidates?.[1]?.pieceId).toBe("22222222-2222-4222-8222-222222222222");
+
+    // Verify candidate criteria sent to Clef contains real metadata
+    const firstCallInput: unknown = run.mock.calls[0]?.[0];
+    expect(firstCallInput).toBeDefined();
+    expect(JSON.stringify(firstCallInput)).toContain("comp: Franz Biebl");
+    expect(JSON.stringify(firstCallInput)).toContain("comp: Tomás Luis de Victoria");
+  });
+
+  it("suggests voice parts for unassigned files using configured part keys", async () => {
+    const partRequest = musicTrackImportMatchRequestSchema.parse({
+      candidates: [{ pieceId: "11111111-1111-4111-8111-111111111111", title: "Song" }],
+      configuredPartKeys: ["soprano1", "alto1", "tenor1", "bass1"],
+      groups: [
+        {
+          fileMetadata: [
+            {
+              clientFileId: "file-1",
+              fileName: "Mystery_Recording.mp3",
+              title: "Mystery Recording",
+            },
+          ],
+          fileNames: ["Mystery_Recording.mp3"],
+          groupId: "group-1",
+        },
+      ],
+      useAi: true,
+    });
+
+    const run = vi.fn().mockResolvedValue({
+      answers: {
+        f_0_0: {
+          choice: "alto1",
+          confidence: 0.85,
+          probabilities: { alto1: 0.85, none: 0.15 },
+          type: "choice",
+        },
+        g0: {
+          choice: "p0",
+          confidence: 0.9,
+          probabilities: { none: 0.1, p0: 0.9 },
+          type: "choice",
+        },
+      },
+    });
+
+    const result = await suggestClefTrackMatches(partRequest, run);
+    expect(result[0]?.filePartSuggestions).toEqual([
+      {
+        clientFileId: "file-1",
+        probability: 0.85,
+        suggestedPartKey: "alto1",
+      },
+    ]);
+  });
 });

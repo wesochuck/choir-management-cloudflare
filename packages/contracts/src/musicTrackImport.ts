@@ -48,9 +48,38 @@ export const musicTrackImportMatchCandidateSchema = z.object({
   title: z.string().min(1).max(500),
 });
 
+export const rankedPieceSuggestionSchema = z.object({
+  pieceId: z.uuid(),
+  probability: z.number().min(0).max(1),
+});
+
+export const filePartSuggestionSchema = z.object({
+  clientFileId: z.string().min(1).max(100),
+  probability: z.number().min(0).max(1),
+  suggestedPartKey: z
+    .string()
+    .regex(/^[a-zA-Z0-9_-]{1,100}$/)
+    .nullable(),
+});
+
+export const musicTrackImportFileMetadataSchema = z.object({
+  album: z.string().max(500).optional(),
+  artist: z.string().max(500).optional(),
+  clientFileId: z.string().min(1).max(100),
+  composer: z.string().max(500).optional(),
+  detectedPartKey: z.string().max(100).optional(),
+  durationSeconds: z.number().int().min(1).max(86_400).nullable().optional(),
+  fileName: z.string().min(1).max(500),
+  inferredTitle: z.string().max(500).optional(),
+  sequenceNumber: z.string().max(50).optional(),
+  title: z.string().max(500).optional(),
+  trackNumber: z.string().max(50).optional(),
+});
+
 export const musicTrackImportGroupMetadataSchema = z.object({
   detectedParts: z.array(z.string()).default([]),
   durationSeconds: z.number().int().nullable().optional(),
+  fileMetadata: z.array(musicTrackImportFileMetadataSchema).max(50).optional(),
   fileNames: z.array(z.string().min(1).max(500)).min(1).max(50),
   groupId: z.string().min(1).max(100),
   inferredTitle: z.string().optional(),
@@ -58,17 +87,23 @@ export const musicTrackImportGroupMetadataSchema = z.object({
 });
 
 export const musicTrackImportMatchRequestSchema = z.object({
-  useAi: z.boolean().optional(),
   candidates: z.array(musicTrackImportMatchCandidateSchema).min(1).max(200),
+  configuredPartKeys: z
+    .array(z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/))
+    .max(100)
+    .optional(),
   groups: z.array(musicTrackImportGroupMetadataSchema).min(1).max(50),
   performanceTitle: z.string().max(500).optional(),
+  useAi: z.boolean().optional(),
 });
 
 export const musicTrackImportGroupSuggestionSchema = z.object({
   confidence: z.enum(["high", "medium", "low", "none"]),
+  filePartSuggestions: z.array(filePartSuggestionSchema).max(50).optional(),
   groupId: z.string(),
   rationale: z.string().max(500).optional(),
   suggestedPieceId: z.uuid().nullable(),
+  topCandidates: z.array(rankedPieceSuggestionSchema).max(3).optional(),
 });
 
 export const musicTrackImportMatchResponseSchema = z.object({
@@ -77,6 +112,9 @@ export const musicTrackImportMatchResponseSchema = z.object({
   suggestions: z.array(musicTrackImportGroupSuggestionSchema),
 });
 
+export type RankedPieceSuggestion = z.infer<typeof rankedPieceSuggestionSchema>;
+export type FilePartSuggestion = z.infer<typeof filePartSuggestionSchema>;
+export type MusicTrackImportFileMetadata = z.infer<typeof musicTrackImportFileMetadataSchema>;
 export type MusicTrackImportMatchCandidate = z.infer<typeof musicTrackImportMatchCandidateSchema>;
 export type MusicTrackImportGroupMetadata = z.infer<typeof musicTrackImportGroupMetadataSchema>;
 export type MusicTrackImportMatchRequest = z.infer<typeof musicTrackImportMatchRequestSchema>;

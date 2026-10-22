@@ -1,17 +1,26 @@
+import type { ParsedId3Metadata } from "./id3Metadata";
+
 export interface ConfiguredPartOption {
   readonly key: string;
   readonly label: string;
 }
 
-/** A selected piece makes an undifferentiated recording a Tutti track, unless explicitly skipped. */
+/** Resolves duplicate parts across files without coercing unassigned tracks to Tutti. */
 export function resolvePracticeTrackAssignments<
-  T extends { readonly partKey: string | null; readonly partSelectionChanged?: boolean },
->(files: readonly T[], selectedPieceId: string | null) {
-  const resolvedFiles = files.map((file) =>
-    selectedPieceId && file.partKey === null && !file.partSelectionChanged
-      ? { ...file, partKey: "tutti" }
-      : file,
-  );
+  T extends {
+    readonly partKey: string | null;
+    readonly partSelectionChanged?: boolean | undefined;
+  },
+>(
+  files: readonly T[],
+  _selectedPieceId?: string | null,
+): {
+  duplicatePartKeys: string[];
+  files: T[];
+  hasDuplicatePart: boolean;
+} {
+  void _selectedPieceId;
+  const resolvedFiles = [...files];
   const counts = new Map<string, number>();
   for (const file of resolvedFiles) {
     if (file.partKey) counts.set(file.partKey, (counts.get(file.partKey) ?? 0) + 1);
@@ -31,6 +40,7 @@ export interface ParsedTrackFile {
   readonly durationSeconds: number | null;
   readonly fileName: string;
   readonly inferredTitle: string;
+  readonly metadata?: ParsedId3Metadata | null;
   readonly sequenceNumber: string | null;
 }
 
@@ -245,23 +255,67 @@ function cleanInferredTitle(
   return inferredTitle.length > 0 ? inferredTitle : baseName;
 }
 
+function extractSequenceNumber(
+  baseName: string,
+  metadata?: ParsedId3Metadata | null,
+): string | null {
+  const seqMatch = /(?:^|[^0-9])(\d{1,3})(?=[_\s-]|$)/u.exec(baseName);
+  if (seqMatch?.[1]) {
+    return seqMatch[1].padStart(2, "0");
+  }
+  if (metadata?.trackNumber) {
+    const trckMatch = /(?:^|[^0-9])(\d{1,3})(?=[/_\s-]|$)/u.exec(metadata.trackNumber);
+    if (trckMatch?.[1]) {
+      return trckMatch[1].padStart(2, "0");
+    }
+  }
+  return null;
+}
+
+function resolveInferredTitle(
+  baseName: string,
+  detectedAlias: string | null,
+  sequenceNumber: string | null,
+  metadata?: ParsedId3Metadata | null,
+): { inferredTitle: string; sequenceNumber: string | null } {
+  let inferredTitle = cleanInferredTitle(baseName, detectedAlias, sequenceNumber);
+  let resolvedSeq = sequenceNumber;
+
+  if (metadata?.title && metadata.title.trim().length > 0) {
+    const isGeneric =
+      /^(?:track|audio|take|rec|file|recording)?\s*#?\d*$/iu.test(inferredTitle) ||
+      inferredTitle.length <= 2;
+    if (isGeneric) {
+      inferredTitle = metadata.title.trim();
+      if (metadata.trackNumber) {
+        const trckMatch = /(?:^|[^0-9])(\d{1,3})(?=[/_\s-]|$)/u.exec(metadata.trackNumber);
+        if (trckMatch?.[1]) {
+          resolvedSeq = trckMatch[1].padStart(2, "0");
+        }
+      }
+    }
+  }
+
+  return { inferredTitle, sequenceNumber: resolvedSeq };
+}
+
 export function parsePracticeTrackFilename(
   fileName: string,
   configuredParts: readonly ConfiguredPartOption[] = [],
   clientFileId = fileName,
   durationSeconds: number | null = null,
+  metadata?: ParsedId3Metadata | null,
 ): ParsedTrackFile {
   const baseName = fileName.replace(/\.[a-zA-Z0-9]+$/u, "").trim();
-
-  let sequenceNumber: string | null = null;
-  const seqMatch = /(?:^|[^0-9])(\d{1,3})(?=[_\s-]|$)/u.exec(baseName);
-  if (seqMatch?.[1]) {
-    sequenceNumber = seqMatch[1].padStart(2, "0");
-  }
-
+  const rawSeq = extractSequenceNumber(baseName, metadata);
   const partCandidates = buildPartCandidates(configuredParts);
   const detected = detectVoicePart(baseName, partCandidates);
-  const inferredTitle = cleanInferredTitle(baseName, detected?.alias ?? null, sequenceNumber);
+  const { inferredTitle, sequenceNumber } = resolveInferredTitle(
+    baseName,
+    detected?.alias ?? null,
+    rawSeq,
+    metadata,
+  );
 
   return {
     clientFileId,
@@ -270,6 +324,7 @@ export function parsePracticeTrackFilename(
     durationSeconds,
     fileName,
     inferredTitle,
+    metadata: metadata ?? null,
     sequenceNumber,
   };
 }
@@ -606,6 +661,70 @@ function hasComplementaryParts(group: TrackImportGroup): boolean {
   );
 }
 
+function findBestTitleMatch(group: TrackImportGroup, piece: LibraryPieceOption) {
+  const pieceStem = normalizeTitleStem(piece.title);
+  let best = scoreTitleMatch(normalizeTitleStem(group.inferredTitle), pieceStem, piece.title);
+
+  for (const file of group.files) {
+    if (file.metadata?.title) {
+      const match = scoreTitleMatch(
+        normalizeTitleStem(file.metadata.title),
+        pieceStem,
+        piece.title,
+      );
+      if (match.score > best.score) {
+        best = match;
+      }
+    }
+  }
+  return best;
+}
+
+function evaluateComposerMatch(
+  piece: LibraryPieceOption,
+  group: TrackImportGroup,
+): { evidence?: string; score: number } {
+  if (!piece.composer) return { score: 0 };
+  const normPieceComposer = normalizeTitleStem(piece.composer);
+  if (normPieceComposer.length === 0) return { score: 0 };
+
+  for (const file of group.files) {
+    if (file.metadata?.composer) {
+      const normFileComposer = normalizeTitleStem(file.metadata.composer);
+      if (normFileComposer.length > 0 && normFileComposer === normPieceComposer) {
+        return {
+          evidence: `Composer match: "${piece.composer}"`,
+          score: 20,
+        };
+      }
+      const overlap = titleTokenOverlap(normFileComposer, normPieceComposer);
+      if (overlap >= 0.5) {
+        return {
+          evidence: `Composer match: "${piece.composer}"`,
+          score: 15,
+        };
+      }
+    }
+  }
+  return { score: 0 };
+}
+
+function evaluateSequenceMatch(
+  group: TrackImportGroup,
+  piece: LibraryPieceOption,
+  performanceSetListPieceIds?: readonly string[],
+): { evidence?: string; score: number } {
+  if (!performanceSetListPieceIds || !group.sequenceNumber) return { score: 0 };
+  const seqIndex = Number.parseInt(group.sequenceNumber, 10) - 1;
+  if (seqIndex >= 0 && performanceSetListPieceIds[seqIndex] === piece.id) {
+    return {
+      evidence: `Shared sequence number #${group.sequenceNumber}`,
+      score: 25,
+    };
+  }
+  return { score: 0 };
+}
+
 function scoreCandidatePiece(
   piece: LibraryPieceOption,
   group: TrackImportGroup,
@@ -622,14 +741,10 @@ function scoreCandidatePiece(
   }
 
   // 2. Title similarity
-  const titleResult = scoreTitleMatch(
-    normalizeTitleStem(group.inferredTitle),
-    normalizeTitleStem(piece.title),
-    piece.title,
-  );
-  score += titleResult.score;
-  if (titleResult.evidenceItem) {
-    evidence.push(titleResult.evidenceItem);
+  const bestTitleResult = findBestTitleMatch(group, piece);
+  score += bestTitleResult.score;
+  if (bestTitleResult.evidenceItem) {
+    evidence.push(bestTitleResult.evidenceItem);
   }
 
   // Title or a known set-list position must identify the piece. Timing, empty
@@ -638,8 +753,15 @@ function scoreCandidatePiece(
     group.sequenceNumber &&
     performanceSetListPieceIds?.[Number.parseInt(group.sequenceNumber, 10) - 1] === piece.id,
   );
-  if (titleResult.score === 0 && !sequenceMatches) {
+  if (bestTitleResult.score === 0 && !sequenceMatches) {
     return { conflicts: detectSlotConflicts(piece, group.files), evidence: [], score: 0 };
+  }
+
+  // Composer matching from ID3 (artist is NOT treated as composer)
+  const composerResult = evaluateComposerMatch(piece, group);
+  score += composerResult.score;
+  if (composerResult.evidence) {
+    evidence.push(composerResult.evidence);
   }
 
   // 3. Duration match
@@ -656,12 +778,10 @@ function scoreCandidatePiece(
   }
 
   // 5. Sequence number matching if set list provided
-  if (performanceSetListPieceIds && group.sequenceNumber) {
-    const seqIndex = Number.parseInt(group.sequenceNumber, 10) - 1;
-    if (seqIndex >= 0 && performanceSetListPieceIds[seqIndex] === piece.id) {
-      score += 25;
-      evidence.push(`Shared sequence number #${group.sequenceNumber}`);
-    }
+  const seqResult = evaluateSequenceMatch(group, piece, performanceSetListPieceIds);
+  score += seqResult.score;
+  if (seqResult.evidence) {
+    evidence.push(seqResult.evidence);
   }
 
   // 7. Check for slot conflicts

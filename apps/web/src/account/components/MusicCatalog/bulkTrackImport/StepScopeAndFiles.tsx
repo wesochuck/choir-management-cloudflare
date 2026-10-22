@@ -1,6 +1,10 @@
 import { DialogClose } from "@choir/ui";
 import type { OrganizationEvent, OrganizationRosterConfiguration } from "@choir/contracts";
-import { parsePracticeTrackFilename } from "@choir/domain";
+import {
+  parseId3MetadataFromReader,
+  parsePracticeTrackFilename,
+  type ConfiguredPartOption,
+} from "@choir/domain";
 import { useCallback, useId, useMemo, useState } from "react";
 import { extractAudioDuration } from "../../../audioDuration";
 import { TrackFileAudioPlayer } from "./TrackFileAudioPlayer";
@@ -11,6 +15,41 @@ function formatDuration(seconds: number | null): string {
   const mins = Math.floor(seconds / 60);
   const remSecs = String(seconds % 60).padStart(2, "0");
   return `${String(mins)}:${remSecs}`;
+}
+
+async function inspectSingleFile(
+  file: File,
+  index: number,
+  configuredParts: readonly ConfiguredPartOption[],
+): Promise<InspectedTrackFile> {
+  const clientFileId = `file-${String(Date.now())}-${String(index)}-${file.name}`;
+  const durationSeconds = await extractAudioDuration(file).catch(() => null);
+
+  const metadata = await parseId3MetadataFromReader(async (offset, length) => {
+    const slice = file.slice(offset, offset + length);
+    const buffer = await slice.arrayBuffer();
+    return new Uint8Array(buffer);
+  }, file.size).catch(() => null);
+
+  const parsed = parsePracticeTrackFilename(
+    file.name,
+    configuredParts,
+    clientFileId,
+    durationSeconds,
+    metadata,
+  );
+
+  return {
+    clientFileId,
+    detectedPartKey: parsed.detectedPartKey,
+    detectedPartLabel: parsed.detectedPartLabel,
+    durationSeconds: parsed.durationSeconds,
+    file,
+    fileName: file.name,
+    inferredTitle: parsed.inferredTitle,
+    metadata,
+    sequenceNumber: parsed.sequenceNumber,
+  };
 }
 
 export function StepScopeAndFiles({
@@ -52,40 +91,55 @@ export function StepScopeAndFiles({
   const handleProcessRawFiles = useCallback(
     async (rawFiles: FileList | readonly File[]) => {
       const fileArray = Array.from(rawFiles).filter(
-        (f) => f.name.toLowerCase().endsWith(".mp3") || f.type.startsWith("audio/"),
+        (f) =>
+          f.name.toLowerCase().endsWith(".mp3") ||
+          f.type === "audio/mpeg" ||
+          f.type === "audio/mp3",
       );
       if (fileArray.length === 0) return;
 
-      const inspectedPromises = fileArray.map(async (file, index) => {
-        const clientFileId = `file-${String(Date.now())}-${String(index)}-${file.name}`;
-        let durationSeconds: number | null;
-        try {
-          durationSeconds = await extractAudioDuration(file);
-        } catch {
-          durationSeconds = null;
+      const results: (InspectedTrackFile | undefined)[] = Array.from({
+        length: fileArray.length,
+      });
+      const concurrency = 3;
+      let currentIndex = 0;
+
+      const workers = Array.from({ length: Math.min(fileArray.length, concurrency) }, async () => {
+        while (currentIndex < fileArray.length) {
+          const index = currentIndex;
+          currentIndex += 1;
+          const file = fileArray[index];
+          if (!file) continue;
+          try {
+            results[index] = await inspectSingleFile(file, index, configuredParts);
+          } catch {
+            const clientFileId = `file-${String(Date.now())}-${String(index)}-${file.name}`;
+            const parsed = parsePracticeTrackFilename(
+              file.name,
+              configuredParts,
+              clientFileId,
+              null,
+            );
+            results[index] = {
+              clientFileId,
+              detectedPartKey: parsed.detectedPartKey,
+              detectedPartLabel: parsed.detectedPartLabel,
+              durationSeconds: null,
+              file,
+              fileName: file.name,
+              inferredTitle: parsed.inferredTitle,
+              metadata: null,
+              sequenceNumber: parsed.sequenceNumber,
+            };
+          }
         }
-
-        const parsed = parsePracticeTrackFilename(
-          file.name,
-          configuredParts,
-          clientFileId,
-          durationSeconds,
-        );
-
-        return {
-          clientFileId,
-          detectedPartKey: parsed.detectedPartKey,
-          detectedPartLabel: parsed.detectedPartLabel,
-          durationSeconds: parsed.durationSeconds,
-          file,
-          fileName: file.name,
-          inferredTitle: parsed.inferredTitle,
-          sequenceNumber: parsed.sequenceNumber,
-        } satisfies InspectedTrackFile;
       });
 
-      const newInspected = await Promise.all(inspectedPromises);
-      onFilesChanged([...files, ...newInspected]);
+      await Promise.all(workers);
+      onFilesChanged([
+        ...files,
+        ...results.filter((r): r is InspectedTrackFile => r !== undefined),
+      ]);
     },
     [configuredParts, files, onFilesChanged],
   );
@@ -191,7 +245,7 @@ export function StepScopeAndFiles({
           >
             <input
               multiple
-              accept="audio/mpeg,audio/mp3,.mp3,audio/*"
+              accept=".mp3,audio/mpeg,audio/mp3"
               className="track-import-file-input"
               id={fileInputId}
               type="file"
@@ -282,8 +336,8 @@ export function StepScopeAndFiles({
                 <span>Close timing strongly supports a group.</span>
               </li>
               <li>
-                <strong>Filename clues</strong>
-                <span>Track numbers and title fragments.</span>
+                <strong>Filename & metadata clues</strong>
+                <span>ID3 tags, track numbers, and title fragments.</span>
               </li>
               <li>
                 <strong>Configured voice parts</strong>
@@ -295,7 +349,7 @@ export function StepScopeAndFiles({
               </li>
               <li>
                 <strong>Review uncertain matches</strong>
-                <span>Choose a piece yourself when filename clues are insufficient.</span>
+                <span>Optional AI suggestions and staff control for every final mapping.</span>
               </li>
             </ol>
           </div>
