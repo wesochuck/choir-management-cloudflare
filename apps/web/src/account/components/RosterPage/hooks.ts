@@ -33,7 +33,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AuthApiError,
   createOrganizationProfile,
-  createOrganizationInvitation,
   deleteOrganizationProfile,
   getOrganizationRosterConfiguration,
   getOrganizationProfileDeliveries,
@@ -156,7 +155,7 @@ export function useRosterPageController({
     setEditingId(candidate.id);
     setProfile(profileRequestFrom(candidate));
     setProfilePhotoFileId(candidate.photoFileId);
-    setProfileEmail(emailByProfileId.get(candidate.id) ?? "");
+    setProfileEmail(candidate.email);
     setProfileTab(initialProfileTab);
     setPerformanceHistory({ status: initialProfileTab === "performance" ? "loading" : "idle" });
     setProfileStatusHistory({ status: "loading" });
@@ -275,7 +274,7 @@ export function useRosterPageController({
           candidate.displayName,
           candidate.phone,
           candidate.voicePart,
-          emailByProfileId.get(candidate.id) ?? "",
+          candidate.email || (emailByProfileId.get(candidate.id) ?? ""),
         ]
           .join(" ")
           .toLocaleLowerCase()
@@ -495,7 +494,7 @@ export function useRosterPageController({
     setProfilePhotoFileId(candidate.photoFileId);
     setPhotoPending(false);
     photoSaveFnRef.current = null;
-    setProfileEmail(roster.status === "ready" ? (emailByProfileId.get(candidate.id) ?? "") : "");
+    setProfileEmail(candidate.email);
     setResetFeedback(null);
     setError(null);
     setSuccess(null);
@@ -536,28 +535,10 @@ export function useRosterPageController({
     setBusy(true);
     setError(null);
     try {
+      const contactProfile = { ...profile, email: normalizedEmail };
       const saved = editingId
-        ? await updateOrganizationProfile(
-            editingId,
-            profile,
-            normalizedEmail && normalizedEmail !== linkedEmail ? normalizedEmail : undefined,
-          )
-        : await createOrganizationProfile(
-            profile,
-            normalizedEmail && normalizedEmail !== linkedEmail ? normalizedEmail : undefined,
-          );
-      let invitationNote = "";
-      if (normalizedEmail && normalizedEmail !== linkedEmail) {
-        try {
-          await createOrganizationInvitation({ email: normalizedEmail, role: "member" });
-          invitationNote = ` A membership invitation was sent to ${normalizedEmail}.`;
-        } catch (invitationError: unknown) {
-          invitationNote =
-            invitationError instanceof AuthApiError
-              ? ` The Profile was saved, but the membership invitation could not be created. ${invitationError.message}`
-              : " The Profile was saved, but the membership invitation could not be created.";
-        }
-      }
+        ? await updateOrganizationProfile(editingId, contactProfile)
+        : await createOrganizationProfile(contactProfile);
       if (editingId && modifiedFolders.length > 0) {
         const updatedFolders = await Promise.all(
           modifiedFolders.map((folder) =>
@@ -599,7 +580,7 @@ export function useRosterPageController({
         setError("Profile details saved, but photo upload failed. Retry photo upload.");
         return;
       }
-      setSuccess(`${editingId ? "Profile updated." : "Profile created."}${invitationNote}`);
+      setSuccess(editingId ? "Profile updated." : "Profile created.");
       setDialogOpen(false);
       setEditingId(null);
       setProfile(emptyProfile);
@@ -628,12 +609,13 @@ export function useRosterPageController({
   }, []);
 
   async function sendPasswordReset() {
-    if (!editingId || !profileEmail) return;
+    const accountEmail = editingId ? emailByProfileId.get(editingId) : undefined;
+    if (!editingId || !accountEmail) return;
     setResettingProfileId(editingId);
     setResetFeedback(null);
     try {
-      await requestPasswordReset(profileEmail);
-      setResetFeedback(`Password reset email sent to ${profileEmail}.`);
+      await requestPasswordReset(accountEmail);
+      setResetFeedback(`Password reset email sent to ${accountEmail}.`);
     } catch {
       setResetFeedback("The password reset email could not be sent. Try again.");
     } finally {
@@ -795,7 +777,7 @@ export function useRosterPageController({
       setRosterImportConfirmed(false);
       setRosterImportInspecting(false);
       setSuccess(
-        `${String(result.imported)} Profile(s) imported. ${String(result.invitationCandidates)} email address(es) are ready for Membership invitations.`,
+        `${String(result.imported)} Profile(s) created. ${String(result.emailsPersisted)} email(s) and ${String(result.phonesPersisted)} phone(s) retained. ${String(result.conflicts.length)} conflicting row(s) skipped.${result.conflicts.map((conflict) => ` Row ${String(conflict.row)}: ${conflict.message}`).join("")}`,
       );
     } catch (importError: unknown) {
       setError(
@@ -898,6 +880,9 @@ export function useRosterPageController({
     rosterImportInspecting,
     rosterImportInspection,
     rosterImportMappings,
+    rosterImportSamples: rosterImportCsv
+      ? (inspectRosterCsv(rosterImportCsv, performerLabel).samples ?? [])
+      : [],
     saveProfile,
     selectedProfileIds,
     selectedVoiceFilters,

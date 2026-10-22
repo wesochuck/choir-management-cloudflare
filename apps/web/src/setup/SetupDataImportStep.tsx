@@ -263,7 +263,7 @@ export function SetupDataImportStep() {
         updateState(kind, () => ({
           ...emptyImportState,
           imported: result.imported,
-          invitationCandidates: result.invitationCandidates,
+          invitationCandidates: result.emailsPersisted,
         }));
       } else {
         const result = await importOrganizationMusicCsv(csv);
@@ -311,7 +311,7 @@ export function SetupDataImportStep() {
               <p className="notice notice--success" role="status">
                 {String(roster.imported)} Profile(s) imported
                 {roster.invitationCandidates
-                  ? `; ${String(roster.invitationCandidates)} invitation candidate(s) found.`
+                  ? `; ${String(roster.invitationCandidates)} contact email(s) saved.`
                   : "."}
               </p>
             ) : null}

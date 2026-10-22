@@ -171,6 +171,7 @@ export interface OrganizationProfileRow {
 
 export function profileResult(row: OrganizationProfileRow, onBreakInactiveAt: string | null) {
   return {
+    email: typeof row.email === "string" ? row.email : "",
     createdAt: row.createdAt,
     displayName: row.displayName,
     doNotEmail: row.doNotEmail === 1,

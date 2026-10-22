@@ -263,6 +263,7 @@ export function buildOrganizationProfile(
   overrides: Partial<OrganizationProfile> = {},
 ): OrganizationProfile {
   const profile: OrganizationProfile = {
+    email: "",
     bounceReason: "",
     createdAt: "2026-07-20T20:00:00.000Z",
     displayName: "Browser Singer",

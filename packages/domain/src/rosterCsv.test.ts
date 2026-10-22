@@ -11,6 +11,15 @@ import {
 } from "./rosterCsv";
 
 describe("roster CSV", () => {
+  it("retains international phone numbers through formula-safe export and reimport", () => {
+    const profiles = parseRosterCsv(
+      "Name,Email,Phone,Performer,Status\nNo Account,person@example.test,+12025550123,,Active",
+    );
+    const csv = renderRosterCsv(profiles);
+    expect(csv).toContain("'+12025550123");
+    expect(parseRosterCsv(csv)).toEqual(profiles);
+  });
+
   it("preserves field order, Idle status, escaping, and the section-leader block", () => {
     expect(
       renderRosterCsv([

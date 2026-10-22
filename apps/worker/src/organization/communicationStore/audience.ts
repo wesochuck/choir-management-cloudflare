@@ -1,3 +1,4 @@
+import { primaryRosterContactSql } from "../organizationStore/rosterContact";
 import type {
   communicationAudienceRequestSchema,
   CommunicationRecipientSubject,
@@ -556,6 +557,9 @@ function contactRecipients(storage: AudienceStorage, audience: Audience): Audien
 }
 
 interface MemberCandidateRow extends CandidateRow {
+  readonly contactId: string | null;
+  readonly emailStatus: string | null;
+  readonly smsStatus: string | null;
   readonly lastBounceAt: string;
   readonly providerSuppressed: number;
   readonly smsSuppressed: number;
@@ -565,7 +569,8 @@ function memberRecipients(storage: AudienceStorage, audience: Audience): Audienc
   if (!audience.targetAudiences.includes("Members")) return [];
   const rows = storage.sql
     .exec<MemberCandidateRow>(
-      `SELECT p.id, p.display_name AS displayName, NULL AS email, p.phone,
+      `SELECT p.id, p.display_name AS displayName, c.email, c.id AS contactId,
+          email_pref.status AS emailStatus, sms_pref.status AS smsStatus, p.phone,
           p.voice_part AS voicePart, p.global_status AS globalStatus, p.do_not_email AS doNotEmail,
           p.provider_email_suppressed AS providerSuppressed, p.last_bounce_at AS lastBounceAt,
           EXISTS (
@@ -578,6 +583,9 @@ function memberRecipients(storage: AudienceStorage, audience: Audience): Audienc
           ) AS smsSuppressed,
           COALESCE(r.rsvp, 'Pending') AS rsvp
          FROM profiles p
+         LEFT JOIN contacts c ON c.id = ${primaryRosterContactSql}
+         LEFT JOIN contact_communication_preferences email_pref ON email_pref.contact_id = c.id AND email_pref.channel = 'email'
+         LEFT JOIN contact_communication_preferences sms_pref ON sms_pref.contact_id = c.id AND sms_pref.channel = 'sms'
          LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
          ORDER BY p.display_name COLLATE NOCASE, p.id LIMIT ${String(AUDIENCE_MEMBER_LIMIT)}`,
       audience.eventId ?? "",
@@ -590,7 +598,7 @@ function memberRecipients(storage: AudienceStorage, audience: Audience): Audienc
   return rows
     .filter(({ id }) => !requestedProfiles || requestedProfiles.has(id))
     .filter(({ globalStatus }) => statuses.has(globalStatus))
-    .filter(({ voicePart }) => voicePart.length > 0 && !excludedVoiceParts.has(voicePart))
+    .filter(({ voicePart }) => !excludedVoiceParts.has(voicePart))
     .filter(({ voicePart }) => !requestedVoiceParts || requestedVoiceParts.has(voicePart))
     .filter(({ rsvp }) => !audience.eventId || audience.rsvp === "All" || audience.rsvp === rsvp)
     .map(
@@ -599,6 +607,9 @@ function memberRecipients(storage: AudienceStorage, audience: Audience): Audienc
         doNotEmail,
         email,
         emailSuppressed,
+        emailStatus,
+        smsStatus,
+        contactId,
         id,
         phone,
         smsSuppressed,
@@ -610,12 +621,12 @@ function memberRecipients(storage: AudienceStorage, audience: Audience): Audienc
         doNotEmail: doNotEmail === 1,
         email,
         emailSuppressed: emailSuppressed === 1,
-        emailUnsubscribed: false,
+        emailUnsubscribed: emailStatus === "unsubscribed",
         phone,
         profileId: id,
         providerBounced: providerSuppressed === 1 || lastBounceAt !== "",
         smsSuppressed: smsSuppressed === 1,
-        smsUnsubscribed: false,
+        smsUnsubscribed: contactId !== null && smsStatus !== "subscribed",
         subject: { kind: "profile", profileId: id } as const,
         voicePart,
       }),

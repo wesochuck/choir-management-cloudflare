@@ -8,6 +8,32 @@ import {
 } from "./profiles";
 
 describe("organizationProfileRequestSchema", () => {
+  it("accepts an optional independent contact email, including explicit removal", () => {
+    expect(organizationProfileRequestSchema.parse({ displayName: "Person" }).email).toBeUndefined();
+    expect(organizationProfileRequestSchema.parse({ displayName: "Person", email: "" }).email).toBe(
+      "",
+    );
+    expect(
+      organizationProfileRequestSchema.parse({
+        displayName: "Person",
+        email: "person@example.test",
+      }).email,
+    ).toBe("person@example.test");
+    expect(
+      organizationProfileRequestSchema.safeParse({ displayName: "Person", email: null }).success,
+    ).toBe(false);
+    expect(
+      organizationProfileRequestSchema.safeParse({ displayName: "Person", email: "invalid" })
+        .success,
+    ).toBe(false);
+    expect(
+      memberProfileUpdateRequestSchema.parse({
+        displayName: "Person",
+        email: "ignored@example.test",
+      }),
+    ).not.toHaveProperty("email");
+  });
+
   it("defaults receiveAdminNotifications to false for member profiles", () => {
     const parsed = organizationProfileRequestSchema.parse({
       displayName: "Jane Doe",

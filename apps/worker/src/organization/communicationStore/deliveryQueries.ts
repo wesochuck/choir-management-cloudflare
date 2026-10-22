@@ -268,6 +268,12 @@ export function readCommunicationJobFromStore(
            ${contactPreferenceSuppression}
            OR EXISTS (
              SELECT 1 FROM contacts c
+             JOIN contact_communication_preferences pref ON pref.contact_id = c.id
+             WHERE c.profile_id = communication_deliveries.profile_id
+               AND pref.channel = 'email' AND pref.status = 'unsubscribed'
+           )
+           OR EXISTS (
+             SELECT 1 FROM contacts c
              JOIN communication_suppressions s ON s.profile_id = c.profile_id
              WHERE c.id = communication_deliveries.profile_id
                AND s.channel = 'email' AND s.active = 1

@@ -38,7 +38,6 @@ export function ProfileInfoPanel({
   onPhotoPendingChange,
   onRegisterPhotoSave,
   partLabel,
-  performerLabel,
   profile,
   profileEmail,
   profilePhotoFileId,
@@ -96,20 +95,17 @@ export function ProfileInfoPanel({
       </div>
 
       <div className="field">
-        <label htmlFor="roster-profile-email">Email address</label>
+        <label htmlFor="roster-profile-email">Contact email</label>
         <input
           id="roster-profile-email"
           onChange={(event) => {
             setProfileEmail(event.target.value);
           }}
-          placeholder={`Enter an email to invite this ${performerLabel.toLowerCase()}`}
-          readOnly={Boolean(linkedProfileEmail)}
+          placeholder="Email for Organization communications"
           type="email"
           value={profileEmail}
         />
-        <p className="field-help">
-          Linked account emails are managed through Membership invitations.
-        </p>
+        <p className="field-help">{accountDescription(linkedProfileEmail)}</p>
         {linkedProfileEmail && sendPasswordReset ? (
           <button
             className="button button--secondary button--small"
@@ -285,4 +281,10 @@ export function ProfileInfoPanel({
       </div>
     </div>
   );
+}
+
+function accountDescription(email: string | undefined): string {
+  return email
+    ? `Linked account — sign-in email: ${email}`
+    : "No account. Saving contact details does not send an invitation.";
 }

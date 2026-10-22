@@ -84,6 +84,7 @@ export function RosterPageView({
     rosterImportInspecting,
     rosterImportInspection,
     rosterImportMappings,
+    rosterImportSamples,
     saveProfile,
     selectedProfileIds,
     selectedVoiceFilters,
@@ -483,10 +484,20 @@ export function RosterPageView({
                     header: "Email address",
                     id: "email",
                     render: (candidate) => {
-                      const email = membershipByProfileId.get(candidate.id)?.email;
-                      return email ? <a href={`mailto:${email}`}>{email}</a> : "Not linked";
+                      const email =
+                        candidate.email || membershipByProfileId.get(candidate.id)?.email;
+                      return email ? <a href={`mailto:${email}`}>{email}</a> : "No email";
                     },
-                    sortValue: (candidate) => membershipByProfileId.get(candidate.id)?.email ?? "",
+                    sortValue: (candidate) =>
+                      candidate.email || (membershipByProfileId.get(candidate.id)?.email ?? ""),
+                  },
+                  {
+                    header: "Account",
+                    id: "account",
+                    render: (candidate) =>
+                      membershipByProfileId.has(candidate.id) ? "Linked account" : "No account",
+                    sortValue: (candidate) =>
+                      membershipByProfileId.has(candidate.id) ? "Linked account" : "No account",
                   },
                   {
                     header: partLabel,
@@ -799,12 +810,14 @@ export function RosterPageView({
         columnMappings={rosterImportMappings.map((mapping) => ({
           ...mapping,
           header: rosterImportHeaders[mapping.sourceIndex] ?? "",
+          samples: rosterImportSamples.map((row) => row[mapping.sourceIndex] ?? ""),
         }))}
+        columnWarnings={rosterImportInspection?.warnings ?? []}
         confirmed={rosterImportConfirmed}
         description="Upload a CSV to add profiles to this roster."
         error={error}
         file={importFile}
-        helpText="Profiles are created without login access. CSV email addresses will be counted as invitation candidates."
+        helpText="Profiles are created without login access. Contact emails and phone numbers are saved; no invitations are sent."
         invalid={Boolean(rosterImportInspection?.fatalError)}
         mappingOptions={rosterCsvColumnOptions.map((value) => ({
           label: value === "Voice Part" ? partLabel : value,

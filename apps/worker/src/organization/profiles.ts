@@ -2,6 +2,7 @@ import {
   memberProfileUpdateRequestSchema,
   organizationDirectoryProfileSchema,
   organizationProfileSchema,
+  organizationProfileImportResponseSchema,
   organizationProfileStatusHistoryResponseSchema,
   organizationProfilesResponseSchema,
   type MemberProfileUpdateRequest,
@@ -32,7 +33,7 @@ const directoryStoreResponseSchema = z.object({
 });
 
 export class OrganizationProfileMutationError extends Error {
-  readonly code: "voice_part_not_configured";
+  readonly code: string;
   readonly configuredVoiceParts?: readonly string[] | undefined;
   readonly rejectedValue?: string | undefined;
 
@@ -51,7 +52,10 @@ export class OrganizationProfileMutationError extends Error {
         : "";
     super(`The selected voice part is not configured for this Organization.${configuredSuffix}`);
     this.name = "OrganizationProfileMutationError";
-    this.code = "voice_part_not_configured";
+    this.code = typeof options === "string" ? options : "voice_part_not_configured";
+    if (this.code === "contact_duplicate_email")
+      this.message =
+        "This email belongs to another Contact. Resolve its Profile link before saving.";
     this.configuredVoiceParts = opts?.configuredVoiceParts;
     this.rejectedValue = opts?.rejectedValue;
   }
@@ -63,6 +67,14 @@ async function assertProfileMutationAccepted(response: Response, operation: stri
       .clone()
       .json()
       .catch(() => null);
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      "code" in body &&
+      body.code === "contact_duplicate_email"
+    ) {
+      throw new OrganizationProfileMutationError("contact_duplicate_email");
+    }
     if (
       typeof body === "object" &&
       body !== null &&
@@ -187,7 +199,7 @@ export async function createOrganizationProfile(
       body: JSON.stringify({
         actorUserId: input.actorUserId,
         organizationId: input.organizationId,
-        profile: input.profile,
+        profile: { ...input.profile, ...(input.email !== undefined ? { email: input.email } : {}) },
         profileId,
         requestId: input.requestId,
       }),
@@ -267,7 +279,7 @@ export async function importOrganizationProfiles(
     readonly profiles: readonly OrganizationProfileRequest[];
     readonly requestId: string;
   },
-): Promise<number> {
+): Promise<z.infer<typeof organizationProfileImportResponseSchema>> {
   const response = await invokeOrganizationRpc(
     organizationStub(env, input.organizationId),
     "https://organization.internal/internal/profiles/import",
@@ -281,16 +293,17 @@ export async function importOrganizationProfiles(
     },
   );
   await assertProfileMutationAccepted(response, "import request");
-  const body: unknown = await response.json();
-  if (
-    typeof body !== "object" ||
-    body === null ||
-    !("imported" in body) ||
-    typeof body.imported !== "number"
-  ) {
-    throw new Error("The Organization store returned an invalid Profile import result.");
-  }
-  return body.imported;
+  return organizationProfileImportResponseSchema.parse({
+    ...z
+      .object({
+        imported: z.number(),
+        emailsPersisted: z.number(),
+        phonesPersisted: z.number(),
+        conflicts: z.array(z.object({ row: z.number(), message: z.string() })),
+      })
+      .parse(await response.json()),
+    requestId: input.requestId,
+  });
 }
 
 export async function updateOrganizationProfile(
@@ -314,7 +327,7 @@ export async function updateOrganizationProfile(
       body: JSON.stringify({
         actorUserId: input.actorUserId,
         organizationId: input.organizationId,
-        profile: input.profile,
+        profile: { ...input.profile, ...(input.email !== undefined ? { email: input.email } : {}) },
         profileId: input.profileId,
         requestId: input.requestId,
       }),

@@ -1,5 +1,8 @@
 import { renderCommunicationTemplate } from "@choir/domain";
-import { listOrganizationProfileEmails } from "../../organization/profiles";
+import {
+  listOrganizationProfiles,
+  listOrganizationProfileEmails,
+} from "../../organization/profiles";
 import {
   queueAutomatedOrganizationCommunication,
   readOrganizationCommunicationTemplate,
@@ -48,9 +51,18 @@ async function automatedRecipients(
 > {
   if (!env.CONTROL_DB)
     throw new Error("The control database is unavailable for scheduled communication.");
-  const emails = await listOrganizationProfileEmails(env.CONTROL_DB, organizationId);
+  const [emails, profiles] = await Promise.all([
+    listOrganizationProfileEmails(env.CONTROL_DB, organizationId),
+    listOrganizationProfiles(env, organizationId),
+  ]);
+  const contactEmails = new Map(
+    profiles
+      .filter((profile) => profile.email !== "")
+      .map((profile) => [profile.id, profile.email]),
+  );
   return candidates.flatMap((candidate) => {
-    const email = emails.get(candidate.profileId)?.trim() ?? "";
+    const email =
+      contactEmails.get(candidate.profileId) ?? emails.get(candidate.profileId)?.trim() ?? "";
     return email
       ? [{ email, name: candidate.recipientName, phone: "", profileId: candidate.profileId }]
       : [];

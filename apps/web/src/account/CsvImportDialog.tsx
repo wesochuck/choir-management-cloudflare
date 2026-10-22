@@ -32,6 +32,7 @@ interface CsvImportColumnWarning {
 }
 
 export interface CsvImportColumnMapping {
+  readonly samples?: readonly string[];
   readonly header: string;
   readonly sourceIndex: number;
   readonly targetHeader: string | null;
@@ -183,7 +184,15 @@ export function CsvImportDialog({
                   warningIndex >= 0 ? `csv-warning-${String(warningIndex)}` : undefined;
                 return (
                   <label className="csv-import-mapping" key={mapping.sourceIndex}>
-                    <span>{mapping.header || `Column ${String(mapping.sourceIndex + 1)}`}</span>
+                    <span>
+                      {mapping.header || `Column ${String(mapping.sourceIndex + 1)}`}
+                      {mapping.samples ? (
+                        <small className="field-help">
+                          Sample values:{" "}
+                          {mapping.samples.map((value) => value || "(blank)").join("; ")}
+                        </small>
+                      ) : null}
+                    </span>
                     <select
                       aria-describedby={warningId}
                       aria-label={`Map ${mapping.header || `column ${String(mapping.sourceIndex + 1)}`}`}

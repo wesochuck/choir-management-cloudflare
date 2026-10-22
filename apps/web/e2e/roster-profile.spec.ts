@@ -1031,3 +1031,82 @@ test("More actions gates impersonate and resolve duplicate", async ({ page }) =>
 
   api.assertNoUnexpectedRequests();
 });
+
+test("saves no-account contact email and phone without an invitation", async ({ page }) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  const profile = buildOrganizationProfile({
+    displayName: "Imported Person",
+    email: "imported@example.test",
+    phone: "+12025550123",
+    voicePart: "",
+  });
+  api.profiles.set([]);
+  await page.route("**/api/organization/profiles/import", async (route) => {
+    const csv = route.request().postData() ?? "";
+    expect(csv).toContain("imported@example.test");
+    expect(csv).toContain("+12025550123");
+    api.profiles.set([profile]);
+    await route.fulfill({
+      status: 201,
+      json: {
+        imported: 1,
+        emailsPersisted: 1,
+        phonesPersisted: 1,
+        conflicts: [],
+        requestId: "99999999-9999-4999-8999-999999999999",
+      },
+    });
+  });
+  await page.route("**/api/organization/members", (route) =>
+    route.fulfill({
+      json: {
+        memberships: [],
+        truncated: false,
+        requestId: "99999999-9999-4999-8999-999999999999",
+      },
+    }),
+  );
+  const invitations: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().includes("invitations"))
+      invitations.push(request.url());
+  });
+  await page.goto("/admin/roster");
+  await page.getByRole("button", { name: "Import CSV", exact: true }).click();
+  const importDialog = page.getByRole("dialog", { name: "Import roster", exact: true });
+  await importDialog.getByLabel("Choose CSV file").setInputFiles({
+    name: "synthetic-roster.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "Name,Last Name,Email,Phone,Performer,Status\nImported Person,Person,imported@example.test,+12025550123,,Active",
+    ),
+  });
+  await expect(importDialog.getByLabel("Map Email", { exact: true })).toHaveValue("Email");
+  await expect(
+    importDialog.getByText("Sample values: imported@example.test", { exact: true }),
+  ).toBeVisible();
+  await importDialog.getByLabel("Map Last Name", { exact: true }).selectOption("");
+  await importDialog.getByLabel("Map Status", { exact: true }).selectOption("");
+  await importDialog
+    .getByRole("checkbox", { name: "I reviewed these warnings and want to proceed." })
+    .check();
+  await importDialog.getByRole("button", { name: "Proceed with import", exact: true }).click();
+  await expect(importDialog).not.toBeVisible();
+  await expect(page.getByRole("link", { name: "imported@example.test" })).toBeVisible();
+  await page.locator('[aria-label="Edit profile Imported Person"]:visible').click();
+  const dialog = page.getByRole("dialog", { name: /Profile/ });
+  await expect(dialog.getByLabel("Contact email", { exact: true })).toHaveValue(
+    "imported@example.test",
+  );
+  await expect(dialog.getByLabel("Phone", { exact: true })).toHaveValue("+12025550123");
+  await dialog.getByLabel("Contact email", { exact: true }).fill("edited@example.test");
+  await dialog.getByRole("button", { name: "Save Profile", exact: true }).click();
+  await expect(page.getByRole("link", { name: "edited@example.test" })).toBeVisible();
+  await page.locator('[aria-label="Edit profile Imported Person"]:visible').click();
+  await expect(dialog.getByLabel("Contact email", { exact: true })).toHaveValue(
+    "edited@example.test",
+  );
+  await expect(dialog.getByLabel("Phone", { exact: true })).toHaveValue("+12025550123");
+  expect(invitations).toEqual([]);
+  api.assertNoUnexpectedRequests();
+});

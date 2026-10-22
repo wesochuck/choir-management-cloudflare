@@ -351,6 +351,37 @@ describe("resolveCommunicationAudienceFromStore", () => {
     expect(foreign.status).toBe(404);
   });
 
+  it("includes unassigned no-account Profiles with linked contact email and preserves channel consent", async () => {
+    const { db, storage } = seedDatabase();
+    const profileId = seedProfile(db, { displayName: "No Account", voicePart: "" });
+    const contactId = seedContact(db, {
+      displayName: "No Account",
+      profileId,
+      email: "roster@example.test",
+    });
+    const general = await resolveAudience(storage, audienceFor(["Members"]));
+    expect(general.recipients).toEqual([
+      expect.objectContaining({
+        email: "roster@example.test",
+        profileId,
+        emailUnsubscribed: false,
+        smsUnsubscribed: true,
+      }),
+    ]);
+    expect(
+      (await resolveAudience(storage, audienceFor(["Members"], { voiceParts: ["T1"] }))).recipients,
+    ).toEqual([]);
+    db.prepare(
+      "UPDATE contact_communication_preferences SET status = 'unsubscribed' WHERE contact_id = ? AND channel = 'email'",
+    ).run(contactId);
+    expect(
+      (await resolveAudience(storage, audienceFor(["Members", "Contacts"]))).recipients,
+    ).toEqual([
+      expect.objectContaining({ emailUnsubscribed: true }),
+      expect.objectContaining({ emailUnsubscribed: true }),
+    ]);
+  });
+
   it("returns member candidates with profile subjects", async () => {
     const { db, storage } = seedDatabase();
     seedProfile(db, { displayName: "Jane Member" });

@@ -88,6 +88,7 @@ describe("new seating chart layouts", () => {
 
 describe("resolveDraggingProfile", () => {
   const profile: OrganizationProfile = {
+    email: "",
     bounceReason: "",
     createdAt: "2026-01-01T00:00:00.000Z",
     displayName: "Jane Singer",

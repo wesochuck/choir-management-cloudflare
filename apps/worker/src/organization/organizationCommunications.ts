@@ -225,12 +225,11 @@ async function resolveRecipients(
       // contact subjects, so commerce recipients carry contact tokens too;
       // historical `ticket_purchase`/`donation` subjects never verify and are
       // never minted for new sends.
-      const isMember = subject.kind === "profile" && emails.has(recipient.subjectId);
       const tokenable =
         audience.ticketBuyerMode !== "ticket_service" &&
         recipient.email !== "" &&
         unsubscribeOrigin !== null &&
-        (subject.kind === "contact" || (subject.kind === "profile" && isMember));
+        (subject.kind === "contact" || subject.kind === "profile");
       const token = tokenable
         ? await issueSignedLink(env.SIGNED_LINK_SECRET, {
             algorithm: "HS256",

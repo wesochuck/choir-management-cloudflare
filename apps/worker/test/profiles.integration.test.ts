@@ -1,3 +1,5 @@
+import { readCommunicationDeliveryJob } from "../src/organization/organizationCommunications";
+import { parseRosterCsv } from "@choir/domain";
 import {
   organizationProfileSchema,
   organizationProfileResponseSchema,
@@ -115,6 +117,181 @@ describe("Organization Profiles", () => {
     ).toBe(0);
   });
 
+  it("round-trips no-account CSV contact details, rejects collisions, and reaches Members without a part", async () => {
+    const cookie = await signIn();
+    const csv =
+      "Name,Last Name,Email,Phone,Performer,Status\nFirst Person,Person,first@example.test,,,Active\nMiddle Person,Person,middle@example.test,+12025550123,T1,Active\nThird Person,Person,third@example.test,,,Active";
+    const upload = () =>
+      exports.default.fetch(
+        apiRequest("alpha.localhost", "/api/organization/profiles/import", cookie, {
+          method: "POST",
+          headers: { "content-type": "text/csv" },
+          body: csv,
+        }),
+      );
+    const imported = await upload();
+    expect(imported.status).toBe(201);
+    expect(await imported.json()).toMatchObject({
+      imported: 3,
+      emailsPersisted: 3,
+      phonesPersisted: 1,
+      conflicts: [],
+    });
+    const list = async () =>
+      organizationProfilesResponseSchema.parse(
+        await (
+          await exports.default.fetch(
+            apiRequest("alpha.localhost", "/api/organization/profiles", cookie),
+          )
+        ).json(),
+      ).profiles;
+    const profiles = await list();
+    expect(profiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          displayName: "First Person",
+          email: "first@example.test",
+          phone: "",
+          voicePart: "",
+        }),
+        expect.objectContaining({
+          displayName: "Middle Person",
+          email: "middle@example.test",
+          phone: "+12025550123",
+          voicePart: "T1",
+        }),
+        expect.objectContaining({
+          displayName: "Third Person",
+          email: "third@example.test",
+          phone: "",
+          voicePart: "",
+        }),
+      ]),
+    );
+    const middle = profiles.find((profile) => profile.displayName === "Middle Person");
+    if (!middle) throw new Error("Missing imported Profile");
+    const update = await exports.default.fetch(
+      apiRequest("alpha.localhost", `/api/organization/profiles/${middle.id}`, cookie, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...middle, email: "changed@example.test", notes: "Edited" }),
+      }),
+    );
+    expect(update.status).toBe(200);
+    expect((await list()).find((profile) => profile.id === middle.id)).toMatchObject({
+      email: "changed@example.test",
+      phone: "+12025550123",
+      notes: "Edited",
+    });
+    const exported = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/profiles/export.csv", cookie),
+    );
+    expect(exported.status).toBe(200);
+    const exportedCsv = await exported.text();
+    expect(exportedCsv).toContain("changed@example.test");
+    expect(
+      parseRosterCsv(exportedCsv).find((profile) => profile.displayName === "Middle Person"),
+    ).toMatchObject({ email: "changed@example.test", phone: "+12025550123" });
+    const retry = await upload();
+    expect(await retry.json()).toMatchObject({
+      imported: 1,
+      emailsPersisted: 1,
+      conflicts: [expect.objectContaining({ row: 2 }), expect.objectContaining({ row: 4 })],
+    });
+    // Neither a roster save nor an import creates account access or invitations.
+    expect(
+      await controlDatabase.prepare("SELECT COUNT(*) AS count FROM user").first<number>("count"),
+    ).toBe(1);
+    expect(
+      await controlDatabase
+        .prepare("SELECT COUNT(*) AS count FROM invitation")
+        .first<number>("count"),
+    ).toBe(0);
+    const audience = {
+      targetAudiences: ["Members"],
+      globalStatuses: ["Active"],
+      voiceParts: [],
+      profileIds: [],
+      eventId: null,
+      rsvp: "All",
+    };
+    const preview = async (voiceParts: string[]) =>
+      exports.default.fetch(
+        apiRequest("alpha.localhost", "/api/organization/communications/reach-preview", cookie, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ audience: { ...audience, voiceParts }, channel: "Email" }),
+        }),
+      );
+    const reach = await preview([]);
+    expect(reach.status).toBe(200);
+    expect(await reach.json()).toMatchObject({ email: 4, total: 4 });
+    expect(await (await preview(["T1"])).json()).toMatchObject({ email: 2, total: 2 });
+    const sent = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/organization/communications/send", cookie, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          audience: { ...audience, targetAudiences: ["Members", "Contacts"] },
+          channel: "Email",
+          subject: "Choir update",
+          contentMarkdown: "Hello {recipientName}",
+        }),
+      }),
+    );
+    expect(sent.status).toBe(202);
+    const deliveries = await runInDurableObject<
+      OrganizationStore,
+      { destination: string; unsubscribeUrl: string }[]
+    >(
+      organizationStore.get(organizationStore.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ destination: string; unsubscribeUrl: string }>(
+            "SELECT destination, unsubscribe_url AS unsubscribeUrl FROM communication_deliveries ORDER BY destination",
+          )
+          .toArray(),
+    );
+    // Members + Contacts is one delivery per destination, including no-part Profiles.
+    expect(deliveries.map((delivery) => delivery.destination)).toEqual([
+      "changed@example.test",
+      "first@example.test",
+      "middle@example.test",
+      "third@example.test",
+    ]);
+    const firstDelivery = deliveries.find(
+      (delivery) => delivery.destination === "first@example.test",
+    );
+    if (!firstDelivery) throw new Error("Missing unlinked Profile delivery");
+    const token = new URL(firstDelivery.unsubscribeUrl).searchParams.get("token");
+    const unsubscribe = await exports.default.fetch(
+      apiRequest("alpha.localhost", "/api/public/unsubscribe", undefined, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token }),
+      }),
+    );
+    expect(unsubscribe.status).toBe(200);
+    const jobId = await runInDurableObject<OrganizationStore, string>(
+      organizationStore.get(organizationStore.idFromName("organization-alpha")),
+      (_instance, state) =>
+        state.storage.sql
+          .exec<{ jobId: string }>(
+            "SELECT job_id AS jobId FROM scheduled_job_outbox WHERE kind = 'communication_delivery' LIMIT 1",
+          )
+          .one().jobId,
+    );
+    const job = await readCommunicationDeliveryJob(env, "organization-alpha", jobId);
+    expect(job.deliveries.map((delivery) => delivery.destination)).not.toContain(
+      "first@example.test",
+    );
+    expect(job.deliveries).toHaveLength(3);
+    const other = await exports.default.fetch(
+      apiRequest("bravo.localhost", "/api/organization/profiles", cookie),
+    );
+    expect(other.status).toBe(403);
+  });
+
   it("imports Profiles atomically without creating login identities", async () => {
     const cookie = await signIn();
     const response = await exports.default.fetch(
@@ -131,7 +308,9 @@ describe("Organization Profiles", () => {
     expect(response.status).toBe(201);
     expect(organizationProfileImportResponseSchema.parse(await response.json())).toMatchObject({
       imported: 2,
-      invitationCandidates: 1,
+      emailsPersisted: 1,
+      phonesPersisted: 2,
+      conflicts: [],
     });
     const profiles = organizationProfilesResponseSchema.parse(
       await (
@@ -144,6 +323,8 @@ describe("Organization Profiles", () => {
       expect.arrayContaining([
         expect.objectContaining({
           displayName: "Singer, One",
+          email: "one@example.test",
+          phone: "555-0101",
           isSectionLeader: true,
           notes: "First line\nSecond line",
           voicePart: "S1",

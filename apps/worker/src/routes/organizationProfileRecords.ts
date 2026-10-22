@@ -179,7 +179,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           .filter((profile) => !profile.hidden)
           .map((profile) => ({
             displayName: profile.displayName,
-            email: emails.get(profile.id) ?? "",
+            email: profile.email || (emails.get(profile.id) ?? ""),
             globalStatus: profile.globalStatus,
             isSectionLeader: profile.isSectionLeader,
             phone: profile.phone,

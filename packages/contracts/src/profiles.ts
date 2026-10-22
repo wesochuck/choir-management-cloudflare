@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { emailAddressSchema, requestIdSchema } from "./primitives";
 export const organizationProfileRequestSchema = z.object({
+  email: z.union([z.literal(""), emailAddressSchema]).optional(),
   doNotEmail: z.boolean().default(false),
   displayName: z.string().trim().min(1).max(200),
   globalStatus: z.enum(["Active", "Idle", "Inactive"]).default("Active"),
@@ -21,6 +22,7 @@ export const organizationProfileRequestSchema = z.object({
 });
 
 export const organizationProfileSchema = organizationProfileRequestSchema.extend({
+  email: z.union([z.literal(""), emailAddressSchema]).default(""),
   showEmailInDirectory: z.boolean().default(true),
   showPhoneInDirectory: z.boolean().default(true),
   bounceReason: z.string().max(500).default(""),
@@ -49,7 +51,13 @@ export const organizationProfilesResponseSchema = z.object({
 
 export const organizationProfileImportResponseSchema = z.object({
   imported: z.number().int().min(0).max(500),
-  invitationCandidates: z.number().int().min(0).max(500),
+  invitationCandidates: z.number().int().min(0).max(500).default(0),
+  emailsPersisted: z.number().int().min(0).max(500).default(0),
+  phonesPersisted: z.number().int().min(0).max(500).default(0),
+  conflicts: z
+    .array(z.object({ row: z.number().int().min(2), message: z.string() }))
+    .max(500)
+    .default([]),
   requestId: requestIdSchema,
 });
 

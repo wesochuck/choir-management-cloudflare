@@ -25,7 +25,7 @@ import type { WorkerHonoEnvironment } from "./helpers";
 import { authorizeCalendarRoute, resolveCanonicalOrganizationId } from "./helpers";
 
 const organizationProfileMutationRequestSchema = organizationProfileRequestSchema.extend({
-  email: z.union([z.literal(""), z.email().max(320)]).default(""),
+  email: z.union([z.literal(""), z.email().max(320)]).optional(),
 });
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
@@ -83,8 +83,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       });
       return context.json(
         {
-          imported,
-          invitationCandidates: parsed.filter(({ email }) => email !== "").length,
+          ...imported,
           requestId: context.get("requestId"),
         },
         201,
@@ -195,7 +194,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         organizationId,
         profile: profileDetails,
         requestId: context.get("requestId"),
-        ...(email ? { email } : {}),
+        ...(email !== undefined ? { email } : {}),
       });
       return context.json({ ...createdProfile, requestId: context.get("requestId") }, 201);
     } catch (error: unknown) {
@@ -252,7 +251,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         profile: profileDetails,
         profileId: profileId.data,
         requestId: context.get("requestId"),
-        ...(email ? { email } : {}),
+        ...(email !== undefined ? { email } : {}),
       });
       return context.json({ ...updated, requestId: context.get("requestId") });
     } catch (error: unknown) {

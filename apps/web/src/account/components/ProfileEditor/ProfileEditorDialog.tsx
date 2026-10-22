@@ -109,7 +109,7 @@ export function ProfileEditorDialog({
   const linkedProfileEmail = editingId
     ? rosterMemberships.find((m) => m.profileId === editingId)?.email
     : undefined;
-  const baselineEmail = linkedProfileEmail ?? "";
+  const baselineEmail = editingProfileRecord?.email ?? "";
 
   const isFoldersDirty = useMemo(() => {
     if (!baselineFolderNumbers || profileFolderNumbers.status !== "ready") return false;

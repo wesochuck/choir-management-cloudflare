@@ -168,6 +168,8 @@ export function parseRosterCsv(
     if (email && !emailAddressSchema.safeParse(email).success) {
       throw new RosterCsvError(`Email "${email}" is not valid.`, rowNumber);
     }
+    if (valueAt(row, phoneIndex).length > 50)
+      throw new RosterCsvError("Phone may contain at most 50 characters.", rowNumber);
     const explicitLeader = valueAt(row, leaderIndex).toLowerCase();
     const rawVoicePart = valueAt(row, voicePartIndex);
     let voicePart = rawVoicePart;
@@ -190,7 +192,8 @@ export function parseRosterCsv(
         ["1", "true", "yes", "y"].includes(explicitLeader) ||
         leaders.has(profileKey(displayName, email)),
       notes: valueAt(row, notesIndex),
-      phone: valueAt(row, phoneIndex),
+      // Undo only the export safety prefix on a telephone number; formulas stay escaped on export.
+      phone: valueAt(row, phoneIndex).replace(/^'(?=\+[\d ()-]+$)/, ""),
       voicePart,
     };
   });
@@ -207,6 +210,7 @@ export interface RosterCsvInspection {
   readonly fatalError: string | null;
   readonly headers: readonly string[];
   readonly rowCount: number;
+  readonly samples?: readonly (readonly string[])[];
   readonly warnings: readonly RosterCsvColumnWarning[];
 }
 
@@ -291,7 +295,13 @@ export function inspectRosterCsv(
         warnings,
       };
     }
-    return { fatalError: null, headers, rowCount: profileRows.length, warnings };
+    return {
+      fatalError: null,
+      headers,
+      rowCount: profileRows.length,
+      warnings,
+      samples: profileRows.slice(0, 3),
+    };
   } catch (error: unknown) {
     return {
       fatalError: error instanceof RosterCsvError ? error.message : "The CSV could not be read.",

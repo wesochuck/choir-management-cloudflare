@@ -1,10 +1,15 @@
 import { calculateOnBreakInactiveAt, resolveVoicePartLabel } from "@choir/domain";
-import { organizationRosterConfigurationRequestSchema } from "@choir/contracts";
+import {
+  organizationRosterConfigurationRequestSchema,
+  type OrganizationProfileRequest,
+} from "@choir/contracts";
 import {
   recalculateProfileStatuses,
   recordProfileStatusChange,
   readRosterAutomationConfiguration,
 } from "../statusAutomationStore";
+
+import { primaryRosterContactSql, rosterContactConflict, saveRosterContact } from "./rosterContact";
 
 import { privateFileIsReferenced } from "./files";
 
@@ -56,7 +61,7 @@ export function listProfiles(
     .one().timezone;
   const profiles = storage.sql
     .exec<OrganizationProfileRow>(
-      `SELECT id, display_name AS displayName, phone, voice_part AS voicePart,
+      `SELECT p.id, (SELECT c.email FROM contacts c WHERE c.id = ${primaryRosterContactSql}) AS email, display_name AS displayName, phone, voice_part AS voicePart,
           global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
           show_email_in_directory AS showEmailInDirectory,
           show_phone_in_directory AS showPhoneInDirectory,
@@ -73,7 +78,7 @@ export function listProfiles(
          status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
          status_change_reason AS statusChangeReason, hidden,
          created_at AS createdAt, updated_at AS updatedAt
-       FROM profiles ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT 500`,
+       FROM profiles p ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT 500`,
     )
     .toArray()
     .map((profile) => ({
@@ -96,7 +101,7 @@ export function listProfiles(
 function readProfile(storage: DurableObjectStorage, profileId: string) {
   const row = storage.sql
     .exec<OrganizationProfileRow>(
-      `SELECT id, display_name AS displayName, phone, voice_part AS voicePart,
+      `SELECT p.id, (SELECT c.email FROM contacts c WHERE c.id = ${primaryRosterContactSql}) AS email, display_name AS displayName, phone, voice_part AS voicePart,
           global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
           show_email_in_directory AS showEmailInDirectory,
           show_phone_in_directory AS showPhoneInDirectory,
@@ -113,7 +118,7 @@ function readProfile(storage: DurableObjectStorage, profileId: string) {
          status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
          status_change_reason AS statusChangeReason, hidden,
          created_at AS createdAt, updated_at AS updatedAt
-       FROM profiles WHERE id = ? LIMIT 1`,
+       FROM profiles p WHERE p.id = ? LIMIT 1`,
       profileId,
     )
     .toArray()
@@ -247,6 +252,15 @@ export async function createProfile(
   }
   const occurredAt = new Date().toISOString();
   const profile = parsed.data.profile;
+  if (rosterContactConflict(storage, parsed.data.profileId, profile.email)) {
+    return Response.json(
+      {
+        code: "contact_duplicate_email",
+        message: "This email belongs to another Contact. Resolve the Contact link before saving.",
+      },
+      { status: 400 },
+    );
+  }
   const voicePartResolution = resolveConfiguredVoicePart(storage, profile.voicePart);
   if (!voicePartResolution.valid) {
     return Response.json(
@@ -293,6 +307,7 @@ export async function createProfile(
       occurredAt,
       profile.hidden ? 1 : 0,
     );
+    saveRosterContact(storage, parsed.data, profile);
     storage.sql.exec(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
@@ -341,57 +356,27 @@ export async function importProfiles(
     );
   }
   const occurredAt = new Date().toISOString();
+  let imported = 0;
+  let emailsPersisted = 0;
+  let phonesPersisted = 0;
+  const conflicts: { row: number; message: string }[] = [];
   storage.transactionSync(() => {
-    for (const { profile, profileId } of parsed.data.profiles) {
-      const resolution = resolveConfiguredVoicePart(storage, profile.voicePart);
-      const canonicalVoicePart = resolution.valid ? resolution.canonicalLabel : profile.voicePart;
-      storage.sql.exec(
-        `INSERT INTO profiles
-          (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
-           do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
-           receive_admin_notifications, receive_financial_alerts, is_section_leader,
-           receive_rehearsal_reminders, receive_performance_reminders,
-           receive_other_event_reminders,
-           status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        profileId,
-        profile.displayName,
-        profile.phone,
-        canonicalVoicePart,
-        profile.globalStatus,
-        profile.notes,
-        profile.showInDirectory ? 1 : 0,
-        profile.doNotEmail ? 1 : 0,
-        profile.receiveAttendanceReports ? 1 : 0,
-        profile.receiveRsvpDeclineNotices ? 1 : 0,
-        profile.receiveAdminNotifications ? 1 : 0,
-        profile.receiveFinancialAlerts ? 1 : 0,
-        profile.isSectionLeader ? 1 : 0,
-        toSqlBit(profile.receiveRehearsalReminders ?? true),
-        toSqlBit(profile.receivePerformanceReminders ?? true),
-        toSqlBit(profile.receiveOtherEventReminders ?? true),
-        profile.statusIsManual ? 1 : 0,
-        occurredAt,
-        "Initial status",
-        occurredAt,
-        occurredAt,
-        profile.hidden ? 1 : 0,
-      );
-      storage.sql.exec(
-        `INSERT INTO audit_events
-          (id, actor_type, actor_id, action, target_type, target_id,
-           request_id, change_summary, occurred_at)
-         VALUES (?, 'organization_member', ?, 'profile.imported', 'profile', ?, ?, ?, ?)`,
-        crypto.randomUUID(),
-        parsed.data.actorUserId,
-        profileId,
-        parsed.data.requestId,
-        JSON.stringify({ displayName: profile.displayName, globalStatus: profile.globalStatus }),
-        occurredAt,
-      );
+    for (const [index, { profile, profileId }] of parsed.data.profiles.entries()) {
+      if (rosterContactConflict(storage, profileId, profile.email)) {
+        conflicts.push({
+          row: index + 2,
+          message:
+            "Email already belongs to a Contact. Correct the row or explicitly resolve the existing Contact/Profile link.",
+        });
+        continue;
+      }
+      persistImportedProfile(storage, parsed.data, profile, profileId, occurredAt);
+      imported += 1;
+      emailsPersisted += Number(Boolean(profile.email));
+      phonesPersisted += Number(Boolean(profile.phone));
     }
   });
-  return Response.json({ imported: parsed.data.profiles.length });
+  return Response.json({ imported, emailsPersisted, phonesPersisted, conflicts });
 }
 
 export async function updateProfile(
@@ -409,6 +394,15 @@ export async function updateProfile(
   if (exists === 0) return Response.json({ code: "profile_not_found" }, { status: 404 });
   const occurredAt = new Date().toISOString();
   const profile = parsed.data.profile;
+  if (rosterContactConflict(storage, parsed.data.profileId, profile.email)) {
+    return Response.json(
+      {
+        code: "contact_duplicate_email",
+        message: "This email belongs to another Contact. Resolve the Contact link before saving.",
+      },
+      { status: 400 },
+    );
+  }
   const voicePartResolution = resolveConfiguredVoicePart(storage, profile.voicePart);
   if (!voicePartResolution.valid) {
     return Response.json(
@@ -509,6 +503,7 @@ export async function updateProfile(
         parsed.data.profileId,
       );
     }
+    saveRosterContact(storage, parsed.data, profile);
     storage.sql.exec(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id,
@@ -841,4 +836,60 @@ export async function manageProfilePhoto(
     previousFileId: profile.photoFileId,
     profile: readProfile(storage, operation.profileId),
   });
+}
+
+function persistImportedProfile(
+  storage: DurableObjectStorage,
+  context: { organizationId: string; actorUserId: string; requestId: string },
+  profile: OrganizationProfileRequest,
+  profileId: string,
+  occurredAt: string,
+): void {
+  const resolution = resolveConfiguredVoicePart(storage, profile.voicePart);
+  const canonicalVoicePart = resolution.valid ? resolution.canonicalLabel : profile.voicePart;
+  storage.sql.exec(
+    `INSERT INTO profiles
+          (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
+           do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
+           receive_admin_notifications, receive_financial_alerts, is_section_leader,
+           receive_rehearsal_reminders, receive_performance_reminders,
+           receive_other_event_reminders,
+           status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    profileId,
+    profile.displayName,
+    profile.phone,
+    canonicalVoicePart,
+    profile.globalStatus,
+    profile.notes,
+    profile.showInDirectory ? 1 : 0,
+    profile.doNotEmail ? 1 : 0,
+    profile.receiveAttendanceReports ? 1 : 0,
+    profile.receiveRsvpDeclineNotices ? 1 : 0,
+    profile.receiveAdminNotifications ? 1 : 0,
+    profile.receiveFinancialAlerts ? 1 : 0,
+    profile.isSectionLeader ? 1 : 0,
+    toSqlBit(profile.receiveRehearsalReminders ?? true),
+    toSqlBit(profile.receivePerformanceReminders ?? true),
+    toSqlBit(profile.receiveOtherEventReminders ?? true),
+    profile.statusIsManual ? 1 : 0,
+    occurredAt,
+    "Initial status",
+    occurredAt,
+    occurredAt,
+    profile.hidden ? 1 : 0,
+  );
+  saveRosterContact(storage, { ...context, profileId }, profile);
+  storage.sql.exec(
+    `INSERT INTO audit_events
+          (id, actor_type, actor_id, action, target_type, target_id,
+           request_id, change_summary, occurred_at)
+         VALUES (?, 'organization_member', ?, 'profile.imported', 'profile', ?, ?, ?, ?)`,
+    crypto.randomUUID(),
+    context.actorUserId,
+    profileId,
+    context.requestId,
+    JSON.stringify({ displayName: profile.displayName, globalStatus: profile.globalStatus }),
+    occurredAt,
+  );
 }
