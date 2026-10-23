@@ -24,13 +24,14 @@ import {
 } from "./components/PublicWebsiteEditorTabs";
 import { FooterTabContent } from "./components/PublicWebsiteFooterEditor";
 import { PublicWebsitePreview } from "./components/PublicWebsitePreview";
+import { PublicWebsiteDocumentsEditor } from "./components/PublicWebsiteDocumentsEditor";
 
 type LoadState =
   | { readonly status: "error" }
   | { readonly status: "loading" }
   | { readonly settings: PublicWebsiteSettings; readonly status: "ready" };
 
-type EditorTab = "appearance" | "history" | "home" | "navigation" | "footer";
+type EditorTab = "appearance" | "history" | "home" | "navigation" | "footer" | "documents";
 type PublicationVerificationStatus =
   "confirmed" | "idle" | "publishing" | "uncertain" | "verifying";
 
@@ -622,6 +623,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
               <TabsTrigger value="appearance">Appearance</TabsTrigger>
               <TabsTrigger value="navigation">Navigation</TabsTrigger>
               <TabsTrigger value="footer">Footer</TabsTrigger>
+              <TabsTrigger value="documents">Documents</TabsTrigger>
             </TabsList>
 
             <TabsContent value="home">
@@ -675,6 +677,10 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
 
             <TabsContent value="navigation">
               <NavigationTabContent busy={busy} draft={draft} onChange={change} />
+            </TabsContent>
+
+            <TabsContent value="documents">
+              <PublicWebsiteDocumentsEditor />
             </TabsContent>
           </Tabs>
 

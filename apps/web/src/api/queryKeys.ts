@@ -24,6 +24,7 @@ export const queryKeys = {
     pollDetails: (pollId: string) => ["organization", "polls", pollId] as const,
     pollResults: (pollId: string) => ["organization", "polls", pollId, "results"] as const,
     polls: (archived = false) => ["organization", "polls", { archived }] as const,
+    publicDocuments: ["organization", "public-documents"] as const,
     resources: ["organization", "resources"] as const,
     rosterConfiguration: ["organization", "roster-configuration"] as const,
     rosterInviteLinks: ["organization", "roster-invite-links"] as const,

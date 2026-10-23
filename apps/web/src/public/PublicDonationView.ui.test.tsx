@@ -239,4 +239,23 @@ describe("PublicDonationView", () => {
       }),
     );
   });
+
+  it("renders Markdown links in donation description via PublicCopy", async () => {
+    vi.mocked(api.getPublicDonationSettings).mockResolvedValue({
+      ...mockDonationSettings,
+      description:
+        'Prefer mail? [Download our mail-in form](/api/public/documents/mail-in-form.pdf){target="_blank"} to mail your check.',
+    });
+
+    render(<PublicDonationView />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Support our Choir" })).toBeInTheDocument();
+    });
+
+    const link = screen.getByRole("link", { name: "Download our mail-in form" });
+    expect(link).toHaveAttribute("href", "/api/public/documents/mail-in-form.pdf");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
 });

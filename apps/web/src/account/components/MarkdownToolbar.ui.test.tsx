@@ -65,4 +65,52 @@ describe("MarkdownToolbar", () => {
     await user.click(screen.getByRole("button", { name: "Apply link" }));
     expect(onChange).toHaveBeenCalledWith('[Our website](https://example.org){target="_blank"}');
   });
+
+  it("populates title, link address, and new tab when selecting a hosted document", async () => {
+    const user = userEvent.setup();
+    const textareaRef = createRef<HTMLTextAreaElement>();
+    const onChange = vi.fn();
+    const hostedDoc = {
+      contentType: "application/pdf" as const,
+      createdAt: "2026-01-01T00:00:00Z",
+      downloadPath: "/api/public/documents/donation-form.pdf",
+      fileId: "11111111-1111-4111-8111-111111111111",
+      fileName: "form.pdf",
+      id: "22222222-2222-4222-8222-222222222222",
+      sizeBytes: 1024,
+      slug: "donation-form",
+      sortOrder: 0,
+      title: "Mail-In Donation Form",
+      updatedAt: "2026-01-01T00:00:00Z",
+    };
+
+    render(
+      <div>
+        <MarkdownToolbar
+          hostedDocuments={[hostedDoc]}
+          onChange={onChange}
+          textareaRef={textareaRef}
+          value=""
+        />
+        <textarea ref={textareaRef} defaultValue="" />
+      </div>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Insert link" }));
+    expect(screen.getByRole("dialog", { name: "Insert link" })).toBeInTheDocument();
+
+    const select = screen.getByLabelText("Hosted document (optional)");
+    await user.selectOptions(select, hostedDoc.id);
+
+    expect(screen.getByLabelText("Link text")).toHaveValue("Mail-In Donation Form");
+    expect(screen.getByLabelText("Link address")).toHaveValue(
+      "/api/public/documents/donation-form.pdf",
+    );
+    expect(screen.getByRole("checkbox", { name: "Open in new tab" })).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "Apply link" }));
+    expect(onChange).toHaveBeenCalledWith(
+      '[Mail-In Donation Form](/api/public/documents/donation-form.pdf){target="_blank"}',
+    );
+  });
 });

@@ -2191,6 +2191,40 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE organization_metadata ADD COLUMN practice_loudness_target_lufs REAL NOT NULL DEFAULT -18 CHECK (practice_loudness_target_lufs >= -30 AND practice_loudness_target_lufs <= -10)",
     ],
   },
+  {
+    version: 124,
+    statements: [
+      `CREATE TABLE public_website_documents (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL UNIQUE,
+        title TEXT NOT NULL,
+        file_id TEXT NOT NULL REFERENCES private_files(id),
+        file_name TEXT NOT NULL,
+        content_type TEXT NOT NULL CHECK (
+          content_type IN (
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          )
+        ),
+        size_bytes INTEGER NOT NULL CHECK (size_bytes > 0 AND size_bytes <= 5242880),
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE INDEX idx_public_website_documents_order
+        ON public_website_documents(sort_order, title COLLATE NOCASE, id)`,
+      `CREATE INDEX idx_public_website_documents_file_id
+        ON public_website_documents(file_id)`,
+      `CREATE TABLE public_website_document_slugs (
+        document_id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL UNIQUE,
+        base TEXT NOT NULL,
+        suffix INTEGER NOT NULL CHECK (suffix >= 1)
+      ) STRICT`,
+      `CREATE INDEX idx_public_website_document_slugs_base_suffix
+        ON public_website_document_slugs(base, suffix DESC)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

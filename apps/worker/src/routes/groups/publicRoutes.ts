@@ -11,6 +11,7 @@ import { registerRoutes as registerPlatformHomeRoutes } from "../platformHome";
 import { registerRoutes as registerPublicTicketsRoutes } from "../publicTickets";
 import { registerRoutes as registerRosterInviteEnrollmentRoutes } from "../rosterInviteEnrollment";
 import { registerRoutes as registerPaymentsRoutes } from "../payments";
+import { registerRoutes as registerPublicDocumentsRoutes } from "../publicDocuments";
 
 export function registerPublicGroupRoutes(router: Hono<WorkerHonoEnvironment>): void {
   registerPublicCoreRoutes(router);
@@ -25,4 +26,5 @@ export function registerPublicGroupRoutes(router: Hono<WorkerHonoEnvironment>): 
   registerPublicEngagementRoutes(router);
   registerRosterInviteEnrollmentRoutes(router);
   registerPaymentsRoutes(router);
+  registerPublicDocumentsRoutes(router);
 }

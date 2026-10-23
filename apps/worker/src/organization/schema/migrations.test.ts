@@ -275,4 +275,36 @@ describe("organization schema migrations", () => {
     expect(v111?.statements).toEqual([]);
     expect(typeof v111?.apply).toBe("function");
   });
+
+  it("v124 creates public_website_documents and public_website_document_slugs tables and indexes", () => {
+    const adapter = setupThrough(123);
+    applyVersion(adapter, 124);
+
+    expect(() => {
+      adapter.storage.sql.exec(
+        `INSERT INTO private_files (id, storage_key, file_name, content_type, size_bytes, status, uploaded_by, request_id, created_at)
+         VALUES ('file-1', 'orgs/test/file-1', 'doc.pdf', 'application/pdf', 1024, 'ready', 'user-1', 'req-1', '2026-01-01T00:00:00Z')`,
+      );
+      adapter.storage.sql.exec(
+        `INSERT INTO public_website_documents (id, slug, title, file_id, file_name, content_type, size_bytes, sort_order, created_at, updated_at)
+         VALUES ('doc-1', 'donation-form', 'Donation Form', 'file-1', 'doc.pdf', 'application/pdf', 1024, 0, '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`,
+      );
+      adapter.storage.sql.exec(
+        `INSERT INTO public_website_document_slugs (document_id, slug, base, suffix)
+         VALUES ('doc-1', 'donation-form', 'donation-form', 1)`,
+      );
+    }).not.toThrow();
+
+    const docRows = adapter.storage.sql
+      .exec("SELECT id, slug, title, content_type FROM public_website_documents WHERE id = 'doc-1'")
+      .toArray();
+    expect(docRows).toEqual([
+      {
+        content_type: "application/pdf",
+        id: "doc-1",
+        slug: "donation-form",
+        title: "Donation Form",
+      },
+    ]);
+  });
 });

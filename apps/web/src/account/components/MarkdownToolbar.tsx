@@ -1,14 +1,21 @@
+import type { PublicWebsiteDocument } from "@choir/contracts";
 import { useState, type RefObject } from "react";
 import { formatMarkdownLink, markdownLinkSelection } from "../../shared/markdownLinks";
 import { MarkdownLinkEditor } from "./MarkdownLinkEditor";
 
 interface MarkdownToolbarProps {
+  readonly hostedDocuments?: readonly PublicWebsiteDocument[] | undefined;
   readonly onChange: (nextValue: string) => void;
   readonly textareaRef: RefObject<HTMLTextAreaElement | null>;
   readonly value: string;
 }
 
-export function MarkdownToolbar({ onChange, textareaRef, value }: MarkdownToolbarProps) {
+export function MarkdownToolbar({
+  hostedDocuments,
+  onChange,
+  textareaRef,
+  value,
+}: MarkdownToolbarProps) {
   const [link, setLink] = useState<ReturnType<typeof markdownLinkSelection> | null>(null);
   function restoreFocus(cursor: number) {
     requestAnimationFrame(() => {
@@ -135,15 +142,16 @@ export function MarkdownToolbar({ onChange, textareaRef, value }: MarkdownToolba
       </div>
       {link ? (
         <MarkdownLinkEditor
-          selection={link}
+          hostedDocuments={hostedDocuments}
           onApply={(text, url, newTab) => {
             applyLink(formatMarkdownLink(text, url, newTab));
           }}
-          onRemove={applyLink}
           onClose={() => {
             setLink(null);
             restoreFocus(link.start);
           }}
+          onRemove={applyLink}
+          selection={link}
         />
       ) : null}
     </>

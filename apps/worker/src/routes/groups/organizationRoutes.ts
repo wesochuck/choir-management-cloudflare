@@ -52,6 +52,7 @@ import { registerRoutes as registerOrganizationTicketingRoutes } from "../organi
 import { registerRoutes as registerOrganizationTicketingOrdersRoutes } from "../organizationTicketingOrders";
 import { registerRoutes as registerOrganizationTokensRoutes } from "../organizationTokens";
 import { registerRoutes as registerOrganizationWebsiteRoutes } from "../organizationWebsite";
+import { registerRoutes as registerOrganizationPublicDocumentsRoutes } from "../organizationPublicDocuments";
 
 export function registerOrganizationGroupRoutes(router: Hono<WorkerHonoEnvironment>): void {
   registerAuthRoutes(router);
@@ -105,4 +106,5 @@ export function registerOrganizationGroupRoutes(router: Hono<WorkerHonoEnvironme
   registerOrganizationTicketingOrdersRoutes(router);
   registerOrganizationTokensRoutes(router);
   registerOrganizationWebsiteRoutes(router);
+  registerOrganizationPublicDocumentsRoutes(router);
 }

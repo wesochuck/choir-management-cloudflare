@@ -7,6 +7,13 @@ import {
   renewLoudness,
   submitLoudness,
 } from "./loudnessStore";
+import {
+  createPublicWebsiteDocumentInStore,
+  deletePublicWebsiteDocumentInStore,
+  getPublicWebsiteDocumentForDownloadFromStore,
+  listPublicWebsiteDocumentsInStore,
+  updatePublicWebsiteDocumentInStore,
+} from "./publicDocumentStore";
 import { DurableObject } from "cloudflare:workers";
 import { z } from "zod";
 
@@ -827,6 +834,50 @@ export class OrganizationStore extends DurableObject {
   }
   submitAudioLoudness(input: Parameters<typeof submitLoudness>[1]) {
     return submitLoudness(this.ctx.storage, input);
+  }
+
+  // Public website hosted documents: strongly typed Durable Object RPC methods.
+  // Call via `stub.methodName(...)`; no internal fetch routing.
+  listPublicWebsiteDocuments(input: { readonly organizationId: string }) {
+    return listPublicWebsiteDocumentsInStore(this.ctx.storage, input);
+  }
+
+  createPublicWebsiteDocument(input: {
+    readonly actorUserId: string;
+    readonly documentId: string;
+    readonly fileId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+    readonly title: string;
+  }) {
+    return createPublicWebsiteDocumentInStore(this.ctx.storage, input);
+  }
+
+  updatePublicWebsiteDocument(input: {
+    readonly actorUserId: string;
+    readonly documentId: string;
+    readonly fileId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+    readonly title: string;
+  }) {
+    return updatePublicWebsiteDocumentInStore(this.ctx.storage, input);
+  }
+
+  deletePublicWebsiteDocument(input: {
+    readonly actorUserId: string;
+    readonly documentId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  }) {
+    return deletePublicWebsiteDocumentInStore(this.ctx.storage, input);
+  }
+
+  getPublicWebsiteDocumentForDownload(input: {
+    readonly identifier: string;
+    readonly organizationId: string;
+  }) {
+    return getPublicWebsiteDocumentForDownloadFromStore(this.ctx.storage, input);
   }
 
   private async dispatchRpcCall(call: OrganizationRpcCall): Promise<OrganizationRpcResult> {

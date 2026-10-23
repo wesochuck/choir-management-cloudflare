@@ -1,5 +1,6 @@
-import type { SyntheticEvent } from "react";
+import { useRef, type SyntheticEvent } from "react";
 
+import { MarkdownToolbar } from "../MarkdownToolbar";
 import type { DonationSettingsState } from "./types";
 
 export function DonationPageSettingsTab({
@@ -23,6 +24,8 @@ export function DonationPageSettingsTab({
   readonly setPortalThankYouMessage: (value: string) => void;
   readonly settingsState: DonationSettingsState;
 }) {
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+
   if (settingsState.status === "loading") return <p>Loading donation settings…</p>;
   if (settingsState.status === "error") {
     return <p className="notice notice--error">Donation settings could not be loaded.</p>;
@@ -38,38 +41,49 @@ export function DonationPageSettingsTab({
           <label htmlFor="donation-portal-cta-heading">Call-to-action heading</label>
           <input
             id="donation-portal-cta-heading"
-            required
             maxLength={200}
-            value={portalButtonText}
             onChange={(event) => {
               setPortalButtonText(event.target.value);
             }}
+            required
+            value={portalButtonText}
           />
         </div>
         <div className="field">
           <label htmlFor="donation-portal-description">Portal description</label>
+          <MarkdownToolbar
+            onChange={setPortalDescription}
+            textareaRef={descriptionRef}
+            value={portalDescription}
+          />
           <textarea
+            aria-describedby="donation-portal-description-help"
             id="donation-portal-description"
             maxLength={2000}
-            rows={5}
-            value={portalDescription}
             onChange={(event) => {
               setPortalDescription(event.target.value);
             }}
+            ref={descriptionRef}
+            rows={5}
+            value={portalDescription}
           />
+          <p className="field-help" id="donation-portal-description-help">
+            Supports Markdown formatting and links, including hosted public documents such as
+            printable mail-in donation forms.
+          </p>
         </div>
         <div className="field">
           <label htmlFor="donation-portal-thank-you">Thank-you message after donation</label>
           <textarea
             aria-describedby="donation-portal-thank-you-help"
             id="donation-portal-thank-you"
-            required
             maxLength={2000}
-            rows={5}
-            value={portalThankYouMessage}
             onChange={(event) => {
               setPortalThankYouMessage(event.target.value);
             }}
+            required
+            rows={5}
+            value={portalThankYouMessage}
           />
           <p className="field-help" id="donation-portal-thank-you-help">
             Shown after a successful gift. Use plain text; this message cannot contain HTML.

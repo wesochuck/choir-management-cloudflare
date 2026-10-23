@@ -413,3 +413,4 @@ export { eventWebsiteVisibility } from "./eventWebsiteVisibility";
 
 export { prioritizeTicketedPerformances } from "./performanceOrdering";
 export * from "./loudness";
+export * from "./publicDocuments";

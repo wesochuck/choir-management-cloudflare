@@ -37,6 +37,8 @@ const EXPORT_TABLES = [
   "dues",
   "setup_state",
   "audit_events",
+  "public_website_documents",
+  "public_website_document_slugs",
 ] as const;
 
 const exportOrganizationIdSchema = z.string().min(1).max(128);

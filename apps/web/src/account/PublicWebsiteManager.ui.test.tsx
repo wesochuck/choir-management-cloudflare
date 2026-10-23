@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as authApi from "../auth/api";
+import * as api from "../api";
 import { SaveBar, SaveCoordinatorProvider } from "../persistence";
 import { PublicWebsiteManager } from "./PublicWebsiteManager";
 
@@ -15,6 +16,19 @@ vi.mock("../auth/api", async (importOriginal) => {
     getPublishedOrganizationProjection: vi.fn(),
     publishOrganizationPublicWebsite: vi.fn(),
     updateOrganizationPublicWebsiteSettings: vi.fn(),
+  };
+});
+
+vi.mock("../api", async (importOriginal) => {
+  const actual = await importOriginal<typeof api>();
+  return {
+    ...actual,
+    createOrganizationPublicDocument: vi.fn(),
+    deleteOrganizationPublicDocument: vi.fn(),
+    deletePrivateOrganizationFile: vi.fn(),
+    listOrganizationPublicDocuments: vi.fn(),
+    updateOrganizationPublicDocument: vi.fn(),
+    uploadPrivateOrganizationFile: vi.fn(),
   };
 });
 
@@ -41,6 +55,13 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockReset();
     vi.mocked(authApi.getPublishedOrganizationProjection).mockReset();
     vi.mocked(authApi.publishOrganizationPublicWebsite).mockReset();
+    vi.mocked(api.listOrganizationPublicDocuments).mockReset();
+    vi.mocked(api.listOrganizationPublicDocuments).mockResolvedValue([]);
+    vi.mocked(api.createOrganizationPublicDocument).mockReset();
+    vi.mocked(api.updateOrganizationPublicDocument).mockReset();
+    vi.mocked(api.deleteOrganizationPublicDocument).mockReset();
+    vi.mocked(api.uploadPrivateOrganizationFile).mockReset();
+    vi.mocked(api.deletePrivateOrganizationFile).mockReset();
   });
 
   it("renders website readiness checklist with unpublished guidance when version is 0", async () => {
@@ -329,5 +350,53 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     expect(screen.queryByText(/Make it welcoming/i)).toBeNull();
     expect(screen.queryByText(/Make it yours/i)).toBeNull();
     expect(screen.queryByText(/A sentence or two works best/i)).toBeNull();
+  });
+
+  it("switches to Documents tab and renders uploaded documents list", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue(defaultSettings);
+    vi.mocked(api.listOrganizationPublicDocuments).mockResolvedValue([
+      {
+        contentType: "application/pdf",
+        createdAt: "2026-01-01T00:00:00Z",
+        downloadPath: "/api/public/documents/donation-form.pdf",
+        fileId: "file-123",
+        fileName: "donation-form.pdf",
+        id: "doc-123",
+        sizeBytes: 1024 * 50,
+        slug: "donation-form",
+        sortOrder: 0,
+        title: "Mail-In Donation Form",
+        updatedAt: "2026-01-01T00:00:00Z",
+      },
+    ]);
+
+    render(
+      <SaveCoordinatorProvider>
+        <PublicWebsiteManager enabled />
+        <SaveBar />
+      </SaveCoordinatorProvider>,
+    );
+
+    await screen.findByRole("region", { name: "Website publication readiness" });
+
+    // Click the Documents tab
+    const documentsTab = screen.getByRole("tab", { name: "Documents" });
+    await user.click(documentsTab);
+
+    // Verify document table is rendered (DataTable renders both table rows and responsive mobile cards)
+    const titles = await screen.findAllByText("Mail-In Donation Form");
+    expect(titles.length).toBeGreaterThanOrEqual(1);
+
+    expect(screen.getAllByText("PDF").length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText("/api/public/documents/donation-form.pdf").length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByRole("button", { name: "Copy link for Mail-In Donation Form" }).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByRole("link", { name: "Preview Mail-In Donation Form" })[0],
+    ).toHaveAttribute("href", "/api/public/documents/donation-form.pdf");
   });
 });

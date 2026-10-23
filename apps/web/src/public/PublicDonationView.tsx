@@ -13,6 +13,7 @@ import {
 } from "../api";
 import { shouldStartNewDonationCheckoutAttempt } from "./checkoutAttempt";
 import { formatDonationMoney } from "./donationFormat";
+import { PublicCopy } from "./PublicCopy";
 
 const DEFAULT_SETTINGS: DonationSettings = {
   buttonText: "Support our Music",
@@ -159,7 +160,7 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
   return (
     <section className="public-section public-donation-section">
       <h1>{heading ?? settings.buttonText}</h1>
-      <p>{settings.description}</p>
+      <PublicCopy text={settings.description} />
       {settingsLoading ? <p className="notice notice--info">Loading donation options…</p> : null}
       {loadError ? (
         <p className="notice notice--error" role="alert">

@@ -580,6 +580,10 @@ export async function installOrganizationApi(
     await fulfillJson(route, response);
   });
 
+  await page.route("**/api/organization/website/documents", async (route) => {
+    await fulfillJson(route, { documents: [], requestId });
+  });
+
   return {
     assertNoUnexpectedRequests: () => {
       guard?.assertNoUnexpectedRequests();

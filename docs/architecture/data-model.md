@@ -140,3 +140,15 @@ The migration is additive and requires no indexes or D1 changes. Keep its column
 Code predating this feature does not enforce these preferences, so any rollback after members opt
 out must retain the directory redaction behavior (or temporarily disable directory access) to honor
 those choices.
+
+## Public website hosted documents
+
+Organization schema version 124 adds `public_website_documents` and `public_website_document_slugs`
+to the Organization Durable Object SQLite store. The `public_website_documents` table stores
+metadata for administrative forms, packets, and policies: `id`, `file_id` (referencing
+`private_files.id`), `title`, `slug`, `file_name`, `content_type`, `size_bytes`, `sort_order`,
+`created_at`, and `updated_at`. The `public_website_document_slugs` table enforces unique slug
+reservation per Organization, supporting stable download URLs (`/api/public/documents/:slug.:ext`).
+
+Uploaded documents are live immediately without advancing the draft publication version. Document
+replacements and deletions clean up orphan private files via `privateFileIsReferenced`.
