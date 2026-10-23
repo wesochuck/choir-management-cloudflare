@@ -256,6 +256,18 @@
   }
 
   @media (max-width: 48rem) {
+    #contacts-panel .data-table {
+      display: none;
+    }
+
+    #contacts-panel .data-table-cards {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-md);
+    }
+  }
+
+  @media (max-width: 40rem) {
     .data-table {
       display: none;
     }
@@ -460,7 +472,7 @@
     cursor: not-allowed;
   }
 
-  @media (max-width: 48rem) {
+  @media (max-width: 40rem) {
     .data-table-pagination__size,
     .data-table-pagination__range {
       flex: 1 1 auto;
