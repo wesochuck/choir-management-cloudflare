@@ -255,7 +255,7 @@
     display: none;
   }
 
-  @media (max-width: 40rem) {
+  @media (max-width: 48rem) {
     .data-table {
       display: none;
     }

@@ -1232,7 +1232,7 @@ async function executePieceMatchingStage(
   signal: AbortSignal,
   encoder: TextEncoder,
 ): Promise<ClefTrackMatchResult> {
-  const includeParts = request.stage === undefined;
+  const includeParts = request.stage === undefined || request.stage === "piece_matching";
   const batches = createPieceMatchingBatches(
     request,
     candidates,

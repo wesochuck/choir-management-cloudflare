@@ -350,40 +350,6 @@ async function runPieceMatchingStep(
   }
 }
 
-async function runPartReviewStep(
-  baseRequest: Omit<Parameters<typeof matchBulkPracticeTracks>[0], "stage">,
-  signal: AbortSignal,
-  validPartKeys: ReadonlySet<string>,
-  setGroups: React.Dispatch<React.SetStateAction<readonly GroupReviewItem[]>>,
-) {
-  try {
-    const partRes = await matchBulkPracticeTracks({ ...baseRequest, stage: "part_review" }, signal);
-    if (partRes.suggestions.length > 0) {
-      const suggestions = new Map(partRes.suggestions.map((s) => [s.groupId, s]));
-      setGroups((current) =>
-        current.map((group) => {
-          const sugg = suggestions.get(group.groupId);
-          if ((sugg?.filePartSuggestions?.length ?? 0) === 0) {
-            return group;
-          }
-          const partMap = new Map(
-            sugg?.filePartSuggestions?.map((part) => [part.clientFileId, part]) ?? [],
-          );
-          const updatedFiles = group.files.map((file) =>
-            applyAiSuggestionToFile(file, partMap.get(file.clientFileId), validPartKeys),
-          );
-          return {
-            ...group,
-            ...resolvePracticeTrackAssignments(updatedFiles, group.selectedPieceId),
-          };
-        }),
-      );
-    }
-  } catch {
-    // Tolerated stage 3 failure: stages 1 & 2 results remain intact!
-  }
-}
-
 export function BulkPracticeTrackImportDialog({
   events,
   onClose,
@@ -565,9 +531,13 @@ export function BulkPracticeTrackImportDialog({
       useAi: true,
     };
 
+    const hasRepairCandidates = groups.length > 1 || groups.some((group) => group.files.length > 1);
+
     try {
-      await runGroupRepairStep(baseRequest, controller.signal, setPendingGroupRepairs);
-      if (matchController.current !== controller) return;
+      if (hasRepairCandidates) {
+        await runGroupRepairStep(baseRequest, controller.signal, setPendingGroupRepairs);
+        if (matchController.current !== controller) return;
+      }
 
       await runPieceMatchingStep(
         baseRequest,
@@ -577,9 +547,6 @@ export function BulkPracticeTrackImportDialog({
         setGroups,
         setMatchError,
       );
-      if (matchController.current !== controller) return;
-
-      await runPartReviewStep(baseRequest, controller.signal, validPartKeys, setGroups);
     } finally {
       if (matchController.current === controller) setMatching(false);
     }
