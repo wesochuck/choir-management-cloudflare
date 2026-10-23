@@ -33,10 +33,6 @@ export function isElementVisible(element: HTMLElement | null): boolean {
   return style.display !== "none" && style.visibility !== "hidden";
 }
 
-export function shouldShowDrawerPin(sidebarPinned: boolean, isNarrowViewport: boolean): boolean {
-  return !sidebarPinned && !isNarrowViewport;
-}
-
 export function shouldCloseStaleDrawer(args: {
   readonly isNarrow: boolean;
   readonly mobileOpen: boolean;

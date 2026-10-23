@@ -14,17 +14,9 @@ import {
   revealActiveIfOutside,
   shouldCloseDrawerAfterNavigate,
   shouldCloseStaleDrawer,
-  shouldShowDrawerPin,
 } from "./sidebarTransitions";
 
 describe("sidebar phase 2 transitions", () => {
-  it("shows the drawer pin only on desktop while unpinned", () => {
-    expect(shouldShowDrawerPin(false, false)).toBe(true);
-    expect(shouldShowDrawerPin(false, true)).toBe(false);
-    expect(shouldShowDrawerPin(true, false)).toBe(false);
-    expect(shouldShowDrawerPin(true, true)).toBe(false);
-  });
-
   it("closes a stale drawer only when widening over a pinned layout", () => {
     expect(
       shouldCloseStaleDrawer({
@@ -286,7 +278,6 @@ describe("sidebar phase 2 transitions", () => {
       },
     });
     try {
-      expect(shouldShowDrawerPin(false, false)).toBe(true);
       expect(isSidebarVisible(false, true)).toBe(false);
       expect(isMobileTriggerVisible(true, true)).toBe(true);
       expect(

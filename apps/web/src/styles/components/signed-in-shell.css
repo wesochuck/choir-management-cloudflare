@@ -176,20 +176,7 @@
     color: var(--color-text);
   }
 
-  /* Visibly active pin treatment while the sidebar is pinned. */
-  .sidebar-toolbar__button--pin[aria-pressed="true"] {
-    border-color: color-mix(in srgb, var(--color-accent) 55%, transparent);
-    background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface));
-    color: var(--color-accent);
-  }
-
-  .sidebar-toolbar__button--pin[aria-pressed="true"]:hover {
-    background: color-mix(in srgb, var(--color-accent) 24%, var(--color-surface));
-    color: var(--color-accent);
-  }
-
-  .sidebar-toolbar__button svg,
-  .sidebar-drawer__pin svg {
+  .sidebar-toolbar__button svg {
     display: block;
     width: 1.1rem;
     height: 1.1rem;
@@ -201,39 +188,12 @@
     stroke-width: 1.8;
   }
 
-  .sidebar-drawer__pin {
-    display: inline-grid;
-    width: 2.25rem;
-    height: 2.25rem;
-    flex: 0 0 auto;
-    place-items: center;
-    padding: 0;
-    border: 1px solid transparent;
-    border-radius: var(--radius-control);
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    line-height: 0;
-  }
-
-  .sidebar-drawer__pin:hover {
-    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
-    color: var(--color-text);
-  }
-
-  .sidebar-drawer__pin:focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 2px;
-    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
-    color: var(--color-text);
-  }
-
   .sheet__header.sidebar-drawer__header {
     display: flex;
     align-items: center;
     gap: var(--spacing-xs);
     margin-right: var(--spacing-sm);
-    padding-right: 5rem;
+    padding-right: 3rem;
   }
 
   .sheet:has(> .sheet__header.sidebar-drawer__header) > .sheet__close {
@@ -242,12 +202,6 @@
     height: 2.25rem;
     place-items: center;
     line-height: 1;
-  }
-
-  .sheet__header.sidebar-drawer__header > .sidebar-drawer__pin {
-    position: absolute;
-    top: 1rem;
-    right: 3.75rem;
   }
 
   /* Shared workspace heading: the workspace label is the heading and the
@@ -303,8 +257,7 @@
   }
 
   @media (pointer: coarse) {
-    .sidebar-toolbar__button,
-    .sidebar-drawer__pin {
+    .sidebar-toolbar__button {
       width: calc(var(--control-height) + var(--spacing-2xs));
       height: calc(var(--control-height) + var(--spacing-2xs));
     }
@@ -390,14 +343,7 @@
     background: var(--color-surface);
   }
 
-  /* Phase 2: narrow viewports use drawer navigation only. The pin control
-   * stays hidden even if rendered, and the saved desktop preference is
-   * never overwritten by viewport changes. */
   @media (max-width: 48rem) {
-    .sidebar-drawer__pin {
-      display: none;
-    }
-
     /* Workspaces without compact rails (Account, Platform) use drawer overlay only */
     .signed-in-shell:not([data-workspace="organization"]):not([data-workspace="member"])
       .signed-in-body {
@@ -485,8 +431,7 @@
     .signed-in-sidebar,
     .sheet,
     .sidebar-nav-scroll,
-    .sidebar-toolbar__button,
-    .sidebar-drawer__pin {
+    .sidebar-toolbar__button {
       animation: none;
       transition: none;
     }
