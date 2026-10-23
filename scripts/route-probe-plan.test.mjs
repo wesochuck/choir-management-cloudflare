@@ -101,6 +101,12 @@ describe("route staging qualification and evidence plan", () => {
     ).toBe(true);
     expect(
       isExpectedAnonymousBoundary(
+        { route: "/api/public/documents/00000000-0000-4000-8000-000000000000" },
+        { status: 404, code: "not_found" },
+      ),
+    ).toBe(true);
+    expect(
+      isExpectedAnonymousBoundary(
         { route: "/api/calendar/feed/00000000-0000-4000-8000-000000000000" },
         { status: 404, code: "not_found" },
       ),

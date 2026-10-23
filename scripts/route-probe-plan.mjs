@@ -138,6 +138,7 @@ export const probePlan = new Map([
   ["POST /api/local/fullstack-bootstrap", { kind: "skip-fixture" }],
   ["GET /api/local/fullstack-otp", { kind: "skip-fixture" }],
   ["GET /api/public/logo", { kind: "skip-fixture" }],
+  ["GET /api/public/documents/:identifier", { kind: "skip-fixture" }],
   ["GET /api/public/media/:version/:fileId", { kind: "skip-fixture" }],
   ["GET /api/public/donation-receipt", { kind: "skip-fixture" }],
   ["GET /api/public/tickets/order", { kind: "skip-fixture" }],
@@ -170,6 +171,7 @@ export function isExpectedAnonymousBoundary(row, result) {
     route === "/api/calendar/feed" ||
     route.startsWith("/api/calendar/feed/") ||
     route === "/api/public/logo" ||
+    route.startsWith("/api/public/documents/") ||
     route.startsWith("/api/public/media/") ||
     route === "/api/public/tickets/order" ||
     route.startsWith("/api/local/") ||
