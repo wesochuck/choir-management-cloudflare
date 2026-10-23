@@ -1244,11 +1244,11 @@ describe("Clef AI repairs, part review, and sequence formatting (#289)", () => {
 
   it("offers Use suggestion and Keep current for AI part corrections on existing parts", async () => {
     mockMatchBulkPracticeTracks.mockImplementation((request) => {
-      if (request.stage === "part_review") {
+      if (request.stage === "piece_matching" || request.stage === "part_review") {
         return Promise.resolve({
           model: "@cf/cloudflare/clef-flash",
           requestId: "req-part",
-          stage: "part_review",
+          stage: request.stage ?? "piece_matching",
           stageStatus: "complete",
           suggestions: request.groups.map((g) => ({
             confidence: "high",
