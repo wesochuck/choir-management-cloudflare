@@ -99,33 +99,22 @@ describe("sidebar navigation behavior", () => {
     expect(practiceBtn).toHaveAttribute("data-active", "true");
   });
 
-  it("shares one workspace heading hierarchy", () => {
-    const { container } = render(
-      <SidebarWorkspaceHeading organizationName="Alpha Choir" workspaceName="Organization Admin" />,
-    );
+  it("shares one workspace heading hierarchy without duplicating organization name", () => {
+    const { container } = render(<SidebarWorkspaceHeading workspaceName="Organization Admin" />);
     expect(screen.getByRole("heading", { level: 2, name: "Organization Admin" })).toBeVisible();
-    expect(screen.getByText("Alpha Choir")).toBeVisible();
     const context = container.querySelector(".sidebar-context");
     expect(context).not.toBeNull();
-    expect([...(context?.children ?? [])].map((child) => child.tagName)).toEqual(["H2", "P"]);
+    expect([...(context?.children ?? [])].map((child) => child.tagName)).toEqual(["H2"]);
     expect(container.querySelector("h1")).toBeNull();
+    expect(container.querySelector(".sidebar-context__org")).toBeNull();
   });
 
-  it("wraps long workspace and organization names instead of clipping", () => {
+  it("wraps long workspace names instead of clipping", () => {
     const longWorkspace = "Organization Administration and Extended Workspace Label";
-    const longOrg = "Dr. Alexander Montgomery-Wellington III Memorial Choir Society";
-    const { container } = render(
-      <SidebarWorkspaceHeading organizationName={longOrg} workspaceName={longWorkspace} />,
-    );
+    const { container } = render(<SidebarWorkspaceHeading workspaceName={longWorkspace} />);
     const title = screen.getByRole("heading", { level: 2, name: longWorkspace });
     expect(title).toBeVisible();
     expect(title).toHaveClass("sidebar-context__title");
-    expect(screen.getByText(longOrg)).toBeVisible();
-    // Wrapping itself is enforced by `.sidebar-context__title` /
-    // `.sidebar-context__org { overflow-wrap: anywhere; }` in
-    // signed-in-shell.css; jsdom does not apply stylesheets, so assert the
-    // DOM contract that CSS relies on: heading + org share one container
-    // with no truncation attributes.
     const context = container.querySelector(".sidebar-context");
     expect(context).not.toBeNull();
     expect(title.getAttribute("title")).toBeNull();

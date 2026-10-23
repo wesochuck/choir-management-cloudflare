@@ -57,17 +57,10 @@ export function AppLink({
   );
 }
 
-export function SidebarWorkspaceHeading({
-  organizationName,
-  workspaceName,
-}: {
-  readonly organizationName: string;
-  readonly workspaceName: string;
-}) {
+export function SidebarWorkspaceHeading({ workspaceName }: { readonly workspaceName: string }) {
   return (
     <div className="sidebar-context">
       <h2 className="sidebar-context__title">{workspaceName}</h2>
-      <p className="sidebar-context__org">{organizationName}</p>
     </div>
   );
 }

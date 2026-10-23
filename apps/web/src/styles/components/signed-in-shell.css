@@ -186,6 +186,7 @@
     stroke-linecap: round;
     stroke-linejoin: round;
     stroke-width: 1.8;
+    pointer-events: none;
   }
 
   .sheet__header.sidebar-drawer__header {
@@ -367,17 +368,13 @@
       display: flex;
       width: 4.25rem;
       padding-inline: var(--spacing-2xs);
+      cursor: pointer;
+      user-select: none;
     }
 
     .signed-in-shell:is([data-workspace="organization"], [data-workspace="member"])
       .sidebar-header {
       justify-content: center;
-    }
-
-    .signed-in-shell:is([data-workspace="organization"], [data-workspace="member"])
-      .sidebar-toolbar__button
-      svg {
-      transform: rotate(180deg);
     }
 
     .mobile-nav-trigger {
@@ -617,6 +614,8 @@
     .signed-in-shell:is([data-navigation-mode="compact"], [data-organization-navigation="compact"])
       .signed-in-sidebar {
       padding-inline: var(--spacing-2xs);
+      cursor: pointer;
+      user-select: none;
     }
     .signed-in-shell:is([data-navigation-mode="compact"], [data-organization-navigation="compact"])
       .sidebar-toolbar {
@@ -632,11 +631,6 @@
 }
 
 @layer components {
-  .signed-in-shell:is([data-navigation-mode="compact"], [data-organization-navigation="compact"])
-    .sidebar-toolbar__button
-    svg {
-    transform: rotate(180deg);
-  }
   .organization-nav__link > svg {
     color: var(--nav-accent, currentColor);
   }

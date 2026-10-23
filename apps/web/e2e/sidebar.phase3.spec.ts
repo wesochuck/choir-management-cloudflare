@@ -79,6 +79,18 @@ test("expand and collapse navigation preserves rail and moves focus", async ({ p
   );
   await expect(page.getByRole("button", { name: "Collapse navigation" })).toBeFocused();
 
+  // Clicking the rail background expands navigation
+  await collapse.click();
+  await expect(page.locator(".signed-in-shell")).toHaveAttribute(
+    "data-organization-navigation",
+    "compact",
+  );
+  await page.locator(".signed-in-sidebar").click({ position: { x: 20, y: 350 } });
+  await expect(page.locator(".signed-in-shell")).toHaveAttribute(
+    "data-organization-navigation",
+    "expanded",
+  );
+
   // Reload persists the preference.
   await page.reload();
   await expect(page.locator(".signed-in-sidebar")).toBeVisible();

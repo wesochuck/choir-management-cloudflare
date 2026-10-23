@@ -11,7 +11,7 @@ import { normalizeOrganizationTerminology } from "../../organizationTerminologyU
 import type { CurrentAuthSession, OrganizationImpersonationStatusResponse } from "@choir/contracts";
 import { Sheet } from "@choir/ui";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import type { UIEvent } from "react";
+import type { MouseEvent, UIEvent } from "react";
 import {
   AuthApiError,
   getHealth,
@@ -507,6 +507,15 @@ function AuthenticatedOrganizationShell({
     });
   }
 
+  function handleRailClick(event: MouseEvent<HTMLElement>) {
+    if (!isCompact || event.button !== 0 || event.defaultPrevented) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest("a, button, input, select, textarea, [role='button']")) {
+      return;
+    }
+    handleToggleNavigation();
+  }
+
   function handleExpandAdminGroup(groupId: OrganizationGroupId) {
     if (isNarrowViewport) {
       organizationNavigation.expandGroup(groupId);
@@ -758,13 +767,10 @@ function AuthenticatedOrganizationShell({
           </aside>
         ) : null}
         <div className="signed-in-body">
-          <aside className="signed-in-sidebar">
+          <aside className="signed-in-sidebar" onClick={isCompact ? handleRailClick : undefined}>
             <div className="sidebar-header">
               {selectedWorkspace !== "organization" && !isCompact ? (
-                <SidebarWorkspaceHeading
-                  organizationName={organizationName}
-                  workspaceName={workspaceLabel(selectedWorkspace)}
-                />
+                <SidebarWorkspaceHeading workspaceName={workspaceLabel(selectedWorkspace)} />
               ) : null}
               {isCollapsibleWorkspace ? (
                 <div className="sidebar-toolbar" role="group" aria-label="Navigation controls">
@@ -777,7 +783,13 @@ function AuthenticatedOrganizationShell({
                     type="button"
                   >
                     <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24">
-                      <path d="m14 6-6 6 6 6" />
+                      <rect width="18" height="18" x="3" y="3" rx="2.5" />
+                      <path d="M9 3v18" />
+                      {isCompact ? (
+                        <path d="m5 9.5 2.5 2.5-2.5 2.5" />
+                      ) : (
+                        <path d="m7 9.5-2.5 2.5 2.5 2.5" />
+                      )}
                     </svg>
                     <span className="sr-only">
                       {isCompact ? "Expand navigation" : "Collapse navigation"}
@@ -900,10 +912,7 @@ function AuthenticatedOrganizationShell({
             {selectedWorkspace === "organization" ? (
               <h2 className="organization-nav__drawer-title">Organization Admin</h2>
             ) : (
-              <SidebarWorkspaceHeading
-                organizationName={organizationName}
-                workspaceName={workspaceLabel(selectedWorkspace)}
-              />
+              <SidebarWorkspaceHeading workspaceName={workspaceLabel(selectedWorkspace)} />
             )}
           </div>
           <div
