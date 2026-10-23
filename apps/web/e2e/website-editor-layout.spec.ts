@@ -234,3 +234,82 @@ test("publishes an image-only hero without an empty text overlay", async ({ page
   ).toHaveClass("sr-only");
   api.assertNoUnexpectedRequests();
 });
+
+test("documents tab hides website preview and expands editor controls across full width", async ({
+  page,
+}) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  await page.route("**/api/organization/website", (route) => route.fulfill({ json: settings }));
+  await page.route("**/api/organization/website/documents", (route) =>
+    route.fulfill({
+      json: {
+        documents: [
+          {
+            contentType: "application/pdf",
+            createdAt: "2026-01-01T00:00:00Z",
+            downloadPath: "/api/public/documents/donation-form.pdf",
+            fileId: "22222222-2222-4222-8222-222222222222",
+            fileName: "donation-form.pdf",
+            id: "11111111-1111-4111-8111-111111111111",
+            sizeBytes: 1024 * 50,
+            slug: "donation-form",
+            sortOrder: 0,
+            title: "Mail-In Donation Form",
+            updatedAt: "2026-01-01T00:00:00Z",
+          },
+        ],
+        requestId: "33333333-3333-4333-8333-333333333333",
+      },
+    }),
+  );
+  await page.goto("/admin/website");
+
+  const tabs = page.getByRole("tablist", { name: "Public website sections" });
+  await expect(tabs).toBeVisible();
+
+  const preview = page.getByRole("region", { name: "Public website draft preview" });
+  const previewToggle = page.getByRole("button", { name: "Preview", exact: true });
+  const isMobile = await previewToggle.isVisible();
+
+  if (isMobile) {
+    await previewToggle.click();
+    await expect(preview).toBeVisible();
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+  } else {
+    await expect(preview).toBeVisible();
+  }
+
+  await tabs.getByRole("tab", { name: "Documents", exact: true }).click();
+
+  // Preview must be hidden, view toggle hidden, and layout expanded full-width
+  await expect(preview).toHaveCount(0);
+  await expect(previewToggle).toHaveCount(0);
+  await expect(page.locator(".website-editor-layout")).toHaveClass(/website-editor-layout--full/);
+  await expect(page.getByRole("button", { name: "Upload document" })).toBeVisible();
+  await expect(
+    page
+      .getByRole("tabpanel", { name: "Documents" })
+      .getByText("Mail-In Donation Form")
+      .locator("visible=true"),
+  ).toBeVisible();
+
+  // Save/publish draft actions must not show on Documents tab
+  await expect(page.getByRole("button", { name: "Save draft" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Publish saved draft" })).toHaveCount(0);
+
+  // Switching back to Home restores preview (or preview toggle on mobile)
+  await tabs.getByRole("tab", { name: "Home", exact: true }).click();
+  await expect(page.locator(".website-editor-layout")).not.toHaveClass(
+    /website-editor-layout--full/,
+  );
+  await expect(page.getByRole("button", { name: "Publish saved draft" })).toBeVisible();
+  if (isMobile) {
+    await expect(previewToggle).toBeVisible();
+    await previewToggle.click();
+    await expect(preview).toBeVisible();
+  } else {
+    await expect(preview).toBeVisible();
+  }
+
+  api.assertNoUnexpectedRequests();
+});

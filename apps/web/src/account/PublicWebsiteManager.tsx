@@ -564,6 +564,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
   }
 
   const dirty = isWebsiteDraftDirty(loadState, draft, heroFile, logoFile);
+  const isDocumentsTab = activeTab === "documents";
 
   useSaveRegistration({
     busy,
@@ -606,9 +607,15 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
         verifiedVersion={verifiedVersion}
       />
 
-      <WebsiteEditorViewToggle mobileView={mobileView} onToggle={setMobileView} />
+      {!isDocumentsTab ? (
+        <WebsiteEditorViewToggle mobileView={mobileView} onToggle={setMobileView} />
+      ) : null}
 
-      <div className={`website-editor-layout website-editor-layout--${mobileView}`}>
+      <div
+        className={`website-editor-layout website-editor-layout--${mobileView}${
+          isDocumentsTab ? " website-editor-layout--full" : ""
+        }`}
+      >
         <section aria-label="Website editor" className="panel website-editor-controls">
           <WebsiteEditorNotices
             error={error}
@@ -684,33 +691,37 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
             </TabsContent>
           </Tabs>
 
-          <PublicWebsiteActions
-            busy={busy}
-            dirty={dirty}
-            onPublish={() => {
-              void publish();
-            }}
-            onRetryVerification={() => {
-              void retryVerification();
-            }}
-            onSave={() => {
-              void save();
-            }}
-            publicationVersion={loadState.settings.publicationVersion}
-            verificationStatus={verificationStatus}
-          />
+          {!isDocumentsTab ? (
+            <PublicWebsiteActions
+              busy={busy}
+              dirty={dirty}
+              onPublish={() => {
+                void publish();
+              }}
+              onRetryVerification={() => {
+                void retryVerification();
+              }}
+              onSave={() => {
+                void save();
+              }}
+              publicationVersion={loadState.settings.publicationVersion}
+              verificationStatus={verificationStatus}
+            />
+          ) : null}
         </section>
 
-        <PublicWebsitePreview
-          draft={draft}
-          heroImageUrl={heroPreviewUrl}
-          logoImageUrl={logoPreviewUrl}
-          onPageChange={setPreviewPage}
-          onViewportChange={setPreviewViewport}
-          organizationName={loadState.settings.organizationName}
-          page={previewPage}
-          viewport={previewViewport}
-        />
+        {!isDocumentsTab ? (
+          <PublicWebsitePreview
+            draft={draft}
+            heroImageUrl={heroPreviewUrl}
+            logoImageUrl={logoPreviewUrl}
+            onPageChange={setPreviewPage}
+            onViewportChange={setPreviewViewport}
+            organizationName={loadState.settings.organizationName}
+            page={previewPage}
+            viewport={previewViewport}
+          />
+        ) : null}
       </div>
     </div>
   );

@@ -254,6 +254,7 @@ export function PublicWebsiteDocumentsEditor() {
                     </div>
                   </div>
                 ),
+                sortValue: (doc: PublicWebsiteDocument) => doc.title.toLowerCase(),
               },
               {
                 header: "Public link",
@@ -263,6 +264,7 @@ export function PublicWebsiteDocumentsEditor() {
                     {doc.downloadPath}
                   </code>
                 ),
+                sortValue: (doc: PublicWebsiteDocument) => doc.downloadPath.toLowerCase(),
               },
               {
                 header: "Actions",

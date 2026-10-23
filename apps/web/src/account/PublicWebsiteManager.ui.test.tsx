@@ -379,10 +379,19 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     );
 
     await screen.findByRole("region", { name: "Website publication readiness" });
+    expect(
+      screen.getByRole("region", { name: "Public website draft preview" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Publish saved draft" })).toBeInTheDocument();
 
     // Click the Documents tab
     const documentsTab = screen.getByRole("tab", { name: "Documents" });
     await user.click(documentsTab);
+
+    // Verify preview and draft actions are hidden on Documents tab
+    expect(screen.queryByRole("region", { name: "Public website draft preview" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Save draft" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Publish saved draft" })).toBeNull();
 
     // Verify document table is rendered (DataTable renders both table rows and responsive mobile cards)
     const titles = await screen.findAllByText("Mail-In Donation Form");
@@ -398,5 +407,12 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     expect(
       screen.getAllByRole("link", { name: "Preview Mail-In Donation Form" })[0],
     ).toHaveAttribute("href", "/api/public/documents/donation-form.pdf");
+
+    // Switching back to Home restores preview and draft actions
+    await user.click(screen.getByRole("tab", { name: "Home" }));
+    expect(
+      screen.getByRole("region", { name: "Public website draft preview" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Publish saved draft" })).toBeInTheDocument();
   });
 });
