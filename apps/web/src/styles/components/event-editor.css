@@ -98,6 +98,39 @@
     margin: 0;
   }
 
+  .event-rsvp-summary {
+    display: grid;
+    gap: var(--spacing-sm);
+    margin: 0;
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: color-mix(in srgb, var(--color-surface-raised) 72%, transparent);
+  }
+
+  .event-rsvp-summary legend {
+    padding: 0;
+    color: var(--color-text);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .event-rsvp-summary .field-help {
+    margin: 0;
+  }
+
+  .event-rsvp-summary__metrics {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xs);
+  }
+
+  .event-rsvp-summary__staffing {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+  }
+
   .event-editor-section--tickets {
     display: flex;
     flex-direction: column;

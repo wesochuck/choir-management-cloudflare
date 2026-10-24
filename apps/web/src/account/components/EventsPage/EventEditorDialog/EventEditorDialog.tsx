@@ -171,6 +171,25 @@ export function EventEditorDialog({
       window.location.assign(targetUrl);
     }
   }
+
+  async function handleOpenRsvpDetails(): Promise<void> {
+    if (!editingId) return;
+    if (dirty) {
+      const shouldDiscard = await confirm({
+        confirmLabel: "Discard changes",
+        description: "Your unsaved changes will be lost if you leave this event.",
+        destructive: true,
+        title: "Discard unsaved changes?",
+      });
+      if (!shouldDiscard) return;
+    }
+    const targetUrl = `/admin/rsvp?eventId=${encodeURIComponent(editingId)}`;
+    if (navigate) {
+      navigate(targetUrl);
+    } else {
+      window.location.assign(targetUrl);
+    }
+  }
   const followUpEnabled =
     event.rsvpFollowUpMode === "enabled" ||
     (event.rsvpFollowUpMode === "inherit" && state.status === "ready" && state.rsvpFollowUpEnabled);
@@ -642,9 +661,13 @@ export function EventEditorDialog({
 
                   {visibleSections.includes("rsvp") ? (
                     <RsvpSection
+                      editingId={editingId}
                       event={event}
                       followUpEnabled={followUpEnabled}
                       followUpLeadHours={followUpLeadHours}
+                      onOpenRsvpDetails={() => {
+                        void handleOpenRsvpDetails();
+                      }}
                       sectionErrors={sectionErrors}
                       setEvent={setEvent}
                       showErrorBadges={showErrorBadges}

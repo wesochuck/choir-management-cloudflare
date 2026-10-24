@@ -12,6 +12,7 @@ import { EventRsvpDeadlineNotice } from "../shared";
 import type { EventsState } from "../types";
 import type { SectionErrors } from "../eventSections";
 import { readRsvpFollowUpMode } from "../utils";
+import { EventRsvpSummary } from "./EventRsvpSummary";
 
 function readOtherEventRsvpMode(value: string): "off" | "optional" | "response_requested" {
   if (value === "optional" || value === "response_requested") {
@@ -21,9 +22,11 @@ function readOtherEventRsvpMode(value: string): "off" | "optional" | "response_r
 }
 
 interface RsvpSectionProps {
+  readonly editingId: string | null;
   readonly event: OrganizationEventRequest;
   readonly followUpEnabled: boolean;
   readonly followUpLeadHours: number | null;
+  readonly onOpenRsvpDetails?: (() => void) | undefined;
   readonly sectionErrors: SectionErrors;
   readonly setEvent: Dispatch<SetStateAction<OrganizationEventRequest>>;
   readonly showErrorBadges: boolean;
@@ -215,7 +218,9 @@ function TargetedAudiencePicker({
 }
 
 function OtherEventRsvpPanel({
+  editingId,
   event,
+  onOpenRsvpDetails,
   sectionErrors,
   setEvent,
   showErrorBadges,
@@ -410,6 +415,15 @@ function OtherEventRsvpPanel({
       ) : null}
 
       <OtherEventReminderEmailFieldset event={event} setEvent={setEvent} state={state} />
+
+      {event.otherEventRsvpMode !== "off" ? (
+        <EventRsvpSummary
+          editingId={editingId}
+          eventType={event.type}
+          onOpenRsvpDetails={onOpenRsvpDetails}
+          staffingGoal={event.otherEventStaffingGoal}
+        />
+      ) : null}
     </TabsContent>
   );
 }
@@ -479,9 +493,11 @@ function OtherEventReminderEmailFieldset({
 }
 
 function PerformanceRsvpPanel({
+  editingId,
   event,
   followUpEnabled,
   followUpLeadHours,
+  onOpenRsvpDetails,
   sectionErrors,
   setEvent,
   showErrorBadges,
@@ -605,6 +621,11 @@ function PerformanceRsvpPanel({
           ) : null}
         </div>
       </fieldset>
+      <EventRsvpSummary
+        editingId={editingId}
+        eventType={event.type}
+        onOpenRsvpDetails={onOpenRsvpDetails}
+      />
     </TabsContent>
   );
 }
