@@ -48,10 +48,8 @@ function TargetedAudiencePicker({
   const { partLabelPlural } = useOrganizationTerminology();
   return (
     <div className="targeted-audience-picker">
-      <div className="field">
-        <label className="field-label" htmlFor="events-page-targeted-voice-parts">
-          {partLabelPlural}
-        </label>
+      <fieldset className="field">
+        <legend>{partLabelPlural}</legend>
         <div className="checkbox-grid" id="events-page-targeted-voice-parts">
           {availableVoiceParts.map((vp) => (
             <label className="checkbox-row" key={vp}>
@@ -76,11 +74,9 @@ function TargetedAudiencePicker({
             </label>
           ))}
         </div>
-      </div>
-      <div className="field">
-        <label className="field-label" htmlFor="events-page-targeted-members">
-          Specific members
-        </label>
+      </fieldset>
+      <fieldset className="field">
+        <legend>Specific members</legend>
         <div
           className="checkbox-list"
           id="events-page-targeted-members"
@@ -109,7 +105,7 @@ function TargetedAudiencePicker({
             </label>
           ))}
         </div>
-      </div>
+      </fieldset>
       <p className="notice notice--info" role="status">
         <strong>{deduplicatedCount}</strong> {deduplicatedCount === 1 ? "member" : "members"}{" "}
         selected in targeted audience
@@ -192,11 +188,11 @@ function OtherEventRsvpPanel({
     >
       <div className="event-editor-panel__header">
         <div className="event-editor-panel__title-row">
-          <h3 className="event-editor-panel__title">RSVPs &amp; volunteers</h3>
+          <h3 className="event-editor-panel__title">RSVPs &amp; reminders</h3>
           <span className="event-editor__badge event-editor__badge--optional">Optional</span>
         </div>
         <p className="event-editor-panel__description">
-          Configure member volunteering, invitations, and staffing goals.
+          Configure member volunteering, invitations, staffing goals, and reminder emails.
         </p>
       </div>
 

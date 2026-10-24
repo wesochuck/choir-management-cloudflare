@@ -510,7 +510,7 @@ function AuthenticatedOrganizationShell({
   function handleRailClick(event: MouseEvent<HTMLElement>) {
     if (!isCompact || event.button !== 0 || event.defaultPrevented) return;
     const target = event.target instanceof Element ? event.target : null;
-    if (target?.closest("a, button, input, select, textarea, [role='button']")) {
+    if (target?.closest("a, button, input, select, textarea, [role='button'], [popover]")) {
       return;
     }
     handleToggleNavigation();

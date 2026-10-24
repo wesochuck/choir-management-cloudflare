@@ -253,7 +253,7 @@
     font-weight: var(--font-weight-extrabold);
   }
 
-  .field input,
+  .field input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
   .field textarea {
     min-height: 3.25rem;
     width: 100%;

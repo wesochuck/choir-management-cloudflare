@@ -121,6 +121,16 @@ for (const file of cssFiles) {
       );
     }
   }
+
+  // Generic .field input rules in stylesheets must exclude checkboxes and radios
+  const genericFieldInputRe =
+    /(?:^|\n)\s*(?:\.signed-in-main\s+)?\.field\s+input(?!\s*:\s*not\([^)]*checkbox)/g;
+  for (const match of content.matchAll(genericFieldInputRe)) {
+    const lineNum = content.slice(0, match.index).split("\n").length;
+    failures.push(
+      `${file}:${lineNum}: generic ".field input" rules must exclude checkboxes and radios with :not([type="checkbox"]):not([type="radio"]).`,
+    );
+  }
 }
 
 // --- 3. Scan TSX files for inline control rows with unaligned buttons or help text ---

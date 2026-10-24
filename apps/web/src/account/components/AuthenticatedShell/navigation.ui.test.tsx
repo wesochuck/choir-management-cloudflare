@@ -56,9 +56,8 @@ describe("sidebar navigation behavior", () => {
     expect(navigate).toHaveBeenCalledWith("/dues");
   });
 
-  it("renders Member compact icon rail with accessible tooltips, active highlights, and group expansion", () => {
+  it("renders Member compact icon rail with accessible tooltips, active highlights, and group flyouts", () => {
     const navigate = vi.fn();
-    const onExpandGroup = vi.fn();
     const { rerender } = render(
       <Navigation
         memberStyle
@@ -66,26 +65,23 @@ describe("sidebar navigation behavior", () => {
         groups={memberGroups}
         navigate={navigate}
         pathname="/dashboard"
-        onExpandGroup={onExpandGroup}
       />,
     );
 
-    // In compact mode, only top-level items appear (Dashboard direct link + 2 group buttons)
     const links = screen.getAllByRole("link");
-    expect(links).toHaveLength(1);
-    expect(links[0]).toHaveAttribute("href", "/dashboard");
-    expect(links[0]).toHaveAttribute("aria-current", "page");
+    expect(links.some((l) => l.getAttribute("href") === "/dashboard")).toBe(true);
 
     const membershipBtn = screen.getByRole("button", { name: "Your membership" });
     const practiceBtn = screen.getByRole("button", { name: "Practice & resources" });
     expect(membershipBtn).toBeVisible();
     expect(practiceBtn).toBeVisible();
 
-    // Clicking a compact group icon triggers onExpandGroup with the group id
-    fireEvent.click(membershipBtn);
-    expect(onExpandGroup).toHaveBeenCalledWith("people");
+    expect(membershipBtn).toHaveAttribute("popovertarget");
+    expect(practiceBtn).toHaveAttribute("popovertarget");
 
-    // Switching route to /practice marks the Practice group active in compact mode
+    const flyouts = document.querySelectorAll(".organization-nav__flyout");
+    expect(flyouts.length).toBeGreaterThanOrEqual(2);
+
     rerender(
       <Navigation
         memberStyle
@@ -93,7 +89,6 @@ describe("sidebar navigation behavior", () => {
         groups={memberGroups}
         navigate={navigate}
         pathname="/practice"
-        onExpandGroup={onExpandGroup}
       />,
     );
     expect(practiceBtn).toHaveAttribute("data-active", "true");

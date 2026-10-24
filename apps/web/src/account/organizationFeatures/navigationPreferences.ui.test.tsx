@@ -1,5 +1,5 @@
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
   navigationStorageKey,
   organizationNavigationKey,
@@ -137,8 +137,7 @@ describe("Organization-only navigation preferences", () => {
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("calls onExpandGroup and expands in place instead of rendering a popover in compact mode", () => {
-    const onExpandGroup = vi.fn();
+  it("renders a popover flyout with group items in compact mode", () => {
     render(
       <OrganizationAdminNavigation
         groups={getOrganizationSidebarGroups({ status: "ready", modules: [] })}
@@ -146,17 +145,16 @@ describe("Organization-only navigation preferences", () => {
         compact={true}
         expanded={["people"]}
         toggleGroup={() => undefined}
-        onExpandGroup={onExpandGroup}
         navigate={() => Promise.resolve(true)}
         onSearch={() => undefined}
       />,
     );
 
     const people = screen.getByRole("button", { name: "People & membership" });
-    fireEvent.click(people);
-    expect(onExpandGroup).toHaveBeenCalledWith("people");
-    // Popover is no longer rendered
-    expect(document.querySelector(".organization-nav__flyout")).toBeNull();
+    expect(people).toHaveAttribute("popovertarget");
+    const flyout = document.querySelector(".organization-nav__flyout");
+    expect(flyout).not.toBeNull();
+    expect(flyout?.querySelector("h2")?.textContent).toBe("People & membership");
   });
 
   it("survives unavailable storage and keeps independent group controls usable", () => {

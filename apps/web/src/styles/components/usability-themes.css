@@ -386,7 +386,7 @@
     font-weight: var(--font-weight-medium);
   }
 
-  .signed-in-main .field input,
+  .signed-in-main .field input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
   .signed-in-main .field textarea,
   .signed-in-main .field select,
   .signed-in-main .search-field input,

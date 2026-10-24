@@ -64,3 +64,24 @@ Object.defineProperty(globalThis, "ResizeObserver", {
   value: ResizeObserverStub,
   writable: true,
 });
+
+// jsdom does not implement the HTML Popover API; components using native popovers
+// require hidePopover/showPopover stubs in jsdom.
+if (typeof HTMLElement.prototype.showPopover !== "function") {
+  Object.defineProperty(HTMLElement.prototype, "showPopover", {
+    configurable: true,
+    value: function showPopover(this: HTMLElement) {
+      this.setAttribute(":popover-open", "");
+    },
+    writable: true,
+  });
+}
+if (typeof HTMLElement.prototype.hidePopover !== "function") {
+  Object.defineProperty(HTMLElement.prototype, "hidePopover", {
+    configurable: true,
+    value: function hidePopover(this: HTMLElement) {
+      this.removeAttribute(":popover-open");
+    },
+    writable: true,
+  });
+}

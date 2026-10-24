@@ -1,5 +1,5 @@
 import { getAdminFeatureForPath } from "../../organizationFeatures/selectors";
-import { type ReactNode, useId, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { Tooltip } from "@choir/ui";
 import { OrganizationFeatureIcon } from "../../organizationFeatures/OrganizationFeatureIcon";
 import type { NavigationGroup, ThemePreference } from "./types";
@@ -65,17 +65,148 @@ export function SidebarWorkspaceHeading({ workspaceName }: { readonly workspaceN
   );
 }
 
+export function RailGroup({
+  group,
+  currentHref,
+  navigate,
+  routeKey,
+}: {
+  readonly group: NavigationGroup;
+  readonly currentHref: string | undefined;
+  readonly routeKey: string;
+  readonly navigate: (href: string) => unknown;
+}) {
+  const id = useId();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const flyout = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+
+  const isGroupActive = group.items.some((item) => {
+    const target = item.href.split("?")[0];
+    return (
+      target === currentHref ||
+      (target && target !== "/admin" && currentHref?.startsWith(`${target}/`))
+    );
+  });
+
+  const position = () => {
+    const button = trigger.current;
+    const popup = flyout.current;
+    if (!button || !popup) return;
+    const rect = button.getBoundingClientRect();
+    const height = popup.getBoundingClientRect().height;
+    popup.style.left = `${String(Math.min(rect.right + 8, Math.max(8, window.innerWidth - 296)))}px`;
+    popup.style.top = `${String(Math.max(8, Math.min(rect.top, window.innerHeight - height - 8)))}px`;
+  };
+
+  useEffect(() => {
+    flyout.current?.hidePopover();
+  }, [routeKey]);
+
+  useEffect(() => {
+    const close = () => {
+      flyout.current?.hidePopover();
+    };
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("resize", close);
+    };
+  }, []);
+
+  return (
+    <div className="organization-nav__rail-group" data-tone={group.tone}>
+      <Tooltip content={group.label} disabled={open}>
+        <button
+          ref={trigger}
+          type="button"
+          aria-label={group.label}
+          aria-expanded={open}
+          aria-controls={id}
+          popoverTarget={id}
+          className="organization-nav__rail-button"
+          data-tone={group.tone}
+          data-active={isGroupActive ? "true" : undefined}
+          aria-current={isGroupActive ? "true" : undefined}
+          onClick={() => {
+            requestAnimationFrame(position);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              flyout.current?.hidePopover();
+              trigger.current?.focus();
+            }
+          }}
+        >
+          {group.iconId ? <OrganizationFeatureIcon iconId={group.iconId} /> : null}
+        </button>
+      </Tooltip>
+      <div
+        ref={flyout}
+        id={id}
+        popover="auto"
+        role="region"
+        aria-label={group.label}
+        className="organization-nav__flyout"
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+        onToggle={(event) => {
+          const native = event.nativeEvent;
+          if ("newState" in native && typeof native.newState === "string") {
+            const isOpen = native.newState === "open";
+            setOpen(isOpen);
+            if (!isOpen) {
+              trigger.current?.focus();
+            }
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            flyout.current?.hidePopover();
+            trigger.current?.focus();
+          }
+        }}
+      >
+        <h2>{group.label}</h2>
+        {group.items.map((item) => (
+          <AppLink
+            key={item.href}
+            href={item.href}
+            onNavigate={(href) => {
+              const res = navigate(href);
+              if (res instanceof Promise) {
+                void res.then((allowed: unknown) => {
+                  if (allowed !== false) flyout.current?.hidePopover();
+                });
+              } else {
+                flyout.current?.hidePopover();
+              }
+            }}
+            ariaCurrent={item.href === currentHref ? "page" : undefined}
+            className="organization-nav__link"
+          >
+            {item.iconId ? <OrganizationFeatureIcon iconId={item.iconId} /> : null}
+            <span>{item.label}</span>
+            {item.href === currentHref ? <span className="sr-only"> (current)</span> : null}
+          </AppLink>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MemberNavigation({
   groups,
   currentHref,
+  routeKey,
   navigate,
   compact = false,
   expandedGroups,
   toggleGroup,
-  onExpandGroup,
 }: {
   readonly groups: readonly NavigationGroup[];
   readonly currentHref: string | undefined;
+  readonly routeKey: string;
   readonly navigate: (href: string) => void;
   readonly compact?: boolean | undefined;
   readonly expandedGroups?: readonly string[] | undefined;
@@ -142,25 +273,14 @@ function MemberNavigation({
         ) : null}
         {categories.map((group) => {
           const groupId = group.id ?? group.label;
-          const isGroupActive = group.items.some((item) => item.href === currentHref);
           return (
-            <div key={group.label} className="organization-nav__rail-group" data-tone={group.tone}>
-              <Tooltip content={group.label}>
-                <button
-                  type="button"
-                  aria-label={group.label}
-                  className="organization-nav__rail-button"
-                  data-tone={group.tone}
-                  data-active={isGroupActive ? "true" : undefined}
-                  aria-current={isGroupActive ? "true" : undefined}
-                  onClick={() => {
-                    onExpandGroup?.(groupId);
-                  }}
-                >
-                  {group.iconId ? <OrganizationFeatureIcon iconId={group.iconId} /> : null}
-                </button>
-              </Tooltip>
-            </div>
+            <RailGroup
+              key={groupId}
+              group={group}
+              currentHref={currentHref}
+              navigate={navigate}
+              routeKey={routeKey}
+            />
           );
         })}
       </nav>
@@ -269,6 +389,7 @@ export function Navigation({
       <MemberNavigation
         groups={groups}
         currentHref={currentHref}
+        routeKey={pathname}
         navigate={navigate}
         compact={compact}
         expandedGroups={expandedGroups}

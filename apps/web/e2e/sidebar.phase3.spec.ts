@@ -85,7 +85,7 @@ test("expand and collapse navigation preserves rail and moves focus", async ({ p
     "data-organization-navigation",
     "compact",
   );
-  await page.locator(".signed-in-sidebar").click({ position: { x: 20, y: 350 } });
+  await page.locator(".signed-in-sidebar").click({ position: { x: 20, y: 600 } });
   await expect(page.locator(".signed-in-shell")).toHaveAttribute(
     "data-organization-navigation",
     "expanded",

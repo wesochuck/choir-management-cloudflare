@@ -1,7 +1,7 @@
 import { QuickSearchTrigger } from "../components/CommandPalette/QuickSearchTrigger";
 import { useId } from "react";
 import { Tooltip } from "@choir/ui";
-import { AppLink } from "../components/AuthenticatedShell/navigation";
+import { AppLink, RailGroup } from "../components/AuthenticatedShell/navigation";
 import type { NavigationGroup, NavigationItem } from "../components/AuthenticatedShell/types";
 import type { OrganizationGroupId } from "./types";
 import { getAdminFeatureForPath } from "./selectors";
@@ -57,7 +57,6 @@ export function OrganizationAdminNavigation({
   compact = false,
   expanded,
   toggleGroup,
-  onExpandGroup,
   navigate,
   onSearch,
 }: {
@@ -134,31 +133,14 @@ export function OrganizationAdminNavigation({
         const id = group.id;
         if (!id || id === "home") return null;
         if (compact) {
-          const isGroupActive = group.items.some((item) => {
-            const target = item.href.split("?")[0];
-            return (
-              target === current ||
-              (target && target !== "/admin" && current?.startsWith(`${target}/`))
-            );
-          });
           return (
-            <div key={id} className="organization-nav__rail-group" data-tone={group.tone}>
-              <Tooltip content={group.label}>
-                <button
-                  type="button"
-                  aria-label={group.label}
-                  className="organization-nav__rail-button"
-                  data-tone={group.tone}
-                  data-active={isGroupActive ? "true" : undefined}
-                  aria-current={isGroupActive ? "true" : undefined}
-                  onClick={() => {
-                    onExpandGroup?.(id);
-                  }}
-                >
-                  {group.iconId ? <OrganizationFeatureIcon iconId={group.iconId} /> : null}
-                </button>
-              </Tooltip>
-            </div>
+            <RailGroup
+              key={id}
+              group={group}
+              currentHref={current}
+              navigate={navigate}
+              routeKey={path}
+            />
           );
         }
         const isExpanded = expanded.includes(id);

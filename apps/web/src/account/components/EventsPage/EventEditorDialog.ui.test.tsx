@@ -1,4 +1,8 @@
-import type { OrganizationEventRequest, OrganizationVenue } from "@choir/contracts";
+import type {
+  OrganizationEventRequest,
+  OrganizationRosterConfiguration,
+  OrganizationVenue,
+} from "@choir/contracts";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SetStateAction } from "react";
@@ -17,7 +21,18 @@ vi.mock("../../../auth/api", async (importOriginal) => {
   };
 });
 
+vi.mock("../../../api", async (importOriginal) => {
+  const actual = await importOriginal();
+  if (typeof actual !== "object" || actual === null) throw new Error("Unexpected api shape");
+  return {
+    ...actual,
+    getOrganizationRosterConfiguration: vi.fn(),
+    listOrganizationProfiles: vi.fn(),
+  };
+});
+
 import { createOrganizationVenue, listOrganizationVenues } from "../../../auth/api";
+import { getOrganizationRosterConfiguration, listOrganizationProfiles } from "../../../api";
 
 const readyState: Extract<EventsState, { status: "ready" }> = {
   events: [],
@@ -45,6 +60,23 @@ const tbdVenue: OrganizationVenue = {
   updatedAt: "2026-01-02T00:00:00Z",
 };
 
+const defaultRosterConfiguration: OrganizationRosterConfiguration = {
+  attendanceReportWarningThreshold: 1,
+  onBreakTimeoutDays: 365,
+  onBreakTimeoutEnabled: true,
+  performerLabel: "Performer",
+  rehearsalAttendanceReportsEnabled: true,
+  rosterStructure: "sections_only",
+  rsvpExpiryEnabled: true,
+  rsvpFollowUpEnabled: true,
+  rsvpFollowUpLeadHours: 48,
+  sections: [{ code: "S", color: "#123456", name: "Soprano", trackOnly: false }],
+  statusAutomationEnabled: true,
+  statusAutomationMissThreshold: 3,
+  statusAutomationRecoveryEnabled: true,
+  voiceParts: [{ fullName: "Soprano", label: "S", sectionCode: "S" }],
+};
+
 function stateWithVenues(venues: readonly OrganizationVenue[]): EventsState {
   return { ...readyState, venues };
 }
@@ -59,6 +91,10 @@ beforeEach(() => {
   vi.mocked(createOrganizationVenue).mockReset();
   vi.mocked(listOrganizationVenues).mockReset();
   vi.mocked(listOrganizationVenues).mockResolvedValue([]);
+  vi.mocked(getOrganizationRosterConfiguration).mockReset();
+  vi.mocked(getOrganizationRosterConfiguration).mockResolvedValue(defaultRosterConfiguration);
+  vi.mocked(listOrganizationProfiles).mockReset();
+  vi.mocked(listOrganizationProfiles).mockResolvedValue([]);
 });
 
 describe("EventEditorDialog section layout", () => {
@@ -1311,5 +1347,206 @@ describe("EventEditorDialog start date/time keyboard access and validation (#174
 
       expect(navigate).toHaveBeenCalledWith("/admin/setlists?eventId=perf-saved-1");
     });
+  });
+});
+
+describe("EventEditorDialog Other event RSVP and reminders layout", () => {
+  it("renders RSVPs & reminders section for Other events with optional badge and correct panels", async () => {
+    let draft: OrganizationEventRequest = {
+      ...emptyEvent,
+      type: "Other",
+      title: "Social Gathering",
+      venueId: venueHall.id,
+      otherEventRsvpMode: "off",
+    };
+    const setEvent = vi.fn((change: SetStateAction<OrganizationEventRequest>) => {
+      draft = typeof change === "function" ? change(draft) : change;
+    });
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart="2027-11-15T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={setEvent}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    expect(screen.getByRole("tab", { name: /Basics/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Schedule & venue/ })).toBeInTheDocument();
+    const rsvpTab = screen.getByRole("tab", { name: /RSVPs & reminders/ });
+    expect(rsvpTab).toBeInTheDocument();
+    expect(rsvpTab).toHaveTextContent("Optional");
+    expect(screen.queryByRole("tab", { name: /Ticket sales/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /Public content/ })).not.toBeInTheDocument();
+
+    await switchToSection(/RSVPs & reminders/);
+    expect(
+      await screen.findByRole("heading", { level: 3, name: "RSVPs & reminders" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("RSVP mode")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Everyone/)).toBeInTheDocument();
+  });
+
+  it("updates RSVP mode, staffing goal, and reminder emails for Other events", async () => {
+    const user = userEvent.setup();
+    let draft: OrganizationEventRequest = {
+      ...emptyEvent,
+      type: "Other",
+      title: "Choir Banquet",
+      venueId: venueHall.id,
+      otherEventRsvpMode: "off",
+    };
+    const setEvent = (change: SetStateAction<OrganizationEventRequest>) => {
+      draft = typeof change === "function" ? change(draft) : change;
+    };
+
+    const { rerender } = render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart="2027-11-15T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={setEvent}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    await switchToSection(/RSVPs & reminders/);
+    expect(screen.queryByLabelText("Minimum staffing goal")).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("RSVP mode"), "optional");
+    expect(draft.otherEventRsvpMode).toBe("optional");
+
+    rerender(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart="2027-11-15T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={setEvent}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    const staffingGoal = screen.getByLabelText("Minimum staffing goal");
+    expect(staffingGoal).toBeInTheDocument();
+    await user.type(staffingGoal, "10");
+    expect(draft.otherEventStaffingGoal).toBe(10);
+
+    await user.selectOptions(screen.getByLabelText("RSVP mode"), "response_requested");
+    expect(draft.otherEventRsvpMode).toBe("response_requested");
+
+    rerender(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart="2027-11-15T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={setEvent}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    expect(screen.getByText("Automated RSVP reminder email")).toBeInTheDocument();
+    const eventSetting = screen.getByLabelText("Event setting");
+    expect(eventSetting).toBeInTheDocument();
+    await user.selectOptions(eventSetting, "enabled");
+    expect(draft.rsvpFollowUpMode).toBe("enabled");
+  });
+
+  it("hides Ticket sales and Public content and allows switching to RSVPs & reminders when event type is changed to Other", async () => {
+    const user = userEvent.setup();
+    let draft: OrganizationEventRequest = {
+      ...emptyEvent,
+      type: "Performance",
+      title: "Concert",
+      venueId: venueHall.id,
+      isTicketingEnabled: true,
+    };
+    const setEvent = (change: SetStateAction<OrganizationEventRequest>) => {
+      draft = typeof change === "function" ? change(draft) : change;
+    };
+
+    const { rerender } = render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart="2027-11-15T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={setEvent}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    expect(screen.getByRole("tab", { name: /Ticket sales/ })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Public content/ })).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Type *"), "Other");
+    expect(draft.type).toBe("Other");
+
+    rerender(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart="2027-11-15T19:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={setEvent}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    expect(screen.queryByRole("tab", { name: /Ticket sales/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /Public content/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /RSVPs & reminders/ })).toBeInTheDocument();
+
+    await switchToSection(/RSVPs & reminders/);
+    expect(
+      await screen.findByRole("heading", { level: 3, name: "RSVPs & reminders" }),
+    ).toBeInTheDocument();
   });
 });

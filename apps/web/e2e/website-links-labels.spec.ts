@@ -165,6 +165,25 @@ for (const theme of ["light", "dark"] as const) {
     await about.fill(markdown);
     await expect(about).toHaveValue(markdown);
     await page.getByRole("tab", { name: "Navigation", exact: true }).click();
+    const moduleFieldset = page.locator(
+      "fieldset:has(legend:has-text('Public modules navigation links'))",
+    );
+    await expect(moduleFieldset).toBeVisible();
+    for (const label of await moduleFieldset.locator("label.choice-field").all()) {
+      const input = label.locator("input[type='checkbox']");
+      const content = label.locator(".choice-field__content");
+      const inputBox = await input.boundingBox();
+      const contentBox = await content.boundingBox();
+      expect(inputBox).not.toBeNull();
+      expect(contentBox).not.toBeNull();
+      if (!inputBox || !contentBox) {
+        throw new Error("Expected bounding boxes for checkbox and label content");
+      }
+      expect(inputBox.height).toBeLessThanOrEqual(20);
+      const inputMidline = inputBox.y + inputBox.height / 2;
+      const contentMidline = contentBox.y + contentBox.height / 2;
+      expect(Math.abs(inputMidline - contentMidline)).toBeLessThanOrEqual(2.5);
+    }
     for (const [field, value] of [
       ["History navigation label", "Our story"],
       ["History page heading", "Our beginnings"],

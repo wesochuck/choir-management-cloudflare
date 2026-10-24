@@ -66,18 +66,38 @@ for (const theme of ["dark", "light"] as const) {
     );
 
     const people = sidebar.getByRole("button", { name: "People & membership", exact: true });
+    await expect(people).toBeVisible();
     await people.click();
+    const popup = page.locator(".organization-nav__flyout:popover-open");
+    await expect(popup).toBeVisible();
+    await expect(popup.getByRole("link", { name: "Contacts", exact: true })).toBeVisible();
+    const rect = await popup.boundingBox();
+    expect(rect).not.toBeNull();
+    expect((rect?.x ?? 0) + (rect?.width ?? 0)).toBeLessThanOrEqual(1440);
+    await page.keyboard.press("Escape");
+    await expect(popup).toHaveCount(0);
+    await expect(people).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(popup).toBeVisible();
+    await page.locator("#admin-overview-greeting").click();
+    await expect(popup).toHaveCount(0);
+    await people.focus();
+    await page.keyboard.press("Space");
+    await expect(popup).toBeVisible();
+    await popup.getByRole("link", { name: "Contacts", exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/contacts$/);
+    await expect(popup).toHaveCount(0);
+
+    // The sidebar remains compact after flyout navigation. Clicking the rail background expands it.
+    await expect(page.locator(".signed-in-shell")).toHaveAttribute(
+      "data-organization-navigation",
+      "compact",
+    );
+    await page.locator(".signed-in-sidebar").click({ position: { x: 20, y: 600 } });
     await expect(page.locator(".signed-in-shell")).toHaveAttribute(
       "data-organization-navigation",
       "expanded",
     );
-    await expect(
-      sidebar.getByRole("button", { name: "People & membership", exact: true }),
-    ).toHaveAttribute("aria-expanded", "true");
-    await expect(sidebar.getByRole("link", { name: "Contacts", exact: true })).toBeVisible();
-
-    await sidebar.getByRole("link", { name: "Contacts", exact: true }).click();
-    await expect(page).toHaveURL(/\/admin\/contacts$/);
 
     await sidebar.getByRole("link", { name: /^Dashboard/ }).click();
     await expect(page.locator(".admin-overview__card")).toHaveCount(22);
@@ -244,17 +264,24 @@ for (const theme of ["dark", "light"] as const) {
     });
     await expect(memberBtn).toBeVisible();
     await memberBtn.click();
+    const popup = page.locator(".organization-nav__flyout:popover-open");
+    await expect(popup).toBeVisible();
+    await expect(popup.getByRole("link", { name: "My schedule", exact: true })).toBeVisible();
+
+    await popup.getByRole("link", { name: "My schedule", exact: true }).click();
+    await expect(page).toHaveURL(/\/schedule$/);
+    await expect(popup).toHaveCount(0);
+
+    // The sidebar remains compact after flyout navigation. Clicking the rail background expands it.
+    await expect(page.locator(".signed-in-shell")).toHaveAttribute(
+      "data-navigation-mode",
+      "compact",
+    );
+    await page.locator(".signed-in-sidebar").click({ position: { x: 20, y: 350 } });
     await expect(page.locator(".signed-in-shell")).toHaveAttribute(
       "data-navigation-mode",
       "expanded",
     );
-    await expect(
-      sidebar.getByRole("button", { name: "Your membership", exact: true }),
-    ).toHaveAttribute("aria-expanded", "true");
-    await expect(sidebar.getByRole("link", { name: "My schedule", exact: true })).toBeVisible();
-
-    await sidebar.getByRole("link", { name: "My schedule", exact: true }).click();
-    await expect(page).toHaveURL(/\/schedule$/);
 
     await page.getByRole("button", { name: "Collapse navigation", exact: true }).click();
     await page.reload();

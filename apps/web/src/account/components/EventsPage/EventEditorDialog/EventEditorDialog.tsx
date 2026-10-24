@@ -591,7 +591,7 @@ export function EventEditorDialog({
                     timezoneLabel={timezoneLabel}
                   />
 
-                  {event.type === "Performance" ? (
+                  {visibleSections.includes("rsvp") ? (
                     <RsvpSection
                       event={event}
                       followUpEnabled={followUpEnabled}
@@ -603,7 +603,7 @@ export function EventEditorDialog({
                     />
                   ) : null}
 
-                  {event.type === "Performance" ? (
+                  {visibleSections.includes("tickets") ? (
                     <TicketingSection
                       advancePriceDraft={advancePriceDraft}
                       dayOfPriceDraft={dayOfPriceDraft}
@@ -621,20 +621,22 @@ export function EventEditorDialog({
                     />
                   ) : null}
 
-                  <PublicSection
-                    activeGraphicPreviewUrl={activeGraphicPreviewUrl}
-                    event={event}
-                    graphicDragging={graphicDragging}
-                    graphicError={graphicError}
-                    graphicFile={graphicFile}
-                    handleGraphicDrop={handleGraphicDrop}
-                    handleGraphicFile={handleGraphicFile}
-                    handleRemoveGraphicFile={handleRemoveGraphicFile}
-                    setEvent={setEvent}
-                    setGraphicDragging={setGraphicDragging}
-                    setGraphicError={setGraphicError}
-                    tbdInfo={tbdInfo}
-                  />
+                  {visibleSections.includes("public") ? (
+                    <PublicSection
+                      activeGraphicPreviewUrl={activeGraphicPreviewUrl}
+                      event={event}
+                      graphicDragging={graphicDragging}
+                      graphicError={graphicError}
+                      graphicFile={graphicFile}
+                      handleGraphicDrop={handleGraphicDrop}
+                      handleGraphicFile={handleGraphicFile}
+                      handleRemoveGraphicFile={handleRemoveGraphicFile}
+                      setEvent={setEvent}
+                      setGraphicDragging={setGraphicDragging}
+                      setGraphicError={setGraphicError}
+                      tbdInfo={tbdInfo}
+                    />
+                  ) : null}
                 </div>
 
                 <div
