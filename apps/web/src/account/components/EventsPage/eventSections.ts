@@ -317,3 +317,112 @@ export function getTbdVenueForEvent(
   const normalized = venue.name.trim().toLocaleLowerCase();
   return { isTbd: normalized === "tbd", name: venue.name };
 }
+
+export function firstFieldIdForSection(
+  section: EventEditorSection,
+  event: OrganizationEventRequest,
+): string {
+  switch (section) {
+    case "basics":
+      return "events-page-title";
+    case "schedule":
+      return "events-page-start";
+    case "rsvp":
+      return event.type === "Performance"
+        ? "events-page-rsvp-deadline"
+        : "events-page-other-rsvp-mode";
+    case "tickets":
+      return "events-page-enable-ticketing";
+    case "public":
+      return "events-page-public-details";
+  }
+}
+
+export function areRequiredFieldsComplete(
+  sectionErrors: SectionErrors,
+  visibleSections: readonly EventEditorSection[],
+  type: OrganizationEventRequest["type"],
+): boolean {
+  for (const section of visibleSections) {
+    if (isSectionRequired(section, type) && sectionErrors[section].length > 0) {
+      return false;
+    }
+  }
+  for (const section of visibleSections) {
+    if (sectionErrors[section].length > 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export interface EventPrimaryAction {
+  readonly accessibleLabel: string;
+  readonly label: string;
+  readonly mode: "next" | "save";
+  readonly shortLabel: string;
+  readonly targetSection?: EventEditorSection;
+}
+
+export function resolveEventPrimaryAction(options: {
+  readonly activeSection: EventEditorSection;
+  readonly busy: boolean;
+  readonly editingId: string | null;
+  readonly sectionErrors: SectionErrors;
+  readonly type: OrganizationEventRequest["type"];
+  readonly visibleSections: readonly EventEditorSection[];
+}): EventPrimaryAction {
+  const { activeSection, busy, editingId, sectionErrors, type, visibleSections } = options;
+
+  if (busy) {
+    return {
+      accessibleLabel: "Saving…",
+      label: "Saving…",
+      mode: "save",
+      shortLabel: "Saving…",
+    };
+  }
+
+  if (editingId !== null) {
+    return {
+      accessibleLabel: "Save event",
+      label: "Save event",
+      mode: "save",
+      shortLabel: "Save",
+    };
+  }
+
+  const allComplete = areRequiredFieldsComplete(sectionErrors, visibleSections, type);
+  if (allComplete) {
+    return {
+      accessibleLabel: "Create event",
+      label: "Create event",
+      mode: "save",
+      shortLabel: "Create",
+    };
+  }
+
+  const currentIndex = visibleSections.indexOf(activeSection);
+  const nextSection =
+    currentIndex >= 0 && currentIndex < visibleSections.length - 1
+      ? visibleSections[currentIndex + 1]
+      : undefined;
+
+  if (nextSection) {
+    const meta = EVENT_EDITOR_SECTION_META[nextSection];
+    return {
+      accessibleLabel: `Next: ${meta.label}`,
+      label: `Next: ${meta.label} →`,
+      mode: "next",
+      shortLabel: "Next →",
+      targetSection: nextSection,
+    };
+  }
+
+  return {
+    accessibleLabel: "Create event",
+    label: "Create event",
+    mode: "save",
+    shortLabel: "Create",
+  };
+}

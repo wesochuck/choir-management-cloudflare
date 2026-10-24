@@ -426,9 +426,11 @@ describe("EventEditorDialog section layout", () => {
         state={stateWithVenues([venueHall])}
       />,
     );
-    // Switch to schedule to make venue field visible, then attempt save via footer.
+    // Switch to schedule to make venue field visible, then attempt advance via footer.
     await switchToSection(/Schedule & venue/);
-    const saveButton = screen.getByRole("button", { name: /Create event/ });
+    const saveButton = screen.getByRole("button", {
+      name: /Next: Public content|Create event/,
+    });
     await user.click(saveButton);
     expect(onSubmit).not.toHaveBeenCalled();
     expect(await screen.findAllByText(/Select a saved venue before saving/)).not.toHaveLength(0);
@@ -1132,8 +1134,10 @@ describe("EventEditorDialog start date/time keyboard access and validation (#174
     expect(startInput).toHaveAttribute("type", "datetime-local");
     expect(startInput).not.toHaveAttribute("aria-invalid", "true");
 
-    // Click Create event
-    const saveButton = screen.getByRole("button", { name: /Create event/ });
+    // Click primary action button
+    const saveButton = screen.getByRole("button", {
+      name: /Next: Public content|Create event/,
+    });
     await user.click(saveButton);
 
     expect(onSubmit).not.toHaveBeenCalled();
@@ -1548,5 +1552,228 @@ describe("EventEditorDialog Other event RSVP and reminders layout", () => {
     expect(
       await screen.findByRole("heading", { level: 3, name: "RSVPs & reminders" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("EventEditorDialog progressive Next / Create event button flow", () => {
+  it("renders Next: Schedule & venue on Basics tab and blocks advance when title is empty", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={{ ...emptyEvent, title: "", type: "Other" }}
+        eventStart=""
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    const nextButton = screen.getByRole("button", { name: "Next: Schedule & venue" });
+    expect(nextButton).toBeInTheDocument();
+
+    await user.click(nextButton);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: /Basics/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("Enter an event title.")).toBeInTheDocument();
+  });
+
+  it("advances to Schedule & venue on valid title, then switches to Create event once date and venue are filled", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+
+    let draft: OrganizationEventRequest = {
+      ...emptyEvent,
+      title: "Community Potluck",
+      type: "Other",
+      venueId: null,
+    };
+    let eventStart = "";
+    const setEvent = (change: SetStateAction<OrganizationEventRequest>) => {
+      draft = typeof change === "function" ? change(draft) : change;
+    };
+
+    const { rerender } = render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart={eventStart}
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        setEvent={setEvent}
+        setEventStart={(val) => {
+          eventStart = val;
+        }}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    // On Basics with Title entered, primary button still says Next: Schedule & venue
+    const nextToSchedule = screen.getByRole("button", { name: "Next: Schedule & venue" });
+    await user.click(nextToSchedule);
+
+    expect(screen.getByRole("tab", { name: /Schedule & venue/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    // On Schedule with date and venue missing, next visible section is RSVPs & reminders
+    expect(screen.getByRole("button", { name: "Next: RSVPs & reminders" })).toBeInTheDocument();
+
+    // Now fill date and venue
+    draft = { ...draft, venueId: venueHall.id };
+    eventStart = "2026-11-20T18:00";
+
+    rerender(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart={eventStart}
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        setEvent={setEvent}
+        setEventStart={(val) => {
+          eventStart = val;
+        }}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    // All required fields for Other event are now complete: button switches to Create event!
+    const createButton = screen.getByRole("button", { name: "Create event" });
+    expect(createButton).toBeInTheDocument();
+
+    await user.click(createButton);
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Community Potluck",
+        venueId: venueHall.id,
+      }),
+    );
+  });
+
+  it("steps through Basics -> Schedule -> RSVPs for Performance events before showing Create event", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
+
+    let draft: OrganizationEventRequest = {
+      ...emptyEvent,
+      title: "Symphony No. 5",
+      type: "Performance",
+      venueId: venueHall.id,
+      rsvpDeadlineDate: null,
+    };
+    const eventStart = "2026-12-15T19:30";
+
+    const { rerender } = render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart={eventStart}
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        setEvent={(change) => {
+          draft = typeof change === "function" ? change(draft) : change;
+        }}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    // On Basics: next is Schedule & venue
+    await user.click(screen.getByRole("button", { name: "Next: Schedule & venue" }));
+    expect(screen.getByRole("tab", { name: /Schedule & venue/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    // On Schedule: next is RSVPs & reminders (because RSVP deadline is required for Performance)
+    await user.click(screen.getByRole("button", { name: "Next: RSVPs & reminders" }));
+    expect(screen.getByRole("tab", { name: /RSVPs & reminders/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    // On RSVPs & reminders without deadline: button indicates Next: Ticket sales
+    expect(screen.getByRole("button", { name: "Next: Ticket sales" })).toBeInTheDocument();
+
+    // Fill the RSVP deadline
+    draft = { ...draft, rsvpDeadlineDate: "2026-12-01" };
+    rerender(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart={eventStart}
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        setEvent={(change) => {
+          draft = typeof change === "function" ? change(draft) : change;
+        }}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    // Now all required fields for Performance are complete: switches to Create event!
+    expect(screen.getByRole("button", { name: "Create event" })).toBeInTheDocument();
+  });
+
+  it("always shows Save event when editing an existing event", () => {
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="event-existing-1"
+        error={null}
+        event={{
+          ...emptyEvent,
+          title: "Existing Concert",
+          type: "Performance",
+          venueId: venueHall.id,
+        }}
+        eventStart="2026-12-15T19:30"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Save event" })).toBeInTheDocument();
   });
 });

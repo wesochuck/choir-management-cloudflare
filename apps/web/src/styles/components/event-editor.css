@@ -527,6 +527,20 @@
     flex-shrink: 0;
   }
 
+  .event-editor-primary-action__text--short {
+    display: none;
+  }
+
+  @media (max-width: 480px) {
+    .event-editor-primary-action__text--full {
+      display: none;
+    }
+
+    .event-editor-primary-action__text--short {
+      display: inline;
+    }
+  }
+
   /* Ensure datetime-local and time inputs have sufficient space and do not clip native controls */
   .dialog--event-editor input[type="datetime-local"],
   .dialog--event-editor input[type="time"],

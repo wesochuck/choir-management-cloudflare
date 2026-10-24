@@ -15,7 +15,6 @@ import { createOrganizationVenue, listOrganizationVenues } from "../../../../aut
 import {
   eventDialogDescription,
   eventDialogTitle,
-  eventSaveLabel,
   currencyCentsFromDraft,
   currencyDraftFromCents,
 } from "../utils";
@@ -24,10 +23,12 @@ import type { EventsState } from "../types";
 import {
   computeSectionErrors,
   countSectionErrors,
+  firstFieldIdForSection,
   firstInvalidFieldId,
   firstInvalidSection,
   getTbdVenueForEvent,
   isSectionRequired,
+  resolveEventPrimaryAction,
   totalErrorCount,
   visibleEditorSections,
   EVENT_EDITOR_SECTION_META,
@@ -119,6 +120,7 @@ export function EventEditorDialog({
     return "basics";
   });
   const [attemptedSave, setAttemptedSave] = useState(false);
+  const [attemptedAdvance, setAttemptedAdvance] = useState(false);
   const [tbdBusy, setTbdBusy] = useState(false);
   const [tbdError, setTbdError] = useState<string | null>(null);
   const errorSummaryRef = useRef<HTMLDivElement | null>(null);
@@ -242,6 +244,35 @@ export function EventEditorDialog({
     }
   }
 
+  function handleNextSection(targetSection: EventEditorSection): void {
+    const normalizedEvent = {
+      ...event,
+      advancePriceCents: currencyCentsFromDraft(advancePriceDraft),
+      dayOfPriceCents: currencyCentsFromDraft(dayOfPriceDraft),
+    };
+    setEvent(normalizedEvent);
+    const errors = computeSectionErrors({
+      event: normalizedEvent,
+      eventStart,
+      graphicError,
+      state,
+    });
+    if (errors[activeSection].length > 0) {
+      setAttemptedAdvance(true);
+      focusInvalidControl(activeSection);
+      return;
+    }
+    setAttemptedAdvance(false);
+    setActiveSection(targetSection);
+    window.setTimeout(() => {
+      const fieldId = firstFieldIdForSection(targetSection, normalizedEvent);
+      const target = document.getElementById(fieldId);
+      if (target instanceof HTMLElement && typeof target.focus === "function") {
+        target.focus({ preventScroll: true });
+      }
+    }, 30);
+  }
+
   function handleValidatedSubmit(): void {
     const normalizedEvent = {
       ...event,
@@ -266,6 +297,7 @@ export function EventEditorDialog({
       return;
     }
     setAttemptedSave(false);
+    setAttemptedAdvance(false);
     onSubmit(normalizedEvent);
   }
 
@@ -383,7 +415,20 @@ export function EventEditorDialog({
     }
   }
 
-  const showErrorBadges = attemptedSave || dirty;
+  const primaryAction = useMemo(
+    () =>
+      resolveEventPrimaryAction({
+        activeSection,
+        busy,
+        editingId,
+        sectionErrors,
+        type: event.type,
+        visibleSections,
+      }),
+    [activeSection, busy, editingId, event.type, sectionErrors, visibleSections],
+  );
+
+  const showErrorBadges = attemptedSave || attemptedAdvance || dirty;
   const footerStatus = busy
     ? "Saving…"
     : totalErrors > 0 && showErrorBadges
@@ -392,7 +437,7 @@ export function EventEditorDialog({
         ? "Unsaved changes"
         : "No unsaved changes";
 
-  const saveDisabled = busy || (!dirty && editingId !== null);
+  const saveDisabled = busy || (primaryAction.mode === "save" && !dirty && editingId !== null);
   const showBackToTicketing =
     !dirty &&
     returnTo &&
@@ -523,7 +568,11 @@ export function EventEditorDialog({
                 noValidate
                 onSubmit={(formEvent) => {
                   formEvent.preventDefault();
-                  handleValidatedSubmit();
+                  if (primaryAction.mode === "next" && primaryAction.targetSection) {
+                    handleNextSection(primaryAction.targetSection);
+                  } else {
+                    handleValidatedSubmit();
+                  }
                 }}
               >
                 <div className="event-editor-content">
@@ -664,21 +713,33 @@ export function EventEditorDialog({
                           </button>
                         </DialogClose>
                         <button
+                          aria-label={primaryAction.accessibleLabel}
                           className="button button--primary"
                           disabled={saveDisabled}
                           type="submit"
                         >
-                          {eventSaveLabel(busy, editingId)}
+                          <span className="event-editor-primary-action__text--full">
+                            {primaryAction.label}
+                          </span>
+                          <span className="event-editor-primary-action__text--short">
+                            {primaryAction.shortLabel}
+                          </span>
                         </button>
                       </>
                     )}
                     {dirty && showBackToTicketing ? (
                       <button
+                        aria-label={primaryAction.accessibleLabel}
                         className="button button--primary"
                         disabled={saveDisabled}
                         type="submit"
                       >
-                        {eventSaveLabel(busy, editingId)}
+                        <span className="event-editor-primary-action__text--full">
+                          {primaryAction.label}
+                        </span>
+                        <span className="event-editor-primary-action__text--short">
+                          {primaryAction.shortLabel}
+                        </span>
                       </button>
                     ) : null}
                   </div>
