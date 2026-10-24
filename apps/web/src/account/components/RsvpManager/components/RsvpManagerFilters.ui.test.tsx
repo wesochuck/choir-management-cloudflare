@@ -208,4 +208,80 @@ describe("RsvpManagerFilters", () => {
     expect(screen.getByRole("button", { name: /T1/i })).toBeDefined();
     expect(screen.getByRole("button", { name: /O1/i })).toBeDefined();
   });
+
+  it("renders both Performance and Other events in the dropdown with (Other) indicator and excludes Rehearsals", () => {
+    const onEventChange = vi.fn();
+    const otherEventId = "33333333-3333-4333-8333-333333333333";
+    const rehearsalEventId = "44444444-4444-4444-8444-444444444444";
+    const mockOtherEvent: OrganizationEvent = organizationEventSchema.parse({
+      callTime: "",
+      createdAt: "2026-08-01T00:00:00Z",
+      details: "Summer Social Gathering",
+      id: otherEventId,
+      location: "Park Pavilion",
+      otherEventRsvpMode: "optional",
+      rsvpDeadlineDate: null,
+      rsvpDeadlinePassed: false,
+      startsAt: "2026-12-20T18:00:00Z",
+      title: "Summer Social",
+      type: "Other",
+      updatedAt: "2026-08-01T00:00:00Z",
+    });
+    const mockRehearsalEvent: OrganizationEvent = organizationEventSchema.parse({
+      callTime: "18:45",
+      createdAt: "2026-08-01T00:00:00Z",
+      details: "Weekly Rehearsal",
+      id: rehearsalEventId,
+      location: "Rehearsal Room",
+      parentPerformanceId: mockEventId,
+      rsvpDeadlineDate: null,
+      rsvpDeadlinePassed: false,
+      startsAt: "2026-12-10T19:00:00Z",
+      title: "Regular Rehearsal",
+      type: "Rehearsal",
+      updatedAt: "2026-08-01T00:00:00Z",
+    });
+
+    render(
+      <RsvpManagerFilters
+        assignmentFilter={null}
+        counts={mockCounts}
+        eventId={mockEventId}
+        events={[mockEvent, mockOtherEvent, mockRehearsalEvent]}
+        filter="active"
+        onEventChange={onEventChange}
+        partLabel="Voice Part"
+        roster={baseRoster}
+        sectionCounts={
+          new Map([
+            ["T", 2],
+            ["B", 2],
+          ])
+        }
+        selectedEvent={mockEvent}
+        setFilter={vi.fn()}
+        setView={vi.fn()}
+        toggleAssignmentFilter={vi.fn()}
+        view="roster"
+        voicePartCounts={
+          new Map([
+            ["T1", 1],
+            ["T2", 1],
+            ["B1", 1],
+            ["B2", 1],
+          ])
+        }
+      />,
+    );
+
+    const select = screen.getByRole("combobox", { name: "Performance" });
+    expect(select).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Choose performance or event" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Holiday Concert/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Summer Social \(Other\)/i })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Regular Rehearsal/i })).not.toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: otherEventId } });
+    expect(onEventChange).toHaveBeenCalledWith(otherEventId);
+  });
 });

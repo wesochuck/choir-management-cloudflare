@@ -72,13 +72,15 @@ export function RsvpManagerFilters({
                 }}
                 value={eventId}
               >
-                <option value="">Choose performance</option>
+                <option value="">Choose performance or event</option>
                 {events
-                  .filter((event) => event.type === "Performance")
+                  .filter((event) => event.type === "Performance" || event.type === "Other")
                   .sort((left, right) => left.startsAt.localeCompare(right.startsAt))
                   .map((event) => (
                     <option key={event.id} value={event.id}>
-                      {event.title} · {displayEventDate(event.startsAt)}
+                      {event.title}
+                      {event.type === "Other" ? " (Other)" : ""} ·{" "}
+                      {displayEventDate(event.startsAt)}
                     </option>
                   ))}
               </select>

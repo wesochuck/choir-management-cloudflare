@@ -124,6 +124,7 @@ export function RsvpManagerPage({
     state.status === "ready"
       ? (state.events.find((candidate) => candidate.id === eventId) ?? null)
       : null;
+  const isOtherEvent = selectedEvent?.type === "Other";
   const profileById = useMemo(
     () =>
       new Map(
@@ -265,8 +266,8 @@ export function RsvpManagerPage({
   }, [history, historyFilter, historyQuery]);
 
   const selectableRows = useMemo(
-    () => visibleRows.filter((row) => row.voicePart.trim() !== ""),
-    [visibleRows],
+    () => visibleRows.filter((row) => isOtherEvent || row.voicePart.trim() !== ""),
+    [isOtherEvent, visibleRows],
   );
   const selectedProfileIdsSet = useMemo(() => new Set(selectedProfileIds), [selectedProfileIds]);
   const selectedVisibleCount = useMemo(
@@ -276,9 +277,10 @@ export function RsvpManagerPage({
   const selectedTargetCount = useMemo(
     () =>
       activeRows.filter(
-        (row) => row.voicePart.trim() !== "" && selectedProfileIdsSet.has(row.profileId),
+        (row) =>
+          (isOtherEvent || row.voicePart.trim() !== "") && selectedProfileIdsSet.has(row.profileId),
       ).length,
-    [activeRows, selectedProfileIdsSet],
+    [activeRows, isOtherEvent, selectedProfileIdsSet],
   );
   const allVisibleSelected =
     selectableRows.length > 0 && selectedVisibleCount === selectableRows.length;
@@ -308,7 +310,8 @@ export function RsvpManagerPage({
 
   async function applyBulkRsvp(next: "Yes" | "No" | "Pending") {
     const targets = activeRows.filter(
-      (row) => row.voicePart.trim() !== "" && selectedProfileIdsSet.has(row.profileId),
+      (row) =>
+        (isOtherEvent || row.voicePart.trim() !== "") && selectedProfileIdsSet.has(row.profileId),
     );
     if (!eventId || targets.length === 0 || bulkBusy || savingId) return;
     const confirmed = await confirm({
@@ -352,7 +355,7 @@ export function RsvpManagerPage({
 
   async function updateRsvp(profileId: string, next: "Yes" | "No" | "Pending") {
     const current = rows.find((row) => row.profileId === profileId);
-    if (!current?.voicePart.trim() || savingId) return;
+    if (!current || (!isOtherEvent && !current.voicePart.trim()) || savingId) return;
     setSavingId(profileId);
     setFeedback(null);
     try {
@@ -400,7 +403,7 @@ export function RsvpManagerPage({
         <input
           aria-label={`Select ${row.displayName}`}
           checked={selectedProfileIdsSet.has(row.profileId)}
-          disabled={bulkBusy || savingId !== null || row.voicePart.trim() === ""}
+          disabled={bulkBusy || savingId !== null || (!isOtherEvent && row.voicePart.trim() === "")}
           onChange={(event) => {
             toggleProfileSelection(row.profileId, event.target.checked);
           }}
@@ -449,7 +452,7 @@ export function RsvpManagerPage({
       header: "Actions",
       id: "actions",
       render: (row) => {
-        if (!row.voicePart.trim()) {
+        if (!isOtherEvent && !row.voicePart.trim()) {
           return (
             <div className="rsvp-row-actions">
               <span className="rsvp-row-actions__message">Assign a part before managing RSVP.</span>

@@ -15,11 +15,15 @@ export function isHistoryFilter(value: string): value is HistoryFilter {
 
 export function nearestUpcomingPerformance(events: readonly OrganizationEvent[]): string {
   const now = Date.now();
-  return (
-    [...events]
-      .filter((event) => event.type === "Performance" && new Date(event.startsAt).getTime() >= now)
-      .sort((left, right) => left.startsAt.localeCompare(right.startsAt))[0]?.id ?? ""
-  );
+  const upcoming = [...events]
+    .filter(
+      (event) =>
+        (event.type === "Performance" || event.type === "Other") &&
+        new Date(event.startsAt).getTime() >= now,
+    )
+    .sort((left, right) => left.startsAt.localeCompare(right.startsAt));
+  const performance = upcoming.find((event) => event.type === "Performance");
+  return performance?.id ?? upcoming[0]?.id ?? "";
 }
 
 export const rsvpHistoryColumns: readonly DataTableColumn<OrganizationEventRsvpHistoryEntry>[] = [

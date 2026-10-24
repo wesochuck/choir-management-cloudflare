@@ -38,11 +38,26 @@ vi.mock("../api", async (importOriginal) => {
     listOrganizationProfiles: vi.fn(() => Promise.resolve(mockProfiles)),
     listOrganizationSeasons: vi.fn(() => Promise.resolve([])),
     requestPasswordReset: vi.fn(() => Promise.resolve()),
+    setOrganizationEventRsvp: vi.fn(() =>
+      Promise.resolve({
+        eventId: eventId1,
+        notes: "",
+        profileId: profileId1,
+        rsvp: "Yes",
+        updatedAt: "2026-08-30T10:00:00Z",
+      }),
+    ),
     updateOrganizationProfile: vi.fn(),
   };
 });
 
-import { listOrganizationProfiles, updateOrganizationProfile } from "../api";
+import {
+  listOrganizationEventAttendance,
+  listOrganizationEvents,
+  listOrganizationProfiles,
+  setOrganizationEventRsvp,
+  updateOrganizationProfile,
+} from "../api";
 
 const requestId = "99999999-9999-4999-8999-999999999999";
 const eventId1 = "11111111-1111-4111-8111-111111111111";
@@ -139,11 +154,11 @@ function first<T>(items: readonly T[]): T {
   return item;
 }
 
-function renderPage(canEditProfiles = true) {
+function renderPage(canEditProfiles = true, targetEventId = eventId1) {
   const queryClient = createTestQueryClient();
   const result = render(
     <QueryClientProvider client={queryClient}>
-      <RsvpManagerPage canEditProfiles={canEditProfiles} enabled eventId={eventId1} />
+      <RsvpManagerPage canEditProfiles={canEditProfiles} enabled eventId={targetEventId} />
     </QueryClientProvider>,
   );
   return { queryClient, ...result };
@@ -152,6 +167,8 @@ function renderPage(canEditProfiles = true) {
 beforeEach(() => {
   vi.mocked(updateOrganizationProfile).mockReset();
   vi.mocked(listOrganizationProfiles).mockResolvedValue(mockProfiles);
+  vi.mocked(listOrganizationEvents).mockResolvedValue(mockEvents);
+  vi.mocked(listOrganizationEventAttendance).mockResolvedValue(mockAttendance);
 });
 
 describe("RsvpManagerPage profile editor (issue #137)", () => {
@@ -327,5 +344,86 @@ describe("RsvpManagerPage toast feedback (#185)", () => {
     const dismissButton = within(toast).getByRole("button", { name: "Dismiss notification" });
     await user.click(dismissButton);
     expect(screen.queryByText("Profile updated.")).not.toBeInTheDocument();
+  });
+});
+
+describe("RsvpManagerPage Other event RSVP management", () => {
+  it("blocks RSVP management for unassigned members on Performance events but allows it on Other events", async () => {
+    const user = userEvent.setup();
+    const eventId2 = "22222222-2222-4222-8222-222222222222";
+    const profileId3 = "33333333-3333-4333-8333-333333333333";
+    const otherEvent = organizationEventSchema.parse({
+      callTime: "",
+      createdAt: "2026-08-01T00:00:00Z",
+      details: "Summer Social Gathering",
+      endsAt: futureIsoDate({ days: 100, hours: 3 }),
+      id: eventId2,
+      location: "Park Pavilion",
+      otherEventRsvpMode: "optional",
+      rsvpDeadlineDate: null,
+      rsvpDeadlinePassed: false,
+      startsAt: futureIsoDate({ days: 100 }),
+      title: "Summer Social",
+      type: "Other",
+      updatedAt: "2026-08-01T00:00:00Z",
+    });
+
+    const unassignedProfile = organizationProfileSchema.parse({
+      createdAt: "2026-08-01T00:00:00Z",
+      displayName: "Bob Builder",
+      globalStatus: "Active",
+      id: profileId3,
+      updatedAt: "2026-08-01T00:00:00Z",
+      voicePart: "",
+    });
+
+    const attendanceWithUnassigned: readonly OrganizationAttendanceRow[] = [
+      ...mockAttendance,
+      {
+        attendance: "Pending",
+        displayName: "Bob Builder",
+        profileId: profileId3,
+        rsvp: "Pending",
+        updatedAt: "2026-08-30T10:00:00Z",
+        voicePart: "",
+      },
+    ];
+
+    vi.mocked(listOrganizationEvents).mockResolvedValue([first(mockEvents), otherEvent]);
+    vi.mocked(listOrganizationProfiles).mockResolvedValue([...mockProfiles, unassignedProfile]);
+    vi.mocked(listOrganizationEventAttendance).mockResolvedValue(attendanceWithUnassigned);
+
+    // 1. On Performance event: Bob has no voice part, so RSVP management is blocked
+    const { unmount } = renderPage(true, eventId1);
+
+    await user.click(await screen.findByRole("button", { name: "All active (3)" }));
+    expect(screen.getAllByText("Assign a part before managing RSVP.").length).toBeGreaterThan(0);
+    const bobCheckbox = first(screen.getAllByRole("checkbox", { name: "Select Bob Builder" }));
+    expect(bobCheckbox).toBeDisabled();
+
+    unmount();
+
+    // 2. On Other event: Bob has no voice part, but can be selected and actioned
+    renderPage(true, eventId2);
+
+    await user.click(await screen.findByRole("button", { name: "All active (3)" }));
+    expect(screen.queryByText("Assign a part before managing RSVP.")).not.toBeInTheDocument();
+
+    const bobCheckboxOther = first(screen.getAllByRole("checkbox", { name: "Select Bob Builder" }));
+    expect(bobCheckboxOther).toBeEnabled();
+
+    // Verify Attending button is enabled and calls setOrganizationEventRsvp
+    const bobName = first(screen.getAllByText("Bob Builder"));
+    const bobRow = bobName.closest("tr") ?? bobName.closest("[role='row']");
+    if (!bobRow) throw new Error("Expected Bob row");
+    const bobAttendingButton = within(bobRow).getByRole("button", { name: "Attending" });
+    await user.click(bobAttendingButton);
+
+    expect(vi.mocked(setOrganizationEventRsvp)).toHaveBeenCalledWith(
+      eventId2,
+      profileId3,
+      "Yes",
+      "",
+    );
   });
 });
