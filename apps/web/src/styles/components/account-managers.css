@@ -30,7 +30,8 @@
     margin-bottom: var(--spacing-md);
   }
 
-  .roster-page-tabs {
+  .roster-page-tabs,
+  .rsvp-page-tabs {
     margin-bottom: var(--spacing-lg);
   }
 

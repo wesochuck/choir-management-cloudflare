@@ -188,6 +188,11 @@ function rosterSectionFromSearch(search: string): "settings" | "automation" | "r
   return section === "settings" || section === "automation" ? section : "roster";
 }
 
+export function rsvpTabFromSearch(search: string): "events" | "automation" {
+  const tab = new URLSearchParams(search).get("tab");
+  return tab === "automation" ? "automation" : "events";
+}
+
 function renderMusicPage({
   focusedEnabled,
   musicCatalogView,
@@ -262,6 +267,7 @@ export function renderOrganizationPage(
   const musicPieceId = routeParams.get("pieceId");
   const musicCatalogView = routeParams.get("view") === "credits" ? "credits" : "catalog";
   const rsvpEventId = routeParams.get("eventId");
+  const rsvpTab = rsvpTabFromSearch(routeState.search);
   const ticketingTab = ticketingTabFromSearch(routeState.search);
   const eventsProps = eventsPagePropsFromSearch(routeState.search);
   const reportTab = reportTabFromSearch(routeState.search);
@@ -364,6 +370,7 @@ export function renderOrganizationPage(
         canEditProfiles={canEditProfiles}
         enabled={focusedEnabled}
         eventId={rsvpEventId}
+        initialTab={rsvpTab}
       />
     ),
     "/admin/settings": <OrganizationSettingsPage enabled={focusedEnabled} />,

@@ -154,11 +154,20 @@ function first<T>(items: readonly T[]): T {
   return item;
 }
 
-function renderPage(canEditProfiles = true, targetEventId = eventId1) {
+function renderPage(
+  canEditProfiles = true,
+  targetEventId = eventId1,
+  initialTab: "events" | "automation" = "events",
+) {
   const queryClient = createTestQueryClient();
   const result = render(
     <QueryClientProvider client={queryClient}>
-      <RsvpManagerPage canEditProfiles={canEditProfiles} enabled eventId={targetEventId} />
+      <RsvpManagerPage
+        canEditProfiles={canEditProfiles}
+        enabled
+        eventId={targetEventId}
+        initialTab={initialTab}
+      />
     </QueryClientProvider>,
   );
   return { queryClient, ...result };
@@ -425,5 +434,44 @@ describe("RsvpManagerPage Other event RSVP management", () => {
       "Yes",
       "",
     );
+  });
+
+  describe("RsvpManagerPage tabs", () => {
+    it("renders Event RSVPs tab as default and allows switching to RSVP automation", async () => {
+      const user = userEvent.setup();
+      renderPage();
+
+      expect(screen.getByRole("tab", { name: "Event RSVPs" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "RSVP automation" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Event RSVPs" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+
+      // Click RSVP automation tab
+      await user.click(screen.getByRole("tab", { name: "RSVP automation" }));
+      expect(screen.getByRole("tab", { name: "RSVP automation" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(
+        await screen.findByRole("region", { name: "RSVP automation settings" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("checkbox", { name: "Convert Pending responses to No at the deadline" }),
+      ).toBeInTheDocument();
+    });
+
+    it("respects initialTab='automation' prop", async () => {
+      renderPage(true, eventId1, "automation");
+
+      expect(screen.getByRole("tab", { name: "RSVP automation" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      expect(
+        await screen.findByRole("region", { name: "RSVP automation settings" }),
+      ).toBeInTheDocument();
+    });
   });
 });

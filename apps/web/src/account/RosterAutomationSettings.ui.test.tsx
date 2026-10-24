@@ -146,25 +146,26 @@ describe("RosterAutomationSettings UI", () => {
     expect(screen.getByText(/On Break → Inactive · On Break timeout is due\./)).toBeInTheDocument();
   });
 
-  it("explains status transitions and links the two distinct automation templates", async () => {
+  it("explains status transitions and keeps RSVP automation settings separate", async () => {
     vi.mocked(api.previewOrganizationRosterAutomation).mockResolvedValue(samplePreview);
     renderComponent();
     expect(
       screen.getByLabelText("Missed Performances before changing Active to Inactive"),
     ).toHaveAccessibleDescription(/becomes Inactive after 3 consecutive missed Performances/);
     expect(
-      screen.getByLabelText("Rehearsal misses before an attendance warning"),
-    ).toHaveAccessibleDescription(/does not change Profile Status/);
+      screen.queryByLabelText("Rehearsal misses before an attendance warning"),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Edit pending RSVP follow-up template/ }),
-    ).toHaveAttribute(
-      "href",
-      "/admin/communications?tab=templates&templateId=5f0ca4a5-7e4c-4e1a-9a1c-000000000015",
-    );
-    expect(screen.getByRole("link", { name: /Edit Attendance Report template/ })).toHaveAttribute(
-      "href",
-      "/admin/communications?tab=templates&templateId=5f0ca4a5-7e4c-4e1a-9a1c-000000000016",
-    );
+      screen.queryByRole("link", { name: /Edit pending RSVP follow-up template/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Edit Attendance Report template/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", {
+        name: "Convert Pending responses to No at the deadline",
+      }),
+    ).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(/Profiles affected/)).toBeInTheDocument());
   });
 
@@ -385,7 +386,7 @@ describe("RosterAutomationSettings UI", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("allows toggling rehearsal attendance reports", async () => {
+  it("allows toggling status automation recovery", async () => {
     const user = userEvent.setup();
     const mockSetDraft = vi.fn();
     const draftReturn = createMockDraftReturn({ setDraft: mockSetDraft });
@@ -394,14 +395,14 @@ describe("RosterAutomationSettings UI", () => {
     renderComponent({ draftReturn });
 
     const checkbox = screen.getByRole("checkbox", {
-      name: "Send attendance reports for Rehearsals",
+      name: "Restore to Active when a future Performance RSVP is Yes",
     });
     expect(checkbox).toBeChecked();
 
     await user.click(checkbox);
     expect(mockSetDraft).toHaveBeenCalledWith({
       ...sampleConfiguration,
-      rehearsalAttendanceReportsEnabled: false,
+      statusAutomationRecoveryEnabled: false,
     });
   });
 });

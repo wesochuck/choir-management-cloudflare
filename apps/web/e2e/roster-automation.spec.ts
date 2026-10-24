@@ -183,7 +183,7 @@ async function routeRosterSettings(page: Page): Promise<void> {
   });
 }
 
-test("explains roster automation, On Break timeout, and configurable RSVP expiry", async ({
+test("explains roster automation, On Break timeout, and live preview", async ({
   page,
 }, testInfo) => {
   await routeRosterSettings(page);
@@ -197,18 +197,20 @@ test("explains roster automation, On Break timeout, and configurable RSVP expiry
   await expect(settings.getByLabel("Days on Break before Inactive")).toHaveValue("365");
   await expect(
     settings.getByRole("checkbox", {
-      name: "Convert Pending responses to No at the deadline",
+      name: "Automatically age out On Break Profiles",
     }),
   ).toBeChecked();
+  await expect(
+    settings.getByRole("checkbox", {
+      name: "Convert Pending responses to No at the deadline",
+    }),
+  ).not.toBeAttached();
   await expect(settings.getByText(/On Break → Inactive · On Break timeout is due\./)).toBeVisible();
   await expect(settings.getByText("On Break transition: Jul 31, 2027")).toBeVisible();
 
   await expect(
     settings.getByText(/Active performer becomes Inactive after 3 consecutive missed Performances/),
   ).toBeVisible();
-  await expect(
-    settings.getByRole("link", { name: /Edit Attendance Report template/ }),
-  ).toHaveAttribute("target", "_blank");
   for (const theme of ["light", "dark"] as const) {
     const toggle = page.getByRole("button", { name: `Switch to ${theme} theme`, exact: true });
     if (await toggle.isVisible()) await toggle.click();
@@ -219,11 +221,48 @@ test("explains roster automation, On Break timeout, and configurable RSVP expiry
     });
   }
   await settings
-    .getByRole("checkbox", { name: "Convert Pending responses to No at the deadline" })
+    .getByRole("checkbox", { name: "Automatically age out On Break Profiles" })
     .uncheck();
   await page
     .locator(".floating-save-bar")
     .getByRole("button", { name: "Save changes" })
     .click({ force: true });
   await expect(page.getByText("Roster automation settings saved.")).toBeVisible();
+});
+
+test("configures RSVP automation settings on the Event RSVPs page", async ({ page }) => {
+  await routeRosterSettings(page);
+  await page.route("**/api/organization/events", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ events: [], requestId }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.goto("/admin/rsvp");
+  await page.getByRole("tab", { name: "RSVP automation" }).click();
+
+  const rsvpSettings = page.getByRole("region", { name: "RSVP automation settings" });
+  await expect(
+    rsvpSettings.getByRole("checkbox", {
+      name: "Convert Pending responses to No at the deadline",
+    }),
+  ).toBeChecked();
+  await expect(
+    rsvpSettings.getByRole("checkbox", {
+      name: "Send the pending RSVP follow-up email",
+    }),
+  ).toBeChecked();
+  await expect(
+    rsvpSettings.getByRole("link", { name: /Edit Attendance Report template/ }),
+  ).toHaveAttribute("target", "_blank");
+
+  await rsvpSettings
+    .getByRole("checkbox", { name: "Convert Pending responses to No at the deadline" })
+    .uncheck();
+  await page
+    .locator(".floating-save-bar")
+    .getByRole("button", { name: "Save changes" })
+    .click({ force: true });
+  await expect(page.getByText("RSVP automation settings saved.")).toBeVisible();
 });

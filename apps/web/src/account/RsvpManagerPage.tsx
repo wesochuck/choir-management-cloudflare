@@ -1,5 +1,13 @@
 import type { OrganizationAttendanceRow } from "@choir/contracts";
-import { DataTable, useConfirmation, type DataTableColumn } from "@choir/ui";
+import {
+  DataTable,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+  useConfirmation,
+  type DataTableColumn,
+} from "@choir/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -31,18 +39,27 @@ import {
 } from "./hooks/useRsvpQueries";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
+import { RsvpAutomationSettings } from "./RsvpAutomationSettings";
 
 // eslint-disable-next-line complexity -- the RSVP manager coordinates filters, per-row updates, and bulk selection in one screen state.
 export function RsvpManagerPage({
   canEditProfiles = true,
   enabled,
   eventId: initialEventId = null,
+  initialTab = "events",
 }: {
   readonly canEditProfiles?: boolean;
   readonly enabled: boolean;
   readonly eventId?: string | null;
+  readonly initialTab?: "events" | "automation";
 }) {
   const { partLabel } = useOrganizationTerminology();
+  const [activeTab, setActiveTab] = useState<"events" | "automation">(initialTab);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync active tab when initialTab prop updates
+    setActiveTab(initialTab);
+  }, [initialTab]);
   const [eventId, setEventId] = useState(initialEventId ?? "");
   const [filter, setFilter] = useState<RsvpFilter>("Yes");
   const [assignmentFilter, setAssignmentFilter] = useState<RsvpAssignmentFilter | null>(null);
@@ -501,158 +518,188 @@ export function RsvpManagerPage({
     return <OrganizationMfaPrompt message="Verify Organization MFA to manage RSVPs." />;
   }
 
-  if (state.status === "loading") return <p role="status">Loading RSVP roster…</p>;
-  if (state.status === "error") {
-    return (
-      <p className="notice notice--error" role="alert">
-        Event and roster data could not be loaded.
-      </p>
-    );
-  }
-
   return (
     <div className="rsvp-manager">
-      {rowsError ? (
-        <p className="notice notice--error" role="alert">
-          {rowsError}
-        </p>
-      ) : null}
-      {profileOpenError ? (
-        <p className="notice notice--error" role="alert">
-          {profileOpenError}{" "}
-          <button
-            className="text-button"
-            onClick={() => {
-              setProfileOpenError(null);
-            }}
-            type="button"
+      <Tabs onValueChange={setActiveTab} value={activeTab}>
+        <TabsList aria-label="RSVP sections" as="nav" className="ticketing-tabs rsvp-page-tabs">
+          <TabsTrigger aria-controls="rsvp-events-panel" id="rsvp-events-tab" value="events">
+            Event RSVPs
+          </TabsTrigger>
+          <TabsTrigger
+            aria-controls="rsvp-automation-panel"
+            id="rsvp-automation-tab"
+            value="automation"
           >
-            Dismiss
-          </button>
-        </p>
-      ) : null}
-      <RsvpManagerFilters
-        assignmentFilter={assignmentFilter}
-        counts={counts}
-        eventId={eventId}
-        events={state.events}
-        filter={filter}
-        onEventChange={(nextEventId) => {
-          setEventId(nextEventId);
-          setFeedback(null);
-          setAssignmentFilter(null);
-          setView("roster");
-          setHistoryFilter("All");
-          setHistoryQuery("");
-          setSelectedProfileIds([]);
-        }}
-        partLabel={partLabel}
-        roster={state.roster}
-        sectionCounts={sectionCounts}
-        selectedEvent={selectedEvent}
-        setFilter={setFilter}
-        setView={setView}
-        toggleAssignmentFilter={toggleAssignmentFilter}
-        view={view}
-        voicePartCounts={voicePartCounts}
-      />
+            RSVP automation
+          </TabsTrigger>
+        </TabsList>
 
-      <>
-        <fieldset className="surface-card rsvp-manager__roster" hidden={view !== "roster"}>
-          <legend id="rsvp-roster-title">RSVP roster</legend>
-          <div className="rsvp-manager__controls">
-            <label className="field rsvp-manager__search">
-              <span>Search active singers</span>
-              <input
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                }}
-                placeholder={`Name or ${partLabel.toLowerCase()}`}
-                ref={searchInputRef}
-                value={query}
-              />
-            </label>
-          </div>
-          <div className="rsvp-manager__table-heading">
-            <span>{rowsLoading ? "Loading…" : `${String(visibleRows.length)} shown`}</span>
-          </div>
-          {selectedTargetCount > 0 ? (
-            <div className="roster-bulk-actions" aria-label="Bulk RSVP actions" role="region">
-              <div>
-                <strong>{selectedTargetCount} selected</strong>
-                <p>Bulk changes are applied after you confirm the action.</p>
-              </div>
-              <div className="roster-bulk-actions__buttons">
-                <button
-                  className="button button--secondary"
-                  disabled={bulkBusy || savingId !== null}
-                  onClick={() => {
-                    void applyBulkRsvp("Yes");
-                  }}
-                  type="button"
-                >
-                  {bulkBusy ? "Updating…" : "Mark attending"}
-                </button>
-                <button
-                  className="button button--secondary"
-                  disabled={bulkBusy || savingId !== null}
-                  onClick={() => {
-                    void applyBulkRsvp("No");
-                  }}
-                  type="button"
-                >
-                  Mark declined
-                </button>
-                <button
-                  className="button button--secondary"
-                  disabled={bulkBusy || savingId !== null}
-                  onClick={() => {
-                    void applyBulkRsvp("Pending");
-                  }}
-                  type="button"
-                >
-                  Reset to no response
-                </button>
-                <button
-                  className="text-button"
-                  disabled={bulkBusy}
-                  onClick={() => {
-                    setSelectedProfileIds([]);
-                  }}
-                  type="button"
-                >
-                  Clear selection
-                </button>
-              </div>
-            </div>
-          ) : null}
-          {visibleRows.length === 0 ? (
-            <p className="empty-state">No active profiles match this RSVP filter.</p>
+        <TabsContent
+          aria-labelledby="rsvp-events-tab"
+          className="rsvp-manager__tab-content"
+          id="rsvp-events-panel"
+          value="events"
+        >
+          {state.status === "loading" ? (
+            <p role="status">Loading RSVP roster…</p>
+          ) : state.status === "error" ? (
+            <p className="notice notice--error" role="alert">
+              Event and roster data could not be loaded.
+            </p>
           ) : (
-            <DataTable
-              columns={rsvpRosterColumns}
-              keySelector={(row) => row.profileId}
-              rows={visibleRows}
-            />
+            <>
+              {rowsError ? (
+                <p className="notice notice--error" role="alert">
+                  {rowsError}
+                </p>
+              ) : null}
+              {profileOpenError ? (
+                <p className="notice notice--error" role="alert">
+                  {profileOpenError}{" "}
+                  <button
+                    className="text-button"
+                    onClick={() => {
+                      setProfileOpenError(null);
+                    }}
+                    type="button"
+                  >
+                    Dismiss
+                  </button>
+                </p>
+              ) : null}
+              <RsvpManagerFilters
+                assignmentFilter={assignmentFilter}
+                counts={counts}
+                eventId={eventId}
+                events={state.events}
+                filter={filter}
+                onEventChange={(nextEventId) => {
+                  setEventId(nextEventId);
+                  setFeedback(null);
+                  setAssignmentFilter(null);
+                  setView("roster");
+                  setHistoryFilter("All");
+                  setHistoryQuery("");
+                  setSelectedProfileIds([]);
+                }}
+                partLabel={partLabel}
+                roster={state.roster}
+                sectionCounts={sectionCounts}
+                selectedEvent={selectedEvent}
+                setFilter={setFilter}
+                setView={setView}
+                toggleAssignmentFilter={toggleAssignmentFilter}
+                view={view}
+                voicePartCounts={voicePartCounts}
+              />
+
+              <fieldset className="surface-card rsvp-manager__roster" hidden={view !== "roster"}>
+                <legend id="rsvp-roster-title">RSVP roster</legend>
+                <div className="rsvp-manager__controls">
+                  <label className="field rsvp-manager__search">
+                    <span>Search active singers</span>
+                    <input
+                      onChange={(event) => {
+                        setQuery(event.target.value);
+                      }}
+                      placeholder={`Name or ${partLabel.toLowerCase()}`}
+                      ref={searchInputRef}
+                      value={query}
+                    />
+                  </label>
+                </div>
+                <div className="rsvp-manager__table-heading">
+                  <span>{rowsLoading ? "Loading…" : `${String(visibleRows.length)} shown`}</span>
+                </div>
+                {selectedTargetCount > 0 ? (
+                  <div className="roster-bulk-actions" aria-label="Bulk RSVP actions" role="region">
+                    <div>
+                      <strong>{selectedTargetCount} selected</strong>
+                      <p>Bulk changes are applied after you confirm the action.</p>
+                    </div>
+                    <div className="roster-bulk-actions__buttons">
+                      <button
+                        className="button button--secondary"
+                        disabled={bulkBusy || savingId !== null}
+                        onClick={() => {
+                          void applyBulkRsvp("Yes");
+                        }}
+                        type="button"
+                      >
+                        {bulkBusy ? "Updating…" : "Mark attending"}
+                      </button>
+                      <button
+                        className="button button--secondary"
+                        disabled={bulkBusy || savingId !== null}
+                        onClick={() => {
+                          void applyBulkRsvp("No");
+                        }}
+                        type="button"
+                      >
+                        Mark declined
+                      </button>
+                      <button
+                        className="button button--secondary"
+                        disabled={bulkBusy || savingId !== null}
+                        onClick={() => {
+                          void applyBulkRsvp("Pending");
+                        }}
+                        type="button"
+                      >
+                        Reset to no response
+                      </button>
+                      <button
+                        className="text-button"
+                        disabled={bulkBusy}
+                        onClick={() => {
+                          setSelectedProfileIds([]);
+                        }}
+                        type="button"
+                      >
+                        Clear selection
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                {visibleRows.length === 0 ? (
+                  <p className="empty-state">No active profiles match this RSVP filter.</p>
+                ) : (
+                  <DataTable
+                    columns={rsvpRosterColumns}
+                    keySelector={(row) => row.profileId}
+                    rows={visibleRows}
+                  />
+                )}
+              </fieldset>
+              <RsvpHistoryTable
+                filteredHistory={filteredHistory}
+                historyError={historyError}
+                historyFilter={historyFilter}
+                historyLoading={historyLoading}
+                historyQuery={historyQuery}
+                onRetry={() => {
+                  void historyQueryData.refetch();
+                }}
+                setHistoryFilter={(nextFilter) => {
+                  if (isHistoryFilter(nextFilter)) setHistoryFilter(nextFilter);
+                }}
+                setHistoryQuery={setHistoryQuery}
+                totalHistoryCount={history.length}
+                view={view}
+              />
+            </>
           )}
-        </fieldset>
-        <RsvpHistoryTable
-          filteredHistory={filteredHistory}
-          historyError={historyError}
-          historyFilter={historyFilter}
-          historyLoading={historyLoading}
-          historyQuery={historyQuery}
-          onRetry={() => {
-            void historyQueryData.refetch();
-          }}
-          setHistoryFilter={(nextFilter) => {
-            if (isHistoryFilter(nextFilter)) setHistoryFilter(nextFilter);
-          }}
-          setHistoryQuery={setHistoryQuery}
-          totalHistoryCount={history.length}
-          view={view}
-        />
-      </>
+        </TabsContent>
+
+        <TabsContent
+          aria-labelledby="rsvp-automation-tab"
+          className="rsvp-manager__tab-content"
+          id="rsvp-automation-panel"
+          value="automation"
+        >
+          <RsvpAutomationSettings enabled={enabled} />
+        </TabsContent>
+      </Tabs>
       {canEditProfiles ? (
         <ProfileEditorDialog
           {...profileEditor.dialogProps}

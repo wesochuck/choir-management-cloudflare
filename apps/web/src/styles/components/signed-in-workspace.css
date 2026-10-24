@@ -470,7 +470,8 @@
 
   /* RSVP manager and member dashboard */
 
-  .rsvp-manager {
+  .rsvp-manager,
+  .rsvp-manager__tab-content {
     display: grid;
     gap: var(--spacing-lg);
   }
