@@ -1,5 +1,6 @@
 import type {
   OrganizationEventRequest,
+  OrganizationProfile,
   OrganizationRosterConfiguration,
   OrganizationVenue,
 } from "@choir/contracts";
@@ -1775,5 +1776,394 @@ describe("EventEditorDialog progressive Next / Create event button flow", () => 
     );
 
     expect(screen.getByRole("button", { name: "Save event" })).toBeInTheDocument();
+  });
+});
+
+const sampleActiveProfiles: readonly OrganizationProfile[] = [
+  {
+    bounceReason: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    displayName: "Alice Smith",
+    doNotEmail: false,
+    email: "alice@example.com",
+    globalStatus: "Active",
+    hidden: false,
+    id: "11111111-1111-4111-8111-111111111111",
+    isSectionLeader: false,
+    lastBounceAt: "",
+    notes: "",
+    onBreakInactiveAt: null,
+    phone: "",
+    photoFileId: null,
+    providerEmailSuppressed: false,
+    receiveAdminNotifications: false,
+    receiveAttendanceReports: true,
+    receiveFinancialAlerts: false,
+    receiveOtherEventReminders: true,
+    receivePerformanceReminders: true,
+    receiveRehearsalReminders: true,
+    receiveRsvpDeclineNotices: false,
+    showEmailInDirectory: true,
+    showInDirectory: true,
+    showPhoneInDirectory: true,
+    statusChangedAt: "2026-01-01T00:00:00Z",
+    statusChangeReason: "",
+    statusIsManual: false,
+    updatedAt: "2026-01-01T00:00:00Z",
+    voicePart: "Soprano",
+  },
+  {
+    bounceReason: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    displayName: "Bob Jones",
+    doNotEmail: false,
+    email: "bob@example.com",
+    globalStatus: "Active",
+    hidden: false,
+    id: "22222222-2222-4222-8222-222222222222",
+    isSectionLeader: false,
+    lastBounceAt: "",
+    notes: "",
+    onBreakInactiveAt: null,
+    phone: "",
+    photoFileId: null,
+    providerEmailSuppressed: false,
+    receiveAdminNotifications: false,
+    receiveAttendanceReports: true,
+    receiveFinancialAlerts: false,
+    receiveOtherEventReminders: true,
+    receivePerformanceReminders: true,
+    receiveRehearsalReminders: true,
+    receiveRsvpDeclineNotices: false,
+    showEmailInDirectory: true,
+    showInDirectory: true,
+    showPhoneInDirectory: true,
+    statusChangedAt: "2026-01-01T00:00:00Z",
+    statusChangeReason: "",
+    statusIsManual: false,
+    updatedAt: "2026-01-01T00:00:00Z",
+    voicePart: "Bass",
+  },
+  {
+    bounceReason: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    displayName: "Charlie Brown",
+    doNotEmail: false,
+    email: "charlie@example.com",
+    globalStatus: "Active",
+    hidden: false,
+    id: "33333333-3333-4333-8333-333333333333",
+    isSectionLeader: false,
+    lastBounceAt: "",
+    notes: "",
+    onBreakInactiveAt: null,
+    phone: "",
+    photoFileId: null,
+    providerEmailSuppressed: false,
+    receiveAdminNotifications: false,
+    receiveAttendanceReports: true,
+    receiveFinancialAlerts: false,
+    receiveOtherEventReminders: true,
+    receivePerformanceReminders: true,
+    receiveRehearsalReminders: true,
+    receiveRsvpDeclineNotices: false,
+    showEmailInDirectory: true,
+    showInDirectory: true,
+    showPhoneInDirectory: true,
+    statusChangedAt: "2026-01-01T00:00:00Z",
+    statusChangeReason: "",
+    statusIsManual: false,
+    updatedAt: "2026-01-01T00:00:00Z",
+    voicePart: "Tenor",
+  },
+  {
+    bounceReason: "",
+    createdAt: "2026-01-01T00:00:00Z",
+    displayName: "Inactive Singer",
+    doNotEmail: false,
+    email: "inactive@example.com",
+    globalStatus: "Inactive",
+    hidden: false,
+    id: "44444444-4444-4444-8444-444444444444",
+    isSectionLeader: false,
+    lastBounceAt: "",
+    notes: "",
+    onBreakInactiveAt: null,
+    phone: "",
+    photoFileId: null,
+    providerEmailSuppressed: false,
+    receiveAdminNotifications: false,
+    receiveAttendanceReports: true,
+    receiveFinancialAlerts: false,
+    receiveOtherEventReminders: true,
+    receivePerformanceReminders: true,
+    receiveRehearsalReminders: true,
+    receiveRsvpDeclineNotices: false,
+    showEmailInDirectory: true,
+    showInDirectory: true,
+    showPhoneInDirectory: true,
+    statusChangedAt: "2026-01-01T00:00:00Z",
+    statusChangeReason: "",
+    statusIsManual: false,
+    updatedAt: "2026-01-01T00:00:00Z",
+    voicePart: "Alto",
+  },
+];
+
+describe("EventEditorDialog Targeted Audience member combobox and chips", () => {
+  it("allows searching and selecting members into chips, removing chips, and clearing all chips", async () => {
+    vi.mocked(listOrganizationProfiles).mockResolvedValue([...sampleActiveProfiles]);
+    const user = userEvent.setup();
+    let draft: OrganizationEventRequest = {
+      ...emptyEvent,
+      otherEventAudience: {
+        profileIds: [],
+        type: "targeted",
+        voiceParts: [],
+      },
+      title: "Committee Meeting",
+      type: "Other",
+      venueId: venueHall.id,
+    };
+
+    const Harness = () => {
+      const setEvent = (change: SetStateAction<OrganizationEventRequest>) => {
+        draft = typeof change === "function" ? change(draft) : change;
+      };
+      return (
+        <EventEditorDialog
+          busy={false}
+          dialogOpen={true}
+          editingId={null}
+          error={null}
+          event={draft}
+          eventStart="2026-11-20T18:00"
+          graphicFile={null}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          setEvent={setEvent}
+          setEventStart={vi.fn()}
+          setGraphicFile={vi.fn()}
+          state={stateWithVenues([venueHall])}
+        />
+      );
+    };
+
+    const { rerender } = render(<Harness />);
+    await switchToSection(/RSVPs & reminders/);
+
+    const combobox = await screen.findByRole("combobox", { name: "Search specific members" });
+    expect(combobox).toBeInTheDocument();
+    expect(screen.getByText(/selected in targeted audience/)).toHaveTextContent(
+      "0 members selected in targeted audience",
+    );
+
+    // Search for Alice Smith
+    await user.click(combobox);
+    await user.type(combobox, "Alice");
+
+    const aliceOption = await screen.findByRole("option", { name: /Alice Smith/ });
+    expect(aliceOption).toBeInTheDocument();
+    expect(aliceOption).toHaveTextContent("Soprano");
+    await user.click(aliceOption);
+
+    rerender(<Harness />);
+
+    // Alice should be added as a chip and combobox input should be cleared
+    expect(screen.getByText("Alice Smith")).toBeInTheDocument();
+    expect(combobox).toHaveValue("");
+    expect(screen.getByText(/selected in targeted audience/)).toHaveTextContent(
+      "1 member selected in targeted audience",
+    );
+
+    // Clear all should NOT be visible with only 1 chip
+    expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
+
+    // Search and add Bob Jones
+    await user.click(combobox);
+    await user.type(combobox, "Bob");
+
+    const bobOption = await screen.findByRole("option", { name: /Bob Jones/ });
+    await user.click(bobOption);
+
+    rerender(<Harness />);
+
+    expect(screen.getByText("Alice Smith")).toBeInTheDocument();
+    expect(screen.getByText("Bob Jones")).toBeInTheDocument();
+    expect(screen.getByText(/selected in targeted audience/)).toHaveTextContent(
+      "2 members selected in targeted audience",
+    );
+
+    // Clear all should be visible with multiple chips
+    const clearAllBtn = screen.getByRole("button", { name: "Clear all" });
+    expect(clearAllBtn).toBeInTheDocument();
+
+    // Remove Alice Smith via individual chip remove button
+    const removeAliceBtn = screen.getByRole("button", { name: "Remove Alice Smith" });
+    await user.click(removeAliceBtn);
+
+    rerender(<Harness />);
+
+    expect(screen.queryByText("Alice Smith")).not.toBeInTheDocument();
+    expect(screen.getByText("Bob Jones")).toBeInTheDocument();
+    expect(screen.getByText(/selected in targeted audience/)).toHaveTextContent(
+      "1 member selected in targeted audience",
+    );
+    expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
+
+    // Add Charlie Brown
+    await user.click(combobox);
+    await user.type(combobox, "Charlie");
+    const charlieOption = await screen.findByRole("option", { name: /Charlie Brown/ });
+    await user.click(charlieOption);
+
+    rerender(<Harness />);
+
+    expect(screen.getByText("Bob Jones")).toBeInTheDocument();
+    expect(screen.getByText("Charlie Brown")).toBeInTheDocument();
+    expect(screen.getByText(/selected in targeted audience/)).toHaveTextContent(
+      "2 members selected in targeted audience",
+    );
+
+    // Click Clear all to remove all chips
+    await user.click(screen.getByRole("button", { name: "Clear all" }));
+
+    rerender(<Harness />);
+
+    expect(screen.queryByText("Bob Jones")).not.toBeInTheDocument();
+    expect(screen.queryByText("Charlie Brown")).not.toBeInTheDocument();
+    expect(screen.getByText(/selected in targeted audience/)).toHaveTextContent(
+      "0 members selected in targeted audience",
+    );
+  });
+
+  it("excludes already selected members from autocomplete options", async () => {
+    vi.mocked(listOrganizationProfiles).mockResolvedValue([...sampleActiveProfiles]);
+    const user = userEvent.setup();
+    const draft: OrganizationEventRequest = {
+      ...emptyEvent,
+      otherEventAudience: {
+        profileIds: ["11111111-1111-4111-8111-111111111111"], // Alice Smith
+        type: "targeted",
+        voiceParts: [],
+      },
+      title: "Committee Meeting",
+      type: "Other",
+      venueId: venueHall.id,
+    };
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId={null}
+        error={null}
+        event={draft}
+        eventStart="2026-11-20T18:00"
+        graphicFile={null}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+    await switchToSection(/RSVPs & reminders/);
+
+    const combobox = await screen.findByRole("combobox", { name: "Search specific members" });
+    // Alice is already a chip
+    expect(screen.getByText("Alice Smith")).toBeInTheDocument();
+
+    // Focus combobox and trigger listbox via Down Arrow
+    await user.click(combobox);
+    await user.keyboard("{ArrowDown}");
+
+    const listbox = await screen.findByRole("listbox");
+    expect(listbox).toBeInTheDocument();
+
+    // Bob and Charlie should be in the listbox options, but NOT Alice
+    const options = screen.getAllByRole("option");
+    const optionLabels = options.map((opt) => opt.textContent);
+    expect(optionLabels.some((label) => label.includes("Bob Jones"))).toBe(true);
+    expect(optionLabels.some((label) => label.includes("Charlie Brown"))).toBe(true);
+    expect(optionLabels.some((label) => label.includes("Alice Smith"))).toBe(false);
+  });
+
+  it("deduplicates audience counter when member is covered by both voice part and specific selection", async () => {
+    vi.mocked(listOrganizationProfiles).mockResolvedValue([...sampleActiveProfiles]);
+    const user = userEvent.setup();
+    let draft: OrganizationEventRequest = {
+      ...emptyEvent,
+      otherEventAudience: {
+        profileIds: [],
+        type: "targeted",
+        voiceParts: ["Soprano"],
+      },
+      title: "Soprano Sectional",
+      type: "Other",
+      venueId: venueHall.id,
+    };
+
+    const Harness = () => {
+      const setEvent = (change: SetStateAction<OrganizationEventRequest>) => {
+        draft = typeof change === "function" ? change(draft) : change;
+      };
+      return (
+        <EventEditorDialog
+          busy={false}
+          dialogOpen={true}
+          editingId={null}
+          error={null}
+          event={draft}
+          eventStart="2026-11-20T18:00"
+          graphicFile={null}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          setEvent={setEvent}
+          setEventStart={vi.fn()}
+          setGraphicFile={vi.fn()}
+          state={stateWithVenues([venueHall])}
+        />
+      );
+    };
+
+    const { rerender } = render(<Harness />);
+    await switchToSection(/RSVPs & reminders/);
+
+    const combobox = await screen.findByRole("combobox", { name: "Search specific members" });
+
+    // Since Soprano is checked, Alice (Soprano) is already counted
+    expect(screen.getByText(/selected in targeted audience/)).toHaveTextContent(
+      "1 member selected in targeted audience",
+    );
+
+    // Add Alice Smith as a specific member as well
+    await user.click(combobox);
+    await user.type(combobox, "Alice");
+    const aliceOption = await screen.findByRole("option", { name: /Alice Smith/ });
+    await user.click(aliceOption);
+
+    rerender(<Harness />);
+
+    // Count remains 1 because Alice was already counted via Soprano
+    expect(screen.getByText("Alice Smith")).toBeInTheDocument();
+    expect(screen.getByText(/selected in targeted audience/)).toHaveTextContent(
+      "1 member selected in targeted audience",
+    );
+
+    // Add Bob Jones (Bass)
+    await user.click(combobox);
+    await user.type(combobox, "Bob");
+    const bobOption = await screen.findByRole("option", { name: /Bob Jones/ });
+    await user.click(bobOption);
+
+    rerender(<Harness />);
+
+    // Count increases to 2
+    expect(screen.getByText("Bob Jones")).toBeInTheDocument();
+    expect(screen.getByText(/selected in targeted audience/)).toHaveTextContent(
+      "2 members selected in targeted audience",
+    );
   });
 });

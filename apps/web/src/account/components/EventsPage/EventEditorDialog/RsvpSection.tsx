@@ -3,7 +3,7 @@ import type {
   OrganizationProfile,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
-import { NumberInput, TabsContent } from "@choir/ui";
+import { Autocomplete, type AutocompleteOption, NumberInput, TabsContent } from "@choir/ui";
 import { type Dispatch, type SetStateAction, useEffect, useMemo, useState } from "react";
 
 import { getOrganizationRosterConfiguration, listOrganizationProfiles } from "../../../../api";
@@ -46,6 +46,75 @@ function TargetedAudiencePicker({
   readonly targetedVoiceParts: readonly string[];
 }) {
   const { partLabelPlural } = useOrganizationTerminology();
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+
+  const profileMap = useMemo(() => {
+    return new Map(activeProfiles.map((profile) => [profile.id, profile]));
+  }, [activeProfiles]);
+
+  const selectedProfiles = useMemo(() => {
+    return targetedProfileIds.map((id) => {
+      const match = profileMap.get(id);
+      return match ?? { displayName: "Unknown member", id, voicePart: "" };
+    });
+  }, [targetedProfileIds, profileMap]);
+
+  const searchOptions = useMemo<readonly AutocompleteOption[]>(() => {
+    const selectedSet = new Set(targetedProfileIds);
+    const unselected = activeProfiles.filter((p) => !selectedSet.has(p.id));
+    const query = memberSearchQuery.trim().toLowerCase();
+    const matching =
+      query === ""
+        ? unselected
+        : unselected.filter(
+            (p) =>
+              p.displayName.toLowerCase().includes(query) ||
+              p.voicePart.toLowerCase().includes(query),
+          );
+    const sorted = [...matching].sort((a, b) => a.displayName.localeCompare(b.displayName));
+    const limited = query === "" ? sorted.slice(0, 20) : sorted.slice(0, 50);
+    return limited.map((p) => ({
+      id: p.id,
+      label: p.displayName,
+    }));
+  }, [activeProfiles, memberSearchQuery, targetedProfileIds]);
+
+  const handleSelectMember = (option: AutocompleteOption) => {
+    if (!targetedProfileIds.includes(option.id)) {
+      setEvent((current) => ({
+        ...current,
+        otherEventAudience: {
+          profileIds: [...targetedProfileIds, option.id],
+          type: "targeted",
+          voiceParts: [...targetedVoiceParts],
+        },
+      }));
+    }
+    setMemberSearchQuery("");
+  };
+
+  const handleRemoveMember = (profileId: string) => {
+    setEvent((current) => ({
+      ...current,
+      otherEventAudience: {
+        profileIds: targetedProfileIds.filter((id) => id !== profileId),
+        type: "targeted",
+        voiceParts: [...targetedVoiceParts],
+      },
+    }));
+  };
+
+  const handleClearAllMembers = () => {
+    setEvent((current) => ({
+      ...current,
+      otherEventAudience: {
+        profileIds: [],
+        type: "targeted",
+        voiceParts: [...targetedVoiceParts],
+      },
+    }));
+  };
+
   return (
     <div className="targeted-audience-picker">
       <fieldset className="field">
@@ -77,34 +146,65 @@ function TargetedAudiencePicker({
       </fieldset>
       <fieldset className="field">
         <legend>Specific members</legend>
-        <div
-          className="checkbox-list"
-          id="events-page-targeted-members"
-          style={{ maxHeight: "200px", overflowY: "auto" }}
-        >
-          {activeProfiles.map((p) => (
-            <label className="checkbox-row" key={p.id}>
-              <input
-                checked={targetedProfileIds.includes(p.id)}
-                onChange={(e) => {
-                  const next = e.target.checked
-                    ? [...targetedProfileIds, p.id]
-                    : targetedProfileIds.filter((item) => item !== p.id);
-                  setEvent((current) => ({
-                    ...current,
-                    otherEventAudience: {
-                      profileIds: next,
-                      type: "targeted",
-                      voiceParts: [...targetedVoiceParts],
-                    },
-                  }));
-                }}
-                type="checkbox"
-              />
-              {p.displayName} {p.voicePart ? `(${p.voicePart})` : ""}
-            </label>
-          ))}
+        <div className="targeted-members-search">
+          <Autocomplete
+            ariaLabel="Search specific members"
+            id="events-page-targeted-members-search"
+            onSelect={handleSelectMember}
+            onValueChange={setMemberSearchQuery}
+            options={searchOptions}
+            placeholder="Search members by name or part..."
+            renderOption={(option) => {
+              const profile = profileMap.get(option.id);
+              return (
+                <div className="targeted-member-option">
+                  <span>{option.label}</span>
+                  {profile?.voicePart ? (
+                    <span className="autocomplete__badge">{profile.voicePart}</span>
+                  ) : null}
+                </div>
+              );
+            }}
+            value={memberSearchQuery}
+          />
         </div>
+        {selectedProfiles.length > 0 ? (
+          <div
+            aria-label="Selected specific members"
+            className="targeted-members-chips"
+            role="list"
+          >
+            {selectedProfiles.map((p) => (
+              <span className="targeted-member-chip" key={p.id} role="listitem">
+                <span className="targeted-member-chip__name">{p.displayName}</span>
+                {p.voicePart ? (
+                  <span className="targeted-member-chip__voice">{p.voicePart}</span>
+                ) : null}
+                <button
+                  aria-label={`Remove ${p.displayName}`}
+                  className="targeted-member-chip__remove"
+                  onClick={() => {
+                    handleRemoveMember(p.id);
+                  }}
+                  type="button"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {selectedProfiles.length > 1 ? (
+              <button
+                className="button button--ghost button--xs"
+                onClick={() => {
+                  handleClearAllMembers();
+                }}
+                type="button"
+              >
+                Clear all
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </fieldset>
       <p className="notice notice--info" role="status">
         <strong>{deduplicatedCount}</strong> {deduplicatedCount === 1 ? "member" : "members"}{" "}
@@ -168,15 +268,15 @@ function OtherEventRsvpPanel({
     if (event.otherEventAudience?.type !== "targeted") {
       return activeProfiles.length;
     }
-    const matched = new Set<string>();
+    const profileIdSet = new Set(targetedProfileIds);
+    const voicePartSet = new Set(targetedVoiceParts);
+    let count = 0;
     for (const p of activeProfiles) {
-      if (targetedProfileIds.includes(p.id)) {
-        matched.add(p.id);
-      } else if (p.voicePart && targetedVoiceParts.includes(p.voicePart)) {
-        matched.add(p.id);
+      if (profileIdSet.has(p.id) || (p.voicePart && voicePartSet.has(p.voicePart))) {
+        count++;
       }
     }
-    return matched.size;
+    return count;
   }, [activeProfiles, event.otherEventAudience, targetedProfileIds, targetedVoiceParts]);
 
   return (

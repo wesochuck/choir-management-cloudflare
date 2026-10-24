@@ -578,6 +578,82 @@
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
   }
 
+  /* Targeted audience member search & chips */
+  .targeted-members-search {
+    position: relative;
+    width: 100%;
+  }
+
+  .targeted-members-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-xs);
+  }
+
+  .targeted-member-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-2xs);
+    padding: var(--spacing-3xs) var(--spacing-2xs) var(--spacing-3xs) var(--spacing-xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-tight);
+    max-width: 100%;
+  }
+
+  .targeted-member-chip__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .targeted-member-chip__voice {
+    padding: var(--spacing-3xs) var(--spacing-2xs);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-bold);
+    background: color-mix(in srgb, var(--color-text-muted) 18%, transparent);
+    color: var(--color-text-muted);
+  }
+
+  .targeted-member-chip__remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-full);
+    color: var(--color-text-muted);
+    background: transparent;
+    cursor: pointer;
+    font-size: var(--font-size-md);
+    line-height: 1;
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
+  }
+
+  .targeted-member-chip__remove:hover,
+  .targeted-member-chip__remove:focus-visible {
+    color: var(--color-danger-text);
+    background: var(--color-danger-bg);
+  }
+
+  .targeted-member-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: var(--spacing-xs);
+  }
+
   @media (max-width: 53.125rem) {
     .event-editor-header {
       flex-wrap: wrap;
