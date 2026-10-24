@@ -325,4 +325,122 @@ describe("DashboardView", () => {
     fireEvent.click(seatingLink);
     expect(navigate).toHaveBeenCalledWith("/seating/event-perf-5678");
   });
+
+  it("displays server error message when RSVP update fails with AuthApiError", async () => {
+    const dashboardWithOtherEvent: MemberDashboardResponse = {
+      ...mockDashboard,
+      events: [
+        {
+          attendanceWarning: null,
+          callTime: "",
+          details: "Volunteers welcome",
+          directRsvp: "Pending",
+          durationMinutes: 60,
+          featuredAssignments: [],
+          id: "event-other-1",
+          inheritedFromParent: false,
+          isInvited: true,
+          location: "",
+          otherEventRsvpMode: "optional",
+          practice: {
+            sourceEventId: null,
+            status: "not_published",
+            trackCount: 0,
+          },
+          resolvedRsvp: "Pending",
+          rsvpDeadlineAt: null,
+          rsvpDeadlineDate: null,
+          rsvpDeadlinePassed: false,
+          rsvpNote: "",
+          rsvpSelfServiceOpen: true,
+          seating: { status: "not_published" },
+          setList: [],
+          startsAt: "2026-11-01T10:00:00Z",
+          title: "Community Clean Up",
+          type: "Other",
+          venueAddress: "",
+          venueName: "",
+          volunteerCount: 0,
+          volunteerGoal: 5,
+        },
+      ],
+    };
+
+    vi.spyOn(authApi, "getMemberDashboard").mockResolvedValue(dashboardWithOtherEvent);
+    vi.spyOn(authApi, "setMyEventRsvp").mockRejectedValueOnce(
+      new authApi.AuthApiError(
+        "Assign a voice part before submitting an RSVP.",
+        422,
+        "rsvp_voice_part_required",
+      ),
+    );
+
+    render(<DashboardView accessStatus="ready" enabled={true} navigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Community Clean Up")).toBeInTheDocument();
+    });
+
+    const attendButton = screen.getByRole("button", { name: "Attend" });
+    fireEvent.click(attendButton);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Assign a voice part before submitting an RSVP."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("omits RSVP buttons and status badge for Other events when RSVP mode is off", async () => {
+    const dashboardWithOffEvent: MemberDashboardResponse = {
+      ...mockDashboard,
+      events: [
+        {
+          attendanceWarning: null,
+          callTime: "",
+          details: "Informational event",
+          directRsvp: "Pending",
+          durationMinutes: 60,
+          featuredAssignments: [],
+          id: "event-other-off",
+          inheritedFromParent: false,
+          isInvited: false,
+          location: "",
+          otherEventRsvpMode: "off",
+          practice: {
+            sourceEventId: null,
+            status: "not_published",
+            trackCount: 0,
+          },
+          resolvedRsvp: "Pending",
+          rsvpDeadlineAt: null,
+          rsvpDeadlineDate: null,
+          rsvpDeadlinePassed: false,
+          rsvpNote: "",
+          rsvpSelfServiceOpen: false,
+          seating: { status: "not_published" },
+          setList: [],
+          startsAt: "2026-11-01T10:00:00Z",
+          title: "Board Meeting Informational",
+          type: "Other",
+          venueAddress: "",
+          venueName: "",
+          volunteerCount: 0,
+          volunteerGoal: null,
+        },
+      ],
+    };
+
+    vi.spyOn(authApi, "getMemberDashboard").mockResolvedValueOnce(dashboardWithOffEvent);
+
+    render(<DashboardView accessStatus="ready" enabled={true} navigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Board Meeting Informational")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("button", { name: "Attend" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Decline" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Needs response")).not.toBeInTheDocument();
+  });
 });

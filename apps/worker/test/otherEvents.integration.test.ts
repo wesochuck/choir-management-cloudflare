@@ -208,4 +208,138 @@ describe("Other Events with targeted RSVP, open volunteering, and staffing goals
     const errorJson = await rsvpOffRes.json();
     expect(errorJson).toMatchObject({ code: "rsvp_closed" });
   });
+
+  it("allows members without an assigned voice part to RSVP to Other events, while still requiring voice parts for Rehearsals and Performances", async () => {
+    const cookie = await signIn();
+
+    // 1. Setup profile with NO voice part
+    const profile = organizationProfileResponseSchema.parse(
+      await (
+        await post("alpha.localhost", "/api/organization/profiles", cookie, {
+          displayName: "Wes NonSinger",
+          voicePart: "",
+        })
+      ).json(),
+    );
+    await database
+      .prepare(
+        `UPDATE member SET profileId = ?
+         WHERE organizationId = 'organization-alpha' AND userId = 'other-events-manager'`,
+      )
+      .bind(profile.id)
+      .run();
+
+    const venue = organizationVenueSchema.parse(
+      await (
+        await post("alpha.localhost", "/api/organization/venues", cookie, {
+          address: "100 Community Way",
+          name: "Fellowship Hall",
+        })
+      ).json(),
+    );
+
+    const startsAt = new Date(Date.now() + 5 * 24 * 60 * 60 * 1_000).toISOString();
+
+    // 2. Create an Other event (everyone, optional RSVP)
+    const otherRes = await post("alpha.localhost", "/api/organization/events", cookie, {
+      details: "Community cleanup day",
+      location: "",
+      otherEventAudience: { type: "everyone" },
+      otherEventRsvpMode: "optional",
+      otherEventStaffingGoal: 10,
+      startsAt,
+      title: "Lancaster Community Days Clean Up",
+      type: "Other",
+      venueId: venue.id,
+    });
+    expect(otherRes.status).toBe(201);
+    const otherEvent = organizationEventSchema.parse(await otherRes.json());
+
+    // 3. Member with no voice part can RSVP "Yes" to the Other event
+    const rsvpYesRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${otherEvent.id}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "Yes" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(rsvpYesRes.status).toBe(200);
+
+    const scheduleAfterYes = singerEventsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/singer/events", cookie))
+      ).json(),
+    );
+    const eventAfterYes = scheduleAfterYes.events.find((e) => e.id === otherEvent.id);
+    expect(eventAfterYes?.resolvedRsvp).toBe("Yes");
+    expect(eventAfterYes?.volunteerCount).toBe(1);
+
+    // 4. Member with no voice part can RSVP "No" to the Other event
+    const rsvpNoRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${otherEvent.id}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "No" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(rsvpNoRes.status).toBe(200);
+
+    const scheduleAfterNo = singerEventsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/singer/events", cookie))
+      ).json(),
+    );
+    const eventAfterNo = scheduleAfterNo.events.find((e) => e.id === otherEvent.id);
+    expect(eventAfterNo?.resolvedRsvp).toBe("No");
+    expect(eventAfterNo?.volunteerCount).toBe(0);
+
+    // 5. Create a Rehearsal and verify member without voice part cannot RSVP (422)
+    const rehearsalRes = await post("alpha.localhost", "/api/organization/events", cookie, {
+      details: "Weekly choral rehearsal",
+      location: "",
+      startsAt,
+      title: "Choral Rehearsal",
+      type: "Rehearsal",
+      venueId: venue.id,
+    });
+    expect(rehearsalRes.status).toBe(201);
+    const rehearsalEvent = organizationEventSchema.parse(await rehearsalRes.json());
+
+    const rehearsalRsvpRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${rehearsalEvent.id}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "Yes" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(rehearsalRsvpRes.status).toBe(422);
+    expect(await rehearsalRsvpRes.json()).toMatchObject({
+      code: "rsvp_voice_part_required",
+    });
+
+    // 6. Create a Performance and verify member without voice part cannot RSVP (422)
+    const performanceRes = await post("alpha.localhost", "/api/organization/events", cookie, {
+      details: "Annual Concert",
+      location: "",
+      rsvpDeadlineDate: "2030-01-01",
+      startsAt,
+      title: "Annual Concert",
+      type: "Performance",
+      venueId: venue.id,
+    });
+    expect(performanceRes.status).toBe(201);
+    const performanceEvent = organizationEventSchema.parse(await performanceRes.json());
+
+    const performanceRsvpRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/singer/events/${performanceEvent.id}/rsvp`, cookie, {
+        body: JSON.stringify({ rsvp: "Yes" }),
+        headers: { "content-type": "application/json" },
+        method: "PUT",
+      }),
+    );
+    expect(performanceRsvpRes.status).toBe(422);
+    expect(await performanceRsvpRes.json()).toMatchObject({
+      code: "rsvp_voice_part_required",
+    });
+  });
 });

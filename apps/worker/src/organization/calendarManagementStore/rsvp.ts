@@ -11,41 +11,45 @@ import { listEventAttendanceFromStore } from "./attendance";
 type RsvpOperation = Extract<ManagementRequest, { readonly action: "set_rsvp" }>;
 type BulkRsvpOperation = Extract<ManagementRequest, { readonly action: "bulk_set_rsvp" }>;
 
-export function updateEventRsvp(
+interface StoredRsvpEvent {
+  readonly [column: string]: SqlStorageValue;
+  readonly durationMinutes: number | null;
+  readonly isCanceled: number;
+  readonly startsAt: string;
+  readonly type: "Performance" | "Rehearsal" | "Other";
+  readonly rsvpDeadlineDate: string | null;
+  readonly otherEventRsvpMode: "off" | "optional" | "response_requested" | null;
+}
+
+function validateRsvpOperation(
   storage: DurableObjectStorage,
   rsvpOperation: RsvpOperation,
   occurredAt: string,
-): Response {
+): { readonly errorResponse: Response } | { readonly event: StoredRsvpEvent } {
   if (!recordExists(storage, "events", rsvpOperation.eventId)) {
-    return Response.json({ code: "event_not_found" }, { status: 404 });
+    return { errorResponse: Response.json({ code: "event_not_found" }, { status: 404 }) };
   }
   if (!recordExists(storage, "profiles", rsvpOperation.rsvp.profileId)) {
-    return Response.json({ code: "profile_not_found" }, { status: 404 });
-  }
-  if (!profileHasVoicePart(storage, rsvpOperation.rsvp.profileId)) {
-    return Response.json({ code: "rsvp_voice_part_required" }, { status: 422 });
+    return { errorResponse: Response.json({ code: "profile_not_found" }, { status: 404 }) };
   }
   const event = storage.sql
-    .exec<{
-      readonly [column: string]: SqlStorageValue;
-      readonly durationMinutes: number | null;
-      readonly isCanceled: number;
-      readonly startsAt: string;
-      readonly type: "Performance" | "Rehearsal" | "Other";
-      readonly rsvpDeadlineDate: string | null;
-      readonly otherEventRsvpMode: "off" | "optional" | "response_requested" | null;
-    }>(
+    .exec<StoredRsvpEvent>(
       "SELECT type, starts_at AS startsAt, duration_minutes AS durationMinutes, is_canceled AS isCanceled, rsvp_deadline_date AS rsvpDeadlineDate, other_event_rsvp_mode AS otherEventRsvpMode FROM events WHERE id = ? AND is_archived = 0 LIMIT 1",
       rsvpOperation.eventId,
     )
     .toArray()
     .at(0);
-  if (!event) return Response.json({ code: "event_not_found" }, { status: 404 });
+  if (!event) {
+    return { errorResponse: Response.json({ code: "event_not_found" }, { status: 404 }) };
+  }
+  if (event.type !== "Other" && !profileHasVoicePart(storage, rsvpOperation.rsvp.profileId)) {
+    return { errorResponse: Response.json({ code: "rsvp_voice_part_required" }, { status: 422 }) };
+  }
   if (event.isCanceled === 1) {
-    return Response.json({ code: "event_canceled" }, { status: 409 });
+    return { errorResponse: Response.json({ code: "event_canceled" }, { status: 409 }) };
   }
   if (event.type === "Other" && event.otherEventRsvpMode === "off") {
-    return Response.json({ code: "rsvp_closed" }, { status: 409 });
+    return { errorResponse: Response.json({ code: "rsvp_closed" }, { status: 409 }) };
   }
   if (
     rsvpOperation.selfService &&
@@ -53,7 +57,9 @@ export function updateEventRsvp(
     rsvpOperation.rsvp.rsvp === "No" &&
     rsvpOperation.rsvp.rsvpNote.trim() === ""
   ) {
-    return Response.json({ code: "rsvp_decline_note_required" }, { status: 400 });
+    return {
+      errorResponse: Response.json({ code: "rsvp_decline_note_required" }, { status: 400 }),
+    };
   }
   if (rsvpOperation.selfService) {
     const timezone = storage.sql
@@ -63,8 +69,20 @@ export function updateEventRsvp(
       .one().timezone;
     const deadlineFields = decorateEventWithRsvpDeadline(event, timezone, new Date(occurredAt));
     if (!deadlineFields.rsvpSelfServiceOpen) {
-      return Response.json({ code: "rsvp_closed" }, { status: 409 });
+      return { errorResponse: Response.json({ code: "rsvp_closed" }, { status: 409 }) };
     }
+  }
+  return { event };
+}
+
+export function updateEventRsvp(
+  storage: DurableObjectStorage,
+  rsvpOperation: RsvpOperation,
+  occurredAt: string,
+): Response {
+  const validation = validateRsvpOperation(storage, rsvpOperation, occurredAt);
+  if ("errorResponse" in validation) {
+    return validation.errorResponse;
   }
   storage.transactionSync(() => {
     const rsvpNote = rsvpOperation.rsvp.rsvp === "No" ? rsvpOperation.rsvp.rsvpNote : "";
@@ -110,8 +128,9 @@ export function bulkUpdateEventRsvp(
     .exec<{
       readonly [column: string]: SqlStorageValue;
       readonly isCanceled: number;
+      readonly type: "Performance" | "Rehearsal" | "Other";
     }>(
-      "SELECT is_canceled AS isCanceled FROM events WHERE id = ? AND is_archived = 0 LIMIT 1",
+      "SELECT type, is_canceled AS isCanceled FROM events WHERE id = ? AND is_archived = 0 LIMIT 1",
       bulkRsvpOperation.eventId,
     )
     .toArray()
@@ -127,7 +146,10 @@ export function bulkUpdateEventRsvp(
   if ([...profileIds].some((profileId) => !recordExists(storage, "profiles", profileId))) {
     return Response.json({ code: "profile_not_found" }, { status: 404 });
   }
-  if ([...profileIds].some((profileId) => !profileHasVoicePart(storage, profileId))) {
+  if (
+    event.type !== "Other" &&
+    [...profileIds].some((profileId) => !profileHasVoicePart(storage, profileId))
+  ) {
     return Response.json({ code: "rsvp_voice_part_required" }, { status: 422 });
   }
   let changedCount = 0;

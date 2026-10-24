@@ -3,7 +3,12 @@ import type { MemberDashboardResponse } from "@choir/contracts";
 import { Dialog, DialogClose } from "@choir/ui";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { getMemberDashboard, getMemberPracticeLink, setMyEventRsvp } from "../auth/api";
+import {
+  AuthApiError,
+  getMemberDashboard,
+  getMemberPracticeLink,
+  setMyEventRsvp,
+} from "../auth/api";
 import { MemberEventCard } from "./MemberEventCard";
 import { renderCommunicationMarkdownPreview } from "./communicationMarkdown";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
@@ -130,6 +135,9 @@ function DashboardEventActions({
   readonly onDeclineRehearsal: (event: DashboardEvent) => void;
   readonly onRsvp: (event: DashboardEvent, rsvp: "No" | "Yes") => void;
 }) {
+  if (event.type === "Other" && event.otherEventRsvpMode === "off") {
+    return null;
+  }
   const actionDisabled = isActionDisabled(event);
   const busy = busyEventId === event.id;
   return (
@@ -171,6 +179,9 @@ function DashboardEventActions({
 }
 
 function DashboardEventFooter({ event }: { readonly event: DashboardEvent }) {
+  if (event.type === "Other" && event.otherEventRsvpMode === "off") {
+    return null;
+  }
   if (event.inheritedFromParent) {
     return (
       <small className="field-help">
@@ -214,9 +225,11 @@ function DashboardEventCard({
       status={
         <>
           {isNextUp ? <span className="member-dashboard__next-badge">Next up</span> : null}
-          <span className={`rsvp-status-badge rsvp-status-badge--${event.resolvedRsvp}`}>
-            {rsvpLabel(event.resolvedRsvp)}
-          </span>
+          {event.type === "Other" && event.otherEventRsvpMode === "off" ? null : (
+            <span className={`rsvp-status-badge rsvp-status-badge--${event.resolvedRsvp}`}>
+              {rsvpLabel(event.resolvedRsvp)}
+            </span>
+          )}
         </>
       }
       footer={
@@ -733,8 +746,12 @@ export function DashboardView({
       await loadDashboard();
       setActionMessage("Your RSVP was updated.");
       return true;
-    } catch {
-      setActionError("Your RSVP could not be updated. Please try again.");
+    } catch (error: unknown) {
+      setActionError(
+        error instanceof AuthApiError
+          ? error.message
+          : "Your RSVP could not be updated. Please try again.",
+      );
       return false;
     } finally {
       setBusyEventId(null);

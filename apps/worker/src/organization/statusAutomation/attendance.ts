@@ -181,7 +181,14 @@ export function recordEventRsvpChange(
   storage: DurableObjectStorage,
   change: EventRsvpChange,
 ): boolean {
-  if (!profileHasVoicePart(storage, change.profileId)) return false;
+  const event = storage.sql
+    .exec<{ readonly type: "Performance" | "Rehearsal" | "Other" }>(
+      "SELECT type FROM events WHERE id = ? LIMIT 1",
+      change.eventId,
+    )
+    .toArray()
+    .at(0);
+  if (event?.type !== "Other" && !profileHasVoicePart(storage, change.profileId)) return false;
   const existing = storage.sql
     .exec<{
       readonly [column: string]: SqlStorageValue;
@@ -334,8 +341,28 @@ export function reconcilePresentAttendance(
   return changes;
 }
 
+function isEventCanceled(isCanceled: boolean | number | undefined): boolean {
+  return isCanceled === true || isCanceled === 1;
+}
+
+function isSelfServiceRsvpOpen(
+  event: StoredEventRow & {
+    readonly otherEventRsvpMode?: "off" | "optional" | "response_requested" | null | undefined;
+  },
+  isCanceled: boolean,
+  beforeStart: boolean,
+  deadlinePassed: boolean,
+): boolean {
+  if (isCanceled || !beforeStart) return false;
+  if (event.type === "Other") return event.otherEventRsvpMode !== "off";
+  if (event.type === "Performance") return !deadlinePassed;
+  return true;
+}
+
 export function decorateEventWithRsvpDeadline(
-  event: StoredEventRow,
+  event: StoredEventRow & {
+    readonly otherEventRsvpMode?: "off" | "optional" | "response_requested" | null | undefined;
+  },
   timezone: string,
   now = new Date(),
 ): {
@@ -344,20 +371,18 @@ export function decorateEventWithRsvpDeadline(
   readonly rsvpDeadlinePassed: boolean;
   readonly rsvpSelfServiceOpen: boolean;
 } {
+  const isCanceled = isEventCanceled(event.isCanceled);
   const deadline =
-    event.type === "Performance" && event.isCanceled !== true && event.isCanceled !== 1
+    event.type === "Performance" && !isCanceled
       ? rsvpDeadlineFromDate(event.rsvpDeadlineDate ?? "", timezone)
       : null;
   const startsAt = new Date(event.startsAt);
   const beforeStart = Number.isFinite(startsAt.getTime()) && startsAt.getTime() > now.getTime();
+  const deadlinePassed = isRsvpDeadlinePassed(deadline, now);
   return {
     rsvpDeadlineAt: deadline?.deadlineAt ?? null,
     rsvpDeadlineDate: deadline?.deadlineDate ?? null,
-    rsvpDeadlinePassed: isRsvpDeadlinePassed(deadline, now),
-    rsvpSelfServiceOpen:
-      event.isCanceled !== true &&
-      event.isCanceled !== 1 &&
-      beforeStart &&
-      (event.type !== "Performance" || !isRsvpDeadlinePassed(deadline, now)),
+    rsvpDeadlinePassed: deadlinePassed,
+    rsvpSelfServiceOpen: isSelfServiceRsvpOpen(event, isCanceled, beforeStart, deadlinePassed),
   };
 }

@@ -197,7 +197,7 @@ interface EventProfileRsvpRow {
   readonly rsvpNote: string;
   readonly startsAt: string;
   readonly title: string;
-  readonly type: "Performance" | "Rehearsal";
+  readonly type: "Performance" | "Rehearsal" | "Other";
   readonly venueAddress: string;
   readonly venueName: string;
 }

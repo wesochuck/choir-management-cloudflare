@@ -71,7 +71,7 @@ const organizationProfileEventRsvpSchema = z.object({
   rsvpSelfServiceOpen: z.boolean(),
   startsAt: z.iso.datetime(),
   title: z.string().min(1).max(500),
-  type: z.enum(["Performance", "Rehearsal"]),
+  type: z.enum(["Performance", "Rehearsal", "Other"]),
   venueAddress: z.string().max(2_000),
   venueName: z.string().max(500),
 });
