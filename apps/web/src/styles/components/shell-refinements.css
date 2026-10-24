@@ -118,6 +118,8 @@
 
   .signed-in-main input[type="file"]:not(.sr-only),
   .dialog--responsive input[type="file"]:not(.sr-only) {
+    max-width: 100%;
+    min-width: 0;
     width: auto;
     height: var(--control-height);
     min-height: var(--control-height);
