@@ -15,9 +15,7 @@ import {
   money,
   tributeLabel,
   type DonationState,
-  type PatronState,
 } from "./types";
-import { PatronsTab } from "./PatronsTab";
 
 function paymentMethodLabel(method?: string): string {
   switch (method) {
@@ -85,7 +83,6 @@ export function DonationHistoryTab({
   donationState,
   onOpenManualModal,
   onRefresh,
-  patronState,
   refreshing,
   refund,
   refundId,
@@ -97,7 +94,6 @@ export function DonationHistoryTab({
   readonly donationState: DonationState;
   readonly onOpenManualModal: () => void;
   readonly onRefresh: () => Promise<void>;
-  readonly patronState: PatronState;
   readonly refreshing: boolean;
   readonly refund: (id: string) => Promise<void>;
   readonly refundId: string | null;
@@ -108,11 +104,6 @@ export function DonationHistoryTab({
   const [query, setQuery] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [patronsOpen, setPatronsOpen] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      new URLSearchParams(window.location.search).get("view") === "patrons",
-  );
   const [showRefunded, setShowRefunded] = useState(false);
   const [thankYouFilter, setThankYouFilter] = useState<"all" | "pending" | "sent">("all");
   const [paymentSourceFilter, setPaymentSourceFilter] = useState<"all" | "online" | "manual">(
@@ -465,18 +456,6 @@ export function DonationHistoryTab({
           rows={filteredDonations}
         />
       </fieldset>
-      <details
-        className="donation-patrons"
-        onToggle={(event) => {
-          setPatronsOpen(event.currentTarget.open);
-        }}
-        open={patronsOpen}
-      >
-        <summary>
-          Patron summaries ({patronState.status === "ready" ? patronState.patrons.length : "…"})
-        </summary>
-        <PatronsTab patronState={patronState} />
-      </details>
     </div>
   );
 }

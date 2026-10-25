@@ -240,6 +240,30 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+test("opens patron summaries in its own tab and preserves the existing dashboard link", async ({
+  page,
+}) => {
+  await page.goto("/admin/donations");
+  await expect(page.getByRole("tab", { name: "Donation History", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.locator("details.donation-patrons")).toHaveCount(0);
+  await page.getByRole("tab", { name: "Patron summaries", exact: true }).click();
+  const patrons = page.getByRole("tabpanel", { name: "Patron summaries", exact: true });
+  await expect(patrons).toBeVisible();
+  await expect(patrons.getByText("No patrons recorded yet.")).toBeVisible();
+  await expect(page.getByRole("group", { name: "Donations register", exact: true })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Donation History", exact: true }).click();
+  await expect(page.getByRole("group", { name: "Donations register", exact: true })).toBeVisible();
+  await page.goto("/admin/donations?view=patrons");
+  await expect(page.getByRole("tab", { name: "Patron summaries", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(patrons).toBeVisible();
+});
+
 test("records a manual donation from the history tab", async ({ page }) => {
   let manualPayload: unknown = null;
   await page.route("**/api/organization/donations/manual", async (route) => {

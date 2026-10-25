@@ -681,68 +681,92 @@ test("admin manages auditions: list, edit, and save", async ({ page }, testInfo)
   });
 });
 
-test("admin sees empty state when no auditions exist", async ({ page }) => {
-  await page.route("**/api/health", async (route) => {
-    await route.fulfill({
-      body: JSON.stringify({
-        environment: "local",
-        requestId,
-        service: "choir-management-cloudflare",
-        status: "ok",
-        version: "browser-test",
-      }),
-      contentType: "application/json",
-      status: 200,
+for (const theme of ["light", "dark"] as const) {
+  test(`admin sees empty state and a heading action in ${theme}`, async ({ page }, testInfo) => {
+    await page.addInitScript((value) => {
+      localStorage.setItem(`choir-theme:${location.hostname}`, value);
+    }, theme);
+    await page.route("**/api/health", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({
+          environment: "local",
+          requestId,
+          service: "choir-management-cloudflare",
+          status: "ok",
+          version: "browser-test",
+        }),
+        contentType: "application/json",
+        status: 200,
+      });
     });
-  });
-  await page.route("**/api/auth/get-session", async (route) => {
-    await route.fulfill({
-      body: JSON.stringify(sessionResponse),
-      contentType: "application/json",
-      status: 200,
+    await page.route("**/api/auth/get-session", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(sessionResponse),
+        contentType: "application/json",
+        status: 200,
+      });
     });
-  });
-  await page.route("**/api/public/projection", async (route) => {
-    await route.fulfill({ status: 404 });
-  });
-  await page.route("**/api/account/organizations", async (route) => {
-    await route.fulfill({
-      body: JSON.stringify(organizationsResponse),
-      contentType: "application/json",
-      status: 200,
+    await page.route("**/api/public/projection", async (route) => {
+      await route.fulfill({ status: 404 });
     });
-  });
-  await page.route("**/api/account/sessions", async (route) => {
-    await route.fulfill({
-      body: JSON.stringify(sessionsListResponse),
-      contentType: "application/json",
-      status: 200,
+    await page.route("**/api/account/organizations", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(organizationsResponse),
+        contentType: "application/json",
+        status: 200,
+      });
     });
-  });
-  await page.route("**/api/organization/auth-status", async (route) => {
-    await route.fulfill({
-      body: JSON.stringify(authStatusResponse),
-      contentType: "application/json",
-      status: 200,
+    await page.route("**/api/account/sessions", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(sessionsListResponse),
+        contentType: "application/json",
+        status: 200,
+      });
     });
-  });
-  await page.route("**/api/organization/context", async (route) => {
-    await route.fulfill({
-      body: JSON.stringify(organizationContextResponse),
-      contentType: "application/json",
-      status: 200,
+    await page.route("**/api/organization/auth-status", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(authStatusResponse),
+        contentType: "application/json",
+        status: 200,
+      });
     });
-  });
-  await page.route("**/api/organization/auditions", async (route) => {
-    await route.fulfill({
-      body: JSON.stringify({ auditions: [], requestId }),
-      contentType: "application/json",
-      status: 200,
+    await page.route("**/api/organization/context", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(organizationContextResponse),
+        contentType: "application/json",
+        status: 200,
+      });
     });
-  });
+    await page.route("**/api/organization/auditions", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify({ auditions: [], requestId }),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
 
-  await page.goto("/admin/auditions");
+    await page.goto("/admin/auditions");
 
-  await expect(page.getByRole("heading", { name: "Auditions" })).toBeVisible();
-  await expect(page.getByText("No audition inquiries yet.")).toBeVisible();
-});
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await expect(
+      page.getByRole("heading", { name: "Auditions & Inquiries", exact: true }),
+    ).toHaveCount(1);
+    const heading = page.locator(".page-heading--actions");
+    const action = heading.getByRole("button", { name: "New audition", exact: true });
+    await expect(action).toBeVisible();
+    const textBox = await heading.locator(":scope > div").boundingBox();
+    const actionBox = await action.boundingBox();
+    if (!textBox || !actionBox) throw new Error("Audition heading is missing");
+    expect(actionBox.x).toBeGreaterThanOrEqual(textBox.x + textBox.width);
+    expect(actionBox.y + actionBox.height / 2).toBeGreaterThanOrEqual(textBox.y);
+    expect(actionBox.y + actionBox.height / 2).toBeLessThanOrEqual(textBox.y + textBox.height);
+    await heading.screenshot({ path: testInfo.outputPath("audition-heading.png") });
+    await expect(page.getByText("No audition inquiries yet.")).toBeVisible();
+    await action.focus();
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog", { name: "New audition", exact: true });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+  });
+}

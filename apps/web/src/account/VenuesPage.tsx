@@ -125,17 +125,34 @@ export function VenuesPage({ enabled }: { readonly enabled: boolean }) {
     }
   }
 
+  const heading = (
+    <div className="page-heading page-heading--actions">
+      <div>
+        <h1>Venues</h1>
+        <p className="page-heading__description">
+          Manage performance and rehearsal venues and locations.
+        </p>
+      </div>
+      {enabled ? (
+        <button className="button button--primary" onClick={openCreateDialog} type="button">
+          Add venue
+        </button>
+      ) : null}
+    </div>
+  );
+
   if (!enabled) {
-    return <OrganizationMfaPrompt message="Verify Organization MFA to manage venues." />;
+    return (
+      <>
+        {heading}
+        <OrganizationMfaPrompt message="Verify Organization MFA to manage venues." />
+      </>
+    );
   }
 
   return (
     <>
-      <div className="page-toolbar page-toolbar--end">
-        <button className="button button--primary" onClick={openCreateDialog} type="button">
-          Add venue
-        </button>
-      </div>
+      {heading}
       {error && !createOpen && !confirmVenue ? (
         <p className="notice notice--error" role="alert">
           {error}

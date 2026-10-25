@@ -130,7 +130,6 @@ function DonationHistoryHarness({
       donationState={{ donations, status: "ready" }}
       onOpenManualModal={onOpenManualModal}
       onRefresh={onRefresh}
-      patronState={{ patrons: [], status: "ready" }}
       refreshing={false}
       refund={refund}
       refundId={refundId}
@@ -595,18 +594,5 @@ describe("DonationHistoryTab DataTable", () => {
         (card) => card.textContent,
       ),
     ).toEqual(summary);
-  });
-
-  it("opens patron summaries section automatically when ?view=patrons query param is present (#180)", () => {
-    const originalSearch = window.location.search;
-    try {
-      window.history.replaceState(null, "", "?view=patrons");
-      renderHistory();
-      const details = document.querySelector<HTMLDetailsElement>("details.donation-patrons");
-      expect(details).not.toBeNull();
-      expect(details?.open).toBe(true);
-    } finally {
-      window.history.replaceState(null, "", originalSearch || "/");
-    }
   });
 });

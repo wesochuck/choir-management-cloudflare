@@ -24,7 +24,7 @@ const activeLink = {
 for (const logo of ["present", "missing"] as const) {
   test(`downloads a scannable roster invite PNG with Organization logo ${logo}`, async ({
     page,
-  }) => {
+  }, testInfo) => {
     const api = await installOrganizationApi(page, { role: "administrator", strict: true });
     await page.route("**/api/organization/members", (route) =>
       route.fulfill({ json: { memberships: [], truncated: false, requestId } }),
@@ -55,6 +55,19 @@ for (const logo of ["present", "missing"] as const) {
         : route.fulfill({ status: 404 }),
     );
     await page.goto("/admin/settings/invitations");
+    await expect(
+      page.getByRole("heading", { name: "Membership invitations", exact: true }),
+    ).toHaveCount(1);
+    const heading = page.locator(".page-heading--actions");
+    const inviteAction = heading.getByRole("button", { name: "Invite by link", exact: true });
+    await expect(inviteAction).toBeVisible();
+    const text = await heading.locator(":scope > div").boundingBox();
+    const action = await inviteAction.boundingBox();
+    if (!text || !action) throw new Error("Membership invitations heading is missing");
+    expect(action.x).toBeGreaterThanOrEqual(text.x + text.width);
+    expect(action.y + action.height / 2).toBeGreaterThanOrEqual(text.y);
+    expect(action.y + action.height / 2).toBeLessThanOrEqual(text.y + text.height);
+    await heading.screenshot({ path: testInfo.outputPath("invitation-heading.png") });
     await page.getByRole("button", { name: "Invite by link", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Roster invite links", exact: true });
     const buttons = dialog

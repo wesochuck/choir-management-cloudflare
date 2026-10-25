@@ -843,7 +843,12 @@ function AuthenticatedOrganizationShell({
               .join(" ")}
             id="signed-in-main"
           >
-            {route.pathname === "/admin" || route.pathname === "/admin/seating" ? null : (
+            {route.pathname === "/admin" ||
+            route.pathname === "/admin/seating" ||
+            route.pathname === "/admin/venues" ||
+            route.pathname === "/admin/auditions" ||
+            route.pathname === "/admin/invitations" ||
+            route.pathname === "/admin/settings/invitations" ? null : (
               <div
                 className={`page-heading${selectedWorkspace === "organization" && ["/admin/tickets", "/admin/ticketing"].includes(route.pathname) ? " page-heading--ticketing" : ""}`}
               >

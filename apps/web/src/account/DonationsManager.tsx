@@ -14,6 +14,7 @@ import {
   updateOrganizationDonationSettings,
   updateOrganizationDonationThankYou,
 } from "../api";
+import { PatronsTab } from "./components/DonationsManager/PatronsTab";
 import { DonationHistoryTab } from "./components/DonationsManager/DonationHistoryTab";
 import { DonationLevelDialog } from "./components/DonationsManager/DonationLevelDialog";
 import { DonationLevelsTab } from "./components/DonationsManager/DonationLevelsTab";
@@ -37,7 +38,9 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
   const [refundId, setRefundId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [tab, setTab] = useState<DonationTab>("history");
+  const [tab, setTab] = useState<DonationTab>(() =>
+    new URLSearchParams(window.location.search).get("view") === "patrons" ? "patrons" : "history",
+  );
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const { confirm, confirmationDialog } = useConfirmation();
 
@@ -192,6 +195,13 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
             Donation History
           </TabsTrigger>
           <TabsTrigger
+            aria-controls="donation-patrons-panel"
+            id="donation-patrons-tab"
+            value="patrons"
+          >
+            Patron summaries
+          </TabsTrigger>
+          <TabsTrigger
             aria-controls="donation-levels-panel"
             id="donation-levels-tab"
             value="levels"
@@ -226,7 +236,6 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
               setManualModalOpen(true);
             }}
             onRefresh={handleRefreshDonations}
-            patronState={patronState}
             refreshing={refreshing}
             refund={refund}
             refundId={refundId}
@@ -234,6 +243,13 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
             timezone={timezone}
             updateThankYou={handleUpdateThankYou}
           />
+        </TabsContent>
+        <TabsContent
+          aria-labelledby="donation-patrons-tab"
+          id="donation-patrons-panel"
+          value="patrons"
+        >
+          <PatronsTab patronState={patronState} />
         </TabsContent>
         <TabsContent
           aria-labelledby="donation-levels-tab"

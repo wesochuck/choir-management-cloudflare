@@ -236,6 +236,27 @@
     min-width: 0;
   }
 
+  .page-heading.page-heading--ticketing,
+  .page-heading.page-heading--actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+  }
+
+  .page-heading.page-heading--ticketing > div,
+  .page-heading.page-heading--actions > div {
+    width: auto;
+    flex: 1 1 0;
+  }
+
+  .page-heading--ticketing > .button,
+  .page-heading--actions > .button {
+    width: auto;
+    flex-shrink: 0;
+  }
+
   .page-heading h1,
   .signed-in-main .account-heading h1,
   .signed-in-main .auth-card h1 {

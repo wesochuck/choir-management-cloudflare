@@ -131,24 +131,4 @@ describe("PatronsTab DataTable", () => {
     expect(screen.getByText("No patrons recorded yet.")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
-
-  it("integrates with disclosure element and shows correct patron count", () => {
-    const patronState = { patrons: MOCK_PATRONS, status: "ready" as const };
-    render(
-      <details className="donation-patrons" open>
-        <summary>Patron summaries ({String(patronState.patrons.length)})</summary>
-        <PatronsTab patronState={patronState} />
-      </details>,
-    );
-
-    expect(
-      screen.getByText(`Patron summaries (${String(MOCK_PATRONS.length)})`),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("table")).toHaveClass("data-table");
-    expect(patronNames(screen.getByRole("table"))).toEqual([
-      "Bob Baker",
-      "Clara Clark",
-      "Alice Adams",
-    ]);
-  });
 });

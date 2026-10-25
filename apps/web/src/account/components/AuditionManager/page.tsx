@@ -272,211 +272,228 @@ export function AuditionManager({ enabled }: Props) {
     }
   }
 
+  const heading = (
+    <div className="page-heading page-heading--actions">
+      <div>
+        <h1>Auditions &amp; Inquiries</h1>
+        <p className="page-heading__description">
+          Review candidate submissions, manage audition slots, and track singer inquiries.
+        </p>
+      </div>
+      {enabled && state.status === "ready" ? (
+        <button
+          className="button button--primary"
+          onClick={() => {
+            setCreateOpen(true);
+          }}
+          type="button"
+        >
+          New audition
+        </button>
+      ) : null}
+    </div>
+  );
+
   if (!enabled || state.status !== "ready") {
-    return <ManagerStatusPanel enabled={enabled} status={state.status} />;
+    return (
+      <>
+        {heading}
+        <ManagerStatusPanel enabled={enabled} status={state.status} />
+      </>
+    );
   }
 
   return (
-    <section className="panel" aria-label="Audition management">
-      <div className="page-toolbar">
-        <div className="table-actions">
-          <button
-            className="button button--primary"
-            onClick={() => {
-              setCreateOpen(true);
-            }}
-            type="button"
-          >
-            New audition
-          </button>
-        </div>
-      </div>
-      {notice ? (
-        <p className="notice notice--success" role="status">
-          {notice}
-        </p>
-      ) : null}
-      {actionError ? (
-        <p className="notice notice--error" role="alert">
-          {actionError}
-        </p>
-      ) : null}
-      <Tabs
-        onValueChange={(val) => {
-          void requestSettingsTab(val);
-        }}
-        value={activeTab}
-      >
-        <div className="audition-tabs">
-          <TabsList aria-label="Audition sections">
-            <TabsTrigger
-              aria-controls="audition-inquiries-panel"
-              id="audition-inquiries-tab"
-              value="inquiries"
-            >
-              Inquiries
-            </TabsTrigger>
-            <TabsTrigger
-              aria-controls="audition-settings-panel"
-              id="audition-settings-tab"
-              value="settings"
-            >
-              Settings
-            </TabsTrigger>
-          </TabsList>
-        </div>
-        {confirmationDialog}
-        <TabsContent
-          aria-labelledby="audition-settings-tab"
-          className="audition-tab-panel"
-          id="audition-settings-panel"
-          value="settings"
-        >
-          <h2>Audition settings</h2>
-          <p className="section-description">
-            Configure the public audition form, available time slots, and administrator
-            notifications.
+    <>
+      {heading}
+      <section className="panel" aria-label="Audition management">
+        {notice ? (
+          <p className="notice notice--success" role="status">
+            {notice}
           </p>
-          {settingsLoaded ? (
-            <SettingsForm
-              administratorRecipients={administratorRecipients}
-              initial={settings}
-              onCancel={() => {
-                void requestSettingsTab("inquiries");
-              }}
-              onDirtyChange={setSettingsDirty}
-              onSave={saveSettings}
-              onVenueCreated={(venue) => {
-                setVenues((current) =>
-                  [...current.filter(({ id }) => id !== venue.id), venue].toSorted((left, right) =>
-                    left.name.localeCompare(right.name),
-                  ),
-                );
-              }}
-              performances={performances}
-              timezone={timezone}
-              venues={venues}
-            />
-          ) : (
-            <p className="notice" role="status">
-              Loading audition settings…
-            </p>
-          )}
-        </TabsContent>
-        <TabsContent
-          aria-labelledby="audition-inquiries-tab"
-          id="audition-inquiries-panel"
-          value="inquiries"
+        ) : null}
+        {actionError ? (
+          <p className="notice notice--error" role="alert">
+            {actionError}
+          </p>
+        ) : null}
+        <Tabs
+          onValueChange={(val) => {
+            void requestSettingsTab(val);
+          }}
+          value={activeTab}
         >
-          <QRCodeShareCard
-            asFieldset
-            description={
-              settings.enabled && settings.defaultPerformanceId && settings.slots.length > 0
-                ? `Share this link or download the QR code so prospective ${performerLabelPlural.toLowerCase()} can submit an audition request.`
-                : "This is the public audition signup link. Configure a performance and time slots, then enable requests before sharing it."
-            }
-            path="/auditions"
-            title="Public audition signup page"
-          />
-          <fieldset className="audition-inquiries__filters">
-            <legend className="audition-inquiries__legend">Filter inquiries</legend>
-            <div className="form-grid form-grid--compact">
-              <label className="field">
-                Search
-                <input
-                  placeholder={`Name, email, ${partLabel.toLowerCase()}`}
-                  value={search}
-                  onChange={(event) => {
-                    setSearch(event.target.value);
-                  }}
-                />
-              </label>
-              <label className="field">
-                Narrow results
-                <select
-                  aria-label="Audition filter"
-                  value={statusFilter}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setStatusFilter(value === "all" ? "all" : auditionStatusSchema.parse(value));
-                  }}
-                >
-                  <option value="all">All statuses</option>
-                  {STATUS_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          </fieldset>
-          {filteredAuditions.length === 0 ? (
-            <div className="notice">
-              {state.auditions.length === 0
-                ? "No audition inquiries yet. Configure settings or create an audition to begin."
-                : "No auditions match the current filters."}
-            </div>
-          ) : (
-            <AuditionTable
-              auditions={filteredAuditions}
-              onConvert={(audition) => {
-                setConfirm({ action: "convert", audition });
-              }}
-              onDelete={(audition) => {
-                setConfirm({ action: "delete", audition });
-              }}
-              onEdit={setEditing}
-              onSchedule={(audition) => {
-                setSchedule(audition);
-                const initialScheduleTime = audition.scheduledTimeSlot
-                  ? localScheduleInputValue(audition.scheduledTimeSlot, timezone)
-                  : "";
-                setScheduleTime(initialScheduleTime);
-                setCustomScheduleTime(initialScheduleTime);
-              }}
+          <div className="audition-tabs">
+            <TabsList aria-label="Audition sections">
+              <TabsTrigger
+                aria-controls="audition-inquiries-panel"
+                id="audition-inquiries-tab"
+                value="inquiries"
+              >
+                Inquiries
+              </TabsTrigger>
+              <TabsTrigger
+                aria-controls="audition-settings-panel"
+                id="audition-settings-tab"
+                value="settings"
+              >
+                Settings
+              </TabsTrigger>
+            </TabsList>
+          </div>
+          {confirmationDialog}
+          <TabsContent
+            aria-labelledby="audition-settings-tab"
+            className="audition-tab-panel"
+            id="audition-settings-panel"
+            value="settings"
+          >
+            <h2>Audition settings</h2>
+            <p className="section-description">
+              Configure the public audition form, available time slots, and administrator
+              notifications.
+            </p>
+            {settingsLoaded ? (
+              <SettingsForm
+                administratorRecipients={administratorRecipients}
+                initial={settings}
+                onCancel={() => {
+                  void requestSettingsTab("inquiries");
+                }}
+                onDirtyChange={setSettingsDirty}
+                onSave={saveSettings}
+                onVenueCreated={(venue) => {
+                  setVenues((current) =>
+                    [...current.filter(({ id }) => id !== venue.id), venue].toSorted(
+                      (left, right) => left.name.localeCompare(right.name),
+                    ),
+                  );
+                }}
+                performances={performances}
+                timezone={timezone}
+                venues={venues}
+              />
+            ) : (
+              <p className="notice" role="status">
+                Loading audition settings…
+              </p>
+            )}
+          </TabsContent>
+          <TabsContent
+            aria-labelledby="audition-inquiries-tab"
+            id="audition-inquiries-panel"
+            value="inquiries"
+          >
+            <QRCodeShareCard
+              asFieldset
+              description={
+                settings.enabled && settings.defaultPerformanceId && settings.slots.length > 0
+                  ? `Share this link or download the QR code so prospective ${performerLabelPlural.toLowerCase()} can submit an audition request.`
+                  : "This is the public audition signup link. Configure a performance and time slots, then enable requests before sharing it."
+              }
+              path="/auditions"
+              title="Public audition signup page"
             />
-          )}
-        </TabsContent>
-      </Tabs>
+            <fieldset className="audition-inquiries__filters">
+              <legend className="audition-inquiries__legend">Filter inquiries</legend>
+              <div className="form-grid form-grid--compact">
+                <label className="field">
+                  Search
+                  <input
+                    placeholder={`Name, email, ${partLabel.toLowerCase()}`}
+                    value={search}
+                    onChange={(event) => {
+                      setSearch(event.target.value);
+                    }}
+                  />
+                </label>
+                <label className="field">
+                  Narrow results
+                  <select
+                    aria-label="Audition filter"
+                    value={statusFilter}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setStatusFilter(value === "all" ? "all" : auditionStatusSchema.parse(value));
+                    }}
+                  >
+                    <option value="all">All statuses</option>
+                    {STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </fieldset>
+            {filteredAuditions.length === 0 ? (
+              <div className="notice">
+                {state.auditions.length === 0
+                  ? "No audition inquiries yet. Configure settings or create an audition to begin."
+                  : "No auditions match the current filters."}
+              </div>
+            ) : (
+              <AuditionTable
+                auditions={filteredAuditions}
+                onConvert={(audition) => {
+                  setConfirm({ action: "convert", audition });
+                }}
+                onDelete={(audition) => {
+                  setConfirm({ action: "delete", audition });
+                }}
+                onEdit={setEditing}
+                onSchedule={(audition) => {
+                  setSchedule(audition);
+                  const initialScheduleTime = audition.scheduledTimeSlot
+                    ? localScheduleInputValue(audition.scheduledTimeSlot, timezone)
+                    : "";
+                  setScheduleTime(initialScheduleTime);
+                  setCustomScheduleTime(initialScheduleTime);
+                }}
+              />
+            )}
+          </TabsContent>
+        </Tabs>
 
-      <AuditionDialogs
-        confirm={confirm}
-        createAudition={createAudition}
-        createOpen={createOpen}
-        editing={editing}
-        executeConfirm={executeConfirm}
-        onCancelConfirm={() => {
-          setConfirm(null);
-        }}
-        onCancelCreate={() => {
-          setCreateOpen(false);
-        }}
-        onCancelEdit={() => {
-          setEditing(null);
-        }}
-        onCancelSchedule={() => {
-          setSchedule(null);
-          setScheduleTime("");
-          setCustomScheduleTime("");
-        }}
-        onCustomScheduleTimeChange={(value) => {
-          setCustomScheduleTime(value);
-          setScheduleTime(value);
-        }}
-        onScheduleTimeChange={(value) => {
-          setCustomScheduleTime("");
-          setScheduleTime(value);
-        }}
-        rosterConfiguration={rosterConfiguration}
-        saveEdit={saveEdit}
-        schedule={schedule}
-        scheduleAudition={scheduleAudition}
-        scheduleOpen={schedule !== null}
-        scheduleTime={scheduleTime}
-        customScheduleTime={customScheduleTime}
-        timezone={timezone}
-      />
-    </section>
+        <AuditionDialogs
+          confirm={confirm}
+          createAudition={createAudition}
+          createOpen={createOpen}
+          editing={editing}
+          executeConfirm={executeConfirm}
+          onCancelConfirm={() => {
+            setConfirm(null);
+          }}
+          onCancelCreate={() => {
+            setCreateOpen(false);
+          }}
+          onCancelEdit={() => {
+            setEditing(null);
+          }}
+          onCancelSchedule={() => {
+            setSchedule(null);
+            setScheduleTime("");
+            setCustomScheduleTime("");
+          }}
+          onCustomScheduleTimeChange={(value) => {
+            setCustomScheduleTime(value);
+            setScheduleTime(value);
+          }}
+          onScheduleTimeChange={(value) => {
+            setCustomScheduleTime("");
+            setScheduleTime(value);
+          }}
+          rosterConfiguration={rosterConfiguration}
+          saveEdit={saveEdit}
+          schedule={schedule}
+          scheduleAudition={scheduleAudition}
+          scheduleOpen={schedule !== null}
+          scheduleTime={scheduleTime}
+          customScheduleTime={customScheduleTime}
+          timezone={timezone}
+        />
+      </section>
+    </>
   );
 }

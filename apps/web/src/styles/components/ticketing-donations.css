@@ -288,27 +288,6 @@
     }
   }
 
-  .donation-patrons {
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-card);
-    background: var(--color-surface);
-  }
-
-  .donation-patrons summary {
-    padding: var(--spacing-sm) var(--spacing-md);
-    cursor: pointer;
-    font-weight: var(--font-weight-bold);
-  }
-
-  .donation-patrons[open] {
-    padding-bottom: var(--spacing-md);
-  }
-
-  .donation-patrons[open] > :not(summary) {
-    margin-right: var(--spacing-md);
-    margin-left: var(--spacing-md);
-  }
-
   .donation-level-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));

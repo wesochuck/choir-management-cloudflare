@@ -794,116 +794,123 @@ export function OrganizationInvitations({
   }
 
   return (
-    <div className="settings-stack">
-      <div className="page-toolbar page-toolbar--end">
-        <div className="page-toolbar__actions">
-          <button
-            className="button button--secondary"
-            disabled={mfaBlocked}
-            onClick={() => {
-              setInviteLinksDialogOpen(true);
-            }}
-            type="button"
-          >
-            Invite by link
-          </button>
-        </div>
-      </div>
-
-      <fieldset
-        className="surface-card organization-settings-panel account-section account-section--organization-invitations"
-        aria-labelledby="organization-invitations-title"
-      >
-        <legend id="organization-invitations-title">Invite a member</legend>
-        <div className="section-heading section-heading--compact">
-          <p className="section-description">
-            Invitations expire after 8 days. The recipient must sign in with the invited email
-            before accepting.
+    <>
+      <div className="page-heading page-heading--actions">
+        <div>
+          <h1>Membership invitations</h1>
+          <p className="page-heading__description">
+            Invite new members, managers, and administrators to the organization.
           </p>
         </div>
-        {mfaBlocked ? (
-          <OrganizationMfaPrompt message="Verify Organization MFA before creating an invitation." />
-        ) : null}
-        {errorMessage ? (
-          <p className="notice notice--error" role="alert">
-            {errorMessage}
-          </p>
-        ) : null}
-        {successMessage ? (
-          <p className="notice notice--success" role="status">
-            {successMessage}
-          </p>
-        ) : null}
-        <form
-          className="form-stack organization-invitation-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void createInvitation();
+        <button
+          className="button button--secondary"
+          disabled={mfaBlocked}
+          onClick={() => {
+            setInviteLinksDialogOpen(true);
           }}
+          type="button"
         >
-          <div className="field">
-            <label htmlFor="organization-invitation-email">Email address</label>
-            <input
-              autoComplete="email"
-              id="organization-invitation-email"
-              maxLength={320}
-              onChange={(event) => {
-                setEmail(event.target.value);
-              }}
-              required
-              type="email"
-              value={email}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="organization-invitation-role">Organization role</label>
-            <select
-              aria-describedby="organization-invitation-role-help"
-              id="organization-invitation-role"
-              onChange={(event) => {
-                setRole(parseInvitationRole(event.target.value));
-              }}
-              value={role}
-            >
-              <option value="member">Organization Member</option>
-              <option value="administrator">Organization Administrator</option>
-              {context.role === "owner" ? <option value="owner">Organization Owner</option> : null}
-            </select>
-            <p className="field-help" id="organization-invitation-role-help">
-              These are Organization Membership roles, not Profile roles. Members can use
-              member-facing features. Administrators can manage the Organization&apos;s operational
-              data, Profiles, Memberships, and invitations. Owners have Administrator access plus
-              owner-only controls such as Organization MFA, Public Website domains, and Owner
-              invitations.
+          Invite by link
+        </button>
+      </div>
+      <div className="settings-stack">
+        <fieldset
+          className="surface-card organization-settings-panel account-section account-section--organization-invitations"
+          aria-labelledby="organization-invitations-title"
+        >
+          <legend id="organization-invitations-title">Invite a member</legend>
+          <div className="section-heading section-heading--compact">
+            <p className="section-description">
+              Invitations expire after 8 days. The recipient must sign in with the invited email
+              before accepting.
             </p>
           </div>
-          <button className="button button--primary" disabled={busy || mfaBlocked} type="submit">
-            {busy ? "Creating invitation…" : "Create invitation"}
-          </button>
-        </form>
-      </fieldset>
+          {mfaBlocked ? (
+            <OrganizationMfaPrompt message="Verify Organization MFA before creating an invitation." />
+          ) : null}
+          {errorMessage ? (
+            <p className="notice notice--error" role="alert">
+              {errorMessage}
+            </p>
+          ) : null}
+          {successMessage ? (
+            <p className="notice notice--success" role="status">
+              {successMessage}
+            </p>
+          ) : null}
+          <form
+            className="form-stack organization-invitation-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void createInvitation();
+            }}
+          >
+            <div className="field">
+              <label htmlFor="organization-invitation-email">Email address</label>
+              <input
+                autoComplete="email"
+                id="organization-invitation-email"
+                maxLength={320}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                }}
+                required
+                type="email"
+                value={email}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="organization-invitation-role">Organization role</label>
+              <select
+                aria-describedby="organization-invitation-role-help"
+                id="organization-invitation-role"
+                onChange={(event) => {
+                  setRole(parseInvitationRole(event.target.value));
+                }}
+                value={role}
+              >
+                <option value="member">Organization Member</option>
+                <option value="administrator">Organization Administrator</option>
+                {context.role === "owner" ? (
+                  <option value="owner">Organization Owner</option>
+                ) : null}
+              </select>
+              <p className="field-help" id="organization-invitation-role-help">
+                These are Organization Membership roles, not Profile roles. Members can use
+                member-facing features. Administrators can manage the Organization&apos;s
+                operational data, Profiles, Memberships, and invitations. Owners have Administrator
+                access plus owner-only controls such as Organization MFA, Public Website domains,
+                and Owner invitations.
+              </p>
+            </div>
+            <button className="button button--primary" disabled={busy || mfaBlocked} type="submit">
+              {busy ? "Creating invitation…" : "Create invitation"}
+            </button>
+          </form>
+        </fieldset>
 
-      <PendingInvitationList
-        busyInvitationId={busyInvitationId}
-        cancelConfirmationId={cancelConfirmationId}
-        invitations={invitations}
-        listError={listError}
-        listLoading={listLoading}
-        mfaBlocked={mfaBlocked}
-        onCancel={(invitation) => {
-          void cancelInvitation(invitation);
-        }}
-        onSetConfirmation={setCancelConfirmationId}
-        role={context.role}
-        truncated={truncated}
-      />
-      <MembershipProfileLinks context={context} />
-      <RosterInviteLinksDialog
-        onClose={() => {
-          setInviteLinksDialogOpen(false);
-        }}
-        open={inviteLinksDialogOpen}
-      />
-    </div>
+        <PendingInvitationList
+          busyInvitationId={busyInvitationId}
+          cancelConfirmationId={cancelConfirmationId}
+          invitations={invitations}
+          listError={listError}
+          listLoading={listLoading}
+          mfaBlocked={mfaBlocked}
+          onCancel={(invitation) => {
+            void cancelInvitation(invitation);
+          }}
+          onSetConfirmation={setCancelConfirmationId}
+          role={context.role}
+          truncated={truncated}
+        />
+        <MembershipProfileLinks context={context} />
+        <RosterInviteLinksDialog
+          onClose={() => {
+            setInviteLinksDialogOpen(false);
+          }}
+          open={inviteLinksDialogOpen}
+        />
+      </div>
+    </>
   );
 }
