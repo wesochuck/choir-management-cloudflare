@@ -5,6 +5,8 @@ import {
 } from "@choir/contracts";
 import { z } from "zod";
 
+import { rosterConfigurationFromStore } from "./calendarManagementStore/shared";
+
 const actorSchema = z.object({
   actorUserId: z.string().min(1).max(128),
   organizationId: z.string().min(1).max(128),
@@ -260,6 +262,7 @@ export function readPublicCommerceProjectionFromStore(
   const payload = publicWebsiteProjectionPayloadSchema.parse({
     mediaFileIds,
     organizationName: organization.name,
+    performerLabel: rosterConfigurationFromStore(storage).performerLabel,
     performances,
     settings: {
       ...settings,
@@ -429,6 +432,7 @@ function beginPublication(
     payload: {
       mediaFileIds: [...mediaIds],
       organizationName: organization.name,
+      performerLabel: rosterConfigurationFromStore(storage).performerLabel,
       performances,
       settings: {
         pageLabels: settings.pageLabels,

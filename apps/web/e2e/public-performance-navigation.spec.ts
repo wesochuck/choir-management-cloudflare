@@ -35,6 +35,7 @@ const projection = publishedOrganizationProjectionSchema.parse({
         ...performance,
         id: freeId,
         title: "Free Community Concert",
+        publicDetails: "[Free event details](https://partner.example.test/notes)",
         isTicketingEnabled: false,
         startsAt: futureIsoDate({ days: 1 }),
       },
@@ -149,11 +150,38 @@ for (const pathname of ["/", "/performances"] as const) {
       await legacy.click({ position: { x: 10, y: 10 } });
       await expect(page).toHaveURL(new RegExp(`/tickets/${legacyId}$`));
       await page.goto(pathname);
-      const free = page.getByRole("link", { name: "Free Community Concert", exact: true });
-      await expect(free).toHaveAttribute("href", `/performances#performance-${freeId}`);
-      await free.click();
-      await expect(page).toHaveURL(new RegExp(`/performances#performance-${freeId}$`));
-      await expect(page.locator(`#performance-${freeId}`)).toBeInViewport();
+      const free = page.locator(`#performance-${freeId}`);
+      await expect(
+        free.getByRole("heading", { name: "Free Community Concert", exact: true }),
+      ).toBeVisible();
+      await expect(
+        free.getByRole("link", { name: "Free Community Concert", exact: true }),
+      ).toHaveCount(0);
+      await expect(free).not.toContainText("View performance");
+      await expect(free).not.toHaveClass(/public-performance-card--linked/);
+      await free.click({ position: { x: 10, y: 10 } });
+      await expect(page).toHaveURL(new RegExp(`${pathname}$`));
+      const freeDetails = free.getByRole("link", { name: "Free event details" });
+      await freeDetails.focus();
+      await expect(freeDetails).toBeFocused();
+      const freePopupEvent = page.waitForEvent("popup");
+      await page.keyboard.press("Enter");
+      const freePopup = await freePopupEvent;
+      await expect(freePopup).toHaveURL("https://partner.example.test/notes");
+      await freePopup.close();
+      const viewAll = page.getByRole("link", { name: "View all performances", exact: true });
+      if (pathname === "/") {
+        await expect(viewAll).toHaveAttribute("href", "/performances");
+        await viewAll.focus();
+        await expect(viewAll).toBeFocused();
+        await page.keyboard.press("Enter");
+        await expect(page).toHaveURL(/\/performances$/);
+        await expect(
+          page.getByRole("heading", { name: "Performances", exact: true }),
+        ).toBeVisible();
+      } else {
+        await expect(viewAll).toHaveCount(0);
+      }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );

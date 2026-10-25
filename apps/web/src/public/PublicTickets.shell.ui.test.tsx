@@ -84,7 +84,7 @@ describe("PublicTickets shell layout", () => {
     expect(screen.queryByRole("navigation", { name: "Public website" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Performances" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "History" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Performer login" })).not.toBeInTheDocument();
   });
 
   it("renders standalone transaction layout on a ticket detail route", async () => {
@@ -101,7 +101,7 @@ describe("PublicTickets shell layout", () => {
     expect(screen.queryByRole("navigation", { name: "Public website" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Performances" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "History" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Performer login" })).not.toBeInTheDocument();
   });
 
   it("renders closed notice when event performance date is in the past", async () => {
@@ -195,7 +195,7 @@ describe("PublicTickets shell layout", () => {
     expect(nav).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Performances" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "History" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Performer login" })).toBeInTheDocument();
 
     const ticketsLink = screen.getByRole("link", { name: "Tickets" });
     expect(ticketsLink).toHaveAttribute("aria-current", "page");

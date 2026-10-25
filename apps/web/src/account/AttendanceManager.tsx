@@ -183,7 +183,7 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
       <div className="attendance-manager__intro">
         <div>
           <p className="attendance-manager__sync" role="status">
-            <span aria-hidden="true">●</span> Live updates every 30 seconds ·{" "}
+            <span aria-hidden="true">●</span> Live updates every 5 seconds ·{" "}
             {formatSyncTime(dataUpdatedAt ? new Date(dataUpdatedAt) : null)}
           </p>
         </div>

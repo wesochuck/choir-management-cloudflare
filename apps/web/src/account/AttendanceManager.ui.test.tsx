@@ -5,14 +5,14 @@ import {
   type OrganizationRosterConfiguration,
   type OrganizationVenue,
 } from "@choir/contracts";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, renderHook, act, screen, waitFor } from "@testing-library/react";
+import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, renderHook, act, screen, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../api";
 import { AttendanceManager } from "./AttendanceManager";
-import { useAttendanceMutations } from "./components/AttendanceManager/hooks";
+import { useAttendanceMutations, useAttendanceQueries } from "./components/AttendanceManager/hooks";
 import type { ReactNode } from "react";
 
 vi.mock("../api", async (importOriginal) => {
@@ -140,6 +140,7 @@ describe("AttendanceManager section grouping and sorting UI", () => {
       expect(screen.getByRole("heading", { level: 3, name: "Altos" })).toBeInTheDocument();
     });
     expect(screen.getByRole("heading", { level: 3, name: "Basses" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Live updates every 5 seconds");
     expect(screen.queryByRole("heading", { level: 3, name: "A1" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 3, name: "A2" })).not.toBeInTheDocument();
 
@@ -248,6 +249,9 @@ describe("AttendanceManager section grouping and sorting UI", () => {
     const charlieRow = mockRows.find((r) => r.profileId === "p-4");
     if (!charlieRow) throw new Error("Expected p-4 mock row");
 
+    vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue(
+      mockRows.map((row) => (row.profileId === "p-4" ? { ...row, attendance: "Present" } : row)),
+    );
     // Now Charlie succeeds
     resolveCharlie?.([
       {
@@ -331,10 +335,12 @@ it("failed save must preserve a newer server-refetched value", async () => {
   const { result } = renderHook(() => useAttendanceMutations({ eventId, rows: [row] }), {
     wrapper,
   });
-  act(() => {
+  await act(async () => {
+    await Promise.resolve();
     result.current.changeAttendance(row.profileId);
   });
   await act(async () => {
+    await Promise.resolve();
     client.setQueryData(api.queryKeys.organization.attendance(eventId), [
       { ...row, attendance: "Absent", updatedAt: new Date().toISOString() },
     ]);
@@ -382,10 +388,12 @@ it("bulk failure restores only unchanged optimistic rows after a server refresh"
   );
   const { result } = renderHook(() => useAttendanceMutations({ eventId, rows }), { wrapper });
   let pending: Promise<void> | undefined;
-  act(() => {
+  await act(async () => {
+    await Promise.resolve();
     pending = result.current.markRemainingPresent(rows);
   });
   await act(async () => {
+    await Promise.resolve();
     client.setQueryData(
       api.queryKeys.organization.attendance(eventId),
       (current: readonly OrganizationAttendanceRow[] | undefined) =>
@@ -405,4 +413,244 @@ it("bulk failure restores only unchanged optimistic rows after a server refresh"
       )
       ?.map((row) => row.attendance),
   ).toEqual(["Absent", "Pending"]);
+});
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+describe("Attendance refresh coordination", () => {
+  let client: QueryClient;
+  const key = api.queryKeys.organization.attendance(mockEvent.id);
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.useFakeTimers();
+    focusManager.setFocused(true);
+    client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, staleTime: Infinity, refetchOnWindowFocus: false },
+      },
+    });
+    client.setQueryData(api.queryKeys.organization.events, [mockEvent]);
+    client.setQueryData(api.queryKeys.organization.venues, [mockVenue]);
+    client.setQueryData(api.queryKeys.organization.rosterConfiguration, mockRosterConfig);
+    client.setQueryData(key, mockRows);
+    vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue(mockRows);
+  });
+
+  afterEach(() => {
+    cleanup();
+    client.clear();
+    focusManager.setFocused(undefined);
+    vi.useRealTimers();
+  });
+
+  function renderAttendance() {
+    return renderHook(
+      () => {
+        const queries = useAttendanceQueries(true);
+        const mutations = useAttendanceMutations({ eventId: queries.eventId, rows: queries.rows });
+        return { ...queries, ...mutations };
+      },
+      {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <QueryClientProvider client={client}>{children}</QueryClientProvider>
+        ),
+      },
+    );
+  }
+
+  async function advance(milliseconds: number) {
+    await act(async () => {
+      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(milliseconds);
+    });
+  }
+
+  it("polls every five seconds only while visible", async () => {
+    renderAttendance();
+    await advance(4_999);
+    expect(api.listOrganizationEventAttendance).not.toHaveBeenCalled();
+    await advance(1);
+    expect(api.listOrganizationEventAttendance).toHaveBeenCalledTimes(1);
+    act(() => {
+      focusManager.setFocused(false);
+    });
+    await advance(15_000);
+    expect(api.listOrganizationEventAttendance).toHaveBeenCalledTimes(1);
+    act(() => {
+      focusManager.setFocused(true);
+    });
+    await advance(5_000);
+    expect(api.listOrganizationEventAttendance).toHaveBeenCalledTimes(2);
+  });
+
+  it("cancels an in-flight poll before optimistic saving and ignores its late response", async () => {
+    const poll = deferred<readonly OrganizationAttendanceRow[]>();
+    const save = deferred<readonly OrganizationAttendanceRow[]>();
+    vi.mocked(api.listOrganizationEventAttendance).mockReturnValueOnce(poll.promise);
+    vi.mocked(api.updateOrganizationEventAttendance).mockReturnValueOnce(save.promise);
+    const { result } = renderAttendance();
+    await advance(5_000);
+    const signal = vi.mocked(api.listOrganizationEventAttendance).mock.calls[0]?.[1];
+    expect(signal?.aborted).toBe(false);
+    await act(async () => {
+      await Promise.resolve();
+      result.current.changeAttendance("p-1");
+    });
+    expect(signal?.aborted).toBe(true);
+    expect(result.current.rows[0]?.attendance).toBe("Present");
+    await act(async () => {
+      await Promise.resolve();
+      poll.resolve(mockRows);
+    });
+    await advance(15_000);
+    expect(api.listOrganizationEventAttendance).toHaveBeenCalledTimes(1);
+    expect(result.current.rows[0]?.attendance).toBe("Present");
+    const saved = mockRows.map((row) =>
+      row.profileId === "p-1" ? { ...row, attendance: "Present" as const } : row,
+    );
+    vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue(saved);
+    await act(async () => {
+      await Promise.resolve();
+      save.resolve(saved);
+    });
+    await advance(1);
+    expect(api.listOrganizationEventAttendance).toHaveBeenCalledTimes(2);
+    expect(result.current.rows[0]?.attendance).toBe("Present");
+    await advance(5_000);
+    expect(api.listOrganizationEventAttendance).toHaveBeenCalledTimes(3);
+  });
+
+  it("waits for every concurrent row save before refreshing, including failures", async () => {
+    const first = deferred<readonly OrganizationAttendanceRow[]>();
+    const second = deferred<readonly OrganizationAttendanceRow[]>();
+    vi.mocked(api.updateOrganizationEventAttendance)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const { result } = renderAttendance();
+    await act(async () => {
+      await Promise.resolve();
+      result.current.changeAttendance("p-1");
+      result.current.changeAttendance("p-2");
+    });
+    await advance(10_000);
+    expect(api.listOrganizationEventAttendance).not.toHaveBeenCalled();
+    await act(async () => {
+      await Promise.resolve();
+      first.resolve(mockRows.slice(0, 1).map((row) => ({ ...row, attendance: "Present" })));
+    });
+    await advance(5_000);
+    expect(api.listOrganizationEventAttendance).not.toHaveBeenCalled();
+    expect(result.current.rows[1]?.attendance).toBe("Present");
+    vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue(
+      mockRows.map((row) => (row.profileId === "p-1" ? { ...row, attendance: "Present" } : row)),
+    );
+    await act(async () => {
+      await Promise.resolve();
+      second.reject(new Error("Save failed"));
+    });
+    await advance(1);
+    expect(api.listOrganizationEventAttendance).toHaveBeenCalledTimes(1);
+    expect(result.current.rows.map((row) => row.attendance)).toEqual([
+      "Present",
+      "Pending",
+      "Pending",
+      "Pending",
+    ]);
+    expect(result.current.message).toContain("could not be saved");
+  });
+
+  it("refreshes once when concurrent saves finish together", async () => {
+    const first = deferred<readonly OrganizationAttendanceRow[]>();
+    const second = deferred<readonly OrganizationAttendanceRow[]>();
+    vi.mocked(api.updateOrganizationEventAttendance)
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+    const { result } = renderAttendance();
+    await act(async () => {
+      await Promise.resolve();
+      result.current.changeAttendance("p-1");
+      result.current.changeAttendance("p-2");
+    });
+    const saved = mockRows.map((row) =>
+      ["p-1", "p-2"].includes(row.profileId) ? { ...row, attendance: "Present" as const } : row,
+    );
+    vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue(saved);
+    await act(async () => {
+      await Promise.resolve();
+      first.resolve(saved);
+      second.resolve(saved);
+    });
+    await advance(1);
+    expect(api.listOrganizationEventAttendance).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps pending saves and their completion refresh tied to the original event", async () => {
+    const save = deferred<readonly OrganizationAttendanceRow[]>();
+    vi.mocked(api.updateOrganizationEventAttendance).mockReturnValueOnce(save.promise);
+    const otherEventId = "33333333-3333-4333-8333-333333333333";
+    client.setQueryData(api.queryKeys.organization.attendance(otherEventId), mockRows);
+    const { result } = renderAttendance();
+    await act(async () => {
+      await Promise.resolve();
+      result.current.changeAttendance("p-1");
+    });
+    act(() => {
+      result.current.setSelectedEventId(otherEventId);
+    });
+    await advance(5_000);
+    expect(api.listOrganizationEventAttendance).toHaveBeenCalledWith(
+      otherEventId,
+      expect.any(AbortSignal),
+    );
+    await act(async () => {
+      await Promise.resolve();
+      save.resolve(mockRows.slice(0, 1).map((row) => ({ ...row, attendance: "Present" })));
+    });
+    await advance(1);
+    expect(result.current.eventId).toBe(otherEventId);
+    expect(result.current.rows[0]?.attendance).toBe("Pending");
+    expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    expect(client.getQueryData<readonly OrganizationAttendanceRow[]>(key)?.[0]?.attendance).toBe(
+      "Present",
+    );
+  });
+
+  it.each([true, false])(
+    "protects bulk saves and refreshes after settlement (success: %s)",
+    async (success) => {
+      const save = deferred<readonly OrganizationAttendanceRow[]>();
+      vi.mocked(api.updateOrganizationEventAttendance).mockReturnValueOnce(save.promise);
+      const { result } = renderAttendance();
+      let saving: Promise<void> | undefined;
+      await act(async () => {
+        await Promise.resolve();
+        saving = result.current.markRemainingPresent(mockRows);
+      });
+      await advance(15_000);
+      expect(api.listOrganizationEventAttendance).not.toHaveBeenCalled();
+      expect(result.current.rows.every((row) => row.attendance === "Present")).toBe(true);
+      const saved = mockRows.map((row) => ({ ...row, attendance: "Present" as const }));
+      vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue(success ? saved : mockRows);
+      await act(async () => {
+        await Promise.resolve();
+        if (success) save.resolve(saved);
+        else save.reject(new Error("Bulk failed"));
+        await saving;
+      });
+      await advance(1);
+      expect(api.listOrganizationEventAttendance).toHaveBeenCalledTimes(1);
+      expect(
+        result.current.rows.every((row) => row.attendance === (success ? "Present" : "Pending")),
+      ).toBe(true);
+    },
+  );
 });

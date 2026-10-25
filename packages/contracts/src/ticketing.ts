@@ -313,6 +313,7 @@ export const publicTicketBundleSchema = z.object({
 });
 
 export const publicWebsiteProjectionPayloadSchema = z.object({
+  performerLabel: z.string().trim().min(1).max(50).optional(),
   mediaFileIds: z.array(z.uuid()).max(102),
   organizationName: z.string().min(1).max(120),
   performances: z.array(publicPerformanceSchema).max(100),

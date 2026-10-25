@@ -70,7 +70,7 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
           doorsOpenTime: "",
           graphicFileId: null,
           location: "",
-          publicDetails: "",
+          publicDetails: "[Event information](https://events.example.test/details)",
           ticketCapacity: null,
           venueAddress: "",
           venueName: "",
@@ -94,6 +94,31 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
           .getAllByRole("article")
           .map((card) => within(card).getByRole("heading", { level: 3 }).textContent),
       ).toEqual(pathname === "/" ? expected.slice(0, 3) : expected);
+      const viewAll = screen.queryByRole("link", { name: "View all performances" });
+      if (pathname === "/") expect(viewAll).toHaveAttribute("href", "/performances");
+      else expect(viewAll).not.toBeInTheDocument();
+      const freeCard = screen
+        .getByRole("heading", { name: "First free appearance" })
+        .closest("article");
+      if (!freeCard) throw new Error("Expected free performance card");
+      expect(freeCard).not.toHaveClass("public-performance-card--linked");
+      expect(
+        within(freeCard).queryByRole("link", { name: "First free appearance" }),
+      ).not.toBeInTheDocument();
+      expect(within(freeCard).getByRole("link", { name: "Event information" })).toHaveAttribute(
+        "href",
+        "https://events.example.test/details",
+      );
+      expect(screen.queryByText("View performance →")).not.toBeInTheDocument();
+      const ticketCard = screen
+        .getByRole("heading", { name: "Next ticketed concert" })
+        .closest("article");
+      if (!ticketCard) throw new Error("Expected ticketed performance card");
+      expect(ticketCard).toHaveClass("public-performance-card--linked");
+      expect(
+        within(ticketCard).getByRole("link", { name: "Next ticketed concert" }),
+      ).toHaveAttribute("href", "/tickets/performance-30");
+      expect(within(ticketCard).getByText("View tickets →")).toBeInTheDocument();
     },
   );
 
@@ -130,7 +155,35 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
     const nav = screen.getByRole("navigation", { name: "Public website" });
     expect(within(nav).queryByRole("link", { name: "Performances" })).toBeNull();
     expect(within(nav).queryByRole("link", { name: "History" })).toBeNull();
-    expect(within(nav).getByRole("link", { name: "Sign in" })).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Performer login" })).toBeInTheDocument();
+  });
+
+  it.each(["Singer", "Musician", "Performer", "Choir Member"])(
+    "uses the published %s terminology for the signed-out login link",
+    async (performerLabel) => {
+      vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(
+        createProjection({ performerLabel }),
+      );
+      render(<PublicOrganizationSite fallback={null} pathname="/" />);
+      const nav = await screen.findByRole("navigation", { name: "Public website" });
+      expect(within(nav).getByRole("link", { name: `${performerLabel} login` })).toHaveAttribute(
+        "href",
+        "/login",
+      );
+      expect(within(nav).queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
+    },
+  );
+
+  it("shows an accessible dashboard link with an account icon when signed in", async () => {
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(
+      createProjection({ performerLabel: "Singer" }),
+    );
+    render(<PublicOrganizationSite fallback={null} pathname="/" signedIn />);
+    const link = await screen.findByRole("link", { name: "My dashboard" });
+    expect(link).toHaveAttribute("href", "/login");
+    expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(link).not.toHaveTextContent("←");
+    expect(screen.queryByRole("link", { name: "Singer login" })).not.toBeInTheDocument();
   });
 
   it("shows Performances in navigation when performances exist, and History when history text exists", async () => {

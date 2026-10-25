@@ -34,7 +34,7 @@ test.describe("public ticket pages", () => {
     await expect(page.getByRole("navigation", { name: "Public website" })).not.toBeVisible();
     await expect(page.getByRole("link", { name: "Performances" })).not.toBeVisible();
     await expect(page.getByRole("link", { name: "History" })).not.toBeVisible();
-    await expect(page.getByRole("link", { name: "Sign in" })).not.toBeVisible();
+    await expect(page.getByRole("link", { name: "Performer login" })).not.toBeVisible();
   });
 
   test("shows hosted website header, footer, and navigation when showBrandingHeaderFooter is enabled", async ({
@@ -48,6 +48,7 @@ test.describe("public ticket pages", () => {
           ...ticketingProjection,
           payload: {
             ...ticketingProjection.payload,
+            performerLabel: "Singer",
             settings: {
               ...ticketingProjection.payload.settings,
               enabledNavigation: ["tickets"],
@@ -68,7 +69,11 @@ test.describe("public ticket pages", () => {
     await expect(nav).toBeVisible();
     await expect(page.getByRole("link", { name: "Performances" })).toBeVisible();
     await expect(page.getByRole("link", { name: "History" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+    const loginLink = page.getByRole("link", { name: "Singer login" });
+    await expect(loginLink).toBeVisible();
+    await expect(loginLink).toHaveAttribute("href", "/login");
+    await loginLink.focus();
+    await expect(loginLink).toBeFocused();
 
     const ticketsLink = nav.getByRole("link", { exact: true, name: "Tickets" });
     await expect(ticketsLink).toHaveAttribute("aria-current", "page");

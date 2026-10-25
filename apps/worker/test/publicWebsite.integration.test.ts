@@ -1,5 +1,6 @@
 import {
   organizationEventSchema,
+  organizationRosterConfigurationResponseSchema,
   organizationEventsResponseSchema,
   organizationVenueSchema,
   privateFileResponseSchema,
@@ -417,6 +418,44 @@ describe("Organization public website", () => {
       (await jsonWrite("bravo.localhost", "/api/organization/website", "PUT", {}, cookie)).status,
     ).toBe(403);
 
+    const roster = organizationRosterConfigurationResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", "/api/organization/roster-configuration", cookie),
+        )
+      ).json(),
+    );
+    expect(
+      (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/roster-configuration",
+          "PUT",
+          {
+            ...roster,
+            performerLabel: "Singer",
+          },
+          cookie,
+        )
+      ).status,
+    ).toBe(200);
+    const commerceResponse = await exports.default.fetch(
+      api("alpha.localhost", "/api/public/commerce-projection"),
+    );
+    expect(commerceResponse.status).toBe(200);
+    expect(
+      publishedOrganizationProjectionSchema.parse(await commerceResponse.json()).payload
+        .performerLabel,
+    ).toBe("Singer");
+    const bravoRoster = organizationRosterConfigurationResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("bravo.localhost", "/api/organization/roster-configuration", cookie),
+        )
+      ).json(),
+    );
+    expect(bravoRoster.performerLabel).toBe("Performer");
+
     await uploadImage(cookie);
     const venue = organizationVenueSchema.parse(
       await (
@@ -523,6 +562,7 @@ describe("Organization public website", () => {
       expect(projection).toMatchObject({
         organizationId: "organization-alpha",
         payload: {
+          performerLabel: "Singer",
           performances: [
             { id: performance.id, title: "Winter Concert", ticketSlug: "winter-concert" },
           ],

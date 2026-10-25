@@ -39,11 +39,11 @@ function displayDate(value: string, timezone: string): string {
 }
 
 function PerformanceCards({
-  linkToDetails = false,
+  linkToTickets = false,
   performances,
   projection,
 }: {
-  readonly linkToDetails?: boolean;
+  readonly linkToTickets?: boolean;
   readonly performances: PublishedOrganizationProjection["payload"]["performances"];
   readonly projection: PublishedOrganizationProjection;
 }) {
@@ -51,7 +51,7 @@ function PerformanceCards({
     <div className="public-performance-grid">
       {performances.map((performance) => (
         <article
-          className={`public-performance-card${linkToDetails ? " public-performance-card--linked" : ""}`}
+          className={`public-performance-card${linkToTickets && performance.isTicketingEnabled ? " public-performance-card--linked" : ""}`}
           id={`performance-${performance.id}`}
           key={performance.id}
         >
@@ -64,15 +64,8 @@ function PerformanceCards({
           <div>
             <p>{displayDate(performance.startsAt, projection.payload.timezone)}</p>
             <h3>
-              {linkToDetails ? (
-                <a
-                  className="performance-card__link"
-                  href={
-                    performance.isTicketingEnabled
-                      ? ticketSalesPath(performance)
-                      : `/performances#performance-${performance.id}`
-                  }
-                >
+              {linkToTickets && performance.isTicketingEnabled ? (
+                <a className="performance-card__link" href={ticketSalesPath(performance)}>
                   {performance.title}
                 </a>
               ) : (
@@ -85,9 +78,9 @@ function PerformanceCards({
               </p>
             ) : null}
             <PublicCopy text={performance.publicDetails} />
-            {linkToDetails ? (
+            {linkToTickets && performance.isTicketingEnabled ? (
               <p aria-hidden="true" className="public-performance-card__destination">
-                {performance.isTicketingEnabled ? "View tickets →" : "View performance →"}
+                View tickets →
               </p>
             ) : null}
           </div>
@@ -161,13 +154,27 @@ export function OrganizationLayout({
               </a>
             );
           })}
-          {signedIn ? (
-            <a className="back-to-workspace" href="/login">
-              ← Workspace
-            </a>
-          ) : (
-            <a href="/login">Sign in</a>
-          )}
+          <a className="public-site-account-link" href="/login">
+            {signedIn ? (
+              <svg
+                aria-hidden="true"
+                fill="none"
+                height="18"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                width="18"
+              >
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            ) : null}
+            {signedIn
+              ? "My dashboard"
+              : `${projection.payload.performerLabel ?? "Performer"} login`}
+          </a>
         </nav>
       </header>
       <main>{children}</main>
@@ -234,9 +241,14 @@ function OrganizationHome({
       />
       {upcoming.length > 0 ? (
         <section className="public-section">
-          <h2>Upcoming Performances</h2>
+          <div className="public-section-heading">
+            <h2>Upcoming Performances</h2>
+            <a href="/performances">
+              View all performances <span aria-hidden="true">→</span>
+            </a>
+          </div>
           <PerformanceCards
-            linkToDetails
+            linkToTickets
             performances={upcoming.slice(0, 3)}
             projection={projection}
           />
@@ -337,7 +349,7 @@ function OrganizationPerformances({
         <h1>{publicPageHeading(projection.payload.settings, "performances", "Performances")}</h1>
         {hasPerformances ? (
           <PerformanceCards
-            linkToDetails
+            linkToTickets
             performances={prioritizeTicketedPerformances(projection.payload.performances)}
             projection={projection}
           />

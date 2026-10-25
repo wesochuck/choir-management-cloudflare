@@ -4,7 +4,7 @@ import type {
   OrganizationEvent,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 
 import {
@@ -67,11 +67,19 @@ export function useAttendanceQueries(enabled: boolean) {
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const eventId = selectedEventId || defaultEventId;
 
+  const queryClient = useQueryClient();
+  const attendanceKey = queryKeys.organization.attendance(eventId);
+  const pendingSaves = useIsMutating({ exact: true, mutationKey: attendanceKey });
+
   const { data: rows = [], dataUpdatedAt } = useQuery({
     enabled: enabled && Boolean(eventId),
     queryFn: ({ signal }) => listOrganizationEventAttendance(eventId, signal),
     queryKey: queryKeys.organization.attendance(eventId),
-    refetchInterval: 30_000,
+    refetchInterval: () =>
+      pendingSaves > 0 || queryClient.isMutating({ exact: true, mutationKey: attendanceKey }) > 0
+        ? false
+        : 5_000,
+    refetchIntervalInBackground: false,
   });
 
   return {
@@ -159,6 +167,7 @@ export function useAttendanceMutations({
   const queryClient = useQueryClient();
   const [savingIds, setSavingIds] = useState<ReadonlySet<string>>(new Set());
   const mutationGenerations = useRef<Map<string, number>>(new Map());
+  const pendingSaveCounts = useRef<Map<string, number>>(new Map());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [rescueCandidate, setRescueCandidate] = useState<OrganizationAttendanceRow | null>(null);
@@ -174,13 +183,16 @@ export function useAttendanceMutations({
     });
   }
 
-  async function saveRow(
-    row: OrganizationAttendanceRow,
-    updates: Partial<OrganizationAttendanceRow>,
-  ) {
-    const targetEventId = eventId;
+  async function saveRow({
+    targetEventId,
+    row,
+    nextValue,
+  }: {
+    readonly targetEventId: string;
+    readonly row: OrganizationAttendanceRow;
+    readonly nextValue: OrganizationAttendanceStatus;
+  }) {
     const profileId = row.profileId;
-    const nextValue = updates.attendance ?? row.attendance;
 
     const generation = (mutationGenerations.current.get(profileId) ?? 0) + 1;
     mutationGenerations.current.set(profileId, generation);
@@ -258,7 +270,7 @@ export function useAttendanceMutations({
     next: OrganizationAttendanceStatus,
   ): Promise<boolean> {
     try {
-      await saveRow(row, { attendance: next });
+      await rowMutation.mutateAsync({ targetEventId: eventId, row, nextValue: next });
       return true;
     } catch {
       return false;
@@ -295,9 +307,13 @@ export function useAttendanceMutations({
     if (saved) setRescueCandidate(null);
   }
 
-  async function markRemainingPresent(markableRows: readonly OrganizationAttendanceRow[]) {
-    if (!eventId || markableRows.length === 0 || bulkBusy) return;
-    const targetEventId = eventId;
+  async function saveRemainingPresent({
+    targetEventId,
+    markableRows,
+  }: {
+    readonly targetEventId: string;
+    readonly markableRows: readonly OrganizationAttendanceRow[];
+  }) {
     setBulkBusy(true);
     setMessage(null);
 
@@ -372,6 +388,51 @@ export function useAttendanceMutations({
     } finally {
       setBulkBusy(false);
     }
+  }
+
+  const mutationKey = queryKeys.organization.attendance(eventId);
+  async function cancelAttendanceRefresh({ targetEventId }: { readonly targetEventId: string }) {
+    pendingSaveCounts.current.set(
+      targetEventId,
+      (pendingSaveCounts.current.get(targetEventId) ?? 0) + 1,
+    );
+    await queryClient.cancelQueries({
+      exact: true,
+      queryKey: queryKeys.organization.attendance(targetEventId),
+    });
+  }
+  async function refreshAfterLastSave(
+    _data: unknown,
+    _error: Error | null,
+    { targetEventId }: { readonly targetEventId: string },
+  ) {
+    const queryKey = queryKeys.organization.attendance(targetEventId);
+    // Count completed writes synchronously: simultaneous settlements can otherwise
+    // each see the other mutation as pending and both skip the final refresh.
+    const remaining = (pendingSaveCounts.current.get(targetEventId) ?? 1) - 1;
+    if (remaining > 0) {
+      pendingSaveCounts.current.set(targetEventId, remaining);
+      return;
+    }
+    pendingSaveCounts.current.delete(targetEventId);
+    await queryClient.invalidateQueries({ exact: true, queryKey });
+  }
+  const rowMutation = useMutation({
+    mutationFn: saveRow,
+    mutationKey,
+    onMutate: cancelAttendanceRefresh,
+    onSettled: refreshAfterLastSave,
+  });
+  const bulkMutation = useMutation({
+    mutationFn: saveRemainingPresent,
+    mutationKey,
+    onMutate: cancelAttendanceRefresh,
+    onSettled: refreshAfterLastSave,
+  });
+
+  async function markRemainingPresent(markableRows: readonly OrganizationAttendanceRow[]) {
+    if (!eventId || markableRows.length === 0 || bulkBusy || bulkMutation.isPending) return;
+    await bulkMutation.mutateAsync({ targetEventId: eventId, markableRows });
   }
 
   return {
