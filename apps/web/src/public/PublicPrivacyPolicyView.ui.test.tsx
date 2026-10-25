@@ -18,13 +18,14 @@ describe("PublicPrivacyPolicyView (A2P 10DLC Carrier Compliance)", () => {
   });
 
   it("renders Privacy Policy heading and updates document title", () => {
-    render(<PublicPrivacyPolicyView />);
+    const { container } = render(<PublicPrivacyPolicyView />);
 
     expect(screen.getByRole("heading", { level: 1, name: "Privacy Policy" })).toBeInTheDocument();
-    expect(screen.getAllByText(/MusicSite \/ Choir Management/)[0]).toBeInTheDocument();
-    expect(document.title).toBe("Privacy Policy · MusicSite");
+    expect(screen.getAllByText("Music Manager", { exact: true })[0]).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/MusicSite|Choir Management/);
+    expect(document.title).toBe("Privacy Policy · Music Manager");
 
-    const returnLink = screen.getByRole("link", { name: "← Return to MusicSite" });
+    const returnLink = screen.getByRole("link", { name: "← Return to Music Manager" });
     expect(returnLink).toHaveAttribute("href", "/");
   });
 

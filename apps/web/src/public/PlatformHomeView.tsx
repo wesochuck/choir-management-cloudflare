@@ -762,10 +762,10 @@ export function PlatformHomeView({ signedIn }: PlatformHomeViewProps) {
   return (
     <main className="platform-home">
       <PlatformHero signedIn={signedIn} />
+      <PerformancesSection />
       <AudienceRoutes />
       <FeatureOverview />
       <SigningInSection signedIn={signedIn} />
-      <PerformancesSection />
       <CommunityChoirsSection />
       <PlatformFooter />
     </main>

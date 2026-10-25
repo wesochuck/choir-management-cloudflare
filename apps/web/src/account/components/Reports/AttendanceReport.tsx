@@ -132,7 +132,7 @@ export function AttendanceReport({
           ) : state !== "ready" ? (
             <Status state={state} />
           ) : rows.length === 0 ? (
-            <Status state="ready" empty="No attendance has been recorded for these rehearsals." />
+            <Status state="ready" empty="No one has RSVP'd Yes to this performance." />
           ) : (
             <DataTable
               columns={[

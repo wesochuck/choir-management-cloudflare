@@ -86,9 +86,11 @@ export function readEventAttendanceReportFromStore(
          CAST(COUNT(CASE WHEN r.attendance = 'Absent' THEN 1 END) AS INTEGER) AS absences,
          CAST(COUNT(CASE WHEN r.attendance = 'Present' THEN 1 END) AS INTEGER) AS present
        FROM (
-         SELECT id, display_name, voice_part
-         FROM profiles
-         ORDER BY display_name COLLATE NOCASE ASC, id ASC
+         SELECT profile.id, profile.display_name, profile.voice_part
+         FROM event_rosters commitment
+         JOIN profiles profile ON profile.id = commitment.profile_id
+         WHERE commitment.event_id = ? AND commitment.rsvp = 'Yes'
+         ORDER BY profile.display_name COLLATE NOCASE ASC, profile.id ASC
          LIMIT 500
        ) p
        LEFT JOIN event_rosters r
@@ -100,6 +102,7 @@ export function readEventAttendanceReportFromStore(
          )
        GROUP BY p.id
        LIMIT 500`,
+      eventId.data,
       eventId.data,
     )
     .toArray();

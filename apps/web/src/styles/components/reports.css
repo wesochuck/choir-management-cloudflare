@@ -21,6 +21,7 @@
   .reports-panel {
     display: grid;
     gap: var(--spacing-md);
+    padding-top: var(--spacing-lg);
   }
 
   .reports-controls__event {

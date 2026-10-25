@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { futureIsoDate } from "@choir/testkit";
+import { futureIsoDate, pastIsoDate } from "@choir/testkit";
 import { publishedOrganizationProjectionSchema } from "@choir/contracts";
 import { mockAnonymousSession, mockHealth } from "./support/testWorld";
 
@@ -17,8 +17,8 @@ const performance = {
   publicDetails: "",
   startsAt: futureIsoDate({ days: 60 }),
   ticketCapacity: null,
-  venueAddress: "",
-  venueName: "",
+  venueAddress: "100 Main St, Lancaster, OH",
+  venueName: "Community Hall",
 };
 const projection = publishedOrganizationProjectionSchema.parse({
   version: 1,
@@ -113,6 +113,11 @@ for (const pathname of ["/", "/performances"] as const) {
         .route("https://partner.example.test/notes", (route) =>
           route.fulfill({ contentType: "text/html", body: "Program notes" }),
         );
+      await page
+        .context()
+        .route("https://www.google.com/maps/**", (route) =>
+          route.fulfill({ contentType: "text/html", body: "Map preview" }),
+        );
       await page.goto(pathname);
       await expect(page.locator(".public-performance-card h3")).toHaveText([
         "Winter Concert",
@@ -120,6 +125,28 @@ for (const pathname of ["/", "/performances"] as const) {
         "Free Community Concert",
       ]);
       const card = page.locator(`#performance-${firstId}`);
+      const mapUrl =
+        "https://www.google.com/maps/search/?api=1&query=Community%20Hall%2C%20100%20Main%20St%2C%20Lancaster%2C%20OH";
+      for (const venueCard of [card, page.locator(`#performance-${freeId}`)]) {
+        const mapLink = venueCard.getByRole("link", {
+          name: "Community Hall on Google Maps (opens in a new tab)",
+          exact: true,
+        });
+        await expect(mapLink).toHaveAttribute("href", mapUrl);
+        for (const activation of ["pointer", "keyboard"] as const) {
+          const mapPopupEvent = page.waitForEvent("popup");
+          if (activation === "pointer") await mapLink.click();
+          else {
+            await mapLink.focus();
+            await expect(mapLink).toBeFocused();
+            await page.keyboard.press("Enter");
+          }
+          const mapPopup = await mapPopupEvent;
+          await expect(mapPopup).toHaveURL(mapUrl);
+          await mapPopup.close();
+          await expect(page).toHaveURL(new RegExp(`${pathname}$`));
+        }
+      }
       const title = card.getByRole("link", { name: "Winter Concert", exact: true });
       await expect(title).toHaveAttribute("href", "/tickets/winter-concert");
       await expect(card).toContainText("View tickets");
@@ -187,4 +214,83 @@ for (const pathname of ["/", "/performances"] as const) {
       );
     });
   }
+}
+
+for (const theme of ["light", "dark"] as const) {
+  test(`separates upcoming performances from the archive in ${theme} theme`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme: theme });
+    await mockHealth(page);
+    await mockAnonymousSession(page);
+    const archivedProjection = {
+      ...projection,
+      generatedAt: pastIsoDate({ days: 100 }),
+      payload: {
+        ...projection.payload,
+        performances: [
+          {
+            ...performance,
+            id: "55555555-5555-4555-8555-555555555555",
+            title: "Older concert",
+            startsAt: pastIsoDate({ days: 90 }),
+          },
+          ...projection.payload.performances,
+          {
+            ...performance,
+            id: "66666666-6666-4666-8666-666666666666",
+            title: "Recent concert",
+            startsAt: pastIsoDate({ days: 1 }),
+          },
+        ],
+      },
+    };
+    await page.route("**/api/public/projection", (route) =>
+      route.fulfill({ json: archivedProjection }),
+    );
+    await page.route("**/api/public/logo", (route) => route.fulfill({ status: 404 }));
+    await page.route(`**/api/public/media/1/${graphicId}`, (route) =>
+      route.fulfill({ status: 404 }),
+    );
+    await page.goto("/performances");
+    const upcoming = page.getByRole("region", { name: "Upcoming performances", exact: true });
+    const past = page.getByRole("region", { name: "Past performances", exact: true });
+    await expect(upcoming).toBeVisible();
+    await expect(past).toBeVisible();
+    await expect(upcoming.getByRole("heading", { level: 3 })).toHaveText([
+      "Winter Concert",
+      "Legacy Concert",
+      "Free Community Concert",
+    ]);
+    await expect(past.getByRole("heading", { level: 3 })).toHaveText([
+      "Recent concert",
+      "Older concert",
+    ]);
+    await expect(past.locator(".public-performance-card--linked")).toHaveCount(0);
+    await expect(past.getByText("View tickets", { exact: false })).toHaveCount(0);
+    const map = past
+      .getByRole("link", {
+        name: "Community Hall on Google Maps (opens in a new tab)",
+        exact: true,
+      })
+      .first();
+    await map.focus();
+    await expect(map).toBeFocused();
+    await expect(map).toHaveAttribute("href", /google.com\/maps\/search/);
+    expect(await past.evaluate((element) => getComputedStyle(element).borderTopStyle)).toBe(
+      "solid",
+    );
+    const titleSize = await page
+      .getByRole("heading", { level: 1 })
+      .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+    const sectionSize = await upcoming
+      .getByRole("heading", { level: 2 })
+      .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+    expect(sectionSize).toBeLessThanOrEqual(titleSize);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: test.info().outputPath("performance-sections.png"),
+      fullPage: true,
+    });
+  });
 }

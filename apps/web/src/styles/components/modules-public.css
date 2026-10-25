@@ -349,6 +349,27 @@
     margin-bottom: 0;
   }
 
+  .public-performances-intro {
+    margin-bottom: var(--spacing-2xl);
+    color: var(--color-text-muted);
+  }
+
+  .public-performance-schedule > h2 {
+    margin: 0 0 var(--spacing-md);
+    font-size: min(var(--font-size-2xl), var(--font-size-section));
+  }
+
+  .public-past-performances {
+    margin-top: var(--spacing-2xl);
+    padding-top: var(--spacing-xl);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .public-past-performances > p {
+    margin-bottom: var(--spacing-xl);
+    color: var(--color-text-muted);
+  }
+
   .public-performance-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -399,7 +420,8 @@
     outline-offset: 2px;
   }
 
-  .public-performance-card--linked .public-copy a {
+  .public-performance-card--linked .public-copy a,
+  .public-performance-card--linked .public-performance-map-link {
     position: relative;
     z-index: 1;
   }

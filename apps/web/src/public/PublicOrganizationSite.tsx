@@ -11,6 +11,7 @@ import { PublicCopy } from "./PublicCopy";
 import { PublicWebsiteHero } from "./PublicWebsiteHero";
 import { PublicWebsiteFooter } from "./PublicWebsiteFooter";
 import { publicWebsiteFontStacks } from "./publicWebsiteFonts";
+import { getEventVenueDetails, type EventVenueInput } from "./venueDetails";
 
 type ProjectionState =
   | { readonly status: "error" }
@@ -36,6 +37,44 @@ function displayDate(value: string, timezone: string): string {
     dateStyle: "long",
     timeZone: timezone,
   }).format(new Date(value));
+}
+
+function usePerformanceSchedule(
+  performances: PublishedOrganizationProjection["payload"]["performances"],
+) {
+  const [now] = useState(Date.now);
+  const dated = performances.map((performance) => ({
+    performance,
+    startsAt: Date.parse(performance.startsAt),
+  }));
+  return {
+    upcoming: prioritizeTicketedPerformances(
+      dated.filter(({ startsAt }) => startsAt >= now).map(({ performance }) => performance),
+    ),
+    past: dated
+      .filter(({ startsAt }) => startsAt < now)
+      .sort((left, right) => right.startsAt - left.startsAt)
+      .map(({ performance }) => performance),
+  };
+}
+
+function PerformanceVenue({ performance }: { readonly performance: EventVenueInput }) {
+  const venue = getEventVenueDetails(performance);
+  if (!venue.googleMapsUrl) return null;
+  const label = venue.displayName || venue.venueAddress;
+  return (
+    <p className="public-performance-location">
+      <a
+        aria-label={`${label} on Google Maps (opens in a new tab)`}
+        className="public-performance-map-link"
+        href={venue.googleMapsUrl}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        {label}
+      </a>
+    </p>
+  );
 }
 
 function PerformanceCards({
@@ -72,11 +111,7 @@ function PerformanceCards({
                 performance.title
               )}
             </h3>
-            {performance.venueName || performance.location ? (
-              <p className="public-performance-location">
-                {performance.venueName || performance.location}
-              </p>
-            ) : null}
+            <PerformanceVenue performance={performance} />
             <PublicCopy text={performance.publicDetails} />
             {linkToTickets && performance.isTicketingEnabled ? (
               <p aria-hidden="true" className="public-performance-card__destination">
@@ -223,13 +258,7 @@ function OrganizationHome({
   readonly signedIn?: boolean | undefined;
 }) {
   const { performances, settings } = projection.payload;
-  const now = new Date(projection.generatedAt).getTime();
-  const upcoming = prioritizeTicketedPerformances(
-    performances.filter(({ startsAt }) => new Date(startsAt).getTime() >= now),
-  );
-  const past = performances
-    .filter(({ startsAt }) => new Date(startsAt).getTime() < now)
-    .slice(0, 3);
+  const { upcoming, past } = usePerformanceSchedule(performances);
   return (
     <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
       <PublicWebsiteHero
@@ -266,7 +295,7 @@ function OrganizationHome({
             <h2>Past Performances</h2>
             <a href="/performances">See all</a>
           </div>
-          <PerformanceCards performances={past} projection={projection} />
+          <PerformanceCards performances={past.slice(0, 3)} projection={projection} />
         </section>
       ) : null}
       {upcoming.length === 0 && past.length === 0 && !settings.aboutUsText ? (
@@ -341,18 +370,43 @@ function OrganizationPerformances({
   readonly signedIn?: boolean | undefined;
 }) {
   const hasPerformances = projection.payload.performances.length > 0;
+  const { upcoming, past } = usePerformanceSchedule(projection.payload.performances);
   const { contactEmail, enabledNavigation } = projection.payload.settings;
 
   return (
     <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
       <section className="public-section">
         <h1>{publicPageHeading(projection.payload.settings, "performances", "Performances")}</h1>
+        <p className="public-performances-intro">
+          Join us at an upcoming event, or explore performances from past seasons.
+        </p>
         {hasPerformances ? (
-          <PerformanceCards
-            linkToTickets
-            performances={prioritizeTicketedPerformances(projection.payload.performances)}
-            projection={projection}
-          />
+          <>
+            <section
+              aria-labelledby="upcoming-performances-title"
+              className="public-performance-schedule"
+            >
+              <h2 id="upcoming-performances-title">Upcoming performances</h2>
+              {upcoming.length > 0 ? (
+                <PerformanceCards linkToTickets performances={upcoming} projection={projection} />
+              ) : (
+                <p>
+                  No upcoming performances are currently published. Explore our past performances
+                  below.
+                </p>
+              )}
+            </section>
+            {past.length > 0 ? (
+              <section
+                aria-labelledby="past-performances-title"
+                className="public-performance-schedule public-past-performances"
+              >
+                <h2 id="past-performances-title">Past performances</h2>
+                <p>A look back at concerts and community appearances.</p>
+                <PerformanceCards performances={past} projection={projection} />
+              </section>
+            ) : null}
+          </>
         ) : (
           <div className="empty-state" aria-label="No published performances notice">
             <p>No performances are currently published on our schedule.</p>

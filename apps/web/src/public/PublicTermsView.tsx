@@ -3,7 +3,7 @@ import { useEffect } from "react";
 export function PublicTermsView() {
   useEffect(() => {
     if (typeof document !== "undefined") {
-      document.title = "Terms of Service · MusicSite";
+      document.title = "Terms of Service · Music Manager";
     }
   }, []);
 
@@ -11,14 +11,14 @@ export function PublicTermsView() {
     <div className="terms-layout">
       <nav aria-label="Breadcrumb" className="terms-nav">
         <a className="button button--secondary button--small" href="/">
-          ← Return to MusicSite
+          ← Return to Music Manager
         </a>
       </nav>
 
       <header className="terms-header">
         <h1>Terms of Service &amp; Messaging Terms</h1>
         <p className="terms-meta">
-          <strong>MusicSite / Choir Management</strong> · Effective Date: October 15, 2026
+          <strong>Music Manager</strong> · Effective Date: October 15, 2026
         </p>
       </header>
 
@@ -26,11 +26,10 @@ export function PublicTermsView() {
         <section aria-labelledby="terms-intro-title">
           <h2 id="terms-intro-title">1. Introduction &amp; Acceptance of Terms</h2>
           <p>
-            Welcome to MusicSite (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;), also
-            operating as Choir Management. These Terms of Service (&ldquo;Terms&rdquo;) govern your
-            access to and use of our web platform, rehearsal scheduling, sheet music and practice
-            audio players, member directories, ticketing, dues processing, and electronic
-            communications services.
+            Welcome to Music Manager (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;).
+            These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of our web
+            platform, rehearsal scheduling, sheet music and practice audio players, member
+            directories, ticketing, dues processing, and electronic communications services.
           </p>
           <p>
             By accessing or using our websites, signing into an ensemble workspace, purchasing
@@ -57,7 +56,7 @@ export function PublicTermsView() {
         <section aria-labelledby="terms-ip-title">
           <h2 id="terms-ip-title">3. Intellectual Property &amp; Repertoire Materials</h2>
           <p>
-            MusicSite provides storage and playback tools for community choruses and musical
+            Music Manager provides storage and playback tools for community choruses and musical
             ensembles. All copyrights, trademarks, sheet music, arrangement rights, audio
             recordings, and other creative materials uploaded by an organization remain the
             intellectual property of their respective owners or the ensemble.
@@ -73,8 +72,8 @@ export function PublicTermsView() {
         <section aria-labelledby="terms-sms-title" className="terms-callout" id="messaging-terms">
           <h2 id="terms-sms-title">4. Messaging Terms &amp; Conditions (A2P 10DLC Disclosures)</h2>
           <p>
-            MusicSite and Choir Management provide transactional mobile text messaging (SMS) to
-            support timely, operational coordination for musical ensembles and their performers.
+            Music Manager provides transactional mobile text messaging (SMS) to support timely,
+            operational coordination for musical ensembles and their performers.
           </p>
 
           <h3>Service Description &amp; Scope</h3>
@@ -139,7 +138,7 @@ export function PublicTermsView() {
             policies, and admission guidelines.
           </p>
           <p>
-            Ticket confirmation QR codes and admission credentials issued through MusicSite are
+            Ticket confirmation QR codes and admission credentials issued through Music Manager are
             valid only for the designated event and venue. Unauthorized reproduction or resale is
             prohibited.
           </p>
@@ -171,8 +170,8 @@ export function PublicTermsView() {
         <section aria-labelledby="terms-liability-title">
           <h2 id="terms-liability-title">8. Limitation of Liability</h2>
           <p>
-            To the maximum extent permitted by applicable law, MusicSite and its operators shall not
-            be liable for any indirect, incidental, consequential, special, or punitive damages
+            To the maximum extent permitted by applicable law, Music Manager and its operators shall
+            not be liable for any indirect, incidental, consequential, special, or punitive damages
             arising from your use of or inability to use the platform, including lost data, missed
             rehearsals, or third-party carrier delays.
           </p>
@@ -182,7 +181,7 @@ export function PublicTermsView() {
           <h2 id="terms-contact-title">9. Contact &amp; Legal Notices</h2>
           <p>For questions, legal inquiries, or support regarding these Terms, please contact:</p>
           <p>
-            <strong>MusicSite / Choir Management</strong>
+            <strong>Music Manager</strong>
             <br />
             Email: <a href="mailto:support@musicsite.org">support@musicsite.org</a>
             <br />
@@ -192,7 +191,7 @@ export function PublicTermsView() {
       </article>
 
       <footer className="terms-footer">
-        <p>© {new Date().getUTCFullYear()} MusicSite / Choir Management. All rights reserved.</p>
+        <p>© {new Date().getUTCFullYear()} Music Manager. All rights reserved.</p>
         <p>
           <a href="/">Platform Home</a> · <a href="/privacy">Privacy Policy</a> ·{" "}
           <a href="mailto:support@musicsite.org">Contact Support</a>

@@ -18,15 +18,16 @@ describe("PublicTermsView (A2P 10DLC Carrier Compliance)", () => {
   });
 
   it("renders Terms of Service heading and updates document title", () => {
-    render(<PublicTermsView />);
+    const { container } = render(<PublicTermsView />);
 
     expect(
       screen.getByRole("heading", { level: 1, name: "Terms of Service & Messaging Terms" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText(/MusicSite \/ Choir Management/)[0]).toBeInTheDocument();
-    expect(document.title).toBe("Terms of Service · MusicSite");
+    expect(screen.getAllByText("Music Manager", { exact: true })[0]).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/MusicSite|Choir Management/);
+    expect(document.title).toBe("Terms of Service · Music Manager");
 
-    const returnLink = screen.getByRole("link", { name: "← Return to MusicSite" });
+    const returnLink = screen.getByRole("link", { name: "← Return to Music Manager" });
     expect(returnLink).toHaveAttribute("href", "/");
   });
 

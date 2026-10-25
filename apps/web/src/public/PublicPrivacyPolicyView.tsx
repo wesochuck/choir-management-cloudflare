@@ -3,7 +3,7 @@ import { useEffect } from "react";
 export function PublicPrivacyPolicyView() {
   useEffect(() => {
     if (typeof document !== "undefined") {
-      document.title = "Privacy Policy · MusicSite";
+      document.title = "Privacy Policy · Music Manager";
     }
   }, []);
 
@@ -11,14 +11,14 @@ export function PublicPrivacyPolicyView() {
     <div className="privacy-policy-layout">
       <nav aria-label="Breadcrumb" className="privacy-policy-nav">
         <a className="button button--secondary button--small" href="/">
-          ← Return to MusicSite
+          ← Return to Music Manager
         </a>
       </nav>
 
       <header className="privacy-policy-header">
         <h1>Privacy Policy</h1>
         <p className="privacy-policy-meta">
-          <strong>MusicSite / Choir Management</strong> · Effective Date: October 15, 2026
+          <strong>Music Manager</strong> · Effective Date: October 15, 2026
         </p>
       </header>
 
@@ -26,10 +26,10 @@ export function PublicPrivacyPolicyView() {
         <section aria-labelledby="privacy-intro-title">
           <h2 id="privacy-intro-title">1. Introduction &amp; Scope</h2>
           <p>
-            MusicSite (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;), also operating as
-            Choir Management, provides rehearsal scheduling, music libraries, practice audio
-            players, member rosters, communications, concert ticketing, and dues services for
-            community choruses, choirs, and musical ensembles.
+            Music Manager (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;) provides
+            rehearsal scheduling, music libraries, practice audio players, member rosters,
+            communications, concert ticketing, and dues services for community choruses, choirs, and
+            musical ensembles.
           </p>
           <p>
             This Privacy Policy explains how we collect, use, protect, and handle your information
@@ -56,8 +56,8 @@ export function PublicPrivacyPolicyView() {
               debit card numbers on our servers.
             </li>
             <li>
-              <strong>Platform Inquiries:</strong> If you contact us about bringing Choir Management
-              to your choir, we collect your name, choir name, contact email, and approximate singer
+              <strong>Platform Inquiries:</strong> If you contact us about bringing Music Manager to
+              your choir, we collect your name, choir name, contact email, and approximate singer
               count.
             </li>
             <li>
@@ -95,8 +95,8 @@ export function PublicPrivacyPolicyView() {
             4. Non-Marketing SMS &amp; Mobile Communications (A2P 10DLC Disclosures)
           </h2>
           <p>
-            MusicSite and Choir Management support transactional text messaging (SMS) strictly for
-            urgent, time-sensitive operational alerts on behalf of musical organizations.
+            Music Manager supports transactional text messaging (SMS) strictly for urgent,
+            time-sensitive operational alerts on behalf of musical organizations.
           </p>
 
           <h3>Strict Non-Marketing Scope</h3>
@@ -228,7 +228,7 @@ export function PublicPrivacyPolicyView() {
             contact our privacy and support team:
           </p>
           <p>
-            <strong>MusicSite / Choir Management</strong>
+            <strong>Music Manager</strong>
             <br />
             Email: <a href="mailto:support@musicsite.org">support@musicsite.org</a>
             <br />
@@ -238,7 +238,7 @@ export function PublicPrivacyPolicyView() {
       </article>
 
       <footer className="privacy-policy-footer">
-        <p>© {new Date().getUTCFullYear()} MusicSite / Choir Management. All rights reserved.</p>
+        <p>© {new Date().getUTCFullYear()} Music Manager. All rights reserved.</p>
         <p>
           <a href="/">Platform Home</a> · <a href="mailto:support@musicsite.org">Contact Support</a>
         </p>

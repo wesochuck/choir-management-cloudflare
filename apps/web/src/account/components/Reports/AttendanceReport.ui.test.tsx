@@ -147,6 +147,8 @@ describe("AttendanceReport UI", () => {
     // KPI verification
     expect(screen.getByText("Attendance summary")).toBeInTheDocument();
     expect(screen.getByText("Profiles tracked")).toBeInTheDocument();
+    expect(screen.getByText("Profiles tracked").parentElement).toHaveTextContent("2");
+    expect(screen.getByText("50.0%")).toBeInTheDocument();
   });
 
   it("prevents late previous selection from replacing current result", async () => {
@@ -226,6 +228,28 @@ describe("AttendanceReport UI", () => {
     // Winter Performer is still displayed; Bob Singer from late response was discarded
     expect(screen.getAllByText("Winter Performer").length).toBeGreaterThan(0);
     expect(screen.queryByText("Bob Singer")).not.toBeInTheDocument();
+  });
+
+  it("explains an empty report when no one RSVP'd Yes", async () => {
+    vi.spyOn(api, "getOrganizationEventAttendanceReport").mockResolvedValueOnce({
+      eventId: basePerformance.id,
+      requestId: "req-empty",
+      rows: [],
+      totalRehearsals: 2,
+    });
+    render(
+      <AttendanceReport
+        events={[basePerformance, linkedRehearsal1, linkedRehearsal2]}
+        onChange={() => undefined}
+        performerLabel="Singer"
+        selectedId={basePerformance.id}
+      />,
+    );
+    expect(
+      await screen.findByText("No one has RSVP'd Yes to this performance."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Export CSV" })).toBeDisabled();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
   it("displays error notice on network failure", async () => {

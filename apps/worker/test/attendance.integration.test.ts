@@ -583,6 +583,20 @@ describe("Organization attendance", () => {
       ).json(),
     );
 
+    for (const profile of [bob, alice, charlie]) {
+      const rsvp = await write(
+        "alpha.localhost",
+        `/api/organization/events/${performance.id}/rsvp`,
+        cookie,
+        {
+          profileId: profile.id,
+          rsvp: "Yes",
+        },
+        "PUT",
+      );
+      expect(rsvp.status).toBe(200);
+    }
+
     // Set attendance in R1
     await write(
       "alpha.localhost",
@@ -687,9 +701,11 @@ describe("Organization attendance", () => {
              CAST(COUNT(CASE WHEN r.attendance = 'Absent' THEN 1 END) AS INTEGER) AS absences,
              CAST(COUNT(CASE WHEN r.attendance = 'Present' THEN 1 END) AS INTEGER) AS present
            FROM (
-             SELECT id, display_name, voice_part
-             FROM profiles
-             ORDER BY display_name COLLATE NOCASE ASC, id ASC
+             SELECT profile.id, profile.display_name, profile.voice_part
+             FROM event_rosters commitment
+             JOIN profiles profile ON profile.id = commitment.profile_id
+             WHERE commitment.event_id = ? AND commitment.rsvp = 'Yes'
+             ORDER BY profile.display_name COLLATE NOCASE ASC, profile.id ASC
              LIMIT 500
            ) p
            LEFT JOIN event_rosters r
@@ -701,17 +717,19 @@ describe("Organization attendance", () => {
            GROUP BY p.id
            LIMIT 500`,
           performance.id,
+          performance.id,
         )
         .toArray();
       const planDetails = plan.map((p) => p.detail).join("\n");
       // Must use index lookup for event_rosters
       expect(planDetails).toContain("SEARCH r USING INDEX");
+      expect(planDetails).toMatch(/SEARCH commitment USING (?:COVERING )?INDEX/);
       return null;
     });
   });
 });
 
-it("aggregates more than 100 rehearsals with one parent binding and an indexed event selection", async () => {
+it("aggregates more than 100 rehearsals with bounded parent bindings and an indexed event selection", async () => {
   const cookie = await signIn();
   const eventId = await runInDurableObject<OrganizationStore, string>(
     stores.getByName("organization-alpha"),
@@ -728,6 +746,13 @@ it("aggregates more than 100 rehearsals with one parent binding and an indexed e
       const profileId = crypto.randomUUID();
       state.storage.sql.exec(
         "INSERT INTO profiles (id, display_name, voice_part, created_at, updated_at) VALUES (?, 'Report Singer', 'S1', ?, ?)",
+        profileId,
+        at,
+        at,
+      );
+      state.storage.sql.exec(
+        "INSERT INTO event_rosters (event_id, profile_id, rsvp, created_at, updated_at) VALUES (?, ?, 'Yes', ?, ?)",
+        id,
         profileId,
         at,
         at,
@@ -779,4 +804,164 @@ it("aggregates more than 100 rehearsals with one parent binding and an indexed e
     total: 101,
     absences: 0,
   });
+});
+
+it("includes only Yes RSVPs for the selected performance before applying the roster limit", async () => {
+  const cookie = await signIn();
+  const seeded = await runInDurableObject(
+    stores.getByName("organization-alpha"),
+    (_instance: OrganizationStore, state) => {
+      const at = new Date().toISOString();
+      const eventId = crypto.randomUUID();
+      const otherId = crypto.randomUUID();
+      const rehearsalId = crypto.randomUUID();
+      const attendingId = crypto.randomUUID();
+      const unrecordedId = crypto.randomUUID();
+      state.storage.transactionSync(() => {
+        for (const id of [eventId, otherId]) {
+          state.storage.sql.exec(
+            "INSERT INTO events (id, title, type, starts_at, created_at, updated_at) VALUES (?, 'RSVP report', 'Performance', ?, ?, ?)",
+            id,
+            at,
+            at,
+            at,
+          );
+        }
+        state.storage.sql.exec(
+          "INSERT INTO events (id, title, type, parent_performance_id, starts_at, created_at, updated_at) VALUES (?, 'Report rehearsal', 'Rehearsal', ?, ?, ?, ?)",
+          rehearsalId,
+          eventId,
+          at,
+          at,
+          at,
+        );
+        const profiles = [
+          {
+            id: attendingId,
+            name: "Z Expected",
+            event: eventId,
+            rsvp: "Yes",
+            attendance: "Present",
+          },
+          {
+            id: unrecordedId,
+            name: "Z Not yet marked",
+            event: eventId,
+            rsvp: "Yes",
+            attendance: null,
+          },
+          {
+            id: crypto.randomUUID(),
+            name: "Declined",
+            event: eventId,
+            rsvp: "No",
+            attendance: "Absent",
+          },
+          {
+            id: crypto.randomUUID(),
+            name: "Pending",
+            event: eventId,
+            rsvp: "Pending",
+            attendance: "Absent",
+          },
+          {
+            id: crypto.randomUUID(),
+            name: "No response",
+            event: null,
+            rsvp: "Yes",
+            attendance: "Present",
+          },
+          {
+            id: crypto.randomUUID(),
+            name: "Other performance",
+            event: otherId,
+            rsvp: "Yes",
+            attendance: "Present",
+          },
+        ];
+        for (const profile of profiles) {
+          state.storage.sql.exec(
+            "INSERT INTO profiles (id, display_name, voice_part, created_at, updated_at) VALUES (?, ?, 'S1', ?, ?)",
+            profile.id,
+            profile.name,
+            at,
+            at,
+          );
+          if (profile.event) {
+            state.storage.sql.exec(
+              "INSERT INTO event_rosters (event_id, profile_id, rsvp, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+              profile.event,
+              profile.id,
+              profile.rsvp,
+              at,
+              at,
+            );
+          }
+          if (profile.attendance) {
+            state.storage.sql.exec(
+              "INSERT INTO event_rosters (event_id, profile_id, rsvp, attendance, created_at, updated_at) VALUES (?, ?, 'Yes', ?, ?, ?)",
+              rehearsalId,
+              profile.id,
+              profile.attendance,
+              at,
+              at,
+            );
+          }
+        }
+        // Nonparticipants sort ahead of the eligible singers. Filtering must
+        // happen before LIMIT 500, rather than truncating the entire roster.
+        for (let index = 0; index < 501; index += 1) {
+          state.storage.sql.exec(
+            "INSERT INTO profiles (id, display_name, voice_part, created_at, updated_at) VALUES (?, ?, 'S1', ?, ?)",
+            crypto.randomUUID(),
+            `A Nonparticipant ${String(index)}`,
+            at,
+            at,
+          );
+        }
+      });
+      return { eventId, attendingId, unrecordedId };
+    },
+  );
+  const readReport = async () => {
+    const response = await exports.default.fetch(
+      api(
+        "alpha.localhost",
+        `/api/organization/events/${seeded.eventId}/attendance-report`,
+        cookie,
+      ),
+    );
+    expect(response.status).toBe(200);
+    return organizationAttendanceReportResponseSchema.parse(await response.json());
+  };
+  const report = await readReport();
+  expect(report.totalRehearsals).toBe(1);
+  expect(report.rows).toEqual([
+    {
+      profileId: seeded.attendingId,
+      name: "Z Expected",
+      voicePart: "S1",
+      present: 1,
+      absences: 0,
+      total: 1,
+    },
+    {
+      profileId: seeded.unrecordedId,
+      name: "Z Not yet marked",
+      voicePart: "S1",
+      present: 0,
+      absences: 0,
+      total: 1,
+    },
+  ]);
+  await runInDurableObject(
+    stores.getByName("organization-alpha"),
+    (_instance: OrganizationStore, state) => {
+      state.storage.sql.exec(
+        "UPDATE event_rosters SET rsvp = 'No' WHERE event_id = ?",
+        seeded.eventId,
+      );
+    },
+  );
+  expect((await readReport()).rows).toEqual([]);
 });

@@ -804,16 +804,18 @@
   .public-player__play,
   .button.public-player__play,
   .public-player__transport .public-player__play {
+    --public-player-play-size: calc(3.5rem * 1.3);
+    --public-player-play-icon-size: calc(1.5rem * 1.3);
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 0;
-    width: 3.5rem;
-    height: 3.5rem;
-    min-width: 3.5rem;
-    min-height: 3.5rem;
-    max-width: 3.5rem;
-    max-height: 3.5rem;
+    width: var(--public-player-play-size);
+    height: var(--public-player-play-size);
+    min-width: var(--public-player-play-size);
+    min-height: var(--public-player-play-size);
+    max-width: var(--public-player-play-size);
+    max-height: var(--public-player-play-size);
     padding: 0;
     border-radius: 50%;
     box-shadow: var(--shadow-md);
@@ -827,37 +829,26 @@
     .public-player__play,
     .button.public-player__play,
     .public-player__transport .public-player__play {
-      width: 4rem;
-      height: 4rem;
-      min-width: 4rem;
-      min-height: 4rem;
-      max-width: 4rem;
-      max-height: 4rem;
+      --public-player-play-size: calc(4rem * 1.3);
+      --public-player-play-icon-size: calc(1.75rem * 1.3);
     }
   }
 
   .public-player__play svg {
-    width: 1.5rem;
-    height: 1.5rem;
-    min-width: 1.5rem;
-    min-height: 1.5rem;
+    width: var(--public-player-play-icon-size);
+    height: var(--public-player-play-icon-size);
+    min-width: var(--public-player-play-icon-size);
+    min-height: var(--public-player-play-icon-size);
     flex-shrink: 0;
   }
 
   .public-player__play-icon--play {
-    margin-left: 2px;
+    margin-left: calc(2px * 1.3);
   }
 
   @media (min-width: 48rem) {
-    .public-player__play svg {
-      width: 1.75rem;
-      height: 1.75rem;
-      min-width: 1.75rem;
-      min-height: 1.75rem;
-    }
-
     .public-player__play-icon--play {
-      margin-left: 3px;
+      margin-left: calc(3px * 1.3);
     }
   }
 

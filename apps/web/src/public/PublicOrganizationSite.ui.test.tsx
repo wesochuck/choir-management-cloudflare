@@ -1,6 +1,6 @@
 import type { PublishedOrganizationProjection } from "@choir/contracts";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as authApi from "../auth/api";
 import { PublicOrganizationSite } from "./PublicOrganizationSite";
@@ -17,7 +17,7 @@ function createProjection(
   overrides?: Partial<PublishedOrganizationProjection["payload"]>,
 ): PublishedOrganizationProjection {
   return {
-    generatedAt: "2026-10-14T12:00:00.000Z",
+    generatedAt: new Date().toISOString(),
     organizationId: "11111111-1111-4111-8111-111111111111",
     payload: {
       mediaFileIds: [],
@@ -352,5 +352,201 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
     await waitFor(() => {
       expect(document.title).toBe("History · City Chorale");
     });
+  });
+});
+
+describe.each(["/", "/performances"])("public performance venue links on %s", (pathname) => {
+  it.each([
+    {
+      venueName: "Fairfield Christian Church",
+      venueAddress: "1965 N Columbus St, Lancaster, OH",
+      location: "Sanctuary",
+      label: "Fairfield Christian Church",
+      query: "Fairfield Christian Church, 1965 N Columbus St, Lancaster, OH",
+    },
+    {
+      venueName: "Community Hall",
+      venueAddress: "",
+      location: "100 Main St",
+      label: "Community Hall",
+      query: "Community Hall, 100 Main St",
+    },
+    {
+      venueName: "Community Hall",
+      venueAddress: "",
+      location: "Community Hall",
+      label: "Community Hall",
+      query: "Community Hall",
+    },
+    {
+      venueName: "",
+      venueAddress: "",
+      location: "Downtown & Main / Park",
+      label: "Downtown & Main / Park",
+      query: "Downtown & Main / Park",
+    },
+    {
+      venueName: "",
+      venueAddress: "123 Main St",
+      location: "",
+      label: "123 Main St",
+      query: "123 Main St",
+    },
+    { venueName: " ", venueAddress: " ", location: " ", label: "", query: "" },
+  ])(
+    "links $label to Google Maps when a venue is available",
+    async ({ label, query, ...venue }) => {
+      const projection = createProjection();
+      vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(
+        createProjection({
+          performances: [
+            {
+              ...venue,
+              id: "11111111-1111-4111-8111-111111111111",
+              title: "Free community concert",
+              startsAt: new Date(Date.parse(projection.generatedAt) + 86_400_000).toISOString(),
+              isTicketingEnabled: false,
+              advancePriceCents: 0,
+              dayOfPriceCents: 0,
+              doorsOpenTime: "",
+              graphicFileId: null,
+              publicDetails: "Everyone is welcome.",
+              ticketCapacity: null,
+            },
+          ],
+        }),
+      );
+      render(<PublicOrganizationSite fallback={null} pathname={pathname} />);
+      const heading = await screen.findByRole("heading", { name: "Free community concert" });
+      const card = heading.closest("article");
+      if (!card) throw new Error("Expected performance card");
+      if (!query) {
+        expect(within(card).queryByRole("link")).not.toBeInTheDocument();
+        return;
+      }
+      const link = within(card).getByRole("link", {
+        name: `${label} on Google Maps (opens in a new tab)`,
+      });
+      expect(link).toHaveTextContent(label);
+      expect(link).toHaveAttribute(
+        "href",
+        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`,
+      );
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+      expect(within(card).queryByText("View tickets →")).not.toBeInTheDocument();
+    },
+  );
+});
+
+describe("public upcoming and past performance sections", () => {
+  const now = Date.parse("2026-10-25T16:00:00.000Z");
+  beforeEach(() => {
+    vi.spyOn(Date, "now").mockReturnValue(now);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function event(id: string, days: number, isTicketingEnabled = false) {
+    return {
+      id: id.toLowerCase().replaceAll(" ", "-"),
+      title: id,
+      startsAt: new Date(now + days * 86_400_000).toISOString(),
+      isTicketingEnabled,
+      advancePriceCents: 1500,
+      dayOfPriceCents: 2000,
+      doorsOpenTime: "",
+      graphicFileId: null,
+      publicDetails: "[Program notes](https://example.test/program)",
+      ticketCapacity: null,
+      venueName: "Community Hall",
+      venueAddress: "123 Main St",
+      location: "",
+    };
+  }
+
+  it("uses current time with old snapshots, preserves upcoming ticket priority, and orders past events newest first", async () => {
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue({
+      ...createProjection({
+        performances: [
+          event("Older concert", -90, true),
+          event("Next free event", 1),
+          event("Recent concert", -1, true),
+          event("Ticketed concert", 30, true),
+          event("Starting now", 0),
+        ],
+      }),
+      generatedAt: new Date(now - 100 * 86_400_000).toISOString(),
+    });
+    render(<PublicOrganizationSite fallback={null} pathname="/performances" />);
+    const upcoming = await screen.findByRole("region", { name: "Upcoming performances" });
+    const past = screen.getByRole("region", { name: "Past performances" });
+    expect(
+      screen.getByText("Join us at an upcoming event, or explore performances from past seasons."),
+    ).toBeInTheDocument();
+    expect(
+      within(upcoming)
+        .getAllByRole("heading", { level: 3 })
+        .map((node) => node.textContent),
+    ).toEqual(["Ticketed concert", "Starting now", "Next free event"]);
+    expect(
+      within(past)
+        .getAllByRole("heading", { level: 3 })
+        .map((node) => node.textContent),
+    ).toEqual(["Recent concert", "Older concert"]);
+    expect(upcoming.compareDocumentPosition(past) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(upcoming).getByRole("link", { name: "Ticketed concert" })).toHaveAttribute(
+      "href",
+      "/tickets/ticketed-concert",
+    );
+    expect(within(past).queryByText("View tickets →")).not.toBeInTheDocument();
+    expect(within(past).queryByRole("link", { name: "Recent concert" })).not.toBeInTheDocument();
+    expect(within(past).getAllByRole("link", { name: /on Google Maps/ })).toHaveLength(2);
+    expect(within(past).getAllByRole("link", { name: "Program notes" })).toHaveLength(2);
+  });
+
+  it("shows an upcoming empty message while retaining a past-only archive", async () => {
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(
+      createProjection({ performances: [event("Past concert", -1)] }),
+    );
+    render(<PublicOrganizationSite fallback={null} pathname="/performances" />);
+    const upcoming = await screen.findByRole("region", { name: "Upcoming performances" });
+    expect(upcoming).toHaveTextContent("No upcoming performances are currently published.");
+    expect(screen.getByRole("region", { name: "Past performances" })).toHaveTextContent(
+      "Past concert",
+    );
+  });
+
+  it("omits the past divider when only upcoming events exist", async () => {
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(
+      createProjection({ performances: [event("Future concert", 1)] }),
+    );
+    render(<PublicOrganizationSite fallback={null} pathname="/performances" />);
+    expect(await screen.findByRole("region", { name: "Upcoming performances" })).toHaveTextContent(
+      "Future concert",
+    );
+    expect(screen.queryByRole("region", { name: "Past performances" })).not.toBeInTheDocument();
+  });
+
+  it("shows only the three newest past events on the homepage", async () => {
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(
+      createProjection({
+        performances: [
+          event("Oldest", -100),
+          event("Recent", -1),
+          event("Third", -3),
+          event("Second", -2),
+        ],
+      }),
+    );
+    render(<PublicOrganizationSite fallback={null} pathname="/" />);
+    await screen.findByRole("heading", { name: "Past Performances" });
+    expect(
+      screen
+        .getAllByRole("article")
+        .map((card) => within(card).getByRole("heading", { level: 3 }).textContent),
+    ).toEqual(["Recent", "Second", "Third"]);
+    expect(screen.queryByRole("heading", { name: "Oldest" })).not.toBeInTheDocument();
   });
 });
