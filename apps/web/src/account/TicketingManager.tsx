@@ -591,11 +591,6 @@ export function TicketingManager({
   }
   return (
     <section className="panel" aria-label="Ticket sales and check-in management">
-      <header className="ticketing-page-header">
-        <a className="button button--primary" href="/admin/tickets/scan">
-          Scan tickets
-        </a>
-      </header>
       <TicketingSetupGuide navigate={navigate} />
       <Tabs onValueChange={selectTicketingTab} value={activeTab}>
         <TabsList aria-label="Ticketing sections" as="nav" className="ticketing-tabs">

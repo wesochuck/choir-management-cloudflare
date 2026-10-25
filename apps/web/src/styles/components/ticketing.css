@@ -5,6 +5,23 @@
 @layer components {
   /* Ticketing manager */
 
+  .page-heading.page-heading--ticketing {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+  }
+
+  .page-heading--ticketing > div {
+    width: auto;
+    flex: 1 1 auto;
+  }
+
+  .page-heading--ticketing > .button {
+    flex-shrink: 0;
+  }
+
   .ticketing-page-header {
     display: flex;
     align-items: end;

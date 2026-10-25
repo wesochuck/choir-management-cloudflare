@@ -844,7 +844,9 @@ function AuthenticatedOrganizationShell({
             id="signed-in-main"
           >
             {route.pathname === "/admin" || route.pathname === "/admin/seating" ? null : (
-              <div className="page-heading">
+              <div
+                className={`page-heading${selectedWorkspace === "organization" && ["/admin/tickets", "/admin/ticketing"].includes(route.pathname) ? " page-heading--ticketing" : ""}`}
+              >
                 <div>
                   <h1>{pageTitle(route.pathname)}</h1>
                   {pageDescription(route.pathname, route.search) ? (
@@ -853,6 +855,16 @@ function AuthenticatedOrganizationShell({
                     </p>
                   ) : null}
                 </div>
+                {selectedWorkspace === "organization" &&
+                ["/admin/tickets", "/admin/ticketing"].includes(route.pathname) ? (
+                  <AppLink
+                    className="button button--primary"
+                    href="/admin/tickets/scan"
+                    onNavigate={handleVoidNavigate}
+                  >
+                    Scan tickets
+                  </AppLink>
+                ) : null}
               </div>
             )}
             {access.status === "error" ? (
