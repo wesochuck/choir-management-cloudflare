@@ -169,6 +169,12 @@
     margin-bottom: var(--spacing-sm);
   }
 
+  .ticketing-tabs.donation-manager-tabs button {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
   .donation-history {
     display: grid;
     gap: var(--spacing-sm);
