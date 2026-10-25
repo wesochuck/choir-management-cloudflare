@@ -13,12 +13,13 @@
     gap: var(--spacing-md);
   }
 
-  .page-heading--ticketing > div {
+  .page-heading.page-heading--ticketing > div {
     width: auto;
-    flex: 1 1 auto;
+    flex: 1 1 0;
   }
 
   .page-heading--ticketing > .button {
+    width: auto;
     flex-shrink: 0;
   }
 

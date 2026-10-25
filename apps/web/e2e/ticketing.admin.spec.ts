@@ -29,7 +29,9 @@ import {
 } from "./support/ticketingFixtures";
 
 test.describe("admin ticket management", () => {
-  test("lists orders with buyer, performance, quantity, total, and status", async ({ page }) => {
+  test("lists orders with buyer, performance, quantity, total, and status", async ({
+    page,
+  }, testInfo) => {
     await routeHealth(page);
     await routeAdminAuth(page);
     await page.route("**/api/public/projection", async (route) => {
@@ -83,6 +85,17 @@ test.describe("admin ticket management", () => {
     });
 
     await page.goto("/admin/tickets");
+
+    const heading = page.locator(".page-heading--ticketing");
+    const scanLink = heading.getByRole("link", { name: "Scan tickets", exact: true });
+    await expect(scanLink).toBeVisible();
+    const textBox = await heading.locator(":scope > div").boundingBox();
+    const scanBox = await scanLink.boundingBox();
+    if (!textBox || !scanBox) throw new Error("Ticketing heading is missing");
+    expect(scanBox.x).toBeGreaterThanOrEqual(textBox.x + textBox.width);
+    expect(scanBox.y + scanBox.height / 2).toBeGreaterThanOrEqual(textBox.y);
+    expect(scanBox.y + scanBox.height / 2).toBeLessThanOrEqual(textBox.y + textBox.height);
+    await heading.screenshot({ path: testInfo.outputPath("ticketing-heading.png") });
 
     await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
     const performanceSummary = page.getByRole("group", { name: "Performance summary" });
