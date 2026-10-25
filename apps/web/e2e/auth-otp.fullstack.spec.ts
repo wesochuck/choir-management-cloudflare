@@ -7,7 +7,11 @@
 // through the local-only GET /api/local/fullstack-otp seam, so no real email
 // is sent. Mocked sign-in-state coverage lives in auth.session.spec.ts.
 import { expect, test } from "@playwright/test";
-import { currentAuthSessionSchema, organizationAuthStatusResponseSchema } from "@choir/contracts";
+import {
+  currentAuthSessionSchema,
+  organizationAuthStatusResponseSchema,
+  publishedOrganizationProjectionSchema,
+} from "@choir/contracts";
 import {
   bootstrapFullstack,
   FULLSTACK_APP_ORIGIN,
@@ -55,8 +59,19 @@ test("signs in with a real one-time code and restores the session", async ({
   await expect(page).toHaveURL(`${FULLSTACK_APP_ORIGIN}/`);
   // A published Organization site has its own public navigation. Sign-out
   // must expose sign-in on either homepage without depending on product-shell markup.
+  const projectionResponse = await page.request.get(
+    `${FULLSTACK_APP_ORIGIN}/api/public/projection`,
+  );
+  expect([200, 404]).toContain(projectionResponse.status());
+  const projection =
+    projectionResponse.status() === 200
+      ? publishedOrganizationProjectionSchema.parse(await projectionResponse.json())
+      : null;
+  const loginLabel = projection
+    ? `${projection.payload.performerLabel ?? "Performer"} login`
+    : "Sign in";
   await expect(
-    page.getByRole("banner").getByRole("link", { name: "Sign in", exact: true }),
+    page.getByRole("banner").getByRole("link", { name: loginLabel, exact: true }),
   ).toBeVisible();
 
   const afterSignOut = await page.request.get(`${FULLSTACK_APP_ORIGIN}/api/auth/get-session`);

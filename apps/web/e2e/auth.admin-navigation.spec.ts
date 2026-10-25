@@ -234,7 +234,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   const attendancePage = page.getByRole("main");
   await expect(attendancePage.getByRole("heading", { name: "Attendance" })).toBeVisible();
   await expect(attendancePage.locator(".attendance-manager__sync")).toContainText(
-    "Live updates every 30 seconds",
+    "Live updates every 5 seconds",
   );
   const markRemainingPresent = attendancePage.getByRole("button", {
     name: "Mark remaining present",

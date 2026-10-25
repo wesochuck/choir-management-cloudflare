@@ -60,10 +60,12 @@ test("serves the anonymous landing page from the real Worker @webkit-smoke", asy
   );
   await page.goto(`${FULLSTACK_APP_ORIGIN}/`);
   const projectionResponse = await projectionResponsePromise;
+  let loginLabel = "Sign in";
   if (projectionResponse.status() === 200) {
     const { payload } = publishedOrganizationProjectionSchema.parse(
       await projectionResponse.json(),
     );
+    loginLabel = `${payload.performerLabel ?? "Performer"} login`;
     await expect(
       page.getByRole("banner").getByRole("link", {
         name: payload.organizationName,
@@ -83,7 +85,7 @@ test("serves the anonymous landing page from the real Worker @webkit-smoke", asy
   }
   await expect(page.getByRole("main")).toBeVisible();
   await expect(
-    page.getByRole("banner").getByRole("link", { name: "Sign in", exact: true }),
+    page.getByRole("banner").getByRole("link", { name: loginLabel, exact: true }),
   ).toBeVisible();
 });
 
