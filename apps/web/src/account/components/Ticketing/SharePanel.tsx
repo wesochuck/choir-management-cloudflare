@@ -1,5 +1,6 @@
-import { ticketSalesPath } from "@choir/domain";
+import { isTicketEventShareable, ticketSalesPath } from "@choir/domain";
 import type { OrganizationEvent, TicketBundle } from "@choir/contracts";
+import { useEffect, useState } from "react";
 import { QRCodeShareCard } from "../../QRCodeShareCard";
 import { money } from "./shared";
 
@@ -10,6 +11,22 @@ export function SharePanel({
   readonly bundles: readonly TicketBundle[];
   readonly ticketEvents: readonly OrganizationEvent[];
 }) {
+  const [nowMs, setNowMs] = useState(Date.now);
+
+  useEffect(() => {
+    const refresh = () => {
+      setNowMs(Date.now());
+    };
+    const interval = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
+
   return (
     <div
       aria-labelledby="ticketing-share-tab"
@@ -24,15 +41,17 @@ export function SharePanel({
           path="/tickets"
           title="All ticketing"
         />
-        {ticketEvents.map((event) => (
-          <QRCodeShareCard
-            asFieldset
-            description={`Tickets for ${event.title}.`}
-            key={event.id}
-            path={ticketSalesPath(event)}
-            title={event.title}
-          />
-        ))}
+        {ticketEvents
+          .filter((event) => isTicketEventShareable(event, nowMs))
+          .map((event) => (
+            <QRCodeShareCard
+              asFieldset
+              description={`Tickets for ${event.title}.`}
+              key={event.id}
+              path={ticketSalesPath(event)}
+              title={event.title}
+            />
+          ))}
         {bundles
           .filter((bundle) => bundle.isActive)
           .map((bundle) => (

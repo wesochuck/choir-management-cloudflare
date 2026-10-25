@@ -1,5 +1,12 @@
-import type { OrganizationEvent } from "@choir/contracts";
-import { communicationRecipientNamePlaceholderKeys } from "@choir/domain";
+import type {
+  CommunicationChannel,
+  OrganizationBranding,
+  OrganizationEvent,
+} from "@choir/contracts";
+import {
+  communicationRecipientNamePlaceholderKeys,
+  renderOrganizationLogoPlaceholder,
+} from "@choir/domain";
 
 function escapeHtml(value: string): string {
   return value
@@ -74,7 +81,9 @@ function previewText(value: string | undefined, fallback: string): string {
 export function communicationPreviewValues(
   event: OrganizationEvent | null,
   timezone: string | null,
+  branding?: OrganizationBranding | null,
 ): Readonly<Record<string, string>> {
+  const organizationName = branding?.organizationName ?? "Example Choir";
   const eventTitle = event?.title ?? "Example Performance";
   const eventType = event?.type ?? "Performance";
   const eventDate = event
@@ -98,6 +107,8 @@ export function communicationPreviewValues(
 
   return {
     ...recipientNameValues,
+    "{organizationName}": organizationName,
+    "{organizationLogo}": organizationName,
     "{eventTitle}": eventTitle,
     "{eventType}": eventType,
     "{eventDate}": eventDate,
@@ -145,8 +156,26 @@ export function populateCommunicationPreview(
 export function renderCommunicationMarkdownPreview(
   value: string,
   replacements: Readonly<Record<string, string>> = {},
+  options: {
+    readonly branding?: OrganizationBranding | null | undefined;
+    readonly channel?: CommunicationChannel;
+  } = {},
 ): string {
-  return populateCommunicationPreview(value, replacements)
+  // Only this known placeholder may inject generated markup; all authored content is escaped.
+  const logoMarker = "@@ORGANIZATIONLOGOPREVIEW@@";
+  const hasLogo = Object.hasOwn(replacements, "{organizationLogo}");
+  const organizationName = escapeHtml(replacements["{organizationName}"] ?? "Example Choir");
+  const logoHtml = renderOrganizationLogoPlaceholder({
+    channel: options.channel === "SMS" ? "sms" : "email",
+    logoUrl: options.branding?.logoFileId
+      ? `/api/organization/files/${encodeURIComponent(options.branding.logoFileId)}`
+      : null,
+    organizationName,
+  });
+  const source = hasLogo
+    ? value.replace(/\{\{organizationLogo\}\}|\{organizationLogo\}/g, logoMarker)
+    : value;
+  const rendered = populateCommunicationPreview(source, replacements)
     .split("\n")
     .map((line) => {
       const trimmed = line.trim();
@@ -160,4 +189,5 @@ export function renderCommunicationMarkdownPreview(
     })
     .join("")
     .replace(/(<li>.*?<\/li>)+/g, (list) => `<ul>${list}</ul>`);
+  return hasLogo ? rendered.replaceAll(logoMarker, logoHtml) : rendered;
 }

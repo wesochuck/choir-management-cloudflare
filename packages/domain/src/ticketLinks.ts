@@ -20,3 +20,11 @@ export function ticketSalesPath(
 ): string {
   return `${kind === "bundle" ? "/tickets/bundles/" : "/tickets/"}${item.ticketSlug ?? item.id}`;
 }
+
+/** Sharing ends after the configured duration, or at the start when no duration is set. */
+export function isTicketEventShareable(
+  event: { readonly startsAt: string; readonly durationMinutes: number | null },
+  nowMs: number,
+): boolean {
+  return Date.parse(event.startsAt) + (event.durationMinutes ?? 0) * 60_000 > nowMs;
+}

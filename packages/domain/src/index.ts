@@ -405,7 +405,7 @@ export {
   type ParsedId3Metadata,
 } from "./id3Metadata";
 
-export { ticketSlugBase, ticketSalesPath } from "./ticketLinks";
+export { ticketSlugBase, ticketSalesPath, isTicketEventShareable } from "./ticketLinks";
 export { availableTicketBundlesForEvent } from "./ticketing";
 export { coverImageOverflow, shiftCoverImagePosition } from "./imagePosition";
 

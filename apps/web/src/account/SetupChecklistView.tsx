@@ -14,7 +14,7 @@ type CheckState =
   | { readonly status: "loading" }
   | { readonly setup: SetupStatus; readonly status: "ready" };
 
-const allSteps = ["organization_info", "modules", "theme", "data_import", "launch"] as const;
+const allSteps = ["organization_info", "modules", "theme", "launch"] as const;
 type SetupStep = (typeof allSteps)[number];
 
 const stepGuidance: Record<
@@ -36,11 +36,6 @@ const stepGuidance: Record<
     description: "Choose the colors members and the public pages will use.",
     href: "/setup",
   },
-  data_import: {
-    action: "Import existing data",
-    description: "Optionally import Profiles and Music Library entries from CSV files.",
-    href: "/setup",
-  },
   launch: {
     action: "Launch Organization",
     description: "Review the remaining steps in the setup wizard, then make the Organization live.",
@@ -56,8 +51,6 @@ function stepLabel(step: SetupStep): string {
       return "Module Configuration";
     case "theme":
       return "Theme Setup";
-    case "data_import":
-      return "Import Existing Data";
     case "launch":
       return "Launch";
     default:
@@ -109,7 +102,7 @@ export function SetupChecklistView() {
     <div className="settings-stack">
       <section className="panel" aria-label="Setup progress">
         <p>
-          {completedCount} of {allSteps.length} steps completed.
+          {completedCount} of {allSteps.length} required steps completed.
         </p>
         {setupIsComplete ? (
           <p className="notice notice--success" role="status">
@@ -147,6 +140,11 @@ export function SetupChecklistView() {
             );
           })}
         </div>
+        <p>
+          Data imports are optional and are not required to complete setup. To import existing data,
+          use Import CSV in <a href="/admin/roster">Roster</a> or{" "}
+          <a href="/admin/library">Music Library</a>.
+        </p>
         <OrganizationStripeConnectSetup />
       </section>
       {stripeResult === "return" ? (

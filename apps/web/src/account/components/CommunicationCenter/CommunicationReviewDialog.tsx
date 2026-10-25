@@ -3,6 +3,7 @@ import type {
   CommunicationChannel,
   ContactList,
   OrganizationEvent,
+  OrganizationBranding,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import { Dialog, DialogClose } from "@choir/ui";
@@ -34,6 +35,7 @@ interface CommunicationReviewDialogProps {
   readonly selectedEvent: OrganizationEvent | null;
   readonly subject: string;
   readonly timezone: string | null;
+  readonly branding?: OrganizationBranding | null;
 }
 
 export function CommunicationReviewDialog({
@@ -50,6 +52,7 @@ export function CommunicationReviewDialog({
   rosterConfiguration,
   selectedEvent,
   timezone,
+  branding,
   subject,
 }: CommunicationReviewDialogProps) {
   const recipientSummary = recipientTypeSummary(audience);
@@ -62,7 +65,7 @@ export function CommunicationReviewDialog({
   const filterSummary = [memberSummary, contactSummary].filter(Boolean).join(" · ");
 
   const totalCount = reachState.data?.total ?? 0;
-  const previewValues = communicationPreviewValues(selectedEvent, timezone);
+  const previewValues = communicationPreviewValues(selectedEvent, timezone, branding);
 
   return (
     <Dialog
@@ -123,7 +126,10 @@ export function CommunicationReviewDialog({
           <div
             className="communication-composer__preview preview-body"
             dangerouslySetInnerHTML={{
-              __html: renderCommunicationMarkdownPreview(contentMarkdown, previewValues),
+              __html: renderCommunicationMarkdownPreview(contentMarkdown, previewValues, {
+                branding,
+                channel,
+              }),
             }}
           />
         </div>

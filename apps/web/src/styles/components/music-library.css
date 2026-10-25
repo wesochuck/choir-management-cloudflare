@@ -660,6 +660,10 @@
     color: var(--color-text-muted);
   }
 
+  .track-import-tutti-suggestions--footer {
+    padding: 0;
+  }
+
   .track-import-tutti-hint {
     padding: 0;
     margin-block: var(--spacing-xs);

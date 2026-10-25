@@ -417,6 +417,21 @@ test.describe("Organization timezone previews", () => {
   test("populates communication placeholders in the live message preview", async ({ page }) => {
     const previewBodies: unknown[] = [];
     await page.route("**/api/**", (route) => handleRoute(route, previewBodies));
+    const logoFileId = "11111111-1111-4111-8111-111111111111";
+    await page.route("**/api/organization/branding", (route) =>
+      fulfillJson(route, {
+        organizationId,
+        organizationName: "Preview Choir",
+        logoFileId,
+        physicalAddress: null,
+      }),
+    );
+    await page.route(`**/api/organization/files/${logoFileId}`, (route) =>
+      route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><rect width="100" height="40" fill="green"/></svg>',
+      }),
+    );
 
     await page.goto("/admin/communications?tab=compose");
     await editRecipients(page);
@@ -424,7 +439,7 @@ test.describe("Organization timezone previews", () => {
 
     const message = page.getByRole("textbox", { name: "Message body" });
     await message.fill(
-      "Hi {singerName},\n{eventTitle} ({eventType}) on {eventDate} at {eventLocation}.",
+      "Hi {singerName},\n{organizationLogo}\n{organizationName}\n{eventTitle} ({eventType}) on {eventDate} at {eventLocation}.",
     );
 
     // Check 2-column live preview panel
@@ -437,12 +452,24 @@ test.describe("Organization timezone previews", () => {
     await expect(preview).not.toContainText("{singerName}");
     await expect(preview).not.toContainText("{eventTitle}");
     await expect(preview).not.toContainText("{eventDate}");
+    await expect(preview).toContainText("Preview Choir");
+    await expect(preview).not.toContainText("{organization");
+    const logo = preview.getByRole("img", { name: "Preview Choir" });
+    await expect(logo).toHaveAttribute("src", `/api/organization/files/${logoFileId}`);
+    await expect(logo).toBeVisible();
+    await expect
+      .poll(() => logo.evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBe(100);
+    await expect(message).toHaveValue(/\{organizationLogo\}/);
 
-    await page.getByLabel("Subject").fill("Rehearsal update on {eventDate}");
+    await page.getByLabel("Subject").fill("{organizationName}: Rehearsal update on {eventDate}");
+    await expect(page.locator(".preview-subject")).toContainText("Preview Choir: Rehearsal update");
     await page.getByRole("button", { name: "Review & send" }).click();
 
     const finalPreview = page.getByRole("dialog", { name: "Review message" });
     await expect(finalPreview).toContainText("Alex Morgan");
+    await expect(finalPreview.getByRole("img", { name: "Preview Choir" })).toBeVisible();
+    await expect(finalPreview).not.toContainText("{organization");
     await expect(finalPreview).toContainText("Rehearsal update on August 20, 2026 at 7:00 PM");
     await expect(finalPreview).toContainText("Browser Performance");
     await expect(finalPreview).not.toContainText("{singerName}");

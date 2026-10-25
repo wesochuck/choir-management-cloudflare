@@ -7,6 +7,7 @@ import type {
   CommunicationScheduledMessage,
   CommunicationTemplate,
   ContactList,
+  OrganizationBranding,
   OrganizationEmailSettings,
   OrganizationEvent,
   OrganizationProviderStatusResponse,
@@ -125,6 +126,7 @@ export interface CommunicationCenterControllerModel {
   readonly successNotice: string | null;
   readonly templates: readonly CommunicationTemplate[];
   readonly timezone: string | null;
+  readonly branding: OrganizationBranding | null;
   readonly unifiedMessages: readonly UnifiedCommunicationItem[];
   readonly updateAudience: (
     updater: (current: CommunicationMessage["audience"]) => CommunicationMessage["audience"],

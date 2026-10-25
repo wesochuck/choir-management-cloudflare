@@ -1116,6 +1116,18 @@
     border-bottom: 1px solid var(--color-border);
   }
 
+  .website-editor-layout .segmented-control {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xs);
+  }
+
+  .website-editor-view-toggle {
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+  }
+
   .website-preview-frame {
     min-width: 0;
     width: 100%;

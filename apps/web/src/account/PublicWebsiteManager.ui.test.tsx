@@ -317,7 +317,7 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     expect(screen.getByText("Save your draft before publishing.")).toBeInTheDocument();
   });
 
-  it("supports preview page and viewport simulation toggles without editorial prompts (#259)", async () => {
+  it("follows editor tabs without duplicate preview page controls and retains viewport toggles", async () => {
     const user = userEvent.setup();
     vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue({
       ...defaultSettings,
@@ -335,11 +335,14 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
       name: "Public website draft preview",
     });
 
-    // Switch preview page to History
-    const pageGroup = screen.getByRole("group", { name: "Preview page" });
-    const historyPreviewBtn = within(pageGroup).getByRole("button", { name: "History" });
-    await user.click(historyPreviewBtn);
+    expect(screen.queryByRole("group", { name: "Preview page" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "History" }));
     expect(preview).toHaveTextContent("Our history started long ago.");
+
+    await user.click(screen.getByRole("tab", { name: "Appearance" }));
+    expect(preview).toHaveTextContent("Our history started long ago.");
+    await user.click(screen.getByRole("tab", { name: "Home" }));
+    expect(within(preview).queryByRole("heading", { name: "Our History" })).not.toBeInTheDocument();
 
     // Toggle viewport to Mobile
     const mobileBtn = screen.getByRole("button", { name: "Mobile" });

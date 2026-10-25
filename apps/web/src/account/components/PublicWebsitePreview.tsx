@@ -19,38 +19,14 @@ export interface PublicWebsitePreviewProps {
 }
 
 interface PreviewToolbarProps {
-  readonly onPageChange: (page: "home" | "history") => void;
   readonly onViewportChange: (viewport: "desktop" | "mobile") => void;
-  readonly page: "home" | "history";
   readonly viewport: "desktop" | "mobile";
 }
 
-function PreviewToolbar({ onPageChange, onViewportChange, page, viewport }: PreviewToolbarProps) {
+function PreviewToolbar({ onViewportChange, viewport }: PreviewToolbarProps) {
   return (
     <div className="website-preview-toolbar">
       <span className="badge badge--neutral">Draft — not public</span>
-      <div aria-label="Preview page" className="segmented-control" role="group">
-        <button
-          aria-pressed={page === "home"}
-          className={`button button--sm ${page === "home" ? "button--primary" : "button--secondary"}`}
-          onClick={() => {
-            onPageChange("home");
-          }}
-          type="button"
-        >
-          Home
-        </button>
-        <button
-          aria-pressed={page === "history"}
-          className={`button button--sm ${page === "history" ? "button--primary" : "button--secondary"}`}
-          onClick={() => {
-            onPageChange("history");
-          }}
-          type="button"
-        >
-          History
-        </button>
-      </div>
       <div aria-label="Preview device" className="segmented-control" role="group">
         <button
           aria-pressed={viewport === "desktop"}
@@ -206,12 +182,7 @@ export function PublicWebsitePreview({
 
   return (
     <section aria-label="Public website draft preview" className="panel website-preview-panel">
-      <PreviewToolbar
-        onPageChange={onPageChange}
-        onViewportChange={onViewportChange}
-        page={page}
-        viewport={viewport}
-      />
+      <PreviewToolbar onViewportChange={onViewportChange} viewport={viewport} />
 
       <p className="field-help">
         {viewport === "desktop" ? "Desktop" : "Mobile"} preview · {viewportWidth}px wide, scaled to

@@ -94,6 +94,7 @@ export function CommunicationCenterView({
     successNotice,
     templates,
     timezone,
+    branding,
     unifiedMessages,
     updateAudience,
   } = model;
@@ -220,6 +221,7 @@ export function CommunicationCenterView({
                 selectedEvent={selectedEvent}
                 subject={subject}
                 timezone={timezone}
+                branding={branding}
                 templates={templates}
               />
             </div>
@@ -278,6 +280,7 @@ export function CommunicationCenterView({
         selectedEvent={selectedEvent}
         subject={subject}
         timezone={timezone}
+        branding={branding}
       />
 
       <CommunicationTestDialog

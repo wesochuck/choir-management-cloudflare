@@ -7,6 +7,7 @@ import type {
   CommunicationScheduledMessage,
   CommunicationTemplate,
   ContactList,
+  OrganizationBranding,
   OrganizationEmailSettings,
   OrganizationEvent,
   OrganizationProviderStatusResponse,
@@ -23,6 +24,7 @@ import {
   getOrganizationCommunicationHistory,
   getOrganizationEmailSettings,
   getOrganizationCalendarSettings,
+  getOrganizationBranding,
   getOrganizationProviderStatus,
   getOrganizationRosterConfiguration,
   listOrganizationCommunicationTemplates,
@@ -168,6 +170,7 @@ export function useCommunicationCenterController({
   const [loadingHistory, setLoadingHistory] = useState(true);
 
   const [templates, setTemplates] = useState<readonly CommunicationTemplate[]>([]);
+  const [branding, setBranding] = useState<OrganizationBranding | null>(null);
   const [timezone, setTimezone] = useState<string | null>(null);
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
   const [contactLists, setContactLists] = useState<readonly ContactList[]>([]);
@@ -344,6 +347,7 @@ export function useCommunicationCenterController({
 
     Promise.all([
       getOrganizationCalendarSettings(controller.signal),
+      getOrganizationBranding(controller.signal).catch(() => null),
       listOrganizationEvents(controller.signal),
       listOrganizationCommunicationTemplates(controller.signal),
       getOrganizationProviderStatus(controller.signal),
@@ -354,6 +358,7 @@ export function useCommunicationCenterController({
       .then(
         ([
           loadedCalendarSettings,
+          loadedBranding,
           loadedEvents,
           loadedTemplates,
           loadedStatus,
@@ -362,6 +367,7 @@ export function useCommunicationCenterController({
           loadedContactLists,
         ]) => {
           setTimezone(loadedCalendarSettings.timezone);
+          setBranding(loadedBranding);
           setEvents(loadedEvents);
           setTemplates(loadedTemplates);
           setProviderStatus(loadedStatus);
@@ -919,6 +925,7 @@ export function useCommunicationCenterController({
     successNotice,
     templates,
     timezone,
+    branding,
     unifiedMessages,
     updateAudience,
     voiceParts,

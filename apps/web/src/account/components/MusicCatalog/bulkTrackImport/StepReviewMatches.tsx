@@ -1415,6 +1415,7 @@ function buildOverviewColumns(
 }
 
 function ReviewFooter({
+  tuttiActions,
   needsDestination,
   resolveLabel,
   onResolveCurrent,
@@ -1435,6 +1436,7 @@ function ReviewFooter({
   skippedGroups,
   hasOtherUnresolvedGroup,
 }: {
+  readonly tuttiActions: ReturnType<typeof useTuttiSuggestions>;
   readonly needsDestination: boolean;
   readonly resolveLabel: string;
   readonly onResolveCurrent: () => void;
@@ -1488,6 +1490,7 @@ function ReviewFooter({
         >
           {activeState.groupStatus === "skipped" ? "Restore group" : "Skip group"}
         </button>
+        <TuttiSuggestions actions={tuttiActions} matching={matching} />
         {allResolved ? (
           <button
             className="button button--primary"
@@ -1858,7 +1861,6 @@ export function StepReviewMatches({
         onDismissProposal={onDismissGroupRepair}
         proposals={pendingGroupRepairs}
       />
-      <TuttiSuggestions actions={tuttiActions} matching={matching} />
       <ReviewModePanel
         columns={overviewColumns}
         guidedContent={guidedContent}
@@ -1866,6 +1868,7 @@ export function StepReviewMatches({
         view={view}
       />
       <ReviewFooter
+        tuttiActions={tuttiActions}
         needsDestination={needsDestination}
         resolveLabel={resolveLabel}
         onResolveCurrent={resolveCurrentGroup}

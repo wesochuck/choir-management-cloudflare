@@ -1,8 +1,8 @@
 import { organizationEventSchema, ticketBundleSchema } from "@choir/contracts";
 import { futureIsoDate } from "@choir/testkit";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import { generateQRCodeDataUrl } from "../../../shared/qrCode";
 import { SharePanel } from "./SharePanel";
@@ -32,6 +32,55 @@ const bundle = ticketBundleSchema.parse({
 });
 
 describe("primary ticket sharing URLs", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("hides completed performances and retains ongoing and upcoming performances", () => {
+    const now = Date.now();
+    vi.useFakeTimers({ now });
+    const started = new Date(now - 60 * 60_000).toISOString();
+    render(
+      <SharePanel
+        bundles={[]}
+        ticketEvents={[
+          { ...event, id: "ended", title: "Ended", startsAt: started, durationMinutes: 60 },
+          { ...event, id: "ongoing", title: "Ongoing", startsAt: started, durationMinutes: 120 },
+          {
+            ...event,
+            id: "undated",
+            title: "No duration",
+            startsAt: started,
+            durationMinutes: null,
+          },
+          event,
+        ]}
+      />,
+    );
+    expect(screen.queryByRole("group", { name: "Ended" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "No duration" })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Ongoing" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: event.title })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "All ticketing" })).toBeInTheDocument();
+  });
+
+  it("removes the link and QR card when a performance ends while the panel stays open", async () => {
+    const now = Date.now();
+    vi.useFakeTimers({ now });
+    render(
+      <SharePanel
+        bundles={[]}
+        ticketEvents={[
+          { ...event, startsAt: new Date(now - 30_000).toISOString(), durationMinutes: 1 },
+        ]}
+      />,
+    );
+    expect(screen.getByRole("group", { name: event.title })).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(screen.queryByRole("group", { name: event.title })).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "All ticketing" })).toBeInTheDocument();
+  });
+
   it.each([
     ["Christmas by Candlelight", "/tickets/christmas-by-candlelight"],
     ["Season Pass", "/tickets/bundles/season-pass"],

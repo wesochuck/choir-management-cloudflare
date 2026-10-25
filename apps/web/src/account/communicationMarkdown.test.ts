@@ -1,10 +1,80 @@
 import { describe, expect, it } from "vitest";
+import { communicationPlaceholderDefinitions } from "@choir/domain";
+import type { OrganizationBranding } from "@choir/contracts";
 import {
   communicationPreviewValues,
   renderCommunicationMarkdownPreview,
 } from "./communicationMarkdown";
 
 describe("renderCommunicationMarkdownPreview", () => {
+  const branding: OrganizationBranding = {
+    organizationId: "test-choir",
+    organizationName: "Sample Choir",
+    logoFileId: "11111111-1111-4111-8111-111111111111",
+    physicalAddress: null,
+  };
+
+  it("renders every registered placeholder and alias with a sample value", () => {
+    const values = communicationPreviewValues(null, "UTC", branding);
+    for (const definition of communicationPlaceholderDefinitions) {
+      for (const tag of [definition.tag, ...(definition.aliases ?? [])]) {
+        const rendered = renderCommunicationMarkdownPreview(tag, values, { branding });
+        expect(rendered, tag).not.toContain(tag);
+        expect(rendered, tag).not.toBe("<p></p>");
+      }
+    }
+    expect(
+      renderCommunicationMarkdownPreview(
+        "{{POLL_LINK:11111111-1111-4111-8111-111111111111}}",
+        values,
+      ),
+    ).toContain("Respond Here (No login required)");
+  });
+
+  it("renders Organization branding in both brace styles without changing the source", () => {
+    const source =
+      "{organizationLogo} {{organizationLogo}} {organizationName} {{organizationName}}";
+    const rendered = renderCommunicationMarkdownPreview(
+      source,
+      communicationPreviewValues(null, "UTC", branding),
+      { branding },
+    );
+    expect(rendered.match(/<img /g)).toHaveLength(2);
+    expect(rendered).toContain(
+      'src="/api/organization/files/11111111-1111-4111-8111-111111111111"',
+    );
+    expect(rendered).toContain('alt="Sample Choir"');
+    expect(rendered).not.toContain("{organization");
+    expect(source).toContain("{organizationLogo}");
+  });
+
+  it("uses the styled Organization name without a logo and plain text for SMS", () => {
+    const noLogo = { ...branding, logoFileId: null };
+    const values = communicationPreviewValues(null, "UTC", noLogo);
+    const email = renderCommunicationMarkdownPreview("{organizationLogo}", values, {
+      branding: noLogo,
+    });
+    expect(email).toContain("<span style=");
+    expect(email).toContain("Sample Choir");
+    const sms = renderCommunicationMarkdownPreview("{organizationLogo}", values, {
+      branding,
+      channel: "SMS",
+    });
+    expect(sms).toBe("<p>Sample Choir</p>");
+  });
+
+  it("escapes Organization names and never renders authored HTML as markup", () => {
+    const unsafeBranding = { ...branding, organizationName: '<img src=x onerror="alert(1)">' };
+    const rendered = renderCommunicationMarkdownPreview(
+      "{organizationLogo} {organizationName} <script>alert(1)</script>",
+      communicationPreviewValues(null, "UTC", unsafeBranding),
+      { branding: unsafeBranding },
+    );
+    expect(rendered).toContain('alt="&lt;img src=x onerror=&quot;alert(1)&quot;&gt;"');
+    expect(rendered).not.toContain("<script>");
+    expect(rendered).not.toContain("<img src=x");
+  });
+
   it("escapes attributes and markup in link previews", () => {
     const rendered = renderCommunicationMarkdownPreview(
       '[safe](https://example.test/?q=" onmouseover="alert(1)) <img src=x>',

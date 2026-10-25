@@ -171,6 +171,20 @@ test("hides Stripe onboarding when the connected account is ready", async ({ pag
 
   await page.goto("/admin/settings/setup-checklist");
 
+  await expect(page.getByText("4 of 4 required steps completed.")).toBeVisible();
+  await expect(page.getByText("Setup is complete.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Import Existing Data" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Import existing data" })).toHaveCount(0);
+  const progress = page.getByRole("region", { name: "Setup progress" });
+  await expect(progress.getByRole("link", { name: "Roster", exact: true })).toHaveAttribute(
+    "href",
+    "/admin/roster",
+  );
+  await expect(progress.getByRole("link", { name: "Music Library", exact: true })).toHaveAttribute(
+    "href",
+    "/admin/library",
+  );
+
   await expect(
     page
       .locator('section[aria-label="Setup progress"]')
@@ -470,7 +484,7 @@ test("repairs a missing Organization Info step without changing disabled modules
     await fulfillJson(route, { saved: true });
   });
   await page.goto("/admin/settings/setup-checklist");
-  await expect(page.getByText("4 of 5 steps completed.")).toBeVisible();
+  await expect(page.getByText("3 of 4 required steps completed.")).toBeVisible();
   await expect(
     page.getByRole("group", { name: "Module Configuration", exact: true }),
   ).toContainText("This step is complete.");
@@ -481,7 +495,7 @@ test("repairs a missing Organization Info step without changing disabled modules
   await expect(page.getByRole("heading", { name: "Setup complete", exact: true })).toBeVisible();
   expect(progressWrites).toHaveLength(1);
   await page.goto("/admin/settings/setup-checklist");
-  await expect(page.getByText("5 of 5 steps completed.")).toBeVisible();
+  await expect(page.getByText("4 of 4 required steps completed.")).toBeVisible();
   await expect(
     page.getByText(
       "Setup is complete. Your Organization is live. Optional data imports can be added later.",

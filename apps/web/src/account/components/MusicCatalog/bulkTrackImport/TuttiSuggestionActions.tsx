@@ -19,7 +19,10 @@ export function TuttiSuggestions({
   });
   if (actions.count === 0 && !actions.canUndo) return null;
   return (
-    <section aria-label="Tutti suggestions" className="track-import-tutti-suggestions">
+    <section
+      aria-label="Tutti suggestions"
+      className="track-import-tutti-suggestions track-import-tutti-suggestions--footer"
+    >
       {actions.count > 0 ? (
         <button
           className="button button--secondary"
@@ -34,12 +37,14 @@ export function TuttiSuggestions({
           Use Tutti for {actions.count} unlabeled {actions.count === 1 ? "recording" : "recordings"}
         </button>
       ) : null}
-      <small>
+      <small className="sr-only">
         Keeps your edits, reviewed groups and skipped files. Review each group before uploading.
       </small>
       {actions.canUndo ? (
         <div role="status">
-          Tutti applied. Later edits and reviewed groups will be kept.
+          <span className="sr-only">
+            Tutti applied. Later edits and reviewed groups will be kept.
+          </span>
           <button
             className="button button--ghost"
             type="button"

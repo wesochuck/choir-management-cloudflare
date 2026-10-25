@@ -4,6 +4,7 @@ import type {
   CommunicationTemplate,
   ContactList,
   OrganizationEvent,
+  OrganizationBranding,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import {
@@ -51,6 +52,7 @@ interface MessageComposerProps {
   readonly selectedEvent: OrganizationEvent | null;
   readonly subject: string;
   readonly timezone: string | null;
+  readonly branding?: OrganizationBranding | null;
   readonly templates: readonly CommunicationTemplate[];
 }
 
@@ -421,6 +423,7 @@ export function MessageComposer({
   rosterConfiguration,
   selectedEvent,
   timezone,
+  branding,
   subject,
   templates,
 }: MessageComposerProps) {
@@ -436,7 +439,7 @@ export function MessageComposer({
       !template.isSystem && templateMatchesCommunicationContext(template, audience, channel),
   );
 
-  const previewValues = communicationPreviewValues(selectedEvent, timezone);
+  const previewValues = communicationPreviewValues(selectedEvent, timezone, branding);
   const placeholders = visibleCommunicationPlaceholders(
     audience,
     channel,
@@ -691,7 +694,10 @@ export function MessageComposer({
                 aria-label="Live formatted message preview"
                 className="communication-composer__preview preview-body"
                 dangerouslySetInnerHTML={{
-                  __html: renderCommunicationMarkdownPreview(contentMarkdown, previewValues),
+                  __html: renderCommunicationMarkdownPreview(contentMarkdown, previewValues, {
+                    branding,
+                    channel,
+                  }),
                 }}
               />
             </div>
