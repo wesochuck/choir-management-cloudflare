@@ -627,6 +627,24 @@ describe("Organization attendance", () => {
       "PUT",
     );
 
+    // Seating receives the same linked-rehearsal counts for every Profile, with strict > semantics.
+    const seatingAttendance = organizationAttendanceResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/events/${performance.id}/attendance`, cookie),
+        )
+      ).json(),
+    );
+    expect(
+      seatingAttendance.rows.find((row) => row.profileId === bob.id)?.attendanceWarning,
+    ).toEqual({ missedRehearsals: 2, totalRehearsals: 2, threshold: 1, status: "warning" });
+    expect(
+      seatingAttendance.rows.find((row) => row.profileId === alice.id)?.attendanceWarning,
+    ).toEqual({ missedRehearsals: 1, totalRehearsals: 2, threshold: 1, status: "clear" });
+    expect(
+      seatingAttendance.rows.find((row) => row.profileId === charlie.id)?.attendanceWarning,
+    ).toEqual({ missedRehearsals: 0, totalRehearsals: 2, threshold: 1, status: "clear" });
+
     // Fetch the attendance report
     const reportResponse = await exports.default.fetch(
       api(
@@ -677,6 +695,26 @@ describe("Organization attendance", () => {
     const charlieIndex = report.rows.findIndex((r) => r.profileId === charlie.id);
     expect(bobIndex).toBeLessThan(aliceIndex);
     expect(aliceIndex).toBeLessThan(charlieIndex);
+
+    // Lookup still needs warnings for singers who are not RSVP'd Attending.
+    await write(
+      "alpha.localhost",
+      `/api/organization/events/${performance.id}/rsvp`,
+      cookie,
+      { profileId: bob.id, rsvp: "No" },
+      "PUT",
+    );
+    const lookupRows = organizationAttendanceResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/events/${performance.id}/attendance`, cookie),
+        )
+      ).json(),
+    ).rows;
+    expect(lookupRows.find((row) => row.profileId === bob.id)).toMatchObject({
+      rsvp: "No",
+      attendanceWarning: { missedRehearsals: 2, status: "warning" },
+    });
 
     // 3. Tenant isolation: bravo cannot access alpha's performance attendance report
     const crossOrgResponse = await exports.default.fetch(

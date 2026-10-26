@@ -438,8 +438,63 @@ describe("Seat assignment candidate picker", () => {
 
   async function openSeat(seatLabel: RegExp | string) {
     fireEvent.click(screen.getByRole("button", { name: seatLabel }));
-    return screen.findByRole("dialog", { name: /^Seat \d+$/ });
+    return screen.findByRole("dialog", { name: /^Row \d+ · Seat \d+$/ });
   }
+
+  it("shows warnings everywhere a singer is found and hides only counts over the threshold", async () => {
+    const withWarning = (
+      profile: OrganizationProfile,
+      count: number,
+      rsvp: "Yes" | "Pending" = "Yes",
+    ): OrganizationAttendanceRow => ({
+      ...attending(profile, rsvp),
+      attendanceWarning: {
+        missedRehearsals: count,
+        threshold: 2,
+        totalRehearsals: 5,
+        status: count > 2 ? "warning" : "clear",
+      },
+    });
+    vi.mocked(api.listOrganizationSeatingCharts).mockResolvedValue([
+      { ...chartA, assignments: { "0-0": aliceId } },
+    ]);
+    vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue([
+      withWarning(alice, 3),
+      withWarning(bob, 2),
+      withWarning(carol, 4),
+      withWarning(dave, 3, "Pending"),
+    ]);
+    render(<SeatingManager enabled />);
+    await flushLoad();
+    const tray = screen.getByRole("region", { name: "Unassigned Profiles" });
+    const warningName = /Attendance warning: 4 of 5/;
+    expect(within(tray).getByRole("img", { name: warningName })).toHaveTextContent("4");
+    expect(within(tray).queryByRole("img", { name: /2 of 5/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Seat 1, assigned to Alice/ })).toContainElement(
+      screen.getByRole("img", { name: /3 of 5/ }),
+    );
+    expect(screen.getByRole("button", { name: /Seat 1, assigned to Alice/ })).toHaveAccessibleName(
+      /Attendance warning: 3 of 5/,
+    );
+    fireEvent.click(within(tray).getByRole("checkbox", { name: "Hide attendance warnings" }));
+    expect(tray).toHaveTextContent("Bob Bass");
+    expect(tray).not.toHaveTextContent("Carol Caller");
+    expect(tray).toHaveTextContent("1 of 2");
+    expect(api.setOrganizationEventRsvp).not.toHaveBeenCalled();
+    const dialog = await openSeat("Seat 2, empty");
+    expect(dialog).toHaveAccessibleName("Row 1 · Seat 2");
+    expect(within(dialog).getByRole("img", { name: warningName })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(tray).getByRole("button", { name: "Lookup" }));
+    const lookup = await screen.findByRole("dialog", { name: "Profile lookup" });
+    fireEvent.change(within(lookup).getByRole("searchbox"), { target: { value: "Dave" } });
+    expect(within(lookup).getByRole("img", { name: /3 of 5/ })).toBeInTheDocument();
+    fireEvent.click(within(lookup).getByRole("button", { name: "Close" }));
+    for (const mode of ["List", "Last name index"]) {
+      fireEvent.click(screen.getByRole("button", { name: mode }));
+      expect(screen.getByRole("img", { name: /3 of 5/ })).toBeInTheDocument();
+    }
+  });
 
   it("copies a reusable template using current eligibility and leaves the saved arrangement intact", async () => {
     const template = {

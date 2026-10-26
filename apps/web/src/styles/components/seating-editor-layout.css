@@ -1071,6 +1071,59 @@
     font-size: var(--font-size-2xs);
   }
 
+  .seating-seat__metadata,
+  .seating-person-name {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-3xs);
+    min-width: 0;
+  }
+
+  .seating-seat__metadata {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    line-height: var(--line-height-tight);
+  }
+
+  .seating-attendance-warning {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 0.1em;
+    padding-inline: 0.2em;
+    border: 1px solid currentColor;
+    border-radius: var(--radius-full);
+    color: var(--color-attendance-warning);
+    background: var(--color-attendance-warning-surface);
+    font-size: var(--font-size-2xs);
+    font-weight: var(--font-weight-bold);
+    line-height: var(--line-height-tight);
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .seating-attendance-warning svg {
+    width: 1em;
+    height: 1em;
+    flex-shrink: 0;
+  }
+
+  .seating-seat__row {
+    display: none;
+  }
+
+  .seating-seat[data-magnified] .seating-seat__row {
+    display: inline;
+  }
+
+  .seating-tray__warning-filter {
+    flex: 0 0 auto;
+    height: var(--control-height);
+    min-height: var(--control-height);
+    margin: 0;
+    white-space: nowrap;
+  }
+
   .seating-seat__warning {
     color: var(--color-danger-text);
     font-size: var(--font-size-3xs);
@@ -1093,6 +1146,10 @@
     outline: 2px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
   }
 
+  .seating-tray__actions {
+    flex-wrap: wrap;
+  }
+
   .seating-tray__header,
   .seating-tray__actions {
     display: flex;
@@ -1111,7 +1168,7 @@
     font-size: var(--font-size-sm);
   }
 
-  .seating-tray__actions input {
+  .seating-tray__actions input[type="search"] {
     min-width: 12rem;
     flex: 1;
   }
@@ -1454,6 +1511,12 @@
     font-style: normal;
   }
 
+  .seating-lookup-row .seating-attendance-warning,
+  .seating-lookup-row .seating-attendance-warning span {
+    color: var(--color-attendance-warning);
+    font-size: var(--font-size-2xs);
+  }
+
   .seating-formations--focused {
     margin-top: var(--spacing-3xs);
   }
@@ -1505,7 +1568,7 @@
       flex: 1;
     }
 
-    .seating-tray__actions input {
+    .seating-tray__actions input[type="search"] {
       min-width: 0;
       width: 100%;
     }

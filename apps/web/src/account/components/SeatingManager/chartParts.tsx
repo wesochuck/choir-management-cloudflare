@@ -1,3 +1,6 @@
+import { hasAttendanceWarning } from "@choir/domain";
+import { SeatingAttendanceContext, seatingSeatAccessibleLabel } from "./attendanceContext";
+import { AttendanceWarningBadge } from "./AttendanceWarningBadge";
 import { seatingEmptyMessage } from "./utils";
 import type {
   OrganizationProfile,
@@ -5,7 +8,7 @@ import type {
   OrganizationSeatingChartRequest,
 } from "@choir/contracts";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { useMemo } from "react";
+import { useContext, useMemo, useState } from "react";
 import { getInitials, getLastName } from "../../nameFormatting";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 
@@ -50,11 +53,12 @@ export function SeatTile({
   suggestion,
 }: SeatTileProps) {
   const { partLabel } = useOrganizationTerminology();
+  const warnings = useContext(SeatingAttendanceContext);
   const draggable = useDraggable({ id: `seat:${seatKey}`, disabled: !assigned });
   const droppable = useDroppable({ id: `seat:${seatKey}` });
   return (
     <div
-      aria-label={`${label}${assigned ? `, assigned to ${assigned.displayName}` : ", empty"}`}
+      aria-label={seatingSeatAccessibleLabel(label, assigned, warnings)}
       className={`seating-seat seating-seat--canvas${assigned ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}${draggable.isDragging ? " seating-seat--dragging" : ""}${droppable.isOver ? " seating-seat--drop-target" : ""}`}
       data-name-presentation={presentation}
       data-seat-key={seatKey}
@@ -93,10 +97,20 @@ export function SeatTile({
       tabIndex={0}
     >
       <div className="seating-seat__surface">
-        <span className="seating-seat__number">{label}</span>
+        <span className="seating-seat__number">
+          <span className="seating-seat__row" aria-hidden="true">
+            Row {Number(seatKey.split("-")[0]) + 1} ·{" "}
+          </span>
+          {label}
+        </span>
         <SeatSuggestion occupied={Boolean(assigned)} suggestion={suggestion} />
         <SeatName displayName={assigned?.displayName} />
-        {assigned ? <span className="seating-seat__voice">{assigned.voicePart}</span> : null}
+        {assigned ? (
+          <span className="seating-seat__metadata">
+            <span className="seating-seat__voice">{assigned.voicePart}</span>
+            <AttendanceWarningBadge profileId={assigned.id} />
+          </span>
+        ) : null}
         {mismatch ? <span className="seating-seat__warning">{partLabel} mismatch</span> : null}
         <button
           aria-label={
@@ -147,6 +161,20 @@ export function UnassignedTray({
   readonly query: string;
   readonly setQuery: (value: string) => void;
 }) {
+  const warnings = useContext(SeatingAttendanceContext);
+  const [hideWarnings, setHideWarnings] = useState(false);
+  const visibleProfiles = useMemo(
+    () =>
+      profiles.filter(({ id }) => {
+        const warning = warnings.get(id);
+        return (
+          !hideWarnings ||
+          !warning ||
+          !hasAttendanceWarning(warning.missedRehearsals, warning.threshold)
+        );
+      }),
+    [profiles, warnings, hideWarnings],
+  );
   const { isOver: trayIsOver, setNodeRef: setTrayNodeRef } = useDroppable({ id: "tray" });
   const { partLabel } = useOrganizationTerminology();
   const attachTrayNode = (node: HTMLElement | null) => {
@@ -155,10 +183,10 @@ export function UnassignedTray({
   const groups = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     const filtered = normalized
-      ? profiles.filter(({ displayName, voicePart }) =>
+      ? visibleProfiles.filter(({ displayName, voicePart }) =>
           `${displayName} ${voicePart}`.toLocaleLowerCase().includes(normalized),
         )
-      : profiles;
+      : visibleProfiles;
     const voicePartSections = new Map(
       roster.voiceParts.map(({ label, sectionCode }) => [label, sectionCode]),
     );
@@ -188,7 +216,7 @@ export function UnassignedTray({
         const rightIndex = sectionOrder.get(right.code) ?? -1;
         return leftIndex - rightIndex;
       });
-  }, [profiles, query, roster]);
+  }, [visibleProfiles, query, roster]);
   return (
     <section
       className={`seating-tray${trayIsOver ? " seating-tray--drop-target" : ""}`}
@@ -208,7 +236,11 @@ export function UnassignedTray({
           <h2 id="unassigned-title">Unassigned Profiles</h2>
           <p>Drag a Profile to a seat, or drop a seat here to clear it.</p>
         </div>
-        <span className="status-pill">{profiles.length}</span>
+        <span className="status-pill" aria-live="polite">
+          {hideWarnings
+            ? `${String(visibleProfiles.length)} of ${String(profiles.length)}`
+            : profiles.length}
+        </span>
       </div>
       <p className="seating-assignment-picker__hint">
         Only active performers with a {partLabel.toLowerCase()} assignment who have RSVP'd Attending
@@ -234,6 +266,16 @@ export function UnassignedTray({
           type="search"
           value={query}
         />
+        <label className="checkbox-row seating-tray__warning-filter">
+          <input
+            type="checkbox"
+            checked={hideWarnings}
+            onChange={(event) => {
+              setHideWarnings(event.target.checked);
+            }}
+          />
+          Hide attendance warnings
+        </label>
         <button className="button button--secondary button--small" onClick={onLookup} type="button">
           Lookup
         </button>
@@ -259,7 +301,9 @@ export function UnassignedTray({
             <p>
               {profiles.length === 0
                 ? seatingEmptyMessage(rsvpYesCount, eligibleCount)
-                : "No unassigned attending singers match your search."}
+                : hideWarnings
+                  ? "No unassigned attending singers match your search and attendance filter."
+                  : "No unassigned attending singers match your search."}
             </p>
             {profiles.length > 0 ? (
               <>
@@ -354,11 +398,12 @@ export function ChartList({
           <ul className="seating-name-index__entries">
             {indexEntries.map(({ profile, rowIndex, seatIndex }) => (
               <li key={`${String(rowIndex)}-${String(seatIndex)}`}>
-                <strong>
+                <strong className="seating-person-name">
                   {(displayNames.get(profile.id) ?? getLastName(profile.displayName)).replace(
                     ", ",
                     " ",
                   )}
+                  <AttendanceWarningBadge profileId={profile.id} />
                 </strong>
                 <span className="seating-name-index__location">
                   Row {rowIndex + 1} · Seat {seatIndex + 1}
@@ -402,11 +447,12 @@ export function ChartList({
                   {showSeatNumbers ? (
                     <span className="seating-list-seat-number">{seatIndex + 1}</span>
                   ) : null}
-                  <strong>
+                  <strong className="seating-person-name">
                     {(displayNames.get(profile.id) ?? getLastName(profile.displayName)).replace(
                       ", ",
                       " ",
                     )}
+                    <AttendanceWarningBadge profileId={profile.id} />
                   </strong>
                   {showVoiceParts && profile.voicePart ? (
                     <em className="seating-list-voice-part">({profile.voicePart})</em>

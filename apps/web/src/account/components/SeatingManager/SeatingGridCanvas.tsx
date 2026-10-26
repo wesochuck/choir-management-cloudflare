@@ -1,3 +1,5 @@
+import { SeatingAttendanceContext, seatingSeatAccessibleLabel } from "./attendanceContext";
+import { AttendanceWarningBadge } from "./AttendanceWarningBadge";
 import { addRow, addSeat, isSeatingSectionMismatch } from "@choir/domain";
 import type {
   OrganizationProfile,
@@ -5,7 +7,7 @@ import type {
   OrganizationSeatingChartRequest,
   SeatingFormation,
 } from "@choir/contracts";
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useContext, useEffect, useRef, useState } from "react";
 import { useDndContext } from "@dnd-kit/core";
 import { SeatName, SeatSuggestion, SeatTile } from "./chartParts";
 import { useSeatingNamePresentation } from "./hooks/useSeatingNamePresentation";
@@ -47,6 +49,7 @@ export function SeatingGridCanvas({
   setSelectedSeat,
   updateLayout,
 }: SeatingGridCanvasProps) {
+  const warnings = useContext(SeatingAttendanceContext);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [hoveredSeat, setHoveredSeat] = useState<string | null>(null);
   const [focusedSeat, setFocusedSeat] = useState<string | null>(null);
@@ -190,7 +193,11 @@ export function SeatingGridCanvas({
                   />
                 ) : (
                   <div
-                    aria-label={`Seat ${String(seatIndex + 1)}${profile ? `, assigned to ${profile.displayName}` : ", empty"}`}
+                    aria-label={seatingSeatAccessibleLabel(
+                      `Seat ${String(seatIndex + 1)}`,
+                      profile,
+                      warnings,
+                    )}
                     className={`seating-seat seating-seat--canvas seating-seat--readonly${profile ? " seating-seat--assigned" : " seating-seat--empty"}${mismatch ? " seating-seat--mismatch" : ""}`}
                     data-name-presentation={initialPresentation}
                     data-seat-key={seatKey}
@@ -200,11 +207,19 @@ export function SeatingGridCanvas({
                     tabIndex={profile ? 0 : undefined}
                   >
                     <div className="seating-seat__surface">
-                      <span className="seating-seat__number">Seat {seatIndex + 1}</span>
+                      <span className="seating-seat__number">
+                        <span className="seating-seat__row" aria-hidden="true">
+                          Row {rowIndex + 1} ·{" "}
+                        </span>
+                        Seat {seatIndex + 1}
+                      </span>
                       <SeatSuggestion occupied={Boolean(profile)} suggestion={suggestion} />
                       <SeatName displayName={profile?.displayName} />
                       {profile ? (
-                        <span className="seating-seat__voice">{profile.voicePart}</span>
+                        <span className="seating-seat__metadata">
+                          <span className="seating-seat__voice">{profile.voicePart}</span>
+                          <AttendanceWarningBadge profileId={profile.id} />
+                        </span>
                       ) : null}
                     </div>
                   </div>

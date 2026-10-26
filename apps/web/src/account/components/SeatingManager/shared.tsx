@@ -1,3 +1,5 @@
+import { SeatingAttendanceContext, describeSeatingAttendanceWarning } from "./attendanceContext";
+import { AttendanceWarningBadge } from "./AttendanceWarningBadge";
 import type {
   OrganizationProfile,
   OrganizationRosterConfiguration,
@@ -6,7 +8,7 @@ import type {
 } from "@choir/contracts";
 import { useDraggable } from "@dnd-kit/core";
 import { Dialog, DialogClose, Tooltip } from "@choir/ui";
-import { useRef, useState, type DragEvent } from "react";
+import { useContext, useRef, useState, type DragEvent } from "react";
 import { updateOrganizationSeatingConfiguration } from "../../../auth/api";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { normalizeFormationOrder, formationOrderOptions, moveFormationOrderItem } from "./utils";
@@ -413,6 +415,7 @@ export function UnassignedProfileChip({
   readonly onRemove: (profile: OrganizationProfile) => void;
   readonly profile: OrganizationProfile;
 }) {
+  const warning = useContext(SeatingAttendanceContext).get(profile.id);
   const {
     attributes: dragAttributes,
     isDragging: profileIsDragging,
@@ -431,6 +434,7 @@ export function UnassignedProfileChip({
         style={{ opacity: profileIsDragging ? 0.45 : undefined }}
         {...dragAttributes}
         {...dragListeners}
+        aria-label={`${profile.displayName}, ${profile.voicePart}${describeSeatingAttendanceWarning(warning) ? `, ${describeSeatingAttendanceWarning(warning) ?? ""}` : ""}`}
         onDragStart={(event) => {
           event.dataTransfer.setData("text/plain", `profile:${profile.id}`);
           event.dataTransfer.effectAllowed = "move";
@@ -438,6 +442,7 @@ export function UnassignedProfileChip({
       >
         <span className="seating-profile-chip__name">{profile.displayName}</span>
         <span className="seating-profile-chip__voice">{profile.voicePart}</span>
+        <AttendanceWarningBadge profileId={profile.id} />
         <button
           aria-label={`Mark ${profile.displayName} not attending`}
           onClick={() => {

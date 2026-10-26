@@ -1,3 +1,4 @@
+import { AttendanceWarningBadge } from "./AttendanceWarningBadge";
 import { closestCenter, DndContext, DragOverlay } from "@dnd-kit/core";
 import { useOrganizationTerminology } from "../../organizationTerminologyContext";
 import { UnassignedTray } from "./chartParts";
@@ -133,6 +134,7 @@ export function SeatingCanvasView({
               </strong>
               {draggingProfile ? (
                 <small>
+                  <AttendanceWarningBadge profileId={draggingProfile.id} />
                   {draggingProfile.voicePart.trim()
                     ? `${partLabel}: ${draggingProfile.voicePart}`
                     : `No ${partLabel.toLowerCase()}`}

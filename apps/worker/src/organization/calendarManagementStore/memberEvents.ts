@@ -1,5 +1,5 @@
 import { organizationSetListItemSchema, otherEventAudienceSchema } from "@choir/contracts";
-import { datePartInTimeZone, zonedLocalDateTimeToUtc } from "@choir/domain";
+import { hasAttendanceWarning, datePartInTimeZone, zonedLocalDateTimeToUtc } from "@choir/domain";
 import { z } from "zod";
 
 import { type MemberEventRow, type ProfilePerformanceRow } from "./contracts";
@@ -30,10 +30,12 @@ function attendanceWarningForMemberEvent(
   }
   return {
     missedRehearsals: event.attendanceMissed,
-    status:
-      event.attendanceMissed >= configuration.attendanceReportWarningThreshold
-        ? ("warning" as const)
-        : ("clear" as const),
+    status: hasAttendanceWarning(
+      event.attendanceMissed,
+      configuration.attendanceReportWarningThreshold,
+    )
+      ? ("warning" as const)
+      : ("clear" as const),
     threshold: configuration.attendanceReportWarningThreshold,
     totalRehearsals: event.attendanceTotal,
   };

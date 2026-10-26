@@ -145,6 +145,7 @@ export function useSeatingManagerController({ enabled }: { readonly enabled: boo
     applyChart: persist.applyChart,
     assignedIds: derived.assignedIds,
     attendingIds: derived.attendingIds,
+    attendanceWarnings: ch.attendanceWarnings,
     autoSuggest: mut.autoSuggest,
     changeEvent: mut.changeEvent,
     changeFormation: mut.changeFormation,

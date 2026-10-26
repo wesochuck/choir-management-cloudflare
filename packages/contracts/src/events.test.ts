@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  organizationAttendanceRowSchema,
   organizationEventFieldsSchema,
   organizationEventRequestSchema,
   organizationEventSchema,
@@ -184,6 +185,41 @@ describe("member event score availability", () => {
     expect(
       singerEventSchema.shape.setList.safeParse([{ title: "Opening Song", scoreAvailable: "yes" }])
         .success,
+    ).toBe(false);
+  });
+});
+
+describe("attendance warning response compatibility", () => {
+  const row = {
+    attendance: "Pending",
+    displayName: "Singer",
+    profileId: "11111111-1111-4111-8111-111111111111",
+    rsvp: "Yes",
+    updatedAt: null,
+  };
+  it.each([
+    undefined,
+    null,
+    { missedRehearsals: 3, threshold: 2, totalRehearsals: 5, status: "warning" },
+  ])("accepts warning state %j", (attendanceWarning) => {
+    expect(
+      organizationAttendanceRowSchema.parse({ ...row, attendanceWarning }).attendanceWarning,
+    ).toEqual(attendanceWarning);
+  });
+  it("accepts older responses with no warning field", () => {
+    expect(organizationAttendanceRowSchema.parse(row).attendanceWarning).toBeUndefined();
+  });
+  it("rejects malformed warning counts", () => {
+    expect(
+      organizationAttendanceRowSchema.safeParse({
+        ...row,
+        attendanceWarning: {
+          missedRehearsals: -1,
+          threshold: 2,
+          totalRehearsals: 5,
+          status: "warning",
+        },
+      }).success,
     ).toBe(false);
   });
 });

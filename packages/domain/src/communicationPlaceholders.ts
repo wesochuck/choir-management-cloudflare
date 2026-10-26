@@ -271,7 +271,7 @@ export const communicationPlaceholderDefinitions: readonly CommunicationPlacehol
     category: "Attendance",
     channels: ["Email"],
     contexts: ["attendance"],
-    description: "A section naming Profiles at or above the linked-Rehearsal warning threshold.",
+    description: "A section naming Profiles over the linked-Rehearsal warning threshold.",
     label: "Warning section",
     requiresEvent: true,
     tag: "{thresholdWarningsSection}",

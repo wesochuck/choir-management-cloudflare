@@ -4,6 +4,7 @@ import {
   listOrganizationEventAttendance,
   listOrganizationSeatingCharts,
 } from "../../../../auth/api";
+import type { SeatingAttendanceWarning } from "../attendanceContext";
 import type { SeatingResources } from "../types";
 import { chartRequest, emptyChart } from "../utils";
 
@@ -27,6 +28,9 @@ export function useSeatingCharts({
   const chartRef = useRef<OrganizationSeatingChartRequest | null>(null);
   const editingIdRef = useRef<string | null>(null);
   const [loadedEventId, setLoadedEventId] = useState<string | null>(null);
+  const [attendanceWarnings, setAttendanceWarnings] = useState<
+    ReadonlyMap<string, SeatingAttendanceWarning>
+  >(new Map());
   const [charts, setCharts] = useState<readonly OrganizationSeatingChart[]>([]);
   const [attendance, setAttendance] = useState<
     readonly { readonly profileId: string; readonly rsvp: "No" | "Pending" | "Yes" }[]
@@ -47,6 +51,13 @@ export function useSeatingCharts({
         setLoadedEventId(eventId);
         setCharts(nextCharts);
         setAttendance(nextAttendance);
+        setAttendanceWarnings(
+          new Map(
+            nextAttendance.flatMap((row) =>
+              row.attendanceWarning ? [[row.profileId, row.attendanceWarning] as const] : [],
+            ),
+          ),
+        );
         const requestedChart = new URLSearchParams(window.location.search).get("chartId");
         const active = nextCharts.find(({ id }) => id === requestedChart) ?? nextCharts[0];
         const nextId = active?.id ?? null;
@@ -84,6 +95,7 @@ export function useSeatingCharts({
 
   return {
     attendance,
+    attendanceWarnings,
     chart,
     chartRef,
     charts,

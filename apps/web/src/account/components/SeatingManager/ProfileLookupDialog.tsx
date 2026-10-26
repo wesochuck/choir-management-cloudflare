@@ -1,3 +1,4 @@
+import { AttendanceWarningBadge } from "./AttendanceWarningBadge";
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { Dialog } from "@choir/ui";
 import type { OrganizationProfile } from "@choir/contracts";
@@ -117,7 +118,10 @@ export function ProfileLookupDialog({
             const canMarkAttending = !attending && !seated && reasons.length === 0;
             return (
               <div className="seating-lookup-row seating-roster-result" key={profile.id}>
-                <strong>{profile.displayName}</strong>
+                <strong className="seating-person-name">
+                  {profile.displayName}
+                  <AttendanceWarningBadge profileId={profile.id} />
+                </strong>
                 <span>{profile.voicePart || `No ${partLabel.toLowerCase()}`}</span>
                 <p>
                   {attending ? "Attending" : "Not RSVP'd Attending"}

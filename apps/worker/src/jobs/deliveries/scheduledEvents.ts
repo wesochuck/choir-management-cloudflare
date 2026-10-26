@@ -1,3 +1,4 @@
+import { hasAttendanceWarning } from "@choir/domain";
 import { renderCommunicationTemplate } from "@choir/domain";
 import {
   listOrganizationProfiles,
@@ -192,7 +193,7 @@ function attendanceReportValues(
     }
   }
   const warningNames = [...missedCounts.entries()]
-    .filter(([, missed]) => missed >= report.warningThreshold)
+    .filter(([, missed]) => hasAttendanceWarning(missed, report.warningThreshold))
     .sort(([left], [right]) => (names.get(left) ?? "").localeCompare(names.get(right) ?? ""))
     .map(
       ([profileId, missed]) =>
@@ -200,8 +201,8 @@ function attendanceReportValues(
     )
     .join("\n");
   const thresholdWarningsSection = warningNames
-    ? `### Rehearsal follow-up warnings\nProfiles at or above the warning threshold of ${String(report.warningThreshold)}:\n${warningNames}`
-    : "### Rehearsal follow-up warnings\nNo profiles met the warning threshold.";
+    ? `### Rehearsal follow-up warnings\nProfiles over the warning threshold of ${String(report.warningThreshold)}:\n${warningNames}`
+    : "### Rehearsal follow-up warnings\nNo profiles exceeded the warning threshold.";
   return {
     absenteesList,
     attendanceRate: String(attendanceRate),

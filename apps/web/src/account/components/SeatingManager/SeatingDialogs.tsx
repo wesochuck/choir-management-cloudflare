@@ -1,3 +1,4 @@
+import { AttendanceWarningBadge } from "./AttendanceWarningBadge";
 import { clearSeatAssignment, moveAssignment } from "@choir/domain";
 import { NumberInput, Dialog, DialogClose } from "@choir/ui";
 import type {
@@ -422,13 +423,14 @@ function SeatDetailDialog({
         setSelectedSeat(null);
       }}
       open
-      title={`Seat ${String(seatIndex + 1)}`}
+      title={`Row ${String(rowIndex + 1)} · Seat ${String(seatIndex + 1)}`}
     >
       <div className="form-stack">
         <p>
           {assignedProfileId
             ? `Assigned to ${profilesById.get(assignedProfileId)?.displayName ?? "Profile"}.`
             : "This seat is empty."}
+          {assignedProfileId ? <AttendanceWarningBadge profileId={assignedProfileId} /> : null}
         </p>
         <p className="seating-assignment-picker__hint">
           Available performers must have an active Profile and a {partLabel.toLowerCase()}{" "}
@@ -462,7 +464,10 @@ function SeatDetailDialog({
                   }}
                   type="button"
                 >
-                  <strong>{profile.displayName}</strong>
+                  <strong className="seating-person-name">
+                    {profile.displayName}
+                    <AttendanceWarningBadge profileId={profile.id} />
+                  </strong>
                   <span>{profile.voicePart || `No ${partLabel.toLowerCase()}`}</span>
                 </button>
               ))}

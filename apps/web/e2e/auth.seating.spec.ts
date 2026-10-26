@@ -1046,7 +1046,7 @@ test("explains RSVP eligibility and broadens a failed seating search in both the
   await expect(search).toHaveValue(" Missing ");
   await expect(tray).toContainText("Missing Singer");
   await page.getByRole("button", { name: "Seat 1, empty", exact: true }).click();
-  const seat = page.getByRole("dialog", { name: "Seat 1", exact: true });
+  const seat = page.getByRole("dialog", { name: "Row 1 · Seat 1", exact: true });
   await expect(seat).toContainText("have RSVP'd Attending for this performance");
   await expect(seat.getByRole("button", { name: /Missing Singer/ })).toBeVisible();
   api.assertNoUnexpectedRequests();
@@ -1073,5 +1073,84 @@ test("hides the seating RSVP shortcut when the RSVP module is disabled", async (
   await expect(tray).toBeVisible();
   await expect(tray.getByRole("button", { name: "Review Event RSVPs" })).toHaveCount(0);
   await expect(tray.getByRole("button", { name: "Lookup", exact: true })).toBeVisible();
+  api.assertNoUnexpectedRequests();
+});
+
+test("attendance warnings stay inline and filter only over-threshold unassigned singers", async ({
+  page,
+}, testInfo) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  const flagged = buildOrganizationProfile({ displayName: "Flagged Singer" });
+  const allowed = buildOrganizationProfile({
+    id: "77777777-7777-4777-8777-777777777777",
+    displayName: "At Threshold Singer",
+  });
+  const unassigned = buildOrganizationProfile({
+    id: "88888888-8888-4888-8888-888888888888",
+    displayName: "Unassigned Warning Singer",
+  });
+  const chart = buildSeatingChart({
+    rowCounts: [18],
+    assignments: { "0-0": flagged.id, "0-1": allowed.id },
+  });
+  api.profiles.set([flagged, allowed, unassigned]);
+  api.seatingCharts.set([chart]);
+  api.attendanceRows.set(
+    new Map(
+      [flagged, allowed, unassigned].map((profile, index) => [
+        profile.id,
+        buildAttendanceRow({
+          profileId: profile.id,
+          displayName: profile.displayName,
+          attendanceWarning: {
+            missedRehearsals: index === 1 ? 2 : 3,
+            threshold: 2,
+            totalRehearsals: 5,
+            status: index === 1 ? "clear" : "warning",
+          },
+        }),
+      ]),
+    ),
+  );
+  await page.goto(`/admin/seating?eventId=${chart.eventId}&chartId=${chart.id}`);
+  const seat = page.locator('[data-seat-key="0-0"]');
+  await expect(seat.locator(".seating-attendance-warning")).toBeVisible();
+  const checkInline = async () => {
+    const metrics = await seat.evaluate((node) => {
+      const voice = node.querySelector(".seating-seat__voice")?.getBoundingClientRect();
+      const badge = node.querySelector(".seating-attendance-warning")?.getBoundingClientRect();
+      const other = document.querySelector('[data-seat-key="0-1"]')?.getBoundingClientRect();
+      if (!voice || !badge || !other) throw new Error("Missing seat metadata");
+      return {
+        centerDelta: Math.abs(voice.y + voice.height / 2 - (badge.y + badge.height / 2)),
+        height: node.getBoundingClientRect().height,
+        otherHeight: other.height,
+        voiceRight: voice.right,
+        badgeLeft: badge.left,
+      };
+    });
+    expect(metrics.centerDelta).toBeLessThan(2);
+    expect(metrics.badgeLeft).toBeGreaterThanOrEqual(metrics.voiceRight);
+    expect(metrics.height).toBe(metrics.otherHeight);
+  };
+  for (const theme of ["light", "dark"]) {
+    const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await toggle.isVisible()) await toggle.click();
+    await checkInline();
+  }
+  if ((page.viewportSize()?.width ?? 1000) <= 700)
+    await page.getByRole("button", { name: "Edit chart", exact: true }).click();
+  const tray = page.getByRole("region", { name: "Unassigned Profiles" });
+  await expect(tray.getByText("Unassigned Warning Singer", { exact: true })).toBeVisible();
+  await tray.getByRole("checkbox", { name: "Hide attendance warnings" }).check();
+  await expect(tray.getByText("Unassigned Warning Singer", { exact: true })).toHaveCount(0);
+  await expect(seat.locator(".seating-attendance-warning")).toBeVisible();
+  await tray.getByRole("checkbox", { name: "Hide attendance warnings" }).uncheck();
+  await expect(tray.getByText("Unassigned Warning Singer", { exact: true })).toBeVisible();
+  await seat.focus();
+  await expect(seat.locator(".seating-seat__number")).toHaveText("Row 1 · Seat 1");
+  await page.screenshot({ path: testInfo.outputPath("attendance-warnings.png"), fullPage: true });
+  await page.emulateMedia({ media: "print" });
+  await expect(seat.locator(".seating-attendance-warning")).toBeVisible();
   api.assertNoUnexpectedRequests();
 });

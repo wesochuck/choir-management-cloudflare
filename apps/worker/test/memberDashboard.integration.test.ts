@@ -330,7 +330,7 @@ describe("member dashboard", () => {
     const performance = dashboard.events.find((event) => event.id === PERFORMANCE_ID);
     const rehearsal = dashboard.events.find((event) => event.id === REHEARSAL_ID);
     expect(performance).toMatchObject({
-      attendanceWarning: { missedRehearsals: 1, status: "warning", totalRehearsals: 1 },
+      attendanceWarning: { missedRehearsals: 1, status: "clear", totalRehearsals: 1 },
       practice: { status: "available", sourceEventId: PERFORMANCE_ID },
       seating: { status: "not_assigned" },
     });

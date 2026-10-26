@@ -1,9 +1,14 @@
 import { organizationEventRsvpHistoryResponseSchema } from "@choir/contracts";
+import { hasAttendanceWarning } from "@choir/domain";
 import { z } from "zod";
 
 import { type AttendanceRow, type EventRsvpHistoryRow, type ManagementRequest } from "./contracts";
 import { insertAudit, identityMatches, recordExists } from "./shared";
-import { recalculateProfileStatuses, reconcilePresentAttendance } from "../statusAutomationStore";
+import {
+  recalculateProfileStatuses,
+  reconcilePresentAttendance,
+  readRosterAutomationConfiguration,
+} from "../statusAutomationStore";
 
 export function listEventAttendanceFromStore(
   storage: DurableObjectStorage,
@@ -17,8 +22,20 @@ export function listEventAttendanceFromStore(
     return Response.json({ code: "event_not_found" }, { status: 404 });
   }
   const rows = storage.sql
-    .exec<AttendanceRow>(
-      `SELECT p.id AS profileId, p.display_name AS displayName,
+    .exec<AttendanceRow & { readonly missedRehearsals: number; readonly totalRehearsals: number }>(
+      `WITH linked_attendance AS (
+         SELECT attendance.profile_id AS profile_id,
+           COUNT(*) AS total,
+           SUM(CASE WHEN attendance.attendance = 'Absent'
+             OR (attendance.attendance = 'Pending' AND attendance.rsvp = 'No')
+             THEN 1 ELSE 0 END) AS missed
+         FROM events rehearsal
+         JOIN event_rosters attendance ON attendance.event_id = rehearsal.id
+         WHERE rehearsal.parent_performance_id = ? AND rehearsal.type = 'Rehearsal'
+           AND rehearsal.is_archived = 0 AND rehearsal.is_canceled = 0
+         GROUP BY attendance.profile_id
+       )
+       SELECT p.id AS profileId, p.display_name AS displayName,
          COALESCE(p.voice_part, '') AS voicePart,
          CASE
            WHEN e.type = 'Rehearsal'
@@ -28,18 +45,37 @@ export function listEventAttendanceFromStore(
            ELSE COALESCE(r.rsvp, 'Pending')
          END AS rsvp,
          COALESCE(r.attendance, 'Pending') AS attendance,
-         r.updated_at AS updatedAt
+         r.updated_at AS updatedAt,
+         COALESCE(linked.missed, 0) AS missedRehearsals,
+         COALESCE(linked.total, 0) AS totalRehearsals
        FROM profiles p
        JOIN events e ON e.id = ?
        LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
        LEFT JOIN event_rosters parent
          ON parent.profile_id = p.id AND parent.event_id = e.parent_performance_id
+       LEFT JOIN linked_attendance linked ON linked.profile_id = p.id
        ORDER BY p.display_name COLLATE NOCASE ASC, p.id ASC LIMIT 500`,
+      eventId.data,
       eventId.data,
       eventId.data,
     )
     .toArray();
-  return Response.json({ eventId: eventId.data, rows });
+  const threshold = readRosterAutomationConfiguration(storage).attendanceReportWarningThreshold;
+  return Response.json({
+    eventId: eventId.data,
+    rows: rows.map(({ missedRehearsals, totalRehearsals, ...row }) => ({
+      ...row,
+      attendanceWarning:
+        totalRehearsals > 0
+          ? {
+              missedRehearsals,
+              totalRehearsals,
+              threshold,
+              status: hasAttendanceWarning(missedRehearsals, threshold) ? "warning" : "clear",
+            }
+          : null,
+    })),
+  });
 }
 
 export function readEventAttendanceReportFromStore(

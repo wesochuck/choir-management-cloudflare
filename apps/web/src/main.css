@@ -29,6 +29,8 @@
   --color-primary-foreground: #ffffff;
   --color-accent: #ea580c;
   --color-border: #e2e8f0;
+  --color-attendance-warning: #92400e;
+  --color-attendance-warning-surface: #fffbeb;
   --color-danger: #dc2626;
   --color-danger-surface: #fef2f2;
   --color-danger-foreground: #ffffff;

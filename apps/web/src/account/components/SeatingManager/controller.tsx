@@ -1,3 +1,4 @@
+import { SeatingAttendanceContext } from "./attendanceContext";
 import { SeatingManagerView } from "./view";
 import { useSeatingManagerController } from "./hooks";
 
@@ -10,11 +11,16 @@ export function SeatingManager({
   readonly canReviewRsvps?: boolean;
   readonly navigate?: ((href: string) => void) | undefined;
 }) {
+  const model = useSeatingManagerController({ enabled });
   return (
-    <SeatingManagerView
-      model={useSeatingManagerController({ enabled })}
-      navigate={navigate}
-      canReviewRsvps={enabled && canReviewRsvps}
-    />
+    <SeatingAttendanceContext.Provider
+      value={model.loadedEventId === model.eventId ? model.attendanceWarnings : new Map()}
+    >
+      <SeatingManagerView
+        model={model}
+        navigate={navigate}
+        canReviewRsvps={enabled && canReviewRsvps}
+      />
+    </SeatingAttendanceContext.Provider>
   );
 }

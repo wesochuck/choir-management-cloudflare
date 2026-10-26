@@ -101,7 +101,15 @@ export type OrganizationEventRsvpBulkRequest = z.infer<
   typeof organizationEventRsvpBulkRequestSchema
 >;
 
+const attendanceWarningSchema = z.object({
+  missedRehearsals: z.number().int().nonnegative(),
+  threshold: z.number().int().positive(),
+  totalRehearsals: z.number().int().nonnegative(),
+  status: z.enum(["clear", "warning"]),
+});
+
 export const organizationAttendanceRowSchema = z.object({
+  attendanceWarning: attendanceWarningSchema.nullable().optional(),
   attendance: organizationAttendanceStatusSchema,
   displayName: z.string().min(1).max(200),
   profileId: z.uuid(),
@@ -197,15 +205,7 @@ export const singerRsvpRequestSchema = z.object({
 });
 
 export const singerEventSchema = z.object({
-  attendanceWarning: z
-    .object({
-      missedRehearsals: z.number().int().nonnegative(),
-      threshold: z.number().int().positive(),
-      totalRehearsals: z.number().int().nonnegative(),
-      status: z.enum(["clear", "warning"]),
-    })
-    .nullable()
-    .default(null),
+  attendanceWarning: attendanceWarningSchema.nullable().default(null),
   callTime: z.string().max(5),
   details: z.string().max(100_000),
   directRsvp: z.enum(["Yes", "No", "Pending"]),

@@ -119,7 +119,7 @@ function RsvpAutomationSettingsContent() {
               />
             </label>
             <p className="field-help" id="attendance-report-warning-help">
-              Performers who miss at least {configuration.attendanceReportWarningThreshold} linked
+              Performers who miss more than {configuration.attendanceReportWarningThreshold} linked
               Rehearsal{configuration.attendanceReportWarningThreshold === 1 ? "" : "s"} are flagged
               in the Attendance Report. This warning does not change Profile Status.
             </p>

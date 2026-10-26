@@ -706,8 +706,9 @@ describe("Organization queue delivery", () => {
 
     expect(stored.attendance).toBe("Absent");
     expect(stored.content).toContain("Event type:** Rehearsal");
-    // Singer Two missed 2 rehearsals (Rehearsal 1 and Rehearsal 2), so at threshold 2 they are warned!
-    expect(stored.content).toContain("- Singer Two (2 missed Rehearsals)");
+    // Exactly the threshold remains allowed.
+    expect(stored.content).not.toContain("- Singer Two (2 missed Rehearsals)");
+    expect(stored.content).toContain("No profiles exceeded the warning threshold.");
     // Singer One was Present at both, so not in warnings
     expect(stored.content).not.toContain("Singer One (");
   });
