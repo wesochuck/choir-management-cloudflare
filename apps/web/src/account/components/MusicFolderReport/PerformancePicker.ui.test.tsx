@@ -4,7 +4,7 @@ import { expect, it, vi } from "vitest";
 
 import { PerformancePicker } from "./view";
 
-it("dismisses outside pointer presses while preserving inside interactions and selections", () => {
+it("dismisses outside clicks while preserving inside interactions and selections", () => {
   const onClear = vi.fn();
   render(
     <>
@@ -24,12 +24,11 @@ it("dismisses outside pointer presses while preserving inside interactions and s
   expect(picker).toBeInTheDocument();
   fireEvent.click(summary);
   expect(picker).toHaveAttribute("open");
-  fireEvent.pointerDown(screen.getByLabelText("Search Performances"));
-  fireEvent.pointerDown(screen.getByRole("button", { name: "Clear all" }));
+  fireEvent.click(screen.getByLabelText("Search Performances"));
   fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
   expect(onClear).toHaveBeenCalledOnce();
   expect(picker).toHaveAttribute("open");
-  fireEvent.pointerDown(screen.getByRole("button", { name: "Outside" }));
+  fireEvent.click(screen.getByRole("button", { name: "Outside" }));
   expect(picker).not.toHaveAttribute("open");
   fireEvent.click(summary);
   expect(screen.getByText("1 Performance selected")).toBeInTheDocument();

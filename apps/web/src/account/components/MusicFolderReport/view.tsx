@@ -46,15 +46,15 @@ export function PerformancePicker({
   const pickerRef = useRef<HTMLDetailsElement>(null);
   const [search, setSearch] = useState("");
   useEffect(() => {
-    function closeWhenClickedAway(event: PointerEvent): void {
+    function closeWhenClickedAway(event: MouseEvent): void {
       const picker = pickerRef.current;
       if (!picker?.open || !(event.target instanceof Node) || picker.contains(event.target)) return;
       picker.open = false;
     }
 
-    document.addEventListener("pointerdown", closeWhenClickedAway);
+    document.addEventListener("click", closeWhenClickedAway);
     return () => {
-      document.removeEventListener("pointerdown", closeWhenClickedAway);
+      document.removeEventListener("click", closeWhenClickedAway);
     };
   }, []);
   const selected = new Set(selectedEventIds);
