@@ -60,7 +60,7 @@ export function RsvpReport({
           disabled={!selected || rows.length === 0}
           onClick={() => {
             downloadCsv("rsvp-report.csv", [
-              ["Name", "Last Name", performerLabel, "RSVP", "Attendance"],
+              ["Name", "Last Name", performerLabel, "RSVP", "Performance Attendance"],
               ...rows.map((row) => [
                 row.displayName,
                 getLastName(row.displayName),
@@ -130,7 +130,7 @@ export function RsvpReport({
                   sortValue: (row) => row.rsvp,
                 },
                 {
-                  header: "Attendance",
+                  header: "Performance Attendance",
                   id: "attendance",
                   render: (row) => row.attendance,
                   sortValue: (row) => row.attendance,

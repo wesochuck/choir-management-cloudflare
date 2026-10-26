@@ -4,7 +4,7 @@ import type {
   MusicFolderReportSummary,
 } from "@choir/contracts";
 import { lastNameSortKey } from "@choir/domain";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { DataTable, type DataTablePresentation } from "@choir/ui";
 
@@ -30,7 +30,7 @@ function performanceState(option: MusicFolderReportPerformanceOption): string {
   return "";
 }
 
-function PerformancePicker({
+export function PerformancePicker({
   options,
   selectedEventIds,
   onClear,
@@ -43,7 +43,20 @@ function PerformancePicker({
   readonly options: readonly MusicFolderReportPerformanceOption[];
   readonly selectedEventIds: readonly string[];
 }) {
+  const pickerRef = useRef<HTMLDetailsElement>(null);
   const [search, setSearch] = useState("");
+  useEffect(() => {
+    function closeWhenClickedAway(event: PointerEvent): void {
+      const picker = pickerRef.current;
+      if (!picker?.open || !(event.target instanceof Node) || picker.contains(event.target)) return;
+      picker.open = false;
+    }
+
+    document.addEventListener("pointerdown", closeWhenClickedAway);
+    return () => {
+      document.removeEventListener("pointerdown", closeWhenClickedAway);
+    };
+  }, []);
   const selected = new Set(selectedEventIds);
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const filteredOptions = options.filter((option) =>
@@ -56,7 +69,17 @@ function PerformancePicker({
       ? "Choose Performances"
       : `${String(selectedEventIds.length)} Performance${selectedEventIds.length === 1 ? "" : "s"} selected`;
   return (
-    <details className="music-folder-report__picker">
+    <details
+      className="music-folder-report__picker"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && pickerRef.current?.open) {
+          pickerRef.current.open = false;
+          pickerRef.current.querySelector("summary")?.focus();
+          event.stopPropagation();
+        }
+      }}
+      ref={pickerRef}
+    >
       <summary>
         <span>{summary}</span>
         <span aria-hidden="true" className="music-folder-report__picker-chevron">

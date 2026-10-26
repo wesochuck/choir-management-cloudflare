@@ -95,6 +95,7 @@
   }
 
   .reports-search {
+    width: 100%;
     max-width: 34rem;
   }
 
@@ -356,6 +357,10 @@
   }
 
   @media (max-width: 48rem) {
+    .reports-search {
+      max-width: none;
+    }
+
     .reports-toolbar {
       flex-direction: column;
     }
