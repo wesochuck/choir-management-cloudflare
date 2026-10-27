@@ -163,12 +163,26 @@ function PlayerPieceTrackPicker({
 
 function PlayerSetListItemStatus({
   item,
+  showTrackLabel,
   track,
 }: {
   readonly item: PlayerPlaylistItem;
+  readonly showTrackLabel: boolean;
   readonly track: ResolvedTrack | null;
 }) {
-  if (track) return null;
+  if (track) {
+    if (!showTrackLabel) return null;
+    return (
+      <span
+        className={`public-player__item-track${track.pinned ? " public-player__item-track--pinned" : ""}`}
+      >
+        {track.pinned ? <span aria-hidden="true">📌 </span> : null}
+        {track.fallback && !track.pinned
+          ? `${formatTrackKey(track.key)} fallback`
+          : formatTrackKey(track.key)}
+      </span>
+    );
+  }
   if (item.type === "intermission") {
     return (
       <span className="public-player__item-track public-player__item-track--cue">Intermission</span>
@@ -189,16 +203,18 @@ function PlayerSetListItemStatus({
 function PlayerSetListRowStatus({
   active,
   item,
+  showTrackLabel,
   track,
 }: {
   readonly active: boolean;
   readonly item: PlayerPlaylistItem;
+  readonly showTrackLabel: boolean;
   readonly track: ResolvedTrack | null;
 }) {
   return (
     <span className="public-player__set-list-item-status">
       {active ? <span className="public-player__now-playing-pill">Now Playing</span> : null}
-      <PlayerSetListItemStatus item={item} track={track} />
+      <PlayerSetListItemStatus item={item} showTrackLabel={showTrackLabel} track={track} />
     </span>
   );
 }
@@ -231,18 +247,7 @@ function PlayerSetListTrackStatus({
       />
     );
   }
-  const label =
-    track.fallback && !track.pinned
-      ? `${formatTrackKey(track.key)} fallback`
-      : formatTrackKey(track.key);
-  return (
-    <span
-      className={`public-player__item-track${track.pinned ? " public-player__item-track--pinned" : ""}`}
-    >
-      {track.pinned ? <span aria-hidden="true">📌 </span> : null}
-      {label}
-    </span>
-  );
+  return null;
 }
 
 function PlayerSetListRow({
@@ -292,6 +297,7 @@ function PlayerSetListRow({
   );
   const itemIndex = playableItemIndices.get(item) ?? -1;
   const active = itemIndex === currentIndex && currentIndex !== -1;
+  const hasPieceTrackPicker = Boolean(item.pieceId && availableKeys.length > 1 && onPinPieceTrack);
 
   return (
     <li className={active ? "is-active" : undefined} ref={active ? activeRowRef : undefined}>
@@ -308,7 +314,12 @@ function PlayerSetListRow({
           <strong>{item.title}</strong>
           {item.composer ? <small>{item.composer}</small> : null}
         </span>
-        <PlayerSetListRowStatus active={active} item={item} track={track} />
+        <PlayerSetListRowStatus
+          active={active}
+          item={item}
+          showTrackLabel={!hasPieceTrackPicker}
+          track={track}
+        />
       </button>
       <PlayerSetListTrackStatus
         activeTrackKey={activeTrackKey}
