@@ -83,6 +83,12 @@ for (const theme of ["light", "dark"] as const) {
         body: '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1600"><rect width="1600" height="1600" fill="#456789"/></svg>',
       }),
     );
+    await page.route(`**/api/organization/files/${logoId}`, (route) =>
+      route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1600"><rect width="1600" height="1600" fill="#456789"/></svg>',
+      }),
+    );
     await page.route("**/api/public/projection*", (route) => route.fulfill({ json: projection() }));
     await page.route("**/api/public/commerce-projection", (route) =>
       route.fulfill({ json: projection() }),

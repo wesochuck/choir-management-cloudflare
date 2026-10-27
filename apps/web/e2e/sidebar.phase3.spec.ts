@@ -510,7 +510,11 @@ test("breakpoints, long labels, zoom, keyboard, and reduced motion", async ({ pa
   const longOrgName =
     "Dr. Alexander Montgomery-Wellington III Memorial Choir Society of the Extended Valley";
   await page.route("**/api/organization/branding", async (route) => {
-    await fulfillJson(route, { logoFileId: null, organizationName: longOrgName });
+    await fulfillJson(route, {
+      logoFileId: null,
+      organizationId: "organization-alpha",
+      organizationName: longOrgName,
+    });
   });
   await page.route("**/api/setup/status", async (route) => {
     await fulfillJson(route, {

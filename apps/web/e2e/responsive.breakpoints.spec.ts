@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { installOrganizationApi } from "./fixtures/apiMocks";
 import { fulfillJson } from "./fixtures/session";
+import { publicDonationProjection } from "./support/donationFixtures";
+import { mockAnonymousSession, mockHealth } from "./support/testWorld";
 
 const publicDonationSettings = {
   active: true,
@@ -48,6 +50,11 @@ test.describe("Normalized Responsive Breakpoints (Issue #80)", () => {
     test(`public donation layout responds across 40rem and 48rem boundaries in ${theme} theme`, async ({
       page,
     }) => {
+      await mockHealth(page);
+      await mockAnonymousSession(page);
+      await page.route("**/api/public/projection*", (route) =>
+        route.fulfill({ json: publicDonationProjection }),
+      );
       await page.route("**/api/public/donation-settings*", async (route) => {
         await route.fulfill({
           body: JSON.stringify(publicDonationSettings),

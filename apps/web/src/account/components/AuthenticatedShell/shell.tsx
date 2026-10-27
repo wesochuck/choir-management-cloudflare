@@ -445,7 +445,10 @@ function AuthenticatedOrganizationShell({
   }, [baseHostname, route.pathname, selectedWorkspace]);
 
   useEffect(() => {
-    if (access.status !== "ready" || !isOrganization) return;
+    // Branding and roster configuration are independent tenant reads. Start
+    // them with the initial auth/module checks so the workspace can render its
+    // identity without waiting for access verification to finish.
+    if (!isOrganization) return;
     const controller = new AbortController();
     getOrganizationRosterConfiguration(controller.signal)
       .then((configuration) => {
@@ -478,7 +481,7 @@ function AuthenticatedOrganizationShell({
     return () => {
       controller.abort();
     };
-  }, [access.status, host, isOrganization, userId]);
+  }, [host, isOrganization, userId]);
 
   const refreshPlatformStatus = useCallback(() => {
     const controller = new AbortController();

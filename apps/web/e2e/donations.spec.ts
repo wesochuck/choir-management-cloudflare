@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { publicDonationProjection } from "./support/donationFixtures";
+import { mockHealth } from "./support/testWorld";
 
 const requestId = "88888888-8888-4888-8888-888888888888";
 const profileId = "11111111-1111-4111-8111-111111111111";
@@ -698,6 +700,15 @@ test("keyboard selection works and a degraded directory stays silent", async ({ 
 });
 
 test.describe("public donation checkout", () => {
+  test.beforeEach(async ({ page }) => {
+    // Public checkout runs on the product hostname, unlike the admin cases in
+    // this file which need tenant-scoped API access.
+    await mockHealth(page);
+    await page.route("**/api/public/projection*", (route) =>
+      route.fulfill({ json: publicDonationProjection }),
+    );
+  });
+
   const publicDonationSettings = {
     buttonText: "Support our Music",
     description: "Your gift sustains our artistic and education programs.",
@@ -965,6 +976,7 @@ test.describe("public donation checkout", () => {
   });
 
   test("aligns donation KPI value baselines across desktop and mobile", async ({ page }) => {
+    await mockHealth(page, { baseHostname: "localhost" });
     await page.goto("/admin/donations");
     const metrics = page.locator(".donation-dashboard__metrics .summary-card strong");
     await expect(metrics).toHaveCount(3);
