@@ -201,6 +201,47 @@ describe("PlayerPartSelector interaction", () => {
     expect(screen.queryByRole("dialog", { name: "Choose Voice Part" })).not.toBeInTheDocument();
   });
 
+  it("keeps a per-song track separate from the global voice-part choice", async () => {
+    const user = userEvent.setup();
+    const onPinPieceTrack = vi.fn();
+    const currentItem = {
+      pieceId: "piece-1",
+      title: "Lux Aurumque",
+      trackFileIds: { t1: "file-t1", t2: "file-t2", tutti: "file-tutti" },
+    };
+    render(
+      <PlayerPartSelector
+        activeTrackKey="t1"
+        currentItem={currentItem}
+        onPinPieceTrack={onPinPieceTrack}
+        onSelectTrackKey={vi.fn()}
+        pinnedTrackKey="t2"
+        trackKeys={["tutti", "t1", "t2"]}
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /Voice Part/i });
+    expect(trigger).toHaveTextContent("Tenor 2 (Default: Tenor 1)");
+    await user.click(trigger);
+
+    const sheet = await screen.findByRole("dialog", { name: "Choose Voice Part" });
+    expect(screen.getByRole("tab", { name: "All set list songs" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const globalTab = screen.getByRole("tab", { name: "All set list songs" });
+    globalTab.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("tab", { name: "Just this song" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("radio", { name: "Tenor 2" })).toHaveAttribute("aria-checked", "true");
+    await user.click(screen.getByRole("radio", { name: "Use my default (Tenor 1)" }));
+    expect(onPinPieceTrack).toHaveBeenCalledWith("piece-1", null);
+    expect(sheet).not.toBeVisible();
+  });
+
   it("displays configured full names in both mobile select and desktop sheet", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();

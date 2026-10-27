@@ -109,3 +109,17 @@ it("prioritizes priorityFileId first in ensureOfflineCopies", () => {
   });
   expect(ensureOfflineCopies).toHaveBeenCalledWith(["file-2", "file-1", "file-3"]);
 });
+
+it("auto-caches each song's pinned track alongside the active track", () => {
+  const ensureOfflineCopies = vi.fn();
+  const items: PlayerPlaylistItem[] = [
+    { pieceId: "piece-1", title: "Song 1", trackFileIds: { t1: "file-t1", tutti: "file-mix" } },
+    { pieceId: "piece-2", title: "Song 2", trackFileIds: { t1: "file-t1-2", t2: "file-t2-2" } },
+  ];
+  renderHook(() => {
+    useAutoCacheOfflineCopies("example.com", items, "t1", ensureOfflineCopies, undefined, {
+      "piece-1": "tutti",
+    });
+  });
+  expect(ensureOfflineCopies).toHaveBeenCalledWith(["file-mix", "file-t1-2"]);
+});

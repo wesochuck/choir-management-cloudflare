@@ -5,6 +5,7 @@ import {
   formatDate,
   formatTime,
   formatTrackKey,
+  resolveEffectiveTrack,
   resolveTrack,
   resolveTrackKey,
 } from "./format";
@@ -306,6 +307,41 @@ describe("resolveTrack fallback hierarchy", () => {
     it("returns null when nothing matches", () => {
       expect(resolveTrackKey(keys, "bass")).toBeNull();
       expect(resolveTrackKey([], "t2")).toBeNull();
+    });
+  });
+});
+
+describe("resolveEffectiveTrack", () => {
+  const item: PlayerPlaylistItem = {
+    pieceId: "piece-1",
+    title: "Song",
+    trackFileIds: { s1: "file-s1", t2: "file-t2", tutti: "file-tutti" },
+  };
+
+  it("uses an exact or canonical pinned track without changing the global part", () => {
+    expect(resolveEffectiveTrack(item, "s1", "Tenor 2")).toEqual({
+      fallback: false,
+      fileId: "file-t2",
+      key: "t2",
+      pinned: true,
+    });
+  });
+
+  it("preserves the global four-step fallback when there is no pin", () => {
+    expect(resolveEffectiveTrack(item, "T1", null)).toEqual({
+      fallback: true,
+      fileId: "file-tutti",
+      key: "tutti",
+      pinned: false,
+    });
+  });
+
+  it("ignores a stale pin and follows the global fallback instead", () => {
+    expect(resolveEffectiveTrack(item, "s1", "alto")).toEqual({
+      fallback: false,
+      fileId: "file-s1",
+      key: "s1",
+      pinned: false,
     });
   });
 });

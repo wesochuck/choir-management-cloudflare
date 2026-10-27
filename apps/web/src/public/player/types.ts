@@ -38,6 +38,7 @@ export interface ResolvedTrack {
   readonly fallback: boolean;
   readonly fileId: string;
   readonly key: string;
+  readonly pinned?: boolean;
 }
 
 export type PageStatus =

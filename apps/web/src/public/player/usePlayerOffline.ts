@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import type { OfflineAudioLease } from "../../offline/mediaStore";
-import { resolveTrack } from "./format";
+import { resolveEffectiveTrack } from "./format";
 import type { PlayerPlaylistItem } from "./types";
 
 /**
@@ -111,6 +111,7 @@ export function useAutoCacheOfflineCopies(
   activeTrackKey: string,
   ensureOfflineCopies: (fileIds: readonly string[]) => void,
   priorityFileId?: string,
+  pinnedTracksByPieceId: Readonly<Record<string, string>> = EMPTY_PINNED_TRACKS,
 ): void {
   useEffect(() => {
     if (!scope) return;
@@ -119,9 +120,15 @@ export function useAutoCacheOfflineCopies(
       fileIds.add(priorityFileId);
     }
     for (const item of items) {
-      const track = resolveTrack(item, activeTrackKey);
+      const track = resolveEffectiveTrack(
+        item,
+        activeTrackKey,
+        item.pieceId ? pinnedTracksByPieceId[item.pieceId] : null,
+      );
       if (track) fileIds.add(track.fileId);
     }
     ensureOfflineCopies([...fileIds]);
-  }, [activeTrackKey, ensureOfflineCopies, items, priorityFileId, scope]);
+  }, [activeTrackKey, ensureOfflineCopies, items, pinnedTracksByPieceId, priorityFileId, scope]);
 }
+
+const EMPTY_PINNED_TRACKS: Readonly<Record<string, string>> = {};

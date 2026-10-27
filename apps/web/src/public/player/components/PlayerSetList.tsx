@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
-import { formatTrackKey, resolveTrack } from "../format";
+import { displayTrackName, sortVoiceParts } from "../../playerVoiceParts";
+import { formatTrackKey, resolveEffectiveTrack } from "../format";
 import type { PracticeTrackSource } from "../source";
 import type { PlayerPlaylistItem, ResolvedTrack } from "../types";
 
@@ -69,6 +70,271 @@ function PlayerSetListActions({
   );
 }
 
+function PlayerPieceTrackPicker({
+  activeTrackKey,
+  availableKeys,
+  item,
+  onPinPieceTrack,
+  track,
+  trackLabels,
+}: {
+  readonly activeTrackKey: string;
+  readonly availableKeys: readonly string[];
+  readonly item: PlayerPlaylistItem;
+  readonly onPinPieceTrack: (pieceId: string, trackKey: string | null) => void;
+  readonly track: ResolvedTrack;
+  readonly trackLabels?: Readonly<Record<string, string>> | undefined;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const optionsId = useId();
+  const pieceId = item.pieceId;
+  if (!pieceId) return null;
+
+  const defaultTrack = track.pinned ? resolveEffectiveTrack(item, activeTrackKey, null) : track;
+  const defaultTrackLabel = defaultTrack
+    ? `${formatTrackKey(defaultTrack.key)}${defaultTrack.fallback ? " fallback" : ""}`
+    : displayTrackName(activeTrackKey, trackLabels);
+  const trackLabel =
+    track.fallback && !track.pinned
+      ? `${formatTrackKey(track.key)} fallback`
+      : formatTrackKey(track.key);
+
+  const closePicker = () => {
+    setIsOpen(false);
+    triggerRef.current?.focus();
+  };
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Escape" || !isOpen) return;
+    event.preventDefault();
+    closePicker();
+  };
+
+  return (
+    <div className="public-player__piece-track-picker" onKeyDown={handleKeyDown}>
+      <button
+        aria-controls={optionsId}
+        aria-expanded={isOpen}
+        aria-label={`${track.pinned ? `Pinned to ${displayTrackName(track.key, trackLabels)}` : `Following default, ${trackLabel}`} for ${item.title}. Choose track for this song`}
+        className={`public-player__item-track public-player__piece-track-picker-trigger${track.pinned ? " public-player__item-track--pinned" : ""}`}
+        onClick={() => {
+          setIsOpen((open) => !open);
+        }}
+        ref={triggerRef}
+        type="button"
+      >
+        {track.pinned ? <span aria-hidden="true">📌 </span> : null}
+        {trackLabel}
+      </button>
+      <div
+        aria-label={`Choose track for ${item.title}`}
+        className="public-player__piece-track-picker-options"
+        hidden={!isOpen}
+        id={optionsId}
+        role="group"
+      >
+        <button
+          aria-pressed={!track.pinned}
+          onClick={() => {
+            onPinPieceTrack(pieceId, null);
+            closePicker();
+          }}
+          type="button"
+        >
+          Follow default ({defaultTrackLabel})
+        </button>
+        {availableKeys.map((key) => (
+          <button
+            aria-pressed={track.pinned && track.key === key}
+            key={key}
+            onClick={() => {
+              onPinPieceTrack(pieceId, key);
+              closePicker();
+            }}
+            type="button"
+          >
+            {displayTrackName(key, trackLabels)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PlayerSetListItemStatus({
+  item,
+  track,
+}: {
+  readonly item: PlayerPlaylistItem;
+  readonly track: ResolvedTrack | null;
+}) {
+  if (track) return null;
+  if (item.type === "intermission") {
+    return (
+      <span className="public-player__item-track public-player__item-track--cue">Intermission</span>
+    );
+  }
+  if (!item.pieceId && item.type !== "song") {
+    return (
+      <span className="public-player__item-track public-player__item-track--cue">Program cue</span>
+    );
+  }
+  return (
+    <span className="public-player__item-track public-player__item-track--unavailable">
+      Unavailable
+    </span>
+  );
+}
+
+function PlayerSetListRowStatus({
+  active,
+  item,
+  track,
+}: {
+  readonly active: boolean;
+  readonly item: PlayerPlaylistItem;
+  readonly track: ResolvedTrack | null;
+}) {
+  return (
+    <span className="public-player__set-list-item-status">
+      {active ? <span className="public-player__now-playing-pill">Now Playing</span> : null}
+      <PlayerSetListItemStatus item={item} track={track} />
+    </span>
+  );
+}
+
+function PlayerSetListTrackStatus({
+  activeTrackKey,
+  availableKeys,
+  item,
+  onPinPieceTrack,
+  track,
+  trackLabels,
+}: {
+  readonly activeTrackKey: string;
+  readonly availableKeys: readonly string[];
+  readonly item: PlayerPlaylistItem;
+  readonly onPinPieceTrack?: ((pieceId: string, trackKey: string | null) => void) | undefined;
+  readonly track: ResolvedTrack | null;
+  readonly trackLabels?: Readonly<Record<string, string>> | undefined;
+}) {
+  if (!track) return null;
+  if (item.pieceId && availableKeys.length > 1 && onPinPieceTrack) {
+    return (
+      <PlayerPieceTrackPicker
+        activeTrackKey={activeTrackKey}
+        availableKeys={availableKeys}
+        item={item}
+        onPinPieceTrack={onPinPieceTrack}
+        track={track}
+        trackLabels={trackLabels}
+      />
+    );
+  }
+  const label =
+    track.fallback && !track.pinned
+      ? `${formatTrackKey(track.key)} fallback`
+      : formatTrackKey(track.key);
+  return (
+    <span
+      className={`public-player__item-track${track.pinned ? " public-player__item-track--pinned" : ""}`}
+    >
+      {track.pinned ? <span aria-hidden="true">📌 </span> : null}
+      {label}
+    </span>
+  );
+}
+
+function PlayerSetListRow({
+  activeTrackKey,
+  activeRowRef,
+  currentIndex,
+  item,
+  mobilePicker,
+  offlineIds,
+  onPinPieceTrack,
+  onRemoveOfflineCopy,
+  onSaveOfflineCopy,
+  onSelectItem,
+  online,
+  pendingOfflineIds,
+  playableItemIndices,
+  pinnedTracksByPieceId,
+  source,
+  trackLabels,
+}: {
+  readonly activeTrackKey: string;
+  readonly activeRowRef: { current: HTMLLIElement | null };
+  readonly currentIndex: number;
+  readonly item: PlayerPlaylistItem;
+  readonly mobilePicker: boolean;
+  readonly offlineIds: ReadonlySet<string>;
+  readonly onPinPieceTrack?: ((pieceId: string, trackKey: string | null) => void) | undefined;
+  readonly onRemoveOfflineCopy: (fileId: string) => void;
+  readonly onSaveOfflineCopy: (fileId: string) => void;
+  readonly onSelectItem: (itemIndex: number) => void;
+  readonly online: boolean;
+  readonly pendingOfflineIds: ReadonlySet<string>;
+  readonly playableItemIndices: ReadonlyMap<PlayerPlaylistItem, number>;
+  readonly pinnedTracksByPieceId: Readonly<Record<string, string>>;
+  readonly source: PracticeTrackSource;
+  readonly trackLabels?: Readonly<Record<string, string>> | undefined;
+}) {
+  const track = resolveEffectiveTrack(
+    item,
+    activeTrackKey,
+    item.pieceId ? pinnedTracksByPieceId[item.pieceId] : undefined,
+  );
+  const availableKeys = sortVoiceParts(
+    Object.entries(item.trackFileIds)
+      .filter(([, fileId]) => typeof fileId === "string" && fileId.trim().length > 0)
+      .map(([key]) => key),
+  );
+  const itemIndex = playableItemIndices.get(item) ?? -1;
+  const active = itemIndex === currentIndex && currentIndex !== -1;
+
+  return (
+    <li className={active ? "is-active" : undefined} ref={active ? activeRowRef : undefined}>
+      <button
+        aria-current={active ? "true" : undefined}
+        className={`public-player__set-list-item${mobilePicker ? " public-player__set-list-item--mobile-picker" : ""}`}
+        disabled={track === null}
+        onClick={() => {
+          onSelectItem(itemIndex);
+        }}
+        type="button"
+      >
+        <span className="public-player__set-list-item-main">
+          <strong>{item.title}</strong>
+          {item.composer ? <small>{item.composer}</small> : null}
+        </span>
+        <PlayerSetListRowStatus active={active} item={item} track={track} />
+      </button>
+      <PlayerSetListTrackStatus
+        activeTrackKey={activeTrackKey}
+        availableKeys={availableKeys}
+        item={item}
+        onPinPieceTrack={onPinPieceTrack}
+        track={track}
+        trackLabels={trackLabels}
+      />
+      {track ? (
+        <PlayerSetListActions
+          item={item}
+          mobilePicker={mobilePicker}
+          offlineIds={offlineIds}
+          onRemoveOfflineCopy={onRemoveOfflineCopy}
+          onSaveOfflineCopy={onSaveOfflineCopy}
+          online={online}
+          pendingOfflineIds={pendingOfflineIds}
+          source={source}
+          track={track}
+        />
+      ) : null}
+    </li>
+  );
+}
+
 export function PlayerSetList({
   activeTrackKey,
   autoRevealActive = false,
@@ -78,12 +344,15 @@ export function PlayerSetList({
   offlineIds,
   onRemoveOfflineCopy,
   onSaveOfflineCopy,
+  onPinPieceTrack,
   onSelectItem,
   online,
   pendingOfflineIds,
   playableItems,
   presentation = "card",
   source,
+  pinnedTracksByPieceId = {},
+  trackLabels,
 }: {
   readonly activeTrackKey: string;
   readonly autoRevealActive?: boolean;
@@ -93,12 +362,15 @@ export function PlayerSetList({
   readonly offlineIds: ReadonlySet<string>;
   readonly onRemoveOfflineCopy: (fileId: string) => void;
   readonly onSaveOfflineCopy: (fileId: string) => void;
+  readonly onPinPieceTrack?: ((pieceId: string, trackKey: string | null) => void) | undefined;
   readonly onSelectItem: (itemIndex: number) => void;
   readonly online: boolean;
   readonly pendingOfflineIds: ReadonlySet<string>;
   readonly playableItems: readonly PlayerPlaylistItem[];
   readonly presentation?: "card" | "mobile-picker";
   readonly source: PracticeTrackSource;
+  readonly pinnedTracksByPieceId?: Readonly<Record<string, string>> | undefined;
+  readonly trackLabels?: Readonly<Record<string, string>> | undefined;
 }) {
   const activeRowRef = useRef<HTMLLIElement | null>(null);
 
@@ -111,6 +383,10 @@ export function PlayerSetList({
   }, [autoRevealActive, currentIndex, presentation]);
 
   const mobilePicker = presentation === "mobile-picker";
+  const playableItemIndices = new Map<PlayerPlaylistItem, number>();
+  playableItems.forEach((item, index) => {
+    if (!playableItemIndices.has(item)) playableItemIndices.set(item, index);
+  });
 
   return (
     <section
@@ -138,70 +414,27 @@ export function PlayerSetList({
       <ol
         className={`public-player__queue-list${mobilePicker ? " public-player__queue-list--mobile-picker" : ""}`}
       >
-        {items.map((item, index) => {
-          const track = resolveTrack(item, activeTrackKey);
-          const itemIndex = playableItems.indexOf(item);
-          const active = itemIndex === currentIndex && currentIndex !== -1;
-          return (
-            <li
-              className={active ? "is-active" : undefined}
-              key={`${item.pieceId ?? item.title}-${String(index)}`}
-              ref={active ? activeRowRef : undefined}
-            >
-              <button
-                aria-current={active ? "true" : undefined}
-                className={`public-player__set-list-item${mobilePicker ? " public-player__set-list-item--mobile-picker" : ""}`}
-                disabled={track === null}
-                onClick={() => {
-                  onSelectItem(itemIndex);
-                }}
-                type="button"
-              >
-                <span className="public-player__set-list-item-main">
-                  <strong>{item.title}</strong>
-                  {item.composer ? <small>{item.composer}</small> : null}
-                </span>
-                <span className="public-player__set-list-item-status">
-                  {active ? (
-                    <span className="public-player__now-playing-pill">Now Playing</span>
-                  ) : null}
-                  {track ? (
-                    <span className="public-player__item-track">
-                      {track.fallback
-                        ? `${formatTrackKey(track.key)} fallback`
-                        : formatTrackKey(track.key)}
-                    </span>
-                  ) : item.type === "intermission" ? (
-                    <span className="public-player__item-track public-player__item-track--cue">
-                      Intermission
-                    </span>
-                  ) : !item.pieceId && item.type !== "song" ? (
-                    <span className="public-player__item-track public-player__item-track--cue">
-                      Program cue
-                    </span>
-                  ) : (
-                    <span className="public-player__item-track public-player__item-track--unavailable">
-                      Unavailable
-                    </span>
-                  )}
-                </span>
-              </button>
-              {track ? (
-                <PlayerSetListActions
-                  item={item}
-                  mobilePicker={mobilePicker}
-                  offlineIds={offlineIds}
-                  onRemoveOfflineCopy={onRemoveOfflineCopy}
-                  onSaveOfflineCopy={onSaveOfflineCopy}
-                  online={online}
-                  pendingOfflineIds={pendingOfflineIds}
-                  source={source}
-                  track={track}
-                />
-              ) : null}
-            </li>
-          );
-        })}
+        {items.map((item, index) => (
+          <PlayerSetListRow
+            activeTrackKey={activeTrackKey}
+            activeRowRef={activeRowRef}
+            currentIndex={currentIndex}
+            item={item}
+            key={`${item.pieceId ?? item.title}-${String(index)}`}
+            mobilePicker={mobilePicker}
+            offlineIds={offlineIds}
+            onPinPieceTrack={onPinPieceTrack}
+            onRemoveOfflineCopy={onRemoveOfflineCopy}
+            onSaveOfflineCopy={onSaveOfflineCopy}
+            onSelectItem={onSelectItem}
+            online={online}
+            pendingOfflineIds={pendingOfflineIds}
+            playableItemIndices={playableItemIndices}
+            pinnedTracksByPieceId={pinnedTracksByPieceId}
+            source={source}
+            trackLabels={trackLabels}
+          />
+        ))}
       </ol>
     </section>
   );

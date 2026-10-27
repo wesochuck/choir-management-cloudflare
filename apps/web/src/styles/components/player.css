@@ -322,6 +322,41 @@
     text-transform: uppercase;
   }
 
+  button.public-player__track-badge {
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    font-family: inherit;
+    line-height: inherit;
+  }
+
+  .public-player__track-badge--pinned,
+  .public-player__item-track--pinned,
+  button.public-player__track-badge--pinned {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-accent-foreground);
+  }
+
+  .public-player__track-badge:focus-visible,
+  .public-player__piece-track-picker-trigger:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  .public-player__pinned-status {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-xs);
+  }
+
+  .public-player__pinned-status .text-button {
+    flex-shrink: 0;
+    color: var(--color-text);
+  }
+
   /* Part Selector: Mobile Native Picker (< 48rem) & Desktop Sheet Trigger (>= 48rem) */
 
   .public-player__part-selector-container {
@@ -399,6 +434,33 @@
     opacity: 0;
     cursor: pointer;
     -webkit-appearance: menulist;
+  }
+
+  .public-player__piece-track-mobile-trigger {
+    width: 100%;
+    min-height: 2.5rem;
+    margin-top: var(--spacing-2xs);
+    padding: var(--spacing-2xs) var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .public-player__piece-track-mobile-trigger:hover,
+  .public-player__piece-track-mobile-trigger:focus-visible {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface-raised));
+  }
+
+  @media (min-width: 48rem) {
+    .public-player__piece-track-mobile-trigger {
+      display: none;
+    }
   }
 
   .public-player__part-selector-desktop {
@@ -569,6 +631,118 @@
     display: flex;
     flex-direction: column;
     gap: var(--spacing-2xs);
+  }
+
+  .public-player__track-scope-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--spacing-3xs);
+    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-3xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+  }
+
+  .public-player__track-scope-tabs button {
+    min-height: 2.75rem;
+    padding: var(--spacing-2xs) var(--spacing-xs);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+  }
+
+  .public-player__track-scope-tabs button:hover,
+  .public-player__track-scope-tabs button:focus-visible {
+    border-color: var(--color-accent);
+    color: var(--color-text);
+  }
+
+  .public-player__track-scope-tabs button.is-selected {
+    background: var(--color-accent);
+    color: var(--color-accent-foreground);
+    font-weight: var(--font-weight-extrabold);
+  }
+
+  .public-player__piece-track-picker {
+    display: grid;
+    justify-items: end;
+    min-width: 0;
+    max-width: 100%;
+    flex-shrink: 0;
+  }
+
+  .public-player__piece-track-picker-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-3xs);
+    min-height: 2rem;
+    background: transparent;
+    color: var(--color-text);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .public-player__piece-track-picker-trigger.public-player__item-track--pinned {
+    border-color: var(--color-accent);
+    background: var(--color-accent);
+    color: var(--color-accent-foreground);
+  }
+
+  .public-player__piece-track-picker-trigger::after {
+    content: "⌃";
+    display: inline-block;
+    margin-inline-start: var(--spacing-3xs);
+    transform: rotate(180deg);
+    transition: transform var(--transition-fast);
+  }
+
+  .public-player__piece-track-picker-trigger[aria-expanded="true"]::after {
+    transform: rotate(0deg);
+  }
+
+  .public-player__piece-track-picker-options {
+    position: static;
+    display: grid;
+    gap: var(--spacing-3xs);
+    width: min(20rem, calc(100vw - 2.5rem));
+    min-width: min(13rem, 100%);
+    max-width: 100%;
+    margin-top: var(--spacing-2xs);
+    padding: var(--spacing-2xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+    box-shadow: var(--shadow-md);
+  }
+
+  .public-player__piece-track-picker-options[hidden] {
+    display: none;
+  }
+
+  .public-player__piece-track-picker-options button {
+    min-height: 2.5rem;
+    padding: var(--spacing-2xs) var(--spacing-xs);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .public-player__piece-track-picker-options button:hover,
+  .public-player__piece-track-picker-options button:focus-visible,
+  .public-player__piece-track-picker-options button[aria-pressed="true"] {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface-raised));
   }
 
   .public-player__part-option {
@@ -1052,6 +1226,10 @@
     text-transform: uppercase;
   }
 
+  .public-player__piece-track-picker-trigger:not(.public-player__item-track--pinned) {
+    color: var(--color-text);
+  }
+
   .public-player__item-track--unavailable {
     border-color: var(--color-border);
     color: var(--color-text-muted);
@@ -1186,6 +1364,18 @@
       border-inline-start: 3px solid transparent;
       background: transparent;
       scroll-margin-block: var(--spacing-xs);
+    }
+
+    .public-player__queue-list--mobile-picker .public-player__piece-track-picker {
+      justify-self: end;
+    }
+
+    .public-player__queue-list--mobile-picker .public-player__piece-track-picker-options {
+      grid-column: 1 / -1;
+      width: min(20rem, calc(100vw - 2rem));
+      max-width: none;
+      margin-top: var(--spacing-2xs);
+      box-shadow: none;
     }
 
     .public-player__queue-list--mobile-picker li.is-active {

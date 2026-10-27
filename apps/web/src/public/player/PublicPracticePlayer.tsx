@@ -13,11 +13,16 @@ import { PlayerRehearsalOptions } from "./components/PlayerRehearsalOptions";
 import { PlayerSetList } from "./components/PlayerSetList";
 import {
   availableTrackKeys,
+  clearPinnedPieceTrack,
   formatTrackKey,
   isFullMixKey,
+  MAX_PINNED_PIECE_TRACKS,
+  readPinnedPieceTracks,
+  resolveEffectiveTrack,
   resolveTrack,
   resolveTrackKey,
   updateMediaSessionPosition,
+  writePinnedPieceTrack,
 } from "./format";
 import type { PracticeTrackSource } from "./source";
 import type { PlayerDetails, PlayerPlaylistItem, ResolvedTrack } from "./types";
@@ -116,6 +121,73 @@ function computeAudioSrc(
   if (offlineUrl) return offlineUrl;
   if (currentTrack) return source.mediaUrl(currentTrack.fileId);
   return "";
+}
+
+function resolvePlayerItemTrack(
+  item: PlayerPlaylistItem,
+  activeTrackKey: string,
+  pinnedTracksByPieceId: Readonly<Record<string, string>>,
+): ResolvedTrack | null {
+  const pinnedTrackKey = item.pieceId ? pinnedTracksByPieceId[item.pieceId] : null;
+  return resolveEffectiveTrack(item, activeTrackKey, pinnedTrackKey);
+}
+
+function resolveCurrentPlayerTrack(
+  item: PlayerPlaylistItem | null,
+  activeTrackKey: string,
+  pinnedTracksByPieceId: Readonly<Record<string, string>>,
+): ResolvedTrack | null {
+  if (!item) return null;
+  return resolvePlayerItemTrack(item, activeTrackKey, pinnedTracksByPieceId);
+}
+
+function pinnedTrackForItem(
+  item: PlayerPlaylistItem | null,
+  pinnedTracksByPieceId: Readonly<Record<string, string>>,
+): string | null {
+  return item?.pieceId ? (pinnedTracksByPieceId[item.pieceId] ?? null) : null;
+}
+
+function updatePinnedPieceTracks(
+  current: Readonly<Record<string, string>>,
+  pieceId: string,
+  trackKey: string | null,
+): Readonly<Record<string, string>> {
+  const entries = Object.entries(current).filter(
+    ([existingPieceId]) => existingPieceId !== pieceId,
+  );
+  if (trackKey) entries.push([pieceId, trackKey]);
+  return Object.fromEntries(entries.slice(-MAX_PINNED_PIECE_TRACKS));
+}
+
+function usePinnedPieceTrackState() {
+  const [pinnedTracksByPieceId, setPinnedTracksByPieceId] = useState<
+    Readonly<Record<string, string>>
+  >(() => readPinnedPieceTracks());
+  const pinPieceTrack = useCallback((pieceId: string, trackKey: string | null) => {
+    if (trackKey) writePinnedPieceTrack(pieceId, trackKey);
+    else clearPinnedPieceTrack(pieceId);
+    setPinnedTracksByPieceId((current) => updatePinnedPieceTracks(current, pieceId, trackKey));
+  }, []);
+  return { pinPieceTrack, pinnedTracksByPieceId };
+}
+
+function usePieceSelectorLaunch() {
+  const [launch, setLaunch] = useState({
+    request: 0,
+    restoreFocusElement: null as HTMLElement | null,
+  });
+  const openPieceSelector = useCallback((trigger: HTMLElement) => {
+    setLaunch((current) => ({ request: current.request + 1, restoreFocusElement: trigger }));
+  }, []);
+  return { ...launch, openPieceSelector };
+}
+
+function clearPinForItem(
+  item: PlayerPlaylistItem | null,
+  pinPieceTrack: (pieceId: string, trackKey: string | null) => void,
+): void {
+  if (item?.pieceId) pinPieceTrack(item.pieceId, null);
 }
 
 const MAX_STREAM_RETRIES = 3;
@@ -272,6 +344,9 @@ interface PlayerPlaybackControlsProps {
   readonly previousTrack: () => void;
   readonly saveError: boolean;
   readonly togglePlay: () => void;
+  readonly onClearPin: () => void;
+  readonly onOpenPieceTrackSelector: (trigger: HTMLElement) => void;
+  readonly trackLabels?: Readonly<Record<string, string>> | undefined;
 }
 
 function PlayerPlaybackControls({
@@ -292,6 +367,9 @@ function PlayerPlaybackControls({
   previousTrack,
   saveError,
   togglePlay,
+  onClearPin,
+  onOpenPieceTrackSelector,
+  trackLabels,
 }: PlayerPlaybackControlsProps) {
   if (!currentItem || !currentTrack) {
     return (
@@ -307,6 +385,9 @@ function PlayerPlaybackControls({
         activeTrackKey={activeTrackKey}
         currentTrack={currentTrack}
         item={currentItem}
+        onClearPin={currentTrack.pinned ? onClearPin : undefined}
+        onOpenPieceTrackSelector={onOpenPieceTrackSelector}
+        trackLabels={trackLabels}
       />
       <OfflineStatusNotices
         blockedFileId={blockedFileId}
@@ -481,6 +562,12 @@ export function PublicPracticePlayer({
   const [blockedFileId, setBlockedFileId] = useState<string | null>(null);
   const [pendingOfflineIds, setPendingOfflineIds] = useState<ReadonlySet<string>>(new Set());
   const [saveError, setSaveError] = useState(false);
+  const { pinPieceTrack, pinnedTracksByPieceId } = usePinnedPieceTrackState();
+  const {
+    openPieceSelector: requestCurrentPieceTrackSelector,
+    request: openPieceSelectorRequest,
+    restoreFocusElement: pieceSelectorRestoreFocusElement,
+  } = usePieceSelectorLaunch();
 
   const scope = typeof window === "undefined" ? "" : window.location.host;
   const {
@@ -523,8 +610,11 @@ export function PublicPracticePlayer({
     [allTrackKeys, initialTrackKey, selectedTrackKey],
   );
   const playableItems = useMemo(
-    () => details.items.filter((item) => resolveTrack(item, activeTrackKey) !== null),
-    [activeTrackKey, details.items],
+    () =>
+      details.items.filter(
+        (item) => resolvePlayerItemTrack(item, activeTrackKey, pinnedTracksByPieceId) !== null,
+      ),
+    [activeTrackKey, details.items, pinnedTracksByPieceId],
   );
   if (initialPieceId && initialPieceId !== prevInitialPieceId) {
     setPrevInitialPieceId(initialPieceId);
@@ -535,7 +625,11 @@ export function PublicPracticePlayer({
   }
   const safeSelectedItemIndex = Math.min(selectedItemIndex, Math.max(playableItems.length - 1, 0));
   const currentItem = playableItems[safeSelectedItemIndex] ?? null;
-  const currentTrack = currentItem ? resolveTrack(currentItem, activeTrackKey) : null;
+  const currentTrack = resolveCurrentPlayerTrack(
+    currentItem,
+    activeTrackKey,
+    pinnedTracksByPieceId,
+  );
   const currentIndex = currentItem ? playableItems.indexOf(currentItem) : -1;
   const offlineAudio = useOfflineAudio(
     resolveOfflineUrl,
@@ -564,6 +658,7 @@ export function PublicPracticePlayer({
     activeTrackKey,
     ensureOfflineCopies,
     currentTrack?.fileId,
+    pinnedTracksByPieceId,
   );
 
   const prevEventIdRef = useRef(details.eventId);
@@ -1062,14 +1157,26 @@ export function PublicPracticePlayer({
             previousTrack={previousTrack}
             saveError={saveError}
             togglePlay={togglePlay}
+            onClearPin={() => {
+              clearPinForItem(currentItem, pinPieceTrack);
+            }}
+            onOpenPieceTrackSelector={requestCurrentPieceTrackSelector}
+            trackLabels={details.trackLabels}
           />
 
           {/* Voice Part selection */}
           <PlayerPartSelector
+            key={openPieceSelectorRequest}
             activeTrackKey={activeTrackKey}
+            defaultOpen={openPieceSelectorRequest > 0}
+            defaultSelectionScope="piece"
+            initialRestoreFocusElement={pieceSelectorRestoreFocusElement}
             onDismissHint={dismissVoicePartHint}
             onEngage={markSelectorEngaged}
+            onPinPieceTrack={pinPieceTrack}
             onSelectTrackKey={selectTrackKey}
+            currentItem={currentItem}
+            pinnedTrackKey={pinnedTrackForItem(currentItem, pinnedTracksByPieceId)}
             showVoicePartHint={showVoicePartHint}
             trackKeys={allTrackKeys}
             trackLabels={details.trackLabels}
@@ -1105,6 +1212,7 @@ export function PublicPracticePlayer({
           offlineIds={offlineIds}
           onRemoveOfflineCopy={handleRemoveOfflineCopy}
           onSaveOfflineCopy={handleSaveOfflineCopy}
+          onPinPieceTrack={pinPieceTrack}
           onSelectItem={(itemIndex) => {
             selectItem(itemIndex);
           }}
@@ -1112,6 +1220,8 @@ export function PublicPracticePlayer({
           pendingOfflineIds={pendingOfflineIds}
           playableItems={playableItems}
           source={source}
+          pinnedTracksByPieceId={pinnedTracksByPieceId}
+          trackLabels={details.trackLabels}
         />
         <div className="public-player__desktop-options">
           <PlayerRehearsalOptions
@@ -1158,6 +1268,7 @@ export function PublicPracticePlayer({
             offlineIds={offlineIds}
             onRemoveOfflineCopy={handleRemoveOfflineCopy}
             onSaveOfflineCopy={handleSaveOfflineCopy}
+            onPinPieceTrack={pinPieceTrack}
             onSelectItem={(itemIndex) => {
               selectItem(itemIndex);
               setQueueOpen(false);
@@ -1167,6 +1278,8 @@ export function PublicPracticePlayer({
             playableItems={playableItems}
             presentation="mobile-picker"
             source={source}
+            pinnedTracksByPieceId={pinnedTracksByPieceId}
+            trackLabels={details.trackLabels}
           />
         </div>
       </Sheet>

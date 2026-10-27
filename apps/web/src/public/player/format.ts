@@ -225,6 +225,117 @@ export function resolveTrack(item: PlayerPlaylistItem, requestedKey: string): Re
   return null;
 }
 
+export function resolveEffectiveTrack(
+  item: PlayerPlaylistItem,
+  globalTrackKey: string,
+  pinnedTrackKey?: string | null,
+): ResolvedTrack | null {
+  const entries = Object.entries(item.trackFileIds).filter(
+    (entry): entry is [string, string] =>
+      typeof entry[1] === "string" && entry[1].trim().length > 0,
+  );
+
+  if (pinnedTrackKey) {
+    const pinnedKey = resolveTrackKey(
+      entries.map(([key]) => key),
+      pinnedTrackKey,
+    );
+    const pinnedEntry = entries.find(([key]) => key === pinnedKey);
+    if (pinnedEntry) {
+      return {
+        fallback: false,
+        fileId: pinnedEntry[1],
+        key: pinnedEntry[0],
+        pinned: true,
+      };
+    }
+  }
+
+  const fallbackTrack = resolveTrack(item, globalTrackKey);
+  return fallbackTrack ? { ...fallbackTrack, pinned: false } : null;
+}
+
+const PINNED_PIECE_TRACKS_STORAGE_KEY = "choir.pinned-piece-tracks:v1";
+export const MAX_PINNED_PIECE_TRACKS = 200;
+
+function getPinnedTracksStorage(): Storage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function limitPinnedPieceTracks(
+  entries: readonly (readonly [string, string])[],
+): Record<string, string> {
+  return Object.fromEntries(entries.slice(-MAX_PINNED_PIECE_TRACKS));
+}
+
+function parsePinnedPieceTracks(stored: string | null): Record<string, string> {
+  if (!stored) return {};
+  const parsed: unknown = JSON.parse(stored);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+  const entries = Object.entries(parsed).filter(
+    (entry): entry is [string, string] =>
+      entry[0].trim().length > 0 && typeof entry[1] === "string" && entry[1].trim().length > 0,
+  );
+  return limitPinnedPieceTracks(entries);
+}
+
+export function readPinnedPieceTracks(): Record<string, string> {
+  try {
+    const storage = getPinnedTracksStorage();
+    return parsePinnedPieceTracks(storage?.getItem(PINNED_PIECE_TRACKS_STORAGE_KEY) ?? null);
+  } catch {
+    return {};
+  }
+}
+
+export function writePinnedPieceTrack(pieceId: string, trackKey: string): void {
+  const normalizedPieceId = pieceId.trim();
+  const normalizedTrackKey = trackKey.trim();
+  if (!normalizedPieceId || !normalizedTrackKey) return;
+  try {
+    const storage = getPinnedTracksStorage();
+    if (!storage) return;
+    const existing = parsePinnedPieceTracks(storage.getItem(PINNED_PIECE_TRACKS_STORAGE_KEY));
+    const entries = Object.entries(existing).filter(
+      ([existingPieceId]) => existingPieceId !== normalizedPieceId,
+    );
+    entries.push([normalizedPieceId, normalizedTrackKey]);
+    storage.setItem(
+      PINNED_PIECE_TRACKS_STORAGE_KEY,
+      JSON.stringify(limitPinnedPieceTracks(entries)),
+    );
+  } catch {
+    // Private-mode storage failures must not break playback.
+  }
+}
+
+export function clearPinnedPieceTrack(pieceId: string): void {
+  const normalizedPieceId = pieceId.trim();
+  if (!normalizedPieceId) return;
+  try {
+    const storage = getPinnedTracksStorage();
+    if (!storage) return;
+    const stored = storage.getItem(PINNED_PIECE_TRACKS_STORAGE_KEY);
+    if (!stored) return;
+    const existing = parsePinnedPieceTracks(stored);
+    if (!Object.hasOwn(existing, normalizedPieceId)) return;
+    const entries = Object.entries(existing).filter(
+      ([existingPieceId]) => existingPieceId !== normalizedPieceId,
+    );
+    if (entries.length === 0) {
+      storage.removeItem(PINNED_PIECE_TRACKS_STORAGE_KEY);
+    } else {
+      storage.setItem(PINNED_PIECE_TRACKS_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
+    }
+  } catch {
+    // Private-mode storage failures must not break playback.
+  }
+}
+
 export function playerMediaUrl(fileId: string, token: string): string {
   return `/api/public/player/media/${encodeURIComponent(fileId)}?token=${encodeURIComponent(token)}`;
 }

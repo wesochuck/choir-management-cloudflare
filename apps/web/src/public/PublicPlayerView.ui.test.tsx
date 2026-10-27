@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,11 @@ import {
 } from "./player";
 import { PublicPlayerView } from "./PublicPlayerView";
 import * as playerApi from "./player/api";
+import {
+  clearPinnedPieceTrack,
+  readPinnedPieceTracks,
+  writePinnedPieceTrack,
+} from "./player/format";
 import * as usePlayerOfflineModule from "./player/usePlayerOffline";
 
 const mockDetails: PlayerDetails = {
@@ -688,5 +693,172 @@ describe("PublicPracticePlayer persisted part selection", () => {
       />,
     );
     expect(container.querySelector("audio")?.getAttribute("src")).toContain("file-t2");
+  });
+});
+
+describe("PublicPracticePlayer per-song track pins", () => {
+  const pinnedDetails: PlayerDetails = {
+    eventId: "event-pins",
+    eventStartsAt: "2026-10-27T19:00:00.000Z",
+    eventTitle: "Pinned Tracks",
+    items: [
+      {
+        pieceId: "piece-pinned-1",
+        title: "Lux Aurumque",
+        trackFileIds: { t1: "file-lux-t1", t2: "file-lux-t2", tutti: "file-lux-mix" },
+      },
+      {
+        pieceId: "piece-default-2",
+        title: "Bogoroditse Devo",
+        trackFileIds: { t1: "file-bog-t1", t2: "file-bog-t2", tutti: "file-bog-mix" },
+      },
+    ],
+  };
+  const localStorageDescriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
+  let pinnedStorage: ReturnType<typeof createPinnedStorage>;
+
+  function createPinnedStorage() {
+    const records = new Map<string, string>();
+    return {
+      clear: () => {
+        records.clear();
+      },
+      getItem: (key: string) => records.get(key) ?? null,
+      key: (index: number) => [...records.keys()][index] ?? null,
+      get length() {
+        return records.size;
+      },
+      removeItem: (key: string) => {
+        records.delete(key);
+      },
+      setItem: (key: string, value: string) => {
+        records.set(key, value);
+      },
+    };
+  }
+
+  function renderPinnedPlayer() {
+    const utils = render(
+      <PublicPracticePlayer
+        details={pinnedDetails}
+        initialTrackKey="t1"
+        source={createTokenTrackSource("token-pins")}
+      />,
+    );
+    return { ...utils, audio: utils.container.querySelector("audio") };
+  }
+
+  beforeEach(() => {
+    installIndexedDatabase();
+    pinnedStorage = createPinnedStorage();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: pinnedStorage,
+    });
+    sessionStorage.removeItem("choir.selected-part:v1");
+  });
+
+  afterEach(() => {
+    if (localStorageDescriptor) {
+      Object.defineProperty(window, "localStorage", localStorageDescriptor);
+    } else {
+      Reflect.deleteProperty(window, "localStorage");
+    }
+    sessionStorage.removeItem("choir.selected-part:v1");
+    vi.restoreAllMocks();
+  });
+
+  it("stores the latest 200 piece overrides and safely ignores storage failures", () => {
+    for (let index = 0; index < 205; index += 1) {
+      writePinnedPieceTrack(`piece-${String(index)}`, `t${String(index)}`);
+    }
+    const stored = readPinnedPieceTracks();
+    expect(Object.keys(stored)).toHaveLength(200);
+    expect(stored["piece-0"]).toBeUndefined();
+    expect(stored["piece-204"]).toBe("t204");
+
+    clearPinnedPieceTrack("piece-204");
+    expect(readPinnedPieceTracks()["piece-204"]).toBeUndefined();
+
+    vi.spyOn(pinnedStorage, "setItem").mockImplementation(() => {
+      throw new Error("storage full");
+    });
+    expect(() => {
+      writePinnedPieceTrack("piece-failure", "t1");
+    }).not.toThrow();
+
+    const failedSetItem = vi.mocked(pinnedStorage.setItem);
+    failedSetItem.mockClear();
+    const removeItem = vi.spyOn(pinnedStorage, "removeItem");
+    vi.spyOn(pinnedStorage, "getItem").mockImplementation(() => {
+      throw new Error("storage unavailable");
+    });
+    expect(() => {
+      writePinnedPieceTrack("piece-read-failure", "t1");
+      clearPinnedPieceTrack("piece-1");
+    }).not.toThrow();
+    expect(failedSetItem).not.toHaveBeenCalled();
+    expect(removeItem).not.toHaveBeenCalled();
+  });
+
+  it("plays and persists a per-song override without changing the global default", async () => {
+    const user = userEvent.setup();
+    const { audio, container, unmount } = renderPinnedPlayer();
+    expect(audio?.getAttribute("src")).toContain("file-lux-t1");
+
+    const trackPill = container.querySelector(
+      ".public-player__desktop-panel .public-player__piece-track-picker-trigger",
+    );
+    if (!trackPill) throw new Error("Set-list track picker was not rendered");
+    expect(trackPill.tagName).toBe("BUTTON");
+    expect(trackPill.closest(".public-player__set-list-item")).toBeNull();
+    await user.click(trackPill);
+    const picker = trackPill.closest(".public-player__piece-track-picker");
+    if (!(picker instanceof HTMLElement)) {
+      throw new Error("Set-list track picker disclosure was not rendered");
+    }
+    await user.click(within(picker).getByRole("button", { name: "Tenor 2" }));
+
+    expect(await screen.findByText("Pinned to Tenor 2 for this song")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Voice Part" })).toHaveValue("t1");
+    expect(screen.getByRole("link", { name: "Download Lux Aurumque" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("file-lux-t2"),
+    );
+    expect(readPinnedPieceTracks()["piece-pinned-1"]).toBe("t2");
+    unmount();
+
+    const remounted = renderPinnedPlayer();
+    expect(remounted.audio?.getAttribute("src")).toContain("file-lux-t2");
+    const badge = screen.getByRole("button", { name: /Choose track for Lux Aurumque/ });
+    await user.click(badge);
+    await screen.findByRole("dialog", { name: "Choose Voice Part" });
+    expect(screen.getByRole("tab", { name: "Just this song" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await user.keyboard("{Escape}");
+    expect(badge).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "Next track" }));
+    await waitFor(() => {
+      expect(remounted.audio?.getAttribute("src")).toContain("file-bog-t1");
+    });
+    await user.selectOptions(screen.getByRole("combobox", { name: "Voice Part" }), "tutti");
+    await user.click(screen.getByRole("button", { name: "Next track" }));
+    await waitFor(() => {
+      expect(remounted.audio?.getAttribute("src")).toContain("file-bog-mix");
+    });
+    await user.click(screen.getByRole("button", { name: "Previous track" }));
+    await waitFor(() => {
+      expect(remounted.audio?.getAttribute("src")).toContain("file-lux-t2");
+    });
+
+    await user.click(screen.getByRole("button", { name: "Use Choir Mix" }));
+    await waitFor(() => {
+      expect(remounted.audio?.getAttribute("src")).toContain("file-lux-mix");
+    });
+    expect(readPinnedPieceTracks()["piece-pinned-1"]).toBeUndefined();
+    expect(screen.queryByText("Pinned to Tenor 2 for this song")).not.toBeInTheDocument();
   });
 });
