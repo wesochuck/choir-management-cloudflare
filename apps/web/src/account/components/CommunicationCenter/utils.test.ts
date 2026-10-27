@@ -3,6 +3,33 @@ import type { CommunicationScheduledMessage } from "@choir/contracts";
 import { parseCommunicationSearch, scheduledMessageActionLink } from "./utils";
 
 describe("parseCommunicationSearch", () => {
+  it("requires performer parts and compose mode for an RSVP request, and gives drafts precedence", () => {
+    expect(
+      parseCommunicationSearch("?tab=compose&rsvpEventId=event-1&rsvpPart=S1&rsvpPart=S1&rsvpPart=")
+        .rsvpRequest,
+    ).toEqual({ eventId: "event-1", voiceParts: ["S1"], globalStatuses: ["Active"] });
+    expect(
+      parseCommunicationSearch("?tab=compose&rsvpEventId=event-1").rsvpRequest,
+    ).toBeUndefined();
+    expect(
+      parseCommunicationSearch("?rsvpEventId=event-1&rsvpPart=S1").rsvpRequest,
+    ).toBeUndefined();
+    expect(
+      parseCommunicationSearch("?tab=compose&draftId=draft-1&rsvpEventId=event-1&rsvpPart=S1")
+        .rsvpRequest,
+    ).toBeUndefined();
+  });
+  it("preserves selected RSVP statuses and rejects invalid-only selections", () => {
+    expect(
+      parseCommunicationSearch(
+        "?tab=compose&rsvpEventId=event-1&rsvpPart=S1&rsvpStatus=Idle&rsvpStatus=Inactive&rsvpStatus=Idle",
+      ).rsvpRequest?.globalStatuses,
+    ).toEqual(["Idle", "Inactive"]);
+    expect(
+      parseCommunicationSearch("?tab=compose&rsvpEventId=event-1&rsvpPart=S1&rsvpStatus=invalid")
+        .rsvpRequest,
+    ).toBeUndefined();
+  });
   it("defaults to all status, all origins, and messages list for empty search", () => {
     const res = parseCommunicationSearch("");
     expect(res).toEqual({

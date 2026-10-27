@@ -49,6 +49,44 @@ afterEach(() => {
 });
 
 describe("useCommunicationCenterController filters", () => {
+  it.each([
+    { query: "", statuses: ["Active"] },
+    { query: "&rsvpStatus=Idle", statuses: ["Idle"] },
+    { query: "&rsvpStatus=Inactive", statuses: ["Inactive"] },
+    {
+      query: "&rsvpStatus=Active&rsvpStatus=Idle&rsvpStatus=Inactive",
+      statuses: ["Active", "Idle", "Inactive"],
+    },
+  ])("prepares a nonresponder-only RSVP request for $statuses", ({ query, statuses }) => {
+    const originalUrl = window.location.href;
+    window.history.replaceState(
+      null,
+      "",
+      `/admin/communications?tab=compose&rsvpEventId=event-1&rsvpPart=S1&rsvpPart=A1${query}`,
+    );
+    try {
+      const { result } = renderHook(() => useCommunicationCenterController({ enabled: false }));
+      expect(result.current.messageMode).toBe("compose");
+      expect(result.current.audience).toMatchObject({
+        eventId: "event-1",
+        globalStatuses: statuses,
+        rsvp: "Pending",
+        targetAudiences: ["Members"],
+        voiceParts: ["S1", "A1"],
+      });
+      expect(result.current.channel).toBe("Email");
+      expect(result.current.subject).toBe("Please RSVP: {eventTitle}");
+      expect(result.current.contentMarkdown).toContain("{{RSVP_LINKS}}");
+      act(() => {
+        result.current.openNewMessage();
+      });
+      expect(result.current.audience.eventId).toBeNull();
+      expect(result.current.contentMarkdown).toBe("");
+    } finally {
+      window.history.replaceState(null, "", originalUrl);
+    }
+  });
+
   it("opens a new message addressed only to the linked contact list", () => {
     const originalUrl = window.location.href;
     window.history.replaceState(

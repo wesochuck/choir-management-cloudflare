@@ -37,6 +37,7 @@ import {
   useRsvpBootstrapQuery,
   useSetRsvpMutation,
 } from "./hooks/useRsvpQueries";
+import { RsvpNotificationAction } from "./components/RsvpManager/RsvpNotificationAction";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 import { RsvpAutomationSettings } from "./RsvpAutomationSettings";
@@ -593,6 +594,9 @@ export function RsvpManagerPage({
                 voicePartCounts={voicePartCounts}
               />
 
+              {selectedEvent?.type === "Performance" && !rowsLoading && !rowsError ? (
+                <RsvpNotificationAction eventId={eventId} rows={rows} />
+              ) : null}
               <fieldset className="surface-card rsvp-manager__roster" hidden={view !== "roster"}>
                 <legend id="rsvp-roster-title">RSVP roster</legend>
                 <div className="rsvp-manager__controls">

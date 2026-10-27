@@ -31,6 +31,7 @@ vi.mock("../../../api", async (importOriginal) => {
     getOrganizationRosterConfiguration: vi.fn(),
     listOrganizationEventAttendance: vi.fn(),
     listOrganizationProfiles: vi.fn(),
+    previewOrganizationCommunicationReach: vi.fn(),
   };
 });
 
@@ -39,6 +40,7 @@ import {
   getOrganizationRosterConfiguration,
   listOrganizationEventAttendance,
   listOrganizationProfiles,
+  previewOrganizationCommunicationReach,
 } from "../../../api";
 
 const readyState: Extract<EventsState, { status: "ready" }> = {
@@ -2177,6 +2179,22 @@ describe("EventEditorDialog Targeted Audience member combobox and chips", () => 
 });
 
 describe("EventEditorDialog RSVP response summary and navigation", () => {
+  beforeEach(() => {
+    const base = sampleActiveProfiles[0];
+    if (!base) throw new Error("Missing profile fixture");
+    vi.mocked(listOrganizationProfiles).mockResolvedValue(
+      [1, 2, 3, 4].map((number) => ({ ...base, id: `profile-${String(number)}` })),
+    );
+    vi.mocked(previewOrganizationCommunicationReach).mockResolvedValue({
+      both: 0,
+      email: 1,
+      sms: 0,
+      total: 1,
+      unreachable: 0,
+      ticketBuyerPurchasesOverLimit: 0,
+      undeliverableTicketBuyerPurchases: 0,
+    });
+  });
   const savedPerformance: OrganizationEventRequest = {
     ...emptyEvent,
     title: "Saved Gala",
@@ -2248,6 +2266,64 @@ describe("EventEditorDialog RSVP response summary and navigation", () => {
     expect(screen.getByText("No response: 1")).toBeInTheDocument();
     expect(screen.getByText("Total: 4")).toBeInTheDocument();
 
+    expect(
+      await screen.findByText(/1 awaiting response can receive RSVP email/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Request RSVPs" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("rsvpEventId=perf-saved-1"),
+    );
+    const link = screen.getByRole("link", { name: "View full RSVP details →" });
+    expect(link).toHaveAttribute("href", "/admin/rsvp?eventId=perf-saved-1");
+  });
+
+  it("separates On Break and Inactive members from active RSVP totals", async () => {
+    vi.mocked(listOrganizationEventAttendance).mockResolvedValue(sampleAttendance);
+
+    const base = sampleActiveProfiles[0];
+    if (!base) throw new Error("Missing profile fixture");
+    vi.mocked(listOrganizationProfiles).mockResolvedValue([
+      { ...base, id: "profile-1", globalStatus: "Idle" },
+      { ...base, id: "profile-2", globalStatus: "Inactive" },
+      { ...base, id: "profile-3" },
+      { ...base, id: "profile-4" },
+    ]);
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="perf-saved-1"
+        error={null}
+        event={savedPerformance}
+        eventStart="2026-10-15T19:30"
+        graphicFile={null}
+        navigate={vi.fn()}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    await switchToSection(/RSVPs & reminders/);
+
+    expect(await screen.findByText("Attending: 0")).toBeInTheDocument();
+    expect(screen.getByText("Declined: 1")).toBeInTheDocument();
+    expect(screen.getByText("No response: 1")).toBeInTheDocument();
+    expect(screen.getByText("Total: 2")).toBeInTheDocument();
+
+    expect(
+      await screen.findByText(/1 awaiting response can receive RSVP email/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Request RSVPs" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("rsvpEventId=perf-saved-1"),
+    );
+    expect(
+      screen.getByText(/Excluded from response totals: On Break: 1; Inactive: 1/),
+    ).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "View full RSVP details →" });
     expect(link).toHaveAttribute("href", "/admin/rsvp?eventId=perf-saved-1");
   });
@@ -2282,69 +2358,76 @@ describe("EventEditorDialog RSVP response summary and navigation", () => {
     expect(navigate).toHaveBeenCalledWith("/admin/rsvp?eventId=perf-saved-1");
   });
 
-  it("prompts before navigating when dirty, preserving draft on cancel", async () => {
-    vi.mocked(listOrganizationEventAttendance).mockResolvedValue(sampleAttendance);
-    const navigate = vi.fn();
+  it.each(["View full RSVP details →", "Request RSVPs"])(
+    "guards dirty navigation through %s",
+    async (actionName) => {
+      vi.mocked(listOrganizationEventAttendance).mockResolvedValue(sampleAttendance);
+      const navigate = vi.fn();
 
-    const { rerender } = render(
-      <EventEditorDialog
-        busy={false}
-        dialogOpen={true}
-        editingId="perf-saved-1"
-        error={null}
-        event={savedPerformance}
-        eventStart="2026-10-15T19:30"
-        graphicFile={null}
-        navigate={navigate}
-        onClose={vi.fn()}
-        onSubmit={vi.fn()}
-        setEvent={vi.fn()}
-        setEventStart={vi.fn()}
-        setGraphicFile={vi.fn()}
-        state={stateWithVenues([venueHall])}
-      />,
-    );
+      const { rerender } = render(
+        <EventEditorDialog
+          busy={false}
+          dialogOpen={true}
+          editingId="perf-saved-1"
+          error={null}
+          event={savedPerformance}
+          eventStart="2026-10-15T19:30"
+          graphicFile={null}
+          navigate={navigate}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          setEvent={vi.fn()}
+          setEventStart={vi.fn()}
+          setGraphicFile={vi.fn()}
+          state={stateWithVenues([venueHall])}
+        />,
+      );
 
-    // Make dirty by changing title
-    rerender(
-      <EventEditorDialog
-        busy={false}
-        dialogOpen={true}
-        editingId="perf-saved-1"
-        error={null}
-        event={{ ...savedPerformance, title: "Modified Title" }}
-        eventStart="2026-10-15T19:30"
-        graphicFile={null}
-        navigate={navigate}
-        onClose={vi.fn()}
-        onSubmit={vi.fn()}
-        setEvent={vi.fn()}
-        setEventStart={vi.fn()}
-        setGraphicFile={vi.fn()}
-        state={stateWithVenues([venueHall])}
-      />,
-    );
+      // Make dirty by changing title
+      rerender(
+        <EventEditorDialog
+          busy={false}
+          dialogOpen={true}
+          editingId="perf-saved-1"
+          error={null}
+          event={{ ...savedPerformance, title: "Modified Title" }}
+          eventStart="2026-10-15T19:30"
+          graphicFile={null}
+          navigate={navigate}
+          onClose={vi.fn()}
+          onSubmit={vi.fn()}
+          setEvent={vi.fn()}
+          setEventStart={vi.fn()}
+          setGraphicFile={vi.fn()}
+          state={stateWithVenues([venueHall])}
+        />,
+      );
 
-    await switchToSection(/RSVPs & reminders/);
+      await switchToSection(/RSVPs & reminders/);
 
-    const link = await screen.findByRole("link", { name: "View full RSVP details →" });
-    fireEvent.click(link);
+      const link = await screen.findByRole("link", { name: actionName });
+      fireEvent.click(link);
 
-    expect(screen.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeInTheDocument();
+      expect(screen.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeInTheDocument();
 
-    // Cancel
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    await Promise.resolve();
-    expect(navigate).not.toHaveBeenCalled();
+      // Cancel
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      await Promise.resolve();
+      expect(navigate).not.toHaveBeenCalled();
 
-    // Click again and confirm
-    fireEvent.click(screen.getByRole("link", { name: "View full RSVP details →" }));
-    expect(screen.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
-    await Promise.resolve();
+      // Click again and confirm
+      fireEvent.click(screen.getByRole("link", { name: actionName }));
+      expect(screen.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+      await Promise.resolve();
 
-    expect(navigate).toHaveBeenCalledWith("/admin/rsvp?eventId=perf-saved-1");
-  });
+      expect(navigate).toHaveBeenCalledWith(
+        actionName === "Request RSVPs"
+          ? expect.stringContaining("/admin/communications?tab=compose&rsvpEventId=perf-saved-1")
+          : "/admin/rsvp?eventId=perf-saved-1",
+      );
+    },
+  );
 
   it("shows placeholder note on new events without fetching", async () => {
     render(

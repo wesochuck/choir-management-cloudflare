@@ -39,6 +39,7 @@ import {
   sendOrganizationCommunicationTestEmail,
 } from "../../../auth/api";
 import { listOrganizationContactLists } from "../../../api";
+import { rsvpNotificationAudience } from "../RsvpManager/rsvpNotification";
 import type {
   CommunicationCenterControllerModel,
   CommunicationReachState,
@@ -140,23 +141,33 @@ export function useCommunicationCenterController({
 
   const initialAudience = useMemo<CommunicationAudienceRequest>(
     () =>
-      initialNav.contactListId !== undefined
-        ? {
-            ...defaultAudience,
-            targetAudiences: ["Contacts"],
-            contactListIds: [initialNav.contactListId],
-          }
-        : defaultAudience,
-    [initialNav.contactListId],
+      initialNav.rsvpRequest
+        ? rsvpNotificationAudience(
+            initialNav.rsvpRequest.eventId,
+            initialNav.rsvpRequest.voiceParts,
+            initialNav.rsvpRequest.globalStatuses,
+          )
+        : initialNav.contactListId !== undefined
+          ? {
+              ...defaultAudience,
+              targetAudiences: ["Contacts"],
+              contactListIds: [initialNav.contactListId],
+            }
+          : defaultAudience,
+    [initialNav.contactListId, initialNav.rsvpRequest],
   );
   const [audience, setAudience] = useState<CommunicationAudienceRequest>(initialAudience);
   const audienceRef = useRef<CommunicationAudienceRequest>(initialAudience);
   const [recipientsExpanded, setRecipientsExpanded] = useState(false);
 
   const [channel, setChannel] = useState<CommunicationChannel>("Email");
-  const [contentMarkdown, setContentMarkdown] = useState("");
-  const [subject, setSubject] = useState("");
-  const [voiceParts, setVoiceParts] = useState("");
+  const [contentMarkdown, setContentMarkdown] = useState(
+    initialNav.rsvpRequest
+      ? "Hello {recipientName},\n\nPlease let us know whether you can attend {eventTitle}.\n\n{{RSVP_LINKS}}\n\nThank you!"
+      : "",
+  );
+  const [subject, setSubject] = useState(initialNav.rsvpRequest ? "Please RSVP: {eventTitle}" : "");
+  const [voiceParts, setVoiceParts] = useState(initialAudience.voiceParts.join(", "));
 
   const [messages, setMessages] = useState<readonly CommunicationMessage[]>([]);
   const [scheduledMessages, setScheduledMessages] = useState<

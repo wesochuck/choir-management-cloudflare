@@ -26,6 +26,7 @@ interface RsvpSectionProps {
   readonly event: OrganizationEventRequest;
   readonly followUpEnabled: boolean;
   readonly followUpLeadHours: number | null;
+  readonly onNavigate?: ((href: string) => void) | undefined;
   readonly onOpenRsvpDetails?: (() => void) | undefined;
   readonly sectionErrors: SectionErrors;
   readonly setEvent: Dispatch<SetStateAction<OrganizationEventRequest>>;
@@ -497,6 +498,7 @@ function PerformanceRsvpPanel({
   event,
   followUpEnabled,
   followUpLeadHours,
+  onNavigate,
   onOpenRsvpDetails,
   sectionErrors,
   setEvent,
@@ -552,8 +554,8 @@ function PerformanceRsvpPanel({
           This email is not launched by saving the event. When enabled, the background scheduler
           automatically queues one message{" "}
           {followUpLeadHours ? `${String(followUpLeadHours)} hours` : "at the configured lead time"}{" "}
-          before the RSVP deadline, only for active Performers still marked Pending. No separate
-          draft or send button is required.
+          before the RSVP deadline, only for active Performers who have not replied. Use Request
+          RSVPs below to send an earlier request after reviewing the email.
         </p>
         <label className="field" htmlFor="events-page-rsvp-follow-up-mode">
           Event setting
@@ -625,6 +627,7 @@ function PerformanceRsvpPanel({
         editingId={editingId}
         eventType={event.type}
         onOpenRsvpDetails={onOpenRsvpDetails}
+        onNavigate={onNavigate}
       />
     </TabsContent>
   );

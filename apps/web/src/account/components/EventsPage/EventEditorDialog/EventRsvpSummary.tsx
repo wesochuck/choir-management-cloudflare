@@ -1,11 +1,18 @@
-import type { OrganizationAttendanceRow, OrganizationEventRequest } from "@choir/contracts";
+import type {
+  OrganizationAttendanceRow,
+  OrganizationEventRequest,
+  OrganizationProfile,
+} from "@choir/contracts";
 import { useEffect, useMemo, useState } from "react";
-import { listOrganizationEventAttendance } from "../../../../api";
+import { isPerformer } from "@choir/domain";
+import { RsvpNotificationAction } from "../../RsvpManager/RsvpNotificationAction";
+import { listOrganizationEventAttendance, listOrganizationProfiles } from "../../../../api";
 
 export interface EventRsvpSummaryProps {
   readonly editingId: string | null;
   readonly eventType: OrganizationEventRequest["type"];
   readonly onOpenRsvpDetails?: (() => void) | undefined;
+  readonly onNavigate?: ((href: string) => void) | undefined;
   readonly staffingGoal?: number | null | undefined;
 }
 
@@ -14,8 +21,10 @@ function ActiveEventRsvpSummary({
   eventType,
   onOpenRsvpDetails,
   staffingGoal,
+  onNavigate,
 }: EventRsvpSummaryProps & { readonly editingId: string }) {
   const [rows, setRows] = useState<readonly OrganizationAttendanceRow[]>([]);
+  const [profiles, setProfiles] = useState<readonly OrganizationProfile[]>([]);
   const [state, setState] = useState<"error" | "loading" | "ready">("loading");
 
   useEffect(() => {
@@ -23,10 +32,14 @@ function ActiveEventRsvpSummary({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset state when editingId changes
     setState("loading");
 
-    listOrganizationEventAttendance(editingId, controller.signal)
-      .then((data) => {
+    Promise.all([
+      listOrganizationEventAttendance(editingId, controller.signal),
+      listOrganizationProfiles(controller.signal),
+    ])
+      .then(([data, loadedProfiles]) => {
         if (!controller.signal.aborted) {
           setRows(data);
+          setProfiles(loadedProfiles);
           setState("ready");
         }
       })
@@ -44,11 +57,36 @@ function ActiveEventRsvpSummary({
     };
   }, [editingId]);
 
+  const profileById = useMemo(
+    () => new Map(profiles.map((profile) => [profile.id, profile])),
+    [profiles],
+  );
+  const activeRows = useMemo(
+    () =>
+      rows.filter((row) => {
+        const profile = profileById.get(row.profileId);
+        return (
+          profile?.globalStatus === "Active" &&
+          (eventType !== "Performance" || isPerformer(profile))
+        );
+      }),
+    [rows, profileById, eventType],
+  );
+  const excludedCounts = useMemo(() => {
+    let onBreak = 0;
+    let inactive = 0;
+    for (const row of rows) {
+      const status = profileById.get(row.profileId)?.globalStatus;
+      if (status === "Idle") onBreak++;
+      if (status === "Inactive") inactive++;
+    }
+    return { onBreak, inactive };
+  }, [rows, profileById]);
   const counts = useMemo(() => {
     let yes = 0;
     let no = 0;
     let pending = 0;
-    for (const row of rows) {
+    for (const row of activeRows) {
       if (row.rsvp === "Yes") {
         yes++;
       } else if (row.rsvp === "No") {
@@ -60,10 +98,10 @@ function ActiveEventRsvpSummary({
     return {
       no,
       pending,
-      total: rows.length,
+      total: activeRows.length,
       yes,
     };
-  }, [rows]);
+  }, [activeRows]);
 
   const targetUrl = `/admin/rsvp?eventId=${encodeURIComponent(editingId)}`;
 
@@ -72,8 +110,8 @@ function ActiveEventRsvpSummary({
       <legend>RSVP responses</legend>
       <p className="field-help">
         {eventType === "Performance"
-          ? "Live summary of Performer responses for this performance."
-          : "Live summary of member responses and volunteering for this event."}
+          ? "Responses from active Performers for this performance."
+          : "Responses from active members and volunteering for this event."}
       </p>
 
       {state === "loading" ? (
@@ -107,6 +145,15 @@ function ActiveEventRsvpSummary({
             <span className="status-pill">Total: {String(counts.total)}</span>
           </div>
 
+          {excludedCounts.onBreak + excludedCounts.inactive > 0 ? (
+            <p className="field-help">
+              Excluded from response totals: On Break: {excludedCounts.onBreak}; Inactive:{" "}
+              {excludedCounts.inactive}.
+            </p>
+          ) : null}
+          {eventType === "Performance" ? (
+            <RsvpNotificationAction eventId={editingId} rows={rows} onNavigate={onNavigate} />
+          ) : null}
           {staffingGoal && staffingGoal > 0 ? (
             <p className="event-rsvp-summary__staffing">
               Staffing goal: <strong>{String(counts.yes)}</strong> of{" "}

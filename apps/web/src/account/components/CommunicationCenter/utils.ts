@@ -93,6 +93,11 @@ export function getEmptyStateText(
 
 export interface InitialNavigationState {
   readonly contactListId?: string;
+  readonly rsvpRequest?: {
+    readonly eventId: string;
+    readonly voiceParts: readonly string[];
+    readonly globalStatuses: readonly ("Active" | "Idle" | "Inactive")[];
+  };
   readonly draftId: string | null;
   readonly messageMode: MessageWorkspaceMode;
   readonly originFilter: MessageOriginFilter;
@@ -135,6 +140,31 @@ function parseNavigationMode(tab: string | null): {
   return { messageMode: "list", section: "messages" };
 }
 
+function parseRsvpRequest(
+  params: URLSearchParams,
+  mode: MessageWorkspaceMode,
+): InitialNavigationState["rsvpRequest"] {
+  const eventId = params.get("rsvpEventId");
+  const voiceParts = [...new Set(params.getAll("rsvpPart"))].filter(
+    (part) => part.trim() !== "" && part.length <= 100,
+  );
+  const rawStatuses = params.getAll("rsvpStatus");
+  const globalStatuses =
+    rawStatuses.length === 0
+      ? ["Active" as const]
+      : [...new Set(rawStatuses)].filter(
+          (status): status is "Active" | "Idle" | "Inactive" =>
+            status === "Active" || status === "Idle" || status === "Inactive",
+        );
+  return mode === "compose" &&
+    eventId &&
+    voiceParts.length > 0 &&
+    voiceParts.length <= 100 &&
+    globalStatuses.length > 0
+    ? { eventId, voiceParts, globalStatuses }
+    : undefined;
+}
+
 export function parseCommunicationSearch(search: string): InitialNavigationState {
   const params = new URLSearchParams(search);
   const draftId = params.get("draftId");
@@ -154,8 +184,10 @@ export function parseCommunicationSearch(search: string): InitialNavigationState
 
   const { messageMode, section } = parseNavigationMode(tab);
   const contactListId = params.get("contactListId");
+  const rsvpRequest = parseRsvpRequest(params, messageMode);
   return {
     ...(messageMode === "compose" && contactListId !== null ? { contactListId } : {}),
+    ...(rsvpRequest ? { rsvpRequest } : {}),
     draftId: null,
     messageMode,
     originFilter: parseSearchOrigin(rawType, rawStatus, tab),

@@ -172,7 +172,7 @@ export function EventEditorDialog({
     }
   }
 
-  async function handleOpenRsvpDetails(): Promise<void> {
+  async function handleOpenRsvpDetails(destination?: string): Promise<void> {
     if (!editingId) return;
     if (dirty) {
       const shouldDiscard = await confirm({
@@ -183,7 +183,7 @@ export function EventEditorDialog({
       });
       if (!shouldDiscard) return;
     }
-    const targetUrl = `/admin/rsvp?eventId=${encodeURIComponent(editingId)}`;
+    const targetUrl = destination ?? `/admin/rsvp?eventId=${encodeURIComponent(editingId)}`;
     if (navigate) {
       navigate(targetUrl);
     } else {
@@ -665,6 +665,9 @@ export function EventEditorDialog({
                       event={event}
                       followUpEnabled={followUpEnabled}
                       followUpLeadHours={followUpLeadHours}
+                      onNavigate={(href) => {
+                        void handleOpenRsvpDetails(href);
+                      }}
                       onOpenRsvpDetails={() => {
                         void handleOpenRsvpDetails();
                       }}
