@@ -4,17 +4,20 @@
 # Exit immediately if a command fails
 set -e
 
+# Ensure Apple Silicon Homebrew binaries take precedence over legacy /usr/local/bin in GUI Git clients
+if [ -d "/opt/homebrew/bin" ]; then
+  PATH="/opt/homebrew/bin:$PATH"
+  export PATH
+fi
+
 # 1. Lockfile check
 node scripts/check-lockfile.mjs --staged
 
-# 2. Auto-format staged files with Prettier
+# 2. Auto-format staged files with Prettier in a single batched invocation
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(js|jsx|ts|tsx|mjs|json|jsonc|css|md|yaml|yml)$' || true)
 
 if [ -n "$STAGED_FILES" ]; then
   echo "Auto-formatting staged files with Prettier..."
-  printf '%s\n' "$STAGED_FILES" | while IFS= read -r file; do
-    [ -n "$file" ] || continue
-    npx prettier --write "$file"
-    git add "$file"
-  done
+  printf '%s\n' "$STAGED_FILES" | tr '\n' '\0' | xargs -0 npx prettier --write
+  printf '%s\n' "$STAGED_FILES" | tr '\n' '\0' | xargs -0 git add --
 fi

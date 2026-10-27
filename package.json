@@ -19,7 +19,7 @@
     "audit": "node scripts/run-dependency-audit.mjs",
     "bootstrap:staging-platform-admin": "node scripts/bootstrap-staging-platform-admin.mjs",
     "build": "npm run build --workspaces --if-present",
-    "check": "npm run audit && npm run format:check && npm run lint && npm run knip && npm run check:spacing && npm run check:control-alignment && npm run check:csp && npm run check:no-eyebrows && npm run typecheck && npm test && npm run build && npm run test:integration:prepared",
+    "check": "node scripts/check-ci.mjs",
     "check:ci": "node scripts/check-ci.mjs",
     "check:ci:dev": "node scripts/check-ci.mjs --dev",
     "check:release": "node scripts/check-release.mjs",
