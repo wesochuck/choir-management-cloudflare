@@ -173,9 +173,13 @@ describe("Roster Directory Clarification and Compact Photos (#240)", () => {
     expect(offRosterListing).toBeInTheDocument();
     expect(offRosterListing).toHaveTextContent("Not listed");
 
-    // Action button should say "Return Charlie Hidden to roster"
-    const [returnBtn] = screen.getAllByRole("button", {
-      name: "Return Charlie Hidden to roster",
+    const [menuTrigger] = screen.getAllByRole("button", {
+      name: "More actions for Charlie Hidden",
+    });
+    if (!menuTrigger) throw new Error("Profile actions missing");
+    await user.click(menuTrigger);
+    const [returnBtn] = screen.getAllByRole("menuitem", {
+      name: "Return to roster",
     });
     expect(returnBtn).toBeInTheDocument();
     if (!returnBtn) throw new Error("returnBtn not found");

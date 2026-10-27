@@ -6,6 +6,7 @@ import {
 } from "@choir/domain";
 import {
   DataTable,
+  DropdownMenu,
   Tabs,
   TabsContent,
   TabsList,
@@ -579,7 +580,12 @@ export function RosterPageView({
                           (membership.role === "administrator" || membership.role === "owner"),
                       );
                       return (
-                        <div className="table-actions">
+                        <div
+                          className="table-actions roster-row-actions"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                          }}
+                        >
                           <button
                             className="button button--secondary button--small"
                             onClick={(event) => {
@@ -590,87 +596,68 @@ export function RosterPageView({
                           >
                             Edit
                           </button>
-                          {!isCandidateAdmin ? (
-                            <button
-                              className="button button--secondary button--small"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void (async () => {
-                                  try {
-                                    await startOrganizationImpersonation(candidate.id);
-                                    window.location.href = "/dashboard";
-                                  } catch (err: unknown) {
-                                    setError(
-                                      err instanceof Error
-                                        ? err.message
-                                        : "Could not begin impersonation.",
-                                    );
+                          <DropdownMenu
+                            accessibleLabel={`More actions for ${candidate.displayName}`}
+                            items={[
+                              ...(!isCandidateAdmin
+                                ? [
+                                    {
+                                      label: "Impersonate",
+                                      onSelect: () => {
+                                        void (async () => {
+                                          try {
+                                            await startOrganizationImpersonation(candidate.id);
+                                            window.location.href = "/dashboard";
+                                          } catch (err: unknown) {
+                                            setError(
+                                              err instanceof Error
+                                                ? err.message
+                                                : "Could not begin impersonation.",
+                                            );
+                                          }
+                                        })();
+                                      },
+                                    },
+                                  ]
+                                : []),
+                              {
+                                label: candidate.hidden
+                                  ? candidate.globalStatus === "Inactive"
+                                    ? "Restore"
+                                    : "Return to roster"
+                                  : "Archive",
+                                onSelect: () => {
+                                  if (candidate.hidden) {
+                                    if (candidate.globalStatus === "Inactive") {
+                                      void model.restoreProfile(candidate.id);
+                                    } else {
+                                      void model.returnProfileToRoster(candidate.id);
+                                    }
+                                  } else {
+                                    void handleArchiveProfile(candidate);
                                   }
-                                })();
-                              }}
-                              aria-label={`Impersonate ${candidate.displayName}`}
-                              title={`Impersonate ${candidate.displayName}`}
-                              type="button"
-                            >
-                              Impersonate
-                            </button>
-                          ) : null}
-                          {candidate.hidden ? (
-                            candidate.globalStatus === "Inactive" ? (
+                                },
+                              },
+                              ...(!isCandidateAdmin
+                                ? [
+                                    {
+                                      label: "Delete",
+                                      onSelect: () => {
+                                        handleDeleteProfile(candidate);
+                                      },
+                                    },
+                                  ]
+                                : []),
+                            ]}
+                            trigger={
                               <button
-                                aria-label={`Restore ${candidate.displayName}`}
                                 className="button button--secondary button--small"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void model.restoreProfile(candidate.id);
-                                }}
-                                title={`Restore ${candidate.displayName} as active`}
                                 type="button"
                               >
-                                Restore
+                                <span aria-hidden="true">⋯</span>
                               </button>
-                            ) : (
-                              <button
-                                aria-label={`Return ${candidate.displayName} to roster`}
-                                className="button button--secondary button--small"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void model.returnProfileToRoster(candidate.id);
-                                }}
-                                title={`Return ${candidate.displayName} to roster`}
-                                type="button"
-                              >
-                                Return to roster
-                              </button>
-                            )
-                          ) : (
-                            <button
-                              aria-label={`Archive ${candidate.displayName}`}
-                              className="button button--secondary button--small"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void handleArchiveProfile(candidate);
-                              }}
-                              title={`Archive ${candidate.displayName}`}
-                              type="button"
-                            >
-                              Archive
-                            </button>
-                          )}
-                          {!isCandidateAdmin ? (
-                            <button
-                              aria-label={`Delete ${candidate.displayName}`}
-                              className="button button--danger button--small"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleDeleteProfile(candidate);
-                              }}
-                              title={`Delete ${candidate.displayName}`}
-                              type="button"
-                            >
-                              Delete
-                            </button>
-                          ) : null}
+                            }
+                          />
                         </div>
                       );
                     },

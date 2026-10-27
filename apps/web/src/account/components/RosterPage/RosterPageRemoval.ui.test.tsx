@@ -136,7 +136,12 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
 
     render(<RosterPage enabled />);
 
-    const [archiveBtn] = await screen.findAllByRole("button", { name: "Archive Active Singer" });
+    const [menuTrigger] = await screen.findAllByRole("button", {
+      name: "More actions for Active Singer",
+    });
+    if (!menuTrigger) throw new Error("Profile actions missing");
+    await user.click(menuTrigger);
+    const [archiveBtn] = await screen.findAllByRole("menuitem", { name: "Archive" });
     expect(archiveBtn).toBeInTheDocument();
     if (!archiveBtn) throw new Error("archiveBtn not found");
 
@@ -172,7 +177,12 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
     const user = userEvent.setup();
     render(<RosterPage enabled />);
 
-    const [archiveBtn] = await screen.findAllByRole("button", { name: "Archive Active Singer" });
+    const [menuTrigger] = await screen.findAllByRole("button", {
+      name: "More actions for Active Singer",
+    });
+    if (!menuTrigger) throw new Error("Profile actions missing");
+    await user.click(menuTrigger);
+    const [archiveBtn] = await screen.findAllByRole("menuitem", { name: "Archive" });
     if (!archiveBtn) throw new Error("archiveBtn not found");
     await user.click(archiveBtn);
 
@@ -203,7 +213,12 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
     const showHiddenCheckbox = await screen.findByLabelText("Include off-roster profiles");
     await user.click(showHiddenCheckbox);
 
-    const [restoreBtn] = await screen.findAllByRole("button", { name: "Restore Archived Singer" });
+    const [menuTrigger] = await screen.findAllByRole("button", {
+      name: "More actions for Archived Singer",
+    });
+    if (!menuTrigger) throw new Error("Profile actions missing");
+    await user.click(menuTrigger);
+    const [restoreBtn] = await screen.findAllByRole("menuitem", { name: "Restore" });
     expect(restoreBtn).toBeInTheDocument();
     if (!restoreBtn) throw new Error("restoreBtn not found");
 
@@ -228,9 +243,13 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
 
     await screen.findByRole("heading", { name: "Profiles" });
 
-    // Admin should have Edit and Archive buttons, but NOT Delete or Impersonate
-    expect(screen.queryAllByRole("button", { name: "Delete Admin Singer" })).toHaveLength(0);
-    expect(screen.queryAllByRole("button", { name: "Impersonate Admin Singer" })).toHaveLength(0);
+    const user = userEvent.setup();
+    const [trigger] = screen.getAllByRole("button", { name: "More actions for Admin Singer" });
+    if (!trigger) throw new Error("Admin actions missing");
+    await user.click(trigger);
+    expect(screen.getByRole("menuitem", { name: "Archive" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Impersonate" })).not.toBeInTheDocument();
   });
 
   it("permanently deletes an unreferenced profile with confirmation modal", async () => {
@@ -243,7 +262,12 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
 
     render(<RosterPage enabled />);
 
-    const [deleteBtn] = await screen.findAllByRole("button", { name: "Delete Active Singer" });
+    const [menuTrigger] = await screen.findAllByRole("button", {
+      name: "More actions for Active Singer",
+    });
+    if (!menuTrigger) throw new Error("Profile actions missing");
+    await user.click(menuTrigger);
+    const [deleteBtn] = await screen.findAllByRole("menuitem", { name: "Delete" });
     expect(deleteBtn).toBeInTheDocument();
     if (!deleteBtn) throw new Error("deleteBtn not found");
 
@@ -284,7 +308,12 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
       requestId: "req-delete-contacts",
     });
     render(<RosterPage enabled />);
-    const buttons = await screen.findAllByRole("button", { name: "Delete Active Singer" });
+    const [menuTrigger] = await screen.findAllByRole("button", {
+      name: "More actions for Active Singer",
+    });
+    if (!menuTrigger) throw new Error("Profile actions missing");
+    await user.click(menuTrigger);
+    const buttons = await screen.findAllByRole("menuitem", { name: "Delete" });
     const button = buttons[0];
     if (!button) throw new Error("Missing delete action");
     await user.click(button);
@@ -292,7 +321,8 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
     await user.click(screen.getByRole("radio", { name: "Delete unused roster-email Contacts" }));
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(deleteOrganizationProfile).not.toHaveBeenCalled();
-    await user.click(button);
+    await user.click(menuTrigger);
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
     expect(screen.getByRole("radio", { name: "Keep Contacts" })).toBeChecked();
     await user.click(screen.getByRole("radio", { name: "Delete unused roster-email Contacts" }));
     await user.click(screen.getByRole("button", { name: "Delete permanently" }));
@@ -315,7 +345,12 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
 
     render(<RosterPage enabled />);
 
-    const [deleteBtn] = await screen.findAllByRole("button", { name: "Delete Active Singer" });
+    const [menuTrigger] = await screen.findAllByRole("button", {
+      name: "More actions for Active Singer",
+    });
+    if (!menuTrigger) throw new Error("Profile actions missing");
+    await user.click(menuTrigger);
+    const [deleteBtn] = await screen.findAllByRole("menuitem", { name: "Delete" });
     if (!deleteBtn) throw new Error("deleteBtn not found");
     await user.click(deleteBtn);
 

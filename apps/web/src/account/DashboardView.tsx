@@ -14,6 +14,7 @@ import { renderCommunicationMarkdownPreview } from "./communicationMarkdown";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 import { AppLink } from "./components/AuthenticatedShell/navigation";
 import type { AccessState } from "./components/AuthenticatedShell/types";
+import { MemberConcertHero } from "./components/MemberConcertHero";
 import { formatRsvpDeadline } from "./dashboardFormatters";
 
 type DashboardEvent = MemberDashboardResponse["events"][number];
@@ -782,6 +783,20 @@ export function DashboardView({
     return "Payment expired";
   }, [dashboard?.activeSeason?.duesStatus]);
 
+  const events = dashboard?.events;
+  const nextConcert = useMemo(
+    () => events?.find((event) => event.type === "Performance") ?? null,
+    [events],
+  );
+
+  const rehearsalsRemainingCount = useMemo(() => {
+    if (!nextConcert || !events) return 0;
+    const concertTime = new Date(nextConcert.startsAt).getTime();
+    return events.filter(
+      (event) => event.type === "Rehearsal" && new Date(event.startsAt).getTime() < concertTime,
+    ).length;
+  }, [events, nextConcert]);
+
   if (!enabled) {
     return <MemberDashboardAccessState accessStatus={accessStatus} navigate={navigate} />;
   }
@@ -823,6 +838,18 @@ export function DashboardView({
         <p className="notice notice--success" role="status">
           {actionMessage}
         </p>
+      ) : null}
+      {nextConcert ? (
+        <MemberConcertHero
+          busyEventId={busyEventId}
+          concert={nextConcert}
+          navigate={navigate}
+          onOpenPractice={(event) => {
+            void openPractice(event);
+          }}
+          rehearsalsRemainingCount={rehearsalsRemainingCount}
+          timezone={dashboard.timezone}
+        />
       ) : null}
       <div className="member-dashboard__layout">
         <DashboardSchedule

@@ -2,6 +2,18 @@
  * Split from print.css to isolate screen styles from print media rules.
  */
 @layer components {
+  .status-pill-group {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xs);
+  }
+
+  .table-actions.roster-row-actions {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+
   /* Contain the table's intrinsic width so it cannot stretch the invite form. */
   .roster-invite-links {
     grid-template-columns: minmax(0, 1fr);

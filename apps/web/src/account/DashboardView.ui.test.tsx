@@ -314,7 +314,7 @@ describe("DashboardView", () => {
     render(<DashboardView accessStatus="ready" enabled={true} navigate={navigate} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Winter Gala Performance")).toBeInTheDocument();
+      expect(screen.getAllByText("Winter Gala Performance").length).toBeGreaterThanOrEqual(1);
     });
 
     expect(screen.queryByText("Practice music")).not.toBeInTheDocument();
@@ -442,5 +442,210 @@ describe("DashboardView", () => {
     expect(screen.queryByRole("button", { name: "Attend" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Decline" })).not.toBeInTheDocument();
     expect(screen.queryByText("Needs response")).not.toBeInTheDocument();
+  });
+
+  it("renders concert hero callout with countdown when an upcoming concert is present", async () => {
+    const dashboardWithConcert: MemberDashboardResponse = {
+      ...mockDashboard,
+      events: [
+        {
+          attendanceWarning: null,
+          callTime: "18:00",
+          details: "Main hall rehearsal",
+          directRsvp: "Yes",
+          durationMinutes: 120,
+          featuredAssignments: [],
+          id: "rehearsal-1",
+          inheritedFromParent: false,
+          location: "Rehearsal Hall",
+          practice: { sourceEventId: null, status: "not_available", trackCount: 0 },
+          resolvedRsvp: "Yes",
+          rsvpDeadlineAt: null,
+          rsvpDeadlineDate: null,
+          rsvpDeadlinePassed: false,
+          rsvpNote: "",
+          rsvpSelfServiceOpen: true,
+          seating: { status: "not_published" },
+          setList: [],
+          startsAt: "2026-11-15T19:00:00Z",
+          title: "Pre-Concert Rehearsal",
+          type: "Rehearsal",
+          venueAddress: "100 Rehearsal Way",
+          venueName: "Rehearsal Hall",
+        },
+        {
+          attendanceWarning: {
+            missedRehearsals: 0,
+            status: "clear",
+            threshold: 3,
+            totalRehearsals: 6,
+          },
+          callTime: "17:00",
+          details: "Formal concert attire",
+          directRsvp: "Yes",
+          durationMinutes: 150,
+          featuredAssignments: [],
+          id: "concert-1",
+          inheritedFromParent: false,
+          location: "Riverside Community Hall",
+          practice: {
+            sourceEventId: "concert-1",
+            status: "available",
+            trackCount: 8,
+          },
+          publicGraphicFileId: "concert-graphic-uuid",
+          resolvedRsvp: "Yes",
+          rsvpDeadlineAt: null,
+          rsvpDeadlineDate: "2026-11-20",
+          rsvpDeadlinePassed: false,
+          rsvpNote: "",
+          rsvpSelfServiceOpen: true,
+          seating: { status: "available" },
+          setList: [],
+          startsAt: "2026-12-06T23:00:00Z",
+          title: "Winter Concert",
+          type: "Performance",
+          venueAddress: "200 Riverside Dr",
+          venueName: "Riverside Community Hall",
+        },
+      ],
+    };
+
+    vi.spyOn(authApi, "getMemberDashboard").mockResolvedValueOnce(dashboardWithConcert);
+
+    render(<DashboardView accessStatus="ready" enabled={true} navigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("region", { name: "Featured performance: Winter Concert" }),
+      ).toBeInTheDocument();
+    });
+
+    const hero = screen.getByRole("region", { name: "Featured performance: Winter Concert" });
+    expect(within(hero).getByText("Next Performance")).toBeInTheDocument();
+    expect(within(hero).getByText("Winter Concert")).toBeInTheDocument();
+    expect(within(hero).getByText("Riverside Community Hall")).toBeInTheDocument();
+    expect(within(hero).getByText("Rehearsals Remaining")).toBeInTheDocument();
+    // 1 rehearsal before concert
+    expect(within(hero).getByText("1")).toBeInTheDocument();
+    expect(within(hero).getByText("Rehearsal")).toBeInTheDocument();
+
+    // Verify background image applied from publicGraphicFileId
+    expect(hero).toHaveClass("member-concert-hero--has-image");
+    expect(hero.style.backgroundImage).toContain("/api/organization/files/concert-graphic-uuid");
+  });
+
+  it("omits concert hero callout when no Performance event exists", async () => {
+    const dashboardOnlyRehearsals: MemberDashboardResponse = {
+      ...mockDashboard,
+      events: [
+        {
+          attendanceWarning: null,
+          callTime: "",
+          details: "",
+          directRsvp: "Yes",
+          durationMinutes: 90,
+          featuredAssignments: [],
+          id: "rehearsal-1",
+          inheritedFromParent: false,
+          location: "Studio",
+          practice: { sourceEventId: null, status: "not_available", trackCount: 0 },
+          resolvedRsvp: "Yes",
+          rsvpDeadlineAt: null,
+          rsvpDeadlineDate: null,
+          rsvpDeadlinePassed: false,
+          rsvpNote: "",
+          rsvpSelfServiceOpen: true,
+          seating: { status: "not_published" },
+          setList: [],
+          startsAt: "2026-11-15T19:00:00Z",
+          title: "Regular Rehearsal",
+          type: "Rehearsal",
+          venueAddress: "",
+          venueName: "Studio",
+        },
+      ],
+    };
+
+    vi.spyOn(authApi, "getMemberDashboard").mockResolvedValueOnce(dashboardOnlyRehearsals);
+
+    render(<DashboardView accessStatus="ready" enabled={true} navigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Regular Rehearsal")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("Next Performance")).not.toBeInTheDocument();
+    expect(screen.queryByText("Rehearsals Remaining")).not.toBeInTheDocument();
+  });
+
+  it("opens practice player when Open Practice Player button in concert hero is clicked", async () => {
+    const dashboardWithConcert: MemberDashboardResponse = {
+      ...mockDashboard,
+      events: [
+        {
+          attendanceWarning: null,
+          callTime: "",
+          details: "",
+          directRsvp: "Yes",
+          durationMinutes: 120,
+          featuredAssignments: [],
+          id: "concert-1",
+          inheritedFromParent: false,
+          location: "Hall",
+          practice: {
+            sourceEventId: "concert-source-id",
+            status: "available",
+            trackCount: 5,
+          },
+          publicGraphicFileId: null,
+          resolvedRsvp: "Yes",
+          rsvpDeadlineAt: null,
+          rsvpDeadlineDate: null,
+          rsvpDeadlinePassed: false,
+          rsvpNote: "",
+          rsvpSelfServiceOpen: true,
+          seating: { status: "not_published" },
+          setList: [],
+          startsAt: "2026-12-10T19:00:00Z",
+          title: "Holiday Gala",
+          type: "Performance",
+          venueAddress: "",
+          venueName: "Hall",
+        },
+      ],
+    };
+
+    vi.spyOn(authApi, "getMemberDashboard").mockResolvedValueOnce(dashboardWithConcert);
+    vi.spyOn(authApi, "getMemberPracticeLink").mockResolvedValueOnce(
+      "https://test.chorus.app/practice/concert-source-id",
+    );
+
+    const assignSpy = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: {
+        assign: assignSpy,
+        hash: "",
+        href: "http://localhost:3000/account",
+        origin: "http://localhost:3000",
+        search: "",
+      },
+    });
+
+    render(<DashboardView accessStatus="ready" enabled={true} navigate={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Open Practice Player for Holiday Gala" }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Practice Player for Holiday Gala" }));
+
+    await waitFor(() => {
+      expect(authApi.getMemberPracticeLink).toHaveBeenCalledWith("concert-source-id");
+      expect(assignSpy).toHaveBeenCalledWith("https://test.chorus.app/practice/concert-source-id");
+    });
   });
 });
