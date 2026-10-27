@@ -17,6 +17,7 @@ import {
   fetchWorker,
   seedInvitedUser,
   seedOrganizations,
+  seedOrganizationStores,
   signInEmail,
   signInInvitedUser,
   readCapturedPlatformEmailsForTest,
@@ -25,10 +26,15 @@ import type { OrganizationStore } from "../src/organization/OrganizationStore";
 beforeEach(async () => setupAuthIntegration());
 afterEach(async () => teardownAuthIntegration());
 
+async function seedInvitationOrganizations(): Promise<void> {
+  await seedOrganizations();
+  await seedOrganizationStores();
+}
+
 describe("Organization invitations", () => {
   it("excludes expired invitations before pagination for ISO and numeric dates", async () => {
     await seedInvitedUser();
-    await seedOrganizations();
+    await seedInvitationOrganizations();
     const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
     const now = Date.now();
     const expiredAt = now - 60_000;
@@ -72,7 +78,7 @@ describe("Organization invitations", () => {
 
   it("explains application-wide suppression before creating an invitation", async () => {
     await seedInvitedUser();
-    await seedOrganizations();
+    await seedInvitationOrganizations();
     const inviterCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
     await testEnv.CONTROL_DB.prepare(
       `INSERT INTO email_recipient_suppressions
@@ -114,7 +120,7 @@ describe("Organization invitations", () => {
 
   it("creates a pending identity that can sign in and accept its invitation", async () => {
     await seedInvitedUser();
-    await seedOrganizations();
+    await seedInvitationOrganizations();
     const inviterCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
     const invitedEmail = "new.member@example.test";
 
@@ -224,7 +230,7 @@ describe("Organization invitations", () => {
 
   it("links a first-time account to one existing Profile after invite verification", async () => {
     await seedInvitedUser();
-    await seedOrganizations();
+    await seedInvitationOrganizations();
     const inviterCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
     const invitedEmail = "first.time.singer@example.test";
     const profileResponse = await fetchWorker(
@@ -285,7 +291,7 @@ describe("Organization invitations", () => {
 
   it("accepts an invitation without linking an archived Profile", async () => {
     await seedInvitedUser();
-    await seedOrganizations();
+    await seedInvitationOrganizations();
     const inviterCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
     const invitedEmail = "archived.singer@example.test";
     const profileResponse = await fetchWorker(
@@ -369,7 +375,7 @@ describe("Organization invitations", () => {
 
   it("links a verified multi-Organization account to the exact existing Alpha Profile", async () => {
     await seedInvitedUser();
-    await seedOrganizations();
+    await seedInvitationOrganizations();
     const invitedEmail = "existing.singer@example.test";
     const now = Date.now();
     await testEnv.CONTROL_DB.batch([
@@ -532,7 +538,7 @@ describe("Organization invitations", () => {
 
   it("blocks native Organization HTTP mutations and lists and cancels only host-bound invitations", async () => {
     await seedInvitedUser();
-    await seedOrganizations();
+    await seedInvitationOrganizations();
     const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
 
     const nativeBypassResponse = await fetchWorker(
@@ -636,7 +642,7 @@ describe("Organization invitations", () => {
 
   it("lets the verified recipient decline without creating a membership", async () => {
     await seedInvitedUser();
-    await seedOrganizations();
+    await seedInvitationOrganizations();
     const inviterCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
     const invitedEmail = "declining.member@example.test";
     const invitationResponse = await fetchWorker(
@@ -684,7 +690,7 @@ describe("Organization invitations", () => {
     "rejects an expired %s invitation without creating a membership",
     async (dateFormat) => {
       await seedInvitedUser();
-      await seedOrganizations();
+      await seedInvitationOrganizations();
       await testEnv.CONTROL_DB.prepare("DELETE FROM member WHERE userId = ?")
         .bind("user-invited-member")
         .run();
@@ -730,7 +736,7 @@ describe("Organization invitations", () => {
 
   it("keeps accept and reject host-bound against cross-organization replay", async () => {
     await seedInvitedUser();
-    await seedOrganizations();
+    await seedInvitationOrganizations();
     const recipientCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
     await testEnv.CONTROL_DB.prepare(
       `INSERT INTO invitation

@@ -183,6 +183,17 @@ export async function seedOrganizations(includeBravoMembership = false): Promise
     ).bind("member-alpha", "organization-alpha", "user-invited-member", "admin", Date.now()),
   ]);
 
+  if (includeBravoMembership) {
+    await testEnv.CONTROL_DB.prepare(
+      `INSERT INTO member (id, organizationId, userId, role, createdAt)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+      .bind("member-bravo", "organization-bravo", "user-invited-member", "member", Date.now())
+      .run();
+  }
+}
+
+export async function seedOrganizationStores(): Promise<void> {
   for (const organization of [
     { id: "organization-alpha", name: "Organization Alpha", slug: "alpha" },
     { id: "organization-bravo", name: "Organization Bravo", slug: "bravo" },
@@ -205,15 +216,6 @@ export async function seedOrganizations(includeBravoMembership = false): Promise
     if (response.status !== 200) {
       throw new Error(`Organization ${organization.slug} test store provisioning failed.`);
     }
-  }
-
-  if (includeBravoMembership) {
-    await testEnv.CONTROL_DB.prepare(
-      `INSERT INTO member (id, organizationId, userId, role, createdAt)
-       VALUES (?, ?, ?, ?, ?)`,
-    )
-      .bind("member-bravo", "organization-bravo", "user-invited-member", "member", Date.now())
-      .run();
   }
 }
 
