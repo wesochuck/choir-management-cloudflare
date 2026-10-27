@@ -36,7 +36,8 @@
   }
 
   .data-table td {
-    overflow-wrap: anywhere;
+    /* Preserve readable words; wide tables scroll within their existing wrapper. */
+    overflow-wrap: break-word;
   }
 
   .data-table th.data-table__cell--actions,
@@ -752,4 +753,36 @@
   display: inline-block;
   font-size: 0.8125rem;
   font-weight: 600;
+}
+
+@layer components {
+  .contact-profile-identity__email {
+    display: none;
+  }
+  @media (40rem < width <= 64rem) {
+    #contacts-panel .data-table {
+      display: table;
+      min-width: 38rem;
+    }
+    #contacts-panel .data-table-cards {
+      display: none;
+    }
+    #contacts-panel .data-table .contact-table__secondary {
+      display: none;
+    }
+    #contacts-panel .data-table .contact-table__identity {
+      min-width: 15rem;
+      width: 45%;
+    }
+    #contacts-panel .contact-profile-identity__email {
+      display: block;
+      margin-top: var(--spacing-3xs);
+      color: var(--color-text-muted);
+      font-size: var(--font-size-sm);
+      overflow-wrap: anywhere;
+    }
+    #contacts-panel .data-table .table-actions {
+      flex-wrap: wrap;
+    }
+  }
 }

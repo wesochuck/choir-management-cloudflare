@@ -186,7 +186,8 @@ for (const theme of ["dark", "light"] as const) {
     await page.setViewportSize({ width: 1024, height: 900 });
     await page.goto("/admin");
     await expect(page.locator(".admin-overview__card")).toHaveCount(7);
-    const nav = page.locator(".signed-in-sidebar").getByRole("navigation");
+    await page.getByRole("button", { name: "Open workspace navigation" }).click();
+    const nav = page.getByRole("dialog", { name: "Workspace navigation" }).getByRole("navigation");
     await expect(nav.getByRole("button", { name: "Communications", exact: true })).toHaveCount(0);
     await expect(nav.getByRole("button", { name: "Finance", exact: true })).toHaveCount(0);
     await expect(nav.getByRole("link", { name: "Contacts", exact: true })).toBeVisible();

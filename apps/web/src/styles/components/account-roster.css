@@ -242,3 +242,169 @@
     white-space: nowrap;
   }
 }
+
+@layer components {
+  .roster-balance--compact {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 0;
+    margin-block: var(--spacing-md);
+    border: 0;
+    background: none;
+  }
+  .roster-balance--compact .roster-balance__header,
+  .roster-balance--compact .roster-balance__meta,
+  .roster-balance--compact .roster-balance__assignment-layout {
+    display: contents;
+  }
+  .roster-balance--compact .roster-balance__header > div:first-child {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .roster-balance--compact .roster-balance__sections {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    order: 2;
+  }
+  .roster-balance--compact .roster-balance__all,
+  .roster-balance--compact .roster-balance__section,
+  .roster-balance--compact .roster-balance__unassigned {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    min-height: 2.75rem;
+    padding: var(--spacing-xs) var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+  }
+  .roster-balance--compact .roster-balance__all {
+    order: 1;
+  }
+  .roster-balance--compact .roster-balance__unassigned {
+    order: 3;
+  }
+  .roster-balance--compact button[aria-pressed="true"] {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 16%, var(--color-surface));
+  }
+  .roster-balance--compact .roster-balance__section span,
+  .roster-balance--compact .roster-balance__section strong {
+    font-size: var(--font-size-md);
+    line-height: var(--line-height-normal);
+    letter-spacing: normal;
+    text-transform: none;
+  }
+  .roster-balance__details {
+    order: 4;
+    margin-left: auto;
+  }
+  .roster-balance__details summary {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--spacing-sm);
+    min-height: 2.75rem;
+    cursor: pointer;
+    list-style: none;
+  }
+  .roster-balance__details summary::-webkit-details-marker {
+    display: none;
+  }
+  .roster-balance__details summary::after {
+    content: "⌃";
+    transform: rotate(180deg);
+  }
+  .roster-balance__details[open] summary::after {
+    transform: rotate(0);
+  }
+  .roster-balance__details[open] {
+    flex-basis: 100%;
+  }
+  .roster-balance__details .roster-balance__parts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+  }
+  .roster-balance__details .roster-balance__part {
+    flex: 1 1 5rem;
+    min-height: 2.75rem;
+    padding: var(--spacing-sm);
+  }
+  .roster-profile-identity {
+    min-width: 0;
+  }
+  .roster-directory-panel .roster-table__status .status-pill {
+    color: var(--color-text);
+  }
+  .roster-profile-identity > strong {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  .roster-profile-identity__email,
+  .roster-profile-identity__account {
+    display: none;
+  }
+
+  @media (40rem < width < 80rem) {
+    .roster-directory-panel .data-table {
+      min-width: 35rem;
+    }
+    .roster-directory-panel .data-table .roster-table__secondary {
+      display: none;
+    }
+    .roster-directory-panel .data-table .roster-table__selection {
+      width: 3rem;
+    }
+    .roster-directory-panel .data-table .roster-table__identity {
+      width: 60%;
+      min-width: 16rem;
+    }
+    .roster-directory-panel .data-table .roster-table__part {
+      min-width: 4rem;
+    }
+    .roster-directory-panel .data-table .roster-table__status {
+      min-width: 7rem;
+    }
+    .roster-directory-panel .data-table .roster-profile-name {
+      display: flex;
+      gap: var(--spacing-sm);
+    }
+    .roster-directory-panel .data-table .roster-profile-name > :first-child {
+      flex-shrink: 0;
+    }
+    .roster-directory-panel .data-table .roster-profile-identity__email,
+    .roster-directory-panel .data-table .roster-profile-identity__account {
+      display: block;
+      font-size: var(--font-size-sm);
+      color: var(--color-text-muted);
+      overflow-wrap: anywhere;
+    }
+    .roster-directory-panel .data-table .roster-row-actions__edit {
+      display: none;
+    }
+    .roster-directory-panel .data-table .roster-row-actions .button {
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+    .roster-filter-row {
+      flex-wrap: wrap;
+    }
+    .roster-filter-row .search-field {
+      min-width: 14rem;
+    }
+    .roster-filter-row__hidden {
+      flex-basis: 100%;
+    }
+  }
+}

@@ -174,14 +174,41 @@ export function RosterPageView({
       selectAllVisibleRef.current.indeterminate = someVisibleSelected;
     }
   }, [someVisibleSelected]);
+  function profileContactEmail(candidate: OrganizationProfile): string {
+    return candidate.email || (membershipByProfileId.get(candidate.id)?.email ?? "");
+  }
+
+  const heading = (
+    <div className="page-heading page-heading--actions roster-page-heading">
+      <div>
+        <h1>Roster</h1>
+        <p className="page-heading__description">
+          {roster.status === "ready"
+            ? `${String(filteredProfiles.length)} profiles`
+            : "Manage profiles, section assignments, and member statuses."}
+        </p>
+      </div>
+      {enabled && activeTab === "roster" ? (
+        <button className="button button--primary" onClick={openCreate} type="button">
+          Add Profile
+        </button>
+      ) : null}
+    </div>
+  );
   if (!enabled) {
-    return <OrganizationMfaPrompt message="Verify Organization MFA to manage the roster." />;
+    return (
+      <>
+        {heading}
+        <OrganizationMfaPrompt message="Verify Organization MFA to manage the roster." />
+      </>
+    );
   }
   return (
     <RosterConfigurationDraftProvider
       enabled={enabled}
       onConfigurationSaved={model.applyRosterConfiguration}
     >
+      {heading}
       <Tabs onValueChange={setActiveTab} value={activeTab}>
         <TabsList aria-label="Roster sections" as="nav" className="ticketing-tabs roster-page-tabs">
           <TabsTrigger
@@ -223,6 +250,7 @@ export function RosterPageView({
         <TabsContent
           aria-labelledby="roster-directory-tab"
           id="roster-directory-panel"
+          className="roster-directory-panel"
           value="roster"
         >
           <div className="page-toolbar">
@@ -244,9 +272,6 @@ export function RosterPageView({
                 type="button"
               >
                 Import CSV
-              </button>
-              <button className="button button--primary" onClick={openCreate} type="button">
-                Add Profile
               </button>
             </div>
           </div>
@@ -420,6 +445,7 @@ export function RosterPageView({
                 columns={[
                   {
                     header: "Select",
+                    className: "roster-table__selection",
                     headerContent: (
                       <input
                         aria-label="Select all matching profiles"
@@ -448,6 +474,7 @@ export function RosterPageView({
                   },
                   {
                     header: "Name",
+                    className: "roster-table__identity",
                     id: "name",
                     render: (candidate) => (
                       <span className="roster-profile-name">
@@ -459,7 +486,23 @@ export function RosterPageView({
                           photoFileId={candidate.photoFileId}
                           size={32}
                         />
-                        <strong>{candidate.displayName}</strong>
+                        <span className="roster-profile-identity">
+                          <strong>{candidate.displayName}</strong>
+                          <span className="roster-profile-identity__email">
+                            {profileContactEmail(candidate) ? (
+                              <a href={`mailto:${profileContactEmail(candidate)}`}>
+                                {profileContactEmail(candidate)}
+                              </a>
+                            ) : (
+                              "No email"
+                            )}
+                          </span>
+                          {membershipByProfileId.has(candidate.id) ? (
+                            <span className="roster-profile-identity__account">
+                              Linked login account
+                            </span>
+                          ) : null}
+                        </span>
                         {candidate.isSectionLeader ? (
                           <Tooltip content="Section leader">
                             <span
@@ -479,6 +522,7 @@ export function RosterPageView({
                   {
                     header: "Email address",
                     id: "email",
+                    className: "roster-table__secondary",
                     render: (candidate) => {
                       const email =
                         candidate.email || membershipByProfileId.get(candidate.id)?.email;
@@ -490,6 +534,7 @@ export function RosterPageView({
                   {
                     header: "Login account",
                     id: "account",
+                    className: "roster-table__secondary",
                     render: (candidate) =>
                       membershipByProfileId.has(candidate.id)
                         ? "Linked login account"
@@ -502,12 +547,14 @@ export function RosterPageView({
                   {
                     header: partLabel,
                     id: "voicePart",
+                    className: "roster-table__part",
                     render: (candidate) => candidate.voicePart || "Not assigned",
                     sortValue: (candidate) => candidate.voicePart,
                   },
                   {
                     header: "Status",
                     id: "status",
+                    className: "roster-table__status",
                     render: (candidate) => (
                       <span className="status-pill-group">
                         <span className="status-pill">{statusLabel(candidate.globalStatus)}</span>
@@ -522,6 +569,7 @@ export function RosterPageView({
                   {
                     header: "Delivery status",
                     id: "delivery",
+                    className: "roster-table__secondary",
                     render: (candidate) => {
                       if (candidate.providerEmailSuppressed) {
                         return (
@@ -555,6 +603,7 @@ export function RosterPageView({
                   {
                     header: "Directory listing",
                     id: "directory",
+                    className: "roster-table__secondary",
                     render: (candidate) => {
                       const listed = isProfileDirectoryListed(candidate);
                       const reason = getDirectoryListingReason(candidate);
@@ -587,7 +636,7 @@ export function RosterPageView({
                           }}
                         >
                           <button
-                            className="button button--secondary button--small"
+                            className="button button--secondary button--small roster-row-actions__edit"
                             onClick={(event) => {
                               event.stopPropagation();
                               openEdit(candidate);
@@ -599,6 +648,12 @@ export function RosterPageView({
                           <DropdownMenu
                             accessibleLabel={`More actions for ${candidate.displayName}`}
                             items={[
+                              {
+                                label: "Edit profile",
+                                onSelect: () => {
+                                  openEdit(candidate);
+                                },
+                              },
                               ...(!isCandidateAdmin
                                 ? [
                                     {

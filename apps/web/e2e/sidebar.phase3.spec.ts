@@ -537,11 +537,15 @@ test("breakpoints, long labels, zoom, keyboard, and reduced motion", async ({ pa
     );
   }
 
-  // Breakpoint boundaries: 768px and below use persistent compact rail.
-  await page.setViewportSize({ height: 900, width: 767 });
-  await expect(page.locator(".signed-in-sidebar")).toBeVisible();
+  // Phone rail, tablet drawer, and desktop sidebar meet at explicit boundaries.
+  await page.setViewportSize({ height: 900, width: 640 });
   await expect(page.locator(".signed-in-sidebar .organization-nav--compact")).toBeVisible();
-  await page.setViewportSize({ height: 900, width: 769 });
+  for (const width of [641, 834, 1024]) {
+    await page.setViewportSize({ height: 900, width });
+    await expect(page.locator(".signed-in-sidebar")).toBeHidden();
+    await expect(page.getByRole("button", { name: "Open workspace navigation" })).toBeVisible();
+  }
+  await page.setViewportSize({ height: 900, width: 1025 });
   await expect(page.locator(".signed-in-sidebar")).toBeVisible();
 
   // Long organization names wrap without clipping the controls.

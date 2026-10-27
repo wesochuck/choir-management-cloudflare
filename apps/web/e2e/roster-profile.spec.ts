@@ -1110,3 +1110,116 @@ test("saves no-account contact email and phone without an invitation", async ({ 
   expect(invitations).toEqual([]);
   api.assertNoUnexpectedRequests();
 });
+
+test.describe("tablet roster layout", () => {
+  // These layout tests mock the API. Keep the app's caching service worker from
+  // bypassing Playwright routing; offline behavior has separate real-network suites.
+  test.use({ serviceWorkers: "block" });
+  for (const theme of ["light", "dark"] as const) {
+    test(`tablet roster keeps names readable and actions usable in ${theme} @webkit-smoke`, async ({
+      page,
+    }, testInfo) => {
+      await page.addInitScript((mode) => {
+        localStorage.setItem(`choir-theme:${location.hostname}`, mode);
+      }, theme);
+      const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+      await page.route("**/api/organization/members", (route) =>
+        route.fulfill({ json: { memberships: [], truncated: false, requestId } }),
+      );
+      const names = [
+        "Daniel Brooks",
+        "Michael Carter",
+        "Andrew Wilson",
+        "Benjamin Reed",
+        "Christopher Ellis",
+        "David Morgan",
+        "Edward Parker",
+        "James Sullivan",
+      ];
+      api.profiles.set(
+        names.map((displayName, index) =>
+          buildOrganizationProfile({
+            id: `${String(index + 1).padStart(8, "0")}-1111-4111-8111-111111111111`,
+            displayName,
+            email: `${displayName.toLowerCase().replace(" ", ".")}@example.test`,
+            voicePart: index % 2 === 0 ? "S1" : "A1",
+          }),
+        ),
+      );
+      await page.setViewportSize({ width: 834, height: 1194 });
+      await page.goto("/admin/roster");
+      const panel = page.getByRole("tabpanel", { name: "Roster", exact: true });
+      const table = panel.locator(".data-table");
+      await expect(
+        table.getByRole("row", { name: "Edit profile Christopher Ellis", exact: true }),
+      ).toBeVisible();
+      for (const width of [820, 834, 1024, 1180]) {
+        await page.setViewportSize({ width, height: 1194 });
+        if (width <= 1024) {
+          await expect(page.locator(".signed-in-sidebar")).toBeHidden();
+          await expect(
+            page.getByRole("button", { name: "Open workspace navigation" }),
+          ).toBeVisible();
+        }
+        await expect(table.getByRole("button", { name: "Sort by Email address" })).toBeHidden();
+        const dimensions = await table
+          .locator(".roster-table__identity strong")
+          .evaluateAll((nodes) =>
+            nodes.map((node) => ({
+              height: node.getBoundingClientRect().height,
+              width: node.getBoundingClientRect().width,
+            })),
+          );
+        for (const name of dimensions) {
+          expect(name.height, `${String(width)}px: name must fit on one line`).toBeLessThan(30);
+          expect(name.width).toBeGreaterThan(70);
+        }
+        const geometry = await table.evaluate((element) => ({
+          table: element.getBoundingClientRect().width,
+          wrapper: element.parentElement?.getBoundingClientRect().width ?? 0,
+          overflow: document.documentElement.scrollWidth - window.innerWidth,
+        }));
+        expect(geometry.table).toBeLessThanOrEqual(geometry.wrapper + 1);
+        expect(geometry.overflow).toBeLessThanOrEqual(1);
+      }
+      await page.setViewportSize({ width: 834, height: 1194 });
+      await panel.getByRole("button", { name: /^Sopranos/ }).click();
+      await expect(table.locator("tbody tr")).toHaveCount(4);
+      await panel.getByRole("button", { name: /^All 8$/ }).click();
+      await expect(table.locator("tbody tr")).toHaveCount(8);
+      await table.getByRole("button", { name: "Sort by Name" }).click();
+      await expect(table.locator("th[aria-sort='descending']")).toContainText("Name");
+      await table.getByRole("button", { name: "Sort by Name" }).click();
+      await table.getByRole("button", { name: "Sort by Name" }).click();
+      await expect(table.locator("th[aria-sort='ascending']")).toContainText("Name");
+      await page.locator(".roster-balance__details summary").click();
+      await expect(panel.getByRole("button", { name: /^S1/ })).toBeVisible();
+      await page.locator(".roster-balance__details summary").click();
+      await table.getByRole("checkbox", { name: "Select Daniel Brooks", exact: true }).check();
+      await expect(page.getByText("1 selected", { exact: false })).toBeVisible();
+      await table.getByRole("checkbox", { name: "Select Daniel Brooks", exact: true }).uncheck();
+      await table.getByRole("button", { name: "More actions for Daniel Brooks" }).click();
+      await page.getByRole("menuitem", { name: "Edit profile", exact: true }).click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await page.getByRole("button", { name: "Close", exact: true }).click();
+      await page.getByRole("button", { name: "Open workspace navigation" }).click();
+      await expect(page.getByRole("dialog", { name: "Workspace navigation" })).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("button", { name: "Open workspace navigation" })).toBeFocused();
+      const accessibility = await new AxeBuilder({ page })
+        .include("#signed-in-main")
+        .withTags(["wcag2a", "wcag2aa"])
+        .analyze();
+      expect(
+        accessibility.violations.filter(
+          ({ impact }) => impact === "serious" || impact === "critical",
+        ),
+      ).toEqual([]);
+      await page.screenshot({
+        path: testInfo.outputPath(`tablet-roster-${theme}.png`),
+        fullPage: true,
+      });
+      api.assertNoUnexpectedRequests();
+    });
+  }
+});

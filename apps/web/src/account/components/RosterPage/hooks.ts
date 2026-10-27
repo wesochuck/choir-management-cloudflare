@@ -290,6 +290,10 @@ export function useRosterPageController({
   }, [emailByProfileId, query, roster, selectedVoiceFilters, showHidden, statusFilter]);
 
   function toggleVoiceFilter(filter: string): void {
+    if (filter === "all") {
+      setSelectedVoiceFilters([]);
+      return;
+    }
     setSelectedVoiceFilters((current) =>
       current.includes(filter)
         ? current.filter((candidate) => candidate !== filter)

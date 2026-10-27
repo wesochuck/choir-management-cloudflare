@@ -1,6 +1,6 @@
 import type { Workspace } from "./types";
 
-export const NARROW_SIDEBAR_QUERY = "(max-width: 48rem)";
+export const NARROW_SIDEBAR_QUERY = "(max-width: 64rem)";
 export const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 
 export function readNarrowViewport(): boolean {

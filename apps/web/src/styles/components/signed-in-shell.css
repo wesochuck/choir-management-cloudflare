@@ -646,3 +646,22 @@
 .organization-nav .quick-search-sidebar-button .quick-search-kbd {
   color: var(--color-text);
 }
+
+/* Tablets use the existing modal navigation so operational pages retain their width.
+ * Keep this breakpoint aligned with NARROW_SIDEBAR_QUERY. Desktop preferences persist. */
+@layer components {
+  @media (40rem < width <= 64rem) {
+    .signed-in-shell[data-workspace] .signed-in-body {
+      display: block;
+    }
+    .signed-in-shell[data-workspace] .signed-in-sidebar {
+      display: none;
+    }
+    .signed-in-shell .mobile-nav-trigger {
+      display: inline-grid;
+      place-items: center;
+      min-width: 2.75rem;
+      min-height: 2.75rem;
+    }
+  }
+}

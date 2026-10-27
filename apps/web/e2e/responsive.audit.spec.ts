@@ -1,4 +1,6 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { futureIsoDate } from "@choir/testkit";
+import { buildRosterConfigurationResponse } from "./fixtures/builders";
 
 // Responsive audit: renders key signed-in pages at the breakpoint ladder and
 // asserts the document never overflows horizontally. API responses are mocked
@@ -74,7 +76,7 @@ const session = {
   },
 };
 
-const widths = [390, 640, 768, 900, 1024, 1280];
+const widths = [390, 640, 768, 834, 900, 1024, 1180, 1280];
 
 async function fulfillJson(route: Route, body: unknown, status = 200): Promise<void> {
   await route.fulfill({ body: JSON.stringify(body), contentType: "application/json", status });
@@ -177,7 +179,7 @@ const events = [
       { composer: "Composer B", id: "item-b", pieceId: musicId, title: "Finale", type: "song" },
     ],
     setListApproved: true,
-    startsAt: "2026-08-20T23:00:00.000Z",
+    startsAt: futureIsoDate({ days: 30 }),
     ticketCapacity: 500,
     title: "Summer Concert Series: An Evening of Choral Masterworks",
     type: "Performance" as const,
@@ -201,7 +203,7 @@ const events = [
     publishOnWebsite: false,
     setList: [],
     setListApproved: false,
-    startsAt: "2026-08-21T23:00:00.000Z",
+    startsAt: futureIsoDate({ days: 7 }),
     ticketCapacity: null,
     title: "Weekly Rehearsal",
     type: "Rehearsal" as const,
@@ -331,6 +333,8 @@ const responsiveManagerResponses: Record<string, unknown> = {
       status: "not_started",
     },
   },
+  "/api/organization/roster-configuration": buildRosterConfigurationResponse(),
+  "/api/organization/members": { memberships: [], truncated: false, requestId },
   "/api/organization/calendar-settings": { requestId, timezone: "America/New_York" },
   "/api/organization/transaction-fee-settings": {
     fixedCents: 30,
@@ -820,7 +824,9 @@ async function assertInlineControlRowAlignment(
   ).toEqual([]);
 }
 
-test("signed-in pages never overflow horizontally at any breakpoint", async ({ page }) => {
+test("signed-in pages never overflow horizontally at any breakpoint", async ({
+  page,
+}, testInfo) => {
   await page.route("**/api/**", async (route) => {
     if (await handleShellRoute(route)) return;
     if (await handleDataRoute(route)) return;
@@ -856,6 +862,15 @@ test("signed-in pages never overflow horizontally at any breakpoint", async ({ p
       await page.waitForTimeout(120);
       await assertBreakpointSpecificLayout(page, path, width);
       await assertInlineControlRowAlignment(page, label, width);
+      if (["roster", "events", "contacts"].includes(label)) {
+        await expect(page.getByText(/could not be loaded/)).toHaveCount(0);
+      }
+      if (
+        width === 834 &&
+        ["roster", "contacts", "events", "ticketing", "donations"].includes(label)
+      ) {
+        await page.screenshot({ path: testInfo.outputPath(`tablet-${label}.png`), fullPage: true });
+      }
       const audit = await page.evaluate(() => {
         const viewport = window.innerWidth;
         const scrollWidth = document.documentElement.scrollWidth;

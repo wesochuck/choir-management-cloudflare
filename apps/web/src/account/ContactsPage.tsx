@@ -827,16 +827,26 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
                 {
                   header: "Name",
                   id: "name",
+                  className: "contact-table__identity",
                   render: (contact) => (
-                    <strong>
-                      {deriveDisplayName({
-                        displayName: contact.displayName,
-                        email: contact.email,
-                        firstName: contact.firstName,
-                        lastName: contact.lastName,
-                        phone: contact.phone,
-                      })}
-                    </strong>
+                    <span className="contact-profile-identity">
+                      <strong>
+                        {deriveDisplayName({
+                          displayName: contact.displayName,
+                          email: contact.email,
+                          firstName: contact.firstName,
+                          lastName: contact.lastName,
+                          phone: contact.phone,
+                        })}
+                      </strong>
+                      <span className="contact-profile-identity__email">
+                        {contact.email ? (
+                          <a href={`mailto:${contact.email}`}>{contact.email}</a>
+                        ) : (
+                          "No email"
+                        )}
+                      </span>
+                    </span>
                   ),
                   sortValue: (contact) =>
                     deriveDisplayName({
@@ -850,6 +860,7 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
                 {
                   header: "Email",
                   id: "email",
+                  className: "contact-table__secondary",
                   render: (contact) =>
                     contact.email ? (
                       <a href={`mailto:${contact.email}`}>{contact.email}</a>
@@ -867,6 +878,7 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
                 {
                   header: "Lists",
                   id: "lists",
+                  className: "contact-table__secondary",
                   render: (contact) => listNamesByContactId.formatted.get(contact.id) ?? "No lists",
                   sortValue: (contact) =>
                     listNamesByContactId.formatted.get(contact.id) ?? "No lists",
@@ -885,12 +897,14 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
                 {
                   header: "Source",
                   id: "source",
+                  className: "contact-table__secondary",
                   render: (contact) => sourceLabel(contact),
                   sortValue: (contact) => contact.source ?? "",
                 },
                 {
                   header: "Updated",
                   id: "updated",
+                  className: "contact-table__secondary",
                   render: (contact) =>
                     new Date(contact.updatedAt).toLocaleString(undefined, {
                       dateStyle: "medium",

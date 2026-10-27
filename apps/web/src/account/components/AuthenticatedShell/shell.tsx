@@ -200,7 +200,7 @@ function AuthenticatedOrganizationShell({
     return () => undefined;
   }, []);
 
-  // Widening past 48rem with a stale drawer over a restored
+  // Widening past 64rem with a stale drawer over a restored
   // pinned layout closes the modal layer. Focus moves only when its element
   // is no longer visible; ordinary layout changes never steal focus.
   useEffect(() => {
@@ -846,6 +846,7 @@ function AuthenticatedOrganizationShell({
             {route.pathname === "/admin" ||
             route.pathname === "/admin/seating" ||
             route.pathname === "/admin/venues" ||
+            route.pathname === "/admin/roster" ||
             route.pathname === "/admin/auditions" ||
             route.pathname === "/admin/invitations" ||
             route.pathname === "/admin/settings/invitations" ? null : (

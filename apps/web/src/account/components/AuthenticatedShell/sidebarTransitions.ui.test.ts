@@ -146,7 +146,7 @@ describe("sidebar phase 2 transitions", () => {
       },
     });
     const narrowStub = (query: string): MediaQueryList => ({
-      matches: query.includes("48rem"),
+      matches: query.includes("64rem"),
       media: query,
       onchange: null,
       addListener: () => undefined,
