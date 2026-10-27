@@ -50,7 +50,6 @@ describe("MemberConcertHero", () => {
       <MemberConcertHero
         busyEventId={null}
         concert={concert}
-        navigate={vi.fn()}
         now={simulatedNow}
         onOpenPractice={vi.fn()}
         rehearsalsRemainingCount={4}
@@ -81,7 +80,6 @@ describe("MemberConcertHero", () => {
       <MemberConcertHero
         busyEventId={null}
         concert={concert}
-        navigate={vi.fn()}
         now={simulatedNow}
         onOpenPractice={vi.fn()}
         rehearsalsRemainingCount={1}
@@ -102,7 +100,6 @@ describe("MemberConcertHero", () => {
       <MemberConcertHero
         busyEventId={null}
         concert={concert}
-        navigate={vi.fn()}
         onOpenPractice={vi.fn()}
         rehearsalsRemainingCount={4}
         timezone="America/New_York"
@@ -121,7 +118,6 @@ describe("MemberConcertHero", () => {
       <MemberConcertHero
         busyEventId={null}
         concert={concert}
-        navigate={vi.fn()}
         onOpenPractice={vi.fn()}
         rehearsalsRemainingCount={4}
         timezone="America/New_York"
@@ -141,7 +137,6 @@ describe("MemberConcertHero", () => {
       <MemberConcertHero
         busyEventId={null}
         concert={concert}
-        navigate={vi.fn()}
         onOpenPractice={onOpenPractice}
         rehearsalsRemainingCount={4}
         timezone="America/New_York"
@@ -156,31 +151,30 @@ describe("MemberConcertHero", () => {
     expect(onOpenPractice).toHaveBeenCalledWith(concert);
   });
 
-  it("navigates to /practice when Open Practice Player is clicked and practice is unavailable", () => {
-    const concert = createConcert({
-      practice: { sourceEventId: null, status: "not_available", trackCount: 0 },
-    });
-    const navigate = vi.fn();
-    const onOpenPractice = vi.fn();
-
+  it.each<DashboardEvent["practice"]>([
+    { sourceEventId: null, status: "not_published", trackCount: 0 },
+    { sourceEventId: null, status: "not_available", trackCount: 0 },
+    {
+      sourceEventId: "concert-1111-2222-3333-444444444444",
+      status: "not_available",
+      trackCount: 0,
+    },
+    { sourceEventId: "another-event", status: "available", trackCount: 12 },
+    { sourceEventId: null, status: "available", trackCount: 12 },
+  ])("hides the practice action unless it is available for this concert: %j", (practice) => {
+    const concert = createConcert({ practice });
     render(
       <MemberConcertHero
         busyEventId={null}
         concert={concert}
-        navigate={navigate}
-        onOpenPractice={onOpenPractice}
+        onOpenPractice={vi.fn()}
         rehearsalsRemainingCount={4}
         timezone="America/New_York"
       />,
     );
 
-    const button = screen.getByRole("button", {
-      name: `Open Practice Player for ${concert.title}`,
-    });
-    fireEvent.click(button);
-
-    expect(onOpenPractice).not.toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith("/practice");
+    expect(screen.getByText(concert.title)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Open Practice Player/ })).not.toBeInTheDocument();
   });
 
   it("disables button and displays Opening… when busyEventId matches concert id", () => {
@@ -190,7 +184,6 @@ describe("MemberConcertHero", () => {
       <MemberConcertHero
         busyEventId={concert.id}
         concert={concert}
-        navigate={vi.fn()}
         onOpenPractice={vi.fn()}
         rehearsalsRemainingCount={4}
         timezone="America/New_York"
@@ -218,7 +211,6 @@ describe("MemberConcertHero", () => {
       <MemberConcertHero
         busyEventId={null}
         concert={concert}
-        navigate={vi.fn()}
         onOpenPractice={vi.fn()}
         rehearsalsRemainingCount={4}
         timezone="America/New_York"

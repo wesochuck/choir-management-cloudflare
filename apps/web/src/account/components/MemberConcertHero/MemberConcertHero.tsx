@@ -7,17 +7,19 @@ type DashboardEvent = MemberDashboardResponse["events"][number];
 export interface MemberConcertHeroProps {
   readonly busyEventId: string | null;
   readonly concert: DashboardEvent;
-  readonly navigate: (href: string) => void;
   readonly now?: Date;
   readonly onOpenPractice: (event: DashboardEvent) => void;
   readonly rehearsalsRemainingCount: number;
   readonly timezone: string;
 }
 
+function hasPublishedConcertPractice(concert: DashboardEvent): boolean {
+  return concert.practice.status === "available" && concert.practice.sourceEventId === concert.id;
+}
+
 export function MemberConcertHero({
   busyEventId,
   concert,
-  navigate,
   now = new Date(),
   onOpenPractice,
   rehearsalsRemainingCount,
@@ -45,13 +47,7 @@ export function MemberConcertHero({
       }
     : undefined;
 
-  function handlePracticeClick() {
-    if (concert.practice.status === "available" && concert.practice.sourceEventId) {
-      onOpenPractice(concert);
-    } else {
-      navigate("/practice");
-    }
-  }
+  const hasConcertPractice = hasPublishedConcertPractice(concert);
 
   return (
     <section
@@ -101,27 +97,31 @@ export function MemberConcertHero({
             <span>{venueDisplay}</span>
           </div>
         </div>
-        <div className="member-concert-hero__actions">
-          <button
-            aria-busy={busy}
-            aria-label={`Open Practice Player for ${concert.title}`}
-            className="member-concert-hero__button"
-            disabled={busy}
-            onClick={handlePracticeClick}
-            type="button"
-          >
-            <svg
-              aria-hidden="true"
-              className="member-concert-hero__button-icon"
-              fill="currentColor"
-              viewBox="0 0 24 24"
+        {hasConcertPractice ? (
+          <div className="member-concert-hero__actions">
+            <button
+              aria-busy={busy}
+              aria-label={`Open Practice Player for ${concert.title}`}
+              className="member-concert-hero__button"
+              disabled={busy}
+              onClick={() => {
+                onOpenPractice(concert);
+              }}
+              type="button"
             >
-              <circle cx="12" cy="12" fill="none" r="10" stroke="currentColor" strokeWidth="2" />
-              <polygon points="10 8 16 12 10 16 10 8" />
-            </svg>
-            <span>{busy ? "Opening…" : "Open Practice Player"}</span>
-          </button>
-        </div>
+              <svg
+                aria-hidden="true"
+                className="member-concert-hero__button-icon"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <circle cx="12" cy="12" fill="none" r="10" stroke="currentColor" strokeWidth="2" />
+                <polygon points="10 8 16 12 10 16 10 8" />
+              </svg>
+              <span>{busy ? "Opening…" : "Open Practice Player"}</span>
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div aria-hidden="true" className="member-concert-hero__divider" />

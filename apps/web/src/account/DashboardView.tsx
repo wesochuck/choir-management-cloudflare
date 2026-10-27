@@ -843,7 +843,6 @@ export function DashboardView({
         <MemberConcertHero
           busyEventId={busyEventId}
           concert={nextConcert}
-          navigate={navigate}
           onOpenPractice={(event) => {
             void openPractice(event);
           }}
