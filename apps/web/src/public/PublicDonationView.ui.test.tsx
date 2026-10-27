@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,15 +10,37 @@ vi.mock("../api", () => ({
   checkoutPublicDonation: vi.fn(),
   getPublicDonationSettings: vi.fn(),
   getPublicTransactionFeeSettings: vi.fn(),
+  uploadPublicSponsorArtwork: vi.fn(),
 }));
 
 const mockDonationSettings: DonationSettings = {
   buttonText: "Support our Choir",
   description: "Help us keep music alive in our community.",
   levels: [
-    { amountCents: 2500, benefit: "Program mention", id: "level-1", label: "Friend" },
-    { amountCents: 5000, benefit: "Reserved seating", id: "level-2", label: "Supporter" },
-    { amountCents: 10000, benefit: "VIP reception", id: "level-3", label: "Patron" },
+    {
+      amountCents: 2500,
+      artworkInstructions: "",
+      benefit: "Program mention",
+      id: "level-1",
+      includesProgramAd: false,
+      label: "Friend",
+    },
+    {
+      amountCents: 5000,
+      artworkInstructions: "",
+      benefit: "Reserved seating",
+      id: "level-2",
+      includesProgramAd: false,
+      label: "Supporter",
+    },
+    {
+      amountCents: 10000,
+      artworkInstructions: "Full page color ad: 5.5 x 8.5 inches, 300 DPI, PDF or PNG preferred.",
+      benefit: "VIP reception & half-page program ad",
+      id: "level-3",
+      includesProgramAd: true,
+      label: "Patron Sponsor",
+    },
   ],
 };
 
@@ -257,5 +279,140 @@ describe("PublicDonationView", () => {
     expect(link).toHaveAttribute("href", "/api/public/documents/mail-in-form.pdf");
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("shows Program advertisement section and specifications only when an ad level is selected", async () => {
+    const user = userEvent.setup();
+    render(<PublicDonationView />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Support our Choir" })).toBeInTheDocument();
+    });
+
+    // Default level-1 ("Friend") does not include program ad
+    expect(screen.queryByText("Program advertisement")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Full page color ad/)).not.toBeInTheDocument();
+
+    // Select Patron Sponsor ($100.00)
+    await user.click(screen.getByRole("button", { name: /Patron Sponsor/ }));
+
+    // Program ad fieldset should now appear with instructions
+    expect(screen.getByText("Program advertisement")).toBeInTheDocument();
+    expect(screen.getByText(/Full page color ad: 5.5 x 8.5 inches/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Sponsor or business name")).toBeInTheDocument();
+    expect(screen.getByText(/Don’t have artwork ready\?/)).toBeInTheDocument();
+
+    // Summary reflects ad entitlement
+    const summary = screen.getByLabelText("Donation summary");
+    expect(within(summary).getByText("Program ad")).toBeInTheDocument();
+    expect(within(summary).getByText("Send artwork later")).toBeInTheDocument();
+
+    // Switching back to Friend hides the section
+    await user.click(screen.getByRole("button", { name: /Friend/ }));
+    expect(screen.queryByText("Program advertisement")).not.toBeInTheDocument();
+    expect(within(summary).queryByText("Program ad")).not.toBeInTheDocument();
+
+    // Custom amount also never shows ad section
+    await user.click(screen.getByRole("button", { name: "Custom amount" }));
+    expect(screen.queryByText("Program advertisement")).not.toBeInTheDocument();
+  });
+
+  it("uploads artwork file, updates summary, and displays file chip", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.uploadPublicSponsorArtwork).mockResolvedValue({
+      contentType: "application/pdf",
+      fileId: "file-ad-123",
+      fileName: "company-ad.pdf",
+      requestId: "req-upload-123",
+      sizeBytes: 150_000,
+    });
+
+    render(<PublicDonationView />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Support our Choir" })).toBeInTheDocument();
+    });
+
+    // Select Patron Sponsor ($100.00)
+    await user.click(screen.getByRole("button", { name: /Patron Sponsor/ }));
+
+    // Type sponsor name
+    await user.type(screen.getByLabelText("Sponsor or business name"), "Acme Symphony Patrons");
+
+    // Upload an artwork file
+    const file = new File(["dummy pdf content"], "company-ad.pdf", { type: "application/pdf" });
+    const fileInput = document.querySelector('input[type="file"]');
+    expect(fileInput).toBeInstanceOf(HTMLInputElement);
+    if (fileInput instanceof HTMLInputElement) {
+      await user.upload(fileInput, file);
+    }
+
+    await waitFor(() => {
+      expect(api.uploadPublicSponsorArtwork).toHaveBeenCalledWith(
+        file,
+        "level-3",
+        expect.any(String),
+      );
+    });
+
+    // File chip should be visible with name and size
+    expect(screen.getByText("company-ad.pdf")).toBeInTheDocument();
+    expect(screen.getByText(/146 KB/)).toBeInTheDocument();
+
+    // Summary reflects artwork attached
+    const summary = screen.getByLabelText("Donation summary");
+    expect(within(summary).getByText("Artwork attached")).toBeInTheDocument();
+
+    // Complete donation should include sponsor details
+    await user.type(screen.getByLabelText("Name"), "Alex Donor");
+    await user.type(screen.getByLabelText("Email"), "alex@example.test");
+    await user.type(screen.getByLabelText("Confirm email"), "alex@example.test");
+    await user.click(screen.getByRole("button", { name: "Complete donation" }));
+
+    expect(api.checkoutPublicDonation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amountCents: 10000,
+        artworkFileId: "file-ad-123",
+        levelId: "level-3",
+        sponsorName: "Acme Symphony Patrons",
+      }),
+    );
+  });
+
+  it("validates file size and unsupported format on artwork upload", async () => {
+    const user = userEvent.setup();
+    render(<PublicDonationView />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Support our Choir" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /Patron Sponsor/ }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Program advertisement")).toBeInTheDocument();
+    });
+
+    // Try uploading an unsupported file format (e.g. bypassing OS picker filter)
+    const svgFile = new File(["<svg></svg>"], "logo.svg", { type: "image/svg+xml" });
+    const fileInput = document.querySelector('input[type="file"]');
+    expect(fileInput).toBeInstanceOf(HTMLInputElement);
+    if (fileInput instanceof HTMLInputElement) {
+      fireEvent.change(fileInput, { target: { files: [svgFile] } });
+    }
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Artwork must be a PDF, PNG, or JPEG file.",
+    );
+    expect(api.uploadPublicSponsorArtwork).not.toHaveBeenCalled();
+
+    // Try uploading a file > 20 MB
+    const hugeFile = new File(["dummy"], "huge.pdf", { type: "application/pdf" });
+    Object.defineProperty(hugeFile, "size", { value: 21 * 1024 * 1024 });
+    if (fileInput instanceof HTMLInputElement) {
+      fireEvent.change(fileInput, { target: { files: [hugeFile] } });
+    }
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Artwork file must be at most 20 MB.");
   });
 });

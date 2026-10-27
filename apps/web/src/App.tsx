@@ -382,7 +382,7 @@ function renderPublicOrProductRoute(
       </OrganizationLayout>
     );
   }
-  if (pathname === "/donate" || pathname === "/donate/success") {
+  if (pathname === "/donate" || pathname.startsWith("/donate/")) {
     return <PublicDonations pathname={pathname} />;
   }
   if (pathname === "/tickets" || pathname.startsWith("/tickets/")) {

@@ -121,6 +121,19 @@ export function expireStalePaymentsInStore(
       now,
       cutoff,
     );
+    const abandonedSponsorFiles = storage.sql
+      .exec<{ readonly id: string }>(
+        `SELECT id FROM private_files
+         WHERE uploaded_by = 'public_sponsor' AND created_at < ?
+           AND NOT EXISTS (
+             SELECT 1 FROM donations WHERE artwork_file_id = private_files.id
+           )`,
+        cutoff,
+      )
+      .toArray();
+    for (const file of abandonedSponsorFiles) {
+      storage.sql.exec("DELETE FROM private_files WHERE id = ?", file.id);
+    }
     expired = tickets.length + donations.length + dues.length;
     if (expired > 0) {
       storage.sql.exec(

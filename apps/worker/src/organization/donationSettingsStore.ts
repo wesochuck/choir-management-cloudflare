@@ -25,7 +25,7 @@ const defaultDonationSettings: DonationSettings = {
     "Your support helps us continue our programs and share our music with the community.",
 };
 
-function storedDonationSettings(storage: DurableObjectStorage): DonationSettings {
+export function storedDonationSettings(storage: DurableObjectStorage): DonationSettings {
   try {
     const raw = storage.sql
       .exec<{ readonly settings: string }>(

@@ -1,7 +1,11 @@
-import type { DonationRecord } from "@choir/contracts";
+import type { DonationRecord, PublicDonationReceiptResponse } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
-import { getPublicDonationReceipt, getPublicDonationSettings } from "../api";
+import {
+  getPublicDonationReceipt,
+  getPublicDonationSettings,
+  submitPublicSponsorArtwork,
+} from "../api";
 import { formatDonationMoney } from "./donationFormat";
 
 const DEFAULT_THANK_YOU_MESSAGE =
@@ -162,9 +166,165 @@ function DonationDetails({ donation }: { readonly donation: DonationRecord }) {
   );
 }
 
+function DonationProgramAdArtwork({
+  donation,
+  onArtworkUploaded,
+}: {
+  readonly donation: PublicDonationReceiptResponse;
+  readonly onArtworkUploaded: (updated: PublicDonationReceiptResponse) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  async function handleUpload(file: File): Promise<void> {
+    if (!donation.sponsorToken) return;
+    if (file.size > 20 * 1024 * 1024) {
+      setError("Artwork file must be at most 20 MB.");
+      return;
+    }
+    const lowerType = file.type.toLowerCase();
+    if (
+      lowerType !== "application/pdf" &&
+      lowerType !== "image/png" &&
+      lowerType !== "image/jpeg" &&
+      lowerType !== "image/jpg"
+    ) {
+      setError("Artwork must be a PDF, PNG, or JPEG file.");
+      return;
+    }
+    setError(null);
+    setSuccessMessage(null);
+    setUploading(true);
+    try {
+      const updated = await submitPublicSponsorArtwork(donation.sponsorToken, file);
+      setSuccessMessage("Artwork uploaded successfully!");
+      onArtworkUploaded({
+        ...donation,
+        artworkFileId: updated.artworkFileId,
+        artworkFileName: updated.artworkFileName,
+        artworkStatus: updated.artworkStatus,
+        artworkUploadedAt: updated.artworkUploadedAt,
+      });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Artwork upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const isReceived = donation.artworkStatus === "received";
+
+  return (
+    <section
+      aria-labelledby="donation-program-ad-heading"
+      className="panel public-donation-receipt__card public-donation-receipt__artwork-card"
+    >
+      <h2 id="donation-program-ad-heading">Program advertisement</h2>
+      {donation.sponsorName ? (
+        <p className="public-donation-receipt__sponsor-name">
+          <strong>Sponsor:</strong> {donation.sponsorName}
+        </p>
+      ) : null}
+
+      {donation.artworkInstructions ? (
+        <div className="public-donation-artwork-instructions notice notice--info">
+          <p className="public-donation-artwork-instructions-title">Artwork specifications:</p>
+          <p>{donation.artworkInstructions}</p>
+        </div>
+      ) : null}
+
+      {isReceived ? (
+        <div className="public-donation-receipt__artwork-status">
+          <p className="status-pill status-pill--success">Artwork received</p>
+          <p>
+            <strong>File:</strong> {donation.artworkFileName ?? "Artwork attached"}
+          </p>
+          {donation.artworkUploadedAt ? (
+            <p>
+              <small>Submitted on {donationDate(donation.artworkUploadedAt)}</small>
+            </p>
+          ) : null}
+          {donation.sponsorToken ? (
+            <div className="public-donation-receipt__artwork-actions">
+              <label className="button button--secondary button--small">
+                {uploading ? "Uploading replacement…" : "Replace artwork"}
+                <input
+                  accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                  className="visually-hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleUpload(file);
+                  }}
+                  type="file"
+                />
+              </label>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <div className="public-donation-receipt__artwork-prompt">
+          <p>
+            Your sponsorship includes a print-ready program advertisement. You can upload your
+            artwork below:
+          </p>
+          {donation.sponsorToken ? (
+            <div className="public-donation-artwork-upload">
+              <label className="public-donation-artwork-dropzone">
+                <input
+                  accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                  className="visually-hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleUpload(file);
+                  }}
+                  type="file"
+                />
+                <span className="public-donation-artwork-dropzone__prompt">
+                  {uploading ? (
+                    <span>Uploading artwork…</span>
+                  ) : (
+                    <>
+                      <strong>Choose an artwork file</strong> or drag and drop
+                      <small>PDF, PNG, or JPG up to 20 MB</small>
+                    </>
+                  )}
+                </span>
+              </label>
+              <p className="public-donation-artwork-later-hint">
+                You can also submit your artwork later using this link:{" "}
+                <a href={`/donate/sponsor?token=${encodeURIComponent(donation.sponsorToken)}`}>
+                  Artwork submission link
+                </a>
+              </p>
+            </div>
+          ) : (
+            <p className="notice notice--info">
+              Check your email receipt for your link to submit program advertisement artwork.
+            </p>
+          )}
+        </div>
+      )}
+
+      {error ? (
+        <p className="notice notice--error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {successMessage ? (
+        <p className="notice notice--success" role="status">
+          {successMessage}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export function PublicDonationSuccessView() {
   const token = new URLSearchParams(window.location.search).get("token") ?? "";
-  const [donation, setDonation] = useState<DonationRecord | null>(null);
+  const [donation, setDonation] = useState<PublicDonationReceiptResponse | null>(null);
   const [error, setError] = useState(() => !token);
   const [pollingTimedOut, setPollingTimedOut] = useState(false);
   const [thankYouMessage, setThankYouMessage] = useState(DEFAULT_THANK_YOU_MESSAGE);
@@ -295,6 +455,10 @@ export function PublicDonationSuccessView() {
         <DonationSummary donation={donation} />
         <DonationDetails donation={donation} />
       </div>
+
+      {donation.includesProgramAd ? (
+        <DonationProgramAdArtwork donation={donation} onArtworkUploaded={setDonation} />
+      ) : null}
 
       {donation.status === "paid" ? (
         <p className="public-donation-receipt__receipt-note" role="status">

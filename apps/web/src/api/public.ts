@@ -6,6 +6,8 @@ import {
   publicDonationReceiptResponseSchema,
   publicPollDetailsResponseSchema,
   publicRsvpDetailsResponseSchema,
+  publicSponsorArtworkUploadResponseSchema,
+  publicSponsorDonationResponseSchema,
   publishedOrganizationProjectionSchema,
   publicWebsitePublishResponseSchema,
   publicWebsiteSettingsResponseSchema,
@@ -22,6 +24,8 @@ import {
   type PublicDonationReceiptResponse,
   type PublicPollDetailsResponse,
   type PublicRsvpDetailsResponse,
+  type PublicSponsorArtworkUploadResponse,
+  type PublicSponsorDonationResponse,
   type PublicWebsiteSettings,
   type PublicWebsiteSettingsRequest,
   type PublishedOrganizationProjection,
@@ -40,6 +44,64 @@ export async function checkoutPublicDonation(checkoutRequest: DonationCheckoutRe
     body: JSON.stringify(checkoutRequest),
     method: "POST",
   });
+}
+
+export async function uploadPublicSponsorArtwork(
+  file: File,
+  levelId: string,
+  checkoutRequestId?: string,
+): Promise<PublicSponsorArtworkUploadResponse> {
+  const contentType = file.type.toLowerCase() === "image/jpg" ? "image/jpeg" : file.type;
+  const headers: Record<string, string> = {
+    "content-type": contentType,
+    "x-donation-level-id": levelId,
+    "x-file-name": encodeURIComponent(file.name),
+  };
+  if (checkoutRequestId) {
+    headers["x-checkout-request-id"] = checkoutRequestId;
+  }
+  const response = await fetch("/api/public/donations/artwork/upload", {
+    body: file,
+    headers,
+    method: "POST",
+  });
+  if (!response.ok) throw await responseError(response);
+  return publicSponsorArtworkUploadResponseSchema.parse(await response.json());
+}
+
+export async function getPublicSponsorDonation(
+  token: string,
+  signal?: AbortSignal,
+): Promise<PublicSponsorDonationResponse> {
+  const response = await fetch(
+    `/api/public/donations/sponsor-info?token=${encodeURIComponent(token)}`,
+    {
+      headers: { accept: "application/json" },
+      signal: signal ?? null,
+    },
+  );
+  if (!response.ok) throw await responseError(response);
+  return publicSponsorDonationResponseSchema.parse(await response.json());
+}
+
+export async function submitPublicSponsorArtwork(
+  token: string,
+  file: File,
+): Promise<PublicSponsorDonationResponse> {
+  const contentType = file.type.toLowerCase() === "image/jpg" ? "image/jpeg" : file.type;
+  const response = await fetch(
+    `/api/public/donations/sponsor-artwork?token=${encodeURIComponent(token)}`,
+    {
+      body: file,
+      headers: {
+        "content-type": contentType,
+        "x-file-name": encodeURIComponent(file.name),
+      },
+      method: "POST",
+    },
+  );
+  if (!response.ok) throw await responseError(response);
+  return publicSponsorDonationResponseSchema.parse(await response.json());
 }
 
 export async function getPublishedOrganizationProjection(

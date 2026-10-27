@@ -62,14 +62,18 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
     deleteLevel,
     editingLevelId,
     levelAmount,
+    levelArtworkInstructions,
     levelBenefit,
     levelError,
+    levelIncludesProgramAd,
     levelLabel,
     openEditLevel,
     openNewLevel,
     saveLevel,
     setLevelAmount,
+    setLevelArtworkInstructions,
     setLevelBenefit,
+    setLevelIncludesProgramAd,
     setLevelLabel,
     setSettingsDialogOpen,
     settingsDialogOpen,
@@ -295,7 +299,9 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
         editingLevelId={editingLevelId}
         error={levelError}
         levelAmount={levelAmount}
+        levelArtworkInstructions={levelArtworkInstructions}
         levelBenefit={levelBenefit}
+        levelIncludesProgramAd={levelIncludesProgramAd}
         levelLabel={levelLabel}
         onClose={() => {
           setSettingsDialogOpen(false);
@@ -303,7 +309,9 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
         open={settingsDialogOpen}
         saveLevel={saveLevel}
         setLevelAmount={setLevelAmount}
+        setLevelArtworkInstructions={setLevelArtworkInstructions}
         setLevelBenefit={setLevelBenefit}
+        setLevelIncludesProgramAd={setLevelIncludesProgramAd}
         setLevelLabel={setLevelLabel}
       />
 

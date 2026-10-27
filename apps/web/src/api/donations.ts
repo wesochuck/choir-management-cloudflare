@@ -3,9 +3,11 @@ import {
   donationRecordsResponseSchema,
   donationResponseSchema,
   donationSettingsResponseSchema,
+  donationSponsorLinkResponseSchema,
   patronRecordsResponseSchema,
   type DonationRecord,
   type DonationSettings,
+  type DonationSponsorLinkResponse,
   type DonationThankYouUpdateRequest,
   type ManualDonationCreateRequest,
   type PatronRecord,
@@ -78,4 +80,29 @@ export async function updateOrganizationDonationSettings(
     body: JSON.stringify(settings),
     method: "PUT",
   });
+}
+
+export async function getDonationSponsorLink(
+  donationId: string,
+): Promise<DonationSponsorLinkResponse> {
+  return requestJson(
+    `/api/organization/donations/${encodeURIComponent(donationId)}/sponsor-link`,
+    donationSponsorLinkResponseSchema,
+    { method: "POST" },
+  );
+}
+
+export async function attachDonationArtwork(
+  donationId: string,
+  artworkFileId: string,
+): Promise<DonationRecord> {
+  const result = await requestJson(
+    `/api/organization/donations/${encodeURIComponent(donationId)}/artwork`,
+    donationResponseSchema,
+    {
+      body: JSON.stringify({ artworkFileId }),
+      method: "POST",
+    },
+  );
+  return result.donation;
 }

@@ -16,6 +16,7 @@ import {
   tributeLabel,
   type DonationState,
 } from "./types";
+import { SponsorArtworkDialog } from "./SponsorArtworkDialog";
 
 function paymentMethodLabel(method?: string): string {
   switch (method) {
@@ -78,6 +79,16 @@ function matchesPaymentSourceFilter(
   return filter === "manual" ? isManual : !isManual;
 }
 
+function matchesArtworkFilter(
+  donation: DonationRecord,
+  filter: "all" | "missing" | "received",
+): boolean {
+  if (filter === "all") return true;
+  if (!donation.includesProgramAd) return false;
+  if (filter === "missing") return donation.artworkStatus === "not_received";
+  return donation.artworkStatus === "received";
+}
+
 export function DonationHistoryTab({
   busy,
   donationState,
@@ -109,6 +120,10 @@ export function DonationHistoryTab({
   const [paymentSourceFilter, setPaymentSourceFilter] = useState<"all" | "online" | "manual">(
     "all",
   );
+  const [artworkFilter, setArtworkFilter] = useState<"all" | "missing" | "received">("all");
+  const [selectedArtworkDonation, setSelectedArtworkDonation] = useState<DonationRecord | null>(
+    null,
+  );
   const [togglingThankYouId, setTogglingThankYouId] = useState<string | null>(null);
 
   const donations = donationState.status === "ready" ? donationState.donations : EMPTY_DONATIONS;
@@ -130,10 +145,20 @@ export function DonationHistoryTab({
         (!fromDate || donationDate >= fromDate) &&
         (!toDate || donationDate <= toDate) &&
         matchesThankYouFilter(donation, thankYouFilter) &&
-        matchesPaymentSourceFilter(donation.paymentMethod, paymentSourceFilter)
+        matchesPaymentSourceFilter(donation.paymentMethod, paymentSourceFilter) &&
+        matchesArtworkFilter(donation, artworkFilter)
       );
     });
-  }, [donations, fromDate, paymentSourceFilter, query, thankYouFilter, timezone, toDate]);
+  }, [
+    artworkFilter,
+    donations,
+    fromDate,
+    paymentSourceFilter,
+    query,
+    thankYouFilter,
+    timezone,
+    toDate,
+  ]);
   const filteredDonations = useMemo(
     () =>
       showRefunded
@@ -162,6 +187,9 @@ export function DonationHistoryTab({
         render: (donation) => (
           <div className="donation-register__donor">
             <strong>{donation.anonymous ? "Anonymous" : donation.buyerName}</strong>
+            {donation.sponsorName ? (
+              <span className="field-help">Sponsor: {donation.sponsorName}</span>
+            ) : null}
             {!donation.anonymous && donation.buyerEmail ? (
               <span className="field-help">{donation.buyerEmail}</span>
             ) : null}
@@ -198,7 +226,20 @@ export function DonationHistoryTab({
         id: "status",
         render: (donation) => {
           const statusDisplay = donationStatusDisplay(donation);
-          return <span className={statusDisplay.badgeClass}>{statusDisplay.label}</span>;
+          return (
+            <div>
+              <span className={statusDisplay.badgeClass}>{statusDisplay.label}</span>
+              {donation.includesProgramAd ? (
+                <div style={{ marginTop: "4px" }}>
+                  {donation.artworkStatus === "received" ? (
+                    <span className="badge badge--success">Ad art: Received</span>
+                  ) : (
+                    <span className="badge badge--warning">Ad art: Missing</span>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          );
         },
         sortValue: (donation) => donationStatusDisplay(donation).label,
       },
@@ -256,43 +297,58 @@ export function DonationHistoryTab({
       {
         header: "Actions",
         id: "actions",
-        render: (donation) =>
-          refundId === donation.id ? (
-            <div className="danger-confirmation">
-              <p>Refund this donation?</p>
-              <div className="form-actions">
-                <button
-                  className="button button--secondary"
-                  disabled={busy}
-                  onClick={() => {
-                    setRefundId(null);
-                  }}
-                  type="button"
-                >
-                  Cancel
-                </button>
-                <button
-                  className="button button--danger"
-                  disabled={busy}
-                  onClick={() => void refund(donation.id)}
-                  type="button"
-                >
-                  {busy ? "Refunding…" : "Confirm refund"}
-                </button>
+        render: (donation) => (
+          <div className="table-actions">
+            {donation.includesProgramAd ? (
+              <button
+                className="text-button"
+                disabled={busy}
+                onClick={() => {
+                  setSelectedArtworkDonation(donation);
+                }}
+                type="button"
+              >
+                Program ad
+              </button>
+            ) : null}
+            {refundId === donation.id ? (
+              <div className="danger-confirmation">
+                <p>Refund this donation?</p>
+                <div className="form-actions">
+                  <button
+                    className="button button--secondary"
+                    disabled={busy}
+                    onClick={() => {
+                      setRefundId(null);
+                    }}
+                    type="button"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="button button--danger"
+                    disabled={busy}
+                    onClick={() => void refund(donation.id)}
+                    type="button"
+                  >
+                    {busy ? "Refunding…" : "Confirm refund"}
+                  </button>
+                </div>
               </div>
-            </div>
-          ) : donation.status === "paid" && canRefundDonation(donation) ? (
-            <button
-              className="text-button"
-              disabled={busy}
-              onClick={() => {
-                setRefundId(donation.id);
-              }}
-              type="button"
-            >
-              Refund
-            </button>
-          ) : null,
+            ) : donation.status === "paid" && canRefundDonation(donation) ? (
+              <button
+                className="text-button"
+                disabled={busy}
+                onClick={() => {
+                  setRefundId(donation.id);
+                }}
+                type="button"
+              >
+                Refund
+              </button>
+            ) : null}
+          </div>
+        ),
       },
     ],
     [busy, handleToggleThankYou, refund, refundId, setRefundId, togglingThankYouId],
@@ -431,6 +487,22 @@ export function DonationHistoryTab({
               <option value="manual">Manual / Offline</option>
             </select>
           </label>
+          <label className="field">
+            Program ad artwork
+            <select
+              onChange={(event) => {
+                const val = event.target.value;
+                if (val === "all" || val === "missing" || val === "received") {
+                  setArtworkFilter(val);
+                }
+              }}
+              value={artworkFilter}
+            >
+              <option value="all">All donations</option>
+              <option value="missing">Needs artwork</option>
+              <option value="received">Artwork received</option>
+            </select>
+          </label>
         </div>
         <label className="checkbox-row">
           <input
@@ -456,6 +528,15 @@ export function DonationHistoryTab({
           rows={filteredDonations}
         />
       </fieldset>
+
+      <SponsorArtworkDialog
+        donation={selectedArtworkDonation}
+        onArtworkUpdated={onRefresh}
+        onClose={() => {
+          setSelectedArtworkDonation(null);
+        }}
+        open={Boolean(selectedArtworkDonation)}
+      />
     </div>
   );
 }

@@ -167,21 +167,27 @@ export function useDonationLevels({
   const [levelLabel, setLevelLabel] = useState("");
   const [levelAmount, setLevelAmount] = useState("");
   const [levelBenefit, setLevelBenefit] = useState("");
+  const [levelIncludesProgramAd, setLevelIncludesProgramAd] = useState(false);
+  const [levelArtworkInstructions, setLevelArtworkInstructions] = useState("");
 
   function openNewLevel(): void {
     setEditingLevelId(null);
     setLevelLabel("");
     setLevelAmount("");
     setLevelBenefit("");
+    setLevelIncludesProgramAd(false);
+    setLevelArtworkInstructions("");
     setLevelError(null);
     setSettingsDialogOpen(true);
   }
 
-  function openEditLevel(level: DonationLevel): void {
+  function openEditLevel(level: DonationLevel | DonationSettings["levels"][number]): void {
     setEditingLevelId(level.id);
     setLevelLabel(level.label);
     setLevelAmount((level.amountCents / 100).toFixed(2));
     setLevelBenefit(level.benefit);
+    setLevelIncludesProgramAd(Boolean(level.includesProgramAd));
+    setLevelArtworkInstructions(level.artworkInstructions ?? "");
     setLevelError(null);
     setSettingsDialogOpen(true);
   }
@@ -197,8 +203,10 @@ export function useDonationLevels({
     }
     const level: DonationLevel = {
       amountCents,
+      artworkInstructions: levelIncludesProgramAd ? levelArtworkInstructions.trim() : "",
       benefit: levelBenefit.trim(),
       id: editingLevelId ?? `level-${crypto.randomUUID()}`,
+      includesProgramAd: levelIncludesProgramAd,
       label: levelLabel.trim(),
     };
     const levels = editingLevelId
@@ -239,14 +247,18 @@ export function useDonationLevels({
     deleteLevel,
     editingLevelId,
     levelAmount,
+    levelArtworkInstructions,
     levelBenefit,
     levelError,
+    levelIncludesProgramAd,
     levelLabel,
     openEditLevel,
     openNewLevel,
     saveLevel,
     setLevelAmount,
+    setLevelArtworkInstructions,
     setLevelBenefit,
+    setLevelIncludesProgramAd,
     setLevelLabel,
     setSettingsDialogOpen,
     settingsDialogOpen,

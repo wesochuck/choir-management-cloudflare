@@ -6,26 +6,34 @@ export function DonationLevelDialog({
   editingLevelId,
   error,
   levelAmount,
+  levelArtworkInstructions,
   levelBenefit,
+  levelIncludesProgramAd,
   levelLabel,
   onClose,
   open,
   saveLevel,
   setLevelAmount,
+  setLevelArtworkInstructions,
   setLevelBenefit,
+  setLevelIncludesProgramAd,
   setLevelLabel,
 }: {
   readonly busy: boolean;
   readonly editingLevelId: string | null;
   readonly error?: string | null | undefined;
   readonly levelAmount: string;
+  readonly levelArtworkInstructions: string;
   readonly levelBenefit: string;
+  readonly levelIncludesProgramAd: boolean;
   readonly levelLabel: string;
   readonly onClose: () => void;
   readonly open: boolean;
   readonly saveLevel: (event: SyntheticEvent<HTMLFormElement>) => Promise<void>;
   readonly setLevelAmount: (value: string) => void;
+  readonly setLevelArtworkInstructions: (value: string) => void;
   readonly setLevelBenefit: (value: string) => void;
+  readonly setLevelIncludesProgramAd: (value: boolean) => void;
   readonly setLevelLabel: (value: string) => void;
 }) {
   return (
@@ -76,6 +84,30 @@ export function DonationLevelDialog({
             }}
           />
         </label>
+        <label className="choice-field">
+          <input
+            checked={levelIncludesProgramAd}
+            onChange={(event) => {
+              setLevelIncludesProgramAd(event.target.checked);
+            }}
+            type="checkbox"
+          />
+          <span className="choice-field__content">Includes a program advertisement</span>
+        </label>
+        {levelIncludesProgramAd ? (
+          <label className="field">
+            Artwork instructions
+            <textarea
+              maxLength={2000}
+              placeholder='e.g. Dimensions (4.5" x 3.75"), 300 DPI, CMYK/grayscale PDF or PNG. Deadline: 2 weeks before concert.'
+              rows={3}
+              value={levelArtworkInstructions}
+              onChange={(event) => {
+                setLevelArtworkInstructions(event.target.value);
+              }}
+            />
+          </label>
+        ) : null}
         <div className="dialog__actions">
           <DialogClose asChild>
             <button className="button button--secondary" disabled={busy} type="button">

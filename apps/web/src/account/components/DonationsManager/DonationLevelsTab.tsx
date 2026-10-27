@@ -1,4 +1,4 @@
-import type { DonationLevel } from "@choir/contracts";
+import type { DonationLevel, DonationSettings } from "@choir/contracts";
 
 import { money, type DonationSettingsState } from "./types";
 
@@ -11,7 +11,7 @@ export function DonationLevelsTab({
 }: {
   readonly busy: boolean;
   readonly deleteLevel: (levelId: string) => Promise<void>;
-  readonly editLevel: (level: DonationLevel) => void;
+  readonly editLevel: (level: DonationLevel | DonationSettings["levels"][number]) => void;
   readonly newLevel: () => void;
   readonly settingsState: DonationSettingsState;
 }) {
@@ -44,6 +44,7 @@ export function DonationLevelsTab({
                 <th scope="col">Level</th>
                 <th scope="col">Suggested amount</th>
                 <th scope="col">Recognition benefit</th>
+                <th scope="col">Program ad</th>
                 <th scope="col">Actions</th>
               </tr>
             </thead>
@@ -53,6 +54,13 @@ export function DonationLevelsTab({
                   <th scope="row">{level.label}</th>
                   <td>{money(level.amountCents)}</td>
                   <td>{level.benefit || "No benefit specified"}</td>
+                  <td>
+                    {level.includesProgramAd ? (
+                      <span className="badge badge--info">Includes ad</span>
+                    ) : (
+                      <span className="field-help">—</span>
+                    )}
+                  </td>
                   <td>
                     <div className="table-actions">
                       <button

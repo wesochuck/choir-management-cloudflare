@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getPublicCommerceProjection, getPublishedOrganizationProjection } from "../auth/api";
 import { PublicDonationSuccessView } from "./PublicDonationSuccessView";
 import { PublicDonationView } from "./PublicDonationView";
+import { PublicSponsorArtworkView } from "./PublicSponsorArtworkView";
 import { OrganizationLayout, PublicTransactionLayout } from "./PublicOrganizationSite";
 
 type LoadState =
@@ -60,6 +61,8 @@ export function PublicDonations({ pathname }: { readonly pathname: string }) {
   const content =
     pathname === "/donate/success" ? (
       <PublicDonationSuccessView />
+    ) : pathname === "/donate/sponsor" ? (
+      <PublicSponsorArtworkView />
     ) : (
       <PublicDonationView heading={settings.pageLabels?.donations?.heading} />
     );

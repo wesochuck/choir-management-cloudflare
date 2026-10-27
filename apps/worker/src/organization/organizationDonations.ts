@@ -370,10 +370,69 @@ export async function readPublicDonationReceipt(
   const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
   if (!response.ok) throw new DonationError("donation_not_found", 404, "Donation not found.");
   const donation = donationRecordSchema.parse(await response.json());
+  const sponsorToken = donation.includesProgramAd
+    ? await issueSignedLink(env.SIGNED_LINK_SECRET, {
+        algorithm: "HS256",
+        expiresAt: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+        issuedAt: Math.floor(Date.now() / 1000),
+        nonce: crypto.randomUUID(),
+        organizationId,
+        purpose: "donation_sponsor_artwork",
+        resourceId: donation.id,
+        version: 1,
+      })
+    : null;
   return publicDonationReceiptResponseSchema.parse({
     ...donation,
     requestId: crypto.randomUUID(),
+    sponsorToken,
   });
+}
+
+export async function readOrganizationDonationById(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  organizationId: string,
+  donationId: string,
+): Promise<DonationRecord | null> {
+  const url = new URL("https://organization.internal/internal/donations/donation");
+  url.searchParams.set("donationId", donationId);
+  url.searchParams.set("organizationId", organizationId);
+  const response = await invokeOrganizationRpc(organizationStoreStub(env, organizationId), url);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new DonationError("donation_not_found", 404, "Donation not found.");
+  return donationRecordSchema.parse(await response.json());
+}
+
+export async function attachOrganizationDonationArtwork(
+  env: Pick<Env, "ORGANIZATION_STORE">,
+  actor: {
+    readonly actorType: "organization_member" | "public_sponsor";
+    readonly actorUserId: string;
+    readonly donationId: string;
+    readonly fileId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  },
+): Promise<DonationRecord> {
+  const response = await mutateOrganizationStore(
+    env,
+    actor.organizationId,
+    "/internal/donations/manage",
+    {
+      action: "attach_donation_artwork",
+      actorType: actor.actorType,
+      actorUserId: actor.actorUserId,
+      donationId: actor.donationId,
+      fileId: actor.fileId,
+      organizationId: actor.organizationId,
+      requestId: actor.requestId,
+    },
+  );
+  if (!response.ok) {
+    const code = await storeErrorCode(response, "donation_error");
+    throw new DonationError(code, response.status, "The donation artwork could not be updated.");
+  }
+  return donationRecordSchema.parse(await response.json());
 }
 
 export async function recordManualOrganizationDonation(

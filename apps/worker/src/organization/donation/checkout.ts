@@ -1,6 +1,7 @@
 import { transactionProcessingFeeCents } from "@choir/domain";
 import type { z } from "zod";
 
+import { storedDonationSettings } from "../donationSettingsStore";
 import { transactionFeeSettingsFromStore } from "../transactionFeeSettingsStore";
 import { resolveOrCreateContactForCommerce } from "../commerceContacts";
 import { findOrCreatePatron, upsertPatronAfterDonation } from "./patrons";
@@ -16,6 +17,47 @@ import type {
   createPendingCheckoutOperationSchema,
 } from "./types";
 
+function resolveCheckoutArtwork(
+  storage: DurableObjectStorage,
+  includesProgramAd: boolean,
+  artworkFileIdCandidate: string | null | undefined,
+  now: string,
+): {
+  artworkFileId: string | null;
+  artworkStatus: "not_applicable" | "not_received" | "received";
+  artworkUploadedAt: string | null;
+} {
+  if (!includesProgramAd) {
+    return { artworkFileId: null, artworkStatus: "not_applicable", artworkUploadedAt: null };
+  }
+  if (!artworkFileIdCandidate) {
+    return { artworkFileId: null, artworkStatus: "not_received", artworkUploadedAt: null };
+  }
+  const fileRow = storage.sql
+    .exec<{ readonly id: string }>(
+      "SELECT id FROM private_files WHERE id = ? LIMIT 1",
+      artworkFileIdCandidate,
+    )
+    .toArray()
+    .at(0);
+  if (fileRow) {
+    return { artworkFileId: fileRow.id, artworkStatus: "received", artworkUploadedAt: now };
+  }
+  return { artworkFileId: null, artworkStatus: "not_received", artworkUploadedAt: null };
+}
+
+function resolveSponsorName(
+  includesProgramAd: boolean,
+  rawSponsor: string | undefined,
+  buyerName: string,
+): string {
+  if (!includesProgramAd) return "";
+  const trimmed = rawSponsor?.trim();
+  if (trimmed && trimmed.length > 0) return trimmed;
+  return buyerName;
+}
+
+// eslint-disable-next-line complexity -- Coordinates donation checkout creation, level snapshotting, and transaction fees.
 export function createDonationCheckout(
   storage: DurableObjectStorage,
   operation:
@@ -34,6 +76,34 @@ export function createDonationCheckout(
   const feeCents = transactionFeeSettings.passFeeToDonor
     ? transactionProcessingFeeCents(operation.checkout.amountCents, transactionFeeSettings)
     : 0;
+
+  const settings = storedDonationSettings(storage);
+  const selectedLevel =
+    operation.checkout.levelId && operation.checkout.levelId !== "custom"
+      ? settings.levels.find((level) => level.id === operation.checkout.levelId)
+      : undefined;
+  if (operation.checkout.levelId && operation.checkout.levelId !== "custom" && !selectedLevel) {
+    return Response.json({ code: "invalid_donation_level" }, { status: 400 });
+  }
+  if (selectedLevel && operation.checkout.amountCents !== selectedLevel.amountCents) {
+    return Response.json({ code: "invalid_donation_level_amount" }, { status: 400 });
+  }
+  const includesProgramAd = Boolean(selectedLevel?.includesProgramAd);
+  const selectedLevelId = selectedLevel?.id ?? null;
+  const selectedLevelName = selectedLevel?.label ?? null;
+  const artworkInstructions = selectedLevel?.artworkInstructions ?? "";
+  const sponsorName = resolveSponsorName(
+    includesProgramAd,
+    operation.checkout.sponsorName,
+    operation.checkout.buyerName,
+  );
+  const { artworkFileId, artworkStatus, artworkUploadedAt } = resolveCheckoutArtwork(
+    storage,
+    includesProgramAd,
+    operation.checkout.artworkFileId,
+    now,
+  );
+
   const patronId = findOrCreatePatron(
     storage,
     operation.checkout.buyerName,
@@ -65,8 +135,11 @@ export function createDonationCheckout(
          anonymous, marketing_consent,
          buyer_name, buyer_email, patron_id,
          provider_session_id, provider_payment_id,
-         created_at, updated_at, contact_id, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         created_at, updated_at, contact_id, expires_at,
+         selected_level_id, selected_level_name, includes_program_ad,
+         sponsor_name, artwork_file_id, artwork_status,
+         artwork_instructions, artwork_uploaded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       operation.donationId,
       operation.checkout.checkoutRequestId,
       pending ? "pending" : "paid",
@@ -86,6 +159,14 @@ export function createDonationCheckout(
       now,
       donationContactId,
       expiresAt,
+      selectedLevelId,
+      selectedLevelName,
+      includesProgramAd ? 1 : 0,
+      sponsorName,
+      artworkFileId,
+      artworkStatus,
+      artworkInstructions,
+      artworkUploadedAt,
     );
     storage.sql.exec(
       `INSERT INTO payment_attempts
@@ -109,6 +190,11 @@ export function createDonationCheckout(
         {
           amountCents: operation.checkout.amountCents,
           anonymous: operation.checkout.anonymous ? 1 : 0,
+          artworkFileId,
+          artworkFileName: null,
+          artworkInstructions,
+          artworkStatus,
+          artworkUploadedAt,
           buyerEmail: operation.checkout.buyerEmail.toLowerCase(),
           buyerName: operation.checkout.buyerName,
           contactId: donationContactId,
@@ -116,6 +202,7 @@ export function createDonationCheckout(
           expiredAt: null,
           feeCents,
           id: operation.donationId,
+          includesProgramAd: includesProgramAd ? 1 : 0,
           marketingConsent: operation.checkout.marketingConsent ? 1 : 0,
           patronId,
           paymentMethod: "stripe",
@@ -123,6 +210,9 @@ export function createDonationCheckout(
           providerPaymentId: `fake_payment_${operation.donationId}`,
           providerSessionId: operation.providerSessionId,
           refundRequested: 0,
+          selectedLevelId,
+          selectedLevelName,
+          sponsorName,
           status: "paid",
           thankYouSentAt: null,
           tributeName: operation.checkout.tributeName,

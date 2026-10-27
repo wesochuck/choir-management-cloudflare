@@ -307,4 +307,48 @@ describe("organization schema migrations", () => {
       },
     ]);
   });
+
+  it("v125 adds program ad sponsorship columns and artwork file index to donations table", () => {
+    const adapter = setupThrough(124);
+    applyVersion(adapter, 125);
+
+    expect(() => {
+      adapter.storage.sql.exec(
+        `INSERT INTO private_files (id, storage_key, file_name, content_type, size_bytes, status, uploaded_by, request_id, created_at)
+         VALUES ('file-art-1', 'orgs/test/file-art-1', 'ad.pdf', 'application/pdf', 1024, 'ready', 'user-1', 'req-1', '2026-01-01T00:00:00Z')`,
+      );
+      adapter.storage.sql.exec(
+        `INSERT INTO donations (
+          id, checkout_request_id, amount_cents, status, provider_session_id,
+          buyer_name, buyer_email, created_at, updated_at,
+          selected_level_id, selected_level_name, includes_program_ad, sponsor_name,
+          artwork_file_id, artwork_status, artwork_instructions, artwork_uploaded_at
+        ) VALUES (
+          'don-1', 'req-1', 25000, 'paid', 'cs_test_123',
+          'Jane Donor', 'jane@example.test', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z',
+          'lvl-sponsor', 'Gold Sponsor', 1, 'Jane Donor Business',
+          'file-art-1', 'received', '300 DPI PDF', '2026-01-01T00:00:00Z'
+        )`,
+      );
+    }).not.toThrow();
+
+    const row = adapter.storage.sql
+      .exec<{
+        readonly includes_program_ad: number;
+        readonly selected_level_name: string;
+        readonly sponsor_name: string;
+        readonly artwork_status: string;
+      }>(
+        "SELECT includes_program_ad, selected_level_name, sponsor_name, artwork_status FROM donations WHERE id = 'don-1'",
+      )
+      .toArray()
+      .at(0);
+
+    expect(row).toEqual({
+      artwork_status: "received",
+      includes_program_ad: 1,
+      selected_level_name: "Gold Sponsor",
+      sponsor_name: "Jane Donor Business",
+    });
+  });
 });

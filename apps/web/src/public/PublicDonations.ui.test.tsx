@@ -16,7 +16,9 @@ vi.mock("../api", () => ({
   checkoutPublicDonation: vi.fn(),
   getPublicDonationReceipt: vi.fn(),
   getPublicDonationSettings: vi.fn(),
+  getPublicSponsorDonation: vi.fn(),
   getPublicTransactionFeeSettings: vi.fn(),
+  submitPublicSponsorArtwork: vi.fn(),
 }));
 
 const mockProjection: PublishedOrganizationProjection = {
@@ -124,5 +126,32 @@ describe("PublicDonations", () => {
 
     // Navigation should be rendered in OrganizationLayout
     expect(screen.getByRole("navigation", { name: "Public website" })).toBeInTheDocument();
+  });
+
+  it("renders /donate/sponsor routing correctly", async () => {
+    window.history.replaceState({}, "", "/donate/sponsor?token=test_token");
+    vi.mocked(api.getPublicSponsorDonation).mockResolvedValue({
+      amountCents: 25000,
+      artworkFileId: null,
+      artworkFileName: null,
+      artworkInstructions: "",
+      artworkStatus: "not_received",
+      artworkUploadedAt: null,
+      buyerName: "Alex Donor",
+      donationId: "d-123",
+      requestId: "r-123",
+      selectedLevelName: "Patron",
+      sponsorName: "Test Sponsor",
+      status: "paid",
+    });
+
+    render(<PublicDonations pathname="/donate/sponsor" />);
+
+    await waitFor(() => {
+      expect(screen.getByText("City Chorus")).toBeInTheDocument();
+    });
+
+    expect(await screen.findByRole("heading", { name: "Program ad artwork" })).toBeInTheDocument();
+    expect(screen.getByText("Test Sponsor")).toBeInTheDocument();
   });
 });

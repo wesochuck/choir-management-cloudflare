@@ -2225,6 +2225,19 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
         ON public_website_document_slugs(base, suffix DESC)`,
     ],
   },
+  {
+    version: 125,
+    statements: [
+      "ALTER TABLE donations ADD COLUMN selected_level_id TEXT",
+      "ALTER TABLE donations ADD COLUMN selected_level_name TEXT",
+      "ALTER TABLE donations ADD COLUMN includes_program_ad INTEGER NOT NULL DEFAULT 0 CHECK (includes_program_ad IN (0, 1))",
+      "ALTER TABLE donations ADD COLUMN sponsor_name TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE donations ADD COLUMN artwork_file_id TEXT REFERENCES private_files(id)",
+      "ALTER TABLE donations ADD COLUMN artwork_status TEXT NOT NULL DEFAULT 'not_applicable' CHECK (artwork_status IN ('not_applicable', 'not_received', 'received'))",
+      "ALTER TABLE donations ADD COLUMN artwork_instructions TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE donations ADD COLUMN artwork_uploaded_at TEXT",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

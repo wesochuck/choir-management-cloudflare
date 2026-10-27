@@ -60,10 +60,31 @@ export function insertDonationConfirmation(
         `- **Date:** ${paymentDate}`,
       ].join("\n")
     : "";
+  const adSummary =
+    donation.includesProgramAd === 1
+      ? [
+          "",
+          "",
+          "**Program advertisement sponsorship**",
+          "",
+          `- **Sponsorship level:** ${donation.selectedLevelName ?? "Program Advertisement"}`,
+          ...(donation.sponsorName ? [`- **Sponsor name:** ${donation.sponsorName}`] : []),
+          `- **Artwork status:** ${donation.artworkFileId ? "Received" : "Pending artwork submission"}`,
+          ...(donation.artworkInstructions
+            ? [`- **Artwork instructions:** ${donation.artworkInstructions}`]
+            : []),
+          ...(donation.artworkFileId
+            ? []
+            : [
+                "",
+                "You can submit or update your program ad artwork at any time from your donation receipt.",
+              ]),
+        ].join("\n")
+      : "";
   const result = insertPaymentNotificationRecord(
     storage,
     {
-      contentMarkdown: message.contentMarkdown + paymentSummary,
+      contentMarkdown: message.contentMarkdown + paymentSummary + adSummary,
       dedupeKey,
       destination: donation.buyerEmail,
       paymentType: "donation",

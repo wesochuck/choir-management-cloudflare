@@ -17,8 +17,10 @@ export const donationTributeInputSchema = z.enum(["honor", "memory", "none"]);
 
 export const donationLevelSchema = z.object({
   amountCents: z.number().int().positive().max(10_000_000),
+  artworkInstructions: z.string().trim().max(2_000).default(""),
   benefit: z.string().trim().max(1_000),
   id: z.string().trim().min(1).max(100),
+  includesProgramAd: z.boolean().default(false),
   label: z.string().trim().min(1).max(120),
 });
 
@@ -91,10 +93,13 @@ export const ticketConfirmationSettingsResponseSchema = z.preprocess(
 export const donationCheckoutRequestSchema = z.object({
   amountCents: z.number().int().min(100).max(10_000_000),
   anonymous: z.boolean().default(false),
+  artworkFileId: z.uuid().nullable().optional(),
   buyerEmail: z.email().max(320),
   buyerName: z.string().trim().min(1).max(200),
   checkoutRequestId: z.uuid(),
+  levelId: z.string().trim().min(1).max(100).nullable().optional(),
   marketingConsent: z.boolean().default(false),
+  sponsorName: z.string().trim().max(200).optional(),
   tributeName: z.string().trim().max(500).default(""),
   tributeNotifyEmail: z.union([z.literal(""), z.email().max(320)]).default(""),
   tributeType: donationTributeInputSchema.default("none"),
@@ -104,12 +109,15 @@ export const donationCheckoutRequestSchema = z.object({
 export const manualDonationCreateRequestSchema = z.object({
   amountCents: z.number().int().positive().max(10_000_000),
   anonymous: z.boolean().default(false),
+  artworkFileId: z.uuid().nullable().optional(),
   buyerEmail: z.union([z.literal(""), z.email().max(320)]).default(""),
   buyerName: z.string().trim().min(1).max(200),
+  levelId: z.string().trim().min(1).max(100).nullable().optional(),
   marketingConsent: z.boolean().default(false),
   paymentMethod: donationPaymentMethodSchema.exclude(["stripe"]).default("check"),
   paymentReference: z.string().trim().max(500).default(""),
   receivedAt: z.iso.datetime().optional(),
+  sponsorName: z.string().trim().max(200).optional(),
   thankYouSent: z.boolean().default(false),
   tributeName: z.string().trim().max(500).default(""),
   tributeNotifyEmail: z.union([z.literal(""), z.email().max(320)]).default(""),
@@ -125,15 +133,23 @@ export const donationRefundRequestSchema = z.object({
   donationId: z.uuid(),
 });
 
+export const donationArtworkStatusSchema = z.enum(["not_applicable", "not_received", "received"]);
+
 export const donationRecordSchema = z.object({
   amountCents: z.number().int().nonnegative(),
   anonymous: z.boolean(),
+  artworkFileId: z.uuid().nullable().default(null),
+  artworkFileName: z.string().nullable().default(null),
+  artworkInstructions: z.string().nullable().default(null),
+  artworkStatus: donationArtworkStatusSchema.default("not_applicable"),
+  artworkUploadedAt: z.iso.datetime().nullable().default(null),
   buyerEmail: z.string().max(320),
   buyerName: z.string().min(1).max(200),
   createdAt: z.iso.datetime(),
   expiredAt: z.iso.datetime().nullable(),
   feeCents: z.number().int().nonnegative().default(0),
   id: z.uuid(),
+  includesProgramAd: z.boolean().default(false),
   marketingConsent: z.boolean(),
   patronId: z.uuid().nullable(),
   paymentMethod: donationPaymentMethodSchema.default("stripe"),
@@ -142,6 +158,9 @@ export const donationRecordSchema = z.object({
   processorFeeReconciledAt: z.iso.datetime().nullable().default(null),
   providerBalanceTransactionId: z.string().max(256).nullable().default(null),
   refundRequested: z.boolean().default(false),
+  selectedLevelId: z.string().nullable().default(null),
+  selectedLevelName: z.string().nullable().default(null),
+  sponsorName: z.string().nullable().default(null),
   status: donationStatusSchema,
   thankYouSentAt: z.iso.datetime().nullable().default(null),
   tributeName: z.string().max(500),
@@ -162,6 +181,44 @@ export const donationRecordsResponseSchema = z.object({
 
 export const publicDonationReceiptResponseSchema = donationRecordSchema.extend({
   requestId: requestIdSchema,
+  sponsorToken: z.string().nullable().default(null),
+});
+
+export const publicSponsorArtworkUploadResponseSchema = z.object({
+  contentType: z.string().min(1).max(128),
+  fileId: z.uuid(),
+  fileName: z.string().min(1).max(255),
+  requestId: requestIdSchema,
+  sizeBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(20 * 1024 * 1024),
+});
+
+export const publicSponsorDonationResponseSchema = z.object({
+  amountCents: z.number().int().nonnegative(),
+  artworkFileId: z.uuid().nullable(),
+  artworkFileName: z.string().nullable(),
+  artworkInstructions: z.string().nullable(),
+  artworkStatus: donationArtworkStatusSchema,
+  artworkUploadedAt: z.iso.datetime().nullable(),
+  buyerName: z.string().min(1).max(200),
+  donationId: z.uuid(),
+  requestId: requestIdSchema,
+  selectedLevelName: z.string().nullable(),
+  sponsorName: z.string().nullable(),
+  status: donationStatusSchema,
+});
+
+export const donationSponsorLinkResponseSchema = z.object({
+  link: z.string().min(1),
+  requestId: requestIdSchema,
+  token: z.string().min(1),
+});
+
+export const donationAttachArtworkRequestSchema = z.object({
+  artworkFileId: z.uuid(),
 });
 
 export const donationCheckoutResponseSchema = z.object({
@@ -207,3 +264,10 @@ export type DonationResponse = z.infer<typeof donationResponseSchema>;
 export type DonationCheckoutResponse = z.infer<typeof donationCheckoutResponseSchema>;
 export type PublicDonationReceiptResponse = z.infer<typeof publicDonationReceiptResponseSchema>;
 export type PatronRecord = z.infer<typeof patronRecordSchema>;
+export type DonationArtworkStatus = z.infer<typeof donationArtworkStatusSchema>;
+export type PublicSponsorArtworkUploadResponse = z.infer<
+  typeof publicSponsorArtworkUploadResponseSchema
+>;
+export type PublicSponsorDonationResponse = z.infer<typeof publicSponsorDonationResponseSchema>;
+export type DonationSponsorLinkResponse = z.infer<typeof donationSponsorLinkResponseSchema>;
+export type DonationAttachArtworkRequest = z.infer<typeof donationAttachArtworkRequestSchema>;

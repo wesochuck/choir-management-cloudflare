@@ -32,20 +32,35 @@ export function donationByStripeOperation(
     .at(0);
 }
 
+function resolveArtworkStatus(row: DonationRow): "not_applicable" | "not_received" | "received" {
+  if (row.artworkStatus === "received" || row.artworkStatus === "not_received") {
+    return row.artworkStatus;
+  }
+  if (row.includesProgramAd !== 1) return "not_applicable";
+  return row.artworkFileId ? "received" : "not_received";
+}
+
 export function donationResult(row: DonationRow) {
   const tributeTypeParsed = donationTributeTypeSchema.safeParse(row.tributeType);
   const tributeType = tributeTypeParsed.success ? tributeTypeParsed.data : "none";
   const paymentMethodParsed = donationPaymentMethodSchema.safeParse(row.paymentMethod);
   const paymentMethod = paymentMethodParsed.success ? paymentMethodParsed.data : "stripe";
+  const artworkStatus = resolveArtworkStatus(row);
   return {
     amountCents: row.amountCents,
     anonymous: row.anonymous === 1,
+    artworkFileId: row.artworkFileId ?? null,
+    artworkFileName: row.artworkFileName ?? null,
+    artworkInstructions: row.artworkInstructions || null,
+    artworkStatus,
+    artworkUploadedAt: row.artworkUploadedAt ?? null,
     buyerEmail: row.buyerEmail,
     buyerName: row.buyerName,
     createdAt: row.createdAt,
     expiredAt: row.expiredAt,
     feeCents: row.feeCents,
     id: row.id,
+    includesProgramAd: row.includesProgramAd === 1,
     marketingConsent: row.marketingConsent === 1,
     patronId: row.patronId,
     paymentMethod,
@@ -56,6 +71,9 @@ export function donationResult(row: DonationRow) {
     providerPaymentId: row.providerPaymentId,
     providerSessionId: row.providerSessionId,
     refundRequested: row.refundRequested === 1,
+    selectedLevelId: row.selectedLevelId ?? null,
+    selectedLevelName: row.selectedLevelName ?? null,
+    sponsorName: row.sponsorName || null,
     status: row.status,
     thankYouSentAt: row.thankYouSentAt,
     tributeName: row.tributeName,
@@ -88,6 +106,7 @@ export function donationByCheckoutRequest(
     .at(0);
 }
 
+// eslint-disable-next-line complexity -- Validates idempotency across all donation checkout fields.
 export function sameCheckoutRequest(
   existing: DonationRow,
   checkout: z.infer<typeof createFakeCheckoutOperationSchema>["checkout"],
@@ -100,7 +119,9 @@ export function sameCheckoutRequest(
     existing.marketingConsent === (checkout.marketingConsent ? 1 : 0) &&
     existing.tributeType === checkout.tributeType &&
     existing.tributeName === checkout.tributeName &&
-    existing.tributeNotifyEmail === checkout.tributeNotifyEmail
+    existing.tributeNotifyEmail === checkout.tributeNotifyEmail &&
+    (existing.selectedLevelId ?? null) === (checkout.levelId ?? null) &&
+    existing.sponsorName === (checkout.sponsorName?.trim() ?? "")
   );
 }
 

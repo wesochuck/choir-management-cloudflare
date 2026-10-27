@@ -10,6 +10,7 @@ import {
   checkoutPublicDonation,
   getPublicDonationSettings,
   getPublicTransactionFeeSettings,
+  uploadPublicSponsorArtwork,
 } from "../api";
 import { shouldStartNewDonationCheckoutAttempt } from "./checkoutAttempt";
 import { formatDonationMoney } from "./donationFormat";
@@ -63,6 +64,14 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
   const [amountCents, setAmountCents] = useState(DEFAULT_SETTINGS.levels[0]?.amountCents ?? 2_500);
   const [customAmount, setCustomAmount] = useState("");
   const [useCustom, setUseCustom] = useState(false);
+  const [sponsorName, setSponsorName] = useState("");
+  const [uploadedArtwork, setUploadedArtwork] = useState<{
+    readonly fileId: string;
+    readonly fileName: string;
+    readonly sizeBytes: number;
+  } | null>(null);
+  const [artworkUploading, setArtworkUploading] = useState(false);
+  const [artworkError, setArtworkError] = useState<string | null>(null);
   const [tributeType, setTributeType] = useState<DonationTributeInput>("none");
   const [tributeName, setTributeName] = useState("");
   const [tributeNotifyEmail, setTributeNotifyEmail] = useState("");
@@ -104,10 +113,20 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
     };
   }, []);
 
+  const selectedLevel = !useCustom
+    ? settings.levels.find((level) => level.id === selectedLevelId)
+    : undefined;
+  const isAdLevel = Boolean(selectedLevel?.includesProgramAd);
+
   function selectLevel(levelId: string, cents: number): void {
     setSelectedLevelId(levelId);
     setUseCustom(false);
     setAmountCents(cents);
+    const targetLevel = settings.levels.find((l) => l.id === levelId);
+    if (!targetLevel?.includesProgramAd) {
+      setUploadedArtwork(null);
+      setArtworkError(null);
+    }
   }
 
   const feeCents = transactionFeeSettings.passFeeToDonor
@@ -117,9 +136,48 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
   function handleCustomChange(value: string) {
     setCustomAmount(value);
     setUseCustom(true);
+    setUploadedArtwork(null);
+    setArtworkError(null);
     const parsed = Number(value.replace(/[^0-9.]/g, ""));
     if (Number.isFinite(parsed) && parsed > 0) {
       setAmountCents(Math.round(parsed * 100));
+    }
+  }
+
+  async function handleArtworkFileSelected(file: File): Promise<void> {
+    if (!selectedLevel?.id) return;
+    if (file.size > 20 * 1024 * 1024) {
+      setArtworkError("Artwork file must be at most 20 MB.");
+      return;
+    }
+    const lowerType = file.type.toLowerCase();
+    if (
+      lowerType !== "application/pdf" &&
+      lowerType !== "image/png" &&
+      lowerType !== "image/jpeg" &&
+      lowerType !== "image/jpg"
+    ) {
+      setArtworkError("Artwork must be a PDF, PNG, or JPEG file.");
+      return;
+    }
+    setArtworkError(null);
+    setArtworkUploading(true);
+    try {
+      const uploaded = await uploadPublicSponsorArtwork(file, selectedLevel.id, checkoutRequestId);
+      setUploadedArtwork({
+        fileId: uploaded.fileId,
+        fileName: uploaded.fileName,
+        sizeBytes: uploaded.sizeBytes,
+      });
+    } catch (err: unknown) {
+      setArtworkError(
+        err instanceof Error
+          ? err.message
+          : "The artwork file could not be uploaded. Please try again or send later.",
+      );
+      setUploadedArtwork(null);
+    } finally {
+      setArtworkUploading(false);
     }
   }
 
@@ -139,10 +197,13 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
       const result = await checkoutPublicDonation({
         amountCents,
         anonymous,
+        artworkFileId: isAdLevel ? (uploadedArtwork?.fileId ?? null) : null,
         buyerEmail: buyerEmail.trim(),
         buyerName: buyerName.trim(),
         checkoutRequestId,
+        levelId: !useCustom ? selectedLevelId : null,
         marketingConsent,
+        sponsorName: isAdLevel ? sponsorName.trim() || buyerName.trim() : undefined,
         tributeName,
         tributeNotifyEmail,
         tributeType,
@@ -228,6 +289,106 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
 
         <div className="public-donation-body">
           <div className="public-donation-main">
+            {isAdLevel && selectedLevel ? (
+              <fieldset className="field public-donation-sponsor-fieldset" id="sponsor-section">
+                <legend>Program advertisement</legend>
+                {selectedLevel.artworkInstructions ? (
+                  <div className="public-donation-artwork-instructions notice notice--info">
+                    <p className="public-donation-artwork-instructions-title">
+                      Artwork specifications:
+                    </p>
+                    <p>{selectedLevel.artworkInstructions}</p>
+                  </div>
+                ) : null}
+                <label className="field">
+                  Sponsor or business name
+                  <input
+                    maxLength={200}
+                    onChange={(e) => {
+                      setSponsorName(e.target.value);
+                    }}
+                    placeholder="Defaults to donor name if blank"
+                    value={sponsorName}
+                  />
+                </label>
+                <div className="public-donation-artwork-field">
+                  <span className="field-label">Print-ready ad artwork</span>
+                  {uploadedArtwork ? (
+                    <div className="public-donation-file-chip">
+                      <div className="public-donation-file-chip__details">
+                        <strong className="public-donation-file-chip__name">
+                          {uploadedArtwork.fileName}
+                        </strong>
+                        <span className="public-donation-file-chip__size">
+                          {Math.round(uploadedArtwork.sizeBytes / 1024)} KB
+                        </span>
+                      </div>
+                      <div className="public-donation-file-chip__actions">
+                        <label className="button button--secondary button--small public-donation-file-replace-btn">
+                          Replace
+                          <input
+                            accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                            className="visually-hidden"
+                            disabled={busy || artworkUploading}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) void handleArtworkFileSelected(file);
+                            }}
+                            type="file"
+                          />
+                        </label>
+                        <button
+                          className="button button--subtle button--small"
+                          disabled={busy || artworkUploading}
+                          onClick={() => {
+                            setUploadedArtwork(null);
+                            setArtworkError(null);
+                          }}
+                          type="button"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="public-donation-artwork-picker">
+                      <label className="public-donation-artwork-dropzone">
+                        <input
+                          accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
+                          className="visually-hidden"
+                          disabled={busy || artworkUploading}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void handleArtworkFileSelected(file);
+                          }}
+                          type="file"
+                        />
+                        <span className="public-donation-artwork-dropzone__prompt">
+                          {artworkUploading ? (
+                            <span>Uploading artwork…</span>
+                          ) : (
+                            <>
+                              <strong>Choose an artwork file</strong> or drag and drop
+                              <small>PDF, PNG, or JPG up to 20 MB</small>
+                            </>
+                          )}
+                        </span>
+                      </label>
+                      <p className="public-donation-artwork-later-hint">
+                        <em>Optional:</em> Don’t have artwork ready? You can complete checkout now
+                        and submit your artwork later using the link in your receipt.
+                      </p>
+                    </div>
+                  )}
+                  {artworkError ? (
+                    <p className="notice notice--error" role="alert">
+                      {artworkError}
+                    </p>
+                  ) : null}
+                </div>
+              </fieldset>
+            ) : null}
+
             <fieldset className="field public-donation-tribute-fieldset">
               <legend>Tribute (optional)</legend>
               <div
@@ -363,6 +524,12 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
                   <span>Donation</span>
                   <strong>{formatDonationMoney(amountCents)}</strong>
                 </div>
+                {isAdLevel ? (
+                  <div className="public-donation-summary-row">
+                    <span>Program ad</span>
+                    <span>{uploadedArtwork ? "Artwork attached" : "Send artwork later"}</span>
+                  </div>
+                ) : null}
                 <div className="public-donation-summary-row">
                   <span>Processing fee</span>
                   <span>

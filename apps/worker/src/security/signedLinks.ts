@@ -10,6 +10,7 @@ const signedLinkPurposeSchema = z.enum([
   "audition",
   "calendar_feed",
   "donation_receipt",
+  "donation_sponsor_artwork",
   "email_change",
   "impersonation",
   "poll",

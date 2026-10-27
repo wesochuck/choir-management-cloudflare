@@ -341,6 +341,7 @@ export {
 export {
   canSetDonationThankYouStatus,
   canTransitionDonation,
+  isProgramAdEligible,
   type DonationInput,
   type DonationRecord,
   type DonationStatus,

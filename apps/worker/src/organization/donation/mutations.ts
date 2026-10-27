@@ -2,7 +2,65 @@ import { canSetDonationThankYouStatus } from "@choir/domain";
 import type { z } from "zod";
 
 import { donationById, donationResult } from "./queries";
-import type { refundOperationSchema, updateDonationThankYouOperationSchema } from "./types";
+import type {
+  attachDonationArtworkOperationSchema,
+  refundOperationSchema,
+  updateDonationThankYouOperationSchema,
+} from "./types";
+
+export function attachDonationArtwork(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof attachDonationArtworkOperationSchema>,
+): Response {
+  const donation = donationById(storage, operation.donationId);
+  if (!donation) return Response.json({ code: "donation_not_found" }, { status: 404 });
+  if (donation.includesProgramAd !== 1) {
+    return Response.json({ code: "donation_not_eligible_for_ad" }, { status: 400 });
+  }
+  const fileRow = storage.sql
+    .exec<{ readonly fileName: string; readonly id: string }>(
+      "SELECT id, file_name AS fileName FROM private_files WHERE id = ? LIMIT 1",
+      operation.fileId,
+    )
+    .toArray()
+    .at(0);
+  if (!fileRow) {
+    return Response.json({ code: "file_not_found" }, { status: 404 });
+  }
+  const now = new Date().toISOString();
+  const previousFileId = donation.artworkFileId;
+  const isReplacement = Boolean(previousFileId);
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      "UPDATE donations SET artwork_file_id = ?, artwork_status = 'received', artwork_uploaded_at = ?, updated_at = ? WHERE id = ?",
+      operation.fileId,
+      now,
+      now,
+      operation.donationId,
+    );
+    storage.sql.exec(
+      `INSERT INTO audit_events
+        (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
+       VALUES (?, ?, ?, ?, 'donation', ?, ?, ?, ?)`,
+      `donation-artwork:${operation.requestId}`,
+      operation.actorType,
+      operation.actorUserId,
+      isReplacement ? "donation.artwork_replaced" : "donation.artwork_uploaded",
+      operation.donationId,
+      operation.requestId,
+      JSON.stringify({
+        fileName: fileRow.fileName,
+        newFileId: operation.fileId,
+        previousFileId,
+      }),
+      now,
+    );
+  });
+  const updated = donationById(storage, operation.donationId);
+  return updated
+    ? Response.json(donationResult(updated))
+    : Response.json({ code: "donation_not_found" }, { status: 404 });
+}
 
 export function updateDonationThankYou(
   storage: DurableObjectStorage,

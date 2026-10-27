@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { canSetDonationThankYouStatus, canTransitionDonation } from "./donations";
+import {
+  canSetDonationThankYouStatus,
+  canTransitionDonation,
+  isProgramAdEligible,
+} from "./donations";
 
 describe("donation thank-you status", () => {
   it("allows paid status changes, blocks refunded mark-sent, and permits undo", () => {
@@ -20,5 +24,15 @@ describe("donation status transitions", () => {
   it("does not reopen refunded or paid donations", () => {
     expect(canTransitionDonation("refunded", "paid")).toBe(false);
     expect(canTransitionDonation("paid", "pending")).toBe(false);
+  });
+});
+
+describe("isProgramAdEligible", () => {
+  it("returns true only when includesProgramAd is true", () => {
+    expect(isProgramAdEligible({ includesProgramAd: true })).toBe(true);
+    expect(isProgramAdEligible({ includesProgramAd: false })).toBe(false);
+    expect(isProgramAdEligible({})).toBe(false);
+    expect(isProgramAdEligible(null)).toBe(false);
+    expect(isProgramAdEligible(undefined)).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 import { identity } from "./queries";
 import { createDonationCheckout } from "./checkout";
 import { createManualDonation } from "./manual";
-import { refundDonation, updateDonationThankYou } from "./mutations";
+import { attachDonationArtwork, refundDonation, updateDonationThankYou } from "./mutations";
 import {
   attachStripeDonationSession,
   completeStripeDonation,
@@ -48,5 +48,7 @@ export async function manageDonationsInStore(
       return expireStripeDonation(storage, operation.data);
     case "stripe_donation_refunded":
       return refundStripeDonation(storage, operation.data);
+    case "attach_donation_artwork":
+      return attachDonationArtwork(storage, operation.data);
   }
 }

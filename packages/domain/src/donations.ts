@@ -60,3 +60,9 @@ export function canTransitionDonation(current: DonationStatus, next: DonationSta
     (current === "paid" && next === "refunded")
   );
 }
+
+export function isProgramAdEligible(
+  level?: { readonly includesProgramAd?: boolean | null } | null,
+): boolean {
+  return Boolean(level?.includesProgramAd);
+}
