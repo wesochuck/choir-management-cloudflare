@@ -247,11 +247,11 @@ function DonationProgramAdArtwork({
           ) : null}
           {donation.sponsorToken ? (
             <div className="public-donation-receipt__artwork-actions">
-              <label className="button button--secondary button--small">
+              <label className="button button--secondary button--small public-donation-file-replace-btn">
                 {uploading ? "Uploading replacement…" : "Replace artwork"}
                 <input
                   accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
-                  className="visually-hidden"
+                  className="sr-only"
                   disabled={uploading}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -274,7 +274,7 @@ function DonationProgramAdArtwork({
               <label className="public-donation-artwork-dropzone">
                 <input
                   accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
-                  className="visually-hidden"
+                  className="sr-only"
                   disabled={uploading}
                   onChange={(e) => {
                     const file = e.target.files?.[0];

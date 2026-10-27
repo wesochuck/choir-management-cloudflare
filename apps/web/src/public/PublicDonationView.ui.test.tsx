@@ -57,6 +57,41 @@ const mockFeeSettingsCovered: TransactionFeeSettings = {
 };
 
 describe("PublicDonationView", () => {
+  it("orders levels by ascending amount, keeps equal amounts stable and Custom last, and selects the lowest", async () => {
+    const [friend, supporter, patron] = mockDonationSettings.levels;
+    if (!friend || !supporter || !patron) throw new Error("Missing donation fixtures");
+    const penny = { ...friend, amountCents: 1, id: "penny", label: "Small gift" };
+    const sameAmount = { ...supporter, id: "equal", label: "Matching supporter" };
+    const levels = [patron, supporter, penny, sameAmount, friend];
+    vi.mocked(api.getPublicDonationSettings).mockResolvedValue({ ...mockDonationSettings, levels });
+    render(<PublicDonationView />);
+    await screen.findByRole("heading", { name: "Support our Choir" });
+    const options = screen
+      .getAllByRole("button")
+      .filter((button) => button.classList.contains("donation-level-option"));
+    expect(options.map((button) => button.textContent)).toEqual([
+      "Small giftProgram mention$0.01",
+      "FriendProgram mention$25.00",
+      "SupporterReserved seating$50.00",
+      "Matching supporterReserved seating$50.00",
+      "Patron SponsorVIP reception & half-page program ad$100.00",
+      "Custom amount",
+    ]);
+    expect(options[0]).toHaveClass("is-selected");
+    expect(
+      within(screen.getByLabelText("Donation summary")).getAllByText("$0.01", {
+        selector: "strong",
+      }),
+    ).toHaveLength(2);
+    expect(levels.map(({ id }) => id)).toEqual([
+      patron.id,
+      supporter.id,
+      penny.id,
+      sameAmount.id,
+      friend.id,
+    ]);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(api.getPublicDonationSettings).mockResolvedValue(mockDonationSettings);

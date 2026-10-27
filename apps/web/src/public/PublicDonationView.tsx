@@ -89,9 +89,10 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
       getPublicTransactionFeeSettings(controller.signal),
     ])
       .then(([loaded, feeSettings]) => {
-        setSettings(loaded);
+        const levels = [...loaded.levels].sort((a, b) => a.amountCents - b.amountCents);
+        setSettings({ ...loaded, levels });
         setTransactionFeeSettings(feeSettings);
-        const first = loaded.levels[0];
+        const first = levels[0];
         if (first) {
           setSelectedLevelId(first.id);
           setAmountCents(first.amountCents);
@@ -328,7 +329,7 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
                           Replace
                           <input
                             accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
-                            className="visually-hidden"
+                            className="sr-only"
                             disabled={busy || artworkUploading}
                             onChange={(e) => {
                               const file = e.target.files?.[0];
@@ -355,7 +356,7 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
                       <label className="public-donation-artwork-dropzone">
                         <input
                           accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
-                          className="visually-hidden"
+                          className="sr-only"
                           disabled={busy || artworkUploading}
                           onChange={(e) => {
                             const file = e.target.files?.[0];

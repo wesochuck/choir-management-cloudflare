@@ -991,6 +991,11 @@
     margin: 0;
   }
 
+  .public-donation-file-replace-btn:focus-within {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
   .public-donation-receipt__artwork-card {
     display: grid;
     gap: var(--spacing-sm);

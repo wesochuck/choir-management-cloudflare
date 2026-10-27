@@ -110,7 +110,7 @@ function SponsorArtworkUploadCard({
       <label className="public-donation-artwork-dropzone">
         <input
           accept=".pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg"
-          className="visually-hidden"
+          className="sr-only"
           disabled={uploading}
           onChange={(e) => {
             const file = e.target.files?.[0];

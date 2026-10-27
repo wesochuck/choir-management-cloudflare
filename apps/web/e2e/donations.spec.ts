@@ -718,6 +718,73 @@ test.describe("public donation checkout", () => {
     requestId: "a0000000-0000-4000-8000-000000000002",
   };
 
+  for (const theme of ["light", "dark"] as const) {
+    test(`keeps artwork upload and replacement controls compact and keyboard accessible in ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.addInitScript((mode) => {
+        localStorage.setItem(`choir-theme:${location.hostname}`, mode);
+      }, theme);
+      await page.route("**/api/public/donation-settings*", async (route) => {
+        await route.fulfill({
+          json: {
+            ...publicDonationSettings,
+            levels: publicDonationSettings.levels.map((level) => ({
+              ...level,
+              includesProgramAd: level.id === "level-3",
+            })),
+          },
+        });
+      });
+      await page.route("**/api/public/transaction-fee-settings*", async (route) => {
+        await route.fulfill({ json: publicFeeSettings });
+      });
+      await page.route("**/api/public/donations/artwork/upload", async (route) => {
+        await route.fulfill({
+          json: {
+            contentType: "image/png",
+            fileId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            fileName: "program-ad.png",
+            requestId,
+            sizeBytes: 480000,
+          },
+        });
+      });
+      await page.goto("/donate");
+      await expect(page.getByText(publicDonationSettings.description)).toBeVisible();
+      await page.getByRole("button", { name: /Patron/ }).click();
+      const input = page.locator('input[type="file"]');
+      await expect(input).toHaveCSS("clip", "rect(0px, 0px, 0px, 0px)");
+      await input.setInputFiles({
+        name: "program-ad.png",
+        mimeType: "image/png",
+        buffer: Buffer.from("artwork"),
+      });
+      const chip = page.locator(".public-donation-file-chip");
+      await expect(chip.getByText("program-ad.png")).toBeVisible();
+      const replace = chip.locator("label");
+      await expect(replace).toHaveText("Replace");
+      await expect(input).toHaveCSS("clip", "rect(0px, 0px, 0px, 0px)");
+      const bounds = await replace.boundingBox();
+      expect(bounds?.width).toBeLessThan(160);
+      // Tab from the preceding sponsor name to the file input inside Replace.
+      await page.getByLabel("Sponsor or business name").focus();
+      await page.keyboard.press("Tab");
+      await expect(input).toBeFocused();
+      await expect(replace).toHaveCSS("outline-style", "solid");
+      const chooser = page.waitForEvent("filechooser");
+      await page.keyboard.press("Enter");
+      await chooser;
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+      await chip.screenshot({ path: testInfo.outputPath(`artwork-${theme}.png`) });
+      await chip.getByRole("button", { name: "Remove" }).click();
+      await expect(page.getByText("Choose an artwork file")).toBeVisible();
+    });
+  }
+
   test("renders balanced desktop layout with normal-sized radios and multi-column body", async ({
     page,
   }) => {
