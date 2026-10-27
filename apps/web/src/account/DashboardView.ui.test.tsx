@@ -36,6 +36,15 @@ describe("DashboardView", () => {
     timezone: "America/New_York",
   };
 
+  it("uses the shared member workspace loading state without requesting member data", () => {
+    const dashboardRequest = vi.spyOn(authApi, "getMemberDashboard");
+
+    render(<DashboardView accessStatus="loading" enabled={false} navigate={vi.fn()} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading your member workspace…");
+    expect(dashboardRequest).not.toHaveBeenCalled();
+  });
+
   it.each(["paid", null, "pending", "expired", "refunded"] as const)(
     "places dues appropriately and confirms payment only for status %s",
     async (duesStatus) => {

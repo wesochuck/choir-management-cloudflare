@@ -9,9 +9,10 @@ import { authorizeCalendarRoute, authorizePlatformScopedRead } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/organization/module-state", async (context) => {
-    const authorization = await authorizeCalendarRoute(context, true);
-    // Module IDs/enabled flags are the low-sensitivity catalog the admin
-    // shell needs; verified Platform scoped reads may load it (issue #147).
+    const authorization = await authorizeCalendarRoute(context, false);
+    // Module IDs/enabled flags are low-sensitivity layout metadata used by
+    // both member and admin navigation. Verified Platform scoped reads may
+    // also load it (issue #147).
     const organizationId = authorization.ok
       ? authorization.organizationId
       : await authorizePlatformScopedRead(context);

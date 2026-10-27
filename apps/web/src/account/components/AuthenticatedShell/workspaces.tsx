@@ -1,9 +1,12 @@
 import {
+  type PlatformMfaStatusResponse,
   type CurrentAuthSession,
   type ModuleState,
   type OrganizationAuthStatusResponse,
 } from "@choir/contracts";
 import { OrganizationAdminOverview } from "../../OrganizationAdminOverview";
+import { useOrganizationModules } from "../../organizationFeatures/moduleStateContext";
+import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 
 import { AppLink } from "./navigation";
 import { PlatformAccess, PlatformDesignSystem, PlatformSetupMonitor } from "./lazyComponents";
@@ -171,10 +174,14 @@ function NotFoundPage({ navigate }: { readonly navigate: (href: string) => void 
   );
 }
 
-export function WorkspacePageLoading() {
+export function WorkspacePageLoading({
+  message = "Loading workspace page…",
+}: {
+  readonly message?: string;
+} = {}) {
   return (
     <p className="notice notice--info" role="status">
-      Loading workspace page…
+      {message}
     </p>
   );
 }
@@ -229,22 +236,13 @@ function PlatformScopedWorkspacePage({
   );
 }
 
-function readyAccessFlags(access: AccessState): {
+function readyAccessFlags(access: Extract<AccessState, { readonly status: "ready" }>): {
   readonly canManageSetLists: boolean;
   readonly canReviewRsvps: boolean;
   readonly enabled: boolean;
   readonly manager: boolean;
   readonly moduleDenied: boolean;
 } {
-  if (access.status !== "ready") {
-    return {
-      canManageSetLists: false,
-      canReviewRsvps: false,
-      enabled: false,
-      manager: false,
-      moduleDenied: false,
-    };
-  }
   const enabled =
     !access.context.mfaRequired ||
     access.context.mfaSatisfied ||
@@ -271,8 +269,22 @@ function OrganizationWorkspacePage({
   readonly onOpenCommandPalette?: (() => void) | undefined;
   readonly route: RouteState;
 }) {
+  const moduleController = useOrganizationModules();
   if (access.status === "none") {
     return <AccessDeniedPage workspace="Organization" />;
+  }
+  if (access.status === "loading") {
+    return <WorkspacePageLoading message="Loading Organization workspace…" />;
+  }
+  if (access.status === "error") {
+    return (
+      <p className="notice notice--error" role="alert">
+        Organization access could not be verified. Refresh and try again.
+      </p>
+    );
+  }
+  if (moduleController?.snapshot.status === "loading") {
+    return <WorkspacePageLoading message="Loading Organization workspace…" />;
   }
   if (access.status === "platform-scoped") {
     return (
@@ -285,7 +297,7 @@ function OrganizationWorkspacePage({
       />
     );
   }
-  if (access.status === "ready" && access.context.role === "member" && access.platformContext) {
+  if (access.context.role === "member" && access.platformContext) {
     return (
       <PlatformScopedWorkspacePage
         access={{ ...access, platformContext: access.platformContext, status: "platform-scoped" }}
@@ -296,16 +308,12 @@ function OrganizationWorkspacePage({
       />
     );
   }
-  if (access.status === "ready" && access.context.role === "member") {
+  if (access.context.role === "member") {
     return <AccessDeniedPage workspace="Organization Admin" />;
   }
   const { canManageSetLists, canReviewRsvps, enabled, manager } = readyAccessFlags(access);
   const requiredModule = routeModule(route.pathname);
-  if (
-    access.status === "ready" &&
-    requiredModule !== undefined &&
-    !routeHasModule({ module: requiredModule }, access.modules)
-  ) {
+  if (requiredModule !== undefined && !routeHasModule({ module: requiredModule }, access.modules)) {
     return <AccessDeniedPage workspace={`${requiredModule} module`} />;
   }
   const canEditProfiles = rosterEditingEnabled(access);
@@ -322,9 +330,9 @@ function OrganizationWorkspacePage({
   return (
     page ?? (
       <OverviewPage
-        context={access.status === "ready" ? access.context : null}
+        context={access.context}
         displayName={displayName}
-        modules={access.status === "ready" ? access.modules : []}
+        modules={access.modules}
         navigate={navigate}
         onOpenCommandPalette={onOpenCommandPalette}
         workspace="organization"
@@ -334,38 +342,57 @@ function OrganizationWorkspacePage({
 }
 
 function PlatformWorkspacePage({
+  initialMfaStatus,
   navigate,
   platformAvailable,
+  platformStatus,
   pathname,
+  refreshPlatformStatus,
   search = "",
 }: {
+  readonly initialMfaStatus: PlatformMfaStatusResponse | null;
   readonly navigate: (href: string) => void;
   readonly platformAvailable: boolean;
+  readonly platformStatus: "loading" | "ready" | "error";
   readonly pathname: string;
+  readonly refreshPlatformStatus: () => void;
   readonly search?: string;
 }) {
+  if (platformStatus === "loading") {
+    return <WorkspacePageLoading message="Checking Platform Administrator access…" />;
+  }
+  if (platformStatus === "error") {
+    return (
+      <p className="notice notice--error" role="alert">
+        Platform Administrator status could not be checked. Refresh and try again.{" "}
+        <button onClick={refreshPlatformStatus} type="button">
+          Retry
+        </button>
+      </p>
+    );
+  }
   if (!platformAvailable) return <AccessDeniedPage workspace="Platform Admin" />;
   if (pathname === "/platform") {
     return <OverviewPage context={null} navigate={navigate} workspace="platform" />;
   }
   if (pathname === "/platform/organizations") {
-    return <PlatformAccess view="organizations" />;
+    return <PlatformAccess initialMfaStatus={initialMfaStatus} view="organizations" />;
   }
   if (pathname === "/platform/access") {
     const rawReturnTo = new URLSearchParams(search).get("returnTo") ?? "";
     const returnTo = safePlatformContinuation(rawReturnTo) ?? undefined;
-    return <PlatformAccess returnTo={returnTo} view="access" />;
+    return <PlatformAccess initialMfaStatus={initialMfaStatus} returnTo={returnTo} view="access" />;
   }
   if (pathname === "/platform/dead-letters") {
-    return <PlatformAccess view="dead-letters" />;
+    return <PlatformAccess initialMfaStatus={initialMfaStatus} view="dead-letters" />;
   }
   if (pathname === "/platform/email-suppressions") {
-    return <PlatformAccess view="email-suppressions" />;
+    return <PlatformAccess initialMfaStatus={initialMfaStatus} view="email-suppressions" />;
   }
   if (pathname === "/platform/design-system") {
     return <PlatformDesignSystem />;
   }
-  return <PlatformAccess view="security" />;
+  return <PlatformAccess initialMfaStatus={initialMfaStatus} view="security" />;
 }
 
 function MemberWorkspacePage({
@@ -379,40 +406,42 @@ function MemberWorkspacePage({
   readonly navigate: (href: string) => void;
   readonly route: RouteState;
 }) {
+  if (access.status === "loading") {
+    return <WorkspacePageLoading message="Loading your member workspace…" />;
+  }
+  if (access.status === "error") {
+    return (
+      <p className="notice notice--error" role="alert">
+        Your Organization access could not be verified. Refresh and try again.
+      </p>
+    );
+  }
+  if (access.status === "none" || access.status === "platform-scoped") {
+    return <AccessDeniedPage workspace="Member workspace" />;
+  }
+  const mfaRequired =
+    access.context.mfaRequired && !access.context.mfaSatisfied && !access.context.mfaVerifiedUntil;
+  if (mfaRequired) {
+    return (
+      <OrganizationMfaPrompt message="Verify Organization MFA to view your member workspace." />
+    );
+  }
   const requiredModule = routeModule(route.pathname);
-  if (
-    access.status === "ready" &&
-    requiredModule !== undefined &&
-    !routeHasModule({ module: requiredModule }, access.modules)
-  ) {
+  if (requiredModule !== undefined && !routeHasModule({ module: requiredModule }, access.modules)) {
     return <AccessDeniedPage workspace={`${requiredModule} module`} />;
   }
-  const isMfaRequired =
-    access.status === "ready" &&
-    access.context.mfaRequired &&
-    !access.context.mfaSatisfied &&
-    !access.context.mfaVerifiedUntil;
-  const hasAdminAccess =
-    (access.status === "ready" &&
-      (access.context.role === "owner" || access.context.role === "administrator")) ||
-    access.status === "platform-scoped";
+  const hasAdminAccess = access.context.role === "owner" || access.context.role === "administrator";
   const adminReturnTo = hasAdminAccess ? safeAdminReturnPath(route.search) : null;
   return (
     renderMemberPage(
       route.pathname,
       memberEnabled,
       navigate,
-      access.status,
-      isMfaRequired,
+      "ready",
+      mfaRequired,
       adminReturnTo,
       route.search,
-    ) ?? (
-      <OverviewPage
-        context={access.status === "ready" ? access.context : null}
-        navigate={navigate}
-        workspace="member"
-      />
-    )
+    ) ?? <OverviewPage context={access.context} navigate={navigate} workspace="member" />
   );
 }
 
@@ -424,6 +453,9 @@ export function WorkspacePage({
   onOpenCommandPalette,
   onSignedOut,
   platformAvailable,
+  platformMfaStatus,
+  platformStatus,
+  refreshPlatformStatus,
   route,
   workspace,
 }: {
@@ -434,6 +466,9 @@ export function WorkspacePage({
   readonly onOpenCommandPalette?: (() => void) | undefined;
   readonly onSignedOut: () => void;
   readonly platformAvailable: boolean;
+  readonly platformMfaStatus: PlatformMfaStatusResponse | null;
+  readonly platformStatus: "loading" | "ready" | "error";
+  readonly refreshPlatformStatus: () => void;
   readonly route: RouteState;
   readonly workspace: Workspace;
 }) {
@@ -442,9 +477,12 @@ export function WorkspacePage({
   if (workspace === "platform") {
     return (
       <PlatformWorkspacePage
+        initialMfaStatus={platformMfaStatus}
         navigate={navigate}
         platformAvailable={platformAvailable}
+        platformStatus={platformStatus}
         pathname={route.pathname}
+        refreshPlatformStatus={refreshPlatformStatus}
         search={route.search}
       />
     );

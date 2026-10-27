@@ -1,14 +1,26 @@
+import type { ModuleState } from "@choir/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getOrganizationModuleState } from "../../api";
 import type { OrganizationModuleSnapshot } from "./moduleStateContext";
 
 /** One shell-owned catalog. Mutations invalidate earlier reads before applying confirmed deltas. */
-export function useOrganizationModuleState(identity: string) {
+export function useOrganizationModuleState(
+  identity: string,
+  initialModules?: readonly ModuleState[],
+  enabled = true,
+  refreshOnMount = true,
+) {
   const [state, setState] = useState<{
     identity: string;
     snapshot: OrganizationModuleSnapshot;
     warning: boolean;
-  }>(() => ({ identity, snapshot: { status: "loading", modules: [] }, warning: false }));
+  }>(() => ({
+    identity,
+    snapshot: initialModules
+      ? { status: "ready", modules: initialModules }
+      : { status: "loading", modules: [] },
+    warning: false,
+  }));
   const generation = useRef(0);
   const active = useRef(false);
   const currentIdentity = useRef(identity);
@@ -19,7 +31,8 @@ export function useOrganizationModuleState(identity: string) {
     inFlight.current = null;
   }, []);
   const refresh = useCallback((): Promise<void> => {
-    if (!active.current || currentIdentity.current !== identity) return Promise.resolve();
+    if (!enabled || !active.current || currentIdentity.current !== identity)
+      return Promise.resolve();
     if (inFlight.current) return inFlight.current.promise;
     const controller = new AbortController();
     const started = generation.current;
@@ -52,7 +65,7 @@ export function useOrganizationModuleState(identity: string) {
       });
     inFlight.current = { controller, promise };
     return promise;
-  }, [identity]);
+  }, [enabled, identity]);
   const confirmChange = useCallback(
     (id: string, enabled: boolean) => {
       if (!active.current || currentIdentity.current !== identity) return;
@@ -76,9 +89,14 @@ export function useOrganizationModuleState(identity: string) {
   );
   useEffect(() => {
     currentIdentity.current = identity;
+    if (!enabled) {
+      active.current = false;
+      invalidateRead();
+      return;
+    }
     active.current = true;
     generation.current++;
-    void refresh();
+    if (refreshOnMount) void refresh();
     let foreground = document.visibilityState !== "hidden";
     const onBackground = () => {
       foreground = false;
@@ -103,7 +121,7 @@ export function useOrganizationModuleState(identity: string) {
       window.removeEventListener("focus", onForeground);
       document.removeEventListener("visibilitychange", onForeground);
     };
-  }, [identity, refresh, invalidateRead]);
+  }, [enabled, identity, refresh, refreshOnMount, invalidateRead]);
   return useMemo(
     () => ({
       snapshot:

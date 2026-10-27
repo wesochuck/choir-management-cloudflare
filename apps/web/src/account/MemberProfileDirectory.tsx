@@ -177,7 +177,11 @@ function MemberProfileEditor({
 
   return (
     <section className="account-section" aria-label="My Organization Profile">
-      {!enabled || state.status === "loading" ? <p>Loading your Profile…</p> : null}
+      {!enabled || state.status === "loading" ? (
+        <p className="notice notice--info" role="status">
+          Loading your member workspace…
+        </p>
+      ) : null}
       {enabled && state.status === "missing" ? (
         <p className="empty-state">
           Ask an Organization Owner or Administrator to link this Membership to a Profile.

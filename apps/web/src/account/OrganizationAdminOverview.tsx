@@ -58,7 +58,8 @@ function useOverviewFeatures(
   );
   const displayModules =
     sharedModules && sharedModules.snapshot.status !== "ready" ? unavailableModules : modules;
-  return { sections, visibleQuickActions, displayModules };
+  const modulesReady = !sharedModules || sharedModules.snapshot.status === "ready";
+  return { sections, visibleQuickActions, displayModules, modulesReady };
 }
 
 function DashboardLink({
@@ -115,6 +116,7 @@ function OverviewBanner({
   pendingAuditionCount,
   performerLabelPlural,
   recentBounceCount,
+  showWelcome,
   upcomingEventCount,
 }: {
   readonly activeProfileCount: number | null;
@@ -125,6 +127,7 @@ function OverviewBanner({
   readonly pendingAuditionCount: number | null;
   readonly performerLabelPlural: string;
   readonly recentBounceCount: number | null;
+  readonly showWelcome: boolean;
   readonly upcomingEventCount: number | null;
 }) {
   const greetingName = displayName.trim() || "Admin";
@@ -197,12 +200,12 @@ function OverviewBanner({
             </DashboardLink>
           ) : null}
         </div>
-      ) : (
+      ) : showWelcome ? (
         <p className="admin-overview__banner-welcome">
           Welcome to your organization workspace. Follow the next steps below to finish setting up
           your organization and unlock all management tools.
         </p>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -486,13 +489,13 @@ export function OrganizationAdminOverview({
     };
   }, [modules, platformReadOnly]);
 
-  const { sections, visibleQuickActions, displayModules } = useOverviewFeatures(
+  const { sections, visibleQuickActions, displayModules, modulesReady } = useOverviewFeatures(
     modules,
     performerLabel,
     performerLabelPlural,
   );
   const isNewOrgOrSetupPending =
-    sections.reduce((count, section) => count + section.cards.length, 0) <= 2;
+    modulesReady && sections.reduce((count, section) => count + section.cards.length, 0) <= 2;
 
   const summaryError = summary.status === "error";
   const activeProfileCount = summary.status === "ready" ? summary.data.activeProfileCount : null;
@@ -512,6 +515,7 @@ export function OrganizationAdminOverview({
         pendingAuditionCount={pendingAuditionCount}
         performerLabelPlural={performerLabelPlural}
         recentBounceCount={recentBounceCount}
+        showWelcome={modulesReady && isNewOrgOrSetupPending}
         upcomingEventCount={upcomingEventCount}
       />
 

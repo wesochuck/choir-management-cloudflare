@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getOrganizationDashboardSummary, listOrganizationAuditions } from "../auth/api";
 import { OrganizationAdminOverview } from "./OrganizationAdminOverview";
+import { organizationModuleContext } from "./organizationFeatures/moduleStateContext";
 import { organizationTerminologyContext } from "./organizationTerminologyContext";
 
 vi.mock("../auth/api", () => ({
@@ -323,6 +324,31 @@ describe("OrganizationAdminOverview", () => {
       screen.queryByRole("region", { name: "Organization at a glance" }),
     ).not.toBeInTheDocument();
     expect(listOrganizationAuditions).not.toHaveBeenCalled();
+  });
+
+  it("does not show setup or welcome content while module state is loading", () => {
+    const moduleController = {
+      confirmChange: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      snapshot: { modules: [], status: "loading" as const },
+      warning: false,
+    };
+
+    render(
+      <organizationModuleContext.Provider value={moduleController}>
+        <OrganizationAdminOverview
+          context={null}
+          displayName="New Org Admin"
+          modules={allModulesEnabled}
+          navigate={vi.fn()}
+        />
+      </organizationModuleContext.Provider>,
+    );
+
+    expect(screen.queryByText(/Welcome to your organization workspace/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { level: 2, name: "Next steps for your organization" }),
+    ).not.toBeInTheDocument();
   });
 
   it("displays error status banner when summary fails to load", async () => {

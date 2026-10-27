@@ -1,9 +1,13 @@
 import "./main.css";
 import "./styles/theme.css";
 
-import type { CurrentAuthSession, PublishedOrganizationProjection } from "@choir/contracts";
+import type {
+  CurrentAuthSession,
+  PlatformMfaStatusResponse,
+  PublishedOrganizationProjection,
+} from "@choir/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { getHealth } from "./api";
 
@@ -24,14 +28,16 @@ import { getCurrentSession, getPublishedOrganizationProjection } from "./auth/ap
 import { readOAuthCompletionState, type OAuthCompletionState } from "./auth/googleAuth";
 import {
   isOrganizationHost,
-  resolvePostSignInLanding,
+  resolvePostSignInResolution,
   isAuthenticatedRoute,
+  type PostSignInBootstrap,
   type PostSignInLanding,
 } from "./auth/postSignIn";
 import { ResetPasswordView } from "./auth/ResetPasswordView";
 import { SignInView } from "./auth/SignInView";
 import { lazyWithRetry } from "./offline/chunkRecovery";
 import { purgeCachedPlayerMetadata, purgeOfflineAudioForSource } from "./offline/mediaStore";
+import { clearAuthenticatedLayoutMetadata } from "./account/layoutMetadataCache";
 import { PublicUnsubscribeView } from "./public/PublicUnsubscribeView";
 import { PublicPollView } from "./public/PublicPollView";
 import { PublicRsvpView } from "./public/PublicRsvpView";
@@ -54,6 +60,18 @@ type SessionState =
   | { readonly status: "checking" }
   | { readonly status: "error"; readonly reason: "unavailable" | "unconfirmed" }
   | { readonly session: NonNullable<CurrentAuthSession>; readonly status: "authenticated" };
+
+interface AppLocation {
+  readonly pathname: string;
+  readonly search: string;
+}
+
+function readAppLocation(): AppLocation {
+  return {
+    pathname: window.location.pathname.replace(/\/+$/, "") || "/",
+    search: window.location.search,
+  };
+}
 
 function AccountLoading() {
   return (
@@ -92,28 +110,46 @@ function SessionCheckError({ reason }: { readonly reason: "unavailable" | "uncon
 }
 
 interface AlreadySignedInProps {
+  readonly baseHostname: string | null;
+  readonly baseHostnameResolved: boolean;
   readonly isOAuthComplete: boolean;
+  readonly onWorkspaceResolved: (
+    path: string,
+    bootstrap: PostSignInBootstrap | null,
+    platformMfaStatus: PlatformMfaStatusResponse | null,
+  ) => void;
   readonly search: string;
   readonly session: NonNullable<CurrentAuthSession>;
 }
 
-function AlreadySignedIn({ isOAuthComplete, search, session }: AlreadySignedInProps) {
+function AlreadySignedIn({
+  baseHostname,
+  baseHostnameResolved,
+  isOAuthComplete,
+  onWorkspaceResolved,
+  search,
+  session,
+}: AlreadySignedInProps) {
   const [landing, setLanding] = useState<PostSignInLanding | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
-    void resolvePostSignInLanding({
+    void resolvePostSignInResolution({
+      baseHostname,
+      baseHostnameResolved,
       currentPathname: window.location.pathname,
+      layoutCacheHost: window.location.host,
+      layoutCacheUserId: session.user.id,
       search,
       signal: controller.signal,
     })
-      .then((resolved) => {
+      .then(({ bootstrap, landing: resolved, platformMfaStatus }) => {
         if (controller.signal.aborted) return;
         setLanding(resolved);
         // Every already-signed-in visit to /login (plain or OAuth completion)
         // enters the resolved workspace directly; no interstitial click.
         if (resolved.kind === "navigate" || resolved.kind === "verification") {
-          window.location.replace(resolved.path);
+          onWorkspaceResolved(resolved.path, bootstrap, platformMfaStatus);
         }
       })
       .catch(() => {
@@ -124,7 +160,14 @@ function AlreadySignedIn({ isOAuthComplete, search, session }: AlreadySignedInPr
     return () => {
       controller.abort();
     };
-  }, [isOAuthComplete, search]);
+  }, [
+    baseHostname,
+    baseHostnameResolved,
+    isOAuthComplete,
+    onWorkspaceResolved,
+    search,
+    session.user.id,
+  ]);
 
   if (landing?.kind === "no_access") {
     return (
@@ -225,13 +268,19 @@ function organizationFallbackContent(
   oauthCompletion: OAuthCompletionState,
   finishSignIn: () => void,
   organizationName: string | null,
+  onWorkspaceResolved: AlreadySignedInProps["onWorkspaceResolved"],
+  baseHostname: string | null,
+  baseHostnameResolved: boolean,
 ): ReactNode {
   if (sessionState.status === "checking") return <AccountLoading />;
   if (sessionState.status === "error") return <SessionCheckError reason={sessionState.reason} />;
   if (sessionState.status === "authenticated") {
     return (
       <AlreadySignedIn
+        baseHostname={baseHostname}
+        baseHostnameResolved={baseHostnameResolved}
         isOAuthComplete={oauthCompletion.isOAuthComplete}
+        onWorkspaceResolved={onWorkspaceResolved}
         search={oauthCompletion.search}
         session={sessionState.session}
       />
@@ -251,6 +300,12 @@ function selectContent(
   isOrganization: boolean,
   auditionHeading: string | undefined,
   organizationName: string | null,
+  baseHostname: string | null,
+  baseHostnameResolved: boolean,
+  logoFileId: string | null,
+  shellBootstrap: PostSignInBootstrap | null,
+  shellPlatformMfaStatus: PlatformMfaStatusResponse | null,
+  onWorkspaceResolved: AlreadySignedInProps["onWorkspaceResolved"],
 ): ReactNode {
   const utilityRoute = publicUtilityRoute(pathname, resetLocation, auditionHeading);
   if (utilityRoute) return utilityRoute;
@@ -271,7 +326,10 @@ function selectContent(
     if (sessionState.status === "authenticated") {
       return (
         <AlreadySignedIn
+          baseHostname={baseHostname}
+          baseHostnameResolved={baseHostnameResolved}
           isOAuthComplete={oauthCompletion.isOAuthComplete}
+          onWorkspaceResolved={onWorkspaceResolved}
           search={oauthCompletion.search}
           session={sessionState.session}
         />
@@ -285,7 +343,16 @@ function selectContent(
       if (pathname === "/setup") return <SetupView />;
       if (pathname === "/account/dashboard") return <LegacyRedirect href="/dashboard" />;
       return (
-        <AuthenticatedShell currentSession={sessionState.session} onSignedOut={finishSignOut} />
+        <AuthenticatedShell
+          baseHostname={baseHostname}
+          baseHostnameResolved={baseHostnameResolved}
+          currentSession={sessionState.session}
+          initialPlatformMfaStatus={shellPlatformMfaStatus}
+          initialLogoFileId={logoFileId}
+          initialOrganizationName={organizationName}
+          onSignedOut={finishSignOut}
+          shellBootstrap={shellBootstrap}
+        />
       );
     }
     return <SignInView onSignedIn={finishSignIn} organizationName={organizationName} />;
@@ -296,6 +363,9 @@ function selectContent(
       oauthCompletion,
       finishSignIn,
       organizationName,
+      onWorkspaceResolved,
+      baseHostname,
+      baseHostnameResolved,
     );
   }
   return <PlatformHomeView signedIn={sessionState.status === "authenticated"} />;
@@ -409,6 +479,10 @@ function renderPublicOrProductRoute(
 export function App() {
   const [serviceState, setServiceState] = useState<ServiceState>("checking");
   const [sessionState, setSessionState] = useState<SessionState>({ status: "checking" });
+  const [appLocation, setAppLocation] = useState<AppLocation>(readAppLocation);
+  const [shellBootstrap, setShellBootstrap] = useState<PostSignInBootstrap | null>(null);
+  const [shellPlatformMfaStatus, setShellPlatformMfaStatus] =
+    useState<PlatformMfaStatusResponse | null>(null);
   const [baseHostname, setBaseHostname] = useState<string | null>(null);
   const [publishedProjection, setPublishedProjection] =
     useState<PublishedOrganizationProjection | null>();
@@ -416,11 +490,53 @@ export function App() {
   const [organizationName, setOrganizationName] = useState<string | null>(null);
   const [logoFileId, setLogoFileId] = useState<string | null>(null);
   const [projectionVersion, setProjectionVersion] = useState<number>(1);
-  const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+  const pathname = appLocation.pathname;
   const [resetLocation] = useState(() => readPasswordResetLocation(pathname));
   const [oauthCompletion] = useState(() =>
     readOAuthCompletionState(typeof window !== "undefined" ? window.location.search : ""),
   );
+
+  const navigateWithinApp = useCallback((destination: string, replace = false) => {
+    const target = new URL(destination, window.location.origin);
+    if (target.origin !== window.location.origin) {
+      window.location.assign(target.href);
+      return;
+    }
+    const url = `${target.pathname}${target.search}${target.hash}`;
+    if (replace) window.history.replaceState(null, "", url);
+    else window.history.pushState(null, "", url);
+    setAppLocation({
+      pathname: target.pathname.replace(/\/+$/, "") || "/",
+      search: target.search,
+    });
+  }, []);
+
+  const onWorkspaceResolved = useCallback(
+    (
+      path: string,
+      bootstrap: PostSignInBootstrap | null,
+      platformMfaStatus: PlatformMfaStatusResponse | null,
+    ) => {
+      setShellBootstrap(bootstrap);
+      setShellPlatformMfaStatus(platformMfaStatus);
+      navigateWithinApp(path, true);
+    },
+    [navigateWithinApp],
+  );
+
+  useEffect(() => {
+    const onPopState = () => {
+      const location = readAppLocation();
+      if (sessionState.status === "authenticated" && isAuthenticatedRoute(location.pathname)) {
+        return;
+      }
+      setAppLocation(location);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, [sessionState.status]);
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -480,6 +596,8 @@ export function App() {
 
   function finishSignIn(destination?: string) {
     setSessionState({ status: "checking" });
+    setShellBootstrap(null);
+    setShellPlatformMfaStatus(null);
     void (async () => {
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => {
@@ -492,18 +610,27 @@ export function App() {
           return;
         }
         if (destination) {
-          window.location.assign(destination);
+          setSessionState({ session, status: "authenticated" });
+          setShellPlatformMfaStatus(null);
+          navigateWithinApp(destination, true);
           return;
         }
-        const landing = await resolvePostSignInLanding({
+        const resolution = await resolvePostSignInResolution({
+          baseHostname,
+          baseHostnameResolved: serviceState !== "checking",
           currentPathname: pathname,
+          layoutCacheHost: window.location.host,
+          layoutCacheUserId: session.user.id,
           search: window.location.search,
           signal: controller.signal,
         });
+        const { landing, platformMfaStatus } = resolution;
         if (landing.kind === "navigate" || landing.kind === "verification") {
-          window.location.assign(landing.path);
+          setSessionState({ session, status: "authenticated" });
+          onWorkspaceResolved(landing.path, resolution.bootstrap, platformMfaStatus);
         } else if (landing.kind === "no_access") {
-          window.location.assign("/account/organizations");
+          setSessionState({ session, status: "authenticated" });
+          navigateWithinApp("/account/organizations", true);
         } else {
           setSessionState({ reason: "unavailable", status: "error" });
         }
@@ -516,6 +643,11 @@ export function App() {
   }
 
   function finishSignOut() {
+    if (sessionState.status === "authenticated") {
+      clearAuthenticatedLayoutMetadata(window.location.host, sessionState.session.user.id);
+    }
+    setShellBootstrap(null);
+    setShellPlatformMfaStatus(null);
     setSessionState({ status: "anonymous" });
     // Purge session Offline Copies and cached player metadata before leaving: navigation
     // would otherwise cut cleanup short on shared devices. Sign-out proceeds even if cleanup fails.
@@ -553,6 +685,12 @@ export function App() {
     isOrganization,
     auditionHeading,
     organizationName,
+    baseHostname,
+    serviceState !== "checking",
+    logoFileId,
+    shellBootstrap,
+    shellPlatformMfaStatus,
+    onWorkspaceResolved,
   );
 
   const productName = !isOrganization && pathname === "/" ? "Music Manager" : "Choir Management";

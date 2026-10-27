@@ -1,9 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import type { PlatformContextResponse, PlatformMfaStatusResponse } from "@choir/contracts";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as platformApi from "../api/platform";
 import * as authApi from "../auth/api";
+import { PlatformAccess } from "./PlatformAccess";
 import { PlatformOperations } from "./PlatformOperations";
 
 vi.mock("../api/platform", () => ({
@@ -14,6 +16,8 @@ vi.mock("../api/platform", () => ({
 }));
 vi.mock("../auth/api", async (importOriginal) => ({
   ...(await importOriginal<typeof authApi>()),
+  getPlatformContext: vi.fn(),
+  getPlatformMfaStatus: vi.fn(),
   getPlatformOrganizationContext: vi.fn(),
   listPlatformOrganizations: vi.fn(),
 }));
@@ -117,5 +121,39 @@ describe("Platform operations hostname placement", () => {
       "org_test",
       expect.any(AbortSignal),
     );
+  });
+
+  it("reuses shell MFA status and shows loading while Platform context resolves", async () => {
+    let resolveContext!: (value: PlatformContextResponse) => void;
+    const context = new Promise<PlatformContextResponse>((resolve) => {
+      resolveContext = resolve;
+    });
+    vi.mocked(authApi.getPlatformContext).mockReturnValue(context);
+    const status: PlatformMfaStatusResponse = {
+      activePlatformAdministrator: true,
+      enrollmentComplete: true,
+      hasPasskey: false,
+      requestId: "req_platform_test",
+      twoFactorEnabled: true,
+    };
+
+    render(<PlatformAccess initialMfaStatus={status} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Loading Platform Administrator access…");
+    expect(authApi.getPlatformMfaStatus).not.toHaveBeenCalled();
+    expect(authApi.getPlatformContext).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveContext({
+        mfaMethod: "totp",
+        mfaVerifiedUntil: "2026-10-27T18:00:00.000Z",
+        requestId: "req_platform_test",
+        scope: { kind: "product_base" },
+        userId: "user_platform_test",
+      });
+      await context;
+    });
+
+    expect(await screen.findByText(/Platform access is ready/)).toBeVisible();
   });
 });

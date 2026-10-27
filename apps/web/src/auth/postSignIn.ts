@@ -11,6 +11,7 @@ import { listAccountOrganizations } from "../api/account";
 import { getHealth } from "../api/health";
 import { getOrganizationModuleState, getOrganizationAuthStatus } from "../api/organization";
 import { getPlatformMfaStatus, getPlatformOrganizationContext } from "../api/platform";
+import { writeAuthenticatedLayoutModules } from "../account/layoutMetadataCache";
 
 export const authenticatedRoutePrefixes = [
   "/seating/",
@@ -98,9 +99,27 @@ export interface DeterminePostSignInPathOptions {
   readonly getPlatformOrganizationContext?: (
     signal?: AbortSignal,
   ) => Promise<PlatformOrganizationContextResponse>;
+  readonly baseHostname?: string | null;
+  readonly baseHostnameResolved?: boolean;
   readonly isAuthenticatedRoute?: (pathname: string) => boolean;
+  /** Host and user identity for caching low-sensitivity layout metadata only. */
+  readonly layoutCacheHost?: string;
+  readonly layoutCacheUserId?: string;
   readonly search?: string;
   readonly signal?: AbortSignal;
+}
+
+export interface PostSignInBootstrap {
+  readonly host: string;
+  readonly modules: readonly ModuleState[] | null;
+  readonly organizationAuthStatus: OrganizationAuthStatusResponse;
+  readonly userId: string;
+}
+
+export interface PostSignInResolution {
+  readonly bootstrap: PostSignInBootstrap | null;
+  readonly landing: PostSignInLanding;
+  readonly platformMfaStatus: PlatformMfaStatusResponse | null;
 }
 
 function errorStatus(error: unknown): number | null {
@@ -233,6 +252,7 @@ async function resolveMemberLanding(
   deps: LandingDeps,
   authStatus: OrganizationAuthStatusResponse,
   options: DeterminePostSignInPathOptions,
+  warmedModules: Promise<readonly ModuleState[] | null> | null,
 ): Promise<PostSignInLanding> {
   const signal = options.signal;
   let organizations: readonly AccountOrganization[];
@@ -246,7 +266,10 @@ async function resolveMemberLanding(
       ?.profileId ?? null;
   if (!linkedProfileId) return { kind: "navigate", path: "/dashboard" };
   try {
-    const modules = await (options.getModuleState ?? getOrganizationModuleState)(signal);
+    const modules = warmedModules
+      ? await warmedModules
+      : await (options.getModuleState ?? getOrganizationModuleState)(signal);
+    if (!modules) return { kind: "unavailable" };
     return {
       kind: "navigate",
       path: isRosterModuleEnabled(modules) ? "/profile" : "/dashboard",
@@ -285,13 +308,19 @@ async function attemptAuthStatus(
   } catch (authError: unknown) {
     const status = errorStatus(authError);
     if (status === 404) {
-      try {
-        const health = await (options.getHealth ?? getHealth)(options.signal);
-        if (isOrganizationHost(options.hostname ?? window.location.hostname, health.baseHostname)) {
-          return { landing: { kind: "no_access" }, ok: false };
+      let baseHostname = options.baseHostname ?? null;
+      if (!options.baseHostnameResolved) {
+        try {
+          const health = await (options.getHealth ?? getHealth)(options.signal);
+          baseHostname = health.baseHostname ?? null;
+        } catch {
+          return { landing: { kind: "unavailable" }, ok: false };
         }
-      } catch {
-        return { landing: { kind: "unavailable" }, ok: false };
+      }
+      const hostname =
+        options.hostname ?? (typeof window === "undefined" ? "" : window.location.hostname);
+      if (isOrganizationHost(hostname, baseHostname)) {
+        return { landing: { kind: "no_access" }, ok: false };
       }
       return {
         landing: resolveNonTenantLanding(
@@ -312,10 +341,13 @@ async function attemptAuthStatus(
   }
 }
 
-function createLandingDeps(options: DeterminePostSignInPathOptions): LandingDeps {
+function createLandingDeps(
+  options: DeterminePostSignInPathOptions,
+  getPlatformStatus: NonNullable<DeterminePostSignInPathOptions["getPlatformMfaStatus"]>,
+): LandingDeps {
   return {
     getAccountOrganizations: options.getAccountOrganizations ?? listAccountOrganizations,
-    getPlatformMfaStatus: options.getPlatformMfaStatus ?? getPlatformMfaStatus,
+    getPlatformMfaStatus: getPlatformStatus,
     getPlatformOrganizationContext:
       options.getPlatformOrganizationContext ?? getPlatformOrganizationContext,
   };
@@ -354,20 +386,15 @@ function resolvePreservedPath(
   return null;
 }
 
-export async function resolvePostSignInLanding(
+async function determineTenantLanding(
+  deps: LandingDeps,
   options: DeterminePostSignInPathOptions,
+  authStatus: OrganizationAuthStatusResponse,
+  returnTo: string | null,
+  warmedModules: Promise<readonly ModuleState[] | null> | null,
 ): Promise<PostSignInLanding> {
-  const deps = createLandingDeps(options);
   const checkRoute = options.isAuthenticatedRoute ?? isKnownAuthenticatedRoute;
-  const returnTo = parseReturnTo(options.search ?? "", checkRoute);
-
-  const attempt = await attemptAuthStatus(deps, options, returnTo);
-  if (!attempt.ok) {
-    return attempt.landing;
-  }
-  const { authStatus } = attempt;
   const isOrganizationAdmin = authStatus.role === "administrator" || authStatus.role === "owner";
-
   const currentPreserved = isPreservedPath(options.currentPathname, checkRoute)
     ? options.currentPathname
     : null;
@@ -382,11 +409,118 @@ export async function resolvePostSignInLanding(
     resolvePreservedPath(returnTo, isOrganizationAdmin) ??
     resolvePreservedPath(currentPreserved, isOrganizationAdmin);
   if (preservedLanding) return preservedLanding;
+  if (isOrganizationAdmin) return { kind: "navigate", path: "/admin" };
+  return resolveMemberLanding(deps, authStatus, options, warmedModules);
+}
 
-  if (isOrganizationAdmin) {
-    return { kind: "navigate", path: "/admin" };
+interface PlatformStatusMemo {
+  readonly get: (signal?: AbortSignal) => Promise<PlatformMfaStatusResponse>;
+  readonly current: () => PlatformMfaStatusResponse | null;
+}
+
+function createPlatformStatusMemo(options: DeterminePostSignInPathOptions): PlatformStatusMemo {
+  let currentStatus: PlatformMfaStatusResponse | null = null;
+  let statusPromise: Promise<PlatformMfaStatusResponse> | null = null;
+  const get = (signal?: AbortSignal) => {
+    statusPromise ??= (options.getPlatformMfaStatus ?? getPlatformMfaStatus)(signal).then(
+      (status) => {
+        currentStatus = status;
+        return status;
+      },
+    );
+    return statusPromise;
+  };
+  return { current: () => currentStatus, get };
+}
+
+function isPostSignInTenantHost(options: DeterminePostSignInPathOptions): boolean {
+  const hostname =
+    options.hostname ?? (typeof window === "undefined" ? "" : window.location.hostname);
+  const baseHostname = options.baseHostnameResolved ? options.baseHostname : null;
+  return isOrganizationHost(hostname, baseHostname);
+}
+
+function prewarmOrganizationModules(
+  options: DeterminePostSignInPathOptions,
+  isTenantHost: boolean,
+): Promise<readonly ModuleState[]> | null {
+  const cacheHost = options.layoutCacheHost;
+  const cacheUserId = options.layoutCacheUserId;
+  if (!isTenantHost || !cacheHost || !cacheUserId) return null;
+  return (options.getModuleState ?? getOrganizationModuleState)(options.signal).then((modules) => {
+    writeAuthenticatedLayoutModules(cacheHost, cacheUserId, modules);
+    return modules;
+  });
+}
+
+function settleModuleWarmup(
+  warmedModules: Promise<readonly ModuleState[]> | null,
+): Promise<readonly ModuleState[] | null> | null {
+  return (
+    warmedModules?.then(
+      (modules) => modules,
+      () => null,
+    ) ?? null
+  );
+}
+
+function createPostSignInBootstrap(
+  isTenantHost: boolean,
+  options: DeterminePostSignInPathOptions,
+  authStatus: OrganizationAuthStatusResponse,
+  modules: readonly ModuleState[] | null,
+): PostSignInBootstrap | null {
+  const host = options.layoutCacheHost;
+  const userId = options.layoutCacheUserId;
+  if (!isTenantHost || !host || !userId) return null;
+  return { host, modules, organizationAuthStatus: authStatus, userId };
+}
+
+function createPostSignInResolution(
+  landing: PostSignInLanding,
+  bootstrap: PostSignInBootstrap | null,
+  platformMfaStatus: PlatformMfaStatusResponse | null,
+): PostSignInResolution {
+  return { bootstrap, landing, platformMfaStatus };
+}
+
+export async function resolvePostSignInResolution(
+  options: DeterminePostSignInPathOptions,
+): Promise<PostSignInResolution> {
+  const platformStatus = createPlatformStatusMemo(options);
+  const deps = createLandingDeps(options, platformStatus.get);
+  const checkRoute = options.isAuthenticatedRoute ?? isKnownAuthenticatedRoute;
+  const returnTo = parseReturnTo(options.search ?? "", checkRoute);
+  const isTenantHost = isPostSignInTenantHost(options);
+  if (options.baseHostnameResolved === true && !isTenantHost) {
+    const platformLanding = await attemptPlatformAdminLanding(deps, returnTo, options.signal);
+    return createPostSignInResolution(
+      platformLanding ?? resolveNonTenantLanding(returnTo, options.currentPathname, checkRoute),
+      null,
+      platformStatus.current(),
+    );
   }
-  return resolveMemberLanding(deps, authStatus, options);
+
+  const warmedModules = prewarmOrganizationModules(options, isTenantHost);
+  const settledModules = settleModuleWarmup(warmedModules);
+
+  const attempt = await attemptAuthStatus(deps, options, returnTo);
+  if (!attempt.ok) {
+    return createPostSignInResolution(attempt.landing, null, platformStatus.current());
+  }
+  const { authStatus } = attempt;
+  const [landing, modules] = await Promise.all([
+    determineTenantLanding(deps, options, authStatus, returnTo, settledModules),
+    settledModules ?? Promise.resolve(null),
+  ]);
+  const bootstrap = createPostSignInBootstrap(isTenantHost, options, authStatus, modules);
+  return createPostSignInResolution(landing, bootstrap, platformStatus.current());
+}
+
+export async function resolvePostSignInLanding(
+  options: DeterminePostSignInPathOptions,
+): Promise<PostSignInLanding> {
+  return (await resolvePostSignInResolution(options)).landing;
 }
 
 /**

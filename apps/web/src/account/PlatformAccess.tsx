@@ -1,4 +1,4 @@
-import type { PlatformContextResponse } from "@choir/contracts";
+import type { PlatformContextResponse, PlatformMfaStatusResponse } from "@choir/contracts";
 import { useEffect, useState, type ReactNode } from "react";
 
 import {
@@ -297,8 +297,11 @@ function displayDate(value: string): string {
   );
 }
 
-async function readAccessState(signal?: AbortSignal): Promise<AccessState> {
-  const status = await getPlatformMfaStatus(signal);
+async function readAccessState(
+  signal?: AbortSignal,
+  initialStatus?: PlatformMfaStatusResponse | null,
+): Promise<AccessState> {
+  const status = initialStatus ?? (await getPlatformMfaStatus(signal));
   if (!status.activePlatformAdministrator) {
     return { status: "hidden" };
   }
@@ -306,7 +309,7 @@ async function readAccessState(signal?: AbortSignal): Promise<AccessState> {
     return { status: "needs_enrollment", twoFactorEnabled: status.twoFactorEnabled };
   }
   try {
-    return { context: await getPlatformContext(), status: "ready" };
+    return { context: await getPlatformContext(signal), status: "ready" };
   } catch (error: unknown) {
     if (error instanceof AuthApiError && error.status === 401) {
       return { hasPasskey: status.hasPasskey, status: "needs_verification" };
@@ -319,6 +322,7 @@ type PlatformAccessView =
   "access" | "dead-letters" | "email-suppressions" | "organizations" | "security";
 
 interface PlatformAccessProps {
+  readonly initialMfaStatus?: PlatformMfaStatusResponse | null | undefined;
   /** Safe local continuation (e.g. /admin) after MFA verification, issue #147. */
   readonly returnTo?: string | undefined;
   readonly view?: PlatformAccessView;
@@ -340,7 +344,11 @@ function viewTitle(view: PlatformAccessView): string {
   return "Platform Administrator access";
 }
 
-export function PlatformAccess({ returnTo, view = "security" }: PlatformAccessProps) {
+export function PlatformAccess({
+  initialMfaStatus,
+  returnTo,
+  view = "security",
+}: PlatformAccessProps) {
   const title = viewTitle(view);
   const [accessState, setAccessState] = useState<AccessState>({ status: "loading" });
   const [acknowledgedRecoveryCodes, setAcknowledgedRecoveryCodes] = useState(false);
@@ -356,7 +364,7 @@ export function PlatformAccess({ returnTo, view = "security" }: PlatformAccessPr
 
   useEffect(() => {
     const abortController = new AbortController();
-    readAccessState(abortController.signal)
+    readAccessState(abortController.signal, initialMfaStatus)
       .then((state) => {
         setAccessState(state);
         if (state.status === "needs_verification" && state.hasPasskey) {
@@ -371,7 +379,7 @@ export function PlatformAccess({ returnTo, view = "security" }: PlatformAccessPr
     return () => {
       abortController.abort();
     };
-  }, []);
+  }, [initialMfaStatus]);
 
   useEffect(() => {
     if (returnTo && accessState.status === "ready") window.location.replace(returnTo);
@@ -504,8 +512,17 @@ export function PlatformAccess({ returnTo, view = "security" }: PlatformAccessPr
     }
   }
 
-  if (accessState.status === "hidden" || accessState.status === "loading") {
+  if (accessState.status === "hidden") {
     return null;
+  }
+  if (accessState.status === "loading") {
+    return (
+      <PlatformSection actionError={actionError} title={title}>
+        <p className="notice notice--info" role="status">
+          Loading Platform Administrator access…
+        </p>
+      </PlatformSection>
+    );
   }
   if (accessState.status === "error") {
     return (

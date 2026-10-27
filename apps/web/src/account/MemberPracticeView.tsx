@@ -429,7 +429,13 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
     [effectivePart, pieces],
   );
 
-  if (!enabled) return null;
+  if (!enabled) {
+    return (
+      <p className="notice notice--info" role="status">
+        Loading your member workspace…
+      </p>
+    );
+  }
 
   return (
     <section aria-label="Practice library" className="account-section practice-player">
@@ -445,7 +451,11 @@ export function MemberPracticeView({ enabled }: { readonly enabled: boolean }) {
         </p>
       ) : null}
 
-      {!loaded ? <p>Loading learning tracks…</p> : null}
+      {!loaded ? (
+        <p className="notice notice--info" role="status">
+          Loading your member workspace…
+        </p>
+      ) : null}
 
       {loaded && pieces.length === 0 ? (
         <p className="empty-state">No learning tracks are available yet.</p>

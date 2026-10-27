@@ -137,7 +137,7 @@ it("shows accessible error message and re-enables button if checkout attempt fai
 
 it("renders loading notice without showing false MFA prompt or unavailable warning while access is loading", () => {
   render(<MemberDuesPage accessStatus="loading" enabled={false} mfaRequired={false} />);
-  expect(screen.getByText("Loading season dues…")).toBeVisible();
+  expect(screen.getByText("Loading your member workspace…")).toBeVisible();
   expect(screen.queryByText(/Verify Organization MFA/i)).not.toBeInTheDocument();
   expect(screen.queryByText(/Your member workspace is not available yet/i)).not.toBeInTheDocument();
 });
@@ -145,7 +145,7 @@ it("renders loading notice without showing false MFA prompt or unavailable warni
 it("renders MFA prompt only when mfaRequired is true", () => {
   render(<MemberDuesPage accessStatus="ready" enabled={false} mfaRequired={true} />);
   expect(screen.getByText(/Verify Organization MFA to view your dues/i)).toBeVisible();
-  expect(screen.queryByText("Loading season dues…")).not.toBeInTheDocument();
+  expect(screen.queryByText("Loading your member workspace…")).not.toBeInTheDocument();
 });
 
 it("renders workspace not available only when accessStatus is none and MFA is not required", () => {

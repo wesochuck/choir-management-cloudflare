@@ -447,12 +447,14 @@ describe("filterLibraryPieces", () => {
 });
 
 describe("MemberPracticeView", () => {
-  it("renders nothing when disabled", () => {
-    expect(renderToString(<MemberPracticeView enabled={false} />)).toBe("");
+  it("shows the shared member workspace loading state when disabled", () => {
+    expect(renderToString(<MemberPracticeView enabled={false} />)).toContain(
+      "Loading your member workspace…",
+    );
   });
 
   it("shows a loading state before the library arrives", () => {
     const html = renderToString(<MemberPracticeView enabled />);
-    expect(html).toContain("Loading learning tracks…");
+    expect(html).toContain("Loading your member workspace…");
   });
 });

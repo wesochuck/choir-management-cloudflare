@@ -144,6 +144,23 @@ describe("Organization setup and lifecycle integration", () => {
     });
   });
 
+  it("lets an active member read the low-sensitivity module catalog for navigation", async () => {
+    const cookie = await signIn();
+    await database
+      .prepare("UPDATE member SET role = 'member' WHERE organizationId = ? AND userId = ?")
+      .bind("organization-alpha", "calendar-manager")
+      .run();
+
+    const response = await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/module-state", cookie),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      modules: expect.arrayContaining([expect.objectContaining({ id: "events", enabled: true })]),
+    });
+  });
+
   it("claims setup, persists module progress, and completes the Organization lifecycle", async () => {
     const cookie = await signIn();
     const stub = stores.get(stores.idFromName("organization-alpha"));

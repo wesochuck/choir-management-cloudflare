@@ -1,10 +1,11 @@
 import type {
   AccountOrganization,
+  ModuleState,
   OrganizationAuthStatusResponse,
   PlatformMfaStatusResponse,
   PlatformOrganizationContextResponse,
 } from "@choir/contracts";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   determinePostSignInPath,
@@ -13,6 +14,7 @@ import {
   isAuthenticatedRoute,
   isKnownAuthenticatedRoute,
   isPrivilegedRoute,
+  resolvePostSignInResolution,
   resolvePostSignInLanding,
 } from "./postSignIn";
 
@@ -54,6 +56,14 @@ function mockAbortedAuthStatus(): (
 
 function httpError(status: number): Error & { status: number } {
   return Object.assign(new Error(`HTTP ${status.toString()}`), { status });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((yes) => {
+    resolve = yes;
+  });
+  return { promise, resolve };
 }
 
 function mockAccountOrganizations(
@@ -489,6 +499,82 @@ describe("resolvePostSignInLanding (issue #147)", () => {
       search: "?returnTo=/practice",
     });
     expect(landing).toEqual({ kind: "navigate", path: "/practice" });
+  });
+});
+
+describe("post-sign-in startup bootstrap", () => {
+  it("starts module prewarming alongside Organization authorization", async () => {
+    const auth = deferred<OrganizationAuthStatusResponse>();
+    const modules = deferred<readonly ModuleState[]>();
+    const getAuthStatus = vi.fn(() => auth.promise);
+    const getModuleState = vi.fn(() => modules.promise);
+    const resolution = resolvePostSignInResolution({
+      baseHostname: "example.test",
+      baseHostnameResolved: true,
+      currentPathname: "/login",
+      getAuthStatus,
+      getModuleState,
+      getPlatformMfaStatus: mockPlatformMfaStatus(false),
+      getPlatformOrganizationContext: mockPlatformContextFail(403),
+      hostname: "alpha.example.test",
+      layoutCacheHost: "alpha.example.test",
+      layoutCacheUserId: "user-1",
+    });
+
+    expect(getAuthStatus).toHaveBeenCalledTimes(1);
+    expect(getModuleState).toHaveBeenCalledTimes(1);
+    auth.resolve({
+      mfaRequired: false,
+      mfaSatisfied: true,
+      mfaSatisfiedBy: null,
+      mfaVerifiedUntil: null,
+      organizationId: "org-123",
+      requestId: "req-123",
+      role: "owner",
+      twoFactorEnabled: false,
+      twoFactorVerified: false,
+    });
+    modules.resolve([{ id: "roster", enabled: true }]);
+
+    await expect(resolution).resolves.toMatchObject({
+      bootstrap: {
+        modules: [{ id: "roster", enabled: true }],
+        userId: "user-1",
+      },
+      landing: { kind: "navigate", path: "/admin" },
+    });
+  });
+
+  it("skips Organization authorization and module APIs on the product-base host", async () => {
+    const getAuthStatus = vi.fn(mockAuthStatus("owner"));
+    const getModuleState = vi.fn(() => Promise.resolve([{ id: "roster", enabled: true }]));
+
+    const result = await resolvePostSignInResolution({
+      baseHostname: "example.test",
+      baseHostnameResolved: true,
+      currentPathname: "/login",
+      getAuthStatus,
+      getModuleState,
+      getPlatformMfaStatus: mockPlatformMfaStatus(false),
+      getPlatformOrganizationContext: mockPlatformContextFail(403),
+      hostname: "example.test",
+      layoutCacheHost: "example.test",
+      layoutCacheUserId: "user-1",
+    });
+
+    expect(result).toEqual({
+      bootstrap: null,
+      landing: { kind: "navigate", path: "/dashboard" },
+      platformMfaStatus: {
+        activePlatformAdministrator: false,
+        enrollmentComplete: false,
+        hasPasskey: false,
+        requestId: "req-123",
+        twoFactorEnabled: false,
+      },
+    });
+    expect(getAuthStatus).not.toHaveBeenCalled();
+    expect(getModuleState).not.toHaveBeenCalled();
   });
 });
 

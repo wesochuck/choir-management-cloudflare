@@ -601,7 +601,7 @@ function DashboardInitialState({
   if (loading) {
     return (
       <p className="notice notice--info" role="status">
-        Loading your dashboard…
+        Loading your member workspace…
       </p>
     );
   }

@@ -515,7 +515,7 @@ function ScheduleStatusNotice({
     return <OrganizationMfaPrompt message="Verify Organization MFA to view your schedule." />;
   }
   if (accessStatus === "loading") {
-    return <p>Loading your schedule…</p>;
+    return <p role="status">Loading your member workspace…</p>;
   }
   if (accessStatus === "none") {
     return (
@@ -533,7 +533,7 @@ function ScheduleStatusNotice({
   }
   if (accessStatus === "ready" && enabled) {
     if (scheduleState.status === "loading") {
-      return <p>Loading your schedule…</p>;
+      return <p role="status">Loading your member workspace…</p>;
     }
     if (scheduleState.status === "missing") {
       return (

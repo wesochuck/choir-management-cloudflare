@@ -8,26 +8,34 @@ import { useOrganizationModuleState } from "../../organizationFeatures/useOrgani
 import { organizationModuleContext } from "../../organizationFeatures/moduleStateContext";
 import { getOrganizationSidebarGroups } from "../../organizationFeatures/selectors";
 import { normalizeOrganizationTerminology } from "../../organizationTerminologyUtils";
-import type { CurrentAuthSession, OrganizationImpersonationStatusResponse } from "@choir/contracts";
+import type {
+  CurrentAuthSession,
+  OrganizationImpersonationStatusResponse,
+  PlatformMfaStatusResponse,
+} from "@choir/contracts";
 import { Sheet } from "@choir/ui";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, UIEvent } from "react";
 import {
   AuthApiError,
-  getHealth,
   getOrganizationAuthStatus,
   getOrganizationBranding,
   getOrganizationImpersonationStatus,
   getOrganizationRosterConfiguration,
   getPlatformMfaStatus,
   getPlatformOrganizationContext,
-  getSetupStatus,
   stopOrganizationImpersonation,
 } from "../../../api";
 import { signOut } from "../../../auth/api";
+import { isOrganizationHost, type PostSignInBootstrap } from "../../../auth/postSignIn";
 import { purgeCachedPlayerMetadata, purgeOfflineAudioForSource } from "../../../offline/mediaStore";
 import { requestGlobalLeave, SaveBar, SaveCoordinatorProvider } from "../../../persistence";
 import { OrganizationTerminologyProvider } from "../../organizationTerminology";
+import {
+  clearAuthenticatedLayoutMetadata,
+  readAuthenticatedLayoutMetadata,
+  updateAuthenticatedLayoutMetadata,
+} from "../../layoutMetadataCache";
 
 import {
   applyTheme,
@@ -76,17 +84,29 @@ function moduleStatusMessage(status: "loading" | "ready" | "error"): string {
   }
 }
 
-function isSignalAborted(signal: AbortSignal): boolean {
-  return signal.aborted;
+function isExpectedAccessFailure(error: unknown): boolean {
+  return error instanceof AuthApiError && [401, 403, 404].includes(error.status);
 }
 
 // eslint-disable-next-line complexity -- the shell coordinates pinned and modal navigation states.
 function AuthenticatedOrganizationShell({
+  baseHostname,
+  baseHostnameResolved,
   currentSession,
+  initialPlatformMfaStatus,
+  initialLogoFileId,
+  initialOrganizationName,
   onSignedOut,
+  shellBootstrap,
 }: {
+  readonly baseHostname: string | null;
+  readonly baseHostnameResolved: boolean;
   readonly currentSession: NonNullable<CurrentAuthSession>;
+  readonly initialPlatformMfaStatus: PlatformMfaStatusResponse | null;
+  readonly initialLogoFileId: string | null;
+  readonly initialOrganizationName: string | null;
   readonly onSignedOut: () => void;
+  readonly shellBootstrap: PostSignInBootstrap | null;
 }) {
   const [route, navigate] = useRoute();
   const organizationNavigation = useOrganizationNavigationPreferences(
@@ -116,20 +136,57 @@ function AuthenticatedOrganizationShell({
   );
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [themePreference, setThemePreference] = useState<ThemePreference>(readThemePreference);
+  const host = window.location.host;
+  const userId = currentSession.user.id;
+  const identity = `${host}:${userId}`;
+  const isOrganization =
+    baseHostnameResolved && isOrganizationHost(window.location.hostname, baseHostname);
+  const bootstrap =
+    shellBootstrap?.host === host && shellBootstrap.userId === userId ? shellBootstrap : null;
+  const [cachedLayout] = useState(() => readAuthenticatedLayoutMetadata(host, userId));
+  const initialModules = bootstrap?.modules ?? cachedLayout?.modules ?? undefined;
+  const hasPrewarmedModules = bootstrap !== null && bootstrap.modules !== null;
   const moduleController = useOrganizationModuleState(
-    `${window.location.hostname}:${currentSession.user.id}`,
+    identity,
+    initialModules,
+    isOrganization,
+    !hasPrewarmedModules,
   );
-  const [access, setAccess] = useState<AccessState>({ status: "loading" });
-  const [platformAvailable, setPlatformAvailable] = useState(false);
-  const [baseHostname, setBaseHostname] = useState<string | null>(null);
-  const [organizationPerformerLabel, setOrganizationPerformerLabel] = useState("Performer");
+  const [access, setAccess] = useState<AccessState>(() =>
+    bootstrap
+      ? {
+          context: bootstrap.organizationAuthStatus,
+          modules: bootstrap.modules ?? cachedLayout?.modules ?? [],
+          organizationName: initialOrganizationName ?? cachedLayout?.organizationName ?? null,
+          status: "ready",
+        }
+      : { status: "loading" },
+  );
+  const [platformMfaStatus, setPlatformMfaStatus] = useState<PlatformMfaStatusResponse | null>(
+    initialPlatformMfaStatus,
+  );
+  const [platformStatus, setPlatformStatus] = useState<"loading" | "ready" | "error">(
+    initialPlatformMfaStatus ? "ready" : "loading",
+  );
+  const platformAvailable = platformMfaStatus?.activePlatformAdministrator ?? false;
   const [rosterStructure, setRosterStructure] = useState<"sections_only" | "sections_with_parts">(
-    "sections_with_parts",
+    cachedLayout?.rosterStructure ?? "sections_with_parts",
   );
-  const [branding, setBranding] = useState<{
+  const [organizationPerformerLabel, setOrganizationPerformerLabel] = useState(
+    cachedLayout?.performerLabel ?? "Performer",
+  );
+  const [loadedBranding, setLoadedBranding] = useState<{
     readonly logoFileId: string | null;
     readonly organizationName: string;
   } | null>(null);
+  const branding = useMemo(() => {
+    if (loadedBranding) return loadedBranding;
+    const organizationName = initialOrganizationName ?? cachedLayout?.organizationName ?? null;
+    const logoFileId = initialLogoFileId ?? cachedLayout?.logoFileId ?? null;
+    return organizationName || logoFileId
+      ? { logoFileId, organizationName: organizationName ?? "" }
+      : null;
+  }, [cachedLayout, initialLogoFileId, initialOrganizationName, loadedBranding]);
   const [impersonation, setImpersonation] =
     useState<OrganizationImpersonationStatusResponse | null>(null);
 
@@ -140,6 +197,7 @@ function AuthenticatedOrganizationShell({
   const isCompact = isCollapsibleWorkspace && (currentNavPrefs.compact || isNarrowViewport);
 
   useEffect(() => {
+    if (!isOrganization) return;
     const controller = new AbortController();
     getOrganizationImpersonationStatus(controller.signal)
       .then((status) => {
@@ -151,7 +209,7 @@ function AuthenticatedOrganizationShell({
     return () => {
       controller.abort();
     };
-  }, [route.pathname]);
+  }, [isOrganization, route.pathname]);
 
   const handleExitImpersonation = async () => {
     try {
@@ -250,68 +308,125 @@ function AuthenticatedOrganizationShell({
   }, [isNarrowViewport, mobileNavOpen]);
 
   useEffect(() => {
+    if (!baseHostnameResolved) return;
     const controller = new AbortController();
-    Promise.all([
-      getOrganizationAuthStatus(controller.signal).catch((error: unknown) => {
-        if (error instanceof AuthApiError && (error.status === 403 || error.status === 404))
-          return null;
-        throw error;
-      }),
-      getSetupStatus(controller.signal)
-        .then((setup) => setup.organizationName)
-        .catch(() => null),
-      getPlatformMfaStatus(controller.signal)
-        .then((status) => status.activePlatformAdministrator)
-        .catch(() => false),
-      getHealth(controller.signal)
-        .then((health) => health.baseHostname ?? null)
-        .catch(() => null),
-    ])
-      .then(async ([context, organizationName, hasPlatformAccess, baseHostname]) => {
-        if (isSignalAborted(controller.signal)) return;
-        const platformContext = hasPlatformAccess
-          ? await getPlatformOrganizationContext(controller.signal).catch(() => null)
-          : null;
-        if (isSignalAborted(controller.signal)) return;
-        setBaseHostname(baseHostname);
-        setPlatformAvailable(hasPlatformAccess);
-        if (!context) {
-          // Not an Organization member on this host: a verified Platform
-          // Administrator may still have scoped access to this Organization.
-          if (platformContext) {
-            setAccess({
-              modules: [],
-              organizationName,
-              platformContext,
-              status: "platform-scoped",
-            });
-            return;
-          }
+    const platformStatusPromise = (
+      initialPlatformMfaStatus
+        ? Promise.resolve(initialPlatformMfaStatus)
+        : getPlatformMfaStatus(controller.signal)
+    )
+      .then((status) => {
+        if (!controller.signal.aborted) {
+          setPlatformMfaStatus(status);
+          setPlatformStatus("ready");
+        }
+        return status;
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setPlatformStatus("error");
+        return null;
+      });
+
+    if (!isOrganization) {
+      void platformStatusPromise.then((status) => {
+        if (!controller.signal.aborted) {
           setAccess({ status: "none" });
-          void Promise.allSettled([
-            purgeOfflineAudioForSource(window.location.host, "session"),
-            purgeCachedPlayerMetadata(window.location.host),
-          ]).catch(() => {
-            // Best-effort: access state must resolve even if cache cleanup fails.
+          if (!status) setPlatformStatus("error");
+        }
+      });
+      return () => {
+        controller.abort();
+      };
+    }
+
+    const organizationStatusPromise = bootstrap
+      ? Promise.resolve(bootstrap.organizationAuthStatus)
+      : getOrganizationAuthStatus(controller.signal).catch((error: unknown) => {
+          if (isExpectedAccessFailure(error)) return null;
+          throw error;
+        });
+
+    void organizationStatusPromise
+      .then((context) => {
+        if (controller.signal.aborted) return;
+        if (context) {
+          setAccess({
+            context,
+            modules: initialModules ?? [],
+            organizationName: initialOrganizationName ?? cachedLayout?.organizationName ?? null,
+            status: "ready",
           });
           return;
         }
-        setAccess({
-          context,
-          modules: [],
-          organizationName,
-          ...(platformContext ? { platformContext } : {}),
-          status: "ready",
+        // A denied membership check may still be a Platform Administrator's
+        // scoped Organization view. Wait for the single shell-owned MFA check
+        // before resolving this as unavailable.
+        void platformStatusPromise.then((status) => {
+          if (controller.signal.aborted) return;
+          if (!status) {
+            setAccess({ status: "error" });
+            return;
+          }
+          if (!status.activePlatformAdministrator) {
+            setAccess({ status: "none" });
+            return;
+          }
+          void getPlatformOrganizationContext(controller.signal)
+            .then((platformContext) => {
+              if (controller.signal.aborted) return;
+              setAccess({
+                modules: initialModules ?? [],
+                organizationName: initialOrganizationName ?? cachedLayout?.organizationName ?? null,
+                platformContext,
+                status: "platform-scoped",
+              });
+            })
+            .catch((error: unknown) => {
+              if (controller.signal.aborted) return;
+              setAccess({ status: isExpectedAccessFailure(error) ? "none" : "error" });
+            });
         });
       })
-      .catch((error: unknown) => {
-        if (!(error instanceof DOMException && error.name === "AbortError"))
-          setAccess({ status: "error" });
+      .catch(() => {
+        if (!controller.signal.aborted) setAccess({ status: "error" });
       });
+
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [
+    baseHostnameResolved,
+    bootstrap,
+    cachedLayout,
+    initialPlatformMfaStatus,
+    initialModules,
+    initialOrganizationName,
+    isOrganization,
+  ]);
+
+  useEffect(() => {
+    if (access.status !== "none" || !isOrganization) return;
+    clearAuthenticatedLayoutMetadata(host, userId);
+    void Promise.allSettled([
+      purgeOfflineAudioForSource(host, "session"),
+      purgeCachedPlayerMetadata(host),
+    ]);
+  }, [access.status, host, isOrganization, userId]);
+
+  useEffect(() => {
+    if (!isOrganization || moduleController.snapshot.status !== "ready") return;
+    updateAuthenticatedLayoutMetadata(host, userId, {
+      modules: [...moduleController.snapshot.modules],
+    });
+  }, [host, isOrganization, moduleController.snapshot, userId]);
+
+  useEffect(() => {
+    if (!isOrganization || (!initialOrganizationName && !initialLogoFileId)) return;
+    updateAuthenticatedLayoutMetadata(host, userId, {
+      ...(initialLogoFileId ? { logoFileId: initialLogoFileId } : {}),
+      ...(initialOrganizationName ? { organizationName: initialOrganizationName } : {}),
+    });
+  }, [host, initialLogoFileId, initialOrganizationName, isOrganization, userId]);
 
   // Platform administration is served from the product base hostname, except
   // for scoped Organization access. That page must remain on the validated
@@ -330,13 +445,18 @@ function AuthenticatedOrganizationShell({
   }, [baseHostname, route.pathname, selectedWorkspace]);
 
   useEffect(() => {
-    if (access.status !== "ready") return;
+    if (access.status !== "ready" || !isOrganization) return;
     const controller = new AbortController();
     getOrganizationRosterConfiguration(controller.signal)
       .then((configuration) => {
         if (!controller.signal.aborted) {
           setOrganizationPerformerLabel(configuration.performerLabel);
-          setRosterStructure(configuration.rosterStructure ?? "sections_with_parts");
+          const structure = configuration.rosterStructure ?? "sections_with_parts";
+          setRosterStructure(structure);
+          updateAuthenticatedLayoutMetadata(host, userId, {
+            performerLabel: configuration.performerLabel,
+            rosterStructure: structure,
+          });
         }
       })
       .catch(() => {
@@ -344,7 +464,13 @@ function AuthenticatedOrganizationShell({
       });
     getOrganizationBranding(controller.signal)
       .then((data) => {
-        if (!controller.signal.aborted) setBranding(data);
+        if (!controller.signal.aborted) {
+          setLoadedBranding(data);
+          updateAuthenticatedLayoutMetadata(host, userId, {
+            logoFileId: data.logoFileId,
+            organizationName: data.organizationName,
+          });
+        }
       })
       .catch(() => {
         // Branding is optional / unavailable on Account or Platform workspaces.
@@ -352,7 +478,20 @@ function AuthenticatedOrganizationShell({
     return () => {
       controller.abort();
     };
-  }, [access]);
+  }, [access.status, host, isOrganization, userId]);
+
+  const refreshPlatformStatus = useCallback(() => {
+    const controller = new AbortController();
+    setPlatformStatus("loading");
+    void getPlatformMfaStatus(controller.signal)
+      .then((status) => {
+        setPlatformMfaStatus(status);
+        setPlatformStatus("ready");
+      })
+      .catch(() => {
+        setPlatformStatus("error");
+      });
+  }, []);
 
   const workspace = workspaceForPath(route.pathname);
 
@@ -399,10 +538,14 @@ function AuthenticatedOrganizationShell({
       memberGroups
         .map((group) => ({
           ...group,
-          items: group.items.filter((item) => routeHasModule(item, modules)),
+          items: group.items.filter(
+            (item) =>
+              item.module === undefined ||
+              (moduleController.snapshot.status === "ready" && routeHasModule(item, modules)),
+          ),
         }))
         .filter((group) => group.items.length > 0),
-    [modules],
+    [moduleController.snapshot.status, modules],
   );
 
   const workspaceOptions = availableWorkspaces(canManage, platformAvailable);
@@ -742,7 +885,7 @@ function AuthenticatedOrganizationShell({
             </button>
           </div>
         </header>
-        {impersonation?.active ? (
+        {isOrganization && impersonation?.active ? (
           <aside aria-label="Impersonation status" className="impersonation-banner" role="status">
             <div className="impersonation-banner__info">
               <span aria-hidden="true" className="impersonation-banner__icon">
@@ -879,7 +1022,7 @@ function AuthenticatedOrganizationShell({
               </p>
             ) : null}
             {selectedWorkspace === "organization" &&
-            (moduleController.warning || moduleController.snapshot.status !== "ready") ? (
+            (moduleController.warning || moduleController.snapshot.status === "error") ? (
               <p className="notice notice--info" role="status">
                 {moduleStatusMessage(moduleController.snapshot.status)}
                 <button
@@ -909,6 +1052,9 @@ function AuthenticatedOrganizationShell({
                     onOpenCommandPalette={openPaletteFromHeader}
                     onSignedOut={onSignedOut}
                     platformAvailable={platformAvailable}
+                    platformMfaStatus={platformMfaStatus}
+                    platformStatus={platformStatus}
+                    refreshPlatformStatus={refreshPlatformStatus}
                     route={route}
                     workspace={workspace}
                   />
@@ -1006,8 +1152,14 @@ function AuthenticatedOrganizationShell({
 }
 
 export function AuthenticatedShell(props: {
+  readonly baseHostname: string | null;
+  readonly baseHostnameResolved: boolean;
   readonly currentSession: NonNullable<CurrentAuthSession>;
+  readonly initialPlatformMfaStatus: PlatformMfaStatusResponse | null;
+  readonly initialLogoFileId: string | null;
+  readonly initialOrganizationName: string | null;
   readonly onSignedOut: () => void;
+  readonly shellBootstrap: PostSignInBootstrap | null;
 }) {
   return (
     <AuthenticatedOrganizationShell

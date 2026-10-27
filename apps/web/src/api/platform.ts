@@ -137,8 +137,8 @@ export async function verifyPlatformMfa(
   });
 }
 
-export async function getPlatformContext(): Promise<PlatformContextResponse> {
-  const response = await request("/api/platform/context");
+export async function getPlatformContext(signal?: AbortSignal): Promise<PlatformContextResponse> {
+  const response = await request("/api/platform/context", { signal: signal ?? null });
   return platformContextResponseSchema.parse(await response.json());
 }
 

@@ -157,7 +157,11 @@ function MemberDuesAccessGate({
     return <OrganizationMfaPrompt message="Verify Organization MFA to view your dues." />;
   }
   if (accessStatus === "loading") {
-    return <p className="notice">Loading season dues…</p>;
+    return (
+      <p className="notice" role="status">
+        Loading your member workspace…
+      </p>
+    );
   }
   if (accessStatus === "none" || !enabled) {
     return (
@@ -173,7 +177,11 @@ function MemberDuesAccessGate({
       </p>
     );
   }
-  return <p className="notice">Loading season dues…</p>;
+  return (
+    <p className="notice" role="status">
+      Loading your member workspace…
+    </p>
+  );
 }
 
 function DuesNoticeBanner({

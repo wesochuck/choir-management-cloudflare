@@ -149,6 +149,20 @@ describe("shell-owned reactive module snapshot", () => {
     await act(() => result.current.refresh());
     expect(result.current.snapshot.status).toBe("ready");
   });
+  it("uses a prewarmed snapshot immediately and avoids a duplicate mount read", () => {
+    const { result } = renderHook(() => useOrganizationModuleState("org-a", catalog, true, false));
+
+    expect(result.current.snapshot).toEqual({ modules: catalog, status: "ready" });
+    expect(getOrganizationModuleState).not.toHaveBeenCalled();
+  });
+  it("keeps module loading disabled on the product-base host", () => {
+    const { result } = renderHook(() =>
+      useOrganizationModuleState("base:user-a", undefined, false),
+    );
+
+    expect(result.current.snapshot).toEqual({ modules: [], status: "loading" });
+    expect(getOrganizationModuleState).not.toHaveBeenCalled();
+  });
   it("resets on Organization identity change and aborts earlier reads / callbacks", async () => {
     const old = deferred<readonly ModuleState[]>();
     vi.mocked(getOrganizationModuleState).mockReturnValueOnce(old.promise);
