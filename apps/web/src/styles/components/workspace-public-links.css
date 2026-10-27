@@ -1,0 +1,163 @@
+/* Public link sharing and audition panel styles. */
+@layer components {
+  /* Public link share and audition tables */
+
+  .public-link-share {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--spacing-lg);
+    margin: var(--spacing-lg) 0;
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-raised);
+  }
+
+  .public-link-share--fieldset {
+    min-width: 0;
+  }
+
+  .public-link-share--fieldset legend {
+    padding-inline: var(--spacing-2xs);
+    color: var(--color-text);
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .public-link-share__details {
+    display: grid;
+    min-width: 0;
+    gap: var(--spacing-xs);
+  }
+
+  .public-link-share__details h3,
+  .public-link-share__details p {
+    margin: 0;
+  }
+
+  .public-link-share__url-row {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xs);
+  }
+
+  .public-link-share__url-row a {
+    min-width: 12rem;
+    flex: 1 1 20rem;
+    overflow: hidden;
+    color: var(--color-primary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .public-link-share__qr {
+    display: grid;
+    width: 10rem;
+    min-height: 10rem;
+    place-items: center;
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: #ffffff;
+  }
+
+  .public-link-share__qr img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .public-link-share__qr .notice {
+    margin: 0;
+    padding: var(--spacing-xs);
+    font-size: var(--font-size-md);
+    text-align: center;
+  }
+
+  .table-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .table-heading h2 {
+    font-size: clamp(1.7rem, 3vw, 2.5rem);
+  }
+
+  .table-heading span,
+  .table-secondary {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
+  }
+
+  .audition-time-status {
+    color: var(--color-danger, #fca5a5);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .audition-tab-panel,
+  .audition-tab-panel fieldset,
+  .audition-tab-panel form,
+  .audition-inquiries__filters {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .audition-tab-panel fieldset,
+  .audition-tab-panel form,
+  .audition-tab-panel .space-y-3 {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .audition-inquiries__filters .form-grid {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .audition-tab-panel label.flex {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .audition-tab-panel label.flex > div {
+    min-width: 0;
+    flex: 1 1 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .audition-tab-panel label.flex > div > span {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+  }
+
+  .audition-tab-panel fieldset fieldset.form-stack {
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .audition-tab-panel fieldset fieldset.form-stack > legend {
+    padding-inline: var(--spacing-2xs);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+  }
+
+  .audition-table__overflow {
+    min-width: 2.5rem;
+    padding-inline: var(--spacing-xs);
+  }
+}

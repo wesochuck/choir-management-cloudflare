@@ -1,0 +1,142 @@
+/* Responsive refinements for signed-in workspace, dashboard, roster, and RSVP styles. */
+@layer components {
+  @media (max-width: 48rem) {
+    .member-dashboard__layout {
+      grid-template-columns: 1fr;
+    }
+
+    .page-heading {
+      align-items: start;
+      flex-direction: column;
+      margin-bottom: var(--spacing-lg);
+    }
+
+    .workspace-card-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .page-toolbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    /* In a column toolbar, the shared search field's flex-basis would become
+     * a vertical size. Keep the label sized to its input instead. */
+    .page-toolbar .search-field {
+      flex: 0 1 auto;
+    }
+
+    .page-toolbar__actions {
+      width: 100%;
+    }
+
+    .page-toolbar__actions .button {
+      flex: 1;
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .member-dashboard__event-card {
+      padding: var(--spacing-sm);
+    }
+
+    .member-dashboard__event-main {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--spacing-sm);
+    }
+
+    .member-dashboard__date-tile {
+      flex-direction: row;
+      width: 100%;
+      min-height: auto;
+      justify-content: flex-start;
+      gap: var(--spacing-xs);
+      padding: var(--spacing-2xs) var(--spacing-xs);
+    }
+
+    .member-dashboard__date-tile-day {
+      font-size: var(--font-size-md);
+    }
+
+    .member-dashboard__practice-strip {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .member-dashboard__practice-cta {
+      width: 100%;
+      justify-content: center;
+    }
+
+    .member-dashboard__event-actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .member-dashboard__rsvp-actions,
+    .member-dashboard__secondary-actions {
+      width: 100%;
+    }
+
+    .member-dashboard__rsvp-actions .button,
+    .member-dashboard__secondary-actions .button,
+    .member-dashboard__secondary-actions a {
+      flex: 1 1 0;
+      justify-content: center;
+      text-align: center;
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .roster-bulk-actions {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .roster-bulk-actions__buttons {
+      justify-content: flex-start;
+    }
+
+    .roster-balance__header {
+      flex-direction: column;
+    }
+
+    .roster-balance__meta {
+      justify-content: flex-start;
+    }
+
+    .roster-balance__sections {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .roster-balance__section {
+      grid-column: auto;
+    }
+
+    .roster-balance__parts {
+      grid-template-columns: repeat(auto-fit, minmax(5.5rem, 1fr));
+    }
+
+    .roster-filter-row {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .roster-filter-row .search-field {
+      flex: 0 1 auto;
+    }
+
+    .roster-filter-row__status {
+      flex-basis: auto;
+    }
+
+    .rsvp-manager__controls {
+      grid-template-columns: 1fr;
+    }
+
+    .rsvp-manager__summary-actions {
+      justify-content: flex-start;
+    }
+  }
+}

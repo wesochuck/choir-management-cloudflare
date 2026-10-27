@@ -1,8 +1,11 @@
-/* === Member dues page ===
- * Split from the original single-file stylesheet; imported in order from
- * theme.css so the cascade is unchanged.
+/* Account schedule styles and section map.
+ * 1. Schedule cards, event accordions, and set list previews (.schedule-*)
+ * 2. Member dues summary and history (.member-dues-*)
+ * 3. Member event cards and RSVP controls (.member-event-card*)
+ * 4. Calendar subscription and feed controls (.calendar-subscription-card*)
  */
 @layer components {
+  /* === Schedule Cards, Event Accordions & Set List Previews (.schedule-*) === */
   .schedule-list {
     display: grid;
     gap: var(--spacing-lg);
@@ -257,6 +260,7 @@
     }
   }
 
+  /* === Member Dues Summary & History (.member-dues-*) === */
   .member-dues-page {
     grid-column: 1 / -1;
   }
@@ -371,9 +375,8 @@
       justify-content: flex-start;
     }
   }
-}
 
-@layer components {
+  /* === Member Event Cards & RSVP Controls (.member-event-card*) === */
   fieldset.member-event-card {
     --member-event-muted: color-mix(in srgb, var(--color-text-muted) 80%, var(--color-text));
     min-width: 0;
@@ -550,9 +553,8 @@
       display: none;
     }
   }
-}
 
-@layer components {
+  /* === Calendar Subscription & Feed Controls (.calendar-subscription-card*) === */
   .calendar-subscription-card {
     min-width: 0;
     margin: var(--spacing-xl) 0 0;

@@ -26,6 +26,10 @@
 /* 3. Shell & Layout Infrastructure */
 @import "./components/signed-in-shell.css";
 @import "./components/signed-in-workspace.css";
+@import "./components/workspace-roster-rsvp.css";
+@import "./components/member-dashboard.css";
+@import "./components/workspace-responsive-refinements.css";
+@import "./components/workspace-public-links.css";
 @import "./components/shell-refinements.css";
 
 /* 4. Feature Modules */
@@ -39,6 +43,7 @@
 
 /* Music library */
 @import "./components/music-library.css";
+@import "./components/music-track-import.css";
 @import "./components/music-piece.css";
 @import "./components/music-settings.css";
 
@@ -50,6 +55,7 @@
 @import "./components/ticketing.css";
 @import "./components/ticketing-donations.css";
 @import "./components/modules-public.css";
+@import "./components/website-editor.css";
 @import "./components/platform-home.css";
 
 /* Authentication & onboarding */

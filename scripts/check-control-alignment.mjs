@@ -56,7 +56,7 @@ if (
 
 // --- 1b. Check modal sticky action bar / footer full-bleed geometry in overlays.css & music-library.css ---
 const overlaysPath = "apps/web/src/styles/components/overlays.css";
-const musicLibraryPath = "apps/web/src/styles/components/music-library.css";
+const musicLibraryPath = "apps/web/src/styles/components/music-track-import.css";
 const overlaysCss = fs.readFileSync(overlaysPath, "utf8");
 const musicLibraryCss = fs.readFileSync(musicLibraryPath, "utf8");
 
@@ -98,7 +98,7 @@ const summaryBlockRe = /([^{}\n]+summary)\s*\{([^}]*)\}/g;
 for (const file of cssFiles) {
   const content = fs.readFileSync(file, "utf8");
 
-  if (file.endsWith("signed-in-workspace.css")) {
+  if (file.endsWith("workspace-roster-rsvp.css")) {
     const rosterFilterMatch = content.match(/\.roster-filter-row\s*\{([^}]*)\}/s);
     if (rosterFilterMatch && /align-items:\s*(flex-)?end/.test(rosterFilterMatch[1])) {
       failures.push(
