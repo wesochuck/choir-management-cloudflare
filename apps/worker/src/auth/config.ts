@@ -213,6 +213,28 @@ export function createAuth(context: AuthRequestContext) {
         requireEmailVerificationOnInvitation: true,
         schema: {
           organization: {
+            // The Organizations table also owns app control-plane columns. Declare them to
+            // Better Auth's runtime schema check while keeping the organization plugin read-only.
+            additionalFields: {
+              durableObjectKey: {
+                fieldName: "durable_object_key",
+                input: false,
+                required: true,
+                type: "string",
+              },
+              lifecycleState: {
+                fieldName: "lifecycle_state",
+                input: false,
+                required: true,
+                type: "string",
+              },
+              updatedAt: {
+                fieldName: "updated_at",
+                input: false,
+                required: true,
+                type: "date",
+              },
+            },
             fields: { createdAt: "created_at" },
             modelName: "organizations",
           },
