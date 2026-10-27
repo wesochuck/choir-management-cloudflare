@@ -70,6 +70,45 @@ describe("organization schema migrations", () => {
     ).toThrow();
   });
 
+  it("v127 stores retry-safe roster invite matching and prevents replacement of reused Profiles", () => {
+    const adapter = setupThrough(126);
+    applyVersion(adapter, 127);
+    const columns = adapter.storage.sql
+      .exec<{ readonly name: string; readonly dflt_value: string | null }>(
+        "PRAGMA table_info(prepared_roster_invite_enrollments)",
+      )
+      .toArray();
+    expect(columns.find((column) => column.name === "profile_mode")?.dflt_value).toBe("'new'");
+    expect(columns).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ dflt_value: "'new'", name: "profile_mode" }),
+        expect.objectContaining({ name: "verified_email" }),
+      ]),
+    );
+    adapter.storage.sql.exec(
+      `INSERT INTO profiles (id, display_name, created_at, updated_at)
+       VALUES ('guarded-profile', 'Existing Singer', '2026-01-01', '2026-01-01')`,
+    );
+    adapter.storage.sql.exec(
+      `INSERT INTO roster_invite_profile_link_guards (profile_id, created_at)
+       VALUES ('guarded-profile', '2026-01-02')`,
+    );
+    expect(() =>
+      adapter.storage.sql.exec(
+        `INSERT OR REPLACE INTO profiles (id, display_name, created_at, updated_at)
+         VALUES ('guarded-profile', 'Overwritten Singer', '2026-01-03', '2026-01-03')`,
+      ),
+    ).toThrow();
+    expect(
+      adapter.storage.sql
+        .exec<{ readonly display_name: string }>(
+          "SELECT display_name FROM profiles WHERE id = 'guarded-profile'",
+        )
+        .toArray()
+        .at(0)?.display_name,
+    ).toBe("Existing Singer");
+  });
+
   it("v122 defaults existing and new directory contacts to visible without changing directory opt-in", () => {
     const adapter = setupThrough(121);
     adapter.storage.sql.exec(

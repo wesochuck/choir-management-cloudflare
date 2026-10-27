@@ -209,6 +209,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     return context.json(response);
   });
 
+  // eslint-disable-next-line complexity -- resolves verified member, enrollment, and Profile review states
   router.post("/api/roster-invites/options", async (context) => {
     const config = validateStartupConfig(context.env);
     const requestUrl = new URL(context.req.url);
@@ -246,6 +247,16 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         401,
       );
     }
+    if (!session.user.emailVerified) {
+      return context.json(
+        {
+          code: "forbidden",
+          message: "Verify your sign-in email before continuing this roster invitation.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        403,
+      );
+    }
 
     const body = rosterInviteOptionsRequestSchema.safeParse(
       await context.req.json<unknown>().catch(() => null),
@@ -279,6 +290,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
 
     const store = organizationStoreStub(context.env, resolvedOrganization.value.organizationId);
     const options = await store.getRosterInviteOptions({
+      email: session.user.email,
       organizationId: resolvedOrganization.value.organizationId,
       userId: session.user.id,
     });
@@ -294,9 +306,56 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
 
+    let alreadyEnrolled = options.alreadyEnrolled;
+    let profileMatchStatus: "matched" | "no_match" | "review_required" =
+      options.matchingProfile.status === "match" ? "matched" : options.matchingProfile.status;
+    const currentMembership = await context.env.CONTROL_DB.prepare(
+      `SELECT profileId FROM member WHERE organizationId = ? AND userId = ? LIMIT 1`,
+    )
+      .bind(resolvedOrganization.value.organizationId, session.user.id)
+      .first<{ profileId: string | null }>();
+    if (currentMembership?.profileId) {
+      alreadyEnrolled = true;
+      profileMatchStatus = "no_match";
+    } else if (options.matchingProfile.profileId) {
+      const [linkedMembership, activeReconciliation] = await Promise.all([
+        context.env.CONTROL_DB.prepare(
+          `SELECT id FROM member WHERE organizationId = ? AND profileId = ? LIMIT 1`,
+        )
+          .bind(resolvedOrganization.value.organizationId, options.matchingProfile.profileId)
+          .first<{ id: string }>(),
+        context.env.CONTROL_DB.prepare(
+          `SELECT id FROM organization_profile_reconciliations
+           WHERE organization_id = ?
+             AND (source_profile_id = ? OR target_profile_id = ?)
+             AND state IN ('reserved', 'prepared', 'relinked', 'needs_repair')
+           LIMIT 1`,
+        )
+          .bind(
+            resolvedOrganization.value.organizationId,
+            options.matchingProfile.profileId,
+            options.matchingProfile.profileId,
+          )
+          .first<{ id: string }>(),
+      ]);
+      if (linkedMembership || activeReconciliation) {
+        profileMatchStatus = "review_required";
+      }
+    }
+
     const response: RosterInviteOptionsResponse = {
-      alreadyEnrolled: options.alreadyEnrolled,
+      alreadyEnrolled,
       existingProfile: options.existingProfile ? { ...options.existingProfile } : null,
+      matchingProfile:
+        profileMatchStatus === "matched" &&
+        options.matchingProfile.displayName !== undefined &&
+        options.matchingProfile.voicePart !== undefined
+          ? {
+              displayName: options.matchingProfile.displayName,
+              voicePart: options.matchingProfile.voicePart,
+            }
+          : null,
+      profileMatchStatus,
       organizationName: options.organizationName,
       performerLabel: options.performerLabel,
       rosterStructure: options.rosterStructure,
@@ -344,6 +403,16 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         401,
       );
     }
+    if (!session.user.emailVerified) {
+      return context.json(
+        {
+          code: "forbidden",
+          message: "Verify your sign-in email before completing this roster invitation.",
+          requestId: context.get("requestId"),
+        } satisfies ProblemDetails,
+        403,
+      );
+    }
 
     const body = rosterInviteRedeemRequestSchema.safeParse(
       await context.req.json<unknown>().catch(() => null),
@@ -370,6 +439,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       showInDirectory: body.data.showInDirectory,
       token: body.data.token,
       voicePart: body.data.voicePart,
+      verifiedEmail: session.user.email,
     });
 
     if (!result.ok) {

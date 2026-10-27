@@ -201,8 +201,13 @@ export const organizationInvitationDetailsSchema = z.object({
   organizationId: organizationIdSchema,
   organizationName: z.string().min(1).max(120),
   organizationSlug: z.string().min(1).max(63),
+  profileLinkStatus: z.enum(["linked", "no_match", "review_required", "pending"]).optional(),
+  profileMatchStatus: z
+    .enum(["will_link", "no_match", "review_required"])
+    .optional()
+    .default("no_match"),
   role: organizationInvitationRoleSchema,
-  status: z.literal("pending"),
+  status: z.enum(["accepted", "pending"]),
 });
 
 export const organizationInvitationSummarySchema = z.object({
@@ -224,6 +229,7 @@ export const organizationInvitationActionResponseSchema = z.object({
   id: z.string().min(1).max(128),
   requestId: requestIdSchema,
   status: z.enum(["accepted", "canceled", "rejected"]),
+  profileLinkStatus: z.enum(["linked", "no_match", "review_required", "pending"]).optional(),
 });
 
 export type OrganizationInvitationRequest = z.infer<typeof organizationInvitationRequestSchema>;

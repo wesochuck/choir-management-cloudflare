@@ -2248,6 +2248,28 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
         WHERE hidden = 0 OR global_status != 'Inactive'`,
     ],
   },
+  {
+    version: 127,
+    statements: [
+      `ALTER TABLE prepared_roster_invite_enrollments
+        ADD COLUMN profile_mode TEXT NOT NULL DEFAULT 'new'
+        CHECK (profile_mode IN ('new', 'existing'))`,
+      "ALTER TABLE prepared_roster_invite_enrollments ADD COLUMN verified_email TEXT",
+      `CREATE TABLE roster_invite_profile_link_guards (
+        profile_id TEXT PRIMARY KEY NOT NULL,
+        created_at TEXT NOT NULL
+      ) STRICT`,
+      `CREATE TRIGGER prevent_roster_invite_guarded_profile_replace
+        BEFORE INSERT ON profiles
+        WHEN EXISTS (
+          SELECT 1 FROM roster_invite_profile_link_guards
+          WHERE profile_id = NEW.id
+        )
+        BEGIN
+          SELECT RAISE(ABORT, 'Existing roster Profile cannot be replaced by invite enrollment');
+        END`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

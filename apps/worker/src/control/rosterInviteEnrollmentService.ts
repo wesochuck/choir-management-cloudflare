@@ -43,6 +43,7 @@ export interface RosterInviteEnrollmentRow {
   readonly organization_id: string;
   readonly preexisting_membership: number;
   readonly profile_id: string;
+  readonly profile_mode: "new" | "existing";
   readonly request_digest: string;
   readonly reservation_lease_expires_at: number;
   readonly retry_count: number;
@@ -318,6 +319,7 @@ export interface RedeemRosterInviteInput {
   readonly showInDirectory: boolean;
   readonly token: string;
   readonly voicePart: string;
+  readonly verifiedEmail: string;
 }
 
 export interface RedeemRosterInviteResult {
@@ -325,6 +327,25 @@ export interface RedeemRosterInviteResult {
   readonly membershipId: string;
   readonly profileId: string;
   readonly status: "completed" | "already_enrolled" | "pending";
+}
+
+async function cancelUnadmittedEnrollment(
+  env: Env,
+  enrollment: RosterInviteEnrollmentRow,
+  now: number,
+): Promise<void> {
+  await env.CONTROL_DB.batch([
+    env.CONTROL_DB.prepare(
+      `UPDATE organization_roster_invite_enrollments
+       SET state = 'canceled', last_error_code = 'preparation_rejected', updated_at = ?
+       WHERE id = ? AND state IN ('reserved', 'prepared')`,
+    ).bind(now, enrollment.id),
+    env.CONTROL_DB.prepare(
+      `UPDATE organization_roster_invite_links
+       SET active_reservations = MAX(0, active_reservations - 1)
+       WHERE id = ? AND changes() = 1`,
+    ).bind(enrollment.link_id),
+  ]);
 }
 
 // eslint-disable-next-line complexity -- cross-store two-phase admission orchestration
@@ -404,6 +425,59 @@ export async function redeemRosterInvite(
     };
   }
 
+  let matchedProfileId: string | null =
+    enrollment?.profile_mode === "existing" ? enrollment.profile_id : null;
+  if (!enrollment) {
+    const store = organizationStoreStub(env, input.organizationId);
+    const profileMatch = await store.resolveRosterInviteProfileMatch({
+      email: input.verifiedEmail,
+      organizationId: input.organizationId,
+      userId: input.actorUserId,
+    });
+    if (profileMatch.status === "review_required") {
+      return {
+        code: "profile_match_requires_review",
+        message:
+          "An existing roster profile needs Organization administrator review before this invite can be completed.",
+        ok: false,
+        status: 409,
+      };
+    }
+    if (profileMatch.status === "match" && profileMatch.profileId) {
+      const [linkedMembership, activeReconciliation] = await Promise.all([
+        env.CONTROL_DB.prepare(
+          `SELECT id FROM member WHERE organizationId = ? AND profileId = ? LIMIT 1`,
+        )
+          .bind(input.organizationId, profileMatch.profileId)
+          .first<{ id: string }>(),
+        env.CONTROL_DB.prepare(
+          `SELECT id FROM organization_profile_reconciliations
+           WHERE organization_id = ?
+             AND (membership_id = ? OR source_profile_id = ? OR target_profile_id = ?)
+             AND state IN ('reserved', 'prepared', 'relinked', 'needs_repair')
+           LIMIT 1`,
+        )
+          .bind(
+            input.organizationId,
+            existingMembership?.id ?? "",
+            profileMatch.profileId,
+            profileMatch.profileId,
+          )
+          .first<{ id: string }>(),
+      ]);
+      if (linkedMembership || activeReconciliation) {
+        return {
+          code: "profile_match_requires_review",
+          message:
+            "An existing roster profile needs Organization administrator review before this invite can be completed.",
+          ok: false,
+          status: 409,
+        };
+      }
+      matchedProfileId = profileMatch.profileId;
+    }
+  }
+
   // Step B: Capacity check & reservation in D1
   if (!enrollment) {
     if (link.max_uses !== null && link.committed_uses + link.active_reservations >= link.max_uses) {
@@ -415,26 +489,55 @@ export async function redeemRosterInvite(
       };
     }
 
+    if (matchedProfileId) {
+      const protectedProfile = await organizationStoreStub(
+        env,
+        input.organizationId,
+      ).protectRosterInviteProfileForLink({
+        email: input.verifiedEmail,
+        organizationId: input.organizationId,
+        profileId: matchedProfileId,
+        userId: input.actorUserId,
+      });
+      if (!protectedProfile.ok) {
+        return {
+          code: "profile_match_requires_review",
+          message:
+            "An existing roster profile changed while this invite was being completed. Ask an Organization administrator for help.",
+          ok: false,
+          status: 409,
+        };
+      }
+    }
+
     const enrollmentId = crypto.randomUUID();
-    const profileId = crypto.randomUUID();
+    const profileId = matchedProfileId ?? crypto.randomUUID();
+    const profileMode = matchedProfileId ? "existing" : "new";
     const requestDigest = crypto.randomUUID();
     const leaseExpiresAt = now + 60_000;
     const preexistingMembership = existingMembership ? 1 : 0;
 
     try {
-      await env.CONTROL_DB.batch([
+      const reservationResults = await env.CONTROL_DB.batch([
+        env.CONTROL_DB.prepare(
+          `UPDATE organization_roster_invite_links
+           SET active_reservations = active_reservations + 1
+           WHERE id = ? AND (max_uses IS NULL OR committed_uses + active_reservations < max_uses)`,
+        ).bind(link.id),
         env.CONTROL_DB.prepare(
           `INSERT INTO organization_roster_invite_enrollments
-            (id, organization_id, link_id, user_id, profile_id, membership_id,
+            (id, organization_id, link_id, user_id, profile_id, profile_mode, membership_id,
              idempotency_key, request_digest, state, reservation_lease_expires_at,
              fencing_version, preexisting_membership, retry_count, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, 1, ?, 0, ?, ?)`,
+           SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, 1, ?, 0, ?, ?
+           WHERE changes() = 1`,
         ).bind(
           enrollmentId,
           input.organizationId,
           link.id,
           input.actorUserId,
           profileId,
+          profileMode,
           existingMembership?.id ?? null,
           input.idempotencyKey,
           requestDigest,
@@ -443,12 +546,16 @@ export async function redeemRosterInvite(
           now,
           now,
         ),
-        env.CONTROL_DB.prepare(
-          `UPDATE organization_roster_invite_links
-           SET active_reservations = active_reservations + 1
-           WHERE id = ?`,
-        ).bind(link.id),
       ]);
+
+      if (reservationResults[0]?.meta.changes !== 1) {
+        return {
+          code: "invite_exhausted",
+          message: "This roster invite link has reached its maximum enrollment capacity.",
+          ok: false,
+          status: 409,
+        };
+      }
 
       enrollment = await env.CONTROL_DB.prepare(
         `SELECT * FROM organization_roster_invite_enrollments WHERE id = ? LIMIT 1`,
@@ -484,6 +591,8 @@ export async function redeemRosterInvite(
     organizationId: input.organizationId,
     phone: input.phone ?? "",
     profileId: enrollment.profile_id,
+    profileMode: enrollment.profile_mode,
+    verifiedEmail: input.verifiedEmail,
     requestId: input.requestId,
     showInDirectory: input.showInDirectory,
     userId: input.actorUserId,
@@ -491,6 +600,16 @@ export async function redeemRosterInvite(
   });
 
   if (!prepareResult.ok) {
+    await cancelUnadmittedEnrollment(env, enrollment, now);
+    if (prepareResult.code === "profile_match_changed") {
+      return {
+        code: "profile_match_requires_review",
+        message:
+          "An existing roster profile changed while this invite was being completed. Ask an Organization administrator for help.",
+        ok: false,
+        status: 409,
+      };
+    }
     if (prepareResult.code === "voice_part_not_configured") {
       return {
         code: "voice_part_not_configured",
@@ -553,6 +672,7 @@ export async function redeemRosterInvite(
     enrollmentId: enrollment.id,
     organizationId: input.organizationId,
     requestId: input.requestId,
+    verifiedEmail: input.verifiedEmail,
   });
 
   if (!commitResult.ok) {
@@ -574,17 +694,36 @@ export async function redeemRosterInvite(
   }
 
   // Link profile to membership
-  const linkResult = await linkOrganizationProfile(
-    env,
-    {
-      actorUserId: input.actorUserId,
-      membershipId,
-      organizationId: input.organizationId,
-      profileId: enrollment.profile_id,
-      requestId: input.requestId,
-    },
-    new Date(now),
-  );
+  let linkResult: Awaited<ReturnType<typeof linkOrganizationProfile>>;
+  try {
+    linkResult = await linkOrganizationProfile(
+      env,
+      {
+        actorUserId: input.actorUserId,
+        membershipId,
+        organizationId: input.organizationId,
+        profileId: enrollment.profile_id,
+        requestId: input.requestId,
+        requireUnlinked: true,
+        source: "roster_invite",
+      },
+      new Date(now),
+    );
+  } catch {
+    await env.CONTROL_DB.prepare(
+      `UPDATE organization_roster_invite_enrollments
+       SET state = 'needs_repair', last_error_code = 'profile_link_failed', updated_at = ?
+       WHERE id = ?`,
+    )
+      .bind(now, enrollment.id)
+      .run();
+    return {
+      code: "admission_finalization_pending",
+      message: "Admission accepted but profile link is finishing.",
+      ok: false,
+      status: 202,
+    };
+  }
 
   if (!linkResult.ok) {
     await env.CONTROL_DB.prepare(

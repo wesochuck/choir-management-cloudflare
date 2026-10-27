@@ -13,11 +13,14 @@ export interface OrganizationProfileLink {
   readonly profileId: string;
 }
 
+// eslint-disable-next-line complexity -- guards manual and automatic Membership-to-Profile linking
 export async function linkOrganizationProfile(
   env: Env,
   input: OrganizationProfileLink & {
     readonly actorUserId: string;
+    readonly requireUnlinked?: boolean;
     readonly requestId: string;
+    readonly source?: "manual" | "organization_invitation" | "roster_invite";
   },
   now = new Date(),
 ): Promise<DomainResult<OrganizationProfileLink>> {
@@ -48,6 +51,12 @@ export async function linkOrganizationProfile(
       organizationId: input.organizationId,
       profileId: input.profileId,
     });
+  }
+  if (input.requireUnlinked && membership.profileId !== null) {
+    return failure(
+      "conflict",
+      "This Membership is already linked to another Organization Profile.",
+    );
   }
   const conflictingMembership = await env.CONTROL_DB.prepare(
     `SELECT id FROM member
@@ -83,32 +92,75 @@ export async function linkOrganizationProfile(
   }
 
   const occurredAt = now.toISOString();
+  const source = input.source ?? "manual";
+  const automaticLinkGuard =
+    source === "manual"
+      ? ""
+      : `
+         AND NOT EXISTS (
+           SELECT 1 FROM member other
+           WHERE other.organizationId = ? AND other.profileId = ? AND other.id <> ?
+         )
+         AND NOT EXISTS (
+           SELECT 1 FROM organization_profile_reconciliations reconciliation
+           WHERE reconciliation.organization_id = ?
+             AND (reconciliation.membership_id = ? OR reconciliation.source_profile_id = ?
+               OR reconciliation.target_profile_id = ?)
+             AND reconciliation.state IN ('reserved', 'prepared', 'relinked', 'needs_repair')
+         )`;
   try {
-    await env.CONTROL_DB.batch([
+    const results = await env.CONTROL_DB.batch([
       env.CONTROL_DB.prepare(
         `UPDATE member SET profileId = ?
-         WHERE id = ? AND organizationId = ?`,
-      ).bind(input.profileId, input.membershipId, input.organizationId),
+         WHERE id = ? AND organizationId = ? ${input.requireUnlinked ? "AND profileId IS NULL" : ""}${automaticLinkGuard}`,
+      ).bind(
+        input.profileId,
+        input.membershipId,
+        input.organizationId,
+        ...(source === "manual"
+          ? []
+          : [
+              input.organizationId,
+              input.profileId,
+              input.membershipId,
+              input.organizationId,
+              input.membershipId,
+              input.profileId,
+              input.profileId,
+            ]),
+      ),
       env.CONTROL_DB.prepare(
         `INSERT INTO platform_audit_events
           (id, actor_user_id, organization_id, action, target_type, target_id,
            request_id, change_summary, occurred_at)
-         VALUES (?, ?, ?, 'organization.membership.profile_linked',
-           'organization_membership', ?, ?, ?, ?)`,
+         SELECT ?, ?, ?, ?,
+           'organization_membership', ?, ?, ?, ?
+         WHERE changes() = 1`,
       ).bind(
         crypto.randomUUID(),
         input.actorUserId,
         input.organizationId,
+        source === "manual"
+          ? "organization.membership.profile_linked"
+          : "organization.membership.profile_auto_linked",
         input.membershipId,
         input.requestId,
         JSON.stringify({
           after: { profileId: input.profileId },
           before: { profileId: membership.profileId },
+          method: source,
         }),
         occurredAt,
       ),
     ]);
+    if (input.requireUnlinked && results[0]?.meta.changes !== 1) {
+      return failure(
+        "conflict",
+        "This Membership is already linked to another Organization Profile.",
+      );
+    }
   } catch {
+    if (source !== "manual") throw new Error("Automatic Organization Profile linking failed.");
     return failure("conflict", "The Organization Profile could not be linked.");
   }
 

@@ -34,6 +34,15 @@ satisfy an Organization MFA policy; TOTP or a recovery code must create the scop
 stores only this identity link; the Profile record remains in the Organization Durable Object and
 must be confirmed there before the link is written.
 
+Verified-email invitation acceptance may link one unarchived, canonical Organization Profile by its
+primary roster Contact email. Both direct Membership invitations and reusable roster invite links
+use the same Organization-local matching policy. Archived, ambiguous, already-linked, or actively
+reconciled Profiles require administrator review. Direct invitations still allow membership-only
+acceptance when no Profile matches; roster invite links still create a new Profile when there is no
+match. Existing Profile and Membership fields take precedence and are never overwritten by this
+linking path. See [ADR 0066](../adr/0066-verified-invitation-profile-linking.md) for authorization,
+retry, concurrency, and rollback details.
+
 D1 must never contain roster, event, music, communication, payment, ticket, donation, or other
 Organization-operational rows.
 

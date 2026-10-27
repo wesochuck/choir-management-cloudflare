@@ -3,7 +3,9 @@ import {
   organizationInvitationDetailsSchema,
   organizationInvitationsResponseSchema,
   organizationInvitationResponseSchema,
+  organizationProfileResponseSchema,
 } from "@choir/contracts";
+import { runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   setupAuthIntegration,
@@ -19,6 +21,7 @@ import {
   signInInvitedUser,
   readCapturedPlatformEmailsForTest,
 } from "./auth.integration.fixture";
+import type { OrganizationStore } from "../src/organization/OrganizationStore";
 beforeEach(async () => setupAuthIntegration());
 afterEach(async () => teardownAuthIntegration());
 
@@ -178,6 +181,7 @@ describe("Organization invitations", () => {
       id: invitation.id,
       organizationId: "organization-alpha",
       organizationName: "Organization Alpha",
+      profileMatchStatus: "no_match",
       role: "member",
     });
     const acceptResponse = await fetchWorker(
@@ -193,7 +197,11 @@ describe("Organization invitations", () => {
     expect(acceptResponse.status).toBe(200);
     expect(
       organizationInvitationActionResponseSchema.parse(await acceptResponse.json()),
-    ).toMatchObject({ id: invitation.id, status: "accepted" });
+    ).toMatchObject({
+      id: invitation.id,
+      profileLinkStatus: "no_match",
+      status: "accepted",
+    });
     await expect(
       testEnv.CONTROL_DB.prepare("SELECT role FROM member WHERE organizationId = ? AND userId = ?")
         .bind("organization-alpha", pendingUser?.id)
@@ -212,6 +220,314 @@ describe("Organization invitations", () => {
         { action: "organization.invitation.accepted" },
       ],
     });
+  });
+
+  it("links a first-time account to one existing Profile after invite verification", async () => {
+    await seedInvitedUser();
+    await seedOrganizations();
+    const inviterCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+    const invitedEmail = "first.time.singer@example.test";
+    const profileResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/profiles",
+        {
+          body: JSON.stringify({
+            displayName: "First Time Singer",
+            email: invitedEmail,
+            voicePart: "Soprano 1",
+          }),
+          headers: { cookie: inviterCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(profileResponse.status).toBe(201);
+    const profile = organizationProfileResponseSchema.parse(await profileResponse.json());
+    const invitationResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/invitations",
+        {
+          body: JSON.stringify({ email: invitedEmail, role: "member" }),
+          headers: { cookie: inviterCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(invitationResponse.status).toBe(201);
+    const invitation = organizationInvitationResponseSchema.parse(await invitationResponse.json());
+    const invitedCookie = await signInEmail(invitedEmail, ALPHA_AUTH_ORIGIN);
+
+    const acceptResponse = await fetchWorker(
+      authRequest(
+        `/api/organization/invitations/${encodeURIComponent(invitation.id)}/accept`,
+        { headers: { cookie: invitedCookie }, method: "POST" },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(
+      organizationInvitationActionResponseSchema.parse(await acceptResponse.json()),
+    ).toMatchObject({
+      profileLinkStatus: "linked",
+      status: "accepted",
+    });
+    await expect(
+      testEnv.CONTROL_DB.prepare(
+        `SELECT member.profileId FROM member
+         JOIN user ON user.id = member.userId
+         WHERE member.organizationId = 'organization-alpha' AND user.email = ? LIMIT 1`,
+      )
+        .bind(invitedEmail)
+        .first(),
+    ).resolves.toEqual({ profileId: profile.id });
+  });
+
+  it("accepts an invitation without linking an archived Profile", async () => {
+    await seedInvitedUser();
+    await seedOrganizations();
+    const inviterCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+    const invitedEmail = "archived.singer@example.test";
+    const profileResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/profiles",
+        {
+          body: JSON.stringify({ displayName: "Archived Singer", email: invitedEmail }),
+          headers: { cookie: inviterCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(profileResponse.status).toBe(201);
+    const profile = organizationProfileResponseSchema.parse(await profileResponse.json());
+    await runInDurableObject<OrganizationStore, undefined>(
+      testEnv.ORGANIZATION_STORE.get(testEnv.ORGANIZATION_STORE.idFromName("organization-alpha")),
+      (_instance, state) => {
+        state.storage.sql.exec(
+          "UPDATE profiles SET global_status = 'Inactive', hidden = 1 WHERE id = ?",
+          profile.id,
+        );
+      },
+    );
+    const invitationResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/invitations",
+        {
+          body: JSON.stringify({ email: invitedEmail, role: "member" }),
+          headers: { cookie: inviterCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    const invitation = organizationInvitationResponseSchema.parse(await invitationResponse.json());
+    const invitedCookie = await signInEmail(invitedEmail, ALPHA_AUTH_ORIGIN);
+    const detailsResponse = await fetchWorker(
+      authRequest(
+        `/api/organization/invitations/${encodeURIComponent(invitation.id)}`,
+        { headers: { cookie: invitedCookie } },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(
+      organizationInvitationDetailsSchema.parse(await detailsResponse.json()).profileMatchStatus,
+    ).toBe("review_required");
+
+    const acceptResponse = await fetchWorker(
+      authRequest(
+        `/api/organization/invitations/${encodeURIComponent(invitation.id)}/accept`,
+        { headers: { cookie: invitedCookie }, method: "POST" },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(
+      organizationInvitationActionResponseSchema.parse(await acceptResponse.json()),
+    ).toMatchObject({
+      profileLinkStatus: "review_required",
+      status: "accepted",
+    });
+    await expect(
+      testEnv.CONTROL_DB.prepare(
+        `SELECT member.profileId FROM member
+         JOIN user ON user.id = member.userId
+         WHERE member.organizationId = 'organization-alpha' AND user.email = ? LIMIT 1`,
+      )
+        .bind(invitedEmail)
+        .first(),
+    ).resolves.toEqual({ profileId: null });
+    await expect(
+      runInDurableObject<OrganizationStore, number>(
+        testEnv.ORGANIZATION_STORE.get(testEnv.ORGANIZATION_STORE.idFromName("organization-alpha")),
+        (_instance, state) =>
+          state.storage.sql
+            .exec<{ readonly count: number }>("SELECT COUNT(*) AS count FROM profiles")
+            .one().count,
+      ),
+    ).resolves.toBe(1);
+  });
+
+  it("links a verified multi-Organization account to the exact existing Alpha Profile", async () => {
+    await seedInvitedUser();
+    await seedOrganizations();
+    const invitedEmail = "existing.singer@example.test";
+    const now = Date.now();
+    await testEnv.CONTROL_DB.batch([
+      testEnv.CONTROL_DB.prepare(
+        `INSERT INTO user
+          (id, name, email, emailVerified, createdAt, updatedAt, twoFactorEnabled)
+         VALUES (?, ?, ?, 1, ?, ?, 0)`,
+      ).bind("user-existing-singer", "Existing Singer", invitedEmail, now, now),
+      testEnv.CONTROL_DB.prepare(
+        `INSERT INTO member (id, organizationId, userId, role, createdAt)
+         VALUES (?, ?, ?, 'member', ?)`,
+      ).bind("member-bravo-existing-singer", "organization-bravo", "user-existing-singer", now),
+    ]);
+
+    const inviterCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+    const profileResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/profiles",
+        {
+          body: JSON.stringify({
+            displayName: "Saved Singer Name",
+            email: invitedEmail.toUpperCase(),
+            phone: "555-0182",
+            voicePart: "Alto 1",
+          }),
+          headers: { cookie: inviterCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(profileResponse.status).toBe(201);
+    const profile = organizationProfileResponseSchema.parse(await profileResponse.json());
+    const organizationStub = testEnv.ORGANIZATION_STORE.get(
+      testEnv.ORGANIZATION_STORE.idFromName("organization-alpha"),
+    );
+    await runInDurableObject<OrganizationStore, undefined>(organizationStub, (_instance, state) => {
+      const at = "2026-01-02T12:00:00.000Z";
+      state.storage.sql.exec(
+        `UPDATE profiles
+         SET global_status = 'Inactive', hidden = 0, show_in_directory = 0,
+             notes = 'Saved note', do_not_email = 1
+         WHERE id = ?`,
+        profile.id,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+         VALUES ('existing-profile-history', 'History Event', 'Performance', ?, ?, ?)`,
+        at,
+        at,
+        at,
+      );
+      state.storage.sql.exec(
+        `INSERT INTO event_rosters
+          (event_id, profile_id, rsvp, attendance, created_at, updated_at)
+         VALUES ('existing-profile-history', ?, 'Yes', 'Present', ?, ?)`,
+        profile.id,
+        at,
+        at,
+      );
+    });
+
+    const beforeProfile = await runInDurableObject<OrganizationStore, unknown>(
+      organizationStub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec(
+            `SELECT display_name, phone, voice_part, global_status, hidden, show_in_directory,
+                    notes, do_not_email,
+                    (SELECT normalized_email FROM contacts c WHERE c.profile_id = profiles.id
+                     ORDER BY c.created_at, c.id LIMIT 1) AS normalized_email,
+                    (SELECT COUNT(*) FROM event_rosters r WHERE r.profile_id = profiles.id) AS history_rows
+             FROM profiles WHERE id = ?`,
+            profile.id,
+          )
+          .one(),
+    );
+
+    const invitationResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/invitations",
+        {
+          body: JSON.stringify({ email: invitedEmail, role: "member" }),
+          headers: { cookie: inviterCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(invitationResponse.status).toBe(201);
+    const invitation = organizationInvitationResponseSchema.parse(await invitationResponse.json());
+    const invitedCookie = await signInEmail(invitedEmail, ALPHA_AUTH_ORIGIN);
+
+    const detailsResponse = await fetchWorker(
+      authRequest(
+        `/api/organization/invitations/${encodeURIComponent(invitation.id)}`,
+        { headers: { cookie: invitedCookie } },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(organizationInvitationDetailsSchema.parse(await detailsResponse.json())).toMatchObject({
+      profileMatchStatus: "will_link",
+      status: "pending",
+    });
+
+    const acceptResponse = await fetchWorker(
+      authRequest(
+        `/api/organization/invitations/${encodeURIComponent(invitation.id)}/accept`,
+        { headers: { cookie: invitedCookie }, method: "POST" },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(
+      organizationInvitationActionResponseSchema.parse(await acceptResponse.json()),
+    ).toMatchObject({
+      id: invitation.id,
+      profileLinkStatus: "linked",
+      status: "accepted",
+    });
+    await expect(
+      testEnv.CONTROL_DB.prepare(
+        `SELECT profileId FROM member
+         WHERE organizationId = 'organization-alpha' AND userId = ?`,
+      )
+        .bind("user-existing-singer")
+        .first(),
+    ).resolves.toEqual({ profileId: profile.id });
+    await expect(
+      testEnv.CONTROL_DB.prepare("SELECT role FROM member WHERE id = ?")
+        .bind("member-bravo-existing-singer")
+        .first(),
+    ).resolves.toEqual({ role: "member" });
+    await expect(
+      testEnv.CONTROL_DB.prepare(
+        `SELECT action FROM platform_audit_events
+         WHERE organization_id = ? AND actor_user_id = ?
+           AND action = 'organization.membership.profile_auto_linked' LIMIT 1`,
+      )
+        .bind("organization-alpha", "user-existing-singer")
+        .first<{ action: string }>(),
+    ).resolves.toEqual({ action: "organization.membership.profile_auto_linked" });
+
+    const afterProfile = await runInDurableObject<OrganizationStore, unknown>(
+      organizationStub,
+      (_instance, state) =>
+        state.storage.sql
+          .exec(
+            `SELECT display_name, phone, voice_part, global_status, hidden, show_in_directory,
+                    notes, do_not_email,
+                    (SELECT normalized_email FROM contacts c WHERE c.profile_id = profiles.id
+                     ORDER BY c.created_at, c.id LIMIT 1) AS normalized_email,
+                    (SELECT COUNT(*) FROM event_rosters r WHERE r.profile_id = profiles.id) AS history_rows
+             FROM profiles WHERE id = ?`,
+            profile.id,
+          )
+          .one(),
+    );
+    expect(afterProfile).toEqual(beforeProfile);
   });
 
   it("blocks native Organization HTTP mutations and lists and cancels only host-bound invitations", async () => {

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { organizationInvitationDetailsSchema } from "./auth";
 import {
   createRosterInviteLinkRequestSchema,
   rosterInviteLinkSummarySchema,
   rosterInvitePreviewResponseSchema,
+  rosterInviteOptionsResponseSchema,
   rosterInviteRedeemRequestSchema,
 } from "./rosterInvites";
 
@@ -58,6 +60,46 @@ describe("Roster invite contracts", () => {
       requestId: "11111111-1111-4111-8111-111111111111",
     };
     expect(rosterInvitePreviewResponseSchema.parse(preview)).toEqual(preview);
+  });
+
+  it("defaults optional match fields for clients during Worker version rollout", () => {
+    const options = rosterInviteOptionsResponseSchema.parse({
+      alreadyEnrolled: false,
+      existingProfile: null,
+      organizationName: "Test Chorus",
+      performerLabel: "Voice Part",
+      requestId: "11111111-1111-4111-8111-111111111111",
+      rosterStructure: "sections_with_parts",
+      sections: [],
+      voiceParts: [],
+    });
+    expect(options).toMatchObject({ matchingProfile: null, profileMatchStatus: "no_match" });
+
+    expect(
+      rosterInviteOptionsResponseSchema.parse({
+        ...options,
+        matchingProfile: { displayName: "Existing Singer", voicePart: "" },
+        profileMatchStatus: "matched",
+      }),
+    ).toMatchObject({
+      matchingProfile: { displayName: "Existing Singer", voicePart: "" },
+      profileMatchStatus: "matched",
+    });
+  });
+
+  it("defaults missing invitation match status to the existing no-match experience", () => {
+    const invitation = organizationInvitationDetailsSchema.parse({
+      email: "singer@example.test",
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      id: "invitation-1",
+      inviterEmail: "manager@example.test",
+      organizationId: "organization-alpha",
+      organizationName: "Test Chorus",
+      organizationSlug: "test-chorus",
+      role: "member",
+      status: "pending",
+    });
+    expect(invitation.profileMatchStatus).toBe("no_match");
   });
 
   it("validates and trims redeem request schema", () => {

@@ -12,8 +12,10 @@ type InvitationState =
   | { readonly status: "loading" }
   | { readonly invitation: OrganizationInvitationDetails; readonly status: "ready" }
   | {
+      readonly invitation: OrganizationInvitationDetails;
       readonly organizationName: string;
       readonly outcome: "accepted" | "rejected";
+      readonly profileLinkStatus: "linked" | "no_match" | "review_required" | "pending";
       readonly status: "success";
     };
 
@@ -40,6 +42,7 @@ function validInvitationId(value: string | null): value is string {
   );
 }
 
+// eslint-disable-next-line complexity -- renders four invitation lifecycle states with retry actions
 export function AcceptInvitationView({ invitationId }: { readonly invitationId: string | null }) {
   const [busy, setBusy] = useState(false);
   const [confirmReject, setConfirmReject] = useState(false);
@@ -55,7 +58,21 @@ export function AcceptInvitationView({ invitationId }: { readonly invitationId: 
     const abortController = new AbortController();
     getOrganizationInvitation(invitationId, abortController.signal)
       .then((invitation) => {
-        setState({ invitation, status: "ready" });
+        if (invitation.status === "accepted") {
+          setState({
+            invitation,
+            organizationName: invitation.organizationName,
+            outcome: "accepted",
+            profileLinkStatus:
+              invitation.profileLinkStatus ??
+              (invitation.profileMatchStatus === "will_link"
+                ? "pending"
+                : invitation.profileMatchStatus),
+            status: "success",
+          });
+        } else {
+          setState({ invitation, status: "ready" });
+        }
       })
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
@@ -68,16 +85,26 @@ export function AcceptInvitationView({ invitationId }: { readonly invitationId: 
   }, [invitationId]);
 
   async function acceptInvitation() {
-    if (state.status !== "ready") {
+    const invitation =
+      state.status === "ready"
+        ? state.invitation
+        : state.status === "success" &&
+            state.outcome === "accepted" &&
+            state.profileLinkStatus === "pending"
+          ? state.invitation
+          : null;
+    if (!invitation) {
       return;
     }
     setBusy(true);
     setErrorMessage(null);
     try {
-      await acceptOrganizationInvitation(state.invitation.id);
+      const result = await acceptOrganizationInvitation(invitation.id);
       setState({
-        organizationName: state.invitation.organizationName,
+        invitation,
+        organizationName: invitation.organizationName,
         outcome: "accepted",
+        profileLinkStatus: result.profileLinkStatus ?? "no_match",
         status: "success",
       });
     } catch {
@@ -98,8 +125,10 @@ export function AcceptInvitationView({ invitationId }: { readonly invitationId: 
     try {
       await rejectOrganizationInvitation(state.invitation.id);
       setState({
+        invitation: state.invitation,
         organizationName: state.invitation.organizationName,
         outcome: "rejected",
+        profileLinkStatus: "no_match",
         status: "success",
       });
     } catch {
@@ -145,9 +174,27 @@ export function AcceptInvitationView({ invitationId }: { readonly invitationId: 
           </h1>
           <p className="notice notice--success" role="status">
             {accepted
-              ? "Your Organization Membership is ready."
+              ? state.profileLinkStatus === "linked"
+                ? "Your Membership is ready, and your existing roster Profile is connected. Your Profile and history are preserved."
+                : state.profileLinkStatus === "review_required"
+                  ? "Your Membership is ready. An Organization administrator needs to review the roster Profile before it can be connected."
+                  : state.profileLinkStatus === "pending"
+                    ? "Your Membership is ready. The Profile connection is still finishing. Retry below to complete it."
+                    : "Your Organization Membership is ready. An Organization administrator can link your roster Profile if needed."
               : `You did not join ${state.organizationName}.`}
           </p>
+          {accepted && state.profileLinkStatus === "pending" ? (
+            <button
+              className="button button--secondary"
+              disabled={busy}
+              onClick={() => {
+                void acceptInvitation();
+              }}
+              type="button"
+            >
+              {busy ? "Retrying profile connection…" : "Retry profile connection"}
+            </button>
+          ) : null}
           <a className="button button--primary" href="/account">
             Open your account
           </a>
@@ -178,6 +225,17 @@ export function AcceptInvitationView({ invitationId }: { readonly invitationId: 
             <dd>{displayDate(state.invitation.expiresAt)}</dd>
           </div>
         </dl>
+        {state.invitation.profileMatchStatus === "will_link" ? (
+          <p className="notice notice--info" role="status">
+            Accepting will connect your account to your existing roster Profile. Your saved Profile
+            information and history will be preserved.
+          </p>
+        ) : state.invitation.profileMatchStatus === "review_required" ? (
+          <p className="notice notice--warning" role="status">
+            A roster Profile needs administrator review before it can be connected. You can still
+            accept this Membership invitation.
+          </p>
+        ) : null}
         {errorMessage ? (
           <p className="notice notice--error" role="alert">
             {errorMessage}

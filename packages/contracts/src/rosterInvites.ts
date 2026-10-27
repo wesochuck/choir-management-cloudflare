@@ -102,10 +102,19 @@ export const rosterInviteConfiguredPartSchema = z.object({
 
 export const rosterInviteOptionsResponseSchema = z.object({
   alreadyEnrolled: z.boolean(),
+  matchingProfile: z
+    .object({
+      displayName: z.string().min(1).max(200),
+      voicePart: z.string().max(50),
+    })
+    .nullable()
+    .optional()
+    .default(null),
+  profileMatchStatus: z.enum(["matched", "no_match", "review_required"]).default("no_match"),
   existingProfile: z
     .object({
       displayName: z.string().min(1).max(200),
-      voicePart: z.string().min(1).max(50),
+      voicePart: z.string().max(50),
     })
     .nullable(),
   organizationName: z.string().min(1).max(120),

@@ -1,6 +1,8 @@
 import { organizationRosterConfigurationRequestSchema } from "@choir/contracts";
 import { organizationIdentity } from "./organizationStore/storeShared";
 import { resolveCanonicalProfileId } from "./organizationStore/profileReconciliation";
+import { normalizeEmailForStorage } from "./contactStore/shared";
+import { primaryRosterContactSql } from "./organizationStore/rosterContact";
 
 export interface PrepareRosterInviteEnrollmentInput {
   readonly actorUserId: string;
@@ -9,6 +11,8 @@ export interface PrepareRosterInviteEnrollmentInput {
   readonly organizationId: string;
   readonly phone: string;
   readonly profileId: string;
+  readonly profileMode?: "new" | "existing";
+  readonly verifiedEmail?: string;
   readonly requestId: string;
   readonly showInDirectory: boolean;
   readonly userId: string;
@@ -20,6 +24,7 @@ export interface CommitRosterInviteEnrollmentInput {
   readonly enrollmentId: string;
   readonly organizationId: string;
   readonly requestId: string;
+  readonly verifiedEmail?: string;
 }
 
 export interface PreparedEnrollmentRow {
@@ -29,11 +34,132 @@ export interface PreparedEnrollmentRow {
   readonly enrollment_id: string;
   readonly phone: string | null;
   readonly profile_id: string;
+  readonly profile_mode: "new" | "existing";
+  readonly verified_email: string | null;
   readonly show_in_directory: number;
   readonly status: "prepared" | "committed" | "canceled";
   readonly updated_at: string;
   readonly user_id: string;
   readonly voice_part: string;
+}
+
+export interface RosterInviteProfileMatch {
+  readonly displayName?: string;
+  readonly profileId?: string;
+  readonly status: "match" | "no_match" | "review_required";
+  readonly voicePart?: string;
+}
+
+export function resolveRosterInviteProfileMatchInStore(
+  storage: DurableObjectStorage,
+  input: { readonly email: string; readonly organizationId: string; readonly userId?: string },
+): RosterInviteProfileMatch {
+  if (organizationIdentity(storage)?.organizationId !== input.organizationId) {
+    return { status: "review_required" };
+  }
+  const normalizedEmail = normalizeEmailForStorage(input.email);
+  if (!normalizedEmail) return { status: "no_match" };
+
+  // idx_contacts_normalized_email is unique within this Organization, so an exact normalized
+  // lookup is bounded to one primary roster Contact. Read all matching rows so uniqueness never
+  // depends on a truncated roster listing if that invariant is damaged by an old database.
+  const rows = storage.sql
+    .exec<{
+      readonly display_name: string;
+      readonly global_status: string;
+      readonly hidden: number;
+      readonly id: string;
+      readonly merged_into_profile_id: string | null;
+      readonly voice_part: string;
+    }>(
+      `SELECT p.id, p.display_name, p.voice_part, p.global_status, p.hidden,
+              p.merged_into_profile_id
+       FROM contacts c JOIN profiles p ON p.id = c.profile_id
+       WHERE c.id = ${primaryRosterContactSql}
+         AND c.normalized_email = ?`,
+      normalizedEmail,
+    )
+    .toArray();
+  if (rows.length === 0) return { status: "no_match" };
+  const canonicalProfileIds = new Set(
+    rows.map((row) => resolveCanonicalProfileId(storage, row.id)),
+  );
+  if (canonicalProfileIds.size !== 1) return { status: "review_required" };
+  const canonicalProfileId = canonicalProfileIds.values().next().value;
+  if (!canonicalProfileId) return { status: "review_required" };
+
+  const profile = storage.sql
+    .exec<{
+      readonly display_name: string;
+      readonly global_status: string;
+      readonly hidden: number;
+      readonly id: string;
+      readonly merged_into_profile_id: string | null;
+      readonly voice_part: string;
+    }>(
+      `SELECT id, display_name, voice_part, global_status, hidden, merged_into_profile_id
+       FROM profiles WHERE id = ? LIMIT 1`,
+      canonicalProfileId,
+    )
+    .toArray()
+    .at(0);
+  if (
+    !profile?.id ||
+    profile.merged_into_profile_id !== null ||
+    (profile.global_status === "Inactive" && profile.hidden === 1)
+  ) {
+    return { status: "review_required" };
+  }
+
+  const reservedForAnotherUser =
+    storage.sql
+      .exec(
+        `SELECT 1 FROM prepared_roster_invite_enrollments
+       WHERE profile_id = ? AND user_id <> ? AND status != 'canceled'
+       LIMIT 1`,
+        canonicalProfileId,
+        input.userId ?? "",
+      )
+      .toArray().length > 0;
+  if (reservedForAnotherUser) return { status: "review_required" };
+
+  return {
+    displayName: profile.display_name,
+    profileId: canonicalProfileId,
+    status: "match",
+    voicePart: profile.voice_part,
+  };
+}
+
+export function protectRosterInviteProfileForLinkInStore(
+  storage: DurableObjectStorage,
+  input: {
+    readonly email: string;
+    readonly organizationId: string;
+    readonly profileId: string;
+    readonly userId: string;
+  },
+): { readonly code?: string; readonly ok: boolean } {
+  if (organizationIdentity(storage)?.organizationId !== input.organizationId) {
+    return { code: "organization_not_found", ok: false };
+  }
+  return storage.transactionSync(() => {
+    const match = resolveRosterInviteProfileMatchInStore(storage, {
+      email: input.email,
+      organizationId: input.organizationId,
+      userId: input.userId,
+    });
+    if (match.status !== "match" || match.profileId !== input.profileId) {
+      return { code: "profile_match_changed", ok: false };
+    }
+    storage.sql.exec(
+      `INSERT INTO roster_invite_profile_link_guards (profile_id, created_at)
+       VALUES (?, ?) ON CONFLICT(profile_id) DO NOTHING`,
+      input.profileId,
+      new Date().toISOString(),
+    );
+    return { ok: true };
+  });
 }
 
 function readOrganizationRosterConfig(storage: DurableObjectStorage): {
@@ -88,10 +214,15 @@ function readOrganizationRosterConfig(storage: DurableObjectStorage): {
 
 export function getRosterInviteOptionsInStore(
   storage: DurableObjectStorage,
-  input: { readonly organizationId: string; readonly userId?: string | null },
+  input: {
+    readonly email?: string | null;
+    readonly organizationId: string;
+    readonly userId?: string | null;
+  },
 ): {
   readonly alreadyEnrolled: boolean;
   readonly existingProfile: { readonly displayName: string; readonly voicePart: string } | null;
+  readonly matchingProfile: RosterInviteProfileMatch;
   readonly organizationName: string;
   readonly rosterStructure: "sections_only" | "sections_with_parts";
   readonly performerLabel: string;
@@ -122,6 +253,15 @@ export function getRosterInviteOptionsInStore(
 
   let existingProfile: { readonly displayName: string; readonly voicePart: string } | null = null;
   let alreadyEnrolled = false;
+  let matchingProfile: RosterInviteProfileMatch = { status: "no_match" };
+
+  if (input.email) {
+    matchingProfile = resolveRosterInviteProfileMatchInStore(storage, {
+      email: input.email,
+      organizationId: input.organizationId,
+      ...(input.userId ? { userId: input.userId } : {}),
+    });
+  }
 
   if (input.userId) {
     // Check if there is already a committed enrollment for this user in this store
@@ -156,6 +296,7 @@ export function getRosterInviteOptionsInStore(
   return {
     alreadyEnrolled,
     existingProfile,
+    matchingProfile,
     organizationName: identity.name,
     rosterStructure: config.rosterStructure,
     performerLabel: config.performerLabel,
@@ -187,10 +328,11 @@ export function prepareRosterInviteEnrollmentInStore(
         p.fullName.toLowerCase() === input.voicePart.trim().toLowerCase()) &&
       !trackOnlyCodes.has(p.sectionCode),
   );
-  if (!eligiblePart) {
+  if (!eligiblePart && input.profileMode !== "existing") {
     return { code: "voice_part_not_configured", ok: false, profileId: input.profileId };
   }
 
+  // eslint-disable-next-line complexity -- validates and prepares both new and existing Profile enrollment modes atomically
   return storage.transactionSync(() => {
     const existing = storage.sql
       .exec<PreparedEnrollmentRow>(
@@ -204,27 +346,57 @@ export function prepareRosterInviteEnrollmentInStore(
     if (existing) {
       const canonicalProfileId = resolveCanonicalProfileId(storage, existing.profile_id);
       if (existing.status === "committed") {
+        if (existing.profile_mode !== (input.profileMode ?? "new")) {
+          return { code: "enrollment_mode_conflict", ok: false, profileId: canonicalProfileId };
+        }
         return { ok: true, profileId: canonicalProfileId };
       }
       if (existing.status === "prepared") {
+        if (existing.profile_mode !== (input.profileMode ?? "new")) {
+          return { code: "enrollment_mode_conflict", ok: false, profileId: canonicalProfileId };
+        }
         // Return existing prepared profile ID
         return { ok: true, profileId: canonicalProfileId };
       }
       return { code: "enrollment_canceled", ok: false, profileId: canonicalProfileId };
     }
 
+    const profileMode = input.profileMode ?? "new";
+    if (profileMode === "existing") {
+      const match = input.verifiedEmail
+        ? resolveRosterInviteProfileMatchInStore(storage, {
+            email: input.verifiedEmail,
+            organizationId: input.organizationId,
+            userId: input.userId,
+          })
+        : { status: "review_required" as const };
+      if (match.status !== "match" || match.profileId !== input.profileId) {
+        return { code: "profile_match_changed", ok: false, profileId: input.profileId };
+      }
+      storage.sql.exec(
+        `INSERT INTO roster_invite_profile_link_guards (profile_id, created_at)
+         VALUES (?, ?) ON CONFLICT(profile_id) DO NOTHING`,
+        input.profileId,
+        now,
+      );
+    } else if (!eligiblePart) {
+      return { code: "voice_part_not_configured", ok: false, profileId: input.profileId };
+    }
+
     storage.sql.exec(
       `INSERT INTO prepared_roster_invite_enrollments
         (enrollment_id, profile_id, user_id, display_name, voice_part, phone, show_in_directory,
-         status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'prepared', ?, ?)`,
+         profile_mode, verified_email, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'prepared', ?, ?)`,
       input.enrollmentId,
       input.profileId,
       input.userId,
       input.displayName,
-      eligiblePart.label,
-      input.phone || null,
-      input.showInDirectory ? 1 : 0,
+      profileMode === "existing" ? input.voicePart.trim() || "" : (eligiblePart?.label ?? ""),
+      profileMode === "existing" ? null : input.phone || null,
+      profileMode === "existing" ? 0 : input.showInDirectory ? 1 : 0,
+      profileMode,
+      profileMode === "existing" ? normalizeEmailForStorage(input.verifiedEmail) : null,
       now,
       now,
     );
@@ -278,8 +450,30 @@ export function commitRosterInviteEnrollmentInStore(
     const isConfigured = config.voiceParts.some(
       (p) => p.label === prepared.voice_part && !trackOnlyCodes.has(p.sectionCode),
     );
-    if (!isConfigured) {
+    if (prepared.profile_mode === "new" && !isConfigured) {
       return { code: "voice_part_not_configured", ok: false };
+    }
+
+    if (prepared.profile_mode === "existing") {
+      const normalizedVerifiedEmail = normalizeEmailForStorage(input.verifiedEmail);
+      const match =
+        normalizedVerifiedEmail && normalizedVerifiedEmail === prepared.verified_email
+          ? resolveRosterInviteProfileMatchInStore(storage, {
+              email: input.verifiedEmail ?? "",
+              organizationId: input.organizationId,
+              userId: prepared.user_id,
+            })
+          : { status: "review_required" as const };
+      if (match.status !== "match" || match.profileId !== prepared.profile_id) {
+        return { code: "profile_match_changed", ok: false };
+      }
+      storage.sql.exec(
+        `UPDATE prepared_roster_invite_enrollments
+         SET status = 'committed', updated_at = ? WHERE enrollment_id = ?`,
+        now,
+        input.enrollmentId,
+      );
+      return { ok: true, profileId: prepared.profile_id };
     }
 
     // Insert profile with safe member defaults

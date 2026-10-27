@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { CurrentAuthSession } from "@choir/contracts";
 
 import { JoinRosterView } from "./JoinRosterView";
 import * as api from "../api";
@@ -21,6 +22,38 @@ vi.mock("../api", async () => {
 
 describe("JoinRosterView UI", () => {
   const originalLocation = window.location;
+
+  const signedInSession: NonNullable<CurrentAuthSession> = {
+    session: {
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      id: "session-existing-profile",
+      updatedAt: new Date().toISOString(),
+      userId: "user-existing-profile",
+    },
+    user: {
+      createdAt: new Date().toISOString(),
+      email: "singer@example.test",
+      emailVerified: true,
+      id: "user-existing-profile",
+      name: "Morgan Reed",
+      twoFactorEnabled: false,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+
+  const matchedOptions = {
+    alreadyEnrolled: false,
+    existingProfile: null,
+    matchingProfile: { displayName: "Morgan Reed", voicePart: "Bass 1" },
+    profileMatchStatus: "matched" as const,
+    organizationName: "City Chamber Choir",
+    performerLabel: "Voice Part",
+    rosterStructure: "sections_with_parts" as const,
+    requestId: "req-matched-profile",
+    sections: [{ code: "B", color: "#00f", name: "Bass", trackOnly: false }],
+    voiceParts: [{ fullName: "Bass 1", label: "B1", sectionCode: "B" }],
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -81,6 +114,8 @@ describe("JoinRosterView UI", () => {
       vi.mocked(api.getRosterInviteOptions).mockResolvedValue({
         alreadyEnrolled: false,
         existingProfile: null,
+        matchingProfile: null,
+        profileMatchStatus: "no_match",
         organizationName: "City Chamber Choir",
         performerLabel: "Voice Part",
         rosterStructure,
@@ -146,4 +181,94 @@ describe("JoinRosterView UI", () => {
       });
     },
   );
+
+  it("connects a verified account to its matching roster profile", async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { hash: "#token=valid-test-token-123", search: "" },
+    });
+    vi.mocked(api.previewRosterInvite).mockResolvedValue({
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      logoFileId: null,
+      organizationName: "City Chamber Choir",
+      organizationSlug: "city-choir",
+      requestId: "req-preview",
+    });
+    vi.mocked(api.getCurrentSession).mockResolvedValue(signedInSession);
+    vi.mocked(api.getRosterInviteOptions).mockResolvedValue(matchedOptions);
+    vi.mocked(api.redeemRosterInvite).mockResolvedValue({
+      enrollmentId: "enrollment-existing",
+      membershipId: "membership-existing",
+      profileId: "00000000-0000-0000-0000-000000000001",
+      requestId: "req-redeem-existing",
+      status: "completed",
+    });
+
+    render(<JoinRosterView />);
+
+    expect(
+      await screen.findByText(/connect your account to your existing roster profile/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Morgan Reed")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Your name")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Voice Part")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Join with existing profile" }));
+
+    await waitFor(() => {
+      expect(api.redeemRosterInvite).toHaveBeenCalledWith(
+        expect.objectContaining({
+          displayName: "Morgan Reed",
+          phone: "",
+          showInDirectory: true,
+          token: "valid-test-token-123",
+          voicePart: "Bass 1",
+        }),
+      );
+      expect(
+        screen.getByText(/existing roster Profile and history were preserved/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows a review state and rechecks after an administrator resolves the roster match", async () => {
+    const user = userEvent.setup();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { hash: "#token=valid-test-token-123", search: "" },
+    });
+    vi.mocked(api.previewRosterInvite).mockResolvedValue({
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      logoFileId: null,
+      organizationName: "City Chamber Choir",
+      organizationSlug: "city-choir",
+      requestId: "req-preview",
+    });
+    vi.mocked(api.getCurrentSession).mockResolvedValue(signedInSession);
+    vi.mocked(api.getRosterInviteOptions)
+      .mockResolvedValueOnce({
+        ...matchedOptions,
+        matchingProfile: null,
+        profileMatchStatus: "review_required",
+      })
+      .mockResolvedValueOnce(matchedOptions);
+
+    render(<JoinRosterView />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Ask an Organization administrator for help" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "We found a roster record that needs review before this invitation can be completed.",
+    );
+    expect(screen.queryByLabelText("Your name")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Check again" }));
+
+    expect(
+      await screen.findByText(/connect your account to your existing roster profile/i),
+    ).toBeInTheDocument();
+    expect(api.getRosterInviteOptions).toHaveBeenCalledTimes(2);
+  });
 });

@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
 describe("D1 profile reconciliations migrations", () => {
-  it("applies forward-only schema migrations 0022-0023 cleanly over prior migrations", () => {
+  it("applies forward-only schema migrations cleanly over prior migrations", () => {
     const db = new DatabaseSync(":memory:");
     try {
       const migrationDir = new URL("./migrations/", import.meta.url);
@@ -27,6 +27,9 @@ describe("D1 profile reconciliations migrations", () => {
       const cols = db.prepare("PRAGMA table_info(organization_roster_invite_enrollments)").all();
       expect(
         cols.some((c) => typeof c === "object" && "name" in c && c.name === "canonical_profile_id"),
+      ).toBe(true);
+      expect(
+        cols.some((c) => typeof c === "object" && "name" in c && c.name === "profile_mode"),
       ).toBe(true);
 
       // Check indexes exist

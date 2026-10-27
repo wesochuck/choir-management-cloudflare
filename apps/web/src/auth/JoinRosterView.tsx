@@ -22,6 +22,7 @@ type JoinStep =
   | "enter_email"
   | "enter_otp"
   | "fill_profile"
+  | "review_required"
   | "already_enrolled"
   | "submitting"
   | "success";
@@ -61,6 +62,10 @@ export function JoinRosterView() {
   const [voiceParts, setVoiceParts] = useState<readonly RosterInviteConfiguredPart[]>([]);
   const [performerLabel, setPerformerLabel] = useState("Voice Part");
   const [displayName, setDisplayName] = useState("");
+  const [matchingProfile, setMatchingProfile] = useState<{
+    readonly displayName: string;
+    readonly voicePart: string;
+  } | null>(null);
   const [selectedVoicePart, setSelectedVoicePart] = useState("");
   const [phone, setPhone] = useState("");
   const [showInDirectory, setShowInDirectory] = useState(true);
@@ -97,6 +102,19 @@ export function JoinRosterView() {
 
       if (options.alreadyEnrolled) {
         setStep("already_enrolled");
+        return;
+      }
+
+      if (options.profileMatchStatus === "review_required") {
+        setStep("review_required");
+        return;
+      }
+
+      setMatchingProfile(options.matchingProfile);
+      if (options.matchingProfile) {
+        setDisplayName(options.matchingProfile.displayName);
+        setSelectedVoicePart(options.matchingProfile.voicePart || "Existing Profile");
+        setStep("fill_profile");
         return;
       }
 
@@ -248,16 +266,17 @@ export function JoinRosterView() {
     return false;
   }
 
+  // eslint-disable-next-line complexity -- handles validation and pending, retry, and completion states
   async function handleRedeem(e: SyntheticEvent): Promise<void> {
     e.preventDefault();
     if (!token) return;
 
     const trimmedName = displayName.trim();
-    if (!trimmedName) {
+    if (!matchingProfile && !trimmedName) {
       setErrorMessage("Please enter your display name.");
       return;
     }
-    if (!selectedVoicePart) {
+    if (!matchingProfile && !selectedVoicePart) {
       setErrorMessage(`Please select your ${performerLabel.toLowerCase()}.`);
       return;
     }
@@ -270,12 +289,14 @@ export function JoinRosterView() {
 
     try {
       const result = await redeemRosterInvite({
-        displayName: trimmedName,
+        displayName: matchingProfile?.displayName ?? trimmedName,
         idempotencyKey,
-        phone: phone.trim(),
-        showInDirectory,
+        phone: matchingProfile ? "" : phone.trim(),
+        showInDirectory: matchingProfile ? true : showInDirectory,
         token,
-        voicePart: selectedVoicePart,
+        // Empty stored voice parts need the non-empty request placeholder.
+        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+        voicePart: matchingProfile?.voicePart || selectedVoicePart,
       });
 
       if (result.status === "completed") {
@@ -295,10 +316,16 @@ export function JoinRosterView() {
         }
       }
     } catch (err: unknown) {
-      setStep("fill_profile");
       if (err instanceof AuthApiError) {
-        setErrorMessage(err.message);
+        if (err.code === "profile_match_requires_review") {
+          setErrorMessage(null);
+          setStep("review_required");
+        } else {
+          setStep("fill_profile");
+          setErrorMessage(err.message);
+        }
       } else {
+        setStep("fill_profile");
         setErrorMessage("Could not complete roster enrollment. Please try again.");
       }
     } finally {
@@ -356,14 +383,46 @@ export function JoinRosterView() {
     );
   }
 
+  if (step === "review_required") {
+    return (
+      <main className="auth-layout">
+        <section aria-labelledby="profile-review-title" className="auth-card">
+          <h1 id="profile-review-title">Ask an Organization administrator for help</h1>
+          <p className="notice notice--warning" role="status">
+            We found a roster record that needs review before this invitation can be completed. Your
+            account and the roster record have not been linked.
+          </p>
+          {errorMessage ? (
+            <p className="notice notice--error" role="alert">
+              {errorMessage}
+            </p>
+          ) : null}
+          <button
+            className="button button--secondary"
+            onClick={() => {
+              if (token) void loadOptionsAndProceed(token);
+            }}
+            type="button"
+          >
+            Check again
+          </button>
+          <a className="button button--secondary" href="/">
+            Return home
+          </a>
+        </section>
+      </main>
+    );
+  }
+
   if (step === "success") {
     return (
       <main className="auth-layout">
         <section aria-labelledby="join-success-title" className="auth-card">
           <h1 id="join-success-title">Welcome to {preview?.organizationName}!</h1>
           <p className="notice notice--success" role="status">
-            You have successfully joined the roster. Your profile is active and your voice part is
-            set.
+            {matchingProfile
+              ? "You have successfully joined. Your existing roster Profile and history were preserved."
+              : "You have successfully joined the roster. Your profile is active and your voice part is set."}
           </p>
           <a className="button button--primary" href="/account">
             Go to choir dashboard
@@ -494,91 +553,105 @@ export function JoinRosterView() {
               void handleRedeem(e);
             }}
           >
-            <p style={{ marginBottom: "1rem" }}>
-              Choose your {performerLabel.toLowerCase()} and set your roster preferences to complete
-              registration.
-            </p>
+            {matchingProfile ? (
+              <p className="notice notice--info" role="status">
+                Joining will connect your account to your existing roster profile for{" "}
+                <strong>{matchingProfile.displayName}</strong>. Your saved Profile information and
+                history will be preserved.
+              </p>
+            ) : (
+              <p style={{ marginBottom: "1rem" }}>
+                Choose your {performerLabel.toLowerCase()} and set your roster preferences to
+                complete registration.
+              </p>
+            )}
 
-            <div className="form-stack">
-              <div className="field">
-                <label htmlFor={nameInputId}>Your name</label>
-                <input
-                  id={nameInputId}
-                  maxLength={100}
-                  onChange={(e) => {
-                    setDisplayName(e.target.value);
-                  }}
-                  placeholder="e.g. Alice Singer"
-                  required
-                  value={displayName}
-                />
+            {!matchingProfile ? (
+              <div className="form-stack">
+                <div className="field">
+                  <label htmlFor={nameInputId}>Your name</label>
+                  <input
+                    id={nameInputId}
+                    maxLength={100}
+                    onChange={(e) => {
+                      setDisplayName(e.target.value);
+                    }}
+                    placeholder="e.g. Alice Singer"
+                    required
+                    value={displayName}
+                  />
+                </div>
+
+                <div className="field">
+                  <label htmlFor={voicePartSelectId}>{performerLabel}</label>
+                  <select
+                    id={voicePartSelectId}
+                    onChange={(e) => {
+                      setSelectedVoicePart(e.target.value);
+                    }}
+                    required
+                    value={selectedVoicePart}
+                  >
+                    {sections.length > 0
+                      ? sections.map((sec) => {
+                          const secParts = voiceParts.filter((p) => p.sectionCode === sec.code);
+                          if (secParts.length === 0) return null;
+                          return (
+                            <optgroup key={sec.code} label={sec.name}>
+                              {secParts.map((p) => (
+                                <option key={p.label} value={p.label}>
+                                  {p.fullName || p.label}
+                                </option>
+                              ))}
+                            </optgroup>
+                          );
+                        })
+                      : voiceParts.map((p) => (
+                          <option key={p.label} value={p.label}>
+                            {p.fullName || p.label}
+                          </option>
+                        ))}
+                  </select>
+                </div>
+
+                <div className="field">
+                  <label htmlFor={phoneInputId}>Phone number (optional)</label>
+                  <input
+                    autoComplete="tel"
+                    id={phoneInputId}
+                    maxLength={50}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                    }}
+                    placeholder="e.g. (555) 123-4567"
+                    type="tel"
+                    value={phone}
+                  />
+                </div>
+
+                <label className="choice-field">
+                  <input
+                    checked={showInDirectory}
+                    id={directoryCheckboxId}
+                    onChange={(e) => {
+                      setShowInDirectory(e.target.checked);
+                    }}
+                    type="checkbox"
+                  />
+                  <span className="choice-field__content">
+                    Show my contact info in member directory
+                  </span>
+                </label>
               </div>
-
-              <div className="field">
-                <label htmlFor={voicePartSelectId}>{performerLabel}</label>
-                <select
-                  id={voicePartSelectId}
-                  onChange={(e) => {
-                    setSelectedVoicePart(e.target.value);
-                  }}
-                  required
-                  value={selectedVoicePart}
-                >
-                  {sections.length > 0
-                    ? sections.map((sec) => {
-                        const secParts = voiceParts.filter((p) => p.sectionCode === sec.code);
-                        if (secParts.length === 0) return null;
-                        return (
-                          <optgroup key={sec.code} label={sec.name}>
-                            {secParts.map((p) => (
-                              <option key={p.label} value={p.label}>
-                                {p.fullName || p.label}
-                              </option>
-                            ))}
-                          </optgroup>
-                        );
-                      })
-                    : voiceParts.map((p) => (
-                        <option key={p.label} value={p.label}>
-                          {p.fullName || p.label}
-                        </option>
-                      ))}
-                </select>
-              </div>
-
-              <div className="field">
-                <label htmlFor={phoneInputId}>Phone number (optional)</label>
-                <input
-                  autoComplete="tel"
-                  id={phoneInputId}
-                  maxLength={50}
-                  onChange={(e) => {
-                    setPhone(e.target.value);
-                  }}
-                  placeholder="e.g. (555) 123-4567"
-                  type="tel"
-                  value={phone}
-                />
-              </div>
-
-              <label className="choice-field">
-                <input
-                  checked={showInDirectory}
-                  id={directoryCheckboxId}
-                  onChange={(e) => {
-                    setShowInDirectory(e.target.checked);
-                  }}
-                  type="checkbox"
-                />
-                <span className="choice-field__content">
-                  Show my contact info in member directory
-                </span>
-              </label>
-            </div>
+            ) : null}
 
             <div className="form-actions form-actions--end">
               <button className="button button--primary" disabled={isRedeeming} type="submit">
-                {isRedeeming ? "Joining…" : "Join roster"}
+                {isRedeeming
+                  ? "Joining…"
+                  : matchingProfile
+                    ? "Join with existing profile"
+                    : "Join roster"}
               </button>
             </div>
           </form>

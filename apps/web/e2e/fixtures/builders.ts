@@ -776,6 +776,7 @@ export function buildInvitationDetails(
     organizationId: organizationAlphaId,
     organizationName: "Organization Alpha",
     organizationSlug: "alpha",
+    profileMatchStatus: "no_match",
     role: "member",
     status: "pending",
     ...overrides,
@@ -808,8 +809,9 @@ export function buildInvitationActionResponse(
   id: string,
   status: "accepted" | "canceled" | "rejected",
   requestId: string,
+  profileLinkStatus?: "linked" | "no_match" | "review_required" | "pending",
 ) {
-  return validated({ id, requestId, status }, (value) =>
+  return validated({ id, profileLinkStatus, requestId, status }, (value) =>
     organizationInvitationActionResponseSchema.parse(value),
   );
 }

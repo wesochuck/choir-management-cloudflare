@@ -169,7 +169,9 @@ export async function installOrganizationShell(
 }
 
 export interface InvitationMocksOptions {
+  readonly acceptedProfileLinkStatus?: "linked" | "no_match" | "review_required" | "pending";
   readonly invitations?: readonly OrganizationInvitationSummary[];
+  readonly profileMatchStatus?: "will_link" | "no_match" | "review_required";
   readonly requestId?: string;
 }
 
@@ -221,7 +223,15 @@ export async function installInvitationMocks(
     const segments = new URL(route.request().url()).pathname.split("/").filter(Boolean);
     const invitationId = segments[3] ?? "";
     invitations.set(invitations.get().filter((invitation) => invitation.id !== invitationId));
-    await fulfillJson(route, buildInvitationActionResponse(invitationId, "accepted", requestId));
+    await fulfillJson(
+      route,
+      buildInvitationActionResponse(
+        invitationId,
+        "accepted",
+        requestId,
+        options.acceptedProfileLinkStatus,
+      ),
+    );
   });
 
   await page.route("**/api/organization/invitations/*/reject", async (route) => {
@@ -247,6 +257,7 @@ export async function installInvitationMocks(
           email: invitation.email,
           expiresAt: invitation.expiresAt,
           id: invitation.id,
+          ...(options.profileMatchStatus ? { profileMatchStatus: options.profileMatchStatus } : {}),
           role: invitation.role,
         }),
       );

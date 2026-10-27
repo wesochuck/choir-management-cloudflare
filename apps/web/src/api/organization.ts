@@ -260,14 +260,16 @@ export async function getOrganizationInvitation(
   return organizationInvitationDetailsSchema.parse(await response.json());
 }
 
-export async function acceptOrganizationInvitation(invitationId: string): Promise<void> {
+export async function acceptOrganizationInvitation(
+  invitationId: string,
+): Promise<OrganizationInvitationActionResponse> {
   const response = await request(
     `/api/organization/invitations/${encodeURIComponent(invitationId)}/accept`,
     {
       method: "POST",
     },
   );
-  organizationInvitationActionResponseSchema.parse(await response.json());
+  return organizationInvitationActionResponseSchema.parse(await response.json());
 }
 
 export async function rejectOrganizationInvitation(invitationId: string): Promise<void> {

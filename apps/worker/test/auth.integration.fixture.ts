@@ -183,6 +183,30 @@ export async function seedOrganizations(includeBravoMembership = false): Promise
     ).bind("member-alpha", "organization-alpha", "user-invited-member", "admin", Date.now()),
   ]);
 
+  for (const organization of [
+    { id: "organization-alpha", name: "Organization Alpha", slug: "alpha" },
+    { id: "organization-bravo", name: "Organization Bravo", slug: "bravo" },
+  ]) {
+    const response = await testEnv.ORGANIZATION_STORE.get(
+      testEnv.ORGANIZATION_STORE.idFromName(organization.id),
+    ).fetch("https://organization.internal/internal/provision", {
+      body: JSON.stringify({
+        actorUserId: "bootstrap",
+        canonicalHostname: `${organization.slug}.localhost`,
+        canonicalStatus: "active",
+        name: organization.name,
+        organizationId: organization.id,
+        requestId: crypto.randomUUID(),
+        slug: organization.slug,
+      }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+    if (response.status !== 200) {
+      throw new Error(`Organization ${organization.slug} test store provisioning failed.`);
+    }
+  }
+
   if (includeBravoMembership) {
     await testEnv.CONTROL_DB.prepare(
       `INSERT INTO member (id, organizationId, userId, role, createdAt)

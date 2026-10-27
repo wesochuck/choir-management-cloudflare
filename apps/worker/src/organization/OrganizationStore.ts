@@ -50,6 +50,8 @@ import {
   getRosterInviteEnrollmentResultInStore,
   getRosterInviteOptionsInStore,
   prepareRosterInviteEnrollmentInStore,
+  protectRosterInviteProfileForLinkInStore,
+  resolveRosterInviteProfileMatchInStore,
   type CommitRosterInviteEnrollmentInput,
   type PrepareRosterInviteEnrollmentInput,
 } from "./rosterInviteEnrollmentStore";
@@ -723,10 +725,28 @@ export class OrganizationStore extends DurableObject {
   // Organization roster invite enrollment: strongly typed Durable Object RPC methods.
   // Call via `stub.methodName(...)`; no internal fetch routing.
   getRosterInviteOptions(input: {
+    readonly email?: string | null;
     readonly organizationId: string;
     readonly userId?: string | null;
   }) {
     return getRosterInviteOptionsInStore(this.ctx.storage, input);
+  }
+
+  resolveRosterInviteProfileMatch(input: {
+    readonly email: string;
+    readonly organizationId: string;
+    readonly userId?: string;
+  }) {
+    return resolveRosterInviteProfileMatchInStore(this.ctx.storage, input);
+  }
+
+  protectRosterInviteProfileForLink(input: {
+    readonly email: string;
+    readonly organizationId: string;
+    readonly profileId: string;
+    readonly userId: string;
+  }) {
+    return protectRosterInviteProfileForLinkInStore(this.ctx.storage, input);
   }
 
   prepareRosterInviteEnrollment(input: PrepareRosterInviteEnrollmentInput) {

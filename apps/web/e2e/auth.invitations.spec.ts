@@ -30,6 +30,33 @@ test("signs in as the recipient and accepts an Organization invitation", async (
   guard.assertNoUnexpectedRequests();
 });
 
+test("explains and confirms linking a matched roster Profile on invitation acceptance", async ({
+  page,
+}) => {
+  const guard = await installStrictGuard(page);
+  const session = await installSessionShell(page, {});
+  const invitationId = "99999999-9999-4999-8999-999999999999";
+  await installInvitationMocks(page, {
+    acceptedProfileLinkStatus: "linked",
+    invitations: [
+      buildInvitationSummary({ email: session.user.email, id: invitationId, role: "member" }),
+    ],
+    profileMatchStatus: "will_link",
+  });
+
+  await page.goto(`/accept-invitation?id=${invitationId}`);
+  await expect(page.getByRole("heading", { name: "Join Organization Alpha." })).toBeVisible();
+  await expect(
+    page.getByText(/connect your account to your existing roster Profile/i),
+  ).toBeVisible();
+  await expect(page.getByText(/Profile information and history will be preserved/i)).toBeVisible();
+
+  await page.getByRole("button", { name: "Accept Organization invitation" }).click();
+  await expect(page.getByRole("heading", { name: "You joined Organization Alpha." })).toBeVisible();
+  await expect(page.getByText(/existing roster Profile is connected/i)).toBeVisible();
+  guard.assertNoUnexpectedRequests();
+});
+
 test("requires confirmation before declining an Organization invitation", async ({ page }) => {
   const guard = await installStrictGuard(page);
   const session = await installSessionShell(page, {});
