@@ -1,56 +1,1183 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Program ad upload – donation page mockup</title>
-<style>
-:root{--bg:#f8f9fa;--panel:#fff;--text:#0f172a;--muted:#64748b;--navy:#1e3a5f;--border:#dfe6ee;--orange:#ea580c;--pale:#f5f8fc;--success:#166534;--radius:11px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text);background:var(--bg)}
-*{box-sizing:border-box}body{margin:0}button,input,textarea{font:inherit}button{cursor:pointer}p{line-height:1.5}.bar{background:#132a47;color:#fff}.bar-inner{max-width:1190px;margin:auto;display:flex;align-items:center;justify-content:space-between;padding:9px 20px;gap:15px;font-size:11px;letter-spacing:.12em;font-weight:800}.bar .pill{border:1px solid #7895b3;color:#d8e8f7;border-radius:20px;padding:5px 10px;letter-spacing:.04em;font-weight:650}.header{background:#fff;border-bottom:1px solid #e6edf4}.header-inner{max-width:1190px;min-height:77px;margin:auto;padding:15px 20px;display:flex;align-items:center;justify-content:space-between;gap:20px}.branding{display:flex;align-items:center;gap:12px}.logo{width:41px;height:41px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#1e3a5f;color:#fff;font-family:Georgia,serif;font-size:22px}.branding strong{display:block;color:#203956;font-size:15px;font-weight:800;letter-spacing:.01em}.branding small{display:block;font-size:10px;letter-spacing:.12em;color:#778799;font-weight:700;margin-top:2px}.links{display:flex;align-items:center;gap:28px;color:#183a5e;font-size:13px;font-weight:700}.links span{padding:13px 0;white-space:nowrap}.links .active{border-bottom:3px solid #ea580c}.links .login{margin-left:4px;color:#50677f;font-weight:600}.page{max-width:1190px;margin:auto;padding:29px 20px 80px}.breadcrumbs{font-size:12px;font-weight:650;color:#718096;margin-bottom:15px}.title-area{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:20px}.title-area h1{font-family:Georgia,Times,serif;font-weight:500;font-size:35px;letter-spacing:-1.4px;line-height:1.1;margin:0 0 8px}.title-area p{font-size:14px;color:#596b7e;margin:0;max-width:710px}.help-link{color:#1e3a5f;border-bottom:1px solid #95acc2;text-decoration:none;font-size:12px;font-weight:700;white-space:nowrap;padding-bottom:3px}.form-shell{background:#fff;border:1px solid #e1e7ee;box-shadow:0 6px 21px rgba(24,48,74,.045);border-radius:14px;padding:26px 28px 32px}.section-title{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:16px;font-weight:800;letter-spacing:-.2px}.section-title .number{display:grid;place-items:center;width:23px;height:23px;border-radius:50%;background:#e9f0f7;color:#1f466e;font-size:12px;font-weight:800}.level-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.level{position:relative;text-align:left;min-height:72px;padding:14px 14px;border:1.5px solid #dce4ec;border-radius:9px;background:#fff;color:#1a314f;display:flex;justify-content:space-between;align-items:center;gap:8px;transition:.16s}.level:hover{border-color:#839bb4;background:#fafcff}.level.selected{border:2px solid var(--navy);background:#edf4fa;padding:13.5px 13.5px}.level .level-title{display:block;font-size:13px;line-height:1.25;font-weight:750}.level .level-desc{display:block;color:#6d7c8b;font-size:11px;font-weight:500;line-height:1.35;margin-top:5px}.level .amount{font-size:17px;font-weight:800;color:#17385d}.check{position:absolute;right:8px;top:-9px;width:19px;height:19px;border-radius:50%;background:#1e3a5f;color:#fff;display:none;place-items:center;font-size:12px;border:2px solid #fff;box-shadow:0 1px 5px #ccd5e0}.level.selected .check{display:grid}.level:not(.selected) .check{display:none}.divider{border-top:1px solid #e8edf2;margin:23px 0 22px}.columns{display:grid;grid-template-columns:minmax(0,1fr) 306px;gap:28px;align-items:start}.left-col{min-width:0}.sponsor{border:1px solid #bfd4e9;background:linear-gradient(180deg,#f6faff 0%,#fff 35%);border-radius:12px;padding:19px 20px 18px;box-shadow:0 1px 3px #dbe7f3}.sponsor-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.sponsor h2{margin:0;font-size:17px;font-weight:800;letter-spacing:-.45px;color:#183a5c}.sponsor-head p{font-size:12px;color:#637589;margin:6px 0 16px;max-width:520px}.badge{font-size:10px;font-weight:800;color:#24507c;background:#e4eef8;border:1px solid #c5dcf0;border-radius:30px;padding:5px 10px;white-space:nowrap}.field label,.field-label{display:block;font-size:12px;font-weight:750;color:#344b63;margin-bottom:6px}.field input,.field textarea{width:100%;border:1px solid #cfdae5;border-radius:8px;background:#fff;color:#243750;padding:10px 12px;height:40px;outline:none;font-size:13px;box-shadow:inset 0 1px 2px rgba(13,40,67,.03)}.field input:focus,.field textarea:focus{border-color:#1e3a5f;box-shadow:0 0 0 3px #dfeaf5}.field textarea{height:64px;resize:vertical}.subhead{display:flex;gap:9px;justify-content:space-between;align-items:center;margin:17px 0 7px}.subhead .field-label{margin:0}.optional{color:#7f8e9d;font-size:11px;font-weight:500}.upload{position:relative;border:1.7px dashed #99b2cd;border-radius:10px;background:#fff;display:flex;align-items:center;gap:14px;padding:15px 17px;min-height:96px}.upload-icon{width:44px;height:44px;background:#edf4fa;border-radius:10px;display:grid;place-items:center;flex-shrink:0;color:#1e4f7c}.upload strong{font-size:13px;color:#1d3d61}.upload p{margin:4px 0 0;font-size:11px;color:#798898;line-height:1.35}.upload .browse{margin-left:auto;white-space:nowrap;border:1px solid #b8cbdb;border-radius:7px;padding:9px 12px;background:#f6f9fc;color:#1e3a5f;font-weight:750;font-size:11px}.file-chip{border:1px solid #d5e8d7;background:#f5fbf6;border-radius:8px;padding:10px 11px;display:flex;align-items:center;gap:10px;margin-top:10px}.file-icon{width:33px;height:38px;background:#e1f3e4;color:#246735;border-radius:7px;display:grid;place-items:center;flex-shrink:0}.file-info{min-width:0;flex:1}.file-info strong{font-size:12px;color:#284d39;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.file-info small{font-size:10px;color:#61836c;display:block;margin-top:2px}.file-actions{display:flex;align-items:center;gap:8px}.file-actions button{border:0;background:transparent;color:#1e3a5f;font-size:11px;font-weight:750;padding:4px}.file-actions button.remove{color:#8c4343}.upload-tip{display:flex;align-items:flex-start;gap:8px;background:#edf5ff;border-radius:7px;padding:9px 11px;color:#49647d;font-size:11px;line-height:1.45;margin-top:10px}.upload-tip .info{font-weight:800;color:#315d87;font-size:15px;line-height:1}.form-section{padding:21px 0 0}.form-section h2{font-size:15px;font-weight:800;margin:0 0 10px;color:#263b53}.form-section p{font-size:11px;color:#7a8998;margin:0 0 12px}.info-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.info-grid .field:last-child{grid-column:span 2}.muted-note{font-size:11px;color:#7e8d9b;margin:9px 0 0}.field .input-sim{border:1px solid #d8e1ea;border-radius:8px;color:#93a1ae;background:#fff;height:39px;padding:10px 12px;font-size:12px}.choice-line{display:flex;align-items:center;gap:9px;margin:7px 0;font-size:12px;color:#52677d}.choice-line input{accent-color:#1e3a5f;width:15px;height:15px}.small-opt{display:flex;align-items:center;justify-content:space-between;padding-top:20px;border-top:1px solid #e8edf2;margin-top:22px}.small-opt span{font-size:12px;font-weight:750;color:#283f57}.small-opt button{background:#fff;border:0;color:#1e4e7b;font-size:12px;font-weight:800}.summary{position:sticky;top:20px;background:#fff;border:1px solid #dce5ef;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(22,45,66,.06)}.summary-header{padding:18px 19px 16px;background:#f4f7fb;border-bottom:1px solid #dce5ed}.summary-header h2{margin:0;font-size:16px;color:#223a57;font-weight:800}.summary-header p{color:#6f8091;font-size:11px;margin:5px 0 0}.summary-body{padding:18px 19px}.summary-row{display:flex;justify-content:space-between;gap:8px;margin-bottom:13px;color:#62778a;font-size:12px}.summary-row strong{color:#203c5a;font-size:13px}.summary-row .light{font-weight:500;text-align:right}.summary .artwork-summary{display:flex;align-items:center;gap:7px;font-size:11px;color:#276a3b;background:#f0f9f1;border-radius:8px;padding:9px 10px;margin:10px 0 14px}.summary .total{display:flex;align-items:baseline;justify-content:space-between;border-top:1px solid #e5ebf1;padding-top:17px;margin-top:13px}.summary .total span{font-weight:750;font-size:14px}.summary .total strong{font-weight:850;font-size:24px;color:#173a5e;letter-spacing:-.7px}.pay{border:0;background:#1e3a5f;color:#fff;font-size:13px;font-weight:800;width:100%;border-radius:8px;padding:14px 12px;margin-top:20px;display:flex;gap:9px;align-items:center;justify-content:center;box-shadow:0 2px 4px #dbe4ed}.pay:hover{background:#142d4c}.secure{display:flex;justify-content:center;gap:6px;align-items:center;font-size:10px;color:#8594a2;margin-top:12px}.side-note{background:#fffaf3;border:1px solid #f4dfbd;border-radius:9px;padding:12px;margin-top:14px;font-size:11px;color:#896230;line-height:1.45}.side-note strong{display:block;color:#795423;font-size:11px;margin-bottom:4px}.footer-note{display:flex;align-items:center;justify-content:space-between;gap:15px;margin:24px auto 0;max-width:1190px;color:#9aa8b6;font-size:11px}.hidden{display:none!important}.solo{display:flex;justify-content:space-between;gap:15px;align-items:center}.normal-state{padding:18px;background:#f5f8fc;border:1px solid #d9e6f2;border-radius:10px;color:#51708d;font-size:13px}.normal-state h2{font-size:15px;margin:0 0 5px}.normal-state p{margin:0}
-@media(max-width:950px){.links{gap:12px}.links span{font-size:11px}.level-grid{grid-template-columns:repeat(2,1fr)}.columns{grid-template-columns:minmax(0,1fr) 273px;gap:17px}.form-shell{padding:22px}.upload{flex-wrap:wrap}.upload .browse{margin-left:56px}}
-@media(max-width:700px){.bar-inner{font-size:10px}.bar .pill{display:none}.header-inner{min-height:64px}.branding strong{font-size:13px}.branding small{font-size:9px}.links{gap:10px}.links span:not(.active){display:none}.links .active{display:block;padding:6px 0}.links .login{display:none!important}.logo{width:35px;height:35px}.page{padding:22px 14px 50px}.title-area{display:block}.title-area h1{font-size:30px}.title-area p{font-size:12px}.help-link{display:block;margin-top:9px;width:max-content}.form-shell{padding:17px 14px}.level-grid{grid-template-columns:1fr 1fr;gap:8px}.level{min-height:83px;padding:11px;display:block}.level.selected{padding:10.5px}.level .level-title{font-size:12px}.level .level-desc{font-size:10px;margin-top:4px}.level .amount{font-size:17px;display:block;margin-top:7px}.columns{grid-template-columns:1fr}.summary{position:static;margin-top:6px}.sponsor{padding:16px}.sponsor-head{display:block}.badge{display:inline-block;margin:5px 0 6px}.upload{align-items:center}.upload .browse{margin-left:56px}.info-grid{grid-template-columns:1fr}.info-grid .field:last-child{grid-column:span 1}.footer-note{display:block}.file-actions{display:block}.file-actions button{display:block}.page{max-width:480px}.form-section{padding-top:20px}.small-opt{margin-top:16px}}
-</style></head>
-<body>
-<div class="bar"><div class="bar-inner"><span>DONATION PAGE · PROGRAM AD WORKFLOW CONCEPT</span><span class="pill">MOCKUP • NOT LIVE</span></div></div>
-<header class="header"><div class="header-inner"><div class="branding"><div class="logo">H</div><div><strong>HARMONY COMMUNITY CHORUS</strong><small>SHARING MUSIC. BUILDING COMMUNITY.</small></div></div><nav class="links" aria-label="Main navigation"><span>Performances</span><span>About</span><span>Tickets</span><span class="active">Donate</span><span class="login">Member login</span></nav></div></header>
-<main class="page">
-  <div class="breadcrumbs">Home&nbsp; / &nbsp;Support us</div>
-  <div class="title-area"><div><h1>Support our music</h1><p>Choose a donation or sponsor an advertisement in our concert program. Your support keeps our music going.</p></div><a class="help-link" href="#" onclick="return false">Questions about sponsorship? ↗</a></div>
-  <div class="form-shell">
-    <h2 class="section-title"><span class="number">1</span> Choose your level</h2>
-    <div class="level-grid" id="level-grid">
-      <button class="level" type="button" data-amount="25" data-level="Friend"><span><span class="level-title">Friend</span><span class="level-desc">Name in program</span></span><span class="amount">$25</span><span class="check">✓</span></button>
-      <button class="level" type="button" data-amount="50" data-level="Supporter"><span><span class="level-title">Supporter</span><span class="level-desc">Recognition in program</span></span><span class="amount">$50</span><span class="check">✓</span></button>
-      <button class="level" type="button" data-amount="125" data-level="Quarter-page ad" data-ad="true"><span><span class="level-title">Quarter-page ad</span><span class="level-desc">Program advertisement</span></span><span class="amount">$125</span><span class="check">✓</span></button>
-      <button class="level selected" type="button" data-amount="250" data-level="Half-page ad" data-ad="true"><span><span class="level-title">Half-page ad</span><span class="level-desc">Program advertisement</span></span><span class="amount">$250</span><span class="check">✓</span></button>
-      <button class="level" type="button" data-amount="500" data-level="Full-page ad" data-ad="true"><span><span class="level-title">Full-page ad</span><span class="level-desc">Program advertisement</span></span><span class="amount">$500</span><span class="check">✓</span></button>
-      <button class="level" type="button" data-amount="0" data-level="Custom amount"><span><span class="level-title">Custom amount</span><span class="level-desc">Give any amount</span></span><span class="amount">→</span><span class="check">✓</span></button>
-    </div>
-    <div class="divider"></div>
-    <div class="columns">
-      <div class="left-col">
-        <section id="sponsor-section" class="sponsor">
-          <div class="sponsor-head"><div><h2>2. Your program advertisement</h2><p>Tell us how you’d like to appear in the printed program, and send us your finished artwork.</p></div><span class="badge">HALF-PAGE SPONSOR</span></div>
-          <div class="field"><label for="sponsor-name">Business or sponsor name <span style="color:#bc5f40">*</span></label><input id="sponsor-name" value="Acme Printing Company" placeholder="Name for program recognition"></div>
-          <div class="subhead"><span class="field-label">Ad artwork</span><span class="optional">Upload now or after donating</span></div>
-          <div class="upload" id="upload-drop"><div class="upload-icon"><svg width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4.5 16.5v2.2A1.3 1.3 0 0 0 5.8 20h12.4a1.3 1.3 0 0 0 1.3-1.3v-2.2"/></svg></div><div><strong>Drop your artwork here</strong><p>Print-ready PDF, PNG, or JPG · Max 20 MB</p></div><button class="browse" onclick="document.getElementById('art-file').click()" type="button">Browse files</button><input type="file" id="art-file" accept="application/pdf,image/png,image/jpeg" hidden></div>
-          <div class="file-chip" id="file-chip"><div class="file-icon"><svg width="19" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 2.7h8l5 5V21H6V2.7Z"/><path d="M14 2.7v5h5"/><path d="M8.5 14h8M8.5 17h7"/></svg></div><div class="file-info"><strong id="file-name">acme-half-page-ad.pdf</strong><small id="file-meta">PDF · 2.4 MB · Ready to submit</small></div><span style="color:#228044;font-weight:900;font-size:16px;line-height:1">✓</span><div class="file-actions"><button type="button" onclick="document.getElementById('art-file').click()">Replace</button><button type="button" class="remove" id="remove-file">Remove</button></div></div>
-          <div class="upload-tip"><span class="info">ⓘ</span><span><strong>Artwork not ready?</strong> Complete your sponsorship now. We’ll include a secure upload link in your confirmation email so you can send it later.</span></div>
-        </section>
-        <div class="normal-state hidden" id="normal-state"><h2>Thank you for supporting our music</h2><p>Sponsor artwork is only requested for levels that include a program advertisement.</p></div>
-        <section class="form-section"><h2 id="your-info-title">3. Your information</h2><div class="info-grid"><div class="field"><label>Name <span style="color:#bc5f40">*</span></label><div class="input-sim">Alex Taylor</div></div><div class="field"><label>Email <span style="color:#bc5f40">*</span></label><div class="input-sim">alex@example.com</div></div><div class="field"><label>Confirm email <span style="color:#bc5f40">*</span></label><div class="input-sim">alex@example.com</div></div></div></section>
-        <div class="small-opt"><span>Tribute (optional)</span><button type="button">+ Add a tribute</button></div>
-        <section class="form-section" style="padding-top:15px"><div class="choice-line"><input type="checkbox" id="optin"><label for="optin">I would like to receive updates about future events and programs</label></div><div class="choice-line"><input type="checkbox" id="anonymous"><label for="anonymous">Hide my name from public donor recognition</label></div></section>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Program ad upload – donation page mockup</title>
+    <style>
+      :root {
+        --bg: #f8f9fa;
+        --panel: #fff;
+        --text: #0f172a;
+        --muted: #64748b;
+        --navy: #1e3a5f;
+        --border: #dfe6ee;
+        --orange: #ea580c;
+        --pale: #f5f8fc;
+        --success: #166534;
+        --radius: 11px;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        color: var(--text);
+        background: var(--bg);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+      }
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      p {
+        line-height: 1.5;
+      }
+      .bar {
+        background: #132a47;
+        color: #fff;
+      }
+      .bar-inner {
+        max-width: 1190px;
+        margin: auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 9px 20px;
+        gap: 15px;
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        font-weight: 800;
+      }
+      .bar .pill {
+        border: 1px solid #7895b3;
+        color: #d8e8f7;
+        border-radius: 20px;
+        padding: 5px 10px;
+        letter-spacing: 0.04em;
+        font-weight: 650;
+      }
+      .header {
+        background: #fff;
+        border-bottom: 1px solid #e6edf4;
+      }
+      .header-inner {
+        max-width: 1190px;
+        min-height: 77px;
+        margin: auto;
+        padding: 15px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+      }
+      .branding {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .logo {
+        width: 41px;
+        height: 41px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #1e3a5f;
+        color: #fff;
+        font-family: Georgia, serif;
+        font-size: 22px;
+      }
+      .branding strong {
+        display: block;
+        color: #203956;
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: 0.01em;
+      }
+      .branding small {
+        display: block;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        color: #778799;
+        font-weight: 700;
+        margin-top: 2px;
+      }
+      .links {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        color: #183a5e;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .links span {
+        padding: 13px 0;
+        white-space: nowrap;
+      }
+      .links .active {
+        border-bottom: 3px solid #ea580c;
+      }
+      .links .login {
+        margin-left: 4px;
+        color: #50677f;
+        font-weight: 600;
+      }
+      .page {
+        max-width: 1190px;
+        margin: auto;
+        padding: 29px 20px 80px;
+      }
+      .breadcrumbs {
+        font-size: 12px;
+        font-weight: 650;
+        color: #718096;
+        margin-bottom: 15px;
+      }
+      .title-area {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 20px;
+      }
+      .title-area h1 {
+        font-family: Georgia, Times, serif;
+        font-weight: 500;
+        font-size: 35px;
+        letter-spacing: -1.4px;
+        line-height: 1.1;
+        margin: 0 0 8px;
+      }
+      .title-area p {
+        font-size: 14px;
+        color: #596b7e;
+        margin: 0;
+        max-width: 710px;
+      }
+      .help-link {
+        color: #1e3a5f;
+        border-bottom: 1px solid #95acc2;
+        text-decoration: none;
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+        padding-bottom: 3px;
+      }
+      .form-shell {
+        background: #fff;
+        border: 1px solid #e1e7ee;
+        box-shadow: 0 6px 21px rgba(24, 48, 74, 0.045);
+        border-radius: 14px;
+        padding: 26px 28px 32px;
+      }
+      .section-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 14px;
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: -0.2px;
+      }
+      .section-title .number {
+        display: grid;
+        place-items: center;
+        width: 23px;
+        height: 23px;
+        border-radius: 50%;
+        background: #e9f0f7;
+        color: #1f466e;
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .level-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .level {
+        position: relative;
+        text-align: left;
+        min-height: 72px;
+        padding: 14px 14px;
+        border: 1.5px solid #dce4ec;
+        border-radius: 9px;
+        background: #fff;
+        color: #1a314f;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+        transition: 0.16s;
+      }
+      .level:hover {
+        border-color: #839bb4;
+        background: #fafcff;
+      }
+      .level.selected {
+        border: 2px solid var(--navy);
+        background: #edf4fa;
+        padding: 13.5px 13.5px;
+      }
+      .level .level-title {
+        display: block;
+        font-size: 13px;
+        line-height: 1.25;
+        font-weight: 750;
+      }
+      .level .level-desc {
+        display: block;
+        color: #6d7c8b;
+        font-size: 11px;
+        font-weight: 500;
+        line-height: 1.35;
+        margin-top: 5px;
+      }
+      .level .amount {
+        font-size: 17px;
+        font-weight: 800;
+        color: #17385d;
+      }
+      .check {
+        position: absolute;
+        right: 8px;
+        top: -9px;
+        width: 19px;
+        height: 19px;
+        border-radius: 50%;
+        background: #1e3a5f;
+        color: #fff;
+        display: none;
+        place-items: center;
+        font-size: 12px;
+        border: 2px solid #fff;
+        box-shadow: 0 1px 5px #ccd5e0;
+      }
+      .level.selected .check {
+        display: grid;
+      }
+      .level:not(.selected) .check {
+        display: none;
+      }
+      .divider {
+        border-top: 1px solid #e8edf2;
+        margin: 23px 0 22px;
+      }
+      .columns {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 306px;
+        gap: 28px;
+        align-items: start;
+      }
+      .left-col {
+        min-width: 0;
+      }
+      .sponsor {
+        border: 1px solid #bfd4e9;
+        background: linear-gradient(180deg, #f6faff 0%, #fff 35%);
+        border-radius: 12px;
+        padding: 19px 20px 18px;
+        box-shadow: 0 1px 3px #dbe7f3;
+      }
+      .sponsor-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: flex-start;
+      }
+      .sponsor h2 {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 800;
+        letter-spacing: -0.45px;
+        color: #183a5c;
+      }
+      .sponsor-head p {
+        font-size: 12px;
+        color: #637589;
+        margin: 6px 0 16px;
+        max-width: 520px;
+      }
+      .badge {
+        font-size: 10px;
+        font-weight: 800;
+        color: #24507c;
+        background: #e4eef8;
+        border: 1px solid #c5dcf0;
+        border-radius: 30px;
+        padding: 5px 10px;
+        white-space: nowrap;
+      }
+      .field label,
+      .field-label {
+        display: block;
+        font-size: 12px;
+        font-weight: 750;
+        color: #344b63;
+        margin-bottom: 6px;
+      }
+      .field input,
+      .field textarea {
+        width: 100%;
+        border: 1px solid #cfdae5;
+        border-radius: 8px;
+        background: #fff;
+        color: #243750;
+        padding: 10px 12px;
+        height: 40px;
+        outline: none;
+        font-size: 13px;
+        box-shadow: inset 0 1px 2px rgba(13, 40, 67, 0.03);
+      }
+      .field input:focus,
+      .field textarea:focus {
+        border-color: #1e3a5f;
+        box-shadow: 0 0 0 3px #dfeaf5;
+      }
+      .field textarea {
+        height: 64px;
+        resize: vertical;
+      }
+      .subhead {
+        display: flex;
+        gap: 9px;
+        justify-content: space-between;
+        align-items: center;
+        margin: 17px 0 7px;
+      }
+      .subhead .field-label {
+        margin: 0;
+      }
+      .optional {
+        color: #7f8e9d;
+        font-size: 11px;
+        font-weight: 500;
+      }
+      .upload {
+        position: relative;
+        border: 1.7px dashed #99b2cd;
+        border-radius: 10px;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 15px 17px;
+        min-height: 96px;
+      }
+      .upload-icon {
+        width: 44px;
+        height: 44px;
+        background: #edf4fa;
+        border-radius: 10px;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        color: #1e4f7c;
+      }
+      .upload strong {
+        font-size: 13px;
+        color: #1d3d61;
+      }
+      .upload p {
+        margin: 4px 0 0;
+        font-size: 11px;
+        color: #798898;
+        line-height: 1.35;
+      }
+      .upload .browse {
+        margin-left: auto;
+        white-space: nowrap;
+        border: 1px solid #b8cbdb;
+        border-radius: 7px;
+        padding: 9px 12px;
+        background: #f6f9fc;
+        color: #1e3a5f;
+        font-weight: 750;
+        font-size: 11px;
+      }
+      .file-chip {
+        border: 1px solid #d5e8d7;
+        background: #f5fbf6;
+        border-radius: 8px;
+        padding: 10px 11px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .file-icon {
+        width: 33px;
+        height: 38px;
+        background: #e1f3e4;
+        color: #246735;
+        border-radius: 7px;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+      }
+      .file-info {
+        min-width: 0;
+        flex: 1;
+      }
+      .file-info strong {
+        font-size: 12px;
+        color: #284d39;
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .file-info small {
+        font-size: 10px;
+        color: #61836c;
+        display: block;
+        margin-top: 2px;
+      }
+      .file-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .file-actions button {
+        border: 0;
+        background: transparent;
+        color: #1e3a5f;
+        font-size: 11px;
+        font-weight: 750;
+        padding: 4px;
+      }
+      .file-actions button.remove {
+        color: #8c4343;
+      }
+      .upload-tip {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        background: #edf5ff;
+        border-radius: 7px;
+        padding: 9px 11px;
+        color: #49647d;
+        font-size: 11px;
+        line-height: 1.45;
+        margin-top: 10px;
+      }
+      .upload-tip .info {
+        font-weight: 800;
+        color: #315d87;
+        font-size: 15px;
+        line-height: 1;
+      }
+      .form-section {
+        padding: 21px 0 0;
+      }
+      .form-section h2 {
+        font-size: 15px;
+        font-weight: 800;
+        margin: 0 0 10px;
+        color: #263b53;
+      }
+      .form-section p {
+        font-size: 11px;
+        color: #7a8998;
+        margin: 0 0 12px;
+      }
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .info-grid .field:last-child {
+        grid-column: span 2;
+      }
+      .muted-note {
+        font-size: 11px;
+        color: #7e8d9b;
+        margin: 9px 0 0;
+      }
+      .field .input-sim {
+        border: 1px solid #d8e1ea;
+        border-radius: 8px;
+        color: #93a1ae;
+        background: #fff;
+        height: 39px;
+        padding: 10px 12px;
+        font-size: 12px;
+      }
+      .choice-line {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 7px 0;
+        font-size: 12px;
+        color: #52677d;
+      }
+      .choice-line input {
+        accent-color: #1e3a5f;
+        width: 15px;
+        height: 15px;
+      }
+      .small-opt {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 20px;
+        border-top: 1px solid #e8edf2;
+        margin-top: 22px;
+      }
+      .small-opt span {
+        font-size: 12px;
+        font-weight: 750;
+        color: #283f57;
+      }
+      .small-opt button {
+        background: #fff;
+        border: 0;
+        color: #1e4e7b;
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .summary {
+        position: sticky;
+        top: 20px;
+        background: #fff;
+        border: 1px solid #dce5ef;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(22, 45, 66, 0.06);
+      }
+      .summary-header {
+        padding: 18px 19px 16px;
+        background: #f4f7fb;
+        border-bottom: 1px solid #dce5ed;
+      }
+      .summary-header h2 {
+        margin: 0;
+        font-size: 16px;
+        color: #223a57;
+        font-weight: 800;
+      }
+      .summary-header p {
+        color: #6f8091;
+        font-size: 11px;
+        margin: 5px 0 0;
+      }
+      .summary-body {
+        padding: 18px 19px;
+      }
+      .summary-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 13px;
+        color: #62778a;
+        font-size: 12px;
+      }
+      .summary-row strong {
+        color: #203c5a;
+        font-size: 13px;
+      }
+      .summary-row .light {
+        font-weight: 500;
+        text-align: right;
+      }
+      .summary .artwork-summary {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 11px;
+        color: #276a3b;
+        background: #f0f9f1;
+        border-radius: 8px;
+        padding: 9px 10px;
+        margin: 10px 0 14px;
+      }
+      .summary .total {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        border-top: 1px solid #e5ebf1;
+        padding-top: 17px;
+        margin-top: 13px;
+      }
+      .summary .total span {
+        font-weight: 750;
+        font-size: 14px;
+      }
+      .summary .total strong {
+        font-weight: 850;
+        font-size: 24px;
+        color: #173a5e;
+        letter-spacing: -0.7px;
+      }
+      .pay {
+        border: 0;
+        background: #1e3a5f;
+        color: #fff;
+        font-size: 13px;
+        font-weight: 800;
+        width: 100%;
+        border-radius: 8px;
+        padding: 14px 12px;
+        margin-top: 20px;
+        display: flex;
+        gap: 9px;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 4px #dbe4ed;
+      }
+      .pay:hover {
+        background: #142d4c;
+      }
+      .secure {
+        display: flex;
+        justify-content: center;
+        gap: 6px;
+        align-items: center;
+        font-size: 10px;
+        color: #8594a2;
+        margin-top: 12px;
+      }
+      .side-note {
+        background: #fffaf3;
+        border: 1px solid #f4dfbd;
+        border-radius: 9px;
+        padding: 12px;
+        margin-top: 14px;
+        font-size: 11px;
+        color: #896230;
+        line-height: 1.45;
+      }
+      .side-note strong {
+        display: block;
+        color: #795423;
+        font-size: 11px;
+        margin-bottom: 4px;
+      }
+      .footer-note {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 15px;
+        margin: 24px auto 0;
+        max-width: 1190px;
+        color: #9aa8b6;
+        font-size: 11px;
+      }
+      .hidden {
+        display: none !important;
+      }
+      .solo {
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+        align-items: center;
+      }
+      .normal-state {
+        padding: 18px;
+        background: #f5f8fc;
+        border: 1px solid #d9e6f2;
+        border-radius: 10px;
+        color: #51708d;
+        font-size: 13px;
+      }
+      .normal-state h2 {
+        font-size: 15px;
+        margin: 0 0 5px;
+      }
+      .normal-state p {
+        margin: 0;
+      }
+      @media (max-width: 950px) {
+        .links {
+          gap: 12px;
+        }
+        .links span {
+          font-size: 11px;
+        }
+        .level-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .columns {
+          grid-template-columns: minmax(0, 1fr) 273px;
+          gap: 17px;
+        }
+        .form-shell {
+          padding: 22px;
+        }
+        .upload {
+          flex-wrap: wrap;
+        }
+        .upload .browse {
+          margin-left: 56px;
+        }
+      }
+      @media (max-width: 700px) {
+        .bar-inner {
+          font-size: 10px;
+        }
+        .bar .pill {
+          display: none;
+        }
+        .header-inner {
+          min-height: 64px;
+        }
+        .branding strong {
+          font-size: 13px;
+        }
+        .branding small {
+          font-size: 9px;
+        }
+        .links {
+          gap: 10px;
+        }
+        .links span:not(.active) {
+          display: none;
+        }
+        .links .active {
+          display: block;
+          padding: 6px 0;
+        }
+        .links .login {
+          display: none !important;
+        }
+        .logo {
+          width: 35px;
+          height: 35px;
+        }
+        .page {
+          padding: 22px 14px 50px;
+        }
+        .title-area {
+          display: block;
+        }
+        .title-area h1 {
+          font-size: 30px;
+        }
+        .title-area p {
+          font-size: 12px;
+        }
+        .help-link {
+          display: block;
+          margin-top: 9px;
+          width: max-content;
+        }
+        .form-shell {
+          padding: 17px 14px;
+        }
+        .level-grid {
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+        .level {
+          min-height: 83px;
+          padding: 11px;
+          display: block;
+        }
+        .level.selected {
+          padding: 10.5px;
+        }
+        .level .level-title {
+          font-size: 12px;
+        }
+        .level .level-desc {
+          font-size: 10px;
+          margin-top: 4px;
+        }
+        .level .amount {
+          font-size: 17px;
+          display: block;
+          margin-top: 7px;
+        }
+        .columns {
+          grid-template-columns: 1fr;
+        }
+        .summary {
+          position: static;
+          margin-top: 6px;
+        }
+        .sponsor {
+          padding: 16px;
+        }
+        .sponsor-head {
+          display: block;
+        }
+        .badge {
+          display: inline-block;
+          margin: 5px 0 6px;
+        }
+        .upload {
+          align-items: center;
+        }
+        .upload .browse {
+          margin-left: 56px;
+        }
+        .info-grid {
+          grid-template-columns: 1fr;
+        }
+        .info-grid .field:last-child {
+          grid-column: span 1;
+        }
+        .footer-note {
+          display: block;
+        }
+        .file-actions {
+          display: block;
+        }
+        .file-actions button {
+          display: block;
+        }
+        .page {
+          max-width: 480px;
+        }
+        .form-section {
+          padding-top: 20px;
+        }
+        .small-opt {
+          margin-top: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <div class="bar-inner">
+        <span>DONATION PAGE · PROGRAM AD WORKFLOW CONCEPT</span
+        ><span class="pill">MOCKUP • NOT LIVE</span>
       </div>
-      <aside>
-        <div class="summary"><div class="summary-header"><h2>Donation summary</h2><p>Review before secure checkout</p></div><div class="summary-body"><div class="summary-row"><span id="summary-level">Half-page program ad</span><strong id="summary-amount">$250.00</strong></div><div class="summary-row"><span>Processing fee</span><span class="light">Covered by the chorus</span></div><div class="artwork-summary" id="artwork-summary"><span style="font-weight:900">✓</span><span id="artwork-text">Artwork attached</span></div><div class="total"><span>Total</span><strong id="summary-total">$250.00</strong></div><button class="pay" type="button"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Continue to secure payment <span aria-hidden="true">→</span></button><div class="secure">🔒 &nbsp;Secure checkout powered by Stripe</div></div></div>
-        <div class="side-note"><strong>No artwork yet? No problem.</strong>You can still complete your sponsorship today and upload your artwork later from a secure email link.</div>
-      </aside>
     </div>
-  </div>
-  <div class="footer-note"><span>Visual mockup based on the existing choir-management donation page. Example amounts and sponsor name are placeholders.</span><span>CONCEPT ONLY</span></div>
-</main>
-<script>
-const grid=document.getElementById('level-grid'),fileInput=document.getElementById('art-file'),chip=document.getElementById('file-chip');
-function updateSummary(){let btn=grid.querySelector('.selected');let ad=btn.dataset.ad==='true';let amount=Number(btn.dataset.amount);document.getElementById('sponsor-section').classList.toggle('hidden',!ad);document.getElementById('normal-state').classList.toggle('hidden',ad);document.getElementById('your-info-title').textContent=ad?'3. Your information':'2. Your information';document.getElementById('summary-level').textContent=btn.dataset.level+(ad?' program ad':' donation');document.getElementById('summary-amount').textContent=amount?'$'+amount.toFixed(2):'Your choice';document.getElementById('summary-total').textContent=amount?'$'+amount.toFixed(2):'Custom';document.getElementById('artwork-summary').classList.toggle('hidden',!ad);document.querySelector('.badge').textContent=btn.dataset.level.toUpperCase()+' SPONSOR';}
-grid.querySelectorAll('.level').forEach(btn=>btn.addEventListener('click',()=>{grid.querySelectorAll('.level').forEach(b=>b.classList.remove('selected'));btn.classList.add('selected');updateSummary()}));
-fileInput.addEventListener('change',()=>{let f=fileInput.files[0];if(f){chip.classList.remove('hidden');document.getElementById('file-name').textContent=f.name;document.getElementById('file-meta').textContent=(f.type==='application/pdf'?'PDF':f.type==='image/jpeg'?'JPG':'PNG')+' · '+Math.max(.1,f.size/1048576).toFixed(1)+' MB · Selected for demo';document.getElementById('artwork-text').textContent='Artwork attached'}});
-document.getElementById('remove-file').addEventListener('click',()=>{chip.classList.add('hidden');fileInput.value='';document.getElementById('artwork-text').textContent='Artwork can be added later'});
-</script>
-</body></html>
+    <header class="header">
+      <div class="header-inner">
+        <div class="branding">
+          <div class="logo">H</div>
+          <div>
+            <strong>HARMONY COMMUNITY CHORUS</strong
+            ><small>SHARING MUSIC. BUILDING COMMUNITY.</small>
+          </div>
+        </div>
+        <nav class="links" aria-label="Main navigation">
+          <span>Performances</span><span>About</span><span>Tickets</span
+          ><span class="active">Donate</span><span class="login">Member login</span>
+        </nav>
+      </div>
+    </header>
+    <main class="page">
+      <div class="breadcrumbs">Home&nbsp; / &nbsp;Support us</div>
+      <div class="title-area">
+        <div>
+          <h1>Support our music</h1>
+          <p>
+            Choose a donation or sponsor an advertisement in our concert program. Your support keeps
+            our music going.
+          </p>
+        </div>
+        <a class="help-link" href="#" onclick="return false;">Questions about sponsorship? ↗</a>
+      </div>
+      <div class="form-shell">
+        <h2 class="section-title"><span class="number">1</span> Choose your level</h2>
+        <div class="level-grid" id="level-grid">
+          <button class="level" type="button" data-amount="25" data-level="Friend">
+            <span
+              ><span class="level-title">Friend</span
+              ><span class="level-desc">Name in program</span></span
+            ><span class="amount">$25</span><span class="check">✓</span>
+          </button>
+          <button class="level" type="button" data-amount="50" data-level="Supporter">
+            <span
+              ><span class="level-title">Supporter</span
+              ><span class="level-desc">Recognition in program</span></span
+            ><span class="amount">$50</span><span class="check">✓</span>
+          </button>
+          <button
+            class="level"
+            type="button"
+            data-amount="125"
+            data-level="Quarter-page ad"
+            data-ad="true"
+          >
+            <span
+              ><span class="level-title">Quarter-page ad</span
+              ><span class="level-desc">Program advertisement</span></span
+            ><span class="amount">$125</span><span class="check">✓</span>
+          </button>
+          <button
+            class="level selected"
+            type="button"
+            data-amount="250"
+            data-level="Half-page ad"
+            data-ad="true"
+          >
+            <span
+              ><span class="level-title">Half-page ad</span
+              ><span class="level-desc">Program advertisement</span></span
+            ><span class="amount">$250</span><span class="check">✓</span>
+          </button>
+          <button
+            class="level"
+            type="button"
+            data-amount="500"
+            data-level="Full-page ad"
+            data-ad="true"
+          >
+            <span
+              ><span class="level-title">Full-page ad</span
+              ><span class="level-desc">Program advertisement</span></span
+            ><span class="amount">$500</span><span class="check">✓</span>
+          </button>
+          <button class="level" type="button" data-amount="0" data-level="Custom amount">
+            <span
+              ><span class="level-title">Custom amount</span
+              ><span class="level-desc">Give any amount</span></span
+            ><span class="amount">→</span><span class="check">✓</span>
+          </button>
+        </div>
+        <div class="divider"></div>
+        <div class="columns">
+          <div class="left-col">
+            <section id="sponsor-section" class="sponsor">
+              <div class="sponsor-head">
+                <div>
+                  <h2>2. Your program advertisement</h2>
+                  <p>
+                    Tell us how you’d like to appear in the printed program, and send us your
+                    finished artwork.
+                  </p>
+                </div>
+                <span class="badge">HALF-PAGE SPONSOR</span>
+              </div>
+              <div class="field">
+                <label for="sponsor-name"
+                  >Business or sponsor name <span style="color: #bc5f40">*</span></label
+                ><input
+                  id="sponsor-name"
+                  value="Acme Printing Company"
+                  placeholder="Name for program recognition"
+                />
+              </div>
+              <div class="subhead">
+                <span class="field-label">Ad artwork</span
+                ><span class="optional">Upload now or after donating</span>
+              </div>
+              <div class="upload" id="upload-drop">
+                <div class="upload-icon">
+                  <svg
+                    width="23"
+                    height="23"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4.5 16.5v2.2A1.3 1.3 0 0 0 5.8 20h12.4a1.3 1.3 0 0 0 1.3-1.3v-2.2"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <strong>Drop your artwork here</strong>
+                  <p>Print-ready PDF, PNG, or JPG · Max 20 MB</p>
+                </div>
+                <button
+                  class="browse"
+                  onclick="document.getElementById('art-file').click()"
+                  type="button"
+                >
+                  Browse files</button
+                ><input
+                  type="file"
+                  id="art-file"
+                  accept="application/pdf,image/png,image/jpeg"
+                  hidden
+                />
+              </div>
+              <div class="file-chip" id="file-chip">
+                <div class="file-icon">
+                  <svg
+                    width="19"
+                    height="22"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                  >
+                    <path d="M6 2.7h8l5 5V21H6V2.7Z" />
+                    <path d="M14 2.7v5h5" />
+                    <path d="M8.5 14h8M8.5 17h7" />
+                  </svg>
+                </div>
+                <div class="file-info">
+                  <strong id="file-name">acme-half-page-ad.pdf</strong
+                  ><small id="file-meta">PDF · 2.4 MB · Ready to submit</small>
+                </div>
+                <span style="color: #228044; font-weight: 900; font-size: 16px; line-height: 1"
+                  >✓</span
+                >
+                <div class="file-actions">
+                  <button type="button" onclick="document.getElementById('art-file').click()">
+                    Replace</button
+                  ><button type="button" class="remove" id="remove-file">Remove</button>
+                </div>
+              </div>
+              <div class="upload-tip">
+                <span class="info">ⓘ</span
+                ><span
+                  ><strong>Artwork not ready?</strong> Complete your sponsorship now. We’ll include
+                  a secure upload link in your confirmation email so you can send it later.</span
+                >
+              </div>
+            </section>
+            <div class="normal-state hidden" id="normal-state">
+              <h2>Thank you for supporting our music</h2>
+              <p>
+                Sponsor artwork is only requested for levels that include a program advertisement.
+              </p>
+            </div>
+            <section class="form-section">
+              <h2 id="your-info-title">3. Your information</h2>
+              <div class="info-grid">
+                <div class="field">
+                  <label>Name <span style="color: #bc5f40">*</span></label>
+                  <div class="input-sim">Alex Taylor</div>
+                </div>
+                <div class="field">
+                  <label>Email <span style="color: #bc5f40">*</span></label>
+                  <div class="input-sim">alex@example.com</div>
+                </div>
+                <div class="field">
+                  <label>Confirm email <span style="color: #bc5f40">*</span></label>
+                  <div class="input-sim">alex@example.com</div>
+                </div>
+              </div>
+            </section>
+            <div class="small-opt">
+              <span>Tribute (optional)</span><button type="button">+ Add a tribute</button>
+            </div>
+            <section class="form-section" style="padding-top: 15px">
+              <div class="choice-line">
+                <input type="checkbox" id="optin" /><label for="optin"
+                  >I would like to receive updates about future events and programs</label
+                >
+              </div>
+              <div class="choice-line">
+                <input type="checkbox" id="anonymous" /><label for="anonymous"
+                  >Hide my name from public donor recognition</label
+                >
+              </div>
+            </section>
+          </div>
+          <aside>
+            <div class="summary">
+              <div class="summary-header">
+                <h2>Donation summary</h2>
+                <p>Review before secure checkout</p>
+              </div>
+              <div class="summary-body">
+                <div class="summary-row">
+                  <span id="summary-level">Half-page program ad</span
+                  ><strong id="summary-amount">$250.00</strong>
+                </div>
+                <div class="summary-row">
+                  <span>Processing fee</span><span class="light">Covered by the chorus</span>
+                </div>
+                <div class="artwork-summary" id="artwork-summary">
+                  <span style="font-weight: 900">✓</span
+                  ><span id="artwork-text">Artwork attached</span>
+                </div>
+                <div class="total">
+                  <span>Total</span><strong id="summary-total">$250.00</strong>
+                </div>
+                <button class="pay" type="button">
+                  <svg
+                    width="16"
+                    height="16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    viewBox="0 0 24 24"
+                  >
+                    <rect x="4" y="10" width="16" height="11" rx="2" />
+                    <path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg
+                  >Continue to secure payment <span aria-hidden="true">→</span>
+                </button>
+                <div class="secure">🔒 &nbsp;Secure checkout powered by Stripe</div>
+              </div>
+            </div>
+            <div class="side-note">
+              <strong>No artwork yet? No problem.</strong>You can still complete your sponsorship
+              today and upload your artwork later from a secure email link.
+            </div>
+          </aside>
+        </div>
+      </div>
+      <div class="footer-note">
+        <span
+          >Visual mockup based on the existing choir-management donation page. Example amounts and
+          sponsor name are placeholders.</span
+        ><span>CONCEPT ONLY</span>
+      </div>
+    </main>
+    <script>
+      const grid = document.getElementById("level-grid"),
+        fileInput = document.getElementById("art-file"),
+        chip = document.getElementById("file-chip");
+      function updateSummary() {
+        let btn = grid.querySelector(".selected");
+        let ad = btn.dataset.ad === "true";
+        let amount = Number(btn.dataset.amount);
+        document.getElementById("sponsor-section").classList.toggle("hidden", !ad);
+        document.getElementById("normal-state").classList.toggle("hidden", ad);
+        document.getElementById("your-info-title").textContent = ad
+          ? "3. Your information"
+          : "2. Your information";
+        document.getElementById("summary-level").textContent =
+          btn.dataset.level + (ad ? " program ad" : " donation");
+        document.getElementById("summary-amount").textContent = amount
+          ? "$" + amount.toFixed(2)
+          : "Your choice";
+        document.getElementById("summary-total").textContent = amount
+          ? "$" + amount.toFixed(2)
+          : "Custom";
+        document.getElementById("artwork-summary").classList.toggle("hidden", !ad);
+        document.querySelector(".badge").textContent = btn.dataset.level.toUpperCase() + " SPONSOR";
+      }
+      grid.querySelectorAll(".level").forEach((btn) =>
+        btn.addEventListener("click", () => {
+          grid.querySelectorAll(".level").forEach((b) => b.classList.remove("selected"));
+          btn.classList.add("selected");
+          updateSummary();
+        }),
+      );
+      fileInput.addEventListener("change", () => {
+        let f = fileInput.files[0];
+        if (f) {
+          chip.classList.remove("hidden");
+          document.getElementById("file-name").textContent = f.name;
+          document.getElementById("file-meta").textContent =
+            (f.type === "application/pdf" ? "PDF" : f.type === "image/jpeg" ? "JPG" : "PNG") +
+            " · " +
+            Math.max(0.1, f.size / 1048576).toFixed(1) +
+            " MB · Selected for demo";
+          document.getElementById("artwork-text").textContent = "Artwork attached";
+        }
+      });
+      document.getElementById("remove-file").addEventListener("click", () => {
+        chip.classList.add("hidden");
+        fileInput.value = "";
+        document.getElementById("artwork-text").textContent = "Artwork can be added later";
+      });
+    </script>
+  </body>
+</html>
