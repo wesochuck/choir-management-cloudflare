@@ -37,6 +37,7 @@ export {
   zonedLocalDateTimeToUtc,
 } from "./calendarTime";
 export {
+  selectDefaultEvent,
   selectDefaultPerformance,
   type PerformanceSelectionCandidate,
 } from "./performanceSelection";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectDefaultPerformance } from "./performanceSelection";
+import { selectDefaultEvent, selectDefaultPerformance } from "./performanceSelection";
 
 interface EventCandidate {
   readonly id: string;
@@ -106,5 +106,35 @@ describe("selectDefaultPerformance", () => {
         timezone,
       ),
     ).toBeNull();
+  });
+});
+
+describe("selectDefaultEvent for attendance", () => {
+  const timezone = "America/New_York";
+  const rehearsal = event("rehearsal", "2025-11-02T04:30:00Z", "Rehearsal");
+  const laterToday = event("other", "2025-11-02T23:00:00Z", "Other");
+  const tomorrow = event("performance", "2025-11-03T18:00:00Z");
+
+  it("retains the earliest event of any type until local midnight, including a DST change", () => {
+    expect(
+      selectDefaultEvent(
+        [tomorrow, laterToday, rehearsal],
+        new Date("2025-11-03T04:59:59Z"),
+        timezone,
+      ),
+    ).toBe(rehearsal);
+    expect(
+      selectDefaultEvent(
+        [rehearsal, laterToday, tomorrow],
+        new Date("2025-11-03T05:00:00Z"),
+        timezone,
+      ),
+    ).toBe(tomorrow);
+  });
+
+  it("falls back to the latest past event across all event types", () => {
+    expect(
+      selectDefaultEvent([laterToday, rehearsal], new Date("2025-11-04T12:00:00Z"), timezone),
+    ).toBe(laterToday);
   });
 });

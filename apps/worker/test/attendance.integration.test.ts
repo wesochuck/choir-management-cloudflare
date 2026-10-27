@@ -2,6 +2,7 @@ import {
   organizationAttendanceResponseSchema,
   organizationAttendanceReportResponseSchema,
   organizationEventSchema,
+  organizationEventRsvpHistoryResponseSchema,
   organizationProfileFolderNumberSchema,
   organizationProfileFolderNumbersResponseSchema,
   organizationProfileResponseSchema,
@@ -1002,4 +1003,241 @@ it("includes only Yes RSVPs for the selected performance before applying the ros
     },
   );
   expect((await readReport()).rows).toEqual([]);
+});
+
+it("excludes archived profiles by ID, rejects stale saves atomically, and preserves history through restore", async () => {
+  const cookie = await signIn();
+  const venueId = await createVenue(cookie);
+  const createEvent = async (
+    title: string,
+    type: "Performance" | "Rehearsal",
+    parentPerformanceId?: string,
+  ) => {
+    const response = await write("alpha.localhost", "/api/organization/events", cookie, {
+      title,
+      type,
+      venueId,
+      parentPerformanceId,
+      rsvpDeadlineDate:
+        type === "Performance"
+          ? new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
+          : null,
+      startsAt: new Date(Date.now() + 172_800_000).toISOString(),
+    });
+    const body: unknown = await response.json();
+    expect(body).toMatchObject({ title });
+    expect(response.status).toBe(201);
+    return organizationEventSchema.parse(body);
+  };
+  const performance = await createEvent("Archive history performance", "Performance");
+  const rehearsal = await createEvent("Archive attendance rehearsal", "Rehearsal", performance.id);
+  const profiles = [];
+  for (const input of [
+    { displayName: "Test Singer" },
+    { displayName: "Test Singer" },
+    { displayName: "Archived Unique" },
+    { displayName: "Archived No History" },
+    { displayName: "Directory Opt Out", showInDirectory: false },
+    { displayName: "Off Roster Only", hidden: true },
+    { displayName: "Ordinary Inactive", globalStatus: "Inactive" },
+    { displayName: "On Break", globalStatus: "Idle" },
+    { displayName: "Off Roster On Break", globalStatus: "Idle", hidden: true },
+  ]) {
+    profiles.push(
+      organizationProfileResponseSchema.parse(
+        await (
+          await write("alpha.localhost", "/api/organization/profiles", cookie, {
+            voicePart: "S1",
+            statusIsManual: true,
+            ...input,
+          })
+        ).json(),
+      ),
+    );
+  }
+  const [kept, archived, unique, noHistory] = profiles;
+  if (!kept || !archived || !unique || !noHistory) throw new Error("Missing archive fixtures");
+  const path = `/api/organization/events/${rehearsal.id}/attendance`;
+  const readAttendance = async () => {
+    const response = await exports.default.fetch(api("alpha.localhost", path, cookie));
+    expect(response.status).toBe(200);
+    return organizationAttendanceResponseSchema.parse(await response.json());
+  };
+  const initialRows = (await readAttendance()).rows;
+  expect(initialRows).toHaveLength(9);
+  expect(initialRows.filter(({ displayName }) => displayName === "Test Singer")).toHaveLength(2);
+  expect(
+    await write(
+      "alpha.localhost",
+      path,
+      cookie,
+      {
+        updates: [archived, unique].map(({ id }) => ({ profileId: id, attendance: "Present" })),
+      },
+      "PUT",
+    ),
+  ).toMatchObject({ status: 200 });
+
+  const historyPath = `/api/organization/events/${rehearsal.id}/rsvp-history`;
+  const readHistory = async () =>
+    organizationEventRsvpHistoryResponseSchema.parse(
+      await (await exports.default.fetch(api("alpha.localhost", historyPath, cookie))).json(),
+    ).entries;
+  const historyBefore = await readHistory();
+  const reportPath = `/api/organization/events/${performance.id}/attendance-report`;
+  const readReport = async () =>
+    organizationAttendanceReportResponseSchema.parse(
+      await (await exports.default.fetch(api("alpha.localhost", reportPath, cookie))).json(),
+    );
+  const reportBefore = await readReport();
+  expect(reportBefore.rows.map(({ profileId }) => profileId).sort()).toEqual(
+    [archived.id, unique.id].sort(),
+  );
+
+  const snapshot = () =>
+    runInDurableObject(
+      stores.getByName("organization-alpha"),
+      (_instance: OrganizationStore, state) => ({
+        rosters: state.storage.sql
+          .exec("SELECT * FROM event_rosters ORDER BY event_id, profile_id")
+          .toArray(),
+        rsvp: state.storage.sql.exec("SELECT * FROM event_rsvp_history ORDER BY id").toArray(),
+        statuses: state.storage.sql
+          .exec("SELECT * FROM profile_status_history ORDER BY id")
+          .toArray(),
+      }),
+    );
+  for (const profile of [archived, unique, noHistory]) {
+    expect(
+      await write(
+        "alpha.localhost",
+        `/api/organization/profiles/${profile.id}`,
+        cookie,
+        {
+          ...profile,
+          globalStatus: "Inactive",
+          hidden: true,
+          statusIsManual: true,
+        },
+        "PUT",
+      ),
+    ).toMatchObject({ status: 200 });
+  }
+  const beforeStaleSave = await snapshot();
+  expect(beforeStaleSave.rosters).toHaveLength(4);
+  expect(beforeStaleSave.rsvp).not.toHaveLength(0);
+  expect(beforeStaleSave.statuses).not.toHaveLength(0);
+  const expectedIds = profiles
+    .filter(({ id }) => ![archived.id, unique.id, noHistory.id].includes(id))
+    .map(({ id }) => id)
+    .sort();
+  // Repeated reads represent polling/reload; equal names must not collapse distinct profiles.
+  for (let read = 0; read < 2; read += 1) {
+    expect((await readAttendance()).rows.map(({ profileId }) => profileId).sort()).toEqual(
+      expectedIds,
+    );
+  }
+  for (const updates of [
+    [{ profileId: archived.id, attendance: "Present" }],
+    [{ profileId: noHistory.id, attendance: "Absent" }],
+    [
+      { profileId: kept.id, attendance: "Present" },
+      { profileId: archived.id, attendance: "Pending" },
+    ],
+  ]) {
+    const response = await write("alpha.localhost", path, cookie, { updates }, "PUT");
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "attendance_profile_ineligible" });
+  }
+  expect(await snapshot()).toEqual(beforeStaleSave);
+  expect(await readHistory()).toEqual(historyBefore);
+  expect(await readReport()).toMatchObject({
+    rows: reportBefore.rows,
+    totalRehearsals: reportBefore.totalRehearsals,
+  });
+
+  expect(
+    await write(
+      "alpha.localhost",
+      `/api/organization/profiles/${archived.id}`,
+      cookie,
+      {
+        ...archived,
+        globalStatus: "Active",
+        hidden: false,
+        statusIsManual: true,
+      },
+      "PUT",
+    ),
+  ).toMatchObject({ status: 200 });
+  const restored = (await readAttendance()).rows;
+  expect(
+    restored
+      .filter(({ displayName }) => displayName === "Test Singer")
+      .map(({ profileId }) => profileId)
+      .sort(),
+  ).toEqual([kept.id, archived.id].sort());
+  expect(restored.find(({ profileId }) => profileId === archived.id)).toMatchObject({
+    attendance: "Present",
+    rsvp: "Yes",
+  });
+  expect((await snapshot()).rosters).toEqual(beforeStaleSave.rosters);
+});
+
+it("filters archived profiles before the attendance limit, including profiles without event rows", async () => {
+  const cookie = await signIn();
+  const seeded = await runInDurableObject(
+    stores.getByName("organization-alpha"),
+    (_instance: OrganizationStore, state) => {
+      const at = new Date().toISOString();
+      const eventId = crypto.randomUUID();
+      const eligibleId = crypto.randomUUID();
+      state.storage.sql.exec(
+        "INSERT INTO events (id, title, type, starts_at, created_at, updated_at) VALUES (?, 'Attendance limit', 'Rehearsal', ?, ?, ?)",
+        eventId,
+        at,
+        at,
+        at,
+      );
+      state.storage.transactionSync(() => {
+        for (let index = 0; index < 501; index += 1) {
+          state.storage.sql.exec(
+            "INSERT INTO profiles (id, display_name, global_status, hidden, status_is_manual, created_at, updated_at) VALUES (?, ?, 'Inactive', 1, 1, ?, ?)",
+            crypto.randomUUID(),
+            `A Archived ${String(index)}`,
+            at,
+            at,
+          );
+        }
+        state.storage.sql.exec(
+          "INSERT INTO profiles (id, display_name, voice_part, created_at, updated_at) VALUES (?, 'Z Eligible', 'S1', ?, ?)",
+          eligibleId,
+          at,
+          at,
+        );
+      });
+      const plan = state.storage.sql
+        .exec<{ readonly detail: string }>(
+          `EXPLAIN QUERY PLAN SELECT p.id FROM profiles p
+         JOIN events e ON e.id = ?
+         LEFT JOIN event_rosters r ON r.profile_id = p.id AND r.event_id = ?
+         WHERE p.hidden = 0 OR p.global_status != 'Inactive'
+         ORDER BY p.display_name COLLATE NOCASE ASC, p.id ASC LIMIT 500`,
+          eventId,
+          eventId,
+        )
+        .toArray()
+        .map(({ detail }) => detail)
+        .join("\n");
+      expect(plan).toContain("idx_profiles_attendance_eligible");
+      expect(plan).not.toContain("USE TEMP B-TREE FOR ORDER BY");
+      return { eventId, eligibleId };
+    },
+  );
+  const response = await exports.default.fetch(
+    api("alpha.localhost", `/api/organization/events/${seeded.eventId}/attendance`, cookie),
+  );
+  expect(response.status).toBe(200);
+  const { rows } = organizationAttendanceResponseSchema.parse(await response.json());
+  expect(rows.map(({ profileId }) => profileId)).toEqual([seeded.eligibleId]);
 });

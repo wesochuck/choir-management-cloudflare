@@ -12,13 +12,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as api from "../api";
 import { AttendanceManager } from "./AttendanceManager";
-import { useAttendanceMutations, useAttendanceQueries } from "./components/AttendanceManager/hooks";
+import {
+  useAttendanceFiltering,
+  useAttendanceMutations,
+  useAttendanceQueries,
+} from "./components/AttendanceManager/hooks";
 import type { ReactNode } from "react";
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof api>();
   return {
     ...actual,
+    getOrganizationCalendarSettings: vi.fn(),
     getOrganizationRosterConfiguration: vi.fn(),
     listOrganizationEventAttendance: vi.fn(),
     listOrganizationEvents: vi.fn(),
@@ -118,6 +123,9 @@ describe("AttendanceManager section grouping and sorting UI", () => {
       },
     });
 
+    vi.mocked(api.getOrganizationCalendarSettings).mockResolvedValue({
+      timezone: "America/New_York",
+    });
     vi.mocked(api.listOrganizationEvents).mockResolvedValue([mockEvent]);
     vi.mocked(api.listOrganizationVenues).mockResolvedValue([mockVenue]);
     vi.mocked(api.getOrganizationRosterConfiguration).mockResolvedValue(mockRosterConfig);
@@ -438,6 +446,9 @@ describe("Attendance refresh coordination", () => {
         queries: { retry: false, staleTime: Infinity, refetchOnWindowFocus: false },
       },
     });
+    client.setQueryData(api.queryKeys.organization.calendarSettings, {
+      timezone: "America/New_York",
+    });
     client.setQueryData(api.queryKeys.organization.events, [mockEvent]);
     client.setQueryData(api.queryKeys.organization.venues, [mockVenue]);
     client.setQueryData(api.queryKeys.organization.rosterConfiguration, mockRosterConfig);
@@ -452,12 +463,19 @@ describe("Attendance refresh coordination", () => {
     vi.useRealTimers();
   });
 
-  function renderAttendance() {
+  function renderAttendance(query = "") {
     return renderHook(
       () => {
         const queries = useAttendanceQueries(true);
         const mutations = useAttendanceMutations({ eventId: queries.eventId, rows: queries.rows });
-        return { ...queries, ...mutations };
+        const filtering = useAttendanceFiltering({
+          filter: "All",
+          query,
+          rows: queries.rows,
+          rosterConfiguration: queries.rosterConfiguration,
+          savingIds: mutations.savingIds,
+        });
+        return { ...queries, ...mutations, ...filtering };
       },
       {
         wrapper: ({ children }: { children: ReactNode }) => (
@@ -473,6 +491,100 @@ describe("Attendance refresh coordination", () => {
       await vi.advanceTimersByTimeAsync(milliseconds);
     });
   }
+
+  it("keeps today's started event eligible in the Organization timezone and preserves manual choice", () => {
+    vi.setSystemTime(new Date("2026-10-16T03:59:00Z")); // Still October 15 in New York.
+    const tomorrow = { ...mockEvent, id: "tomorrow", startsAt: "2026-10-16T19:00:00Z" };
+    client.setQueryData(api.queryKeys.organization.events, [tomorrow, mockEvent]);
+    const { result } = renderAttendance();
+    expect(result.current.eventId).toBe(mockEvent.id);
+    act(() => {
+      result.current.setSelectedEventId(tomorrow.id);
+    });
+    client.setQueryData(api.queryKeys.organization.events, [mockEvent, tomorrow]);
+    expect(result.current.eventId).toBe(tomorrow.id);
+  });
+
+  it("moves to the upcoming event after Organization-local midnight", () => {
+    vi.setSystemTime(new Date("2026-10-16T04:00:00Z"));
+    const tomorrow = { ...mockEvent, id: "tomorrow", startsAt: "2026-10-16T19:00:00Z" };
+    client.setQueryData(api.queryKeys.organization.events, [mockEvent, tomorrow]);
+    const { result } = renderAttendance();
+    expect(result.current.eventId).toBe(tomorrow.id);
+  });
+
+  it("uses the refreshed eligible set for search, counters, progress, and bulk targets", async () => {
+    const eligible = mockRows[0];
+    if (!eligible) throw new Error("Missing attendance fixture");
+    const archived = { ...eligible, profileId: "archived" };
+    const archivedUnique = {
+      ...eligible,
+      profileId: "archived-unique",
+      displayName: "Archived Unique",
+    };
+    client.setQueryData(key, [eligible, archived, archivedUnique]);
+    const { result } = renderAttendance("Alice");
+    expect(result.current.counts.expected).toBe(3);
+    expect(result.current.groupedRows.rsvped.flatMap((group) => group.rows)).toHaveLength(2);
+    vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue([eligible]);
+    await advance(5_000);
+    await advance(1);
+    expect(result.current.rows).toEqual([eligible]);
+    expect(result.current.counts).toMatchObject({
+      expected: 1,
+      roster: 1,
+      pending: 1,
+      present: 0,
+      presentTotal: 0,
+      absent: 0,
+    });
+    expect(result.current.groupedRows.rsvped.flatMap((group) => group.rows)).toEqual([eligible]);
+    expect(result.current.markableRows).toEqual([eligible]);
+    const saved = [{ ...eligible, attendance: "Present" as const }];
+    vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValue(saved);
+    vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue(saved);
+    await act(async () => {
+      await result.current.markRemainingPresent(result.current.markableRows);
+    });
+    await advance(1);
+    expect(api.updateOrganizationEventAttendance).toHaveBeenCalledWith(mockEvent.id, [
+      { profileId: eligible.profileId, attendance: "Present" },
+    ]);
+    expect(result.current.counts).toMatchObject({
+      expected: 1,
+      pending: 0,
+      present: 1,
+      presentTotal: 1,
+    });
+    await advance(5_000);
+    expect(result.current.rows).toEqual(saved);
+  });
+
+  it.each([false, true])(
+    "refreshes archived profiles away after a stale save (bulk: %s)",
+    async (bulk) => {
+      const eligible = mockRows[0];
+      if (!eligible) throw new Error("Missing attendance fixture");
+      const archived = { ...eligible, profileId: "archived" };
+      client.setQueryData(key, [eligible, archived]);
+      vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue([eligible]);
+      const explanation = "A selected profile has been archived. Refresh attendance and try again.";
+      vi.mocked(api.updateOrganizationEventAttendance).mockRejectedValue(
+        new api.AuthApiError(explanation, 409, "attendance_profile_ineligible"),
+      );
+      const { result } = renderAttendance();
+      await act(async () => {
+        if (bulk) await result.current.markRemainingPresent(result.current.markableRows);
+        else result.current.changeAttendance(archived.profileId);
+      });
+      await advance(1);
+      expect(result.current.message).toBe(explanation);
+      expect(result.current.rows).toEqual([eligible]);
+      expect(result.current.counts).toMatchObject({ expected: 1, pending: 1, present: 0 });
+      await advance(5_000);
+      expect(result.current.rows).toEqual([eligible]);
+    },
+  );
 
   it("polls every five seconds only while visible", async () => {
     renderAttendance();

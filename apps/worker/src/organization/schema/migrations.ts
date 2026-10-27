@@ -2238,6 +2238,16 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE donations ADD COLUMN artwork_uploaded_at TEXT",
     ],
   },
+  {
+    version: 126,
+    statements: [
+      // Five-second attendance polling reads eligible Profiles in name/ID order.
+      // The partial index excludes archived Profiles before the bounded list read.
+      `CREATE INDEX idx_profiles_attendance_eligible
+        ON profiles(display_name COLLATE NOCASE, id)
+        WHERE hidden = 0 OR global_status != 'Inactive'`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

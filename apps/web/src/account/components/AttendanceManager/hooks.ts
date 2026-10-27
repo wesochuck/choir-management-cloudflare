@@ -1,13 +1,15 @@
 import type {
   OrganizationAttendanceRow,
   OrganizationAttendanceStatus,
-  OrganizationEvent,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
+import { selectDefaultEvent } from "@choir/domain";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useRef, useState } from "react";
 
 import {
+  AuthApiError,
+  getOrganizationCalendarSettings,
   getOrganizationRosterConfiguration,
   listOrganizationEventAttendance,
   listOrganizationEvents,
@@ -25,21 +27,6 @@ const nextAttendance: Record<OrganizationAttendanceStatus, OrganizationAttendanc
   Pending: "Present",
   Present: "Absent",
 };
-
-function closestFutureEvent(
-  events: readonly OrganizationEvent[],
-  now = Date.now(),
-): OrganizationEvent | undefined {
-  let closest: OrganizationEvent | undefined;
-  let closestStartsAt = Number.POSITIVE_INFINITY;
-  for (const event of events) {
-    const startsAt = Date.parse(event.startsAt);
-    if (!Number.isFinite(startsAt) || startsAt <= now || startsAt >= closestStartsAt) continue;
-    closest = event;
-    closestStartsAt = startsAt;
-  }
-  return closest;
-}
 
 export function useAttendanceQueries(enabled: boolean) {
   const { data: events = [] } = useQuery({
@@ -60,9 +47,18 @@ export function useAttendanceQueries(enabled: boolean) {
     queryKey: queryKeys.organization.rosterConfiguration,
   });
 
+  const { data: calendarSettings } = useQuery({
+    enabled,
+    queryFn: ({ signal }) => getOrganizationCalendarSettings(signal),
+    queryKey: queryKeys.organization.calendarSettings,
+  });
+
   const defaultEventId = useMemo(
-    () => closestFutureEvent(events)?.id ?? events[0]?.id ?? "",
-    [events],
+    () =>
+      calendarSettings
+        ? (selectDefaultEvent(events, new Date(), calendarSettings.timezone)?.id ?? "")
+        : "",
+    [events, calendarSettings],
   );
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const eventId = selectedEventId || defaultEventId;
@@ -241,7 +237,7 @@ export function useAttendanceMutations({
             }),
         );
       }
-    } catch {
+    } catch (error: unknown) {
       queryClient.setQueryData(
         queryKeys.organization.attendance(targetEventId),
         (current: readonly OrganizationAttendanceRow[] | undefined) =>
@@ -256,8 +252,12 @@ export function useAttendanceMutations({
             return candidate;
           }),
       );
-      setMessage("That attendance update could not be saved. Try again.");
-      throw new Error("attendance_update_failed");
+      setMessage(
+        error instanceof AuthApiError && error.code === "attendance_profile_ineligible"
+          ? error.message
+          : "That attendance update could not be saved. Try again.",
+      );
+      throw error;
     } finally {
       if (mutationGenerations.current.get(profileId) === generation) {
         markSaving(profileId, false);
@@ -368,7 +368,7 @@ export function useAttendanceMutations({
             return row;
           }),
       );
-    } catch {
+    } catch (error: unknown) {
       queryClient.setQueryData(
         queryKeys.organization.attendance(targetEventId),
         (current: readonly OrganizationAttendanceRow[] | undefined) =>
@@ -384,7 +384,11 @@ export function useAttendanceMutations({
             return row;
           }),
       );
-      setMessage("The remaining attendance could not be saved. Try again.");
+      setMessage(
+        error instanceof AuthApiError && error.code === "attendance_profile_ineligible"
+          ? error.message
+          : "The remaining attendance could not be saved. Try again.",
+      );
     } finally {
       setBulkBusy(false);
     }

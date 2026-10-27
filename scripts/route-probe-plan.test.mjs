@@ -164,6 +164,50 @@ describe("route staging qualification and evidence plan", () => {
     ).toBe(false);
   });
 
+  test.each([
+    ["GET", "/api/public/donations/sponsor-info", "sponsor_not_found"],
+    ["POST", "/api/public/donations/sponsor-artwork", "sponsor_not_found"],
+    ["GET", "/api/public/donations/artwork/:fileId", "artwork_not_found"],
+  ])("recognizes only the tokenless rejection for %s %s", (method, path, code) => {
+    const rows = buildAnonymousProbeRows([{ method, path }], ["lcc", "lmc"]);
+    expect(rows.map((row) => row.organizationSlug)).toEqual(["lcc", "lmc"]);
+    for (const row of rows) {
+      expect(isExpectedAnonymousBoundary(row, { status: 404, code })).toBe(true);
+      for (const unexpected of [
+        { status: 404, code: "not_found" },
+        { status: 404, code: "sponsor_token_invalid" },
+        {
+          status: 404,
+          code: code === "sponsor_not_found" ? "artwork_not_found" : "sponsor_not_found",
+        },
+        { status: 404 },
+        { status: 200 },
+        { status: 400, code: "validation_failed" },
+        { status: 503, code: "service_unavailable" },
+        { status: 0, error: "timed out" },
+      ]) {
+        expect(isExpectedAnonymousBoundary(row, unexpected)).toBe(false);
+      }
+    }
+    expect(
+      isExpectedAnonymousBoundary(
+        { method, route: "/api/public/unrelated" },
+        { status: 404, code },
+      ),
+    ).toBe(false);
+  });
+
+  test.each([
+    ["POST", "/api/public/donations/artwork/upload", "validation_failed"],
+    ["POST", "/api/public/player-details", "validation_failed"],
+    ["GET", "/api/public/player/media/:fileId", "missing_token"],
+  ])("preserves the existing empty-input boundary for %s %s", (method, path, code) => {
+    for (const row of buildAnonymousProbeRows([{ method, path }], ["lcc", "lmc"])) {
+      expect(isExpectedAnonymousBoundary(row, { status: 400, code })).toBe(true);
+      expect(isExpectedAnonymousBoundary(row, { status: 404, code: "not_found" })).toBe(false);
+    }
+  });
+
   test("materializes dynamic route parameters for safe boundary probes", () => {
     expect(materializeRoutePath("/api/events/:eventId/profiles/:profileId")).toBe(
       "/api/events/00000000-0000-4000-8000-000000000000/profiles/00000000-0000-4000-8000-000000000000",

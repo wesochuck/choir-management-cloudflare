@@ -5,6 +5,7 @@ import {
 } from "@choir/contracts";
 import { z } from "zod";
 import {
+  CalendarMutationError,
   getOrganizationEventAttendanceReport,
   listOrganizationEventAttendance,
   listOrganizationEventRsvpHistory,
@@ -207,7 +208,20 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           body.data.updates,
         ),
       });
-    } catch {
+    } catch (error: unknown) {
+      if (
+        error instanceof CalendarMutationError &&
+        error.code === "attendance_profile_ineligible"
+      ) {
+        return context.json(
+          {
+            code: error.code,
+            message: "A selected profile has been archived. Refresh attendance and try again.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          409,
+        );
+      }
       return context.json(
         {
           code: "service_unavailable",

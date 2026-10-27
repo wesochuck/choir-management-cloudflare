@@ -44,11 +44,11 @@ function isPreferred<T extends PerformanceSelectionCandidate>(
 }
 
 /**
- * Selects the closest Performance by Organization-local calendar day.
- * Performances on today's local date remain eligible even if their start time
- * has already passed. If none remain, the most recent past Performance wins.
+ * Selects the earliest event on or after today in the Organization timezone.
+ * Today's events remain eligible through the end of the local day.
+ * If none remain, the most recent past event wins.
  */
-export function selectDefaultPerformance<T extends PerformanceSelectionCandidate>(
+export function selectDefaultEvent<T extends PerformanceSelectionCandidate>(
   events: readonly T[],
   now: Date,
   timezone: string,
@@ -67,7 +67,6 @@ export function selectDefaultPerformance<T extends PerformanceSelectionCandidate
   let latestPast: TimedEvent<T> | null = null;
 
   for (const event of events) {
-    if (event.type !== "Performance") continue;
     const candidate = timedEvent(event, timezone);
     if (!candidate) continue;
 
@@ -79,4 +78,17 @@ export function selectDefaultPerformance<T extends PerformanceSelectionCandidate
   }
 
   return earliestUpcoming?.event ?? latestPast?.event ?? null;
+}
+
+/** Applies the calendar-day selection rule to Performances only. */
+export function selectDefaultPerformance<T extends PerformanceSelectionCandidate>(
+  events: readonly T[],
+  now: Date,
+  timezone: string,
+): T | null {
+  return selectDefaultEvent(
+    events.filter((event) => event.type === "Performance"),
+    now,
+    timezone,
+  );
 }

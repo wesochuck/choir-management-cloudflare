@@ -153,6 +153,17 @@ export function isExpectedAnonymousBoundary(row, result) {
       (result.status === 503 && result.code === "stripe_webhook_unavailable")
     );
   }
+  // These signed-link routes deliberately conceal resources from tokenless probes.
+  // Match the method and typed response so a missing route or leaked data still fails.
+  if (
+    (row.method === "GET" && route === "/api/public/donations/sponsor-info") ||
+    (row.method === "POST" && route === "/api/public/donations/sponsor-artwork")
+  ) {
+    return result.status === 404 && result.code === "sponsor_not_found";
+  }
+  if (row.method === "GET" && route.startsWith("/api/public/donations/artwork/")) {
+    return result.status === 404 && result.code === "artwork_not_found";
+  }
   if (result.status === 200) return true;
   if (
     [400, 401, 403, 405, 409, 422, 429].includes(result.status) &&

@@ -10,6 +10,10 @@ import {
   readRosterAutomationConfiguration,
 } from "../statusAutomationStore";
 
+// Archive uses Inactive + off-roster; either flag alone has a separate meaning (ADR 0065).
+// Reuse this predicate for routine reads and write preflight, without changing history reports.
+const attendanceProfileEligibilitySql = "(p.hidden = 0 OR p.global_status != 'Inactive')";
+
 export function listEventAttendanceFromStore(
   storage: DurableObjectStorage,
   input: { readonly eventId: string | null; readonly organizationId: string | null },
@@ -54,6 +58,7 @@ export function listEventAttendanceFromStore(
        LEFT JOIN event_rosters parent
          ON parent.profile_id = p.id AND parent.event_id = e.parent_performance_id
        LEFT JOIN linked_attendance linked ON linked.profile_id = p.id
+       WHERE ${attendanceProfileEligibilitySql}
        ORDER BY p.display_name COLLATE NOCASE ASC, p.id ASC LIMIT 500`,
       eventId.data,
       eventId.data,
@@ -203,8 +208,20 @@ export function updateAttendance(
   if (profileIds.size !== operation.attendance.updates.length) {
     return Response.json({ code: "duplicate_profile" }, { status: 400 });
   }
-  if ([...profileIds].some((profileId) => !recordExists(storage, "profiles", profileId))) {
+  // Fetch only the bounded request's IDs through the profiles primary key. Validate the
+  // whole batch before attendance, linked RSVPs, status automation, or audit writes.
+  const profiles = storage.sql
+    .exec<{ readonly id: string; readonly eligible: number }>(
+      `SELECT p.id, CASE WHEN ${attendanceProfileEligibilitySql} THEN 1 ELSE 0 END AS eligible
+     FROM profiles p WHERE p.id IN (SELECT value FROM json_each(?))`,
+      JSON.stringify([...profileIds]),
+    )
+    .toArray();
+  if (profiles.length !== profileIds.size) {
     return Response.json({ code: "profile_not_found" }, { status: 404 });
+  }
+  if (profiles.some(({ eligible }) => eligible === 0)) {
+    return Response.json({ code: "attendance_profile_ineligible" }, { status: 409 });
   }
   storage.transactionSync(() => {
     for (const update of operation.attendance.updates) {
