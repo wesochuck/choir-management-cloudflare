@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import {
+  communicationReachResponseSchema,
   donationResponseSchema,
   donationThankYouUpdateRequestSchema,
   manualDonationCreateRequestSchema,
@@ -380,6 +381,21 @@ export async function installOrganizationApi(
   });
   await page.route("**/api/organization/calendar-settings", async (route) => {
     await fulfillJson(route, buildCalendarSettingsResponse());
+  });
+  await page.route("**/api/organization/communications/reach-preview", async (route) => {
+    await fulfillJson(
+      route,
+      communicationReachResponseSchema.parse({
+        both: 0,
+        email: 0,
+        requestId,
+        sms: 0,
+        ticketBuyerPurchasesOverLimit: 0,
+        total: 0,
+        undeliverableTicketBuyerPurchases: 0,
+        unreachable: 0,
+      }),
+    );
   });
   await page.route("**/api/organization/compliance", async (route) => {
     if (route.request().method() !== "GET") {
