@@ -98,12 +98,12 @@
     "wrangler": "4.147.0"
   },
   "overrides": {
-    "@better-auth/core": "1.6.33",
+    "@better-auth/core": "1.7.14",
     "@better-auth/passkey": {
-      "@better-auth/core": "1.6.33",
-      "better-call": "1.4.0"
+      "@better-auth/core": "1.7.14",
+      "better-call": "1.4.4"
     },
-    "better-call": "1.4.0",
+    "better-call": "1.4.4",
     "sharp": "0.35.5",
     "undici": "7.30.1",
     "vite": "8.1.6",

@@ -11,7 +11,7 @@ import type { WorkerHonoEnvironment } from "./helpers";
 import { browserOrganizationAuthAllowlist, isAuthorizedPlatformHostname } from "./helpers";
 
 interface AuthCookieAttributes {
-  readonly domain?: string;
+  readonly domain?: string | undefined;
   readonly httpOnly?: boolean;
   readonly path?: string;
   readonly sameSite?: boolean | string;

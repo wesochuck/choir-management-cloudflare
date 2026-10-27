@@ -10,13 +10,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@better-auth/core": "1.6.33",
-    "@better-auth/passkey": "1.6.33",
+    "@better-auth/core": "1.7.14",
+    "@better-auth/passkey": "1.7.14",
     "@choir/contracts": "0.1.0",
     "@choir/domain": "0.1.0",
     "@choir/ui": "0.1.0",
     "@dnd-kit/core": "6.3.1",
-    "better-auth": "1.6.33",
+    "better-auth": "1.7.14",
     "better-call": "1.4.0",
     "@radix-ui/react-dialog": "^1.1.23",
     "@tanstack/react-query": "^5.102.8",
