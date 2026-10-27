@@ -49,10 +49,12 @@
 
 /* Public site & ticketing */
 @import "./components/buttons.css";
+@import "./components/profile-editor.css";
 @import "./components/public-site.css";
 @import "./components/ticket-credentials.css";
 @import "./components/public-ticket-receipts.css";
 @import "./components/ticketing.css";
+@import "./components/ticket-scanner.css";
 @import "./components/ticketing-donations.css";
 @import "./components/modules-public.css";
 @import "./components/website-editor.css";
@@ -63,8 +65,8 @@
 @import "./components/setup-wizard.css";
 
 /* Communications */
-@import "./components/communications.css";
 @import "./components/communications-provider.css";
+@import "./components/communications.css";
 
 /* Account management & scheduling */
 @import "./components/account-managers.css";

@@ -20,6 +20,15 @@
     --border: var(--color-border);
     --card: var(--color-surface);
     --muted-foreground: var(--color-text-muted);
+    --music-genre-chip-teal: #0f766e;
+    --music-genre-chip-blue: #2563eb;
+    --music-genre-chip-violet: #7c3aed;
+    --music-genre-chip-rose: #be123c;
+    --music-genre-chip-orange: #c2410c;
+    --music-genre-chip-green: #15803d;
+    --music-genre-chip-indigo: #4338ca;
+    --music-genre-chip-gold: #a16207;
+    --music-genre-chip-muted: var(--muted-foreground);
   }
 
   :root[data-theme="dark"] {
@@ -46,6 +55,15 @@
     --color-info-surface: #172554;
     --color-success: #86efac;
     --color-success-text: var(--color-success);
+    --music-genre-chip-teal: #5eead4;
+    --music-genre-chip-blue: #93c5fd;
+    --music-genre-chip-violet: #c4b5fd;
+    --music-genre-chip-rose: #fda4af;
+    --music-genre-chip-orange: #fdba74;
+    --music-genre-chip-green: #86efac;
+    --music-genre-chip-indigo: #a5b4fc;
+    --music-genre-chip-gold: #fde68a;
+    --music-genre-chip-muted: var(--muted-foreground);
     --color-shadow: rgb(0 0 0 / 30%);
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 15%);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 30%), 0 2px 4px -2px rgb(0 0 0 / 30%);
@@ -78,6 +96,15 @@
       --color-info-surface: #172554;
       --color-success: #86efac;
       --color-success-text: var(--color-success);
+      --music-genre-chip-teal: #5eead4;
+      --music-genre-chip-blue: #93c5fd;
+      --music-genre-chip-violet: #c4b5fd;
+      --music-genre-chip-rose: #fda4af;
+      --music-genre-chip-orange: #fdba74;
+      --music-genre-chip-green: #86efac;
+      --music-genre-chip-indigo: #a5b4fc;
+      --music-genre-chip-gold: #fde68a;
+      --music-genre-chip-muted: var(--muted-foreground);
       --color-shadow: rgb(0 0 0 / 30%);
       --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 15%);
       --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 30%), 0 2px 4px -2px rgb(0 0 0 / 30%);

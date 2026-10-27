@@ -1,9 +1,11 @@
-/* === Ticketing manager, setup guidance, and dashboard ===
- * Split from forms-layouts.css; imported in order from theme.css so the
- * cascade is unchanged.
+/* Ticketing manager and dashboard stylesheet map.
+ * - Ticketing setup and dashboards (.ticketing-*)
+ * - Set list setup guidance (.setlist-setup-guide*)
+ * - Checkout discount disclosure (.ticket-discount-*)
+ * - QR scanner styles live in ticket-scanner.css.
  */
 @layer components {
-  /* Ticketing manager */
+  /* === Ticketing Manager & Dashboard === */
 
   .ticketing-page-header {
     display: flex;
@@ -17,17 +19,16 @@
     margin-left: auto;
   }
 
-  .ticketing-page-header h2,
-  .ticketing-page-header p {
+  .ticketing-page-header h2 {
     margin: 0;
   }
 
   .ticketing-page-header p {
-    margin-top: var(--spacing-2xs);
+    margin: var(--spacing-2xs) 0 0;
     color: var(--color-text-muted);
   }
 
-  /* Ticketing & Set List setup guidance */
+  /* === Ticketing & Set List Setup Guidance === */
 
   .ticketing-setup-guide,
   .setlist-setup-guide {
@@ -687,5 +688,151 @@
   .ticket-dashboard__will-call td:last-child,
   .ticket-dashboard__will-call th:last-child {
     min-width: 10rem;
+  }
+
+  @media (max-width: 48rem) {
+    .ticketing-page-header {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .ticketing-page-header .button {
+      width: 100%;
+    }
+
+    .ticketing-tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ticketing-tabs button {
+      text-align: left;
+    }
+
+    .ticketing-share-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .ticket-dashboard__intro,
+    .ticket-dashboard__section-heading {
+      flex-direction: column;
+    }
+
+    .ticket-dashboard__intro .field {
+      width: 100%;
+      flex-basis: auto;
+    }
+
+    .ticket-dashboard__performance-control-row {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .ticket-dashboard__performance-control-row select,
+    .ticket-dashboard__will-call-export-button,
+    .ticket-dashboard__edit-settings-button {
+      width: 100%;
+    }
+
+    .ticket-dashboard__metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .ticket-dashboard__filters {
+      grid-template-columns: 1fr;
+    }
+
+    .ticket-confirmation-settings__grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* === Ticket Discount Codes & Redemption Details === */
+  .discount-redemptions-cell {
+    display: inline-flex;
+    align-items: baseline;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .discount-redemptions-trigger.text-button {
+    padding-inline: 0;
+    font-weight: var(--font-weight-semibold);
+    text-decoration: underline;
+    text-underline-offset: 0.2rem;
+  }
+
+  .discount-redemptions-trigger.text-button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+
+  .discount-redemptions-zero {
+    font-weight: var(--font-weight-normal);
+  }
+
+  .ticket-discount-code-pill {
+    display: inline-block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    padding: var(--spacing-3xs) var(--spacing-xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-muted, var(--color-surface));
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+  }
+
+  /* Checkout discount disclosure and applied state */
+  .ticket-discount-controls {
+    display: grid;
+    gap: var(--spacing-xs);
+    margin-block: var(--spacing-xs);
+  }
+
+  .ticket-discount-toggle {
+    display: inline-flex;
+    align-items: center;
+    align-self: start;
+    justify-self: start;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: var(--color-primary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .ticket-discount-toggle:hover {
+    color: var(--color-primary-strong);
+  }
+
+  .ticket-discount-applied {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xs);
+    font-size: var(--font-size-sm);
+  }
+
+  .ticket-discount-remove {
+    display: inline-flex;
+    align-items: center;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .ticket-discount-remove:hover {
+    color: var(--color-text);
   }
 }

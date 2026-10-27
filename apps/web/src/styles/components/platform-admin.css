@@ -1,7 +1,4 @@
-/* === Platform administration: MFA, operations, provisioning, and directory ===
- * Split from the original single-file stylesheet; imported in order from
- * theme.css so the cascade is unchanged.
- */
+/* Platform MFA and Verification. */
 @layer components {
   .password-form {
     max-width: 34rem;

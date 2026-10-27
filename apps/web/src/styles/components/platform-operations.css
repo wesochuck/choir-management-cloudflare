@@ -1,11 +1,27 @@
-/* Platform operations and setup monitor. */
+/* Platform operations stylesheet map.
+ * - Platform workspace layout and headings
+ * - Setup monitor and health checks (.platform-setup-*)
+ * - Organization provisioning and schema status
+ * - Organization directory, domains, and routing (.platform-organization-domains*, .platform-domain-*)
+ * - Email suppressions, dead-letter queue, and reconciliation
+ * - Organization enrollment, security, and invitations
+ * Platform MFA and verification styles live in platform-admin.css.
+ */
 @layer components {
   /* Platform operations and setup monitor */
 
+  /* === Platform Workspace Layout & Headings === */
   .platform-operations {
     margin-top: var(--spacing-xl);
   }
 
+  .signed-in-main.signed-in-main--platform .platform-operations {
+    display: grid;
+    gap: var(--spacing-lg);
+    margin: 0;
+  }
+
+  /* === Setup Monitor & Health Checks (.platform-setup-*) === */
   .platform-setup-monitor {
     display: grid;
     gap: var(--spacing-md);
@@ -13,6 +29,14 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-card);
     background: var(--color-surface);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-setup-monitor {
+    margin-top: var(--spacing-lg);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
   }
 
   .platform-setup-monitor__heading {
@@ -151,7 +175,7 @@
     line-height: var(--line-height-relaxed);
   }
 
-  /* Provisioning, schema status, and organization list */
+  /* === Organization Provisioning & Schema Status === */
 
   .platform-provisioning-form {
     display: grid;
@@ -162,12 +186,36 @@
     margin-top: var(--spacing-xl);
   }
 
+  .signed-in-main.signed-in-main--platform .platform-provisioning-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: 60rem;
+    margin: 0;
+    padding: var(--spacing-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: var(--color-surface-raised);
+  }
+
   .platform-provisioning-form .button {
     justify-self: start;
   }
 
+  .signed-in-main.signed-in-main--platform .platform-provisioning-form .button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  /* === Organization Directory, Domains & Routing === */
   .platform-directory {
     margin-top: var(--spacing-2xl);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-directory {
+    display: grid;
+    gap: var(--spacing-sm);
+    margin: 0;
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
   }
 
   .platform-schema-status {
@@ -197,6 +245,16 @@
     gap: var(--spacing-xs);
   }
 
+  .signed-in-main.signed-in-main--platform .platform-organization-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: start;
+    grid-column: 3;
+    gap: var(--spacing-xs);
+    min-width: 0;
+  }
+
   .platform-organization-domains {
     flex: 1 1 100%;
     margin-top: var(--spacing-sm);
@@ -204,6 +262,12 @@
     border-radius: var(--radius-control);
     background: var(--color-surface);
     overflow: hidden;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-domains {
+    grid-column: 2;
+    min-width: 0;
+    margin: 0;
   }
 
   .platform-organization-domains__summary {
@@ -218,6 +282,14 @@
     transition:
       background-color 0.15s ease,
       border-color 0.15s ease;
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-organization-domains__summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 2.35rem;
+    padding: var(--spacing-xs) var(--spacing-sm);
   }
 
   .platform-organization-domains__summary::-webkit-details-marker {
@@ -303,6 +375,15 @@
     background: color-mix(in srgb, var(--color-surface-raised) 30%, var(--color-surface));
   }
 
+  .signed-in-main.signed-in-main--platform .platform-organization-domains__content {
+    display: grid;
+    gap: var(--spacing-sm);
+    max-width: none;
+    margin: 0;
+    padding: var(--spacing-sm);
+    border-top: 1px solid var(--color-border);
+  }
+
   .platform-organization-domains__error-retry {
     display: flex;
     align-items: center;
@@ -317,6 +398,10 @@
     list-style: none;
   }
 
+  .signed-in-main.signed-in-main--platform .platform-domain-list {
+    margin: 0;
+  }
+
   .platform-domain-list li {
     display: flex;
     align-items: center;
@@ -325,6 +410,10 @@
     padding: var(--spacing-xs) var(--spacing-sm);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
+  }
+
+  .signed-in-main.signed-in-main--platform .platform-domain-list li {
+    background: var(--color-surface);
   }
 
   .platform-domain-list li > span {
@@ -377,6 +466,11 @@
     gap: var(--spacing-xs);
   }
 
+  .signed-in-main.signed-in-main--platform .platform-domain-form {
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-3xs);
+  }
+
   .platform-domain-form > div {
     display: flex;
     align-items: stretch;
@@ -398,6 +492,12 @@
     margin-top: var(--spacing-md);
   }
 
+  .signed-in-main.signed-in-main--platform .platform-load-more {
+    justify-self: start;
+    margin: 0;
+  }
+
+  /* === Email Suppressions, Dead-Letter Queue & Reconciliation === */
   .platform-email-suppressions__intro {
     margin: 0 0 var(--spacing-lg);
     color: var(--color-text-muted);
@@ -455,6 +555,10 @@
     margin: 0;
   }
 
+  .signed-in-main.signed-in-main--platform .platform-elevation-active .notice {
+    margin: 0;
+  }
+
   .organization-security-status {
     display: flex;
     align-items: center;
@@ -481,7 +585,7 @@
     font-weight: var(--font-weight-semibold);
   }
 
-  /* Organization enrollment, security, and invitations */
+  /* === Organization Enrollment, Security & Invitations === */
   .organization-policy .section-description,
   .organization-enrollment-start h3,
   .organization-enrollment-start p,
@@ -715,7 +819,7 @@
     font-size: var(--font-size-md);
   }
 
-  /* Platform workspace composition */
+  /* Platform-only workspace refinements for selectors without a shared base rule. */
 
   .signed-in-main.signed-in-main--platform {
     width: min(100%, 92rem);
@@ -742,12 +846,6 @@
     margin: 0;
   }
 
-  .signed-in-main.signed-in-main--platform .platform-operations {
-    display: grid;
-    gap: var(--spacing-lg);
-    margin: 0;
-  }
-
   .signed-in-main.signed-in-main--platform .platform-operation__heading {
     display: grid;
     gap: var(--spacing-2xs);
@@ -770,29 +868,6 @@
 
   .signed-in-main.signed-in-main--platform .platform-operations > .notice {
     margin: 0;
-  }
-
-  .signed-in-main.signed-in-main--platform .platform-provisioning-form {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    max-width: 60rem;
-    margin: 0;
-    padding: var(--spacing-md);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-card);
-    background: var(--color-surface-raised);
-  }
-
-  .signed-in-main.signed-in-main--platform .platform-provisioning-form .button {
-    grid-column: 1 / -1;
-    justify-self: start;
-  }
-
-  .signed-in-main.signed-in-main--platform .platform-directory {
-    display: grid;
-    gap: var(--spacing-sm);
-    margin: 0;
-    padding-top: var(--spacing-lg);
-    border-top: 1px solid var(--color-border);
   }
 
   .signed-in-main.signed-in-main--platform .platform-directory > h4 {
@@ -858,48 +933,12 @@
     margin: var(--spacing-2xs) 0 0;
   }
 
-  .signed-in-main.signed-in-main--platform .platform-organization-domains {
-    grid-column: 2;
-    min-width: 0;
-    margin: 0;
-  }
-
-  .signed-in-main.signed-in-main--platform .platform-organization-domains__summary {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    min-height: 2.35rem;
-    padding: var(--spacing-xs) var(--spacing-sm);
-  }
-
-  .signed-in-main.signed-in-main--platform .platform-organization-domains__content {
-    display: grid;
-    gap: var(--spacing-sm);
-    max-width: none;
-    margin: 0;
-    padding: var(--spacing-sm);
-    border-top: 1px solid var(--color-border);
-  }
-
   .signed-in-main.signed-in-main--platform .platform-organization-domains__content .field-help {
     margin: 0;
   }
 
   .signed-in-main.signed-in-main--platform .platform-organization-domains__content .notice {
     margin: 0;
-  }
-
-  .signed-in-main.signed-in-main--platform .platform-domain-list {
-    margin: 0;
-  }
-
-  .signed-in-main.signed-in-main--platform .platform-domain-list li {
-    background: var(--color-surface);
-  }
-
-  .signed-in-main.signed-in-main--platform .platform-domain-form {
-    gap: var(--spacing-xs);
-    margin-top: var(--spacing-3xs);
   }
 
   .signed-in-main.signed-in-main--platform .platform-domain-form > label {
@@ -918,25 +957,10 @@
     flex: 1;
   }
 
-  .signed-in-main.signed-in-main--platform .platform-organization-actions {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: start;
-    grid-column: 3;
-    gap: var(--spacing-xs);
-    min-width: 0;
-  }
-
   .signed-in-main.signed-in-main--platform .platform-organization-actions .button {
     width: 100%;
     white-space: normal;
     text-align: center;
-  }
-
-  .signed-in-main.signed-in-main--platform .platform-load-more {
-    justify-self: start;
-    margin: 0;
   }
 
   .signed-in-main.signed-in-main--platform .platform-dead-letter-list {
@@ -1059,18 +1083,6 @@
     align-items: center;
     gap: var(--spacing-md);
     margin: 0;
-  }
-
-  .signed-in-main.signed-in-main--platform .platform-elevation-active .notice {
-    margin: 0;
-  }
-
-  .signed-in-main.signed-in-main--platform .platform-setup-monitor {
-    margin-top: var(--spacing-lg);
-    padding: var(--spacing-lg);
-    border-radius: var(--radius-lg);
-    background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
   }
 
   @media (max-width: 64rem) {
