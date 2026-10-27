@@ -65,11 +65,10 @@ against Worker-persisted state (including after a reload).
   offline paths only (manual cash/check donations, rehearsal events). No `page.route(...)`
   interception is registered for app APIs; only genuinely third-party browser beacons may be ignored
   per spec, documented at the top of that spec.
-- Hostname: specs drive the local Worker origin directly (`http://localhost:8787`, which serves both
-  `/api/*` and the built SPA) because the preview proxy rewrites the Host header to `127.0.0.1`,
-  which is not a canonical auth hostname. Organization routes resolve the tenant from the request
-  hostname, and only `localhost` hostnames are canonical auth hosts when `PRODUCT_BASE_DOMAIN` is
-  `localhost`.
+- Hostname: specs drive the local Worker origin directly (`http://fullstack.localhost:8787`, which
+  serves both `/api/*` and the built SPA) because the preview proxy rewrites the Host header to
+  `127.0.0.1`, which is not a canonical auth hostname. The test Organization uses its own
+  `fullstack.localhost` hostname while `localhost` remains the product base host.
 - Commands: `npm run test:e2e:fullstack` runs just these suites on the Chromium projects (forced to
   one worker: the files share a single tenant, so parallel workers would reset each other's OTP
   rate-limit counters); `npm run test:e2e` runs everything (mocked + full-stack) on the Chromium

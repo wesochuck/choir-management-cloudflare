@@ -26,19 +26,16 @@ import { z } from "zod";
 // for anonymous calls (bootstrap, OTP polling) and `page.request` for
 // anything that needs the session.
 
-// The specs drive the local Worker origin directly (not the preview
-// proxy): `wrangler dev` serves both `/api/*` and the built SPA, and the
-// preview proxy rewrites the Host header to 127.0.0.1, which is not a
-// canonical auth hostname. `localhost` (not 127.0.0.1) is the canonical test
-// hostname: Organization routes resolve the tenant from the request hostname,
-// and only `localhost` hostnames are canonical auth hosts when
-// PRODUCT_BASE_DOMAIN is `localhost`.
-export const FULLSTACK_APP_ORIGIN = "http://localhost:8787";
+// The specs drive the local Worker origin directly (not the preview proxy).
+// The product base is `localhost`; the test Organization has its own
+// `fullstack.localhost` hostname so authenticated workspace requests exercise
+// the same tenant boundary as a deployed Organization subdomain.
+export const FULLSTACK_APP_ORIGIN = "http://fullstack.localhost:8787";
 export const FULLSTACK_ADMIN_EMAIL = "fullstack.admin@example.test";
 export const FULLSTACK_ORGANIZATION_NAME = "Fullstack Test Choir";
 
 const bootstrapResponseSchema = z.object({
-  canonicalHostname: z.literal("localhost"),
+  canonicalHostname: z.literal("fullstack.localhost"),
   email: z.string().min(1),
   organizationId: z.literal("organization-fullstack"),
   organizationName: z.string().min(1),

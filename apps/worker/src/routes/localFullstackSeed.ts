@@ -24,7 +24,7 @@ const FULLSTACK_ORGANIZATION_ID = "organization-fullstack";
 const FULLSTACK_ORGANIZATION_SLUG = "fullstack";
 const FULLSTACK_ORGANIZATION_NAME = "Fullstack Test Choir";
 const FULLSTACK_DEFAULT_EMAIL = "fullstack.admin@example.test";
-const FULLSTACK_HOSTNAMES = ["localhost", "127.0.0.1"] as const;
+const FULLSTACK_HOSTNAMES = ["fullstack.localhost"] as const;
 
 // Parallel-safe identities: each spec file seeds its own admin user so
 // concurrent fullstack workers never delete each other's sessions. Only
@@ -93,9 +93,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     const occurredAt = new Date().toISOString();
     const createdAt = Date.now();
 
-    // The Organization and its loopback domains are identical on every call,
+    // The Organization and its test subdomain are identical on every call,
     // so they are inserted idempotently and never deleted: parallel spec
-    // files share them safely. Only the per-file user identity is reset.
+    // files share them safely. Only stale base-host aliases and the per-file
+    // user identity are removed.
     // Identity rows match by id OR email so a stale row left by an older
     // bootstrap shape (different id, same email) can never wedge a later
     // run on the UNIQUE(email) constraint. Everything stays scoped to the
@@ -119,7 +120,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           occurredAt,
           occurredAt,
         ),
-      ...FULLSTACK_HOSTNAMES.map((hostname, index) =>
+      database
+        .prepare(
+          `DELETE FROM organization_domains
+            WHERE organization_id = ? AND hostname IN (?, ?)`,
+        )
+        .bind(FULLSTACK_ORGANIZATION_ID, "localhost", "127.0.0.1"),
+      ...FULLSTACK_HOSTNAMES.map((hostname) =>
         database
           .prepare(
             `INSERT OR IGNORE INTO organization_domains
@@ -127,7 +134,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
              VALUES (?, ?, ?, 'canonical', 'active', 1, ?, ?)`,
           )
           .bind(
-            `domain-fullstack-${index === 0 ? "localhost" : "loopback"}`,
+            "domain-fullstack-organization",
             FULLSTACK_ORGANIZATION_ID,
             hostname,
             occurredAt,
@@ -183,7 +190,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       {
         body: JSON.stringify({
           actorUserId: "bootstrap",
-          canonicalHostname: "localhost",
+          canonicalHostname: "fullstack.localhost",
           canonicalStatus: "active",
           name: FULLSTACK_ORGANIZATION_NAME,
           organizationId: FULLSTACK_ORGANIZATION_ID,
@@ -205,13 +212,14 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
 
-    // Force hostname re-resolution so a previous run (or manual local use)
-    // cannot serve a stale cached route for the loopback hostnames.
+    // Force hostname re-resolution so a previous run cannot serve a stale
+    // route for the tenant subdomain or the former base-host aliases.
+    await context.env.ROUTING_CACHE.delete("host:fullstack.localhost");
     await context.env.ROUTING_CACHE.delete("host:localhost");
     await context.env.ROUTING_CACHE.delete("host:127.0.0.1");
 
     return context.json({
-      canonicalHostname: "localhost",
+      canonicalHostname: "fullstack.localhost",
       email,
       organizationId: FULLSTACK_ORGANIZATION_ID,
       organizationName: FULLSTACK_ORGANIZATION_NAME,

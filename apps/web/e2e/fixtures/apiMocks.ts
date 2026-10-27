@@ -33,6 +33,7 @@ import {
   buildPlatformOrganizationPublicDomainsResponse,
   buildPlatformOrganizationStripeConnectResponse,
   buildFleetSchemaStatusResponse,
+  buildHealthResponse,
   buildPlatformContextResponse,
   buildPlatformDeadLettersResponse,
   buildPlatformElevationRevocationResponse,
@@ -157,6 +158,12 @@ export async function installOrganizationApi(
   const session = await installSessionShell(page, {
     initiallySignedIn: options.initiallySignedIn,
     user: options.user,
+  });
+  // Mocked Organization journeys run on the preview server's loopback address.
+  // Give that origin an explicit product base so the app treats it as an
+  // Organization host and exercises the same tenant-only calls as production.
+  await page.route("**/api/health", async (route) => {
+    await fulfillJson(route, buildHealthResponse({ baseHostname: "localhost" }));
   });
   const organization = await installOrganizationShell(page, {
     memberships: options.memberships,
