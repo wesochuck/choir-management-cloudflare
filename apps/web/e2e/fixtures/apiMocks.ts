@@ -106,6 +106,8 @@ export async function installStrictGuard(page: Page): Promise<StrictGuard> {
 }
 
 export interface OrganizationApiOptions {
+  /** Health hostname to model a tenant host or the product base host in browser tests. */
+  readonly baseHostname?: string;
   readonly role?: OrganizationRole;
   readonly modules?: readonly string[];
   readonly organizationId?: string;
@@ -160,10 +162,12 @@ export async function installOrganizationApi(
     user: options.user,
   });
   // Mocked Organization journeys run on the preview server's loopback address.
-  // Give that origin an explicit product base so the app treats it as an
-  // Organization host and exercises the same tenant-only calls as production.
+  // Keep the product base explicit so tests can model tenant and platform hosts.
   await page.route("**/api/health", async (route) => {
-    await fulfillJson(route, buildHealthResponse({ baseHostname: "localhost" }));
+    await fulfillJson(
+      route,
+      buildHealthResponse({ baseHostname: options.baseHostname ?? "localhost" }),
+    );
   });
   const organization = await installOrganizationShell(page, {
     memberships: options.memberships,

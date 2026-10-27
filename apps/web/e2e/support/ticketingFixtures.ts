@@ -329,6 +329,7 @@ export function routeHealth(page: Page) {
   return page.route("**/api/health", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",

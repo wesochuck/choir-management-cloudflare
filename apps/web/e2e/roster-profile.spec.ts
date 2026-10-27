@@ -135,6 +135,7 @@ test("keeps the roster profile dialog open when Messages is selected", async ({ 
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",

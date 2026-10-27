@@ -84,6 +84,7 @@ async function expectNoSeriousAxeViolations(
 
 test("sign-in page has no serious accessibility violations", async ({ page }) => {
   const api = await installOrganizationApi(page, {
+    baseHostname: "127.0.0.1",
     initiallySignedIn: false,
     role: "member",
     strict: true,
@@ -100,6 +101,7 @@ test("platform home page has no serious accessibility violations @webkit-smoke",
   page,
 }) => {
   const api = await installOrganizationApi(page, {
+    baseHostname: "127.0.0.1",
     initiallySignedIn: false,
     role: "member",
     strict: true,

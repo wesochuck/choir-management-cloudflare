@@ -395,6 +395,25 @@ function PlatformWorkspacePage({
   return <PlatformAccess initialMfaStatus={initialMfaStatus} view="security" />;
 }
 
+function memberPageHasMfaPrompt(pathname: string): boolean {
+  return pathname === "/schedule" || pathname === "/calendar" || pathname === "/dues";
+}
+
+function memberWorkspaceNoAccessPage(
+  status: "none" | "platform-scoped",
+  route: RouteState,
+  navigate: (href: string) => void,
+) {
+  if (status === "none" && route.pathname === "/dashboard") {
+    return (
+      renderMemberPage(route.pathname, false, navigate, "none") ?? (
+        <AccessDeniedPage workspace="Member workspace" />
+      )
+    );
+  }
+  return <AccessDeniedPage workspace="Member workspace" />;
+}
+
 function MemberWorkspacePage({
   access,
   memberEnabled,
@@ -417,11 +436,14 @@ function MemberWorkspacePage({
     );
   }
   if (access.status === "none" || access.status === "platform-scoped") {
-    return <AccessDeniedPage workspace="Member workspace" />;
+    return memberWorkspaceNoAccessPage(access.status, route, navigate);
   }
   const mfaRequired =
     access.context.mfaRequired && !access.context.mfaSatisfied && !access.context.mfaVerifiedUntil;
-  if (mfaRequired) {
+  // Preserve the page-specific MFA guidance where those views already provide it.
+  // Other member routes use the shared workspace prompt to avoid starting view data
+  // requests before the Organization session has been verified.
+  if (mfaRequired && !memberPageHasMfaPrompt(route.pathname)) {
     return (
       <OrganizationMfaPrompt message="Verify Organization MFA to view your member workspace." />
     );

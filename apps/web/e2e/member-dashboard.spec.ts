@@ -10,6 +10,7 @@ test("explains how to start when no Organization is active", async ({ page }) =>
   let singerDashboardRequested = false;
 
   await installSessionShell(page, {
+    baseHostname: "localhost",
     user: {
       email: "member.dashboard@example.test",
       name: "Member Dashboard User",

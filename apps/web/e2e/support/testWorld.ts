@@ -55,6 +55,7 @@ export function createMockSession(options: MockSessionOptions = {}) {
 export async function mockHealth(page: Page, overrides?: Record<string, unknown>): Promise<void> {
   await page.route("**/api/health", async (route) => {
     await fulfillJson(route, {
+      baseHostname: "127.0.0.1",
       environment: "local",
       requestId: defaultMockRequestId,
       service: "choir-management-cloudflare",

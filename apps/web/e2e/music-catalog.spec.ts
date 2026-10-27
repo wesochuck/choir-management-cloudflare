@@ -275,7 +275,7 @@ async function installRoutes(
         },
       },
       "/api/health": {
-        baseHostname: "127.0.0.1",
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",
@@ -584,7 +584,7 @@ test("manages genre labels from library settings and aligns the practice save co
   });
   await page.route("**/api/health", async (route) => {
     await fulfill(route, {
-      baseHostname: "127.0.0.1",
+      baseHostname: "localhost",
       environment: "local",
       requestId,
       service: "choir-management-cloudflare",

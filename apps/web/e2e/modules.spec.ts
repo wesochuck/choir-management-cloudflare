@@ -50,7 +50,7 @@ test("renders categorized granular modules and allows toggling individual featur
     }
     if (pathname === "/api/health") {
       await fulfillJson(route, {
-        baseHostname: "127.0.0.1",
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",

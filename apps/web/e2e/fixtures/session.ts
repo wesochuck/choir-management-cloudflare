@@ -21,6 +21,8 @@ export async function fulfillJson(route: Route, body: unknown, status = 200): Pr
 export interface SessionShellOptions {
   /** Start signed in (default true). OTP/password handlers flip this to true on success. */
   readonly initiallySignedIn?: boolean | undefined;
+  /** Health hostname; defaults to the Playwright preview host's product base. */
+  readonly baseHostname?: string | undefined;
   readonly user?: SessionUserOverrides | undefined;
 }
 
@@ -64,7 +66,10 @@ export async function installSessionShell(
   >([]);
 
   await page.route("**/api/health", async (route) => {
-    await fulfillJson(route, buildHealthResponse());
+    await fulfillJson(
+      route,
+      buildHealthResponse({ baseHostname: options.baseHostname ?? "127.0.0.1" }),
+    );
   });
   await page.route("**/api/auth/get-session", async (route) => {
     await fulfillJson(route, signedIn ? { session, user } : null);

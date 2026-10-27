@@ -56,7 +56,7 @@ async function setupChecklistRoutes(
       },
       "/api/auth/get-session": session,
       "/api/health": {
-        baseHostname: "127.0.0.1",
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",
@@ -297,7 +297,7 @@ test("shows onboarding guidance and next steps on admin overview when brand new"
       },
       "/api/auth/get-session": session,
       "/api/health": {
-        baseHostname: "127.0.0.1",
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",

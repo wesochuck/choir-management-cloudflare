@@ -262,6 +262,7 @@ test.describe("Consolidated Print Stylesheet (@media print)", () => {
       }
       if (url.pathname === "/api/health") {
         await fulfillJson(route, {
+          baseHostname: "localhost",
           environment: "local",
           requestId: setListRequestId,
           service: "choir-management-cloudflare",

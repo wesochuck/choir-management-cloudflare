@@ -203,6 +203,7 @@ test("admin can view poll results and option tallies on polls dashboard", async 
       "/api/account/sessions": [sessionData.session],
       "/api/auth/get-session": sessionData,
       "/api/health": {
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",

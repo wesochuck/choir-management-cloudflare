@@ -112,6 +112,7 @@ test("reorders resources with the accessible drag handle", async ({ page }) => {
       "/api/account/sessions": [session.session],
       "/api/auth/get-session": session,
       "/api/health": {
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",

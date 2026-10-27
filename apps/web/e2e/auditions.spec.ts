@@ -110,6 +110,7 @@ test("displays public audition inquiry form and accepts a submission", async ({ 
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",
@@ -193,6 +194,7 @@ test("shows configured public audition availability and scheduled details", asyn
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",
@@ -262,6 +264,7 @@ test("shows the first rehearsal date and official venue for an open inquiry", as
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",
@@ -326,6 +329,7 @@ test("shows not-found state for an invalid audition token", async ({ page }) => 
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",
@@ -387,6 +391,7 @@ test("admin manages auditions: list, edit, and save", async ({ page }, testInfo)
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",
@@ -689,6 +694,7 @@ for (const theme of ["light", "dark"] as const) {
     await page.route("**/api/health", async (route) => {
       await route.fulfill({
         body: JSON.stringify({
+          baseHostname: "localhost",
           environment: "local",
           requestId,
           service: "choir-management-cloudflare",

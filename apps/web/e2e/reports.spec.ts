@@ -70,7 +70,7 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/health", async (route) => {
     await route.fulfill({
       body: JSON.stringify({
-        baseHostname: "127.0.0.1",
+        baseHostname: "localhost",
         environment: "local",
         requestId,
         service: "choir-management-cloudflare",

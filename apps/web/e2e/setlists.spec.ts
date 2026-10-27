@@ -53,6 +53,7 @@ async function handleShellRoute(route: Route): Promise<boolean> {
     "/api/auth/get-session": session,
     "/api/account/sessions": [session.session],
     "/api/health": {
+      baseHostname: "localhost",
       environment: "local",
       requestId,
       service: "choir-management-cloudflare",

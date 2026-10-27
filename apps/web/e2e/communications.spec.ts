@@ -112,6 +112,7 @@ async function handleRoute(
     },
     "/api/auth/get-session": session,
     "/api/health": {
+      baseHostname: "localhost",
       environment: "local",
       requestId,
       service: "choir-management-cloudflare",
