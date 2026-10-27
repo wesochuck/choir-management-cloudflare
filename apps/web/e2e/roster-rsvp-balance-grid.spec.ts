@@ -51,8 +51,50 @@ async function setupRosterConfig(
   });
 }
 
+async function expectCompactRosterBalance(page: Page, labels: readonly string[]) {
+  const sections = page.locator(".roster-balance__sections");
+  await expect(sections).toHaveCSS("display", "flex");
+  for (const name of ["Tenors", "Basses"]) {
+    const chip = sections.getByRole("button", { name: new RegExp(name) });
+    await expect(chip).toBeVisible();
+    const box = await chip.boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+    expect(box?.height).toBeLessThanOrEqual(48);
+  }
+  const parts = page.locator(".roster-balance__details");
+  await expect(parts).not.toHaveAttribute("open");
+  await parts.locator("summary").click();
+  const boxes = [];
+  for (const label of labels) {
+    const part = parts.getByRole("button", { name: new RegExp(`^${label} `) });
+    await expect(part).toBeVisible();
+    const box = await part.boundingBox();
+    if (!box) throw new Error("Part filter is not measurable");
+    boxes.push(box);
+  }
+  for (const box of boxes) {
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    const sameRow = boxes.find((other) => Math.abs(other.y - box.y) <= 2);
+    expect(Math.abs(box.width - (sameRow?.width ?? box.width))).toBeLessThanOrEqual(2);
+  }
+  await parts.getByRole("button", { name: new RegExp(`^${labels[0] ?? "T1"} `) }).click();
+  await expect(
+    parts.getByRole("button", { name: new RegExp(`^${labels[0] ?? "T1"} `) }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: /^All / }).click();
+  await expect(
+    parts.getByRole("button", { name: new RegExp(`^${labels[0] ?? "T1"} `) }),
+  ).toHaveAttribute("aria-pressed", "false");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await parts.locator("summary").click();
+}
+
 test.describe("Section-to-Part Balance Grid Geometry", () => {
-  test.use({ viewport: { height: 900, width: 1280 } });
+  test.use({ viewport: { height: 900, width: 1280 }, serviceWorkers: "block" });
 
   const config2x2 = {
     sections: [
@@ -80,69 +122,15 @@ test.describe("Section-to-Part Balance Grid Geometry", () => {
     ],
   };
 
-  test("aligns 2+2 section cards exactly to child part columns on Roster page", async ({
+  test("keeps 2+2 roster section filters compact and reveals equally sized part controls", async ({
     page,
   }) => {
     const api = await installOrganizationApi(page, { role: "administrator" });
     api.profiles.set([buildOrganizationProfile({ voicePart: "T1" })]);
     await setupRosterConfig(page, config2x2.sections, config2x2.voiceParts);
-
     await page.goto("/admin/roster");
     await expect(page.getByRole("heading", { name: "Roster", level: 1 })).toBeVisible();
-
-    const tenors = page.locator(".roster-balance__section").filter({ hasText: "Tenors" });
-    const basses = page.locator(".roster-balance__section").filter({ hasText: "Basses" });
-    const t1 = page.locator(".roster-balance__part").filter({ hasText: "T1" });
-    const t2 = page.locator(".roster-balance__part").filter({ hasText: "T2" });
-    const b1 = page.locator(".roster-balance__part").filter({ hasText: "B1" });
-    const b2 = page.locator(".roster-balance__part").filter({ hasText: "B2" });
-
-    await expect(tenors).toBeVisible();
-    await expect(basses).toBeVisible();
-    await expect(t1).toBeVisible();
-    await expect(b2).toBeVisible();
-
-    const [tenorsBox, bassesBox, t1Box, t2Box, b1Box, b2Box] = await Promise.all([
-      tenors.boundingBox(),
-      basses.boundingBox(),
-      t1.boundingBox(),
-      t2.boundingBox(),
-      b1.boundingBox(),
-      b2.boundingBox(),
-    ]);
-
-    expect(tenorsBox).not.toBeNull();
-    expect(bassesBox).not.toBeNull();
-    expect(t1Box).not.toBeNull();
-    expect(t2Box).not.toBeNull();
-    expect(b1Box).not.toBeNull();
-    expect(b2Box).not.toBeNull();
-
-    if (tenorsBox && bassesBox && t1Box && t2Box && b1Box && b2Box) {
-      // Tenors left aligns to T1 left
-      expect(Math.abs(tenorsBox.x - t1Box.x)).toBeLessThanOrEqual(2);
-      // Tenors right aligns to T2 right
-      expect(Math.abs(tenorsBox.x + tenorsBox.width - (t2Box.x + t2Box.width))).toBeLessThanOrEqual(
-        2,
-      );
-
-      // Basses left aligns to B1 left
-      expect(Math.abs(bassesBox.x - b1Box.x)).toBeLessThanOrEqual(2);
-      // Basses right aligns to B2 right
-      expect(Math.abs(bassesBox.x + bassesBox.width - (b2Box.x + b2Box.width))).toBeLessThanOrEqual(
-        2,
-      );
-
-      // Equal-width part tracks
-      expect(Math.abs(t1Box.width - t2Box.width)).toBeLessThanOrEqual(2);
-      expect(Math.abs(t2Box.width - b1Box.width)).toBeLessThanOrEqual(2);
-      expect(Math.abs(b1Box.width - b2Box.width)).toBeLessThanOrEqual(2);
-    }
-
-    const hasOverflow = await page.evaluate(() => {
-      return document.documentElement.scrollWidth > document.documentElement.clientWidth;
-    });
-    expect(hasOverflow).toBe(false);
+    await expectCompactRosterBalance(page, ["T1", "T2", "B1", "B2"]);
   });
 
   test("aligns 2+2 section cards exactly to child part columns on Event RSVPs page", async ({
@@ -223,47 +211,7 @@ test.describe("Section-to-Part Balance Grid Geometry", () => {
     await page.goto("/admin/roster");
     await expect(page.getByRole("heading", { name: "Roster", level: 1 })).toBeVisible();
 
-    const tenors = page.locator(".roster-balance__section").filter({ hasText: "Tenors" });
-    const basses = page.locator(".roster-balance__section").filter({ hasText: "Basses" });
-    const t1 = page.locator(".roster-balance__part").filter({ hasText: "T1" });
-    const b1 = page.locator(".roster-balance__part").filter({ hasText: "B1" });
-    const b3 = page.locator(".roster-balance__part").filter({ hasText: "B3" });
-
-    await expect(tenors).toBeVisible();
-    await expect(basses).toBeVisible();
-    await expect(t1).toBeVisible();
-    await expect(b3).toBeVisible();
-
-    const [tenorsBox, bassesBox, t1Box, b1Box, b3Box] = await Promise.all([
-      tenors.boundingBox(),
-      basses.boundingBox(),
-      t1.boundingBox(),
-      b1.boundingBox(),
-      b3.boundingBox(),
-    ]);
-
-    expect(tenorsBox).not.toBeNull();
-    expect(bassesBox).not.toBeNull();
-    expect(t1Box).not.toBeNull();
-    expect(b1Box).not.toBeNull();
-    expect(b3Box).not.toBeNull();
-
-    if (tenorsBox && bassesBox && t1Box && b1Box && b3Box) {
-      // Tenors span = 1 (covers T1 exactly)
-      expect(Math.abs(tenorsBox.x - t1Box.x)).toBeLessThanOrEqual(2);
-      expect(Math.abs(tenorsBox.x + tenorsBox.width - (t1Box.x + t1Box.width))).toBeLessThanOrEqual(
-        2,
-      );
-
-      // Basses span = 3 (covers B1 through B3)
-      expect(Math.abs(bassesBox.x - b1Box.x)).toBeLessThanOrEqual(2);
-      expect(Math.abs(bassesBox.x + bassesBox.width - (b3Box.x + b3Box.width))).toBeLessThanOrEqual(
-        2,
-      );
-
-      // Equal-width part tracks
-      expect(Math.abs(t1Box.width - b1Box.width)).toBeLessThanOrEqual(2);
-    }
+    await expectCompactRosterBalance(page, ["T1", "B1", "B2", "B3"]);
 
     // Test on Event RSVPs
     await page.goto("/admin/rsvp");
@@ -309,36 +257,13 @@ test.describe("Section-to-Part Balance Grid Geometry", () => {
     }
   });
 
-  test("disables desktop spans and wraps cleanly on mobile viewport (<= 40rem)", async ({
-    page,
-  }) => {
+  test("wraps compact roster filters without horizontal overflow on mobile", async ({ page }) => {
     await page.setViewportSize({ height: 800, width: 375 });
-
     const api = await installOrganizationApi(page, { role: "administrator" });
     api.profiles.set([buildOrganizationProfile({ voicePart: "T1" })]);
     await setupRosterConfig(page, config2x2.sections, config2x2.voiceParts);
-
     await page.goto("/admin/roster");
-    await expect(page.getByRole("heading", { name: "Roster", level: 1 })).toBeVisible();
-
-    const sectionsContainer = page.locator(".roster-balance__sections");
-    await expect(sectionsContainer).toBeVisible();
-
-    // In mobile, sections use 2-column grid and grid-column is auto
-    const sectionColumns = await sectionsContainer.evaluate(
-      (el) => getComputedStyle(el).gridTemplateColumns.split(" ").length,
-    );
-    expect(sectionColumns).toBe(2);
-
-    const tenorSection = page.locator(".roster-balance__section").filter({ hasText: "Tenors" });
-    const gridColumn = await tenorSection.evaluate((el) => getComputedStyle(el).gridColumn);
-    expect(gridColumn).toContain("auto");
-
-    // No horizontal page overflow
-    const hasOverflow = await page.evaluate(() => {
-      return document.documentElement.scrollWidth > document.documentElement.clientWidth;
-    });
-    expect(hasOverflow).toBe(false);
+    await expectCompactRosterBalance(page, ["T1", "T2", "B1", "B2"]);
   });
 
   test("maintains geometry across theme changes (dark to light)", async ({ page }) => {
@@ -355,38 +280,6 @@ test.describe("Section-to-Part Balance Grid Geometry", () => {
       await expect(page.getByRole("button", { name: /Switch to dark theme/i })).toBeVisible();
     }
 
-    const tenors = page.locator(".roster-balance__section").filter({ hasText: "Tenors" });
-    const basses = page.locator(".roster-balance__section").filter({ hasText: "Basses" });
-    const t1 = page.locator(".roster-balance__part").filter({ hasText: "T1" });
-    const t2 = page.locator(".roster-balance__part").filter({ hasText: "T2" });
-    const b1 = page.locator(".roster-balance__part").filter({ hasText: "B1" });
-    const b2 = page.locator(".roster-balance__part").filter({ hasText: "B2" });
-
-    const [tenorsBox, bassesBox, t1Box, t2Box, b1Box, b2Box] = await Promise.all([
-      tenors.boundingBox(),
-      basses.boundingBox(),
-      t1.boundingBox(),
-      t2.boundingBox(),
-      b1.boundingBox(),
-      b2.boundingBox(),
-    ]);
-
-    expect(tenorsBox).not.toBeNull();
-    expect(bassesBox).not.toBeNull();
-    expect(t1Box).not.toBeNull();
-    expect(t2Box).not.toBeNull();
-    expect(b1Box).not.toBeNull();
-    expect(b2Box).not.toBeNull();
-
-    if (tenorsBox && bassesBox && t1Box && t2Box && b1Box && b2Box) {
-      expect(Math.abs(tenorsBox.x - t1Box.x)).toBeLessThanOrEqual(2);
-      expect(Math.abs(tenorsBox.x + tenorsBox.width - (t2Box.x + t2Box.width))).toBeLessThanOrEqual(
-        2,
-      );
-      expect(Math.abs(bassesBox.x - b1Box.x)).toBeLessThanOrEqual(2);
-      expect(Math.abs(bassesBox.x + bassesBox.width - (b2Box.x + b2Box.width))).toBeLessThanOrEqual(
-        2,
-      );
-    }
+    await expectCompactRosterBalance(page, ["T1", "T2", "B1", "B2"]);
   });
 });

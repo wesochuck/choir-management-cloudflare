@@ -315,7 +315,7 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(page.getByRole("dialog", { name: "Delete venue?" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
 
-  await page.setViewportSize({ height: 734, width: 844 });
+  await page.setViewportSize({ height: 734, width: 1280 });
   await page.goto("/admin/events/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/roster");
   const collapseNavigation = page.getByRole("button", {
     name: "Collapse navigation",
@@ -340,8 +340,11 @@ test("enrolls, verifies, and safely manages an Organization MFA policy", async (
   await expect(navigationDrawer).toHaveCount(0);
 
   await page.setViewportSize({ height: 734, width: 844 });
-  await expect(collapseNavigation).toBeVisible();
+  await expect(page.locator(".signed-in-sidebar")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Open workspace navigation" })).toBeVisible();
   await page.reload();
+  await expect(page.getByRole("button", { name: "Open workspace navigation" })).toBeVisible();
+  await page.setViewportSize({ height: 734, width: 1280 });
   await expect(collapseNavigation).toBeVisible();
 
   const rsvpPage = page.getByRole("main");
