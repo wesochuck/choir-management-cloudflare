@@ -54,6 +54,39 @@ describe("RSVP notification action", () => {
     );
   });
 
+  it("starts closed when nobody is pending or self-service RSVP has closed, and allows opening", () => {
+    vi.mocked(previewOrganizationCommunicationReach).mockResolvedValue({
+      both: 0,
+      email: 1,
+      sms: 0,
+      total: 1,
+      unreachable: 0,
+      ticketBuyerPurchasesOverLimit: 0,
+      undeliverableTicketBuyerPurchases: 0,
+    });
+    const { rerender } = render(
+      <RsvpNotificationAction activePendingCount={0} eventId="event-1" rows={rows} />,
+    );
+    const details = screen.getByText("Manual RSVP email").closest("details");
+    expect(details).not.toHaveAttribute("open");
+
+    fireEvent.click(screen.getByText("Manual RSVP email"));
+    expect(details).toHaveAttribute("open");
+    expect(screen.getByRole("link", { name: "Request RSVPs" })).toBeInTheDocument();
+
+    rerender(
+      <RsvpNotificationAction
+        activePendingCount={1}
+        eventId="event-2"
+        rows={rows}
+        rsvpDeadlinePassed={true}
+      />,
+    );
+    const nextDetails = screen.getByText("Manual RSVP email").closest("details");
+    expect(nextDetails).not.toHaveAttribute("open");
+    expect(screen.getByText(/Self-service RSVP is closed ·/)).toBeInTheDocument();
+  });
+
   it("can notify On Break and Inactive nonresponders without Active members", async () => {
     vi.mocked(previewOrganizationCommunicationReach).mockResolvedValue({
       both: 0,

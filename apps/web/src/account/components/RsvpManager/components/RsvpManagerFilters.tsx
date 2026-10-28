@@ -1,5 +1,5 @@
 import type { OrganizationEvent, OrganizationRosterConfiguration } from "@choir/contracts";
-import { type CSSProperties, useMemo } from "react";
+import { type CSSProperties, type ReactNode, useMemo } from "react";
 
 import { buildRosterBalanceLayout } from "../../../rosterBalanceLayout";
 import { reportableSections, reportableVoiceParts } from "../historyUtils";
@@ -14,6 +14,7 @@ export interface RsvpManagerFiltersProps {
   readonly events: readonly OrganizationEvent[];
   readonly filter: RsvpFilter;
   readonly onEventChange: (id: string) => void;
+  readonly notificationFooter?: ReactNode | undefined;
   readonly partLabel: string;
   readonly roster: OrganizationRosterConfiguration;
   readonly sectionCounts: ReadonlyMap<string, number>;
@@ -32,6 +33,7 @@ export function RsvpManagerFilters({
   events,
   filter,
   onEventChange,
+  notificationFooter,
   partLabel,
   roster,
   sectionCounts,
@@ -187,6 +189,9 @@ export function RsvpManagerFilters({
           })}
         </div>
       </div>
+      {notificationFooter !== null && notificationFooter !== undefined ? (
+        <div className="rsvp-manager__notification-footer">{notificationFooter}</div>
+      ) : null}
     </fieldset>
   );
 }

@@ -152,7 +152,12 @@ function ActiveEventRsvpSummary({
             </p>
           ) : null}
           {eventType === "Performance" ? (
-            <RsvpNotificationAction eventId={editingId} rows={rows} onNavigate={onNavigate} />
+            <RsvpNotificationAction
+              activePendingCount={counts.pending}
+              eventId={editingId}
+              rows={rows}
+              onNavigate={onNavigate}
+            />
           ) : null}
           {staffingGoal && staffingGoal > 0 ? (
             <p className="event-rsvp-summary__staffing">

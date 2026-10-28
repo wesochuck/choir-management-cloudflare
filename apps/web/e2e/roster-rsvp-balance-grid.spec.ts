@@ -282,4 +282,61 @@ test.describe("Section-to-Part Balance Grid Geometry", () => {
 
     await expectCompactRosterBalance(page, ["T1", "T2", "B1", "B2"]);
   });
+
+  test("keeps the manual RSVP email disclosure readable without overflow across sizes and themes", async ({
+    page,
+  }) => {
+    const api = await installOrganizationApi(page, { role: "administrator" });
+    api.events.set([buildOrganizationEvent({ rsvpDeadlinePassed: false })]);
+    api.profiles.set([buildOrganizationProfile({ voicePart: "T1" })]);
+    await setupRosterConfig(page, config2x2.sections, config2x2.voiceParts);
+
+    await page.goto("/admin/rsvp");
+    await expect(page.getByRole("heading", { name: "Event RSVPs", level: 1 })).toBeVisible();
+
+    const disclosure = page.locator(
+      ".rsvp-manager__balance .rsvp-manager__notification-footer .rsvp-notification-disclosure",
+    );
+    await expect(disclosure).toHaveAttribute("open", "");
+    await expect(disclosure.getByText("Manual RSVP email", { exact: true })).toBeVisible();
+    await expect(disclosure.getByRole("checkbox", { name: "Active", exact: true })).toBeVisible();
+
+    for (const theme of ["light", "dark"] as const) {
+      await page.evaluate((value) => {
+        document.documentElement.setAttribute("data-theme", value);
+      }, theme);
+      for (const width of [320, 375, 430, 1280]) {
+        await page.setViewportSize({ height: 900, width });
+        await expect(disclosure.getByRole("link", { name: "Request RSVPs" })).toBeVisible();
+        const [summaryBox, actionBox] = await Promise.all([
+          disclosure.locator("summary").boundingBox(),
+          disclosure.getByRole("link", { name: "Request RSVPs" }).boundingBox(),
+        ]);
+        expect(summaryBox).not.toBeNull();
+        expect(actionBox).not.toBeNull();
+        if (summaryBox && actionBox) {
+          expect(summaryBox.width).toBeGreaterThan(0);
+          expect(actionBox.height).toBeGreaterThanOrEqual(39.5);
+          expect(actionBox.height).toBeLessThanOrEqual(48);
+        }
+        const overflow = await page.evaluate(() => {
+          const footer = document.querySelector<HTMLElement>(".rsvp-manager__notification-footer");
+          return {
+            clientWidth: document.documentElement.clientWidth,
+            documentScrollWidth: document.documentElement.scrollWidth,
+            footerClientWidth: footer?.clientWidth ?? 0,
+            footerScrollWidth: footer?.scrollWidth ?? 0,
+          };
+        });
+        expect(
+          overflow.footerScrollWidth,
+          `${theme} at ${String(width)}px: notification footer should not overflow its container`,
+        ).toBeLessThanOrEqual(overflow.footerClientWidth);
+        expect(
+          overflow.documentScrollWidth,
+          `${theme} at ${String(width)}px: document overflow (${JSON.stringify(overflow)})`,
+        ).toBeLessThanOrEqual(overflow.clientWidth);
+      }
+    }
+  });
 });

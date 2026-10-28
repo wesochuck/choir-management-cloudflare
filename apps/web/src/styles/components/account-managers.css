@@ -35,6 +35,17 @@
     margin-bottom: var(--spacing-lg);
   }
 
+  .rsvp-page-tabs button {
+    min-width: 0;
+    white-space: normal;
+  }
+
+  @media (max-width: 22rem) {
+    .rsvp-page-tabs {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
   .dues-records-header {
     display: grid;
     grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 1fr);

@@ -583,6 +583,16 @@ export function RsvpManagerPage({
                   setHistoryQuery("");
                   setSelectedProfileIds([]);
                 }}
+                notificationFooter={
+                  selectedEvent?.type === "Performance" && !rowsLoading && !rowsError ? (
+                    <RsvpNotificationAction
+                      activePendingCount={counts.pending}
+                      eventId={eventId}
+                      rows={rows}
+                      rsvpDeadlinePassed={selectedEvent.rsvpDeadlinePassed}
+                    />
+                  ) : null
+                }
                 partLabel={partLabel}
                 roster={state.roster}
                 sectionCounts={sectionCounts}
@@ -593,10 +603,6 @@ export function RsvpManagerPage({
                 view={view}
                 voicePartCounts={voicePartCounts}
               />
-
-              {selectedEvent?.type === "Performance" && !rowsLoading && !rowsError ? (
-                <RsvpNotificationAction eventId={eventId} rows={rows} />
-              ) : null}
               <fieldset className="surface-card rsvp-manager__roster" hidden={view !== "roster"}>
                 <legend id="rsvp-roster-title">RSVP roster</legend>
                 <div className="rsvp-manager__controls">

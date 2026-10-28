@@ -65,6 +65,7 @@ describe("RsvpManagerFilters", () => {
         eventId={mockEventId}
         events={[mockEvent]}
         filter="active"
+        notificationFooter={<div data-testid="notification-footer">Manual RSVP email</div>}
         onEventChange={vi.fn()}
         partLabel="Voice Part"
         roster={baseRoster}
@@ -93,6 +94,8 @@ describe("RsvpManagerFilters", () => {
     const layoutContainer = container.querySelector(".roster-balance__assignment-layout");
     expect(layoutContainer).not.toBeNull();
     expect(layoutContainer?.getAttribute("style")).toContain("--roster-balance-columns: 4");
+    const balance = container.querySelector(".rsvp-manager__balance");
+    expect(balance?.contains(screen.getByTestId("notification-footer"))).toBe(true);
 
     const tenorBtn = screen.getByRole("button", { name: /Tenors/i });
     const bassBtn = screen.getByRole("button", { name: /Basses/i });

@@ -2277,6 +2277,40 @@ describe("EventEditorDialog RSVP response summary and navigation", () => {
     expect(link).toHaveAttribute("href", "/admin/rsvp?eventId=perf-saved-1");
   });
 
+  it("keeps manual RSVP email closed when an event has no pending responses", async () => {
+    vi.mocked(listOrganizationEventAttendance).mockResolvedValue(
+      sampleAttendance.map((row) => ({ ...row, rsvp: "Yes" as const })),
+    );
+
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen={true}
+        editingId="perf-saved-1"
+        error={null}
+        event={savedPerformance}
+        eventStart="2026-10-15T19:30"
+        graphicFile={null}
+        navigate={vi.fn()}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={stateWithVenues([venueHall])}
+      />,
+    );
+
+    await switchToSection(/RSVPs & reminders/);
+    expect(await screen.findByText("No response: 0")).toBeInTheDocument();
+    const details = screen.getByText("Manual RSVP email").closest("details");
+    expect(details).not.toHaveAttribute("open");
+
+    fireEvent.click(screen.getByText("Manual RSVP email"));
+    expect(details).toHaveAttribute("open");
+    expect(screen.getByRole("link", { name: "Request RSVPs" })).toBeInTheDocument();
+  });
+
   it("separates On Break and Inactive members from active RSVP totals", async () => {
     vi.mocked(listOrganizationEventAttendance).mockResolvedValue(sampleAttendance);
 

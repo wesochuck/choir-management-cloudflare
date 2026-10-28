@@ -384,6 +384,103 @@
     margin: 0;
   }
 
+  .rsvp-manager__notification-footer {
+    min-width: 0;
+    margin-top: var(--spacing-md);
+    padding-top: var(--spacing-sm);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .rsvp-notification-disclosure {
+    min-width: 0;
+  }
+
+  .rsvp-notification-disclosure__summary {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--spacing-xs);
+    min-height: var(--control-height);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .rsvp-notification-disclosure__summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .rsvp-notification-disclosure__summary::after {
+    content: "⌃";
+    color: var(--color-text-muted);
+    line-height: var(--line-height-none);
+    transform: rotate(180deg);
+    transition: transform 120ms ease;
+  }
+
+  .rsvp-notification-disclosure[open] > .rsvp-notification-disclosure__summary::after {
+    transform: rotate(0deg);
+  }
+
+  .rsvp-notification-disclosure__title {
+    color: var(--color-text);
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+  }
+
+  .rsvp-notification-disclosure__status {
+    min-width: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+    overflow-wrap: anywhere;
+  }
+
+  .rsvp-notification-disclosure__panel {
+    display: grid;
+    gap: var(--spacing-xs);
+    min-width: 0;
+    margin-top: var(--spacing-2xs);
+    padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+  }
+
+  .rsvp-notification-disclosure__controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-xs) var(--spacing-md);
+    min-width: 0;
+  }
+
+  .rsvp-notification-disclosure__recipients {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .rsvp-notification-disclosure__status-options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--spacing-2xs) var(--spacing-sm);
+  }
+
+  .rsvp-notification-disclosure__status-option.checkbox-row--compact {
+    min-height: var(--control-height);
+    align-items: center;
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .rsvp-notification-disclosure__panel > .field-help {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
   .rsvp-manager__balance .roster-balance__header > div:first-child {
     min-width: 0;
     flex: 1;
@@ -398,8 +495,16 @@
   }
 
   .rsvp-manager__performance {
+    min-width: 0;
     width: min(100%, 32rem);
     margin: 0;
+  }
+
+  .rsvp-manager__performance select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    text-overflow: ellipsis;
   }
 
   .signed-in-main .rsvp-manager__performance-row .rsvp-manager__deadline-notice,
