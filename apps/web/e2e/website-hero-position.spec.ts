@@ -133,7 +133,7 @@ for (const image of [
         .toBeLessThanOrEqual(1);
       const hero = preview.locator(".public-hero");
       await expect(hero).toHaveCSS("background-position", "0% 100%");
-      const expected = device === "Desktop" ? 1152 / 416 : 358 / 416;
+      const expected = 1152 / 416;
       await expect
         .poll(() =>
           hero.evaluate((element) => {
@@ -156,7 +156,7 @@ for (const image of [
         const b = element.getBoundingClientRect();
         return b.width / b.height;
       });
-      expect(ratio).toBeCloseTo(width === 1280 ? 1152 / 416 : 358 / 416, 1);
+      expect(ratio).toBeCloseTo(1152 / 416, 1);
     }
     api.assertNoUnexpectedRequests();
   });

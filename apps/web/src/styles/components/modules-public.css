@@ -175,7 +175,7 @@
     width: min(72rem, calc(100% - 2rem));
     margin-inline: auto;
     max-width: 48rem;
-    padding: 3rem;
+    padding: clamp(var(--spacing-md), 4vw, 3rem);
   }
 
   .public-site-header,
@@ -276,7 +276,8 @@
 
   .public-hero {
     display: grid;
-    min-height: 26rem;
+    aspect-ratio: 1152 / 416;
+    min-height: 0;
     place-items: center;
     background: linear-gradient(135deg, var(--color-surface), var(--color-info-surface));
     background-position: center;
@@ -291,15 +292,15 @@
     box-shadow: var(--shadow-xl);
   }
 
-  .public-hero h1 {
+  .public-site .public-hero h1 {
     margin: var(--spacing-xs) 0 var(--spacing-md);
-    font-size: var(--public-hero-title-size, clamp(2.8rem, 8vw, 6rem));
+    font-size: var(--public-hero-title-size, clamp(1.75rem, 5vw, 6rem));
     line-height: var(--line-height-none);
   }
 
-  .public-hero p:last-child {
+  .public-site .public-hero p:last-child {
     margin: 0;
-    font-size: var(--public-hero-subtitle-size, clamp(1.1rem, 2vw, 1.45rem));
+    font-size: var(--public-hero-subtitle-size, clamp(0.95rem, 2vw, 1.45rem));
   }
 
   .public-section {

@@ -195,8 +195,8 @@ export function PublicWebsitePreview({
             {
               width: viewportWidth,
               zoom: scale,
-              "--public-hero-subtitle-size": `clamp(1.1rem, ${String(viewportWidth * 0.02)}px, 1.45rem)`,
-              "--public-hero-title-size": `clamp(2.8rem, ${String(viewportWidth * 0.08)}px, 6rem)`,
+              "--public-hero-subtitle-size": `clamp(0.95rem, ${String(viewportWidth * 0.02)}px, 1.45rem)`,
+              "--public-hero-title-size": `clamp(1.75rem, ${String(viewportWidth * 0.06)}px, 6rem)`,
               "--public-body-font": publicWebsiteFontStacks[draft.bodyFont],
               "--public-heading-font": publicWebsiteFontStacks[draft.headerFont],
             } as CSSProperties

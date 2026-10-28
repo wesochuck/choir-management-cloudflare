@@ -265,7 +265,7 @@
     cursor: grabbing;
   }
   .hero-position-editor__image--mobile {
-    aspect-ratio: 358 / 416;
+    aspect-ratio: 1152 / 416;
     max-width: 22.375rem;
     margin-inline: auto;
   }
