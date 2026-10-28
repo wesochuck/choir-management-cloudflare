@@ -109,7 +109,24 @@ test.describe("admin ticket management", () => {
     const visibleOrders = page.locator(".data-table:visible, .data-table-cards:visible");
     await expect(visibleOrders.getByText("Jane Buyer", { exact: true })).toBeVisible();
     await expect(visibleOrders.getByText("jane@example.test", { exact: true })).toBeVisible();
-    await expect(visibleOrders.locator(".ticket-discount-code-pill")).toHaveText("SPRING10");
+    const discountedOrderDisclosure = visibleOrders.getByRole("button", {
+      name: "Show details for Jane Buyer",
+    });
+    await expect(discountedOrderDisclosure).toHaveAttribute("aria-expanded", "false");
+    await discountedOrderDisclosure.click();
+    const expandedOrderDisclosure = visibleOrders.getByRole("button", {
+      name: "Hide details for Jane Buyer",
+    });
+    const discountedOrderDetails = visibleOrders.locator(".ticket-sales-details");
+    await expect(expandedOrderDisclosure).toHaveAttribute("aria-expanded", "true");
+    await expect(discountedOrderDetails.getByText("Full email", { exact: true })).toBeVisible();
+    await expect(
+      discountedOrderDetails.getByText("jane@example.test", { exact: true }),
+    ).toBeVisible();
+    await expect(discountedOrderDetails.getByText("Discount code", { exact: true })).toBeVisible();
+    await expect(discountedOrderDetails).toContainText("SPRING10");
+    await expandedOrderDisclosure.click();
+    await expect(discountedOrderDisclosure).toHaveAttribute("aria-expanded", "false");
     await expect(page.getByRole("status")).toContainText("Updates automatically every 5 seconds.");
     await expect(
       page.locator(".ticket-dashboard__metric--sold").getByText("Spring Concert", { exact: true }),
@@ -119,7 +136,9 @@ test.describe("admin ticket management", () => {
       visibleOrders.getByText("Paid (simulation)", { exact: true }).first(),
     ).toBeVisible();
 
-    const orderRows = visibleOrders.locator("tbody tr, .data-table-card");
+    const orderRows = visibleOrders.locator(
+      "tbody > tr:not(.data-table__expanded-row), .data-table-card",
+    );
     await expect(orderRows).toHaveCount(3);
     const showInactive = page.getByRole("checkbox", { name: "Show refunded and expired" });
     await expect(showInactive).not.toBeChecked();
@@ -135,11 +154,14 @@ test.describe("admin ticket management", () => {
     await expect(orderRows).toHaveCount(3);
     const bundleRow = orderRows.filter({ hasText: "Bundle Buyer" });
     await expect(bundleRow).toHaveCount(1);
-    await expect(bundleRow.locator(".ticketing-bundle-order-pill")).toHaveText("Bundle");
+    await bundleRow.getByRole("button", { name: "Show details for Bundle Buyer" }).click();
+    const bundleDetails = visibleOrders.locator(".ticket-sales-details");
+    await expect(bundleDetails.locator("dt").filter({ hasText: "Bundle" })).toBeVisible();
+    await expect(bundleDetails).toContainText("Season Pass");
+    await visibleOrders.getByRole("button", { name: "Hide details for Bundle Buyer" }).click();
     const standaloneRow = orderRows.filter({ hasText: "Jane Buyer" });
     await expect(standaloneRow.locator(".ticketing-bundle-order-pill")).toHaveCount(0);
-    const regularRow = orderRows.filter({ hasText: "Alex Anderson" });
-    await expect(regularRow.locator('[aria-label="No discount code"]')).toHaveText("—");
+    await expect(visibleOrders.locator(".ticket-sales-details")).toHaveCount(0);
     const buyerSortButton = page.getByRole("button", { name: "Sort by Buyer name" });
     if ((await buyerSortButton.count()) > 0 && (await buyerSortButton.isVisible())) {
       await buyerSortButton.click();
@@ -159,8 +181,10 @@ test.describe("admin ticket management", () => {
       const discountedCard = visibleOrders.locator(".data-table-card").filter({
         hasText: "Jane Buyer",
       });
-      await expect(discountedCard.getByText("Discount code", { exact: true })).toBeVisible();
-      await expect(discountedCard.locator(".ticket-discount-code-pill")).toHaveText("SPRING10");
+      await discountedCard.getByRole("button", { name: "Show details for Jane Buyer" }).click();
+      const discountedCardDetails = visibleOrders.locator(".ticket-sales-details");
+      await expect(discountedCardDetails.getByText("Discount code", { exact: true })).toBeVisible();
+      await expect(discountedCardDetails).toContainText("SPRING10");
     }
     if ((page.viewportSize()?.width ?? 0) <= 600) {
       const viewport = await page.evaluate(() => ({
@@ -631,21 +655,27 @@ test.describe("admin ticket management", () => {
 
     await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
     const visibleOrders = page.locator(".data-table:visible, .data-table-cards:visible");
-    await visibleOrders.getByRole("button", { name: "Refund" }).click({ force: true });
+    await visibleOrders.getByRole("button", { name: "Show details for Jane Buyer" }).click();
+    const orderDetails = visibleOrders.locator(".ticket-sales-details");
+    await orderDetails.getByRole("button", { name: "Refund order" }).click();
     const refundDialog = page.getByRole("dialog");
     await expect(refundDialog).toBeVisible();
     await expect(refundDialog.getByText("Refund ticket order?")).toBeVisible();
     await refundDialog.getByRole("button", { name: "Cancel" }).click();
     await expect(refundDialog).not.toBeVisible();
 
-    await visibleOrders.getByRole("button", { name: "Refund" }).click({ force: true });
+    await orderDetails.getByRole("button", { name: "Refund order" }).click();
     await expect(refundDialog).toBeVisible();
     await refundDialog.getByRole("button", { name: "Refund order" }).click();
 
     await expect(page.getByText("Ticket order refunded.")).toBeVisible();
     await expect(visibleOrders.getByText("Refunded (simulation)", { exact: true })).toHaveCount(0);
     await page.getByRole("checkbox", { name: "Show refunded and expired" }).check();
-    await expect(visibleOrders.getByText("Refunded (simulation)", { exact: true })).toBeVisible();
+    await expect(
+      visibleOrders.locator(".ticket-sales-table__status").getByText("Refunded (simulation)", {
+        exact: true,
+      }),
+    ).toBeVisible();
     expect(refundCalled).toBe(true);
   });
 
