@@ -251,6 +251,7 @@ function AttendanceControlsComponent({
       <label className="field attendance-manager__search">
         <span>Find a {performerLabel.toLowerCase()}</span>
         <input
+          aria-label={`Find a ${performerLabel.toLowerCase()}`}
           inputMode="search"
           onChange={(event) => {
             onQueryChange(event.target.value);
@@ -390,71 +391,75 @@ export function AttendanceManager({
             </div>
           </div>
 
-          <AttendanceControlsComponent
-            eventId={eventId}
-            eventLocationLabel={eventLocationLabel}
-            events={events}
-            onQueryChange={setQuery}
-            onSelectEvent={setSelectedEventId}
-            partLabel={partLabel}
-            performerLabel={performerLabel}
-            query={query}
-          />
-
-          <div className="attendance-manager__toolbar">
-            <div className="attendance-filters" aria-label="Attendance filter" role="group">
-              {(
-                [
-                  ["Pending", `Unmarked ${String(counts.pending)}`],
-                  ["All", `All ${String(counts.roster)}`],
-                  ["Present", `Present ${String(counts.presentTotal)}`],
-                  ["Absent", `Absent ${String(counts.absent)}`],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  className={
-                    filter === value
-                      ? "attendance-filter attendance-filter--active"
-                      : "attendance-filter"
-                  }
-                  key={value}
-                  onClick={() => {
-                    setFilter(value);
-                  }}
-                  type="button"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <button
-              className="button button--primary attendance-manager__bulk"
-              disabled={bulkBusy || markableRows.length === 0}
-              onClick={() => {
-                setBulkConfirmOpen(true);
-              }}
-              type="button"
-            >
-              {bulkBusy ? "Saving…" : "Mark remaining present"}
-            </button>
-          </div>
-
-          <div
-            className="attendance-progress"
-            aria-label={`${String(counts.present)} of ${String(counts.expected)} present`}
-          >
-            <span
-              style={{
-                width: `${String(counts.expected ? (counts.present / counts.expected) * 100 : 0)}%`,
-              }}
+          <div className="attendance-manager__sticky-header">
+            <AttendanceControlsComponent
+              eventId={eventId}
+              eventLocationLabel={eventLocationLabel}
+              events={events}
+              onQueryChange={setQuery}
+              onSelectEvent={setSelectedEventId}
+              partLabel={partLabel}
+              performerLabel={performerLabel}
+              query={query}
             />
+
+            <div className="attendance-manager__toolbar">
+              <div className="attendance-filters" aria-label="Attendance filter" role="group">
+                {(
+                  [
+                    ["Pending", `Unmarked ${String(counts.pending)}`],
+                    ["All", `All ${String(counts.roster)}`],
+                    ["Present", `Present ${String(counts.presentTotal)}`],
+                    ["Absent", `Absent ${String(counts.absent)}`],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    className={
+                      filter === value
+                        ? "attendance-filter attendance-filter--active"
+                        : "attendance-filter"
+                    }
+                    key={value}
+                    onClick={() => {
+                      setFilter(value);
+                    }}
+                    type="button"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="button button--primary attendance-manager__bulk"
+                disabled={bulkBusy || markableRows.length === 0}
+                onClick={() => {
+                  setBulkConfirmOpen(true);
+                }}
+                type="button"
+              >
+                {bulkBusy ? "Saving…" : "Mark remaining present"}
+              </button>
+            </div>
+
+            <div
+              className="attendance-progress"
+              aria-label={`${String(counts.present)} of ${String(counts.expected)} present`}
+            >
+              <span
+                style={{
+                  width: `${String(counts.expected ? (counts.present / counts.expected) * 100 : 0)}%`,
+                }}
+              />
+            </div>
           </div>
 
           <div aria-atomic="true" aria-live="polite" className="sr-only">
             {liveAnnouncement}
           </div>
 
-          <div className="attendance-undo-slot">
+          <div
+            className={`attendance-undo-slot${latestUndoEntry === null ? " attendance-undo-slot--empty" : ""}`}
+          >
             <AttendanceUndoBarComponent
               entry={latestUndoEntry}
               isBusy={undoBusy}

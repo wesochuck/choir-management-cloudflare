@@ -771,6 +771,7 @@ function AuthenticatedOrganizationShell({
     <SaveCoordinatorProvider>
       <div
         className="signed-in-shell"
+        data-attendance-view={route.pathname === "/admin/attendance" ? "true" : undefined}
         data-sidebar-pinned="true"
         data-theme={themePreference}
         data-workspace={selectedWorkspace}

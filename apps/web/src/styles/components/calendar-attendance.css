@@ -14,6 +14,11 @@
     --attendance-row-min-height: 4.25rem;
   }
 
+  .attendance-manager__sticky-header {
+    display: flex;
+    flex-direction: column;
+  }
+
   .signed-in-main.signed-in-main--attendance > .page-heading {
     margin-bottom: var(--spacing-xs);
     padding-bottom: var(--spacing-xs);
