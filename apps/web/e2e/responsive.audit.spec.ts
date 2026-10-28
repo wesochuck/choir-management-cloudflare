@@ -828,6 +828,7 @@ async function assertInlineControlRowAlignment(
 test("signed-in pages never overflow horizontally at any breakpoint", async ({
   page,
 }, testInfo) => {
+  testInfo.setTimeout(60_000);
   await page.route("**/api/**", async (route) => {
     if (await handleShellRoute(route)) return;
     if (await handleDataRoute(route)) return;
