@@ -5,7 +5,7 @@ import type {
 } from "@choir/contracts";
 import { selectDefaultEvent } from "@choir/domain";
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useReducer, useRef, useState } from "react";
 
 import {
   AuthApiError,
@@ -18,8 +18,9 @@ import {
   updateOrganizationEventAttendance,
 } from "../../../api";
 import { type AttendanceGroup, groupRowsBySection } from "./grouping";
+import { type AttendanceUndoEntry, attendanceActionLabel, undoReducer } from "./undoHistory";
 
-export type { AttendanceGroup };
+export type { AttendanceGroup, AttendanceUndoEntry };
 export type AttendanceFilter = "All" | "Present" | "Absent" | "Pending";
 
 const nextAttendance: Record<OrganizationAttendanceStatus, OrganizationAttendanceStatus> = {
@@ -170,6 +171,24 @@ export function useAttendanceMutations({
   const [rescueBusy, setRescueBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  const [{ entries: undoEntries }, dispatchUndo] = useReducer(undoReducer, { entries: [] });
+  const [undoBusy, setUndoBusy] = useState(false);
+  const [undoError, setUndoError] = useState<{
+    readonly kind: "error" | "conflict";
+    readonly profileId: string;
+  } | null>(null);
+  const [liveAnnouncement, setLiveAnnouncement] = useState("");
+  const actionSequenceRef = useRef(0);
+  const [eventContext, setEventContext] = useState({ eventId, generation: 0 });
+
+  if (eventContext.eventId !== eventId) {
+    setEventContext((prev) => ({ eventId, generation: prev.generation + 1 }));
+    dispatchUndo({ type: "clear" });
+    setUndoError(null);
+    setUndoBusy(false);
+    setLiveAnnouncement("");
+  }
+
   function markSaving(profileId: string, saving: boolean) {
     setSavingIds((current) => {
       const next = new Set(current);
@@ -183,11 +202,13 @@ export function useAttendanceMutations({
     targetEventId,
     row,
     nextValue,
+    expectedUpdatedAt,
   }: {
     readonly targetEventId: string;
     readonly row: OrganizationAttendanceRow;
     readonly nextValue: OrganizationAttendanceStatus;
-  }) {
+    readonly expectedUpdatedAt?: string | null | undefined;
+  }): Promise<OrganizationAttendanceRow | undefined> {
     const profileId = row.profileId;
 
     const generation = (mutationGenerations.current.get(profileId) ?? 0) + 1;
@@ -218,6 +239,7 @@ export function useAttendanceMutations({
       const saved = await updateOrganizationEventAttendance(targetEventId, [
         {
           attendance: nextValue,
+          ...(expectedUpdatedAt !== undefined ? { expectedUpdatedAt } : {}),
           profileId,
         },
       ]);
@@ -237,6 +259,7 @@ export function useAttendanceMutations({
             }),
         );
       }
+      return savedRow;
     } catch (error: unknown) {
       queryClient.setQueryData(
         queryKeys.organization.attendance(targetEventId),
@@ -255,7 +278,9 @@ export function useAttendanceMutations({
       setMessage(
         error instanceof AuthApiError && error.code === "attendance_profile_ineligible"
           ? error.message
-          : "That attendance update could not be saved. Try again.",
+          : error instanceof AuthApiError && error.code === "attendance_conflict"
+            ? error.message
+            : "That attendance update could not be saved. Try again.",
       );
       throw error;
     } finally {
@@ -268,12 +293,18 @@ export function useAttendanceMutations({
   async function applyAttendanceChange(
     row: OrganizationAttendanceRow,
     next: OrganizationAttendanceStatus,
-  ): Promise<boolean> {
+    expectedUpdatedAt?: string | null,
+  ): Promise<OrganizationAttendanceRow | null> {
     try {
-      await rowMutation.mutateAsync({ targetEventId: eventId, row, nextValue: next });
-      return true;
+      const saved = await rowMutation.mutateAsync({
+        expectedUpdatedAt,
+        nextValue: next,
+        row,
+        targetEventId: eventId,
+      });
+      return saved ?? null;
     } catch {
-      return false;
+      return null;
     }
   }
 
@@ -285,7 +316,31 @@ export function useAttendanceMutations({
       setRescueCandidate(row);
       return;
     }
-    void applyAttendanceChange(row, next);
+    const priorAttendance = row.attendance;
+    const actionSequence = ++actionSequenceRef.current;
+    const currentGeneration = eventContext.generation;
+    const currentEventId = eventId;
+    void applyAttendanceChange(row, next).then((savedRow) => {
+      if (savedRow && eventContext.generation === currentGeneration && eventId === currentEventId) {
+        dispatchUndo({
+          entry: {
+            actionSequence,
+            displayName: row.displayName,
+            eventId: currentEventId,
+            expectedUpdatedAt: savedRow.updatedAt,
+            id: crypto.randomUUID(),
+            previousAttendance: priorAttendance,
+            profileId: row.profileId,
+            resultingAttendance: next,
+          },
+          type: "add",
+        });
+        setUndoError(null);
+        setLiveAnnouncement(
+          `${row.displayName} marked ${attendanceActionLabel(next)}. Undo is available.`,
+        );
+      }
+    });
   }
 
   async function confirmUnexpectedAttendance() {
@@ -302,9 +357,13 @@ export function useAttendanceMutations({
       return;
     }
     setRescueBusy(true);
+    const candidateProfileId = candidate.profileId;
     const saved = await applyAttendanceChange(row, "Present");
     setRescueBusy(false);
-    if (saved) setRescueCandidate(null);
+    if (saved) {
+      dispatchUndo({ profileIds: new Set([candidateProfileId]), type: "invalidateProfiles" });
+      setRescueCandidate(null);
+    }
   }
 
   async function saveRemainingPresent({
@@ -316,6 +375,8 @@ export function useAttendanceMutations({
   }) {
     setBulkBusy(true);
     setMessage(null);
+    const affectedProfileIds = new Set(markableRows.map((r) => r.profileId));
+    dispatchUndo({ profileIds: affectedProfileIds, type: "invalidateProfiles" });
 
     const currentRows = queryClient.getQueryData<readonly OrganizationAttendanceRow[]>(
       queryKeys.organization.attendance(targetEventId),
@@ -439,11 +500,82 @@ export function useAttendanceMutations({
     await bulkMutation.mutateAsync({ targetEventId: eventId, markableRows });
   }
 
+  async function undoLatest(): Promise<boolean> {
+    const topEntry = undoEntries[undoEntries.length - 1];
+    if (!topEntry || undoBusy || savingIds.has(topEntry.profileId) || bulkBusy || rescueBusy) {
+      return false;
+    }
+    setUndoBusy(true);
+    setUndoError(null);
+    setLiveAnnouncement(`Restoring ${topEntry.displayName}…`);
+
+    const currentRow = rows.find((r) => r.profileId === topEntry.profileId);
+    const restoreRow: OrganizationAttendanceRow = currentRow ?? {
+      attendance: topEntry.resultingAttendance,
+      displayName: topEntry.displayName,
+      profileId: topEntry.profileId,
+      rsvp: "Pending",
+      updatedAt: topEntry.expectedUpdatedAt,
+      voicePart: "",
+    };
+
+    try {
+      const savedRow = await rowMutation.mutateAsync({
+        expectedUpdatedAt: topEntry.expectedUpdatedAt,
+        nextValue: topEntry.previousAttendance,
+        row: restoreRow,
+        targetEventId: topEntry.eventId,
+      });
+
+      dispatchUndo({
+        id: topEntry.id,
+        nextUpdatedAt: savedRow?.updatedAt ?? null,
+        type: "remove",
+      });
+      setLiveAnnouncement(
+        `${topEntry.displayName} restored to ${attendanceActionLabel(topEntry.previousAttendance)}.`,
+      );
+      return true;
+    } catch (error: unknown) {
+      if (error instanceof AuthApiError && error.code === "attendance_conflict") {
+        dispatchUndo({
+          profileIds: new Set([topEntry.profileId]),
+          type: "invalidateProfiles",
+        });
+        setMessage(
+          `Could not restore ${topEntry.displayName}. That attendance record was updated elsewhere.`,
+        );
+        setLiveAnnouncement(
+          `Could not restore ${topEntry.displayName}. Attendance was updated elsewhere.`,
+        );
+        setUndoError({
+          kind: "conflict",
+          profileId: topEntry.profileId,
+        });
+        await queryClient.invalidateQueries({
+          exact: true,
+          queryKey: queryKeys.organization.attendance(eventId),
+        });
+      } else {
+        setUndoError({
+          kind: "error",
+          profileId: topEntry.profileId,
+        });
+        setLiveAnnouncement(`Could not restore ${topEntry.displayName}. Try again.`);
+      }
+      return false;
+    } finally {
+      setUndoBusy(false);
+    }
+  }
+
   return {
     bulkBusy,
     bulkConfirmOpen,
     changeAttendance,
     confirmUnexpectedAttendance,
+    latestUndoEntry: undoEntries[undoEntries.length - 1] ?? null,
+    liveAnnouncement,
     markRemainingPresent,
     message,
     rescueBusy,
@@ -451,5 +583,9 @@ export function useAttendanceMutations({
     savingIds,
     setBulkConfirmOpen,
     setRescueCandidate,
+    undoBusy,
+    undoEntries,
+    undoError,
+    undoLatest,
   };
 }

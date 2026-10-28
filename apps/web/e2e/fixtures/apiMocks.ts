@@ -360,6 +360,7 @@ export async function installOrganizationApi(
             ...current,
             attendance: update.attendance,
             rsvp: update.attendance === "Present" ? "Yes" : current.rsvp,
+            updatedAt: new Date().toISOString(),
           });
         }
       }

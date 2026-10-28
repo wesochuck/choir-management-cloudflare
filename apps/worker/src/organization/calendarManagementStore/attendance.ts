@@ -223,6 +223,26 @@ export function updateAttendance(
   if (profiles.some(({ eligible }) => eligible === 0)) {
     return Response.json({ code: "attendance_profile_ineligible" }, { status: 409 });
   }
+  const conditionalUpdates = operation.attendance.updates.filter(
+    (update) => update.expectedUpdatedAt !== undefined,
+  );
+  if (conditionalUpdates.length > 0) {
+    const existingRosters = storage.sql
+      .exec<{ readonly profile_id: string; readonly updated_at: string | null }>(
+        `SELECT profile_id, updated_at FROM event_rosters
+         WHERE event_id = ? AND profile_id IN (SELECT value FROM json_each(?))`,
+        operation.eventId,
+        JSON.stringify(conditionalUpdates.map((u) => u.profileId)),
+      )
+      .toArray();
+    const existingByProfileId = new Map(existingRosters.map((r) => [r.profile_id, r.updated_at]));
+    for (const update of conditionalUpdates) {
+      const currentUpdatedAt = existingByProfileId.get(update.profileId) ?? null;
+      if (currentUpdatedAt !== update.expectedUpdatedAt) {
+        return Response.json({ code: "attendance_conflict" }, { status: 409 });
+      }
+    }
+  }
   storage.transactionSync(() => {
     for (const update of operation.attendance.updates) {
       storage.sql.exec(

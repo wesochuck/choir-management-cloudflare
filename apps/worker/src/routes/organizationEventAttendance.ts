@@ -222,6 +222,17 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           409,
         );
       }
+      if (error instanceof CalendarMutationError && error.code === "attendance_conflict") {
+        return context.json(
+          {
+            code: error.code,
+            message:
+              "This attendance record was updated elsewhere. Refresh attendance and try again.",
+            requestId: context.get("requestId"),
+          } satisfies ProblemDetails,
+          409,
+        );
+      }
       return context.json(
         {
           code: "service_unavailable",

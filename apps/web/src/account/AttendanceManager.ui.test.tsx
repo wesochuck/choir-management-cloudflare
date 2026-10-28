@@ -353,6 +353,396 @@ describe("AttendanceManager section grouping and sorting UI", () => {
       await screen.findByRole("region", { name: "Attendance automation settings" }),
     ).toBeInTheDocument();
   });
+
+  describe("AttendanceManager Undo bar", () => {
+    it("renders empty undo slot reserved space initially without interactive controls", async () => {
+      renderComponent();
+      await screen.findByRole("heading", { level: 3, name: "Altos" });
+
+      const slot = document.querySelector(".attendance-undo-slot");
+      expect(slot).toBeInTheDocument();
+      expect(slot?.querySelector("button")).toBeNull();
+      expect(screen.queryByRole("button", { name: /^Undo/i })).not.toBeInTheDocument();
+    });
+
+    it("shows undo bar after successful save and restores prior status on undo tap", async () => {
+      const user = userEvent.setup();
+      renderComponent();
+      await screen.findByRole("heading", { level: 3, name: "Altos" });
+
+      const aliceButton = screen.getByRole("button", {
+        name: "Alice Walker: Tap to check in. Tap to change.",
+      });
+
+      const savedRows: OrganizationAttendanceRow[] = mockRows.map((r) =>
+        r.profileId === "p-1"
+          ? { ...r, attendance: "Present" as const, updatedAt: "2026-10-28T18:00:00.000Z" }
+          : r,
+      );
+      vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValueOnce(savedRows);
+
+      await user.click(aliceButton);
+
+      await waitFor(() => {
+        expect(screen.getByText("Alice Walker marked present")).toBeInTheDocument();
+      });
+
+      const undoButton = screen.getByRole("button", {
+        name: "Undo: Alice Walker marked present",
+      });
+      expect(undoButton).toBeInTheDocument();
+
+      // Tap Undo to restore
+      const restoredRows: OrganizationAttendanceRow[] = mockRows.map((r) =>
+        r.profileId === "p-1"
+          ? { ...r, attendance: "Pending" as const, updatedAt: "2026-10-28T18:01:00.000Z" }
+          : r,
+      );
+      vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValueOnce(restoredRows);
+
+      await user.click(undoButton);
+
+      await waitFor(() => {
+        expect(api.updateOrganizationEventAttendance).toHaveBeenLastCalledWith(mockEvent.id, [
+          {
+            attendance: "Pending",
+            expectedUpdatedAt: "2026-10-28T18:00:00.000Z",
+            profileId: "p-1",
+          },
+        ]);
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText("Alice Walker marked present")).not.toBeInTheDocument();
+      });
+      expect(screen.queryByRole("button", { name: /^Undo/i })).not.toBeInTheDocument();
+    });
+
+    it("undoes sequential changes in LIFO order (A -> B -> C undoes as C -> B -> A)", async () => {
+      const user = userEvent.setup();
+      renderComponent();
+      await screen.findByRole("heading", { level: 3, name: "Altos" });
+
+      // Alice (A)
+      vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValueOnce(
+        mockRows.map((r) =>
+          r.profileId === "p-1"
+            ? { ...r, attendance: "Present" as const, updatedAt: "2026-10-28T18:01:00Z" }
+            : r,
+        ),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Alice Walker: Tap to check in. Tap to change." }),
+      );
+      await waitFor(() => {
+        expect(screen.getByText("Alice Walker marked present")).toBeInTheDocument();
+      });
+
+      // Bob (B)
+      vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValueOnce(
+        mockRows.map((r) =>
+          r.profileId === "p-3"
+            ? { ...r, attendance: "Present" as const, updatedAt: "2026-10-28T18:02:00Z" }
+            : r,
+        ),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Bob Iverson: Tap to check in. Tap to change." }),
+      );
+      await waitFor(() => {
+        expect(screen.getByText("Bob Iverson marked present")).toBeInTheDocument();
+      });
+
+      // Charlie (C)
+      vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValueOnce(
+        mockRows.map((r) =>
+          r.profileId === "p-4"
+            ? { ...r, attendance: "Present" as const, updatedAt: "2026-10-28T18:03:00Z" }
+            : r,
+        ),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Charlie Bass: Tap to check in. Tap to change." }),
+      );
+      await waitFor(() => {
+        expect(screen.getByText("Charlie Bass marked present")).toBeInTheDocument();
+      });
+
+      // Undo C -> Charlie
+      vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValueOnce(
+        mockRows.map((r) =>
+          r.profileId === "p-4"
+            ? { ...r, attendance: "Pending" as const, updatedAt: "2026-10-28T18:04:00Z" }
+            : r,
+        ),
+      );
+      await user.click(screen.getByRole("button", { name: "Undo: Charlie Bass marked present" }));
+
+      // Now offers B -> Bob
+      await waitFor(() => {
+        expect(screen.getByText("Bob Iverson marked present")).toBeInTheDocument();
+      });
+
+      // Undo B -> Bob
+      vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValueOnce(
+        mockRows.map((r) =>
+          r.profileId === "p-3"
+            ? { ...r, attendance: "Pending" as const, updatedAt: "2026-10-28T18:05:00Z" }
+            : r,
+        ),
+      );
+      await user.click(screen.getByRole("button", { name: "Undo: Bob Iverson marked present" }));
+
+      // Now offers A -> Alice
+      await waitFor(() => {
+        expect(screen.getByText("Alice Walker marked present")).toBeInTheDocument();
+      });
+
+      // Undo A -> Alice
+      vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValueOnce(
+        mockRows.map((r) =>
+          r.profileId === "p-1"
+            ? { ...r, attendance: "Pending" as const, updatedAt: "2026-10-28T18:06:00Z" }
+            : r,
+        ),
+      );
+      await user.click(screen.getByRole("button", { name: "Undo: Alice Walker marked present" }));
+
+      // History is exhausted
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: /^Undo/i })).not.toBeInTheDocument();
+      });
+    });
+
+    it("does not add failed saves to undo history", async () => {
+      const user = userEvent.setup();
+      renderComponent();
+      await screen.findByRole("heading", { level: 3, name: "Altos" });
+
+      vi.mocked(api.updateOrganizationEventAttendance).mockRejectedValueOnce(
+        new Error("Network failed"),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Alice Walker: Tap to check in. Tap to change." }),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("That attendance update could not be saved. Try again."),
+        ).toBeInTheDocument();
+      });
+      expect(screen.queryByRole("button", { name: /^Undo/i })).not.toBeInTheDocument();
+    });
+
+    it("keeps failed undo retryable with Retry button", async () => {
+      const user = userEvent.setup();
+      renderComponent();
+      await screen.findByRole("heading", { level: 3, name: "Altos" });
+
+      // Save succeeds
+      vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValueOnce(
+        mockRows.map((r) =>
+          r.profileId === "p-1"
+            ? { ...r, attendance: "Present" as const, updatedAt: "2026-10-28T18:00:00Z" }
+            : r,
+        ),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Alice Walker: Tap to check in. Tap to change." }),
+      );
+      await waitFor(() => {
+        expect(screen.getByText("Alice Walker marked present")).toBeInTheDocument();
+      });
+
+      // Undo fails
+      vi.mocked(api.updateOrganizationEventAttendance).mockRejectedValueOnce(
+        new Error("Server error"),
+      );
+      await user.click(screen.getByRole("button", { name: "Undo: Alice Walker marked present" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Could not restore Alice Walker")).toBeInTheDocument();
+      });
+      const retryButton = screen.getByRole("button", {
+        name: "Retry undo: Alice Walker marked present",
+      });
+      expect(retryButton).toBeInTheDocument();
+      expect(retryButton).toHaveTextContent("Retry");
+
+      // Retry succeeds
+      vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValueOnce(
+        mockRows.map((r) =>
+          r.profileId === "p-1"
+            ? { ...r, attendance: "Pending" as const, updatedAt: "2026-10-28T18:01:00Z" }
+            : r,
+        ),
+      );
+      await user.click(retryButton);
+
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: /^Undo/i })).not.toBeInTheDocument();
+      });
+    });
+
+    it("handles authoritative conflict (HTTP 409) during undo and reconciles view", async () => {
+      const user = userEvent.setup();
+      renderComponent();
+      await screen.findByRole("heading", { level: 3, name: "Altos" });
+
+      vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValueOnce(
+        mockRows.map((r) =>
+          r.profileId === "p-1"
+            ? { ...r, attendance: "Present" as const, updatedAt: "2026-10-28T18:00:00Z" }
+            : r,
+        ),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Alice Walker: Tap to check in. Tap to change." }),
+      );
+      await waitFor(() => {
+        expect(screen.getByText("Alice Walker marked present")).toBeInTheDocument();
+      });
+
+      // Undo fails with conflict
+      vi.mocked(api.updateOrganizationEventAttendance).mockRejectedValueOnce(
+        new api.AuthApiError(
+          "This attendance record was updated elsewhere. Refresh attendance and try again.",
+          409,
+          "attendance_conflict",
+        ),
+      );
+      await user.click(screen.getByRole("button", { name: "Undo: Alice Walker marked present" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "Could not restore Alice Walker. That attendance record was updated elsewhere.",
+          ),
+        ).toBeInTheDocument();
+      });
+      // Stale entry is removed from undo bar
+      expect(screen.queryByRole("button", { name: /^Undo/i })).not.toBeInTheDocument();
+    });
+
+    it("walks back repeated edits to the same performer through actual prior states", async () => {
+      const user = userEvent.setup();
+      let currentRows = [...mockRows];
+      vi.mocked(api.listOrganizationEventAttendance).mockImplementation(() =>
+        Promise.resolve(currentRows),
+      );
+      vi.mocked(api.updateOrganizationEventAttendance).mockImplementation((_eventId, updates) => {
+        const updateMap = new Map(updates.map((u) => [u.profileId, u.attendance]));
+        currentRows = currentRows.map((r) => {
+          const nextStatus = updateMap.get(r.profileId);
+          if (!nextStatus) return r;
+          return {
+            ...r,
+            attendance: nextStatus,
+            updatedAt:
+              nextStatus === "Present"
+                ? "2026-10-28T18:00:00Z"
+                : nextStatus === "Absent"
+                  ? "2026-10-28T18:05:00Z"
+                  : "2026-10-28T18:15:00Z",
+          };
+        });
+        return Promise.resolve(currentRows);
+      });
+
+      renderComponent();
+      await screen.findByRole("heading", { level: 3, name: "Altos" });
+
+      // Switch to All filter so performer remains visible when status changes
+      await user.click(screen.getByRole("button", { name: /^All/ }));
+
+      // Tap 1: Pending -> Present
+      await user.click(
+        screen.getByRole("button", { name: "Alice Walker: Tap to check in. Tap to change." }),
+      );
+      await waitFor(() => {
+        expect(screen.getByText("Alice Walker marked present")).toBeInTheDocument();
+      });
+
+      // Tap 2: Present -> Absent
+      await user.click(
+        screen.getByRole("button", { name: "Alice Walker: Present. Tap to change." }),
+      );
+      await waitFor(() => {
+        expect(screen.getByText("Alice Walker marked absent")).toBeInTheDocument();
+      });
+
+      // First Undo: Absent -> Present (checks expectedUpdatedAt: 18:05:00Z)
+      await user.click(screen.getByRole("button", { name: "Undo: Alice Walker marked absent" }));
+
+      await waitFor(() => {
+        expect(api.updateOrganizationEventAttendance).toHaveBeenLastCalledWith(mockEvent.id, [
+          {
+            attendance: "Present",
+            expectedUpdatedAt: "2026-10-28T18:05:00Z",
+            profileId: "p-1",
+          },
+        ]);
+      });
+
+      // Now offers first change: Alice Walker marked present
+      await waitFor(() => {
+        expect(screen.getByText("Alice Walker marked present")).toBeInTheDocument();
+      });
+
+      // Second Undo: Present -> Pending (checks expectedUpdatedAt updated to 18:00:00Z!)
+      await user.click(screen.getByRole("button", { name: "Undo: Alice Walker marked present" }));
+
+      await waitFor(() => {
+        expect(api.updateOrganizationEventAttendance).toHaveBeenLastCalledWith(mockEvent.id, [
+          {
+            attendance: "Pending",
+            expectedUpdatedAt: "2026-10-28T18:00:00Z",
+            profileId: "p-1",
+          },
+        ]);
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: /^Undo/i })).not.toBeInTheDocument();
+      });
+    });
+
+    it("clears undo history when switching events", async () => {
+      const user = userEvent.setup();
+      const mockEvent2: OrganizationEvent = {
+        ...mockEvent,
+        id: "33333333-3333-4333-8333-333333333332",
+        title: "Spring Concert",
+      };
+      vi.mocked(api.listOrganizationEvents).mockResolvedValue([mockEvent, mockEvent2]);
+
+      renderComponent();
+      await screen.findByRole("heading", { level: 3, name: "Altos" });
+
+      vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValueOnce(
+        mockRows.map((r) =>
+          r.profileId === "p-1"
+            ? { ...r, attendance: "Present" as const, updatedAt: "2026-10-28T18:00:00Z" }
+            : r,
+        ),
+      );
+      await user.click(
+        screen.getByRole("button", { name: "Alice Walker: Tap to check in. Tap to change." }),
+      );
+      await waitFor(() => {
+        expect(screen.getByText("Alice Walker marked present")).toBeInTheDocument();
+      });
+
+      // Switch to Event 2
+      vi.mocked(api.listOrganizationEventAttendance).mockResolvedValueOnce([]);
+      const select = screen.getByRole("combobox");
+      await user.selectOptions(select, mockEvent2.id);
+
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: /^Undo/i })).not.toBeInTheDocument();
+      });
+    });
+  });
 });
 
 it("failed save must preserve a newer server-refetched value", async () => {

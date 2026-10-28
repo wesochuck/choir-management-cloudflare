@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   organizationAttendanceRowSchema,
+  organizationAttendanceUpdateSchema,
   organizationEventFieldsSchema,
   organizationEventRequestSchema,
   organizationEventSchema,
@@ -221,5 +222,46 @@ describe("attendance warning response compatibility", () => {
         },
       }).success,
     ).toBe(false);
+  });
+
+  describe("organizationAttendanceUpdateSchema", () => {
+    const validProfileId = "33333333-3333-4333-8333-333333333333";
+
+    it("accepts update without expectedUpdatedAt", () => {
+      const parsed = organizationAttendanceUpdateSchema.parse({
+        attendance: "Present",
+        profileId: validProfileId,
+      });
+      expect(parsed).toEqual({
+        attendance: "Present",
+        profileId: validProfileId,
+      });
+    });
+
+    it("accepts update with null or ISO datetime expectedUpdatedAt", () => {
+      const withNull = organizationAttendanceUpdateSchema.parse({
+        attendance: "Pending",
+        expectedUpdatedAt: null,
+        profileId: validProfileId,
+      });
+      expect(withNull.expectedUpdatedAt).toBeNull();
+
+      const withIso = organizationAttendanceUpdateSchema.parse({
+        attendance: "Absent",
+        expectedUpdatedAt: "2026-10-28T18:00:00.000Z",
+        profileId: validProfileId,
+      });
+      expect(withIso.expectedUpdatedAt).toBe("2026-10-28T18:00:00.000Z");
+    });
+
+    it("rejects invalid expectedUpdatedAt", () => {
+      expect(
+        organizationAttendanceUpdateSchema.safeParse({
+          attendance: "Present",
+          expectedUpdatedAt: "not-a-datetime",
+          profileId: validProfileId,
+        }).success,
+      ).toBe(false);
+    });
   });
 });

@@ -4,7 +4,7 @@ import type {
   OrganizationEvent,
 } from "@choir/contracts";
 import { Dialog, DialogClose, Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { AttendanceAutomationSettings } from "./AttendanceAutomationSettings";
 import {
@@ -14,6 +14,11 @@ import {
   useAttendanceMutations,
   useAttendanceQueries,
 } from "./components/AttendanceManager/hooks";
+import {
+  type AttendanceUndoEntry,
+  undoActionLabel,
+  undoMessageText,
+} from "./components/AttendanceManager/undoHistory";
 import { useOrganizationTerminology } from "./organizationTerminologyContext";
 
 function attendanceLabel(status: OrganizationAttendanceStatus): string {
@@ -63,6 +68,7 @@ function AttendanceGroupComponent({
             <button
               aria-label={`${row.displayName}: ${attendanceLabel(row.attendance)}. Tap to change.`}
               className="attendance-row__toggle"
+              data-profile-id={row.profileId}
               disabled={isSaving}
               onClick={() => {
                 onChange(row.profileId);
@@ -140,6 +146,58 @@ function UnexpectedAttendanceDialog({
   );
 }
 
+interface AttendanceUndoBarProps {
+  readonly entry: AttendanceUndoEntry | null;
+  readonly isBusy: boolean;
+  readonly isPerformerSaving: boolean;
+  readonly onUndo: () => void;
+  readonly undoButtonRef: React.RefObject<HTMLButtonElement | null>;
+  readonly undoError: { readonly kind: "error" | "conflict"; readonly profileId: string } | null;
+}
+
+function AttendanceUndoBarComponent({
+  entry,
+  isBusy,
+  isPerformerSaving,
+  onUndo,
+  undoButtonRef,
+  undoError,
+}: AttendanceUndoBarProps) {
+  if (!entry) {
+    return <div aria-hidden="true" className="attendance-undo-bar attendance-undo-bar--empty" />;
+  }
+  const isError = undoError?.profileId === entry.profileId && undoError.kind === "error";
+  const message = isBusy
+    ? `Restoring ${entry.displayName}…`
+    : isError
+      ? `Could not restore ${entry.displayName}`
+      : undoMessageText(entry);
+  const actionLabel = isBusy
+    ? `Restoring attendance for ${entry.displayName}`
+    : undoActionLabel(entry, isError);
+
+  return (
+    <div className={`attendance-undo-bar${isError ? " attendance-undo-bar--error" : ""}`}>
+      <span className="attendance-undo-bar__message" title={message}>
+        {message}
+      </span>
+      <span aria-hidden="true" className="attendance-undo-bar__separator">
+        ·
+      </span>
+      <button
+        aria-label={actionLabel}
+        className="attendance-undo-bar__action"
+        disabled={isBusy || isPerformerSaving}
+        onClick={onUndo}
+        ref={undoButtonRef}
+        type="button"
+      >
+        {isBusy ? "Restoring…" : isError ? "Retry" : "Undo"}
+      </button>
+    </div>
+  );
+}
+
 export function AttendanceManager({
   enabled,
   initialTab = "attendance",
@@ -165,6 +223,8 @@ export function AttendanceManager({
     bulkConfirmOpen,
     changeAttendance,
     confirmUnexpectedAttendance,
+    latestUndoEntry,
+    liveAnnouncement,
     markRemainingPresent,
     message,
     rescueBusy,
@@ -172,7 +232,37 @@ export function AttendanceManager({
     savingIds,
     setBulkConfirmOpen,
     setRescueCandidate,
+    undoBusy,
+    undoEntries,
+    undoError,
+    undoLatest,
   } = useAttendanceMutations({ eventId, rows });
+
+  const undoButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const handleUndo = () => {
+    if (!latestUndoEntry) return;
+    const hadFocus =
+      undoButtonRef.current !== null && document.activeElement === undoButtonRef.current;
+    const wasLastEntry = undoEntries.length === 1;
+    const targetProfileId = latestUndoEntry.profileId;
+
+    void undoLatest().then((success) => {
+      if (success && hadFocus && wasLastEntry) {
+        requestAnimationFrame(() => {
+          const rowButton = document.querySelector<HTMLElement>(
+            `button[data-profile-id="${targetProfileId}"]`,
+          );
+          if (rowButton) {
+            rowButton.focus();
+          } else {
+            const filters = document.querySelector<HTMLElement>(".attendance-filters");
+            filters?.focus();
+          }
+        });
+      }
+    });
+  };
 
   const { counts, groupedRows, markableRows } = useAttendanceFiltering({
     filter,
@@ -311,6 +401,23 @@ export function AttendanceManager({
               style={{
                 width: `${String(counts.expected ? (counts.present / counts.expected) * 100 : 0)}%`,
               }}
+            />
+          </div>
+
+          <div aria-atomic="true" aria-live="polite" className="sr-only">
+            {liveAnnouncement}
+          </div>
+
+          <div className="attendance-undo-slot">
+            <AttendanceUndoBarComponent
+              entry={latestUndoEntry}
+              isBusy={undoBusy}
+              isPerformerSaving={
+                latestUndoEntry !== null && savingIds.has(latestUndoEntry.profileId)
+              }
+              onUndo={handleUndo}
+              undoButtonRef={undoButtonRef}
+              undoError={undoError}
             />
           </div>
 

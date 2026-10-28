@@ -208,6 +208,75 @@ describe("Organization attendance", () => {
       rsvp: "Yes",
     });
 
+    const alphaAbsentRow = attendanceOnly.rows.find(
+      ({ profileId }) => profileId === alphaProfile.id,
+    );
+    expect(alphaAbsentRow?.updatedAt).toBeTruthy();
+    const originalUpdatedAt = alphaAbsentRow?.updatedAt ?? "";
+    expect(originalUpdatedAt).not.toBe("");
+
+    // Conditional restore with matching expectedUpdatedAt succeeds
+    const conditionalRestoreSuccess = organizationAttendanceResponseSchema.parse(
+      await (
+        await write(
+          "alpha.localhost",
+          `/api/organization/events/${event.id}/attendance`,
+          cookie,
+          {
+            updates: [
+              {
+                attendance: "Present",
+                expectedUpdatedAt: originalUpdatedAt,
+                profileId: alphaProfile.id,
+              },
+            ],
+          },
+          "PUT",
+        )
+      ).json(),
+    );
+    expect(
+      conditionalRestoreSuccess.rows.find(({ profileId }) => profileId === alphaProfile.id)
+        ?.attendance,
+    ).toBe("Present");
+
+    // Stale conditional write (e.g. concurrent edit happened) returns HTTP 409 attendance_conflict
+    const staleConflictResponse = await write(
+      "alpha.localhost",
+      `/api/organization/events/${event.id}/attendance`,
+      cookie,
+      {
+        updates: [
+          {
+            attendance: "Absent",
+            expectedUpdatedAt: originalUpdatedAt, // old updatedAt, already updated to new value
+            profileId: alphaProfile.id,
+          },
+        ],
+      },
+      "PUT",
+    );
+    expect(staleConflictResponse.status).toBe(409);
+    const staleJson: unknown = await staleConflictResponse.json();
+    expect(
+      typeof staleJson === "object" &&
+        staleJson !== null &&
+        "code" in staleJson &&
+        staleJson.code === "attendance_conflict",
+    ).toBe(true);
+
+    // Attendance remains Present (unmodified by the stale conflict)
+    const afterConflict = organizationAttendanceResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/events/${event.id}/attendance`, cookie),
+        )
+      ).json(),
+    );
+    expect(
+      afterConflict.rows.find(({ profileId }) => profileId === alphaProfile.id)?.attendance,
+    ).toBe("Present");
+
     const folderPerformance = organizationEventSchema.parse(
       await (
         await write("alpha.localhost", "/api/organization/events", cookie, {

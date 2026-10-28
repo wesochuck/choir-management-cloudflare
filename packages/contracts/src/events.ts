@@ -86,6 +86,7 @@ export const organizationAttendanceStatusSchema = z.enum(["Present", "Absent", "
 
 export const organizationAttendanceUpdateSchema = z.object({
   attendance: organizationAttendanceStatusSchema,
+  expectedUpdatedAt: z.iso.datetime().nullable().optional(),
   profileId: z.uuid(),
 });
 
