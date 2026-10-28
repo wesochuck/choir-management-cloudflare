@@ -279,7 +279,7 @@ function MobileAdminSheetContent({
   sheetTitle,
 }: MobileAdminSheetContentProps) {
   return (
-    <DialogPrimitive.Content aria-modal="true" className="sheet mobile-bottom-sheet" id={sheetId}>
+    <DialogPrimitive.Content aria-modal="true" className="mobile-bottom-sheet" id={sheetId}>
       <div aria-hidden="true" className="mobile-bottom-sheet__handle" />
       <div className="mobile-bottom-sheet__header">
         {activeMenu === "more" && selectedMoreGroup ? (

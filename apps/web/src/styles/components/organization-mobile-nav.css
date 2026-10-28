@@ -100,7 +100,14 @@
   left: 0;
   right: 0;
   bottom: 0;
+  top: auto;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
   max-height: 85vh;
+  max-height: 85dvh;
   z-index: var(--z-index-modal, 100);
   background: var(--color-surface);
   border-top-left-radius: 1.25rem;
@@ -203,6 +210,7 @@
   flex-direction: column;
   gap: var(--spacing-xs);
   max-height: calc(85vh - 8rem);
+  max-height: calc(85dvh - 8rem);
 }
 
 .mobile-bottom-sheet__links {

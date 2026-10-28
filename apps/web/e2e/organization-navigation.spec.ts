@@ -147,6 +147,11 @@ for (const theme of ["dark", "light"] as const) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
+      const sheetBox = await peopleSheet.boundingBox();
+      expect(sheetBox).not.toBeNull();
+      expect(sheetBox?.width).toBe(width);
+      expect((sheetBox?.y ?? 0) + (sheetBox?.height ?? 0)).toBe(812);
+
       const target = await peopleSheet
         .getByRole("link", { name: "Contacts", exact: true })
         .boundingBox();
