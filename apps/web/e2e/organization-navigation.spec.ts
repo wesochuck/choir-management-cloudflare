@@ -119,35 +119,80 @@ for (const theme of ["dark", "light"] as const) {
       sidebar.getByRole("button", { name: "Events & attendance", exact: true }),
     ).toHaveAttribute("aria-expanded", "true");
     await page.setViewportSize({ width: 375, height: 812 });
-    await page.getByRole("button", { name: "Open workspace navigation" }).click();
-    const drawer = page.getByRole("dialog", { name: "Workspace navigation" });
-    await expect(drawer).toBeVisible();
-    await expect(drawer.locator(".organization-nav--compact")).toHaveCount(0);
-    await expect(drawer.locator(".sidebar-context")).toHaveCount(0);
-    await shot(`drawer-${theme}`);
-    for (const width of [320, 375]) {
+    // Verify phone viewport reclaims full content width (no persistent rail)
+    await expect(page.locator(".signed-in-sidebar")).toBeHidden();
+    const bottomNav = page.locator(".mobile-bottom-nav:not(.mobile-bottom-nav--in-sheet)");
+    await expect(bottomNav).toBeVisible();
+
+    // Verify touch targets >= 44x44px for the 4 bottom controls
+    for (const name of ["Home", "People", "Events", "More"]) {
+      const btn = bottomNav.getByRole("button", { name, exact: true });
+      await expect(btn).toBeVisible();
+      const box = await btn.boundingBox();
+      expect(box?.width).toBeGreaterThanOrEqual(44);
+      expect(box?.height).toBeGreaterThanOrEqual(44);
+    }
+
+    await shot(`mobile-nav-bar-${theme}`);
+
+    // Tap People to open bottom sheet
+    await bottomNav.getByRole("button", { name: "People", exact: true }).click();
+    const peopleSheet = page.getByRole("dialog");
+    await expect(peopleSheet).toBeVisible();
+    await expect(peopleSheet.getByRole("heading", { name: "People & membership" })).toBeVisible();
+    await shot(`people-sheet-${theme}`);
+
+    for (const width of [320, 375, 390, 430]) {
       await page.setViewportSize({ width, height: 812 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
-      const target = await drawer
+      const target = await peopleSheet
         .getByRole("link", { name: "Contacts", exact: true })
         .boundingBox();
       expect(target?.height).toBeGreaterThanOrEqual(44);
     }
 
-    await drawer.getByRole("link", { name: "Contacts", exact: true }).click();
-    await expect(drawer).toHaveCount(0);
+    // Navigate to Contacts via sheet link
+    await peopleSheet.getByRole("link", { name: "Contacts", exact: true }).click();
+    await expect(peopleSheet).toHaveCount(0);
     await expect(page).toHaveURL(/\/admin\/contacts$/);
-    await expect(page.locator(".signed-in-sidebar")).toBeVisible();
-    await page.getByRole("button", { name: "Open workspace navigation" }).click();
-    await expect(drawer.locator('a[aria-current="page"]')).toHaveCount(1);
-    await expect(drawer.getByRole("link", { name: "Contacts", exact: true })).toHaveAttribute(
-      "aria-current",
-      "page",
+    await expect(page.locator(".signed-in-sidebar")).toBeHidden();
+    await expect(bottomNav.getByRole("button", { name: "People", exact: true })).toHaveAttribute(
+      "data-active",
+      "true",
     );
+
+    // Open Events sheet and check switching to More from within sheet footer
+    await bottomNav.getByRole("button", { name: "Events", exact: true }).click();
+    const eventsSheet = page.getByRole("dialog");
+    await expect(eventsSheet).toBeVisible();
+    await expect(eventsSheet.getByRole("heading", { name: "Events & attendance" })).toBeVisible();
+    await shot(`events-sheet-${theme}`);
+
+    // Switch to More directly from sheet footer
+    await eventsSheet.locator('.mobile-bottom-nav--in-sheet button[aria-label="More"]').click();
+    const moreSheet = page.getByRole("dialog");
+    await expect(moreSheet.getByRole("heading", { name: "More" })).toBeVisible();
+    await shot(`more-sheet-${theme}`);
+
+    // Drill into Music & content category
+    await moreSheet.getByRole("button", { name: /Music & content/ }).click();
+    await expect(moreSheet.getByRole("heading", { name: "Music & content" })).toBeVisible();
+    await expect(moreSheet.getByRole("button", { name: "Back to More" })).toBeVisible();
+    await shot(`more-category-${theme}`);
+
+    // Back to More categories
+    await moreSheet.getByRole("button", { name: "Back to More" }).click();
+    await expect(moreSheet.getByRole("heading", { name: "More" })).toBeVisible();
+
+    // Dismiss sheet via close button
+    await moreSheet.getByRole("button", { name: "Close More" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+
+    // Axe audit on mobile bottom nav
     const audit = await new AxeBuilder({ page })
-      .include(".sheet .organization-nav")
+      .include(".mobile-bottom-nav")
       .withTags(["wcag2a", "wcag2aa"])
       .analyze();
     expect(

@@ -31,6 +31,7 @@
 @import "./components/workspace-responsive-refinements.css";
 @import "./components/workspace-public-links.css";
 @import "./components/shell-refinements.css";
+@import "./components/organization-mobile-nav.css";
 
 /* 4. Feature Modules */
 /* Set lists & audio player */

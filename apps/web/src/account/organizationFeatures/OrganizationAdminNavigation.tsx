@@ -4,25 +4,8 @@ import { Tooltip } from "@choir/ui";
 import { AppLink, RailGroup } from "../components/AuthenticatedShell/navigation";
 import type { NavigationGroup, NavigationItem } from "../components/AuthenticatedShell/types";
 import type { OrganizationGroupId } from "./types";
-import { getAdminFeatureForPath } from "./selectors";
 import { OrganizationFeatureIcon } from "./OrganizationFeatureIcon";
-
-function activeHref(groups: readonly NavigationGroup[], path: string): string | undefined {
-  const feature = getAdminFeatureForPath(path);
-  const targetPath = feature?.href.split("?")[0] ?? path.split("?")[0] ?? path;
-  // Patrons is a contextual Donations destination without its own sidebar link.
-  const canonical = targetPath === "/admin/patrons" ? "/admin/donations" : targetPath;
-  return groups
-    .flatMap((g) => g.items)
-    .filter((item) => {
-      const target = item.href.split("?")[0];
-      return (
-        target === canonical ||
-        (target && target !== "/admin" && canonical.startsWith(`${target}/`))
-      );
-    })
-    .toSorted((a, b) => b.href.length - a.href.length)[0]?.href;
-}
+import { activeHref } from "./navigationUtils";
 
 function FeatureLinks({
   items,

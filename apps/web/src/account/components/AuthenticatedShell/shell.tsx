@@ -1,4 +1,5 @@
 import { OrganizationAdminNavigation } from "../../organizationFeatures/OrganizationAdminNavigation";
+import { MobileOrganizationAdminNavigation } from "../../organizationFeatures/MobileOrganizationAdminNavigation";
 import {
   useOrganizationNavigationPreferences,
   useWorkspaceNavigationPreferences,
@@ -1067,6 +1068,14 @@ function AuthenticatedOrganizationShell({
             </organizationModuleContext.Provider>
           </main>
         </div>
+        {selectedWorkspace === "organization" ? (
+          <MobileOrganizationAdminNavigation
+            groups={navGroups}
+            path={`${route.pathname}${route.search}`}
+            navigate={navigate}
+            onSearch={openPaletteFromSidebar}
+          />
+        ) : null}
         <Sheet
           onClose={() => {
             setMobileNavOpen(false);
