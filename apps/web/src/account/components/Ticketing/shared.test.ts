@@ -8,6 +8,29 @@ import {
 } from "./shared";
 
 describe("findClosestEvent", () => {
+  it("retains today's concert after it starts until Organization-local midnight", () => {
+    const today = { startsAt: "2026-09-20T23:00:00Z" };
+    const next = { startsAt: "2026-09-21T05:00:00Z" };
+    const events = [next, today];
+    for (const now of ["2026-09-20T23:00:00Z", "2026-09-21T03:59:59Z"]) {
+      expect(findClosestEvent(events, new Date(now), "America/New_York")).toBe(today);
+    }
+    expect(findClosestEvent(events, new Date("2026-09-21T04:00:00Z"), "America/New_York")).toBe(
+      next,
+    );
+  });
+
+  it("uses local midnight across the daylight saving transition", () => {
+    const today = { startsAt: "2026-11-01T23:00:00Z" };
+    const next = { startsAt: "2026-11-02T23:00:00Z" };
+    expect(
+      findClosestEvent([today, next], new Date("2026-11-02T04:59:59Z"), "America/New_York"),
+    ).toBe(today);
+    expect(
+      findClosestEvent([today, next], new Date("2026-11-02T05:00:00Z"), "America/New_York"),
+    ).toBe(next);
+  });
+
   it("returns undefined for an empty list", () => {
     const emptyEvents: readonly { startsAt: string }[] = [];
     expect(findClosestEvent(emptyEvents)).toBeUndefined();

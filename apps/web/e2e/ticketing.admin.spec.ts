@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { futureDateString, futureIsoDate } from "@choir/testkit";
+import { futureDateString } from "@choir/testkit";
 import { buildRosterConfigurationResponse } from "./fixtures/builders";
 import { selectEventEditorSection } from "./support/eventEditor";
 import {
@@ -503,17 +503,30 @@ test.describe("admin ticket management", () => {
     expect(refundCalled).toBe(true);
   });
 
-  test("auto-selects the performance closest to today in will call", async ({ page }) => {
+  test("auto-selects today through local midnight and shows event artwork", async ({
+    page,
+  }, testInfo) => {
+    await page.clock.setFixedTime(new Date("2026-09-21T03:59:00Z"));
+    await page.route("**/api/organization/calendar-settings", (route) =>
+      route.fulfill({ json: { timezone: "America/New_York", requestId } }),
+    );
+    await page.route("**/api/organization/files/55555555-5555-4555-8555-555555555555", (route) =>
+      route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="160"><rect width="120" height="160" fill="#203b60"/><text x="15" y="80" fill="white">Concert</text></svg>',
+      }),
+    );
     const nearEvent = {
       ...adminEvent,
       id: "33333333-3333-4333-8333-333333333333",
-      startsAt: futureIsoDate({ days: 2 }),
+      startsAt: "2026-09-20T23:00:00Z",
+      publicGraphicFileId: "55555555-5555-4555-8555-555555555555",
       title: "Nearest Concert",
     };
     const farEvent = {
       ...adminEvent,
       id: "44444444-4444-4444-8444-444444444444",
-      startsAt: futureIsoDate({ days: 90 }),
+      startsAt: "2026-09-21T05:00:00Z",
       title: "Singing the 70s",
     };
 
@@ -549,9 +562,29 @@ test.describe("admin ticket management", () => {
     await expect(page.getByRole("heading", { name: "Ticketing" })).toBeVisible();
     const performanceSelect = page.getByLabel("Select performance");
     await expect(performanceSelect).toHaveValue(nearEvent.id);
+    const artwork = page.getByRole("img", { name: "Event artwork for Nearest Concert" });
+    await expect(artwork).toBeVisible();
+    await expect(artwork).toHaveJSProperty("naturalWidth", 120);
+    for (const theme of ["light", "dark"]) {
+      const themeButton = page.getByRole("button", { name: `Switch to ${theme} theme` });
+      if (await themeButton.count()) await themeButton.click();
+      await page.screenshot({
+        fullPage: true,
+        path: testInfo.outputPath(`performance-summary-${theme}.png`),
+      });
+    }
+
     await expect(
       page.locator(".ticket-dashboard__metric--sold").getByText("Nearest Concert", { exact: true }),
     ).toBeVisible();
+    const selectBox = await performanceSelect.boundingBox();
+    expect(selectBox?.height).toBeLessThan(80);
+    await page.clock.setFixedTime(new Date("2026-09-21T04:00:00Z"));
+    await page.reload();
+    await expect(performanceSelect).toHaveValue(farEvent.id);
+    await expect(page.getByRole("img", { name: "Event artwork for Nearest Concert" })).toHaveCount(
+      0,
+    );
   });
 
   test("refunds a paid order via danger confirmation", async ({ page }) => {

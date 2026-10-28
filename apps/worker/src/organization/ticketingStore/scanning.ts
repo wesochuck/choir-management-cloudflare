@@ -21,8 +21,7 @@ export function issueTicketScanCredential(
   if (
     row.scanCredentialNonce &&
     row.scanCredentialIssuedAt !== null &&
-    row.scanCredentialExpiresAt !== null &&
-    row.scanCredentialExpiresAt > now
+    row.scanCredentialExpiresAt !== null
   ) {
     return Response.json({
       expiresAt: row.scanCredentialExpiresAt,
@@ -35,7 +34,8 @@ export function issueTicketScanCredential(
   }
 
   const nonce = crypto.randomUUID();
-  const expiresAt = now + 15 * 60;
+  // Zero explicitly denotes a non-expiring ticket credential.
+  const expiresAt = 0;
   const occurredAt = new Date().toISOString();
   storage.transactionSync(() => {
     storage.sql.exec(
@@ -78,8 +78,7 @@ export function validateTicketScan(
     row?.scanCredentialNonce === operation.scanNonce &&
     row.scanCredentialIssuedAt !== null &&
     row.scanCredentialExpiresAt !== null &&
-    row.scanCredentialIssuedAt <= now &&
-    row.scanCredentialExpiresAt > now;
+    row.scanCredentialIssuedAt <= now;
   const purchase = row && credentialMatches ? purchaseResult(row) : null;
   const scannedEvent = purchase?.includedEvents.find(({ id }) => id === operation.eventId);
   const result =

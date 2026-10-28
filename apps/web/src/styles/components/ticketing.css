@@ -533,6 +533,21 @@
     gap: var(--spacing-md);
   }
 
+  .ticket-dashboard__performance-context {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    min-width: 0;
+  }
+
+  .ticket-dashboard__event-image {
+    width: 6rem;
+    height: 6rem;
+    flex: 0 0 6rem;
+    object-fit: contain;
+    border-radius: var(--radius-md);
+  }
+
   .ticket-dashboard__section-heading h3 {
     margin: 0;
   }
@@ -718,7 +733,8 @@
       flex-direction: column;
     }
 
-    .ticket-dashboard__intro .field {
+    .ticket-dashboard__intro .field,
+    .ticket-dashboard__intro .field.ticket-dashboard__performance-field {
       width: 100%;
       flex-basis: auto;
     }
@@ -726,6 +742,10 @@
     .ticket-dashboard__performance-control-row {
       flex-direction: column;
       align-items: stretch;
+    }
+
+    .ticket-dashboard__performance-control-row select {
+      flex-basis: auto;
     }
 
     .ticket-dashboard__performance-control-row select,

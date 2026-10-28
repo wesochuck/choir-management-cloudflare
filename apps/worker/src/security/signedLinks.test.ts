@@ -25,6 +25,32 @@ const validOptions = {
 };
 
 describe("signed links", () => {
+  it("keeps new and legacy ticket scan codes valid without weakening other purposes", async () => {
+    for (const expiresAt of [0, 2_000]) {
+      const ticket = { ...envelope, purpose: "ticket_scan" as const, expiresAt };
+      const token = await issueSignedLink(secret, ticket);
+      const options = {
+        ...validOptions,
+        expectedPurpose: "ticket_scan" as const,
+        now: new Date("2040-01-01"),
+      };
+      await expect(verifySignedLink(secret, token, options)).resolves.toEqual(ticket);
+      await expect(
+        verifySignedLink(secret, token, {
+          ...options,
+          expectedOrganizationId: "organization-bravo",
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        verifySignedLink(secret, token, { ...options, expectedPurpose: "rsvp" }),
+      ).resolves.toBeNull();
+      await expect(
+        verifySignedLink(secret, token, { ...options, now: new Date(999_000) }),
+      ).resolves.toBeNull();
+    }
+    await expect(issueSignedLink(secret, { ...envelope, expiresAt: 0 })).rejects.toThrow();
+  });
+
   it("verifies only the exact Organization, purpose, subject, resource, and revocation state", async () => {
     const token = await issueSignedLink(secret, envelope);
 

@@ -67,7 +67,7 @@ export class TicketingError extends Error {
 }
 
 const scanCredentialResponseSchema = z.object({
-  expiresAt: z.number().int().positive(),
+  expiresAt: z.number().int().nonnegative(),
   issuedAt: z.number().int().positive(),
   nonce: z.string().min(1).max(128),
 });

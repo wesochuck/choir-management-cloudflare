@@ -56,34 +56,43 @@ export function buyerLastName(name: string): string {
   return name.trim().split(/\s+/).slice(-1)[0] ?? name;
 }
 
-/**
- * Finds the event closest in time to relativeTo (defaulting to today's date/time).
- */
+/** Keeps today's concert available through local midnight, then prefers the next concert. */
 export function findClosestEvent<T extends { readonly startsAt: string }>(
   events: readonly T[],
   relativeTo: Date = new Date(),
+  timezone = "UTC",
 ): T | undefined {
-  if (events.length === 0) return undefined;
+  const dayFormatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const today = dayFormatter.format(relativeTo);
   const targetTime = relativeTo.getTime();
-  let closest: T | undefined;
-  let minDiff = Number.POSITIVE_INFINITY;
-
+  let todayEvent: T | undefined;
+  let todayDistance = Number.POSITIVE_INFINITY;
+  let upcoming: T | undefined;
+  let upcomingTime = Number.POSITIVE_INFINITY;
+  let latestPast: T | undefined;
+  let latestPastTime = Number.NEGATIVE_INFINITY;
   for (const event of events) {
-    const time = new Date(event.startsAt).getTime();
-    if (Number.isNaN(time)) continue;
-    const diff = Math.abs(time - targetTime);
-    if (diff < minDiff) {
-      minDiff = diff;
-      closest = event;
-    } else if (diff === minDiff && closest !== undefined) {
-      const closestTime = new Date(closest.startsAt).getTime();
-      if (time >= targetTime && closestTime < targetTime) {
-        closest = event;
-      }
+    const time = Date.parse(event.startsAt);
+    if (!Number.isFinite(time)) continue;
+    const distance = Math.abs(time - targetTime);
+    if (dayFormatter.format(new Date(time)) === today && distance < todayDistance) {
+      todayEvent = event;
+      todayDistance = distance;
+    }
+    if (time >= targetTime && time < upcomingTime) {
+      upcoming = event;
+      upcomingTime = time;
+    } else if (time < targetTime && time > latestPastTime) {
+      latestPast = event;
+      latestPastTime = time;
     }
   }
-
-  return closest;
+  return todayEvent ?? upcoming ?? latestPast;
 }
 
 export function ticketOrderStatusDisplay(

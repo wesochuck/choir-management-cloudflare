@@ -26,16 +26,16 @@ full token or signature.
 
 ## Flow matrix
 
-| Purpose          | Subject/resource                            | Expiry and replay                                         | Revocation                                                   |
-| ---------------- | ------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------ |
-| RSVP             | Profile + event                             | bounded; repeat reads/updates allowed while active        | event/link version and profile access state                  |
-| Poll             | Profile + poll                              | bounded by poll/archive policy; response changes allowed  | poll archive/revocation state                                |
-| Player           | event/set list and authorized profile scope | short-lived; repeat media reads allowed                   | event/set-list publication or link version                   |
-| Audition         | audition inquiry                            | bounded; only allowed status/scheduling actions           | audition status/link version                                 |
-| Unsubscribe      | Profile + communication channel             | bounded; idempotent repeated unsubscribe                  | not applicable after successful idempotent preference change |
-| Calendar feed    | Profile                                     | long-lived feed credential                                | explicit per-profile calendar-feed version reset             |
-| Ticket scan      | ticket                                      | valid until event/refund/void; scan transition idempotent | refund, void, event policy, or explicit ticket revocation    |
-| Private download | actor/session + file                        | very short-lived and single-purpose                       | authorization and file state are rechecked                   |
+| Purpose          | Subject/resource                            | Expiry and replay                                        | Revocation                                                   |
+| ---------------- | ------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------ |
+| RSVP             | Profile + event                             | bounded; repeat reads/updates allowed while active       | event/link version and profile access state                  |
+| Poll             | Profile + poll                              | bounded by poll/archive policy; response changes allowed | poll archive/revocation state                                |
+| Player           | event/set list and authorized profile scope | short-lived; repeat media reads allowed                  | event/set-list publication or link version                   |
+| Audition         | audition inquiry                            | bounded; only allowed status/scheduling actions          | audition status/link version                                 |
+| Unsubscribe      | Profile + communication channel             | bounded; idempotent repeated unsubscribe                 | not applicable after successful idempotent preference change |
+| Calendar feed    | Profile                                     | long-lived feed credential                               | explicit per-profile calendar-feed version reset             |
+| Ticket scan      | ticket                                      | no time expiry; stable printable credential              | refund, void, or explicit ticket revocation                  |
+| Private download | actor/session + file                        | very short-lived and single-purpose                      | authorization and file state are rechecked                   |
 
 The Organization campaign-email unsubscribe flow is implemented with a one-year signed envelope
 bound to the hostname-resolved Organization and Profile. Delivery snapshots retain only the URL
@@ -54,3 +54,8 @@ isolation.
 - custom-public-host use of an authenticated-only purpose;
 - duplicate scan/unsubscribe delivery remains idempotent;
 - no full token appears in logs, errors, metrics, or audit payloads.
+
+Ticket scan envelopes use `expiresAt: 0` for newly issued credentials. Only the `ticket_scan`
+purpose ignores time expiry, including older signed ticket codes whose stored nonce still matches.
+Receipt reads reuse the existing credential without rotating it. Paid status, included-event checks,
+Organization binding, signature verification, and nonce matching remain required (ADR 0067).

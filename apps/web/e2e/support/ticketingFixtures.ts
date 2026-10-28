@@ -369,6 +369,9 @@ export async function routePublicBasics(page: Page) {
 }
 
 export async function routeAdminAuth(page: Page) {
+  await page.route("**/api/organization/calendar-settings", (route) =>
+    route.fulfill({ json: { timezone: "America/New_York", requestId } }),
+  );
   await page.route("**/api/organization/module-state", async (route) => {
     await fulfillJson(route, buildModuleStateResponse(moduleIdSchema.options));
   });

@@ -22,6 +22,7 @@ import {
   deleteTicketBundle,
   deactivateOrganizationDiscountCode,
   reactivateOrganizationDiscountCode,
+  getOrganizationCalendarSettings,
   getOrganizationTicketConfirmationSettings,
   listOrganizationEvents,
   listOrganizationTicketOrders,
@@ -136,12 +137,29 @@ export function TicketingManager({
     const confirmationRequest = scanOnly
       ? Promise.resolve<TicketConfirmationSettings | null>(null)
       : getOrganizationTicketConfirmationSettings(controller.signal);
+    function selectDefaultPerformance(
+      ticketedEvents: readonly OrganizationEvent[],
+      calendarResult: PromiseSettledResult<{ readonly timezone: string }>,
+    ): void {
+      const closestTicketedEvent =
+        calendarResult.status === "fulfilled"
+          ? findClosestEvent(ticketedEvents, new Date(), calendarResult.value.timezone)
+          : undefined;
+      setSelectedPerformanceId(closestTicketedEvent?.id ?? "all");
+      if (calendarResult.status === "rejected") {
+        showNotice(
+          "The Organization timezone could not be loaded. Choose a performance below.",
+          "info",
+        );
+      }
+    }
     void Promise.allSettled([
       ordersRequest,
       listOrganizationEvents(controller.signal),
       bundlesRequest,
       confirmationRequest,
-    ]).then(([ordersResult, eventsResult, bundlesResult, confirmationResult]) => {
+      getOrganizationCalendarSettings(controller.signal),
+    ]).then(([ordersResult, eventsResult, bundlesResult, confirmationResult, calendarResult]) => {
       if (controller.signal.aborted) return;
       if (ordersResult.status === "fulfilled") {
         setState({ orders: ordersResult.value, status: "ready" });
@@ -172,10 +190,7 @@ export function TicketingManager({
               showNotice("The selected performance does not have ticketing enabled.", "info");
             }
           } else {
-            const closestTicketedEvent = findClosestEvent(ticketedEvents);
-            if (closestTicketedEvent) {
-              setSelectedPerformanceId(closestTicketedEvent.id);
-            }
+            selectDefaultPerformance(ticketedEvents, calendarResult);
           }
           initialDefaultAppliedRef.current = true;
         }

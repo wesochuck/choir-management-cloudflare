@@ -1604,7 +1604,7 @@ describe("upcoming communication scheduling", () => {
         );
       expect(fallback.messages.filter(({ kind }) => kind === "ticket_reminder")).toHaveLength(2);
       expect(await state.storage.getAlarm()).toBe(alarmBefore);
-      const dueAt = new Date(Date.parse(startsAt) - 86400000);
+      const dueAt = new Date(Date.parse(startsAt) - 36 * 60 * 60 * 1000);
       await runOrganizationAlarm(
         state.storage,
         requireBinding(env.JOBS_QUEUE, "JOBS_QUEUE"),
@@ -1687,7 +1687,7 @@ describe("upcoming communication scheduling", () => {
         ),
       ).toHaveLength(1);
       const id = crypto.randomUUID();
-      const dueAt = new Date(Date.parse(startsAt) - 86400000).toISOString();
+      const dueAt = new Date(Date.parse(startsAt) - 36 * 60 * 60 * 1000).toISOString();
       state.storage.sql.exec(
         `INSERT INTO ticket_notifications (id, purchase_id, event_id, dedupe_key, kind, destination, subject,
           content_markdown, status, scheduled_for, created_at, updated_at)

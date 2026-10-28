@@ -26,7 +26,7 @@ const signedLinkPurposeSchema = z.enum([
 
 const signedLinkEnvelopeSchema = z.object({
   algorithm: z.literal("HS256"),
-  expiresAt: z.number().int().positive(),
+  expiresAt: z.number().int().nonnegative(),
   issuedAt: z.number().int().positive(),
   nonce: z.string().min(16).max(128).optional(),
   organizationId: organizationIdSchema,
@@ -142,7 +142,7 @@ export async function issueSignedLink(secret: string, input: SignedLinkEnvelope)
     throw new Error("The signed-link secret is not configured securely.");
   }
   const envelope = signedLinkEnvelopeSchema.parse(input);
-  if (envelope.expiresAt <= envelope.issuedAt) {
+  if (envelope.purpose !== "ticket_scan" && envelope.expiresAt <= envelope.issuedAt) {
     throw new Error("The signed-link expiry must follow issuance.");
   }
   const envelopeBytes = textEncoder.encode(JSON.stringify(envelope));
@@ -186,7 +186,7 @@ export async function verifySignedLinkScope(
   }
   const nowSeconds = Math.floor((options.now ?? new Date()).getTime() / 1000);
   return decoded.envelope.issuedAt <= nowSeconds &&
-    decoded.envelope.expiresAt > nowSeconds &&
+    (decoded.envelope.purpose === "ticket_scan" || decoded.envelope.expiresAt > nowSeconds) &&
     decoded.envelope.organizationId === options.expectedOrganizationId &&
     decoded.envelope.purpose === options.expectedPurpose
     ? decoded.envelope

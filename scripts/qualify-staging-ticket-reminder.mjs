@@ -43,7 +43,7 @@ function requestFailure(status, body) {
 export function ticketReminderQualificationPlan() {
   return [
     "sign in and verify the fresh Platform Administrator factor in memory",
-    "create one zero-dollar, ticket-enabled Performance inside the 24-hour reminder horizon",
+    "create one zero-dollar, ticket-enabled Performance inside the 36-hour reminder horizon",
     "complete one controlled ticket checkout for an allowed recipient without creating a charge",
     "run canonical-LCC maintenance and prove exactly one ticket_reminder reaches Sent with one recipient",
     "run maintenance again and prove the ticket reminder snapshot is idempotently unchanged",

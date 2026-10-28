@@ -24,7 +24,7 @@ describe("Organization ticketing notifications and reminders", () => {
     "queues confirmation and reminder emails with optional doors-open time %s",
     async (doorsOpenTime) => {
       const cookie = await signIn();
-      const startsAt = new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString();
+      const startsAt = new Date(Date.now() + 35 * 60 * 60 * 1000).toISOString();
       const reminderVenue = organizationVenueSchema.parse(
         await (
           await jsonWrite(
@@ -429,8 +429,8 @@ describe("Organization ticketing notifications and reminders", () => {
     const now = Date.now();
 
     // SCENARIO 1: Rescheduled before any reminder exists
-    // 1. Create event 5 days in the future
-    const event1StartsAt = new Date(now + 120 * 60 * 60 * 1000).toISOString();
+    // 1. Create event just outside the 36-hour reminder window
+    const event1StartsAt = new Date(now + 37 * 60 * 60 * 1000).toISOString();
     const event1 = organizationEventSchema.parse(
       await (
         await jsonWrite(
@@ -473,8 +473,8 @@ describe("Organization ticketing notifications and reminders", () => {
     );
     expect(remindersBeforeMove).toBe(0);
 
-    // 3. Move event into the 24-hour reminder horizon (e.g. 10 hours from now)
-    const revised1StartsAt = new Date(now + 10 * 60 * 60 * 1000).toISOString();
+    // 3. Move event into the 36-hour reminder horizon (35 hours from now)
+    const revised1StartsAt = new Date(now + 35 * 60 * 60 * 1000).toISOString();
     await jsonWrite(
       "alpha.localhost",
       `/api/organization/events/${event1.id}`,
@@ -625,7 +625,7 @@ describe("Organization ticketing notifications and reminders", () => {
     expect(finalSentCount).toBe(2);
 
     // SCENARIO 3: Rescheduled while old reminder is queued
-    // 1. Create a new event within 24h horizon
+    // 1. Create a new event within 36h horizon
     const event2StartsAt = new Date(now + 14 * 60 * 60 * 1000).toISOString();
     const event2 = organizationEventSchema.parse(
       await (

@@ -2,7 +2,7 @@ import { rsvpDeadlineFromDate } from "@choir/domain";
 import type { OrganizationRosterConfiguration } from "@choir/contracts";
 
 export const EVENT_REMINDER_LEAD_MS = 48 * 60 * 60 * 1000;
-export const TICKET_REMINDER_LEAD_MS = 24 * 60 * 60 * 1000;
+export const TICKET_REMINDER_LEAD_MS = 36 * 60 * 60 * 1000;
 export const ATTENDANCE_REPORT_DELAY_MS = 12 * 60 * 60 * 1000;
 export const COMMUNICATION_PREVIEW_DAYS = 90;
 

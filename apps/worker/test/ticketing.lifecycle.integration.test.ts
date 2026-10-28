@@ -253,6 +253,44 @@ describe("Organization ticketing lifecycle", () => {
     );
     expect(receipt.id).toBe(first.purchase.id);
     expect(receipt.scanToken).toBeTruthy();
+    // Simulate a printed legacy code issued long before the event, with its old timeout elapsed.
+    const legacyIssuedAt = Math.floor(Date.now() / 1000) - 86400 * 365;
+    const legacyNonce = crypto.randomUUID();
+    await runInDurableObject(
+      stores.get(stores.idFromName("organization-alpha")),
+      (_instance: OrganizationStore, state) => {
+        state.storage.sql.exec(
+          "UPDATE ticket_purchases SET scan_credential_nonce = ?, scan_credential_issued_at = ?, scan_credential_expires_at = ? WHERE id = ?",
+          legacyNonce,
+          legacyIssuedAt,
+          legacyIssuedAt + 900,
+          receipt.id,
+        );
+      },
+    );
+    const printedToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {
+      algorithm: "HS256",
+      expiresAt: legacyIssuedAt + 900,
+      issuedAt: legacyIssuedAt,
+      nonce: legacyNonce,
+      organizationId: "organization-alpha",
+      purpose: "ticket_scan",
+      resourceId: receipt.id,
+      version: 1,
+    });
+    const reopened = publicTicketPurchaseResponseSchema.parse(
+      await (
+        await exports.default.fetch(
+          api(
+            "tickets.example.test",
+            `/api/public/tickets/order?token=${encodeURIComponent(first.successToken)}`,
+          ),
+        )
+      ).json(),
+    );
+    expect(reopened.scanToken).toBe(printedToken);
+    receipt.scanToken = printedToken;
+
     expect(receipt.venueName).toBe("Main Hall");
     expect(receipt.venueAddress).toBe("1 Stage Road");
     expect(JSON.stringify(receipt)).not.toContain("buyer@example.test");
@@ -315,7 +353,7 @@ describe("Organization ticketing lifecycle", () => {
           "alpha.localhost",
           "/api/organization/tickets/scan",
           "POST",
-          { eventId: event.id, token: `${receipt.scanToken ?? ""}x` },
+          { eventId: event.id, token: `${receipt.scanToken}x` },
           cookie,
         )
       ).status,

@@ -279,8 +279,15 @@ export function WillCallPanel({
         <fieldset className="ticket-dashboard">
           <legend>Performance summary</legend>
           <div className="ticket-dashboard__intro">
-            <div>
+            <div className="ticket-dashboard__performance-context">
               <p>Choose a performance to view ticket sales, revenue, and will-call activity.</p>
+              {selectedPerformance?.publicGraphicFileId ? (
+                <img
+                  alt={`Event artwork for ${selectedPerformance.title}`}
+                  className="ticket-dashboard__event-image"
+                  src={`/api/organization/files/${encodeURIComponent(selectedPerformance.publicGraphicFileId)}`}
+                />
+              ) : null}
             </div>
             <WillCallPerformanceSelector
               activeTab={activeTab}

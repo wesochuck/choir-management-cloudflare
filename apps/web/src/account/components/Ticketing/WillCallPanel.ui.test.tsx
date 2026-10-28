@@ -171,6 +171,19 @@ function getWillCallTable(): HTMLTableElement {
 }
 
 describe("WillCallPanel refunded and expired orders", () => {
+  it("shows the selected performance artwork and omits it when none is saved", () => {
+    const view = renderWillCallPanel([], {
+      selectedPerformance: { ...event, publicGraphicFileId: "poster-id" },
+    });
+    expect(screen.getByRole("img", { name: `Event artwork for ${event.title}` })).toHaveAttribute(
+      "src",
+      "/api/organization/files/poster-id",
+    );
+    view.unmount();
+    renderWillCallPanel([]);
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
   it("hides refunded and expired purchases by default while retaining paid and pending orders", async () => {
     const user = userEvent.setup();
     renderWillCallPanel([
