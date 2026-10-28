@@ -198,6 +198,72 @@ function AttendanceUndoBarComponent({
   );
 }
 
+interface AttendanceControlsProps {
+  readonly eventId: string;
+  readonly events: readonly OrganizationEvent[];
+  readonly eventLocationLabel: (event: OrganizationEvent) => string;
+  readonly onSelectEvent: (id: string) => void;
+  readonly performerLabel: string;
+  readonly partLabel: string;
+  readonly query: string;
+  readonly onQueryChange: (query: string) => void;
+}
+
+function AttendanceControlsComponent({
+  eventId,
+  events,
+  eventLocationLabel,
+  onSelectEvent,
+  performerLabel,
+  partLabel,
+  query,
+  onQueryChange,
+}: AttendanceControlsProps) {
+  const selectedEvent = events.find((event) => event.id === eventId) ?? events[0];
+  const selectedLocation = selectedEvent ? eventLocationLabel(selectedEvent) : "";
+  const selectedEventText = selectedEvent
+    ? `${selectedEvent.title} · ${displayEventDate(selectedEvent.startsAt)}${selectedLocation ? ` · ${selectedLocation}` : ""}`
+    : "";
+
+  return (
+    <div className="attendance-manager__controls">
+      <label className="field attendance-manager__event-field">
+        <span>Event</span>
+        <select
+          aria-label="Event"
+          className="attendance-manager__event-select"
+          title={selectedEventText}
+          value={eventId}
+          onChange={(event) => {
+            onSelectEvent(event.target.value);
+          }}
+        >
+          {events.map((event) => {
+            const optionLabel = `${event.title} · ${displayEventDate(event.startsAt)}${eventLocationLabel(event) ? ` · ${eventLocationLabel(event)}` : ""}`;
+            return (
+              <option key={event.id} title={optionLabel} value={event.id}>
+                {optionLabel}
+              </option>
+            );
+          })}
+        </select>
+      </label>
+      <label className="field attendance-manager__search">
+        <span>Find a {performerLabel.toLowerCase()}</span>
+        <input
+          inputMode="search"
+          onChange={(event) => {
+            onQueryChange(event.target.value);
+          }}
+          placeholder={`Search name or ${partLabel.toLowerCase()}`}
+          type="search"
+          value={query}
+        />
+      </label>
+    </div>
+  );
+}
+
 export function AttendanceManager({
   enabled,
   initialTab = "attendance",
@@ -324,36 +390,16 @@ export function AttendanceManager({
             </div>
           </div>
 
-          <div className="attendance-manager__controls">
-            <label className="field">
-              <span>Event</span>
-              <select
-                value={eventId}
-                onChange={(event) => {
-                  setSelectedEventId(event.target.value);
-                }}
-              >
-                {events.map((event) => (
-                  <option key={event.id} value={event.id}>
-                    {event.title} · {displayEventDate(event.startsAt)}
-                    {eventLocationLabel(event) ? ` · ${eventLocationLabel(event)}` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field attendance-manager__search">
-              <span>Find a {performerLabel.toLowerCase()}</span>
-              <input
-                inputMode="search"
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                }}
-                placeholder={`Search name or ${partLabel.toLowerCase()}`}
-                type="search"
-                value={query}
-              />
-            </label>
-          </div>
+          <AttendanceControlsComponent
+            eventId={eventId}
+            eventLocationLabel={eventLocationLabel}
+            events={events}
+            onQueryChange={setQuery}
+            onSelectEvent={setSelectedEventId}
+            partLabel={partLabel}
+            performerLabel={performerLabel}
+            query={query}
+          />
 
           <div className="attendance-manager__toolbar">
             <div className="attendance-filters" aria-label="Attendance filter" role="group">

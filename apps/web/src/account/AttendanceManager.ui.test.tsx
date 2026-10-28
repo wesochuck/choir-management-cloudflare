@@ -354,6 +354,31 @@ describe("AttendanceManager section grouping and sorting UI", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not render explainer paragraph and provides single-line accessible event selector with full title", async () => {
+    renderComponent();
+
+    // 1. Explainer paragraph is absent
+    expect(screen.queryByText(/Tap a name to cycle/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Changes save immediately/i)).not.toBeInTheDocument();
+
+    // 2. Event selector has accessible attributes, full title, and truncation class
+    const eventSelect = await screen.findByRole("combobox", { name: "Event" });
+    expect(eventSelect).toHaveClass("attendance-manager__event-select");
+    await waitFor(() => {
+      expect(eventSelect).toHaveAttribute(
+        "title",
+        expect.stringMatching(/Fall Concert Rehearsal/i),
+      );
+    });
+
+    // 3. Options retain full title and location text
+    await waitFor(() => {
+      const options = screen.getAllByRole("option");
+      expect(options.length).toBeGreaterThan(0);
+      expect(options[0]).toHaveAttribute("title", expect.stringMatching(/Fall Concert Rehearsal/i));
+    });
+  });
+
   describe("AttendanceManager Undo bar", () => {
     it("renders empty undo slot reserved space initially without interactive controls", async () => {
       renderComponent();

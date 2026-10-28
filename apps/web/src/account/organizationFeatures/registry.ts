@@ -274,7 +274,7 @@ export const organizationFeatures: readonly OrganizationFeature[] = [
     href: "/admin/attendance",
     requiredModule: "attendance",
     label: "Attendance",
-    description: "Tap a name to cycle Pending, Present, and Absent. Changes save immediately.",
+    description: "",
     iconId: "attendance",
     sidebar: {
       position: 3,

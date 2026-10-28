@@ -71,10 +71,31 @@
 
   .attendance-manager__controls .field {
     flex: 1 1 20rem;
+    min-width: 0;
+  }
+
+  .rsvp-page-tabs [role="tab"] {
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .attendance-manager__event-field {
+    min-width: 0;
+  }
+
+  .attendance-manager__event-select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .attendance-manager__search {
     flex-basis: 14rem;
+    min-width: 0;
   }
 
   .attendance-manager__toolbar {

@@ -243,6 +243,7 @@ describe("sidebar navigation behavior", () => {
     expect(pageDescription("/admin/settings/setup-checklist")).toBe(
       "Review configuration steps to prepare your organization for launch.",
     );
+    expect(pageDescription("/admin/attendance")).toBeNull();
   });
 
   it("redirects /admin/patrons to canonical /admin/donations preserving query parameters (#180)", () => {
