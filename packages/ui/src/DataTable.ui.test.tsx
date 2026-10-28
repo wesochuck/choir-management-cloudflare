@@ -263,7 +263,9 @@ describe("DataTable interaction", () => {
     render(
       <DataTable
         columns={memberColumns({ onAction: () => undefined })}
-        isRowInteractive={(member) => member.section === "Soprano"}
+        isRowInteractive={(member, context) =>
+          member.section === "Soprano" && context.presentation === "table"
+        }
         keySelector={(row) => row.id}
         onRowClick={onRowClick}
         rowLabel={(row) => (row.section === "Soprano" ? `Open ${row.name}` : undefined)}
@@ -287,6 +289,8 @@ describe("DataTable interaction", () => {
     expect(alphaRow).toHaveClass("data-table__row--interactive");
     expect(alphaRow).toHaveAttribute("tabindex", "0");
     expect(alphaRow).toHaveAttribute("aria-label", "Open Alpha Singer");
+    const alphaCard = document.querySelector('.data-table-card[aria-label="Open Alpha Singer"]');
+    expect(alphaCard).toBeNull();
 
     // Clicking non-interactive row does not trigger onRowClick
     if (betaRow) {

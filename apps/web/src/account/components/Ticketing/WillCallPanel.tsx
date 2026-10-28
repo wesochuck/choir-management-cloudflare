@@ -1,7 +1,7 @@
 import type { OrganizationEvent, OrganizationTicketOrder } from "@choir/contracts";
 import type { PaymentFinancialSummary } from "@choir/domain";
 import { DataTable, useConfirmation } from "@choir/ui";
-import type { Dispatch, SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import {
   buyerLastName,
   canRefundTicketOrder,
@@ -11,6 +11,20 @@ import {
   type TicketingTab,
 } from "./shared";
 import { AppLink } from "../AuthenticatedShell/navigation";
+
+function compactSaleDate(value: string): string {
+  const date = new Date(value);
+  const options: Intl.DateTimeFormatOptions = {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+  };
+  if (date.getFullYear() !== new Date().getFullYear()) {
+    options.year = "numeric";
+  }
+  return new Intl.DateTimeFormat(undefined, options).format(date);
+}
 
 function willCallEmptyMessage({
   discountCodeFilter,
@@ -242,6 +256,7 @@ export function WillCallPanel({
   readonly showRefunded: boolean;
 }) {
   const { confirm, confirmationDialog } = useConfirmation();
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
 
   async function handleRefundClick(order: OrganizationTicketOrder) {
     const formattedAmount = money(order.amountPaidCents);
@@ -373,101 +388,158 @@ export function WillCallPanel({
           </div>
         ) : null}
         {displayedOrders.length > 0 ? (
-          <DataTable
-            columns={[
-              {
-                header: "Buyer name",
-                id: "buyerName",
-                render: (order) => (
-                  <>
-                    <strong>{order.buyerName}</strong>
-                    {order.bundleId !== null ? (
-                      <span
-                        className="status-pill status-pill--neutral ticketing-bundle-order-pill"
-                        title={
-                          order.bundleTitle
-                            ? `Bundle purchase: ${order.bundleTitle}`
-                            : "Bundle purchase"
-                        }
-                      >
-                        Bundle
-                      </span>
-                    ) : null}
-                  </>
-                ),
-                sortValue: (order) => buyerLastName(order.buyerName),
-              },
-              {
-                header: "Email",
-                id: "email",
-                render: (order) => order.buyerEmail,
-                sortValue: (order) => order.buyerEmail,
-              },
-              {
-                header: "Sale date",
-                id: "saleDate",
-                render: (order) => new Date(order.createdAt).toLocaleString(),
-                sortValue: (order) => order.createdAt,
-              },
-              {
-                header: "Qty",
-                id: "quantity",
-                render: (order) => order.quantity,
-                sortValue: (order) => order.quantity,
-              },
-              {
-                header: "Amount paid",
-                id: "amountPaid",
-                render: (order) => money(order.amountPaidCents),
-                sortValue: (order) => order.amountPaidCents,
-              },
-              {
-                header: "Discount code",
-                id: "discountCode",
-                render: (order) =>
-                  order.discountCode !== null ? (
-                    <span
-                      className="ticket-discount-code-pill"
-                      title={
-                        order.discountAmountCents > 0
-                          ? `${order.discountCode} · Discount: ${money(order.discountAmountCents)}`
-                          : undefined
-                      }
-                    >
-                      {order.discountCode}
-                    </span>
-                  ) : (
-                    <span aria-label="No discount code">—</span>
-                  ),
-                sortValue: (order) => order.discountCode ?? "",
-              },
-              {
-                header: "Status",
-                id: "status",
-                render: (order) => {
-                  const statusDisplay = ticketOrderStatusDisplay(order);
-                  return <span className={statusDisplay.badgeClass}>{statusDisplay.label}</span>;
-                },
-                sortValue: (order) =>
-                  order.status === "paid" && order.refundRequested
-                    ? "refund_requested"
-                    : order.status,
-              },
-              {
-                header: "Actions",
-                id: "actions",
-                render: (order) =>
-                  order.status === "paid" ? (
-                    <div className="form-actions">
+          <div className="ticketing-sales-table">
+            <DataTable
+              columns={[
+                {
+                  className: "ticket-sales-table__disclosure",
+                  header: "",
+                  headerContent: <span className="sr-only">Order details</span>,
+                  id: "disclosure",
+                  mobileLabel: "Details",
+                  render: (order, { presentation }) => {
+                    const isExpanded = expandedOrderId === order.id;
+                    const detailsId = `ticket-order-details-${order.id}-${presentation}`;
+                    return (
                       <button
-                        className="text-button"
-                        disabled={busy}
-                        onClick={() => void resendConfirmation(order.id)}
+                        aria-controls={isExpanded ? detailsId : undefined}
+                        aria-expanded={isExpanded}
+                        aria-label={`${isExpanded ? "Hide" : "Show"} details for ${order.buyerName}`}
+                        className="ticket-sales-table__disclosure-button"
+                        onClick={() => {
+                          setExpandedOrderId((current) => (current === order.id ? null : order.id));
+                        }}
                         type="button"
                       >
-                        Resend
+                        <span aria-hidden="true" className="ticket-sales-table__chevron" />
                       </button>
-                      {canRefundTicketOrder(order) ? (
+                    );
+                  },
+                },
+                {
+                  className: "ticket-sales-table__buyer",
+                  header: "Buyer name",
+                  id: "buyerName",
+                  render: (order) => <strong>{order.buyerName}</strong>,
+                  sortValue: (order) => buyerLastName(order.buyerName),
+                },
+                {
+                  className: "ticket-sales-table__email",
+                  header: "Email",
+                  id: "email",
+                  render: (order) => (
+                    <span className="ticket-sales-table__email-value" title={order.buyerEmail}>
+                      {order.buyerEmail}
+                    </span>
+                  ),
+                  sortValue: (order) => order.buyerEmail,
+                },
+                {
+                  className: "ticket-sales-table__sale-date",
+                  header: "Sale date",
+                  id: "saleDate",
+                  render: (order, { presentation }) => (
+                    <time dateTime={order.createdAt}>
+                      {presentation === "table"
+                        ? compactSaleDate(order.createdAt)
+                        : new Date(order.createdAt).toLocaleString()}
+                    </time>
+                  ),
+                  sortValue: (order) => order.createdAt,
+                },
+                {
+                  align: "center",
+                  className: "ticket-sales-table__quantity",
+                  header: "Qty",
+                  id: "quantity",
+                  render: (order) => order.quantity,
+                  sortValue: (order) => order.quantity,
+                },
+                {
+                  align: "right",
+                  className: "ticket-sales-table__amount",
+                  header: "Amount paid",
+                  id: "amountPaid",
+                  render: (order) => money(order.amountPaidCents),
+                  sortValue: (order) => order.amountPaidCents,
+                },
+                {
+                  className: "ticket-sales-table__status",
+                  header: "Status",
+                  id: "status",
+                  render: (order) => {
+                    const statusDisplay = ticketOrderStatusDisplay(order);
+                    return <span className={statusDisplay.badgeClass}>{statusDisplay.label}</span>;
+                  },
+                  sortValue: (order) =>
+                    order.status === "paid" && order.refundRequested
+                      ? "refund_requested"
+                      : order.status,
+                },
+                {
+                  className: "ticket-sales-table__actions",
+                  header: "Actions",
+                  id: "actions",
+                  render: (order) =>
+                    order.status === "paid" ? (
+                      <div className="form-actions form-actions--inline">
+                        <button
+                          className="text-button"
+                          disabled={busy}
+                          onClick={() => void resendConfirmation(order.id)}
+                          type="button"
+                        >
+                          Resend
+                        </button>
+                      </div>
+                    ) : null,
+                },
+              ]}
+              expandedRowId={expandedOrderId}
+              isRowInteractive={(_, context) => context.presentation === "table"}
+              initialSort={{ columnId: "saleDate", direction: "desc" }}
+              keySelector={(order) => order.id}
+              onRowClick={(order) => {
+                setExpandedOrderId((current) => (current === order.id ? null : order.id));
+              }}
+              renderExpandedRow={(order, presentation) => {
+                const detailsId = `ticket-order-details-${order.id}-${presentation}`;
+                const status = ticketOrderStatusDisplay(order);
+                return (
+                  <div className="ticket-sales-details" id={detailsId}>
+                    <dl className="ticket-sales-details__item">
+                      <dt>Full email</dt>
+                      <dd className="ticket-sales-details__email">{order.buyerEmail}</dd>
+                    </dl>
+                    <dl className="ticket-sales-details__item">
+                      <dt>{order.bundleId !== null ? "Bundle" : "Performance"}</dt>
+                      <dd>{order.bundleTitle || order.eventTitle}</dd>
+                    </dl>
+                    {order.discountCode !== null ? (
+                      <dl className="ticket-sales-details__item">
+                        <dt>Discount code</dt>
+                        <dd>
+                          {order.discountCode}
+                          {order.discountAmountCents > 0
+                            ? ` · ${money(order.discountAmountCents)} off`
+                            : ""}
+                        </dd>
+                      </dl>
+                    ) : null}
+                    <dl className="ticket-sales-details__item">
+                      <dt>Status</dt>
+                      <dd>{status.label}</dd>
+                    </dl>
+                    <dl className="ticket-sales-details__item">
+                      <dt>Sold</dt>
+                      <dd>
+                        <time dateTime={order.createdAt}>
+                          {new Date(order.createdAt).toLocaleString()}
+                        </time>
+                      </dd>
+                    </dl>
+                    {canRefundTicketOrder(order) ? (
+                      <div className="ticket-sales-details__actions">
                         <button
                           className="text-button text-button--danger"
                           disabled={busy}
@@ -476,17 +548,19 @@ export function WillCallPanel({
                           }}
                           type="button"
                         >
-                          Refund
+                          Refund order
                         </button>
-                      ) : null}
-                    </div>
-                  ) : null,
-              },
-            ]}
-            initialSort={{ columnId: "saleDate", direction: "desc" }}
-            keySelector={(order) => order.id}
-            rows={displayedOrders}
-          />
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              }}
+              rowLabel={(order) =>
+                `${expandedOrderId === order.id ? "Hide" : "Show"} details for ${order.buyerName}`
+              }
+              rows={displayedOrders}
+            />
+          </div>
         ) : null}
       </fieldset>
     </>

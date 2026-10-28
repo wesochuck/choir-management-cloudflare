@@ -216,7 +216,8 @@ describe("WillCallPanel refunded and expired orders", () => {
     expect(within(table).queryByText("Expired Bundle Buyer")).not.toBeInTheDocument();
   });
 
-  it("shows the Bundle pill inline for bundle buyers without adding a column", () => {
+  it("shows bundle information in the expandable order details", async () => {
+    const user = userEvent.setup();
     renderWillCallPanel([paidOrder, bundleOrder]);
 
     const table = getWillCallTable();
@@ -224,10 +225,12 @@ describe("WillCallPanel refunded and expired orders", () => {
     if (!(bundleRow instanceof HTMLTableRowElement)) {
       throw new Error("Expected the bundle buyer to be rendered in a table row.");
     }
-    expect(within(bundleRow).getByText("Bundle")).toHaveAttribute(
-      "title",
-      "Bundle purchase: Season Pass",
+    expect(within(bundleRow).queryByText("Bundle")).not.toBeInTheDocument();
+    await user.click(
+      within(bundleRow).getByRole("button", { name: "Show details for Bundle Buyer" }),
     );
+    expect(within(table).getByText("Season Pass")).toBeInTheDocument();
+    expect(within(table).getByText("Bundle", { selector: "dt" })).toBeInTheDocument();
 
     const standaloneRow = within(table).getByText("Paid Buyer").closest("tr");
     if (!(standaloneRow instanceof HTMLTableRowElement)) {
@@ -257,8 +260,10 @@ describe("WillCallPanel refunded and expired orders", () => {
 });
 
 describe("WillCallPanel discount codes", () => {
-  it("shows the order snapshot and a quiet empty value", () => {
+  it("shows the discount snapshot in expanded details", async () => {
+    const user = userEvent.setup();
     const discountedOrder = ticketOrder({
+      buyerEmail: "alexandria.montgomery@example.test",
       buyerName: "Discounted Buyer",
       discountAmountCents: 300,
       discountCode: "SPRING10",
@@ -277,15 +282,15 @@ describe("WillCallPanel discount codes", () => {
     ) {
       throw new Error("Expected both orders to be rendered in table rows.");
     }
-    const discountPill = within(discountedRow).getByText("SPRING10");
-    expect(discountPill).toHaveClass("ticket-discount-code-pill");
-    expect(discountPill).not.toHaveClass("status-pill");
-    expect(within(discountedRow).getByText("SPRING10")).toHaveAttribute(
-      "title",
-      "SPRING10 · Discount: $3.00",
+    expect(within(table).queryByRole("columnheader", { name: /Discount code/ })).toBeNull();
+    await user.click(
+      within(discountedRow).getByRole("button", { name: "Show details for Discounted Buyer" }),
     );
-    expect(within(regularRow).getByLabelText("No discount code")).toHaveTextContent("—");
-    expect(screen.getByRole("button", { name: "Sort by Discount code" })).toBeInTheDocument();
+    expect(within(table).getByText("SPRING10 · $3.00 off")).toBeInTheDocument();
+    const emailValues = within(table).getAllByText("alexandria.montgomery@example.test");
+    expect(emailValues.length).toBeGreaterThan(1);
+    expect(emailValues[0]).toHaveClass("ticket-sales-table__email-value");
+    expect(within(regularRow).queryByText("SPRING10")).not.toBeInTheDocument();
   });
 
   it("shows the active filter, reveals refunded confirmations, and clears it", async () => {
@@ -535,8 +540,9 @@ describe("WillCallPanel refund confirmation dialog", () => {
     const refundMock = vi.fn(() => Promise.resolve());
     renderWillCallPanel([paidOrder], { refund: refundMock });
 
-    const refundButton = screen.getAllByRole("button", { name: "Refund" })[0];
-    if (!refundButton) throw new Error("Expected refund button");
+    const table = getWillCallTable();
+    await user.click(within(table).getByRole("button", { name: "Show details for Paid Buyer" }));
+    const refundButton = within(table).getByRole("button", { name: "Refund order" });
     await user.click(refundButton);
 
     const dialog = screen.getByRole("dialog");
@@ -558,8 +564,9 @@ describe("WillCallPanel refund confirmation dialog", () => {
     const refundMock = vi.fn(() => Promise.resolve());
     renderWillCallPanel([paidOrder], { refund: refundMock });
 
-    const refundButton = screen.getAllByRole("button", { name: "Refund" })[0];
-    if (!refundButton) throw new Error("Expected refund button");
+    const table = getWillCallTable();
+    await user.click(within(table).getByRole("button", { name: "Show details for Paid Buyer" }));
+    const refundButton = within(table).getByRole("button", { name: "Refund order" });
     await user.click(refundButton);
     const dialog = screen.getByRole("dialog");
     const confirmButton = within(dialog).getByRole("button", { name: "Refund order" });
@@ -568,7 +575,8 @@ describe("WillCallPanel refund confirmation dialog", () => {
     expect(refundMock).toHaveBeenCalledWith(paidOrder.id);
   });
 
-  it("renders row action buttons within the direct action wrapper", () => {
+  it("keeps Resend in the row and reveals Refund in expanded details", async () => {
+    const user = userEvent.setup();
     renderWillCallPanel([paidOrder]);
     const actionsCell = screen
       .getAllByRole("cell")
@@ -580,7 +588,20 @@ describe("WillCallPanel refund confirmation dialog", () => {
       throw new Error("Expected actionWrapper to be an HTMLElement");
     }
     expect(within(actionWrapper).getByRole("button", { name: "Resend" })).toBeInTheDocument();
-    expect(within(actionWrapper).getByRole("button", { name: "Refund" })).toBeInTheDocument();
+    expect(within(actionWrapper).getByRole("button", { name: "Resend" })).toHaveClass(
+      "text-button",
+    );
+    expect(within(actionWrapper).queryByRole("button", { name: "Refund order" })).toBeNull();
+
+    const table = getWillCallTable();
+    await user.click(within(table).getByText("Paid Buyer").closest("tr") ?? table);
+    const disclosureButton = within(table).getByRole("button", {
+      name: "Hide details for Paid Buyer",
+    });
+    expect(disclosureButton).toHaveAttribute("aria-expanded", "true");
+    await user.click(within(actionWrapper).getByRole("button", { name: "Resend" }));
+    expect(disclosureButton).toHaveAttribute("aria-expanded", "true");
+    expect(within(table).getByRole("button", { name: "Refund order" })).toBeInTheDocument();
   });
 
   it("renders the Download will-call CSV link for a selected performance and omits it for all performances", () => {

@@ -28,6 +28,190 @@
     color: var(--color-text-muted);
   }
 
+  .ticketing-sales-table .data-table {
+    min-width: 48rem;
+    table-layout: fixed;
+  }
+
+  .ticketing-sales-table .data-table th,
+  .ticketing-sales-table .data-table td {
+    padding-block: var(--spacing-xs);
+  }
+
+  .ticketing-sales-table .ticket-sales-table__disclosure {
+    width: 2.75rem;
+    padding-inline: var(--spacing-2xs);
+    text-align: center;
+  }
+
+  .ticket-sales-table__disclosure-button {
+    display: inline-grid;
+    width: 2rem;
+    height: 2rem;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-control);
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+  }
+
+  .ticket-sales-table__disclosure-button:hover {
+    background: var(--color-surface-raised);
+  }
+
+  .ticket-sales-table__disclosure-button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
+  }
+
+  .ticket-sales-table__chevron {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform 140ms ease;
+  }
+
+  .ticket-sales-table__disclosure-button[aria-expanded="true"] .ticket-sales-table__chevron {
+    transform: rotate(45deg);
+  }
+
+  .ticketing-sales-table .ticket-sales-table__buyer {
+    width: 18%;
+    white-space: nowrap;
+  }
+
+  .ticket-sales-table__buyer > strong {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  .ticketing-sales-table .ticket-sales-table__email {
+    width: 20%;
+  }
+
+  .ticketing-sales-table .ticket-sales-table__sale-date {
+    width: 18%;
+    white-space: nowrap;
+  }
+
+  .ticketing-sales-table .ticket-sales-table__quantity {
+    width: 4.5rem;
+    white-space: nowrap;
+  }
+
+  .ticketing-sales-table .ticket-sales-table__amount {
+    width: 7rem;
+    white-space: nowrap;
+  }
+
+  .ticketing-sales-table .ticket-sales-table__status {
+    width: 8rem;
+    white-space: nowrap;
+  }
+
+  .ticketing-sales-table .ticket-sales-table__actions {
+    width: 8rem;
+    white-space: nowrap;
+  }
+
+  .ticket-sales-table__email-value {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ticketing-sales-table .data-table-card__field--actions .text-button {
+    display: inline-flex;
+    min-height: 2.3rem;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-control);
+    text-decoration: none;
+  }
+
+  .ticketing-sales-table .data-table__expanded-cell {
+    padding: var(--spacing-sm);
+    background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
+  }
+
+  .ticketing-sales-table .data-table-card__expanded {
+    padding: var(--spacing-sm);
+    border-radius: 0 0 var(--radius-control) var(--radius-control);
+    background: color-mix(in srgb, var(--color-primary) 4%, var(--color-surface));
+  }
+
+  .ticket-sales-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    align-items: center;
+    gap: var(--spacing-md);
+    min-width: 0;
+  }
+
+  .ticket-sales-details__item {
+    display: grid;
+    gap: var(--spacing-3xs);
+    min-width: 0;
+    margin: 0;
+  }
+
+  .ticket-sales-details__item dt {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
+  .ticket-sales-details__item dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .ticket-sales-details__email {
+    user-select: text;
+  }
+
+  .ticket-sales-details__actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  @media (max-width: 40rem) {
+    .ticketing-sales-table .data-table-card__field.ticket-sales-table__disclosure {
+      justify-content: flex-start;
+    }
+
+    .ticketing-sales-table
+      .data-table-card__field.ticket-sales-table__disclosure
+      .data-table-card__label {
+      display: none;
+    }
+
+    .ticketing-sales-table
+      .data-table-card__field.ticket-sales-table__disclosure
+      .data-table-card__value {
+      text-align: left;
+    }
+
+    .ticketing-sales-table .ticket-sales-table__email-value {
+      max-width: 15rem;
+    }
+
+    .ticket-sales-details {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
   /* === Ticketing & Set List Setup Guidance === */
 
   .ticketing-setup-guide,

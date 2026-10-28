@@ -107,7 +107,7 @@ export interface DataTableProps<T> {
   readonly expandedRowId?: string | null;
   readonly getRowProps?: (row: T, context: DataTableRowContext<T>) => DataTableRowProps | undefined;
   readonly initialSort?: DataTableSort;
-  readonly isRowInteractive?: (row: T) => boolean;
+  readonly isRowInteractive?: (row: T, context: DataTableRowContext<T>) => boolean;
   readonly keySelector: (row: T) => string;
   readonly onRowClick?: (row: T) => void;
   readonly pagination?: DataTablePagination;
@@ -295,13 +295,15 @@ export function DataTable<T>({
               const index = startIndex + localIndex;
               const rowId = keySelector(row);
               const isExpanded = renderExpandedRow !== undefined && expandedRowId === rowId;
-              const isInteractive =
-                Boolean(onRowClick) && (isRowInteractive ? isRowInteractive(row) : true);
-              const customRowProps = getRowProps?.(row, {
+              const rowContext: DataTableRowContext<T> = {
                 index,
                 presentation: "table",
                 rows: sortedRows,
-              });
+              };
+              const isInteractive =
+                Boolean(onRowClick) &&
+                (isRowInteractive ? isRowInteractive(row, rowContext) : true);
+              const customRowProps = getRowProps?.(row, rowContext);
               const rowClassName =
                 [isInteractive ? "data-table__row--interactive" : null, customRowProps?.className]
                   .filter(Boolean)
@@ -353,13 +355,14 @@ export function DataTable<T>({
           const index = startIndex + localIndex;
           const rowId = keySelector(row);
           const isExpanded = renderExpandedRow !== undefined && expandedRowId === rowId;
-          const isInteractive =
-            Boolean(onRowClick) && (isRowInteractive ? isRowInteractive(row) : true);
-          const customRowProps = getRowProps?.(row, {
+          const rowContext: DataTableRowContext<T> = {
             index,
             presentation: "card",
             rows: sortedRows,
-          });
+          };
+          const isInteractive =
+            Boolean(onRowClick) && (isRowInteractive ? isRowInteractive(row, rowContext) : true);
+          const customRowProps = getRowProps?.(row, rowContext);
           const cardClassName = [
             isInteractive ? "data-table-card data-table-card--interactive" : "data-table-card",
             customRowProps?.className,
