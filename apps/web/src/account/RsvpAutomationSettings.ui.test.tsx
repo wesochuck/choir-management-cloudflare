@@ -73,7 +73,7 @@ describe("RsvpAutomationSettings UI", () => {
     vi.resetAllMocks();
   });
 
-  it("renders RSVP Expiry and RSVP follow-up & attendance reports cards", () => {
+  it("renders RSVP Expiry and RSVP follow-up cards", () => {
     renderComponent();
 
     expect(screen.getByRole("region", { name: "RSVP automation settings" })).toBeInTheDocument();
@@ -93,18 +93,13 @@ describe("RsvpAutomationSettings UI", () => {
       }),
     ).toHaveValue(48);
     expect(
-      screen.getByRole("spinbutton", {
+      screen.queryByRole("spinbutton", {
         name: "Rehearsal misses before an attendance warning",
       }),
-    ).toHaveValue(3);
-    expect(
-      screen.getByRole("checkbox", {
-        name: "Send attendance reports for Rehearsals",
-      }),
-    ).toBeChecked();
+    ).not.toBeInTheDocument();
   });
 
-  it("links the two distinct automation templates and provides accessible descriptions", () => {
+  it("links the pending RSVP follow-up template", () => {
     renderComponent();
 
     expect(
@@ -113,13 +108,6 @@ describe("RsvpAutomationSettings UI", () => {
       "href",
       "/admin/communications?tab=templates&templateId=5f0ca4a5-7e4c-4e1a-9a1c-000000000015",
     );
-    expect(screen.getByRole("link", { name: /Edit Attendance Report template/ })).toHaveAttribute(
-      "href",
-      "/admin/communications?tab=templates&templateId=5f0ca4a5-7e4c-4e1a-9a1c-000000000016",
-    );
-    expect(
-      screen.getByLabelText("Rehearsal misses before an attendance warning"),
-    ).toHaveAccessibleDescription(/does not change Profile Status/);
   });
 
   it("allows toggling RSVP expiry", async () => {
@@ -174,43 +162,6 @@ describe("RsvpAutomationSettings UI", () => {
     expect(mockSetDraft).toHaveBeenLastCalledWith({
       ...sampleConfiguration,
       rsvpFollowUpLeadHours: 24,
-    });
-  });
-
-  it("allows updating attendance report warning threshold", async () => {
-    const user = userEvent.setup();
-    const mockSetDraft = vi.fn();
-    const draftReturn = createMockDraftReturn({ setDraft: mockSetDraft });
-
-    renderComponent({ draftReturn });
-
-    const input = screen.getByRole("spinbutton", {
-      name: "Rehearsal misses before an attendance warning",
-    });
-    await user.clear(input);
-    await user.type(input, "5");
-
-    expect(mockSetDraft).toHaveBeenLastCalledWith({
-      ...sampleConfiguration,
-      attendanceReportWarningThreshold: 5,
-    });
-  });
-
-  it("allows toggling rehearsal attendance reports", async () => {
-    const user = userEvent.setup();
-    const mockSetDraft = vi.fn();
-    const draftReturn = createMockDraftReturn({ setDraft: mockSetDraft });
-
-    renderComponent({ draftReturn });
-
-    const checkbox = screen.getByRole("checkbox", {
-      name: "Send attendance reports for Rehearsals",
-    });
-    await user.click(checkbox);
-
-    expect(mockSetDraft).toHaveBeenCalledWith({
-      ...sampleConfiguration,
-      rehearsalAttendanceReportsEnabled: false,
     });
   });
 

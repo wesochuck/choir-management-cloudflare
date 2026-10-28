@@ -27,6 +27,7 @@ vi.mock("../api", async (importOriginal) => {
     getOrganizationRosterConfiguration: vi.fn(),
     listOrganizationEventAttendance: vi.fn(),
     listOrganizationEvents: vi.fn(),
+    listOrganizationProfiles: vi.fn(),
     listOrganizationVenues: vi.fn(),
     updateOrganizationEventAttendance: vi.fn(),
   };
@@ -127,15 +128,16 @@ describe("AttendanceManager section grouping and sorting UI", () => {
       timezone: "America/New_York",
     });
     vi.mocked(api.listOrganizationEvents).mockResolvedValue([mockEvent]);
+    vi.mocked(api.listOrganizationProfiles).mockResolvedValue([]);
     vi.mocked(api.listOrganizationVenues).mockResolvedValue([mockVenue]);
     vi.mocked(api.getOrganizationRosterConfiguration).mockResolvedValue(mockRosterConfig);
     vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue(mockRows);
   });
 
-  function renderComponent() {
+  function renderComponent(initialTab?: "attendance" | "automation") {
     return render(
       <QueryClientProvider client={queryClient}>
-        <AttendanceManager enabled={true} />
+        <AttendanceManager enabled={true} {...(initialTab === undefined ? {} : { initialTab })} />
       </QueryClientProvider>,
     );
   }
@@ -315,6 +317,41 @@ describe("AttendanceManager section grouping and sorting UI", () => {
         screen.getByRole("button", { name: /Bob Iverson: Tap to check in/ }),
       ).toBeInTheDocument();
     });
+  });
+
+  it("renders Event attendance tab as default and allows switching to Attendance automation", async () => {
+    const user = userEvent.setup();
+    renderComponent();
+
+    expect(screen.getByRole("tab", { name: "Event attendance" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByRole("tab", { name: "Attendance automation" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Attendance automation" }));
+    expect(screen.getByRole("tab", { name: "Attendance automation" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      await screen.findByRole("region", { name: "Attendance automation settings" }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("checkbox", { name: "Send attendance reports for Rehearsals" }),
+    ).toBeInTheDocument();
+  });
+
+  it("respects initialTab='automation' prop", async () => {
+    renderComponent("automation");
+
+    expect(screen.getByRole("tab", { name: "Attendance automation" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      await screen.findByRole("region", { name: "Attendance automation settings" }),
+    ).toBeInTheDocument();
   });
 });
 

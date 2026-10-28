@@ -3,9 +3,10 @@ import type {
   OrganizationAttendanceStatus,
   OrganizationEvent,
 } from "@choir/contracts";
-import { Dialog, DialogClose } from "@choir/ui";
-import { useMemo, useState } from "react";
+import { Dialog, DialogClose, Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
+import { useEffect, useMemo, useState } from "react";
 
+import { AttendanceAutomationSettings } from "./AttendanceAutomationSettings";
 import {
   type AttendanceFilter,
   type AttendanceGroup,
@@ -139,10 +140,22 @@ function UnexpectedAttendanceDialog({
   );
 }
 
-export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
+export function AttendanceManager({
+  enabled,
+  initialTab = "attendance",
+}: {
+  readonly enabled: boolean;
+  readonly initialTab?: "attendance" | "automation";
+}) {
   const { partLabel, performerLabel, performerLabelPlural } = useOrganizationTerminology();
+  const [activeTab, setActiveTab] = useState<"attendance" | "automation">(initialTab);
   const [filter, setFilter] = useState<AttendanceFilter>("Pending");
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync active tab when initialTab prop updates
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const { dataUpdatedAt, eventId, events, rosterConfiguration, rows, setSelectedEventId, venues } =
     useAttendanceQueries(enabled);
@@ -180,191 +193,230 @@ export function AttendanceManager({ enabled }: { readonly enabled: boolean }) {
   if (!enabled) return null;
   return (
     <section className="account-section attendance-manager" aria-label="Attendance management">
-      <div className="attendance-manager__intro">
-        <div>
-          <p className="attendance-manager__sync" role="status">
-            <span aria-hidden="true">●</span> Live updates every 5 seconds ·{" "}
-            {formatSyncTime(dataUpdatedAt ? new Date(dataUpdatedAt) : null)}
-          </p>
-        </div>
-        <div className="attendance-manager__count" aria-label="Attendance progress">
-          <strong>{String(counts.present)}</strong> / {String(counts.expected)}
-          <span>present</span>
-        </div>
-      </div>
-
-      <div className="attendance-manager__controls">
-        <label className="field">
-          <span>Event</span>
-          <select
-            value={eventId}
-            onChange={(event) => {
-              setSelectedEventId(event.target.value);
-            }}
-          >
-            {events.map((event) => (
-              <option key={event.id} value={event.id}>
-                {event.title} · {displayEventDate(event.startsAt)}
-                {eventLocationLabel(event) ? ` · ${eventLocationLabel(event)}` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field attendance-manager__search">
-          <span>Find a {performerLabel.toLowerCase()}</span>
-          <input
-            inputMode="search"
-            onChange={(event) => {
-              setQuery(event.target.value);
-            }}
-            placeholder={`Search name or ${partLabel.toLowerCase()}`}
-            type="search"
-            value={query}
-          />
-        </label>
-      </div>
-
-      <div className="attendance-manager__toolbar">
-        <div className="attendance-filters" aria-label="Attendance filter" role="group">
-          {(
-            [
-              ["Pending", `Unmarked ${String(counts.pending)}`],
-              ["All", `All ${String(counts.roster)}`],
-              ["Present", `Present ${String(counts.presentTotal)}`],
-              ["Absent", `Absent ${String(counts.absent)}`],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              className={
-                filter === value
-                  ? "attendance-filter attendance-filter--active"
-                  : "attendance-filter"
-              }
-              key={value}
-              onClick={() => {
-                setFilter(value);
-              }}
-              type="button"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <button
-          className="button button--primary attendance-manager__bulk"
-          disabled={bulkBusy || markableRows.length === 0}
-          onClick={() => {
-            setBulkConfirmOpen(true);
-          }}
-          type="button"
+      <Tabs onValueChange={setActiveTab} value={activeTab}>
+        <TabsList
+          aria-label="Attendance sections"
+          as="nav"
+          className="ticketing-tabs rsvp-page-tabs"
         >
-          {bulkBusy ? "Saving…" : "Mark remaining present"}
-        </button>
-      </div>
-
-      <div
-        className="attendance-progress"
-        aria-label={`${String(counts.present)} of ${String(counts.expected)} present`}
-      >
-        <span
-          style={{
-            width: `${String(counts.expected ? (counts.present / counts.expected) * 100 : 0)}%`,
-          }}
-        />
-      </div>
-
-      {message ? (
-        <p className="attendance-manager__message" role="alert">
-          {message}
-        </p>
-      ) : null}
-
-      {rows.length === 0 ? <p>No Profiles are available for this event.</p> : null}
-      {rows.length > 0 && groupedRows.rsvped.length + groupedRows.notRsvped.length === 0 ? (
-        <p className="attendance-manager__empty">
-          No {performerLabelPlural.toLowerCase()} match this filter.
-        </p>
-      ) : null}
-      <div className="attendance-list">
-        {groupedRows.rsvped.map((group) => (
-          <AttendanceGroupComponent
-            bulkBusy={bulkBusy}
-            group={group}
-            key={group.key}
-            onChange={changeAttendance}
-            partLabel={partLabel}
-            savingIds={savingIds}
-          />
-        ))}
-        {groupedRows.notRsvped.length > 0 ? (
-          <div
-            aria-label="Not currently RSVP'd"
-            className="attendance-list__divider"
-            role="separator"
+          <TabsTrigger
+            aria-controls="attendance-events-panel"
+            id="attendance-events-tab"
+            value="attendance"
           >
-            <span>Not currently RSVP&apos;d</span>
+            Event attendance
+          </TabsTrigger>
+          <TabsTrigger
+            aria-controls="attendance-automation-panel"
+            id="attendance-automation-tab"
+            value="automation"
+          >
+            Attendance automation
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent
+          aria-labelledby="attendance-events-tab"
+          className="rsvp-manager__tab-content"
+          id="attendance-events-panel"
+          value="attendance"
+        >
+          <div className="attendance-manager__intro">
+            <div>
+              <p className="attendance-manager__sync" role="status">
+                <span aria-hidden="true">●</span> Live updates every 5 seconds ·{" "}
+                {formatSyncTime(dataUpdatedAt ? new Date(dataUpdatedAt) : null)}
+              </p>
+            </div>
+            <div className="attendance-manager__count" aria-label="Attendance progress">
+              <strong>{String(counts.present)}</strong> / {String(counts.expected)}
+              <span>present</span>
+            </div>
           </div>
-        ) : null}
-        {groupedRows.notRsvped.map((group) => (
-          <AttendanceGroupComponent
-            bulkBusy={bulkBusy}
-            group={group}
-            key={`not-rsvped-${group.key}`}
-            onChange={changeAttendance}
-            partLabel={partLabel}
-            savingIds={savingIds}
+
+          <div className="attendance-manager__controls">
+            <label className="field">
+              <span>Event</span>
+              <select
+                value={eventId}
+                onChange={(event) => {
+                  setSelectedEventId(event.target.value);
+                }}
+              >
+                {events.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {event.title} · {displayEventDate(event.startsAt)}
+                    {eventLocationLabel(event) ? ` · ${eventLocationLabel(event)}` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field attendance-manager__search">
+              <span>Find a {performerLabel.toLowerCase()}</span>
+              <input
+                inputMode="search"
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                }}
+                placeholder={`Search name or ${partLabel.toLowerCase()}`}
+                type="search"
+                value={query}
+              />
+            </label>
+          </div>
+
+          <div className="attendance-manager__toolbar">
+            <div className="attendance-filters" aria-label="Attendance filter" role="group">
+              {(
+                [
+                  ["Pending", `Unmarked ${String(counts.pending)}`],
+                  ["All", `All ${String(counts.roster)}`],
+                  ["Present", `Present ${String(counts.presentTotal)}`],
+                  ["Absent", `Absent ${String(counts.absent)}`],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  className={
+                    filter === value
+                      ? "attendance-filter attendance-filter--active"
+                      : "attendance-filter"
+                  }
+                  key={value}
+                  onClick={() => {
+                    setFilter(value);
+                  }}
+                  type="button"
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button
+              className="button button--primary attendance-manager__bulk"
+              disabled={bulkBusy || markableRows.length === 0}
+              onClick={() => {
+                setBulkConfirmOpen(true);
+              }}
+              type="button"
+            >
+              {bulkBusy ? "Saving…" : "Mark remaining present"}
+            </button>
+          </div>
+
+          <div
+            className="attendance-progress"
+            aria-label={`${String(counts.present)} of ${String(counts.expected)} present`}
+          >
+            <span
+              style={{
+                width: `${String(counts.expected ? (counts.present / counts.expected) * 100 : 0)}%`,
+              }}
+            />
+          </div>
+
+          {message ? (
+            <p className="attendance-manager__message" role="alert">
+              {message}
+            </p>
+          ) : null}
+
+          {rows.length === 0 ? <p>No Profiles are available for this event.</p> : null}
+          {rows.length > 0 && groupedRows.rsvped.length + groupedRows.notRsvped.length === 0 ? (
+            <p className="attendance-manager__empty">
+              No {performerLabelPlural.toLowerCase()} match this filter.
+            </p>
+          ) : null}
+          <div className="attendance-list">
+            {groupedRows.rsvped.map((group) => (
+              <AttendanceGroupComponent
+                bulkBusy={bulkBusy}
+                group={group}
+                key={group.key}
+                onChange={changeAttendance}
+                partLabel={partLabel}
+                savingIds={savingIds}
+              />
+            ))}
+            {groupedRows.notRsvped.length > 0 ? (
+              <div
+                aria-label="Not currently RSVP'd"
+                className="attendance-list__divider"
+                role="separator"
+              >
+                <span>Not currently RSVP&apos;d</span>
+              </div>
+            ) : null}
+            {groupedRows.notRsvped.map((group) => (
+              <AttendanceGroupComponent
+                bulkBusy={bulkBusy}
+                group={group}
+                key={`not-rsvped-${group.key}`}
+                onChange={changeAttendance}
+                partLabel={partLabel}
+                savingIds={savingIds}
+              />
+            ))}
+          </div>
+          <UnexpectedAttendanceDialog
+            busy={rescueBusy}
+            candidate={rescueCandidate}
+            onClose={() => {
+              if (!rescueBusy) setRescueCandidate(null);
+            }}
+            onConfirm={() => {
+              void confirmUnexpectedAttendance();
+            }}
           />
-        ))}
-      </div>
-      <UnexpectedAttendanceDialog
-        busy={rescueBusy}
-        candidate={rescueCandidate}
-        onClose={() => {
-          if (!rescueBusy) setRescueCandidate(null);
-        }}
-        onConfirm={() => {
-          void confirmUnexpectedAttendance();
-        }}
-      />
-      <Dialog
-        description="This action may be difficult to undo."
-        onClose={() => {
-          if (!bulkBusy) setBulkConfirmOpen(false);
-        }}
-        open={bulkConfirmOpen}
-        title="Mark remaining present?"
-      >
-        <div className="form-stack">
-          <p className="notice notice--warning" role="alert">
-            This will mark {String(markableRows.length)}{" "}
-            {markableRows.length === 1
-              ? performerLabel.toLowerCase()
-              : performerLabelPlural.toLowerCase()}{" "}
-            who RSVP&apos;d Yes and are not currently Present as Present.
-          </p>
-          <div className="dialog__actions">
-            <button
-              className="button button--secondary"
-              onClick={() => {
-                setBulkConfirmOpen(false);
-              }}
-              type="button"
-            >
-              Cancel
-            </button>
-            <button
-              className="button button--danger"
-              onClick={() => {
-                setBulkConfirmOpen(false);
-                void markRemainingPresent(markableRows);
-              }}
-              type="button"
-            >
-              Mark remaining present
-            </button>
-          </div>
-        </div>
-      </Dialog>
+          <Dialog
+            description="This action may be difficult to undo."
+            onClose={() => {
+              if (!bulkBusy) setBulkConfirmOpen(false);
+            }}
+            open={bulkConfirmOpen}
+            title="Mark remaining present?"
+          >
+            <div className="form-stack">
+              <p className="notice notice--warning" role="alert">
+                This will mark {String(markableRows.length)}{" "}
+                {markableRows.length === 1
+                  ? performerLabel.toLowerCase()
+                  : performerLabelPlural.toLowerCase()}{" "}
+                who RSVP&apos;d Yes and are not currently Present as Present.
+              </p>
+              <div className="dialog__actions">
+                <button
+                  className="button button--secondary"
+                  onClick={() => {
+                    setBulkConfirmOpen(false);
+                  }}
+                  type="button"
+                >
+                  Cancel
+                </button>
+                <button
+                  className="button button--danger"
+                  onClick={() => {
+                    setBulkConfirmOpen(false);
+                    void markRemainingPresent(markableRows);
+                  }}
+                  type="button"
+                >
+                  Mark remaining present
+                </button>
+              </div>
+            </div>
+          </Dialog>
+        </TabsContent>
+
+        <TabsContent
+          aria-labelledby="attendance-automation-tab"
+          className="rsvp-manager__tab-content"
+          id="attendance-automation-panel"
+          value="automation"
+        >
+          <AttendanceAutomationSettings enabled={enabled} />
+        </TabsContent>
+      </Tabs>
     </section>
   );
 }

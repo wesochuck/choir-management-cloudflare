@@ -230,11 +230,20 @@ test("explains roster automation, On Break timeout, and live preview", async ({
   await expect(page.getByText("Roster automation settings saved.")).toBeVisible();
 });
 
-test("configures RSVP automation settings on the Event RSVPs page", async ({ page }) => {
+test("configures RSVP and Attendance automation settings on their respective pages", async ({
+  page,
+}) => {
   await routeRosterSettings(page);
   await page.route("**/api/organization/events", async (route) => {
     await route.fulfill({
       body: JSON.stringify({ events: [], requestId }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+  await page.route("**/api/organization/venues", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ requestId, venues: [] }),
       contentType: "application/json",
       status: 200,
     });
@@ -254,7 +263,7 @@ test("configures RSVP automation settings on the Event RSVPs page", async ({ pag
     }),
   ).toBeChecked();
   await expect(
-    rsvpSettings.getByRole("link", { name: /Edit Attendance Report template/ }),
+    rsvpSettings.getByRole("link", { name: /Edit pending RSVP follow-up template/ }),
   ).toHaveAttribute("target", "_blank");
 
   await rsvpSettings
@@ -265,4 +274,22 @@ test("configures RSVP automation settings on the Event RSVPs page", async ({ pag
     .getByRole("button", { name: "Save changes" })
     .click({ force: true });
   await expect(page.getByText("RSVP automation settings saved.")).toBeVisible();
+
+  await page.goto("/admin/attendance");
+  await page.getByRole("tab", { name: "Attendance automation" }).click();
+
+  const attendanceSettings = page.getByRole("region", { name: "Attendance automation settings" });
+  await expect(
+    attendanceSettings.getByRole("spinbutton", {
+      name: "Rehearsal misses before an attendance warning",
+    }),
+  ).toHaveValue("2");
+  await expect(
+    attendanceSettings.getByRole("checkbox", {
+      name: "Send attendance reports for Rehearsals",
+    }),
+  ).toBeChecked();
+  await expect(
+    attendanceSettings.getByRole("link", { name: /Edit Attendance Report template/ }),
+  ).toHaveAttribute("target", "_blank");
 });

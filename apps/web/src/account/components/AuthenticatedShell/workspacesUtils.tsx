@@ -193,6 +193,11 @@ export function rsvpTabFromSearch(search: string): "events" | "automation" {
   return tab === "automation" ? "automation" : "events";
 }
 
+export function attendanceTabFromSearch(search: string): "attendance" | "automation" {
+  const tab = new URLSearchParams(search).get("tab");
+  return tab === "automation" ? "automation" : "attendance";
+}
+
 function renderMusicPage({
   focusedEnabled,
   musicCatalogView,
@@ -268,12 +273,13 @@ export function renderOrganizationPage(
   const musicCatalogView = routeParams.get("view") === "credits" ? "credits" : "catalog";
   const rsvpEventId = routeParams.get("eventId");
   const rsvpTab = rsvpTabFromSearch(routeState.search);
+  const attendanceTab = attendanceTabFromSearch(routeState.search);
   const ticketingTab = ticketingTabFromSearch(routeState.search);
   const eventsProps = eventsPagePropsFromSearch(routeState.search);
   const reportTab = reportTabFromSearch(routeState.search);
   const route = resolveOrganizationRouteKey(pathname);
   const pages: Record<string, ReactNode> = {
-    "/admin/attendance": <AttendanceManager enabled={focusedEnabled} />,
+    "/admin/attendance": <AttendanceManager enabled={focusedEnabled} initialTab={attendanceTab} />,
     "/admin/auditions": <AuditionManager enabled={focusedEnabled} />,
     "/admin/communications": <CommunicationCenter enabled={focusedEnabled} />,
     "/admin/contacts": <ContactsPage enabled={focusedEnabled} />,
