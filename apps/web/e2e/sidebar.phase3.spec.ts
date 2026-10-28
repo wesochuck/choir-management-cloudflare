@@ -136,7 +136,7 @@ test("drawer closes by escape, backdrop, and button with focus restoration", asy
   api.assertNoUnexpectedRequests();
 });
 
-test("narrow viewports keep persistent icon rail and never overwrite the desktop preference", async ({
+test("narrow viewports switch to mobile bottom bar and never overwrite the desktop preference", async ({
   page,
 }) => {
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });
@@ -145,22 +145,20 @@ test("narrow viewports keep persistent icon rail and never overwrite the desktop
   await expect(page.locator(".signed-in-sidebar")).toBeVisible();
 
   await page.setViewportSize({ height: 800, width: 390 });
-  // Persistent compact rail stays visible on narrow viewports
-  await expect(page.locator(".signed-in-sidebar")).toBeVisible();
-  await expect(page.locator(".signed-in-sidebar .organization-nav--compact")).toBeVisible();
-  const trigger = page.getByRole("button", { name: "Open workspace navigation" });
-  await expect(trigger).toBeVisible();
-  await trigger.click();
-  const drawer = page.getByRole("dialog", { name: "Workspace navigation" });
+  // Persistent compact rail is eliminated on mobile for Organization Admin; bottom nav is visible
+  await expect(page.locator(".signed-in-sidebar")).toBeHidden();
+  await expect(page.locator(".mobile-bottom-nav")).toBeVisible();
+  const peopleBtn = page.getByRole("button", { name: "People" });
+  await expect(peopleBtn).toBeVisible();
+  await peopleBtn.click();
+  const drawer = page.getByRole("dialog", { name: "People & membership" });
   await expect(drawer).toBeVisible();
-  // Pin control is removed
-  await expect(drawer.getByRole("button", { name: "Keep sidebar open" })).toHaveCount(0);
 
   // Resizing back to desktop restores the saved expanded layout without overwriting
   await page.keyboard.press("Escape");
   await page.setViewportSize({ height: 800, width: 1280 });
   await expect(page.locator(".signed-in-sidebar")).toBeVisible();
-  await expect(page.getByRole("dialog", { name: "Workspace navigation" })).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   api.assertNoUnexpectedRequests();
 });
 
@@ -197,11 +195,12 @@ test("navigation works when storage is unavailable", async ({ page }) => {
 
   // Narrow viewport does not crash and does not persist a new preference.
   await page.setViewportSize({ height: 800, width: 390 });
-  await expect(page.locator(".signed-in-sidebar")).toBeVisible();
-  await expect(page.locator(".signed-in-sidebar .organization-nav--compact")).toBeVisible();
-  await page.getByRole("button", { name: "Open workspace navigation" }).click();
-  await expect(page.getByRole("dialog", { name: "Workspace navigation" })).toBeVisible();
+  await expect(page.locator(".signed-in-sidebar")).toBeHidden();
+  await expect(page.locator(".mobile-bottom-nav")).toBeVisible();
+  await page.getByRole("button", { name: "People" }).click();
+  await expect(page.getByRole("dialog", { name: "People & membership" })).toBeVisible();
   await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
   await page.setViewportSize({ height: 800, width: 1280 });
   await expect(page.locator(".signed-in-sidebar")).toBeVisible();
@@ -541,10 +540,11 @@ test("breakpoints, long labels, zoom, keyboard, and reduced motion", async ({ pa
     );
   }
 
-  // Phone rail, tablet drawer, and desktop sidebar meet at explicit boundaries.
+  // Phone bottom bar, tablet drawer, and desktop sidebar meet at explicit boundaries.
   await page.setViewportSize({ height: 900, width: 640 });
-  await expect(page.locator(".signed-in-sidebar .organization-nav--compact")).toBeVisible();
-  for (const width of [641, 834, 1024]) {
+  await expect(page.locator(".signed-in-sidebar")).toBeHidden();
+  await expect(page.locator(".mobile-bottom-nav")).toBeVisible();
+  for (const width of [769, 834, 1024]) {
     await page.setViewportSize({ height: 900, width });
     await expect(page.locator(".signed-in-sidebar")).toBeHidden();
     await expect(page.getByRole("button", { name: "Open workspace navigation" })).toBeVisible();
