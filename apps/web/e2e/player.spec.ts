@@ -205,6 +205,100 @@ test("renders practice player with artwork, track navigation, and set list @webk
   }
 });
 
+test("stretches the standalone player on mobile without changing the desktop columns", async ({
+  page,
+}, testInfo) => {
+  await page.route("**/api/singer/profile", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({ code: "unauthorized", error: "No session", requestId }),
+      contentType: "application/json",
+      status: 401,
+    });
+  });
+  await page.route("**/api/public/player-details", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify({
+        eventId: "event-layout",
+        eventStartsAt: futureIsoDate({ days: 60 }),
+        eventTitle: "Layout Showcase",
+        items: [
+          {
+            composer: "Composer Name",
+            durationSeconds: 180,
+            pieceId: "piece-layout",
+            title: "Hallelujah Chorus",
+            trackFileIds: { alto: "file-alto-layout", tutti: "file-tutti-layout" },
+          },
+        ],
+        organizationName: "Layout Test Choir",
+        profileName: "Jane Doe",
+        requestId,
+      }),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
+
+  await page.goto("/player?token=layout-player-token");
+  const nowPlaying = page.locator(".public-player__now-playing-card");
+  await expect(nowPlaying.getByRole("heading", { name: "Hallelujah Chorus" })).toBeVisible();
+
+  if (!testInfo.project.name.includes("mobile")) {
+    await page.setViewportSize({ height: 800, width: 1280 });
+    const card = await nowPlaying.boundingBox();
+    const desktopPanel = await page.locator(".public-player__desktop-panel").boundingBox();
+    expect(card).not.toBeNull();
+    expect(desktopPanel).not.toBeNull();
+    if (!card || !desktopPanel) throw new Error("Expected both desktop player columns.");
+    expect(desktopPanel.x).toBeGreaterThan(card.x + card.width);
+    return;
+  }
+
+  await expect(nowPlaying.locator(".public-player__part-hint")).toBeVisible();
+  await page.emulateMedia({ reducedMotion: "reduce" });
+
+  for (const theme of ["light", "dark"] as const) {
+    await page.evaluate((value) => {
+      document.documentElement.setAttribute("data-theme", value);
+    }, theme);
+
+    for (const viewport of [
+      { height: 844, width: 390 },
+      { height: 667, width: 375 },
+      { height: 568, width: 320 },
+      { height: 844, width: 430 },
+    ]) {
+      await page.setViewportSize(viewport);
+      const geometry = await page.evaluate(() => {
+        const rect = (selector: string) => {
+          const element = document.querySelector<HTMLElement>(selector);
+          if (!element) return null;
+          const bounds = element.getBoundingClientRect();
+          return { bottom: bounds.bottom, height: bounds.height, top: bounds.top };
+        };
+        return {
+          brand: rect(".public-player__brand"),
+          card: rect(".public-player__now-playing-card"),
+          header: rect(".public-player__header"),
+          secondary: rect(".public-player__secondary-controls"),
+          scrollWidth: document.documentElement.scrollWidth,
+          viewportHeight: window.innerHeight,
+          viewportWidth: window.innerWidth,
+        };
+      });
+
+      if (!geometry.brand || !geometry.header || !geometry.card || !geometry.secondary) {
+        throw new Error("Expected the mobile player brand, event header, card, and controls.");
+      }
+      expect(geometry.header.top - geometry.brand.bottom).toBeLessThanOrEqual(20);
+      expect(geometry.card.bottom).toBeGreaterThanOrEqual(geometry.viewportHeight - 40);
+      expect(geometry.card.bottom - geometry.secondary.bottom).toBeLessThanOrEqual(48);
+      expect(geometry.secondary.top).toBeGreaterThan(geometry.card.top + geometry.card.height / 2);
+      expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.viewportWidth);
+    }
+  }
+});
+
 test("shows a dismissible voice-part nudge for visitors without an assigned part", async ({
   page,
 }, testInfo) => {

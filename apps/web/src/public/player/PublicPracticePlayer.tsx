@@ -326,8 +326,45 @@ function PlayerAudio({
   );
 }
 
-interface PlayerPlaybackControlsProps {
+interface PlayerTrackShowcaseProps {
   readonly activeTrackKey: string;
+  readonly artworkUrl: string | null;
+  readonly currentItem: PlayerPlaylistItem | null;
+  readonly currentTrack: ResolvedTrack | null;
+  readonly eventTitle: string;
+  readonly onClearPin: () => void;
+  readonly onOpenPieceTrackSelector: (trigger: HTMLElement) => void;
+  readonly trackLabels?: Readonly<Record<string, string>> | undefined;
+}
+
+function PlayerTrackShowcase({
+  activeTrackKey,
+  artworkUrl,
+  currentItem,
+  currentTrack,
+  eventTitle,
+  onClearPin,
+  onOpenPieceTrackSelector,
+  trackLabels,
+}: PlayerTrackShowcaseProps) {
+  return (
+    <div className="public-player__showcase">
+      <PlayerArtwork artworkUrl={artworkUrl} eventTitle={eventTitle} />
+      {currentItem && currentTrack ? (
+        <PlayerTrackMetadata
+          activeTrackKey={activeTrackKey}
+          currentTrack={currentTrack}
+          item={currentItem}
+          onClearPin={currentTrack.pinned ? onClearPin : undefined}
+          onOpenPieceTrackSelector={onOpenPieceTrackSelector}
+          trackLabels={trackLabels}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+interface PlayerPlaybackControlsProps {
   readonly blockedFileId: string | null;
   readonly currentIndex: number;
   readonly currentItem: PlayerPlaylistItem | null;
@@ -344,13 +381,9 @@ interface PlayerPlaybackControlsProps {
   readonly previousTrack: () => void;
   readonly saveError: boolean;
   readonly togglePlay: () => void;
-  readonly onClearPin: () => void;
-  readonly onOpenPieceTrackSelector: (trigger: HTMLElement) => void;
-  readonly trackLabels?: Readonly<Record<string, string>> | undefined;
 }
 
 function PlayerPlaybackControls({
-  activeTrackKey,
   blockedFileId,
   currentIndex,
   currentItem,
@@ -367,9 +400,6 @@ function PlayerPlaybackControls({
   previousTrack,
   saveError,
   togglePlay,
-  onClearPin,
-  onOpenPieceTrackSelector,
-  trackLabels,
 }: PlayerPlaybackControlsProps) {
   if (!currentItem || !currentTrack) {
     return (
@@ -381,14 +411,6 @@ function PlayerPlaybackControls({
 
   return (
     <>
-      <PlayerTrackMetadata
-        activeTrackKey={activeTrackKey}
-        currentTrack={currentTrack}
-        item={currentItem}
-        onClearPin={currentTrack.pinned ? onClearPin : undefined}
-        onOpenPieceTrackSelector={onOpenPieceTrackSelector}
-        trackLabels={trackLabels}
-      />
       <OfflineStatusNotices
         blockedFileId={blockedFileId}
         currentFileId={currentTrack.fileId}
@@ -1136,27 +1158,12 @@ export function PublicPracticePlayer({
           aria-labelledby="public-player-now-playing"
           className="public-player__now-playing-card"
         >
-          {/* Event artwork */}
-          <PlayerArtwork artworkUrl={eventArtworkUrl} eventTitle={details.eventTitle} />
-
-          <PlayerPlaybackControls
+          <PlayerTrackShowcase
             activeTrackKey={activeTrackKey}
-            blockedFileId={blockedFileId}
-            currentIndex={currentIndex}
+            artworkUrl={eventArtworkUrl}
             currentItem={currentItem}
             currentTrack={currentTrack}
-            currentTime={currentTime}
-            duration={duration}
-            handleRetryPlayback={handleRetryPlayback}
-            handleSeek={handleSeek}
-            loopMode={loopMode}
-            nextTrack={nextTrack}
-            online={online}
-            playableCount={playableItems.length}
-            playing={playing}
-            previousTrack={previousTrack}
-            saveError={saveError}
-            togglePlay={togglePlay}
+            eventTitle={details.eventTitle}
             onClearPin={() => {
               clearPinForItem(currentItem, pinPieceTrack);
             }}
@@ -1164,41 +1171,62 @@ export function PublicPracticePlayer({
             trackLabels={details.trackLabels}
           />
 
-          {/* Voice Part selection */}
-          <PlayerPartSelector
-            key={openPieceSelectorRequest}
-            activeTrackKey={activeTrackKey}
-            defaultOpen={openPieceSelectorRequest > 0}
-            defaultSelectionScope="piece"
-            initialRestoreFocusElement={pieceSelectorRestoreFocusElement}
-            onDismissHint={dismissVoicePartHint}
-            onEngage={markSelectorEngaged}
-            onPinPieceTrack={pinPieceTrack}
-            onSelectTrackKey={selectTrackKey}
-            currentItem={currentItem}
-            pinnedTrackKey={pinnedTrackForItem(currentItem, pinnedTracksByPieceId)}
-            showVoicePartHint={showVoicePartHint}
-            trackKeys={allTrackKeys}
-            trackLabels={details.trackLabels}
-          />
+          <div className="public-player__control-stack">
+            <PlayerPlaybackControls
+              blockedFileId={blockedFileId}
+              currentIndex={currentIndex}
+              currentItem={currentItem}
+              currentTrack={currentTrack}
+              currentTime={currentTime}
+              duration={duration}
+              handleRetryPlayback={handleRetryPlayback}
+              handleSeek={handleSeek}
+              loopMode={loopMode}
+              nextTrack={nextTrack}
+              online={online}
+              playableCount={playableItems.length}
+              playing={playing}
+              previousTrack={previousTrack}
+              saveError={saveError}
+              togglePlay={togglePlay}
+            />
 
-          {/* Secondary controls: Repeat, Set List, Settings */}
-          <PlayerSecondaryControlsWrapper
-            hasTrack={hasTrack}
-            loopMode={loopMode}
-            onOpenQueue={() => {
-              setQueueOpen(true);
-            }}
-            onOpenSettings={() => {
-              setSettingsOpen(true);
-            }}
-            onToggleLoop={() => {
-              setLoopMode((mode) => (mode === "none" ? "all" : mode === "all" ? "one" : "none"));
-            }}
-            queueButtonRef={queueButtonRef}
-            queueCount={playableItems.length}
-            settingsButtonRef={settingsButtonRef}
-          />
+            {/* Voice Part selection */}
+            <PlayerPartSelector
+              key={openPieceSelectorRequest}
+              activeTrackKey={activeTrackKey}
+              defaultOpen={openPieceSelectorRequest > 0}
+              defaultSelectionScope="piece"
+              initialRestoreFocusElement={pieceSelectorRestoreFocusElement}
+              onDismissHint={dismissVoicePartHint}
+              onEngage={markSelectorEngaged}
+              onPinPieceTrack={pinPieceTrack}
+              onSelectTrackKey={selectTrackKey}
+              currentItem={currentItem}
+              pinnedTrackKey={pinnedTrackForItem(currentItem, pinnedTracksByPieceId)}
+              showVoicePartHint={showVoicePartHint}
+              trackKeys={allTrackKeys}
+              trackLabels={details.trackLabels}
+            />
+
+            {/* Secondary controls: Repeat, Set List, Settings */}
+            <PlayerSecondaryControlsWrapper
+              hasTrack={hasTrack}
+              loopMode={loopMode}
+              onOpenQueue={() => {
+                setQueueOpen(true);
+              }}
+              onOpenSettings={() => {
+                setSettingsOpen(true);
+              }}
+              onToggleLoop={() => {
+                setLoopMode((mode) => (mode === "none" ? "all" : mode === "all" ? "one" : "none"));
+              }}
+              queueButtonRef={queueButtonRef}
+              queueCount={playableItems.length}
+              settingsButtonRef={settingsButtonRef}
+            />
+          </div>
         </section>
       </div>
 
