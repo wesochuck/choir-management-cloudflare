@@ -28,6 +28,7 @@ const sessionResponse = {
 };
 
 const configuration = {
+  attendanceReportWarningThreshold: 2,
   onBreakTimeoutDays: 365,
   onBreakTimeoutEnabled: true,
   performerLabel: "Performer",
