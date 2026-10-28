@@ -252,6 +252,10 @@
     display: inline-flex;
     align-items: center;
   }
+  .admin-overview__quick-btn-icon svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
 
   /* === Getting Started / Onboarding Guide === */
   .admin-overview__getting-started {
@@ -444,6 +448,9 @@
   .admin-overview__section-heading--slate .admin-overview__section-dot {
     background: #646a9f;
   }
+  .admin-overview__section--blue .admin-overview__section-dot {
+    background: var(--color-navigation-music);
+  }
 
   .admin-overview__section-note {
     font-size: 0.825rem;
@@ -509,6 +516,10 @@
     flex: 0 0 2.8125rem;
     font-size: 1.375rem; /* 22px */
     line-height: var(--line-height-none);
+  }
+  .admin-overview__card-icon svg {
+    width: 1.5rem;
+    height: 1.5rem;
   }
 
   .admin-overview__card-icon--green {
@@ -725,22 +736,5 @@
       transition: none !important;
       transform: none !important;
     }
-  }
-}
-
-@layer components {
-  .admin-overview__card-icon svg {
-    width: 1.5rem;
-    height: 1.5rem;
-  }
-  .admin-overview__quick-btn-icon svg {
-    width: 1.15rem;
-    height: 1.15rem;
-  }
-}
-
-@layer components {
-  .admin-overview__section--blue .admin-overview__section-dot {
-    background: var(--color-navigation-music);
   }
 }

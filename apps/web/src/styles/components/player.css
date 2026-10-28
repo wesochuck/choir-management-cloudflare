@@ -2,6 +2,22 @@
  * Split from the original single-file stylesheet; imported in order from
  * theme.css so the cascade is unchanged.
  */
+/* Contents: 14 selector-guided sections
+ * - Player Shell & Header: .public-player-layout, .public-player, .practice-player
+ * - Responsive Grid & Main Column: .public-player__layout-grid, __main-column
+ * - Now Playing Card: .public-player__now-playing-card
+ * - Artwork Area: .public-player__artwork*
+ * - Track Metadata: .public-player__track*
+ * - Part Picker: .public-player__part-*
+ * - Voice-Part Nudge: selector guidance and labels
+ * - Progress & Range: .public-player__progress*, range controls
+ * - Transport Controls: .public-player__transport*, .public-player__play*
+ * - Secondary Controls: repeat, download, and playback options
+ * - Desktop Panel: .public-player__desktop-panel
+ * - Set List & Queue: .public-player__set-list*, .public-player__queue*
+ * - Sheet Drawers: .public-player__sheet*
+ * - Rehearsal Options & Motion: .public-player__options*, reduced motion
+ */
 @layer components {
   .public-player-layout {
     display: grid;
@@ -12,14 +28,6 @@
     padding-bottom: max(var(--spacing-md), env(safe-area-inset-bottom));
     padding-inline: max(var(--spacing-sm), env(safe-area-inset-left));
     background: color-mix(in srgb, var(--color-surface) 72%, var(--color-background));
-  }
-
-  @media (min-width: 48rem) {
-    .public-player-layout {
-      padding-top: max(var(--spacing-md), env(safe-area-inset-top));
-      padding-bottom: max(var(--spacing-lg), env(safe-area-inset-bottom));
-      padding-inline: max(var(--spacing-md), env(safe-area-inset-left));
-    }
   }
 
   .public-player__brand {
@@ -63,22 +71,10 @@
     gap: var(--spacing-xs);
   }
 
-  @media (min-width: 48rem) {
-    .public-player {
-      gap: var(--spacing-md);
-    }
-  }
-
   .practice-player {
     display: grid;
     gap: var(--spacing-md);
     width: 100%;
-  }
-
-  @media (min-width: 48rem) {
-    .practice-player {
-      gap: var(--spacing-lg);
-    }
   }
 
   .practice-player__filters {
@@ -149,31 +145,16 @@
     padding-inline: var(--spacing-3xs);
   }
 
-  .public-player__header h1,
-  .public-player__header p {
-    margin: 0;
-  }
-
   .public-player__header h1 {
+    margin: 0;
     font-size: clamp(1.15rem, 4vw, 1.5rem);
     line-height: var(--line-height-tight);
   }
 
   .public-player__header p {
-    margin-top: 2px;
+    margin: 2px 0 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
-  }
-
-  @media (min-width: 48rem) {
-    .public-player__header h1 {
-      font-size: clamp(1.5rem, 5vw, 2.25rem);
-    }
-
-    .public-player__header p {
-      margin-top: var(--spacing-3xs);
-      font-size: var(--font-size-sm);
-    }
   }
 
   /* Responsive Grid Layout */
@@ -185,28 +166,12 @@
     width: 100%;
   }
 
-  @media (min-width: 48rem) {
-    .public-player__layout-grid {
-      grid-template-columns: minmax(20rem, 26rem) minmax(0, 1fr);
-      gap: var(--spacing-md);
-      align-items: start;
-    }
-  }
-
   .public-player__main-column {
     display: grid;
     gap: var(--spacing-xs);
     width: 100%;
     max-width: 32rem;
     margin-inline: auto;
-  }
-
-  @media (min-width: 48rem) {
-    .public-player__main-column {
-      gap: var(--spacing-md);
-      max-width: none;
-      margin-inline: 0;
-    }
   }
 
   /* Now Playing Card */
@@ -219,14 +184,6 @@
     border-radius: var(--radius-card);
     background: var(--color-surface-raised);
     box-shadow: var(--shadow-md);
-  }
-
-  @media (min-width: 48rem) {
-    .public-player__now-playing-card {
-      gap: var(--spacing-md);
-      padding: var(--spacing-md);
-      box-shadow: var(--shadow-lg);
-    }
   }
 
   /* Artwork Area */
@@ -246,14 +203,6 @@
     border-radius: var(--radius-card);
     box-shadow: var(--shadow-sm);
     background: color-mix(in srgb, var(--color-accent) 15%, var(--color-surface));
-  }
-
-  @media (min-width: 48rem) {
-    .public-player__artwork {
-      width: min(72vw, 18rem);
-      max-height: 38vh;
-      box-shadow: var(--shadow-lg);
-    }
   }
 
   .public-player__artwork--placeholder {
@@ -457,25 +406,8 @@
     background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface-raised));
   }
 
-  @media (min-width: 48rem) {
-    .public-player__piece-track-mobile-trigger {
-      display: none;
-    }
-  }
-
   .public-player__part-selector-desktop {
     display: none;
-  }
-
-  @media (min-width: 48rem) {
-    .public-player__part-picker-mobile {
-      display: none;
-    }
-
-    .public-player__part-selector-desktop {
-      display: block;
-      width: 100%;
-    }
   }
 
   .public-player__part-trigger {
@@ -928,12 +860,6 @@
     gap: var(--spacing-sm);
   }
 
-  @media (min-width: 48rem) {
-    .public-player__transport {
-      gap: var(--spacing-md);
-    }
-  }
-
   .public-player__transport-btn,
   .button.public-player__transport-btn,
   .public-player__transport .public-player__transport-btn {
@@ -952,19 +878,6 @@
     flex-shrink: 0;
     -webkit-appearance: none;
     appearance: none;
-  }
-
-  @media (min-width: 48rem) {
-    .public-player__transport-btn,
-    .button.public-player__transport-btn,
-    .public-player__transport .public-player__transport-btn {
-      width: 3rem;
-      height: 3rem;
-      min-width: 3rem;
-      min-height: 3rem;
-      max-width: 3rem;
-      max-height: 3rem;
-    }
   }
 
   .public-player__transport-btn svg {
@@ -999,15 +912,6 @@
     appearance: none;
   }
 
-  @media (min-width: 48rem) {
-    .public-player__play,
-    .button.public-player__play,
-    .public-player__transport .public-player__play {
-      --public-player-play-size: calc(4rem * 1.3);
-      --public-player-play-icon-size: calc(1.75rem * 1.3);
-    }
-  }
-
   .public-player__play svg {
     width: var(--public-player-play-icon-size);
     height: var(--public-player-play-icon-size);
@@ -1018,12 +922,6 @@
 
   .public-player__play-icon--play {
     margin-left: calc(2px * 1.3);
-  }
-
-  @media (min-width: 48rem) {
-    .public-player__play-icon--play {
-      margin-left: calc(3px * 1.3);
-    }
   }
 
   /* Secondary Controls */
@@ -1084,17 +982,6 @@
 
   .public-player__desktop-panel {
     display: none;
-  }
-
-  @media (min-width: 48rem) {
-    .public-player__queue-trigger {
-      display: none;
-    }
-
-    .public-player__desktop-panel {
-      display: grid;
-      gap: var(--spacing-md);
-    }
   }
 
   .public-player__desktop-options {
@@ -1576,6 +1463,91 @@
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
   }
+
+  @media (min-width: 48rem) {
+    .public-player-layout {
+      padding-top: max(var(--spacing-md), env(safe-area-inset-top));
+      padding-bottom: max(var(--spacing-lg), env(safe-area-inset-bottom));
+      padding-inline: max(var(--spacing-md), env(safe-area-inset-left));
+    }
+    .public-player {
+      gap: var(--spacing-md);
+    }
+    .practice-player {
+      gap: var(--spacing-lg);
+    }
+    .public-player__header h1 {
+      font-size: clamp(1.5rem, 5vw, 2.25rem);
+    }
+
+    .public-player__header p {
+      margin-top: var(--spacing-3xs);
+      font-size: var(--font-size-sm);
+    }
+    .public-player__layout-grid {
+      grid-template-columns: minmax(20rem, 26rem) minmax(0, 1fr);
+      gap: var(--spacing-md);
+      align-items: start;
+    }
+    .public-player__main-column {
+      gap: var(--spacing-md);
+      max-width: none;
+      margin-inline: 0;
+    }
+    .public-player__now-playing-card {
+      gap: var(--spacing-md);
+      padding: var(--spacing-md);
+      box-shadow: var(--shadow-lg);
+    }
+    .public-player__artwork {
+      width: min(72vw, 18rem);
+      max-height: 38vh;
+      box-shadow: var(--shadow-lg);
+    }
+    .public-player__piece-track-mobile-trigger {
+      display: none;
+    }
+    .public-player__part-picker-mobile {
+      display: none;
+    }
+
+    .public-player__part-selector-desktop {
+      display: block;
+      width: 100%;
+    }
+    .public-player__transport {
+      gap: var(--spacing-md);
+    }
+    .public-player__transport-btn,
+    .button.public-player__transport-btn,
+    .public-player__transport .public-player__transport-btn {
+      width: 3rem;
+      height: 3rem;
+      min-width: 3rem;
+      min-height: 3rem;
+      max-width: 3rem;
+      max-height: 3rem;
+    }
+    .public-player__play,
+    .button.public-player__play,
+    .public-player__transport .public-player__play {
+      --public-player-play-size: calc(4rem * 1.3);
+      --public-player-play-icon-size: calc(1.75rem * 1.3);
+    }
+    .public-player__play-icon--play {
+      margin-left: calc(3px * 1.3);
+    }
+    .public-player__queue-trigger {
+      display: none;
+    }
+
+    .public-player__desktop-panel {
+      display: grid;
+      gap: var(--spacing-md);
+    }
+  }
+
+  /* Consolidated desktop layouts (48rem and wider). */
 
   /* Player Header Streamlining (removes wasted space on mobile) */
 

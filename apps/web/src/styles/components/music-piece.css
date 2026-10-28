@@ -2,7 +2,13 @@
  * Split from the original single-file stylesheet; imported in order from
  * theme.css so the cascade is unchanged.
  */
+/* Contents
+ * - Music Piece Form & Metadata Fields: form fields, metadata, and actions
+ * - Movements, Section Buckets & Audio Track Rows: sections and track controls
+ * - Music Editor Modal & Rail Layout: editor shell, navigation, and movements
+ */
 @layer components {
+  /* === Music Piece Form & Metadata Fields === */
   .music-piece-form {
     padding: 0;
   }
@@ -83,7 +89,7 @@
     grid-column: 1 / -1;
   }
 
-  /* Fields, section buckets, and audio tracks */
+  /* === Movements, Section Buckets & Audio Track Rows === */
 
   .music-section-buckets {
     display: flex;
@@ -460,9 +466,7 @@
   .music-audio-track__scrubber:disabled {
     opacity: 0.7;
   }
-}
-
-@layer components {
+  /* === Music Editor Modal & Rail Layout === */
   .dialog.dialog--music-editor {
     width: min(80rem, calc(100% - 2rem));
     max-width: min(80rem, calc(100% - 2rem));
@@ -564,6 +568,8 @@
     font-size: var(--font-size-2xl);
     font-weight: var(--font-weight-bold);
   }
+
+  /* Movement rows & actions */
   .music-movements h2 {
     font-family: inherit;
     margin: 0 0 var(--spacing-sm);

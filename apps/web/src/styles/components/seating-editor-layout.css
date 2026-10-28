@@ -1,14 +1,22 @@
 /* Seating editor grid and formation layout. */
+/* Contents
+ * - Seating Grid & Canvas: .seating-grid*, .seating-row--canvas
+ * - Focused Workspace Toolbar: page heading and .seating-toolbar*
+ * - Seat Nodes & Voice-Part Badges: .seating-seat*, assignment labels
+ * - Seating Tray & Unassigned Chips: tray controls and available singers
+ * - Formation Row/Column Ordering: drag targets and order controls
+ * - Name Index: printable roster and lookup results
+ */
 @layer components {
-  /* Seating editor layout and grid */
+  /* === Seating Grid & Canvas === */
 
-  .seating-editor,
-  .seating-grid {
+  .seating-editor {
     min-width: 0;
   }
 
   .seating-grid {
     display: grid;
+    min-width: 0;
     gap: var(--spacing-md);
     overflow-x: auto;
     padding: var(--spacing-md);
@@ -80,7 +88,17 @@
     margin-bottom: var(--spacing-md);
   }
 
-  .seating-default-formation,
+  .seating-default-formation {
+    min-width: 0;
+    margin: 0;
+    padding: clamp(var(--spacing-md), 2vw, var(--spacing-lg));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
+    display: grid;
+    gap: var(--spacing-sm);
+  }
+
   .seating-formation {
     min-width: 0;
     margin: 0;
@@ -88,14 +106,6 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-control);
     background: var(--color-surface-raised);
-  }
-
-  .seating-default-formation {
-    display: grid;
-    gap: var(--spacing-sm);
-  }
-
-  .seating-formation {
     display: grid;
     gap: var(--spacing-md);
   }
@@ -108,6 +118,7 @@
     font-weight: var(--font-weight-semibold);
   }
 
+  /* === Formation Row/Column Ordering === */
   .formation-order-editor {
     display: grid;
     gap: var(--spacing-sm);
@@ -185,10 +196,13 @@
     transform: scale(0.98);
   }
 
-  .formation-order-item--drop-before::before,
-  .formation-order-item--drop-after::after {
+  .formation-order-item--drop-before::before {
     position: absolute;
     z-index: 2;
+    top: -0.4rem;
+    bottom: -0.4rem;
+    left: -0.4rem;
+    width: 3px;
     border-radius: var(--radius-full);
     background: var(--color-primary);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
@@ -196,38 +210,36 @@
     pointer-events: none;
   }
 
-  .formation-order-item--drop-before::before,
   .formation-order-item--drop-after::after {
+    position: absolute;
+    z-index: 2;
     top: -0.4rem;
     bottom: -0.4rem;
+    right: -0.4rem;
     width: 3px;
+    border-radius: var(--radius-full);
+    background: var(--color-primary);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 22%, transparent);
+    content: "";
+    pointer-events: none;
   }
 
-  .formation-order-item--drop-before::before {
-    left: -0.4rem;
-  }
-
-  .formation-order-item--drop-after::after {
-    right: -0.4rem;
-  }
-
-  .formation-order-list--rows .formation-order-item--drop-before::before,
-  .formation-order-list--rows .formation-order-item--drop-after::after {
+  .formation-order-list--rows .formation-order-item--drop-before::before {
     right: -0.4rem;
     left: -0.4rem;
-    top: auto;
+    top: -0.4rem;
+    bottom: auto;
     width: auto;
     height: 3px;
   }
 
-  .formation-order-list--rows .formation-order-item--drop-before::before {
-    top: -0.4rem;
-    bottom: auto;
-  }
-
   .formation-order-list--rows .formation-order-item--drop-after::after {
     top: auto;
     bottom: -0.4rem;
+    right: -0.4rem;
+    left: -0.4rem;
+    width: auto;
+    height: 3px;
   }
 
   .formation-order-item--unknown {
@@ -289,6 +301,7 @@
     font-weight: var(--font-weight-extrabold);
   }
 
+  /* === Focused Workspace Toolbar === */
   /* Focused seating editor workspace */
 
   /* Wide workspace treatment for seating */
@@ -683,6 +696,9 @@
     overflow-x: auto;
     overflow-y: visible;
     padding: var(--spacing-3xs);
+    /* Keep the screen canvas clear around the interactive magnifier. */
+    padding-block: var(--spacing-md);
+    padding-inline: 3.5rem;
     border: 0;
     background: transparent;
   }
@@ -690,7 +706,8 @@
   .seating-row--canvas {
     display: grid;
     grid-template-columns:
-      3.85rem 1.45rem repeat(var(--seating-seat-count), minmax(3rem, 1fr))
+      3.85rem 1.45rem
+      repeat(var(--seating-seat-count), minmax(var(--seating-base-seat-width, 3rem), 1fr))
       1.45rem;
     align-items: stretch;
     gap: var(--spacing-2xs);
@@ -701,127 +718,105 @@
     display: contents;
   }
 
-  @media screen {
-    .seating-grid--canvas {
-      /* Keep the visual lens clear while retaining a compact outer buffer. */
-      padding-block: var(--spacing-md);
-      padding-inline: 3.5rem;
-    }
+  .seating-editor-canvas--readonly .seating-row--canvas {
+    grid-template-columns:
+      3.85rem
+      repeat(var(--seating-seat-count), minmax(var(--seating-base-seat-width, 3rem), 1fr));
+  }
 
-    .seating-row--canvas {
-      grid-template-columns:
-        3.85rem 1.45rem
-        repeat(var(--seating-seat-count), minmax(var(--seating-base-seat-width, 3rem), 1fr))
-        1.45rem;
-    }
+  .seating-row--canvas:has(.seating-seat--mismatch) {
+    /* Reserve warning space at rest so hovering never changes row geometry. */
+    --seating-seat-height: 7rem;
+  }
 
-    .seating-editor-canvas--readonly .seating-row--canvas {
-      grid-template-columns:
-        3.85rem
-        repeat(var(--seating-seat-count), minmax(var(--seating-base-seat-width, 3rem), 1fr));
-    }
+  .seating-seat__surface > * {
+    flex-shrink: 0;
+  }
 
-    .seating-row--canvas:has(.seating-seat--mismatch) {
-      /* Reserve warning space at rest so hovering never changes row geometry. */
-      --seating-seat-height: 7rem;
-    }
+  .seating-seat--canvas[data-magnified-neighbor] {
+    z-index: 2;
+  }
 
-    .seating-seat--canvas {
-      height: var(--seating-seat-height, clamp(4.2rem, 6vw, 6rem));
-      line-height: var(--line-height-tight);
-    }
+  .seating-seat--canvas[data-magnified] {
+    z-index: 3;
+  }
 
-    .seating-seat__surface > * {
-      flex-shrink: 0;
-    }
+  .seating-seat--canvas:is([data-magnified], [data-magnified-neighbor]) .seating-seat__surface {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: flex;
+    width: calc(100% + 2px);
+    height: auto;
+    min-height: calc(100% + 2px);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: inherit;
+    padding: inherit;
+    border: inherit;
+    border-radius: inherit;
+    color: inherit;
+    background: inherit;
+    line-height: var(--line-height-tight);
+    box-shadow: var(--shadow-sm);
+    transform: translate(-50%, -50%) scale(1.04);
+    pointer-events: none;
+  }
 
-    .seating-seat--canvas[data-magnified],
-    .seating-seat--canvas[data-magnified-neighbor] {
-      z-index: 2;
-    }
+  .seating-seat--canvas[data-magnified] .seating-seat__surface {
+    min-width: 7.5rem;
+    border-color: var(--color-accent);
+    box-shadow: var(--shadow-md);
+    transform: translate(-50%, calc(-50% + var(--seating-seat-lens-y-offset, 0px))) scale(1.2);
+  }
 
-    .seating-seat--canvas[data-magnified] {
-      z-index: 3;
-    }
+  .seating-row--canvas:first-child .seating-seat--canvas[data-magnified] .seating-seat__surface,
+  .seating-row--canvas:last-child .seating-seat--canvas[data-magnified] .seating-seat__surface {
+    /* Give full names enough width to fit within the compact scroll-boundary clearance. */
+    width: max-content;
+    max-width: 12rem;
+  }
 
-    .seating-seat--canvas[data-magnified] .seating-seat__surface,
-    .seating-seat--canvas[data-magnified-neighbor] .seating-seat__surface {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      display: flex;
-      width: calc(100% + 2px);
-      height: auto;
-      min-height: calc(100% + 2px);
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: inherit;
-      padding: inherit;
-      border: inherit;
-      border-radius: inherit;
-      color: inherit;
-      background: inherit;
-      line-height: var(--line-height-tight);
-      box-shadow: var(--shadow-sm);
-      transform: translate(-50%, -50%) scale(1.04);
-      pointer-events: none;
-    }
+  .seating-row--canvas:first-child .seating-seat--canvas[data-magnified] {
+    --seating-seat-lens-y-offset: var(--spacing-3xs);
+  }
 
-    .seating-seat--canvas[data-magnified] .seating-seat__surface {
-      min-width: 7.5rem;
-      border-color: var(--color-accent);
-      box-shadow: var(--shadow-md);
-      transform: translate(-50%, calc(-50% + var(--seating-seat-lens-y-offset, 0px))) scale(1.2);
-    }
+  .seating-row--canvas:last-child .seating-seat--canvas[data-magnified] {
+    --seating-seat-lens-y-offset: calc(0px - var(--spacing-3xs));
+  }
 
-    .seating-row--canvas:first-child .seating-seat--canvas[data-magnified] .seating-seat__surface,
-    .seating-row--canvas:last-child .seating-seat--canvas[data-magnified] .seating-seat__surface {
-      /* Give full names enough width to fit within the compact scroll-boundary clearance. */
-      width: max-content;
-      max-width: 12rem;
-    }
+  .seating-seat--canvas[data-magnified] .seating-seat__remove {
+    top: -0.35rem;
+    right: -0.35rem;
+  }
 
-    .seating-row--canvas:first-child .seating-seat--canvas[data-magnified] {
-      --seating-seat-lens-y-offset: var(--spacing-3xs);
-    }
+  .seating-row--canvas:first-child .seating-seat--canvas[data-magnified] .seating-seat__remove,
+  .seating-row--canvas:last-child .seating-seat--canvas[data-magnified] .seating-seat__remove {
+    top: 0.2rem;
+    right: 0.2rem;
+  }
 
-    .seating-row--canvas:last-child .seating-seat--canvas[data-magnified] {
-      --seating-seat-lens-y-offset: calc(0px - var(--spacing-3xs));
-    }
+  .seating-seat__surface .seating-seat__remove {
+    pointer-events: auto;
+  }
 
-    .seating-seat--canvas[data-magnified] .seating-seat__remove {
-      top: -0.35rem;
-      right: -0.35rem;
-    }
+  .seating-seat--canvas[data-magnified] .seating-seat__name {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    overflow: visible;
+  }
 
-    .seating-row--canvas:first-child .seating-seat--canvas[data-magnified] .seating-seat__remove,
-    .seating-row--canvas:last-child .seating-seat--canvas[data-magnified] .seating-seat__remove {
-      top: 0.2rem;
-      right: 0.2rem;
-    }
+  .seating-row--canvas[data-name-presentation]
+    .seating-seat--canvas[data-magnified]
+    .seating-seat__name-full {
+    display: inline;
+  }
 
-    .seating-seat__surface .seating-seat__remove {
-      pointer-events: auto;
-    }
-
-    .seating-seat--canvas[data-magnified] .seating-seat__name {
-      white-space: normal;
-      overflow-wrap: anywhere;
-      overflow: visible;
-    }
-
-    .seating-row--canvas[data-name-presentation]
-      .seating-seat--canvas[data-magnified]
-      .seating-seat__name-full {
-      display: inline;
-    }
-
-    .seating-row--canvas[data-name-presentation]
-      .seating-seat--canvas[data-magnified]
-      .seating-seat__name-initials {
-      display: none;
-    }
+  .seating-row--canvas[data-name-presentation]
+    .seating-seat--canvas[data-magnified]
+    .seating-seat__name-initials {
+    display: none;
   }
 
   .seating-row-label--canvas {
@@ -877,6 +872,7 @@
     color: var(--color-danger-text);
   }
 
+  /* === Seat Nodes & Voice-Part Badges === */
   .seating-seat--canvas {
     position: relative;
     display: flex;
@@ -884,6 +880,7 @@
     container-type: inline-size;
     min-width: 3rem;
     min-height: clamp(4.2rem, 6vw, 6rem);
+    height: var(--seating-seat-height, clamp(4.2rem, 6vw, 6rem));
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -894,6 +891,7 @@
     color: var(--color-text);
     background: var(--color-surface);
     font-size: clamp(0.65rem, 1vw, 0.8rem);
+    line-height: var(--line-height-tight);
     text-align: center;
     transition:
       border-color 120ms ease,
@@ -902,6 +900,8 @@
   }
 
   .seating-seat--assigned {
+    border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
+    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
     cursor: grab;
     touch-action: none;
   }
@@ -912,11 +912,6 @@
 
   .seating-seat--readonly {
     cursor: default;
-  }
-
-  .seating-seat--assigned {
-    border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border));
-    background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
   }
 
   .seating-seat__remove {
@@ -944,13 +939,13 @@
   }
 
   .seating-seat:hover .seating-seat__remove,
-  .seating-seat:focus-within .seating-seat__remove,
-  .seating-seat__remove:focus-visible {
+  .seating-seat:focus-within .seating-seat__remove {
     opacity: 1;
   }
 
   .seating-seat__remove:hover,
   .seating-seat__remove:focus-visible {
+    opacity: 1;
     border-color: var(--color-danger-text);
     background: var(--color-danger-text);
     color: var(--color-surface);
@@ -964,7 +959,7 @@
     box-shadow: 0 0.65rem 1.2rem color-mix(in srgb, var(--color-text) 24%, transparent);
   }
 
-  /* Seating tray and profile chips */
+  /* === Seating Tray & Unassigned Chips === */
 
   .seating-drag-overlay {
     display: grid;
@@ -1053,16 +1048,13 @@
   .seating-row[data-name-presentation="full"] .seating-seat--assigned .seating-seat__name-initials {
     display: none;
   }
+  @container seating-seat (max-width: 5.25rem) {
+    .seating-seat--assigned:not([data-name-presentation]) .seating-seat__name-full {
+      display: none;
+    }
 
-  @media screen {
-    @container seating-seat (max-width: 5.25rem) {
-      .seating-seat--assigned:not([data-name-presentation]) .seating-seat__name-full {
-        display: none;
-      }
-
-      .seating-seat--assigned:not([data-name-presentation]) .seating-seat__name-initials {
-        display: inline;
-      }
+    .seating-seat--assigned:not([data-name-presentation]) .seating-seat__name-initials {
+      display: inline;
     }
   }
 
@@ -1071,7 +1063,6 @@
     font-size: var(--font-size-2xs);
   }
 
-  .seating-seat__metadata,
   .seating-person-name {
     display: inline-flex;
     align-items: center;
@@ -1080,6 +1071,10 @@
   }
 
   .seating-seat__metadata {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-3xs);
+    min-width: 0;
     flex-wrap: nowrap;
     white-space: nowrap;
     line-height: var(--line-height-tight);
@@ -1146,24 +1141,27 @@
     outline: 2px solid color-mix(in srgb, var(--color-accent) 30%, transparent);
   }
 
-  .seating-tray__actions {
-    flex-wrap: wrap;
-  }
-
-  .seating-tray__header,
-  .seating-tray__actions {
+  .seating-tray__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--spacing-xs);
   }
 
-  .seating-tray__header h2,
-  .seating-tray__header p {
+  .seating-tray__actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-xs);
+    flex-wrap: wrap;
+  }
+
+  .seating-tray__header h2 {
     margin: 0;
   }
 
   .seating-tray__header p {
+    margin: 0;
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
   }
@@ -1342,7 +1340,6 @@
     content: ",";
   }
 
-  .seating-list-seat-number,
   .seating-list-voice-part {
     color: var(--color-text-muted);
     font-size: var(--font-size-xs);
@@ -1350,6 +1347,9 @@
   }
 
   .seating-list-seat-number {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-style: normal;
     min-width: 1.25rem;
     text-align: right;
   }
@@ -1359,6 +1359,7 @@
     font-weight: var(--font-weight-semibold);
   }
 
+  /* === Name Index === */
   .seating-name-index {
     display: grid;
     gap: var(--spacing-sm);
@@ -1371,16 +1372,13 @@
     gap: var(--spacing-sm);
   }
 
-  .seating-name-index__heading h2,
-  .seating-name-index__heading p {
-    margin: 0;
-  }
-
   .seating-name-index__heading h2 {
+    margin: 0;
     font-size: var(--font-size-body);
   }
 
   .seating-name-index__heading p {
+    margin: 0;
     margin-top: var(--spacing-3xs);
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);

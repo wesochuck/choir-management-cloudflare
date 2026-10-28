@@ -2,21 +2,29 @@
  * Split from the original single-file stylesheet; imported in order from
  * theme.css so the cascade is unchanged.
  */
+/* Contents
+ * - Editor Layout & Page Intro: layout, page heading, and toolbar
+ * - Music Search: catalog results and empty state
+ * - Add Panel & Summary: custom selections, timing, and save actions
+ * - Responsive Editor: viewport and container-based reflow
+ * - Schedule Set List: scheduled program and learning tracks
+ */
 @layer components {
-  .set-list-layout,
-  .set-list-items {
-    display: grid;
-    gap: var(--spacing-md);
-  }
-
-  .set-list-items {
-    min-width: 0;
-  }
-
+  /* === Editor Layout & Page Intro === */
   .set-list-layout {
+    display: grid;
     min-width: 0;
     margin-top: var(--spacing-3xs);
     gap: var(--spacing-sm);
+  }
+
+  .set-list-items {
+    display: grid;
+    gap: var(--spacing-xs);
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
   .set-list-section {
@@ -50,19 +58,15 @@
     text-align: center;
   }
 
-  .set-list-preview__header h1,
-  .set-list-preview__header p {
-    margin: 0;
-  }
-
   .set-list-preview__header h1 {
     width: 100%;
     max-width: none;
-    margin-inline: auto;
+    margin: 0 auto;
     font-size: var(--font-size-lg);
   }
 
   .set-list-preview__header p {
+    margin: 0;
     margin-top: var(--spacing-3xs);
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
@@ -218,8 +222,6 @@
   }
 
   .set-list-inline-control,
-  .set-list-summary,
-  .set-list-save-row,
   .set-list-item-heading,
   .set-list-credit-list li {
     display: flex;
@@ -425,8 +427,7 @@
     background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   }
 
-  .set-list-music-result span,
-  .set-list-music-results__empty {
+  .set-list-music-result span {
     color: var(--color-text-muted);
     font-size: var(--font-size-md);
   }
@@ -444,6 +445,8 @@
   }
 
   .set-list-music-results__empty {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-md);
     margin: 0;
     padding: var(--spacing-sm);
   }
@@ -496,9 +499,11 @@
     margin: 0;
   }
 
-  .set-list-summary,
   .set-list-save-row {
+    display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: var(--spacing-md);
     min-width: 0;
     padding: var(--spacing-sm) var(--spacing-sm);
     border: 1px solid var(--color-border);
@@ -510,8 +515,13 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
+    justify-content: space-between;
     gap: var(--spacing-md);
+    min-width: 0;
     padding: var(--spacing-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control);
+    background: var(--color-surface-raised);
     color: var(--color-text-muted);
     font-size: var(--font-size-sm);
   }
@@ -523,8 +533,7 @@
     font-weight: var(--font-weight-semibold);
   }
 
-  .set-list-summary dl,
-  .set-list-summary dd {
+  .set-list-summary dl {
     margin: 0;
   }
 
@@ -533,6 +542,7 @@
   }
 
   .set-list-summary dd {
+    margin: 0;
     color: var(--color-text);
     font-variant-numeric: tabular-nums;
   }
@@ -628,15 +638,10 @@
     }
   }
 
-  .set-list-items,
   .set-list-credit-list {
     margin: 0;
     padding: 0;
     list-style: none;
-  }
-
-  .set-list-items {
-    gap: var(--spacing-xs);
   }
 
   /* A pinned navigation rail can leave the editor narrower than the browser

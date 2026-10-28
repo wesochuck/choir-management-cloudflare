@@ -1,9 +1,16 @@
-/* === Signed-in workspace shell, navigation, and member dashboard ===
+/* === Signed-in workspace shell and navigation ===
  * Split from the original single-file stylesheet; imported in order from
  * theme.css so the cascade is unchanged.
  */
+/* Contents
+ * - Shell Grid & Header: .signed-in-shell, .signed-in-header, .signed-in-body
+ * - Sidebar & Scroll Region: .signed-in-sidebar, .sidebar-nav-scroll
+ * - Organization & Member Navigation: .organization-nav, .member-nav
+ * - Compact Rail & Flyouts: compact navigation state and flyout surfaces
+ * - Responsive & Reduced Motion: workspace breakpoints and motion preferences
+ */
 @layer components {
-  /* Signed-in workspace shell */
+  /* === Shell Grid & Header === */
   .skip-link {
     position: fixed;
     z-index: 100;
@@ -107,6 +114,7 @@
     place-items: center;
   }
 
+  /* === Sidebar & Scroll Region === */
   .signed-in-sidebar {
     position: sticky;
     top: var(--signed-in-header-height);
@@ -416,26 +424,7 @@
     }
   }
 
-  /* Phase 2: respect reduced motion; sidebar and drawer must not double
-   * animate or force background jumps during transitions. */
-  @media (prefers-reduced-motion: reduce) {
-    .signed-in-sidebar,
-    .sheet,
-    .sidebar-nav-scroll {
-      scroll-behavior: auto;
-    }
-
-    .signed-in-sidebar,
-    .sheet,
-    .sidebar-nav-scroll,
-    .sidebar-toolbar__button {
-      animation: none;
-      transition: none;
-    }
-  }
-}
-
-@layer components {
+  /* === Organization & Member Navigation === */
   .organization-nav {
     display: grid;
     gap: var(--spacing-xs);
@@ -542,7 +531,20 @@
   .member-nav .organization-nav__link[aria-current="page"] > svg {
     color: var(--color-accent);
   }
+  .organization-nav__link > svg {
+    color: var(--nav-accent, currentColor);
+  }
+  .organization-nav .quick-search-kbd {
+    --quick-search-kbd-color: var(--color-text);
+    color: var(--color-text);
+  }
+  /* The unlayered command-palette color declaration reads this scoped token. */
+  .organization-nav .quick-search-sidebar-button .quick-search-kbd {
+    --quick-search-kbd-color: var(--color-text);
+    color: var(--color-text);
+  }
 
+  /* === Compact Rail & Flyouts === */
   .organization-nav__drawer-title {
     margin: 0;
     font-size: var(--font-size-lg);
@@ -623,33 +625,8 @@
       align-items: center;
     }
   }
-  @media (prefers-reduced-motion: reduce) {
-    .organization-nav__chevron {
-      transition: none;
-    }
-  }
-}
-
-@layer components {
-  .organization-nav__link > svg {
-    color: var(--nav-accent, currentColor);
-  }
-}
-
-@layer components {
-  .organization-nav .quick-search-kbd {
-    color: var(--color-text);
-  }
-}
-
-/* Bridge the existing unlayered palette styles, scoped to Organization navigation. */
-.organization-nav .quick-search-sidebar-button .quick-search-kbd {
-  color: var(--color-text);
-}
-
-/* Tablets use the existing modal navigation so operational pages retain their width.
+  /* Tablets use the existing modal navigation so operational pages retain their width.
  * Keep this breakpoint aligned with NARROW_SIDEBAR_QUERY. Desktop preferences persist. */
-@layer components {
   @media (40rem < width <= 64rem) {
     .signed-in-shell[data-workspace] .signed-in-body {
       display: block;
@@ -662,6 +639,28 @@
       place-items: center;
       min-width: 2.75rem;
       min-height: 2.75rem;
+    }
+  }
+
+  /* === Responsive & Reduced Motion === */
+  /* Keep shell, drawer, and navigation transitions quiet when motion is reduced. */
+  @media (prefers-reduced-motion: reduce) {
+    .signed-in-sidebar,
+    .sheet,
+    .sidebar-nav-scroll {
+      scroll-behavior: auto;
+    }
+
+    .signed-in-sidebar,
+    .sheet,
+    .sidebar-nav-scroll,
+    .sidebar-toolbar__button {
+      animation: none;
+      transition: none;
+    }
+
+    .organization-nav__chevron {
+      transition: none;
     }
   }
 }

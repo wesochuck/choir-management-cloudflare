@@ -4,6 +4,13 @@
  * the community-choir inquiry. Colors come from theme tokens so light, dark,
  * and usability palettes apply without component-level overrides.
  */
+/* Contents
+ * - Hero & Product Preview: .platform-hero, .platform-preview*
+ * - Audience Routes: .platform-routes*, .platform-route*
+ * - Features & Sign In: feature overview and access guide
+ * - Performances & Choir Inquiry: ticketed events and inquiry form
+ * - Responsive Layout & Footer: breakpoints, motion preferences, and footer
+ */
 @layer components {
   .platform-home {
     --platform-tint: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
@@ -117,7 +124,6 @@
   }
 
   .platform-preview__list strong,
-  .platform-preview__ticket strong,
   .platform-preview__track-copy strong {
     display: block;
     font-size: var(--font-size-base);
@@ -224,6 +230,8 @@
   }
 
   .platform-preview__ticket strong {
+    display: block;
+    font-size: var(--font-size-base);
     color: var(--color-text);
   }
 
@@ -355,9 +363,14 @@
     background: var(--color-surface);
   }
 
-  .platform-feature h3,
-  .platform-step h3 {
+  .platform-feature h3 {
     margin: var(--spacing-md) 0 var(--spacing-3xs);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+  }
+
+  .platform-step h3 {
+    margin: 0 0 var(--spacing-3xs);
     font-size: var(--font-size-lg);
     font-weight: var(--font-weight-bold);
   }
@@ -418,10 +431,6 @@
   .platform-step {
     display: flex;
     gap: var(--spacing-md);
-  }
-
-  .platform-step h3 {
-    margin-top: 0;
   }
 
   .platform-step__number {
@@ -589,7 +598,6 @@
   }
 
   @media (max-width: 48rem) {
-    .platform-hero,
     .platform-signin,
     .platform-inquiry {
       grid-template-columns: 1fr;
@@ -597,6 +605,8 @@
     }
 
     .platform-hero {
+      grid-template-columns: 1fr;
+      gap: var(--spacing-2xl);
       padding-block: var(--spacing-2xl);
     }
 

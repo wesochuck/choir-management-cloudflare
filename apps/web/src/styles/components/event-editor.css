@@ -2,6 +2,13 @@
  * Split from forms-layouts.css; imported in order from theme.css so the
  * cascade is unchanged.
  */
+/* Contents
+ * - Dialog Shell & Header: responsive event editor dialog and title bar
+ * - Sidebar Rail & Navigation: section tabs and mobile section selector
+ * - Form Panels & Date/Time Controls: panels, fields, and native controls
+ * - Targeted Audience Chips: member search, selected members, and options
+ * - RSVP Summary: staffing and attendance summary fields
+ */
 @layer components {
   .ticketing-price-note {
     grid-column: 1 / -1;
@@ -98,6 +105,7 @@
     margin: 0;
   }
 
+  /* === RSVP Summary === */
   .event-rsvp-summary {
     display: grid;
     gap: var(--spacing-sm);
@@ -155,7 +163,7 @@
     border-top: 1px solid var(--color-border);
   }
 
-  /* === Redesigned Event Editor === */
+  /* === Dialog Shell & Header === */
 
   .dialog--event-editor,
   .dialog.dialog--event-editor,
@@ -270,6 +278,7 @@
     overflow: hidden;
   }
 
+  /* === Sidebar Rail & Navigation === */
   .event-editor__rail {
     width: 17rem;
     flex-shrink: 0;
@@ -431,6 +440,7 @@
     display: none;
   }
 
+  /* === Form Panels & Date/Time Controls === */
   .event-editor-main {
     display: flex;
     flex-direction: column;
@@ -611,7 +621,7 @@
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
   }
 
-  /* Targeted audience member search & chips */
+  /* === Targeted Audience Chips === */
   .targeted-members-search {
     position: relative;
     width: 100%;
