@@ -18,6 +18,7 @@ describe("Organization communications", () => {
       { email: "", phone: "" },
     ];
     expect(communicationReach(recipients, "Email")).toEqual({
+      audienceOverLimit: false,
       both: 1,
       email: 2,
       sms: 2,

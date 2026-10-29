@@ -121,6 +121,9 @@ const communicationAudienceRequestBaseSchema = z.object({
   rsvp: z.enum(["All", "Yes", "No", "Pending"]).default("All"),
   targetAudiences: z.array(communicationAudienceTargetSchema).min(1).max(4).default(["Members"]),
   ticketBuyerMode: communicationTicketBuyerModeSchema.default("marketing"),
+  ticketBuyerPastEventsOnly: z.boolean().optional(),
+  ticketBuyerSourceEventIds: z.array(z.uuid()).max(50).optional(),
+  excludeTicketBuyersForEventId: z.uuid().nullable().optional(),
   voiceParts: z.array(z.string().trim().min(1).max(80)).max(100).default([]),
 });
 
@@ -160,37 +163,183 @@ function validateTicketBuyerDeliveryChannel(
   }
 }
 
+interface PromotionComposeValue {
+  readonly audience: z.infer<typeof communicationAudienceRequestSchema>;
+  readonly channel: z.infer<typeof communicationChannelSchema>;
+  readonly eventPromotion?: { readonly eventId: string } | null | undefined;
+}
+
+function validatePromotionAudienceBase(
+  value: PromotionComposeValue,
+  context: z.RefinementCtx,
+): void {
+  if (!value.eventPromotion) return;
+  const allowedAudience = value.audience.targetAudiences.every(
+    (target) => target === "Ticket Buyers" || target === "Contacts",
+  );
+  if (
+    value.channel !== "Email" ||
+    value.audience.ticketBuyerMode !== "marketing" ||
+    value.audience.eventId !== null ||
+    !allowedAudience ||
+    value.audience.targetAudiences.length === 0
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Event promotions require Email and only marketing Ticket Buyers or Contacts.",
+      path: ["audience"],
+    });
+  }
+}
+
+function validatePromotionBuyerSource(
+  value: PromotionComposeValue,
+  context: z.RefinementCtx,
+): void {
+  if (
+    value.eventPromotion &&
+    value.audience.targetAudiences.includes("Ticket Buyers") &&
+    value.audience.ticketBuyerPastEventsOnly !== true &&
+    (value.audience.ticketBuyerSourceEventIds?.length ?? 0) === 0
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Choose previous performances as the Ticket Buyer source.",
+      path: ["audience", "ticketBuyerPastEventsOnly"],
+    });
+  }
+}
+
+function validatePromotionBuyerExclusion(
+  value: PromotionComposeValue,
+  context: z.RefinementCtx,
+): void {
+  const exclusionId = value.audience.excludeTicketBuyersForEventId;
+  if (
+    value.eventPromotion &&
+    exclusionId !== null &&
+    exclusionId !== undefined &&
+    exclusionId !== value.eventPromotion.eventId
+  ) {
+    context.addIssue({
+      code: "custom",
+      message: "Event promotions may only exclude buyers for their target event.",
+      path: ["audience", "excludeTicketBuyersForEventId"],
+    });
+  }
+}
+
 export const communicationAudienceChannelRequestSchema = z
-  .object({ audience: communicationAudienceRequestSchema, channel: communicationChannelSchema })
-  .superRefine(validateTicketBuyerDeliveryChannel);
+  .object({
+    audience: communicationAudienceRequestSchema,
+    channel: communicationChannelSchema,
+    contentMarkdown: z.string().max(100_000).optional(),
+    draftRevision: z.number().int().positive().optional(),
+    eventPromotion: z
+      .object({
+        announcementKind: z.enum(["initial", "follow_up"]),
+        eventId: z.uuid(),
+        parentMessageId: z.uuid().nullable(),
+      })
+      .optional(),
+    messageId: z.uuid().optional(),
+    subject: z.string().trim().max(300).optional(),
+  })
+  .superRefine((value, context) => {
+    validateTicketBuyerDeliveryChannel(value, context);
+    if (
+      value.eventPromotion &&
+      (!value.messageId ||
+        !value.draftRevision ||
+        value.audience.eventId !== null ||
+        value.contentMarkdown === undefined ||
+        value.subject === undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "A promotion reach review requires the saved draft identity and revision.",
+        path: ["messageId"],
+      });
+    }
+  });
 
-const communicationComposeBaseSchema = z.object({
-  audience: communicationAudienceRequestSchema,
-  channel: communicationChannelSchema,
-  contentMarkdown: z.string().max(100_000),
-  subject: z.string().trim().max(300),
-});
+const communicationComposeBaseSchema = z
+  .object({
+    audience: communicationAudienceRequestSchema,
+    channel: communicationChannelSchema,
+    contentMarkdown: z.string().max(100_000),
+    eventPromotion: z
+      .object({
+        announcementKind: z.enum(["initial", "follow_up"]),
+        eventId: z.uuid(),
+        parentMessageId: z.uuid().nullable().default(null),
+      })
+      .superRefine((value, context) => {
+        if (value.announcementKind === "initial" && value.parentMessageId !== null) {
+          context.addIssue({
+            code: "custom",
+            message: "An initial announcement cannot have a parent.",
+          });
+        }
+        if (value.announcementKind === "follow_up" && value.parentMessageId === null) {
+          context.addIssue({
+            code: "custom",
+            message: "A follow-up must reference its parent message.",
+          });
+        }
+      })
+      .nullable()
+      .optional(),
+    subject: z.string().trim().max(300),
+  })
+  .superRefine((value, context) => {
+    validatePromotionAudienceBase(value, context);
+    validatePromotionBuyerSource(value, context);
+    validatePromotionBuyerExclusion(value, context);
+  });
 
-export const communicationDraftRequestSchema = communicationComposeBaseSchema.superRefine(
-  (value, context) => {
+export const communicationDraftRequestSchema = communicationComposeBaseSchema
+  .extend({
+    expectedRevision: z.number().int().positive().nullable().optional(),
+    messageId: z.uuid().nullable().optional(),
+  })
+  .superRefine((value, context) => {
     validateTicketBuyerDeliveryChannel(value, context);
     if (value.channel !== "SMS" && value.subject.length === 0) {
       context.addIssue({ code: "custom", message: "Email messages require a subject." });
     }
-  },
-);
+    const hasMessageId = (value.messageId ?? null) !== null;
+    const hasExpectedRevision = (value.expectedRevision ?? null) !== null;
+    const isPromotionDraftCreation = hasMessageId && !hasExpectedRevision && value.eventPromotion;
+    if (hasMessageId !== hasExpectedRevision && !isPromotionDraftCreation) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "An expected draft revision requires a message ID; a new event promotion may provide a stable ID.",
+        path: ["messageId"],
+      });
+    }
+  });
 
-export const communicationSendRequestSchema = communicationDraftRequestSchema.superRefine(
-  (value, context) => {
+export const communicationSendRequestSchema = communicationDraftRequestSchema
+  .superRefine((value, context) => {
     if (value.contentMarkdown.trim().length === 0) {
       context.addIssue({ code: "custom", message: "A message is required." });
     }
-  },
-);
+    if (value.eventPromotion && (!value.messageId || !value.expectedRevision)) {
+      context.addIssue({
+        code: "custom",
+        message: "Event promotions must send the saved draft revision.",
+        path: ["expectedRevision"],
+      });
+    }
+  })
+  .and(z.object({ reviewSnapshot: z.string().min(1).max(4_096).optional() }));
 
 export const communicationTestEmailRequestSchema = z.object({
   audience: communicationAudienceRequestSchema.optional(),
   contentMarkdown: z.string().trim().min(1).max(100_000),
+  eventId: z.uuid().nullable().optional(),
   email: z.email().max(320),
   subject: z.string().trim().min(1).max(300),
 });
@@ -218,6 +367,7 @@ export const communicationTemplateSchema = communicationTemplateRequestSchema.an
 );
 
 export const communicationReachSchema = z.object({
+  audienceOverLimit: z.boolean().default(false),
   both: z.number().int().nonnegative(),
   email: z.number().int().nonnegative(),
   sms: z.number().int().nonnegative(),
@@ -232,9 +382,20 @@ export const communicationMessageSchema = z.object({
   channel: communicationChannelSchema,
   contentMarkdown: z.string().max(100_000),
   createdAt: z.iso.datetime(),
+  draftRevision: z.number().int().positive().default(1),
+  eventPromotion: z
+    .object({
+      announcementKind: z.enum(["initial", "follow_up"]),
+      eventId: z.uuid(),
+      parentMessageId: z.uuid().nullable().default(null),
+    })
+    .nullable()
+    .default(null),
   id: z.uuid(),
   reach: communicationReachSchema,
   sentAt: z.iso.datetime().nullable(),
+  queuedByUserId: z.string().max(128).nullable().default(null),
+  queuedByName: z.string().max(200).nullable().default(null),
   status: communicationMessageStatusSchema,
   subject: z.string().max(300),
   updatedAt: z.iso.datetime(),
@@ -320,7 +481,10 @@ export const communicationMessagesResponseSchema = z.object({
   requestId: requestIdSchema,
 });
 export const communicationReachResponseSchema = communicationReachSchema.and(
-  z.object({ requestId: requestIdSchema }),
+  z.object({
+    requestId: requestIdSchema,
+    reviewSnapshot: z.string().min(1).max(4_096).optional(),
+  }),
 );
 export const communicationTestEmailResponseSchema = z.object({
   requestId: requestIdSchema,
@@ -398,6 +562,9 @@ export const communicationDeliveryRecipientsPageResponseSchema = z.object({
 });
 
 export type CommunicationAudienceRequest = z.infer<typeof communicationAudienceRequestSchema>;
+export type CommunicationAudienceChannelRequest = z.infer<
+  typeof communicationAudienceChannelRequestSchema
+>;
 export type CommunicationChannel = z.infer<typeof communicationChannelSchema>;
 export type CommunicationDeliveryRecipient = z.infer<typeof communicationDeliveryRecipientSchema>;
 export type CommunicationDeliveryRecipientsPageResponse = z.infer<

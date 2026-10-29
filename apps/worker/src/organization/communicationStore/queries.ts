@@ -1,4 +1,5 @@
 export {
+  listEventPromotionMessagesFromStore,
   listCommunicationHistoryFromStore,
   listCommunicationMessagesFromStore,
 } from "./historyQueries";

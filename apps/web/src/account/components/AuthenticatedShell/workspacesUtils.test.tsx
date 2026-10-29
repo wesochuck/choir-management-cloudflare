@@ -149,6 +149,14 @@ describe("renderOrganizationPage routing and aliases", () => {
     });
   });
 
+  it("allows opening an event directly to its Promotion section", () => {
+    const props = eventsPagePropsFromSearch("?eventId=event-456&section=promotion");
+    expect(props).toMatchObject({
+      initialEventId: "event-456",
+      initialSection: "promotion",
+    });
+  });
+
   it("sanitizes returnTo to recognized internal routes and rejects open redirects", () => {
     expect(sanitizeEventsReturnTo("/admin/tickets")).toBe("/admin/tickets");
     expect(sanitizeEventsReturnTo("/admin/ticketing?eventId=123")).toBe(

@@ -365,11 +365,11 @@ export function readCommunicationJobFromStore(
       }),
     );
   });
-  const eventId = message.audience.eventId;
+  const eventId = message.eventPromotion?.eventId ?? message.audience.eventId;
   const context = eventCommunicationContext(
     storage,
     eventId,
-    message.audience.ticketBuyerMode === "ticket_service",
+    message.audience.ticketBuyerMode === "ticket_service" || message.eventPromotion !== null,
   );
   return Response.json({
     contentMarkdown: message.contentMarkdown,

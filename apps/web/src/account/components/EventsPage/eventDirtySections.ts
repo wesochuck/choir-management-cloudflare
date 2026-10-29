@@ -45,6 +45,7 @@ export function eventDirtySections(
     rsvp: false,
     tickets: false,
     public: false,
+    promotion: false,
   };
   for (const field of Object.keys(FIELD_SECTIONS)) {
     if (isEventField(field) && JSON.stringify(current[field]) !== JSON.stringify(baseline[field]))

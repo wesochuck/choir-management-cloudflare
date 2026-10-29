@@ -1,11 +1,12 @@
 import type {
   OrganizationAttendanceRow,
+  OrganizationEvent,
   OrganizationEventRequest,
   OrganizationProfile,
   OrganizationRosterConfiguration,
   OrganizationVenue,
 } from "@choir/contracts";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { SetStateAction } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -19,6 +20,10 @@ vi.mock("../../../auth/api", async (importOriginal) => {
   return {
     ...actual,
     createOrganizationVenue: vi.fn(),
+    getOrganizationBranding: vi.fn(),
+    getOrganizationProviderStatus: vi.fn(),
+    listOrganizationCommunicationTemplates: vi.fn(),
+    listOrganizationEventPromotionMessages: vi.fn(),
     listOrganizationVenues: vi.fn(),
   };
 });
@@ -30,15 +35,24 @@ vi.mock("../../../api", async (importOriginal) => {
     ...actual,
     getOrganizationRosterConfiguration: vi.fn(),
     listOrganizationEventAttendance: vi.fn(),
+    listOrganizationContactLists: vi.fn(),
     listOrganizationProfiles: vi.fn(),
     previewOrganizationCommunicationReach: vi.fn(),
   };
 });
 
-import { createOrganizationVenue, listOrganizationVenues } from "../../../auth/api";
+import {
+  createOrganizationVenue,
+  getOrganizationBranding,
+  getOrganizationProviderStatus,
+  listOrganizationCommunicationTemplates,
+  listOrganizationEventPromotionMessages,
+  listOrganizationVenues,
+} from "../../../auth/api";
 import {
   getOrganizationRosterConfiguration,
   listOrganizationEventAttendance,
+  listOrganizationContactLists,
   listOrganizationProfiles,
   previewOrganizationCommunicationReach,
 } from "../../../api";
@@ -100,15 +114,165 @@ beforeEach(() => {
   vi.mocked(createOrganizationVenue).mockReset();
   vi.mocked(listOrganizationVenues).mockReset();
   vi.mocked(listOrganizationVenues).mockResolvedValue([]);
+  vi.mocked(getOrganizationBranding).mockReset();
+  vi.mocked(getOrganizationBranding).mockResolvedValue({
+    logoFileId: null,
+    organizationId: "organization-test",
+    organizationName: "Community Choir",
+    physicalAddress: null,
+  });
+  vi.mocked(getOrganizationProviderStatus).mockReset();
+  vi.mocked(getOrganizationProviderStatus).mockResolvedValue({
+    brevo: { detail: "Ready", status: "ok" },
+    emailSender: { fromEmail: "choir@example.test", fromName: "Community Choir" },
+    environment: "local",
+    externalEffectsMode: "fake",
+    requestId: "11111111-1111-4111-8111-111111111111",
+    stripe: { detail: "Not configured", status: "attention" },
+  });
+  vi.mocked(listOrganizationCommunicationTemplates).mockReset();
+  vi.mocked(listOrganizationCommunicationTemplates).mockResolvedValue([]);
+  vi.mocked(listOrganizationEventPromotionMessages).mockReset();
+  vi.mocked(listOrganizationEventPromotionMessages).mockResolvedValue([]);
   vi.mocked(getOrganizationRosterConfiguration).mockReset();
   vi.mocked(getOrganizationRosterConfiguration).mockResolvedValue(defaultRosterConfiguration);
   vi.mocked(listOrganizationEventAttendance).mockReset();
   vi.mocked(listOrganizationEventAttendance).mockResolvedValue([]);
   vi.mocked(listOrganizationProfiles).mockReset();
   vi.mocked(listOrganizationProfiles).mockResolvedValue([]);
+  vi.mocked(listOrganizationContactLists).mockReset();
+  vi.mocked(listOrganizationContactLists).mockResolvedValue([]);
+  vi.mocked(previewOrganizationCommunicationReach).mockReset();
+  vi.mocked(previewOrganizationCommunicationReach).mockResolvedValue({
+    audienceOverLimit: false,
+    both: 0,
+    email: 5,
+    sms: 0,
+    ticketBuyerPurchasesOverLimit: 0,
+    total: 5,
+    undeliverableTicketBuyerPurchases: 0,
+    unreachable: 0,
+  });
 });
 
+function eventStateWithPromotion(
+  event: OrganizationEvent,
+): Extract<EventsState, { readonly status: "ready" }> {
+  return {
+    events: [event],
+    rsvpExpiryEnabled: false,
+    rsvpFollowUpEnabled: false,
+    rsvpFollowUpLeadHours: 48,
+    status: "ready",
+    timezone: "America/New_York",
+    venues: [venueHall],
+  };
+}
+
 describe("EventEditorDialog section layout", () => {
+  it("locks promotion preparation until a Performance is saved with ticket sales enabled", async () => {
+    const event: OrganizationEventRequest = {
+      ...emptyEvent,
+      isTicketingEnabled: true,
+      publishOnWebsite: true,
+      title: "Spring Concert",
+      type: "Performance",
+      venueId: venueHall.id,
+    };
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen
+        editingId={null}
+        error={null}
+        event={event}
+        eventStart="2027-11-15T19:00"
+        graphicFile={null}
+        initialSection="promotion"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={readyState}
+      />,
+    );
+
+    expect(screen.getByRole("tab", { name: /Promotion/ })).toHaveAttribute("aria-selected", "true");
+    expect(
+      await screen.findByText("Save this event before preparing an announcement."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Prepare announcement" })).not.toBeInTheDocument();
+  });
+
+  it("uses the shared composer for an eligible Performance and allows adding Contacts", async () => {
+    const user = userEvent.setup();
+    const startsAt = new Date(Date.now() + 86_400_000).toISOString();
+    const eventRequest: OrganizationEventRequest = {
+      ...emptyEvent,
+      isTicketingEnabled: true,
+      publishOnWebsite: true,
+      startsAt,
+      title: "Spring Concert",
+      type: "Performance",
+      venueId: venueHall.id,
+    };
+    const event: OrganizationEvent = {
+      ...eventRequest,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      id: "22222222-2222-4222-8222-222222222222",
+      isCanceled: false,
+      rsvpDeadlineAt: null,
+      rsvpDeadlinePassed: false,
+      rsvpSelfServiceOpen: true,
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    render(
+      <EventEditorDialog
+        busy={false}
+        dialogOpen
+        editingId={event.id}
+        error={null}
+        event={eventRequest}
+        eventStart="2027-11-15T19:00"
+        graphicFile={null}
+        initialSection="promotion"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        setEvent={vi.fn()}
+        setEventStart={vi.fn()}
+        setGraphicFile={vi.fn()}
+        state={eventStateWithPromotion(event)}
+      />,
+    );
+
+    const prepareButton = await screen.findByRole("button", { name: "Prepare announcement" });
+    await user.click(prepareButton);
+    expect(screen.getByLabelText("Subject")).toHaveValue("Tickets are available: Spring Concert");
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeInTheDocument();
+    const recipientPanel = screen.getByLabelText("Recipient context");
+    await user.click(within(recipientPanel).getByRole("button", { name: "Edit recipients" }));
+    expect(screen.getByLabelText("Ticket Buyers")).toBeChecked();
+    expect(screen.getByLabelText("Contacts")).not.toBeChecked();
+    await user.click(screen.getByLabelText("Contacts"));
+    expect(
+      screen.getByText("No contact lists yet. The message will reach all eligible contacts."),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(previewOrganizationCommunicationReach).toHaveBeenCalled();
+    });
+    const subjectInput = screen.getByLabelText("Subject");
+    await user.clear(subjectInput);
+    await user.type(subjectInput, "Draft survives section changes");
+    await user.click(screen.getByRole("tab", { name: /Basics/ }));
+    await user.click(screen.getByRole("tab", { name: /Promotion/ }));
+    expect(screen.getByLabelText("Subject")).toHaveValue("Draft survives section changes");
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.getByRole("dialog", { name: "Discard unsaved changes?" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByLabelText("Subject")).toHaveValue("Draft survives section changes");
+  });
+
   it("links ticket sales to public visibility and preserves visibility when ticketing is turned off", async () => {
     const user = userEvent.setup();
     let draft: OrganizationEventRequest = {
@@ -2186,6 +2350,7 @@ describe("EventEditorDialog RSVP response summary and navigation", () => {
       [1, 2, 3, 4].map((number) => ({ ...base, id: `profile-${String(number)}` })),
     );
     vi.mocked(previewOrganizationCommunicationReach).mockResolvedValue({
+      audienceOverLimit: false,
       both: 0,
       email: 1,
       sms: 0,

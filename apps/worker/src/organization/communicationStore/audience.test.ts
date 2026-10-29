@@ -3,11 +3,15 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
 import type { CommunicationAudienceRequest } from "@choir/contracts";
-import { communicationRecipientSubjectSchema } from "@choir/contracts";
+import {
+  communicationMessagesResponseSchema,
+  communicationRecipientSubjectSchema,
+} from "@choir/contracts";
 import { dedupeCommunicationCandidates, type CommunicationRecipientCandidate } from "@choir/domain";
 import { organizationSchemaMigrations } from "../schema/migrations";
 import { resolveCommunicationAudienceFromStore } from "./audience";
 import { sendOperationSchema, type CommunicationAudienceStorage } from "./contracts";
+import { listEventPromotionMessagesFromStore } from "./historyQueries";
 
 const ORG_ID = "org-audience-test";
 
@@ -241,6 +245,16 @@ function seedCanceledEvent(db: DatabaseSync): string {
   return id;
 }
 
+function seedPerformanceEvent(db: DatabaseSync, title: string, startsAt: string): string {
+  const id = uuidFor("performance-event");
+  const now = new Date().toISOString();
+  db.prepare(
+    `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+     VALUES (?, ?, 'Performance', ?, ?, ?)`,
+  ).run(id, title, startsAt, now, now);
+  return id;
+}
+
 function addBundleAllocation(db: DatabaseSync, purchaseId: string, eventId: string): void {
   db.prepare(
     `INSERT INTO ticket_bundle_allocations (purchase_id, event_id, quantity)
@@ -273,6 +287,7 @@ async function resolveAudience(
   audience: CommunicationAudienceRequest,
   organizationId: string = ORG_ID,
 ): Promise<{
+  readonly contactsOverLimit: boolean;
   readonly recipients: AudienceRecipient[];
   readonly status: number;
   readonly ticketBuyerPurchasesOverLimit: number;
@@ -288,6 +303,7 @@ async function resolveAudience(
     return {
       recipients: [],
       status: response.status,
+      contactsOverLimit: false,
       ticketBuyerPurchasesOverLimit: 0,
       undeliverableTicketBuyerPurchases: 0,
     };
@@ -304,9 +320,14 @@ async function resolveAudience(
     typeof body.ticketBuyerPurchasesOverLimit === "number"
       ? body.ticketBuyerPurchasesOverLimit
       : 0;
+  const contactsOverLimit =
+    "contactsOverLimit" in body && typeof body.contactsOverLimit === "boolean"
+      ? body.contactsOverLimit
+      : false;
   return {
     recipients: list,
     status: response.status,
+    contactsOverLimit,
     ticketBuyerPurchasesOverLimit,
     undeliverableTicketBuyerPurchases,
   };
@@ -349,6 +370,70 @@ describe("resolveCommunicationAudienceFromStore", () => {
     expect((await resolveCommunicationAudienceFromStore(storage, malformed)).status).toBe(400);
     const foreign = await resolveAudience(storage, audienceFor(["Contacts"]), "org-other");
     expect(foreign.status).toBe(404);
+  });
+
+  it("scopes promotion buyer selection to past Performances without using target event context", async () => {
+    const { db, storage } = seedDatabase();
+    const pastOne = seedPerformanceEvent(db, "Past One", "2020-01-01T00:00:00.000Z");
+    const pastTwo = seedPerformanceEvent(db, "Past Two", "2021-01-01T00:00:00.000Z");
+    const upcoming = seedPerformanceEvent(db, "Upcoming", "2090-01-01T00:00:00.000Z");
+    const target = seedPerformanceEvent(db, "Target", "2091-01-01T00:00:00.000Z");
+    const purchases: readonly {
+      readonly email: string;
+      readonly eventId: string;
+      readonly name: string;
+    }[] = [
+      { email: "past-one@example.test", eventId: pastOne, name: "Past buyer one" },
+      { email: "past-two@example.test", eventId: pastTwo, name: "Past buyer two" },
+      { email: "upcoming@example.test", eventId: upcoming, name: "Upcoming buyer" },
+      { email: "target@example.test", eventId: target, name: "Target buyer" },
+    ];
+    for (const { email, eventId, name } of purchases) {
+      seedContact(db, { displayName: name, email });
+      seedTicketPurchase(db, name, email, { eventId });
+    }
+
+    const previous = await resolveAudience(
+      storage,
+      audienceFor(["Ticket Buyers"], { ticketBuyerPastEventsOnly: true }),
+    );
+    expect(previous.recipients.map(({ email }) => email).sort()).toEqual([
+      "past-one@example.test",
+      "past-two@example.test",
+    ]);
+
+    const selected = await resolveAudience(
+      storage,
+      audienceFor(["Ticket Buyers"], { ticketBuyerSourceEventIds: [pastTwo] }),
+    );
+    expect(selected.recipients.map(({ email }) => email)).toEqual(["past-two@example.test"]);
+
+    const contactsWithBuyerExclusion = await resolveAudience(
+      storage,
+      audienceFor(["Contacts"], {
+        excludeTicketBuyersForEventId: target,
+        ticketBuyerSourceEventIds: [pastTwo],
+      }),
+    );
+    expect(contactsWithBuyerExclusion.recipients.map(({ email }) => email).sort()).toEqual([
+      "past-one@example.test",
+      "past-two@example.test",
+      "upcoming@example.test",
+    ]);
+
+    const mixed = await resolveAudience(
+      storage,
+      audienceFor(["Ticket Buyers", "Contacts"], {
+        excludeTicketBuyersForEventId: target,
+        ticketBuyerPastEventsOnly: true,
+      }),
+    );
+    // The Organization store resolves each branch independently; the Worker
+    // communication service performs the normalized destination dedupe.
+    expect(mixed.recipients.filter(({ email }) => email === "past-one@example.test")).toHaveLength(
+      2,
+    );
+    expect(mixed.recipients.map(({ email }) => email)).not.toContain("target@example.test");
   });
 
   it("includes unassigned no-account Profiles with linked contact email and preserves channel consent", async () => {
@@ -938,6 +1023,48 @@ describe("resolveCommunicationAudienceFromStore", () => {
     expect(recipients).toHaveLength(500);
   });
 
+  it("reports a bounded Contact promotion when its audience exceeds 500", async () => {
+    const { db, storage } = seedDatabase();
+    for (let index = 0; index < 501; index += 1) {
+      seedContact(db, {
+        displayName: `Promotion Contact ${String(index)}`,
+        email: `promotion${String(index)}@example.com`,
+      });
+    }
+    const result = await resolveAudience(
+      storage,
+      audienceFor(["Contacts"], {
+        excludeTicketBuyersForEventId: uuidFor("promotion-target"),
+      }),
+    );
+    expect(result.recipients).toHaveLength(500);
+    expect(result.contactsOverLimit).toBe(true);
+  });
+
+  it("excludes a current-event buyer by linked Contact even after their email changes", async () => {
+    const { db, storage } = seedDatabase();
+    const targetEventId = seedPerformanceEvent(db, "Promotion Target", "2092-01-01T00:00:00.000Z");
+    const contactId = seedContact(db, {
+      displayName: "Current buyer",
+      email: "old-address@example.test",
+    });
+    const purchaseId = seedTicketPurchase(db, "Current buyer", "old-address@example.test", {
+      eventId: targetEventId,
+    });
+    linkTransactionContact(db, "ticket_purchases", purchaseId, contactId);
+    db.prepare("UPDATE contacts SET email = ?, normalized_email = ? WHERE id = ?").run(
+      "new-address@example.test",
+      "new-address@example.test",
+      contactId,
+    );
+
+    const result = await resolveAudience(
+      storage,
+      audienceFor(["Contacts"], { excludeTicketBuyersForEventId: targetEventId }),
+    );
+    expect(result.recipients).toEqual([]);
+  });
+
   it("reports paid ticket orders beyond the bounded service-notice audience", async () => {
     const { db, storage } = seedDatabase();
     const eventId = uuidFor("service-limit-event");
@@ -973,6 +1100,61 @@ describe("resolveCommunicationAudienceFromStore", () => {
       }
     }
     expect(names).toContain("recipient_subject_json");
+  });
+});
+
+describe("event promotion history", () => {
+  it("returns only messages linked to the requested event with canonical state", async () => {
+    const { db, storage } = seedDatabase();
+    const eventId = seedPerformanceEvent(db, "Promotion target", "2093-01-01T00:00:00.000Z");
+    const messageId = uuidFor("promotion-history-message");
+    const otherMessageId = uuidFor("unlinked-history-message");
+    const now = new Date().toISOString();
+    const audience = JSON.stringify({
+      eventId: null,
+      excludeTicketBuyersForEventId: eventId,
+      targetAudiences: ["Contacts"],
+    });
+    const reach = JSON.stringify({
+      audienceOverLimit: false,
+      both: 0,
+      email: 4,
+      sms: 0,
+      ticketBuyerPurchasesOverLimit: 0,
+      total: 4,
+      undeliverableTicketBuyerPurchases: 0,
+      unreachable: 0,
+    });
+    const promotion = JSON.stringify({
+      announcementKind: "initial",
+      eventId,
+      parentMessageId: null,
+    });
+    for (const id of [messageId, otherMessageId]) {
+      db.prepare(
+        `INSERT INTO communication_messages
+          (id, channel, status, subject, content_markdown, audience_json, reach_json,
+           event_promotion_json, created_by, created_at, updated_at)
+         VALUES (?, 'Email', 'Draft', 'Ticket invitation', 'Come see us', ?, ?, ?, 'user-1', ?, ?)`,
+      ).run(id, audience, reach, id === messageId ? promotion : null, now, now);
+    }
+    db.prepare(
+      `INSERT INTO event_communication_links
+        (event_id, message_id, announcement_kind, parent_message_id, operation_key, created_at)
+       VALUES (?, ?, 'initial', NULL, ?, ?)`,
+    ).run(eventId, messageId, `event-promotion-draft:${messageId}`, now);
+
+    const response = listEventPromotionMessagesFromStore(storage, ORG_ID, eventId);
+    expect(response.status).toBe(200);
+    const result = communicationMessagesResponseSchema
+      .omit({ requestId: true })
+      .parse(await response.json());
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0]).toMatchObject({
+      eventPromotion: { announcementKind: "initial", eventId, parentMessageId: null },
+      id: messageId,
+      status: "Draft",
+    });
   });
 });
 
@@ -1029,6 +1211,29 @@ describe("communication send boundaries", () => {
   it("holds 500 dual-channel recipients within the 1,000-delivery maximum", () => {
     // 500 recipients × (email + sms) = exactly 1,000 deliveries: accepted.
     expect(sendOperationSchema.safeParse(sendOperation(500, "Both")).success).toBe(true);
+  });
+
+  it("blocks event promotions when the bounded preview found audience overflow", () => {
+    const targetEventId = uuidFor("promotion-limit-target");
+    const base = sendOperation(1);
+    const operation = {
+      ...base,
+      audienceOverLimit: true,
+      message: {
+        ...base.message,
+        audience: audienceFor(["Contacts"], {
+          excludeTicketBuyersForEventId: targetEventId,
+        }),
+        eventPromotion: {
+          announcementKind: "initial" as const,
+          eventId: targetEventId,
+          parentMessageId: null,
+        },
+        expectedRevision: 1,
+        messageId: base.messageId,
+      },
+    };
+    expect(sendOperationSchema.safeParse(operation).success).toBe(false);
   });
 });
 

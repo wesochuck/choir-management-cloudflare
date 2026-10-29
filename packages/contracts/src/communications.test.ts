@@ -71,6 +71,80 @@ describe("Communication audience contracts", () => {
     });
   });
 
+  it("accepts event promotion context and paired persisted draft revision fields", () => {
+    const eventPromotion = {
+      announcementKind: "initial" as const,
+      eventId: "77777777-7777-4777-8777-777777777777",
+      parentMessageId: null,
+    };
+    const base = {
+      audience: {
+        contactListIds: [LIST_NEWSLETTER],
+        excludeTicketBuyersForEventId: eventPromotion.eventId,
+        targetAudiences: ["Ticket Buyers", "Contacts"],
+        ticketBuyerPastEventsOnly: true,
+      },
+      channel: "Email" as const,
+      contentMarkdown: "Join us for the next concert.",
+      eventPromotion,
+      subject: "Tickets are now available",
+    };
+    expect(
+      communicationDraftRequestSchema.parse({
+        ...base,
+        expectedRevision: 2,
+        messageId: "88888888-8888-4888-8888-888888888888",
+      }),
+    ).toMatchObject({
+      eventPromotion,
+      expectedRevision: 2,
+      messageId: "88888888-8888-4888-8888-888888888888",
+    });
+    expect(
+      communicationDraftRequestSchema.parse({
+        ...base,
+        messageId: "88888888-8888-4888-8888-888888888888",
+      }),
+    ).toMatchObject({
+      eventPromotion,
+      messageId: "88888888-8888-4888-8888-888888888888",
+    });
+    expect(
+      communicationDraftRequestSchema.safeParse({
+        ...base,
+        eventPromotion: null,
+        messageId: "88888888-8888-4888-8888-888888888888",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("allows the explicit choice to include current-event ticket buyers", () => {
+    const request = {
+      audience: {
+        excludeTicketBuyersForEventId: null,
+        targetAudiences: ["Contacts"],
+      },
+      channel: "Email" as const,
+      contentMarkdown: "Join us for the next concert.",
+      eventPromotion: {
+        announcementKind: "initial" as const,
+        eventId: "77777777-7777-4777-8777-777777777777",
+        parentMessageId: null,
+      },
+      subject: "Tickets are now available",
+    };
+    expect(communicationDraftRequestSchema.safeParse(request).success).toBe(true);
+    expect(
+      communicationDraftRequestSchema.safeParse({
+        ...request,
+        audience: {
+          ...request.audience,
+          excludeTicketBuyersForEventId: "88888888-8888-4888-8888-888888888888",
+        },
+      }).success,
+    ).toBe(false);
+  });
+
   it("defaults old ticket-buyer audiences to marketing and validates service combinations", () => {
     expect(
       communicationAudienceRequestSchema.parse({ targetAudiences: ["Ticket Buyers"] })

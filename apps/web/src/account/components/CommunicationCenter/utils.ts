@@ -264,6 +264,21 @@ export function contactFiltersSummary(
   return parts.join(" · ");
 }
 
+function eventPromotionOverflowText(reach: CommunicationReach): string {
+  const issues: string[] = [];
+  if (reach.ticketBuyerPurchasesOverLimit > 0) {
+    issues.push(
+      `${String(reach.ticketBuyerPurchasesOverLimit)} paid past ticket orders exceed the 500-recipient event-promotion limit; sending is blocked`,
+    );
+  }
+  if (reach.audienceOverLimit) {
+    issues.push(
+      "this audience exceeds the 500-recipient event-promotion limit; sending is blocked",
+    );
+  }
+  return issues.length > 0 ? ` · ${issues.join(" · ")}` : "";
+}
+
 export function reachSummaryText(
   reach: CommunicationReach,
   channel: CommunicationChannel,
@@ -283,13 +298,13 @@ export function reachSummaryText(
       reach.ticketBuyerPurchasesOverLimit > 0
         ? ` · ${String(reach.ticketBuyerPurchasesOverLimit)} paid ticket orders exceed the 1,000-order message limit; sending is blocked`
         : "";
-    return `${String(reachableCount)} ticket-holder recipients can receive this email · ${unreachable}${undeliverablePurchases}${purchasesOverLimit}`;
+    return `${String(reachableCount)} ticket-holder recipients can receive this email · ${unreachable}${undeliverablePurchases}${purchasesOverLimit}${eventPromotionOverflowText(reach)}`;
   }
   if (channel === "Email") {
     const reachableCount = reach.email;
     const reachable = `${String(reachableCount)} ${reachableCount === 1 ? "person can" : "people can"} receive this email`;
     const unreachable = reach.unreachable > 0 ? `${String(reach.unreachable)} cannot` : "0 cannot";
-    return `${reachable} · ${unreachable}`;
+    return `${reachable} · ${unreachable}${eventPromotionOverflowText(reach)}`;
   }
 
   if (channel === "SMS") {

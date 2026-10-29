@@ -42,6 +42,73 @@ function placeholders(count: number): string {
   return Array.from({ length: count }, () => "?").join(", ");
 }
 
+function ticketBuyerEventFilter(audience: Audience): {
+  readonly params: readonly unknown[];
+  readonly sql: string;
+} {
+  const sourceEventIds = audience.ticketBuyerSourceEventIds ?? [];
+  if (sourceEventIds.length > 0) {
+    const ids = placeholders(sourceEventIds.length);
+    const asOf = new Date().toISOString();
+    const eligibleEvents = `SELECT id FROM events
+      WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0
+        AND starts_at < ? AND id IN (${ids})`;
+    return {
+      params: [asOf, ...sourceEventIds, asOf, ...sourceEventIds],
+      sql: `AND (p.event_id IN (${eligibleEvents}) OR EXISTS (
+        SELECT 1 FROM ticket_bundle_allocations a
+        WHERE a.purchase_id = p.id AND a.event_id IN (${eligibleEvents})
+      ))`,
+    };
+  }
+  if (audience.ticketBuyerPastEventsOnly) {
+    const asOf = new Date().toISOString();
+    const previousPerformances = `SELECT id FROM events
+      WHERE type = 'Performance' AND is_archived = 0 AND is_canceled = 0 AND starts_at < ?`;
+    return {
+      params: [asOf, asOf],
+      sql: `AND (p.event_id IN (${previousPerformances}) OR EXISTS (
+        SELECT 1 FROM ticket_bundle_allocations a
+        WHERE a.purchase_id = p.id AND a.event_id IN (${previousPerformances})
+      ))`,
+    };
+  }
+  if (audience.eventId !== null) {
+    return {
+      params: [audience.eventId, audience.eventId],
+      sql: `AND (p.event_id = ? OR EXISTS (
+        SELECT 1 FROM ticket_bundle_allocations a
+        WHERE a.purchase_id = p.id AND a.event_id = ?
+      ))`,
+    };
+  }
+  return { params: [], sql: "" };
+}
+
+function ticketBuyerExclusionFilter(
+  audience: Audience,
+  normalizedEmailExpression: string,
+  contactIdExpression: string,
+): { readonly params: readonly unknown[]; readonly sql: string } {
+  const eventId = audience.excludeTicketBuyersForEventId;
+  if (!eventId) return { params: [], sql: "" };
+  return {
+    params: [eventId, eventId],
+    sql: `AND NOT EXISTS (
+      SELECT 1 FROM ticket_purchases excluded
+      WHERE excluded.event_id = ? AND excluded.status = 'paid'
+        AND (excluded.contact_id = ${contactIdExpression}
+          OR excluded.normalized_buyer_email = ${normalizedEmailExpression})
+    ) AND NOT EXISTS (
+      SELECT 1 FROM ticket_bundle_allocations excluded_allocation
+      JOIN ticket_purchases excluded ON excluded.id = excluded_allocation.purchase_id
+      WHERE excluded_allocation.event_id = ? AND excluded.status = 'paid'
+        AND (excluded.contact_id = ${contactIdExpression}
+          OR excluded.normalized_buyer_email = ${normalizedEmailExpression})
+    )`,
+  };
+}
+
 function batches<T>(values: readonly T[]): T[][] {
   const result: T[][] = [];
   for (let offset = 0; offset < values.length; offset += COMMERCE_LOOKUP_BATCH_SIZE) {
@@ -165,58 +232,77 @@ interface CommerceSelections {
   readonly ticketBuyerPurchasesOverLimit: number;
 }
 
-function readCommerceSelections(storage: AudienceStorage, audience: Audience): CommerceSelections {
-  const selections: CommerceSelection[] = [];
-  let ticketBuyerPurchasesOverLimit = 0;
-  if (audience.targetAudiences.includes("Ticket Buyers")) {
-    const isTicketService = audience.ticketBuyerMode === "ticket_service";
-    const eventFilter =
-      audience.eventId === null
-        ? ""
-        : `AND (p.event_id = ? OR EXISTS (
-             SELECT 1 FROM ticket_bundle_allocations a
-             WHERE a.purchase_id = p.id AND a.event_id = ?
-           ))`;
-    const ticketConsent = isTicketService ? "" : "AND p.marketing_opt_in = 1";
-    if (isTicketService && audience.eventId !== null) {
-      const matchingPurchases = storage.sql
-        .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
-          `SELECT COUNT(*) AS count FROM ticket_purchases p
-           WHERE p.status = 'paid' AND (p.event_id = ? OR EXISTS (
-             SELECT 1 FROM ticket_bundle_allocations a
-             WHERE a.purchase_id = p.id AND a.event_id = ?
-           ))`,
-          audience.eventId,
-          audience.eventId,
-        )
-        .toArray()
-        .at(0)?.count;
-      ticketBuyerPurchasesOverLimit = Math.max(
-        0,
-        (matchingPurchases ?? 0) - AUDIENCE_TICKET_SERVICE_LIMIT,
-      );
-    }
-    const ticketPurchaseLimit = isTicketService
-      ? AUDIENCE_TICKET_SERVICE_LIMIT
-      : AUDIENCE_COMMERCE_LIMIT;
-    const ticketRows = storage.sql
-      .exec<CommerceTransactionRow>(
-        `SELECT p.id, p.buyer_name AS buyerName, p.buyer_email AS buyerEmail,
-          p.contact_id AS contactId
-         FROM ticket_purchases p
-         WHERE p.status = 'paid' ${ticketConsent} ${eventFilter}
-         ORDER BY p.buyer_name COLLATE NOCASE, p.id LIMIT ${String(ticketPurchaseLimit)}`,
-        ...(audience.eventId === null ? [] : [audience.eventId, audience.eventId]),
-      )
-      .toArray();
-    for (const row of ticketRows) {
-      selections.push({
-        row,
-        ticketBuyerMode: audience.ticketBuyerMode,
-        voicePart: "Ticket Buyer",
-      });
-    }
+function ticketBuyerServiceOverflow(storage: AudienceStorage, audience: Audience): number {
+  if (audience.ticketBuyerMode !== "ticket_service" || audience.eventId === null) return 0;
+  const matchingPurchases = storage.sql
+    .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(
+      `SELECT COUNT(*) AS count FROM ticket_purchases p
+       WHERE p.status = 'paid' AND (p.event_id = ? OR EXISTS (
+         SELECT 1 FROM ticket_bundle_allocations a
+         WHERE a.purchase_id = p.id AND a.event_id = ?
+       ))`,
+      audience.eventId,
+      audience.eventId,
+    )
+    .toArray()
+    .at(0)?.count;
+  return Math.max(0, (matchingPurchases ?? 0) - AUDIENCE_TICKET_SERVICE_LIMIT);
+}
+
+function readTicketBuyerSelections(
+  storage: AudienceStorage,
+  audience: Audience,
+): CommerceSelections {
+  if (!audience.targetAudiences.includes("Ticket Buyers")) {
+    return { selections: [], ticketBuyerPurchasesOverLimit: 0 };
   }
+  const isTicketService = audience.ticketBuyerMode === "ticket_service";
+  const eventFilter = ticketBuyerEventFilter(audience);
+  const exclusionFilter = ticketBuyerExclusionFilter(
+    audience,
+    "p.normalized_buyer_email",
+    "p.contact_id",
+  );
+  const ticketConsent = isTicketService ? "" : "AND p.marketing_opt_in = 1";
+  let ticketBuyerPurchasesOverLimit = ticketBuyerServiceOverflow(storage, audience);
+  const promotionBuyerScope =
+    (audience.ticketBuyerPastEventsOnly ?? false) ||
+    (audience.ticketBuyerSourceEventIds?.length ?? 0) > 0;
+  const ticketPurchaseLimit = isTicketService
+    ? AUDIENCE_TICKET_SERVICE_LIMIT
+    : promotionBuyerScope
+      ? AUDIENCE_COMMERCE_LIMIT + 1
+      : AUDIENCE_COMMERCE_LIMIT;
+  const ticketRows = storage.sql
+    .exec<CommerceTransactionRow>(
+      `SELECT p.id, p.buyer_name AS buyerName, p.buyer_email AS buyerEmail,
+        p.contact_id AS contactId
+       FROM ticket_purchases p
+       WHERE p.status = 'paid' ${ticketConsent} ${eventFilter.sql} ${exclusionFilter.sql}
+       ORDER BY p.buyer_name COLLATE NOCASE, p.id LIMIT ${String(ticketPurchaseLimit)}`,
+      ...eventFilter.params,
+      ...exclusionFilter.params,
+    )
+    .toArray();
+  const marketingPromotionScope = promotionBuyerScope && !isTicketService;
+  const promotionOverflow = marketingPromotionScope && ticketRows.length > AUDIENCE_COMMERCE_LIMIT;
+  if (promotionOverflow) ticketBuyerPurchasesOverLimit = 1;
+  const selectedRows = marketingPromotionScope
+    ? ticketRows.slice(0, AUDIENCE_COMMERCE_LIMIT)
+    : ticketRows;
+  return {
+    selections: selectedRows.map((row) => ({
+      row,
+      ticketBuyerMode: audience.ticketBuyerMode,
+      voicePart: "Ticket Buyer",
+    })),
+    ticketBuyerPurchasesOverLimit,
+  };
+}
+
+function readCommerceSelections(storage: AudienceStorage, audience: Audience): CommerceSelections {
+  const ticketBuyerSelections = readTicketBuyerSelections(storage, audience);
+  const selections = [...ticketBuyerSelections.selections];
   if (audience.targetAudiences.includes("Donors")) {
     const donorRows = storage.sql
       .exec<CommerceTransactionRow>(
@@ -231,7 +317,10 @@ function readCommerceSelections(storage: AudienceStorage, audience: Audience): C
       selections.push({ row, ticketBuyerMode: "marketing", voicePart: "Donor" });
     }
   }
-  return { selections, ticketBuyerPurchasesOverLimit };
+  return {
+    selections,
+    ticketBuyerPurchasesOverLimit: ticketBuyerSelections.ticketBuyerPurchasesOverLimit,
+  };
 }
 
 interface ResolvedCommerceContacts {
@@ -495,11 +584,24 @@ function readLinkedProfileFlags(
   return flags;
 }
 
-function contactRecipients(storage: AudienceStorage, audience: Audience): AudienceCandidate[] {
-  if (!audience.targetAudiences.includes("Contacts")) return [];
+interface ContactRecipientResolution {
+  readonly overLimit: boolean;
+  readonly recipients: AudienceCandidate[];
+}
+
+function contactRecipients(
+  storage: AudienceStorage,
+  audience: Audience,
+): ContactRecipientResolution {
+  if (!audience.targetAudiences.includes("Contacts")) return { overLimit: false, recipients: [] };
   const selection = contactSelectionSql(audience);
   const where: string[] = [selection.sql];
   const params: unknown[] = [...selection.params];
+  const purchaserExclusion = ticketBuyerExclusionFilter(audience, "c.normalized_email", "c.id");
+  if (purchaserExclusion.sql) {
+    where.push(purchaserExclusion.sql.replace(/^AND /, ""));
+    params.push(...purchaserExclusion.params);
+  }
   if (audience.contactSource !== null) {
     where.push("c.source = ?");
     params.push(audience.contactSource);
@@ -527,17 +629,25 @@ function contactRecipients(storage: AudienceStorage, audience: Audience): Audien
        LEFT JOIN contact_communication_preferences sms_pref
          ON sms_pref.contact_id = c.id AND sms_pref.channel = 'sms'
        WHERE ${where.join(" AND ")}
-       ORDER BY c.display_name COLLATE NOCASE, c.id LIMIT ${String(AUDIENCE_CONTACT_LIMIT)}`,
+       ORDER BY c.display_name COLLATE NOCASE, c.id LIMIT ${String(
+         audience.excludeTicketBuyersForEventId
+           ? AUDIENCE_CONTACT_LIMIT + 1
+           : AUDIENCE_CONTACT_LIMIT,
+       )}`,
       ...params,
     )
     .toArray();
+  const overLimit = Boolean(
+    audience.excludeTicketBuyersForEventId && rows.length > AUDIENCE_CONTACT_LIMIT,
+  );
+  const selectedRows = overLimit ? rows.slice(0, AUDIENCE_CONTACT_LIMIT) : rows;
   // Foreign list/contact IDs from another Organization simply match nothing:
   // storage is Organization-scoped, so cross-tenant audience IDs stay empty.
-  const linkedProfileIds = rows
+  const linkedProfileIds = selectedRows
     .map((row) => row.profileId)
     .filter((value): value is string => value !== null && value !== "");
   const linkedFlags = readLinkedProfileFlags(storage, linkedProfileIds);
-  return rows.map((row) => {
+  const recipients = selectedRows.map((row) => {
     const linked = row.profileId ? linkedFlags.get(row.profileId) : undefined;
     return {
       displayName: row.displayName ?? row.email ?? row.phone ?? "Contact",
@@ -554,6 +664,7 @@ function contactRecipients(storage: AudienceStorage, audience: Audience): Audien
       voicePart: "Contacts",
     };
   });
+  return { overLimit, recipients };
 }
 
 interface MemberCandidateRow extends CandidateRow {
@@ -647,13 +758,15 @@ export async function resolveCommunicationAudienceFromStore(
   // suppression precedence happens in the caller merge step (Map-keyed, no
   // .find scans over the growing recipient list).
   const commerce = commerceRecipients(storage, audience);
+  const contacts = contactRecipients(storage, audience);
   const recipients: AudienceCandidate[] = [
     ...memberRecipients(storage, audience),
-    ...contactRecipients(storage, audience),
+    ...contacts.recipients,
     ...commerce.recipients,
   ];
   return Response.json({
     recipients,
+    contactsOverLimit: contacts.overLimit,
     ticketBuyerPurchasesOverLimit: commerce.ticketBuyerPurchasesOverLimit,
     undeliverableTicketBuyerPurchases: commerce.undeliverableTicketBuyerPurchases,
   });

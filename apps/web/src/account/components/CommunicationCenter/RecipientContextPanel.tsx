@@ -1,11 +1,13 @@
 import type {
   CommunicationAudienceRequest,
   CommunicationChannel,
+  CommunicationMessage,
   ContactList,
   OrganizationEvent,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import type { CommunicationAudienceTarget, CommunicationReachState } from "./types";
+import { useState } from "react";
 import {
   channelFromValue,
   contactFiltersSummary,
@@ -22,7 +24,9 @@ interface RecipientContextPanelProps {
   readonly channel: CommunicationChannel;
   readonly contactLists: readonly ContactList[];
   readonly events: readonly OrganizationEvent[];
+  readonly eventPromotion?: CommunicationMessage["eventPromotion"] | undefined;
   readonly expanded: boolean;
+  readonly idPrefix?: string | undefined;
   readonly onChannelChange: (channel: CommunicationChannel) => void;
   readonly onToggleExpanded: (expanded: boolean) => void;
   readonly onUpdateAudience: (
@@ -35,6 +39,7 @@ interface RecipientContextPanelProps {
 
 interface MemberFiltersDetailsProps {
   readonly audience: CommunicationAudienceRequest;
+  readonly idPrefix: string;
   readonly onToggleGlobalStatus: (status: "Active" | "Idle" | "Inactive", checked: boolean) => void;
   readonly onUpdateAudience: (
     updater: (current: CommunicationAudienceRequest) => CommunicationAudienceRequest,
@@ -46,6 +51,7 @@ function MemberFiltersDetails({
   audience,
   onToggleGlobalStatus,
   onUpdateAudience,
+  idPrefix,
   rosterConfiguration,
 }: MemberFiltersDetailsProps) {
   const globalStatuses: readonly ("Active" | "Idle" | "Inactive")[] = [
@@ -94,9 +100,9 @@ function MemberFiltersDetails({
 
         {audience.eventId ? (
           <div className="field">
-            <label htmlFor="communication-rsvp-select">Member RSVP response</label>
+            <label htmlFor={`${idPrefix}-rsvp-select`}>Member RSVP response</label>
             <select
-              id="communication-rsvp-select"
+              id={`${idPrefix}-rsvp-select`}
               onChange={(event) => {
                 const value = event.target.value;
                 onUpdateAudience((current) => ({
@@ -169,20 +175,31 @@ function TicketBuyerModeField({
   canSelectTicketServiceNotice,
   channel,
   isTicketServiceNotice,
+  idPrefix,
   onUpdateAudience,
+  promotion = false,
 }: {
   readonly canSelectTicketServiceNotice: boolean;
   readonly channel: CommunicationChannel;
   readonly isTicketServiceNotice: boolean;
+  readonly idPrefix: string;
   readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
+  readonly promotion?: boolean;
 }) {
+  if (promotion) {
+    return (
+      <p className="field-hint">
+        Promotion emails use the existing marketing consent and suppression rules.
+      </p>
+    );
+  }
   return (
     <fieldset className="field">
       <legend className="field-label">Ticket buyer audience</legend>
       <label className="checkbox-row">
         <input
           checked={!isTicketServiceNotice}
-          name="communication-ticket-buyer-mode"
+          name={`${idPrefix}-ticket-buyer-mode`}
           onChange={() => {
             onUpdateAudience((current) => ({ ...current, ticketBuyerMode: "marketing" }));
           }}
@@ -195,7 +212,7 @@ function TicketBuyerModeField({
         <input
           checked={isTicketServiceNotice}
           disabled={!canSelectTicketServiceNotice && !isTicketServiceNotice}
-          name="communication-ticket-buyer-mode"
+          name={`${idPrefix}-ticket-buyer-mode`}
           onChange={() => {
             onUpdateAudience((current) => ({ ...current, ticketBuyerMode: "ticket_service" }));
           }}
@@ -229,27 +246,29 @@ function TicketBuyerModeField({
 function EventSelector({
   audience,
   events,
+  idPrefix,
   isTicketServiceNotice,
   onUpdateAudience,
 }: {
   readonly audience: CommunicationAudienceRequest;
   readonly events: readonly OrganizationEvent[];
+  readonly idPrefix: string;
   readonly isTicketServiceNotice: boolean;
   readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
 }) {
   return (
     <div className="field">
-      <label htmlFor="communication-event">
+      <label htmlFor={`${idPrefix}-event`}>
         Event {isTicketServiceNotice ? "(required)" : "(optional)"}
       </label>
       <select
         aria-describedby={
           isTicketServiceNotice && !audience.eventId
-            ? "communication-event-help communication-event-error"
-            : "communication-event-help"
+            ? `${idPrefix}-event-help ${idPrefix}-event-error`
+            : `${idPrefix}-event-help`
         }
         aria-invalid={isTicketServiceNotice && !audience.eventId ? true : undefined}
-        id="communication-event"
+        id={`${idPrefix}-event`}
         onChange={(event) => {
           const eventId = event.target.value || null;
           onUpdateAudience((current) => ({
@@ -269,17 +288,263 @@ function EventSelector({
           </option>
         ))}
       </select>
-      <p className="field-hint" id="communication-event-help">
+      <p className="field-hint" id={`${idPrefix}-event-help`}>
         {isTicketServiceNotice
           ? "Choose the performance whose current paid ticket holders should receive this notice. Canceled performances remain available for cancellation notices."
           : "Selecting an event unlocks event and attendance placeholders."}
       </p>
       {isTicketServiceNotice && !audience.eventId ? (
-        <p className="field-hint" id="communication-event-error" role="alert">
+        <p className="field-hint" id={`${idPrefix}-event-error`} role="alert">
           Select the affected performance to contact its ticket holders.
         </p>
       ) : null}
     </div>
+  );
+}
+
+function RecipientChannelField({
+  channel,
+  idPrefix,
+  isEventPromotion,
+  isTicketServiceNotice,
+  onChannelChange,
+}: {
+  readonly channel: CommunicationChannel;
+  readonly idPrefix: string;
+  readonly isEventPromotion: boolean;
+  readonly isTicketServiceNotice: boolean;
+  readonly onChannelChange: RecipientContextPanelProps["onChannelChange"];
+}) {
+  return (
+    <div className="field">
+      {isEventPromotion ? (
+        <>
+          <span className="field-label">Delivery channel</span>
+          <p className="field-hint">Email · marketing communication</p>
+        </>
+      ) : (
+        <>
+          <label htmlFor={`${idPrefix}-channel-select`}>Delivery channel</label>
+          <select
+            id={`${idPrefix}-channel-select`}
+            onChange={(event) => {
+              onChannelChange(channelFromValue(event.target.value));
+            }}
+            value={channel}
+          >
+            <option value="Email">Email</option>
+            <option disabled={isTicketServiceNotice} value="SMS">
+              SMS
+            </option>
+            <option disabled={isTicketServiceNotice} value="Both">
+              Both (Email &amp; SMS)
+            </option>
+          </select>
+        </>
+      )}
+    </div>
+  );
+}
+
+function EventAudienceContext({
+  audience,
+  events,
+  idPrefix,
+  isEventPromotion,
+  isMembersSelected,
+  isTicketBuyersSelected,
+  isTicketServiceNotice,
+  onUpdateAudience,
+}: {
+  readonly audience: CommunicationAudienceRequest;
+  readonly events: readonly OrganizationEvent[];
+  readonly idPrefix: string;
+  readonly isEventPromotion: boolean;
+  readonly isMembersSelected: boolean;
+  readonly isTicketBuyersSelected: boolean;
+  readonly isTicketServiceNotice: boolean;
+  readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
+}) {
+  if (isEventPromotion || (!isMembersSelected && !isTicketBuyersSelected)) return null;
+  return (
+    <EventSelector
+      audience={audience}
+      events={events}
+      idPrefix={idPrefix}
+      isTicketServiceNotice={isTicketServiceNotice}
+      onUpdateAudience={onUpdateAudience}
+    />
+  );
+}
+
+function PromotionAudienceContext({
+  audience,
+  eventPromotion,
+  events,
+  idPrefix,
+  onUpdateAudience,
+  selectedEvent,
+}: {
+  readonly audience: CommunicationAudienceRequest;
+  readonly eventPromotion: CommunicationMessage["eventPromotion"];
+  readonly events: readonly OrganizationEvent[];
+  readonly idPrefix: string;
+  readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
+  readonly selectedEvent: OrganizationEvent | null;
+}) {
+  if (!eventPromotion) return null;
+  return (
+    <EventPromotionAudienceFields
+      audience={audience}
+      eventPromotion={eventPromotion}
+      events={events}
+      idPrefix={idPrefix}
+      onUpdateAudience={onUpdateAudience}
+      selectedEvent={selectedEvent}
+    />
+  );
+}
+
+function EventPromotionAudienceFields({
+  audience,
+  eventPromotion,
+  events,
+  idPrefix,
+  onUpdateAudience,
+  selectedEvent,
+}: {
+  readonly audience: CommunicationAudienceRequest;
+  readonly eventPromotion: NonNullable<CommunicationMessage["eventPromotion"]>;
+  readonly events: readonly OrganizationEvent[];
+  readonly idPrefix: string;
+  readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
+  readonly selectedEvent: OrganizationEvent | null;
+}) {
+  const [nowMs] = useState(() => Date.now());
+  const pastPerformances = events
+    .filter(
+      (event) =>
+        event.type === "Performance" && !event.isCanceled && Date.parse(event.startsAt) < nowMs,
+    )
+    .toSorted((left, right) => right.startsAt.localeCompare(left.startsAt));
+  const selectedSources = audience.ticketBuyerSourceEventIds ?? [];
+  const sourceDescriptionId = `${idPrefix}-buyer-source-help`;
+
+  return (
+    <>
+      <div className="field">
+        <span className="field-label">Promoting</span>
+        <p className="field-hint">
+          {selectedEvent?.title ?? "This performance"}. Ticket purchases for this event are not used
+          as the source audience.
+        </p>
+      </div>
+      {audience.targetAudiences.includes("Ticket Buyers") ? (
+        <fieldset className="field" aria-describedby={sourceDescriptionId}>
+          <legend className="field-label">Past ticket buyers</legend>
+          {pastPerformances.length === 0 ? (
+            <p className="field-hint">There are no previous Performances to choose from yet.</p>
+          ) : (
+            <div className="checkbox-grid">
+              {pastPerformances.map((event) => (
+                <label className="checkbox-row" key={event.id}>
+                  <input
+                    checked={selectedSources.includes(event.id)}
+                    onChange={(change) => {
+                      onUpdateAudience((current) => {
+                        const existing = current.ticketBuyerSourceEventIds ?? [];
+                        const ticketBuyerSourceEventIds = change.target.checked
+                          ? [...new Set([...existing, event.id])]
+                          : existing.filter((id) => id !== event.id);
+                        return {
+                          ...current,
+                          ticketBuyerPastEventsOnly: true,
+                          ticketBuyerSourceEventIds,
+                        };
+                      });
+                    }}
+                    type="checkbox"
+                  />
+                  {eventLabel(event)}
+                </label>
+              ))}
+            </div>
+          )}
+          <p className="field-hint" id={sourceDescriptionId}>
+            {selectedSources.length === 0
+              ? "All previous Performances are included. Select Performances to narrow the source."
+              : "Only purchases from the selected previous Performances are included."}
+          </p>
+        </fieldset>
+      ) : null}
+      <label className="checkbox-row">
+        <input
+          checked={audience.excludeTicketBuyersForEventId === eventPromotion.eventId}
+          onChange={(change) => {
+            onUpdateAudience((current) => ({
+              ...current,
+              excludeTicketBuyersForEventId: change.target.checked ? eventPromotion.eventId : null,
+            }));
+          }}
+          type="checkbox"
+        />
+        Exclude people who already bought tickets for this event
+      </label>
+      <p className="field-hint">
+        This also applies to people selected through Contacts. Existing email suppression and
+        unsubscribe rules still apply.
+      </p>
+    </>
+  );
+}
+
+function ContactListFilters({
+  audience,
+  contactLists,
+  onUpdateAudience,
+  selected,
+}: {
+  readonly audience: CommunicationAudienceRequest;
+  readonly contactLists: readonly ContactList[];
+  readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
+  readonly selected: boolean;
+}) {
+  if (!selected) return null;
+  return (
+    <fieldset className="field">
+      <legend className="field-label">Contact lists</legend>
+      {contactLists.length === 0 ? (
+        <p className="field-hint" role="note">
+          No contact lists yet. The message will reach all eligible contacts.
+        </p>
+      ) : (
+        <div className="checkbox-grid">
+          {contactLists.map((list) => (
+            <label className="checkbox-row" key={list.id}>
+              <input
+                checked={audience.contactListIds.includes(list.id)}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  onUpdateAudience((current) => ({
+                    ...current,
+                    contactListIds: checked
+                      ? [...new Set([...current.contactListIds, list.id])]
+                      : current.contactListIds.filter((id) => id !== list.id),
+                  }));
+                }}
+                type="checkbox"
+              />
+              {list.name}
+            </label>
+          ))}
+        </div>
+      )}
+      <p className="field-hint">
+        {audience.contactListIds.length === 0
+          ? "All eligible contacts are included. Select lists to narrow the audience."
+          : "Only contacts in the selected lists are included. A contact in several selected lists still receives one copy."}
+      </p>
+    </fieldset>
   );
 }
 
@@ -301,7 +566,9 @@ export function RecipientContextPanel({
   channel,
   contactLists,
   events,
+  eventPromotion = null,
   expanded,
+  idPrefix = "communication",
   onChannelChange,
   onToggleExpanded,
   onUpdateAudience,
@@ -314,6 +581,7 @@ export function RecipientContextPanel({
   const isTicketBuyersSelected = audience.targetAudiences.includes("Ticket Buyers");
   const isMixedAudience = audience.targetAudiences.length > 1;
   const isTicketServiceNotice = audience.ticketBuyerMode === "ticket_service";
+  const isEventPromotion = eventPromotion !== null;
   const canSelectTicketServiceNotice = channel === "Email" && !isMixedAudience;
 
   function toggleTarget(target: CommunicationAudienceTarget, checked: boolean) {
@@ -378,7 +646,12 @@ export function RecipientContextPanel({
                       onChange={(event) => {
                         toggleTarget(option, event.target.checked);
                       }}
-                      disabled={isTicketServiceNotice && option !== "Ticket Buyers"}
+                      disabled={
+                        (isTicketServiceNotice && option !== "Ticket Buyers") ||
+                        (isEventPromotion &&
+                          audience.targetAudiences.length === 1 &&
+                          audience.targetAudiences.includes(option))
+                      }
                       type="checkbox"
                     />
                     {option}
@@ -391,40 +664,40 @@ export function RecipientContextPanel({
               <TicketBuyerModeField
                 canSelectTicketServiceNotice={canSelectTicketServiceNotice}
                 channel={channel}
+                idPrefix={idPrefix}
                 isTicketServiceNotice={isTicketServiceNotice}
                 onUpdateAudience={onUpdateAudience}
+                promotion={isEventPromotion}
               />
             ) : null}
 
-            {/* Delivery Channel */}
-            <div className="field">
-              <label htmlFor="communication-channel-select">Delivery channel</label>
-              <select
-                id="communication-channel-select"
-                onChange={(event) => {
-                  onChannelChange(channelFromValue(event.target.value));
-                }}
-                value={channel}
-              >
-                <option value="Email">Email</option>
-                <option disabled={isTicketServiceNotice} value="SMS">
-                  SMS
-                </option>
-                <option disabled={isTicketServiceNotice} value="Both">
-                  Both (Email &amp; SMS)
-                </option>
-              </select>
-            </div>
+            <RecipientChannelField
+              channel={channel}
+              idPrefix={idPrefix}
+              isEventPromotion={isEventPromotion}
+              isTicketServiceNotice={isTicketServiceNotice}
+              onChannelChange={onChannelChange}
+            />
 
-            {/* Event Selector (shown for Members or Ticket Buyers) */}
-            {isMembersSelected || isTicketBuyersSelected ? (
-              <EventSelector
-                audience={audience}
-                events={events}
-                isTicketServiceNotice={isTicketServiceNotice}
-                onUpdateAudience={onUpdateAudience}
-              />
-            ) : null}
+            <EventAudienceContext
+              audience={audience}
+              events={events}
+              idPrefix={idPrefix}
+              isEventPromotion={isEventPromotion}
+              isMembersSelected={isMembersSelected}
+              isTicketBuyersSelected={isTicketBuyersSelected}
+              isTicketServiceNotice={isTicketServiceNotice}
+              onUpdateAudience={onUpdateAudience}
+            />
+
+            <PromotionAudienceContext
+              audience={audience}
+              eventPromotion={eventPromotion}
+              events={events}
+              idPrefix={idPrefix}
+              onUpdateAudience={onUpdateAudience}
+              selectedEvent={selectedEvent}
+            />
 
             {/* Mixed Audience Helper Notice */}
             <MixedAudienceNotice isMixedAudience={isMixedAudience} />
@@ -433,49 +706,19 @@ export function RecipientContextPanel({
             {isMembersSelected ? (
               <MemberFiltersDetails
                 audience={audience}
+                idPrefix={idPrefix}
                 onToggleGlobalStatus={toggleGlobalStatus}
                 onUpdateAudience={onUpdateAudience}
                 rosterConfiguration={rosterConfiguration}
               />
             ) : null}
 
-            {/* Contacts: List targeting (all eligible when none selected) */}
-            {isContactsSelected ? (
-              <fieldset className="field">
-                <legend className="field-label">Contact lists</legend>
-                {contactLists.length === 0 ? (
-                  <p className="field-hint" role="note">
-                    No contact lists yet. The message will reach all eligible contacts.
-                  </p>
-                ) : (
-                  <div className="checkbox-grid">
-                    {contactLists.map((list) => (
-                      <label className="checkbox-row" key={list.id}>
-                        <input
-                          checked={audience.contactListIds.includes(list.id)}
-                          onChange={(event) => {
-                            const checked = event.target.checked;
-                            onUpdateAudience((current) => ({
-                              ...current,
-                              contactListIds: checked
-                                ? [...new Set([...current.contactListIds, list.id])]
-                                : current.contactListIds.filter((id) => id !== list.id),
-                            }));
-                          }}
-                          type="checkbox"
-                        />
-                        {list.name}
-                      </label>
-                    ))}
-                  </div>
-                )}
-                <p className="field-hint">
-                  {audience.contactListIds.length === 0
-                    ? "All eligible contacts are included. Select lists to narrow the audience."
-                    : "Only contacts in the selected lists are included. A contact in several selected lists still receives one copy."}
-                </p>
-              </fieldset>
-            ) : null}
+            <ContactListFilters
+              audience={audience}
+              contactLists={contactLists}
+              onUpdateAudience={onUpdateAudience}
+              selected={isContactsSelected}
+            />
           </div>
 
           {/* Automatic Reach Summary */}

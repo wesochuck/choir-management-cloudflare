@@ -250,6 +250,8 @@ const rsvpPlaceholderReplacementPattern = /\{\{RSVP_LINKS\}\}|\{rsvpLinks\}/gi;
 const playerPlaceholderPattern = /\{\{PLAYER_LINK\}\}|\{playerLink\}/i;
 const playerPlaceholderReplacementPattern = /\{\{PLAYER_LINK\}\}|\{playerLink\}/gi;
 const ticketLinkPlaceholderPattern = /\{\{TICKET_LINK\}\}|\{ticketLink\}/i;
+const eventTicketLinkPlaceholderPattern = /\{\{EVENT_TICKET_LINK\}\}/i;
+const eventTicketLinkPlaceholderReplacementPattern = /\{\{EVENT_TICKET_LINK\}\}/gi;
 const ticketOrderLinkPlaceholderPattern = /\{\{TICKET_ORDER_LINK\}\}|\{ticketOrderLink\}/i;
 const ticketLinksPlaceholderReplacementPattern =
   /\{\{TICKET_LINK\}\}|\{ticketLink\}|\{\{TICKET_ORDER_LINK\}\}|\{ticketOrderLink\}/gi;
@@ -483,6 +485,25 @@ export async function renderTicketLinks(
     isRefund || /order/i.test(placeholder)
       ? `[View order details](${link})`
       : `[View ticket / QR code](${link})`,
+  );
+}
+
+export function renderEventTicketLink(
+  content: string,
+  eventTicketPath: string | null,
+  canonicalOrigin: string | null,
+): string {
+  if (!eventTicketLinkPlaceholderPattern.test(content)) return content;
+  if (!eventTicketPath || !canonicalOrigin || !eventTicketPath.startsWith("/")) {
+    return content.replace(
+      eventTicketLinkPlaceholderReplacementPattern,
+      "Ticket purchase page unavailable.",
+    );
+  }
+  const link = new URL(eventTicketPath, canonicalOrigin).toString();
+  return content.replace(
+    eventTicketLinkPlaceholderReplacementPattern,
+    `[View event details and buy tickets](${link})`,
   );
 }
 

@@ -6,6 +6,27 @@ import { EmailRecipientSuppressedError } from "../../communications/emailFeedbac
 import { CommunicationRepositoryError } from "../../organization/organizationCommunications";
 import { MusicRepositoryError } from "../../organization/organizationMusic";
 
+const communicationErrorMessages: Record<string, string> = {
+  communication_draft_revision_conflict:
+    "This draft was modified in another session. Reload the draft to view current changes.",
+  event_promotion_audience_exceeds_limit:
+    "This audience exceeds the 500-recipient promotion limit. Narrow the source events or Contact filters.",
+  event_promotion_draft_required: "Save this promotion draft before sending.",
+  event_promotion_initial_exists: "An initial announcement already exists for this performance.",
+  event_promotion_not_eligible:
+    "This event is not eligible for promotion. The performance must be published, active, upcoming, and ticket sales enabled.",
+  event_promotion_parent_not_found:
+    "The parent announcement for this follow-up could not be found.",
+  event_promotion_review_expired:
+    "The recipient review has expired. Review the recipients again before sending.",
+  event_promotion_review_required:
+    "Review the current recipients before sending this announcement.",
+  event_promotion_review_stale:
+    "The audience or message changed after review. Review the recipients again before sending.",
+  ticket_service_audience_exceeds_limit:
+    "This performance has more than 1,000 paid ticket orders, so its complete ticket-holder audience exceeds the message limit. No message was sent.",
+};
+
 export function communicationProblem(error: unknown, requestIdValue: string, message: string) {
   console.error(
     JSON.stringify({
@@ -15,25 +36,19 @@ export function communicationProblem(error: unknown, requestIdValue: string, mes
     }),
   );
   const suppression = error instanceof EmailRecipientSuppressedError;
-  const ticketAudienceLimit =
-    error instanceof CommunicationRepositoryError &&
-    error.code === "ticket_service_audience_exceeds_limit";
-  const status = suppression
-    ? error.status
-    : error instanceof CommunicationRepositoryError
-      ? error.status
-      : 503;
+  const repositoryError = error instanceof CommunicationRepositoryError ? error : null;
+  const status = suppression ? error.status : repositoryError ? repositoryError.status : 503;
   return {
     problem: {
       code: suppression
         ? error.code
-        : error instanceof CommunicationRepositoryError
-          ? error.code
+        : repositoryError
+          ? repositoryError.code
           : "service_unavailable",
       message: suppression
         ? error.message
-        : ticketAudienceLimit
-          ? "This performance has more than 1,000 paid ticket orders, so its complete ticket-holder audience exceeds the message limit. No message was sent."
+        : repositoryError && repositoryError.code in communicationErrorMessages
+          ? (communicationErrorMessages[repositoryError.code] ?? message)
           : message,
       requestId: requestIdValue,
     } satisfies ProblemDetails,

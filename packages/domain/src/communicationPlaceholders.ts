@@ -133,6 +133,16 @@ export const communicationPlaceholderDefinitions: readonly CommunicationPlacehol
     tag: "{eventLocation}",
   },
   {
+    audience: ["Ticket Buyers", "Contacts"],
+    category: "Ticket",
+    channels: ["Email"],
+    contexts: ["standard"],
+    description: "A public link to the selected Performance's ticket purchase page.",
+    label: "Event ticket page",
+    requiresEvent: true,
+    tag: "{{EVENT_TICKET_LINK}}",
+  },
+  {
     audience: ["Members"],
     category: "Event",
     contexts: ["standard"],
@@ -449,6 +459,7 @@ export function visibleCommunicationPlaceholders(
   channel: CommunicationChannel,
   context: CommunicationPlaceholderContext = "standard",
   contentMarkdown = "",
+  eventContextId?: string | null,
 ): readonly CommunicationPlaceholderDefinition[] {
   const placeholders = [
     ...communicationPlaceholderDefinitions.filter((placeholder) =>
@@ -466,7 +477,8 @@ export function visibleCommunicationPlaceholders(
     );
     const channelMatches = isPlaceholderCompatibleWithChannel(placeholder, channel);
     const orderContext = context === "ticket" || context === "bundle";
-    const eventMatches = !placeholder.requiresEvent || orderContext || Boolean(audience.eventId);
+    const eventMatches =
+      !placeholder.requiresEvent || orderContext || Boolean(eventContextId ?? audience.eventId);
     return audienceMatches && channelMatches && eventMatches;
   });
 }
@@ -515,10 +527,18 @@ function ticketServiceAudienceIssues(
   return issues;
 }
 
+function hasCommunicationEventContext(
+  requestedEventId: string | null | undefined,
+  audienceEventId: string | null | undefined,
+): boolean {
+  return Boolean(requestedEventId ?? audienceEventId);
+}
+
 export function validateCommunicationContext(request: {
   readonly audience: CommunicationAudienceLike;
   readonly channel: CommunicationChannel;
   readonly contentMarkdown: string;
+  readonly eventId?: string | null;
   readonly subject: string;
 }): readonly CommunicationContextIssue[] {
   const { audience, channel, contentMarkdown, subject } = request;
@@ -526,6 +546,7 @@ export function validateCommunicationContext(request: {
   const usedTags = extractCommunicationPlaceholders(fullText);
   const context = determineCommunicationPlaceholderContext(fullText);
   const issues: CommunicationContextIssue[] = [...ticketServiceAudienceIssues(audience, channel)];
+  const hasEventContext = hasCommunicationEventContext(request.eventId, audience.eventId);
 
   for (const tag of usedTags) {
     const def = findCommunicationPlaceholderDefinition(tag);
@@ -559,7 +580,7 @@ export function validateCommunicationContext(request: {
     }
 
     // 3. Check event requirement
-    if (def.requiresEvent && !isOrderContext && !audience.eventId) {
+    if (def.requiresEvent && !isOrderContext && !hasEventContext) {
       issues.push({
         code: "event_required",
         message: `${def.label} requires an event to be selected.`,
@@ -585,6 +606,7 @@ export function templateMatchesCommunicationContext(
   template: CommunicationTemplateLike,
   audience: CommunicationAudienceLike,
   channel: CommunicationChannel,
+  eventContextId?: string | null,
 ): boolean {
   if (template.channel !== channel && template.channel !== "Both" && channel !== "Both") {
     return false;
@@ -596,6 +618,7 @@ export function templateMatchesCommunicationContext(
     channel,
     context,
     template.contentMarkdown,
+    eventContextId,
   );
   const usedTags = extractCommunicationPlaceholders(text);
   return usedTags.every((tag) => {

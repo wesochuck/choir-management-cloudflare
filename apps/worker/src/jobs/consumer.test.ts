@@ -12,6 +12,7 @@ import type { OrganizationStore } from "../organization/OrganizationStore";
 import type { OrganizationRpcCall } from "../organization/rpc/types";
 import {
   deliveryOrigin,
+  renderEventTicketLink,
   type JobConsumerEnv,
   renderPollLinks,
   renderTicketLinks,
@@ -190,6 +191,26 @@ describe("ticket order links", () => {
     );
     expect(refundUsingLegacyPlaceholder).toContain("[View order details](");
     expect(refundUsingLegacyPlaceholder).not.toContain("View ticket / QR code");
+  });
+});
+
+describe("event ticket page links", () => {
+  it("renders a public ticket page URL without adding an order credential", () => {
+    const content = renderEventTicketLink(
+      "Join us: {{EVENT_TICKET_LINK}}",
+      "/tickets/spring-concert",
+      "https://alpha.example.test",
+    );
+    expect(content).toBe(
+      "Join us: [View event details and buy tickets](https://alpha.example.test/tickets/spring-concert)",
+    );
+    expect(content).not.toContain("token=");
+  });
+
+  it("replaces the link with a clear unavailable message when event context is missing", () => {
+    expect(renderEventTicketLink("{{EVENT_TICKET_LINK}}", null, null)).toBe(
+      "Ticket purchase page unavailable.",
+    );
   });
 });
 

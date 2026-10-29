@@ -12,6 +12,7 @@ import {
   extractCommunicationPlaceholders,
   renderCommunicationTemplate,
   renderOrganizationLogoPlaceholder,
+  ticketSalesPath,
   validateCommunicationContext,
 } from "@choir/domain";
 import { z } from "zod";
@@ -20,6 +21,7 @@ import { deliverOrganizationCommunication } from "../communications/provider";
 import {
   readOrganizationBrandingConfig,
   readOrganizationEmailSenderConfig,
+  renderEventTicketLink,
 } from "../jobs/deliveries/shared";
 import { listOrganizationEvents } from "../calendar/organizationCalendar";
 import {
@@ -27,6 +29,7 @@ import {
   listCommunicationHistory,
   listCommunicationRecipients,
   listOrganizationCommunications,
+  listOrganizationEventPromotionMessages,
   listOrganizationScheduledMessages,
   listCommunicationTemplates,
   previewCommunicationReach,
@@ -54,6 +57,15 @@ const ticketServiceAudienceMessages = new Set([
   "Important ticket-holder notices can only target Ticket Buyers.",
   "Important ticket-holder notices can only be sent by email. Switch to Email delivery.",
 ]);
+
+async function communicationActorName(database: D1Database, userId: string): Promise<string> {
+  const row = await database
+    .prepare("SELECT name FROM user WHERE id = ? LIMIT 1")
+    .bind(userId)
+    .first<{ readonly name: string }>();
+  const name = row?.name.trim();
+  return name && name.length > 0 ? name.slice(0, 200) : "Organization member";
+}
 
 function communicationValidationMessage(error: z.ZodError, fallback: string): string {
   return (
@@ -136,20 +148,16 @@ async function handleTestEmailDelivery(
   env: WorkerHonoEnvironment["Bindings"],
   organizationId: string,
   data: CommunicationTestEmailRequest,
+  canonicalOrigin: string,
   idempotencyKey?: string,
 ): Promise<void> {
   await assertEmailProviderRecipientAvailable(env.CONTROL_DB, data.email);
-  const [senderConfig, branding, events] = await Promise.all([
+  const eventId = data.eventId ?? data.audience?.eventId ?? null;
+  const [senderConfig, branding, selectedEvent] = await Promise.all([
     readOrganizationEmailSenderConfig(env, organizationId),
     readOrganizationBrandingConfig(env, organizationId),
-    data.audience?.eventId
-      ? listOrganizationEvents(env, organizationId).catch(() => [])
-      : Promise.resolve([]),
+    loadTestEmailEvent(env, organizationId, eventId),
   ]);
-
-  const selectedEvent = data.audience?.eventId
-    ? (events.find((e) => e.id === data.audience?.eventId) ?? null)
-    : null;
 
   const { fromName, templatedContent, templatedSubject } = renderTestEmailPayload({
     baseDomain: env.PRODUCT_BASE_DOMAIN || "localhost",
@@ -159,9 +167,16 @@ async function handleTestEmailDelivery(
     fromName: senderConfig.fromName,
     subject: data.subject,
   });
+  const contentWithEventTicketLink = renderEventTicketLink(
+    templatedContent,
+    selectedEvent ? ticketSalesPath(selectedEvent) : null,
+    canonicalOrigin,
+  );
 
   const unresolvedSubjectPlaceholders = extractCommunicationPlaceholders(templatedSubject);
-  const unresolvedContentPlaceholders = extractCommunicationPlaceholders(templatedContent);
+  const unresolvedContentPlaceholders = extractCommunicationPlaceholders(
+    contentWithEventTicketLink,
+  );
   const unresolved = [
     ...new Set([...unresolvedSubjectPlaceholders, ...unresolvedContentPlaceholders]),
   ];
@@ -173,7 +188,7 @@ async function handleTestEmailDelivery(
 
   const delivery = await deliverOrganizationCommunication(env, {
     channel: "email",
-    contentMarkdown: templatedContent,
+    contentMarkdown: contentWithEventTicketLink,
     deliveryId: crypto.randomUUID(),
     destination: data.email,
     fromName,
@@ -191,6 +206,16 @@ async function handleTestEmailDelivery(
   if (delivery.status === "suppressed") {
     throw new Error(delivery.failureDetail || "Organization email delivery is disabled.");
   }
+}
+
+async function loadTestEmailEvent(
+  env: WorkerHonoEnvironment["Bindings"],
+  organizationId: string,
+  eventId: string | null,
+) {
+  if (!eventId) return null;
+  const events = await listOrganizationEvents(env, organizationId).catch(() => []);
+  return events.find((event) => event.id === eventId) ?? null;
 }
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
@@ -211,6 +236,44 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         error,
         context.get("requestId"),
         "Communication history is temporarily unavailable.",
+      );
+      return context.json(result.problem, result.status);
+    }
+  });
+
+  router.get("/api/organization/communications/events/:eventId/promotions", async (context) => {
+    const authorization = await authorizeCalendarRoute(context, true);
+    if (!authorization.ok)
+      return context.json(
+        { ...authorization, requestId: context.get("requestId") },
+        authorization.status,
+      );
+    const eventId = z.uuid().safeParse(context.req.param("eventId"));
+    if (!eventId.success) {
+      return context.json(
+        {
+          code: "invalid_event_id",
+          requestId: context.get("requestId"),
+          title: "Invalid event",
+          status: 400,
+        },
+        400,
+      );
+    }
+    try {
+      return context.json({
+        messages: await listOrganizationEventPromotionMessages(
+          context.env,
+          authorization.organizationId,
+          eventId.data,
+        ),
+        requestId: context.get("requestId"),
+      });
+    } catch (error: unknown) {
+      const result = communicationProblem(
+        error,
+        context.get("requestId"),
+        "Event promotion history is temporarily unavailable.",
       );
       return context.json(result.problem, result.status);
     }
@@ -687,6 +750,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         context.env.CONTROL_DB,
         {
           actorUserId: authorization.userId,
+          actorUserName: await communicationActorName(context.env.CONTROL_DB, authorization.userId),
           organizationId: authorization.organizationId,
           organizationOrigin: new URL(context.req.url).origin,
           requestId: context.get("requestId"),
@@ -741,6 +805,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         context.env,
         authorization.organizationId,
         body.data,
+        new URL(context.req.url).origin,
         idempotencyKey.data,
       );
       return context.json({ requestId: context.get("requestId"), sent: true as const }, 202);

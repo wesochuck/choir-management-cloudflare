@@ -40,6 +40,7 @@ import { listMusicPiecesFromStore, readMusicLibrarySettingsFromStore } from "../
 import { listResourcesFromStore } from "../resourceStore";
 import {
   listCommunicationHistoryFromStore,
+  listEventPromotionMessagesFromStore,
   listCommunicationMessagesFromStore,
   listCommunicationRecipientsFromStore,
   listMemberBulletinsFromStore,
@@ -140,6 +141,8 @@ const contentGetHandlers: Record<
     listResourcesFromStore(storage, organizationId),
   "/internal/communications": (storage, _url, organizationId) =>
     listCommunicationMessagesFromStore(storage, organizationId),
+  "/internal/communications/promotions": (storage, url, organizationId) =>
+    listEventPromotionMessagesFromStore(storage, organizationId, url.searchParams.get("eventId")),
   "/internal/communications/history": (storage, url, organizationId) =>
     listCommunicationHistoryFromStore(storage, {
       cursor: url.searchParams.get("cursor"),

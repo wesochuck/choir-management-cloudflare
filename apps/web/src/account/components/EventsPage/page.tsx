@@ -83,6 +83,9 @@ export function EventsPage({
   const [bulkRehearsalVenueId, setBulkRehearsalVenueId] = useState("");
   const [dialogOpen, setDialogOpen] = useState(initialAction === "create");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editorInitialSection, setEditorInitialSection] = useState<string | null>(
+    initialSection ?? null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [event, setEvent] = useState<OrganizationEventRequest>(() => ({
     ...emptyEvent,
@@ -104,6 +107,7 @@ export function EventsPage({
   const [showPastEvents, setShowPastEvents] = useState(false);
   const [state, setState] = useState<EventsState>({ status: "loading" });
   const [success, setSuccess] = useState<string | null>(null);
+  const [promotionPromptEventId, setPromotionPromptEventId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
@@ -183,6 +187,7 @@ export function EventsPage({
     if (busy) return;
     setDialogOpen(false);
     setEditingId(null);
+    setEditorInitialSection(initialSection ?? null);
     setEvent(emptyEvent);
     setEventStart("");
     setGraphicFile(null);
@@ -194,6 +199,7 @@ export function EventsPage({
 
   function openCreate() {
     setEditingId(null);
+    setEditorInitialSection(null);
     setEvent(emptyEvent);
     setEventStart("");
     setGraphicFile(null);
@@ -236,9 +242,10 @@ export function EventsPage({
     setBulkRehearsalOpen(true);
   }
 
-  function openEdit(candidate: OrganizationEvent) {
+  function openEdit(candidate: OrganizationEvent, section: string | null = null) {
     if (state.status !== "ready") return;
     setEditingId(candidate.id);
+    setEditorInitialSection(section);
     setEvent(eventRequestFrom(candidate));
     setEventStart(utcToZonedLocalDateTime(candidate.startsAt, state.timezone) ?? "");
     setGraphicFile(null);
@@ -250,6 +257,7 @@ export function EventsPage({
   function openClone(candidate: OrganizationEvent) {
     if (state.status !== "ready") return;
     setEditingId(null);
+    setEditorInitialSection(null);
     setEvent({
       ...eventRequestFrom(candidate),
       isTicketingEnabled: false,
@@ -288,9 +296,10 @@ export function EventsPage({
     setBusy(true);
     setError(null);
     let uploadedGraphicId: string | null = null;
-    const previousGraphicId = editingId
-      ? (state.events.find((candidate) => candidate.id === editingId)?.publicGraphicFileId ?? null)
+    const previousEvent = editingId
+      ? (state.events.find((candidate) => candidate.id === editingId) ?? null)
       : null;
+    const previousGraphicId = previousEvent?.publicGraphicFileId ?? null;
     try {
       if (graphicFile) uploadedGraphicId = (await uploadPrivateOrganizationFile(graphicFile)).id;
       const request: OrganizationEventRequest = {
@@ -301,6 +310,15 @@ export function EventsPage({
       const saved = editingId
         ? await updateOrganizationEvent(editingId, request)
         : await createOrganizationEvent(request);
+      const newlyPromotionReady =
+        saved.type === "Performance" &&
+        saved.isTicketingEnabled &&
+        saved.publishOnWebsite &&
+        Date.parse(saved.startsAt) > currentTime &&
+        (!previousEvent ||
+          !previousEvent.isTicketingEnabled ||
+          !previousEvent.publishOnWebsite ||
+          previousEvent.isCanceled);
       setState((current) =>
         current.status === "ready"
           ? {
@@ -316,6 +334,7 @@ export function EventsPage({
         await deletePrivateOrganizationFile(previousGraphicId).catch(() => undefined);
       }
       setSuccess(editingId ? "Event updated." : "Event created.");
+      setPromotionPromptEventId(newlyPromotionReady ? saved.id : null);
       setDialogOpen(false);
       setEditingId(null);
       setEvent(emptyEvent);
@@ -603,6 +622,28 @@ export function EventsPage({
               {success}
             </p>
           ) : null}
+          {promotionPromptEventId ? (
+            <div className="notice notice--info" role="status">
+              <p>
+                <strong>Your event is ready. Invite past ticket buyers.</strong>
+              </p>
+              <button
+                className="button button--secondary"
+                onClick={() => {
+                  const candidate = readyState?.events.find(
+                    (entry) => entry.id === promotionPromptEventId,
+                  );
+                  if (candidate) {
+                    setPromotionPromptEventId(null);
+                    openEdit(candidate, "promotion");
+                  }
+                }}
+                type="button"
+              >
+                Prepare announcement
+              </button>
+            </div>
+          ) : null}
           {state.status === "loading" ? <p role="status">Loading events…</p> : null}
           {state.status === "error" ? (
             <p className="notice notice--error" role="alert">
@@ -642,8 +683,8 @@ export function EventsPage({
         event={event}
         eventStart={eventStart}
         graphicFile={graphicFile}
-        initialSection={initialSection}
-        key={`${dialogOpen ? "open" : "closed"}:${editingId ?? "new"}`}
+        initialSection={editorInitialSection}
+        key={`${dialogOpen ? "open" : "closed"}:${editingId ?? "new"}:${editorInitialSection ?? "default"}`}
         navigate={navigate}
         onClose={closeDialog}
         onSubmit={(eventDraft) => {

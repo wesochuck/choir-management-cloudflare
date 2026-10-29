@@ -86,6 +86,7 @@ describe("RecipientContextPanel Contacts audience", () => {
       audience: { ...defaultAudience, targetAudiences: ["Members", "Contacts"] },
       reachState: {
         data: {
+          audienceOverLimit: false,
           both: 1,
           email: 2,
           sms: 1,
@@ -151,6 +152,7 @@ describe("RecipientContextPanel Contacts audience", () => {
       },
       reachState: {
         data: {
+          audienceOverLimit: false,
           both: 0,
           email: 998,
           sms: 0,

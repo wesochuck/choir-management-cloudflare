@@ -1,4 +1,5 @@
 import type {
+  CommunicationMessage,
   OrganizationEmailSettings,
   OrganizationProviderStatusResponse,
   OrganizationRosterConfiguration,
@@ -8,6 +9,60 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "../../../auth/api";
 import { useCommunicationCenterController } from "./hooks";
+
+const promotionEventId = "77777777-7777-4777-8777-777777777777";
+const promotionMessageId = "88888888-8888-4888-8888-888888888888";
+const promotionAudience: CommunicationMessage["audience"] = {
+  contactEmailStatus: "subscribed",
+  contactIds: ["99999999-9999-4999-8999-999999999999"],
+  contactListIds: ["66666666-6666-4666-8666-666666666666"],
+  contactSmsStatus: null,
+  contactSource: "newsletter import",
+  eventId: null,
+  excludeTicketBuyersForEventId: promotionEventId,
+  globalStatuses: ["Active"],
+  profileIds: [],
+  rsvp: "All",
+  targetAudiences: ["Ticket Buyers", "Contacts"],
+  ticketBuyerMode: "marketing",
+  ticketBuyerPastEventsOnly: true,
+  voiceParts: [],
+};
+
+function promotionDraft(
+  draftRevision: number,
+  status: CommunicationMessage["status"],
+): CommunicationMessage {
+  return {
+    audience: promotionAudience,
+    channel: "Email",
+    contentMarkdown: "Hello {recipientName}, come to {eventTitle}.",
+    createdAt: "2026-08-01T10:00:00.000Z",
+    draftRevision,
+    eventPromotion: {
+      announcementKind: "initial",
+      eventId: promotionEventId,
+      parentMessageId: null,
+    },
+    id: promotionMessageId,
+    queuedByName: null,
+    queuedByUserId: null,
+    reach: {
+      audienceOverLimit: false,
+      both: 0,
+      email: 4,
+      sms: 0,
+      ticketBuyerPurchasesOverLimit: 0,
+      total: 4,
+      undeliverableTicketBuyerPurchases: 0,
+      unreachable: 0,
+    },
+    sentAt: null,
+    status,
+    subject: "Join us for {eventTitle}",
+    updatedAt: "2026-08-01T10:00:00.000Z",
+  };
+}
 
 const mockProviderStatus: OrganizationProviderStatusResponse = {
   brevo: { detail: "ok", status: "ok" },
@@ -193,5 +248,53 @@ describe("useCommunicationCenterController filters", () => {
         expect.any(AbortSignal),
       );
     });
+  });
+
+  it("resumes and sends an event promotion with its complete audience and persisted revision", async () => {
+    const historySpy = vi
+      .spyOn(apiModule, "getOrganizationCommunicationHistory")
+      .mockResolvedValue({ items: [], nextCursor: null, requestId: "req-1" });
+    const saveSpy = vi
+      .spyOn(apiModule, "saveOrganizationCommunicationDraft")
+      .mockResolvedValue(promotionDraft(8, "Draft"));
+    const sendSpy = vi
+      .spyOn(apiModule, "sendOrganizationCommunication")
+      .mockResolvedValue(promotionDraft(9, "Queued"));
+    const { result } = renderHook(() => useCommunicationCenterController({ enabled: false }));
+
+    act(() => {
+      result.current.resumeDraft(promotionDraft(7, "Draft"));
+    });
+    expect(result.current.audience).toMatchObject({
+      contactEmailStatus: "subscribed",
+      contactIds: promotionAudience.contactIds,
+      contactListIds: promotionAudience.contactListIds,
+      excludeTicketBuyersForEventId: promotionEventId,
+      targetAudiences: ["Ticket Buyers", "Contacts"],
+      ticketBuyerPastEventsOnly: true,
+    });
+    expect(result.current.eventPromotion?.eventId).toBe(promotionEventId);
+
+    await act(async () => result.current.saveDraft());
+    expect(saveSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audience: promotionAudience,
+        eventPromotion: promotionDraft(7, "Draft").eventPromotion,
+        expectedRevision: 7,
+        messageId: promotionMessageId,
+      }),
+    );
+
+    await act(async () => result.current.sendCommunication());
+    expect(sendSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audience: promotionAudience,
+        eventPromotion: promotionDraft(8, "Draft").eventPromotion,
+        expectedRevision: 8,
+        messageId: promotionMessageId,
+      }),
+      expect.any(String),
+    );
+    expect(historySpy).toHaveBeenCalled();
   });
 });

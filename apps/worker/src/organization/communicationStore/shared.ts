@@ -10,6 +10,7 @@ import {
   type IdentityRow,
   type MessageRow,
 } from "./contracts";
+import { ticketSalesPath } from "@choir/domain";
 
 export function identityMatches(
   storage: CommunicationAudienceStorage,
@@ -25,10 +26,30 @@ export function identityMatches(
   );
 }
 
+export function eventPromotionIsEligible(
+  storage: DurableObjectStorage,
+  eventId: string,
+  now: string,
+): boolean {
+  return (
+    storage.sql
+      .exec<{ readonly id: string }>(
+        `SELECT id FROM events
+         WHERE id = ? AND type = 'Performance' AND is_archived = 0 AND is_canceled = 0
+           AND publish_on_website = 1 AND is_ticketing_enabled = 1 AND starts_at > ?
+         LIMIT 1`,
+        eventId,
+        now,
+      )
+      .toArray().length === 1
+  );
+}
+
 export function parseMessage(row: MessageRow) {
   return communicationMessageSchema.parse({
     ...row,
     audience: JSON.parse(row.audienceJson) as unknown,
+    eventPromotion: row.eventPromotionJson ? (JSON.parse(row.eventPromotionJson) as unknown) : null,
     reach: JSON.parse(row.reachJson) as unknown,
     status: row.canceledAt ? "Canceled" : row.status,
   });
@@ -77,11 +98,13 @@ export function eventCommunicationContext(
       readonly eventLocation: string;
       readonly eventTitle: string;
       readonly eventType: string;
+      readonly ticketSlug: string | null;
       readonly setListJson: string;
     }>(
       `SELECT e.title AS eventTitle, e.type AS eventType, e.starts_at AS eventDate,
         e.call_time AS callTime, e.details, COALESCE(v.name, e.location) AS eventLocation,
-        e.set_list_json AS setListJson
+        e.set_list_json AS setListJson,
+        (SELECT slug FROM ticket_url_names WHERE kind = 'performance' AND resource_id = e.id) AS ticketSlug
        FROM events e LEFT JOIN venues v ON v.id = e.venue_id
        WHERE e.id = ? AND e.is_archived = 0 ${canceledFilter} LIMIT 1`,
       eventId,
@@ -104,6 +127,7 @@ export function eventCommunicationContext(
     eventLocation: event.eventLocation,
     eventTitle: event.eventTitle,
     eventType: event.eventType,
+    eventTicketPath: ticketSalesPath({ id: eventId, ticketSlug: event.ticketSlug }),
     setlist: setListTitles(event.setListJson),
   };
 }

@@ -27,6 +27,7 @@
   "CONTACT_IMPORT_SAMPLE_MAX",
   "CONTACT_RESPONSE_MAX",
   "CalendarFeedUrlsResponse",
+  "CommunicationAudienceChannelRequest",
   "CommunicationAudienceRequest",
   "CommunicationAudienceTarget",
   "CommunicationChannel",

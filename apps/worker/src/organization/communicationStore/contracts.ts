@@ -68,6 +68,7 @@ export const sendOperationSchema = contextSchema
     actorType: z
       .enum(["organization_member", "organization_system"])
       .default("organization_member"),
+    actorUserName: z.string().trim().min(1).max(200).optional(),
     automation: z
       .object({
         eventId: z.string().min(1).max(128),
@@ -82,6 +83,7 @@ export const sendOperationSchema = contextSchema
     recipients: z.array(recipientSchema).max(MAX_COMMUNICATION_DELIVERIES),
     ticketBuyerPurchasesOverLimit: z.number().int().nonnegative().default(0),
     undeliverableTicketBuyerPurchases: z.number().int().nonnegative().default(0),
+    audienceOverLimit: z.boolean().default(false),
   })
   .superRefine((value, refinementContext) => {
     const recipientLimit =
@@ -107,6 +109,13 @@ export const sendOperationSchema = contextSchema
         code: "custom",
         message: `The complete ticket-holder audience exceeds the ${String(MAX_COMMUNICATION_DELIVERIES)}-recipient message limit.`,
         path: ["ticketBuyerPurchasesOverLimit"],
+      });
+    }
+    if (value.message.eventPromotion && value.audienceOverLimit) {
+      refinementContext.addIssue({
+        code: "custom",
+        message: "The event promotion audience exceeds the 500-recipient limit.",
+        path: ["audienceOverLimit"],
       });
     }
     const deliveryCount = value.recipients.reduce(
@@ -214,8 +223,12 @@ export interface MessageRow {
   readonly channel: "Both" | "Email" | "SMS";
   readonly contentMarkdown: string;
   readonly createdAt: string;
+  readonly draftRevision?: number;
+  readonly eventPromotionJson?: string | null;
   readonly id: string;
   readonly reachJson: string;
+  readonly queuedByUserId?: string | null;
+  readonly queuedByName?: string | null;
   readonly sentAt: string | null;
   readonly status: "Draft" | "Failed" | "Queued" | "Sent";
   readonly subject: string;
@@ -256,4 +269,6 @@ export interface TemplateRow {
 
 export const messageColumns = `id, channel, status, subject, content_markdown AS contentMarkdown,
   audience_json AS audienceJson, reach_json AS reachJson, created_at AS createdAt,
-  updated_at AS updatedAt, sent_at AS sentAt, canceled_at AS canceledAt`;
+  updated_at AS updatedAt, sent_at AS sentAt, canceled_at AS canceledAt,
+  event_promotion_json AS eventPromotionJson, draft_revision AS draftRevision,
+  queued_by_user_id AS queuedByUserId, queued_by_name AS queuedByName`;

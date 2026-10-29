@@ -14,6 +14,7 @@ import {
   deliveryOrigin,
   readOrganizationBrandingConfig,
   readOrganizationEmailSenderConfig,
+  renderEventTicketLink,
   renderPlayerLinks,
   renderPollLinks,
   renderRsvpLinks,
@@ -42,10 +43,15 @@ async function renderDeliveryContent(
       ...(deliveryJob.context ?? {}),
     },
   );
+  const contentWithEventTicketLink = renderEventTicketLink(
+    templatedContent,
+    deliveryJob.context?.eventTicketPath ?? null,
+    canonicalOrigin,
+  );
   const contentWithRsvpLinks = await renderRsvpLinks(
     env,
     job.organizationId,
-    templatedContent,
+    contentWithEventTicketLink,
     deliveryJob.context?.eventId ?? null,
     delivery,
     canonicalOrigin,

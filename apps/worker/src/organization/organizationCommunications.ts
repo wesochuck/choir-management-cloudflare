@@ -32,6 +32,10 @@ import { z } from "zod";
 
 import type { Env } from "../env";
 import { issueSignedLink } from "../security/signedLinks";
+import {
+  issuePromotionReviewSnapshot,
+  verifyPromotionReviewSnapshot,
+} from "../communications/promotionReviewSnapshot";
 import { listOrganizationProfileEmails } from "./profiles";
 import {
   mutateOrganizationStore,
@@ -41,6 +45,7 @@ import {
 } from "./rpc/repository";
 
 const candidateResponseSchema = z.object({
+  contactsOverLimit: z.boolean().default(false),
   ticketBuyerPurchasesOverLimit: z.number().int().nonnegative().default(0),
   undeliverableTicketBuyerPurchases: z.number().int().nonnegative().default(0),
   recipients: z.array(
@@ -73,6 +78,7 @@ export const deliveryJobResponseSchema = z.object({
       eventLocation: z.string(),
       eventTitle: z.string(),
       eventType: z.string(),
+      eventTicketPath: z.string().max(320).default(""),
       setlist: z.string(),
     })
     .nullable(),
@@ -174,6 +180,7 @@ async function resolveRecipients(
   audience: CommunicationAudienceRequest,
   unsubscribeOrigin: string | null,
 ): Promise<{
+  readonly audienceOverLimit: boolean;
   readonly recipients: readonly Recipient[];
   readonly ticketBuyerPurchasesOverLimit: number;
   readonly undeliverableTicketBuyerPurchases: number;
@@ -257,6 +264,10 @@ async function resolveRecipients(
     }),
   );
   return {
+    audienceOverLimit:
+      audience.excludeTicketBuyersForEventId !== undefined &&
+      audience.excludeTicketBuyersForEventId !== null &&
+      (resolution.contactsOverLimit || resolved.length > 500),
     recipients,
     ticketBuyerPurchasesOverLimit: resolution.ticketBuyerPurchasesOverLimit,
     undeliverableTicketBuyerPurchases: resolution.undeliverableTicketBuyerPurchases,
@@ -296,19 +307,47 @@ export async function previewCommunicationReach(
   env: Env,
   database: D1Database,
   organizationId: string,
-  request: Pick<CommunicationSendRequest, "audience" | "channel">,
-): Promise<CommunicationReach> {
+  request: Pick<CommunicationSendRequest, "audience" | "channel"> & {
+    readonly contentMarkdown?: string | undefined;
+    readonly draftRevision?: number | undefined;
+    readonly eventPromotion?: NonNullable<CommunicationSendRequest["eventPromotion"]> | undefined;
+    readonly messageId?: string | undefined;
+    readonly subject?: string | undefined;
+  },
+): Promise<CommunicationReach & { readonly reviewSnapshot?: string }> {
   const resolution = await resolveRecipients(env, database, organizationId, request.audience, null);
-  return communicationReach(
+  const reach = communicationReach(
     resolution.recipients,
     request.channel,
     resolution.undeliverableTicketBuyerPurchases,
     resolution.ticketBuyerPurchasesOverLimit,
+    resolution.audienceOverLimit,
   );
+  if (!request.eventPromotion) return reach;
+  if (
+    !request.messageId ||
+    !request.draftRevision ||
+    request.contentMarkdown === undefined ||
+    request.subject === undefined
+  ) {
+    throw new CommunicationRepositoryError("event_promotion_review_context_required", 400);
+  }
+  const reviewSnapshot = await issuePromotionReviewSnapshot(env.SIGNED_LINK_SECRET, {
+    audience: request.audience,
+    contentMarkdown: request.contentMarkdown,
+    draftRevision: request.draftRevision,
+    eventId: request.eventPromotion.eventId,
+    messageId: request.messageId,
+    organizationId,
+    recipients: resolution.recipients,
+    subject: request.subject,
+  });
+  return { ...reach, reviewSnapshot };
 }
 
 interface ActorContext {
   readonly actorUserId: string;
+  readonly actorUserName?: string | undefined;
   readonly organizationId: string;
   readonly requestId: string;
 }
@@ -331,12 +370,13 @@ export async function saveCommunicationDraft(
     message.channel,
     resolution.undeliverableTicketBuyerPurchases,
     resolution.ticketBuyerPurchasesOverLimit,
+    resolution.audienceOverLimit,
   );
   const response = await post(env, context.organizationId, "/internal/communications/manage", {
     action: "save-draft",
     ...context,
     message,
-    messageId: crypto.randomUUID(),
+    messageId: message.messageId ?? crypto.randomUUID(),
     reach,
   });
   return communicationMessageSchema.parse(await response.json());
@@ -357,16 +397,56 @@ export async function sendOrganizationCommunication(
     context.organizationOrigin,
   );
   if (resolution.ticketBuyerPurchasesOverLimit > 0) {
-    throw new CommunicationRepositoryError("ticket_service_audience_exceeds_limit", 409);
+    throw new CommunicationRepositoryError(
+      message.eventPromotion
+        ? "event_promotion_audience_exceeds_limit"
+        : "ticket_service_audience_exceeds_limit",
+      409,
+    );
+  }
+  if (resolution.audienceOverLimit) {
+    throw new CommunicationRepositoryError("event_promotion_audience_exceeds_limit", 409);
+  }
+  if (message.eventPromotion) {
+    if (!message.reviewSnapshot || !message.messageId || !message.expectedRevision) {
+      throw new CommunicationRepositoryError("event_promotion_review_required", 409);
+    }
+    const reviewStatus = await verifyPromotionReviewSnapshot(
+      env.SIGNED_LINK_SECRET,
+      message.reviewSnapshot,
+      {
+        audience: message.audience,
+        contentMarkdown: message.contentMarkdown,
+        draftRevision: message.expectedRevision,
+        eventId: message.eventPromotion.eventId,
+        messageId: message.messageId,
+        organizationId: context.organizationId,
+        recipients: resolution.recipients,
+        subject: message.subject,
+      },
+    );
+    if (reviewStatus !== "valid") {
+      throw new CommunicationRepositoryError(
+        reviewStatus === "expired"
+          ? "event_promotion_review_expired"
+          : reviewStatus === "stale"
+            ? "event_promotion_review_stale"
+            : "event_promotion_review_invalid",
+        409,
+      );
+    }
   }
   const response = await post(env, context.organizationId, "/internal/communications/manage", {
     action: "send",
     ...context,
-    dedupeKey: idempotencyKey,
+    dedupeKey: message.eventPromotion
+      ? `event-promotion:${message.eventPromotion.eventId}:${message.eventPromotion.announcementKind}:${message.eventPromotion.parentMessageId ?? "initial"}:${message.messageId ?? "new"}`
+      : idempotencyKey,
     jobId: crypto.randomUUID(),
     message,
-    messageId: crypto.randomUUID(),
+    messageId: message.messageId ?? crypto.randomUUID(),
     recipients: resolution.recipients,
+    audienceOverLimit: resolution.audienceOverLimit,
     ticketBuyerPurchasesOverLimit: resolution.ticketBuyerPurchasesOverLimit,
     undeliverableTicketBuyerPurchases: resolution.undeliverableTicketBuyerPurchases,
   });
@@ -477,6 +557,22 @@ export async function listOrganizationCommunications(
   organizationId: string,
 ): Promise<readonly CommunicationMessage[]> {
   const response = await readOrganizationStore(env, organizationId, "/internal/communications");
+  if (!response.ok) throw await failure(response);
+  return communicationMessagesResponseSchema.omit({ requestId: true }).parse(await response.json())
+    .messages;
+}
+
+export async function listOrganizationEventPromotionMessages(
+  env: Env,
+  organizationId: string,
+  eventId: string,
+): Promise<readonly CommunicationMessage[]> {
+  const response = await readOrganizationStore(
+    env,
+    organizationId,
+    "/internal/communications/promotions",
+    { eventId },
+  );
   if (!response.ok) throw await failure(response);
   return communicationMessagesResponseSchema.omit({ requestId: true }).parse(await response.json())
     .messages;

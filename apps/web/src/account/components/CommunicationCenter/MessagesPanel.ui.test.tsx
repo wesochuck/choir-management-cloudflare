@@ -13,8 +13,13 @@ const manualDraftMsg: CommunicationMessage = {
   channel: "Email",
   contentMarkdown: "Draft content",
   createdAt: "2026-08-01T10:00:00Z",
+  draftRevision: 1,
+  eventPromotion: null,
   id: "10000000-0000-0000-0000-000000000001",
+  queuedByName: null,
+  queuedByUserId: null,
   reach: {
+    audienceOverLimit: false,
     both: 0,
     email: 1,
     sms: 0,

@@ -1,6 +1,7 @@
 import type { OrganizationEventRequest, OrganizationVenue } from "@choir/contracts";
 import { Dialog, DialogClose, Tabs, TabsList, TabsTrigger, useConfirmation } from "@choir/ui";
 import {
+  Suspense,
   type Dispatch,
   type DragEvent,
   type SetStateAction,
@@ -9,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { lazyWithRetry } from "../../../../offline/chunkRecovery";
 import { zonedLocalDateTimeToUtc } from "@choir/domain";
 import { createOrganizationVenue, listOrganizationVenues } from "../../../../auth/api";
 
@@ -46,6 +48,10 @@ import { RsvpSection } from "./RsvpSection";
 import { ScheduleSection } from "./ScheduleSection";
 import { TicketingSection } from "./TicketingSection";
 
+const PromotionSection = lazyWithRetry(() =>
+  import("./PromotionSection").then((module) => ({ default: module.PromotionSection })),
+);
+
 function sectionBadgeLabel(errorCount: number, required: boolean): string {
   if (errorCount > 0) return `${String(errorCount)} to fix`;
   if (required) return "Required";
@@ -58,7 +64,8 @@ function isEventEditorSection(value: string): value is EventEditorSection {
     value === "schedule" ||
     value === "rsvp" ||
     value === "tickets" ||
-    value === "public"
+    value === "public" ||
+    value === "promotion"
   );
 }
 
@@ -116,13 +123,18 @@ export function EventEditorDialog({
   const previewUrlRef = useRef<string | null>(null);
 
   const [activeSection, setActiveSection] = useState<EventEditorSection>(() => {
+    if (initialSection === "promotion" && event.type === "Performance") return "promotion";
     if (initialSection === "tickets" && event.type === "Performance") return "tickets";
     return "basics";
   });
+  const [promotionOpened, setPromotionOpened] = useState(
+    () => initialSection === "promotion" && event.type === "Performance",
+  );
   const [attemptedSave, setAttemptedSave] = useState(false);
   const [attemptedAdvance, setAttemptedAdvance] = useState(false);
   const [tbdBusy, setTbdBusy] = useState(false);
   const [tbdError, setTbdError] = useState<string | null>(null);
+  const [promotionDraftDirty, setPromotionDraftDirty] = useState(false);
   const errorSummaryRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -155,10 +167,10 @@ export function EventEditorDialog({
 
   async function handleOpenSetList(): Promise<void> {
     if (!editingId) return;
-    if (dirty) {
+    if (dirty || promotionDraftDirty) {
       const shouldDiscard = await confirm({
         confirmLabel: "Discard changes",
-        description: "Your unsaved changes will be lost if you leave this event.",
+        description: "Your unsaved event or communication changes will be lost if you leave.",
         destructive: true,
         title: "Discard unsaved changes?",
       });
@@ -174,10 +186,10 @@ export function EventEditorDialog({
 
   async function handleOpenRsvpDetails(destination?: string): Promise<void> {
     if (!editingId) return;
-    if (dirty) {
+    if (dirty || promotionDraftDirty) {
       const shouldDiscard = await confirm({
         confirmLabel: "Discard changes",
-        description: "Your unsaved changes will be lost if you leave this event.",
+        description: "Your unsaved event or communication changes will be lost if you leave.",
         destructive: true,
         title: "Discard unsaved changes?",
       });
@@ -228,6 +240,14 @@ export function EventEditorDialog({
   useEffect(() => {
     if (!dialogOpen || initialSection !== "tickets") return;
     if (event.type !== "Performance") return;
+    if (activeSection === "promotion") {
+      const focusTimer = window.setTimeout(() => {
+        document.getElementById("event-promotion-heading")?.focus();
+      }, 60);
+      return () => {
+        window.clearTimeout(focusTimer);
+      };
+    }
     if (activeSection !== "tickets") return;
     const focusTimer = window.setTimeout(() => {
       const targetElement =
@@ -424,11 +444,14 @@ export function EventEditorDialog({
         type: nextType,
       };
     });
-    if (nextType === "Rehearsal" && (activeSection === "rsvp" || activeSection === "tickets")) {
+    if (
+      nextType === "Rehearsal" &&
+      (activeSection === "rsvp" || activeSection === "tickets" || activeSection === "promotion")
+    ) {
       setActiveSection("schedule");
     } else if (
       nextType === "Other" &&
-      (activeSection === "tickets" || activeSection === "public")
+      (activeSection === "tickets" || activeSection === "public" || activeSection === "promotion")
     ) {
       setActiveSection("rsvp");
     }
@@ -469,7 +492,7 @@ export function EventEditorDialog({
       <Dialog
         className="dialog--event-editor"
         description={eventDialogDescription(state)}
-        dirty={dirty}
+        dirty={dirty || promotionDraftDirty}
         header={
           <EventEditorHeader
             busy={busy}
@@ -485,14 +508,20 @@ export function EventEditorDialog({
             timezoneLabel={timezoneLabel}
           />
         }
-        onClose={onClose}
+        onClose={() => {
+          setPromotionDraftDirty(false);
+          onClose();
+        }}
         open={dialogOpen}
         title={eventDialogTitle(editingId, event.title)}
       >
         <Tabs
           className="event-editor-tabs-root"
           onValueChange={(value) => {
-            if (isEventEditorSection(value)) setActiveSection(value);
+            if (isEventEditorSection(value)) {
+              setActiveSection(value);
+              if (value === "promotion") setPromotionOpened(true);
+            }
           }}
           orientation="vertical"
           value={activeSection}
@@ -513,6 +542,7 @@ export function EventEditorDialog({
                   onChange={(change) => {
                     if (isEventEditorSection(change.target.value)) {
                       setActiveSection(change.target.value);
+                      if (change.target.value === "promotion") setPromotionOpened(true);
                     }
                   }}
                   value={activeSection}
@@ -711,6 +741,24 @@ export function EventEditorDialog({
                       setGraphicError={setGraphicError}
                       tbdInfo={tbdInfo}
                     />
+                  ) : null}
+
+                  {visibleSections.includes("promotion") && promotionOpened ? (
+                    <Suspense fallback={<p role="status">Loading promotion tools…</p>}>
+                      <PromotionSection
+                        key={editingId ?? "new-event"}
+                        dirty={dirty}
+                        editingId={editingId}
+                        events={state.status === "ready" ? state.events : []}
+                        onDraftDirtyChange={setPromotionDraftDirty}
+                        savedEvent={
+                          state.status === "ready"
+                            ? (state.events.find((candidate) => candidate.id === editingId) ?? null)
+                            : null
+                        }
+                        timezone={timezoneLabel}
+                      />
+                    </Suspense>
                   ) : null}
                 </div>
 

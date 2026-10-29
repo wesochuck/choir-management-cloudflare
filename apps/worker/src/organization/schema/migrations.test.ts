@@ -50,6 +50,48 @@ function readTaskApplicable(
 }
 
 describe("organization schema migrations", () => {
+  it("v128 stores canonical event promotion context and enforces one initial per event", () => {
+    const adapter = setupThrough(127);
+    applyVersion(adapter, 128);
+    const columns = adapter.storage.sql
+      .exec<{ readonly name: string }>("PRAGMA table_info(communication_messages)")
+      .toArray();
+    expect(columns.map(({ name }) => name)).toContain("event_promotion_json");
+    expect(columns.map(({ name }) => name)).toContain("draft_revision");
+
+    adapter.storage.sql.exec(
+      `INSERT INTO events (id, title, type, starts_at, created_at, updated_at)
+       VALUES ('event-1', 'Winter Lights', 'Performance', '2027-12-01', '2026-10-29', '2026-10-29')`,
+    );
+    for (const id of ["message-1", "message-2", "message-3"]) {
+      adapter.storage.sql.exec(
+        `INSERT INTO communication_messages
+          (id, channel, status, audience_json, reach_json, created_by, created_at, updated_at)
+         VALUES (?, 'Email', 'Draft', '{}', '{}', 'user-1', '2026-10-29', '2026-10-29')`,
+        id,
+      );
+    }
+    adapter.storage.sql.exec(
+      `INSERT INTO event_communication_links
+        (event_id, message_id, announcement_kind, parent_message_id, created_at)
+       VALUES ('event-1', 'message-1', 'initial', NULL, '2026-10-29')`,
+    );
+    expect(() =>
+      adapter.storage.sql.exec(
+        `INSERT INTO event_communication_links
+          (event_id, message_id, announcement_kind, parent_message_id, created_at)
+         VALUES ('event-1', 'message-2', 'initial', NULL, '2026-10-29')`,
+      ),
+    ).toThrow();
+    expect(() =>
+      adapter.storage.sql.exec(
+        `INSERT INTO event_communication_links
+          (event_id, message_id, announcement_kind, parent_message_id, created_at)
+         VALUES ('event-1', 'message-3', 'follow_up', 'message-2', '2026-10-29')`,
+      ),
+    ).not.toThrow();
+  });
+
   it("v123 preserves Organization metadata and defaults the practice target to -18", () => {
     const adapter = setupThrough(122);
     applyVersion(adapter, 123);

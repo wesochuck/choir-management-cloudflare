@@ -12,6 +12,7 @@ export interface ReachableRecipient {
 }
 
 export interface CommunicationReach {
+  readonly audienceOverLimit: boolean;
   readonly both: number;
   readonly email: number;
   readonly sms: number;
@@ -62,6 +63,7 @@ export function communicationReach(
   channel: CommunicationChannel,
   undeliverableTicketBuyerPurchases = 0,
   ticketBuyerPurchasesOverLimit = 0,
+  audienceOverLimit = false,
 ): CommunicationReach {
   let email = 0;
   let sms = 0;
@@ -76,6 +78,7 @@ export function communicationReach(
     if (!available(recipient, channel)) unreachable += 1;
   }
   return {
+    audienceOverLimit,
     both,
     email,
     sms,

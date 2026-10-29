@@ -1,7 +1,7 @@
 import type { SqlStorageValue } from "@cloudflare/workers-types";
 import { communicationScheduledMessageSchema } from "@choir/contracts";
 
-import { messageColumns, type MessageRow } from "./contracts";
+import { messageColumns, type CommunicationAudienceStorage, type MessageRow } from "./contracts";
 import { identityMatches, parseMessage } from "./shared";
 import { upcomingCommunications } from "./upcoming";
 
@@ -15,6 +15,34 @@ export function listCommunicationMessagesFromStore(
     .exec<MessageRow>(
       `SELECT ${messageColumns} FROM communication_messages
        ORDER BY created_at DESC, id DESC LIMIT 100`,
+    )
+    .toArray()
+    .map(parseMessage);
+  return Response.json({ messages });
+}
+
+export function listEventPromotionMessagesFromStore(
+  storage: CommunicationAudienceStorage,
+  organizationId: string | null,
+  eventId: string | null,
+): Response {
+  if (!organizationId || !identityMatches(storage, organizationId)) {
+    return Response.json({ code: "organization_not_found" }, { status: 404 });
+  }
+  if (
+    !eventId ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(eventId)
+  ) {
+    return Response.json({ code: "invalid_event_id" }, { status: 400 });
+  }
+  const messages = storage.sql
+    .exec<MessageRow>(
+      `SELECT ${messageColumns} FROM communication_messages
+       WHERE id IN (
+         SELECT message_id FROM event_communication_links WHERE event_id = ?
+       )
+       ORDER BY created_at DESC, id DESC`,
+      eventId,
     )
     .toArray()
     .map(parseMessage);

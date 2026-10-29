@@ -47,6 +47,7 @@ export function CommunicationCenterView({
     deliveryDetailsMessage,
     deliverySummary,
     emailSettings,
+    eventPromotion,
     error,
     events,
     hasNextPage,
@@ -204,6 +205,7 @@ export function CommunicationCenterView({
                 contactLists={contactLists}
                 contentMarkdown={contentMarkdown}
                 contextIssues={contextIssues}
+                eventPromotion={eventPromotion}
                 events={events}
                 onChannelChange={setChannel}
                 onContentChange={setContentMarkdown}

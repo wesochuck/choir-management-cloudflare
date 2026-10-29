@@ -23,6 +23,7 @@ beforeEach(() => {
 describe("RSVP notification action", () => {
   it("previews actual email reach for active nonresponders and opens review without sending", async () => {
     vi.mocked(previewOrganizationCommunicationReach).mockResolvedValue({
+      audienceOverLimit: false,
       both: 0,
       email: 1,
       sms: 0,
@@ -56,6 +57,7 @@ describe("RSVP notification action", () => {
 
   it("starts closed when nobody is pending or self-service RSVP has closed, and allows opening", () => {
     vi.mocked(previewOrganizationCommunicationReach).mockResolvedValue({
+      audienceOverLimit: false,
       both: 0,
       email: 1,
       sms: 0,
@@ -89,6 +91,7 @@ describe("RSVP notification action", () => {
 
   it("can notify On Break and Inactive nonresponders without Active members", async () => {
     vi.mocked(previewOrganizationCommunicationReach).mockResolvedValue({
+      audienceOverLimit: false,
       both: 0,
       email: 2,
       sms: 0,
@@ -139,6 +142,7 @@ describe("RSVP notification action", () => {
 
   it("aborts an obsolete event preview", async () => {
     vi.mocked(previewOrganizationCommunicationReach).mockResolvedValue({
+      audienceOverLimit: false,
       both: 0,
       email: 0,
       sms: 0,

@@ -1,6 +1,7 @@
 import type {
   CommunicationAudienceRequest,
   CommunicationChannel,
+  CommunicationMessage,
   CommunicationTemplate,
   ContactList,
   OrganizationEvent,
@@ -33,7 +34,9 @@ interface MessageComposerProps {
   readonly contactLists: readonly ContactList[];
   readonly contentMarkdown: string;
   readonly contextIssues: readonly CommunicationContextIssue[];
+  readonly eventPromotion: CommunicationMessage["eventPromotion"];
   readonly events: readonly OrganizationEvent[];
+  readonly idPrefix?: string | undefined;
   readonly onChannelChange: (channel: CommunicationChannel) => void;
   readonly onContentChange: (value: string) => void;
   readonly onOpenReview: () => void;
@@ -132,12 +135,14 @@ function communicationSendDisabled({
   const hasBodyError = contentMarkdown.trim().length === 0;
   const hasReachError = reachState.loading || !reachState.data || reachState.data.total === 0;
   const hasTicketServiceOverflow = (reachState.data?.ticketBuyerPurchasesOverLimit ?? 0) > 0;
+  const hasAudienceOverflow = reachState.data?.audienceOverLimit ?? false;
   return (
     busy ||
     hasSubjectError ||
     hasBodyError ||
     hasReachError ||
     hasTicketServiceOverflow ||
+    hasAudienceOverflow ||
     contextIssues.length > 0
   );
 }
@@ -225,6 +230,7 @@ function PersonalizeSection({
   onUpdateAudience,
   placeholderGroups,
   selectedEvent,
+  idPrefix,
 }: {
   readonly audience: CommunicationAudienceRequest;
   readonly events: readonly OrganizationEvent[];
@@ -238,6 +244,7 @@ function PersonalizeSection({
     CommunicationPlaceholderDefinition[],
   ])[];
   readonly selectedEvent: OrganizationEvent | null;
+  readonly idPrefix: string;
 }) {
   return (
     <section aria-label="Personalize message" className="communication-personalize-section">
@@ -272,11 +279,11 @@ function PersonalizeSection({
           </p>
           {events.length > 0 ? (
             <div className="communication-event-picker-row">
-              <label className="sr-only" htmlFor="communication-personalize-event-select">
+              <label className="sr-only" htmlFor={`${idPrefix}-personalize-event-select`}>
                 Choose event
               </label>
               <select
-                id="communication-personalize-event-select"
+                id={`${idPrefix}-personalize-event-select`}
                 onChange={(event) => {
                   const eventId = event.target.value || null;
                   onUpdateAudience((current) => ({
@@ -407,7 +414,9 @@ export function MessageComposer({
   contactLists,
   contentMarkdown,
   contextIssues,
+  eventPromotion,
   events,
+  idPrefix = "communication",
   onChannelChange,
   onContentChange,
   onOpenReview,
@@ -436,7 +445,8 @@ export function MessageComposer({
   // Filter templates compatible with current recipients and channel
   const availableTemplates = templates.filter(
     (template) =>
-      !template.isSystem && templateMatchesCommunicationContext(template, audience, channel),
+      !template.isSystem &&
+      templateMatchesCommunicationContext(template, audience, channel, eventPromotion?.eventId),
   );
 
   const previewValues = communicationPreviewValues(selectedEvent, timezone, branding);
@@ -445,6 +455,7 @@ export function MessageComposer({
     channel,
     "standard",
     contentMarkdown,
+    eventPromotion?.eventId,
   );
 
   const placeholderGroups = Array.from(
@@ -457,7 +468,9 @@ export function MessageComposer({
   );
 
   const needsEvent =
-    !audience.eventId && hasEventDependentCommunicationPlaceholders(audience, channel, "standard");
+    !audience.eventId &&
+    !eventPromotion?.eventId &&
+    hasEventDependentCommunicationPlaceholders(audience, channel, "standard");
 
   function insert(replacement: string) {
     if (!textareaRef.current) return;
@@ -516,7 +529,9 @@ export function MessageComposer({
         channel={channel}
         contactLists={contactLists}
         events={events}
+        eventPromotion={eventPromotion}
         expanded={recipientsExpanded}
+        idPrefix={idPrefix}
         onChannelChange={onChannelChange}
         onToggleExpanded={onToggleRecipientsExpanded}
         onUpdateAudience={onUpdateAudience}
@@ -537,9 +552,9 @@ export function MessageComposer({
           {/* 3. Optional Template Selector */}
           <div className="communication-composer-template-bar">
             <div className="field">
-              <label htmlFor="communication-template-select">Template</label>
+              <label htmlFor={`${idPrefix}-template-select`}>Template</label>
               <select
-                id="communication-template-select"
+                id={`${idPrefix}-template-select`}
                 onChange={(e) => void handleTemplateSelect(e.target.value)}
                 value={selectedTemplateId}
               >
@@ -561,9 +576,9 @@ export function MessageComposer({
           {/* 4. Subject Field (for Email and Both) */}
           {channel !== "SMS" ? (
             <div className="field">
-              <label htmlFor="communication-subject">Subject</label>
+              <label htmlFor={`${idPrefix}-subject`}>Subject</label>
               <input
-                id="communication-subject"
+                id={`${idPrefix}-subject`}
                 maxLength={300}
                 onChange={(e) => {
                   onSubjectChange(e.target.value);
@@ -576,7 +591,7 @@ export function MessageComposer({
           ) : null}
 
           <div className="field">
-            <label htmlFor="communication-body-textarea">Message</label>
+            <label htmlFor={`${idPrefix}-body-textarea`}>Message</label>
             <div aria-label="Formatting tools" className="communication-composer__toolbar">
               <button
                 onClick={() => {
@@ -633,6 +648,7 @@ export function MessageComposer({
                   <PersonalizeSection
                     audience={audience}
                     events={events}
+                    idPrefix={idPrefix}
                     needsEvent={needsEvent}
                     onInsert={insertPlaceholder}
                     onUpdateAudience={onUpdateAudience}
@@ -645,7 +661,7 @@ export function MessageComposer({
             <textarea
               aria-label="Message body"
               className="communication-composer__textarea"
-              id="communication-body-textarea"
+              id={`${idPrefix}-body-textarea`}
               maxLength={100_000}
               onChange={(e) => {
                 onContentChange(e.target.value);

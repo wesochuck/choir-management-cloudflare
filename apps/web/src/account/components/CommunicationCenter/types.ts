@@ -76,6 +76,7 @@ export interface CommunicationCenterControllerModel {
   readonly deliveryDetailsMessage: CommunicationMessage | null;
   readonly deliverySummary: CommunicationDeliverySummary | null;
   readonly emailSettings: OrganizationEmailSettings | null;
+  readonly eventPromotion: CommunicationMessage["eventPromotion"];
   readonly error: string | null;
   readonly events: readonly OrganizationEvent[];
   readonly formatVoiceParts: (parts: readonly string[]) => string;

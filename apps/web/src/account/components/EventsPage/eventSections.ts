@@ -2,7 +2,8 @@ import type { OrganizationEventRequest, OrganizationVenue } from "@choir/contrac
 import { zonedLocalDateTimeToUtc } from "@choir/domain";
 import type { EventsState } from "./types";
 
-export type EventEditorSection = "basics" | "schedule" | "rsvp" | "tickets" | "public";
+export type EventEditorSection =
+  "basics" | "schedule" | "rsvp" | "tickets" | "public" | "promotion";
 
 export const EVENT_EDITOR_SECTIONS: readonly EventEditorSection[] = [
   "basics",
@@ -10,6 +11,7 @@ export const EVENT_EDITOR_SECTIONS: readonly EventEditorSection[] = [
   "rsvp",
   "tickets",
   "public",
+  "promotion",
 ];
 
 export const EVENT_EDITOR_SECTION_META: Record<
@@ -41,6 +43,11 @@ export const EVENT_EDITOR_SECTION_META: Record<
     label: "Public content",
     shortLabel: "05 Public content",
   },
+  promotion: {
+    description: "Invite past ticket buyers and Contacts",
+    label: "Promotion",
+    shortLabel: "06 Promotion",
+  },
 };
 
 export function visibleEditorSections(
@@ -56,6 +63,7 @@ export function sectionFromInitialSection(
   type: OrganizationEventRequest["type"],
 ): EventEditorSection | null {
   if (value === "tickets" && type === "Performance") return "tickets";
+  if (value === "promotion" && type === "Performance") return "promotion";
   return null;
 }
 
@@ -232,6 +240,7 @@ export function computeSectionErrors(options: {
           : rsvpRehearsalErrors(event),
     schedule: scheduleErrors(event, eventStart, state),
     tickets: ticketsErrors(event),
+    promotion: [],
   };
 }
 
@@ -242,6 +251,7 @@ export function countSectionErrors(errors: SectionErrors): Record<EventEditorSec
     rsvp: errors.rsvp.length,
     schedule: errors.schedule.length,
     tickets: errors.tickets.length,
+    promotion: errors.promotion.length,
   };
 }
 
@@ -283,28 +293,36 @@ export function firstInvalidFieldId(
     case "basics":
       return !event.title.trim() ? "events-page-title" : "events-page-type";
     case "schedule":
-      // Venue takes precedence when both start and venue are invalid,
-      // matching the mockup's missing-venue emphasis.
-      if (event.venueId === null || event.venueId === "") return "events-page-venue";
-      return "events-page-start";
+      return firstInvalidScheduleFieldId(event);
     case "rsvp":
-      if (
-        event.type === "Performance" &&
-        (event.rsvpDeadlineDate === null || event.rsvpDeadlineDate === "")
-      ) {
-        return "events-page-rsvp-deadline";
-      }
-      if (event.type === "Other") {
-        return "events-page-other-rsvp-mode";
-      }
-      if (event.rsvpFollowUpMode === "enabled") return "events-page-rsvp-follow-up-hours";
-      return "events-page-rsvp-follow-up-mode";
+      return firstInvalidRsvpFieldId(event);
     case "tickets":
       if (event.isTicketingEnabled) return "events-page-capacity";
       return "events-page-enable-ticketing";
     case "public":
       return "events-page-public-details";
+    case "promotion":
+      return "event-promotion-heading";
   }
+}
+
+function firstInvalidScheduleFieldId(event: OrganizationEventRequest): string {
+  // Venue takes precedence when both start and venue are invalid,
+  // matching the mockup's missing-venue emphasis.
+  return event.venueId === null || event.venueId === "" ? "events-page-venue" : "events-page-start";
+}
+
+function firstInvalidRsvpFieldId(event: OrganizationEventRequest): string {
+  if (
+    event.type === "Performance" &&
+    (event.rsvpDeadlineDate === null || event.rsvpDeadlineDate === "")
+  ) {
+    return "events-page-rsvp-deadline";
+  }
+  if (event.type === "Other") return "events-page-other-rsvp-mode";
+  return event.rsvpFollowUpMode === "enabled"
+    ? "events-page-rsvp-follow-up-hours"
+    : "events-page-rsvp-follow-up-mode";
 }
 
 export function getTbdVenueForEvent(
@@ -335,6 +353,8 @@ export function firstFieldIdForSection(
       return "events-page-enable-ticketing";
     case "public":
       return "events-page-public-details";
+    case "promotion":
+      return "event-promotion-heading";
   }
 }
 

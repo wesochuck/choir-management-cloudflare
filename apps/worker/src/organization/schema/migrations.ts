@@ -2270,6 +2270,43 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
         END`,
     ],
   },
+  {
+    version: 128,
+    statements: [
+      "ALTER TABLE communication_messages ADD COLUMN event_promotion_json TEXT",
+      "ALTER TABLE communication_messages ADD COLUMN draft_revision INTEGER NOT NULL DEFAULT 1 CHECK (draft_revision > 0)",
+      `ALTER TABLE ticket_purchases ADD COLUMN normalized_buyer_email TEXT
+        GENERATED ALWAYS AS (lower(trim(buyer_email))) VIRTUAL`,
+      `CREATE INDEX idx_ticket_purchases_event_buyer_email
+        ON ticket_purchases(event_id, normalized_buyer_email, status)
+        WHERE normalized_buyer_email IS NOT NULL`,
+      `CREATE TABLE event_communication_links (
+        event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        message_id TEXT NOT NULL PRIMARY KEY REFERENCES communication_messages(id) ON DELETE CASCADE,
+        announcement_kind TEXT NOT NULL CHECK (announcement_kind IN ('initial', 'follow_up')),
+        parent_message_id TEXT REFERENCES communication_messages(id),
+        operation_key TEXT,
+        created_at TEXT NOT NULL,
+        CHECK ((announcement_kind = 'initial' AND parent_message_id IS NULL) OR
+               (announcement_kind = 'follow_up' AND parent_message_id IS NOT NULL))
+      ) STRICT`,
+      `CREATE UNIQUE INDEX idx_event_communication_initial
+        ON event_communication_links(event_id)
+        WHERE announcement_kind = 'initial'`,
+      `CREATE UNIQUE INDEX idx_event_communication_operation
+        ON event_communication_links(operation_key)
+        WHERE operation_key IS NOT NULL`,
+      `CREATE INDEX idx_event_communication_history
+        ON event_communication_links(event_id, created_at DESC, message_id DESC)`,
+    ],
+  },
+  {
+    version: 129,
+    statements: [
+      "ALTER TABLE communication_messages ADD COLUMN queued_by_user_id TEXT",
+      "ALTER TABLE communication_messages ADD COLUMN queued_by_name TEXT",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

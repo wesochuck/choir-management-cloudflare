@@ -168,6 +168,9 @@ export function useCommunicationCenterController({
   );
   const [subject, setSubject] = useState(initialNav.rsvpRequest ? "Please RSVP: {eventTitle}" : "");
   const [voiceParts, setVoiceParts] = useState(initialAudience.voiceParts.join(", "));
+  const [eventPromotion, setEventPromotion] =
+    useState<CommunicationMessage["eventPromotion"]>(null);
+  const [activeDraft, setActiveDraft] = useState<CommunicationMessage | null>(null);
 
   const [messages, setMessages] = useState<readonly CommunicationMessage[]>([]);
   const [scheduledMessages, setScheduledMessages] = useState<
@@ -205,6 +208,7 @@ export function useCommunicationCenterController({
   const [loadingDeliveryId, setLoadingDeliveryId] = useState<string | null>(null);
 
   const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [reviewSnapshot, setReviewSnapshot] = useState<string | null>(null);
   const [isTestEmailOpen, setIsTestEmailOpen] = useState(false);
   const [isSaveTemplateOpen, setIsSaveTemplateOpen] = useState(false);
 
@@ -218,6 +222,22 @@ export function useCommunicationCenterController({
   function replaceAudience(nextAudience: CommunicationAudienceRequest) {
     audienceRef.current = nextAudience;
     setAudience(nextAudience);
+    setReviewSnapshot(null);
+  }
+
+  function updateChannel(value: CommunicationChannel): void {
+    setChannel(value);
+    setReviewSnapshot(null);
+  }
+
+  function updateContent(value: string): void {
+    setContentMarkdown(value);
+    setReviewSnapshot(null);
+  }
+
+  function updateSubject(value: string): void {
+    setSubject(value);
+    setReviewSnapshot(null);
   }
 
   function updateAudience(
@@ -228,11 +248,14 @@ export function useCommunicationCenterController({
 
   const resumeDraft = useCallback((draft: CommunicationMessage) => {
     setSendIdempotencyKey(crypto.randomUUID());
+    setActiveDraft(draft.eventPromotion ? draft : null);
+    setEventPromotion(draft.eventPromotion);
     audienceRef.current = draft.audience;
     setAudience(draft.audience);
     setChannel(draft.channel);
     setContentMarkdown(draft.contentMarkdown);
     setSubject(draft.subject);
+    setReviewSnapshot(null);
     setVoiceParts(draft.audience.voiceParts.join(", "));
     setRecipientsExpanded(false);
     setMessageMode("compose");
@@ -243,6 +266,8 @@ export function useCommunicationCenterController({
 
   function openNewMessage() {
     setSendIdempotencyKey(crypto.randomUUID());
+    setActiveDraft(null);
+    setEventPromotion(null);
     replaceAudience(defaultAudience);
     setChannel("Email");
     setContentMarkdown("");
@@ -447,18 +472,26 @@ export function useCommunicationCenterController({
 
   // Context issues computed in real-time
   const contextIssues = useMemo(
-    () => validateCommunicationContext({ audience, channel, contentMarkdown, subject }),
-    [audience, channel, contentMarkdown, subject],
+    () =>
+      validateCommunicationContext({
+        audience,
+        channel,
+        contentMarkdown,
+        ...(eventPromotion ? { eventId: eventPromotion.eventId } : {}),
+        subject,
+      }),
+    [audience, channel, contentMarkdown, eventPromotion, subject],
   );
 
   const selectedEvent = useMemo(
-    () => events.find((e) => e.id === audience.eventId) ?? null,
-    [events, audience.eventId],
+    () => events.find((e) => e.id === (eventPromotion?.eventId ?? audience.eventId)) ?? null,
+    [audience.eventId, eventPromotion?.eventId, events],
   );
 
   function removeConflictingPlaceholder(tag: string) {
     setContentMarkdown((prev) => removeCommunicationPlaceholder(prev, tag));
     setSubject((prev) => removeCommunicationPlaceholder(prev, tag));
+    setReviewSnapshot(null);
   }
 
   // Unified messages list
@@ -705,8 +738,14 @@ export function useCommunicationCenterController({
         audience,
         channel,
         contentMarkdown,
+        ...(eventPromotion ? { eventPromotion } : {}),
+        ...(eventPromotion && activeDraft
+          ? { expectedRevision: activeDraft.draftRevision, messageId: activeDraft.id }
+          : {}),
         subject,
       });
+      if (saved.eventPromotion) setActiveDraft(saved);
+      setReviewSnapshot(null);
       setMessages((current) => [saved, ...current.filter((m) => m.id !== saved.id)]);
       void loadHistoryPage(statusFilter, originFilter, currentCursor);
       setSuccessNotice("Draft saved successfully.");
@@ -717,9 +756,11 @@ export function useCommunicationCenterController({
     }
   }, [
     audience,
+    activeDraft,
     channel,
     contentMarkdown,
     currentCursor,
+    eventPromotion,
     loadHistoryPage,
     originFilter,
     statusFilter,
@@ -778,7 +819,37 @@ export function useCommunicationCenterController({
     setBusy(true);
     setError(null);
     try {
-      const freshReach = await previewOrganizationCommunicationReach({ audience, channel });
+      let previewRequest: Parameters<typeof previewOrganizationCommunicationReach>[0] = {
+        audience,
+        channel,
+      };
+      if (eventPromotion) {
+        if (!activeDraft) {
+          setError("Save the event promotion draft before reviewing it in Communications.");
+          return;
+        }
+        const saved = await saveOrganizationCommunicationDraft({
+          audience,
+          channel,
+          contentMarkdown,
+          eventPromotion,
+          expectedRevision: activeDraft.draftRevision,
+          messageId: activeDraft.id,
+          subject,
+        });
+        setActiveDraft(saved);
+        setMessages((current) => [saved, ...current.filter((message) => message.id !== saved.id)]);
+        previewRequest = {
+          audience,
+          channel,
+          contentMarkdown,
+          draftRevision: saved.draftRevision,
+          eventPromotion,
+          messageId: saved.id,
+          subject,
+        };
+      }
+      const freshReach = await previewOrganizationCommunicationReach(previewRequest);
       setReachState({ data: freshReach, error: null, loading: false });
       if (freshReach.total === 0) {
         setError("No reachable recipients found for the selected criteria.");
@@ -786,30 +857,64 @@ export function useCommunicationCenterController({
       }
       if (freshReach.ticketBuyerPurchasesOverLimit > 0) {
         setError(
-          "This event has more than 1,000 paid ticket orders, so the complete audience cannot be sent in one message.",
+          audience.excludeTicketBuyersForEventId
+            ? "This past ticket-buyer audience exceeds the 500-recipient event-promotion limit. Narrow the audience before sending."
+            : "This event has more than 1,000 paid ticket orders, so the complete audience cannot be sent in one message.",
         );
         return;
       }
+      if (freshReach.audienceOverLimit) {
+        setError(
+          "This event promotion audience exceeds the 500-recipient limit. Narrow the audience before sending.",
+        );
+        return;
+      }
+      if (eventPromotion && !freshReach.reviewSnapshot) {
+        setError("The recipient review could not be verified. Reopen it before sending.");
+        return;
+      }
+      setReviewSnapshot(freshReach.reviewSnapshot ?? null);
       setIsReviewOpen(true);
     } catch (err: unknown) {
       setError(failureMessage(err));
     } finally {
       setBusy(false);
     }
-  }, [audience, channel, contextIssues.length]);
+  }, [
+    activeDraft,
+    audience,
+    channel,
+    contentMarkdown,
+    contextIssues.length,
+    eventPromotion,
+    subject,
+  ]);
 
   const sendCommunicationAction = useCallback(async () => {
     setBusy(true);
     setError(null);
     try {
       const queued = await sendOrganizationCommunication(
-        { audience, channel, contentMarkdown, subject },
+        {
+          audience,
+          channel,
+          contentMarkdown,
+          ...(eventPromotion ? { eventPromotion } : {}),
+          ...(eventPromotion && activeDraft
+            ? { expectedRevision: activeDraft.draftRevision, messageId: activeDraft.id }
+            : {}),
+          ...(eventPromotion && reviewSnapshot ? { reviewSnapshot } : {}),
+          subject,
+        },
         sendIdempotencyKey,
       );
       setMessages((current) => [queued, ...current.filter((m) => m.id !== queued.id)]);
       setIsReviewOpen(false);
       setMessageMode("list");
       setActiveSection("messages");
+      setActiveDraft(null);
+      setEventPromotion(null);
+      setReviewSnapshot(null);
       void loadHistoryPage(statusFilter, originFilter, null);
       setSuccessNotice(`Message queued for ${String(queued.reach.total)} recipients.`);
       // Reset composer
@@ -825,8 +930,11 @@ export function useCommunicationCenterController({
     }
   }, [
     audience,
+    activeDraft,
     channel,
     contentMarkdown,
+    eventPromotion,
+    reviewSnapshot,
     loadHistoryPage,
     originFilter,
     sendIdempotencyKey,
@@ -840,7 +948,13 @@ export function useCommunicationCenterController({
       setError(null);
       try {
         await sendOrganizationCommunicationTestEmail(
-          { audience, contentMarkdown, email, subject },
+          {
+            audience,
+            contentMarkdown,
+            email,
+            ...(eventPromotion ? { eventId: eventPromotion.eventId } : {}),
+            subject,
+          },
           crypto.randomUUID(),
         );
         setIsTestEmailOpen(false);
@@ -851,7 +965,7 @@ export function useCommunicationCenterController({
         setBusy(false);
       }
     },
-    [audience, contentMarkdown, subject],
+    [audience, contentMarkdown, eventPromotion, subject],
   );
 
   function formatVoiceParts(parts: readonly string[]): string {
@@ -880,6 +994,7 @@ export function useCommunicationCenterController({
     deliveryDetailsMessage,
     deliverySummary,
     emailSettings,
+    eventPromotion,
     error,
     events,
     formatVoiceParts,
@@ -920,8 +1035,8 @@ export function useCommunicationCenterController({
     sendCommunication: sendCommunicationAction,
     sendTestEmail: sendTestEmailAction,
     setActiveSection,
-    setChannel,
-    setContentMarkdown,
+    setChannel: updateChannel,
+    setContentMarkdown: updateContent,
     setIsReviewOpen,
     setIsSaveTemplateOpen,
     setIsTestEmailOpen,
@@ -929,7 +1044,7 @@ export function useCommunicationCenterController({
     setOriginFilter: changeOriginFilter,
     setRecipientsExpanded,
     setStatusFilter: changeStatusFilter,
-    setSubject,
+    setSubject: updateSubject,
     setVoiceParts,
     statusFilter,
     subject,

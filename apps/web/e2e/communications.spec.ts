@@ -1,4 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
+import {
+  communicationDraftRequestSchema,
+  communicationSendRequestSchema,
+  type CommunicationMessage,
+} from "@choir/contracts";
 import { futureIsoDate } from "@choir/testkit";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
@@ -394,6 +399,187 @@ test("reviews and queues an event-specific ticket-holder service notice", async 
     },
     channel: "Email",
   });
+});
+
+test("prepares an event promotion with past buyers and Contacts through shared Communications", async ({
+  page,
+}) => {
+  const previewBodies: unknown[] = [];
+  const draftBodies: ReturnType<typeof communicationDraftRequestSchema.parse>[] = [];
+  const sendBodies: ReturnType<typeof communicationSendRequestSchema.parse>[] = [];
+  const now = new Date().toISOString();
+  const reach = {
+    audienceOverLimit: false,
+    both: 0,
+    email: 2,
+    requestId,
+    sms: 0,
+    ticketBuyerPurchasesOverLimit: 0,
+    total: 2,
+    undeliverableTicketBuyerPurchases: 0,
+    unreachable: 0,
+  };
+  let promotionMessages: CommunicationMessage[] = [];
+
+  function messageFromDraft(
+    draft: ReturnType<typeof communicationDraftRequestSchema.parse>,
+    status: CommunicationMessage["status"],
+  ): CommunicationMessage {
+    const draftId = draft.messageId;
+    if (!draftId) throw new Error("Promotion draft request must include a stable message ID.");
+    return {
+      audience: draft.audience,
+      channel: draft.channel,
+      contentMarkdown: draft.contentMarkdown,
+      createdAt: now,
+      draftRevision: 1,
+      eventPromotion: draft.eventPromotion ?? null,
+      id: draftId,
+      queuedByName: status === "Draft" ? null : "Communications Administrator",
+      queuedByUserId: status === "Draft" ? null : session.user.id,
+      reach,
+      sentAt: null,
+      status,
+      subject: draft.subject,
+      updatedAt: now,
+    };
+  }
+
+  await page.route("**/api/**", async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    if (pathname === "/api/organization/events") {
+      await fulfillJson(route, {
+        events: [
+          {
+            advancePriceCents: 0,
+            callTime: "",
+            createdAt: now,
+            dayOfPriceCents: 0,
+            details: "",
+            doorsOpenTime: "",
+            durationMinutes: null,
+            id: eventId,
+            isCanceled: false,
+            isTicketingEnabled: true,
+            location: "Main Hall",
+            parentPerformanceId: null,
+            publicDetails: "",
+            publicGraphicFileId: null,
+            publishOnWebsite: true,
+            rsvpDeadlineAt: null,
+            rsvpDeadlineDate: null,
+            rsvpDeadlinePassed: false,
+            rsvpFollowUpLeadHours: null,
+            rsvpFollowUpMode: "inherit",
+            rsvpSelfServiceOpen: true,
+            setList: [],
+            setListApproved: false,
+            startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+            ticketCapacity: null,
+            title: "Browser Performance",
+            type: "Performance",
+            updatedAt: now,
+            venueId: null,
+          },
+        ],
+        requestId,
+      });
+      return;
+    }
+    if (pathname === "/api/organization/venues") {
+      await fulfillJson(route, { requestId, venues: [] });
+      return;
+    }
+    if (pathname === "/api/organization/contact-lists") {
+      await fulfillJson(route, { hasMore: false, lists: [], nextCursor: null, requestId });
+      return;
+    }
+    if (pathname === `/api/organization/communications/events/${eventId}/promotions`) {
+      await fulfillJson(route, { messages: promotionMessages, requestId });
+      return;
+    }
+    if (pathname === "/api/organization/provider-status") {
+      await fulfillJson(route, {
+        brevo: { detail: "Sandbox provider", status: "ok" },
+        emailSender: { fromEmail: "tickets@example.test", fromName: "Communications Choir" },
+        environment: "local",
+        externalEffectsMode: "fake",
+        requestId,
+        stripe: { detail: "Sandbox provider", status: "ok" },
+      });
+      return;
+    }
+    if (pathname === "/api/organization/communications/reach-preview") {
+      previewBodies.push(route.request().postDataJSON());
+      await fulfillJson(route, { ...reach, reviewSnapshot: "signed-review-snapshot" });
+      return;
+    }
+    if (pathname === "/api/organization/communications/drafts") {
+      const draft = communicationDraftRequestSchema.parse(route.request().postDataJSON());
+      draftBodies.push(draft);
+      const message = messageFromDraft(draft, "Draft");
+      promotionMessages = [message];
+      await fulfillJson(route, { ...message, requestId }, 201);
+      return;
+    }
+    if (pathname === "/api/organization/communications/send") {
+      const send = communicationSendRequestSchema.parse(route.request().postDataJSON());
+      sendBodies.push(send);
+      const message = messageFromDraft(send, "Queued");
+      promotionMessages = [message];
+      await fulfillJson(route, { ...message, requestId }, 202);
+      return;
+    }
+    await handleRoute(route, previewBodies);
+  });
+
+  await page.goto(`/admin/events?eventId=${eventId}&section=promotion`);
+  const editor = page.getByRole("dialog", { name: "Edit event" });
+  await expect(editor).toBeVisible();
+  await expect(editor.getByRole("button", { name: "Prepare announcement" })).toBeVisible();
+  await expect(editor.getByText("No announcement has been sent for this event.")).toBeVisible();
+
+  await editor.getByRole("button", { name: "Prepare announcement" }).click();
+  const recipients = editor.getByRole("region", { name: "Recipient context" });
+  await recipients.getByRole("button", { name: "Edit recipients" }).click();
+  await expect(recipients.getByRole("checkbox", { name: "Ticket Buyers" })).toBeChecked();
+  await recipients.getByRole("checkbox", { name: "Contacts" }).check();
+  await expect(
+    recipients.getByRole("checkbox", {
+      name: "Exclude people who already bought tickets for this event",
+    }),
+  ).toBeChecked();
+  await recipients.getByRole("button", { name: "Done editing" }).click();
+
+  await editor.getByRole("button", { name: "Review & send" }).click();
+  const review = page.getByRole("dialog", { name: "Review message" });
+  await expect(review).toBeVisible();
+  await expect(review).toContainText("Ticket Buyers + Contacts");
+  await expect(review.getByRole("button", { name: "Send to 2 recipients" })).toBeVisible();
+  await review.getByRole("button", { name: "Send to 2 recipients" }).click();
+
+  await expect(editor.locator(".notice--success")).toContainText(
+    "Announcement queued for 2 recipients.",
+  );
+  expect(previewBodies.length).toBeGreaterThan(0);
+  expect(draftBodies).toHaveLength(1);
+  expect(draftBodies[0]).toMatchObject({
+    audience: {
+      eventId: null,
+      excludeTicketBuyersForEventId: eventId,
+      targetAudiences: ["Ticket Buyers", "Contacts"],
+      ticketBuyerMode: "marketing",
+      ticketBuyerPastEventsOnly: true,
+    },
+    eventPromotion: { announcementKind: "initial", eventId, parentMessageId: null },
+  });
+  expect(sendBodies).toHaveLength(1);
+  expect(sendBodies[0]).toMatchObject({
+    eventPromotion: { announcementKind: "initial", eventId, parentMessageId: null },
+    reviewSnapshot: "signed-review-snapshot",
+  });
+  expect(sendBodies[0]?.messageId).toBe(draftBodies[0]?.messageId);
+  expect(draftBodies[0]?.messageId).toMatch(/^[0-9a-f-]{36}$/i);
 });
 
 test("starts each toolbar list item on a new line", async ({ page }) => {

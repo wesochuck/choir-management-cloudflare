@@ -212,6 +212,18 @@ describe("communicationPlaceholders domain logic", () => {
       expect(tags).not.toContain("{{TICKET_LINK}}");
     });
 
+    it("offers the public event ticket page to Ticket Buyers and Contacts with event context", () => {
+      const placeholders = visibleCommunicationPlaceholders(
+        audience(["Ticket Buyers", "Contacts"], null),
+        "Email",
+        "standard",
+        "",
+        "77777777-7777-4777-8777-777777777777",
+      );
+      expect(placeholders.map(({ tag }) => tag)).toContain("{{EVENT_TICKET_LINK}}");
+      expect(placeholders.map(({ tag }) => tag)).not.toContain("{{TICKET_LINK}}");
+    });
+
     it("excludes RSVP and player links when event is missing", () => {
       const placeholders = visibleCommunicationPlaceholders(
         audience(["Members"], null),
@@ -252,6 +264,26 @@ describe("communicationPlaceholders domain logic", () => {
         subject: "Rehearsal notice",
       });
       expect(issues).toHaveLength(0);
+    });
+
+    it("uses the promotion target as event placeholder context without coupling it to the audience filter", () => {
+      const issues = validateCommunicationContext({
+        audience: audience(["Ticket Buyers", "Contacts"]),
+        channel: "Email",
+        contentMarkdown: "Join us for {eventTitle} on {eventDate}.",
+        eventId: "event-123",
+        subject: "Invitation",
+      });
+      expect(issues).toEqual([]);
+      expect(
+        visibleCommunicationPlaceholders(
+          audience(["Ticket Buyers", "Contacts"]),
+          "Email",
+          "standard",
+          "",
+          "event-123",
+        ).map((placeholder) => placeholder.tag),
+      ).toContain("{eventTitle}");
     });
 
     it("returns no issues for legacy recipient aliases with buyer and donor audiences", () => {

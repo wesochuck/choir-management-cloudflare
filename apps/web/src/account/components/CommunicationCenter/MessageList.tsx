@@ -16,6 +16,7 @@ interface MessageListProps {
   readonly deliverySummary: CommunicationDeliverySummary | null;
   readonly loadingDeliveryId: string | null;
   readonly onCancelQueued: (messageId: string) => Promise<void>;
+  readonly onCreateFollowUp?: ((message: CommunicationMessage) => Promise<void>) | undefined;
   readonly onDeleteDraft: (messageId: string) => Promise<void>;
   readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
   readonly onResumeDraft: (draft: CommunicationMessage) => void;
@@ -30,6 +31,7 @@ interface MessageCardProps {
   readonly isLoadingThis: boolean;
   readonly item: UnifiedCommunicationItem;
   readonly onCancelQueued: (messageId: string) => Promise<void>;
+  readonly onCreateFollowUp?: ((message: CommunicationMessage) => Promise<void>) | undefined;
   readonly onDeleteDraft: (messageId: string) => Promise<void>;
   readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
   readonly onResumeDraft: (draft: CommunicationMessage) => void;
@@ -41,6 +43,7 @@ function MessageCardActions({
   isLoadingThis,
   item,
   onCancelQueued,
+  onCreateFollowUp,
   onDeleteDraft,
   onOpenDeliveryDetails,
   onResumeDraft,
@@ -49,6 +52,7 @@ function MessageCardActions({
   readonly isLoadingThis: boolean;
   readonly item: UnifiedCommunicationItem;
   readonly onCancelQueued: (messageId: string) => Promise<void>;
+  readonly onCreateFollowUp?: ((message: CommunicationMessage) => Promise<void>) | undefined;
   readonly onDeleteDraft: (messageId: string) => Promise<void>;
   readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
   readonly onResumeDraft: (draft: CommunicationMessage) => void;
@@ -83,16 +87,18 @@ function MessageCardActions({
   if (item.status === "Queued") {
     return (
       <>
-        <button
-          className="button button--secondary button--sm"
-          disabled={busy}
-          onClick={() => {
-            onResumeDraft(item.message);
-          }}
-          type="button"
-        >
-          Edit &amp; requeue
-        </button>
+        {!item.message.eventPromotion ? (
+          <button
+            className="button button--secondary button--sm"
+            disabled={busy}
+            onClick={() => {
+              onResumeDraft(item.message);
+            }}
+            type="button"
+          >
+            Edit &amp; requeue
+          </button>
+        ) : null}
         <button
           className="button button--secondary button--sm"
           disabled={busy}
@@ -115,18 +121,76 @@ function MessageCardActions({
 
   if (item.status === "Sent" || item.status === "Failed") {
     return (
+      <>
+        <button
+          className="button button--secondary button--sm"
+          disabled={busy || isLoadingThis}
+          onClick={() => void onOpenDeliveryDetails(item.message)}
+          type="button"
+        >
+          {isLoadingThis ? "Loading…" : "View delivery details"}
+        </button>
+        {item.message.eventPromotion && onCreateFollowUp ? (
+          <button
+            className="button button--secondary button--sm"
+            disabled={busy}
+            onClick={() => void onCreateFollowUp(item.message)}
+            type="button"
+          >
+            Create follow-up
+          </button>
+        ) : null}
+      </>
+    );
+  }
+
+  if (!item.message.eventPromotion) return null;
+  return (
+    <CanceledPromotionActions
+      busy={busy}
+      isLoadingThis={isLoadingThis}
+      message={item.message}
+      onCreateFollowUp={onCreateFollowUp}
+      onOpenDeliveryDetails={onOpenDeliveryDetails}
+    />
+  );
+}
+
+function CanceledPromotionActions({
+  busy,
+  isLoadingThis,
+  message,
+  onCreateFollowUp,
+  onOpenDeliveryDetails,
+}: {
+  readonly busy: boolean;
+  readonly isLoadingThis: boolean;
+  readonly message: CommunicationMessage;
+  readonly onCreateFollowUp?: ((message: CommunicationMessage) => Promise<void>) | undefined;
+  readonly onOpenDeliveryDetails: (message: CommunicationMessage) => Promise<void>;
+}) {
+  return (
+    <>
       <button
         className="button button--secondary button--sm"
         disabled={busy || isLoadingThis}
-        onClick={() => void onOpenDeliveryDetails(item.message)}
+        onClick={() => void onOpenDeliveryDetails(message)}
         type="button"
       >
         {isLoadingThis ? "Loading…" : "View delivery details"}
       </button>
-    );
-  }
-
-  return null;
+      {onCreateFollowUp ? (
+        <button
+          className="button button--secondary button--sm"
+          disabled={busy}
+          onClick={() => void onCreateFollowUp(message)}
+          type="button"
+        >
+          Create follow-up
+        </button>
+      ) : null}
+    </>
+  );
 }
 
 function MessageTimestamp({ item }: { readonly item: UnifiedCommunicationItem }) {
@@ -166,6 +230,16 @@ function AutomationContext({ item }: { readonly item: UnifiedCommunicationItem }
   );
 }
 
+function QueuedByMetadata({ item }: { readonly item: UnifiedCommunicationItem }) {
+  if (item.kind !== "manual" || !item.message.queuedByName) return null;
+  return (
+    <>
+      <span>·</span>
+      <span>Queued by {item.message.queuedByName}</span>
+    </>
+  );
+}
+
 function MessageCard({
   busy,
   deliveryDetailsMessage,
@@ -173,6 +247,7 @@ function MessageCard({
   isLoadingThis,
   item,
   onCancelQueued,
+  onCreateFollowUp,
   onDeleteDraft,
   onOpenDeliveryDetails,
   onResumeDraft,
@@ -213,6 +288,7 @@ function MessageCard({
                 </span>
               </>
             ) : null}
+            <QueuedByMetadata item={item} />
             {item.kind === "scheduled" &&
             item.scheduledMessage.projected &&
             item.scheduledMessage.kind === "ticket_reminder" ? (
@@ -239,6 +315,7 @@ function MessageCard({
             isLoadingThis={isLoadingThis}
             item={item}
             onCancelQueued={onCancelQueued}
+            onCreateFollowUp={onCreateFollowUp}
             onDeleteDraft={onDeleteDraft}
             onOpenDeliveryDetails={onOpenDeliveryDetails}
             onResumeDraft={onResumeDraft}
@@ -269,6 +346,7 @@ export function MessageList({
   deliverySummary,
   loadingDeliveryId,
   onCancelQueued,
+  onCreateFollowUp,
   onDeleteDraft,
   onOpenDeliveryDetails,
   onResumeDraft,
@@ -294,6 +372,7 @@ export function MessageList({
           item={item}
           key={`${item.kind}:${item.id}`}
           onCancelQueued={onCancelQueued}
+          onCreateFollowUp={onCreateFollowUp}
           onDeleteDraft={onDeleteDraft}
           onOpenDeliveryDetails={onOpenDeliveryDetails}
           onResumeDraft={onResumeDraft}

@@ -124,6 +124,7 @@ export function communicationPreviewValues(
     "{{RSVP_LINKS}}": "View RSVP details",
     "{{PLAYER_LINK}}": "Open practice player",
     "{{TICKET_LINK}}": "View ticket order",
+    "{{EVENT_TICKET_LINK}}": "View event details and buy tickets",
     "{{TICKET_ORDER_LINK}}": "View order details",
     "{{TICKET_EVENT_LIST}}":
       "- **Example Performance**\n  - **Date and time:** August 20, 2026 at 7:00 PM\n  - **Location:** Main Hall, 12 Main Street",

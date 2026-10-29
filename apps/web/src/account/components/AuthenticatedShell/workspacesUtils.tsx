@@ -152,7 +152,8 @@ export function eventsPagePropsFromSearch(search: string) {
   const sectionParam = routeParams.get("section")?.trim() ?? null;
   const initialType: "Performance" | "Rehearsal" | null =
     eventsTypeParam === "Performance" || eventsTypeParam === "Rehearsal" ? eventsTypeParam : null;
-  const initialSection: "tickets" | null = sectionParam === "tickets" ? "tickets" : null;
+  const initialSection: "promotion" | "tickets" | null =
+    sectionParam === "tickets" || sectionParam === "promotion" ? sectionParam : null;
   return {
     initialAction:
       eventsAction === "create" || routeParams.get("create") === "true"

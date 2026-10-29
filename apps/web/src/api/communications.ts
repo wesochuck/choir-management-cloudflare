@@ -17,6 +17,7 @@ import {
   organizationProfileDeliveriesResponseSchema,
   type CommunicationDeliveryRecipientsPageResponse,
   type CommunicationDeliverySummary,
+  type CommunicationAudienceChannelRequest,
   type CommunicationDraftRequest,
   type CommunicationHistoryPageResponse,
   type CommunicationMessage,
@@ -89,9 +90,9 @@ export async function getOrganizationCommunicationTemplatesPage(
 }
 
 export async function previewOrganizationCommunicationReach(
-  communication: Pick<CommunicationSendRequest, "audience" | "channel">,
+  communication: CommunicationAudienceChannelRequest,
   signal?: AbortSignal,
-): Promise<CommunicationReach> {
+): Promise<CommunicationReach & { readonly reviewSnapshot?: string | undefined }> {
   const response = await request("/api/organization/communications/reach-preview", {
     body: JSON.stringify(communication),
     method: "POST",
@@ -106,6 +107,17 @@ export async function listOrganizationCommunications(
   const response = await request("/api/organization/communications", {
     signal: signal ?? null,
   });
+  return communicationMessagesResponseSchema.parse(await response.json()).messages;
+}
+
+export async function listOrganizationEventPromotionMessages(
+  eventId: string,
+  signal?: AbortSignal,
+): Promise<readonly CommunicationMessage[]> {
+  const response = await request(
+    `/api/organization/communications/events/${encodeURIComponent(eventId)}/promotions`,
+    { signal: signal ?? null },
+  );
   return communicationMessagesResponseSchema.parse(await response.json()).messages;
 }
 
