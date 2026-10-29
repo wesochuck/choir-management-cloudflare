@@ -31,9 +31,9 @@ test("keeps the attendance heading close to its manager and removes the explaine
   api.assertNoUnexpectedRequests();
 });
 
-test("preserves list position, does not overflow horizontally, and does not obscure rows across undo bar states", async ({
+test("keeps the list compact before check-in and does not obscure rows across undo bar states", async ({
   page,
-}) => {
+}, testInfo) => {
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });
 
   await page.goto("/admin/attendance");
@@ -49,10 +49,15 @@ test("preserves list position, does not overflow horizontally, and does not obsc
   await expect(page.locator(".attendance-progress")).toHaveCount(0);
 
   const undoSlot = page.locator(".attendance-undo-slot");
-  await expect(undoSlot).toBeVisible();
-  const slotBox = await undoSlot.boundingBox();
-  expect(slotBox).toBeDefined();
-  expect(slotBox?.height).toBeCloseTo(48, 1);
+  const isMobile = testInfo.project.name === "mobile-chromium";
+  if (isMobile) {
+    await expect(undoSlot).not.toBeVisible();
+  } else {
+    await expect(undoSlot).toBeVisible();
+    const slotBox = await undoSlot.boundingBox();
+    expect(slotBox).toBeDefined();
+    expect(slotBox?.height).toBeCloseTo(48, 1);
+  }
 
   // Measure relative distance from sticky controls to first row
   const getRowOffsetFromHeader = async () =>
@@ -70,7 +75,7 @@ test("preserves list position, does not overflow horizontally, and does not obsc
   const undoButton = undoSlot.getByRole("button", { name: /^Undo/ });
   await expect(undoButton).toBeVisible();
 
-  // 1. Verify list position relative to sticky controls is identical before and after bar appears
+  // 1. Undo is part of the sticky mobile header; desktop keeps its reserved slot.
   const activeOffset = await getRowOffsetFromHeader();
   expect(activeOffset).toBeCloseTo(initialOffset, 1);
 
@@ -84,6 +89,14 @@ test("preserves list position, does not overflow horizontally, and does not obsc
   if (activeSlotBox && activeRowBox) {
     expect(activeSlotBox.y + activeSlotBox.height).toBeLessThanOrEqual(activeRowBox.y + 1);
   }
+  if (isMobile && activeSlotBox) {
+    const stickyHeaderBox = await page.locator(".attendance-manager__sticky-header").boundingBox();
+    expect(stickyHeaderBox).not.toBeNull();
+    expect(activeSlotBox.y + activeSlotBox.height).toBeCloseTo(
+      (stickyHeaderBox?.y ?? 0) + (stickyHeaderBox?.height ?? 0),
+      1,
+    );
+  }
 
   // 3. Verify no horizontal overflow in undo bar or page
   const slotOverflows = await undoSlot.evaluate((el) => el.scrollWidth > el.clientWidth);
@@ -96,9 +109,9 @@ test("preserves list position, does not overflow horizontally, and does not obsc
 
   // 4. Click Undo and verify restoration
   await undoButton.click();
-  await expect(undoButton).not.toBeVisible();
+  await expect(undoSlot).toHaveClass(/attendance-undo-slot--empty/);
 
-  // 5. Verify position remains identical after exhausted history
+  // 5. Verify the mobile gap collapses again after undo; desktop keeps its reserved slot.
   const restoredOffset = await getRowOffsetFromHeader();
   expect(restoredOffset).toBeCloseTo(initialOffset, 1);
 
@@ -306,9 +319,18 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".attendance-row")).toHaveCount(1);
     await page.locator(".attendance-row__toggle").click();
     await expect(page.locator(".attendance-row")).toHaveCount(0);
-    await page.getByRole("button", { name: /^Undo/ }).click();
-    await expect(page.locator(".attendance-row")).toHaveCount(1);
     await search.clear();
+    await expect(page.locator(".attendance-row")).toHaveCount(29);
+    const undoSlot = header.locator(".attendance-undo-slot");
+    await expect(undoSlot).toBeVisible();
+    await page.evaluate(() => {
+      window.scrollTo(0, 500);
+    });
+    await expect.poll(async () => (await header.boundingBox())?.y).toBe(0);
+    await expect(undoSlot.getByRole("button", { name: /^Undo/ })).toBeInViewport();
+    await undoSlot.getByRole("button", { name: /^Undo/ }).click();
+    await expect(undoSlot).toHaveClass(/attendance-undo-slot--empty/);
+    await expect(page.locator(".attendance-row")).toHaveCount(30);
     await bulk.click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.getByRole("button", { name: "Cancel", exact: true }).click();

@@ -380,7 +380,7 @@ describe("AttendanceManager section grouping and sorting UI", () => {
   });
 
   describe("AttendanceManager Undo bar", () => {
-    it("renders empty undo slot reserved space initially without interactive controls", async () => {
+    it("renders an empty undo slot without interactive controls", async () => {
       renderComponent();
       await screen.findByRole("heading", { level: 3, name: "Altos" });
 

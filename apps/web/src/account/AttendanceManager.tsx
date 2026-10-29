@@ -466,25 +466,24 @@ export function AttendanceManager({
                 </span>
               </button>
             </div>
+            <div
+              className={`attendance-undo-slot${latestUndoEntry === null ? " attendance-undo-slot--empty" : ""}`}
+            >
+              <AttendanceUndoBarComponent
+                entry={latestUndoEntry}
+                isBusy={undoBusy}
+                isPerformerSaving={
+                  latestUndoEntry !== null && savingIds.has(latestUndoEntry.profileId)
+                }
+                onUndo={handleUndo}
+                undoButtonRef={undoButtonRef}
+                undoError={undoError}
+              />
+            </div>
           </div>
 
           <div aria-atomic="true" aria-live="polite" className="sr-only">
             {liveAnnouncement}
-          </div>
-
-          <div
-            className={`attendance-undo-slot${latestUndoEntry === null ? " attendance-undo-slot--empty" : ""}`}
-          >
-            <AttendanceUndoBarComponent
-              entry={latestUndoEntry}
-              isBusy={undoBusy}
-              isPerformerSaving={
-                latestUndoEntry !== null && savingIds.has(latestUndoEntry.profileId)
-              }
-              onUndo={handleUndo}
-              undoButtonRef={undoButtonRef}
-              undoError={undoError}
-            />
           </div>
 
           {message ? (

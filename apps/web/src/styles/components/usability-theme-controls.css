@@ -177,7 +177,7 @@
     }
 
     .attendance-manager .rsvp-manager__tab-content {
-      gap: var(--spacing-xs);
+      gap: 0;
     }
 
     .attendance-manager__intro,
@@ -225,7 +225,8 @@
       align-items: center;
       gap: var(--spacing-xs) var(--spacing-3xs);
       background: var(--color-background);
-      padding-block: var(--spacing-xs);
+      padding-top: var(--spacing-xs);
+      padding-bottom: 0;
       min-width: 0;
       max-width: 100%;
       box-sizing: border-box;
@@ -331,9 +332,18 @@
       gap: 0;
     }
 
+    .attendance-manager .attendance-undo-slot {
+      margin-top: 0;
+      grid-column: 1 / -1;
+    }
+
+    .attendance-manager .attendance-undo-slot--empty {
+      display: none;
+    }
+
     .attendance-list {
       gap: var(--spacing-sm);
-      margin-top: var(--spacing-sm);
+      margin-top: 0;
     }
 
     .attendance-group h3 {
