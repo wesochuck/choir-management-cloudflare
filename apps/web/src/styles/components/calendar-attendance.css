@@ -14,6 +14,12 @@
     --attendance-row-min-height: 4.25rem;
   }
 
+  .attendance-filter__compact-label,
+  .attendance-row__compact-status,
+  .attendance-manager__bulk-icon {
+    display: none;
+  }
+
   .attendance-manager__sticky-header {
     display: flex;
     flex-direction: column;
@@ -137,22 +143,6 @@
     min-height: 2.5rem;
     padding: var(--spacing-xs) var(--spacing-sm);
     font-size: var(--font-size-md);
-  }
-
-  .attendance-progress {
-    height: 0.45rem;
-    margin-top: var(--spacing-md);
-    overflow: hidden;
-    border-radius: var(--radius-full);
-    background: color-mix(in srgb, var(--color-border) 70%, transparent);
-  }
-
-  .attendance-progress span {
-    display: block;
-    height: 100%;
-    border-radius: inherit;
-    background: var(--color-success);
-    transition: width 180ms ease;
   }
 
   .attendance-undo-slot {

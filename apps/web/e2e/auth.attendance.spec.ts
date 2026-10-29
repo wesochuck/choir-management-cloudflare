@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { installOrganizationApi } from "./fixtures/apiMocks";
-import { buildOrganizationEvent } from "./fixtures/builders";
+import { buildAttendanceRow, buildOrganizationEvent } from "./fixtures/builders";
 
 test("keeps the attendance heading close to its manager and removes the explainer paragraph", async ({
   page,
@@ -46,8 +46,7 @@ test("preserves list position, does not overflow horizontally, and does not obsc
   const firstRow = page.locator(".attendance-row").first();
   await expect(firstRow).toBeVisible();
 
-  const progressBar = page.locator(".attendance-progress");
-  await expect(progressBar).toBeVisible();
+  await expect(page.locator(".attendance-progress")).toHaveCount(0);
 
   const undoSlot = page.locator(".attendance-undo-slot");
   await expect(undoSlot).toBeVisible();
@@ -55,14 +54,14 @@ test("preserves list position, does not overflow horizontally, and does not obsc
   expect(slotBox).toBeDefined();
   expect(slotBox?.height).toBeCloseTo(48, 1);
 
-  // Measure relative distance from progress bar to first row
-  const getRowOffsetFromProgress = async () =>
+  // Measure relative distance from sticky controls to first row
+  const getRowOffsetFromHeader = async () =>
     firstRow.evaluate((el) => {
-      const progressBar = document.querySelector(".attendance-progress");
-      return el.getBoundingClientRect().top - (progressBar?.getBoundingClientRect().bottom ?? 0);
+      const header = document.querySelector(".attendance-manager__sticky-header");
+      return el.getBoundingClientRect().top - (header?.getBoundingClientRect().bottom ?? 0);
     });
 
-  const initialOffset = await getRowOffsetFromProgress();
+  const initialOffset = await getRowOffsetFromHeader();
 
   // Tap row to change status
   const toggleButton = firstRow.getByRole("button");
@@ -71,8 +70,8 @@ test("preserves list position, does not overflow horizontally, and does not obsc
   const undoButton = undoSlot.getByRole("button", { name: /^Undo/ });
   await expect(undoButton).toBeVisible();
 
-  // 1. Verify list position relative to progress bar is identical before and after bar appears
-  const activeOffset = await getRowOffsetFromProgress();
+  // 1. Verify list position relative to sticky controls is identical before and after bar appears
+  const activeOffset = await getRowOffsetFromHeader();
   expect(activeOffset).toBeCloseTo(initialOffset, 1);
 
   // 2. Verify Undo does not obscure the row
@@ -100,7 +99,7 @@ test("preserves list position, does not overflow horizontally, and does not obsc
   await expect(undoButton).not.toBeVisible();
 
   // 5. Verify position remains identical after exhausted history
-  const restoredOffset = await getRowOffsetFromProgress();
+  const restoredOffset = await getRowOffsetFromHeader();
   expect(restoredOffset).toBeCloseTo(initialOffset, 1);
 
   api.assertNoUnexpectedRequests();
@@ -252,3 +251,72 @@ test("keeps a long selected event to one truncated line at 320, 375, 390, 430, a
 
   api.assertNoUnexpectedRequests();
 });
+
+for (const theme of ["light", "dark"] as const) {
+  test(`compact mobile attendance keeps two sticky control rows in ${theme}`, async ({
+    page,
+  }, info) => {
+    const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+    api.attendanceRows.set(
+      new Map(
+        Array.from({ length: 30 }, (_, index) => {
+          const row = buildAttendanceRow({
+            profileId: `10000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+            displayName: `Singer ${String(index + 1).padStart(2, "0")}`,
+          });
+          return [row.profileId, row];
+        }),
+      ),
+    );
+    await page.addInitScript((mode) => {
+      localStorage.setItem(`choir-theme:${location.hostname}`, mode);
+    }, theme);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/admin/attendance");
+    const header = page.locator(".attendance-manager__sticky-header");
+    const event = page.getByLabel("Event", { exact: true });
+    const search = page.getByRole("searchbox");
+    const filters = page.getByRole("group", { name: "Attendance filter" });
+    const bulk = page.getByRole("button", { name: "Mark remaining present", exact: true });
+    await expect(page.locator(".attendance-row")).toHaveCount(30);
+    for (const width of [320, 375, 390, 430]) {
+      await page.setViewportSize({ width, height: 844 });
+      const geometry = await header.evaluate((node) => ({
+        height: node.getBoundingClientRect().height,
+        overflow: document.documentElement.scrollWidth > innerWidth,
+      }));
+      expect(geometry.height).toBeLessThanOrEqual(132);
+      expect(geometry.overflow).toBe(false);
+      const [eventBox, bulkBox, searchBox, filterBox] = await Promise.all([
+        event.boundingBox(),
+        bulk.boundingBox(),
+        search.boundingBox(),
+        filters.boundingBox(),
+      ]);
+      expect(eventBox?.y).toBe(bulkBox?.y);
+      expect(searchBox?.y).toBe(filterBox?.y);
+      expect(bulkBox?.height).toBeGreaterThanOrEqual(44);
+      expect(searchBox?.width).toBeGreaterThanOrEqual(100);
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await search.fill("Singer 01");
+    await expect(page.locator(".attendance-row")).toHaveCount(1);
+    await page.locator(".attendance-row__toggle").click();
+    await expect(page.locator(".attendance-row")).toHaveCount(0);
+    await page.getByRole("button", { name: /^Undo/ }).click();
+    await expect(page.locator(".attendance-row")).toHaveCount(1);
+    await search.clear();
+    await bulk.click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await page.screenshot({ path: info.outputPath(`compact-attendance-${theme}.png`) });
+    await page.evaluate(() => {
+      window.scrollTo(0, 500);
+    });
+    await expect.poll(async () => (await header.boundingBox())?.y).toBe(0);
+    await expect(event).toBeInViewport();
+    await expect(search).toBeInViewport();
+    await page.screenshot({ path: info.outputPath(`sticky-attendance-${theme}.png`) });
+    api.assertNoUnexpectedRequests();
+  });
+}

@@ -1,5 +1,5 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { ChevronRightIcon, MobileNavItem } from "../components/AuthenticatedShell/mobileNavigation";
 import type { NavigationGroup, NavigationItem } from "../components/AuthenticatedShell/types";
 import { activeHref } from "./navigationUtils";
@@ -230,9 +230,62 @@ function MobileAdminSheetContent({
   sheetId,
   sheetTitle,
 }: MobileAdminSheetContentProps) {
+  const [dragOffset, setDragOffset] = useState(0);
+  const gesture = useRef<{
+    pointerId: number;
+    startY: number;
+    moved: boolean;
+    active: boolean;
+  } | null>(null);
   return (
-    <DialogPrimitive.Content aria-modal="true" className="mobile-bottom-sheet" id={sheetId}>
-      <div aria-hidden="true" className="mobile-bottom-sheet__handle" />
+    <DialogPrimitive.Content
+      aria-modal="true"
+      className="mobile-bottom-sheet"
+      id={sheetId}
+      style={{ translate: `0 ${String(dragOffset)}px` }}
+    >
+      <button
+        aria-label={`Dismiss ${sheetTitle}`}
+        className="mobile-bottom-sheet__handle"
+        type="button"
+        onClick={() => {
+          if (!gesture.current?.moved) handleClose();
+        }}
+        onPointerDown={(event) => {
+          if (!event.isPrimary || event.button !== 0) return;
+          gesture.current = {
+            pointerId: event.pointerId,
+            startY: event.clientY,
+            moved: false,
+            active: true,
+          };
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }}
+        onPointerMove={(event) => {
+          const current = gesture.current;
+          if (!current?.active || current.pointerId !== event.pointerId) return;
+          const distance = event.clientY - current.startY;
+          if (Math.abs(distance) > 8) current.moved = true;
+          setDragOffset(Math.max(0, distance));
+        }}
+        onPointerUp={(event) => {
+          const current = gesture.current;
+          if (!current?.active || current.pointerId !== event.pointerId) return;
+          const distance = event.clientY - current.startY;
+          current.moved ||= Math.abs(distance) > 8;
+          current.active = false;
+          setDragOffset(0);
+          event.currentTarget.releasePointerCapture(event.pointerId);
+          if (distance >= 72) handleClose();
+        }}
+        onPointerCancel={() => {
+          gesture.current = null;
+          setDragOffset(0);
+        }}
+        onKeyDown={() => {
+          gesture.current = null;
+        }}
+      />
       <div className="mobile-bottom-sheet__header">
         {activeMenu === "more" && selectedMoreGroup ? (
           <button

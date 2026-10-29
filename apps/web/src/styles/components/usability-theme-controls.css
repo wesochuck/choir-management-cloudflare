@@ -158,26 +158,56 @@
 
     .attendance-manager {
       --attendance-row-min-height: 3.25rem;
+      --control-height: 44px;
       padding: var(--spacing-2xs) var(--spacing-sm);
     }
 
-    .attendance-manager__intro {
-      align-items: center;
-      flex-direction: row;
-      justify-content: space-between;
-      gap: var(--spacing-sm);
+    .attendance-manager > .rsvp-page-tabs {
+      display: flex;
+      flex-wrap: nowrap;
       margin-bottom: var(--spacing-xs);
     }
 
-    .attendance-manager__count {
-      display: flex;
-      align-items: baseline;
-      gap: var(--spacing-3xs);
+    .attendance-manager > .rsvp-page-tabs button {
+      flex: 1;
+      min-height: 44px;
+      padding: var(--spacing-xs);
       font-size: var(--font-size-sm);
     }
 
+    .attendance-manager .rsvp-manager__tab-content {
+      gap: var(--spacing-xs);
+    }
+
+    .attendance-manager__intro,
+    .attendance-manager__controls,
+    .attendance-manager__toolbar {
+      display: contents;
+    }
+
+    .attendance-manager__sync-container {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .attendance-manager__count {
+      grid-column: 7 / 9;
+      grid-row: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      white-space: nowrap;
+      font-size: var(--font-size-sm);
+      color: var(--color-success);
+    }
+
     .attendance-manager__count strong {
-      font-size: var(--font-size-xl);
+      font-size: var(--font-size-body);
     }
 
     .attendance-manager__count span {
@@ -189,77 +219,106 @@
       position: sticky;
       top: 0;
       z-index: 15;
+      display: grid;
+      grid-template-columns: repeat(10, minmax(0, 1fr));
+      align-items: center;
+      gap: var(--spacing-xs) var(--spacing-3xs);
       background: var(--color-background);
-      padding-top: var(--spacing-2xs);
-      padding-bottom: var(--spacing-xs);
-      border-bottom: 1px solid var(--color-border);
-      box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.2);
+      padding-block: var(--spacing-xs);
       min-width: 0;
       max-width: 100%;
       box-sizing: border-box;
     }
 
-    .attendance-manager__controls,
-    .attendance-manager__toolbar {
-      align-items: stretch;
-      flex-direction: column;
+    .attendance-manager__event-field {
+      grid-column: 1 / 7;
+      grid-row: 1;
     }
 
-    .attendance-manager__controls {
-      gap: var(--spacing-xs);
-      margin-top: 0;
+    .attendance-manager__search {
+      grid-column: 1 / 5;
+      grid-row: 2;
+    }
+
+    .attendance-manager__event-field,
+    .attendance-manager__search {
+      margin: 0;
+      min-width: 0;
+    }
+
+    .signed-in-main .attendance-manager .attendance-manager__event-select,
+    .signed-in-main .attendance-manager .attendance-manager__search input {
+      min-height: 44px;
+      height: 44px;
+      box-sizing: border-box;
+      width: 100%;
+      padding-inline: var(--spacing-xs);
+      font-size: var(--font-size-sm);
     }
 
     .attendance-manager__event-field > span,
-    .attendance-manager__search > span {
+    .attendance-manager__search > span,
+    .attendance-manager__bulk-label {
       display: none;
     }
 
-    .attendance-manager__controls .field,
-    .attendance-manager__search {
-      flex-basis: auto;
-    }
-
-    .attendance-manager__toolbar {
-      gap: var(--spacing-xs);
-      margin-top: var(--spacing-xs);
-    }
-
     .attendance-filters {
+      grid-column: 5 / 11;
+      grid-row: 2;
       display: flex;
       flex-wrap: nowrap;
       overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      gap: var(--spacing-xs);
+      gap: var(--spacing-3xs);
       scrollbar-width: none;
-      padding-block: var(--spacing-3xs);
+      height: 44px;
       min-width: 0;
       max-width: 100%;
       box-sizing: border-box;
     }
 
-    .attendance-filters::-webkit-scrollbar {
-      display: none;
-    }
-
-    .attendance-filter {
+    .attendance-manager .attendance-filter {
+      height: 44px;
+      box-sizing: border-box;
       flex: 0 0 auto;
       width: auto;
-      min-height: 2.25rem;
-      padding: var(--spacing-3xs) var(--spacing-sm);
+      min-height: 44px;
+      padding: var(--spacing-3xs) var(--spacing-xs);
       font-size: var(--font-size-sm);
       white-space: nowrap;
     }
 
     .attendance-manager__bulk {
-      width: 100%;
-      min-height: 2.25rem;
-      padding: var(--spacing-3xs) var(--spacing-sm);
-      font-size: var(--font-size-sm);
+      grid-column: 9 / 11;
+      justify-self: end;
+      grid-row: 1;
+      width: 44px;
+      height: 44px;
+      box-sizing: border-box;
+      min-height: 44px;
+      padding: var(--spacing-3xs);
     }
 
-    .attendance-progress {
-      margin-top: var(--spacing-xs);
+    .attendance-filter__label {
+      display: none;
+    }
+
+    .attendance-filter__compact-label {
+      display: inline;
+    }
+
+    .attendance-manager__bulk-icon {
+      display: inline;
+    }
+
+    .attendance-row__inline-status {
+      display: none;
+    }
+
+    .attendance-row__compact-status {
+      display: inline;
+      margin-left: auto;
+      color: var(--color-text-muted);
+      font-size: var(--font-size-xs);
     }
 
     .attendance-row__toggle {

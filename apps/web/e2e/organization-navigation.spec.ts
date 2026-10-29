@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { moduleIdSchema } from "@choir/contracts";
 import { installOrganizationApi } from "./fixtures/apiMocks";
@@ -28,6 +28,35 @@ async function expectReadableMenuIcons(sheet: Locator) {
         .evaluate((node) => parseFloat(getComputedStyle(node).fontSize)),
     ).toBeGreaterThanOrEqual(16);
   }
+}
+
+async function expectSheetDragDismissal(page: Page, peopleSheet: Locator, bottomNav: Locator) {
+  const handle = peopleSheet.getByRole("button", { name: "Dismiss People & membership" });
+  await handle.focus();
+  await page.keyboard.press("Enter");
+  await expect(peopleSheet).toHaveCount(0);
+  await bottomNav.getByRole("button", { name: "People", exact: true }).click();
+  for (const distance of [30, 100]) {
+    await handle.click({ trial: true });
+    const box = await handle.boundingBox();
+    if (!box) throw new Error("Missing sheet drag handle");
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x, y + distance, { steps: 5 });
+    await expect(peopleSheet).toHaveCSS("translate", `0px ${String(distance)}px`);
+    await page.mouse.up();
+    if (distance < 72) {
+      await expect(peopleSheet).toBeVisible();
+      await expect(peopleSheet).toHaveCSS("translate", "0px");
+    } else {
+      await expect(peopleSheet).toHaveCount(0);
+    }
+  }
+  await bottomNav.getByRole("button", { name: "People", exact: true }).click();
+
+  await handle.click({ trial: true });
 }
 
 for (const theme of ["dark", "light"] as const) {
@@ -162,6 +191,8 @@ for (const theme of ["dark", "light"] as const) {
     await expect(peopleSheet).toBeVisible();
     await expect(peopleSheet.getByRole("heading", { name: "People & membership" })).toBeVisible();
     await shot(`people-sheet-${theme}`);
+
+    await expectSheetDragDismissal(page, peopleSheet, bottomNav);
 
     for (const width of [320, 375, 390, 430]) {
       await page.setViewportSize({ width, height: 812 });

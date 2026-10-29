@@ -81,9 +81,14 @@ function AttendanceGroupComponent({
               <span className="attendance-row__identity">
                 <strong>{row.displayName}</strong>
                 <span>
-                  {row.voicePart || `${partLabel} not set`} · {attendanceLabel(row.attendance)}
+                  {row.voicePart || `${partLabel} not set`}
+                  <span className="attendance-row__inline-status">
+                    {" "}
+                    · {attendanceLabel(row.attendance)}
+                  </span>
                 </span>
               </span>
+              <span className="attendance-row__compact-status">{row.attendance}</span>
               {row.rsvp !== "Yes" ? (
                 <span
                   className={`attendance-row__rsvp attendance-row__rsvp--${row.rsvp.toLowerCase()}`}
@@ -378,20 +383,22 @@ export function AttendanceManager({
           id="attendance-events-panel"
           value="attendance"
         >
-          <div className="attendance-manager__intro">
-            <div>
-              <p className="attendance-manager__sync" role="status">
-                <span aria-hidden="true">●</span> Live updates every 5 seconds ·{" "}
-                {formatSyncTime(dataUpdatedAt ? new Date(dataUpdatedAt) : null)}
-              </p>
-            </div>
-            <div className="attendance-manager__count" aria-label="Attendance progress">
-              <strong>{String(counts.present)}</strong> / {String(counts.expected)}
-              <span>present</span>
-            </div>
-          </div>
-
           <div className="attendance-manager__sticky-header">
+            <div className="attendance-manager__intro">
+              <div className="attendance-manager__sync-container">
+                <p className="attendance-manager__sync" role="status">
+                  <span aria-hidden="true">●</span> Live updates every 5 seconds ·{" "}
+                  {formatSyncTime(dataUpdatedAt ? new Date(dataUpdatedAt) : null)}
+                </p>
+              </div>
+              <div className="attendance-manager__count" aria-label="Attendance progress">
+                <div>
+                  <strong>{String(counts.present)}</strong> / {String(counts.expected)}
+                </div>
+                <span>present</span>
+              </div>
+            </div>
+
             <AttendanceControlsComponent
               eventId={eventId}
               eventLocationLabel={eventLocationLabel}
@@ -414,6 +421,9 @@ export function AttendanceManager({
                   ] as const
                 ).map(([value, label]) => (
                   <button
+                    aria-label={label}
+                    aria-pressed={filter === value}
+                    title={label}
                     className={
                       filter === value
                         ? "attendance-filter attendance-filter--active"
@@ -425,11 +435,22 @@ export function AttendanceManager({
                     }}
                     type="button"
                   >
-                    {label}
+                    <span className="attendance-filter__label">{label}</span>
+                    <span aria-hidden="true" className="attendance-filter__compact-label">
+                      {value === "Present"
+                        ? `✓ ${String(counts.presentTotal)}`
+                        : value === "Absent"
+                          ? `× ${String(counts.absent)}`
+                          : value === "All"
+                            ? "All"
+                            : label}
+                    </span>
                   </button>
                 ))}
               </div>
               <button
+                aria-label="Mark remaining present"
+                title="Mark remaining present"
                 className="button button--primary attendance-manager__bulk"
                 disabled={bulkBusy || markableRows.length === 0}
                 onClick={() => {
@@ -437,19 +458,13 @@ export function AttendanceManager({
                 }}
                 type="button"
               >
-                {bulkBusy ? "Saving…" : "Mark remaining present"}
+                <span className="attendance-manager__bulk-label">
+                  {bulkBusy ? "Saving…" : "Mark remaining present"}
+                </span>
+                <span aria-hidden="true" className="attendance-manager__bulk-icon">
+                  ✓+
+                </span>
               </button>
-            </div>
-
-            <div
-              className="attendance-progress"
-              aria-label={`${String(counts.present)} of ${String(counts.expected)} present`}
-            >
-              <span
-                style={{
-                  width: `${String(counts.expected ? (counts.present / counts.expected) * 100 : 0)}%`,
-                }}
-              />
             </div>
           </div>
 
