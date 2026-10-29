@@ -2,6 +2,9 @@ import { Dialog, DialogClose } from "@choir/ui";
 import type { SyntheticEvent } from "react";
 
 export function CustomItemDialog({
+  onCloseAutoFocus,
+  insertionDescription,
+  error,
   addCustomItem,
   canAddCustomEntry,
   customComposer,
@@ -21,6 +24,9 @@ export function CustomItemDialog({
   setCustomTitle,
   setCustomType,
 }: {
+  readonly onCloseAutoFocus?: ((event: Event) => void) | undefined;
+  readonly insertionDescription?: string | undefined;
+  readonly error?: string | null;
   readonly addCustomItem: () => void;
   readonly canAddCustomEntry: boolean;
   readonly customComposer: string;
@@ -42,10 +48,14 @@ export function CustomItemDialog({
 }) {
   return (
     <Dialog
-      description="Add an announcement, intermission, or custom song to this set list."
+      description={
+        insertionDescription ??
+        "Add an announcement, intermission, or custom song to this set list."
+      }
       onClose={onClose}
+      onCloseAutoFocus={onCloseAutoFocus}
       open={open}
-      title="Add custom item"
+      title={insertionDescription ? "Insert custom entry" : "Add custom item"}
     >
       <form
         className="form-stack"
@@ -177,6 +187,7 @@ export function CustomItemDialog({
             }}
           />
         </label>
+        {error ? <p role="alert">{error}</p> : null}
         <div className="dialog__actions">
           <DialogClose asChild>
             <button className="button button--secondary" type="button">
@@ -184,7 +195,7 @@ export function CustomItemDialog({
             </button>
           </DialogClose>
           <button className="button button--primary" type="submit">
-            Add item
+            {insertionDescription ? "Insert entry" : "Add item"}
           </button>
         </div>
       </form>

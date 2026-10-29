@@ -19,7 +19,7 @@
 
   /* Compact rows: card padding already sits at the 8px target, so the
      inside-card saving comes from this heading-to-metadata gap (8px to the
-     6px token). Between-song insert zones are intentionally untouched. */
+     6px token). Insert controls overlay the compact between-row gap. */
   .set-list-item-heading {
     min-width: 0;
     align-items: center;
@@ -238,39 +238,67 @@
   }
 
   .set-list-insert-zone {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: var(--spacing-xs);
-    min-height: 1.25rem;
-    margin: -var(--spacing-3xs) 0;
+    height: 0;
     padding: 0;
+    z-index: 1;
   }
 
-  .set-list-insert-zone::before,
   .set-list-insert-zone::after {
-    flex: 1 1 auto;
+    width: 100%;
     height: 1px;
-    background: transparent;
+    background: var(--color-border);
     content: "";
-    transition: background 120ms ease;
   }
 
-  .set-list-insert-zone button {
-    flex: 0 0 auto;
-    min-height: 1.15rem;
-    padding: var(--spacing-3xs) var(--spacing-xs);
-    border: 0;
-    border-radius: 0;
+  .set-list-insert-zone__button {
+    position: absolute;
+    inset-inline-start: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-2xs);
+    min-width: 1.75rem;
+    min-height: 1.75rem;
+    padding: var(--spacing-3xs) var(--spacing-2xs);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
     color: var(--color-text-muted);
-    background: transparent;
-    font-size: var(--font-size-xs);
-    opacity: 0;
-    transition:
-      color 120ms ease,
-      opacity 120ms ease;
+    background: var(--color-surface-raised);
+    font-size: var(--font-size-sm);
+  }
+
+  .set-list-insert-zone__text {
+    display: none;
+  }
+
+  .set-list-insert-zone:hover .set-list-insert-zone__text,
+  .set-list-insert-zone:focus-within .set-list-insert-zone__text,
+  .set-list-insert-zone__button[data-state="open"] .set-list-insert-zone__text {
+    display: inline;
+  }
+
+  .set-list-insert-results {
+    display: grid;
+    gap: var(--spacing-xs);
+    max-height: 20rem;
+    overflow-y: auto;
+  }
+
+  @media (pointer: coarse) {
+    .set-list-insert-zone {
+      height: var(--spacing-lg);
+    }
+    .set-list-insert-zone__button {
+      min-height: 2.75rem;
+      min-width: 2.75rem;
+    }
   }
 
   .set-list-insert-zone--drop-target {
+    height: auto;
     min-height: 2.75rem;
     margin: 0;
     padding: var(--spacing-xs) var(--spacing-sm);

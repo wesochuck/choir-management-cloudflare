@@ -229,6 +229,7 @@ export interface SetListItemRowProps {
   readonly movementCount?: number | undefined;
   readonly music: SetListManagerModel["resources"]["music"];
   readonly onDropDraggedItem: (boundary: number) => void;
+  readonly onInsertMusic?: ((index: number) => void) | undefined;
   readonly onInsertCustom: (index: number) => void;
   readonly onKeyboardReorderKeyDown: (
     index: number,
@@ -264,6 +265,7 @@ export function SetListItemRow({
   movementCount,
   music,
   onDropDraggedItem,
+  onInsertMusic,
   onInsertCustom,
   onKeyboardReorderKeyDown,
   onOpenItemEditor,
@@ -398,8 +400,10 @@ export function SetListItemRow({
         )}
         <SetListItemNotes notes={itemNotes} showNotes={showNotes} />
       </li>
-      {index < itemsLength - 1 && canInsertCustomEntryAfter !== false ? (
+      {index < itemsLength ? (
         <SetListInsertZone
+          canInsertCustom={canInsertCustomEntryAfter}
+          onInsertMusic={onInsertMusic}
           dragIndex={dragIndex}
           dropAfter={dropState.after}
           index={index}

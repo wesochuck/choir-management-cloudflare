@@ -6,7 +6,8 @@ import {
   type OrganizationProfile,
   type OrganizationVenue,
 } from "@choir/contracts";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as authApiModule from "../../../auth/api";
 import * as api from "../../../auth/api";
@@ -103,6 +104,62 @@ describe("SetListManager default Performance selection", () => {
     expect(screen.getByText("Today song")).toBeInTheDocument();
     expect(screen.getByLabelText("Between songs")).toHaveValue(25);
     expect(screen.getAllByRole("checkbox", { name: /approved/i })[0]).not.toBeChecked();
+  });
+
+  it("inserts a library song at the selected boundary and cancels custom entry without adding a row", async () => {
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    const piece = organizationMusicPieceSchema.parse({
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      title: "Library Song",
+      composer: "Test Composer",
+      arranger: "Unique Arranger",
+      durationSeconds: 120,
+      createdAt: "2025-01-01T00:00:00.000Z",
+      updatedAt: "2025-01-01T00:00:00.000Z",
+    });
+    vi.mocked(api.listOrganizationMusic).mockResolvedValue([piece]);
+    render(<SetListManager enabled initialEventId={defaultEvent.id} />);
+    await flushResourceLoad();
+    await user.click(screen.getByRole("button", { name: "Insert item after 1. Today song" }));
+    await user.click(screen.getByRole("menuitem", { name: "Custom entry" }));
+    expect(
+      screen
+        .getAllByRole("listitem", { hidden: true })
+        .filter((row) => row.classList.contains("set-list-item")),
+    ).toHaveLength(1);
+    await user.click(
+      within(screen.getByRole("dialog", { name: "Insert custom entry" })).getByRole("button", {
+        name: "Cancel",
+      }),
+    );
+    expect(screen.queryByText("Intermission")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Insert item after 1. Today song" }));
+    await user.click(screen.getByRole("menuitem", { name: "Song from music library" }));
+    const dialog = screen.getByRole("dialog", { name: "Insert song" });
+    expect(within(dialog).getByRole("button", { name: "Insert song" })).toBeDisabled();
+    await user.type(within(dialog).getByRole("searchbox"), "Unique Arranger");
+    await user.click(within(dialog).getByRole("radio"));
+    await user.click(within(dialog).getByRole("button", { name: "Insert song" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    const rows = screen
+      .getAllByRole("listitem")
+      .filter((row) => row.classList.contains("set-list-item"));
+    expect(rows).toHaveLength(2);
+    expect(rows[1]).toHaveTextContent("Library Song");
+    await user.click(screen.getByRole("button", { name: "Insert item after 1. Today song" }));
+    await user.click(screen.getByRole("menuitem", { name: "Custom entry" }));
+    const custom = screen.getByRole("dialog", { name: "Insert custom entry" });
+    await user.clear(within(custom).getByLabelText("Title"));
+    await user.type(within(custom).getByLabelText("Title"), "Welcome");
+    await user.type(within(custom).getByLabelText("Duration"), "2:00");
+    await user.click(within(custom).getByRole("button", { name: "Insert entry" }));
+    const updated = screen
+      .getAllByRole("listitem")
+      .filter((row) => row.classList.contains("set-list-item"));
+    expect(updated).toHaveLength(3);
+    expect(updated[1]).toHaveTextContent("Welcome");
+    expect(updated[2]).toHaveTextContent("Library Song");
   });
 
   it("honors a valid deep link, rejects invalid IDs, and uses URL eventId when supplied", async () => {

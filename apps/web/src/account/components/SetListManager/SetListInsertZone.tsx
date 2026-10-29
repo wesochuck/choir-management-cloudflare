@@ -1,4 +1,8 @@
+import { DropdownMenu } from "@choir/ui";
+
 export function SetListInsertZone({
+  canInsertCustom = true,
+  onInsertMusic,
   dragIndex,
   dropAfter,
   index,
@@ -8,6 +12,8 @@ export function SetListInsertZone({
   onSetDragOverBoundary,
   programNumber,
 }: {
+  readonly canInsertCustom?: boolean | undefined;
+  readonly onInsertMusic?: ((index: number) => void) | undefined;
   readonly dragIndex: number | null;
   readonly dropAfter: boolean;
   readonly index: number;
@@ -43,16 +49,29 @@ export function SetListInsertZone({
           Drop item here
         </span>
       ) : null}
-      <button
-        aria-label={`Insert custom entry after ${itemLabel}`}
-        className="set-list-insert-zone__button"
-        type="button"
-        onClick={() => {
-          onInsertCustom(targetIndex);
-        }}
-      >
-        + Insert custom entry
-      </button>
+      <DropdownMenu
+        accessibleLabel={`Insert item after ${itemLabel}`}
+        items={[
+          { label: "Song from music library", onSelect: () => onInsertMusic?.(targetIndex) },
+          {
+            label: "Custom entry",
+            disabled: !canInsertCustom,
+            onSelect: () => {
+              onInsertCustom(targetIndex);
+            },
+          },
+        ]}
+        trigger={
+          <button
+            id={`set-list-insert-${String(index)}`}
+            className="set-list-insert-zone__button"
+            type="button"
+          >
+            <span aria-hidden="true">+</span>
+            <span className="set-list-insert-zone__text">Insert item</span>
+          </button>
+        }
+      />
     </li>
   );
 }

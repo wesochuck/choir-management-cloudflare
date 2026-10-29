@@ -60,6 +60,7 @@ export function useSetListManagerController({
   const [customCueInstruction, setCustomCueInstruction] = useState("");
   const [customNotes, setCustomNotes] = useState("");
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const [customInsertionIndex, setCustomInsertionIndex] = useState<number | null>(null);
   const [editingItemIndex, setEditingItemIndex] = useState<number | null>(null);
   const [editingItem, setEditingItem] = useState<SetListItem | null>(null);
   const [busy, setBusy] = useState(false);
@@ -257,17 +258,17 @@ export function useSetListManagerController({
     );
   }
 
-  function addMusicPiece(piece: OrganizationMusicPiece): void {
+  function addMusicPiece(piece: OrganizationMusicPiece, insertionIndex = items.length): boolean {
     const existingIds = new Set(items.map(({ pieceId }) => pieceId));
     const additions = expandMusicSelections([piece], resources.music).filter(
       (candidate) => !existingIds.has(candidate.id),
     );
     if (additions.length === 0) {
       setError("That music piece is already in this set list.");
-      return;
+      return false;
     }
     updateDraftItems((current) => [
-      ...current,
+      ...current.slice(0, insertionIndex),
       ...additions.map((candidate) => ({
         composer: candidate.composer || undefined,
         duration: durationFromSeconds(candidate.durationSeconds),
@@ -276,13 +277,18 @@ export function useSetListManagerController({
         title: candidate.title,
         type: "song" as const,
       })),
+      ...current.slice(insertionIndex),
     ]);
     setMusicQuery("");
     setError(null);
+    return true;
   }
 
   function addCustomItem(): void {
-    if (customType === "intermission" && !canInsertSetListCustomEntryAt(items, items.length)) {
+    if (
+      customType === "intermission" &&
+      !canInsertSetListCustomEntryAt(items, customInsertionIndex ?? items.length)
+    ) {
       setError("A custom entry cannot be placed directly before or after a Quick Cue.");
       return;
     }
@@ -297,7 +303,7 @@ export function useSetListManagerController({
       return;
     }
     updateDraftItems((current) => [
-      ...current,
+      ...current.slice(0, customInsertionIndex ?? current.length),
       {
         composer: customType === "song" ? customComposer.trim() || undefined : undefined,
         cueInstruction: isQuick ? customCueInstruction.trim() || undefined : undefined,
@@ -308,6 +314,7 @@ export function useSetListManagerController({
         title: customTitle.trim(),
         type: customType,
       },
+      ...current.slice(customInsertionIndex ?? current.length),
     ]);
     setCustomTitle("");
     setCustomComposer("");
@@ -320,6 +327,7 @@ export function useSetListManagerController({
   }
 
   function openCustomItem(title = "", duration = "", type: "intermission" | "song" = "song"): void {
+    setCustomInsertionIndex(null);
     setCustomType(type);
     setCustomTitle(type === "intermission" && !title.trim() ? "Intermission" : title);
     setCustomComposer("");
@@ -336,16 +344,8 @@ export function useSetListManagerController({
       setError("A custom entry cannot be placed directly before or after a Quick Cue.");
       return;
     }
-    const item: SetListItem = {
-      cueKind: "timed",
-      id: crypto.randomUUID(),
-      title: "Intermission",
-      type: "intermission",
-    };
-    updateDraftItems((current) => [...current.slice(0, index), item, ...current.slice(index)]);
-    setEditingItemIndex(index);
-    setEditingItem(item);
-    setError(null);
+    openCustomItem("", "", "intermission");
+    setCustomInsertionIndex(index);
   }
 
   function openItemEditor(index: number): void {
@@ -640,6 +640,7 @@ export function useSetListManagerController({
     customCueInstruction,
     customCueKind,
     customDialogOpen,
+    customInsertionIndex,
     customDuration,
     customNotes,
     customTitle,

@@ -14,6 +14,7 @@ import {
 import { SetListPrintView } from "./shared";
 import type { SetListItem } from "./types";
 import type { SetListManagerModel } from "./hooks";
+import { InsertMusicDialog } from "./dialogs/InsertMusicDialog";
 import { CustomItemDialog } from "./dialogs/CustomItemDialog";
 import { EditItemDialog } from "./dialogs/EditItemDialog";
 import { PracticePlayerShareDialog } from "./dialogs/PracticePlayerShareDialog";
@@ -34,6 +35,10 @@ export function SetListManagerView({
   readonly model: SetListManagerModel;
   readonly navigate?: ((href: string) => void) | undefined;
 }) {
+  const [musicInsertTarget, setMusicInsertTarget] = useState<{
+    eventId: string;
+    afterId: string;
+  } | null>(null);
   const [printDialogOpen, setPrintDialogOpen] = useState(false);
   const [expirationHintDismissed, setExpirationHintDismissed] = useState(false);
   const {
@@ -49,6 +54,7 @@ export function SetListManagerView({
     customCueInstruction,
     customCueKind,
     customDialogOpen,
+    customInsertionIndex,
     customDuration,
     customNotes,
     customTitle,
@@ -146,6 +152,10 @@ export function SetListManagerView({
     () => groupSetListForPresentation(items, resources.music, { includeQuickCues: true }),
     [items, resources.music],
   );
+  const musicInsertIndex =
+    musicInsertTarget?.eventId === selectedEventId
+      ? items.findIndex((item) => item.id === musicInsertTarget.afterId)
+      : -1;
   if (!enabled) return null;
   const practicePlayerUnavailableReason = !approved
     ? "Approve this set list before opening the Practice Player."
@@ -187,6 +197,13 @@ export function SetListManagerView({
         movementCount={movementCount}
         music={resources.music}
         onDropDraggedItem={reorder.dropDraggedItem}
+        onInsertMusic={(boundary) => {
+          const after = items[boundary - 1];
+          if (after?.id) {
+            setError(null);
+            setMusicInsertTarget({ eventId: selectedEventId, afterId: after.id });
+          }
+        }}
         onInsertCustom={insertCustomItem}
         onKeyboardReorderKeyDown={reorder.handleKeyboardReorderKeyDown}
         onOpenItemEditor={openItemEditor}
@@ -803,9 +820,49 @@ export function SetListManagerView({
                 </>
               )}
 
+              {musicInsertTarget?.eventId === selectedEventId &&
+              items.some((item) => item.id === musicInsertTarget.afterId) ? (
+                <InsertMusicDialog
+                  music={resources.music}
+                  onCloseAutoFocus={(event) => {
+                    event.preventDefault();
+                    const index = items.findIndex((item) => item.id === musicInsertTarget.afterId);
+                    document.getElementById(`set-list-insert-${String(index)}`)?.focus();
+                  }}
+                  description={`After ${items[musicInsertIndex]?.title ?? ""}${items[musicInsertIndex + 1] ? ` · Before ${items[musicInsertIndex + 1]?.title ?? ""}` : ""}`}
+                  error={error}
+                  onClose={() => {
+                    setMusicInsertTarget(null);
+                    setError(null);
+                  }}
+                  onInsert={(piece) => {
+                    const index = items.findIndex((item) => item.id === musicInsertTarget.afterId);
+                    if (index >= 0 && addMusicPiece(piece, index + 1)) setMusicInsertTarget(null);
+                  }}
+                />
+              ) : null}
               <CustomItemDialog
+                onCloseAutoFocus={
+                  customInsertionIndex === null
+                    ? undefined
+                    : (event) => {
+                        event.preventDefault();
+                        document
+                          .getElementById(`set-list-insert-${String(customInsertionIndex - 1)}`)
+                          ?.focus();
+                      }
+                }
                 addCustomItem={addCustomItem}
-                canAddCustomEntry={canInsertSetListCustomEntryAt(items, items.length)}
+                canAddCustomEntry={canInsertSetListCustomEntryAt(
+                  items,
+                  customInsertionIndex ?? items.length,
+                )}
+                insertionDescription={
+                  customInsertionIndex === null
+                    ? undefined
+                    : `After ${items[customInsertionIndex - 1]?.title ?? "start"}${items[customInsertionIndex] ? ` · Before ${items[customInsertionIndex].title}` : ""}`
+                }
+                error={error}
                 customComposer={customComposer}
                 customCueInstruction={customCueInstruction}
                 customCueKind={customCueKind}

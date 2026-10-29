@@ -485,9 +485,10 @@ test("updates between-song transition time, reflects in timing breakdown, end ti
   if (originalViewport) await page.setViewportSize(originalViewport);
 
   // Insert a custom entry after Opening Song (between the two songs)
-  await page.getByRole("button", { name: "Insert custom entry after 1. Opening Song" }).click();
-  const editDialog = page.getByRole("dialog", { name: "Edit set-list item" });
-  await editDialog.getByRole("button", { name: "Save item" }).click();
+  await page.getByRole("button", { name: "Insert item after 1. Opening Song" }).click();
+  await page.getByRole("menuitem", { name: "Custom entry", exact: true }).click();
+  const editDialog = page.getByRole("dialog", { name: "Insert custom entry" });
+  await editDialog.getByRole("button", { name: "Insert entry" }).click();
 
   // Now the items are: Opening Song (song), Intermission (custom), Finale (song).
   // No two songs are directly adjacent, so automatic between-song time drops to 0 and hides!
@@ -732,7 +733,7 @@ test("shows recording coverage and plays inline audio previews in set list build
   await expect(item1.getByRole("button", { name: /Pause Tutti/ })).not.toBeVisible();
 });
 
-test("keeps song rows compact while insert zones stay usable", async ({ page }) => {
+test("keeps song rows compact while insert zones stay usable", async ({ page }, testInfo) => {
   const denseSetList = Array.from({ length: 20 }, (_, index) => ({
     composer: `Composer ${String(index + 1)}`,
     id: `dense-item-${String(index + 1)}`,
@@ -779,7 +780,7 @@ test("keeps song rows compact while insert zones stay usable", async ({ page }) 
   await page.goto("/admin/setlists");
   await expect(page.getByRole("heading", { name: "Set lists" })).toBeVisible();
   await expect(page.locator(".set-list-item")).toHaveCount(20);
-  await expect(page.locator(".set-list-insert-zone")).toHaveCount(19);
+  await expect(page.locator(".set-list-insert-zone")).toHaveCount(20);
 
   const metrics = await page
     .locator(".set-list-item")
@@ -825,7 +826,7 @@ test("keeps song rows compact while insert zones stay usable", async ({ page }) 
         zoneHeight: zone.getBoundingClientRect().height,
       };
     });
-  expect(zoneMetrics.zoneHeight).toBeGreaterThanOrEqual(18);
+  expect(zoneMetrics.zoneHeight).toBeLessThanOrEqual(24);
   expect(zoneMetrics.buttonHeight).toBeGreaterThanOrEqual(16);
 
   // Hover reveals the insert action without shifting any card.
@@ -834,37 +835,94 @@ test("keeps song rows compact while insert zones stay usable", async ({ page }) 
   const topsBefore = await page
     .locator(".set-list-item")
     .evaluateAll((items) => items.map((item) => item.getBoundingClientRect().top));
-  await firstZone.hover();
+  await firstZone.getByRole("button").hover();
   await expect(
-    firstZone.getByRole("button", { name: "Insert custom entry after 1. Song 1" }),
+    firstZone.getByRole("button", { name: "Insert item after 1. Song 1" }),
   ).toBeVisible();
   const topsAfter = await page
     .locator(".set-list-item")
     .evaluateAll((items) => items.map((item) => item.getBoundingClientRect().top));
   expect(topsAfter).toEqual(topsBefore);
 
-  // Clicking inserts exactly at that boundary and opens the new entry editor.
-  await firstZone.getByRole("button", { name: "Insert custom entry after 1. Song 1" }).click();
+  await firstZone.getByRole("button").click();
+  await page.getByRole("menuitem", { name: "Song from music library" }).click();
+  const libraryDialog = page.getByRole("dialog", { name: "Insert song" });
+  await expect(libraryDialog).toContainText("After Song 1");
+  await expect(libraryDialog.getByRole("button", { name: "Insert song" })).toBeDisabled();
+  await libraryDialog.getByRole("searchbox").fill("no matching piece");
+  await expect(libraryDialog).toContainText("No matching music pieces.");
+  await libraryDialog.getByRole("searchbox").fill("Composer A");
+  await libraryDialog.getByRole("radio").check();
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate((value) => {
+      document.documentElement.setAttribute("data-theme", value);
+    }, theme);
+    await testInfo.attach(`insert-song-${theme}`, {
+      body: await libraryDialog.screenshot({
+        path: testInfo.outputPath(`insert-song-${theme}.png`),
+      }),
+      contentType: "image/png",
+    });
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(libraryDialog).toBeInViewport();
+  await expect(libraryDialog.getByRole("button", { name: "Insert song" })).toBeInViewport();
+  await testInfo.attach("insert-song-narrow", {
+    body: await page.screenshot({ path: testInfo.outputPath("insert-song-narrow.png") }),
+    contentType: "image/png",
+  });
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await libraryDialog.getByRole("button", { name: "Insert song" }).click();
+  await expect(libraryDialog.getByRole("alert")).toContainText("already in this set list");
+  await libraryDialog.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Discard changes", exact: true }).click();
+  await expect(firstZone.getByRole("button")).toBeFocused();
+  await expect(page.locator(".set-list-item")).toHaveCount(20);
+
+  // The entry form is a draft until submitted.
+  await firstZone.getByRole("button", { name: "Insert item after 1. Song 1" }).click();
+  await page.getByRole("menuitem", { name: "Custom entry", exact: true }).click();
+  await expect(page.locator(".set-list-item")).toHaveCount(20);
+  await testInfo.attach("insert-custom-entry", {
+    body: await page
+      .getByRole("dialog", { name: "Insert custom entry" })
+      .screenshot({ path: testInfo.outputPath("insert-custom-entry.png") }),
+    contentType: "image/png",
+  });
+  await page
+    .getByRole("dialog", { name: "Insert custom entry" })
+    .getByRole("button", { name: "Insert entry" })
+    .click();
   await expect(page.locator(".set-list-item")).toHaveCount(21);
   await expect(page.locator(".set-list-item").nth(1)).toContainText("Intermission");
-  await page.keyboard.press("Escape");
+  await expect(firstZone.getByRole("button")).toBeFocused();
 
   // Keyboard focus reaches the next boundary and Enter inserts there.
   const secondZoneButton = page
     .locator(".set-list-insert-zone")
     .nth(1)
-    .getByRole("button", { name: "Insert custom entry after Intermission" });
+    .getByRole("button", { name: "Insert item after Intermission" });
   await secondZoneButton.focus();
   await expect(secondZoneButton).toBeFocused();
   await expect(secondZoneButton).toBeVisible();
   await page.keyboard.press("Enter");
+  await page.getByRole("menuitem", { name: "Custom entry", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Insert custom entry" })
+    .getByRole("button", { name: "Insert entry" })
+    .click();
   await expect(page.locator(".set-list-item")).toHaveCount(22);
   await expect(page.locator(".set-list-item").nth(2)).toContainText("Intermission");
-  await page.keyboard.press("Escape");
+  await expect(secondZoneButton).toBeFocused();
 
   // Touch-style tap on a zone inserts without hover.
   await page.setViewportSize({ height: 844, width: 390 });
-  await page.locator(".set-list-insert-zone").first().click({ force: true });
+  await page.locator(".set-list-insert-zone").first().getByRole("button").click();
+  await page.getByRole("menuitem", { name: "Custom entry", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Insert custom entry" })
+    .getByRole("button", { name: "Insert entry" })
+    .click();
   await expect(page.locator(".set-list-item")).toHaveCount(23);
 
   const overflow = await page.evaluate(
@@ -927,12 +985,13 @@ test("creates and edits Quick cues, omits them from print and copy, and uses dat
 
   // Insert between songs, leaving the final song available for another cue after it.
   const insertAfterOpening = page.getByRole("button", {
-    name: "Insert custom entry after 1. Opening Song",
+    name: "Insert item after 1. Opening Song",
     exact: true,
   });
   await insertAfterOpening.focus();
   await insertAfterOpening.press("Enter");
-  const editDialog = page.getByRole("dialog", { name: "Edit set-list item" });
+  await page.getByRole("menuitem", { name: "Custom entry", exact: true }).click();
+  const editDialog = page.getByRole("dialog", { name: "Insert custom entry" });
   await expect(editDialog).toBeVisible();
 
   // Timed cue is default
@@ -952,7 +1011,7 @@ test("creates and edits Quick cues, omits them from print and copy, and uses dat
   await editDialog
     .getByLabel("Instruction (optional)")
     .fill("Welcome guests and introduce guest soloist");
-  await editDialog.getByRole("button", { name: "Save item" }).click();
+  await editDialog.getByRole("button", { name: "Insert entry" }).click();
   await expect(editDialog).not.toBeVisible();
 
   // 3. Verify compact Quick cue row in list
@@ -962,18 +1021,12 @@ test("creates and edits Quick cues, omits them from print and copy, and uses dat
   await expect(quickCueRow).toContainText("Quick cue");
   await expect(quickCueRow).toContainText("Welcome guests and introduce guest soloist");
   await expect(quickCueRow.locator(".set-list-item-duration")).toHaveText("0:00");
-  await expect(
-    page.getByRole("button", {
-      name: "Insert custom entry after 1. Opening Song",
-      exact: true,
-    }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByRole("button", {
-      name: "Insert custom entry after Director Welcome",
-      exact: true,
-    }),
-  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Insert item after 1. Opening Song", exact: true })
+    .click();
+  await expect(page.getByRole("menuitem", { name: "Custom entry", exact: true })).toBeDisabled();
+  await expect(page.getByRole("menuitem", { name: "Song from music library" })).toBeEnabled();
+  await page.keyboard.press("Escape");
 
   // Verify Quick cue row height is compact (~40-48px)
   const cueHeight = await quickCueRow.evaluate((el) => el.getBoundingClientRect().height);
@@ -987,19 +1040,20 @@ test("creates and edits Quick cues, omits them from print and copy, and uses dat
 
   // 4. Edit Quick cue
   await quickCueRow.getByRole("button", { name: "Edit" }).click();
-  await expect(editDialog).toBeVisible();
-  await expect(editDialog.getByRole("radio", { name: "Quick cue" })).toBeChecked();
-  await expect(editDialog.getByLabel("Duration")).toHaveCount(0);
-  await expect(editDialog.getByLabel("Instruction (optional)")).toHaveValue(
+  const existingItemDialog = page.getByRole("dialog", { name: "Edit set-list item" });
+  await expect(existingItemDialog).toBeVisible();
+  await expect(existingItemDialog.getByRole("radio", { name: "Quick cue" })).toBeChecked();
+  await expect(existingItemDialog.getByLabel("Duration")).toHaveCount(0);
+  await expect(existingItemDialog.getByLabel("Instruction (optional)")).toHaveValue(
     "Welcome guests and introduce guest soloist",
   );
 
   // Update instruction
-  await editDialog
+  await existingItemDialog
     .getByLabel("Instruction (optional)")
     .fill("Updated: Welcome guests and announce intermission");
-  await editDialog.getByRole("button", { name: "Save item" }).click();
-  await expect(editDialog).not.toBeVisible();
+  await existingItemDialog.getByRole("button", { name: "Save item" }).click();
+  await expect(existingItemDialog).not.toBeVisible();
 
   await expect(quickCueRow).toContainText("Updated: Welcome guests and announce intermission");
 
@@ -1009,9 +1063,9 @@ test("creates and edits Quick cues, omits them from print and copy, and uses dat
     .getByRole("listitem")
     .filter({ hasText: "Finale" });
   await finale.getByRole("button", { name: "Set list details" }).click();
-  await expect(editDialog.getByLabel("Title")).toHaveValue("Finale");
+  await expect(existingItemDialog.getByLabel("Title")).toHaveValue("Finale");
   await page.keyboard.press("Escape");
-  await expect(editDialog).not.toBeVisible();
+  await expect(existingItemDialog).not.toBeVisible();
 
   // 5. Test CustomItemDialog (via "+ Add new song" -> change type to Custom entry)
   await page.getByRole("button", { name: "+ Add new song" }).click();

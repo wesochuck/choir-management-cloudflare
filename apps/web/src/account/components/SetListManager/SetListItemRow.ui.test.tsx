@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { SetListItemRow } from "./SetListItemRow";
 import type { SetListItem } from "./types";
@@ -21,7 +22,7 @@ const mockQuickCue: SetListItem = {
 };
 
 describe("SetListItemRow", () => {
-  it("renders a standard song row with title, drag handle, actions, and insert zone", () => {
+  it("renders a standard song row with title, drag handle, actions, and insert zone", async () => {
     const onOpenItemEditor = vi.fn();
     const onRemoveItem = vi.fn();
     const onInsertCustom = vi.fn();
@@ -60,9 +61,7 @@ describe("SetListItemRow", () => {
     expect(screen.getByRole("button", { name: /reorder test song/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Set list details" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Insert custom entry after Test Song" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Insert item after Test Song" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Test Song"));
     expect(onOpenItemEditor).toHaveBeenCalledWith(0);
@@ -70,7 +69,8 @@ describe("SetListItemRow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     expect(onRemoveItem).toHaveBeenCalledWith(0);
 
-    fireEvent.click(screen.getByRole("button", { name: "Insert custom entry after Test Song" }));
+    await userEvent.click(screen.getByRole("button", { name: "Insert item after Test Song" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Custom entry" }));
     expect(onInsertCustom).toHaveBeenCalledWith(1);
   });
 
