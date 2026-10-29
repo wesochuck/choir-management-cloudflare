@@ -293,3 +293,44 @@
     display: none !important;
   }
 }
+
+/* Member menus reuse the repository Dialog's modal/focus/scroll boundary. */
+.dialog--responsive.mobile-member-sheet {
+  inset: auto 0 0;
+  transform: none;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 85dvh;
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+.mobile-member-sheet .dialog__header {
+  flex-shrink: 0;
+}
+
+.mobile-member-sheet .dialog__actions.dialog__footer {
+  display: block;
+  flex-shrink: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.mobile-member-sheet .mobile-bottom-sheet__link-icon svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.mobile-bottom-nav__item[aria-current="page"] {
+  color: var(--color-primary-strong);
+  font-weight: var(--font-weight-bold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-bottom-sheet,
+  .mobile-bottom-nav__item,
+  .mobile-member-sheet {
+    animation: none;
+    transition: none;
+  }
+}

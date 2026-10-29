@@ -83,6 +83,21 @@ export const memberGroups: readonly NavigationGroup[] = [
   },
 ];
 
+export function visibleMemberNavigationGroups(
+  status: "loading" | "ready" | "error",
+  modules: readonly ModuleState[],
+): readonly NavigationGroup[] {
+  return memberGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) =>
+          item.module === undefined || (status === "ready" && routeHasModule(item, modules)),
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
+}
+
 export const organizationGroups: readonly NavigationGroup[] = getOrganizationSidebarGroups({
   modules: [],
   status: "ready",

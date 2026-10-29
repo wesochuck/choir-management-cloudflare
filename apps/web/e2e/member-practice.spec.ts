@@ -221,6 +221,7 @@ test("cycles through repeat modes in published set list player", async ({ page }
     }),
   ]);
 
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/practice");
 
   const repeatButton = page.getByRole("button", { name: "No repeat" });
@@ -229,6 +230,26 @@ test("cycles through repeat modes in published set list player", async ({ page }
   await repeatButton.click();
   await expect(page.getByRole("button", { name: "Repeat all" })).toBeVisible();
 
+  // Simulated media and player preferences survive opening and dismissing navigation.
+  const play = page.getByRole("button", { name: "Play", exact: true });
+  await play.click();
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  const audio = page.locator("audio");
+  const source = await audio.getAttribute("src");
+  await audio.evaluate((node) => {
+    node.dataset.navigationSentinel = "same-player";
+  });
+  const bar = page.getByRole("navigation", { name: "Mobile Member navigation" });
+  await bar.getByRole("button", { name: "Practice", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Practice & resources" })
+    .getByRole("button", { name: "More", exact: true })
+    .click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+  await expect(audio).toHaveAttribute("src", source ?? "");
+  await expect(audio).toHaveAttribute("data-navigation-sentinel", "same-player");
+  await expect(page.getByRole("button", { name: "Repeat all" })).toBeVisible();
   await page.getByRole("button", { name: "Repeat all" }).click();
   await expect(page.getByRole("button", { name: "Repeat one" })).toBeVisible();
 

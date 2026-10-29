@@ -353,31 +353,21 @@
   }
 
   @media (max-width: 48rem) {
-    /* Workspaces without compact rails (Account, Platform, Organization Admin) use full content width */
-    .signed-in-shell:not([data-workspace="member"]) .signed-in-body {
+    .signed-in-body {
       display: block;
     }
 
-    .signed-in-shell:not([data-workspace="member"]) .signed-in-sidebar {
+    .signed-in-sidebar {
       display: none;
     }
 
-    /* Member workspace retains a persistent 4.25rem icon rail */
-    .signed-in-shell[data-workspace="member"] .signed-in-body {
-      display: grid;
-      grid-template-columns: 4.25rem minmax(0, 1fr);
+    .signed-in-shell[data-workspace="member"] .signed-in-header,
+    .signed-in-shell[data-workspace="member"] .signed-in-header__actions {
+      flex-wrap: wrap;
     }
 
-    .signed-in-shell[data-workspace="member"] .signed-in-sidebar {
-      display: flex;
-      width: 4.25rem;
-      padding-inline: var(--spacing-2xs);
-      cursor: pointer;
-      user-select: none;
-    }
-
-    .signed-in-shell[data-workspace="member"] .sidebar-header {
-      justify-content: center;
+    .signed-in-shell[data-workspace="member"] .mobile-nav-trigger {
+      display: none;
     }
 
     .mobile-nav-trigger {
@@ -389,11 +379,13 @@
       padding: var(--spacing-lg) var(--spacing-md) 3rem;
     }
 
-    .signed-in-shell[data-workspace="organization"] .signed-in-main {
+    .signed-in-shell:is([data-workspace="organization"], [data-workspace="member"])
+      .signed-in-main {
       padding: var(--spacing-lg) var(--spacing-md) calc(4.5rem + env(safe-area-inset-bottom, 0px));
     }
 
-    .signed-in-shell[data-workspace="organization"] .floating-save-bar {
+    .signed-in-shell:is([data-workspace="organization"], [data-workspace="member"])
+      .floating-save-bar {
       bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
     }
   }

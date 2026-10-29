@@ -1,3 +1,4 @@
+import { MobileMemberNavigation } from "./MobileMemberNavigation";
 import { OrganizationAdminNavigation } from "../../organizationFeatures/OrganizationAdminNavigation";
 import { MobileOrganizationAdminNavigation } from "../../organizationFeatures/MobileOrganizationAdminNavigation";
 import {
@@ -40,12 +41,11 @@ import {
 
 import {
   applyTheme,
-  memberGroups,
+  visibleMemberNavigationGroups,
   pageDescription,
   pageTitle,
   readRoute,
   readThemePreference,
-  routeHasModule,
   themeStorageKey,
   workspaceForPath,
   workspaceLabel,
@@ -258,6 +258,18 @@ function AuthenticatedOrganizationShell({
     }
     return () => undefined;
   }, []);
+
+  useEffect(() => {
+    if (selectedWorkspace !== "member") return;
+    const phone = window.matchMedia("(max-width: 48rem)");
+    const closeTabletDrawer = (event: MediaQueryListEvent) => {
+      if (event.matches) setMobileNavOpen(false);
+    };
+    phone.addEventListener("change", closeTabletDrawer);
+    return () => {
+      phone.removeEventListener("change", closeTabletDrawer);
+    };
+  }, [selectedWorkspace]);
 
   // Widening past 64rem with a stale drawer over a restored
   // pinned layout closes the modal layer. Focus moves only when its element
@@ -538,17 +550,7 @@ function AuthenticatedOrganizationShell({
     [access, modules],
   );
   const visibleMemberGroups = useMemo(
-    () =>
-      memberGroups
-        .map((group) => ({
-          ...group,
-          items: group.items.filter(
-            (item) =>
-              item.module === undefined ||
-              (moduleController.snapshot.status === "ready" && routeHasModule(item, modules)),
-          ),
-        }))
-        .filter((group) => group.items.length > 0),
+    () => visibleMemberNavigationGroups(moduleController.snapshot.status, modules),
     [moduleController.snapshot.status, modules],
   );
 
@@ -1075,6 +1077,14 @@ function AuthenticatedOrganizationShell({
             path={`${route.pathname}${route.search}`}
             navigate={navigate}
             onSearch={openPaletteFromSidebar}
+          />
+        ) : null}
+        {selectedWorkspace === "member" && isNarrowViewport ? (
+          <MobileMemberNavigation
+            key={identity}
+            groups={visibleMemberGroups}
+            path={`${route.pathname}${route.search}`}
+            navigate={navigate}
           />
         ) : null}
         <Sheet

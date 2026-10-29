@@ -629,7 +629,7 @@ test("light and dark themes keep navigation readable", async ({ page }) => {
   api.assertNoUnexpectedRequests();
 });
 
-test("member sidebar uses icon groups on desktop and mobile in both themes", async ({
+test("member desktop groups and mobile bottom menus work in both themes", async ({
   page,
 }, info) => {
   const api = await installOrganizationApi(page, { role: "member", strict: true });
@@ -639,12 +639,24 @@ test("member sidebar uses icon groups on desktop and mobile in both themes", asy
   for (const theme of ["light", "dark"] as const) {
     const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
     if (await toggle.isVisible()) await toggle.click();
-    const opener = page.getByRole("button", { name: "Open workspace navigation" });
     const mobile = info.project.name === "mobile-chromium";
-    if (mobile) await opener.click();
-    const nav = mobile
-      ? page.getByRole("dialog", { name: "Workspace navigation" })
-      : page.locator(".signed-in-sidebar");
+    if (mobile) {
+      const bar = page.getByRole("navigation", { name: "Mobile Member navigation" });
+      await expect(bar.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page");
+      await bar.getByRole("button", { name: "More" }).click();
+      const menu = page.getByRole("dialog", { name: "Your membership" });
+      await expect(menu.getByRole("link", { name: "My Profile", exact: true })).toBeVisible();
+      await menu.getByRole("button", { name: "Practice", exact: true }).click();
+      await expect(
+        page
+          .getByRole("dialog", { name: "Practice & resources" })
+          .getByRole("link", { name: "Practice", exact: true }),
+      ).toBeVisible();
+      await page.screenshot({ path: info.outputPath(`member-bottom-${theme}.png`) });
+      await page.keyboard.press("Escape");
+      continue;
+    }
+    const nav = page.locator(".signed-in-sidebar");
     const membership = nav.getByRole("button", { name: "Your membership", exact: true });
     await expect(membership).toHaveAttribute("aria-expanded", "true");
     await expect(nav.locator('.member-nav a[aria-current="page"]')).toHaveCount(1);
@@ -659,7 +671,6 @@ test("member sidebar uses icon groups on desktop and mobile in both themes", asy
     await practice.click();
     expect(await nav.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
     await page.screenshot({ path: info.outputPath(`member-sidebar-${theme}.png`) });
-    if (mobile) await page.keyboard.press("Escape");
   }
   api.assertNoUnexpectedRequests();
 });

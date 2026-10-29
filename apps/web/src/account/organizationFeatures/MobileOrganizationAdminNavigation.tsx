@@ -1,6 +1,6 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useId, useState } from "react";
-import { AppLink } from "../components/AuthenticatedShell/navigation";
+import { ChevronRightIcon, MobileNavItem } from "../components/AuthenticatedShell/mobileNavigation";
 import type { NavigationGroup, NavigationItem } from "../components/AuthenticatedShell/types";
 import { activeHref } from "./navigationUtils";
 import { OrganizationFeatureIcon } from "./OrganizationFeatureIcon";
@@ -38,22 +38,6 @@ function MoreHorizontalIcon() {
       <circle cx="5" cy="12" r="2" />
       <circle cx="12" cy="12" r="2" />
       <circle cx="19" cy="12" r="2" />
-    </svg>
-  );
-}
-
-function ChevronRightIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      className="mobile-bottom-sheet__chevron"
-      fill="none"
-      focusable="false"
-      stroke="currentColor"
-      strokeWidth="2"
-      viewBox="0 0 24 24"
-    >
-      <path d="m9 18 6-6-6-6" />
     </svg>
   );
 }
@@ -151,38 +135,6 @@ function BottomNavButtons({
         <span className="mobile-bottom-nav__label">More</span>
       </button>
     </div>
-  );
-}
-
-function MobileNavItem({
-  currentHref,
-  item,
-  navigate,
-  onClose,
-}: {
-  readonly item: NavigationItem;
-  readonly currentHref: string | undefined;
-  readonly navigate: (href: string) => Promise<boolean>;
-  readonly onClose: () => void;
-}) {
-  const isCurrent = item.href === currentHref;
-  return (
-    <AppLink
-      ariaCurrent={isCurrent ? "page" : undefined}
-      className={`mobile-bottom-sheet__link${isCurrent ? " mobile-bottom-sheet__link--active" : ""}`}
-      href={item.href}
-      onNavigate={(href) => {
-        void navigate(href).then((allowed) => {
-          if (allowed) onClose();
-        });
-      }}
-    >
-      <span className="mobile-bottom-sheet__link-icon">
-        {item.iconId ? <OrganizationFeatureIcon iconId={item.iconId} /> : null}
-      </span>
-      <span className="mobile-bottom-sheet__link-label">{item.label}</span>
-      <ChevronRightIcon />
-    </AppLink>
   );
 }
 
