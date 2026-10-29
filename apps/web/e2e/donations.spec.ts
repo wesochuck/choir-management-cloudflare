@@ -785,7 +785,7 @@ test.describe("public donation checkout", () => {
       await expect(input).toBeFocused();
       await expect(replace).toHaveCSS("outline-style", "solid");
       const chooser = page.waitForEvent("filechooser");
-      await page.keyboard.press("Enter");
+      await page.keyboard.press("Space");
       await chooser;
       expect(
         await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
