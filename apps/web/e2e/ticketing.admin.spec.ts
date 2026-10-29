@@ -298,7 +298,9 @@ test.describe("admin ticket management", () => {
     await expect(visibleOrders.getByText("Alex Anderson", { exact: true })).toBeVisible();
   });
 
-  test("shows a bundle pill beside bundle buyers without page overflow", async ({ page }) => {
+  test("shows compact expandable bundle orders without pills or page overflow", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const archivedBundleOrder = {
       ...sortableAdminOrder,
@@ -353,53 +355,39 @@ test.describe("admin ticket management", () => {
     await expect(orderTable).toBeVisible();
     await expect(orderTable.locator("thead th")).toHaveCount(8);
     await expect(orderTable.locator("thead th")).toHaveText([
-      "Buyer ↕",
+      "Order details",
+      "Buyer name ↕",
       "Email ↕",
       "Sale date ↓",
-      "Bundle ↕",
       "Qty ↕",
       "Amount paid ↕",
       "Status ↕",
       "Actions",
     ]);
-    for (const header of [
-      "Buyer",
-      "Email",
-      "Sale date",
-      "Bundle",
-      "Qty",
-      "Amount paid",
-      "Status",
-    ]) {
+    for (const header of ["Buyer name", "Email", "Sale date", "Qty", "Amount paid", "Status"]) {
       await expect(orderTable.getByRole("button", { name: `Sort by ${header}` })).toBeVisible();
     }
     await expect(orderTable.getByRole("button", { name: "Sort by Actions" })).toHaveCount(0);
 
     const orderRows = orderTable.locator("tbody tr");
     await expect(orderRows).toHaveCount(2);
-    await expect(orderRows.first().locator("td").first()).toContainText("Zara Anderson");
-    await expect(orderTable.locator("thead th").nth(2)).toHaveAttribute("aria-sort", "descending");
+    await expect(orderRows.first().locator("td").nth(1)).toContainText("Zara Anderson");
+    await expect(orderTable.locator("thead th").nth(3)).toHaveAttribute("aria-sort", "descending");
 
     const bundleRow = orderRows.filter({ hasText: "Alex Zulu" });
     const archivedRow = orderRows.filter({ hasText: "Zara Anderson" });
     await expect(bundleRow.locator("td")).toHaveCount(8);
-    await expect(bundleRow.locator("td").first()).toContainText("Alex Zulu");
-    await expect(bundleRow.locator(".ticketing-bundle-order-pill")).toHaveText("Bundle");
-    await expect(bundleRow.locator("td").nth(3)).toHaveText("Season Pass");
-    await expect(archivedRow.locator("td").nth(3)).toHaveText("Archived Bundle");
+    await expect(bundleRow.locator("td").nth(1)).toContainText("Alex Zulu");
+    await expect(bundleRow.locator(".ticketing-bundle-order-pill")).toHaveCount(0);
+    await bundleRow.getByRole("button", { name: "Show details for Alex Zulu" }).click();
+    await expect(orderTable.getByText("Season Pass", { exact: true })).toBeVisible();
+    await bundleRow.getByRole("button", { name: "Hide details for Alex Zulu" }).click();
     await expect(bundleRow.locator("td").nth(6)).toContainText("Paid (simulation)");
     await expect(archivedRow.locator("td").nth(6)).toContainText("pending (simulation)");
 
-    await orderTable.getByRole("button", { name: "Sort by Buyer" }).click();
-    await expect(orderTable.locator("thead th").first()).toHaveAttribute("aria-sort", "ascending");
-    await expect(orderRows.first().locator("td").first()).toContainText("Zara Anderson");
-
-    const bundleSortButton = orderTable.getByRole("button", { name: "Sort by Bundle" });
-    await bundleSortButton.focus();
-    await bundleSortButton.press("Enter");
-    await expect(bundleSortButton).toBeFocused();
-    await expect(orderTable.locator("thead th").nth(3)).toHaveAttribute("aria-sort", "ascending");
-    await expect(orderRows.first().locator("td").nth(3)).toHaveText("Archived Bundle");
+    await orderTable.getByRole("button", { name: "Sort by Buyer name" }).click();
+    await expect(orderTable.locator("thead th").nth(1)).toHaveAttribute("aria-sort", "ascending");
+    await expect(orderRows.first().locator("td").nth(1)).toContainText("Zara Anderson");
 
     await orderTable.getByRole("button", { name: "Sort by Status" }).click();
     await expect(orderRows.first().locator("td").nth(6)).toContainText("Paid (simulation)");
@@ -436,9 +424,14 @@ test.describe("admin ticket management", () => {
     await expect(bundleCards).toHaveCount(2);
     const currentBundleCard = bundleCards.filter({ hasText: "Alex Zulu" });
     await expect(currentBundleCard.locator(".data-table-card__field")).toHaveCount(8);
-    await expect(currentBundleCard.locator(".ticketing-bundle-order-pill")).toHaveText("Bundle");
+    await expect(currentBundleCard.locator(".ticketing-bundle-order-pill")).toHaveCount(0);
+    await currentBundleCard.getByRole("button", { name: "Show details for Alex Zulu" }).click();
     await expect(currentBundleCard.getByRole("button", { name: "Resend" })).toBeVisible();
-    await expect(currentBundleCard.getByRole("button", { name: "Refund" })).toBeVisible();
+    await expect(
+      bundleOrdersPanel
+        .locator(".data-table-cards")
+        .getByRole("button", { name: "Refund order", exact: true }),
+    ).toBeVisible();
   });
 
   test("keeps bundle order resend and refund confirmation actions working", async ({ page }) => {
@@ -509,21 +502,24 @@ test.describe("admin ticket management", () => {
     await expect(page.getByText("Ticket confirmation queued.")).toBeVisible();
     expect(resendCalled).toBe(true);
 
-    await visibleOrders.getByRole("button", { name: "Refund" }).click();
+    await visibleOrders.getByRole("button", { name: /^Show details for/ }).click();
+    await visibleOrders.getByRole("button", { name: "Refund order", exact: true }).click();
     const refundDialog = page.getByRole("dialog");
     await expect(refundDialog).toBeVisible();
     await expect(refundDialog.getByText("Refund bundle order?")).toBeVisible();
     await refundDialog.getByRole("button", { name: "Cancel" }).click();
     await expect(refundDialog).not.toBeVisible();
 
-    await visibleOrders.getByRole("button", { name: "Refund" }).click();
+    await visibleOrders.getByRole("button", { name: "Refund order", exact: true }).click();
     await expect(refundDialog).toBeVisible();
     await refundDialog.getByRole("button", { name: "Refund order" }).click();
 
     await expect(page.getByText("Ticket order refunded.")).toBeVisible();
     await expect(visibleOrders.getByText("Refunded (simulation)", { exact: true })).toHaveCount(0);
     await bundleOrdersPanel.getByRole("checkbox", { name: "Show refunded" }).check();
-    await expect(visibleOrders.getByText("Refunded (simulation)", { exact: true })).toBeVisible();
+    await expect(
+      visibleOrders.locator(".status-pill").filter({ hasText: "Refunded (simulation)" }),
+    ).toBeVisible();
     expect(refundCalled).toBe(true);
   });
 

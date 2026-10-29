@@ -182,24 +182,16 @@ describe("BundleOrdersPanel", () => {
 
     const scopedTable = within(table);
     expect(scopedTable.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
-      "Buyer ↕",
+      "Order details",
+      "Buyer name ↕",
       "Email ↕",
       "Sale date ↓",
-      "Bundle ↕",
       "Qty ↕",
       "Amount paid ↕",
       "Status ↕",
       "Actions",
     ]);
-    for (const header of [
-      "Buyer",
-      "Email",
-      "Sale date",
-      "Bundle",
-      "Qty",
-      "Amount paid",
-      "Status",
-    ]) {
+    for (const header of ["Buyer name", "Email", "Sale date", "Qty", "Amount paid", "Status"]) {
       expect(scopedTable.getByRole("button", { name: `Sort by ${header}` })).toBeInTheDocument();
     }
     expect(scopedTable.queryByRole("button", { name: "Sort by Actions" })).not.toBeInTheDocument();
@@ -217,20 +209,21 @@ describe("BundleOrdersPanel", () => {
     expect(regularOrderRow).toBeDefined();
     if (!currentBundleRow || !archivedBundleRow || !regularOrderRow) return;
 
-    expect(within(currentBundleRow).getByText(currentBundleTitle)).toBeInTheDocument();
-    expect(within(archivedBundleRow).getByText("Archived Bundle")).toBeInTheDocument();
-    expect(within(currentBundleRow).getByText("Bundle", { selector: "span" })).toHaveClass(
-      "ticketing-bundle-order-pill",
+    expect(table.querySelector(".ticketing-bundle-order-pill")).toBeNull();
+    await user.click(
+      within(currentBundleRow).getByRole("button", { name: "Show details for Alex Zulu" }),
     );
-    expect(
-      within(regularOrderRow).queryByText("Bundle", { selector: "span" }),
-    ).not.toBeInTheDocument();
+    expect(scopedTable.getByText(currentBundleTitle)).toBeInTheDocument();
+    await user.click(
+      within(archivedBundleRow).getByRole("button", { name: "Show details for Zara Anderson" }),
+    );
+    expect(scopedTable.getByText("Archived Bundle")).toBeInTheDocument();
     expect(within(currentBundleRow).getByText("Paid (simulation)")).toHaveClass(
       "status-pill--success",
     );
     expect(within(archivedBundleRow).getByText("pending (simulation)")).toBeInTheDocument();
 
-    await user.click(scopedTable.getByRole("button", { name: "Sort by Buyer" }));
+    await user.click(scopedTable.getByRole("button", { name: "Sort by Buyer name" }));
     expect(table.querySelector("th[aria-sort='ascending']")).toHaveTextContent("Buyer");
     expect(scopedTable.getAllByRole("row")[1]?.textContent).toContain("Zara Anderson");
   });
@@ -251,7 +244,10 @@ describe("BundleOrdersPanel", () => {
       />,
     );
 
-    const refundButtons = screen.getAllByRole("button", { name: "Refund" });
+    const table = document.querySelector("table.data-table");
+    if (!(table instanceof HTMLTableElement)) throw new Error("Expected bundle table");
+    await user.click(within(table).getByRole("button", { name: "Show details for Alex Zulu" }));
+    const refundButtons = within(table).getAllByRole("button", { name: "Refund order" });
     expect(refundButtons.length).toBeGreaterThan(0);
     const refundButton = refundButtons[0];
     if (!refundButton) throw new Error("Expected at least one refund button");
