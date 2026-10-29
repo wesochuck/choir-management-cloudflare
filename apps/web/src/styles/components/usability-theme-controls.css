@@ -33,7 +33,7 @@
 
   @media (max-width: 48rem) {
     .signed-in-main {
-      padding: var(--spacing-lg) var(--spacing-md) 3rem;
+      padding: var(--spacing-lg) var(--spacing-xs) 3rem;
     }
   }
 
@@ -159,6 +159,7 @@
     .attendance-manager {
       --attendance-row-min-height: 3.25rem;
       --control-height: 44px;
+      margin-inline: calc(-1 * var(--spacing-xs));
       padding: var(--spacing-2xs) var(--spacing-sm);
     }
 

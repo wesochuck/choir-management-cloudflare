@@ -281,6 +281,9 @@ for (const theme of ["light", "dark"] as const) {
     await expect(page.locator(".attendance-row")).toHaveCount(30);
     for (const width of [320, 375, 390, 430]) {
       await page.setViewportSize({ width, height: 844 });
+      const managerBox = await page.locator(".attendance-manager").boundingBox();
+      expect(managerBox?.x).toBe(0);
+      expect(managerBox?.width).toBe(width);
       const geometry = await header.evaluate((node) => ({
         height: node.getBoundingClientRect().height,
         overflow: document.documentElement.scrollWidth > innerWidth,

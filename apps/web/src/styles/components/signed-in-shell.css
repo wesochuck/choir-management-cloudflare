@@ -376,12 +376,12 @@
     }
 
     .signed-in-main {
-      padding: var(--spacing-lg) var(--spacing-md) 3rem;
+      padding: var(--spacing-lg) var(--spacing-xs) 3rem;
     }
 
     .signed-in-shell:is([data-workspace="organization"], [data-workspace="member"])
       .signed-in-main {
-      padding: var(--spacing-lg) var(--spacing-md) calc(4.5rem + env(safe-area-inset-bottom, 0px));
+      padding: var(--spacing-lg) var(--spacing-xs) calc(4.5rem + env(safe-area-inset-bottom, 0px));
     }
 
     .signed-in-shell:is([data-workspace="organization"], [data-workspace="member"])
