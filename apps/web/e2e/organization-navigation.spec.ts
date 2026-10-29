@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { moduleIdSchema } from "@choir/contracts";
 import { installOrganizationApi } from "./fixtures/apiMocks";
@@ -8,6 +8,27 @@ import { fulfillJson } from "./fixtures/session";
 // These mocked API journeys reload the shell. Block SW interception so WebKit
 // continues through Playwright's route fixtures instead of the unrelated local Worker.
 test.use({ serviceWorkers: "block" });
+
+async function expectReadableMenuIcons(sheet: Locator) {
+  // Registry icons need explicit SVG dimensions; intrinsic sizes hid them on phones.
+  const destinations = sheet.locator(".mobile-bottom-sheet__link");
+  await expect(destinations).toHaveCount(5);
+  for (const destination of await destinations.all()) {
+    const icon = destination.locator("svg[data-feature-icon]");
+    await expect(icon).toBeVisible();
+    const bounds = await icon.boundingBox();
+    expect(bounds?.width).toBe(24);
+    expect(bounds?.height).toBe(24);
+    const row = await destination.boundingBox();
+    expect(row?.height).toBeGreaterThanOrEqual(44);
+    expect(row?.height).toBeLessThanOrEqual(60);
+    expect(
+      await destination
+        .locator(".mobile-bottom-sheet__link-label")
+        .evaluate((node) => parseFloat(getComputedStyle(node).fontSize)),
+    ).toBeGreaterThanOrEqual(16);
+  }
+}
 
 for (const theme of ["dark", "light"] as const) {
   test(`Organization accordion, rail and mobile drawer in ${theme} @webkit-smoke`, async ({
@@ -173,6 +194,7 @@ for (const theme of ["dark", "light"] as const) {
     const eventsSheet = page.getByRole("dialog");
     await expect(eventsSheet).toBeVisible();
     await expect(eventsSheet.getByRole("heading", { name: "Events & attendance" })).toBeVisible();
+    await expectReadableMenuIcons(eventsSheet);
     await shot(`events-sheet-${theme}`);
 
     // Switch to More directly from sheet footer
