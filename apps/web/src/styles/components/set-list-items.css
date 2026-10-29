@@ -282,9 +282,16 @@
 
   .set-list-insert-results {
     display: grid;
+    /* Scroll the results instead of shrinking rows below their wrapped content. */
+    grid-auto-rows: max-content;
+    align-content: start;
     gap: var(--spacing-xs);
     max-height: 20rem;
     overflow-y: auto;
+  }
+
+  .set-list-insert-results .choice-field__content {
+    overflow-wrap: anywhere;
   }
 
   @media (pointer: coarse) {

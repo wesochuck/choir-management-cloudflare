@@ -16,6 +16,22 @@ async function installOrganizationApi(page: Page, options: OrganizationApiOption
 import { buildSingerDashboardResponse } from "./fixtures/builders";
 import { fulfillJson } from "./fixtures/session";
 
+async function expectRailHomeCentered(page: Page) {
+  const rail = page.locator(".organization-nav--compact");
+  const homeIcon = rail.locator(":scope > .organization-nav__link svg").first();
+  const groupIcon = rail.locator(".organization-nav__rail-button svg").first();
+  await expect(homeIcon).toBeVisible();
+  await expect(groupIcon).toBeVisible();
+  await expect
+    .poll(async () => {
+      const home = await homeIcon.boundingBox();
+      const group = await groupIcon.boundingBox();
+      if (!home || !group) throw new Error("Rail icons must have visible bounds");
+      return Math.abs(home.x + home.width / 2 - (group.x + group.width / 2));
+    })
+    .toBeLessThan(1);
+}
+
 test("pinned layout shares heading, marks one current link, and persists", async ({ page }) => {
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });
   await page.setViewportSize({ height: 900, width: 1280 });
@@ -70,6 +86,7 @@ test("expand and collapse navigation preserves rail and moves focus", async ({ p
     "compact",
   );
   await expect(page.locator(".signed-in-sidebar")).toBeVisible();
+  await expectRailHomeCentered(page);
   const expand = page.getByRole("button", { name: "Expand navigation" });
   await expect(expand).toBeFocused();
   await expand.click();
@@ -473,6 +490,8 @@ test("workspace roles gate destinations without adding routes", async ({ page })
   const sidebarBox = await page.locator(".signed-in-sidebar").boundingBox();
   if (!toolbarBox || !sidebarBox) throw new Error("Sidebar controls must have visible bounds");
   expect(toolbarBox.y).toBeLessThan(sidebarBox.y + 100);
+  await toolbar.getByRole("button", { name: "Collapse navigation" }).click();
+  await expectRailHomeCentered(page);
   memberApi.assertNoUnexpectedRequests();
 });
 

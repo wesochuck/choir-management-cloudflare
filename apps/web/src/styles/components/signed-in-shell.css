@@ -582,6 +582,7 @@
   }
   .organization-nav--compact > .organization-nav__link {
     width: 2.75rem;
+    margin-inline: auto;
     justify-content: center;
     padding: var(--spacing-xs);
   }

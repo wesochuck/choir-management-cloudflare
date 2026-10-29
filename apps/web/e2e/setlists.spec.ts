@@ -772,6 +772,34 @@ test("keeps song rows compact while insert zones stay usable", async ({ page }, 
   };
   await page.route("**/api/**", async (route) => {
     if (await handleShellRoute(route)) return;
+    if (new URL(route.request().url()).pathname === "/api/organization/music") {
+      await fulfillJson(route, {
+        requestId,
+        pieces: Array.from({ length: 60 }, (_, index) => ({
+          id: index === 0 ? musicId : `cccccccc-cccc-4ccc-8ccc-${String(index).padStart(12, "0")}`,
+          title:
+            index === 0
+              ? "Opening Song"
+              : `A Holiday Road of Carols with a deliberately long title ${String(index)}`,
+          composer: "Composer A with a long credit that wraps on narrow screens",
+          arranger: "Greg Gilpin with another long arranger credit",
+          createdAt: "2026-07-20T20:00:00.000Z",
+          updatedAt: "2026-07-20T20:00:00.000Z",
+          catalogId: "",
+          copies: null,
+          durationSeconds: 203,
+          genres: [],
+          lastPerformedAt: null,
+          notes: "",
+          parentId: null,
+          performanceCount: 0,
+          purchaseDate: null,
+          sectionBuckets: [],
+          trackFileIds: {},
+        })),
+      });
+      return;
+    }
     if (await handleDataRoute(route, eventRef)) return;
     await fulfillJson(route, { requestId });
   });
@@ -852,11 +880,29 @@ test("keeps song rows compact while insert zones stay usable", async ({ page }, 
   await libraryDialog.getByRole("searchbox").fill("no matching piece");
   await expect(libraryDialog).toContainText("No matching music pieces.");
   await libraryDialog.getByRole("searchbox").fill("Composer A");
-  await libraryDialog.getByRole("radio").check();
+  await libraryDialog.getByRole("radio").first().check();
   for (const theme of ["light", "dark"]) {
     await page.evaluate((value) => {
       document.documentElement.setAttribute("data-theme", value);
     }, theme);
+    for (const width of [320, 390, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      const geometry = await libraryDialog.locator(".set-list-insert-results").evaluate((list) => {
+        const rows = Array.from(list.querySelectorAll("label"));
+        return rows.every((row, index) => {
+          const rect = row.getBoundingClientRect();
+          const content = row.querySelector(".choice-field__content")?.getBoundingClientRect();
+          const next = rows[index + 1]?.getBoundingClientRect();
+          return (
+            content !== undefined &&
+            content.bottom <= rect.bottom + 1 &&
+            content.right <= rect.right + 1 &&
+            (!next || rect.bottom <= next.top)
+          );
+        });
+      });
+      expect(geometry).toBe(true);
+    }
     await testInfo.attach(`insert-song-${theme}`, {
       body: await libraryDialog.screenshot({
         path: testInfo.outputPath(`insert-song-${theme}.png`),
