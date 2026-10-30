@@ -362,6 +362,7 @@ export function createFakeCheckout(
   if (!primaryEvent) return Response.json({ code: "ticket_sales_closed" }, { status: 409 });
   const normalizedCode = normalizeDiscountCode(operation.checkout.discountCode ?? "");
   const includedEvents = resolution.events.map((event) => ({
+    doorsOpenTime: event.doorsOpenTime,
     id: event.id,
     startsAt: event.startsAt,
     title: event.title,

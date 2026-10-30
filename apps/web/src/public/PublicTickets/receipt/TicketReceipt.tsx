@@ -20,37 +20,25 @@ import { TicketRefundOrderDetails, TicketRefundSummary } from "./TicketRefundDet
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 45000;
 
-function TicketReceiptPanel({
-  graphicUrl,
-  purchase,
-  settings,
-}: {
-  readonly graphicUrl?: string | null | undefined;
-  readonly purchase: PublicTicketReceipt;
-  readonly settings: TicketConfirmationSettings;
-}) {
-  if (purchase.status === "refunded") {
-    return (
-      <div className="ticket-refund-content">
-        <TicketRefundSummary purchase={purchase} />
-        <TicketRefundOrderDetails graphicUrl={graphicUrl} purchase={purchase} />
-      </div>
-    );
-  }
-
+function PrinterIcon() {
   return (
-    <div className="ticket-receipt-container">
-      {purchase.bundleId ? (
-        <BundlePassCredentialCard purchase={purchase} settings={settings} />
-      ) : purchase.status === "paid" && purchase.scanToken ? (
-        <SingleTicketCredentialCard purchase={purchase} settings={settings} />
-      ) : null}
-      {purchase.bundleId ? (
-        <BundlePurchaseSummary graphicUrl={graphicUrl} purchase={purchase} settings={settings} />
-      ) : (
-        <SingleTicketOrderSummary graphicUrl={graphicUrl} purchase={purchase} settings={settings} />
-      )}
-    </div>
+    <svg
+      aria-hidden="true"
+      className="ticket-print-button__icon"
+      fill="none"
+      focusable="false"
+      height="18"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+      width="18"
+    >
+      <path d="M6 9V2h12v7" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <path d="M6 14h12v8H6z" />
+    </svg>
   );
 }
 
@@ -176,25 +164,107 @@ function TicketReceiptContent({
 
   const graphicUrl = resolveReceiptGraphicUrl(projection, purchase);
 
+  if (purchase.status === "refunded") {
+    return (
+      <section className="public-section ticket-refund-receipt">
+        <TicketReceiptStatus purchase={purchase} settings={settings} />
+        <TicketRefundSummary purchase={purchase} />
+        <TicketRefundOrderDetails graphicUrl={graphicUrl} purchase={purchase} />
+        <div className="ticket-receipt-actions no-print">
+          <a className="button button--secondary" href="/tickets">
+            Return to tickets
+          </a>
+        </div>
+      </section>
+    );
+  }
+
+  const matchedPerformance = projection?.payload.performances.find(
+    (p) => p.id === purchase.eventId,
+  );
+  const doorsOpenTime =
+    purchase.doorsOpenTime.trim().length > 0
+      ? purchase.doorsOpenTime
+      : (matchedPerformance?.doorsOpenTime ?? "");
+
   return (
-    <section
-      className={
-        purchase.status === "refunded"
-          ? "public-section ticket-refund-receipt"
-          : "public-section public-section--narrow"
-      }
-    >
-      <TicketReceiptStatus purchase={purchase} settings={settings} />
-      <TicketReceiptStatusNotice
-        isTimedOut={isTimedOut}
-        onRefresh={onRefresh}
-        purchase={purchase}
-      />
-      <TicketReceiptPanel graphicUrl={graphicUrl} purchase={purchase} settings={settings} />
-      <div className="ticket-receipt-actions">
-        <a className="button button--secondary" href="/tickets">
-          Return to tickets
-        </a>
+    <section className="public-section ticket-confirmation-section">
+      <div className="ticket-confirmation-layout">
+        {/* Left Column (Desktop) / Header & Secondary Details (Mobile) */}
+        <div className="ticket-confirmation-hero">
+          <TicketReceiptStatus purchase={purchase} settings={settings} />
+          <TicketReceiptStatusNotice
+            isTimedOut={isTimedOut}
+            onRefresh={onRefresh}
+            purchase={purchase}
+          />
+
+          <div className="ticket-confirmation-actions ticket-confirmation-actions--desktop no-print">
+            <button
+              className="button button--primary ticket-print-button"
+              onClick={() => {
+                window.print();
+              }}
+              type="button"
+            >
+              <PrinterIcon />
+              Print / Save as PDF
+            </button>
+            <p className="ticket-print-helper">
+              Prints a one-page admission ticket, not the whole webpage.
+            </p>
+          </div>
+
+          {purchase.bundleId ? (
+            <BundlePurchaseSummary
+              graphicUrl={graphicUrl}
+              purchase={purchase}
+              settings={settings}
+            />
+          ) : (
+            <SingleTicketOrderSummary
+              graphicUrl={graphicUrl}
+              purchase={purchase}
+              settings={settings}
+            />
+          )}
+
+          <div className="ticket-receipt-actions no-print">
+            <a className="button button--secondary" href="/tickets">
+              Return to tickets
+            </a>
+          </div>
+        </div>
+
+        {/* Right Column (Desktop) / Primary Admission Focus (Mobile) / Dedicated Print Target */}
+        <div className="ticket-confirmation-ticket">
+          {purchase.bundleId ? (
+            <BundlePassCredentialCard purchase={purchase} settings={settings} />
+          ) : (
+            <SingleTicketCredentialCard
+              doorsOpenTime={doorsOpenTime}
+              purchase={purchase}
+              settings={settings}
+            />
+          )}
+
+          {/* Dedicated mobile print action immediately below the ticket card */}
+          <div className="ticket-confirmation-actions ticket-confirmation-actions--mobile no-print">
+            <button
+              className="button button--primary ticket-print-button"
+              onClick={() => {
+                window.print();
+              }}
+              type="button"
+            >
+              <PrinterIcon />
+              Print / Save as PDF
+            </button>
+            <p className="ticket-print-helper">
+              Prints a one-page admission ticket, not the whole webpage.
+            </p>
+          </div>
+        </div>
       </div>
     </section>
   );

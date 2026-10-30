@@ -27,6 +27,7 @@ export function purchaseResult(row: TicketPurchaseRow) {
       return z
         .array(
           z.object({
+            doorsOpenTime: z.string().max(5).default(""),
             id: z.uuid(),
             location: z.string().default(""),
             startsAt: z.iso.datetime(),
@@ -46,6 +47,7 @@ export function purchaseResult(row: TicketPurchaseRow) {
       ? parsedIncludedEvents
       : [
           {
+            doorsOpenTime: "",
             id: row.eventId,
             location: "",
             startsAt: row.eventStartsAt,
@@ -87,6 +89,7 @@ export function purchaseResult(row: TicketPurchaseRow) {
     discountType: hasDiscountSnapshot ? row.discountType : null,
     discountValue: hasDiscountSnapshot ? row.discountValue : null,
     discountedSubtotalCents,
+    doorsOpenTime: "",
     eventId: row.eventId,
     eventStartsAt: row.eventStartsAt,
     eventTitle: row.eventTitle,
@@ -130,10 +133,12 @@ export function enrichPurchaseWithCurrentVenue<T extends ReturnType<typeof purch
     .exec<{
       readonly id: string;
       readonly location: string;
+      readonly doorsOpenTime: string;
       readonly venueAddress: string;
       readonly venueName: string;
     }>(
       `SELECT e.id, e.location,
+              COALESCE(e.doors_open_time, '') AS doorsOpenTime,
               COALESCE(v.name, '') AS venueName,
               COALESCE(v.address, '') AS venueAddress
        FROM events e
@@ -150,6 +155,7 @@ export function enrichPurchaseWithCurrentVenue<T extends ReturnType<typeof purch
     const venue = venuesById.get(event.id);
     return {
       ...event,
+      doorsOpenTime: venue?.doorsOpenTime ?? event.doorsOpenTime,
       location: venue?.location ?? event.location,
       venueAddress: venue?.venueAddress ?? event.venueAddress,
       venueName: venue?.venueName ?? event.venueName,
@@ -158,6 +164,7 @@ export function enrichPurchaseWithCurrentVenue<T extends ReturnType<typeof purch
 
   return {
     ...purchase,
+    doorsOpenTime: primaryVenue?.doorsOpenTime ?? purchase.doorsOpenTime,
     includedEvents,
     location: primaryVenue?.location ?? purchase.location,
     venueAddress: primaryVenue?.venueAddress ?? purchase.venueAddress,

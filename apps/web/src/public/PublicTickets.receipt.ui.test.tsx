@@ -38,6 +38,7 @@ describe("TicketReceipt", () => {
     discountType: null,
     discountValue: null,
     discountedSubtotalCents: 0,
+    doorsOpenTime: "",
     eventId: "11111111-1111-4111-8111-111111111111",
     eventStartsAt: "2026-10-15T19:30:00Z",
     eventTitle: "Spring Concert",
@@ -114,7 +115,9 @@ describe("TicketReceipt", () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
 
-    expect(screen.getByRole("heading", { name: "Your tickets are confirmed" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "You're all set. Your tickets are ready." }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Order success message.")).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Refund summary" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Refund complete" })).not.toBeInTheDocument();
@@ -299,7 +302,9 @@ describe("TicketReceipt", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
-    expect(screen.getByRole("heading", { name: "Your tickets are confirmed" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "You're all set. Your tickets are ready." }),
+    ).toBeInTheDocument();
     vi.useRealTimers();
     expect(await screen.findByRole("img", { name: /Admission QR code/ })).toBeInTheDocument();
     expect(screen.queryByText("recovered.token")).not.toBeInTheDocument();
@@ -327,8 +332,8 @@ describe("TicketReceipt", () => {
 
     // Receipt details remain visible
     expect(screen.getByRole("heading", { name: "Ticket order processing" })).toBeInTheDocument();
-    expect(screen.getByText("Jane Doe")).toBeInTheDocument();
-    expect(screen.getByText("Spring Concert")).toBeInTheDocument();
+    expect(screen.getAllByText("Jane Doe").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Spring Concert").length).toBeGreaterThanOrEqual(1);
     expect(
       screen.getByText(
         "We are still waiting for confirmation from the payment provider. Your order details are below.",
@@ -371,6 +376,7 @@ describe("TicketReceipt", () => {
       bundleTitle: "Choral Subscription 2026",
       includedEvents: [
         {
+          doorsOpenTime: "",
           id: "event-b",
           location: "Hall",
           startsAt: "2026-12-05T19:00:00Z",
@@ -379,6 +385,7 @@ describe("TicketReceipt", () => {
           venueName: "Cathedral Hall",
         },
         {
+          doorsOpenTime: "",
           id: "event-a",
           location: "Chapel",
           startsAt: "2026-11-01T19:00:00Z",
@@ -445,6 +452,7 @@ describe("TicketReceipt", () => {
       bundleTitle: "Choral Subscription 2026",
       includedEvents: [
         {
+          doorsOpenTime: "",
           id: "event-a",
           location: "Grace Chapel",
           startsAt: "2026-11-01T19:00:00Z",
@@ -453,6 +461,7 @@ describe("TicketReceipt", () => {
           venueName: " Grace Chapel ",
         },
         {
+          doorsOpenTime: "",
           id: "event-b",
           location: "100 Church St",
           startsAt: "2026-12-05T19:00:00Z",
@@ -485,6 +494,7 @@ describe("TicketReceipt", () => {
       bundleTitle: "Choral Subscription 2026",
       includedEvents: [
         {
+          doorsOpenTime: "",
           id: "event-a",
           location: "Chapel",
           startsAt: "2026-11-01T19:00:00Z",
@@ -585,6 +595,7 @@ describe("TicketReceipt", () => {
       bundleTitle: "Choral Subscription 2026",
       includedEvents: [
         {
+          doorsOpenTime: "",
           id: "event-a",
           location: "Chapel",
           startsAt: "2026-11-01T19:00:00Z",
@@ -643,5 +654,122 @@ describe("TicketReceipt", () => {
     const graphic = screen.getByAltText("Choral Subscription 2026");
     expect(graphic).toHaveAttribute("src", "/api/public/media/5/bundle-art-file-456");
     expect(graphic).toHaveClass("ticket-receipt-graphic__image");
+  });
+
+  it("displays human-readable admission hierarchy with doors-open and start times side-by-side", async () => {
+    const paidReceiptWithDoors: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      buyerName: "Alissa Mangan",
+      doorsOpenTime: "14:30",
+      eventStartsAt: "2026-11-15T20:00:00Z",
+      eventTitle: "Earth and Sky and Sea",
+      id: "LC-004218",
+      quantity: 2,
+      scanToken: "scan.credential.4218",
+      status: "paid",
+      timezone: "America/New_York",
+      venueAddress: "2095 W Fair Ave., Lancaster, OH 43130",
+      venueName: "Crossroads Ministry Center",
+    };
+    vi.mocked(getPublicTicketPurchase).mockResolvedValueOnce(paidReceiptWithDoors);
+
+    render(<TicketReceipt token="tok-earth-sky-sea" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    const ticketCard = screen.getByRole("article", { name: "Ticket admission credential" });
+
+    // 1. Concert name
+    expect(
+      within(ticketCard).getByRole("heading", { level: 2, name: "Earth and Sky and Sea" }),
+    ).toBeInTheDocument();
+
+    // 2. Event date with day of the week
+    expect(within(ticketCard).getByText("Sunday, November 15, 2026")).toBeInTheDocument();
+
+    // 3. Doors open time & 4. Concert start time (side by side)
+    expect(within(ticketCard).getByText("Doors open")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("2:30 PM")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("Concert starts")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("3:00 PM")).toBeInTheDocument();
+
+    // 5. Venue name and address
+    expect(within(ticketCard).getByText("Crossroads Ministry Center")).toBeInTheDocument();
+    expect(
+      within(ticketCard).getByText("2095 W Fair Ave., Lancaster, OH 43130"),
+    ).toBeInTheDocument();
+
+    // 6. Ticket number & 7. Quantity & 8. Purchaser name
+    expect(within(ticketCard).getByText("Ticket number")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("LC-004218")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("Admits 2")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("Total admission")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("2")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("guests")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("Alissa Mangan")).toBeInTheDocument();
+
+    // 9. QR code present as secondary visual element
+    vi.useRealTimers();
+    expect(
+      await within(ticketCard).findByRole("img", {
+        name: "Admission QR code for Earth and Sky and Sea",
+      }),
+    ).toBeInTheDocument();
+    expect(within(ticketCard).getByText("QR code retained for future use.")).toBeInTheDocument();
+  });
+
+  it("handles missing doors-open time gracefully without inventing one", async () => {
+    const paidReceiptWithoutDoors: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      doorsOpenTime: "",
+      eventStartsAt: "2026-11-15T20:00:00Z",
+      eventTitle: "Earth and Sky and Sea",
+      id: "LC-004219",
+      quantity: 1,
+      scanToken: "scan.credential.4219",
+      status: "paid",
+      timezone: "America/New_York",
+    };
+    vi.mocked(getPublicTicketPurchase).mockResolvedValueOnce(paidReceiptWithoutDoors);
+
+    render(<TicketReceipt token="tok-no-doors" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    const ticketCard = screen.getByRole("article", { name: "Ticket admission credential" });
+    expect(within(ticketCard).queryByText("Doors open")).not.toBeInTheDocument();
+    expect(within(ticketCard).getByText("Concert starts")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("3:00 PM")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("Admits 1")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("guest")).toBeInTheDocument();
+  });
+
+  it("provides Print / Save as PDF button that triggers window.print", async () => {
+    const paidReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      scanToken: "print.token",
+      status: "paid",
+    };
+    vi.mocked(getPublicTicketPurchase).mockResolvedValueOnce(paidReceipt);
+
+    const printSpy = vi.spyOn(window, "print").mockImplementation(() => undefined);
+
+    render(<TicketReceipt token="tok-print" />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    const printButtons = screen.getAllByRole("button", { name: /Print \/ Save as PDF/ });
+    expect(printButtons.length).toBeGreaterThanOrEqual(1);
+
+    printButtons[0]?.click();
+    expect(printSpy).toHaveBeenCalledTimes(1);
+
+    printSpy.mockRestore();
   });
 });

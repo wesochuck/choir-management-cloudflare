@@ -6,7 +6,7 @@ import { money, publicDate } from "../shared";
 export function TicketReceiptPricing({ purchase }: { readonly purchase: PublicTicketReceipt }) {
   if (!purchase.discountCode) {
     return (
-      <p>
+      <p className="ticket-order-pricing-line">
         Total: <strong>{money(purchase.amountPaidCents)}</strong>
       </p>
     );
@@ -26,7 +26,7 @@ export function TicketReceiptPricing({ purchase }: { readonly purchase: PublicTi
       <p>
         Processing fee: <strong>{money(purchase.feeCents)}</strong>
       </p>
-      <p>
+      <p className="ticket-order-pricing-line">
         Total: <strong>{money(purchase.amountPaidCents)}</strong>
       </p>
     </div>
@@ -99,41 +99,24 @@ export function TicketOrderSchedule({ purchase }: { readonly purchase: PublicTic
 export function SingleTicketOrderSummary({
   graphicUrl,
   purchase,
-  settings,
 }: {
   readonly graphicUrl?: string | null | undefined;
   readonly purchase: PublicTicketReceipt;
-  readonly settings: TicketConfirmationSettings;
+  readonly settings?: TicketConfirmationSettings | undefined;
 }) {
-  const venue = getEventVenueDetails({
-    location: purchase.location,
-    venueAddress: purchase.venueAddress,
-    venueName: purchase.venueName,
-  });
-
   return (
-    <div className="panel">
-      <PublicGraphicImage
-        alt={purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}
-        className="ticket-receipt-graphic__image"
-        src={graphicUrl}
-        wrapperClassName="ticket-receipt-graphic"
-      />
-      <h2>{purchase.bundleId ? purchase.bundleTitle : purchase.eventTitle}</h2>
-      <p>{publicDate(purchase.eventStartsAt, purchase.timezone)}</p>
-      {venue.displayName ? (
-        <p>
-          <strong>{venue.displayName}</strong>
-        </p>
+    <section aria-label="Purchase summary" className="ticket-order-summary">
+      {graphicUrl ? (
+        <div className="ticket-order-summary__artwork no-print">
+          <PublicGraphicImage
+            alt={purchase.eventTitle}
+            className="ticket-receipt-graphic__image"
+            src={graphicUrl}
+            wrapperClassName="ticket-receipt-graphic"
+          />
+        </div>
       ) : null}
-      {venue.venueAddress ? <p>{venue.venueAddress}</p> : null}
-      {venue.googleMapsUrl ? (
-        <p>
-          <a href={venue.googleMapsUrl} rel="noreferrer" target="_blank">
-            View on Google Maps
-          </a>
-        </p>
-      ) : null}
+      <h2 className="ticket-order-summary__heading">Purchase summary</h2>
       <p>
         Name on order: <strong>{purchase.buyerName}</strong>
       </p>
@@ -141,31 +124,31 @@ export function SingleTicketOrderSummary({
         Quantity: <strong>{purchase.quantity}</strong>
       </p>
       <TicketReceiptPricing purchase={purchase} />
-      {purchase.status === "paid" || purchase.status === "pending" ? (
-        <p>{settings.admissionInstructions || settings.willCallInstructions}</p>
-      ) : null}
-    </div>
+    </section>
   );
 }
 
 export function BundlePurchaseSummary({
   graphicUrl,
   purchase,
-  settings,
 }: {
   readonly graphicUrl?: string | null | undefined;
   readonly purchase: PublicTicketReceipt;
-  readonly settings: TicketConfirmationSettings;
+  readonly settings?: TicketConfirmationSettings | undefined;
 }) {
   return (
-    <section aria-label="Purchase summary" className="panel ticket-purchase-summary">
-      <PublicGraphicImage
-        alt={purchase.bundleTitle}
-        className="ticket-receipt-graphic__image"
-        src={graphicUrl}
-        wrapperClassName="ticket-receipt-graphic"
-      />
-      <h2>Purchase summary</h2>
+    <section aria-label="Purchase summary" className="ticket-order-summary ticket-purchase-summary">
+      {graphicUrl ? (
+        <div className="ticket-order-summary__artwork no-print">
+          <PublicGraphicImage
+            alt={purchase.bundleTitle}
+            className="ticket-receipt-graphic__image"
+            src={graphicUrl}
+            wrapperClassName="ticket-receipt-graphic"
+          />
+        </div>
+      ) : null}
+      <h2 className="ticket-order-summary__heading">Purchase summary</h2>
       <p>
         Name on order: <strong>{purchase.buyerName}</strong>
       </p>
@@ -173,9 +156,6 @@ export function BundlePurchaseSummary({
         Quantity: <strong>{purchase.quantity}</strong>
       </p>
       <TicketReceiptPricing purchase={purchase} />
-      {purchase.status === "paid" || purchase.status === "pending" ? (
-        <p>{settings.admissionInstructions || settings.willCallInstructions}</p>
-      ) : null}
     </section>
   );
 }

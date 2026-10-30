@@ -1,12 +1,12 @@
 import type { PublicTicketReceipt, TicketConfirmationSettings } from "@choir/contracts";
-import { getRefundedAmountCents, money } from "../shared";
+import { DEFAULT_TICKET_CONFIRMATION_SETTINGS, getRefundedAmountCents, money } from "../shared";
 
 function getReceiptHeading(status: PublicTicketReceipt["status"]): string {
   switch (status) {
     case "pending":
       return "Ticket order processing";
     case "paid":
-      return "Your tickets are confirmed";
+      return "You're all set. Your tickets are ready.";
     case "refunded":
       return "Refund complete";
     case "expired":
@@ -22,7 +22,7 @@ function getReceiptMessage(
     case "pending":
       return settings.pendingMessage;
     case "paid":
-      return settings.successMessage;
+      return "Keep this page or save a PDF. Your confirmation email includes a link back to your ticket.";
     case "refunded":
       return "Your ticket order has been refunded.";
     case "expired":
@@ -81,11 +81,51 @@ export function TicketReceiptStatus({
   readonly settings: TicketConfirmationSettings;
 }) {
   if (purchase.status !== "refunded") {
+    const isPaid = purchase.status === "paid";
+    const customSuccessMessage =
+      isPaid &&
+      settings.successMessage &&
+      settings.successMessage !== DEFAULT_TICKET_CONFIRMATION_SETTINGS.successMessage
+        ? settings.successMessage
+        : null;
+
     return (
-      <>
-        <h1>{getReceiptHeading(purchase.status)}</h1>
-        <p>{getReceiptMessage(purchase.status, settings)}</p>
-      </>
+      <div className="ticket-confirmation-hero__header no-print">
+        <div
+          className={
+            isPaid
+              ? "ticket-confirmation-badge ticket-confirmation-badge--success"
+              : "ticket-confirmation-badge ticket-confirmation-badge--neutral"
+          }
+        >
+          {isPaid ? (
+            <svg
+              aria-hidden="true"
+              className="ticket-confirmation-badge__icon"
+              fill="none"
+              focusable="false"
+              height="16"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2.5"
+              viewBox="0 0 24 24"
+              width="16"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="m9 12 2 2 4-4" />
+            </svg>
+          ) : null}
+          {isPaid ? "Purchase complete" : purchase.status === "pending" ? "Processing" : "Expired"}
+        </div>
+        <h1 className="ticket-confirmation-hero__title">{getReceiptHeading(purchase.status)}</h1>
+        <p className="ticket-confirmation-hero__description">
+          {getReceiptMessage(purchase.status, settings)}
+        </p>
+        {customSuccessMessage ? (
+          <p className="ticket-confirmation-hero__custom-message">{customSuccessMessage}</p>
+        ) : null}
+      </div>
     );
   }
 

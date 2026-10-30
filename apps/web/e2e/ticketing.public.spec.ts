@@ -255,13 +255,19 @@ test.describe("public ticket pages", () => {
 
     await page.goto(`/tickets/order/success?token=${successToken}`);
 
-    await expect(page.getByRole("heading", { name: "Your tickets are confirmed" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "You're all set. Your tickets are ready." }),
+    ).toBeVisible();
     await expect(page.getByText("Staging simulation: no payment card was charged.")).toBeVisible();
-    await expect(page.getByText("Jane Buyer")).toBeVisible();
+    await expect(page.getByText("Jane Buyer").first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Spring Concert", level: 2 })).toBeVisible();
     await expect(page.getByText("$15.74")).toBeVisible();
     await expect(page.getByRole("img", { name: /Admission QR code/ })).toBeVisible();
     await expect(page.locator("code.ticket-credential")).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "Print / Save as PDF" }).first()).toBeVisible();
+    const ticketCard = page.getByRole("article", { name: "Ticket admission credential" });
+    await expect(ticketCard).toBeVisible();
+    await expect(ticketCard.getByText("Ticket number", { exact: true })).toBeVisible();
   });
 
   test("shows the full bundle pass on the receipt without mobile or print overflow", async ({
@@ -359,7 +365,9 @@ test.describe("public ticket pages", () => {
     await expect(page.getByRole("heading", { name: "Ticket order processing" })).toBeVisible();
     await expect(page.locator("code.ticket-credential")).not.toBeVisible();
 
-    await expect(page.getByRole("heading", { name: "Your tickets are confirmed" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "You're all set. Your tickets are ready." }),
+    ).toBeVisible();
     await expect(page.getByRole("img", { name: /Admission QR code/ })).toBeVisible();
     await expect(page.locator("code.ticket-credential")).not.toBeVisible();
   });

@@ -58,6 +58,24 @@ export function publicDate(value: string, timezone: string): string {
   }).format(new Date(value));
 }
 
+export function publicDateWithWeekday(value: string, timezone: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: timezone,
+  }).format(new Date(value));
+}
+
+export function publicTimeFromIso(value: string, timezone: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timezone,
+  }).format(new Date(value));
+}
+
 export function publicTime(value: string): string {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
   if (!match?.[2]) return value;

@@ -160,6 +160,7 @@ export const publicTicketPurchaseSchema = z.object({
   buyerName: z.string().min(1).max(200),
   checkoutMode: ticketCheckoutModeSchema,
   currency: z.literal("usd"),
+  doorsOpenTime: z.string().max(5).default(""),
   eventId: z.uuid(),
   eventStartsAt: z.iso.datetime(),
   eventTitle: z.string().min(1).max(500),
@@ -168,6 +169,7 @@ export const publicTicketPurchaseSchema = z.object({
   includedEvents: z
     .array(
       z.object({
+        doorsOpenTime: z.string().max(5).default(""),
         id: z.uuid(),
         location: z.string().default(""),
         startsAt: z.iso.datetime(),

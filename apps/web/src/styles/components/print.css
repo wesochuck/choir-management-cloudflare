@@ -343,6 +343,81 @@
     }
 
     /* 7. Ticket Passes, Receipts & Orders (Consolidated from ticket-credentials.css) */
+    .ticket-confirmation-section,
+    .ticket-confirmation-layout,
+    .ticket-confirmation-ticket {
+      display: block !important;
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: 0 !important;
+      background: #ffffff !important;
+    }
+
+    .admission-ticket {
+      break-inside: avoid;
+      page-break-inside: avoid;
+      max-width: 44rem;
+      margin: 0 auto !important;
+      padding: var(--spacing-lg) !important;
+      border: 1px solid #64748b !important;
+      border-top: 6px solid #065f46 !important;
+      border-radius: var(--radius-md) !important;
+      background: #ffffff !important;
+      color: #0f172a !important;
+      box-shadow: none !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .admission-ticket__times {
+      background: #ecfdf5 !important;
+      border: 1px solid #a7f3d0 !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .admission-ticket__time-value {
+      color: #064e3b !important;
+    }
+
+    .admission-ticket__time-label {
+      color: #047857 !important;
+    }
+
+    .admission-ticket__badge {
+      background: #ecfdf5 !important;
+      border: 1px solid #a7f3d0 !important;
+      color: #065f46 !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .admission-ticket__qr-box {
+      background: #ffffff !important;
+      border: 1px solid #cbd5e1 !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .admission-ticket__qr-image,
+    .ticket-credential-card__qr-image {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .admission-ticket__print-footer {
+      display: block !important;
+      margin-top: var(--spacing-md);
+      padding: var(--spacing-xs) var(--spacing-sm);
+      border: 1px solid #cbd5e1;
+      border-radius: var(--radius-sm);
+      font-size: var(--font-size-xs);
+      color: #475569;
+      text-align: center;
+    }
+
     .ticket-pass-card,
     .ticket-purchase-summary {
       border-color: #777;
