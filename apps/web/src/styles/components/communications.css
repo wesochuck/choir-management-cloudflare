@@ -1108,6 +1108,10 @@
     background: var(--color-background);
   }
 
+  :is(.dialog, [role="dialog"]) .communication-composer-action-bar {
+    background: var(--color-surface);
+  }
+
   .action-bar-secondary {
     display: flex;
     flex-wrap: wrap;

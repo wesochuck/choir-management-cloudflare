@@ -7,7 +7,6 @@ import type {
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
 import type { CommunicationAudienceTarget, CommunicationReachState } from "./types";
-import { useState } from "react";
 import {
   channelFromValue,
   contactFiltersSummary,
@@ -380,15 +379,11 @@ function EventAudienceContext({
 function PromotionAudienceContext({
   audience,
   eventPromotion,
-  events,
-  idPrefix,
   onUpdateAudience,
   selectedEvent,
 }: {
   readonly audience: CommunicationAudienceRequest;
   readonly eventPromotion: CommunicationMessage["eventPromotion"];
-  readonly events: readonly OrganizationEvent[];
-  readonly idPrefix: string;
   readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
   readonly selectedEvent: OrganizationEvent | null;
 }) {
@@ -397,8 +392,6 @@ function PromotionAudienceContext({
     <EventPromotionAudienceFields
       audience={audience}
       eventPromotion={eventPromotion}
-      events={events}
-      idPrefix={idPrefix}
       onUpdateAudience={onUpdateAudience}
       selectedEvent={selectedEvent}
     />
@@ -408,28 +401,14 @@ function PromotionAudienceContext({
 function EventPromotionAudienceFields({
   audience,
   eventPromotion,
-  events,
-  idPrefix,
   onUpdateAudience,
   selectedEvent,
 }: {
   readonly audience: CommunicationAudienceRequest;
   readonly eventPromotion: NonNullable<CommunicationMessage["eventPromotion"]>;
-  readonly events: readonly OrganizationEvent[];
-  readonly idPrefix: string;
   readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
   readonly selectedEvent: OrganizationEvent | null;
 }) {
-  const [nowMs] = useState(() => Date.now());
-  const pastPerformances = events
-    .filter(
-      (event) =>
-        event.type === "Performance" && !event.isCanceled && Date.parse(event.startsAt) < nowMs,
-    )
-    .toSorted((left, right) => right.startsAt.localeCompare(left.startsAt));
-  const selectedSources = audience.ticketBuyerSourceEventIds ?? [];
-  const sourceDescriptionId = `${idPrefix}-buyer-source-help`;
-
   return (
     <>
       <div className="field">
@@ -440,42 +419,10 @@ function EventPromotionAudienceFields({
         </p>
       </div>
       {audience.targetAudiences.includes("Ticket Buyers") ? (
-        <fieldset className="field" aria-describedby={sourceDescriptionId}>
-          <legend className="field-label">Past ticket buyers</legend>
-          {pastPerformances.length === 0 ? (
-            <p className="field-hint">There are no previous Performances to choose from yet.</p>
-          ) : (
-            <div className="checkbox-grid">
-              {pastPerformances.map((event) => (
-                <label className="checkbox-row" key={event.id}>
-                  <input
-                    checked={selectedSources.includes(event.id)}
-                    onChange={(change) => {
-                      onUpdateAudience((current) => {
-                        const existing = current.ticketBuyerSourceEventIds ?? [];
-                        const ticketBuyerSourceEventIds = change.target.checked
-                          ? [...new Set([...existing, event.id])]
-                          : existing.filter((id) => id !== event.id);
-                        return {
-                          ...current,
-                          ticketBuyerPastEventsOnly: true,
-                          ticketBuyerSourceEventIds,
-                        };
-                      });
-                    }}
-                    type="checkbox"
-                  />
-                  {eventLabel(event)}
-                </label>
-              ))}
-            </div>
-          )}
-          <p className="field-hint" id={sourceDescriptionId}>
-            {selectedSources.length === 0
-              ? "All previous Performances are included. Select Performances to narrow the source."
-              : "Only purchases from the selected previous Performances are included."}
-          </p>
-        </fieldset>
+        <div className="field">
+          <span className="field-label">Past performances</span>
+          <p className="field-hint">All previous performances are included.</p>
+        </div>
       ) : null}
       <label className="checkbox-row">
         <input
@@ -484,6 +431,8 @@ function EventPromotionAudienceFields({
             onUpdateAudience((current) => ({
               ...current,
               excludeTicketBuyersForEventId: change.target.checked ? eventPromotion.eventId : null,
+              ticketBuyerPastEventsOnly: true,
+              ticketBuyerSourceEventIds: [],
             }));
           }}
           type="checkbox"
@@ -592,6 +541,8 @@ export function RecipientContextPanel({
       return {
         ...current,
         ticketBuyerMode: next.includes("Ticket Buyers") ? current.ticketBuyerMode : "marketing",
+        ticketBuyerPastEventsOnly: isEventPromotion ? true : current.ticketBuyerPastEventsOnly,
+        ticketBuyerSourceEventIds: isEventPromotion ? [] : current.ticketBuyerSourceEventIds,
         targetAudiences: next.length > 0 ? next : ["Members"],
       };
     });
@@ -693,8 +644,6 @@ export function RecipientContextPanel({
             <PromotionAudienceContext
               audience={audience}
               eventPromotion={eventPromotion}
-              events={events}
-              idPrefix={idPrefix}
               onUpdateAudience={onUpdateAudience}
               selectedEvent={selectedEvent}
             />
