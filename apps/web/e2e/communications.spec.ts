@@ -543,7 +543,19 @@ test("prepares an event promotion with past buyers and Contacts through shared C
   const recipients = editor.getByRole("region", { name: "Recipient context" });
   await recipients.getByRole("button", { name: "Edit recipients" }).click();
   await expect(recipients.getByRole("checkbox", { name: "Ticket Buyers" })).toBeChecked();
+  await expect(recipients.getByRole("checkbox", { name: "Ticket Buyers" })).toBeEnabled();
+  // Verify unchecking Ticket Buyers switches to Contacts
+  await recipients.getByRole("checkbox", { name: "Ticket Buyers" }).uncheck();
+  await expect(recipients.getByRole("checkbox", { name: "Ticket Buyers" })).not.toBeChecked();
+  await expect(recipients.getByRole("checkbox", { name: "Contacts" })).toBeChecked();
+  // Unchecking Contacts switches back to Ticket Buyers
+  await recipients.getByRole("checkbox", { name: "Contacts" }).uncheck();
+  await expect(recipients.getByRole("checkbox", { name: "Ticket Buyers" })).toBeChecked();
+  await expect(recipients.getByRole("checkbox", { name: "Contacts" })).not.toBeChecked();
+  // Check Contacts so both are selected for the remainder of the promotion flow
   await recipients.getByRole("checkbox", { name: "Contacts" }).check();
+  await expect(recipients.getByRole("checkbox", { name: "Ticket Buyers" })).toBeChecked();
+  await expect(recipients.getByRole("checkbox", { name: "Contacts" })).toBeChecked();
   await expect(
     recipients.getByRole("checkbox", {
       name: "Exclude people who already bought tickets for this event",

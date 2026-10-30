@@ -380,12 +380,10 @@ function PromotionAudienceContext({
   audience,
   eventPromotion,
   onUpdateAudience,
-  selectedEvent,
 }: {
   readonly audience: CommunicationAudienceRequest;
   readonly eventPromotion: CommunicationMessage["eventPromotion"];
   readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
-  readonly selectedEvent: OrganizationEvent | null;
 }) {
   if (!eventPromotion) return null;
   return (
@@ -393,7 +391,6 @@ function PromotionAudienceContext({
       audience={audience}
       eventPromotion={eventPromotion}
       onUpdateAudience={onUpdateAudience}
-      selectedEvent={selectedEvent}
     />
   );
 }
@@ -402,28 +399,13 @@ function EventPromotionAudienceFields({
   audience,
   eventPromotion,
   onUpdateAudience,
-  selectedEvent,
 }: {
   readonly audience: CommunicationAudienceRequest;
   readonly eventPromotion: NonNullable<CommunicationMessage["eventPromotion"]>;
   readonly onUpdateAudience: RecipientContextPanelProps["onUpdateAudience"];
-  readonly selectedEvent: OrganizationEvent | null;
 }) {
   return (
     <>
-      <div className="field">
-        <span className="field-label">Promoting</span>
-        <p className="field-hint">
-          {selectedEvent?.title ?? "This performance"}. Ticket purchases for this event are not used
-          as the source audience.
-        </p>
-      </div>
-      {audience.targetAudiences.includes("Ticket Buyers") ? (
-        <div className="field">
-          <span className="field-label">Past performances</span>
-          <p className="field-hint">All previous performances are included.</p>
-        </div>
-      ) : null}
       <label className="checkbox-row">
         <input
           checked={audience.excludeTicketBuyersForEventId === eventPromotion.eventId}
@@ -535,15 +517,25 @@ export function RecipientContextPanel({
 
   function toggleTarget(target: CommunicationAudienceTarget, checked: boolean) {
     onUpdateAudience((current) => {
-      const next = checked
+      let next = checked
         ? [...new Set([...current.targetAudiences, target])]
         : current.targetAudiences.filter((t) => t !== target);
+
+      if (next.length === 0) {
+        if (isEventPromotion) {
+          const alternative = audienceOptions.find((opt) => opt !== target);
+          next = alternative ? [alternative] : [target];
+        } else {
+          next = ["Members"];
+        }
+      }
+
       return {
         ...current,
         ticketBuyerMode: next.includes("Ticket Buyers") ? current.ticketBuyerMode : "marketing",
         ticketBuyerPastEventsOnly: isEventPromotion ? true : current.ticketBuyerPastEventsOnly,
         ticketBuyerSourceEventIds: isEventPromotion ? [] : current.ticketBuyerSourceEventIds,
-        targetAudiences: next.length > 0 ? next : ["Members"],
+        targetAudiences: next,
       };
     });
   }
@@ -597,12 +589,7 @@ export function RecipientContextPanel({
                       onChange={(event) => {
                         toggleTarget(option, event.target.checked);
                       }}
-                      disabled={
-                        (isTicketServiceNotice && option !== "Ticket Buyers") ||
-                        (isEventPromotion &&
-                          audience.targetAudiences.length === 1 &&
-                          audience.targetAudiences.includes(option))
-                      }
+                      disabled={isTicketServiceNotice && option !== "Ticket Buyers"}
                       type="checkbox"
                     />
                     {option}
@@ -645,7 +632,6 @@ export function RecipientContextPanel({
               audience={audience}
               eventPromotion={eventPromotion}
               onUpdateAudience={onUpdateAudience}
-              selectedEvent={selectedEvent}
             />
 
             {/* Mixed Audience Helper Notice */}
