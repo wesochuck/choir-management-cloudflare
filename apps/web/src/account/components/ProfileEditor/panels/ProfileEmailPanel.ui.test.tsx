@@ -46,4 +46,24 @@ describe("ProfileEmailPanel notification copy and semantics", () => {
       "Local settings allow email. Provider delivery is not guaranteed.",
     );
   });
+
+  it("renders financial alerts switch with donations copy in label and description", () => {
+    const setProfile = vi.fn();
+    render(
+      <ProfileEmailPanel
+        busy={false}
+        editingProfileRecord={null}
+        profile={baseProfileRequest}
+        setProfile={setProfile}
+      />,
+    );
+
+    const switchControl = screen.getByLabelText(
+      "Financial alerts — Receive updates about ticket sales, donations, and finances",
+    );
+    expect(switchControl).toBeInTheDocument();
+    expect(
+      screen.getByText("Updates about ticket sales, donations, and finances."),
+    ).toBeInTheDocument();
+  });
 });

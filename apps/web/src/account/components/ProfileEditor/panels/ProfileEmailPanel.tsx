@@ -110,9 +110,9 @@ export function ProfileEmailPanel({
               title="RSVP decline notices"
             />
             <ProfileSettingSwitch
-              accessibleLabel="Financial alerts — Receive updates about ticket sales"
+              accessibleLabel="Financial alerts — Receive updates about ticket sales, donations, and finances"
               checked={profile.receiveFinancialAlerts}
-              description="Updates about ticket sales and finances."
+              description="Updates about ticket sales, donations, and finances."
               disabled={busy}
               id="roster-profile-financial-alerts"
               onChange={(checked) => {

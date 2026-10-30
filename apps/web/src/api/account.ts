@@ -14,10 +14,13 @@ import {
 } from "@choir/contracts";
 
 import { optionalPasswordBody, request } from "./client";
+import { setSessionHint } from "../auth/sessionHint";
 
 export async function getCurrentSession(signal?: AbortSignal): Promise<CurrentAuthSession> {
   const response = await request("/api/auth/get-session", { signal: signal ?? null });
-  return currentAuthSessionSchema.parse(await response.json());
+  const session = currentAuthSessionSchema.parse(await response.json());
+  setSessionHint(Boolean(session));
+  return session;
 }
 
 export async function requestSignInCode(email: string): Promise<void> {
@@ -82,6 +85,7 @@ export async function resetPassword(token: string, newPassword: string): Promise
 }
 
 export async function signOut(): Promise<void> {
+  setSessionHint(false);
   await request("/api/auth/sign-out", { body: "{}", method: "POST" });
 }
 

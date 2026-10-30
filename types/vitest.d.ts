@@ -8,6 +8,10 @@ declare module "vitest" {
 }
 
 declare global {
+  interface CacheStorage {
+    readonly default: Cache;
+  }
+
   namespace Cloudflare {
     interface Env {
       readonly BETTER_AUTH_SECRET: string;

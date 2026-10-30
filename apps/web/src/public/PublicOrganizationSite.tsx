@@ -1,7 +1,7 @@
 import { publicPageHeading, publicPageNavigationLabel } from "./publicPageLabels";
 import type { PublishedOrganizationProjection } from "@choir/contracts";
 import { prioritizeTicketedPerformances, ticketSalesPath } from "@choir/domain";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
 import { getPublishedOrganizationProjection } from "../auth/api";
 import { PublicOrganizationBrand } from "./PublicOrganizationBrand";
@@ -438,28 +438,60 @@ export function PublicOrganizationSite({
   fallback,
   pathname,
   signedIn,
+  initialProjection,
+  onProjectionChange,
 }: {
   readonly fallback: ReactNode;
   readonly pathname: string;
   readonly signedIn?: boolean | undefined;
+  readonly initialProjection?: PublishedOrganizationProjection | null | undefined;
+  readonly onProjectionChange?:
+    ((projection: PublishedOrganizationProjection | null) => void) | undefined;
 }) {
-  const [state, setState] = useState<ProjectionState>({ status: "loading" });
+  const [retryState, setRetryState] = useState<ProjectionState | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [standaloneState, setStandaloneState] = useState<ProjectionState | null>(null);
+
   useEffect(() => {
+    if (initialProjection !== undefined || onProjectionChange) return;
     const controller = new AbortController();
     getPublishedOrganizationProjection(controller.signal)
       .then((projection) => {
-        setState({ projection, status: "ready" });
+        setStandaloneState({ projection, status: "ready" });
       })
       .catch((error: unknown) => {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
-          setState({ status: "error" });
+          setStandaloneState({ status: "error" });
         }
       });
     return () => {
       controller.abort();
     };
-  }, [retryCount]);
+  }, [initialProjection, onProjectionChange]);
+
+  useEffect(() => {
+    if (retryCount === 0) return;
+    const controller = new AbortController();
+    getPublishedOrganizationProjection(controller.signal, { bypassCache: true })
+      .then((projection) => {
+        setRetryState({ projection, status: "ready" });
+        onProjectionChange?.(projection);
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          setRetryState({ status: "error" });
+        }
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [onProjectionChange, retryCount]);
+
+  const state: ProjectionState = useMemo(() => {
+    if (retryState) return retryState;
+    if (initialProjection !== undefined) return { projection: initialProjection, status: "ready" };
+    return standaloneState ?? { status: "loading" };
+  }, [initialProjection, retryState, standaloneState]);
 
   useEffect(() => {
     if (state.status !== "ready" || !state.projection) return;
@@ -508,7 +540,7 @@ export function PublicOrganizationSite({
           <button
             className="button button--primary"
             onClick={() => {
-              setState({ status: "loading" });
+              setRetryState({ status: "loading" });
               setRetryCount((current) => current + 1);
             }}
             type="button"

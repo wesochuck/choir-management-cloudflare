@@ -104,24 +104,99 @@ export async function submitPublicSponsorArtwork(
   return publicSponsorDonationResponseSchema.parse(await response.json());
 }
 
+const projectionCache = new Map<string, PublishedOrganizationProjection | null>();
+const inFlightProjectionRequests = new Map<
+  string,
+  Promise<PublishedOrganizationProjection | null>
+>();
+
+function currentHostKey(): string {
+  return typeof window !== "undefined" && window.location.host ? window.location.host : "default";
+}
+
+export function clearPublishedOrganizationProjectionCache(host?: string): void {
+  if (host) {
+    projectionCache.delete(host);
+    inFlightProjectionRequests.delete(host);
+  } else {
+    projectionCache.clear();
+    inFlightProjectionRequests.clear();
+  }
+}
+
 export async function getPublishedOrganizationProjection(
   signal?: AbortSignal,
   options?: { readonly bypassCache?: boolean },
 ): Promise<PublishedOrganizationProjection | null> {
-  const url = options?.bypassCache
-    ? `/api/public/projection?_t=${String(Date.now())}`
-    : "/api/public/projection";
-  const response = await fetch(url, {
-    cache: options?.bypassCache ? "no-store" : "default",
-    headers: {
-      accept: "application/json",
-      ...(options?.bypassCache ? { "cache-control": "no-cache" } : {}),
-    },
-    signal: signal ?? null,
-  });
-  if (response.status === 404) return null;
-  if (!response.ok) throw await responseError(response);
-  return publishedOrganizationProjectionSchema.parse(await response.json());
+  const hostKey = currentHostKey();
+
+  if (options?.bypassCache) {
+    projectionCache.delete(hostKey);
+    inFlightProjectionRequests.delete(hostKey);
+  } else {
+    const cached = projectionCache.get(hostKey);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const inFlight = inFlightProjectionRequests.get(hostKey);
+    if (inFlight) {
+      if (signal?.aborted) {
+        throw signal.reason instanceof Error
+          ? signal.reason
+          : new DOMException("The operation was aborted.", "AbortError");
+      }
+      return signal
+        ? new Promise<PublishedOrganizationProjection | null>((resolve, reject) => {
+            const onAbort = () => {
+              reject(
+                signal.reason instanceof Error
+                  ? signal.reason
+                  : new DOMException("The operation was aborted.", "AbortError"),
+              );
+            };
+            signal.addEventListener("abort", onAbort, { once: true });
+            inFlight.then(
+              (val) => {
+                signal.removeEventListener("abort", onAbort);
+                resolve(val);
+              },
+              (err: unknown) => {
+                signal.removeEventListener("abort", onAbort);
+                reject(err instanceof Error ? err : new Error(String(err)));
+              },
+            );
+          })
+        : inFlight;
+    }
+  }
+
+  const url = "/api/public/projection";
+
+  const fetchPromise = (async () => {
+    try {
+      const response = await fetch(url, {
+        cache: options?.bypassCache ? "no-store" : "default",
+        headers: {
+          accept: "application/json",
+          ...(options?.bypassCache ? { "cache-control": "no-cache" } : {}),
+        },
+        signal: signal ?? null,
+      });
+      if (response.status === 404) {
+        projectionCache.set(hostKey, null);
+        return null;
+      }
+      if (!response.ok) throw await responseError(response);
+      const parsed = publishedOrganizationProjectionSchema.parse(await response.json());
+      projectionCache.set(hostKey, parsed);
+      return parsed;
+    } finally {
+      inFlightProjectionRequests.delete(hostKey);
+    }
+  })();
+
+  inFlightProjectionRequests.set(hostKey, fetchPromise);
+  return fetchPromise;
 }
 
 export async function getPublicCommerceProjection(
@@ -146,19 +221,31 @@ export async function getOrganizationPublicWebsiteSettings(
 export async function updateOrganizationPublicWebsiteSettings(
   settings: PublicWebsiteSettingsRequest,
 ): Promise<PublicWebsiteSettings> {
-  return requestJson("/api/organization/website", publicWebsiteSettingsResponseSchema, {
-    body: JSON.stringify(settings),
-    method: "PUT",
-  });
+  const result = await requestJson(
+    "/api/organization/website",
+    publicWebsiteSettingsResponseSchema,
+    {
+      body: JSON.stringify(settings),
+      method: "PUT",
+    },
+  );
+  clearPublishedOrganizationProjectionCache();
+  return result;
 }
 
 export async function publishOrganizationPublicWebsite(): Promise<{
   readonly publishedAt: string;
   readonly version: number;
 }> {
-  return requestJson("/api/organization/website/publish", publicWebsitePublishResponseSchema, {
-    method: "POST",
-  });
+  const result = await requestJson(
+    "/api/organization/website/publish",
+    publicWebsitePublishResponseSchema,
+    {
+      method: "POST",
+    },
+  );
+  clearPublishedOrganizationProjectionCache();
+  return result;
 }
 
 export async function getPublicTransactionFeeSettings(

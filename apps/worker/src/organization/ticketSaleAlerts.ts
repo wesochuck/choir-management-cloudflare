@@ -69,7 +69,7 @@ export interface FinancialAlertDatabase {
 }
 
 export type TicketSaleAlertEnv = Pick<Env, "ORGANIZATION_STORE" | "SIGNED_LINK_SECRET"> & {
-  readonly CONTROL_DB?: FinancialAlertDatabase;
+  readonly CONTROL_DB?: FinancialAlertDatabase | undefined;
 };
 
 export function escapeMarkdown(value: string): string {
@@ -265,3 +265,11 @@ export async function queueTicketSaleAlert(
     },
   );
 }
+
+export {
+  buildDonationAlertContent,
+  formatDonationPaymentMethod,
+  queueDonationAlert,
+  type DonationAlertEnv,
+  type DonationAlertInput,
+} from "./donationAlerts";

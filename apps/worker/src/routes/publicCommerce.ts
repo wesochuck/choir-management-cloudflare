@@ -3,7 +3,7 @@ import {
   transactionFeeSettingsSchema,
   type ProblemDetails,
 } from "@choir/contracts";
-import type { Hono } from "hono";
+import type { Context, Hono } from "hono";
 import { z } from "zod";
 
 import { validateStartupConfig } from "../env";
@@ -15,6 +15,20 @@ import { resolveOrganization } from "../tenancy/resolveOrganization";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { privateOrganizationFileKey } from "../storage/privateFiles";
 import type { WorkerHonoEnvironment } from "./helpers";
+
+function serveCachedMedia(context: Context<WorkerHonoEnvironment>, cached: Response): Response {
+  const cachedEtag = cached.headers.get("etag");
+  if (cachedEtag) context.header("etag", cachedEtag);
+  context.header("vary", "Host");
+  if (cachedEtag && context.req.header("if-none-match") === cachedEtag) {
+    return context.body(null, 304);
+  }
+  context.header("content-type", cached.headers.get("content-type") ?? "application/octet-stream");
+  if (cached.body) {
+    return context.body(cached.body);
+  }
+  return context.body(null);
+}
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
   router.get("/api/public/projection", async (context) => {
@@ -134,13 +148,23 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         404,
       );
     }
+    const cacheKey = new Request(
+      `https://public-media.internal/organizations/${encodeURIComponent(resolved.value.organizationId)}/v${String(version.data)}/${encodeURIComponent(fileId.data)}`,
+      { method: "GET" },
+    );
+    const cached = await caches.default.match(cacheKey);
+    if (cached) {
+      return serveCachedMedia(context, cached);
+    }
+    const publishedMedia = await readPublishedOrganizationMedia(
+      context.env,
+      resolved.value.organizationId,
+      version.data,
+      fileId.data,
+    );
+    const isImmutablePublished = publishedMedia !== null;
     const object =
-      (await readPublishedOrganizationMedia(
-        context.env,
-        resolved.value.organizationId,
-        version.data,
-        fileId.data,
-      )) ??
+      publishedMedia ??
       (await readCommerceOrganizationMedia(
         context.env,
         resolved.value.organizationId,
@@ -159,7 +183,23 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     context.header("etag", object.httpEtag);
     context.header("vary", "Host");
     if (context.req.header("if-none-match") === object.httpEtag) return context.body(null, 304);
-    context.header("content-type", object.httpMetadata?.contentType ?? "application/octet-stream");
+    const contentType = object.httpMetadata?.contentType ?? "application/octet-stream";
+    context.header("content-type", contentType);
+
+    if (isImmutablePublished) {
+      const [streamForClient, streamForCache] = object.body.tee();
+      const responseToCache = new Response(streamForCache, {
+        status: 200,
+        headers: {
+          "content-type": contentType,
+          etag: object.httpEtag,
+          "cache-control": "public, max-age=31536000, immutable",
+        },
+      });
+      context.executionCtx.waitUntil(caches.default.put(cacheKey, responseToCache));
+      return context.body(streamForClient);
+    }
+
     return context.body(object.body);
   });
 }

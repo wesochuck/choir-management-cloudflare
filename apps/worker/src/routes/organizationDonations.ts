@@ -71,6 +71,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         {
           actorUserId: authorization.userId,
           organizationId: authorization.organizationId,
+          organizationOrigin: new URL(context.req.url).origin,
           requestId: context.get("requestId"),
         },
         parsed.data,

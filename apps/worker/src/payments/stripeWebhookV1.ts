@@ -1,8 +1,9 @@
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { z } from "zod";
 
-import { organizationTicketOrderSchema } from "@choir/contracts";
+import { donationRecordSchema, organizationTicketOrderSchema } from "@choir/contracts";
 import { deliveryOrigin } from "../jobs/deliveries/shared";
+import { queueDonationAlert } from "../organization/donationAlerts";
 import { queueTicketSaleAlert } from "../organization/ticketSaleAlerts";
 import { organizationStoreStub } from "../organization/rpc/client";
 import { retrieveStripePaymentSettlement } from "./stripeConnect";
@@ -220,6 +221,52 @@ async function queueStripeTicketSaleAlert(
   }
 }
 
+async function queueStripeDonationAlert(
+  context: StripeContext,
+  organizationId: string,
+  resultBody: unknown,
+): Promise<void> {
+  const isDuplicate =
+    typeof resultBody === "object" && resultBody !== null && "duplicate" in resultBody;
+  if (isDuplicate) return;
+
+  const parsedDonation = donationRecordSchema.safeParse(resultBody);
+  if (!parsedDonation.success || parsedDonation.data.status !== "paid") return;
+
+  try {
+    const origin = await deliveryOrigin(context.env, organizationId, { unsubscribeUrl: null });
+    await queueDonationAlert(context.env, {
+      actorUserId: "stripe",
+      amountCents: parsedDonation.data.amountCents,
+      buyerEmail: parsedDonation.data.buyerEmail,
+      buyerName: parsedDonation.data.buyerName,
+      currency: "USD",
+      donationId: parsedDonation.data.id,
+      feeCents: parsedDonation.data.feeCents,
+      includesProgramAd: parsedDonation.data.includesProgramAd,
+      orderUrl: `${origin}/admin/donations`,
+      organizationId,
+      organizationOrigin: origin,
+      paymentMethod: parsedDonation.data.paymentMethod,
+      paymentReference: parsedDonation.data.paymentReference,
+      requestId: context.get("requestId"),
+      selectedLevelName: parsedDonation.data.selectedLevelName,
+      sponsorName: parsedDonation.data.sponsorName,
+      tributeName: parsedDonation.data.tributeName,
+      tributeType: parsedDonation.data.tributeType,
+    });
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        donationId: parsedDonation.data.id,
+        event: "donation_alert_queue_failed",
+        organizationId,
+        reason: error instanceof Error ? error.message : "unknown_error",
+      }),
+    );
+  }
+}
+
 async function handleCompleted(
   context: StripeContext,
   organizationId: string,
@@ -260,6 +307,8 @@ async function handleCompleted(
 
   if (target.action === "stripe_ticket_completed") {
     await queueStripeTicketSaleAlert(context, organizationId, result.body);
+  } else if (target.action === "stripe_donation_completed") {
+    await queueStripeDonationAlert(context, organizationId, result.body);
   }
 
   return context.json({

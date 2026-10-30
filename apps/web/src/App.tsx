@@ -10,6 +10,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Suspense, useCallback, useEffect, useState, type ReactNode } from "react";
 
 import { getHealth } from "./api";
+import { hasSessionHint } from "./auth/sessionHint";
+import { clearPublishedOrganizationProjectionCache } from "./api/public";
 
 const appQueryClient = new QueryClient({
   defaultOptions: {
@@ -382,6 +384,32 @@ function isPublicOrganizationRoute(pathname: string): boolean {
   return pathname === "/" || pathname === "/history" || pathname === "/performances";
 }
 
+function isPublicWebsiteRoute(pathname: string): boolean {
+  return (
+    pathname === "/" ||
+    pathname === "/history" ||
+    pathname === "/performances" ||
+    pathname === "/auditions" ||
+    pathname === "/join"
+  );
+}
+
+function isStandalonePublicRoute(pathname: string): boolean {
+  return (
+    pathname === "/tickets" ||
+    pathname.startsWith("/tickets/") ||
+    pathname === "/donate" ||
+    pathname.startsWith("/donate/") ||
+    pathname === "/rsvp" ||
+    pathname === "/poll" ||
+    pathname === "/unsubscribe" ||
+    pathname === "/player" ||
+    pathname === "/forgot-password" ||
+    pathname === "/reset-password" ||
+    pathname === "/confirm-email-change"
+  );
+}
+
 function publicUtilityRoute(
   pathname: string,
   resetLocation: PasswordResetLocation,
@@ -426,12 +454,100 @@ function isAuditionRoute(pathname: string): boolean {
   return pathname === "/auditions" || pathname === "/join";
 }
 
+function resolveRouteRequirements(pathname: string) {
+  const isPublicWebsite = isPublicWebsiteRoute(pathname);
+  const isStandalone = isStandalonePublicRoute(pathname);
+  const isPublic = isPublicWebsite || isStandalone;
+  return {
+    isPublic,
+    needsProjection:
+      isPublicWebsite ||
+      pathname === "/login" ||
+      pathname === "/accept-invitation" ||
+      pathname === "/privacy" ||
+      pathname === "/terms",
+    needsService: !isPublic,
+    needsSession: (!isStandalone && hasSessionHint()) || !isPublic,
+  };
+}
+
+function initialServiceState(isPublic: boolean): ServiceState {
+  return isPublic ? "ready" : "checking";
+}
+
+function initialSessionState(isPublic: boolean): SessionState {
+  return !hasSessionHint() && isPublic ? { status: "anonymous" } : { status: "checking" };
+}
+
+function handleSignInLanding(
+  landing: PostSignInLanding,
+  bootstrap: PostSignInBootstrap | null,
+  platformMfaStatus: PlatformMfaStatusResponse | null,
+  session: NonNullable<CurrentAuthSession>,
+  navigateWithinApp: (destination: string, replace?: boolean) => void,
+  onWorkspaceResolved: AlreadySignedInProps["onWorkspaceResolved"],
+  setSessionState: (state: SessionState) => void,
+): void {
+  if (landing.kind === "navigate" || landing.kind === "verification") {
+    setSessionState({ session, status: "authenticated" });
+    onWorkspaceResolved(landing.path, bootstrap, platformMfaStatus);
+  } else if (landing.kind === "no_access") {
+    setSessionState({ session, status: "authenticated" });
+    navigateWithinApp("/account/organizations", true);
+  } else {
+    setSessionState({ reason: "unavailable", status: "error" });
+  }
+}
+
+function renderAppContent(
+  pathname: string,
+  sessionState: SessionState,
+  sessionChecked: boolean,
+  publishedProjection: PublishedOrganizationProjection | null | undefined,
+  content: ReactNode,
+  productShell: ReactNode,
+  allowAccountFallback: boolean,
+  applyProjection: (projection: PublishedOrganizationProjection | null) => void,
+): ReactNode {
+  if (isAuthenticatedRoute(pathname) && sessionState.status === "authenticated") {
+    return content;
+  }
+  if (pathname === "/" && publishedProjection === null && !sessionChecked) {
+    return (
+      <main className="auth-layout">
+        <p className="notice notice--info" role="status">
+          Loading…
+        </p>
+      </main>
+    );
+  }
+  return renderPublicOrProductRoute(
+    pathname,
+    productShell,
+    sessionState.status === "authenticated",
+    publishedProjection,
+    allowAccountFallback,
+    applyProjection,
+  );
+}
+
+function resolveDisplayName(
+  isOrganization: boolean,
+  pathname: string,
+  organizationName: string | null,
+): string {
+  if (organizationName) return organizationName;
+  if (!isOrganization && pathname === "/") return "Music Manager";
+  return "Choir Management";
+}
+
 function renderPublicOrProductRoute(
   pathname: string,
   productShell: ReactNode,
   signedIn: boolean,
   projection: PublishedOrganizationProjection | null | undefined,
   allowAccountFallback: boolean,
+  onProjectionChange: (projection: PublishedOrganizationProjection | null) => void,
 ) {
   if (isAuditionRoute(pathname) && projection === undefined) {
     return (
@@ -468,6 +584,8 @@ function renderPublicOrProductRoute(
   return isPublicOrganizationRoute(pathname) ? (
     <PublicOrganizationSite
       fallback={allowAccountFallback ? productShell : null}
+      initialProjection={projection}
+      onProjectionChange={onProjectionChange}
       pathname={pathname}
       signedIn={signedIn}
     />
@@ -477,9 +595,18 @@ function renderPublicOrProductRoute(
 }
 
 export function App() {
-  const [serviceState, setServiceState] = useState<ServiceState>("checking");
-  const [sessionState, setSessionState] = useState<SessionState>({ status: "checking" });
   const [appLocation, setAppLocation] = useState<AppLocation>(readAppLocation);
+  const pathname = appLocation.pathname;
+
+  const initialReqs = resolveRouteRequirements(pathname);
+
+  const [serviceState, setServiceState] = useState<ServiceState>(() =>
+    initialServiceState(initialReqs.isPublic),
+  );
+  const [sessionState, setSessionState] = useState<SessionState>(() =>
+    initialSessionState(initialReqs.isPublic),
+  );
+  const [sessionChecked, setSessionChecked] = useState<boolean>(false);
   const [shellBootstrap, setShellBootstrap] = useState<PostSignInBootstrap | null>(null);
   const [shellPlatformMfaStatus, setShellPlatformMfaStatus] =
     useState<PlatformMfaStatusResponse | null>(null);
@@ -490,10 +617,65 @@ export function App() {
   const [organizationName, setOrganizationName] = useState<string | null>(null);
   const [logoFileId, setLogoFileId] = useState<string | null>(null);
   const [projectionVersion, setProjectionVersion] = useState<number>(1);
-  const pathname = appLocation.pathname;
   const [resetLocation] = useState(() => readPasswordResetLocation(pathname));
   const [oauthCompletion] = useState(() =>
     readOAuthCompletionState(typeof window !== "undefined" ? window.location.search : ""),
+  );
+
+  const checkService = useCallback((signal?: AbortSignal) => {
+    return getHealth(signal)
+      .then((health) => {
+        setServiceState("ready");
+        setBaseHostname(health.baseHostname ?? null);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setServiceState("offline");
+      });
+  }, []);
+
+  const checkSession = useCallback((signal?: AbortSignal) => {
+    return getCurrentSession(signal)
+      .then((session) => {
+        setSessionState(session ? { session, status: "authenticated" } : { status: "anonymous" });
+        setSessionChecked(true);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        setSessionState({ reason: "unavailable", status: "error" });
+        setSessionChecked(true);
+      });
+  }, []);
+
+  const applyProjection = useCallback((projection: PublishedOrganizationProjection | null) => {
+    setPublishedProjection(projection);
+    if (projection?.payload.organizationName) {
+      setOrganizationName(projection.payload.organizationName);
+      setAuditionHeading(projection.payload.settings.pageLabels?.auditions?.heading);
+      setLogoFileId(projection.payload.settings.logoFileId ?? null);
+      setProjectionVersion(projection.version);
+    }
+  }, []);
+
+  const checkProjection = useCallback(
+    (signal?: AbortSignal) => {
+      return getPublishedOrganizationProjection(signal)
+        .then((projection) => {
+          applyProjection(projection);
+          return projection;
+        })
+        .catch((error: unknown) => {
+          if (!(error instanceof DOMException && error.name === "AbortError")) {
+            setPublishedProjection(null);
+          }
+          return null;
+        });
+    },
+    [applyProjection],
   );
 
   const navigateWithinApp = useCallback((destination: string, replace = false) => {
@@ -540,53 +722,28 @@ export function App() {
 
   useEffect(() => {
     const abortController = new AbortController();
+    const reqs = resolveRouteRequirements(pathname);
 
-    async function checkService() {
-      try {
-        const health = await getHealth(abortController.signal);
-        setServiceState("ready");
-        setBaseHostname(health.baseHostname ?? null);
-      } catch (error: unknown) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
+    if (reqs.needsService) {
+      void checkService(abortController.signal);
+    }
+    if (reqs.needsSession) {
+      void checkSession(abortController.signal);
+    }
+    if (reqs.needsProjection) {
+      void checkProjection(abortController.signal).then((projection) => {
+        if (abortController.signal.aborted) return;
+        if (pathname === "/" && projection === null) {
+          void checkService(abortController.signal);
+          void checkSession(abortController.signal);
         }
-        setServiceState("offline");
-      }
+      });
     }
 
-    async function checkSession() {
-      try {
-        const session = await getCurrentSession(abortController.signal);
-        setSessionState(session ? { session, status: "authenticated" } : { status: "anonymous" });
-      } catch (error: unknown) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
-        setSessionState({ reason: "unavailable", status: "error" });
-      }
-    }
-
-    async function checkProjection() {
-      try {
-        const projection = await getPublishedOrganizationProjection(abortController.signal);
-        setPublishedProjection(projection);
-        if (projection?.payload.organizationName) {
-          setOrganizationName(projection.payload.organizationName);
-          setAuditionHeading(projection.payload.settings.pageLabels?.auditions?.heading);
-          setLogoFileId(projection.payload.settings.logoFileId ?? null);
-          setProjectionVersion(projection.version);
-        }
-      } catch {
-        if (!abortController.signal.aborted) setPublishedProjection(null);
-        // Fall back gracefully to default branding if projection is not published or unavailable.
-      }
-    }
-
-    void Promise.all([checkService(), checkSession(), checkProjection()]);
     return () => {
       abortController.abort();
     };
-  }, []);
+  }, [checkProjection, checkService, checkSession, pathname]);
 
   useEffect(() => {
     if (pathname === "/reset-password" && (window.location.search || window.location.hash)) {
@@ -604,7 +761,9 @@ export function App() {
         controller.abort();
       }, 8000);
       try {
+        await checkService(controller.signal);
         const session = await getCurrentSession(controller.signal);
+        setSessionChecked(true);
         if (!session) {
           setSessionState({ reason: "unconfirmed", status: "error" });
           return;
@@ -624,16 +783,15 @@ export function App() {
           search: window.location.search,
           signal: controller.signal,
         });
-        const { landing, platformMfaStatus } = resolution;
-        if (landing.kind === "navigate" || landing.kind === "verification") {
-          setSessionState({ session, status: "authenticated" });
-          onWorkspaceResolved(landing.path, resolution.bootstrap, platformMfaStatus);
-        } else if (landing.kind === "no_access") {
-          setSessionState({ session, status: "authenticated" });
-          navigateWithinApp("/account/organizations", true);
-        } else {
-          setSessionState({ reason: "unavailable", status: "error" });
-        }
+        handleSignInLanding(
+          resolution.landing,
+          resolution.bootstrap,
+          resolution.platformMfaStatus,
+          session,
+          navigateWithinApp,
+          onWorkspaceResolved,
+          setSessionState,
+        );
       } catch {
         setSessionState({ reason: "unavailable", status: "error" });
       } finally {
@@ -649,6 +807,8 @@ export function App() {
     setShellBootstrap(null);
     setShellPlatformMfaStatus(null);
     setSessionState({ status: "anonymous" });
+    setSessionChecked(false);
+    clearPublishedOrganizationProjectionCache();
     // Purge session Offline Copies and cached player metadata before leaving: navigation
     // would otherwise cut cleanup short on shared devices. Sign-out proceeds even if cleanup fails.
     void Promise.allSettled([
@@ -693,8 +853,7 @@ export function App() {
     onWorkspaceResolved,
   );
 
-  const productName = !isOrganization && pathname === "/" ? "Music Manager" : "Choir Management";
-  const displayName = organizationName ?? productName;
+  const displayName = resolveDisplayName(isOrganization, pathname, organizationName);
   const initials = displayName
     .split(/\s+/)
     .map((part) => part[0])
@@ -756,18 +915,20 @@ export function App() {
     </div>
   );
 
-  const rendered =
-    isAuthenticatedRoute(pathname) && sessionState.status === "authenticated"
-      ? content
-      : renderPublicOrProductRoute(
-          pathname,
-          productShell,
-          sessionState.status === "authenticated",
-          publishedProjection,
-          // An unpublished home page may lead to accounts only after the account service
-          // confirms a session or anonymous access. Public-only hosts reject this check.
-          sessionState.status === "anonymous" || sessionState.status === "authenticated",
-        );
+  const allowAccountFallback =
+    sessionChecked &&
+    (sessionState.status === "anonymous" || sessionState.status === "authenticated");
+
+  const rendered = renderAppContent(
+    pathname,
+    sessionState,
+    sessionChecked,
+    publishedProjection,
+    content,
+    productShell,
+    allowAccountFallback,
+    applyProjection,
+  );
 
   return <QueryClientProvider client={appQueryClient}>{rendered}</QueryClientProvider>;
 }

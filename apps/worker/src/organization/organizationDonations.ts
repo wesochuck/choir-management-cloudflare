@@ -22,6 +22,8 @@ import { readOrganizationPaymentActivations } from "./organizationPaymentSetting
 import { PaymentRefundError, requestOrganizationProviderRefund } from "../payments/refundRequest";
 import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
 import { mutateOrganizationStore, readOrganizationStore, storeErrorCode } from "./rpc/repository";
+import { queueDonationAlert } from "./donationAlerts";
+import type { FinancialAlertDatabase } from "./ticketSaleAlerts";
 
 interface ActorContext {
   readonly actorUserId: string;
@@ -96,7 +98,7 @@ export async function createDonationCheckoutSession(
     | "SIGNED_LINK_SECRET"
     | "STRIPE_PAYMENTS_ENABLED"
     | "STRIPE_SECRET_KEY"
-  >,
+  > & { readonly CONTROL_DB?: FinancialAlertDatabase },
   organizationId: string,
   origin: string,
   checkout: DonationCheckoutRequest,
@@ -312,6 +314,32 @@ export async function createDonationCheckoutSession(
     throw new DonationError(code, response.status, "The donation could not be completed.");
   }
   const donation = donationRecordSchema.parse(await response.json());
+  if (donation.status === "paid") {
+    try {
+      await queueDonationAlert(env, {
+        actorUserId: "public_guest",
+        amountCents: donation.amountCents,
+        buyerEmail: donation.buyerEmail,
+        buyerName: donation.buyerName,
+        currency: "USD",
+        donationId: donation.id,
+        feeCents: donation.feeCents,
+        includesProgramAd: donation.includesProgramAd,
+        orderUrl: `${origin}/admin/donations`,
+        organizationId,
+        organizationOrigin: origin,
+        paymentMethod: donation.paymentMethod,
+        paymentReference: donation.paymentReference,
+        requestId: crypto.randomUUID(),
+        selectedLevelName: donation.selectedLevelName,
+        sponsorName: donation.sponsorName,
+        tributeName: donation.tributeName,
+        tributeType: donation.tributeType,
+      });
+    } catch {
+      // Best-effort alert queueing; don't fail checkout if alert queueing fails
+    }
+  }
   const issuedAt = Math.floor(Date.now() / 1000);
   const successToken = await issueSignedLink(env.SIGNED_LINK_SECRET, {
     algorithm: "HS256",
@@ -436,8 +464,11 @@ export async function attachOrganizationDonationArtwork(
 }
 
 export async function recordManualOrganizationDonation(
-  env: Pick<Env, "ORGANIZATION_STORE">,
-  actor: ActorContext,
+  env: Pick<Env, "ORGANIZATION_STORE"> & {
+    readonly CONTROL_DB?: FinancialAlertDatabase;
+    readonly SIGNED_LINK_SECRET?: string;
+  },
+  actor: ActorContext & { readonly organizationOrigin?: string },
   donation: unknown,
 ): Promise<DonationRecord> {
   const response = await mutateOrganizationStore(
@@ -455,7 +486,42 @@ export async function recordManualOrganizationDonation(
     const code = await storeErrorCode(response, "donation_error");
     throw new DonationError(code, response.status, "The manual donation could not be recorded.");
   }
-  return donationRecordSchema.parse(await response.json());
+  const created = donationRecordSchema.parse(await response.json());
+  if (created.status === "paid" && env.SIGNED_LINK_SECRET) {
+    try {
+      const origin = actor.organizationOrigin ?? `https://${actor.organizationId}`;
+      await queueDonationAlert(
+        {
+          ...(env.CONTROL_DB ? { CONTROL_DB: env.CONTROL_DB } : {}),
+          ORGANIZATION_STORE: env.ORGANIZATION_STORE,
+          SIGNED_LINK_SECRET: env.SIGNED_LINK_SECRET,
+        },
+        {
+          actorUserId: actor.actorUserId,
+          amountCents: created.amountCents,
+          buyerEmail: created.buyerEmail,
+          buyerName: created.buyerName,
+          currency: "USD",
+          donationId: created.id,
+          feeCents: created.feeCents,
+          includesProgramAd: created.includesProgramAd,
+          orderUrl: `${origin}/admin/donations`,
+          organizationId: actor.organizationId,
+          organizationOrigin: origin,
+          paymentMethod: created.paymentMethod,
+          paymentReference: created.paymentReference,
+          requestId: actor.requestId,
+          selectedLevelName: created.selectedLevelName,
+          sponsorName: created.sponsorName,
+          tributeName: created.tributeName,
+          tributeType: created.tributeType,
+        },
+      );
+    } catch {
+      // Best-effort alert queueing; don't fail recording if alert queueing fails
+    }
+  }
+  return created;
 }
 
 export async function updateOrganizationDonationThankYou(

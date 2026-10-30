@@ -605,6 +605,20 @@ describe("Organization public website", () => {
         .status,
     ).toBe(404);
 
+    // Verify edge cache hit: repeat fetch on Alpha still succeeds with identical ETag and Content-Type
+    const cachedMediaResponse = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/media/1/${FILE_ID}`),
+    );
+    expect(cachedMediaResponse.status).toBe(200);
+    expect(cachedMediaResponse.headers.get("etag")).toBe(etag);
+    expect(cachedMediaResponse.headers.get("content-type")).toBe("image/png");
+
+    // Bravo still cannot access Alpha's cached media (cross-tenant isolation)
+    expect(
+      (await exports.default.fetch(api("bravo.localhost", `/api/public/media/1/${FILE_ID}`)))
+        .status,
+    ).toBe(404);
+
     await jsonWrite(
       "alpha.localhost",
       "/api/organization/website",
@@ -749,5 +763,69 @@ describe("Organization public website", () => {
       api("alpha.localhost", `/api/public/media/1/33333333-3333-4333-8333-333333333333`),
     );
     expect(unknownResponse.status).toBe(404);
+  });
+
+  it("serves immutable versioned published media from edge cache even if backing R2 key is removed", async () => {
+    const FILE_ID = "11111111-1111-4111-8111-111111111111";
+    const cookie = await signIn();
+    const bytes = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
+    await exports.default.fetch(
+      api("alpha.localhost", `/api/organization/files/${FILE_ID}`, cookie, {
+        body: bytes,
+        headers: {
+          "content-length": String(bytes.byteLength),
+          "content-type": "image/png",
+          "x-file-name": "cached-hero.png",
+        },
+        method: "PUT",
+      }),
+    );
+    const settings = publicWebsiteSettingsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/website", cookie))
+      ).json(),
+    );
+    await jsonWrite(
+      "alpha.localhost",
+      "/api/organization/website",
+      "PUT",
+      { ...settings, heroFileId: FILE_ID },
+      cookie,
+    );
+    await exports.default.fetch(
+      api("alpha.localhost", "/api/organization/website/publish", cookie, { method: "POST" }),
+    );
+
+    // Initial fetch primes the edge cache
+    const firstRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/media/1/${FILE_ID}`),
+    );
+    expect(firstRes.status).toBe(200);
+    const etag = firstRes.headers.get("etag");
+    expect(etag).toBeTruthy();
+
+    // Delete from R2 to prove subsequent request is answered by edge cache
+    await files.delete(publishedMediaKey("organization-alpha", 1, FILE_ID));
+
+    const cachedRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/media/1/${FILE_ID}`),
+    );
+    expect(cachedRes.status).toBe(200);
+    expect(cachedRes.headers.get("etag")).toBe(etag);
+    expect(cachedRes.headers.get("content-type")).toBe("image/png");
+
+    // 304 Not Modified also supported on cached response
+    const notModifiedRes = await exports.default.fetch(
+      api("alpha.localhost", `/api/public/media/1/${FILE_ID}`, undefined, {
+        headers: { "if-none-match": etag ?? "" },
+      }),
+    );
+    expect(notModifiedRes.status).toBe(304);
+
+    // Cross-tenant isolation: Bravo still gets 404
+    expect(
+      (await exports.default.fetch(api("bravo.localhost", `/api/public/media/1/${FILE_ID}`)))
+        .status,
+    ).toBe(404);
   });
 });

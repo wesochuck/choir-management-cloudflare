@@ -86,6 +86,33 @@ for (const projectionStatus of [200, 404, 503]) {
   });
 }
 
+test("anonymous cold visit to published homepage issues exactly 1 projection API call and skips health and get-session", async ({
+  page,
+}) => {
+  const apiCalls: string[] = [];
+  page.on("request", (req) => {
+    const url = new URL(req.url());
+    if (url.pathname.startsWith("/api/")) {
+      apiCalls.push(url.pathname);
+    }
+  });
+
+  await mockHealth(page, { baseHostname: "musicsite.org" });
+  await mockAnonymousSession(page);
+  await page.route("**/api/public/projection", (route) => route.fulfill({ json: projection }));
+  await page.route("**/api/public/logo", (route) => route.fulfill({ status: 404 }));
+  await page.route(`**/api/public/media/1/${graphicId}`, (route) => route.fulfill({ status: 404 }));
+
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Upcoming Performances" })).toBeVisible();
+
+  // Verify that get-session and health were never called
+  expect(apiCalls.filter((path) => path === "/api/health")).toHaveLength(0);
+  expect(apiCalls.filter((path) => path === "/api/auth/get-session")).toHaveLength(0);
+  // Verify projection was called exactly once (no duplicate invocation from App or PublicOrganizationSite)
+  expect(apiCalls.filter((path) => path === "/api/public/projection")).toHaveLength(1);
+});
+
 for (const pathname of ["/", "/performances"] as const) {
   for (const theme of ["light", "dark"] as const) {
     test(`${pathname} performance cards navigate by pointer and keyboard in ${theme} theme`, async ({
