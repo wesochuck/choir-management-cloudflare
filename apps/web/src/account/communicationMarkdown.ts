@@ -78,6 +78,8 @@ function previewText(value: string | undefined, fallback: string): string {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
+export const SAMPLE_COMMUNICATION_RECIPIENT_NAME = "Johann Sebastian Bach";
+
 export function communicationPreviewValues(
   event: OrganizationEvent | null,
   timezone: string | null,
@@ -101,7 +103,7 @@ export function communicationPreviewValues(
   const recipientNameValues = communicationRecipientNamePlaceholderKeys.reduce<
     Record<string, string>
   >((values, key) => {
-    values[`{${key}}`] = "Alex Morgan";
+    values[`{${key}}`] = SAMPLE_COMMUNICATION_RECIPIENT_NAME;
     return values;
   }, {});
 

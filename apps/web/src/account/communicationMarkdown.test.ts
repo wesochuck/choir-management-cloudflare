@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { communicationPlaceholderDefinitions } from "@choir/domain";
 import type { OrganizationBranding } from "@choir/contracts";
 import {
+  SAMPLE_COMMUNICATION_RECIPIENT_NAME,
   communicationPreviewValues,
   renderCommunicationMarkdownPreview,
 } from "./communicationMarkdown";
@@ -100,7 +101,7 @@ describe("renderCommunicationMarkdownPreview", () => {
       communicationPreviewValues(null, "UTC"),
     );
 
-    expect(rendered).toContain("Alex Morgan");
+    expect(rendered).toContain(SAMPLE_COMMUNICATION_RECIPIENT_NAME);
     expect(rendered).toContain("Example Performance");
     expect(rendered).toContain("View RSVP details");
     expect(rendered).not.toContain("{recipientName}");
@@ -113,7 +114,7 @@ describe("renderCommunicationMarkdownPreview", () => {
       communicationPreviewValues(null, "UTC"),
     );
 
-    expect(rendered).toContain("Alex Morgan");
+    expect(rendered).toContain(SAMPLE_COMMUNICATION_RECIPIENT_NAME);
     expect(rendered).toContain("Example Performance");
     expect(rendered).not.toContain("{{recipientName}}");
     expect(rendered).not.toContain("{{eventTitle}}");
@@ -125,7 +126,7 @@ describe("renderCommunicationMarkdownPreview", () => {
       communicationPreviewValues(null, "UTC"),
     );
 
-    expect(rendered.match(/Alex Morgan/g)).toHaveLength(4);
+    expect(rendered.match(new RegExp(SAMPLE_COMMUNICATION_RECIPIENT_NAME, "g"))).toHaveLength(4);
     expect(rendered).not.toMatch(/\{\{?(?:singerName|buyerName)\}\}?/);
   });
 

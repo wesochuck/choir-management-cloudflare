@@ -631,7 +631,7 @@ test.describe("Organization timezone previews", () => {
 
     // Check 2-column live preview panel
     const preview = page.locator(".communication-composer-preview-col .preview-body");
-    await expect(preview).toContainText("Alex Morgan");
+    await expect(preview).toContainText("Johann Sebastian Bach");
     await expect(preview).toContainText("Browser Performance");
     await expect(preview).toContainText("Performance");
     await expect(preview).toContainText("Main Hall");
@@ -654,7 +654,7 @@ test.describe("Organization timezone previews", () => {
     await page.getByRole("button", { name: "Review & send" }).click();
 
     const finalPreview = page.getByRole("dialog", { name: "Review message" });
-    await expect(finalPreview).toContainText("Alex Morgan");
+    await expect(finalPreview).toContainText("Johann Sebastian Bach");
     await expect(finalPreview.getByRole("img", { name: "Preview Choir" })).toBeVisible();
     await expect(finalPreview).not.toContainText("{organization");
     await expect(finalPreview).toContainText("Rehearsal update on August 20, 2026 at 7:00 PM");
@@ -694,7 +694,7 @@ test("uses the same recipient name placeholder for ticket buyers and mixed audie
   await recipientButton.click();
   await expect(message).toHaveValue("{recipientName} ");
   await expect(page.locator(".communication-composer-preview-col .preview-body")).toContainText(
-    "Alex Morgan",
+    "Johann Sebastian Bach",
   );
 });
 
@@ -712,7 +712,7 @@ test("shows the queued message in unified list and lets the user start another m
   await page.getByRole("button", { name: "Review & send" }).click();
 
   const reviewDialog = page.getByRole("dialog", { name: "Review message" });
-  await expect(reviewDialog).toContainText("Alex Morgan");
+  await expect(reviewDialog).toContainText("Johann Sebastian Bach");
   await expect(reviewDialog).not.toContainText("{singerName}");
   await reviewDialog.getByRole("button", { name: "Send to 2 recipients" }).click();
 
@@ -1393,7 +1393,7 @@ test("wide composer keeps recipient summary, writing, and preview together", asy
   await expect(page.getByRole("region", { name: "Personalize message" })).toHaveCount(0);
   await expect(placeholderToggle).toBeFocused();
   const preview = page.getByLabel("Live formatted message preview");
-  await expect(preview).toContainText("Hi Alex Morgan,");
+  await expect(preview).toContainText("Hi Johann Sebastian Bach,");
   await expect(preview.locator("strong").first()).toHaveText("Gloria");
   const canvas = page.locator(".communication-preview-canvas");
   await page.getByRole("button", { name: "Mobile", exact: true }).click();

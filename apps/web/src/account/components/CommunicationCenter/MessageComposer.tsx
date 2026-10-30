@@ -18,6 +18,7 @@ import {
 import { useConfirmation } from "@choir/ui";
 import { useRef, useState, type KeyboardEvent } from "react";
 import {
+  SAMPLE_COMMUNICATION_RECIPIENT_NAME,
   communicationPreviewValues,
   populateCommunicationPreview,
   renderCommunicationMarkdownPreview,
@@ -699,7 +700,9 @@ export function MessageComposer({
                 ))}
               </div>
             </div>
-            <p className="field-help preview-sample-recipient">Sample recipient: Alex Morgan</p>
+            <p className="field-help preview-sample-recipient">
+              Sample recipient: {SAMPLE_COMMUNICATION_RECIPIENT_NAME}
+            </p>
             <div className="communication-preview-canvas" data-preview-size={previewSize}>
               {subject && channel !== "SMS" ? (
                 <div className="preview-subject">
