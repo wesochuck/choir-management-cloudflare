@@ -549,4 +549,30 @@ describe("public upcoming and past performance sections", () => {
     ).toEqual(["Recent", "Second", "Third"]);
     expect(screen.queryByRole("heading", { name: "Oldest" })).not.toBeInTheDocument();
   });
+
+  it("renders immediately from initialProjection without refetching and bypasses cache on Retry website (#317)", async () => {
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockReset();
+    const initial = createProjection();
+    const { unmount } = render(
+      <PublicOrganizationSite fallback={null} initialProjection={initial} pathname="/" />,
+    );
+    expect(screen.getByRole("heading", { name: "Welcome to Our Choir" })).toBeInTheDocument();
+    expect(authApi.getPublishedOrganizationProjection).not.toHaveBeenCalled();
+    unmount();
+
+    vi.mocked(authApi.getPublishedOrganizationProjection)
+      .mockRejectedValueOnce(new Error("Temporary outage"))
+      .mockResolvedValueOnce(initial);
+
+    render(<PublicOrganizationSite fallback={null} pathname="/" />);
+    const retryButton = await screen.findByRole("button", { name: "Retry website" });
+    fireEvent.click(retryButton);
+
+    await screen.findByRole("heading", { name: "Welcome to Our Choir" });
+    expect(authApi.getPublishedOrganizationProjection).toHaveBeenNthCalledWith(
+      2,
+      expect.any(AbortSignal),
+      { bypassCache: true },
+    );
+  });
 });

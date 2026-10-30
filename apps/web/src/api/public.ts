@@ -124,10 +124,49 @@ export function clearPublishedOrganizationProjectionCache(host?: string): void {
   }
 }
 
+function withCallerSignal<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) {
+    return promise;
+  }
+  if (signal.aborted) {
+    return Promise.reject(
+      signal.reason instanceof Error
+        ? signal.reason
+        : new DOMException("The operation was aborted.", "AbortError"),
+    );
+  }
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new DOMException("The operation was aborted.", "AbortError"),
+      );
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (val) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(val);
+      },
+      (err: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(err instanceof Error ? err : new Error(String(err)));
+      },
+    );
+  });
+}
+
 export async function getPublishedOrganizationProjection(
   signal?: AbortSignal,
   options?: { readonly bypassCache?: boolean },
 ): Promise<PublishedOrganizationProjection | null> {
+  if (signal?.aborted) {
+    throw signal.reason instanceof Error
+      ? signal.reason
+      : new DOMException("The operation was aborted.", "AbortError");
+  }
+
   const hostKey = currentHostKey();
 
   if (options?.bypassCache) {
@@ -140,33 +179,7 @@ export async function getPublishedOrganizationProjection(
     }
     const inFlight = inFlightProjectionRequests.get(hostKey);
     if (inFlight) {
-      if (signal?.aborted) {
-        throw signal.reason instanceof Error
-          ? signal.reason
-          : new DOMException("The operation was aborted.", "AbortError");
-      }
-      return signal
-        ? new Promise<PublishedOrganizationProjection | null>((resolve, reject) => {
-            const onAbort = () => {
-              reject(
-                signal.reason instanceof Error
-                  ? signal.reason
-                  : new DOMException("The operation was aborted.", "AbortError"),
-              );
-            };
-            signal.addEventListener("abort", onAbort, { once: true });
-            inFlight.then(
-              (val) => {
-                signal.removeEventListener("abort", onAbort);
-                resolve(val);
-              },
-              (err: unknown) => {
-                signal.removeEventListener("abort", onAbort);
-                reject(err instanceof Error ? err : new Error(String(err)));
-              },
-            );
-          })
-        : inFlight;
+      return withCallerSignal(inFlight, signal);
     }
   }
 
@@ -180,7 +193,6 @@ export async function getPublishedOrganizationProjection(
           accept: "application/json",
           ...(options?.bypassCache ? { "cache-control": "no-cache" } : {}),
         },
-        signal: signal ?? null,
       });
       if (response.status === 404) {
         projectionCache.set(hostKey, null);
@@ -196,7 +208,7 @@ export async function getPublishedOrganizationProjection(
   })();
 
   inFlightProjectionRequests.set(hostKey, fetchPromise);
-  return fetchPromise;
+  return withCallerSignal(fetchPromise, signal);
 }
 
 export async function getPublicCommerceProjection(

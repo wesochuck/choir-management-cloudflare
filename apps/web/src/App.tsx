@@ -406,7 +406,8 @@ function isStandalonePublicRoute(pathname: string): boolean {
     pathname === "/player" ||
     pathname === "/forgot-password" ||
     pathname === "/reset-password" ||
-    pathname === "/confirm-email-change"
+    pathname === "/confirm-email-change" ||
+    pathname === "/join-roster"
   );
 }
 

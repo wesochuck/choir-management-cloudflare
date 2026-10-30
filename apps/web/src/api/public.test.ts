@@ -138,4 +138,34 @@ describe("getPublishedOrganizationProjection in-memory deduplication and caching
     await getPublishedOrganizationProjection();
     expect(fetchMock).toHaveBeenCalledTimes(3); // fresh projection fetch
   });
+
+  it("isolates caller abort signals so aborting the first caller does not fail concurrent callers", async () => {
+    let resolveResponse!: (value: Response) => void;
+    const fetchMock = vi.fn().mockImplementation(() => {
+      return new Promise<Response>((resolve) => {
+        resolveResponse = resolve;
+      });
+    });
+    globalThis.fetch = fetchMock;
+
+    const firstController = new AbortController();
+    const secondController = new AbortController();
+
+    const firstPromise = getPublishedOrganizationProjection(firstController.signal);
+    const secondPromise = getPublishedOrganizationProjection(secondController.signal);
+
+    firstController.abort();
+    await expect(firstPromise).rejects.toThrow();
+
+    resolveResponse(
+      new Response(JSON.stringify(mockProjection), {
+        headers: { "content-type": "application/json" },
+        status: 200,
+      }),
+    );
+
+    const secondResult = await secondPromise;
+    expect(secondResult).toEqual(mockProjection);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
