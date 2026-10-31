@@ -141,6 +141,17 @@ test.describe("public ticket checkout top spacing", () => {
       await expect(
         page.getByRole("heading", { name: "You're all set. Your tickets are ready." }),
       ).toBeVisible();
+
+      if (viewport.width === 390) {
+        const cardBox = await page.locator(".admission-ticket").first().boundingBox();
+        expect(cardBox).not.toBeNull();
+        if (cardBox) {
+          // Ensure admission ticket card fits mobile screens cleanly without double-nested margins
+          expect(cardBox.width).toBeGreaterThanOrEqual(350);
+          expect(cardBox.x).toBeLessThanOrEqual(20);
+        }
+      }
+
       const successGap = await headerToContentGap(
         page,
         ".ticket-confirmation-section .ticket-confirmation-badge",

@@ -157,6 +157,12 @@
     font-family: var(--public-body-font, system-ui, sans-serif);
   }
 
+  .public-site main {
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+  }
+
   .public-site h1,
   .public-site h2,
   .public-site h3,
