@@ -259,9 +259,10 @@ export function MusicCatalogView({
         <div className="music-catalog-layout">
           <div>
             <div className="music-catalog-toolbar">
-              <label className="field">
-                Search catalog
+              <label className="field search-field">
+                <span className="sr-only">Search catalog</span>
                 <input
+                  placeholder="Search catalog…"
                   type="search"
                   value={search}
                   onChange={(event) => {

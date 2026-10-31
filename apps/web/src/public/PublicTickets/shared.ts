@@ -82,3 +82,9 @@ export function publicTime(value: string): string {
   const hour = Number(match[1]);
   return `${String(hour % 12 || 12)}:${match[2]} ${hour >= 12 ? "PM" : "AM"}`;
 }
+
+export function formatTicketDisplayNumber(id: string): string {
+  const trimmed = id.trim();
+  const parts = trimmed.split("-").filter(Boolean);
+  return parts[parts.length - 1] ?? trimmed;
+}

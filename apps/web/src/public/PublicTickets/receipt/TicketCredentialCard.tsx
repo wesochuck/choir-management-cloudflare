@@ -4,6 +4,7 @@ import { QRCodeImage } from "../../../shared/QRCodeImage";
 import { getEventVenueDetails } from "../../venueDetails";
 import {
   DEFAULT_TICKET_CONFIRMATION_SETTINGS,
+  formatTicketDisplayNumber,
   publicDate,
   publicDateWithWeekday,
   publicTime,
@@ -129,7 +130,9 @@ export function SingleTicketCredentialCard({
       <div className="admission-ticket__id-row">
         <div className="admission-ticket__id-block">
           <span className="admission-ticket__label">Ticket number</span>
-          <span className="admission-ticket__id-value">{purchase.id}</span>
+          <span className="admission-ticket__id-value">
+            {formatTicketDisplayNumber(purchase.id)}
+          </span>
           <p className="admission-ticket__purchaser">
             Purchased by <strong>{purchase.buyerName}</strong>
           </p>
@@ -360,7 +363,9 @@ export function BundlePassCredentialCard({
       <div className="admission-ticket__id-row">
         <div className="admission-ticket__id-block">
           <span className="admission-ticket__label">Pass number</span>
-          <span className="admission-ticket__id-value">{purchase.id}</span>
+          <span className="admission-ticket__id-value">
+            {formatTicketDisplayNumber(purchase.id)}
+          </span>
           <p className="admission-ticket__purchaser">
             Purchased by <strong>{purchase.buyerName}</strong>
           </p>

@@ -174,7 +174,8 @@
     width: min(100%, 28rem);
   }
 
-  .music-catalog-toolbar .field {
+  .music-catalog-toolbar .field,
+  .music-catalog-toolbar .search-field {
     flex: 1 1 20rem;
     min-width: min(100%, 18rem);
   }

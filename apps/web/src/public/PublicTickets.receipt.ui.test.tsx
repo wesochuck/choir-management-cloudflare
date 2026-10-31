@@ -701,9 +701,10 @@ describe("TicketReceipt", () => {
       within(ticketCard).getByText("2095 W Fair Ave., Lancaster, OH 43130"),
     ).toBeInTheDocument();
 
-    // 6. Ticket number & 7. Quantity & 8. Purchaser name
+    // 6. Ticket number (final grouping only) & 7. Quantity & 8. Purchaser name
     expect(within(ticketCard).getByText("Ticket number")).toBeInTheDocument();
-    expect(within(ticketCard).getByText("LC-004218")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("004218")).toBeInTheDocument();
+    expect(within(ticketCard).queryByText("LC-004218")).not.toBeInTheDocument();
     expect(within(ticketCard).getByText("Admits 2")).toBeInTheDocument();
     expect(within(ticketCard).getByText("Total admission")).toBeInTheDocument();
     expect(within(ticketCard).getByText("2")).toBeInTheDocument();
@@ -771,5 +772,50 @@ describe("TicketReceipt", () => {
     expect(printSpy).toHaveBeenCalledTimes(1);
 
     printSpy.mockRestore();
+  });
+
+  it("displays only the final grouping of the ticket number on tickets and passes", async () => {
+    const singleTicketReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      id: "2dbbce42-49ca-4246-9eb5-6cc51f5578dc",
+      status: "paid",
+    };
+    vi.mocked(getPublicTicketPurchase).mockResolvedValueOnce(singleTicketReceipt);
+
+    const { unmount } = render(<TicketReceipt token="tok-uuid-single" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    const ticketCard = screen.getByRole("article", { name: "Ticket admission credential" });
+    expect(within(ticketCard).getByText("Ticket number")).toBeInTheDocument();
+    expect(within(ticketCard).getByText("6cc51f5578dc")).toBeInTheDocument();
+    expect(
+      within(ticketCard).queryByText("2dbbce42-49ca-4246-9eb5-6cc51f5578dc"),
+    ).not.toBeInTheDocument();
+
+    unmount();
+
+    const bundlePassReceipt: PublicTicketReceipt = {
+      ...baseSampleReceipt,
+      bundleId: "bundle-pass-uuid",
+      bundleTitle: "Holiday Pass",
+      id: "9f8e7d6c-5b4a-3210-fedc-ba9876543210",
+      includedEvents: [],
+      status: "paid",
+    };
+    vi.mocked(getPublicTicketPurchase).mockResolvedValueOnce(bundlePassReceipt);
+
+    render(<TicketReceipt token="tok-uuid-bundle" />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+
+    const passCard = screen.getByRole("article", { name: "Bundle pass admission credential" });
+    expect(within(passCard).getByText("Pass number")).toBeInTheDocument();
+    expect(within(passCard).getByText("ba9876543210")).toBeInTheDocument();
+    expect(
+      within(passCard).queryByText("9f8e7d6c-5b4a-3210-fedc-ba9876543210"),
+    ).not.toBeInTheDocument();
   });
 });
