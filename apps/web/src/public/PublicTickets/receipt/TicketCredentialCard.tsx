@@ -168,12 +168,11 @@ export function SingleTicketCredentialCard({
         <div className="admission-ticket__instructions-block">
           <h3 className="admission-ticket__instructions-heading">At the venue</h3>
           <p className="admission-ticket__instructions-text">{venueInstructions}</p>
-          <p className="admission-ticket__qr-note">QR code retained for future use.</p>
         </div>
       </div>
 
       <div className="admission-ticket__print-footer">
-        <p>Present this ticket at admission. QR code retained for future use.</p>
+        <p>Present this ticket at admission.</p>
       </div>
 
       {qrFailedForCurrentToken ? (
@@ -408,13 +407,12 @@ export function BundlePassCredentialCard({
             <p className="admission-ticket__instructions-text">
               {qrInstructions} This same pass QR code is valid for every included concert.
             </p>
-            <p className="admission-ticket__qr-note">QR code retained for future use.</p>
           </div>
         </div>
       ) : null}
 
       <div className="admission-ticket__print-footer">
-        <p>Present this ticket at admission. QR code retained for future use.</p>
+        <p>Present this ticket at admission.</p>
       </div>
 
       {qrFailedForCurrentToken ? (

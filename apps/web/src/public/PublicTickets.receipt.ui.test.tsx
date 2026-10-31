@@ -718,7 +718,9 @@ describe("TicketReceipt", () => {
         name: "Admission QR code for Earth and Sky and Sea",
       }),
     ).toBeInTheDocument();
-    expect(within(ticketCard).getByText("QR code retained for future use.")).toBeInTheDocument();
+    expect(
+      within(ticketCard).queryByText("QR code retained for future use."),
+    ).not.toBeInTheDocument();
   });
 
   it("handles missing doors-open time gracefully without inventing one", async () => {
