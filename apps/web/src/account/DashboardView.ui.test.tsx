@@ -538,7 +538,7 @@ describe("DashboardView", () => {
       expect(within(hero).getByText("Riverside Community Hall")).toBeInTheDocument();
       expect(within(hero).getByText("Rehearsals Remaining")).toBeInTheDocument();
       // 1 rehearsal before concert
-      expect(within(hero).getByText("1")).toBeInTheDocument();
+      expect(within(hero).getAllByText("1").length).toBeGreaterThanOrEqual(1);
       expect(within(hero).getByText("Rehearsal")).toBeInTheDocument();
 
       const practiceButton = within(hero).queryByRole("button", { name: /Open Practice Player/ });

@@ -193,11 +193,13 @@ function TicketReceiptContent({
         {/* Left Column (Desktop) / Header & Secondary Details (Mobile) */}
         <div className="ticket-confirmation-hero">
           <TicketReceiptStatus purchase={purchase} settings={settings} />
-          <TicketReceiptStatusNotice
-            isTimedOut={isTimedOut}
-            onRefresh={onRefresh}
-            purchase={purchase}
-          />
+          <div className="ticket-confirmation-notices">
+            <TicketReceiptStatusNotice
+              isTimedOut={isTimedOut}
+              onRefresh={onRefresh}
+              purchase={purchase}
+            />
+          </div>
 
           <div className="ticket-confirmation-actions ticket-confirmation-actions--desktop no-print">
             <button

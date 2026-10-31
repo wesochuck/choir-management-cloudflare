@@ -25,7 +25,9 @@ export function TicketCheckoutFooter({
           aria-hidden="true"
           className="ticket-checkout-footer__icon"
           focusable="false"
+          height="16"
           viewBox="0 0 16 16"
+          width="16"
         >
           <rect
             fill="none"

@@ -782,6 +782,9 @@ describe("TicketCheckoutFooter", () => {
         "You'll review and confirm your payment securely with Stripe on the next page.",
       ),
     ).toBeInTheDocument();
+    const lockIcon = document.querySelector(".ticket-checkout-footer__icon");
+    expect(lockIcon).toHaveAttribute("width", "16");
+    expect(lockIcon).toHaveAttribute("height", "16");
     expect(screen.getByRole("button", { name: "Continue to secure payment" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "Confirm free order" })).not.toBeInTheDocument();
   });

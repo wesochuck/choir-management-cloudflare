@@ -9,6 +9,11 @@
   margin: 0.35in;
 }
 
+@page ticket-page {
+  size: portrait;
+  margin: 0.4in;
+}
+
 @layer components {
   @media print {
     /* 1. Global Print Resets & Color Adjust */
@@ -31,6 +36,8 @@
      * never appear on printed output regardless of component-level display rules. */
     .signed-in-header,
     .signed-in-sidebar,
+    .public-site-header,
+    .public-site-footer,
     .skip-link,
     .page-heading,
     .no-print,
@@ -48,7 +55,10 @@
     #root,
     .signed-in-shell,
     .signed-in-body,
-    .signed-in-main {
+    .signed-in-main,
+    .public-site,
+    .public-site main,
+    .public-section {
       width: 100%;
       min-width: 0;
       max-width: none;
@@ -342,7 +352,17 @@
       padding: var(--spacing-2xs) 0;
     }
 
-    /* 7. Ticket Passes, Receipts & Orders (Consolidated from ticket-credentials.css) */
+    /* 7. Ticket Passes, Receipts & Orders (Consolidated from ticket-credentials.css)
+     * When printing ticket credentials, only the admission card should print.
+     * The order status and purchase summary hero are hidden. */
+    .ticket-confirmation-hero {
+      display: none !important;
+    }
+
+    .ticket-confirmation-section {
+      page: ticket-page;
+    }
+
     .ticket-confirmation-section,
     .ticket-confirmation-layout,
     .ticket-confirmation-ticket {

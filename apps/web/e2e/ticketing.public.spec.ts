@@ -333,7 +333,7 @@ test.describe("public ticket pages", () => {
 
     await page.emulateMedia({ media: "print" });
     await expect(passCard).toBeVisible();
-    await expect(summary).toBeVisible();
+    await expect(summary).toBeHidden();
   });
 
   test("shows pending receipt and transitions to confirmed after polling", async ({ page }) => {

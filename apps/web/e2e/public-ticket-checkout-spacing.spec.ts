@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { futureIsoDate } from "@choir/testkit";
 import { fulfillJson, mockAnonymousSession, mockHealth } from "./support/testWorld";
+import { receiptResponse } from "./support/ticketingFixtures";
 
 const eventId = "aa47e064-75b9-47e9-97e6-c28f5430bee0";
 const bundleId = "bb6b6bf8-c618-4bcd-b452-3aadebd28aa6";
@@ -70,6 +71,13 @@ async function mockSpacingPage(page: Page): Promise<void> {
   await page.route("**/api/public/commerce-projection", async (route) => {
     await route.fulfill({ body: "null", contentType: "application/json", status: 404 });
   });
+  await page.route("**/api/public/tickets/order*", async (route) => {
+    await route.fulfill({
+      body: JSON.stringify(receiptResponse),
+      contentType: "application/json",
+      status: 200,
+    });
+  });
   await page.route("**/api/public/media/**", async (route) => {
     await route.fulfill({
       body: Buffer.from(PIXEL_PNG_BASE64, "base64"),
@@ -77,6 +85,14 @@ async function mockSpacingPage(page: Page): Promise<void> {
       status: 200,
     });
   });
+}
+
+async function getLandmarkY(page: Page, selector: string): Promise<number> {
+  const box = await page.locator(selector).boundingBox();
+  if (!box) {
+    throw new Error(`Bounding box not found for ${selector}`);
+  }
+  return box.y;
 }
 
 async function headerToContentGap(page: Page, contentSelector: string): Promise<number> {
@@ -121,6 +137,17 @@ test.describe("public ticket checkout top spacing", () => {
       expect(bundleGap).toBeGreaterThan(0);
       expect(bundleGap).toBeLessThan(40);
 
+      await page.goto("/tickets/order/success?token=tok-spacing-test");
+      await expect(
+        page.getByRole("heading", { name: "You're all set. Your tickets are ready." }),
+      ).toBeVisible();
+      const successGap = await headerToContentGap(
+        page,
+        ".ticket-confirmation-section .ticket-confirmation-badge",
+      );
+      expect(successGap).toBeGreaterThan(0);
+      expect(successGap).toBeLessThan(40);
+
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth > window.innerWidth,
       );
@@ -144,5 +171,30 @@ test.describe("public ticket checkout top spacing", () => {
     );
 
     expect(Math.abs(checkoutGap - landingGap)).toBeLessThanOrEqual(8);
+  });
+
+  test("orders mobile ticket receipt landmarks with ticket first, then print, notices, summary, and return button", async ({
+    page,
+  }) => {
+    await mockSpacingPage(page);
+    await page.setViewportSize({ height: 844, width: 390 });
+    await page.goto("/tickets/order/success?token=tok-spacing-test");
+
+    await expect(
+      page.getByRole("heading", { name: "You're all set. Your tickets are ready." }),
+    ).toBeVisible();
+
+    const headerY = await getLandmarkY(page, ".ticket-confirmation-hero__header");
+    const ticketY = await getLandmarkY(page, ".admission-ticket");
+    const printY = await getLandmarkY(page, ".ticket-confirmation-actions--mobile");
+    const noticesY = await getLandmarkY(page, ".ticket-confirmation-notices");
+    const summaryY = await getLandmarkY(page, ".ticket-order-summary");
+    const returnY = await getLandmarkY(page, ".ticket-receipt-actions");
+
+    expect(headerY).toBeLessThan(ticketY);
+    expect(ticketY).toBeLessThan(printY);
+    expect(printY).toBeLessThan(noticesY);
+    expect(noticesY).toBeLessThan(summaryY);
+    expect(summaryY).toBeLessThan(returnY);
   });
 });

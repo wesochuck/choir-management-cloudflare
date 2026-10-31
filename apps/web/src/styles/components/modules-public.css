@@ -201,6 +201,11 @@
     gap: var(--spacing-xl);
   }
 
+  .public-site-header--brand-only,
+  .public-site-header:not(:has(nav)) {
+    min-height: auto;
+  }
+
   .public-site-brand {
     gap: var(--spacing-sm);
     font-family: var(--public-heading-font, system-ui, sans-serif);
@@ -322,10 +327,16 @@
     margin-bottom: var(--spacing-xl);
   }
 
-  /* Ticket and pass checkout pages only: match the landing page's tighter
-     top spacing so the breadcrumb sits closer to the Organization header.
-     Bottom padding and all in-form spacing stay exactly as before. */
-  .public-section--ticket-checkout {
+  /* Ticket and pass checkout pages, order confirmation receipts, and donation
+     views: match the landing page's tighter top spacing so content sits closer
+     to the Organization header. Bottom padding and all in-form spacing stay
+     exactly as before. */
+  .public-section--ticket-checkout,
+  .ticket-confirmation-section,
+  .ticket-refund-receipt,
+  .public-donation-section,
+  .public-donation-receipt,
+  .public-sponsor-artwork-view {
     padding-block-start: var(--spacing-lg);
   }
 
@@ -588,6 +599,33 @@
     object-fit: contain;
   }
 
+  .ticket-checkout-footer {
+    display: grid;
+    gap: var(--spacing-md);
+  }
+
+  .ticket-checkout-footer__note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+    margin: 0;
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+    color: var(--color-text-muted);
+  }
+
+  .ticket-checkout-footer__note strong {
+    color: var(--color-text);
+  }
+
+  .ticket-checkout-footer__icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--color-text-muted);
+  }
+
   .public-copy {
     display: grid;
     gap: var(--spacing-md);
@@ -709,6 +747,21 @@
       align-items: flex-start;
       flex-direction: column;
       padding-block: var(--spacing-md);
+      min-height: auto;
+    }
+
+    .public-section {
+      padding-block: var(--spacing-xl);
+    }
+
+    .public-section--tickets,
+    .public-section--ticket-checkout,
+    .ticket-confirmation-section,
+    .ticket-refund-receipt,
+    .public-donation-section,
+    .public-donation-receipt,
+    .public-sponsor-artwork-view {
+      padding-block-start: var(--spacing-lg);
     }
 
     .public-site-header nav {

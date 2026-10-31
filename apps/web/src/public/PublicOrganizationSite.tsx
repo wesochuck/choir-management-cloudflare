@@ -232,7 +232,7 @@ export function PublicTransactionLayout({
   const { settings } = projection.payload;
   return (
     <div className="public-site" style={publicSiteStyle(settings)}>
-      <header className="public-site-header">
+      <header className="public-site-header public-site-header--brand-only">
         <PublicOrganizationBrand
           organizationName={projection.payload.organizationName}
           publishedLogoUrl={settings.logoFileId ? mediaUrl(projection, settings.logoFileId) : null}

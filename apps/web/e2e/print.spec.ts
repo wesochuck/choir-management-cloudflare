@@ -1,6 +1,7 @@
 import { expect, test, type Route } from "@playwright/test";
 import { installOrganizationApi } from "./fixtures/apiMocks";
 import { buildSeatingChart, fixtureIds } from "./fixtures/builders";
+import { receiptResponse, routePublicBasics } from "./support/ticketingFixtures";
 
 const setListRequestId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const setListEventId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
@@ -516,6 +517,75 @@ test.describe("Consolidated Print Stylesheet (@media print)", () => {
       expect(letterPdf.length).toBeGreaterThan(1000);
       const a4Pdf = await page.pdf({ format: "A4", landscape: true });
       expect(a4Pdf.length).toBeGreaterThan(1000);
+    }
+  });
+
+  test("ticket confirmation print layout isolates admission ticket and fits on a single page", async ({
+    page,
+  }, testInfo) => {
+    await routePublicBasics(page);
+    await page.route("**/api/public/tickets/order*", async (route) => {
+      await route.fulfill({
+        body: JSON.stringify(receiptResponse),
+        contentType: "application/json",
+        status: 200,
+      });
+    });
+
+    await page.goto("/tickets/order/success?token=test-print-token");
+    await expect(page.locator(".admission-ticket")).toBeVisible();
+    await expect(page.locator(".ticket-confirmation-hero")).toBeVisible();
+
+    // Verify screen media: header, hero, and footer are rendered
+    await page.emulateMedia({ media: "screen" });
+    const screenHeroDisplay = await page
+      .locator(".ticket-confirmation-hero")
+      .evaluate((element) => getComputedStyle(element).display);
+    expect(screenHeroDisplay).not.toBe("none");
+
+    const screenHeaderDisplay = await page
+      .locator(".public-site-header")
+      .evaluate((element) => getComputedStyle(element).display);
+    expect(screenHeaderDisplay).not.toBe("none");
+
+    const screenFooterDisplay = await page
+      .locator(".public-site-footer")
+      .evaluate((element) => getComputedStyle(element).display);
+    expect(screenFooterDisplay).not.toBe("none");
+
+    // Emulate print media
+    await page.emulateMedia({ media: "print" });
+
+    // Assert that website chrome and order summary are hidden
+    const printHeroDisplay = await page
+      .locator(".ticket-confirmation-hero")
+      .evaluate((element) => getComputedStyle(element).display);
+    expect(printHeroDisplay).toBe("none");
+
+    const printHeaderDisplay = await page
+      .locator(".public-site-header")
+      .evaluate((element) => getComputedStyle(element).display);
+    expect(printHeaderDisplay).toBe("none");
+
+    const printFooterDisplay = await page
+      .locator(".public-site-footer")
+      .evaluate((element) => getComputedStyle(element).display);
+    expect(printFooterDisplay).toBe("none");
+
+    // The admission ticket card itself remains visible
+    const printTicketDisplay = await page
+      .locator(".admission-ticket")
+      .evaluate((element) => getComputedStyle(element).display);
+    expect(printTicketDisplay).not.toBe("none");
+
+    // In Chromium desktop, generate a PDF and verify it is exactly 1 page
+    if (
+      page.context().browser()?.browserType().name() === "chromium" &&
+      !testInfo.project.name.includes("mobile")
+    ) {
+      const pdfBuffer = await page.pdf({ format: "Letter" });
+      const pageCount = (pdfBuffer.toString("latin1").match(/\/Type\s*\/Page\b/g) ?? []).length;
+      expect(pageCount).toBe(1);
     }
   });
 });
