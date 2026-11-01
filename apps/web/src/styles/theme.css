@@ -79,6 +79,7 @@
 @import "./components/seating-editor-layout.css";
 @import "./components/admin-overview.css";
 @import "./components/reports.css";
+@import "./components/notifications.css";
 
 /* Platform operations */
 @import "./components/platform-admin.css";

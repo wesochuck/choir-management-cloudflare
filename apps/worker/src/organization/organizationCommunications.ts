@@ -43,6 +43,7 @@ import {
   storeErrorCode,
   storeErrorStatus,
 } from "./rpc/repository";
+import type { InboxNotification } from "./communicationStore/contracts";
 
 const candidateResponseSchema = z.object({
   contactsOverLimit: z.boolean().default(false),
@@ -497,6 +498,7 @@ export async function queueAutomatedOrganizationCommunication(
     readonly contentMarkdown: string;
     readonly dedupeKey?: string;
     readonly eventId: string | null;
+    readonly inboxNotification?: InboxNotification | undefined;
     readonly recipients: readonly AutomatedCommunicationRecipient[];
     readonly subject: string;
   },
@@ -532,6 +534,7 @@ export async function queueAutomatedOrganizationCommunication(
     ...context,
     automation: input.automation,
     dedupeKey: input.dedupeKey,
+    inboxNotification: input.inboxNotification,
     jobId: crypto.randomUUID(),
     message: {
       audience: {

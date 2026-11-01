@@ -247,6 +247,19 @@ export async function queueTicketSaleAlert(
     timezone,
   );
   const organizationOrigin = input.organizationOrigin ?? new URL(input.orderUrl).origin;
+  const now = new Date().toISOString();
+  const formattedAmount = formatMoney(input.amountPaidCents, input.currency);
+  const inboxNotification = {
+    body: `${input.buyerName} purchased ${String(input.quantity)} ticket${input.quantity === 1 ? "" : "s"} (${formattedAmount}).`.slice(
+      0,
+      1_000,
+    ),
+    destinationPath: "/admin/tickets",
+    kind: "ticket_sale" as const,
+    originalOccurredAt: now,
+    sourceKey: `ticket-sale-alert:${input.purchaseId}`,
+    title: `Ticket sale: ${effectiveTitle}`.slice(0, 200),
+  };
 
   return queueAutomatedOrganizationCommunication(
     env,
@@ -260,6 +273,7 @@ export async function queueTicketSaleAlert(
       contentMarkdown,
       dedupeKey: `ticket-sale-alert:${input.purchaseId}`,
       eventId: input.eventId,
+      inboxNotification,
       recipients,
       subject,
     },

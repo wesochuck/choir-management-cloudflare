@@ -55,6 +55,7 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockReset();
     vi.mocked(authApi.getPublishedOrganizationProjection).mockReset();
     vi.mocked(authApi.publishOrganizationPublicWebsite).mockReset();
+    vi.mocked(authApi.updateOrganizationPublicWebsiteSettings).mockReset();
     vi.mocked(api.listOrganizationPublicDocuments).mockReset();
     vi.mocked(api.listOrganizationPublicDocuments).mockResolvedValue([]);
     vi.mocked(api.createOrganizationPublicDocument).mockReset();
@@ -64,6 +65,43 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     vi.mocked(api.deletePrivateOrganizationFile).mockReset();
   });
 
+  it("hides and restores the preview without changing drafts, page, or device", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue({
+      ...defaultSettings,
+      historyText: "Our history",
+    });
+    render(
+      <SaveCoordinatorProvider>
+        <PublicWebsiteManager enabled />
+        <SaveBar />
+      </SaveCoordinatorProvider>,
+    );
+    await screen.findByLabelText("Publication state");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Page" }), "legacy-history");
+    const body = screen.getByLabelText("Content (Markdown)");
+    await user.type(body, " and more");
+    if (!(body instanceof HTMLTextAreaElement)) throw new Error("Expected a textarea");
+    const value = body.value;
+    await user.click(
+      within(screen.getByRole("group", { name: "Preview device" })).getByRole("button", {
+        name: "Mobile",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Hide preview" }));
+    expect(screen.queryByRole("group", { name: "Preview device" })).toBeNull();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Show preview" })).toHaveFocus());
+    expect(body).toHaveValue(value);
+    await user.click(screen.getByRole("button", { name: "Show preview" }));
+    expect(
+      within(screen.getByRole("group", { name: "Preview device" })).getByRole("button", {
+        name: "Mobile",
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(body).toHaveValue(value);
+    expect(screen.getByRole("combobox", { name: "Page" })).toHaveValue("legacy-history");
+    expect(authApi.updateOrganizationPublicWebsiteSettings).not.toHaveBeenCalled();
+  });
   it("shows compact unpublished state without a readiness checklist", async () => {
     vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue(defaultSettings);
     render(

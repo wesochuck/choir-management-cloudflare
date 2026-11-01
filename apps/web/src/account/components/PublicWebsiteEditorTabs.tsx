@@ -127,6 +127,8 @@ export function HomeTabContent({
       <div className="field">
         <label htmlFor="website-about">About Us (Markdown)</label>
         <MarkdownToolbar
+          allowImages
+          disabled={busy}
           onManageDocuments={onManageDocuments}
           onChange={(next) => {
             onChange("aboutUsText", next);

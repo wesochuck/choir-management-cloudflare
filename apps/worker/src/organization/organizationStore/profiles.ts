@@ -74,6 +74,7 @@ export function listProfiles(
           do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
           receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
           receive_admin_notifications AS receiveAdminNotifications,
+          receive_audition_notifications AS receiveAuditionNotifications,
           receive_financial_alerts AS receiveFinancialAlerts,
           receive_rehearsal_reminders AS receiveRehearsalReminders,
           receive_performance_reminders AS receivePerformanceReminders,
@@ -114,6 +115,7 @@ function readProfile(storage: DurableObjectStorage, profileId: string) {
           do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
           receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
           receive_admin_notifications AS receiveAdminNotifications,
+          receive_audition_notifications AS receiveAuditionNotifications,
           receive_financial_alerts AS receiveFinancialAlerts,
           receive_rehearsal_reminders AS receiveRehearsalReminders,
           receive_performance_reminders AS receivePerformanceReminders,
@@ -286,11 +288,11 @@ export async function createProfile(
       `INSERT INTO profiles
         (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
          do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
-         receive_admin_notifications, receive_financial_alerts, is_section_leader,
+         receive_admin_notifications, receive_audition_notifications, receive_financial_alerts, is_section_leader,
          receive_rehearsal_reminders, receive_performance_reminders,
          receive_other_event_reminders,
          status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       parsed.data.profileId,
       profile.displayName,
       profile.phone,
@@ -302,6 +304,7 @@ export async function createProfile(
       profile.receiveAttendanceReports ? 1 : 0,
       profile.receiveRsvpDeclineNotices ? 1 : 0,
       profile.receiveAdminNotifications ? 1 : 0,
+      toSqlBit(profile.receiveAuditionNotifications ?? false),
       profile.receiveFinancialAlerts ? 1 : 0,
       profile.isSectionLeader ? 1 : 0,
       toSqlBit(profile.receiveRehearsalReminders ?? true),
@@ -463,6 +466,10 @@ export async function updateProfile(
     // saved values.
     const preferenceUpdates: string[] = [];
     const preferenceBindings: number[] = [];
+    if (profile.receiveAuditionNotifications !== undefined) {
+      preferenceUpdates.push("receive_audition_notifications = ?");
+      preferenceBindings.push(toSqlBit(profile.receiveAuditionNotifications));
+    }
     if (profile.receiveRehearsalReminders !== undefined) {
       preferenceUpdates.push("receive_rehearsal_reminders = ?");
       preferenceBindings.push(toSqlBit(profile.receiveRehearsalReminders));
@@ -711,6 +718,10 @@ export async function deleteProfile(
         "DELETE FROM profile_status_history WHERE profile_id = ?",
         parsed.data.profileId,
       );
+      storage.sql.exec(
+        "DELETE FROM notification_receipts WHERE recipient_profile_id = ?",
+        parsed.data.profileId,
+      );
       storage.sql.exec("DELETE FROM profiles WHERE id = ?", parsed.data.profileId);
       storage.sql.exec(
         `INSERT INTO audit_events
@@ -903,11 +914,11 @@ function persistImportedProfile(
     `INSERT INTO profiles
           (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
            do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
-           receive_admin_notifications, receive_financial_alerts, is_section_leader,
+           receive_admin_notifications, receive_audition_notifications, receive_financial_alerts, is_section_leader,
            receive_rehearsal_reminders, receive_performance_reminders,
            receive_other_event_reminders,
            status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     profileId,
     profile.displayName,
     profile.phone,
@@ -919,6 +930,7 @@ function persistImportedProfile(
     profile.receiveAttendanceReports ? 1 : 0,
     profile.receiveRsvpDeclineNotices ? 1 : 0,
     profile.receiveAdminNotifications ? 1 : 0,
+    toSqlBit(profile.receiveAuditionNotifications ?? false),
     profile.receiveFinancialAlerts ? 1 : 0,
     profile.isSectionLeader ? 1 : 0,
     toSqlBit(profile.receiveRehearsalReminders ?? true),

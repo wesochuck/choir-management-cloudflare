@@ -21,6 +21,30 @@ for (const theme of ["light", "dark"] as const) {
       historyText: "For 60 years, we have brought the joy of singing to our community.",
     });
     let published = saved;
+    let imageId = "";
+    const imageBytes = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aNcYAAAAASUVORK5CYII=",
+      "base64",
+    );
+    await page.route("**/api/organization/files/*", async (route) => {
+      if (route.request().method() === "PUT") {
+        imageId = new URL(route.request().url()).pathname.split("/").at(-1) ?? "";
+        await route.fulfill({
+          status: 201,
+          json: {
+            id: imageId,
+            fileName: "choir.png",
+            contentType: "image/png",
+            sizeBytes: imageBytes.length,
+            uploadedAt: "2026-11-01T00:00:00Z",
+            requestId: saved.requestId,
+          },
+        });
+      } else await route.fulfill({ contentType: "image/png", body: imageBytes });
+    });
+    await page.route("**/api/public/media/*/*", (route) =>
+      route.fulfill({ contentType: "image/png", body: imageBytes }),
+    );
     await page.route("**/api/organization/website", async (route) => {
       if (route.request().method() === "PUT") {
         const body: unknown = route.request().postDataJSON();
@@ -64,7 +88,7 @@ for (const theme of ["light", "dark"] as const) {
             settings: published,
             organizationName: published.organizationName,
             timezone: "UTC",
-            mediaFileIds: [],
+            mediaFileIds: imageId ? [imageId] : [],
             performances: [],
             ticketBundles: [],
           },
@@ -122,6 +146,19 @@ for (const theme of ["light", "dark"] as const) {
     await expect(body).toHaveValue(
       /\[Scholarship application\]\(\/documents\/scholarship-application.pdf\)/,
     );
+    await page.getByRole("button", { name: "Insert image", exact: true }).click();
+    const imageDialog = page.getByRole("dialog", { name: "Insert image" });
+    await imageDialog
+      .getByLabel("Choose image")
+      .setInputFiles({ name: "choir.png", mimeType: "image/png", buffer: imageBytes });
+    await imageDialog.getByLabel("Alt text", { exact: true }).fill("Choir rehearsing together");
+    await imageDialog.getByLabel("Caption (optional)").fill("Our spring rehearsal");
+    expect(
+      (await new AxeBuilder({ page }).include('[role="dialog"]').analyze()).violations,
+    ).toEqual([]);
+    await imageDialog.getByRole("button", { name: "Insert image", exact: true }).click();
+    await expect(body).toHaveValue(/choir-image:/);
+    await expect(body).toBeFocused();
     await expect(page.getByRole("button", { name: "Publish saved draft" })).toBeDisabled();
     const selector = page.getByRole("combobox", { name: "Page", exact: true });
     await selector.selectOption("home");
@@ -135,7 +172,29 @@ for (const theme of ["light", "dark"] as const) {
     if (await previewToggle.isVisible()) await previewToggle.click();
     const preview = page.getByRole("region", { name: "Public website draft preview" });
     await expect(preview.getByRole("heading", { name: "Scholarships" })).toBeVisible();
+    await expect(preview.getByRole("img", { name: "Choir rehearsing together" })).toBeVisible();
+    await expect(preview.getByText("Our spring rehearsal")).toBeVisible();
+    await expect(preview.getByRole("img", { name: "Choir rehearsing together" })).toHaveJSProperty(
+      "naturalWidth",
+      1,
+    );
+    await preview.getByRole("button", { name: "Mobile", exact: true }).click();
+    const draftText = await body.inputValue();
+    await preview.getByRole("button", { name: "Hide preview" }).click();
+    await expect(preview).toBeHidden();
+    await expect(page.getByRole("button", { name: "Show preview" })).toBeFocused();
+    await expect(body).toHaveValue(draftText);
+    await page.getByRole("button", { name: "Show preview" }).click();
+    await expect(preview).toBeVisible();
+    await expect(preview).toBeFocused();
+    await expect(preview.getByRole("button", { name: "Mobile", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(preview.getByRole("heading", { name: "Scholarships" })).toBeVisible();
+
     await expect(preview.getByRole("button", { name: "Scholarships", exact: true })).toBeVisible();
+    await preview.getByRole("button", { name: "Desktop", exact: true }).click();
     await page.evaluate(() => {
       window.scrollTo({ top: 0, behavior: "instant" });
     });
@@ -153,6 +212,11 @@ for (const theme of ["light", "dark"] as const) {
     await expect(confirmation).toContainText("live page will disappear only after");
     await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
     await expect(title).toHaveValue("Scholarships");
+    await page.goto("/scholarships");
+    const publicImage = page.getByRole("img", { name: "Choir rehearsing together" });
+    await expect(publicImage).toHaveAttribute("src", `/api/public/media/1/${imageId}`);
+    await expect(publicImage).toHaveJSProperty("naturalWidth", 1);
+
     api.assertNoUnexpectedRequests();
   });
 }

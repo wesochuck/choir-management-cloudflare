@@ -1,3 +1,4 @@
+import { websiteContentImageIds } from "@choir/domain";
 import { PublicWebsitePagesEditor } from "./components/PublicWebsitePagesEditor";
 import {
   publicWebsiteSettingsRequestSchema,
@@ -6,7 +7,7 @@ import {
   type PublicWebsiteSettingsRequest,
 } from "@choir/contracts";
 import { Tabs, TabsContent, TabsList, TabsTrigger, useConfirmation } from "@choir/ui";
-import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useId, useRef, useState } from "react";
 
 import {
   AuthApiError,
@@ -259,11 +260,17 @@ function WebsiteEditorNotices({ error, success, verificationError }: WebsiteEdit
 }
 
 interface WebsiteEditorViewToggleProps {
+  readonly previewVisible?: boolean;
   readonly mobileView: "edit" | "preview";
   readonly onToggle: (view: "edit" | "preview") => void;
 }
 
-function WebsiteEditorViewToggle({ mobileView, onToggle }: WebsiteEditorViewToggleProps) {
+function WebsiteEditorViewToggle({
+  mobileView,
+  onToggle,
+  previewVisible = true,
+}: WebsiteEditorViewToggleProps) {
+  if (!previewVisible) return null;
   return (
     <div
       aria-label="Editor view mode"
@@ -294,11 +301,52 @@ function WebsiteEditorViewToggle({ mobileView, onToggle }: WebsiteEditorViewTogg
   );
 }
 
+function editorLayoutClass(
+  mobileView: "edit" | "preview",
+  documents: boolean,
+  previewVisible: boolean,
+) {
+  return `website-editor-layout website-editor-layout--${mobileView}${documents || !previewVisible ? " website-editor-layout--full" : ""}`;
+}
+function RestoreWebsitePreview({
+  visible,
+  documents,
+  onShow,
+  buttonRef,
+  previewId,
+}: {
+  readonly visible: boolean;
+  readonly documents: boolean;
+  readonly onShow: () => void;
+  readonly buttonRef: React.RefObject<HTMLButtonElement | null>;
+  readonly previewId: string;
+}) {
+  if (visible || documents) return null;
+  return (
+    <div className="website-preview-restore">
+      <button
+        type="button"
+        className="button button--secondary button--sm"
+        onClick={onShow}
+        ref={buttonRef}
+        aria-expanded={false}
+        aria-controls={previewId}
+      >
+        Show preview
+      </button>
+    </div>
+  );
+}
+
 export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean }) {
   const { confirm, confirmationDialog } = useConfirmation();
   const coordinator = useOptionalSaveCoordinator();
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [draft, setDraft] = useState<PublicWebsiteSettingsRequest | null>(null);
+  const [previewVisible, setPreviewVisible] = useState(true);
+  const previewId = useId();
+  const previewRef = useRef<HTMLElement | null>(null);
+  const restorePreviewRef = useRef<HTMLButtonElement | null>(null);
   const [activeTab, setActiveTab] = useState<EditorTab>("pages");
   const [previewPage, setPreviewPage] = useState<string>("home");
   const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop");
@@ -373,6 +421,21 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     setVerificationError(null);
   }
 
+  function hidePreview() {
+    setPreviewVisible(false);
+    setMobileView("edit");
+    requestAnimationFrame(() => {
+      restorePreviewRef.current?.focus();
+    });
+  }
+  function showPreview() {
+    setPreviewVisible(true);
+    setMobileView("preview");
+    requestAnimationFrame(() => {
+      previewRef.current?.focus();
+    });
+  }
+
   function handleTabChange(tab: EditorTab) {
     setActiveTab(tab);
   }
@@ -405,9 +468,13 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
         logoFileId: logoUpload?.id ?? draftSnapshot.logoFileId,
       };
       const saved = await updateOrganizationPublicWebsiteSettings(next);
+      const retainedImageIds = new Set(websiteContentImageIds(saved));
       const oldIds = [loadState.settings.heroFileId, loadState.settings.logoFileId].filter(
         (fileId): fileId is string =>
-          fileId !== null && fileId !== saved.heroFileId && fileId !== saved.logoFileId,
+          fileId !== null &&
+          fileId !== saved.heroFileId &&
+          fileId !== saved.logoFileId &&
+          !retainedImageIds.has(fileId),
       );
       await Promise.all(oldIds.map((fileId) => deletePrivateOrganizationFile(fileId))).catch(
         () => undefined,
@@ -588,14 +655,21 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
         </TabsList>
 
         {!isDocumentsTab ? (
-          <WebsiteEditorViewToggle mobileView={mobileView} onToggle={setMobileView} />
+          <WebsiteEditorViewToggle
+            mobileView={mobileView}
+            onToggle={setMobileView}
+            previewVisible={previewVisible}
+          />
         ) : null}
 
-        <div
-          className={`website-editor-layout website-editor-layout--${mobileView}${
-            isDocumentsTab ? " website-editor-layout--full" : ""
-          }`}
-        >
+        <RestoreWebsitePreview
+          visible={previewVisible}
+          documents={isDocumentsTab}
+          onShow={showPreview}
+          buttonRef={restorePreviewRef}
+          previewId={previewId}
+        />
+        <div className={editorLayoutClass(mobileView, isDocumentsTab, previewVisible)}>
           <section aria-label="Website editor" className="website-editor-controls">
             <WebsiteEditorNotices
               error={error}
@@ -688,6 +762,10 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
 
           {!isDocumentsTab ? (
             <PublicWebsitePreview
+              visible={previewVisible}
+              id={previewId}
+              previewRef={previewRef}
+              onHidePreview={hidePreview}
               draft={draft}
               heroImageUrl={heroPreviewUrl}
               logoImageUrl={logoPreviewUrl}

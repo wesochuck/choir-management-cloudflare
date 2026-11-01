@@ -31,6 +31,7 @@ function profileRequestFrom(profile: OrganizationProfile) {
     phone: profile.phone,
     receiveAdminNotifications: profile.receiveAdminNotifications,
     receiveAttendanceReports: profile.receiveAttendanceReports,
+    receiveAuditionNotifications: profile.receiveAuditionNotifications,
     receiveFinancialAlerts: profile.receiveFinancialAlerts,
     receiveRsvpDeclineNotices: profile.receiveRsvpDeclineNotices,
     showInDirectory: profile.showInDirectory,

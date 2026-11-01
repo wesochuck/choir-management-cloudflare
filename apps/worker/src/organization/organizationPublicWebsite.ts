@@ -90,6 +90,19 @@ export async function readOrganizationPublicWebsiteSettings(
   return parsed.data;
 }
 
+function throwWebsiteImageError(code: string) {
+  if (code === "website_image_limit_exceeded") {
+    throw new PublicWebsiteError(
+      409,
+      "Use at most 50 distinct content images and 102 total published images.",
+      code,
+    );
+  }
+  if (code === "invalid_public_website_image") {
+    throw new PublicWebsiteError(409, "One of the public website images is unavailable.", code);
+  }
+}
+
 export async function updateOrganizationPublicWebsiteSettings(
   env: Pick<Env, "ORGANIZATION_STORE">,
   context: WebsiteContext,
@@ -123,6 +136,7 @@ export async function updateOrganizationPublicWebsiteSettings(
       problem.data.code,
     );
   }
+  if (!response.ok && problem.success) throwWebsiteImageError(problem.data.code);
   const parsed = publicWebsiteSettingsSchema.safeParse(responseBody);
   if (!response.ok || !parsed.success) {
     throw new PublicWebsiteError(

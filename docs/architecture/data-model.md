@@ -179,3 +179,26 @@ canonical and custom public hosts. Published pages and menu links require nonemp
 menu link does not restrict URL access. Whole-site publication and automatic event refresh retain
 Organization-bound immutable R2 snapshots, with event refresh reading only published settings. See
 ADR 0071 for compatibility and rollback requirements.
+
+Website Markdown can include bounded inline image references under ADR 0072. These reuse
+Organization-private file UUIDs and existing versioned publication media; no schema change or new
+index is required. Save validates ready JPEG/PNG/WebP metadata within the owning Organization,
+collecting at most 50 distinct content images while preserving the 102-image snapshot bound. Draft
+references prevent private-file reclamation. Published references resolve only through their
+immutable snapshot's media allowlist; automatic refresh continues to use published settings.
+
+## Notification receipts and audition preference
+
+Under ADR 0073, personal notification receipts are persisted in the Organization Durable Object
+SQLite database table `notification_receipts` alongside existing alert generation flows for audition
+inquiries, ticket sales, and donations. Each receipt carries a stable UUID, recipient profile UUID,
+kind (`audition`, `ticket_sale`, `donation`), canonical source key, title, short summary body,
+optional destination path, original occurrence timestamp, expiry timestamp (90-day retention), and
+nullable read timestamp (`read_at`). Bounded cleanup runs in scheduled batches, while list/count
+queries filter out expired records immediately.
+
+Audition recipient configuration migrates from manual settings email addresses and administrator
+flags to an explicit roster Profile flag `receive_audition_notifications`. Unresolved or ambiguous
+destinations at cutover are preserved in `audition_migration_reviews` for administrator review.
+Organization metadata tracks `inbox_start_at` and `audition_cutover_completed_at` to prevent
+historical replay and ensure idempotent migration.

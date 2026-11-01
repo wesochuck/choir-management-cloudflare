@@ -12,6 +12,18 @@
   }
 
   /* === Public Website Manager Tabbed Editor & Preview (#259) === */
+  .website-image-picker__preview {
+    display: block;
+    width: 100%;
+    max-height: 12rem;
+    object-fit: contain;
+  }
+  .website-preview-restore {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--spacing-md);
+  }
+
   .website-page-remove {
     justify-self: start;
   }
@@ -77,6 +89,10 @@
     flex-direction: column;
     gap: var(--spacing-md);
     container-type: inline-size;
+  }
+
+  .website-preview-panel[hidden] {
+    display: none;
   }
 
   .website-preview-panel {

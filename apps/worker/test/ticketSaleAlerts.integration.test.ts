@@ -182,6 +182,25 @@ describe("Ticket Sale Alerts integration", () => {
     expect(alertMessage?.content).toContain("Ticket Buyer");
     expect(alertMessage?.content).toContain("buyer@example\\.test");
     expect(alertMessage?.content).toContain("/admin/tickets");
+
+    const receipt = await runInDurableObject(stub, (_instance, state) => {
+      return (
+        state.storage.sql
+          .exec<{
+            readonly body: string;
+            readonly recipient_profile_id: string;
+            readonly title: string;
+          }>(
+            "SELECT title, body, recipient_profile_id FROM notification_receipts WHERE source_key = ? LIMIT 1",
+            `ticket-sale-alert:${checkout.purchase.id}`,
+          )
+          .toArray()
+          .at(0) ?? null
+      );
+    });
+    expect(receipt).not.toBeNull();
+    expect(receipt?.recipient_profile_id).toBe(ORDINARY_PROFILE_ID);
+    expect(receipt?.title).toBe("Ticket sale: Winter Festival");
   });
 
   it("queues Ticket Sale Alert on complimentary / $0 purchase with $0.00 amount", async () => {

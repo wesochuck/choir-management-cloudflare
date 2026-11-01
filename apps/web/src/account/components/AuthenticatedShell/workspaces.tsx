@@ -495,7 +495,7 @@ export function WorkspacePage({
   readonly workspace: Workspace;
 }) {
   if (workspace === "account")
-    return renderAccountPage(route.pathname, currentSession, onSignedOut);
+    return renderAccountPage(route.pathname, currentSession, onSignedOut, { access, navigate });
   if (workspace === "platform") {
     return (
       <PlatformWorkspacePage

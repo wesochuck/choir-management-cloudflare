@@ -34,6 +34,17 @@ export const queryKeys = {
     ticketOrders: ["organization", "ticket-orders"] as const,
     venues: ["organization", "venues"] as const,
   },
+  notifications: {
+    all: ["notifications"] as const,
+    list: (profileId: string, filter?: string, cursor?: string | null) =>
+      [
+        "notifications",
+        "list",
+        profileId,
+        { cursor: cursor ?? null, filter: filter ?? "all" },
+      ] as const,
+    unreadBadge: (profileId: string) => ["notifications", "badge", profileId] as const,
+  },
   public: {
     all: ["public"] as const,
     auditionSettings: ["public", "audition-settings"] as const,

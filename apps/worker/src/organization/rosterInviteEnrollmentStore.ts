@@ -481,9 +481,9 @@ export function commitRosterInviteEnrollmentInStore(
       `INSERT OR REPLACE INTO profiles
         (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
          do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
-         receive_admin_notifications, receive_financial_alerts, is_section_leader,
+         receive_admin_notifications, receive_audition_notifications, receive_financial_alerts, is_section_leader,
          status_is_manual, status_changed_at, status_change_reason, created_at, updated_at)
-       VALUES (?, ?, ?, ?, 'Active', '', ?, 0, 0, 0, 0, 0, 0, 0, ?, 'Joined through roster invite', ?, ?)`,
+       VALUES (?, ?, ?, ?, 'Active', '', ?, 0, 0, 0, 0, 0, 0, 0, 0, ?, 'Joined through roster invite', ?, ?)`,
       prepared.profile_id,
       prepared.display_name,
       prepared.phone,

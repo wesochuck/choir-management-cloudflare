@@ -65,6 +65,7 @@ export const emptyProfile: OrganizationProfileRequest = {
   phone: "",
   receiveAdminNotifications: false,
   receiveAttendanceReports: true,
+  receiveAuditionNotifications: false,
   receiveFinancialAlerts: false,
   receiveRsvpDeclineNotices: false,
   showInDirectory: true,

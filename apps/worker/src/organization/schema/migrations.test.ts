@@ -49,6 +49,11 @@ function readTaskApplicable(
   return rows[0]?.applicable ?? null;
 }
 
+function isSqlStorage(value: unknown): value is SqlStorage {
+  if (typeof value !== "object" || value === null) return false;
+  return "exec" in value && typeof value.exec === "function";
+}
+
 describe("organization schema migrations", () => {
   it("v130 preserves populated legacy website settings and distinguishes NULL from an empty collection", () => {
     const adapter = setupThrough(129);
@@ -461,5 +466,114 @@ describe("organization schema migrations", () => {
       selected_level_name: "Gold Sponsor",
       sponsor_name: "Jane Donor Business",
     });
+  });
+
+  it("v131 migrates audition notifications, sets inbox_start_at, and handles cutover matching", () => {
+    const adapter = setupThrough(130);
+    // Insert profiles and contacts
+    const p1 = "11111111-1111-4111-8111-111111111111";
+    const p2a = "22222222-2222-4222-8222-222222222222";
+    const p2b = "33333333-3333-4333-8333-333333333333";
+    const now = "2026-01-01T00:00:00.000Z";
+
+    adapter.storage.sql.exec(
+      `INSERT INTO profiles (id, display_name, created_at, updated_at) VALUES
+       (?, 'Alice', ?, ?), (?, 'Bob 1', ?, ?), (?, 'Bob 2', ?, ?)`,
+      p1,
+      now,
+      now,
+      p2a,
+      now,
+      now,
+      p2b,
+      now,
+      now,
+    );
+
+    adapter.storage.sql.exec(
+      `INSERT INTO contacts (id, profile_id, email, created_at, updated_at) VALUES
+       ('c-1', ?, 'alice@example.test', ?, ?),
+       ('c-2', ?, 'bob@example.test', ?, ?),
+       ('c-3', ?, 'bob@example.test', ?, ?)`,
+      p1,
+      now,
+      now,
+      p2a,
+      now,
+      now,
+      p2b,
+      now,
+      now,
+    );
+
+    // Audition settings with adminNotifyEnabled
+    const auditionSettings = JSON.stringify({
+      adminNotifyEnabled: true,
+      adminNotifyUsers: ["alice@example.test", "bob@example.test", "nobody@example.test"],
+      confirmationMessage: "",
+      defaultPerformanceId: null,
+      enabled: true,
+      mode: "audition",
+      rehearsalNotes: "",
+      rehearsalSchedule: [],
+      slots: [],
+      startDate: null,
+      venueId: null,
+    });
+
+    adapter.storage.sql.exec(
+      "UPDATE organization_metadata SET audition_settings_json = ? WHERE organization_id = ?",
+      auditionSettings,
+      DEFAULT_CONTACT_TEST_ORG_ID,
+    );
+
+    // Apply v131 and v132
+    applyVersion(adapter, 131);
+    applyVersion(adapter, 132);
+    const migration132 = organizationSchemaMigrations.find((entry) => entry.version === 132);
+    if (isSqlStorage(adapter.storage.sql)) {
+      migration132?.apply?.(adapter.storage.sql);
+    }
+
+    // Check profile receive_audition_notifications
+    const alice = adapter.storage.sql
+      .exec<{ readonly receive: number }>(
+        "SELECT receive_audition_notifications AS receive FROM profiles WHERE id = ?",
+        p1,
+      )
+      .toArray()
+      .at(0);
+    expect(alice?.receive).toBe(1);
+
+    const bobA = adapter.storage.sql
+      .exec<{ readonly receive: number }>(
+        "SELECT receive_audition_notifications AS receive FROM profiles WHERE id = ?",
+        p2a,
+      )
+      .toArray()
+      .at(0);
+    expect(bobA?.receive).toBe(0);
+
+    // Check migration reviews
+    const reviews = adapter.storage.sql
+      .exec<{ readonly email: string; readonly reason: string }>(
+        "SELECT email, reason FROM audition_migration_reviews ORDER BY email ASC",
+      )
+      .toArray();
+    expect(reviews).toEqual([
+      { email: "bob@example.test", reason: "ambiguous" },
+      { email: "nobody@example.test", reason: "unmatched" },
+    ]);
+
+    // Check metadata markers
+    const meta = adapter.storage.sql
+      .exec<{ readonly inbox_start_at: string; readonly audition_cutover_completed_at: string }>(
+        "SELECT inbox_start_at, audition_cutover_completed_at FROM organization_metadata WHERE organization_id = ?",
+        DEFAULT_CONTACT_TEST_ORG_ID,
+      )
+      .toArray()
+      .at(0);
+    expect(meta?.inbox_start_at).toBeTruthy();
+    expect(meta?.audition_cutover_completed_at).toBeTruthy();
   });
 });

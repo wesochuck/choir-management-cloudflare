@@ -88,6 +88,14 @@ export const MusicLibrarySettings = lazy(() =>
   })),
 );
 
+export const NotificationInboxPage = lazy(() =>
+  import("../NotificationInbox/NotificationInboxPage").then(
+    ({ NotificationInboxPage: component }) => ({
+      default: component,
+    }),
+  ),
+);
+
 export const MySchedule = lazy(() =>
   import("../../MySchedule").then(({ MySchedule: component }) => ({ default: component })),
 );

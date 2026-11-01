@@ -223,6 +223,25 @@ describe("Donation Alerts integration", () => {
     expect(alertMessage?.content).toContain("- **Payment method:** Check");
     expect(alertMessage?.content).toContain("- **Payment reference:** Check \\#7721");
     expect(alertMessage?.content).toContain("/admin/donations");
+
+    const receipt = await runInDurableObject(stub, (_instance, state) => {
+      return (
+        state.storage.sql
+          .exec<{
+            readonly body: string;
+            readonly recipient_profile_id: string;
+            readonly title: string;
+          }>(
+            "SELECT title, body, recipient_profile_id FROM notification_receipts WHERE source_key = ? LIMIT 1",
+            `donation-alert:${manual.donation.id}`,
+          )
+          .toArray()
+          .at(0) ?? null
+      );
+    });
+    expect(receipt).not.toBeNull();
+    expect(receipt?.recipient_profile_id).toBe(ORDINARY_PROFILE_ID);
+    expect(receipt?.title).toBe("Donation: Offline Patron");
   });
 
   it("does not queue donation receipt alert when member has receiveFinancialAlerts turned off", async () => {

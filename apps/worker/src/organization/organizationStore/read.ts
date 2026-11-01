@@ -1,4 +1,10 @@
-import { searchCategorySchema } from "@choir/contracts";
+import { z } from "zod";
+import { notificationFilterSchema, searchCategorySchema } from "@choir/contracts";
+import {
+  listNotificationReceipts,
+  markAllNotificationReceiptsRead,
+  markNotificationReceiptRead,
+} from "../notificationInboxStore";
 import {
   listOrganizationEventsFromStore,
   readOrganizationDashboardSummaryFromStore,
@@ -139,6 +145,30 @@ const contentGetHandlers: Record<
 > = {
   "/internal/resources": (storage, _url, organizationId) =>
     listResourcesFromStore(storage, organizationId),
+  "/internal/notifications": (storage, url) => {
+    const profileId = url.searchParams.get("profileId");
+    if (!profileId) {
+      return Response.json(
+        { code: "bad_request", message: "profileId is required" },
+        { status: 400 },
+      );
+    }
+    const cursor = url.searchParams.get("cursor");
+    const rawFilter = url.searchParams.get("filter");
+    const filterParsed = notificationFilterSchema.safeParse(rawFilter ?? undefined);
+    const filter = filterParsed.success ? filterParsed.data : "all";
+    const limitParam = url.searchParams.get("limit");
+    const limitParsed = limitParam ? Number.parseInt(limitParam, 10) : undefined;
+    const limit = Number.isFinite(limitParsed) ? limitParsed : undefined;
+
+    const result = listNotificationReceipts(storage, {
+      cursor: cursor ?? undefined,
+      filter,
+      limit,
+      profileId,
+    });
+    return Response.json(result);
+  },
   "/internal/communications": (storage, _url, organizationId) =>
     listCommunicationMessagesFromStore(storage, organizationId),
   "/internal/communications/promotions": (storage, url, organizationId) =>
@@ -369,6 +399,54 @@ export async function dispatchWebsitePostRequest(
   return pathname === "/internal/website/manage"
     ? managePublicWebsiteInStore(storage, request)
     : null;
+}
+
+const notificationReadPayloadSchema = z.object({
+  notificationId: z.string().min(1),
+  profileId: z.string().min(1),
+});
+
+const notificationReadAllPayloadSchema = z.object({
+  boundary: z.string().min(1),
+  profileId: z.string().min(1),
+});
+
+export async function dispatchNotificationPostRequest(
+  storage: DurableObjectStorage,
+  pathname: string,
+  request: Request,
+): Promise<Response | null> {
+  if (pathname === "/internal/notifications/read") {
+    const raw = await request.json().catch(() => null);
+    const parsed = notificationReadPayloadSchema.safeParse(raw);
+    if (!parsed.success) {
+      return Response.json(
+        { code: "bad_request", message: "Invalid read request" },
+        { status: 400 },
+      );
+    }
+    const notification = markNotificationReceiptRead(storage, parsed.data);
+    if (!notification) {
+      return Response.json(
+        { code: "not_found", message: "Notification not found" },
+        { status: 404 },
+      );
+    }
+    return Response.json({ notification });
+  }
+  if (pathname === "/internal/notifications/read-all") {
+    const raw = await request.json().catch(() => null);
+    const parsed = notificationReadAllPayloadSchema.safeParse(raw);
+    if (!parsed.success) {
+      return Response.json(
+        { code: "bad_request", message: "Invalid read-all request" },
+        { status: 400 },
+      );
+    }
+    const markedCount = markAllNotificationReceiptsRead(storage, parsed.data);
+    return Response.json({ markedCount });
+  }
+  return null;
 }
 
 export async function dispatchCommunicationPostRequest(

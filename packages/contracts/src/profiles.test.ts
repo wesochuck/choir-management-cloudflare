@@ -5,6 +5,7 @@ import {
   memberProfileUpdateRequestSchema,
   organizationProfileDeleteResponseSchema,
   organizationProfileRequestSchema,
+  organizationProfileSchema,
 } from "./profiles";
 
 describe("organizationProfileRequestSchema", () => {
@@ -39,11 +40,28 @@ describe("organizationProfileRequestSchema", () => {
       displayName: "Jane Doe",
     });
     expect(parsed.receiveAdminNotifications).toBe(false);
+    expect(parsed.receiveAuditionNotifications).toBeUndefined();
     expect(parsed.receiveAttendanceReports).toBe(true);
     expect(parsed.showInDirectory).toBe(true);
     expect(parsed.doNotEmail).toBe(false);
     expect(parsed.hidden).toBe(false);
     expect(parsed.isSectionLeader).toBe(false);
+  });
+
+  it("accepts receiveAuditionNotifications in profile requests and defaults to false in profile schema", () => {
+    const requestWithTrue = organizationProfileRequestSchema.parse({
+      displayName: "Jane Doe",
+      receiveAuditionNotifications: true,
+    });
+    expect(requestWithTrue.receiveAuditionNotifications).toBe(true);
+
+    const parsed = organizationProfileSchema.parse({
+      createdAt: "2026-01-01T00:00:00.000Z",
+      displayName: "Jane Doe",
+      id: "11111111-1111-4111-8111-111111111111",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    expect(parsed.receiveAuditionNotifications).toBe(false);
   });
 });
 

@@ -418,3 +418,11 @@ export * from "./loudness";
 export * from "./publicDocuments";
 
 export { hasAttendanceWarning } from "./attendanceWarning";
+
+export {
+  parseWebsiteContentImage,
+  formatWebsiteContentImage,
+  websiteImageSelection,
+  websiteContentImageIds,
+  type WebsiteContentImage,
+} from "./websiteContentImages";

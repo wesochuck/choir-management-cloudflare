@@ -990,6 +990,19 @@ to administrative pages, feature configuration sub-tabs, roster profiles, events
 quick actions within the active Organization Scope. _Avoid_: Global search across Organizations,
 Member command palette
 
+## Notification Inbox
+
+A personal collection of notices generated for an Organization member by the existing email
+notification system and its recipient rules. A notice remains part of the collection even if its
+email cannot be delivered; receiving a notice does not grant access to its related records. _Avoid_:
+Admin-only inbox, Organization activity feed, email delivery log
+
+## Audition Notice Recipient
+
+A person whose roster Profile is configured to receive notices of new audition inquiries. An
+Audition Notice Recipient does not need to be an Organization Administrator. _Avoid_: Administrator
+notification email, additional audition recipient
+
 ## Practice Loudness Target
 
 The Organization's desired listening level for practice recordings, expressed in LUFS. A

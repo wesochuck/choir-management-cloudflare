@@ -85,7 +85,12 @@ export function readAuditionSettingsFromStore(
   const parsed = organizationAuditionSettingsSchema.safeParse(raw);
   const initialSettings = parsed.success ? parsed.data : defaultAuditionSettings;
   const settings = syncAuditionSettingsExpiration(storage, organizationId, initialSettings, now);
-  return Response.json(settings);
+  const migrationReviews = storage.sql
+    .exec<{ readonly email: string; readonly reason: "unmatched" | "ambiguous" }>(
+      "SELECT email, reason FROM audition_migration_reviews ORDER BY email ASC",
+    )
+    .toArray();
+  return Response.json({ ...settings, migrationReviews });
 }
 
 export function readPublicAuditionSettingsFromStore(

@@ -1,3 +1,4 @@
+import { MarkdownImageAction } from "./MarkdownImageAction";
 import { MarkdownDocumentPicker } from "./MarkdownDocumentPicker";
 import type { PublicWebsiteDocument } from "@choir/contracts";
 import { useRef, useState, type RefObject } from "react";
@@ -9,6 +10,8 @@ import {
 import { MarkdownLinkEditor } from "./MarkdownLinkEditor";
 
 interface MarkdownToolbarProps {
+  readonly allowImages?: boolean;
+  readonly disabled?: boolean;
   readonly onManageDocuments?: (() => Promise<boolean>) | undefined;
   readonly hostedDocuments?: readonly PublicWebsiteDocument[] | undefined;
   readonly onChange: (nextValue: string) => void;
@@ -17,6 +20,8 @@ interface MarkdownToolbarProps {
 }
 
 export function MarkdownToolbar({
+  allowImages = false,
+  disabled = false,
   hostedDocuments,
   onManageDocuments,
   onChange,
@@ -173,6 +178,14 @@ export function MarkdownToolbar({
         >
           Insert document
         </button>
+        {allowImages ? (
+          <MarkdownImageAction
+            value={value}
+            textareaRef={textareaRef}
+            onChange={onChange}
+            disabled={disabled}
+          />
+        ) : null}
       </div>
       {insertionError ? <p role="alert">{insertionError}</p> : null}
       {documentSelection ? (

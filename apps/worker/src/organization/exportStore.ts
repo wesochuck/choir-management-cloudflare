@@ -30,6 +30,8 @@ const EXPORT_TABLES = [
   "auditions",
   "audition_slots",
   "audition_notifications",
+  "audition_migration_reviews",
+  "notification_receipts",
   "patrons",
   "donations",
   "donation_expirations",

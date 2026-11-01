@@ -56,6 +56,17 @@ export const unsubscribeContactOperationSchema = z.object({
   organizationId: z.string().min(1).max(128),
   requestId: z.uuid(),
 });
+
+export const inboxNotificationSchema = z.object({
+  body: z.string().max(1_000),
+  destinationPath: z.string().max(500).nullable(),
+  kind: z.enum(["ticket_sale", "donation"]),
+  originalOccurredAt: z.iso.datetime(),
+  sourceKey: z.string().min(1).max(256),
+  title: z.string().min(1).max(200),
+});
+export type InboxNotification = z.infer<typeof inboxNotificationSchema>;
+
 export const saveOperationSchema = contextSchema.extend({
   action: z.literal("save-draft"),
   message: communicationDraftRequestSchema,
@@ -78,6 +89,7 @@ export const sendOperationSchema = contextSchema
       .optional(),
     jobId: z.uuid(),
     dedupeKey: z.string().trim().min(1).max(256).optional(),
+    inboxNotification: inboxNotificationSchema.optional(),
     message: communicationSendRequestSchema,
     messageId: z.uuid(),
     recipients: z.array(recipientSchema).max(MAX_COMMUNICATION_DELIVERIES),

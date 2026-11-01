@@ -39,6 +39,7 @@ function hasEmailSettingsChanged(
   return (
     current.doNotEmail !== baseline.doNotEmail ||
     current.receiveAdminNotifications !== baseline.receiveAdminNotifications ||
+    current.receiveAuditionNotifications !== baseline.receiveAuditionNotifications ||
     current.receiveRsvpDeclineNotices !== baseline.receiveRsvpDeclineNotices ||
     current.receiveFinancialAlerts !== baseline.receiveFinancialAlerts ||
     current.receiveAttendanceReports !== baseline.receiveAttendanceReports ||

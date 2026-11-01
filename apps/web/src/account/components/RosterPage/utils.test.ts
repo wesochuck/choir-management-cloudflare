@@ -5,6 +5,7 @@ import { emptyProfile } from "./utils";
 describe("RosterPage emptyProfile", () => {
   it("defaults receiveAdminNotifications to false when adding someone to the roster", () => {
     expect(emptyProfile.receiveAdminNotifications).toBe(false);
+    expect(emptyProfile.receiveAuditionNotifications).toBe(false);
     expect(emptyProfile.receiveFinancialAlerts).toBe(false);
     expect(emptyProfile.receiveAttendanceReports).toBe(true);
     expect(emptyProfile.receiveOtherEventReminders).toBe(true);

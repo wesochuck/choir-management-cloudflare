@@ -161,13 +161,21 @@ export const auditionSlotInputSchema = z.object({
   startsAt: z.iso.datetime(),
 });
 
+export const auditionMigrationReviewSchema = z.object({
+  email: z.string(),
+  reason: z.enum(["unmatched", "ambiguous"]),
+});
+
+export type AuditionMigrationReview = z.infer<typeof auditionMigrationReviewSchema>;
+
 export const organizationAuditionSettingsSchema = z
   .object({
-    adminNotifyEnabled: z.boolean(),
-    adminNotifyUsers: z.array(z.string().min(1).max(128)).max(100),
+    adminNotifyEnabled: z.boolean().default(false),
+    adminNotifyUsers: z.array(z.string().min(1).max(128)).max(100).default([]),
     confirmationMessage: z.string().max(5_000),
     defaultPerformanceId: z.uuid().nullable(),
     enabled: z.boolean(),
+    migrationReviews: z.array(auditionMigrationReviewSchema).default([]),
     mode: intakeModeSchema,
     rehearsalNotes: z.string().max(5_000).default(""),
     rehearsalSchedule: z.array(rehearsalSessionSchema).max(20).default([]),

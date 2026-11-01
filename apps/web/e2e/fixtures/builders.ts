@@ -279,6 +279,7 @@ export function buildOrganizationProfile(
     providerEmailSuppressed: false,
     receiveAdminNotifications: true,
     receiveAttendanceReports: true,
+    receiveAuditionNotifications: false,
     receiveFinancialAlerts: false,
     receiveOtherEventReminders: true,
     receivePerformanceReminders: true,

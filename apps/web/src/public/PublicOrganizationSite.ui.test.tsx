@@ -49,6 +49,22 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
     vi.mocked(authApi.getPublishedOrganizationProjection).mockReset();
   });
 
+  it("resolves inline images only from the published snapshot allowlist", async () => {
+    const id = "77777777-7777-4777-8777-777777777777";
+    const missing = "88888888-8888-4888-8888-888888888888";
+    const projection = createProjection();
+    projection.payload.settings.aboutUsText = `![Published choir](choir-image:${id})\n\n![Missing choir](choir-image:${missing})`;
+    projection.payload.mediaFileIds = [id];
+    vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(projection);
+    render(<PublicOrganizationSite pathname="/" fallback={null} />);
+    expect(await screen.findByRole("img", { name: "Published choir" })).toHaveAttribute(
+      "src",
+      `/api/public/media/1/${id}`,
+    );
+    expect(screen.queryByRole("img", { name: "Missing choir" })).toBeNull();
+    expect(screen.getByText("Image unavailable.")).toBeInTheDocument();
+  });
+
   it.each(["/", "/performances"])(
     "prioritizes ticketed cards on %s before the homepage limit",
     async (pathname) => {

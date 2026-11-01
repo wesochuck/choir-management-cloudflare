@@ -2,6 +2,7 @@ import type { Hono } from "hono";
 import type { WorkerHonoEnvironment } from "../helpers";
 
 import { registerRoutes as registerMemberEmailChangeRoutes } from "../memberEmailChange";
+import { registerRoutes as registerMemberNotificationsRoutes } from "../memberNotifications";
 import { registerRoutes as registerSingerCoreRoutes } from "../singer";
 import { registerRoutes as registerSingerBillingRoutes } from "../singerBilling";
 import { registerRoutes as registerSingerDashboardRoutes } from "../singerDashboard";
@@ -19,4 +20,5 @@ export function registerSingerGroupRoutes(router: Hono<WorkerHonoEnvironment>): 
   registerSingerMusicRoutes(router);
   registerSingerSeatingRoutes(router);
   registerMemberEmailChangeRoutes(router);
+  registerMemberNotificationsRoutes(router);
 }

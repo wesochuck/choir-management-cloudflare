@@ -22,7 +22,6 @@ import { AuditionSlotsSection } from "./SlotsSection";
 import { AdminNotificationsSection } from "./AdminNotificationsSection";
 
 export function SettingsForm({
-  administratorRecipients,
   initial,
   onCancel,
   onDirtyChange,
@@ -32,7 +31,7 @@ export function SettingsForm({
   timezone,
   venues,
 }: {
-  readonly administratorRecipients: readonly AdministratorRecipient[];
+  readonly administratorRecipients?: readonly AdministratorRecipient[];
   readonly initial: OrganizationAuditionSettings;
   readonly onCancel: () => void;
   readonly onDirtyChange: (dirty: boolean) => void;
@@ -48,7 +47,6 @@ export function SettingsForm({
   const [slotDate, setSlotDate] = useState("");
   const [slotInterval, setSlotInterval] = useState("15");
   const [slotError, setSlotError] = useState<string | null>(null);
-  const [recipientEmail, setRecipientEmail] = useState("");
   const [newVenueAddress, setNewVenueAddress] = useState("");
   const [newVenueName, setNewVenueName] = useState("");
   const [newVenueError, setNewVenueError] = useState<string | null>(null);
@@ -212,25 +210,6 @@ export function SettingsForm({
     } finally {
       setNewVenueBusy(false);
     }
-  }
-
-  function addRecipient() {
-    const email = recipientEmail.trim().toLowerCase();
-    if (!email || !email.includes("@") || !draft || draft.adminNotifyUsers.includes(email)) return;
-    setDraft((current) => ({
-      ...current,
-      adminNotifyUsers: [...current.adminNotifyUsers, email],
-    }));
-    setRecipientEmail("");
-  }
-
-  function toggleAdministrator(recipient: AdministratorRecipient, checked: boolean) {
-    setDraft((current) => ({
-      ...current,
-      adminNotifyUsers: checked
-        ? [...new Set([...current.adminNotifyUsers, recipient.email])]
-        : current.adminNotifyUsers.filter((email) => email !== recipient.email),
-    }));
   }
 
   if (!draft) return null;
@@ -446,23 +425,7 @@ export function SettingsForm({
         />
       )}
 
-      <AdminNotificationsSection
-        administratorRecipients={administratorRecipients}
-        draft={draft}
-        onAddRecipient={addRecipient}
-        onRemoveRecipient={(email) => {
-          setDraft((current) => ({
-            ...current,
-            adminNotifyUsers: current.adminNotifyUsers.filter((candidate) => candidate !== email),
-          }));
-        }}
-        onToggleAdminNotify={(enabled) => {
-          setDraft((current) => ({ ...current, adminNotifyEnabled: enabled }));
-        }}
-        onToggleAdministrator={toggleAdministrator}
-        recipientEmail={recipientEmail}
-        setRecipientEmail={setRecipientEmail}
-      />
+      <AdminNotificationsSection migrationReviews={draft.migrationReviews} />
 
       <div className="form-actions">
         <button className="button button--secondary" onClick={onCancel} type="button">

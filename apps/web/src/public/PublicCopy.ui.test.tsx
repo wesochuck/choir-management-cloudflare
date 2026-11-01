@@ -74,4 +74,27 @@ describe("PublicCopy", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/<script>alert\('xss'\)<\/script>/)).toBeInTheDocument();
   });
+  it("renders only opted-in internal images with safe text captions", () => {
+    const text =
+      '![Choir](choir-image:77777777-7777-4777-8777-777777777777 "<script>caption</script>")';
+    const { rerender, container } = render(<PublicCopy text={text} />);
+    expect(screen.queryByRole("img")).toBeNull();
+    rerender(<PublicCopy text={text} imageUrl={(id) => `/api/public/media/2/${id}`} />);
+    expect(screen.getByRole("img", { name: "Choir" })).toHaveAttribute(
+      "src",
+      "/api/public/media/2/77777777-7777-4777-8777-777777777777",
+    );
+    expect(container.querySelector("figcaption")).toHaveTextContent("<script>caption</script>");
+    expect(container.querySelector("script")).toBeNull();
+    rerender(<PublicCopy text={text} imageUrl={() => null} />);
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.getByText("Image unavailable.")).toBeInTheDocument();
+    rerender(
+      <PublicCopy
+        text="![Remote](https://example.org/photo.png)"
+        imageUrl={() => "/should-not-load"}
+      />,
+    );
+    expect(screen.queryByRole("img")).toBeNull();
+  });
 });

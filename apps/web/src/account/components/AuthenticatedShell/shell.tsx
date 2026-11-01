@@ -66,6 +66,7 @@ import type { AccessState, ThemePreference, Workspace } from "./types";
 
 import { WorkspacePageLoading, WorkspacePage } from "./workspaces";
 import { CommandPaletteModal, QuickSearchTrigger } from "../CommandPalette";
+import { NotificationBell } from "../NotificationInbox/NotificationBell";
 import {
   availableWorkspaces,
   organizationDisplayName,
@@ -842,6 +843,16 @@ function AuthenticatedOrganizationShell({
                 className="header-quick-search-trigger"
                 onClick={openPaletteFromHeader}
                 variant="header"
+              />
+            ) : null}
+            {access.status === "ready" && selectedWorkspace !== "platform" ? (
+              <NotificationBell
+                onNavigate={(href) => {
+                  void navigate(href);
+                }}
+                organizationId={access.context.organizationId}
+                userId={currentSession.user.id}
+                userRole={access.context.role}
               />
             ) : null}
             <label className="workspace-switcher">

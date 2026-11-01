@@ -1,3 +1,4 @@
+import { WebsiteCopy } from "./WebsiteCopy";
 import { normalizedPublicWebsitePages } from "@choir/contracts";
 import { publicPageHeading, publicPageNavigationLabel } from "./publicPageLabels";
 import type { PublishedOrganizationProjection } from "@choir/contracts";
@@ -287,7 +288,7 @@ function OrganizationHome({
       {settings.aboutUsText ? (
         <section className="public-section public-section--narrow" id="about-us">
           <h2>About Us</h2>
-          <PublicCopy text={settings.aboutUsText} />
+          <WebsiteCopy text={settings.aboutUsText} projection={projection} />
         </section>
       ) : null}
       {past.length > 0 ? (
@@ -407,7 +408,7 @@ function OrganizationContentPage({
       <section className="public-section public-section--narrow">
         <h1>{contentPage?.title ?? "Page not found"}</h1>
         {contentPage ? (
-          <PublicCopy text={contentPage.body} />
+          <WebsiteCopy text={contentPage.body} projection={projection} />
         ) : (
           <p>
             This page is not available. <a href="/">Return home</a>.

@@ -66,4 +66,31 @@ describe("ProfileEmailPanel notification copy and semantics", () => {
       screen.getByText("Updates about ticket sales, donations, and finances."),
     ).toBeInTheDocument();
   });
+
+  it("renders audition notices switch and updated administrator notifications copy", () => {
+    const setProfile = vi.fn();
+    render(
+      <ProfileEmailPanel
+        busy={false}
+        editingProfileRecord={null}
+        profile={baseProfileRequest}
+        setProfile={setProfile}
+      />,
+    );
+
+    const adminSwitch = screen.getByLabelText(
+      "Administrator notifications — Receive operational messages",
+    );
+    expect(adminSwitch).toBeInTheDocument();
+    expect(screen.getByText("Operational messages.")).toBeInTheDocument();
+    expect(screen.queryByText(/audition-related messages/i)).not.toBeInTheDocument();
+
+    const auditionSwitch = screen.getByLabelText(
+      "Audition notices — Receive alerts when new audition inquiries arrive",
+    );
+    expect(auditionSwitch).toBeInTheDocument();
+    expect(
+      screen.getByText("Receive alerts when new audition inquiries arrive."),
+    ).toBeInTheDocument();
+  });
 });

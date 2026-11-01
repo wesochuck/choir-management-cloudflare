@@ -10,6 +10,7 @@ import { readRosterAutomationConfiguration, runRosterAutomations } from "./statu
 import { advanceComplianceReminder, findDueComplianceReminders } from "./complianceStore";
 import { schedulePaymentFeeReconciliationInStore } from "./feeReconciliation";
 import { prepareMusicTrackImportCleanupSweepInStore } from "./music/trackImportStore";
+import { cleanupExpiredNotificationReceipts } from "./notificationInboxStore";
 
 import {
   EVENT_REMINDER_LEAD_MS,
@@ -1002,6 +1003,7 @@ function triggerDueSchedulerTasks(
   runRosterAutomations(storage, organizationId, now);
   archiveDuePolls(storage, organizationId, now);
   autoDisableExpiredAuditions(storage, organizationId, now);
+  cleanupExpiredNotificationReceipts(storage, now);
   createDueJobs(storage, organizationId, now, force);
 }
 

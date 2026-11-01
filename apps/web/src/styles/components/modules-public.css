@@ -154,6 +154,21 @@
     min-width: 0;
   }
 
+  .public-content-image {
+    margin: var(--spacing-lg) 0;
+  }
+  .public-content-image img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: var(--radius-control);
+  }
+  .public-content-image figcaption {
+    margin-top: var(--spacing-xs);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+  }
+
   .public-site {
     min-height: 100vh;
     background: var(--color-background);

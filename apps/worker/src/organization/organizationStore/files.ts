@@ -1,3 +1,4 @@
+import { websiteContentImageIsReferenced } from "../publicWebsiteStore";
 import {
   privateFileIdSchema,
   privateFileReclamationSchema,
@@ -176,7 +177,7 @@ export function privateFileIsReferenced(storage: DurableObjectStorage, fileId: s
       fileId,
     )
     .one().count;
-  if (publicWebsiteReference > 0) return true;
+  if (publicWebsiteReference > 0 || websiteContentImageIsReferenced(storage, fileId)) return true;
   return (
     storage.sql
       .exec<{ readonly [column: string]: SqlStorageValue; readonly count: number }>(

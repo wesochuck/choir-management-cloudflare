@@ -24,6 +24,7 @@ import { MAX_COMMUNICATION_DELIVERIES, type TemplateRow } from "./contracts";
 import { audit, eventPromotionIsEligible, readMessage } from "./shared";
 import { wakeOrganizationAlarm } from "../scheduler";
 import { getSystemCommunicationTemplateDefault } from "../schema/templates";
+import { insertNotificationReceipt } from "../notificationInboxStore";
 
 function deliveryRows(
   message: z.infer<typeof communicationSendRequestSchema>,
@@ -322,6 +323,21 @@ export async function sendMessage(
         delivery.channel === "email" ? delivery.recipient.unsubscribeUrl : null,
         JSON.stringify(delivery.subject),
       );
+    }
+    if (operation.inboxNotification) {
+      const uniqueProfileIds = [...new Set(deliveries.map((d) => d.recipient.profileId))];
+      for (const profileId of uniqueProfileIds) {
+        insertNotificationReceipt(storage, {
+          body: operation.inboxNotification.body,
+          destinationPath: operation.inboxNotification.destinationPath,
+          kind: operation.inboxNotification.kind,
+          now,
+          originalOccurredAt: operation.inboxNotification.originalOccurredAt,
+          recipientProfileId: profileId,
+          sourceKey: operation.inboxNotification.sourceKey,
+          title: operation.inboxNotification.title,
+        });
+      }
     }
     storage.sql.exec(
       `INSERT INTO scheduled_job_outbox (job_id, kind, idempotency_key, due_at, created_at)

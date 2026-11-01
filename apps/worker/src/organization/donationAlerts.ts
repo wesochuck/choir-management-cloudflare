@@ -154,6 +154,18 @@ export async function queueDonationAlert(
 
   const { contentMarkdown, subject } = buildDonationAlertContent(input);
   const organizationOrigin = input.organizationOrigin ?? new URL(input.orderUrl).origin;
+  const now = new Date().toISOString();
+  const effectiveCurrency = input.currency ?? "USD";
+  const formattedAmount = formatMoney(input.amountCents, effectiveCurrency);
+  const levelPart = input.selectedLevelName ? ` (${input.selectedLevelName})` : "";
+  const inboxNotification = {
+    body: `Received ${formattedAmount}${levelPart} from ${input.buyerName}.`.slice(0, 1_000),
+    destinationPath: "/admin/donations",
+    kind: "donation" as const,
+    originalOccurredAt: now,
+    sourceKey: `donation-alert:${input.donationId}`,
+    title: `Donation: ${input.buyerName}`.slice(0, 200),
+  };
 
   return queueAutomatedOrganizationCommunication(
     env,
@@ -167,6 +179,7 @@ export async function queueDonationAlert(
       contentMarkdown,
       dedupeKey: `donation-alert:${input.donationId}`,
       eventId: null,
+      inboxNotification,
       recipients,
       subject,
     },

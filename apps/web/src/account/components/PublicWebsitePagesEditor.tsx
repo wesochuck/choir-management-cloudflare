@@ -148,6 +148,9 @@ export function PublicWebsitePagesEditor({
           <div className="field">
             <label htmlFor="website-page-body">Content (Markdown)</label>
             <MarkdownToolbar
+              key={page.id}
+              allowImages
+              disabled={busy}
               textareaRef={textareaRef}
               value={page.body}
               onManageDocuments={onManageDocuments}

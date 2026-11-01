@@ -2314,6 +2314,128 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE public_website_settings ADD COLUMN draft_revision INTEGER NOT NULL DEFAULT 0 CHECK (draft_revision >= 0)",
     ],
   },
+  {
+    version: 131,
+    statements: [
+      "ALTER TABLE profiles ADD COLUMN receive_audition_notifications INTEGER NOT NULL DEFAULT 0 CHECK (receive_audition_notifications IN (0, 1))",
+      "ALTER TABLE audition_notifications ADD COLUMN profile_id TEXT REFERENCES profiles(id) ON DELETE SET NULL",
+      "ALTER TABLE organization_metadata ADD COLUMN inbox_start_at TEXT",
+      "ALTER TABLE organization_metadata ADD COLUMN audition_cutover_completed_at TEXT",
+      `CREATE TABLE IF NOT EXISTS notification_receipts (
+        id TEXT PRIMARY KEY,
+        recipient_profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('audition', 'ticket_sale', 'donation')),
+        source_key TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        destination_path TEXT,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        read_at TEXT
+      ) STRICT`,
+      `CREATE UNIQUE INDEX idx_notification_receipts_recipient_source
+        ON notification_receipts(recipient_profile_id, source_key)`,
+      `CREATE INDEX idx_notification_receipts_recipient_created
+        ON notification_receipts(recipient_profile_id, created_at DESC, id DESC)`,
+      `CREATE INDEX idx_notification_receipts_recipient_kind
+        ON notification_receipts(recipient_profile_id, kind, created_at DESC, id DESC)`,
+      `CREATE INDEX idx_notification_receipts_recipient_unread
+        ON notification_receipts(recipient_profile_id, created_at DESC, id DESC)
+        WHERE read_at IS NULL`,
+      `CREATE INDEX idx_notification_receipts_expires_at
+        ON notification_receipts(expires_at)`,
+      `CREATE TABLE IF NOT EXISTS audition_migration_reviews (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        reason TEXT NOT NULL CHECK (reason IN ('unmatched', 'ambiguous')),
+        matched_profile_ids_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL
+      ) STRICT`,
+    ],
+  },
+  {
+    version: 132,
+    statements: [],
+    apply: (sql) => {
+      const now = new Date().toISOString();
+      const meta = sql
+        .exec<{
+          readonly inboxStartAt: string | null;
+          readonly auditionCutoverCompletedAt: string | null;
+          readonly auditionSettingsJson: string | null;
+        }>(
+          "SELECT inbox_start_at AS inboxStartAt, audition_cutover_completed_at AS auditionCutoverCompletedAt, audition_settings_json AS auditionSettingsJson FROM organization_metadata LIMIT 1",
+        )
+        .toArray()
+        .at(0);
+      if (!meta) return;
+
+      if (!meta.inboxStartAt) {
+        sql.exec("UPDATE organization_metadata SET inbox_start_at = ?", now);
+      }
+
+      if (!meta.auditionCutoverCompletedAt) {
+        const legacySettingsSchema = z
+          .object({
+            adminNotifyEnabled: z.boolean().optional(),
+            adminNotifyUsers: z.array(z.string()).optional(),
+          })
+          .loose();
+        let settings: z.infer<typeof legacySettingsSchema> | null = null;
+        if (meta.auditionSettingsJson) {
+          try {
+            settings = legacySettingsSchema.parse(JSON.parse(meta.auditionSettingsJson));
+          } catch {
+            settings = null;
+          }
+        }
+        if (
+          settings?.adminNotifyEnabled &&
+          Array.isArray(settings.adminNotifyUsers) &&
+          settings.adminNotifyUsers.length > 0
+        ) {
+          const uniqueEmails = [
+            ...new Set(
+              settings.adminNotifyUsers.map((e) => e.trim().toLowerCase()).filter(Boolean),
+            ),
+          ];
+          for (const email of uniqueEmails) {
+            const matches = sql
+              .exec<{ readonly profileId: string }>(
+                `SELECT DISTINCT c.profile_id AS profileId
+                 FROM contacts c
+                 JOIN profiles p ON p.id = c.profile_id
+                 WHERE lower(trim(c.email)) = ?`,
+                email,
+              )
+              .toArray();
+            if (matches.length === 1 && matches[0]) {
+              sql.exec(
+                "UPDATE profiles SET receive_audition_notifications = 1 WHERE id = ?",
+                matches[0].profileId,
+              );
+            } else if (matches.length === 0) {
+              sql.exec(
+                "INSERT INTO audition_migration_reviews (id, email, reason, matched_profile_ids_json, created_at) VALUES (?, ?, 'unmatched', '[]', ?)",
+                crypto.randomUUID(),
+                email,
+                now,
+              );
+            } else {
+              sql.exec(
+                "INSERT INTO audition_migration_reviews (id, email, reason, matched_profile_ids_json, created_at) VALUES (?, ?, 'ambiguous', ?, ?)",
+                crypto.randomUUID(),
+                email,
+                JSON.stringify(matches.map((m) => m.profileId)),
+                now,
+              );
+            }
+          }
+        }
+        sql.exec("UPDATE organization_metadata SET audition_cutover_completed_at = ?", now);
+      }
+    },
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

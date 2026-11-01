@@ -104,6 +104,7 @@ describe("resolveDraggingProfile", () => {
     providerEmailSuppressed: false,
     receiveAdminNotifications: false,
     receiveAttendanceReports: false,
+    receiveAuditionNotifications: false,
     receiveFinancialAlerts: false,
     receiveOtherEventReminders: true,
     receivePerformanceReminders: true,

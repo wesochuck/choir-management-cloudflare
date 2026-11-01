@@ -83,6 +83,7 @@ import {
 import {
   dispatchWebsitePostRequest,
   dispatchCommunicationPostRequest,
+  dispatchNotificationPostRequest,
   dispatchPrivateFilePostRequest,
   dispatchProfilePostRequest,
 } from "./read";
@@ -98,6 +99,8 @@ export async function dispatchPostRequest(
   if (profileResponse) return profileResponse;
   const fileResponse = await dispatchPrivateFilePostRequest(storage, pathname, request);
   if (fileResponse) return fileResponse;
+  const notificationResponse = await dispatchNotificationPostRequest(storage, pathname, request);
+  if (notificationResponse) return notificationResponse;
   const communicationResponse = await dispatchCommunicationPostRequest(storage, pathname, request);
   if (communicationResponse) return communicationResponse;
   const websiteResponse = await dispatchWebsitePostRequest(storage, pathname, request);

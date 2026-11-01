@@ -1,3 +1,4 @@
+import { websiteContentImageIds } from "@choir/domain";
 import {
   publicWebsiteProjectionPayloadSchema,
   publicWebsiteSettingsRequestSchema,
@@ -164,6 +165,15 @@ function parsedSettings(row: SettingsRow, organizationName: string) {
   });
 }
 
+export function websiteContentImageIsReferenced(
+  storage: DurableObjectStorage,
+  fileId: string,
+): boolean {
+  return websiteContentImageIds(parsedSettings(settingsRow(storage), "Organization")).includes(
+    fileId,
+  );
+}
+
 function mediaFile(storage: DurableObjectStorage, fileId: string): MediaRow | undefined {
   return storage.sql
     .exec<MediaRow>(
@@ -313,11 +323,27 @@ function compatibleWebsiteSettings(
   };
 }
 
+function validateContentImages(
+  storage: DurableObjectStorage,
+  settings: PublicWebsiteSettingsRequest,
+): Response | null {
+  const ids = websiteContentImageIds(settings);
+  if (ids.length > 50)
+    return Response.json({ code: "website_image_limit_exceeded" }, { status: 409 });
+  for (const id of ids)
+    if (!validPublicImage(mediaFile(storage, id))) {
+      return Response.json({ code: "invalid_public_website_image" }, { status: 409 });
+    }
+  return null;
+}
+
 function updateSettings(
   storage: DurableObjectStorage,
   operation: Extract<z.infer<typeof publicWebsiteOperationSchema>, { readonly action: "update" }>,
   organization: IdentityRow,
 ): Response {
+  const contentImageError = validateContentImages(storage, operation.settings);
+  if (contentImageError) return contentImageError;
   for (const fileId of [operation.settings.heroFileId, operation.settings.logoFileId]) {
     if (fileId && !validPublicImage(mediaFile(storage, fileId))) {
       return Response.json({ code: "invalid_public_website_image" }, { status: 409 });
@@ -476,12 +502,15 @@ function beginPublication(
   const mediaIds = new Set(
     [
       settings.heroFileId,
+      ...websiteContentImageIds(settings),
       effectiveLogoFileId,
       ...performances.map(({ graphicFileId }) => graphicFileId),
       ...ticketedGraphicIds,
       ...bundleGraphicIds,
     ].filter((fileId): fileId is string => fileId !== null),
   );
+  if (mediaIds.size > 102)
+    return Response.json({ code: "website_image_limit_exceeded" }, { status: 409 });
   const media = [...mediaIds].map((fileId) => mediaFile(storage, fileId));
   if (media.some((file) => !validPublicImage(file))) {
     return Response.json({ code: "public_website_media_unavailable" }, { status: 409 });

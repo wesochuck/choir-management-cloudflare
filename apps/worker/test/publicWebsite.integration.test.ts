@@ -189,6 +189,7 @@ describe("Organization public website", () => {
 
   it("makes ticket-enabled Performances public on create and update and refreshes the live schedule without publishing website drafts", async () => {
     const cookie = await signIn();
+    await uploadImage(cookie);
     const venue = organizationVenueSchema.parse(
       await (
         await jsonWrite(
@@ -240,7 +241,7 @@ describe("Organization public website", () => {
         id: "live-story",
         title: "Live story",
         slug: "our-story",
-        body: "Published story",
+        body: `Published story\n\n![Choir](choir-image:${FILE_ID})`,
         showInNavigation: false,
       },
     ];
@@ -257,6 +258,7 @@ describe("Organization public website", () => {
     ).toBe(200);
     await publish();
     expect((await readPublic()).payload.settings.pages).toEqual(publishedPages);
+    expect((await readPublic()).payload.mediaFileIds).toContain(FILE_ID);
     expect((await readPublic()).payload.performances).toHaveLength(0);
     const update = async (isTicketingEnabled: boolean, publishOnWebsite: boolean) => {
       const response = await jsonWrite(
@@ -294,6 +296,7 @@ describe("Organization public website", () => {
     expect((await update(true, false)).publishOnWebsite).toBe(true);
     const live = await readPublic();
     expect(live.payload.settings.pages).toEqual(publishedPages);
+    expect(live.payload.mediaFileIds).toContain(FILE_ID);
     expect(live.payload.performances).toMatchObject([{ id: event.id, isTicketingEnabled: true }]);
     expect(JSON.stringify(live)).not.toContain("Private call notes");
     expect(JSON.stringify(live)).not.toContain("Unpublished headline");
@@ -363,7 +366,6 @@ describe("Organization public website", () => {
     expect(new Set((await readPublic()).payload.performances.map(({ id }) => id))).toEqual(
       new Set(concurrent.map(({ id }) => id)),
     );
-    await uploadImage(cookie);
     const graphicEvent = concurrent[0];
     expect(
       (
@@ -995,5 +997,107 @@ describe("bounded website page publication", () => {
       await (await exports.default.fetch(api("alpha.localhost", "/api/public/projection"))).json(),
     );
     expect(projection.payload.settings.pages).toEqual([]);
+  });
+});
+
+describe("website inline image publication", () => {
+  it("validates private references, publishes immutable media, and keeps removed draft images out of later snapshots", async () => {
+    const cookie = await signIn();
+    await uploadImage(cookie);
+    const image = `![Alpha choir](choir-image:${FILE_ID} "Spring concert")`;
+    const save = (settings: unknown) =>
+      jsonWrite("alpha.localhost", "/api/organization/website", "PUT", settings, cookie);
+    const publish = () =>
+      jsonWrite("alpha.localhost", "/api/organization/website/publish", "POST", {}, cookie);
+    const projection = async () =>
+      publishedOrganizationProjectionSchema.parse(
+        await (
+          await exports.default.fetch(api("alpha.localhost", "/api/public/projection"))
+        ).json(),
+      );
+    expect(
+      (await exports.default.fetch(api("alpha.localhost", `/api/organization/files/${FILE_ID}`)))
+        .status,
+    ).not.toBe(200);
+    expect(
+      (await exports.default.fetch(api("alpha.localhost", `/api/public/media/1/${FILE_ID}`)))
+        .status,
+    ).toBe(404);
+    const invalid = await save({
+      expectedDraftRevision: 0,
+      aboutUsText: "![Missing](choir-image:88888888-8888-4888-8888-888888888888)",
+    });
+    expect(invalid.status).toBe(409);
+    expect(await invalid.json()).toMatchObject({ code: "invalid_public_website_image" });
+    const savedResponse = await save({
+      expectedDraftRevision: 0,
+      aboutUsText: image,
+      pages: [
+        { id: "photos", title: "Photos", slug: "photos", body: image, showInNavigation: true },
+      ],
+    });
+    expect(savedResponse.status).toBe(200);
+    const saved = publicWebsiteSettingsResponseSchema.parse(await savedResponse.json());
+    expect(
+      (await exports.default.fetch(api("alpha.localhost", `/api/public/media/1/${FILE_ID}`)))
+        .status,
+    ).toBe(404);
+    expect(
+      (
+        await exports.default.fetch(
+          api("alpha.localhost", `/api/organization/files/${FILE_ID}`, cookie, {
+            method: "DELETE",
+          }),
+        )
+      ).status,
+    ).toBe(409);
+    expect((await publish()).status).toBe(200);
+    expect((await projection()).payload.mediaFileIds).toEqual([FILE_ID]);
+    expect(
+      (await exports.default.fetch(api("alpha.localhost", `/api/public/media/1/${FILE_ID}`)))
+        .status,
+    ).toBe(200);
+    expect(
+      (await exports.default.fetch(api("bravo.localhost", `/api/public/media/1/${FILE_ID}`)))
+        .status,
+    ).toBe(404);
+    expect(
+      (
+        await save({
+          ...saved,
+          expectedDraftRevision: saved.draftRevision,
+          aboutUsText: "Removed",
+          pages: [],
+        })
+      ).status,
+    ).toBe(200);
+    expect((await projection()).payload.settings.aboutUsText).toBe(image);
+    expect((await publish()).status).toBe(200);
+    expect((await projection()).payload.mediaFileIds).toEqual([]);
+    expect(
+      (await exports.default.fetch(api("alpha.localhost", `/api/public/media/2/${FILE_ID}`)))
+        .status,
+    ).toBe(404);
+    expect(await files.head(publishedMediaKey("organization-alpha", 1, FILE_ID))).not.toBeNull();
+    expect(
+      await files.head(privateOrganizationFileKey("organization-alpha", FILE_ID)),
+    ).not.toBeNull();
+  });
+  it("bounds distinct inline image references before looking up files", async () => {
+    const cookie = await signIn();
+    const images = Array.from(
+      { length: 51 },
+      (_, index) =>
+        `![Photo](choir-image:${index.toString(16).padStart(8, "0")}-7777-4777-8777-777777777777)`,
+    ).join("\n\n");
+    const response = await jsonWrite(
+      "alpha.localhost",
+      "/api/organization/website",
+      "PUT",
+      { expectedDraftRevision: 0, aboutUsText: images },
+      cookie,
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "website_image_limit_exceeded" });
   });
 });

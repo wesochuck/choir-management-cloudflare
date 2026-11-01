@@ -158,6 +158,10 @@ const staticPageDescriptions: readonly [string, string][] = [
   ["/dues", "View and pay season membership dues and track payment history."],
   ["/member/polls", "Submit your vote on active Organization polls."],
   ["/account", "Manage your personal account, sign-in security, and organization memberships."],
+  [
+    "/account/notifications",
+    "Personal alerts for audition inquiries, ticket sales, and donations.",
+  ],
   ["/account/organizations", "Switch between your organizations or view invitations."],
   ["/account/security", "Manage your sign-in password, email address, and authentication methods."],
   ["/account/sessions", "Review and manage active sign-in sessions across your devices."],
@@ -215,6 +219,7 @@ export function pageTitle(pathname: string): string {
     ["/member/resources", "Resources"],
     ["/member/polls", "Vote in Poll"],
     ["/calendar", "My schedule"],
+    ["/account/notifications", "Notifications"],
     ["/account/security", "Sign-in & security"],
     ["/account/organizations", "Organizations"],
     ["/account/sessions", "Active sessions"],

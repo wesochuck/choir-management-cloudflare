@@ -82,9 +82,9 @@ export function ProfileEmailPanel({
           </div>
           <div className="profile-editor-card__body">
             <ProfileSettingSwitch
-              accessibleLabel="Administrator notifications — Receive operational and audition emails"
+              accessibleLabel="Administrator notifications — Receive operational messages"
               checked={profile.receiveAdminNotifications}
-              description="Operational and audition-related messages."
+              description="Operational messages."
               disabled={busy}
               id="roster-profile-admin-notifications"
               onChange={(checked) => {
@@ -94,6 +94,20 @@ export function ProfileEmailPanel({
                 }));
               }}
               title="Administrator notifications"
+            />
+            <ProfileSettingSwitch
+              accessibleLabel="Audition notices — Receive alerts when new audition inquiries arrive"
+              checked={profile.receiveAuditionNotifications ?? false}
+              description="Receive alerts when new audition inquiries arrive."
+              disabled={busy}
+              id="roster-profile-audition-notifications"
+              onChange={(checked) => {
+                setProfile((current) => ({
+                  ...current,
+                  receiveAuditionNotifications: checked,
+                }));
+              }}
+              title="Audition notices"
             />
             <ProfileSettingSwitch
               accessibleLabel="RSVP decline notices — Receive alerts when invited members decline"

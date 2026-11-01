@@ -3,12 +3,16 @@ import { publicPageNavigationLabel } from "../../public/publicPageLabels";
 import { PublicWebsiteHero } from "../../public/PublicWebsiteHero";
 import { PublicWebsiteFooter } from "../../public/PublicWebsiteFooter";
 import type { PublicWebsiteSettingsRequest } from "@choir/contracts";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 
-import { PublicCopy } from "../../public/PublicCopy";
+import { DraftWebsiteCopy } from "../../public/WebsiteCopy";
 import { publicWebsiteFontStacks } from "../../public/publicWebsiteFonts";
 
 export interface PublicWebsitePreviewProps {
+  readonly visible?: boolean;
+  readonly onHidePreview?: (() => void) | undefined;
+  readonly id?: string;
+  readonly previewRef?: RefObject<HTMLElement | null>;
   readonly draft: PublicWebsiteSettingsRequest;
   readonly heroImageUrl: string | null;
   readonly logoImageUrl: string | null;
@@ -20,35 +24,47 @@ export interface PublicWebsitePreviewProps {
 }
 
 interface PreviewToolbarProps {
+  readonly onHidePreview?: (() => void) | undefined;
   readonly onViewportChange: (viewport: "desktop" | "mobile") => void;
   readonly viewport: "desktop" | "mobile";
 }
 
-function PreviewToolbar({ onViewportChange, viewport }: PreviewToolbarProps) {
+function PreviewToolbar({ onViewportChange, viewport, onHidePreview }: PreviewToolbarProps) {
   return (
     <div className="website-preview-toolbar">
       <span className="badge badge--neutral">Draft — not public</span>
-      <div aria-label="Preview device" className="segmented-control" role="group">
-        <button
-          aria-pressed={viewport === "desktop"}
-          className={`button button--sm ${viewport === "desktop" ? "button--primary" : "button--secondary"}`}
-          onClick={() => {
-            onViewportChange("desktop");
-          }}
-          type="button"
-        >
-          Desktop
-        </button>
-        <button
-          aria-pressed={viewport === "mobile"}
-          className={`button button--sm ${viewport === "mobile" ? "button--primary" : "button--secondary"}`}
-          onClick={() => {
-            onViewportChange("mobile");
-          }}
-          type="button"
-        >
-          Mobile
-        </button>
+      <div className="segmented-control">
+        {onHidePreview ? (
+          <button
+            type="button"
+            className="button button--secondary button--sm"
+            onClick={onHidePreview}
+          >
+            Hide preview
+          </button>
+        ) : null}
+        <div aria-label="Preview device" className="segmented-control" role="group">
+          <button
+            aria-pressed={viewport === "desktop"}
+            className={`button button--sm ${viewport === "desktop" ? "button--primary" : "button--secondary"}`}
+            onClick={() => {
+              onViewportChange("desktop");
+            }}
+            type="button"
+          >
+            Desktop
+          </button>
+          <button
+            aria-pressed={viewport === "mobile"}
+            className={`button button--sm ${viewport === "mobile" ? "button--primary" : "button--secondary"}`}
+            onClick={() => {
+              onViewportChange("mobile");
+            }}
+            type="button"
+          >
+            Mobile
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -124,7 +140,7 @@ function PreviewHome({ draft, heroImageUrl, organizationName }: PreviewHomeProps
       {draft.aboutUsText.trim() ? (
         <section className="public-section public-section--narrow" id="about-us">
           <h2>About Us</h2>
-          <PublicCopy text={draft.aboutUsText} />
+          <DraftWebsiteCopy text={draft.aboutUsText} />
         </section>
       ) : (
         <section className="public-section public-section--narrow">
@@ -147,7 +163,7 @@ function PreviewContentPage({ historyText, heading }: PreviewContentPageProps) {
     <section className="public-section public-section--narrow">
       <h1>{heading ?? "Our History"}</h1>
       {historyText.trim() ? (
-        <PublicCopy text={historyText} />
+        <DraftWebsiteCopy text={historyText} />
       ) : (
         <div aria-label="Empty draft page" className="empty-state">
           <p>This page has no content yet.</p>
@@ -158,6 +174,10 @@ function PreviewContentPage({ historyText, heading }: PreviewContentPageProps) {
 }
 
 export function PublicWebsitePreview({
+  visible = true,
+  onHidePreview,
+  id,
+  previewRef,
   draft,
   heroImageUrl,
   logoImageUrl,
@@ -186,8 +206,19 @@ export function PublicWebsitePreview({
   }, [viewportWidth]);
 
   return (
-    <section aria-label="Public website draft preview" className="panel website-preview-panel">
-      <PreviewToolbar onViewportChange={onViewportChange} viewport={viewport} />
+    <section
+      id={id}
+      ref={previewRef}
+      hidden={!visible}
+      tabIndex={-1}
+      aria-label="Public website draft preview"
+      className="panel website-preview-panel"
+    >
+      <PreviewToolbar
+        onViewportChange={onViewportChange}
+        viewport={viewport}
+        onHidePreview={onHidePreview}
+      />
 
       <p className="field-help">
         {viewport === "desktop" ? "Desktop" : "Mobile"} preview · {viewportWidth}px wide, scaled to

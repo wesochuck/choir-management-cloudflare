@@ -22,6 +22,7 @@ import {
   MusicCatalog,
   MusicLibrarySettings,
   MySchedule,
+  NotificationInboxPage,
   OrganizationAccess,
   OrganizationResources,
   OrganizationSettingsPage,
@@ -46,7 +47,29 @@ export function renderAccountPage(
   pathname: string,
   session: NonNullable<CurrentAuthSession>,
   onSignedOut: () => void,
+  options?: {
+    readonly access?: AccessState | undefined;
+    readonly navigate?: ((href: string) => void) | undefined;
+  },
 ) {
+  if (pathname === "/account/notifications") {
+    const role = options?.access?.status === "ready" ? options.access.context.role : null;
+    const organizationId =
+      options?.access?.status === "ready" ? options.access.context.organizationId : null;
+    return (
+      <NotificationInboxPage
+        onNavigate={
+          options?.navigate ??
+          ((href) => {
+            window.location.assign(href);
+          })
+        }
+        organizationId={organizationId}
+        userId={session.user.id}
+        userRole={role}
+      />
+    );
+  }
   if (pathname === "/account/security") return <AccountSecurity />;
   if (pathname === "/account/organizations") {
     return (
