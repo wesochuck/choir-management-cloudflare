@@ -51,6 +51,9 @@ describe("route staging qualification and evidence plan", () => {
 
     for (const [method, path] of [
       ["GET", "/api/setup/health"],
+      ["GET", "/api/notifications"],
+      ["POST", "/api/notifications/:id/read"],
+      ["POST", "/api/notifications/read-all"],
       ["POST", "/api/public/rsvp-details"],
       ["GET", "/api/calendar/feed"],
       ["GET", "/api/calendar/feed/:filename"],

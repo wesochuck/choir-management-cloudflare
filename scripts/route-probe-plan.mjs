@@ -197,6 +197,8 @@ export function usesOrganizationHost(row) {
   const route = row.route ?? row.path ?? "";
   return (
     route.startsWith("/api/organization/") ||
+    route === "/api/notifications" ||
+    route.startsWith("/api/notifications/") ||
     route.startsWith("/api/singer/") ||
     route.startsWith("/api/setup/") ||
     route.startsWith("/api/public/") ||
