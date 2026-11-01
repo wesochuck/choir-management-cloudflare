@@ -390,4 +390,18 @@
     padding: var(--spacing-xs) 2.25rem var(--spacing-xs) var(--spacing-sm);
     line-height: var(--line-height-tight);
   }
+
+  @media (max-width: 40rem) {
+    .signed-in-header__actions > .notification-bell-container {
+      flex: 0 0 auto;
+    }
+
+    .signed-in-header__actions > .workspace-switcher {
+      min-width: 0;
+    }
+
+    .signed-in-shell .workspace-switcher select {
+      min-width: 0;
+    }
+  }
 }
