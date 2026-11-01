@@ -136,6 +136,7 @@ async function resolveAdministratorRecipients(
 function buildComplianceReminderMarkdown(
   organizationName: string,
   task: DueComplianceTask,
+  taskUrl: string,
 ): string {
   const responsibleLine = task.responsibleNeedsReassignment
     ? `Needs reassignment (previously assigned administrator is no longer eligible)`
@@ -152,6 +153,10 @@ function buildComplianceReminderMarkdown(
     `- **Last completed:** ${task.lastCompletedDate ?? "Not recorded"}`,
     `- **Responsible:** ${responsibleLine}`,
     `- **Reminder cadence:** Weekly until marked complete`,
+    ``,
+    `[Review task and mark completed](${taskUrl})`,
+    ``,
+    `Sign in with your Organization Owner or Administrator account to record completion.`,
   ];
   if (task.responsibleNeedsReassignment) {
     lines.push(
@@ -200,7 +205,12 @@ export async function deliverComplianceReminderJob(
     : "Choir Management";
 
   const subject = `Action required: ${task.title} is due`;
-  const contentMarkdown = buildComplianceReminderMarkdown(organizationName, task);
+  const taskUrl = new URL("/admin/settings", origin);
+  taskUrl.searchParams.set("tab", "compliance");
+  taskUrl.searchParams.set("task", task.id);
+  const signInUrl = new URL("/login", origin);
+  signInUrl.searchParams.set("returnTo", `${taskUrl.pathname}${taskUrl.search}`);
+  const contentMarkdown = buildComplianceReminderMarkdown(organizationName, task, signInUrl.href);
 
   for (const [email, name] of recipients.entries()) {
     // Provider routes identify one recipient in one occurrence, including across job retries.

@@ -380,7 +380,12 @@ export function renderOrganizationPage(
         initialTab={rsvpTab}
       />
     ),
-    "/admin/settings": <OrganizationSettingsPage enabled={focusedEnabled} />,
+    "/admin/settings": (
+      <OrganizationSettingsPage
+        key={`settings:${routeState.search}:${typeof window === "undefined" ? "" : window.location.hash}`}
+        enabled={focusedEnabled}
+      />
+    ),
     "/admin/invitations": <OrganizationAccess section="invitations" />,
     "/admin/settings/invitations": <OrganizationAccess section="invitations" />,
     "/admin/settings/modules": <ModuleSettingsView />,

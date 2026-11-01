@@ -21,8 +21,8 @@ import type {
   TransactionFeeSettings,
 } from "@choir/contracts";
 import { transactionProcessingFeeCents } from "@choir/domain";
-import { useConfirmation } from "@choir/ui";
-import { usePersistedDraft } from "../persistence";
+import { Tabs, TabsContent, TabsList, TabsTrigger, useConfirmation } from "@choir/ui";
+import { useNavigationGuard, usePersistedDraft } from "../persistence";
 
 const fallbackTimeZones = [
   "UTC",
@@ -498,7 +498,49 @@ function TransactionFeeSettingsSection({
   );
 }
 
+const settingsTabs = [
+  { id: "general", label: "General" },
+  { id: "compliance", label: "Compliance & deadlines" },
+  { id: "payments", label: "Payments" },
+  { id: "email", label: "Email" },
+  { id: "export", label: "Data export" },
+] as const;
+
+function initialSettingsTab(): string {
+  const url = new URL(window.location.href);
+  const requested = url.searchParams.get("tab");
+  if (settingsTabs.some((tab) => tab.id === requested)) return requested ?? "general";
+  if (
+    url.searchParams.has("stripe") ||
+    ["#payments-settings", "#payment", "#transaction-fee-settings-title"].includes(url.hash)
+  )
+    return "payments";
+  if (url.hash === "#nonprofit-compliance-title") return "compliance";
+  if (["#organization-export-title", "#export"].includes(url.hash)) return "export";
+  if (["#email-settings-title", "#communications"].includes(url.hash)) return "email";
+  return "general";
+}
+
 export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolean }) {
+  const [activeTab, setActiveTab] = useState(initialSettingsTab);
+  const { guard } = useNavigationGuard();
+  function changeTab(next: string) {
+    if (next === activeTab) return;
+    void guard({
+      reason: "navigate",
+      action: () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set("tab", next);
+        url.hash = "";
+        window.history.replaceState(window.history.state, "", url);
+        if (persistedFeeSettings) {
+          setPercentageDraft(percentageDraftFromValue(persistedFeeSettings.percentage));
+          setFixedFeeDraft(currencyDraftFromCents(persistedFeeSettings.fixedCents));
+        }
+        setActiveTab(next);
+      },
+    });
+  }
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -526,6 +568,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
 
   const {
     draft: transactionFeeSettings,
+    persisted: persistedFeeSettings,
     error: feeError,
     setDraft: setTransactionFeeSettings,
   } = usePersistedDraft<TransactionFeeSettings>({
@@ -576,75 +619,92 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
   }
 
   return (
-    <div className="settings-stack">
-      <OrganizationBrandingPanel />
-      <OrganizationNonprofitCompliancePanel timezone={timezone} />
-      <OrganizationPaymentSettingsPanel />
-      <TransactionFeeSettingsSection
-        feeError={feeError}
-        feeSuccess={feeSuccess}
-        fixedFeeDraft={fixedFeeDraft}
-        percentageDraft={percentageDraft}
-        setFixedFeeDraft={setFixedFeeDraft}
-        setPercentageDraft={setPercentageDraft}
-        setTransactionFeeSettings={setTransactionFeeSettings}
-        settingsLoaded={settingsLoaded}
-        transactionFeeSettings={transactionFeeSettings}
-      />
-      <fieldset className="surface-card organization-settings-panel">
-        <legend id="calendar-settings-title">Calendar settings</legend>
-        {loading ? <p role="status">Loading calendar settings…</p> : null}
-        {effectiveError ? (
-          <div className="notice notice--error" role="alert">
-            <p>{effectiveError}</p>
-            {!settingsLoaded ? (
-              <button
-                className="button button--secondary button--sm"
-                onClick={() => {
-                  setError(null);
-                  setLoading(true);
-                  setSettingsLoaded(false);
-                  setSettingsLoadAttempt((current) => current + 1);
-                }}
-                type="button"
-              >
-                Retry
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        {success ? (
-          <p className="notice notice--success" role="status">
-            {success}
-          </p>
-        ) : null}
-        {settingsLoaded && timezone ? (
-          <div className="form-stack settings-form">
-            <div className="field">
-              <label htmlFor="settings-timezone">IANA timezone</label>
-              <select
-                id="settings-timezone"
-                onChange={(event) => {
-                  setTimezone(event.target.value);
-                }}
-                required
-                value={timezone}
-              >
-                {!timeZoneOptions.includes(timezone) ? (
-                  <option value={timezone}>{timezone}</option>
-                ) : null}
-                {timeZoneOptions.map((zone) => (
-                  <option key={zone} value={zone}>
-                    {zone}
-                  </option>
-                ))}
-              </select>
+    <Tabs className="settings-stack" onValueChange={changeTab} value={activeTab}>
+      <TabsList aria-label="Organization settings sections" className="ticketing-tabs">
+        {settingsTabs.map((tab) => (
+          <TabsTrigger key={tab.id} value={tab.id}>
+            {tab.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      <TabsContent value="compliance">
+        <OrganizationNonprofitCompliancePanel timezone={timezone} />
+      </TabsContent>
+      <TabsContent className="settings-stack" value="payments">
+        <OrganizationPaymentSettingsPanel />
+        <TransactionFeeSettingsSection
+          feeError={feeError}
+          feeSuccess={feeSuccess}
+          fixedFeeDraft={fixedFeeDraft}
+          percentageDraft={percentageDraft}
+          setFixedFeeDraft={setFixedFeeDraft}
+          setPercentageDraft={setPercentageDraft}
+          setTransactionFeeSettings={setTransactionFeeSettings}
+          settingsLoaded={settingsLoaded}
+          transactionFeeSettings={transactionFeeSettings}
+        />
+      </TabsContent>
+      <TabsContent className="settings-stack" value="general">
+        <OrganizationBrandingPanel />
+        <fieldset className="surface-card organization-settings-panel">
+          <legend id="calendar-settings-title">Calendar settings</legend>
+          {loading ? <p role="status">Loading calendar settings…</p> : null}
+          {effectiveError ? (
+            <div className="notice notice--error" role="alert">
+              <p>{effectiveError}</p>
+              {!settingsLoaded ? (
+                <button
+                  className="button button--secondary button--sm"
+                  onClick={() => {
+                    setError(null);
+                    setLoading(true);
+                    setSettingsLoaded(false);
+                    setSettingsLoadAttempt((current) => current + 1);
+                  }}
+                  type="button"
+                >
+                  Retry
+                </button>
+              ) : null}
             </div>
-          </div>
-        ) : null}
-      </fieldset>
-      <OrganizationEmailSettingsPanel />
-      <OrganizationExportPanel />
-    </div>
+          ) : null}
+          {success ? (
+            <p className="notice notice--success" role="status">
+              {success}
+            </p>
+          ) : null}
+          {settingsLoaded && timezone ? (
+            <div className="form-stack settings-form">
+              <div className="field">
+                <label htmlFor="settings-timezone">IANA timezone</label>
+                <select
+                  id="settings-timezone"
+                  onChange={(event) => {
+                    setTimezone(event.target.value);
+                  }}
+                  required
+                  value={timezone}
+                >
+                  {!timeZoneOptions.includes(timezone) ? (
+                    <option value={timezone}>{timezone}</option>
+                  ) : null}
+                  {timeZoneOptions.map((zone) => (
+                    <option key={zone} value={zone}>
+                      {zone}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ) : null}
+        </fieldset>
+      </TabsContent>
+      <TabsContent value="email">
+        <OrganizationEmailSettingsPanel />
+      </TabsContent>
+      <TabsContent value="export">
+        <OrganizationExportPanel />
+      </TabsContent>
+    </Tabs>
   );
 }

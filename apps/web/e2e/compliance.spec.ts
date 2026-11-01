@@ -108,6 +108,14 @@ const complianceTasks = [
 test.describe("Nonprofit compliance table layout and row-action alignment (Issue #221)", () => {
   test.beforeEach(async ({ page }) => {
     await installOrganizationApi(page);
+    await page.route("**/api/organization/transaction-fee-settings", async (route) => {
+      await fulfillJson(route, {
+        fixedCents: 30,
+        passFeeToDonor: false,
+        percentage: 2.9,
+        requestId,
+      });
+    });
     await page.route("**/api/organization/compliance", async (route) => {
       if (route.request().method() === "GET") {
         await fulfillJson(route, {
@@ -131,7 +139,7 @@ test.describe("Nonprofit compliance table layout and row-action alignment (Issue
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/admin/settings");
+    await page.goto("/admin/settings?tab=compliance");
 
     const table = page.locator(".compliance-tasks-table table");
     await expect(table).toBeVisible();
@@ -203,7 +211,7 @@ test.describe("Nonprofit compliance table layout and row-action alignment (Issue
 
   test("converts cleanly to mobile cards without horizontal overflow", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/admin/settings");
+    await page.goto("/admin/settings?tab=compliance");
 
     const cards = page.locator(".compliance-tasks-table .data-table-card");
     await expect(cards).toHaveCount(4);
@@ -218,4 +226,33 @@ test.describe("Nonprofit compliance table layout and row-action alignment (Issue
     const customCardActions = cards.nth(3).locator(".compliance-task-actions");
     await expect(customCardActions.locator("button")).toHaveCount(3);
   });
+  for (const theme of ["light", "dark"] as const) {
+    test(`settings tabs and reminder entry point in ${theme} theme`, async ({ page }) => {
+      await page.addInitScript((mode) => {
+        localStorage.setItem(`choir-theme:${location.hostname}`, mode);
+      }, theme);
+      const destination =
+        "/admin/settings?tab=compliance&task=11111111-1111-4111-8111-111111111111";
+      await page.goto(`/login?returnTo=${encodeURIComponent(destination)}`);
+      await expect(page.getByRole("tab", { name: "Compliance & deadlines" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+      const notice = page.getByRole("status").filter({ hasText: "Last completed:" });
+      await expect(notice).toContainText("IRS annual return");
+      await notice.getByRole("button", { name: "Mark completed" }).click();
+      await expect(page.getByRole("dialog", { name: /Mark .* complete/ })).toBeVisible();
+      await page.getByRole("button", { name: "Cancel", exact: true }).click();
+      const generalTab = page.getByRole("tab", { name: "General", exact: true });
+      await generalTab.click();
+      await expect(page.getByLabel("IANA timezone")).toBeVisible();
+      await expect(page.getByRole("tabpanel")).toHaveCount(1);
+      await page.reload();
+      await expect(generalTab).toHaveAttribute("aria-selected", "true");
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      ).toBe(true);
+      await expect(page.locator(".signed-in-shell")).toHaveAttribute("data-theme", theme);
+    });
+  }
 });

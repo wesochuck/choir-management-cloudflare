@@ -101,6 +101,7 @@ async function setup() {
   return { user: userEvent.setup(), onLeave };
 }
 beforeEach(() => {
+  window.history.replaceState(null, "", "/admin/settings");
   vi.resetAllMocks();
   vi.mocked(api.getNonprofitComplianceSettings).mockResolvedValue(settings);
   vi.mocked(api.getComplianceAssignees).mockResolvedValue({
@@ -446,4 +447,34 @@ it("arranges action buttons consistently and supports custom task archive", asyn
   // Responsible administrator name and email
   expect(within(customRow).getByText("Terry Treasurer")).toBeInTheDocument();
   expect(within(customRow).getByText("treasurer@example.test")).toBeInTheDocument();
+});
+
+it("opens the reminder task for explicit completion without changing it on arrival", async () => {
+  window.history.replaceState(
+    null,
+    "",
+    "/admin/settings?tab=compliance&task=33333333-3333-4333-8333-333333333333",
+  );
+  const { user } = await setup();
+  const reminder = screen.getByRole("status");
+  expect(within(reminder).getByText("Ohio annual report")).toBeVisible();
+  expect(api.completeComplianceTask).not.toHaveBeenCalled();
+  await user.click(within(reminder).getByRole("button", { name: "Mark completed" }));
+  expect(
+    await screen.findByRole("dialog", { name: "Mark Ohio annual report complete" }),
+  ).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Confirm completion" }));
+  await waitFor(() => {
+    expect(api.completeComplianceTask).toHaveBeenCalledWith(
+      "33333333-3333-4333-8333-333333333333",
+      expect.any(String),
+    );
+  });
+});
+
+it("handles a stale or foreign task link without exposing another task", async () => {
+  window.history.replaceState(null, "", "/admin/settings?tab=compliance&task=missing");
+  await setup();
+  expect(screen.getByText(/This reminder is no longer available/)).toBeVisible();
+  expect(api.completeComplianceTask).not.toHaveBeenCalled();
 });

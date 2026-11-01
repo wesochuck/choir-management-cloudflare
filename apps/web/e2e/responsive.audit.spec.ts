@@ -586,13 +586,14 @@ async function assertOrganizationSettingsLayout(
 ): Promise<void> {
   if (path !== "/admin/settings" || width !== widths[0]) return;
   const organizationSettings = [
-    "Online payment settings",
-    "Transaction processing fees",
-    "Calendar settings",
-    "Email & Sender Settings",
-    "Export Organization data",
-  ];
-  for (const name of organizationSettings) {
+    ["Payments", "Online payment settings"],
+    ["Payments", "Transaction processing fees"],
+    ["General", "Calendar settings"],
+    ["Email", "Email & Sender Settings"],
+    ["Data export", "Export Organization data"],
+  ] as const;
+  for (const [tab, name] of organizationSettings) {
+    await page.getByRole("tab", { name: tab, exact: true }).click();
     const group = page.getByRole("group", { name });
     await expect(group).toBeVisible();
     await expect(group.locator("legend")).toHaveText(name);

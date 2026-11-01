@@ -28,6 +28,51 @@ import {
   type TaskCardActions,
 } from "./components/OrganizationNonprofitCompliancePanel/types";
 
+function ReminderTaskNotice({
+  settings,
+  onComplete,
+  operationBusy,
+}: {
+  readonly settings: NonprofitComplianceSettingsResponse;
+  readonly onComplete: TaskCardActions["onComplete"];
+  readonly operationBusy: boolean;
+}) {
+  const requestedTaskId = new URLSearchParams(window.location.search).get("task");
+  if (!requestedTaskId) return null;
+  const requestedTask = settings.tasks.find((task) => task.id === requestedTaskId);
+  return (
+    <div className="notice notice--info" role="status">
+      {requestedTask && !requestedTask.archived ? (
+        <>
+          <p>
+            <strong>{requestedTask.title}</strong>
+          </p>
+          <p>
+            Next due: {requestedTask.nextDueDate ?? "Not scheduled"}. Last completed:{" "}
+            {requestedTask.lastCompletedDate ?? "Not recorded"}.
+          </p>
+          {requestedTask.applicable ? (
+            <button
+              className="button button--primary button--sm"
+              disabled={operationBusy}
+              onClick={(event) => {
+                onComplete(requestedTask, event.currentTarget);
+              }}
+              type="button"
+            >
+              Mark completed
+            </button>
+          ) : (
+            <p>This task is marked not applicable.</p>
+          )}
+        </>
+      ) : (
+        <p>This reminder is no longer available. Review the current deadlines below.</p>
+      )}
+    </div>
+  );
+}
+
 export function OrganizationNonprofitCompliancePanel({
   timezone,
 }: {
@@ -327,6 +372,13 @@ export function OrganizationNonprofitCompliancePanel({
         <div className="notice notice--success" role="status">
           <p>{success}</p>
         </div>
+      ) : null}
+      {!loading && settings ? (
+        <ReminderTaskNotice
+          settings={settings}
+          onComplete={actions.onComplete}
+          operationBusy={operationBusy}
+        />
       ) : null}
       {!loading && settings ? (
         <ComplianceCatalogView

@@ -93,6 +93,14 @@ it("sends to each administrator once per occurrence, with replay and tenant isol
     "admin@example.test",
     "owner@example.test",
   ]);
+  for (const [message] of send.mock.calls) {
+    if (!("html" in message)) throw new Error("Expected an HTML email builder");
+    expect(message.html).toContain("Review task and mark completed");
+    const destination = `/admin/settings?tab=compliance&task=${taskId}`;
+    expect(message.html).toContain(`/login?returnTo=${encodeURIComponent(destination)}`);
+    expect(message.text).toContain(`/login?returnTo=${encodeURIComponent(destination)}`);
+    expect(message.html).not.toContain("other-compliance");
+  }
   // A reconstructed queue job for the same occurrence must reuse the same provider routes.
   await deliverComplianceReminderJob(deliveryEnv, {
     ...first,
