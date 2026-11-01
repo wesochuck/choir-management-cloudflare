@@ -25,7 +25,7 @@
     right: -3px;
     min-width: 1.15rem;
     height: 1.15rem;
-    padding: 0 0.25rem;
+    padding: 0 var(--spacing-3xs);
     border-radius: var(--radius-full);
     background-color: var(--color-danger, #e11d48);
     color: #ffffff;
@@ -152,14 +152,14 @@
     border-radius: var(--radius-full);
     background-color: var(--color-primary, #2563eb);
     flex-shrink: 0;
-    margin-top: 0.35rem;
+    margin-top: var(--spacing-2xs);
   }
 
   .notification-item__icon {
     width: 1.15rem;
     height: 1.15rem;
     flex-shrink: 0;
-    margin-top: 0.15rem;
+    margin-top: var(--spacing-3xs);
     color: var(--color-text-muted);
   }
 
@@ -172,7 +172,7 @@
     font-size: var(--font-size-sm, 0.875rem);
     font-weight: var(--font-weight-semibold, 600);
     color: var(--color-text);
-    margin-bottom: 0.15rem;
+    margin-bottom: var(--spacing-3xs);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -182,7 +182,7 @@
     font-size: var(--font-size-xs, 0.75rem);
     color: var(--color-text-muted);
     line-height: 1.35;
-    margin-bottom: 0.25rem;
+    margin-bottom: var(--spacing-3xs);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
