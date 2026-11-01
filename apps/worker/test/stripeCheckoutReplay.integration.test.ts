@@ -69,9 +69,10 @@ beforeEach(async () => {
          publish_on_website, is_ticketing_enabled,
          advance_price_cents, day_of_price_cents, ticket_capacity,
          created_at, updated_at)
-       VALUES (?, 'Replay Concert', 'Performance', '2026-11-01T20:00:00Z',
+       VALUES (?, 'Replay Concert', 'Performance', ?,
                0, 0, 1, 1, 2500, 2500, 2, ?, ?)`,
       EVENT_ID,
+      new Date(Date.now() + 7 * 86_400_000).toISOString(),
       now,
       now,
     );
