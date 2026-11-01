@@ -579,10 +579,10 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
       />
 
       <Tabs onValueChange={handleTabChange} value={activeTab}>
-        <TabsList aria-label="Public website sections" className="website-editor-tabs-list">
+        <TabsList aria-label="Public website sections" as="nav" className="ticketing-tabs">
           <TabsTrigger value="pages">Pages</TabsTrigger>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
-          <TabsTrigger value="navigation">Navigation</TabsTrigger>
+          <TabsTrigger value="navigation">Labels &amp; navigation</TabsTrigger>
           <TabsTrigger value="footer">Footer</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
         </TabsList>

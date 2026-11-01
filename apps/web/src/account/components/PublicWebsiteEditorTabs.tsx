@@ -230,20 +230,6 @@ export function AppearanceTabContent({
         </select>
         <FontPreview font={draft.bodyFont} />
       </div>
-
-      <label className="choice-field">
-        <input
-          checked={draft.showBrandingHeaderFooter}
-          disabled={busy}
-          onChange={(event) => {
-            onChange("showBrandingHeaderFooter", event.target.checked);
-          }}
-          type="checkbox"
-        />
-        <span className="choice-field__content">
-          Use this header and footer on public transaction pages
-        </span>
-      </label>
     </div>
   );
 }
@@ -280,6 +266,23 @@ export function NavigationTabContent({ busy, draft, onChange }: TabContentProps)
           onChange("pageLabels", labels);
         }}
       />
+
+      <label className="choice-field">
+        <input
+          checked={draft.showBrandingHeaderFooter}
+          disabled={busy}
+          onChange={(event) => {
+            onChange("showBrandingHeaderFooter", event.target.checked);
+          }}
+          type="checkbox"
+        />
+        <span className="choice-field__content">
+          Show website navigation on ticket, donation, and audition pages
+        </span>
+      </label>
+      <p className="field-help">
+        Shows the same menu links visitors see on your main website. Save and publish to apply.
+      </p>
 
       <fieldset className="field">
         <legend>Public modules navigation links</legend>

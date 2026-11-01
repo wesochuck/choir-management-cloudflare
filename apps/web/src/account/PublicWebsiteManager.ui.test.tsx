@@ -77,10 +77,44 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Pages",
       "Appearance",
-      "Navigation",
+      "Labels & navigation",
       "Footer",
       "Documents",
     ]);
+  });
+
+  it("edits the public menu option under Labels & navigation and preserves it across tabs and saving", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue(defaultSettings);
+    vi.mocked(authApi.updateOrganizationPublicWebsiteSettings).mockResolvedValueOnce({
+      ...defaultSettings,
+      showBrandingHeaderFooter: true,
+      draftRevision: 1,
+    });
+    render(
+      <SaveCoordinatorProvider>
+        <PublicWebsiteManager enabled />
+        <SaveBar />
+      </SaveCoordinatorProvider>,
+    );
+    await screen.findByLabelText("Publication state");
+    await user.click(screen.getByRole("tab", { name: "Appearance" }));
+    const label = "Show website navigation on ticket, donation, and audition pages";
+    expect(screen.queryByRole("checkbox", { name: label })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "Labels & navigation" }));
+    const checkbox = screen.getByRole("checkbox", { name: label });
+    expect(checkbox).not.toBeChecked();
+    await user.click(checkbox);
+    await user.click(screen.getByRole("tab", { name: "Appearance" }));
+    await user.click(screen.getByRole("tab", { name: "Labels & navigation" }));
+    expect(screen.getByRole("checkbox", { name: label })).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => {
+      expect(authApi.updateOrganizationPublicWebsiteSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ showBrandingHeaderFooter: true }),
+      );
+    });
+    expect(screen.getByRole("checkbox", { name: label })).toBeChecked();
   });
 
   it("does not claim a saved published version is verified live", async () => {

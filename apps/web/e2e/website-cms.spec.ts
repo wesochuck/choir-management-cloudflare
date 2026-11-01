@@ -86,6 +86,24 @@ for (const theme of ["light", "dark"] as const) {
     await page.getByRole("button", { name: "Insert document", exact: true }).click();
     const picker = page.getByRole("dialog", { name: "Insert document" });
     await expect(picker).toContainText("PDF · 240 KB");
+    const documentRow = picker.getByRole("button", { name: /Scholarship application/ });
+    const alignment = await documentRow.evaluate((element) => {
+      const title = element.querySelector("strong");
+      const metadata = element.querySelector("span");
+      if (!title || !metadata) throw new Error("Document title and metadata must be visible");
+      const style = getComputedStyle(element);
+      const contentLeft =
+        element.getBoundingClientRect().left +
+        parseFloat(style.borderLeftWidth) +
+        parseFloat(style.paddingLeft);
+      return {
+        titleInset: Math.abs(title.getBoundingClientRect().left - contentLeft),
+        metadataInset: Math.abs(metadata.getBoundingClientRect().left - contentLeft),
+      };
+    });
+    expect(alignment.titleInset).toBeLessThanOrEqual(1);
+    expect(alignment.metadataInset).toBeLessThanOrEqual(1);
+
     await page.getByRole("searchbox").fill("scholarship");
     await page.screenshot({
       path: testInfo.outputPath(`document-picker-${theme}.png`),

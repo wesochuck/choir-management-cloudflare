@@ -170,7 +170,7 @@ for (const theme of ["light", "dark"] as const) {
       '[Our story](/history){target="_self"} our music\nSing together.\n\nhttps://partner.example.test/notes';
     await about.fill(markdown);
     await expect(about).toHaveValue(markdown);
-    await page.getByRole("tab", { name: "Navigation", exact: true }).click();
+    await page.getByRole("tab", { name: "Labels & navigation", exact: true }).click();
     const moduleFieldset = page.locator(
       "fieldset:has(legend:has-text('Public modules navigation links'))",
     );

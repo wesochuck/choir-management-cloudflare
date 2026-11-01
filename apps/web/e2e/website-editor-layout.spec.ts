@@ -23,12 +23,29 @@ const settings = publicWebsiteSettingsResponseSchema.parse({
 });
 
 for (const theme of ["light", "dark"] as const) {
-  test(`website summary and editor tabs have room in ${theme} mode`, async ({ page }, testInfo) => {
+  test(`website tabs match Roster and retain accessible editing in ${theme} mode`, async ({
+    page,
+  }, testInfo) => {
     await page.addInitScript((mode) => {
       localStorage.setItem(`choir-theme:${location.hostname}`, mode);
     }, theme);
     const api = await installOrganizationApi(page, { role: "administrator", strict: true });
     await page.route("**/api/organization/website", (route) => route.fulfill({ json: settings }));
+    await page.goto("/admin/roster");
+    const rosterTab = page.getByRole("tab", { name: "Roster", exact: true });
+    await expect(rosterTab).toBeVisible();
+    const sharedTabStyle = await rosterTab.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        color: style.color,
+        weight: style.fontWeight,
+        radius: style.borderRadius,
+        underline: style.borderBottomColor,
+        underlineWidth: style.borderBottomWidth,
+        padding: style.padding,
+        minHeight: style.minHeight,
+      };
+    });
     await page.goto("/admin/website");
     await expect(page.getByLabel("Publication state")).toContainText(
       "Publication verification pending",
@@ -39,10 +56,25 @@ for (const theme of ["light", "dark"] as const) {
     const tabs = page.getByRole("tablist", { name: "Public website sections" });
     const home = tabs.getByRole("tab", { name: "Pages", exact: true });
     await expect(home).toHaveAttribute("aria-selected", "true");
+    expect(
+      await home.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          color: style.color,
+          weight: style.fontWeight,
+          radius: style.borderRadius,
+          underline: style.borderBottomColor,
+          underlineWidth: style.borderBottomWidth,
+          padding: style.padding,
+          minHeight: style.minHeight,
+        };
+      }),
+    ).toEqual(sharedTabStyle);
+
     for (const tab of await tabs.getByRole("tab").all()) {
       const box = await tab.boundingBox();
       expect(box?.height).toBeGreaterThanOrEqual(40);
-      expect(box?.width).toBeGreaterThanOrEqual(90);
+      expect(box?.width).toBeGreaterThanOrEqual(44);
     }
     await home.focus();
     await page.keyboard.press("ArrowRight");
@@ -52,7 +84,14 @@ for (const theme of ["light", "dark"] as const) {
     );
     await tabs.getByRole("tab", { name: "Appearance", exact: true }).click();
     await expect(page.locator("#website-header-font")).toBeVisible();
-    await tabs.getByRole("tab", { name: "Navigation", exact: true }).click();
+    const publicMenu = page.getByRole("checkbox", {
+      name: "Show website navigation on ticket, donation, and audition pages",
+      exact: true,
+    });
+    await expect(publicMenu).toHaveCount(0);
+    await tabs.getByRole("tab", { name: "Labels & navigation", exact: true }).click();
+    await expect(publicMenu).toBeVisible();
+    await expect(publicMenu).not.toBeChecked();
     await home.click();
     await expect(page.locator("#website-hero-headline")).toBeVisible();
     expect(

@@ -43,7 +43,11 @@
   .website-document-picker button {
     width: 100%;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-content: stretch;
     text-align: start;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .website-document-picker span {
     color: var(--color-text-muted);
@@ -73,49 +77,6 @@
     flex-direction: column;
     gap: var(--spacing-md);
     container-type: inline-size;
-  }
-
-  .website-editor-tabs-list {
-    display: flex;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    gap: var(--spacing-xs);
-    padding: var(--spacing-xs);
-    margin-bottom: var(--spacing-lg);
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .website-editor-tabs-list [role="tab"] {
-    flex: 0 0 auto;
-    min-width: 6rem;
-    min-height: var(--control-height);
-    padding: var(--spacing-sm) var(--spacing-md);
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    background: transparent;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-medium);
-    line-height: var(--line-height-snug);
-    text-align: center;
-    white-space: normal;
-    cursor: pointer;
-  }
-
-  .website-editor-tabs-list [role="tab"]:hover:not([aria-selected="true"]) {
-    background: var(--color-surface);
-    color: var(--color-text);
-  }
-
-  .website-editor-tabs-list [aria-selected="true"] {
-    border-bottom-color: var(--color-primary);
-    color: var(--color-primary);
-    font-weight: var(--font-weight-semibold);
-  }
-
-  .website-editor-tabs-list [role="tab"]:focus-visible {
-    outline: 2px solid var(--color-primary);
-    outline-offset: 2px;
   }
 
   .website-preview-panel {
