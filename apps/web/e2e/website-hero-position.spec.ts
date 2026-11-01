@@ -63,6 +63,7 @@ for (const image of [
       }),
     );
     await page.goto("/admin/website");
+    await page.getByText("Adjust image", { exact: true }).click();
     const editor = page.getByRole("button", { name: "Reposition hero image", exact: true });
     await expect(editor).toBeVisible();
     await expect
@@ -115,6 +116,7 @@ for (const image of [
     ).toBeEnabled();
     expect(saved.heroPosition).toEqual({ x: 0, y: 100 });
     await page.reload();
+    await page.getByText("Adjust image", { exact: true }).click();
     await expect(editor).toHaveCSS("background-position", "0% 100%");
     const previewToggle = page.getByRole("button", { name: "Preview", exact: true });
     if (await previewToggle.isVisible()) await previewToggle.click();

@@ -1,3 +1,4 @@
+import { normalizedPublicWebsitePages } from "@choir/contracts";
 import { publicPageHeading, publicPageNavigationLabel } from "./publicPageLabels";
 import type { PublishedOrganizationProjection } from "@choir/contracts";
 import { prioritizeTicketedPerformances, ticketSalesPath } from "@choir/domain";
@@ -138,7 +139,9 @@ export function OrganizationLayout({
 }) {
   const { performances, settings } = projection.payload;
   const hasPerformances = performances.length > 0;
-  const hasHistory = Boolean(settings.historyText.trim());
+  const pages = normalizedPublicWebsitePages(settings).filter(
+    (page) => page.body.trim() && page.showInNavigation,
+  );
 
   const navigation = [
     ...(hasPerformances
@@ -149,9 +152,7 @@ export function OrganizationLayout({
           },
         ]
       : []),
-    ...(hasHistory
-      ? [{ href: "/history", label: publicPageNavigationLabel(settings, "history") }]
-      : []),
+    ...pages.map((page) => ({ href: `/${page.slug}`, label: page.navigationLabel ?? page.title })),
     ...(settings.enabledNavigation.includes("tickets")
       ? [{ href: "/tickets", label: publicPageNavigationLabel(settings, "tickets") }]
       : []),
@@ -315,51 +316,6 @@ function OrganizationHome({
   );
 }
 
-function OrganizationHistory({
-  pathname,
-  projection,
-  signedIn,
-}: {
-  readonly pathname: string;
-  readonly projection: PublishedOrganizationProjection;
-  readonly signedIn?: boolean | undefined;
-}) {
-  const historyText = projection.payload.settings.historyText.trim();
-  const { aboutUsText, contactEmail } = projection.payload.settings;
-
-  return (
-    <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
-      <section className="public-section public-section--narrow">
-        <h1>{publicPageHeading(projection.payload.settings, "history", "Our History")}</h1>
-        {historyText ? (
-          <PublicCopy text={historyText} />
-        ) : (
-          <div className="empty-state" aria-label="Unpublished history notice">
-            <p>Our history has not been published yet.</p>
-            {aboutUsText.trim() ? (
-              <p>
-                Learn more about our mission and choir on the{" "}
-                <a href="/#about-us">About Us section</a> of our home page.
-              </p>
-            ) : null}
-            {contactEmail ? (
-              <p>
-                Have questions or stories to share?{" "}
-                <a href={`mailto:${contactEmail}`}>Contact us directly</a>.
-              </p>
-            ) : null}
-            <div className="button-row">
-              <a className="button button--secondary" href="/">
-                Return to home page
-              </a>
-            </div>
-          </div>
-        )}
-      </section>
-    </OrganizationLayout>
-  );
-}
-
 function OrganizationPerformances({
   pathname,
   projection,
@@ -434,6 +390,34 @@ function OrganizationPerformances({
   );
 }
 
+function OrganizationContentPage({
+  pathname,
+  projection,
+  signedIn,
+}: {
+  readonly pathname: string;
+  readonly projection: PublishedOrganizationProjection;
+  readonly signedIn?: boolean | undefined;
+}) {
+  const contentPage = normalizedPublicWebsitePages(projection.payload.settings).find(
+    (page) => pathname === `/${page.slug}` && page.body.trim(),
+  );
+  return (
+    <OrganizationLayout pathname={pathname} projection={projection} signedIn={signedIn}>
+      <section className="public-section public-section--narrow">
+        <h1>{contentPage?.title ?? "Page not found"}</h1>
+        {contentPage ? (
+          <PublicCopy text={contentPage.body} />
+        ) : (
+          <p>
+            This page is not available. <a href="/">Return home</a>.
+          </p>
+        )}
+      </section>
+    </OrganizationLayout>
+  );
+}
+
 export function PublicOrganizationSite({
   fallback,
   pathname,
@@ -498,11 +482,14 @@ export function PublicOrganizationSite({
     const orgName = state.projection.payload.organizationName;
     if (!orgName) return;
     const pageLabel =
-      pathname === "/history"
-        ? publicPageNavigationLabel(state.projection.payload.settings, "history")
-        : pathname === "/performances"
-          ? publicPageNavigationLabel(state.projection.payload.settings, "performances")
-          : null;
+      normalizedPublicWebsitePages(state.projection.payload.settings)
+        .filter((page) => page.body.trim())
+        .find((page) => pathname === `/${page.slug}`)?.title ??
+      (pathname === "/performances"
+        ? publicPageNavigationLabel(state.projection.payload.settings, "performances")
+        : pathname === "/"
+          ? null
+          : "Page not found");
     const previousTitle = document.title;
     document.title = pageLabel ? `${pageLabel} · ${orgName}` : orgName;
     return () => {
@@ -554,9 +541,13 @@ export function PublicOrganizationSite({
       </main>
     );
   }
-  if (pathname === "/history") {
+  if (pathname !== "/" && pathname !== "/performances") {
     return (
-      <OrganizationHistory pathname={pathname} projection={state.projection} signedIn={signedIn} />
+      <OrganizationContentPage
+        pathname={pathname}
+        projection={state.projection}
+        signedIn={signedIn}
+      />
     );
   }
   if (pathname === "/performances") {

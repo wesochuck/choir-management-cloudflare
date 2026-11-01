@@ -1,4 +1,11 @@
 import {
+  isPublicContentPath,
+  normalizedPublicWebsitePages,
+  reservedPublicWebsiteSlugs,
+} from "@choir/contracts";
+import { resolveOrganization } from "./tenancy/resolveOrganization";
+import { readPublishedOrganization } from "./publication/publishOrganization";
+import {
   processEmailProviderDeadLetterBatch,
   processEmailProviderQueue,
   reconcileEmailProviderEvents,
@@ -17,6 +24,53 @@ import { customDomainLoginRedirect } from "./tenancy/customDomainLogin";
 
 export { CustomDomainWorkflow, FleetSchemaWorkflow, OrganizationStore, ProvisioningWorkflow };
 
+function deniesAmbiguousContentPath(pathname: string): boolean {
+  if (pathname.startsWith("/api/") || pathname.startsWith("/assets/")) return false;
+  if (pathname.includes("%") || pathname.includes("\\")) return true;
+  if (pathname === "/") return false;
+  const first = pathname.split("/")[1] ?? "";
+  if (reservedPublicWebsiteSlugs.has(first) || first.includes(".")) return false;
+  return !isPublicContentPath(pathname);
+}
+
+function deniesPublicHostShell(url: URL, baseDomain: string): boolean {
+  if (url.hostname === baseDomain || url.hostname.endsWith(`.${baseDomain}`)) return false;
+  const pathname = url.pathname;
+  if (pathname.startsWith("/api/") || pathname.startsWith("/assets/")) return false;
+  const systemRoot = pathname.split("/")[1] ?? "";
+  const publicRoots = new Set([
+    "performances",
+    "tickets",
+    "donate",
+    "auditions",
+    "join",
+    "rsvp",
+    "poll",
+    "unsubscribe",
+    "player",
+    "privacy",
+    "terms",
+    "documents",
+  ]);
+  return (
+    (reservedPublicWebsiteSlugs.has(systemRoot) && !publicRoots.has(systemRoot)) ||
+    pathname.includes("%")
+  );
+}
+
+async function publicContentStatus(url: URL, env: Env): Promise<200 | 404 | undefined> {
+  if (!isPublicContentPath(url.pathname)) return undefined;
+  const organization = await resolveOrganization(url, env);
+  if (!organization.ok) return 404;
+  const published = await readPublishedOrganization(env, organization.value.organizationId);
+  return published &&
+    normalizedPublicWebsitePages(published.projection.payload.settings).some(
+      (page) => `/${page.slug}` === url.pathname && page.body.trim(),
+    )
+    ? 200
+    : 404;
+}
+
 const worker = {
   async fetch(request: Request, env: Env, executionContext: ExecutionContext): Promise<Response> {
     const loginRedirect = await customDomainLoginRedirect(request, env);
@@ -25,19 +79,28 @@ const worker = {
       loginRedirect.headers.set("cache-control", "no-store");
       return loginRedirect;
     }
+    const requestUrl = new URL(request.url);
+    const pathname = requestUrl.pathname;
+    if (
+      deniesAmbiguousContentPath(pathname) ||
+      deniesPublicHostShell(requestUrl, env.PRODUCT_BASE_DOMAIN)
+    ) {
+      const denied = new Response("Page not found", { status: 404 });
+      setSecurityHeaders(denied.headers);
+      return denied;
+    }
     const response = await router.fetch(request, env, executionContext);
-    const pathname = new URL(request.url).pathname;
     if (response.status !== 404 || pathname === "/api" || pathname.startsWith("/api/")) {
       return response;
     }
 
+    const contentStatus = await publicContentStatus(requestUrl, env);
     const assetResponse = await env.ASSETS.fetch(request);
     const headers = new Headers(assetResponse.headers);
     setSecurityHeaders(headers);
     return new Response(assetResponse.body, {
       headers,
-      status: assetResponse.status,
-      statusText: assetResponse.statusText,
+      status: contentStatus ?? assetResponse.status,
     });
   },
   async queue(batch: MessageBatch, env: Env): Promise<void> {

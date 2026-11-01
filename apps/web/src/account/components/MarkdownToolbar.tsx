@@ -1,9 +1,15 @@
+import { MarkdownDocumentPicker } from "./MarkdownDocumentPicker";
 import type { PublicWebsiteDocument } from "@choir/contracts";
-import { useState, type RefObject } from "react";
-import { formatMarkdownLink, markdownLinkSelection } from "../../shared/markdownLinks";
+import { useRef, useState, type RefObject } from "react";
+import {
+  formatMarkdownLink,
+  markdownLinkSelection,
+  safePublicLinkUrl,
+} from "../../shared/markdownLinks";
 import { MarkdownLinkEditor } from "./MarkdownLinkEditor";
 
 interface MarkdownToolbarProps {
+  readonly onManageDocuments?: (() => Promise<boolean>) | undefined;
   readonly hostedDocuments?: readonly PublicWebsiteDocument[] | undefined;
   readonly onChange: (nextValue: string) => void;
   readonly textareaRef: RefObject<HTMLTextAreaElement | null>;
@@ -12,10 +18,21 @@ interface MarkdownToolbarProps {
 
 export function MarkdownToolbar({
   hostedDocuments,
+  onManageDocuments,
   onChange,
   textareaRef,
   value,
 }: MarkdownToolbarProps) {
+  const documentCursor = useRef<number | null>(null);
+  const documentTrigger = useRef<HTMLButtonElement | null>(null);
+  const [documentSelection, setDocumentSelection] = useState<{
+    value: string;
+    start: number;
+    end: number;
+    text: string;
+    newTab: boolean;
+  } | null>(null);
+  const [insertionError, setInsertionError] = useState<string | null>(null);
   const [link, setLink] = useState<ReturnType<typeof markdownLinkSelection> | null>(null);
   function restoreFocus(cursor: number) {
     requestAnimationFrame(() => {
@@ -139,7 +156,78 @@ export function MarkdownToolbar({
         >
           Link
         </button>
+        <button
+          className="markdown-toolbar__button"
+          type="button"
+          ref={documentTrigger}
+          onClick={() => {
+            const textarea = textareaRef.current;
+            if (!textarea) return;
+            setInsertionError(null);
+            documentCursor.current = null;
+            setDocumentSelection({
+              ...markdownLinkSelection(value, textarea.selectionStart, textarea.selectionEnd),
+              value,
+            });
+          }}
+        >
+          Insert document
+        </button>
       </div>
+      {insertionError ? <p role="alert">{insertionError}</p> : null}
+      {documentSelection ? (
+        <MarkdownDocumentPicker
+          anchorRef={documentTrigger}
+          onReturnFocus={() => {
+            if (documentCursor.current !== null) restoreFocus(documentCursor.current);
+            else documentTrigger.current?.focus();
+          }}
+          documents={hostedDocuments}
+          onClose={() => {
+            setDocumentSelection(null);
+            documentTrigger.current?.focus();
+          }}
+          onManage={
+            onManageDocuments
+              ? async () => {
+                  if (await onManageDocuments()) setDocumentSelection(null);
+                }
+              : undefined
+          }
+          onSelect={(document) => {
+            if (
+              !document.downloadPath.startsWith("/") ||
+              !safePublicLinkUrl(document.downloadPath)
+            ) {
+              setInsertionError(
+                "This document link is unavailable. Refresh Documents and try again.",
+              );
+              setDocumentSelection(null);
+              return;
+            }
+            if (value !== documentSelection.value) {
+              setInsertionError(
+                "The text changed while choosing a document. Place your cursor and try again.",
+              );
+              setDocumentSelection(null);
+              documentTrigger.current?.focus();
+              return;
+            }
+            const replacement = formatMarkdownLink(
+              documentSelection.text || document.title,
+              document.downloadPath,
+              documentSelection.newTab,
+            );
+            onChange(
+              value.slice(0, documentSelection.start) +
+                replacement +
+                value.slice(documentSelection.end),
+            );
+            setDocumentSelection(null);
+            documentCursor.current = documentSelection.start + replacement.length;
+          }}
+        />
+      ) : null}
       {link ? (
         <MarkdownLinkEditor
           hostedDocuments={hostedDocuments}

@@ -6,6 +6,7 @@ import {
 } from "@choir/contracts";
 import { z } from "zod";
 
+import type { publicWebsiteOperationSchema } from "./publicWebsiteStore";
 import type { Env } from "../env";
 import {
   activatePublishedOrganization,
@@ -15,7 +16,7 @@ import {
   PublicationConflictError,
 } from "../publication/publishOrganization";
 import { privateOrganizationFileKey } from "../storage/privateFiles";
-import { invokeOrganizationRpc, organizationStoreStub } from "./rpc/client";
+import { organizationStoreStub } from "./rpc/client";
 
 const contextSchema = z.object({
   actorUserId: z.string().min(1).max(128),
@@ -48,6 +49,7 @@ export class PublicWebsiteError extends Error {
   constructor(
     readonly status: 400 | 404 | 409 | 503,
     message: string,
+    readonly code = "public_website_error",
   ) {
     super(message);
   }
@@ -59,30 +61,28 @@ function organizationStub(env: Pick<Env, "ORGANIZATION_STORE">, organizationId: 
   return organizationStoreStub(env, organizationId);
 }
 
-async function internalPost(
+async function runWebsiteOperation(
   env: Pick<Env, "ORGANIZATION_STORE">,
   context: WebsiteContext,
-  body: Readonly<Record<string, unknown>>,
+  body: z.infer<typeof publicWebsiteOperationSchema> extends infer T
+    ? T extends WebsiteContext
+      ? Omit<T, keyof WebsiteContext>
+      : never
+    : never,
 ): Promise<Response> {
-  return invokeOrganizationRpc(
-    organizationStub(env, context.organizationId),
-    "https://organization.internal/internal/website/manage",
-    {
-      body: JSON.stringify({ ...context, ...body }),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    },
-  );
+  return organizationStub(env, context.organizationId).managePublicWebsite({
+    ...context,
+    ...body,
+  });
 }
 
 export async function readOrganizationPublicWebsiteSettings(
   env: Pick<Env, "ORGANIZATION_STORE">,
   organizationId: string,
 ) {
-  const response = await invokeOrganizationRpc(
-    organizationStub(env, organizationId),
-    `https://organization.internal/internal/website/settings?organizationId=${encodeURIComponent(organizationId)}`,
-  );
+  const response = await organizationStub(env, organizationId).readPublicWebsiteSettings({
+    organizationId,
+  });
   const parsed = publicWebsiteSettingsSchema.safeParse(await response.json().catch(() => null));
   if (!response.ok || !parsed.success) {
     throw new PublicWebsiteError(404, "The Organization website settings were not found.");
@@ -97,11 +97,33 @@ export async function updateOrganizationPublicWebsiteSettings(
 ) {
   const validatedContext = contextSchema.parse(context);
   const validatedSettings = publicWebsiteSettingsRequestSchema.parse(settings);
-  const response = await internalPost(env, validatedContext, {
+  const response = await runWebsiteOperation(env, validatedContext, {
     action: "update",
     settings: validatedSettings,
   });
-  const parsed = publicWebsiteSettingsSchema.safeParse(await response.json().catch(() => null));
+  const responseBody: unknown = await response.json().catch(() => null);
+  const problem = z.object({ code: z.string() }).safeParse(responseBody);
+  if (
+    !response.ok &&
+    problem.success &&
+    ["website_draft_conflict", "website_page_url_locked"].includes(problem.data.code)
+  ) {
+    throw new PublicWebsiteError(
+      409,
+      problem.data.code === "website_draft_conflict"
+        ? "This draft changed in another tab. Your edits are preserved; reload to review the latest saved draft before saving again."
+        : "Saved page URLs cannot be changed.",
+      problem.data.code,
+    );
+  }
+  if (!response.ok && problem.success && problem.data.code === "website_settings_too_large") {
+    throw new PublicWebsiteError(
+      400,
+      "Website settings, including compatible History content, must be 500,000 UTF-8 bytes or smaller.",
+      problem.data.code,
+    );
+  }
+  const parsed = publicWebsiteSettingsSchema.safeParse(responseBody);
   if (!response.ok || !parsed.success) {
     throw new PublicWebsiteError(
       response.status === 409 ? 409 : 400,
@@ -164,7 +186,7 @@ export async function publishOrganizationPublicWebsite(
   schedule?: { readonly settings: PublicWebsiteSettingsRequest; readonly version: number },
 ) {
   const validatedContext = contextSchema.parse(context);
-  const beginResponse = await internalPost(env, validatedContext, {
+  const beginResponse = await runWebsiteOperation(env, validatedContext, {
     action: "begin_publication",
     ...(schedule ? { scheduleSettings: schedule.settings, expectedVersion: schedule.version } : {}),
   });
@@ -190,7 +212,7 @@ export async function publishOrganizationPublicWebsite(
   );
   const key = await writePublishedOrganization(env, projection);
   await activatePublishedOrganization(env, projection, key);
-  const completeResponse = await internalPost(env, validatedContext, {
+  const completeResponse = await runWebsiteOperation(env, validatedContext, {
     action: "complete_publication",
     publishedAt: generatedAt,
     version: draft.data.version,

@@ -161,3 +161,21 @@ reservation per Organization, supporting stable download URLs (`/api/public/docu
 
 Uploaded documents are live immediately without advancing the draft publication version. Document
 replacements and deletions clean up orphan private files via `privateFileIsReferenced`.
+
+## Public website content pages
+
+Organization schema version 130 adds nullable `pages_json` and nonnegative `draft_revision` to the
+website settings singleton. NULL is legacy format; an explicit `[]` is an intentionally empty page
+collection. Reading legacy History normalizes it deterministically without publishing or changing
+stored snapshots. Modern saves increment the revision and require its expected value; old-client
+omissions cannot erase a modern collection. Compatible History text and labels are synchronized on
+save. No index is needed for the bounded singleton access path.
+
+Up to 50 pages carry stable IDs, titles and immutable saved single-segment URLs of at most 120
+characters, Markdown bodies of at most 100,000 characters, and navigation visibility. Settings are
+bounded to 500,000 serialized UTF-8 bytes; the existing 1,000,000-byte projection limit still
+applies to the complete website/event/commerce snapshot. Reserved route roots take precedence across
+canonical and custom public hosts. Published pages and menu links require nonempty text; hiding a
+menu link does not restrict URL access. Whole-site publication and automatic event refresh retain
+Organization-bound immutable R2 snapshots, with event refresh reading only published settings. See
+ADR 0071 for compatibility and rollback requirements.

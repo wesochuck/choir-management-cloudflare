@@ -1,3 +1,4 @@
+import { publicWebsitePagesSchema, validatePublicWebsiteSettingsSize } from "./publicWebsitePages";
 import { z } from "zod";
 export const organizationSetListItemSchema = z.object({
   composer: z.string().trim().max(300).optional(),
@@ -260,7 +261,9 @@ const publicPageLabelSchema = z.object({
   heading: z.string().trim().min(1).max(120).optional(),
 });
 
-export const publicWebsiteSettingsRequestSchema = z.object({
+export const publicWebsiteSettingsRequestObjectSchema = z.object({
+  pages: publicWebsitePagesSchema.optional(),
+  expectedDraftRevision: z.number().int().nonnegative().optional(),
   pageLabels: z
     .object({
       performances: publicPageLabelSchema.optional(),
@@ -291,12 +294,20 @@ export const publicWebsiteSettingsRequestSchema = z.object({
   showBrandingHeaderFooter: z.boolean().default(false),
 });
 
-export const publicWebsiteSettingsSchema = publicWebsiteSettingsRequestSchema.extend({
+export const publicWebsiteSettingsRequestSchema =
+  publicWebsiteSettingsRequestObjectSchema.superRefine(validatePublicWebsiteSettingsSize);
+
+export const publicWebsiteSettingsObjectSchema = publicWebsiteSettingsRequestObjectSchema.extend({
+  draftRevision: z.number().int().nonnegative().optional(),
   organizationName: z.string().min(1).max(120),
   publicationVersion: z.number().int().nonnegative(),
   publishedAt: z.iso.datetime().nullable(),
   updatedAt: z.iso.datetime(),
 });
+
+export const publicWebsiteSettingsSchema = publicWebsiteSettingsObjectSchema.superRefine(
+  validatePublicWebsiteSettingsSize,
+);
 
 export const publicPerformanceSchema = z.object({
   ticketSlug: z

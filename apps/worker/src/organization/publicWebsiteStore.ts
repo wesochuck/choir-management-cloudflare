@@ -2,6 +2,9 @@ import {
   publicWebsiteProjectionPayloadSchema,
   publicWebsiteSettingsRequestSchema,
   publicWebsiteSettingsSchema,
+  normalizedPublicWebsitePages,
+  type PublicWebsitePage,
+  type PublicWebsiteSettingsRequest,
 } from "@choir/contracts";
 import { z } from "zod";
 
@@ -13,7 +16,7 @@ const actorSchema = z.object({
   requestId: z.uuid(),
 });
 
-const operationSchema = z.discriminatedUnion("action", [
+export const publicWebsiteOperationSchema = z.discriminatedUnion("action", [
   actorSchema.extend({
     action: z.literal("update"),
     settings: publicWebsiteSettingsRequestSchema,
@@ -54,6 +57,8 @@ interface SettingsRow {
   readonly heroPositionY: number;
   readonly heroSubtitle: string;
   readonly historyText: string;
+  readonly pagesJson: string | null;
+  readonly draftRevision: number;
   readonly logoFileId: string | null;
   readonly pendingPublicationVersion: number | null;
   readonly publicationVersion: number;
@@ -112,6 +117,7 @@ function settingsRow(storage: DurableObjectStorage): SettingsRow {
       `SELECT hero_headline AS heroHeadline, hero_subtitle AS heroSubtitle,
         hero_position_x AS heroPositionX, hero_position_y AS heroPositionY,
         about_us_text AS aboutUsText, history_text AS historyText,
+        pages_json AS pagesJson, draft_revision AS draftRevision,
         contact_email AS contactEmail, footer_text AS footerText, footer_embeds_json AS footerEmbedsJson, page_labels_json AS pageLabelsJson,
         show_branding_header_footer AS showBrandingHeaderFooter,
         header_font AS headerFont, body_font AS bodyFont,
@@ -147,6 +153,8 @@ function parsedSettings(row: SettingsRow, organizationName: string) {
     heroPosition: { x: row.heroPositionX, y: row.heroPositionY },
     heroSubtitle: row.heroSubtitle,
     historyText: row.historyText,
+    ...(row.pagesJson === null ? {} : { pages: JSON.parse(row.pagesJson) as unknown }),
+    draftRevision: row.draftRevision,
     logoFileId: row.logoFileId,
     organizationName,
     publicationVersion: row.publicationVersion,
@@ -279,15 +287,66 @@ export function readPublicCommerceProjectionFromStore(
   });
 }
 
+function compatibleWebsiteSettings(
+  settings: PublicWebsiteSettingsRequest,
+  pages: readonly PublicWebsitePage[],
+) {
+  const historyPage = pages.find((page) => page.slug === "history");
+  return {
+    ...settings,
+    pages,
+    footerText: settings.footerText ?? "",
+    footerEmbeds: settings.footerEmbeds ?? [],
+    heroPosition: settings.heroPosition ?? { x: 50, y: 50 },
+    historyText: historyPage?.body ?? "",
+    pageLabels: {
+      ...settings.pageLabels,
+      ...(historyPage
+        ? {
+            history: {
+              heading: historyPage.title,
+              navigationLabel: historyPage.navigationLabel ?? historyPage.title.slice(0, 60),
+            },
+          }
+        : {}),
+    },
+  };
+}
+
 function updateSettings(
   storage: DurableObjectStorage,
-  operation: Extract<z.infer<typeof operationSchema>, { readonly action: "update" }>,
+  operation: Extract<z.infer<typeof publicWebsiteOperationSchema>, { readonly action: "update" }>,
   organization: IdentityRow,
 ): Response {
   for (const fileId of [operation.settings.heroFileId, operation.settings.logoFileId]) {
     if (fileId && !validPublicImage(mediaFile(storage, fileId))) {
       return Response.json({ code: "invalid_public_website_image" }, { status: 409 });
     }
+  }
+  const current = parsedSettings(settingsRow(storage), organization.name);
+  if (
+    (operation.settings.pages !== undefined &&
+      operation.settings.expectedDraftRevision === undefined) ||
+    (operation.settings.expectedDraftRevision !== undefined &&
+      operation.settings.expectedDraftRevision !== (current.draftRevision ?? 0)) ||
+    (current.pages !== undefined && operation.settings.pages === undefined)
+  ) {
+    return Response.json({ code: "website_draft_conflict" }, { status: 409 });
+  }
+  const pages = operation.settings.pages ?? normalizedPublicWebsitePages(operation.settings);
+  const previousPages = new Map(
+    normalizedPublicWebsitePages(current).map((page) => [page.id, page]),
+  );
+  if (
+    pages.some(
+      (page) => previousPages.has(page.id) && previousPages.get(page.id)?.slug !== page.slug,
+    )
+  ) {
+    return Response.json({ code: "website_page_url_locked" }, { status: 409 });
+  }
+  const compatibleSettings = compatibleWebsiteSettings(operation.settings, pages);
+  if (!publicWebsiteSettingsRequestSchema.safeParse(compatibleSettings).success) {
+    return Response.json({ code: "website_settings_too_large" }, { status: 400 });
   }
   const updatedAt = new Date().toISOString();
   storage.transactionSync(() => {
@@ -296,12 +355,12 @@ function updateSettings(
         hero_headline = ?, hero_subtitle = ?, about_us_text = ?, history_text = ?,
         contact_email = ?, show_branding_header_footer = ?, header_font = ?, body_font = ?,
         hero_file_id = ?, logo_file_id = ?, enabled_navigation_json = ?, updated_at = ?,
-        footer_text = ?, footer_embeds_json = ?, hero_position_x = ?, hero_position_y = ?, page_labels_json = ?
+        footer_text = ?, footer_embeds_json = ?, hero_position_x = ?, hero_position_y = ?, page_labels_json = ?, pages_json = ?, draft_revision = draft_revision + 1
        WHERE singleton = 1`,
       operation.settings.heroHeadline,
       operation.settings.heroSubtitle,
       operation.settings.aboutUsText,
-      operation.settings.historyText,
+      compatibleSettings.historyText,
       operation.settings.contactEmail,
       operation.settings.showBrandingHeaderFooter ? 1 : 0,
       operation.settings.headerFont,
@@ -314,7 +373,8 @@ function updateSettings(
       JSON.stringify(operation.settings.footerEmbeds ?? []),
       operation.settings.heroPosition?.x ?? 50,
       operation.settings.heroPosition?.y ?? 50,
-      JSON.stringify(operation.settings.pageLabels ?? {}),
+      JSON.stringify(compatibleSettings.pageLabels),
+      JSON.stringify(pages),
     );
     storage.sql.exec(
       `INSERT INTO audit_events
@@ -340,7 +400,10 @@ function updateSettings(
 function beginPublication(
   storage: DurableObjectStorage,
   organization: IdentityRow,
-  operation: Extract<z.infer<typeof operationSchema>, { readonly action: "begin_publication" }>,
+  operation: Extract<
+    z.infer<typeof publicWebsiteOperationSchema>,
+    { readonly action: "begin_publication" }
+  >,
 ): Response {
   const row = settingsRow(storage);
   if (
@@ -448,6 +511,7 @@ function beginPublication(
         heroPosition: settings.heroPosition,
         heroSubtitle: settings.heroSubtitle,
         historyText: settings.historyText,
+        pages: normalizedPublicWebsitePages(settings),
         logoFileId: effectiveLogoFileId,
         showBrandingHeaderFooter: settings.showBrandingHeaderFooter,
       },
@@ -460,7 +524,10 @@ function beginPublication(
 
 function completePublication(
   storage: DurableObjectStorage,
-  operation: Extract<z.infer<typeof operationSchema>, { readonly action: "complete_publication" }>,
+  operation: Extract<
+    z.infer<typeof publicWebsiteOperationSchema>,
+    { readonly action: "complete_publication" }
+  >,
 ): Response {
   const row = settingsRow(storage);
   if (row.pendingPublicationVersion !== operation.version) {
@@ -494,7 +561,14 @@ export async function managePublicWebsiteInStore(
   storage: DurableObjectStorage,
   request: Request,
 ): Promise<Response> {
-  const parsed = operationSchema.safeParse(await request.json().catch(() => null));
+  return managePublicWebsiteOperationInStore(storage, await request.json().catch(() => null));
+}
+
+export function managePublicWebsiteOperationInStore(
+  storage: DurableObjectStorage,
+  input: unknown,
+): Response {
+  const parsed = publicWebsiteOperationSchema.safeParse(input);
   if (!parsed.success) {
     return Response.json({ code: "invalid_public_website_operation" }, { status: 400 });
   }

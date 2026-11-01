@@ -252,18 +252,8 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
 
     render(<PublicOrganizationSite fallback={<p>Fallback</p>} pathname="/history" />);
 
-    await screen.findByRole("heading", { name: "Our History" });
-    const emptyNotice = screen.getByLabelText("Unpublished history notice");
-    expect(emptyNotice).toHaveTextContent("Our history has not been published yet.");
-    expect(screen.getByRole("link", { name: "About Us section" })).toHaveAttribute(
-      "href",
-      "/#about-us",
-    );
-    expect(screen.getByRole("link", { name: "Contact us directly" })).toHaveAttribute(
-      "href",
-      "mailto:chorus@example.test",
-    );
-    expect(screen.getByRole("link", { name: "Return to home page" })).toHaveAttribute("href", "/");
+    expect(await screen.findByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Return home" })).toHaveAttribute("href", "/");
   });
 
   it("renders honest empty state when directly visiting empty /performances", async () => {
@@ -350,7 +340,7 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
 
     rerender(<PublicOrganizationSite fallback={<p>Fallback</p>} pathname="/history" />);
     await waitFor(() => {
-      expect(document.title).toBe("History · City Chorale");
+      expect(document.title).toBe("Our History · City Chorale");
     });
   });
 });

@@ -150,6 +150,10 @@
 
   /* === Public Organization Website: Header, Hero, Sections, Cards & Footer === */
 
+  body:has(.public-site):not(:has(.signed-in-main)) {
+    min-width: 0;
+  }
+
   .public-site {
     min-height: 100vh;
     background: var(--color-background);
@@ -227,9 +231,21 @@
   }
 
   .public-site-header nav {
+    min-width: 0;
+    overflow-wrap: anywhere;
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: var(--spacing-md);
+  }
+
+  .public-site-header > *,
+  .public-site-header nav > * {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .public-section {
+    overflow-wrap: anywhere;
   }
 
   .public-site-header nav a,

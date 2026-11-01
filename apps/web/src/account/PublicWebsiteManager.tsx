@@ -1,9 +1,11 @@
+import { PublicWebsitePagesEditor } from "./components/PublicWebsitePagesEditor";
 import {
   publicWebsiteSettingsRequestSchema,
+  normalizedPublicWebsitePages,
   type PublicWebsiteSettings,
   type PublicWebsiteSettingsRequest,
 } from "@choir/contracts";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@choir/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger, useConfirmation } from "@choir/ui";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 
 import {
@@ -15,10 +17,9 @@ import {
   updateOrganizationPublicWebsiteSettings,
   uploadPrivateOrganizationFile,
 } from "../auth/api";
-import { useSaveRegistration } from "../persistence";
+import { useOptionalSaveCoordinator, useSaveRegistration } from "../persistence";
 import {
   AppearanceTabContent,
-  HistoryTabContent,
   HomeTabContent,
   NavigationTabContent,
 } from "./components/PublicWebsiteEditorTabs";
@@ -31,12 +32,14 @@ type LoadState =
   | { readonly status: "loading" }
   | { readonly settings: PublicWebsiteSettings; readonly status: "ready" };
 
-type EditorTab = "appearance" | "history" | "home" | "navigation" | "footer" | "documents";
+type EditorTab = "appearance" | "pages" | "navigation" | "footer" | "documents";
 type PublicationVerificationStatus =
   "confirmed" | "idle" | "publishing" | "uncertain" | "verifying";
 
 function requestFrom(settings: PublicWebsiteSettings): PublicWebsiteSettingsRequest {
   return {
+    pages: normalizedPublicWebsitePages(settings),
+    expectedDraftRevision: settings.draftRevision ?? 0,
     pageLabels: settings.pageLabels ?? {},
     footerText: settings.footerText ?? "",
     footerEmbeds: settings.footerEmbeds ?? [],
@@ -60,6 +63,7 @@ function customWebsiteSettingsChanged(
   saved: PublicWebsiteSettingsRequest,
 ): boolean {
   return (
+    JSON.stringify(draft.pages) !== JSON.stringify(saved.pages) ||
     heroSettingsChanged(draft, saved) ||
     JSON.stringify(draft.pageLabels) !== JSON.stringify(saved.pageLabels) ||
     draft.footerText !== saved.footerText ||
@@ -111,6 +115,18 @@ function isWebsiteDraftDirty(
   );
 }
 
+function draftImageUrl(fileId: string | null | undefined, blobUrl: string | null) {
+  return blobUrl ?? (fileId ? `/api/organization/files/${fileId}` : null);
+}
+
+function draftPages(draft: PublicWebsiteSettingsRequest) {
+  return draft.pages ?? [];
+}
+
+function savedPageIds(settings: PublicWebsiteSettings) {
+  return new Set(normalizedPublicWebsitePages(settings).map((page) => page.id));
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof AuthApiError
     ? error.message
@@ -125,93 +141,29 @@ function validateImage(file: File | null): string | null {
   return file.size <= 5 * 1024 * 1024 ? null : "Public images must be 5 MB or smaller.";
 }
 
-function WebsiteReadinessChecklist({
-  dirty,
-  draft,
+function WebsitePublicationState({
   settings,
   verificationStatus,
   verifiedVersion,
 }: {
-  readonly dirty: boolean;
-  readonly draft: PublicWebsiteSettingsRequest;
   readonly settings: PublicWebsiteSettings;
   readonly verificationStatus: PublicationVerificationStatus;
   readonly verifiedVersion: number | null;
 }) {
-  let versionText: string;
-  if (settings.publicationVersion === 0) {
-    versionText =
-      "Your public website is not published yet. Visitors see default placeholder information until you publish.";
-  } else if (
-    verificationStatus === "confirmed" &&
-    verifiedVersion === settings.publicationVersion
-  ) {
-    versionText = `Live version ${String(settings.publicationVersion)}${
-      settings.publishedAt
-        ? ` (published ${new Date(settings.publishedAt).toLocaleDateString()})`
-        : ""
-    }. Version ${String(settings.publicationVersion)} is live.`;
-  } else if (verificationStatus === "verifying") {
-    versionText = `Publishing version ${String(settings.publicationVersion)}: Verifying public website availability…`;
-  } else if (verificationStatus === "uncertain") {
-    versionText = `Live version ${String(settings.publicationVersion)}${
-      settings.publishedAt
-        ? ` (published ${new Date(settings.publishedAt).toLocaleDateString()})`
-        : ""
-    } (public verification pending or unconfirmed).`;
-  } else {
-    versionText = `Live version ${String(settings.publicationVersion)}${
-      settings.publishedAt
-        ? ` (published ${new Date(settings.publishedAt).toLocaleDateString()})`
-        : ""
-    }.`;
-  }
-
-  const navigationSummary =
-    draft.enabledNavigation.length > 0
-      ? draft.enabledNavigation
-          .map((m) => (m === "tickets" ? "Tickets" : m === "donations" ? "Donate" : "Auditions"))
-          .join(", ")
-      : "Standard (Performances & History appear when published)";
-
+  const confirmed =
+    verificationStatus === "confirmed" && verifiedVersion === settings.publicationVersion;
   return (
-    <section aria-label="Website publication readiness" className="panel website-readiness">
-      <header className="website-readiness__header">
-        <h2>Website publication readiness</h2>
-        <p className="field-help website-readiness__status">
-          {versionText}
-          {dirty ? " You have unsaved changes in your draft." : ""}
-        </p>
-      </header>
-      <ul className="website-readiness__items">
-        <li>
-          <strong>About Us:</strong>{" "}
-          {draft.aboutUsText.trim() ? "Draft ready" : "Empty (omitted from home page)"}
-        </li>
-        <li>
-          <strong>Our History:</strong>{" "}
-          {draft.historyText.trim()
-            ? "Draft ready (History page appears in navigation)"
-            : "Empty (History link stays hidden from navigation until published)"}
-        </li>
-        <li>
-          <strong>Contact email:</strong>{" "}
-          {draft.contactEmail.trim()
-            ? `Configured (${draft.contactEmail.trim()})`
-            : "Not configured (no contact link in footer)"}
-        </li>
-        <li>
-          <strong>Navigation:</strong> {navigationSummary}
-        </li>
-      </ul>
-      <p className="field-help website-readiness__guidance">
-        Saving updates your administrative draft. Edits do not appear on your public website until
-        you click <strong>Publish saved draft</strong>. Public navigation links (Performances and
-        History) are hidden automatically whenever no published content exists for that section.
-        Once your website has been published, public Performance changes update automatically when
-        saved in Events.
-      </p>
-    </section>
+    <p className="field-help" aria-label="Publication state" role="status">
+      {verificationStatus === "publishing"
+        ? "Publishing…"
+        : verificationStatus === "verifying"
+          ? "Verifying publication…"
+          : confirmed
+            ? `Live · Published ${settings.publishedAt ? new Date(settings.publishedAt).toLocaleDateString() : ""}`
+            : settings.publicationVersion === 0
+              ? "Not published"
+              : "Publication verification pending"}
+    </p>
   );
 }
 
@@ -228,15 +180,17 @@ function PublicWebsiteActions({
   readonly dirty: boolean;
   readonly onPublish: () => void;
   readonly onRetryVerification: () => void;
-  readonly onSave: () => void;
+  readonly onSave?: (() => void) | undefined;
   readonly publicationVersion: number;
   readonly verificationStatus: PublicationVerificationStatus;
 }) {
   return (
     <div className="form-actions">
-      <button className="button button--secondary" disabled={busy} onClick={onSave} type="button">
-        {busy && verificationStatus === "idle" ? "Working…" : "Save draft"}
-      </button>
+      {onSave ? (
+        <button className="button button--secondary" disabled={busy} onClick={onSave} type="button">
+          Save draft
+        </button>
+      ) : null}
       <button
         aria-describedby={dirty ? "publish-dirty-hint" : undefined}
         className="button button--primary"
@@ -251,7 +205,8 @@ function PublicWebsiteActions({
             ? "Verifying…"
             : "Publish saved draft"}
       </button>
-      {verificationStatus === "uncertain" ? (
+      {verificationStatus === "uncertain" ||
+      (verificationStatus === "idle" && publicationVersion > 0) ? (
         <button
           className="button button--secondary"
           disabled={busy}
@@ -340,10 +295,12 @@ function WebsiteEditorViewToggle({ mobileView, onToggle }: WebsiteEditorViewTogg
 }
 
 export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean }) {
+  const { confirm, confirmationDialog } = useConfirmation();
+  const coordinator = useOptionalSaveCoordinator();
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" });
   const [draft, setDraft] = useState<PublicWebsiteSettingsRequest | null>(null);
-  const [activeTab, setActiveTab] = useState<EditorTab>("home");
-  const [previewPage, setPreviewPage] = useState<"home" | "history">("home");
+  const [activeTab, setActiveTab] = useState<EditorTab>("pages");
+  const [previewPage, setPreviewPage] = useState<string>("home");
   const [previewViewport, setPreviewViewport] = useState<"desktop" | "mobile">("desktop");
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [heroFile, setHeroFile] = useState<File | null>(null);
@@ -358,14 +315,12 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
   const [verifiedVersion, setVerifiedVersion] = useState<number | null>(null);
   const [verificationError, setVerificationError] = useState<string | null>(null);
 
+  const [manualSlugs, setManualSlugs] = useState<ReadonlySet<string>>(new Set());
   const draftRevisionRef = useRef(0);
   const aboutUsRef = useRef<HTMLTextAreaElement | null>(null);
-  const historyRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const heroPreviewUrl =
-    heroBlobUrl ?? (draft?.heroFileId ? `/api/organization/files/${draft.heroFileId}` : null);
-  const logoPreviewUrl =
-    logoBlobUrl ?? (draft?.logoFileId ? `/api/organization/files/${draft.logoFileId}` : null);
+  const heroPreviewUrl = draftImageUrl(draft?.heroFileId, heroBlobUrl);
+  const logoPreviewUrl = draftImageUrl(draft?.logoFileId, logoBlobUrl);
 
   useEffect(() => {
     return () => {
@@ -396,7 +351,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     getOrganizationPublicWebsiteSettings(controller.signal)
       .then((settings) => {
         setLoadState({ settings, status: "ready" });
-        setDraft(requestFrom(settings));
+        setDraft((current) => current ?? requestFrom(settings));
       })
       .catch((failure: unknown) => {
         if (!(failure instanceof DOMException && failure.name === "AbortError")) {
@@ -415,22 +370,19 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     draftRevisionRef.current += 1;
     setDraft((current) => (current ? { ...current, [key]: value } : current));
     setSuccess(null);
-    setVerificationStatus("idle");
     setVerificationError(null);
   }
 
   function handleTabChange(tab: EditorTab) {
     setActiveTab(tab);
-    if (tab === "home") setPreviewPage("home");
-    if (tab === "history") setPreviewPage("history");
   }
 
   async function save() {
-    if (!draft || loadState.status !== "ready") return;
+    if (!draft || loadState.status !== "ready") return false;
     const imageError = settingsValidationError(draft, heroFile, logoFile);
     if (imageError) {
       setError(imageError);
-      return;
+      return false;
     }
     setBusy(true);
     setError(null);
@@ -471,6 +423,7 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
           current
             ? {
                 ...current,
+                expectedDraftRevision: saved.draftRevision ?? 0,
                 heroFileId:
                   current.heroFileId === draftSnapshot.heroFileId
                     ? saved.heroFileId
@@ -489,9 +442,11 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
         () => undefined,
       );
       setError(errorMessage(failure));
+      return false;
     } finally {
       setBusy(false);
     }
+    return true;
   }
 
   async function verifyPublication(targetVersion: number) {
@@ -564,7 +519,26 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
   }
 
   const dirty = isWebsiteDraftDirty(loadState, draft, heroFile, logoFile);
+  async function openDocuments(): Promise<boolean> {
+    if (
+      dirty &&
+      !(await confirm({
+        title: "Open website documents?",
+        description:
+          "Your unsaved page text will be kept in this draft. Document changes take effect immediately and are independent of website publication.",
+        confirmLabel: "Open Documents",
+      }))
+    )
+      return false;
+    handleTabChange("documents");
+    return true;
+  }
   const isDocumentsTab = activeTab === "documents";
+  const fallbackSave = coordinator
+    ? undefined
+    : () => {
+        void save();
+      };
 
   useSaveRegistration({
     busy,
@@ -579,10 +553,8 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
     },
     id: "organization-public-website-settings",
     resourceKey: "organization-public-website-settings",
-    save: async () => {
-      await save();
-      return true;
-    },
+    saveLabel: "Save draft",
+    save,
   });
 
   if (!enabled) return null;
@@ -599,65 +571,72 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
 
   return (
     <div className="settings-stack">
-      <WebsiteReadinessChecklist
-        dirty={dirty}
-        draft={draft}
+      {confirmationDialog}
+      <WebsitePublicationState
         settings={loadState.settings}
         verificationStatus={verificationStatus}
         verifiedVersion={verifiedVersion}
       />
 
-      {!isDocumentsTab ? (
-        <WebsiteEditorViewToggle mobileView={mobileView} onToggle={setMobileView} />
-      ) : null}
+      <Tabs onValueChange={handleTabChange} value={activeTab}>
+        <TabsList aria-label="Public website sections" className="website-editor-tabs-list">
+          <TabsTrigger value="pages">Pages</TabsTrigger>
+          <TabsTrigger value="appearance">Appearance</TabsTrigger>
+          <TabsTrigger value="navigation">Navigation</TabsTrigger>
+          <TabsTrigger value="footer">Footer</TabsTrigger>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
+        </TabsList>
 
-      <div
-        className={`website-editor-layout website-editor-layout--${mobileView}${
-          isDocumentsTab ? " website-editor-layout--full" : ""
-        }`}
-      >
-        <section aria-label="Website editor" className="panel website-editor-controls">
-          <WebsiteEditorNotices
-            error={error}
-            success={success}
-            verificationError={verificationError}
-          />
+        {!isDocumentsTab ? (
+          <WebsiteEditorViewToggle mobileView={mobileView} onToggle={setMobileView} />
+        ) : null}
 
-          <Tabs onValueChange={handleTabChange} value={activeTab}>
-            <TabsList aria-label="Public website sections" className="website-editor-tabs-list">
-              <TabsTrigger value="home">Home</TabsTrigger>
-              <TabsTrigger value="history">History</TabsTrigger>
-              <TabsTrigger value="appearance">Appearance</TabsTrigger>
-              <TabsTrigger value="navigation">Navigation</TabsTrigger>
-              <TabsTrigger value="footer">Footer</TabsTrigger>
-              <TabsTrigger value="documents">Documents</TabsTrigger>
-            </TabsList>
+        <div
+          className={`website-editor-layout website-editor-layout--${mobileView}${
+            isDocumentsTab ? " website-editor-layout--full" : ""
+          }`}
+        >
+          <section aria-label="Website editor" className="website-editor-controls">
+            <WebsiteEditorNotices
+              error={error}
+              success={success}
+              verificationError={verificationError}
+            />
 
-            <TabsContent value="home">
-              <HomeTabContent
-                aboutUsRef={aboutUsRef}
-                busy={busy}
-                draft={draft}
-                heroImageUrl={heroPreviewUrl}
-                onChange={change}
-                onHeroFileChange={(event: ChangeEvent<HTMLInputElement>) => {
-                  const file = event.target.files?.[0] ?? null;
-                  handleHeroFileSelect(file);
-                  change("heroPosition", { x: 50, y: 50 });
+            <TabsContent value="pages">
+              <PublicWebsitePagesEditor
+                manualSlugs={manualSlugs}
+                onManualSlugEdit={(id) => {
+                  setManualSlugs((current) => new Set([...current, id]));
                 }}
-                onRemoveHeroImage={() => {
-                  handleHeroFileSelect(null);
-                  change("heroFileId", null);
+                pages={draftPages(draft)}
+                savedIds={savedPageIds(loadState.settings)}
+                selectedId={previewPage}
+                onSelect={setPreviewPage}
+                onChange={(pages) => {
+                  change("pages", pages);
                 }}
-              />
-            </TabsContent>
-
-            <TabsContent value="history">
-              <HistoryTabContent
+                onManageDocuments={openDocuments}
                 busy={busy}
-                draft={draft}
-                historyRef={historyRef}
-                onChange={change}
+                home={
+                  <HomeTabContent
+                    onManageDocuments={openDocuments}
+                    aboutUsRef={aboutUsRef}
+                    busy={busy}
+                    draft={draft}
+                    heroImageUrl={heroPreviewUrl}
+                    onChange={change}
+                    onHeroFileChange={(event: ChangeEvent<HTMLInputElement>) => {
+                      const file = event.target.files?.[0] ?? null;
+                      handleHeroFileSelect(file);
+                      change("heroPosition", { x: 50, y: 50 });
+                    }}
+                    onRemoveHeroImage={() => {
+                      handleHeroFileSelect(null);
+                      change("heroFileId", null);
+                    }}
+                  />
+                }
               />
             </TabsContent>
 
@@ -689,40 +668,38 @@ export function PublicWebsiteManager({ enabled }: { readonly enabled: boolean })
             <TabsContent value="documents">
               <PublicWebsiteDocumentsEditor />
             </TabsContent>
-          </Tabs>
+
+            {!isDocumentsTab ? (
+              <PublicWebsiteActions
+                busy={busy}
+                dirty={dirty}
+                onPublish={() => {
+                  void publish();
+                }}
+                onRetryVerification={() => {
+                  void retryVerification();
+                }}
+                onSave={fallbackSave}
+                publicationVersion={loadState.settings.publicationVersion}
+                verificationStatus={verificationStatus}
+              />
+            ) : null}
+          </section>
 
           {!isDocumentsTab ? (
-            <PublicWebsiteActions
-              busy={busy}
-              dirty={dirty}
-              onPublish={() => {
-                void publish();
-              }}
-              onRetryVerification={() => {
-                void retryVerification();
-              }}
-              onSave={() => {
-                void save();
-              }}
-              publicationVersion={loadState.settings.publicationVersion}
-              verificationStatus={verificationStatus}
+            <PublicWebsitePreview
+              draft={draft}
+              heroImageUrl={heroPreviewUrl}
+              logoImageUrl={logoPreviewUrl}
+              onPageChange={setPreviewPage}
+              onViewportChange={setPreviewViewport}
+              organizationName={loadState.settings.organizationName}
+              page={previewPage}
+              viewport={previewViewport}
             />
           ) : null}
-        </section>
-
-        {!isDocumentsTab ? (
-          <PublicWebsitePreview
-            draft={draft}
-            heroImageUrl={heroPreviewUrl}
-            logoImageUrl={logoPreviewUrl}
-            onPageChange={setPreviewPage}
-            onViewportChange={setPreviewViewport}
-            organizationName={loadState.settings.organizationName}
-            page={previewPage}
-            viewport={previewViewport}
-          />
-        ) : null}
-      </div>
+        </div>
+      </Tabs>
     </div>
   );
 }

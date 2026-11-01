@@ -1,5 +1,5 @@
 import type { PublicWebsiteSettings } from "@choir/contracts";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -64,48 +64,38 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     vi.mocked(api.deletePrivateOrganizationFile).mockReset();
   });
 
-  it("renders website readiness checklist with unpublished guidance when version is 0", async () => {
+  it("shows compact unpublished state without a readiness checklist", async () => {
     vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue(defaultSettings);
-
     render(
       <SaveCoordinatorProvider>
         <PublicWebsiteManager enabled />
         <SaveBar />
       </SaveCoordinatorProvider>,
     );
-
-    const readiness = await screen.findByRole("region", { name: "Website publication readiness" });
-    expect(readiness).toHaveTextContent("Your public website is not published yet.");
-    expect(readiness).toHaveTextContent("About Us: Draft ready");
-    expect(readiness).toHaveTextContent(
-      "Our History: Empty (History link stays hidden from navigation until published)",
-    );
-    expect(readiness).toHaveTextContent("Contact email: Configured (contact@example.test)");
-    expect(readiness).toHaveTextContent("Navigation: Tickets");
-    expect(readiness).toHaveTextContent(
-      "Public navigation links (Performances and History) are hidden automatically whenever no published content exists for that section.",
-    );
+    expect(await screen.findByLabelText("Publication state")).toHaveTextContent("Not published");
+    expect(screen.queryByRole("region", { name: "Website publication readiness" })).toBeNull();
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "Pages",
+      "Appearance",
+      "Navigation",
+      "Footer",
+      "Documents",
+    ]);
   });
 
-  it("shows live publication version and date when published", async () => {
+  it("does not claim a saved published version is verified live", async () => {
     vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue({
       ...defaultSettings,
-      historyText: "Founded in 1999.",
       publicationVersion: 3,
-      publishedAt: "2026-10-10T15:30:00.000Z",
     });
-
     render(
       <SaveCoordinatorProvider>
         <PublicWebsiteManager enabled />
         <SaveBar />
       </SaveCoordinatorProvider>,
     );
-
-    const readiness = await screen.findByRole("region", { name: "Website publication readiness" });
-    expect(readiness).toHaveTextContent(/Live version 3/);
-    expect(readiness).toHaveTextContent(
-      "Our History: Draft ready (History page appears in navigation)",
+    expect(await screen.findByLabelText("Publication state")).toHaveTextContent(
+      "Publication verification pending",
     );
   });
 
@@ -149,7 +139,7 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
       </SaveCoordinatorProvider>,
     );
 
-    await screen.findByRole("region", { name: "Website publication readiness" });
+    await screen.findByLabelText("Publication state");
     const publishButton = screen.getByRole("button", { name: "Publish saved draft" });
     await user.click(publishButton);
 
@@ -158,11 +148,11 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
       bypassCache: true,
     });
 
-    const successMessage = await screen.findByRole("status");
+    const successMessage = await screen.findByText(/Version \d+ is live\./);
     expect(successMessage).toHaveTextContent("Version 1 is live.");
 
-    const readiness = screen.getByRole("region", { name: "Website publication readiness" });
-    expect(readiness).toHaveTextContent("Version 1 is live.");
+    const readiness = screen.getByLabelText("Publication state");
+    expect(readiness).toHaveTextContent("Live · Published");
   });
 
   it("shows warning and allows retrying verification when initial projection verification fails", async () => {
@@ -184,7 +174,7 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
       </SaveCoordinatorProvider>,
     );
 
-    await screen.findByRole("region", { name: "Website publication readiness" });
+    await screen.findByLabelText("Publication state");
     const publishButton = screen.getByRole("button", { name: "Publish saved draft" });
     await user.click(publishButton);
 
@@ -227,7 +217,7 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     expect(authApi.publishOrganizationPublicWebsite).toHaveBeenCalledTimes(1);
     expect(authApi.getPublishedOrganizationProjection).toHaveBeenCalledTimes(2);
 
-    const successMessage = await screen.findByRole("status");
+    const successMessage = await screen.findByText(/Version \d+ is live\./);
     expect(successMessage).toHaveTextContent("Version 2 is live.");
   });
 
@@ -242,30 +232,31 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
       </SaveCoordinatorProvider>,
     );
 
-    await screen.findByRole("region", { name: "Website publication readiness" });
+    await screen.findByLabelText("Publication state");
 
     // In Home tab, edit hero headline
     const headlineInput = screen.getByLabelText("Hero headline");
     await user.clear(headlineInput);
     await user.type(headlineInput, "New Unsaved Headline");
 
-    // Switch to History tab
-    const historyTab = screen.getByRole("tab", { name: "History" });
-    await user.click(historyTab);
+    await user.click(screen.getByRole("button", { name: "Add page" }));
+    await user.type(screen.getByLabelText("Page title"), "Our History");
 
     // Edit history text
-    const historyTextarea = screen.getByLabelText("Our History (Markdown)");
+    const historyTextarea = screen.getByLabelText("Content (Markdown)");
     await user.type(historyTextarea, "Founded in 2026.");
 
     // Switch back to Home tab
-    const homeTab = screen.getByRole("tab", { name: "Home" });
-    await user.click(homeTab);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Page" }), "home");
 
     expect(screen.getByLabelText("Hero headline")).toHaveValue("New Unsaved Headline");
 
     // Switch back to History tab
-    await user.click(screen.getByRole("tab", { name: "History" }));
-    expect(screen.getByLabelText("Our History (Markdown)")).toHaveValue("Founded in 2026.");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Page" }),
+      screen.getByRole("option", { name: "Our History" }),
+    );
+    expect(screen.getByLabelText("Content (Markdown)")).toHaveValue("Founded in 2026.");
   });
 
   it("updates the preview immediately as administrator edits fields (#259)", async () => {
@@ -304,7 +295,7 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
       </SaveCoordinatorProvider>,
     );
 
-    await screen.findByRole("region", { name: "Website publication readiness" });
+    await screen.findByLabelText("Publication state");
     const publishButton = screen.getByRole("button", { name: "Publish saved draft" });
     expect(publishButton).not.toBeDisabled();
 
@@ -336,12 +327,13 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     });
 
     expect(screen.queryByRole("group", { name: "Preview page" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("tab", { name: "History" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Page" }), "legacy-history");
     expect(preview).toHaveTextContent("Our history started long ago.");
 
     await user.click(screen.getByRole("tab", { name: "Appearance" }));
     expect(preview).toHaveTextContent("Our history started long ago.");
-    await user.click(screen.getByRole("tab", { name: "Home" }));
+    await user.click(screen.getByRole("tab", { name: "Pages" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Page" }), "home");
     expect(within(preview).queryByRole("heading", { name: "Our History" })).not.toBeInTheDocument();
 
     // Toggle viewport to Mobile
@@ -381,7 +373,7 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
       </SaveCoordinatorProvider>,
     );
 
-    await screen.findByRole("region", { name: "Website publication readiness" });
+    await screen.findByLabelText("Publication state");
     expect(
       screen.getByRole("region", { name: "Public website draft preview" }),
     ).toBeInTheDocument();
@@ -412,10 +404,64 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
     ).toHaveAttribute("href", "/api/public/documents/donation-form.pdf");
 
     // Switching back to Home restores preview and draft actions
-    await user.click(screen.getByRole("tab", { name: "Home" }));
+    await user.click(screen.getByRole("tab", { name: "Pages" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Page" }), "home");
     expect(
       screen.getByRole("region", { name: "Public website draft preview" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Publish saved draft" })).toBeInTheDocument();
+  });
+  it("keeps a manually chosen new URL across section switches and later title edits", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue(defaultSettings);
+    render(
+      <SaveCoordinatorProvider>
+        <PublicWebsiteManager enabled />
+        <SaveBar />
+      </SaveCoordinatorProvider>,
+    );
+    await screen.findByLabelText("Publication state");
+    await user.click(screen.getByRole("button", { name: "Add page" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Page title")).toHaveFocus();
+    });
+    await user.type(screen.getByLabelText("Page title"), "Our story");
+    expect(screen.getByLabelText("Page URL")).toHaveValue("our-story");
+    await user.clear(screen.getByLabelText("Page URL"));
+    await user.type(screen.getByLabelText("Page URL"), "story");
+    await user.click(screen.getByRole("tab", { name: "Appearance" }));
+    await user.click(screen.getByRole("tab", { name: "Pages" }));
+    await user.type(screen.getByLabelText("Page title"), " together");
+    expect(screen.getByLabelText("Page URL")).toHaveValue("story");
+  });
+
+  it("keeps local page edits and the SaveBar after a typed draft conflict", async () => {
+    const user = userEvent.setup();
+    vi.mocked(authApi.getOrganizationPublicWebsiteSettings).mockResolvedValue({
+      ...defaultSettings,
+      draftRevision: 4,
+      pages: [
+        { id: "story", slug: "story", title: "Story", body: "Original", showInNavigation: true },
+      ],
+    });
+    vi.mocked(authApi.updateOrganizationPublicWebsiteSettings).mockRejectedValue(
+      new authApi.AuthApiError("This draft changed in another tab.", 409, "website_draft_conflict"),
+    );
+    render(
+      <SaveCoordinatorProvider>
+        <PublicWebsiteManager enabled />
+        <SaveBar />
+      </SaveCoordinatorProvider>,
+    );
+    await screen.findByLabelText("Publication state");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Page" }), "story");
+    await user.type(screen.getByLabelText("Content (Markdown)"), " plus my changes");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(await screen.findByText("This draft changed in another tab.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Content (Markdown)")).toHaveValue("Original plus my changes");
+    expect(screen.getByRole("region", { name: "Unsaved changes" })).toBeInTheDocument();
+    expect(authApi.updateOrganizationPublicWebsiteSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedDraftRevision: 4 }),
+    );
   });
 });

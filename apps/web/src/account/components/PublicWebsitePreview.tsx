@@ -1,3 +1,4 @@
+import { normalizedPublicWebsitePages } from "@choir/contracts";
 import { publicPageNavigationLabel } from "../../public/publicPageLabels";
 import { PublicWebsiteHero } from "../../public/PublicWebsiteHero";
 import { PublicWebsiteFooter } from "../../public/PublicWebsiteFooter";
@@ -11,10 +12,10 @@ export interface PublicWebsitePreviewProps {
   readonly draft: PublicWebsiteSettingsRequest;
   readonly heroImageUrl: string | null;
   readonly logoImageUrl: string | null;
-  readonly onPageChange: (page: "home" | "history") => void;
+  readonly onPageChange: (page: string) => void;
   readonly onViewportChange: (viewport: "desktop" | "mobile") => void;
   readonly organizationName: string;
-  readonly page: "home" | "history";
+  readonly page: string;
   readonly viewport: "desktop" | "mobile";
 }
 
@@ -56,9 +57,9 @@ function PreviewToolbar({ onViewportChange, viewport }: PreviewToolbarProps) {
 interface PreviewHeaderProps {
   readonly draft: PublicWebsiteSettingsRequest;
   readonly logoImageUrl: string | null;
-  readonly onPageChange: (page: "home" | "history") => void;
+  readonly onPageChange: (page: string) => void;
   readonly organizationName: string;
-  readonly page: "home" | "history";
+  readonly page: string;
 }
 
 function PreviewHeader({
@@ -75,18 +76,21 @@ function PreviewHeader({
         <span className="public-brand__name">{organizationName}</span>
       </div>
       <nav aria-label="Preview navigation">
-        {draft.historyText.trim() ? (
-          <button
-            aria-current={page === "history" ? "page" : undefined}
-            className={`preview-nav-link ${page === "history" ? "is-active" : ""}`}
-            onClick={() => {
-              onPageChange("history");
-            }}
-            type="button"
-          >
-            {publicPageNavigationLabel(draft, "history")}
-          </button>
-        ) : null}
+        {normalizedPublicWebsitePages(draft)
+          .filter((item) => item.body.trim() && item.showInNavigation)
+          .map((item) => (
+            <button
+              key={item.id}
+              aria-current={page === item.id ? "page" : undefined}
+              className={`preview-nav-link ${page === item.id ? "is-active" : ""}`}
+              onClick={() => {
+                onPageChange(item.id);
+              }}
+              type="button"
+            >
+              {item.navigationLabel ?? item.title}
+            </button>
+          ))}
         {draft.enabledNavigation.includes("tickets") ? (
           <span className="preview-nav-link">{publicPageNavigationLabel(draft, "tickets")}</span>
         ) : null}
@@ -133,20 +137,20 @@ function PreviewHome({ draft, heroImageUrl, organizationName }: PreviewHomeProps
   );
 }
 
-interface PreviewHistoryProps {
+interface PreviewContentPageProps {
   readonly historyText: string;
   readonly heading: string | undefined;
 }
 
-function PreviewHistory({ historyText, heading }: PreviewHistoryProps) {
+function PreviewContentPage({ historyText, heading }: PreviewContentPageProps) {
   return (
     <section className="public-section public-section--narrow">
       <h1>{heading ?? "Our History"}</h1>
       {historyText.trim() ? (
         <PublicCopy text={historyText} />
       ) : (
-        <div aria-label="Unpublished history notice" className="empty-state">
-          <p>Our history has not been published yet.</p>
+        <div aria-label="Empty draft page" className="empty-state">
+          <p>This page has no content yet.</p>
         </div>
       )}
     </section>
@@ -163,6 +167,7 @@ export function PublicWebsitePreview({
   page,
   viewport,
 }: PublicWebsitePreviewProps) {
+  const contentPage = normalizedPublicWebsitePages(draft).find((item) => item.id === page);
   const currentYear = String(new Date().getUTCFullYear());
   const frameRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
@@ -218,9 +223,9 @@ export function PublicWebsitePreview({
                 organizationName={organizationName}
               />
             ) : (
-              <PreviewHistory
-                historyText={draft.historyText}
-                heading={draft.pageLabels?.history?.heading}
+              <PreviewContentPage
+                historyText={contentPage?.body ?? ""}
+                heading={contentPage?.title}
               />
             )}
           </main>

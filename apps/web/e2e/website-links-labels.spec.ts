@@ -191,8 +191,6 @@ for (const theme of ["light", "dark"] as const) {
       expect(Math.abs(inputMidline - contentMidline)).toBeLessThanOrEqual(2.5);
     }
     for (const [field, value] of [
-      ["History navigation label", "Our story"],
-      ["History page heading", "Our beginnings"],
       ["Auditions page heading", "Join"],
       ["Performances navigation label", "Concerts"],
       ["Performances page heading", "Concert schedule"],
@@ -202,6 +200,10 @@ for (const theme of ["light", "dark"] as const) {
       ["Donate page heading", "Support our chorus"],
     ] as const)
       await page.getByLabel(field, { exact: true }).fill(value);
+    await page.getByRole("tab", { name: "Pages", exact: true }).click();
+    await page.getByRole("combobox", { name: "Page", exact: true }).selectOption("legacy-history");
+    await page.getByLabel("Page title", { exact: true }).fill("Our beginnings");
+    await page.getByLabel("Navigation label", { exact: true }).fill("Our story");
     await expect(
       page.getByRole("button", { name: "Publish saved draft", exact: true }),
     ).toBeDisabled();
@@ -211,10 +213,8 @@ for (const theme of ["light", "dark"] as const) {
       page.getByRole("button", { name: "Publish saved draft", exact: true }),
     ).toBeEnabled();
     await page.reload();
-    await page.getByRole("tab", { name: "Navigation", exact: true }).click();
-    await expect(page.getByLabel("History page heading", { exact: true })).toHaveValue(
-      "Our beginnings",
-    );
+    await page.getByRole("combobox", { name: "Page", exact: true }).selectOption("legacy-history");
+    await expect(page.getByLabel("Page title", { exact: true })).toHaveValue("Our beginnings");
     await page.getByRole("button", { name: "Publish saved draft", exact: true }).click();
     await expect(page.getByText("Version 5 is live.", { exact: true })).toBeVisible();
     await page.goto("/");

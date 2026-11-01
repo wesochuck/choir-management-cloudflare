@@ -18,7 +18,7 @@ export function resourceProblem(error: unknown, requestIdValue: string, message:
 export function publicWebsiteProblem(error: unknown, requestIdValue: string, message: string) {
   return {
     problem: {
-      code: error instanceof PublicWebsiteError ? "public_website_error" : "service_unavailable",
+      code: error instanceof PublicWebsiteError ? error.code : "service_unavailable",
       message: error instanceof PublicWebsiteError ? error.message : message,
       requestId: requestIdValue,
     } satisfies ProblemDetails,

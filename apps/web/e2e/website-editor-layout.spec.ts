@@ -30,12 +30,14 @@ for (const theme of ["light", "dark"] as const) {
     const api = await installOrganizationApi(page, { role: "administrator", strict: true });
     await page.route("**/api/organization/website", (route) => route.fulfill({ json: settings }));
     await page.goto("/admin/website");
-    const readiness = page.getByRole("region", { name: "Website publication readiness" });
-    await expect(readiness).toContainText("Live version 4");
-    await expect(readiness.getByText("About Us:", { exact: true })).toBeVisible();
-    await expect(readiness.getByText("Contact email:", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Publication state")).toContainText(
+      "Publication verification pending",
+    );
+    await expect(page.getByRole("region", { name: "Website publication readiness" })).toHaveCount(
+      0,
+    );
     const tabs = page.getByRole("tablist", { name: "Public website sections" });
-    const home = tabs.getByRole("tab", { name: "Home", exact: true });
+    const home = tabs.getByRole("tab", { name: "Pages", exact: true });
     await expect(home).toHaveAttribute("aria-selected", "true");
     for (const tab of await tabs.getByRole("tab").all()) {
       const box = await tab.boundingBox();
@@ -44,7 +46,7 @@ for (const theme of ["light", "dark"] as const) {
     }
     await home.focus();
     await page.keyboard.press("ArrowRight");
-    await expect(tabs.getByRole("tab", { name: "History", exact: true })).toHaveAttribute(
+    await expect(tabs.getByRole("tab", { name: "Appearance", exact: true })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -62,7 +64,6 @@ for (const theme of ["light", "dark"] as const) {
     });
     await page.screenshot({ path: testInfo.outputPath("website-editor.png"), fullPage: true });
     const accessibility = await new AxeBuilder({ page })
-      .include(".website-readiness")
       .include(".website-editor-controls")
       .analyze();
     expect(accessibility.violations).toEqual([]);
@@ -298,7 +299,7 @@ test("documents tab hides website preview and expands editor controls across ful
   await expect(page.getByRole("button", { name: "Publish saved draft" })).toHaveCount(0);
 
   // Switching back to Home restores preview (or preview toggle on mobile)
-  await tabs.getByRole("tab", { name: "Home", exact: true }).click();
+  await tabs.getByRole("tab", { name: "Pages", exact: true }).click();
   await expect(page.locator(".website-editor-layout")).not.toHaveClass(
     /website-editor-layout--full/,
   );

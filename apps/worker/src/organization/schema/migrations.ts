@@ -2307,6 +2307,13 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE communication_messages ADD COLUMN queued_by_name TEXT",
     ],
   },
+  {
+    version: 130,
+    statements: [
+      "ALTER TABLE public_website_settings ADD COLUMN pages_json TEXT",
+      "ALTER TABLE public_website_settings ADD COLUMN draft_revision INTEGER NOT NULL DEFAULT 0 CHECK (draft_revision >= 0)",
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

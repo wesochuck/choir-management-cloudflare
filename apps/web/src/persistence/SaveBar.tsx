@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { useOptionalSaveCoordinator } from "./SaveCoordinator";
 
+function saveActionLabel(saving: boolean, error: string | null, label = "Save changes") {
+  if (saving) return "Saving…";
+  return error ? "Retry save" : label;
+}
+
 export function SaveBar() {
   const coordinator = useOptionalSaveCoordinator();
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -61,7 +66,7 @@ export function SaveBar() {
           }}
           type="button"
         >
-          {isSaving ? "Saving…" : saveError ? "Retry save" : "Save changes"}
+          {saveActionLabel(isSaving, saveError, coordinator.saveLabel)}
         </button>
       </div>
     </div>

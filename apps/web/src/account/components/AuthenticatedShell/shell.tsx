@@ -987,6 +987,7 @@ function AuthenticatedOrganizationShell({
                 ? "signed-in-main--communications"
                 : "",
               route.pathname.startsWith("/admin/seating") ? "signed-in-main--seating" : "",
+              route.pathname === "/admin/website" ? "signed-in-main--website" : "",
               workspace === "platform" ? "signed-in-main--platform" : "",
             ]
               .filter(Boolean)

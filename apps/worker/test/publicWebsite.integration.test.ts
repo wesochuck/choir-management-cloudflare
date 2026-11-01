@@ -235,7 +235,28 @@ describe("Organization public website", () => {
           await exports.default.fetch(api("alpha.localhost", "/api/public/projection"))
         ).json(),
       );
+    const publishedPages = [
+      {
+        id: "live-story",
+        title: "Live story",
+        slug: "our-story",
+        body: "Published story",
+        showInNavigation: false,
+      },
+    ];
+    expect(
+      (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/website",
+          "PUT",
+          { pages: publishedPages, expectedDraftRevision: 0 },
+          cookie,
+        )
+      ).status,
+    ).toBe(200);
     await publish();
+    expect((await readPublic()).payload.settings.pages).toEqual(publishedPages);
     expect((await readPublic()).payload.performances).toHaveLength(0);
     const update = async (isTicketingEnabled: boolean, publishOnWebsite: boolean) => {
       const response = await jsonWrite(
@@ -261,6 +282,8 @@ describe("Organization public website", () => {
           "PUT",
           {
             ...settings,
+            expectedDraftRevision: settings.draftRevision,
+            pages: [],
             heroHeadline: "Unpublished headline",
             footerText: "Private draft footer",
           },
@@ -270,6 +293,7 @@ describe("Organization public website", () => {
     ).toBe(200);
     expect((await update(true, false)).publishOnWebsite).toBe(true);
     const live = await readPublic();
+    expect(live.payload.settings.pages).toEqual(publishedPages);
     expect(live.payload.performances).toMatchObject([{ id: event.id, isTicketingEnabled: true }]);
     expect(JSON.stringify(live)).not.toContain("Private call notes");
     expect(JSON.stringify(live)).not.toContain("Unpublished headline");
@@ -286,8 +310,22 @@ describe("Organization public website", () => {
     ]);
     expect((await update(false, false)).publishOnWebsite).toBe(false);
     expect((await readPublic()).payload.performances).toHaveLength(0);
+    await publish();
+    expect((await readPublic()).payload.settings.pages).toEqual([]);
+    expect(
+      (
+        await jsonWrite(
+          "alpha.localhost",
+          "/api/organization/website",
+          "PUT",
+          { ...draft, pages: publishedPages, expectedDraftRevision: draft.draftRevision },
+          cookie,
+        )
+      ).status,
+    ).toBe(200);
     const newlyTicketed = await create(true);
     expect(newlyTicketed.publishOnWebsite).toBe(true);
+    expect((await readPublic()).payload.settings.pages).toEqual([]);
     expect((await readPublic()).payload.performances).toMatchObject([{ id: newlyTicketed.id }]);
     expect(
       (await exports.default.fetch(api("bravo.localhost", "/api/public/projection"))).status,
@@ -625,6 +663,12 @@ describe("Organization public website", () => {
       "PUT",
       {
         ...savedSettings,
+        expectedDraftRevision: savedSettings.draftRevision,
+        pages: savedSettings.pages?.map((page) =>
+          page.slug === "history"
+            ? { ...page, title: "Our new story", navigationLabel: "Our new story" }
+            : page,
+        ),
         heroHeadline: "",
         heroPosition: { x: 75, y: 10 },
         pageLabels: { history: { heading: "Our new story" } },
@@ -827,5 +871,129 @@ describe("Organization public website", () => {
       (await exports.default.fetch(api("bravo.localhost", `/api/public/media/1/${FILE_ID}`)))
         .status,
     ).toBe(404);
+  });
+});
+
+describe("bounded website page publication", () => {
+  it("rejects oversized compatible History content before committing any draft", async () => {
+    const cookie = await signIn();
+    const response = await jsonWrite(
+      "alpha.localhost",
+      "/api/organization/website",
+      "PUT",
+      {
+        expectedDraftRevision: 0,
+        aboutUsText: "a".repeat(99_000),
+        pages: Array.from({ length: 4 }, (_, index) => ({
+          id: `page-${String(index)}`,
+          slug: index === 0 ? "history" : `page-${String(index)}`,
+          title: "Page",
+          body: "a".repeat(100_000),
+          showInNavigation: true,
+        })),
+      },
+      cookie,
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "website_settings_too_large" });
+    const settings = publicWebsiteSettingsResponseSchema.parse(
+      await (
+        await exports.default.fetch(api("alpha.localhost", "/api/organization/website", cookie))
+      ).json(),
+    );
+    expect(settings.draftRevision).toBe(0);
+    expect(settings.pages).toBeUndefined();
+    expect(settings.historyText).toBe("");
+  });
+
+  it("rejects stale drafts, keeps drafts private, and serves snapshot pages on canonical and custom hosts", async () => {
+    const cookie = await signIn();
+    const readDraft = async () =>
+      publicWebsiteSettingsResponseSchema.parse(
+        await (
+          await exports.default.fetch(api("alpha.localhost", "/api/organization/website", cookie))
+        ).json(),
+      );
+    const initial = await readDraft();
+    const page = {
+      id: "story",
+      slug: "our-story",
+      title: "Our story",
+      body: "Published story",
+      showInNavigation: true,
+    };
+    const save = (settings: unknown) =>
+      jsonWrite("alpha.localhost", "/api/organization/website", "PUT", settings, cookie);
+    const savedResponse = await save({
+      ...initial,
+      pages: [page],
+      expectedDraftRevision: initial.draftRevision,
+    });
+    expect(savedResponse.status).toBe(200);
+    const saved = publicWebsiteSettingsResponseSchema.parse(await savedResponse.json());
+    expect(saved.draftRevision).toBe(1);
+    const stale = await save({
+      ...initial,
+      pages: [],
+      expectedDraftRevision: initial.draftRevision,
+    });
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toMatchObject({ code: "website_draft_conflict" });
+    expect((await save({ historyText: "An older client" })).status).toBe(409);
+    expect(
+      (
+        await save({
+          ...saved,
+          pages: [{ ...page, slug: "renamed" }],
+          expectedDraftRevision: saved.draftRevision,
+        })
+      ).status,
+    ).toBe(409);
+    expect((await readDraft()).pages).toEqual([page]);
+    expect((await exports.default.fetch(api("alpha.example.test", "/our-story"))).status).toBe(404);
+    expect(
+      (await jsonWrite("alpha.localhost", "/api/organization/website/publish", "POST", {}, cookie))
+        .status,
+    ).toBe(200);
+    for (const host of ["alpha.localhost", "alpha.example.test"]) {
+      expect((await exports.default.fetch(api(host, "/our-story"))).status).toBe(200);
+      expect((await exports.default.fetch(api(host, "/missing-page"))).status).toBe(404);
+      expect((await exports.default.fetch(api(host, "/history"))).status).toBe(404);
+    }
+    for (const path of [
+      "/admin/website",
+      "/account",
+      "/platform",
+      "/setup",
+      "/%6fur-story",
+      "/our-story/",
+    ]) {
+      expect((await exports.default.fetch(api("alpha.example.test", path))).status, path).toBe(404);
+    }
+    for (const invalid of [
+      "/%6fur-story",
+      "/Our-Story",
+      "/our_story",
+      "/our--story",
+      "/our-story/",
+      "/our-story/nested",
+    ]) {
+      expect((await exports.default.fetch(api("alpha.localhost", invalid))).status, invalid).toBe(
+        404,
+      );
+    }
+    expect((await exports.default.fetch(api("bravo.localhost", "/our-story"))).status).toBe(404);
+    const deleted = await save({ ...saved, pages: [], expectedDraftRevision: saved.draftRevision });
+    expect(deleted.status).toBe(200);
+    expect((await exports.default.fetch(api("alpha.localhost", "/our-story"))).status).toBe(200);
+    expect(
+      (await jsonWrite("alpha.localhost", "/api/organization/website/publish", "POST", {}, cookie))
+        .status,
+    ).toBe(200);
+    expect((await exports.default.fetch(api("alpha.localhost", "/our-story"))).status).toBe(404);
+    const projection = publishedOrganizationProjectionSchema.parse(
+      await (await exports.default.fetch(api("alpha.localhost", "/api/public/projection"))).json(),
+    );
+    expect(projection.payload.settings.pages).toEqual([]);
   });
 });

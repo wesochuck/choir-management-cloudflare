@@ -1,8 +1,9 @@
+import { validatePublicWebsiteSettingsSize } from "./publicWebsitePages";
 import { z } from "zod";
 import { organizationIdSchema, requestIdSchema } from "./primitives";
 import {
   publicWebsiteSettingsRequestSchema,
-  publicWebsiteSettingsSchema,
+  publicWebsiteSettingsObjectSchema,
   publicPerformanceSchema,
 } from "./organization";
 
@@ -331,9 +332,11 @@ export const publishedOrganizationProjectionSchema = z.object({
   version: z.number().int().positive().max(2_147_483_647),
 });
 
-export const publicWebsiteSettingsResponseSchema = publicWebsiteSettingsSchema.extend({
-  requestId: requestIdSchema,
-});
+export const publicWebsiteSettingsResponseSchema = publicWebsiteSettingsObjectSchema
+  .extend({
+    requestId: requestIdSchema,
+  })
+  .superRefine(validatePublicWebsiteSettingsSize);
 
 export const publicWebsitePublishResponseSchema = z.object({
   publishedAt: z.iso.datetime(),

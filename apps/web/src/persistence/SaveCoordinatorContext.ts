@@ -60,6 +60,9 @@ export function useSaveRegistration(registration: SaveRegistration | null): void
       },
       id,
       resourceKey: resourceKey ?? "",
+      ...(registrationRef.current.saveLabel
+        ? { saveLabel: registrationRef.current.saveLabel }
+        : {}),
       save: () => registrationRef.current?.save() ?? Promise.resolve(true),
     });
   }, [busy, dirty, id, registerFn, resourceKey]);

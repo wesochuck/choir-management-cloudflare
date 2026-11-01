@@ -1,3 +1,4 @@
+import { isPublicContentPath } from "@choir/contracts";
 import "./main.css";
 import "./styles/theme.css";
 
@@ -381,13 +382,13 @@ function LegacyRedirect({ href }: { readonly href: string }) {
 }
 
 function isPublicOrganizationRoute(pathname: string): boolean {
-  return pathname === "/" || pathname === "/history" || pathname === "/performances";
+  return pathname === "/" || isPublicContentPath(pathname) || pathname === "/performances";
 }
 
 function isPublicWebsiteRoute(pathname: string): boolean {
   return (
     pathname === "/" ||
-    pathname === "/history" ||
+    isPublicContentPath(pathname) ||
     pathname === "/performances" ||
     pathname === "/auditions" ||
     pathname === "/join"

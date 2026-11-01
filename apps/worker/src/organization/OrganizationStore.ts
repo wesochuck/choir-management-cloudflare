@@ -1,4 +1,9 @@
 import {
+  managePublicWebsiteOperationInStore,
+  readPublicWebsiteSettingsFromStore,
+  type publicWebsiteOperationSchema,
+} from "./publicWebsiteStore";
+import {
   startLoudness,
   loudnessStatus,
   loudnessFailures,
@@ -854,6 +859,14 @@ export class OrganizationStore extends DurableObject {
   }
   submitAudioLoudness(input: Parameters<typeof submitLoudness>[1]) {
     return submitLoudness(this.ctx.storage, input);
+  }
+
+  readPublicWebsiteSettings(input: { readonly organizationId: string }) {
+    return readPublicWebsiteSettingsFromStore(this.ctx.storage, input.organizationId);
+  }
+
+  managePublicWebsite(input: z.infer<typeof publicWebsiteOperationSchema>) {
+    return managePublicWebsiteOperationInStore(this.ctx.storage, input);
   }
 
   // Public website hosted documents: strongly typed Durable Object RPC methods.

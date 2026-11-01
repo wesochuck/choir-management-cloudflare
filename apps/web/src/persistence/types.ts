@@ -26,6 +26,7 @@ export interface PersistedDraftReturn<T, TRequest = T> {
 }
 
 export interface SaveRegistration {
+  readonly saveLabel?: string;
   readonly busy: boolean;
   readonly dirty: boolean;
   readonly discard: () => void;
@@ -42,6 +43,7 @@ export interface LeaveOptions {
 }
 
 export interface SaveCoordinatorContextValue {
+  readonly saveLabel?: string | undefined;
   readonly dirtyCount: number;
   readonly discardAll: () => void;
   readonly isDirty: boolean;

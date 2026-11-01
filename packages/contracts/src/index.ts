@@ -28,3 +28,5 @@ export * from "./platformHome";
 export * from "./musicTrackImport";
 export * from "./loudness";
 export * from "./publicDocuments";
+
+export * from "./publicWebsitePages";

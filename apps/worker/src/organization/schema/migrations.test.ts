@@ -50,6 +50,36 @@ function readTaskApplicable(
 }
 
 describe("organization schema migrations", () => {
+  it("v130 preserves populated legacy website settings and distinguishes NULL from an empty collection", () => {
+    const adapter = setupThrough(129);
+    adapter.storage.sql.exec(
+      "UPDATE public_website_settings SET history_text = 'Our original story', publication_version = 4 WHERE singleton = 1",
+    );
+    applyVersion(adapter, 130);
+    expect(
+      adapter.storage.sql
+        .exec(
+          "SELECT history_text, pages_json, draft_revision, publication_version FROM public_website_settings",
+        )
+        .toArray(),
+    ).toEqual([
+      {
+        history_text: "Our original story",
+        pages_json: null,
+        draft_revision: 0,
+        publication_version: 4,
+      },
+    ]);
+    adapter.storage.sql.exec(
+      "UPDATE public_website_settings SET pages_json = '[]', draft_revision = 1",
+    );
+    expect(
+      adapter.storage.sql
+        .exec("SELECT pages_json, history_text FROM public_website_settings")
+        .toArray(),
+    ).toEqual([{ pages_json: "[]", history_text: "Our original story" }]);
+    adapter.db.close();
+  });
   it("v128 stores canonical event promotion context and enforces one initial per event", () => {
     const adapter = setupThrough(127);
     applyVersion(adapter, 128);

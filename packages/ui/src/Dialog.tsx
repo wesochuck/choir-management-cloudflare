@@ -1,10 +1,18 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { useEffect, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { usePortalContainer } from "./usePortalContainer";
 import { useConfirmation } from "./useConfirmation";
 
 export interface DialogProps {
+  readonly anchorRef?: RefObject<HTMLElement | null> | undefined;
   readonly bodyClassName?: string;
   readonly children: ReactNode;
   readonly className?: string;
@@ -45,6 +53,7 @@ export function DialogFooter({
 }
 
 export function Dialog({
+  anchorRef,
   bodyClassName,
   children,
   className,
@@ -59,6 +68,56 @@ export function Dialog({
   title,
   variant = "default",
 }: DialogProps) {
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (!open || !anchorRef) return;
+    function position() {
+      const content = contentRef.current;
+      const anchor = anchorRef?.current;
+      if (!content || !anchor) return;
+      if (window.innerWidth < 640) {
+        for (const property of [
+          "position",
+          "left",
+          "top",
+          "width",
+          "max-height",
+          "transform",
+          "margin",
+        ])
+          content.style.removeProperty(property);
+        return;
+      }
+      const rect = anchor.getBoundingClientRect();
+      const width = Math.min(400, window.innerWidth - 32);
+      const availableBelow = window.innerHeight - rect.bottom - 24;
+      const height = Math.min(440, Math.max(240, window.innerHeight - 48));
+      const top =
+        availableBelow >= Math.min(height, content.scrollHeight)
+          ? rect.bottom + 8
+          : Math.max(16, rect.top - Math.min(height, content.scrollHeight) - 8);
+      Object.assign(content.style, {
+        position: "fixed",
+        left: `${String(Math.max(16, Math.min(rect.left, window.innerWidth - width - 16)))}px`,
+        top: `${String(top)}px`,
+        width: `${String(width)}px`,
+        maxHeight: `${String(Math.min(height, window.innerHeight - top - 16))}px`,
+        transform: "none",
+        margin: "0",
+      });
+    }
+    const frame = requestAnimationFrame(position);
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(position);
+    if (contentRef.current) observer?.observe(contentRef.current);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+      observer?.disconnect();
+    };
+  }, [anchorRef, open]);
   const [inputDirty, setInputDirty] = useState(false);
   const portalContext = usePortalContainer();
   const { confirm, confirmationDialog } = useConfirmation();
@@ -100,8 +159,11 @@ export function Dialog({
       >
         {!isScoped || resolvedContainer ? (
           <DialogPrimitive.Portal container={resolvedContainer ?? undefined}>
-            <DialogPrimitive.Overlay className="dialog__overlay" />
+            <DialogPrimitive.Overlay
+              className={`dialog__overlay${anchorRef ? " dialog__overlay--anchored" : ""}`}
+            />
             <DialogPrimitive.Content
+              ref={contentRef}
               className={`dialog dialog--responsive ${variant === "confirmation" ? "dialog--confirmation" : ""} ${className ?? ""}`.trim()}
               onCloseAutoFocus={onCloseAutoFocus}
               onEscapeKeyDown={(event) => {

@@ -165,6 +165,7 @@ export function SaveCoordinatorProvider({ children }: { readonly children: React
 
   const contextValue: SaveCoordinatorContextValue = useMemo(
     () => ({
+      saveLabel: dirtyRegistrations.length === 1 ? dirtyRegistrations[0]?.saveLabel : undefined,
       dirtyCount: dirtyRegistrations.length,
       discardAll,
       isDirty,
@@ -173,7 +174,7 @@ export function SaveCoordinatorProvider({ children }: { readonly children: React
       requestLeave,
       saveAll,
     }),
-    [dirtyRegistrations.length, discardAll, isBusy, isDirty, register, requestLeave, saveAll],
+    [dirtyRegistrations, discardAll, isBusy, isDirty, register, requestLeave, saveAll],
   );
 
   return (

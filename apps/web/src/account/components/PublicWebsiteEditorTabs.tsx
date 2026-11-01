@@ -30,6 +30,7 @@ export function FontPreview({ font }: { readonly font: PublicWebsiteFont }) {
 }
 
 interface TabContentProps {
+  readonly onManageDocuments?: (() => Promise<boolean>) | undefined;
   readonly busy: boolean;
   readonly draft: PublicWebsiteSettingsRequest;
   readonly onChange: <K extends keyof PublicWebsiteSettingsRequest>(
@@ -40,6 +41,7 @@ interface TabContentProps {
 
 export function HomeTabContent({
   aboutUsRef,
+  onManageDocuments,
   busy,
   draft,
   heroImageUrl,
@@ -110,18 +112,22 @@ export function HomeTabContent({
       </div>
 
       {heroImageUrl ? (
-        <HeroImagePositionEditor
-          imageUrl={heroImageUrl}
-          position={draft.heroPosition ?? { x: 50, y: 50 }}
-          disabled={busy}
-          onChange={(position) => {
-            onChange("heroPosition", position);
-          }}
-        />
+        <details>
+          <summary>Adjust image</summary>
+          <HeroImagePositionEditor
+            imageUrl={heroImageUrl}
+            position={draft.heroPosition ?? { x: 50, y: 50 }}
+            disabled={busy}
+            onChange={(position) => {
+              onChange("heroPosition", position);
+            }}
+          />
+        </details>
       ) : null}
       <div className="field">
         <label htmlFor="website-about">About Us (Markdown)</label>
         <MarkdownToolbar
+          onManageDocuments={onManageDocuments}
           onChange={(next) => {
             onChange("aboutUsText", next);
           }}
@@ -138,44 +144,6 @@ export function HomeTabContent({
           ref={aboutUsRef}
           rows={8}
           value={draft.aboutUsText}
-        />
-      </div>
-    </div>
-  );
-}
-
-export function HistoryTabContent({
-  busy,
-  draft,
-  historyRef,
-  onChange,
-}: TabContentProps & {
-  readonly historyRef: RefObject<HTMLTextAreaElement | null>;
-}) {
-  return (
-    <div className="form-stack">
-      <p className="field-help">
-        History appears in public navigation after publication when content exists.
-      </p>
-      <div className="field">
-        <label htmlFor="website-history">Our History (Markdown)</label>
-        <MarkdownToolbar
-          onChange={(next) => {
-            onChange("historyText", next);
-          }}
-          textareaRef={historyRef}
-          value={draft.historyText}
-        />
-        <textarea
-          disabled={busy}
-          id="website-history"
-          maxLength={100_000}
-          onChange={(event) => {
-            onChange("historyText", event.target.value);
-          }}
-          ref={historyRef}
-          rows={10}
-          value={draft.historyText}
         />
       </div>
     </div>
@@ -336,7 +304,8 @@ export function NavigationTabContent({ busy, draft, onChange }: TabContentProps)
         ))}
         <p className="field-help">
           Enable links only after the matching public module is ready. Standard public links
-          (Performances & History) appear automatically when content exists.
+          (Performances) appear automatically when content exists. Custom page links are configured
+          in Pages.
         </p>
       </fieldset>
     </div>
