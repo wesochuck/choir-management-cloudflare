@@ -12,6 +12,7 @@ import {
   type MemberProfile,
   type OrganizationAttendanceRow,
   type OrganizationEvent,
+  type OrganizationNotification,
   type OrganizationProfile,
   type OrganizationSeatingChart,
   type SingerEvent,
@@ -135,8 +136,10 @@ export interface OrganizationApi {
   readonly singerEvents: MutableState<SingerEvent[]>;
   readonly learningTracks: MutableState<SingerLearningTrackPiece[]>;
   readonly donations: MutableState<DonationRecord[]>;
+  readonly notifications?: readonly OrganizationNotification[];
   readonly unexpectedRequests: readonly string[];
   assertNoUnexpectedRequests(): void;
+  setNotifications?(list: OrganizationNotification[]): void;
   setSingerDashboard(response: MemberDashboardResponse | null): void;
 }
 
@@ -612,6 +615,60 @@ export async function installOrganizationApi(
     await fulfillJson(route, { documents: [], requestId });
   });
 
+  let notifications: OrganizationNotification[] = [];
+
+  await page.route("**/api/notifications**", async (route) => {
+    if (route.request().method() === "GET") {
+      await fulfillJson(route, {
+        hasMoreUnread: false,
+        nextCursor: null,
+        notifications,
+        requestId,
+        snapshotBoundary: new Date().toISOString(),
+        unreadCount: notifications.filter((n) => !n.readAt).length,
+      });
+      return;
+    }
+    if (route.request().method() === "POST") {
+      const url = new URL(route.request().url());
+      if (url.pathname.endsWith("/read-all")) {
+        const count = notifications.filter((n) => !n.readAt).length;
+        notifications = notifications.map((n) => ({
+          ...n,
+          readAt: n.readAt ?? new Date().toISOString(),
+        }));
+        await fulfillJson(route, {
+          markedCount: count,
+          requestId,
+          success: true,
+        });
+        return;
+      }
+      const match = /\/api\/notifications\/([^/]+)\/read/.exec(url.pathname);
+      const targetId = match?.[1];
+      const target = notifications.find((n) => n.id === targetId);
+      const updated: OrganizationNotification = target
+        ? { ...target, readAt: new Date().toISOString() }
+        : {
+            body: "",
+            createdAt: new Date().toISOString(),
+            destinationPath: null,
+            expiresAt: new Date(Date.now() + 90 * 86400 * 1000).toISOString(),
+            id: targetId ?? "mock-notif",
+            kind: "audition",
+            readAt: new Date().toISOString(),
+            title: "Notification",
+          };
+      await fulfillJson(route, {
+        notification: updated,
+        requestId,
+        success: true,
+      });
+      return;
+    }
+    await fulfillJson(route, { requestId }, 404);
+  });
+
   return {
     assertNoUnexpectedRequests: () => {
       guard?.assertNoUnexpectedRequests();
@@ -621,11 +678,15 @@ export async function installOrganizationApi(
     events,
     invitations,
     memberProfile,
+    notifications,
     organization,
     profiles,
     seatingCharts,
     seatingConfiguration,
     session,
+    setNotifications: (list: OrganizationNotification[]) => {
+      notifications = list;
+    },
     setSingerDashboard: (response: MemberDashboardResponse | null) => {
       singerDashboard = response;
     },
