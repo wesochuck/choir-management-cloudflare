@@ -132,7 +132,7 @@ for (const pathname of ["/", "/performances"] as const) {
       await page.route(`**/api/public/media/1/${graphicId}`, (route) =>
         route.fulfill({
           contentType: "image/svg+xml",
-          body: '<svg xmlns="http://www.w3.org/2000/svg" width="500" height="240"><rect width="500" height="240" fill="#397a81"/></svg>',
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="500" height="600"><rect width="500" height="600" fill="#397a81"/></svg>',
         }),
       );
       await page
@@ -152,6 +152,18 @@ for (const pathname of ["/", "/performances"] as const) {
         "Free Community Concert",
       ]);
       const card = page.locator(`#performance-${firstId}`);
+      const artwork = card.locator(":scope > img");
+      await expect(artwork).toBeVisible();
+      await expect
+        .poll(() =>
+          artwork.evaluate((image: HTMLImageElement) => {
+            const box = image.getBoundingClientRect();
+            return image.naturalWidth > 0
+              ? Math.abs(box.width / box.height - image.naturalWidth / image.naturalHeight)
+              : 1;
+          }),
+        )
+        .toBeLessThan(0.01);
       const mapUrl =
         "https://www.google.com/maps/search/?api=1&query=Community%20Hall%2C%20100%20Main%20St%2C%20Lancaster%2C%20OH";
       for (const venueCard of [card, page.locator(`#performance-${freeId}`)]) {

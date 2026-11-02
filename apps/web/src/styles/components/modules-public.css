@@ -442,7 +442,6 @@
     display: block;
     width: 100%;
     height: auto;
-    max-height: 22rem;
     object-fit: contain;
     background: var(--color-surface);
   }
@@ -490,10 +489,6 @@
     display: flex;
     flex-direction: column;
     position: relative;
-  }
-
-  .public-performance-card--ticket > img {
-    max-height: none;
   }
 
   .public-performance-card--ticket h2 {
