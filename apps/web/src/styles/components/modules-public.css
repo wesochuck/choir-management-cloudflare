@@ -492,6 +492,17 @@
     position: relative;
   }
 
+  .public-performance-card--ticket > img {
+    max-height: none;
+  }
+
+  .public-performance-card--ticket h2 {
+    margin: var(--spacing-2xs) 0 var(--spacing-sm);
+    font-size: var(--font-size-2xl);
+    line-height: var(--line-height-tight);
+    overflow-wrap: anywhere;
+  }
+
   /* Whole-card purchase navigation via a stretched native link: clicking the
      image, title, details, price, or empty background follows the card's Buy
      action with normal link behavior (keyboard, new tab, copy link). The
