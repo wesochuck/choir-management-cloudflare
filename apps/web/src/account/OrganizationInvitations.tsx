@@ -24,7 +24,7 @@ import {
 } from "../auth/api";
 import { OrganizationMfaPrompt } from "./OrganizationMfaPrompt";
 import { ResolveDuplicateDialog } from "./ResolveDuplicateDialog";
-import { RosterInviteLinksDialog } from "./components/RosterPage/RosterInviteLinksDialog";
+import { RosterInviteLinksSection } from "./components/RosterPage/RosterInviteLinksSection";
 
 function displayDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(
@@ -700,7 +700,6 @@ export function OrganizationInvitations({
   const [role, setRole] = useState<"administrator" | "member" | "owner">("member");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [truncated, setTruncated] = useState(false);
-  const [inviteLinksDialogOpen, setInviteLinksDialogOpen] = useState(false);
   const mfaBlocked = context.mfaRequired && !context.mfaSatisfied;
 
   useEffect(() => {
@@ -795,23 +794,13 @@ export function OrganizationInvitations({
 
   return (
     <>
-      <div className="page-heading page-heading--actions">
+      <div className="page-heading">
         <div>
           <h1>Membership invitations</h1>
           <p className="page-heading__description">
             Invite new members, managers, and administrators to the organization.
           </p>
         </div>
-        <button
-          className="button button--secondary"
-          disabled={mfaBlocked}
-          onClick={() => {
-            setInviteLinksDialogOpen(true);
-          }}
-          type="button"
-        >
-          Invite by link
-        </button>
       </div>
       <div className="settings-stack">
         <fieldset
@@ -889,6 +878,8 @@ export function OrganizationInvitations({
           </form>
         </fieldset>
 
+        <RosterInviteLinksSection mfaBlocked={mfaBlocked} />
+
         <PendingInvitationList
           busyInvitationId={busyInvitationId}
           cancelConfirmationId={cancelConfirmationId}
@@ -904,12 +895,6 @@ export function OrganizationInvitations({
           truncated={truncated}
         />
         <MembershipProfileLinks context={context} />
-        <RosterInviteLinksDialog
-          onClose={() => {
-            setInviteLinksDialogOpen(false);
-          }}
-          open={inviteLinksDialogOpen}
-        />
       </div>
     </>
   );

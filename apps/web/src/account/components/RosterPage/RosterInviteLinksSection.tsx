@@ -1,6 +1,6 @@
 import type { RosterInviteExpirationDays, RosterInviteLinkSummary } from "@choir/contracts";
 import { timestampedExportFilename } from "@choir/domain";
-import { DataTable, Dialog, DialogClose, useConfirmation } from "@choir/ui";
+import { DataTable, useConfirmation } from "@choir/ui";
 import { useCallback, useEffect, useState } from "react";
 
 import {
@@ -10,16 +10,11 @@ import {
   shareRosterInviteLink,
 } from "../../../api";
 import { generateQRCodeDataUrl } from "../../../shared/qrCode";
+import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
 
-export function RosterInviteLinksDialog({
-  onClose,
-  open,
-}: {
-  readonly onClose: () => void;
-  readonly open: boolean;
-}) {
+export function RosterInviteLinksSection({ mfaBlocked }: { readonly mfaBlocked: boolean }) {
   const [links, setLinks] = useState<readonly RosterInviteLinkSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!mfaBlocked);
   const [listError, setListError] = useState<string | null>(null);
 
   const [label, setLabel] = useState("Choir Roster Invite");
@@ -47,19 +42,25 @@ export function RosterInviteLinksDialog({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (mfaBlocked) return;
     let ignore = false;
     void listRosterInviteLinks()
       .then((response) => {
-        if (!ignore) setLinks(response.links);
+        if (!ignore) {
+          setLinks(response.links);
+          setIsLoading(false);
+        }
       })
       .catch(() => {
-        if (!ignore) setListError("Failed to load roster invite links.");
+        if (!ignore) {
+          setListError("Failed to load roster invite links.");
+          setIsLoading(false);
+        }
       });
     return () => {
       ignore = true;
     };
-  }, [open]);
+  }, [mfaBlocked]);
 
   async function handleCreate(event: React.SyntheticEvent): Promise<void> {
     event.preventDefault();
@@ -101,16 +102,6 @@ export function RosterInviteLinksDialog({
     } finally {
       setIsCreating(false);
     }
-  }
-
-  function handleClose(): void {
-    setActionError(null);
-    setActionSuccess(null);
-    setListError(null);
-    setLabel("Choir Roster Invite");
-    setExpiresInDays(7);
-    setMaxUsesInput("");
-    onClose();
   }
 
   async function handleCopy(linkId: string): Promise<void> {
@@ -174,21 +165,16 @@ export function RosterInviteLinksDialog({
 
   return (
     <>
-      <Dialog
-        className="dialog--roster-invites"
-        description="Create and manage reusable links that allow new members to join this roster."
-        dirty={false}
-        footer={
-          <DialogClose asChild>
-            <button className="button button--secondary" type="button">
-              Done
-            </button>
-          </DialogClose>
-        }
-        onClose={handleClose}
-        open={open}
-        title="Roster invite links"
-      >
+      <fieldset className="surface-card organization-settings-panel account-section roster-invite-links-section">
+        <legend>Invite by link</legend>
+        <div className="section-heading section-heading--compact">
+          <p className="section-description">
+            Create and manage reusable links that allow new members to join this roster.
+          </p>
+        </div>
+        {mfaBlocked ? (
+          <OrganizationMfaPrompt message="Verify Organization MFA before managing invite links." />
+        ) : null}
         <div className="form-stack roster-invite-links">
           <form
             autoComplete="off"
@@ -201,6 +187,7 @@ export function RosterInviteLinksDialog({
             <div className="field">
               <label htmlFor="invite-link-label">Link label</label>
               <input
+                disabled={mfaBlocked}
                 id="invite-link-label"
                 maxLength={100}
                 onChange={(e) => {
@@ -216,6 +203,7 @@ export function RosterInviteLinksDialog({
               <div className="field">
                 <label htmlFor="invite-link-expiry">Expiration</label>
                 <select
+                  disabled={mfaBlocked}
                   id="invite-link-expiry"
                   onChange={(e) => {
                     const parsed = parseInt(e.target.value, 10);
@@ -237,6 +225,7 @@ export function RosterInviteLinksDialog({
                   <span className="field-help field-help--inline">(optional)</span>
                 </label>
                 <input
+                  disabled={mfaBlocked}
                   id="invite-link-max-uses"
                   min="1"
                   onChange={(e) => {
@@ -250,7 +239,11 @@ export function RosterInviteLinksDialog({
             </div>
 
             <div className="form-actions form-actions--end">
-              <button className="button button--primary" disabled={isCreating} type="submit">
+              <button
+                className="button button--primary"
+                disabled={isCreating || mfaBlocked}
+                type="submit"
+              >
                 {isCreating ? "Creating…" : "Create invite link"}
               </button>
             </div>
@@ -274,102 +267,104 @@ export function RosterInviteLinksDialog({
             </p>
           ) : null}
 
-          <div style={{ marginTop: "1rem" }}>
-            <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "0.5rem" }}>
-              Existing invite links
-            </h3>
-            {isLoading ? (
-              <p role="status">Loading links…</p>
-            ) : links.length === 0 ? (
-              <p className="notice notice--info">No invite links have been created yet.</p>
-            ) : (
-              <DataTable
-                columns={[
-                  {
-                    header: "Label",
-                    id: "label",
-                    render: (link) => <strong>{link.label}</strong>,
-                    sortValue: (link) => link.label,
-                  },
-                  {
-                    header: "Status",
-                    id: "status",
-                    render: (link) => {
-                      const className =
-                        link.status === "active"
-                          ? "badge badge--success"
-                          : link.status === "expired"
-                            ? "badge badge--warning"
-                            : "badge badge--muted";
-                      return (
-                        <span className={className}>
-                          {link.status.charAt(0).toUpperCase() + link.status.slice(1)}
-                        </span>
-                      );
+          {!mfaBlocked ? (
+            <div className="roster-invite-links__existing">
+              <h3>Existing invite links</h3>
+              {isLoading ? (
+                <p role="status">Loading links…</p>
+              ) : listError ? null : links.length === 0 ? (
+                <p className="notice notice--info">No invite links have been created yet.</p>
+              ) : (
+                <DataTable
+                  columns={[
+                    {
+                      header: "Label",
+                      id: "label",
+                      render: (link) => <strong>{link.label}</strong>,
+                      sortValue: (link) => link.label,
                     },
-                    sortValue: (link) => link.status,
-                  },
-                  {
-                    className: "roster-invite-links__summary",
-                    header: "Uses",
-                    id: "uses",
-                    render: (link) => (
-                      <span>
-                        {link.committedUses} / {link.maxUses ?? "Unlimited"}
-                      </span>
-                    ),
-                    sortValue: (link) => link.committedUses,
-                  },
-                  {
-                    className: "roster-invite-links__summary",
-                    header: "Expires",
-                    id: "expires",
-                    render: (link) => new Date(link.expiresAt).toLocaleDateString(),
-                    sortValue: (link) => link.expiresAt,
-                  },
-                  {
-                    header: "Actions",
-                    id: "actions",
-                    render: (link) => (
-                      <div className="table-actions">
-                        <button
-                          className="button button--secondary button--small"
-                          onClick={() => void handleCopy(link.id)}
-                          type="button"
-                        >
-                          {copiedLinkId === link.id ? "Copied!" : "Copy link"}
-                        </button>
-                        {link.status === "active" ? (
+                    {
+                      header: "Status",
+                      id: "status",
+                      render: (link) => {
+                        const className =
+                          link.status === "active"
+                            ? "badge badge--success"
+                            : link.status === "expired"
+                              ? "badge badge--warning"
+                              : "badge badge--muted";
+                        return (
+                          <span className={className}>
+                            {link.status.charAt(0).toUpperCase() + link.status.slice(1)}
+                          </span>
+                        );
+                      },
+                      sortValue: (link) => link.status,
+                    },
+                    {
+                      className: "roster-invite-links__summary",
+                      header: "Uses",
+                      id: "uses",
+                      render: (link) => (
+                        <span>
+                          {link.committedUses} / {link.maxUses ?? "Unlimited"}
+                        </span>
+                      ),
+                      sortValue: (link) => link.committedUses,
+                    },
+                    {
+                      className: "roster-invite-links__summary",
+                      header: "Expires",
+                      id: "expires",
+                      render: (link) => new Date(link.expiresAt).toLocaleDateString(),
+                      sortValue: (link) => link.expiresAt,
+                    },
+                    {
+                      header: "Actions",
+                      id: "actions",
+                      render: (link) => (
+                        <div className="table-actions">
                           <button
                             className="button button--secondary button--small"
-                            disabled={downloadingLinkId !== null}
-                            onClick={() => void handleDownloadQr(link)}
+                            onClick={() => void handleCopy(link.id)}
                             type="button"
                           >
-                            {downloadingLinkId === link.id ? "Generating QR…" : "Download QR code"}
+                            {copiedLinkId === link.id ? "Copied!" : "Copy link"}
                           </button>
-                        ) : null}
-                        {link.status === "active" ? (
-                          <button
-                            className="button button--danger button--small"
-                            onClick={() => void handleRevoke(link)}
-                            type="button"
-                          >
-                            Revoke
-                          </button>
-                        ) : null}
-                      </div>
-                    ),
-                  },
-                ]}
-                initialSort={{ columnId: "expires", direction: "desc" }}
-                keySelector={(link) => link.id}
-                rows={links}
-              />
-            )}
-          </div>
+                          {link.status === "active" ? (
+                            <button
+                              className="button button--secondary button--small"
+                              disabled={downloadingLinkId !== null}
+                              onClick={() => void handleDownloadQr(link)}
+                              type="button"
+                            >
+                              {downloadingLinkId === link.id
+                                ? "Generating QR…"
+                                : "Download QR code"}
+                            </button>
+                          ) : null}
+                          {link.status === "active" ? (
+                            <button
+                              className="button button--danger button--small"
+                              onClick={() => void handleRevoke(link)}
+                              type="button"
+                            >
+                              Revoke
+                            </button>
+                          ) : null}
+                        </div>
+                      ),
+                    },
+                  ]}
+                  initialSort={{ columnId: "expires", direction: "desc" }}
+                  keySelector={(link) => link.id}
+                  rows={links}
+                />
+              )}
+            </div>
+          ) : null}
         </div>
-      </Dialog>
+      </fieldset>
       {confirmationDialog}
     </>
   );

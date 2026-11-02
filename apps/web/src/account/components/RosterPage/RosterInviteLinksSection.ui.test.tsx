@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RosterInviteLinksDialog } from "./RosterInviteLinksDialog";
+import { RosterInviteLinksSection } from "./RosterInviteLinksSection";
 import * as api from "../../../api";
 import { generateQRCodeDataUrl } from "../../../shared/qrCode";
 
@@ -20,9 +20,18 @@ vi.mock("../../../api", async () => {
   };
 });
 
-describe("RosterInviteLinksDialog UI interaction", () => {
+describe("RosterInviteLinksSection UI interaction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("requires Organization MFA before loading or creating links", () => {
+    render(<RosterInviteLinksSection mfaBlocked />);
+
+    expect(screen.getByRole("group", { name: "Invite by link" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Link label")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create invite link" })).toBeDisabled();
+    expect(api.listRosterInviteLinks).not.toHaveBeenCalled();
   });
 
   it("renders form, lists existing links, and allows creating a new link", async () => {
@@ -55,10 +64,10 @@ describe("RosterInviteLinksDialog UI interaction", () => {
       shareUrl: "https://choir.test/join-roster#token=mock-token",
     });
 
-    render(<RosterInviteLinksDialog onClose={vi.fn()} open={true} />);
+    render(<RosterInviteLinksSection mfaBlocked={false} />);
 
     // Check heading & existing links
-    expect(screen.getByText("Roster invite links")).toBeInTheDocument();
+    expect(screen.getByText("Invite by link")).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getAllByText("Spring Alto Link").length).toBeGreaterThan(0);
     });
@@ -84,9 +93,7 @@ describe("RosterInviteLinksDialog UI interaction", () => {
     });
   });
 
-  it("closes cleanly via Done button after creating an invite link without showing unsaved changes confirmation", async () => {
-    const user = userEvent.setup();
-    const onClose = vi.fn();
+  it("keeps the link form on the page after creating an invite link", async () => {
     vi.mocked(api.listRosterInviteLinks).mockResolvedValue({
       links: [],
       requestId: "req-1",
@@ -98,11 +105,10 @@ describe("RosterInviteLinksDialog UI interaction", () => {
       shareUrl: "https://choir.test/join-roster#token=mock-token",
     });
 
-    render(<RosterInviteLinksDialog onClose={onClose} open={true} />);
+    render(<RosterInviteLinksSection mfaBlocked={false} />);
 
     const labelInput = screen.getByLabelText("Link label");
-    await user.clear(labelInput);
-    await user.type(labelInput, "Spring Basses");
+    fireEvent.change(labelInput, { target: { value: "Spring Basses" } });
 
     const submitBtn = screen.getByRole("button", { name: /create invite link/i });
     fireEvent.click(submitBtn);
@@ -111,11 +117,8 @@ describe("RosterInviteLinksDialog UI interaction", () => {
       expect(api.createRosterInviteLink).toHaveBeenCalledTimes(1);
     });
 
-    const doneBtn = screen.getByRole("button", { name: "Done" });
-    fireEvent.click(doneBtn);
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText("Discard unsaved changes?")).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Invite by link" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Roster invite links" })).not.toBeInTheDocument();
   });
 
   it("copies share URL when copy link button is clicked", async () => {
@@ -147,7 +150,7 @@ describe("RosterInviteLinksDialog UI interaction", () => {
       shareUrl: "https://choir.test/join-roster#token=shared-token",
     });
 
-    render(<RosterInviteLinksDialog onClose={vi.fn()} open={true} />);
+    render(<RosterInviteLinksSection mfaBlocked={false} />);
 
     await waitFor(() => {
       expect(screen.getAllByText("Shareable Link").length).toBeGreaterThan(0);
@@ -172,9 +175,9 @@ describe("RosterInviteLinksDialog UI interaction", () => {
       requestId: "req-layout",
     });
 
-    render(<RosterInviteLinksDialog onClose={vi.fn()} open={true} />);
+    render(<RosterInviteLinksSection mfaBlocked={false} />);
     await waitFor(() => {
-      expect(screen.getByText("Roster invite links")).toBeInTheDocument();
+      expect(screen.getByText("Invite by link")).toBeInTheDocument();
     });
 
     const labelInput = screen.getByLabelText("Link label");
@@ -235,7 +238,7 @@ describe("roster invite QR download", () => {
       expect(this.href).toBe("data:image/png;base64,cG5n");
     });
     try {
-      render(<RosterInviteLinksDialog open onClose={vi.fn()} />);
+      render(<RosterInviteLinksSection mfaBlocked={false} />);
       const buttons = await screen.findAllByRole("button", {
         name: "Download QR code",
       });
@@ -256,7 +259,7 @@ describe("roster invite QR download", () => {
     if (failure === "share")
       vi.mocked(api.shareRosterInviteLink).mockRejectedValue(new Error("failed"));
     else vi.mocked(generateQRCodeDataUrl).mockRejectedValue(new Error("failed"));
-    render(<RosterInviteLinksDialog open onClose={vi.fn()} />);
+    render(<RosterInviteLinksSection mfaBlocked={false} />);
     const button = (await screen.findAllByRole("button", { name: "Download QR code" })).at(0);
     if (!button) throw new Error("Missing QR action");
     fireEvent.click(button);

@@ -58,19 +58,10 @@ for (const logo of ["present", "missing"] as const) {
     await expect(
       page.getByRole("heading", { name: "Membership invitations", exact: true }),
     ).toHaveCount(1);
-    const heading = page.locator(".page-heading--actions");
-    const inviteAction = heading.getByRole("button", { name: "Invite by link", exact: true });
-    await expect(inviteAction).toBeVisible();
-    const text = await heading.locator(":scope > div").boundingBox();
-    const action = await inviteAction.boundingBox();
-    if (!text || !action) throw new Error("Membership invitations heading is missing");
-    expect(action.x).toBeGreaterThanOrEqual(text.x + text.width);
-    expect(action.y + action.height / 2).toBeGreaterThanOrEqual(text.y);
-    expect(action.y + action.height / 2).toBeLessThanOrEqual(text.y + text.height);
-    await heading.screenshot({ path: testInfo.outputPath("invitation-heading.png") });
-    await page.getByRole("button", { name: "Invite by link", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "Roster invite links", exact: true });
-    const buttons = dialog
+    const section = page.getByRole("group", { name: "Invite by link", exact: true });
+    await expect(section).toBeVisible();
+    await section.screenshot({ path: testInfo.outputPath("invite-by-link-section.png") });
+    const buttons = section
       .getByRole("button", { name: "Download QR code", exact: true })
       .filter({ visible: true });
     await expect(buttons).toHaveCount(1);
@@ -116,13 +107,11 @@ for (const logo of ["present", "missing"] as const) {
     if (logo === "present") expect(pixels.logoPixels).toBeGreaterThan(50);
     else expect(pixels.logoPixels).toBe(0);
     expect(shares).toBe(1);
-    await expect(dialog.getByRole("status")).toContainText("QR image downloaded");
+    await expect(section.getByRole("status")).toContainText("QR image downloaded");
     await expect(buttons).toBeEnabled();
-    expect(
-      await dialog
-        .locator(".dialog__body")
-        .evaluate((element) => element.scrollWidth <= element.clientWidth),
-    ).toBe(true);
+    expect(await section.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
     api.assertNoUnexpectedRequests();
   });
 }

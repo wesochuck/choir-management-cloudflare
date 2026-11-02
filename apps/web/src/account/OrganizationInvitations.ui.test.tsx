@@ -290,15 +290,12 @@ describe("OrganizationInvitations membership role management", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("opens Roster invite links dialog when Invite by link is clicked", async () => {
-    const user = userEvent.setup();
+  it("shows invite links as a section of Membership invitations", () => {
     render(<OrganizationInvitations context={ADMIN_CONTEXT} />);
 
-    const inviteByLinkBtn = screen.getByRole("button", { name: "Invite by link" });
-    expect(inviteByLinkBtn).toBeInTheDocument();
-
-    await user.click(inviteByLinkBtn);
-
-    expect(screen.getByRole("dialog", { name: "Roster invite links" })).toBeInTheDocument();
+    const inviteByLinkSection = screen.getByRole("group", { name: "Invite by link" });
+    expect(inviteByLinkSection).toBeInTheDocument();
+    expect(within(inviteByLinkSection).getByLabelText("Link label")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Roster invite links" })).not.toBeInTheDocument();
   });
 });

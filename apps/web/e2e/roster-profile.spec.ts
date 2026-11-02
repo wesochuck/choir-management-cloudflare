@@ -440,7 +440,7 @@ test("keeps the roster profile dialog open when Messages is selected", async ({ 
   await expect(createDialog).not.toBeVisible();
 });
 
-test("keeps roster invite fields and actions inside the dialog in both themes", async ({
+test("keeps roster invite fields and actions inside the section in both themes", async ({
   page,
 }) => {
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });
@@ -473,36 +473,33 @@ test("keeps roster invite fields and actions inside the dialog in both themes", 
   for (const theme of ["light", "dark"] as const) {
     const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
     if (await toggle.isVisible()) await toggle.click();
-    await page.getByRole("button", { name: "Invite by link" }).click();
-    const dialog = page.getByRole("dialog", { name: "Roster invite links", exact: true });
-    await dialog.getByLabel("Link label").focus();
-    await expect(dialog.getByLabel("Link label")).toBeFocused();
+    const section = page.getByRole("group", { name: "Invite by link", exact: true });
+    await section.getByLabel("Link label").focus();
+    await expect(section.getByLabel("Link label")).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(dialog.getByLabel("Expiration")).toBeFocused();
-    await expect(dialog.getByRole("button", { name: "Done", exact: true })).toBeInViewport();
+    await expect(section.getByLabel("Expiration")).toBeFocused();
     await expect(
-      dialog.getByRole("button", { name: "Revoke", exact: true }).filter({ visible: true }),
+      section.getByRole("button", { name: "Revoke", exact: true }).filter({ visible: true }),
     ).toBeVisible();
-    const body = dialog.locator(".dialog__body");
-    expect(await body.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    expect(await section.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+      true,
+    );
     for (const label of ["Link label", "Expiration", "Max uses (optional)"]) {
-      const field = dialog.getByLabel(label);
-      const bounds = await dialog.boundingBox();
+      const field = section.getByLabel(label);
+      const bounds = await section.boundingBox();
       const fieldBounds = await field.boundingBox();
       expect(bounds).not.toBeNull();
       expect(fieldBounds).not.toBeNull();
-      if (!bounds || !fieldBounds) throw new Error("Missing dialog or field bounds");
+      if (!bounds || !fieldBounds) throw new Error("Missing section or field bounds");
       expect(fieldBounds.x).toBeGreaterThanOrEqual(bounds.x);
       expect(fieldBounds.x + fieldBounds.width).toBeLessThanOrEqual(bounds.x + bounds.width);
     }
-    await dialog
+    await section
       .getByRole("button", { name: "Create invite link", exact: true })
       .scrollIntoViewIfNeeded();
     await expect(
-      dialog.getByRole("button", { name: "Create invite link", exact: true }),
+      section.getByRole("button", { name: "Create invite link", exact: true }),
     ).toBeInViewport();
-    await dialog.getByRole("button", { name: "Done", exact: true }).click();
-    await expect(dialog).toHaveCount(0);
   }
   api.assertNoUnexpectedRequests();
 });
