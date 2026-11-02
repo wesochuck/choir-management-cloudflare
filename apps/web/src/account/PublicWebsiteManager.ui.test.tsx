@@ -111,6 +111,9 @@ describe("PublicWebsiteManager website publication readiness (#199, #255)", () =
       </SaveCoordinatorProvider>,
     );
     expect(await screen.findByLabelText("Publication state")).toHaveTextContent("Not published");
+    expect(screen.getByLabelText("Content (Markdown)")).toHaveValue(defaultSettings.aboutUsText);
+    expect(screen.queryByRole("heading", { name: "About Us" })).toBeNull();
+
     expect(screen.queryByRole("region", { name: "Website publication readiness" })).toBeNull();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Pages",

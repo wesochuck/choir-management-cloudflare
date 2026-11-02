@@ -536,13 +536,9 @@ export function RosterPageView({
                     id: "account",
                     className: "roster-table__secondary",
                     render: (candidate) =>
-                      membershipByProfileId.has(candidate.id)
-                        ? "Linked login account"
-                        : "No login account",
+                      membershipByProfileId.has(candidate.id) ? "Linked" : "Unlinked",
                     sortValue: (candidate) =>
-                      membershipByProfileId.has(candidate.id)
-                        ? "Linked login account"
-                        : "No login account",
+                      membershipByProfileId.has(candidate.id) ? "Linked" : "Unlinked",
                   },
                   {
                     header: partLabel,

@@ -132,6 +132,11 @@ describe("ContactsPage list synchronization (#168)", () => {
     expect(await screen.findByText("1 shown")).toBeInTheDocument();
     expect(screen.getAllByText("Alice Allison").length).toBeGreaterThanOrEqual(1);
 
+    const [expandButton] = screen.getAllByRole("button", {
+      name: "Show details for Alice Allison",
+    });
+    if (!expandButton) throw new Error("Missing contact expansion button");
+    await user.click(expandButton);
     const [deleteBtn] = screen.getAllByRole("button", { name: "Delete Alice Allison" });
     expect(deleteBtn).toBeDefined();
     if (deleteBtn) {
@@ -173,6 +178,11 @@ describe("ContactsPage list synchronization (#168)", () => {
     expect(await screen.findByText("1 shown")).toBeInTheDocument();
     expect(screen.getAllByText("Alice Allison").length).toBeGreaterThanOrEqual(1);
 
+    const [expandButton] = screen.getAllByRole("button", {
+      name: "Show details for Alice Allison",
+    });
+    if (!expandButton) throw new Error("Missing contact expansion button");
+    await user.click(expandButton);
     const [deleteBtn] = screen.getAllByRole("button", { name: "Delete Alice Allison" });
     expect(deleteBtn).toBeDefined();
     if (deleteBtn) {

@@ -1,3 +1,4 @@
+import { UnusualTimeInput } from "../../../shared/UnusualTimeInput";
 import type {
   OrganizationEvent,
   OrganizationMusicPiece,
@@ -194,7 +195,7 @@ export function AddToSetListDialog({
             <div className="music-fields-grid">
               <label className="field">
                 Date and time
-                <input
+                <UnusualTimeInput
                   type="datetime-local"
                   value={newDate}
                   onChange={(event) => {

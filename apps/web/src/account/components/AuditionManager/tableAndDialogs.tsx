@@ -1,3 +1,4 @@
+import { UnusualTimeInput } from "../../../shared/UnusualTimeInput";
 import type {
   AuditionStatus,
   OrganizationAudition,
@@ -316,7 +317,7 @@ export function AuditionDialogs({
                 </p>
                 <label className="field">
                   Custom confirmed time
-                  <input
+                  <UnusualTimeInput
                     required={
                       !requestedScheduleValue(scheduleTime, schedule.requestedSlots, timezone)
                     }
@@ -333,7 +334,7 @@ export function AuditionDialogs({
           {!schedule?.requestedSlots || schedule.requestedSlots.length === 0 ? (
             <label className="field">
               Confirmed time
-              <input
+              <UnusualTimeInput
                 required
                 type="datetime-local"
                 value={scheduleTime}

@@ -1,3 +1,4 @@
+import { UnusualTimeInput } from "../../../../shared/UnusualTimeInput";
 import type { OrganizationEventRequest, OrganizationVenue } from "@choir/contracts";
 import { TabsContent } from "@choir/ui";
 import type { Dispatch, SetStateAction } from "react";
@@ -91,7 +92,7 @@ function ScheduleTimingFields({
     <div className="form-grid">
       <div className="field">
         <label htmlFor="events-page-start">Start date &amp; time *</label>
-        <input
+        <UnusualTimeInput
           aria-describedby={startError && showErrorBadges ? "events-page-start-error" : undefined}
           aria-invalid={Boolean(startError && showErrorBadges)}
           id="events-page-start"
@@ -110,7 +111,7 @@ function ScheduleTimingFields({
       </div>
       <div className="field">
         <label htmlFor="events-page-call">Call time</label>
-        <input
+        <UnusualTimeInput
           id="events-page-call"
           onChange={(change) => {
             setEvent((current) => ({ ...current, callTime: change.target.value }));
@@ -121,7 +122,7 @@ function ScheduleTimingFields({
       </div>
       <div className="field">
         <label htmlFor="events-page-doors-open">Doors open time (optional)</label>
-        <input
+        <UnusualTimeInput
           id="events-page-doors-open"
           onChange={(change) => {
             setEvent((current) => ({ ...current, doorsOpenTime: change.target.value }));

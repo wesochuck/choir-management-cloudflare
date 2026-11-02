@@ -53,7 +53,7 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
     const id = "77777777-7777-4777-8777-777777777777";
     const missing = "88888888-8888-4888-8888-888888888888";
     const projection = createProjection();
-    projection.payload.settings.aboutUsText = `![Published choir](choir-image:${id})\n\n![Missing choir](choir-image:${missing})`;
+    projection.payload.settings.aboutUsText = `## Our community\n\n![Published choir](choir-image:${id})\n\n![Missing choir](choir-image:${missing})`;
     projection.payload.mediaFileIds = [id];
     vi.mocked(authApi.getPublishedOrganizationProjection).mockResolvedValue(projection);
     render(<PublicOrganizationSite pathname="/" fallback={null} />);
@@ -63,6 +63,8 @@ describe("PublicOrganizationSite navigation visibility and honest empty states (
     );
     expect(screen.queryByRole("img", { name: "Missing choir" })).toBeNull();
     expect(screen.getByText("Image unavailable.")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "About Us" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Our community" })).toBeInTheDocument();
   });
 
   it.each(["/", "/performances"])(

@@ -5,6 +5,7 @@ import { usePortalContainer } from "./usePortalContainer";
 
 export interface ConfirmationOptions {
   readonly confirmLabel?: string;
+  readonly cancelLabel?: string;
   readonly description: string;
   readonly destructive?: boolean;
   readonly title: string;
@@ -12,6 +13,7 @@ export interface ConfirmationOptions {
 
 export function ConfirmDialog({
   confirmLabel = "Continue",
+  cancelLabel = "Cancel",
   container: explicitContainer,
   description,
   destructive = false,
@@ -64,7 +66,7 @@ export function ConfirmDialog({
               </DialogPrimitive.Description>
               <div className="dialog__actions">
                 <button className="button button--secondary" onClick={onCancel} type="button">
-                  Cancel
+                  {cancelLabel}
                 </button>
                 <button
                   className={`button ${destructive ? "button--danger" : "button--primary"}`}

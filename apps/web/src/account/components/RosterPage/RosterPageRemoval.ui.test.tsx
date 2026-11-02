@@ -119,9 +119,9 @@ describe("RosterPage Safe Profile Removal (#169)", () => {
     const emails = await screen.findAllByRole("link", { name: "singer@example.test" });
     const row = emails.map((email) => email.closest("tr")).find(Boolean);
     expect(row).not.toBeNull();
-    expect(row).toHaveTextContent("No login account");
+    expect(row).toHaveTextContent("Unlinked");
     expect(screen.getByRole("columnheader", { name: /Login account/ })).toBeInTheDocument();
-    expect(screen.getAllByText("Linked login account").length).toBeGreaterThan(0);
+    expect(screen.getByRole("cell", { name: "Linked" })).toBeInTheDocument();
   });
 
   it("archives an active profile with confirmation modal and updates UI", async () => {

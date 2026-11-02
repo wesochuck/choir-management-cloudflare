@@ -1,3 +1,4 @@
+import { UnusualTimeInput } from "../../../../shared/UnusualTimeInput";
 import {
   dayOfWeekSchema,
   type DayOfWeek,
@@ -91,7 +92,7 @@ export function RegularRehearsalScheduleSection({
         </div>
         <div className="field">
           <label htmlFor="intake-rehearsal-start">Start time</label>
-          <input
+          <UnusualTimeInput
             id="intake-rehearsal-start"
             onChange={(e) => {
               setRehearsalStart(timeInputStateValue(e.currentTarget));
@@ -102,7 +103,7 @@ export function RegularRehearsalScheduleSection({
         </div>
         <div className="field">
           <label htmlFor="intake-rehearsal-end">End time</label>
-          <input
+          <UnusualTimeInput
             id="intake-rehearsal-end"
             onChange={(e) => {
               setRehearsalEnd(timeInputStateValue(e.currentTarget));

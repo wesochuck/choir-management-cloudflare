@@ -29,7 +29,20 @@ function plainTextLinks(text: string, keyPrefix: string): ReactNode[] {
 
 /** Safe inline Markdown with optional explicit tab targets. Legacy links keep opening in a new tab. */
 export function parseInlineMarkdown(text: string): ReactNode[] {
-  const tokenRegex = new RegExp(`${markdownLinkSource}|\\*\\*([^*]+)\\*\\*|\\*([^*]+)\\*`, "g");
+  return parseInlineTokens(text, 0, true);
+}
+
+function inlineText(text: string, key: string, allowLinks: boolean): ReactNode[] {
+  return allowLinks ? plainTextLinks(text, key) : [text];
+}
+
+function parseInlineTokens(text: string, depth: number, allowLinks: boolean): ReactNode[] {
+  // Bounded nesting supports emphasis around links and within labels without nested anchors.
+  if (depth >= 8) return [text];
+  const tokenRegex = new RegExp(
+    `${allowLinks ? `${markdownLinkSource}|` : ""}\\*\\*([^*]+)\\*\\*|\\*([^*]+)\\*`,
+    "g",
+  );
   const nodes: ReactNode[] = [];
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -37,9 +50,12 @@ export function parseInlineMarkdown(text: string): ReactNode[] {
   while ((match = tokenRegex.exec(text)) !== null) {
     if (match.index > lastIndex)
       nodes.push(
-        ...plainTextLinks(text.slice(lastIndex, match.index), `plain-${String(lastIndex)}`),
+        ...inlineText(text.slice(lastIndex, match.index), `plain-${String(lastIndex)}`, allowLinks),
       );
-    const [fullMatch, linkText, linkUrl, target, boldText, italicText] = match;
+    const fullMatch = match[0];
+    const [linkText, linkUrl, target, boldText, italicText] = allowLinks
+      ? match.slice(1)
+      : [undefined, undefined, undefined, ...match.slice(1)];
     if (linkText !== undefined && linkUrl !== undefined) {
       const href = safePublicLinkUrl(linkUrl);
       nodes.push(
@@ -52,18 +68,30 @@ export function parseInlineMarkdown(text: string): ReactNode[] {
                 rel: "noopener noreferrer",
                 target: target === "_self" ? undefined : "_blank",
               },
-              markdownLinkLabel(linkText),
+              ...parseInlineTokens(markdownLinkLabel(linkText), depth + 1, false),
             )
           : fullMatch,
       );
     } else if (boldText !== undefined) {
-      nodes.push(React.createElement("strong", { key: `bold-${String(keyIndex++)}` }, boldText));
+      nodes.push(
+        React.createElement(
+          "strong",
+          { key: `bold-${String(keyIndex++)}` },
+          ...parseInlineTokens(boldText, depth + 1, allowLinks),
+        ),
+      );
     } else if (italicText !== undefined) {
-      nodes.push(React.createElement("em", { key: `italic-${String(keyIndex++)}` }, italicText));
+      nodes.push(
+        React.createElement(
+          "em",
+          { key: `italic-${String(keyIndex++)}` },
+          ...parseInlineTokens(italicText, depth + 1, allowLinks),
+        ),
+      );
     }
     lastIndex = match.index + fullMatch.length;
   }
   if (lastIndex < text.length)
-    nodes.push(...plainTextLinks(text.slice(lastIndex), `plain-${String(lastIndex)}`));
+    nodes.push(...inlineText(text.slice(lastIndex), `plain-${String(lastIndex)}`, allowLinks));
   return nodes.length > 0 ? nodes : [text];
 }

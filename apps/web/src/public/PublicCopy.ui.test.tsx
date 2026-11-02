@@ -64,6 +64,37 @@ describe("PublicCopy", () => {
     );
   });
 
+  it("renders a bold donation link instead of displaying its Markdown", () => {
+    render(
+      <PublicCopy
+        text={'Find out how you can **[Become a Friend of LCC](/donate){target="_self"}**.'}
+      />,
+    );
+    const link = screen.getByRole("link", { name: "Become a Friend of LCC" });
+    expect(link).toHaveAttribute("href", "/donate");
+    expect(link).not.toHaveAttribute("target");
+    expect(link.closest("strong")).not.toBeNull();
+    expect(screen.queryByText(/target=/)).toBeNull();
+  });
+  it("formats link labels without creating nested anchors", () => {
+    const { container } = render(
+      <PublicCopy text={'[**Give** *today* https://example.org](/donate){target="_blank"}'} />,
+    );
+    const link = screen.getByRole("link", { name: "Give today https://example.org" });
+    expect(link).toHaveAttribute("href", "/donate");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(screen.getByText("Give").tagName).toBe("STRONG");
+    expect(screen.getByText("today").tagName).toBe("EM");
+    expect(container.querySelectorAll("a")).toHaveLength(1);
+  });
+  it("keeps unsafe destinations and HTML inert inside formatting", () => {
+    const { container } = render(
+      <PublicCopy text={"**[Unsafe](javascript:alert) and <img src=x onerror=alert(1)>**"} />,
+    );
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText(/javascript:alert/)).toBeInTheDocument();
+  });
   it("sanitizes unsafe javascript links and treats raw HTML as text", () => {
     const unsafe = "Unsafe link: [Click me](javascript:alert(1)) and <script>alert('xss')</script>";
     render(<PublicCopy text={unsafe} />);

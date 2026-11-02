@@ -287,7 +287,6 @@ function OrganizationHome({
       ) : null}
       {settings.aboutUsText ? (
         <section className="public-section public-section--narrow" id="about-us">
-          <h2>About Us</h2>
           <WebsiteCopy text={settings.aboutUsText} projection={projection} />
         </section>
       ) : null}

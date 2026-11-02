@@ -1,3 +1,4 @@
+import { UnusualTimeInput } from "../../../shared/UnusualTimeInput";
 import type { OrganizationEvent, TicketBundle } from "@choir/contracts";
 import { Dialog, DialogClose, useConfirmation } from "@choir/ui";
 import {
@@ -312,7 +313,7 @@ export function BundlePanel({
           </div>
           <div className="field">
             <label htmlFor="bundle-sale-end">Sale ends</label>
-            <input
+            <UnusualTimeInput
               id="bundle-sale-end"
               required
               type="datetime-local"

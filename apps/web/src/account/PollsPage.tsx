@@ -1,3 +1,4 @@
+import { UnusualTimeInput } from "../shared/UnusualTimeInput";
 import {
   organizationPollRequestSchema,
   type OrganizationPollResultOption,
@@ -467,7 +468,7 @@ function PollEditFormFields({
       </label>
       <label>
         Expiration date and time
-        <input
+        <UnusualTimeInput
           aria-describedby={errorId}
           aria-invalid={isInvalid}
           onChange={(event) => {

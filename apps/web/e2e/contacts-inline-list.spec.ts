@@ -180,6 +180,9 @@ test("creates and deletes contact with immediate table and count synchronization
   await expect(page.getByText("No contacts yet")).not.toBeVisible();
 
   // Delete contact
+  await visibleContacts
+    .getByRole("button", { name: "Show details for Sarah Connor", exact: true })
+    .click();
   await visibleContacts.getByRole("button", { name: "Delete Sarah Connor" }).click();
   const deleteDialog = page.getByRole("dialog", { name: "Delete contact?" });
   await expect(deleteDialog).toBeVisible();
@@ -192,5 +195,90 @@ test("creates and deletes contact with immediate table and count synchronization
   await expect(visibleContacts.getByText("Sarah Connor")).not.toBeVisible();
   await expect(page.getByText("No contacts yet")).toBeVisible();
 
+  api.assertNoUnexpectedRequests();
+});
+
+test("keeps contact summaries compact and expands details by keyboard in both themes", async ({
+  page,
+}, testInfo) => {
+  const api = await installOrganizationApi(page, { role: "administrator", strict: true });
+  const name = "Alexandra and Christopher Long Contact Name";
+  const email = "a.very.long.contact.address.for.layout@example.test";
+  const contact = contactSchema.parse({
+    id: "11111111-1111-4111-8111-111111111111",
+    displayName: name,
+    email,
+    source: "ticket_purchase",
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+  await page.route("**/api/organization/contacts?*", async (route) => {
+    await route.fulfill({
+      json: {
+        contacts: [contact],
+        preferences: [],
+        memberships: [],
+        hasMore: false,
+        nextCursor: null,
+        requestId,
+      },
+    });
+  });
+  await page.route("**/api/organization/contact-lists", async (route) => {
+    await route.fulfill({ json: { lists: [], requestId } });
+  });
+  await page.goto("/admin/contacts");
+  const visibleContacts = page.locator(
+    ".contacts-table .data-table:visible, .contacts-table .data-table-cards:visible",
+  );
+  await expect(
+    visibleContacts.getByRole("button", { name: `Show details for ${name}`, exact: true }),
+  ).toBeVisible();
+  for (const theme of ["light", "dark"] as const) {
+    const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
+    if (await toggle.isVisible()) await toggle.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    const expand = visibleContacts.getByRole("button", {
+      name: `Show details for ${name}`,
+      exact: true,
+    });
+    await expect(expand).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      visibleContacts.getByRole("button", { name: `Delete ${name}`, exact: true }),
+    ).toHaveCount(0);
+    if (testInfo.project.name === "chromium") {
+      const row = visibleContacts.locator("tbody > tr").first();
+      expect((await row.boundingBox())?.height).toBeLessThanOrEqual(65);
+      for (const selector of [".contact-table__identity strong", ".contact-table__email a"]) {
+        expect(
+          await row.locator(selector).evaluate((element) => getComputedStyle(element).whiteSpace),
+        ).toBe("nowrap");
+      }
+    }
+    await expand.focus();
+    await page.keyboard.press("Enter");
+    const collapse = visibleContacts.getByRole("button", {
+      name: `Hide details for ${name}`,
+      exact: true,
+    });
+    await expect(collapse).toBeFocused();
+    const details = visibleContacts.locator(".contact-details");
+    await expect(details.getByText(name, { exact: true })).toBeVisible();
+    await expect(details.getByRole("link", { name: email, exact: true })).toBeVisible();
+    await expect(details.getByText("ticket_purchase", { exact: true })).toBeVisible();
+    await expect(
+      details.getByRole("button", { name: `View details for ${name}`, exact: true }),
+    ).toBeVisible();
+    await expect(
+      details.getByRole("button", { name: `Delete ${name}`, exact: true }),
+    ).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await expect(details).toHaveCSS("white-space", "normal");
+    await page.screenshot({ path: testInfo.outputPath(`contacts-${theme}.png`), fullPage: true });
+    await collapse.press("Space");
+    await expect(expand).toHaveAttribute("aria-expanded", "false");
+  }
   api.assertNoUnexpectedRequests();
 });

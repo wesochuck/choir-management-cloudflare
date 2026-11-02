@@ -129,7 +129,7 @@ for (const theme of ["light", "dark"] as const) {
         route.fulfill({ contentType: "text/html", body: "Program notes" }),
       );
     await page.goto("/admin/website");
-    const about = page.getByLabel("About Us (Markdown)", { exact: true });
+    const about = page.getByLabel("Content (Markdown)", { exact: true });
     await about.evaluate((element) => {
       if (element instanceof HTMLTextAreaElement) element.setSelectionRange(0, 7);
     });
@@ -167,7 +167,7 @@ for (const theme of ["light", "dark"] as const) {
     await expect(about).toBeFocused();
     await expect(about).toHaveValue('[Our story](/history){target="_self"} our music');
     const markdown =
-      '[Our story](/history){target="_self"} our music\nSing together.\n\nhttps://partner.example.test/notes';
+      '[Our story](/history){target="_self"} our music\nSing together. **[Become a Friend of LCC](/donate){target="_self"}**\n\nhttps://partner.example.test/notes';
     await about.fill(markdown);
     await expect(about).toHaveValue(markdown);
     await page.getByRole("tab", { name: "Labels & navigation", exact: true }).click();
@@ -274,7 +274,16 @@ for (const theme of ["light", "dark"] as const) {
     await expect(
       page.getByRole("heading", { name: "Tickets and passes", exact: true }),
     ).toBeVisible();
-    await page.goto("/donate");
+    await page.goto("/");
+    const donationLink = page
+      .locator("#about-us")
+      .getByRole("link", { name: "Become a Friend of LCC", exact: true });
+    await expect(donationLink).toHaveAttribute("href", "/donate");
+    await expect(donationLink).not.toHaveAttribute("target");
+    await expect(donationLink.locator("..")).toHaveJSProperty("tagName", "STRONG");
+    await donationLink.click();
+    await expect(page).toHaveURL(/\/donate$/);
+
     await expect(
       page.getByRole("heading", { name: "Support our chorus", exact: true }),
     ).toBeVisible();

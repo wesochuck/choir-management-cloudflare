@@ -111,6 +111,7 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
   const [bulkListId, setBulkListId] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [editorState, setEditorState] = useState<EditorState>({ kind: "closed" });
+  const [expandedContactId, setExpandedContactId] = useState<string | null>(null);
   const [viewingContactId, setViewingContactId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [editorBusy, setEditorBusy] = useState(false);
@@ -785,138 +786,205 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
               </div>
             ) : null}
 
-            <DataTable
-              columns={[
-                {
-                  header: "Select",
-                  headerContent: (
-                    <input
-                      aria-label="Select all matching contacts"
-                      checked={allVisibleSelected}
-                      disabled={contacts.length === 0 || bulkBusy}
-                      onChange={(event) => {
-                        toggleVisibleSelection(
-                          contacts.map((contact) => contact.id),
-                          event.target.checked,
-                        );
-                      }}
-                      ref={selectAllRef}
-                      type="checkbox"
-                    />
-                  ),
-                  id: "selection",
-                  mobileLabel: "Select",
-                  render: (contact) => (
-                    <input
-                      aria-label={`Select ${deriveDisplayName({
-                        displayName: contact.displayName,
-                        email: contact.email,
-                        firstName: contact.firstName,
-                        lastName: contact.lastName,
-                        phone: contact.phone,
-                      })}`}
-                      checked={selectedIds.includes(contact.id)}
-                      disabled={bulkBusy}
-                      onChange={(event) => {
-                        toggleSelection(contact.id, event.target.checked);
-                      }}
-                      type="checkbox"
-                    />
-                  ),
-                },
-                {
-                  header: "Name",
-                  id: "name",
-                  className: "contact-table__identity",
-                  render: (contact) => (
-                    <span className="contact-profile-identity">
-                      <strong>
-                        {deriveDisplayName({
+            <div className="contacts-table">
+              <DataTable
+                columns={[
+                  {
+                    header: "Select",
+                    headerContent: (
+                      <input
+                        aria-label="Select all matching contacts"
+                        checked={allVisibleSelected}
+                        disabled={contacts.length === 0 || bulkBusy}
+                        onChange={(event) => {
+                          toggleVisibleSelection(
+                            contacts.map((contact) => contact.id),
+                            event.target.checked,
+                          );
+                        }}
+                        ref={selectAllRef}
+                        type="checkbox"
+                      />
+                    ),
+                    id: "selection",
+                    mobileLabel: "Select",
+                    render: (contact) => (
+                      <input
+                        aria-label={`Select ${deriveDisplayName({
                           displayName: contact.displayName,
                           email: contact.email,
                           firstName: contact.firstName,
                           lastName: contact.lastName,
                           phone: contact.phone,
-                        })}
+                        })}`}
+                        checked={selectedIds.includes(contact.id)}
+                        disabled={bulkBusy}
+                        onChange={(event) => {
+                          toggleSelection(contact.id, event.target.checked);
+                        }}
+                        type="checkbox"
+                      />
+                    ),
+                  },
+                  {
+                    className: "contact-table__disclosure",
+                    header: "",
+                    headerContent: <span className="sr-only">Contact details</span>,
+                    id: "disclosure",
+                    mobileLabel: "Details",
+                    render: (contact, { presentation }) => {
+                      const expanded = expandedContactId === contact.id;
+                      return (
+                        <button
+                          aria-controls={
+                            expanded ? `contact-details-${contact.id}-${presentation}` : undefined
+                          }
+                          aria-expanded={expanded}
+                          aria-label={`${expanded ? "Hide" : "Show"} details for ${deriveDisplayName(contact)}`}
+                          className="contact-table__disclosure-button"
+                          onClick={() => {
+                            setExpandedContactId((current) =>
+                              current === contact.id ? null : contact.id,
+                            );
+                          }}
+                          type="button"
+                        >
+                          <span aria-hidden="true" className="contact-table__chevron" />
+                        </button>
+                      );
+                    },
+                  },
+                  {
+                    header: "Name",
+                    id: "name",
+                    className: "contact-table__identity",
+                    render: (contact) => (
+                      <strong
+                        className="contact-table__single-line"
+                        title={deriveDisplayName(contact)}
+                      >
+                        {deriveDisplayName(contact)}
                       </strong>
-                      <span className="contact-profile-identity__email">
+                    ),
+                    sortValue: (contact) =>
+                      deriveDisplayName({
+                        displayName: contact.displayName,
+                        email: contact.email,
+                        firstName: contact.firstName,
+                        lastName: contact.lastName,
+                        phone: contact.phone,
+                      }),
+                  },
+                  {
+                    header: "Email",
+                    id: "email",
+                    className: "contact-table__email",
+                    render: (contact) =>
+                      contact.email ? (
+                        <a
+                          className="contact-table__single-line"
+                          title={contact.email}
+                          href={`mailto:${contact.email}`}
+                        >
+                          {contact.email}
+                        </a>
+                      ) : (
+                        "No email"
+                      ),
+                    sortValue: (contact) => contact.email ?? "",
+                  },
+                  {
+                    className: "contact-table__phone",
+                    header: "Phone",
+                    id: "phone",
+                    render: (contact) => phoneLabel(contact),
+                    sortValue: (contact) => contact.phone ?? "",
+                  },
+                  {
+                    className: "contact-table__status",
+                    header: "Email Status",
+                    id: "emailStatus",
+                    render: (contact) => (
+                      <span className="status-pill">
+                        {statusLabel(emailStatusByContactId.get(contact.id) ?? "unknown")}
+                      </span>
+                    ),
+                    sortValue: (contact) =>
+                      statusLabel(emailStatusByContactId.get(contact.id) ?? "unknown"),
+                  },
+                  {
+                    className: "contact-table__actions",
+                    header: "Actions",
+                    id: "actions",
+                    mobileLabel: "Manage",
+                    render: (contact) => (
+                      <div className="table-actions">
+                        <button
+                          aria-label={`Edit ${deriveDisplayName({
+                            displayName: contact.displayName,
+                            email: contact.email,
+                            firstName: contact.firstName,
+                            lastName: contact.lastName,
+                            phone: contact.phone,
+                          })}`}
+                          className="button button--secondary button--small"
+                          onClick={() => {
+                            openEdit(contact);
+                          }}
+                          type="button"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    ),
+                  },
+                ]}
+                emptyMessage={hasFilters ? "No contacts match these filters" : "No contacts yet"}
+                initialSort={{ columnId: "name", direction: "asc" }}
+                keySelector={(contact) => contact.id}
+                expandedRowId={expandedContactId}
+                isRowInteractive={(_, context) => context.presentation === "table"}
+                onRowClick={(contact) => {
+                  setExpandedContactId((current) => (current === contact.id ? null : contact.id));
+                }}
+                renderExpandedRow={(contact, presentation) => (
+                  <div
+                    className="contact-details"
+                    id={`contact-details-${contact.id}-${presentation}`}
+                  >
+                    <dl>
+                      <dt>Name</dt>
+                      <dd>{deriveDisplayName(contact)}</dd>
+                    </dl>
+                    <dl>
+                      <dt>Email</dt>
+                      <dd>
                         {contact.email ? (
                           <a href={`mailto:${contact.email}`}>{contact.email}</a>
                         ) : (
                           "No email"
                         )}
-                      </span>
-                    </span>
-                  ),
-                  sortValue: (contact) =>
-                    deriveDisplayName({
-                      displayName: contact.displayName,
-                      email: contact.email,
-                      firstName: contact.firstName,
-                      lastName: contact.lastName,
-                      phone: contact.phone,
-                    }),
-                },
-                {
-                  header: "Email",
-                  id: "email",
-                  className: "contact-table__secondary",
-                  render: (contact) =>
-                    contact.email ? (
-                      <a href={`mailto:${contact.email}`}>{contact.email}</a>
-                    ) : (
-                      "No email"
-                    ),
-                  sortValue: (contact) => contact.email ?? "",
-                },
-                {
-                  header: "Phone",
-                  id: "phone",
-                  render: (contact) => phoneLabel(contact),
-                  sortValue: (contact) => contact.phone ?? "",
-                },
-                {
-                  header: "Lists",
-                  id: "lists",
-                  className: "contact-table__secondary",
-                  render: (contact) => listNamesByContactId.formatted.get(contact.id) ?? "No lists",
-                  sortValue: (contact) =>
-                    listNamesByContactId.formatted.get(contact.id) ?? "No lists",
-                },
-                {
-                  header: "Email Status",
-                  id: "emailStatus",
-                  render: (contact) => (
-                    <span className="status-pill">
-                      {statusLabel(emailStatusByContactId.get(contact.id) ?? "unknown")}
-                    </span>
-                  ),
-                  sortValue: (contact) =>
-                    statusLabel(emailStatusByContactId.get(contact.id) ?? "unknown"),
-                },
-                {
-                  header: "Source",
-                  id: "source",
-                  className: "contact-table__secondary",
-                  render: (contact) => sourceLabel(contact),
-                  sortValue: (contact) => contact.source ?? "",
-                },
-                {
-                  header: "Updated",
-                  id: "updated",
-                  className: "contact-table__secondary",
-                  render: (contact) =>
-                    new Date(contact.updatedAt).toLocaleString(undefined, {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    }),
-                  sortValue: (contact) => contact.updatedAt,
-                },
-                {
-                  header: "Actions",
-                  id: "actions",
-                  mobileLabel: "Manage",
-                  render: (contact) => (
+                      </dd>
+                    </dl>
+                    <dl>
+                      <dt>Lists</dt>
+                      <dd>{listNamesByContactId.formatted.get(contact.id) ?? "No lists"}</dd>
+                    </dl>
+                    <dl>
+                      <dt>Source</dt>
+                      <dd>{sourceLabel(contact)}</dd>
+                    </dl>
+                    <dl>
+                      <dt>Updated</dt>
+                      <dd>
+                        <time dateTime={contact.updatedAt}>
+                          {new Date(contact.updatedAt).toLocaleString(undefined, {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          })}
+                        </time>
+                      </dd>
+                    </dl>
                     <div className="table-actions">
                       <button
                         aria-label={`View details for ${deriveDisplayName({
@@ -935,22 +1003,6 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
                         Details
                       </button>
                       <button
-                        aria-label={`Edit ${deriveDisplayName({
-                          displayName: contact.displayName,
-                          email: contact.email,
-                          firstName: contact.firstName,
-                          lastName: contact.lastName,
-                          phone: contact.phone,
-                        })}`}
-                        className="button button--secondary button--small"
-                        onClick={() => {
-                          openEdit(contact);
-                        }}
-                        type="button"
-                      >
-                        Edit
-                      </button>
-                      <button
                         aria-label={`Delete ${deriveDisplayName({
                           displayName: contact.displayName,
                           email: contact.email,
@@ -967,34 +1019,24 @@ export function ContactsPage({ enabled }: { readonly enabled: boolean }) {
                         Delete
                       </button>
                     </div>
-                  ),
-                },
-              ]}
-              emptyMessage={hasFilters ? "No contacts match these filters" : "No contacts yet"}
-              initialSort={{ columnId: "name", direction: "asc" }}
-              keySelector={(contact) => contact.id}
-              onRowClick={openEdit}
-              pagination={{
-                onPageChange: setTablePage,
-                onPageSizeChange: (nextSize) => {
-                  setTablePageSize(nextSize);
-                  setTablePage(1);
-                },
-                page: tablePage,
-                pageSize: tablePageSize,
-                pageSizeOptions: [25, 50, 100],
-              }}
-              rowLabel={(contact) =>
-                `Edit contact ${deriveDisplayName({
-                  displayName: contact.displayName,
-                  email: contact.email,
-                  firstName: contact.firstName,
-                  lastName: contact.lastName,
-                  phone: contact.phone,
-                })}`
-              }
-              rows={contacts}
-            />
+                  </div>
+                )}
+                pagination={{
+                  onPageChange: setTablePage,
+                  onPageSizeChange: (nextSize) => {
+                    setTablePageSize(nextSize);
+                    setTablePage(1);
+                  },
+                  page: tablePage,
+                  pageSize: tablePageSize,
+                  pageSizeOptions: [25, 50, 100],
+                }}
+                rowLabel={(contact) =>
+                  `${expandedContactId === contact.id ? "Hide" : "Show"} details for ${deriveDisplayName(contact)}`
+                }
+                rows={contacts}
+              />
+            </div>
           </>
         ) : null}
       </TabsContent>

@@ -1,3 +1,4 @@
+import { UnusualTimeInput } from "../../../shared/UnusualTimeInput";
 import type { OrganizationEvent, OrganizationVenue } from "@choir/contracts";
 import { Dialog } from "@choir/ui";
 import { useState } from "react";
@@ -173,7 +174,7 @@ export function BulkRehearsalDialog({
           </label>
           <label className="field">
             Time
-            <input
+            <UnusualTimeInput
               required
               type="time"
               value={rehearsalTime}

@@ -151,7 +151,7 @@ describe("ContactsPage", () => {
       ],
     });
     const html = renderPage(queryClient);
-    for (const column of ["Name", "Email", "Phone", "Lists", "Email Status", "Source", "Updated"]) {
+    for (const column of ["Name", "Email", "Phone", "Email Status"]) {
       expect(html).toContain(`Sort by ${column}`);
     }
     expect(html).toContain("Jane Smith");
@@ -247,7 +247,7 @@ describe("ContactsPage", () => {
     const queryClient = createTestQueryClient();
     seedOrganization(queryClient, { contacts: [janeSmith], lists: [] });
     const html = renderPage(queryClient);
-    expect(html).toContain("View details for Jane Smith");
+    expect(html).toContain("Show details for Jane Smith");
     expect(html).toContain("Edit Jane Smith");
   });
 

@@ -125,7 +125,7 @@ export function HomeTabContent({
         </details>
       ) : null}
       <div className="field">
-        <label htmlFor="website-about">About Us (Markdown)</label>
+        <label htmlFor="website-about">Content (Markdown)</label>
         <MarkdownToolbar
           allowImages
           disabled={busy}

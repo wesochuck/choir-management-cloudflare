@@ -1,3 +1,4 @@
+import { UnusualTimeInput } from "../../../../shared/UnusualTimeInput";
 import type { OrganizationAuditionSettings } from "@choir/contracts";
 import { dateInputStateValue, formatDate, timeInputStateValue } from "../utils";
 
@@ -63,7 +64,7 @@ export function AuditionSlotsSection({
       <div className="form-grid form-grid--compact">
         <label className="field">
           Start time
-          <input
+          <UnusualTimeInput
             aria-label="Audition slot start time"
             onChange={(event) => {
               setSlotStart(timeInputStateValue(event.currentTarget));
@@ -75,7 +76,7 @@ export function AuditionSlotsSection({
         </label>
         <label className="field">
           End time
-          <input
+          <UnusualTimeInput
             aria-label="Audition slot end time"
             onChange={(event) => {
               setSlotEnd(timeInputStateValue(event.currentTarget));

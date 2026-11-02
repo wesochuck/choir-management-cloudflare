@@ -1,3 +1,4 @@
+import { UnusualTimeInput } from "../../../shared/UnusualTimeInput";
 import type { LoudnessMeasurement } from "@choir/contracts";
 import { useLoudnessGain } from "../../../public/player/useLoudnessGain";
 import type {
@@ -219,7 +220,7 @@ export function MusicPiecePerformances({
           <div className="music-fields-grid">
             <label className="field">
               Date and time
-              <input
+              <UnusualTimeInput
                 type="datetime-local"
                 value={quickDate}
                 onChange={(event) => {
