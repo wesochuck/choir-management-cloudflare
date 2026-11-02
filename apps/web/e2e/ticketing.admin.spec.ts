@@ -783,6 +783,8 @@ test.describe("admin ticket management", () => {
     await page.getByLabel("Price (USD)").fill("30.00");
     await page.getByLabel("Capacity (blank is unlimited)").fill("50");
     await page.getByLabel("Sale ends").fill(saleEndInputValue);
+    await page.getByLabel("Sale ends").blur();
+    await page.getByRole("button", { name: "Keep time", exact: true }).click();
     await page.getByLabel("Active for public sale").check();
     await page.getByRole("checkbox", { name: "Spring Concert" }).check();
     await page.getByRole("button", { name: "Save bundle" }).click();

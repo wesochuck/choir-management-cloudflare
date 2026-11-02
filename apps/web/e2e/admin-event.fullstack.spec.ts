@@ -31,6 +31,7 @@ const problemSchema = z.object({
 
 function futureLocalDateTime(): string {
   const at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  at.setHours(18, 0, 0, 0);
   const pad = (value: number): string => String(value).padStart(2, "0");
   return `${String(at.getFullYear())}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}`;
 }
