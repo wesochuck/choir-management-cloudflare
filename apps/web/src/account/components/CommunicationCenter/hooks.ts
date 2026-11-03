@@ -1,11 +1,4 @@
 import type {
-  CommunicationAudienceRequest,
-  CommunicationChannel,
-  CommunicationDeliverySummary,
-  CommunicationHistoryItem,
-  CommunicationMessage,
-  CommunicationScheduledMessage,
-  CommunicationTemplate,
   ContactList,
   OrganizationBranding,
   OrganizationEmailSettings,
@@ -13,115 +6,30 @@ import type {
   OrganizationProviderStatusResponse,
   OrganizationRosterConfiguration,
 } from "@choir/contracts";
-import { removeCommunicationPlaceholder, validateCommunicationContext } from "@choir/domain";
 import { useConfirmation } from "@choir/ui";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  cancelOrganizationCommunication,
-  deleteOrganizationCommunicationDraft,
-  deleteOrganizationCommunicationTemplate,
-  getOrganizationCommunicationDeliverySummary,
-  getOrganizationCommunicationHistory,
-  getOrganizationEmailSettings,
-  getOrganizationCalendarSettings,
   getOrganizationBranding,
+  getOrganizationCalendarSettings,
+  getOrganizationEmailSettings,
   getOrganizationProviderStatus,
   getOrganizationRosterConfiguration,
   listOrganizationCommunicationTemplates,
   listOrganizationCommunications,
   listOrganizationEvents,
-  listOrganizationScheduledMessages,
-  previewOrganizationCommunicationReach,
-  retryOrganizationCommunicationDeliveries,
-  saveOrganizationCommunicationDraft,
-  saveOrganizationCommunicationTemplate,
-  sendOrganizationCommunication,
-  sendOrganizationCommunicationTestEmail,
 } from "../../../auth/api";
 import { listOrganizationContactLists } from "../../../api";
-import { rsvpNotificationAudience } from "../RsvpManager/rsvpNotification";
 import type {
   CommunicationCenterControllerModel,
-  CommunicationReachState,
   CommunicationSection,
-  MessageOriginFilter,
-  MessageStatusFilter,
   MessageWorkspaceMode,
-  UnifiedCommunicationItem,
 } from "./types";
-import {
-  audienceOptions,
-  defaultAudience,
-  failureMessage,
-  parseCommunicationSearch,
-  unifiedItemSortTimestamp,
-} from "./utils";
+import { useCommunicationComposer } from "./useCommunicationComposer";
+import { useCommunicationHistory } from "./useCommunicationHistory";
+import { useCommunicationTemplates } from "./useCommunicationTemplates";
+import { audienceOptions, failureMessage, parseCommunicationSearch } from "./utils";
 
 export type { CommunicationCenterControllerModel } from "./types";
-
-const EMPTY_REACH_STATE: CommunicationReachState = {
-  data: null,
-  error: null,
-  loading: false,
-};
-
-function hasIncompleteTicketServiceAudience(
-  audience: CommunicationAudienceRequest,
-  channel: CommunicationChannel,
-): boolean {
-  return (
-    audience.ticketBuyerMode === "ticket_service" &&
-    (audience.targetAudiences.length !== 1 ||
-      audience.targetAudiences[0] !== "Ticket Buyers" ||
-      !audience.eventId ||
-      channel !== "Email")
-  );
-}
-
-function reachStateForAudience(
-  reachState: CommunicationReachState,
-  audience: CommunicationAudienceRequest,
-  channel: CommunicationChannel,
-): CommunicationReachState {
-  return hasIncompleteTicketServiceAudience(audience, channel) ? EMPTY_REACH_STATE : reachState;
-}
-
-function filterFallbackHistory(
-  items: CommunicationHistoryItem[],
-  status: MessageStatusFilter,
-  origin: MessageOriginFilter,
-): CommunicationHistoryItem[] {
-  let res = items;
-  if (origin === "manual") {
-    res = res.filter((i) => i.kind === "manual");
-  } else if (origin === "automated") {
-    res = res.filter((i) => i.kind === "automated");
-  }
-  if (status === "draft") {
-    res = res.filter((i) => i.kind === "manual" && i.message.status === "Draft");
-  } else if (status === "scheduled") {
-    res = res.filter((i) => i.kind === "automated" && i.scheduledMessage.status === "Scheduled");
-  } else if (status === "queued") {
-    res = res.filter(
-      (i) =>
-        (i.kind === "automated" && i.scheduledMessage.status === "Queued") ||
-        (i.kind === "manual" && i.message.status === "Queued"),
-    );
-  } else if (status === "sent") {
-    res = res.filter(
-      (i) =>
-        (i.kind === "automated" && i.scheduledMessage.status === "Sent") ||
-        (i.kind === "manual" && i.message.status === "Sent"),
-    );
-  } else if (status === "failed") {
-    res = res.filter(
-      (i) =>
-        (i.kind === "automated" && i.scheduledMessage.status === "Failed") ||
-        (i.kind === "manual" && i.message.status === "Failed"),
-    );
-  }
-  return res;
-}
 
 export function useCommunicationCenterController({
   enabled,
@@ -135,55 +43,7 @@ export function useCommunicationCenterController({
 
   const [activeSection, setActiveSection] = useState<CommunicationSection>(initialNav.section);
   const [messageMode, setMessageMode] = useState<MessageWorkspaceMode>(initialNav.messageMode);
-  const [statusFilter, setStatusFilter] = useState<MessageStatusFilter>(initialNav.statusFilter);
-  const [originFilter, setOriginFilter] = useState<MessageOriginFilter>(initialNav.originFilter);
-  const historyAbortControllerRef = useRef<AbortController | null>(null);
 
-  const initialAudience = useMemo<CommunicationAudienceRequest>(
-    () =>
-      initialNav.rsvpRequest
-        ? rsvpNotificationAudience(
-            initialNav.rsvpRequest.eventId,
-            initialNav.rsvpRequest.voiceParts,
-            initialNav.rsvpRequest.globalStatuses,
-          )
-        : initialNav.contactListId !== undefined
-          ? {
-              ...defaultAudience,
-              targetAudiences: ["Contacts"],
-              contactListIds: [initialNav.contactListId],
-            }
-          : defaultAudience,
-    [initialNav.contactListId, initialNav.rsvpRequest],
-  );
-  const [audience, setAudience] = useState<CommunicationAudienceRequest>(initialAudience);
-  const audienceRef = useRef<CommunicationAudienceRequest>(initialAudience);
-  const [recipientsExpanded, setRecipientsExpanded] = useState(false);
-
-  const [channel, setChannel] = useState<CommunicationChannel>("Email");
-  const [contentMarkdown, setContentMarkdown] = useState(
-    initialNav.rsvpRequest
-      ? "Hello {recipientName},\n\nPlease let us know whether you can attend {eventTitle}.\n\n{{RSVP_LINKS}}\n\nThank you!"
-      : "",
-  );
-  const [subject, setSubject] = useState(initialNav.rsvpRequest ? "Please RSVP: {eventTitle}" : "");
-  const [voiceParts, setVoiceParts] = useState(initialAudience.voiceParts.join(", "));
-  const [eventPromotion, setEventPromotion] =
-    useState<CommunicationMessage["eventPromotion"]>(null);
-  const [activeDraft, setActiveDraft] = useState<CommunicationMessage | null>(null);
-
-  const [messages, setMessages] = useState<readonly CommunicationMessage[]>([]);
-  const [scheduledMessages, setScheduledMessages] = useState<
-    readonly CommunicationScheduledMessage[]
-  >([]);
-  const [historyItems, setHistoryItems] = useState<readonly CommunicationHistoryItem[]>([]);
-  const [pageNumber, setPageNumber] = useState(1);
-  const [currentCursor, setCurrentCursor] = useState<string | null>(null);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [cursorStack, setCursorStack] = useState<(string | null)[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(true);
-
-  const [templates, setTemplates] = useState<readonly CommunicationTemplate[]>([]);
   const [branding, setBranding] = useState<OrganizationBranding | null>(null);
   const [timezone, setTimezone] = useState<string | null>(null);
   const [events, setEvents] = useState<readonly OrganizationEvent[]>([]);
@@ -195,178 +55,55 @@ export function useCommunicationCenterController({
   const [rosterConfiguration, setRosterConfiguration] =
     useState<OrganizationRosterConfiguration | null>(null);
 
-  const [reachState, setReachState] = useState<CommunicationReachState>({
-    data: null,
-    error: null,
-    loading: false,
-  });
-
-  const [deliverySummary, setDeliverySummary] = useState<CommunicationDeliverySummary | null>(null);
-  const [deliveryDetailsMessage, setDeliveryDetailsMessage] = useState<CommunicationMessage | null>(
-    null,
-  );
-  const [loadingDeliveryId, setLoadingDeliveryId] = useState<string | null>(null);
-
-  const [isReviewOpen, setIsReviewOpen] = useState(false);
-  const [reviewSnapshot, setReviewSnapshot] = useState<string | null>(null);
-  const [isTestEmailOpen, setIsTestEmailOpen] = useState(false);
-  const [isSaveTemplateOpen, setIsSaveTemplateOpen] = useState(false);
-
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
-  const [sendIdempotencyKey, setSendIdempotencyKey] = useState(() => crypto.randomUUID());
   const { confirm, confirmationDialog } = useConfirmation();
 
-  function replaceAudience(nextAudience: CommunicationAudienceRequest) {
-    audienceRef.current = nextAudience;
-    setAudience(nextAudience);
-    setReviewSnapshot(null);
-  }
+  const history = useCommunicationHistory({
+    confirm,
+    enabled,
+    initialOriginFilter: initialNav.originFilter,
+    initialStatusFilter: initialNav.statusFilter,
+    setBusy,
+    setError,
+    setSuccessNotice,
+  });
 
-  function updateChannel(value: CommunicationChannel): void {
-    setChannel(value);
-    setReviewSnapshot(null);
-  }
+  const composer = useCommunicationComposer({
+    clearDeliveryDetails: history.clearDeliveryDetails,
+    confirm,
+    currentCursor: history.currentCursor,
+    enabled,
+    initialNav,
+    loadHistoryPage: history.loadHistoryPage,
+    messageMode,
+    originFilter: history.originFilter,
+    setActiveSection,
+    setBusy,
+    setError,
+    setHistoryItems: history.setHistoryItems,
+    setMessageMode,
+    setMessages: history.setMessages,
+    setSuccessNotice,
+    statusFilter: history.statusFilter,
+  });
 
-  function updateContent(value: string): void {
-    setContentMarkdown(value);
-    setReviewSnapshot(null);
-  }
+  const templates = useCommunicationTemplates({
+    channel: composer.channel,
+    confirm,
+    contentMarkdown: composer.contentMarkdown,
+    setBusy,
+    setError,
+    setSuccessNotice,
+    subject: composer.subject,
+  });
 
-  function updateSubject(value: string): void {
-    setSubject(value);
-    setReviewSnapshot(null);
-  }
+  const { loadHistoryPage } = history;
+  const { resumeDraft } = composer;
+  const { setTemplates } = templates;
 
-  function updateAudience(
-    updater: (current: CommunicationAudienceRequest) => CommunicationAudienceRequest,
-  ) {
-    replaceAudience(updater(audienceRef.current));
-  }
-
-  const resumeDraft = useCallback((draft: CommunicationMessage) => {
-    setSendIdempotencyKey(crypto.randomUUID());
-    setActiveDraft(draft.eventPromotion ? draft : null);
-    setEventPromotion(draft.eventPromotion);
-    audienceRef.current = draft.audience;
-    setAudience(draft.audience);
-    setChannel(draft.channel);
-    setContentMarkdown(draft.contentMarkdown);
-    setSubject(draft.subject);
-    setReviewSnapshot(null);
-    setVoiceParts(draft.audience.voiceParts.join(", "));
-    setRecipientsExpanded(false);
-    setMessageMode("compose");
-    setActiveSection("messages");
-    setError(null);
-    setSuccessNotice("Draft loaded. Make your edits and send when ready.");
-  }, []);
-
-  function openNewMessage() {
-    setSendIdempotencyKey(crypto.randomUUID());
-    setActiveDraft(null);
-    setEventPromotion(null);
-    replaceAudience(defaultAudience);
-    setChannel("Email");
-    setContentMarkdown("");
-    setSubject("");
-    setVoiceParts("");
-    setReachState({ data: null, error: null, loading: false });
-    setDeliverySummary(null);
-    setDeliveryDetailsMessage(null);
-    setLoadingDeliveryId(null);
-    setError(null);
-    setSuccessNotice(null);
-    setRecipientsExpanded(false);
-    setMessageMode("compose");
-    setActiveSection("messages");
-  }
-
-  const loadHistoryPage = useCallback(
-    async (
-      targetStatus: MessageStatusFilter,
-      targetOrigin: MessageOriginFilter,
-      cursor: string | null,
-      signal?: AbortSignal,
-    ): Promise<void> => {
-      if (cursor !== null) setLoadingHistory(true);
-      try {
-        const query: {
-          cursor: string | null;
-          limit: number;
-          origin?: "manual" | "automated";
-          status?: "draft" | "scheduled" | "queued" | "sent" | "failed" | "skipped";
-        } = {
-          cursor,
-          limit: 50,
-        };
-        if (targetOrigin !== "all") {
-          query.origin = targetOrigin;
-        }
-        if (targetStatus !== "all") {
-          query.status = targetStatus;
-        }
-        const page = await getOrganizationCommunicationHistory(query, signal);
-        setHistoryItems(page.items);
-        setNextCursor(page.nextCursor);
-      } catch (err: unknown) {
-        if (!signal?.aborted) {
-          try {
-            const [manual, scheduled] = await Promise.all([
-              listOrganizationCommunications(signal),
-              listOrganizationScheduledMessages(signal),
-            ]);
-            setMessages(manual);
-            setScheduledMessages(scheduled);
-            const manualItems: CommunicationHistoryItem[] = manual.map((m) => ({
-              kind: "manual",
-              message: m,
-              sortTimestamp: m.sentAt ?? m.createdAt,
-            }));
-            const scheduledItems: CommunicationHistoryItem[] = scheduled.map((s) => ({
-              kind: "automated",
-              scheduledMessage: s,
-              sortTimestamp: s.scheduledAt,
-            }));
-            const merged = [...manualItems, ...scheduledItems].sort(
-              (a, b) =>
-                (targetStatus === "scheduled" ? 1 : -1) *
-                (Date.parse(a.sortTimestamp) - Date.parse(b.sortTimestamp)),
-            );
-            const filtered = filterFallbackHistory(merged, targetStatus, targetOrigin);
-            setHistoryItems(filtered.slice(0, 50));
-            setNextCursor(null);
-          } catch {
-            setError(failureMessage(err));
-          }
-        }
-      } finally {
-        if (!signal?.aborted) setLoadingHistory(false);
-      }
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!enabled) return;
-    const controller = new AbortController();
-    const refresh = () => {
-      if (document.visibilityState === "visible") {
-        void loadHistoryPage(statusFilter, originFilter, null, controller.signal);
-        setCursorStack([]);
-        setCurrentCursor(null);
-      }
-    };
-    window.addEventListener("focus", refresh);
-    return () => {
-      controller.abort();
-      window.removeEventListener("focus", refresh);
-    };
-  }, [enabled, loadHistoryPage, originFilter, statusFilter]);
-
-  // Load initial data
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
@@ -439,533 +176,15 @@ export function useCommunicationCenterController({
     initialNav.statusFilter,
     loadHistoryPage,
     resumeDraft,
+    setTemplates,
   ]);
-
-  // Automatic debounced reach preview when audience or channel changes in compose mode
-  useEffect(() => {
-    if (!enabled || messageMode !== "compose") return;
-
-    if (hasIncompleteTicketServiceAudience(audience, channel)) return;
-
-    const controller = new AbortController();
-
-    const timer = setTimeout(() => {
-      setReachState((prev) => ({ ...prev, loading: true, error: null }));
-      previewOrganizationCommunicationReach({ audience, channel }, controller.signal)
-        .then((data) => {
-          if (!controller.signal.aborted) {
-            setReachState({ data, error: null, loading: false });
-          }
-        })
-        .catch((err: unknown) => {
-          if (!controller.signal.aborted) {
-            setReachState({ data: null, error: failureMessage(err), loading: false });
-          }
-        });
-    }, 350);
-
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [audience, channel, enabled, messageMode]);
-
-  // Context issues computed in real-time
-  const contextIssues = useMemo(
-    () =>
-      validateCommunicationContext({
-        audience,
-        channel,
-        contentMarkdown,
-        ...(eventPromotion ? { eventId: eventPromotion.eventId } : {}),
-        subject,
-      }),
-    [audience, channel, contentMarkdown, eventPromotion, subject],
-  );
 
   const selectedEvent = useMemo(
-    () => events.find((e) => e.id === (eventPromotion?.eventId ?? audience.eventId)) ?? null,
-    [audience.eventId, eventPromotion?.eventId, events],
-  );
-
-  function removeConflictingPlaceholder(tag: string) {
-    setContentMarkdown((prev) => removeCommunicationPlaceholder(prev, tag));
-    setSubject((prev) => removeCommunicationPlaceholder(prev, tag));
-    setReviewSnapshot(null);
-  }
-
-  // Unified messages list
-  const unifiedMessages: readonly UnifiedCommunicationItem[] = useMemo(() => {
-    if (historyItems.length > 0) {
-      return historyItems.map((item): UnifiedCommunicationItem => {
-        if (item.kind === "manual") {
-          return {
-            automated: false,
-            channel: item.message.channel,
-            id: item.message.id,
-            kind: "manual",
-            message: item.message,
-            recipientCount: item.message.reach.total,
-            status: item.message.status,
-            timestamp: item.sortTimestamp,
-            title:
-              item.message.subject.length > 0
-                ? item.message.subject
-                : `${item.message.channel} message`,
-          };
-        }
-        return {
-          automated: true,
-          channel: "Email",
-          id: item.scheduledMessage.id,
-          kind: "scheduled",
-          recipientCount: null,
-          scheduledMessage: item.scheduledMessage,
-          status: item.scheduledMessage.status,
-          timestamp: item.sortTimestamp,
-          title:
-            item.scheduledMessage.subject || item.scheduledMessage.eventTitle || "Automated send",
-        };
-      });
-    }
-
-    const manualItems: UnifiedCommunicationItem[] = messages.map((message) => ({
-      automated: false,
-      channel: message.channel,
-      id: message.id,
-      kind: "manual",
-      message,
-      recipientCount: message.reach.total,
-      status: message.status,
-      timestamp: message.sentAt ?? message.createdAt,
-      title: message.subject.length > 0 ? message.subject : `${message.channel} message`,
-    }));
-
-    const scheduledItems: UnifiedCommunicationItem[] = scheduledMessages.map((scheduled) => ({
-      automated: true,
-      channel: "Email",
-      id: scheduled.id,
-      kind: "scheduled",
-      recipientCount: null,
-      scheduledMessage: scheduled,
-      status: scheduled.status,
-      timestamp: scheduled.scheduledAt,
-      title: scheduled.subject || scheduled.eventTitle || "Automated send",
-    }));
-
-    let all = [...manualItems, ...scheduledItems].sort(
-      (a, b) => unifiedItemSortTimestamp(b) - unifiedItemSortTimestamp(a),
-    );
-
-    if (originFilter === "manual") {
-      all = all.filter((item) => !item.automated);
-    } else if (originFilter === "automated") {
-      all = all.filter((item) => item.automated);
-    }
-
-    switch (statusFilter) {
-      case "draft":
-        return all.filter((item) => item.status === "Draft");
-      case "scheduled":
-        return all
-          .filter((item) => item.status === "Scheduled")
-          .sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));
-      case "queued":
-        return all.filter((item) => item.status === "Queued");
-      case "sent":
-        return all.filter((item) => item.status === "Sent");
-      case "failed":
-        return all.filter((item) => item.status === "Failed");
-      case "all":
-      default:
-        return all;
-    }
-  }, [historyItems, messages, scheduledMessages, originFilter, statusFilter]);
-
-  const changeStatusFilter = useCallback(
-    (nextStatus: MessageStatusFilter) => {
-      historyAbortControllerRef.current?.abort();
-      const controller = new AbortController();
-      historyAbortControllerRef.current = controller;
-
-      setStatusFilter(nextStatus);
-      setPageNumber(1);
-      setCurrentCursor(null);
-      setNextCursor(null);
-      setCursorStack([]);
-      setDeliveryDetailsMessage(null);
-      setDeliverySummary(null);
-      setLoadingHistory(true);
-      void loadHistoryPage(nextStatus, originFilter, null, controller.signal);
-    },
-    [loadHistoryPage, originFilter],
-  );
-
-  const changeOriginFilter = useCallback(
-    (nextOrigin: MessageOriginFilter) => {
-      historyAbortControllerRef.current?.abort();
-      const controller = new AbortController();
-      historyAbortControllerRef.current = controller;
-
-      setOriginFilter(nextOrigin);
-      setPageNumber(1);
-      setCurrentCursor(null);
-      setNextCursor(null);
-      setCursorStack([]);
-      setDeliveryDetailsMessage(null);
-      setDeliverySummary(null);
-      setLoadingHistory(true);
-      void loadHistoryPage(statusFilter, nextOrigin, null, controller.signal);
-    },
-    [loadHistoryPage, statusFilter],
-  );
-
-  const nextPage = useCallback(async () => {
-    if (!nextCursor) return;
-    setCursorStack((prev) => [...prev, currentCursor]);
-    setCurrentCursor(nextCursor);
-    setPageNumber((prev) => prev + 1);
-    setLoadingHistory(true);
-    await loadHistoryPage(statusFilter, originFilter, nextCursor);
-  }, [currentCursor, loadHistoryPage, nextCursor, originFilter, statusFilter]);
-
-  const previousPage = useCallback(async () => {
-    if (cursorStack.length === 0) return;
-    const prevCursor = cursorStack[cursorStack.length - 1] ?? null;
-    setCursorStack((prev) => prev.slice(0, -1));
-    setCurrentCursor(prevCursor);
-    setPageNumber((prev) => Math.max(1, prev - 1));
-    setLoadingHistory(true);
-    await loadHistoryPage(statusFilter, originFilter, prevCursor);
-  }, [cursorStack, loadHistoryPage, originFilter, statusFilter]);
-
-  // Actions
-  const deleteDraftAction = useCallback(
-    async (messageId: string) => {
-      const ok = await confirm({
-        confirmLabel: "Delete draft",
-        description: "Delete this communication draft permanently?",
-        destructive: true,
-        title: "Delete draft",
-      });
-      if (!ok) return;
-      setBusy(true);
-      setError(null);
-      try {
-        await deleteOrganizationCommunicationDraft(messageId);
-        setMessages((current) => current.filter((m) => m.id !== messageId));
-        setHistoryItems((current) =>
-          current.filter((item) => !(item.kind === "manual" && item.message.id === messageId)),
-        );
-        void loadHistoryPage(statusFilter, originFilter, currentCursor);
-        setSuccessNotice("Draft deleted.");
-      } catch (err: unknown) {
-        setError(failureMessage(err));
-      } finally {
-        setBusy(false);
-      }
-    },
-    [confirm, currentCursor, loadHistoryPage, originFilter, statusFilter],
-  );
-
-  const cancelQueuedAction = useCallback(
-    async (messageId: string) => {
-      const ok = await confirm({
-        confirmLabel: "Cancel communication",
-        description: "Cancel this queued communication? Pending recipients will not be delivered.",
-        destructive: true,
-        title: "Cancel queued communication",
-      });
-      if (!ok) return;
-      setBusy(true);
-      setError(null);
-      try {
-        const canceled = await cancelOrganizationCommunication(messageId);
-        setMessages((current) =>
-          current.map((m) => (m.id === messageId ? { ...m, ...canceled } : m)),
-        );
-        void loadHistoryPage(statusFilter, originFilter, currentCursor);
-        setSuccessNotice("Queued communication canceled.");
-      } catch (err: unknown) {
-        setError(failureMessage(err));
-      } finally {
-        setBusy(false);
-      }
-    },
-    [confirm, currentCursor, loadHistoryPage, originFilter, statusFilter],
-  );
-
-  const openDeliveryDetails = useCallback(async (message: CommunicationMessage) => {
-    setLoadingDeliveryId(message.id);
-    setError(null);
-    try {
-      const summary = await getOrganizationCommunicationDeliverySummary(message.id);
-      setDeliverySummary(summary);
-      setDeliveryDetailsMessage(message);
-    } catch (err: unknown) {
-      setError(failureMessage(err));
-    } finally {
-      setLoadingDeliveryId(null);
-    }
-  }, []);
-
-  const retryDeliveriesAction = useCallback(
-    async (messageId: string) => {
-      setBusy(true);
-      setError(null);
-      try {
-        const retried = await retryOrganizationCommunicationDeliveries(messageId);
-        const summary = await getOrganizationCommunicationDeliverySummary(messageId);
-        setDeliverySummary(summary);
-        setMessages(await listOrganizationCommunications());
-        void loadHistoryPage(statusFilter, originFilter, currentCursor);
-        setSuccessNotice(`Retried delivery for ${String(retried)} recipients.`);
-      } catch (err: unknown) {
-        setError(failureMessage(err));
-      } finally {
-        setBusy(false);
-      }
-    },
-    [currentCursor, loadHistoryPage, originFilter, statusFilter],
-  );
-
-  const saveDraftAction = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    setSuccessNotice(null);
-    try {
-      const saved = await saveOrganizationCommunicationDraft({
-        audience,
-        channel,
-        contentMarkdown,
-        ...(eventPromotion ? { eventPromotion } : {}),
-        ...(eventPromotion && activeDraft
-          ? { expectedRevision: activeDraft.draftRevision, messageId: activeDraft.id }
-          : {}),
-        subject,
-      });
-      if (saved.eventPromotion) setActiveDraft(saved);
-      setReviewSnapshot(null);
-      setMessages((current) => [saved, ...current.filter((m) => m.id !== saved.id)]);
-      void loadHistoryPage(statusFilter, originFilter, currentCursor);
-      setSuccessNotice("Draft saved successfully.");
-    } catch (err: unknown) {
-      setError(failureMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [
-    audience,
-    activeDraft,
-    channel,
-    contentMarkdown,
-    currentCursor,
-    eventPromotion,
-    loadHistoryPage,
-    originFilter,
-    statusFilter,
-    subject,
-  ]);
-
-  const saveTemplateAction = useCallback(
-    async (title: string) => {
-      setBusy(true);
-      setError(null);
-      try {
-        const saved = await saveOrganizationCommunicationTemplate({
-          channel,
-          contentMarkdown,
-          subject,
-          title,
-        });
-        setTemplates((current) => [saved, ...current.filter((t) => t.id !== saved.id)]);
-        setIsSaveTemplateOpen(false);
-        setSuccessNotice(`Template "${title}" saved.`);
-      } catch (err: unknown) {
-        setError(failureMessage(err));
-      } finally {
-        setBusy(false);
-      }
-    },
-    [channel, contentMarkdown, subject],
-  );
-
-  const deleteTemplateAction = useCallback(
-    async (templateId: string) => {
-      const ok = await confirm({
-        confirmLabel: "Delete template",
-        description: "Delete this communication template permanently?",
-        destructive: true,
-        title: "Delete template",
-      });
-      if (!ok) return;
-      setBusy(true);
-      setError(null);
-      try {
-        await deleteOrganizationCommunicationTemplate(templateId);
-        setTemplates((current) => current.filter((t) => t.id !== templateId));
-        setSuccessNotice("Template deleted.");
-      } catch (err: unknown) {
-        setError(failureMessage(err));
-      } finally {
-        setBusy(false);
-      }
-    },
-    [confirm],
-  );
-
-  const openReviewAndSend = useCallback(async () => {
-    if (contextIssues.length > 0) return;
-    setBusy(true);
-    setError(null);
-    try {
-      let previewRequest: Parameters<typeof previewOrganizationCommunicationReach>[0] = {
-        audience,
-        channel,
-      };
-      if (eventPromotion) {
-        if (!activeDraft) {
-          setError("Save the event promotion draft before reviewing it in Communications.");
-          return;
-        }
-        const saved = await saveOrganizationCommunicationDraft({
-          audience,
-          channel,
-          contentMarkdown,
-          eventPromotion,
-          expectedRevision: activeDraft.draftRevision,
-          messageId: activeDraft.id,
-          subject,
-        });
-        setActiveDraft(saved);
-        setMessages((current) => [saved, ...current.filter((message) => message.id !== saved.id)]);
-        previewRequest = {
-          audience,
-          channel,
-          contentMarkdown,
-          draftRevision: saved.draftRevision,
-          eventPromotion,
-          messageId: saved.id,
-          subject,
-        };
-      }
-      const freshReach = await previewOrganizationCommunicationReach(previewRequest);
-      setReachState({ data: freshReach, error: null, loading: false });
-      if (freshReach.total === 0) {
-        setError("No reachable recipients found for the selected criteria.");
-        return;
-      }
-      if (freshReach.ticketBuyerPurchasesOverLimit > 0) {
-        setError(
-          audience.excludeTicketBuyersForEventId
-            ? "This past ticket-buyer audience exceeds the 500-recipient event-promotion limit. Narrow the audience before sending."
-            : "This event has more than 1,000 paid ticket orders, so the complete audience cannot be sent in one message.",
-        );
-        return;
-      }
-      if (freshReach.audienceOverLimit) {
-        setError(
-          "This event promotion audience exceeds the 500-recipient limit. Narrow the audience before sending.",
-        );
-        return;
-      }
-      if (eventPromotion && !freshReach.reviewSnapshot) {
-        setError("The recipient review could not be verified. Reopen it before sending.");
-        return;
-      }
-      setReviewSnapshot(freshReach.reviewSnapshot ?? null);
-      setIsReviewOpen(true);
-    } catch (err: unknown) {
-      setError(failureMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [
-    activeDraft,
-    audience,
-    channel,
-    contentMarkdown,
-    contextIssues.length,
-    eventPromotion,
-    subject,
-  ]);
-
-  const sendCommunicationAction = useCallback(async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const queued = await sendOrganizationCommunication(
-        {
-          audience,
-          channel,
-          contentMarkdown,
-          ...(eventPromotion ? { eventPromotion } : {}),
-          ...(eventPromotion && activeDraft
-            ? { expectedRevision: activeDraft.draftRevision, messageId: activeDraft.id }
-            : {}),
-          ...(eventPromotion && reviewSnapshot ? { reviewSnapshot } : {}),
-          subject,
-        },
-        sendIdempotencyKey,
-      );
-      setMessages((current) => [queued, ...current.filter((m) => m.id !== queued.id)]);
-      setIsReviewOpen(false);
-      setMessageMode("list");
-      setActiveSection("messages");
-      setActiveDraft(null);
-      setEventPromotion(null);
-      setReviewSnapshot(null);
-      void loadHistoryPage(statusFilter, originFilter, null);
-      setSuccessNotice(`Message queued for ${String(queued.reach.total)} recipients.`);
-      // Reset composer
-      replaceAudience(defaultAudience);
-      setContentMarkdown("");
-      setSubject("");
-      setVoiceParts("");
-      setSendIdempotencyKey(crypto.randomUUID());
-    } catch (err: unknown) {
-      setError(failureMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [
-    audience,
-    activeDraft,
-    channel,
-    contentMarkdown,
-    eventPromotion,
-    reviewSnapshot,
-    loadHistoryPage,
-    originFilter,
-    sendIdempotencyKey,
-    statusFilter,
-    subject,
-  ]);
-
-  const sendTestEmailAction = useCallback(
-    async (email: string) => {
-      setBusy(true);
-      setError(null);
-      try {
-        await sendOrganizationCommunicationTestEmail(
-          {
-            audience,
-            contentMarkdown,
-            email,
-            ...(eventPromotion ? { eventId: eventPromotion.eventId } : {}),
-            subject,
-          },
-          crypto.randomUUID(),
-        );
-        setIsTestEmailOpen(false);
-        setSuccessNotice(`Test email sent to ${email}.`);
-      } catch (err: unknown) {
-        setError(failureMessage(err));
-      } finally {
-        setBusy(false);
-      }
-    },
-    [audience, contentMarkdown, eventPromotion, subject],
+    () =>
+      events.find(
+        (e) => e.id === (composer.eventPromotion?.eventId ?? composer.audience.eventId),
+      ) ?? null,
+    [composer.audience.eventId, composer.eventPromotion?.eventId, events],
   );
 
   function formatVoiceParts(parts: readonly string[]): string {
@@ -980,80 +199,80 @@ export function useCommunicationCenterController({
 
   return {
     activeSection,
-    audience,
+    audience: composer.audience,
     audienceOptions,
+    branding,
     busy,
-    cancelQueuedMessage: cancelQueuedAction,
-    channel,
+    cancelQueuedMessage: history.cancelQueuedAction,
+    channel: composer.channel,
     confirmationDialog,
     contactLists,
-    contentMarkdown,
-    contextIssues,
-    deleteDraft: deleteDraftAction,
-    deleteTemplate: deleteTemplateAction,
-    deliveryDetailsMessage,
-    deliverySummary,
+    contentMarkdown: composer.contentMarkdown,
+    contextIssues: composer.contextIssues,
+    deleteDraft: composer.deleteDraftAction,
+    deleteTemplate: templates.deleteTemplateAction,
+    deliveryDetailsMessage: history.deliveryDetailsMessage,
+    deliverySummary: history.deliverySummary,
     emailSettings,
-    eventPromotion,
     error,
+    eventPromotion: composer.eventPromotion,
     events,
     formatVoiceParts,
-    hasNextPage: Boolean(nextCursor),
-    hasPreviousPage: pageNumber > 1,
-    isReviewOpen,
-    isSaveTemplateOpen,
-    isTestEmailOpen,
-    loadingDeliveryId,
-    loadingHistory,
+    hasNextPage: history.hasNextPage,
+    hasPreviousPage: history.hasPreviousPage,
+    isReviewOpen: composer.isReviewOpen,
+    isSaveTemplateOpen: templates.saveTemplateOpen,
+    isTestEmailOpen: composer.isTestEmailOpen,
+    loadingDeliveryId: history.loadingDeliveryId,
+    loadingHistory: history.loadingHistory,
     messageMode,
-    nextPage,
-    openDeliveryDetails,
-    openNewMessage,
+    nextPage: history.nextPage,
+    openDeliveryDetails: history.openDeliveryDetails,
+    openNewMessage: composer.openNewMessage,
     openNewTemplateDialog: () => {
       // Standalone new template dialog in templates panel
     },
-    openReviewAndSend,
+    openReviewAndSend: composer.openReviewAndSend,
     openSaveAsTemplate: () => {
-      setIsSaveTemplateOpen(true);
+      templates.setSaveTemplateOpen(true);
     },
     openTestEmail: () => {
-      setIsTestEmailOpen(true);
+      composer.setIsTestEmailOpen(true);
     },
-    originFilter,
-    pageNumber,
-    previousPage,
+    originFilter: history.originFilter,
+    pageNumber: history.pageNumber,
+    previousPage: history.previousPage,
     providerStatus,
-    reachState: reachStateForAudience(reachState, audience, channel),
-    recipientsExpanded,
-    removeConflictingPlaceholder,
-    resumeDraft,
-    retryDeliveries: retryDeliveriesAction,
+    reachState: composer.reachState,
+    recipientsExpanded: composer.recipientsExpanded,
+    removeConflictingPlaceholder: composer.removeConflictingPlaceholder,
+    resumeDraft: composer.resumeDraft,
+    retryDeliveries: history.retryDeliveriesAction,
     rosterConfiguration,
-    saveDraft: saveDraftAction,
-    saveTemplate: saveTemplateAction,
+    saveDraft: composer.saveDraftAction,
+    saveTemplate: templates.saveTemplateAction,
     selectedEvent,
-    sendCommunication: sendCommunicationAction,
-    sendTestEmail: sendTestEmailAction,
+    sendCommunication: composer.sendCommunicationAction,
+    sendTestEmail: composer.sendTestEmailAction,
     setActiveSection,
-    setChannel: updateChannel,
-    setContentMarkdown: updateContent,
-    setIsReviewOpen,
-    setIsSaveTemplateOpen,
-    setIsTestEmailOpen,
+    setChannel: composer.updateChannel,
+    setContentMarkdown: composer.updateContent,
+    setIsReviewOpen: composer.setIsReviewOpen,
+    setIsSaveTemplateOpen: templates.setSaveTemplateOpen,
+    setIsTestEmailOpen: composer.setIsTestEmailOpen,
     setMessageMode,
-    setOriginFilter: changeOriginFilter,
-    setRecipientsExpanded,
-    setStatusFilter: changeStatusFilter,
-    setSubject: updateSubject,
-    setVoiceParts,
-    statusFilter,
-    subject,
+    setOriginFilter: history.changeOriginFilter,
+    setRecipientsExpanded: composer.setRecipientsExpanded,
+    setStatusFilter: history.changeStatusFilter,
+    setSubject: composer.updateSubject,
+    setVoiceParts: composer.setVoiceParts,
+    statusFilter: history.statusFilter,
+    subject: composer.subject,
     successNotice,
-    templates,
+    templates: templates.templates,
     timezone,
-    branding,
-    unifiedMessages,
-    updateAudience,
-    voiceParts,
+    unifiedMessages: history.unifiedMessages,
+    updateAudience: composer.updateAudience,
+    voiceParts: composer.voiceParts,
   };
 }
