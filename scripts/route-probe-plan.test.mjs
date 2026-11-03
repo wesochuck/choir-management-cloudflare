@@ -171,6 +171,8 @@ describe("route staging qualification and evidence plan", () => {
     ["GET", "/api/public/donations/sponsor-info", "sponsor_not_found"],
     ["POST", "/api/public/donations/sponsor-artwork", "sponsor_not_found"],
     ["GET", "/api/public/donations/artwork/:fileId", "artwork_not_found"],
+    ["GET", "/api/public/checkout-reminders/recovery", "recovery_unavailable"],
+    ["POST", "/api/public/checkout-reminders/stop", "reminder_preference_unavailable"],
   ])("recognizes only the tokenless rejection for %s %s", (method, path, code) => {
     const rows = buildAnonymousProbeRows([{ method, path }], ["lcc", "lmc"]);
     expect(rows.map((row) => row.organizationSlug)).toEqual(["lcc", "lmc"]);

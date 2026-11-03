@@ -172,6 +172,12 @@ export function isExpectedAnonymousBoundary(row, result) {
   if (row.method === "GET" && route.startsWith("/api/public/donations/artwork/")) {
     return result.status === 404 && result.code === "artwork_not_found";
   }
+  if (row.method === "GET" && route === "/api/public/checkout-reminders/recovery") {
+    return result.status === 404 && result.code === "recovery_unavailable";
+  }
+  if (row.method === "POST" && route === "/api/public/checkout-reminders/stop") {
+    return result.status === 404 && result.code === "reminder_preference_unavailable";
+  }
   if (result.status === 200) return true;
   if (
     [400, 401, 403, 405, 409, 422, 429].includes(result.status) &&
