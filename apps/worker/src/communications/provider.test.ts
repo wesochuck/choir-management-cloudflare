@@ -270,12 +270,25 @@ describe("Organization communication provider", () => {
     expect(rendered).toContain('href="https://example.com/tickets?id=1&amp;order=2"');
   });
 
+  it("renders blockquotes as styled callouts in HTML", () => {
+    const rendered = renderCommunicationMarkdown(
+      "**Note**\n> First line of note\n> Second line of note",
+    );
+
+    expect(rendered).toContain('role="presentation"');
+    expect(rendered).toContain('bgcolor="#edf5f1"');
+    expect(rendered).toContain("First line of note");
+    expect(rendered).toContain("Second line of note");
+  });
+
   it("removes Markdown decoration while preserving destinations in plain text", () => {
     expect(
       renderCommunicationText(
-        "## Order confirmed\n\n- **Total:** $20\n\n[Open tickets](https://example.com/tickets)",
+        "## Order confirmed\n\n- **Total:** $20\n\n> Travel conflict\n\n[Open tickets](https://example.com/tickets)",
       ),
-    ).toBe("Order confirmed\n\n- Total: $20\n\nOpen tickets: https://example.com/tickets");
+    ).toBe(
+      "Order confirmed\n\n- Total: $20\n\nTravel conflict\n\nOpen tickets: https://example.com/tickets",
+    );
   });
 
   it("preserves base64url underscores in sent HTML and plain-text link and code spans", async () => {

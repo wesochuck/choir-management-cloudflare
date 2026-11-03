@@ -58,12 +58,22 @@ function escapeMarkdown(value: string): string {
   return escaped;
 }
 
-function formatEventDate(value: string, timezone: string): string {
+export function formatEventDate(value: string, timezone: string): string {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return value;
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "full",
     timeStyle: "short",
+    timeZone: timezone,
+  }).format(date);
+}
+
+export function formatEventShortDate(value: string, timezone: string): string | null {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
     timeZone: timezone,
   }).format(date);
 }
@@ -149,10 +159,13 @@ export async function queueRsvpDeclineNotice(
   if (recipients.length === 0) return;
 
   const eventType = event.type.toLowerCase();
-  const subject = `${event.displayName} declined ${eventType}: ${event.title}`.slice(0, 300);
+  const shortDate = formatEventShortDate(event.startsAt, calendarSettings.timezone);
+  const eventTypeWithDate = shortDate ? `${shortDate} ${eventType}` : eventType;
+  const subject = `${event.displayName} declined ${eventTypeWithDate}: ${event.title}`.slice(
+    0,
+    300,
+  );
   const contentMarkdown = [
-    `## RSVP declined`,
-    "",
     `**${escapeMarkdown(event.displayName)}** (${escapeMarkdown(declinedProfile.voicePart || "Voice part not assigned")}) declined a ${eventType} RSVP.`,
     "",
     `- **Event:** ${escapeMarkdown(event.title)}`,

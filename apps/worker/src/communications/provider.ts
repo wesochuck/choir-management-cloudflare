@@ -8,7 +8,12 @@ import {
   prepareEmailProviderRoute,
   type EmailProviderSourceKind,
 } from "./emailFeedback";
-import { escapeEmailHtml, renderEmailAction, renderEmailDocument } from "./emailPresentation";
+import {
+  escapeEmailHtml,
+  renderEmailAction,
+  renderEmailDocument,
+  renderEmailHighlight,
+} from "./emailPresentation";
 
 const deliverySchema = z.object({
   channel: z.enum(["email", "sms"]),
@@ -150,36 +155,80 @@ function renderMarkdownBlock(trimmed: string): string {
     : "";
 }
 
+function renderBlockquote(lines: readonly string[]): string {
+  const innerHtml = lines
+    .map((line, index) => {
+      const bottomMargin = index === lines.length - 1 ? "0" : "8px";
+      const inline = line ? renderMarkdownInline(line) : "&nbsp;";
+      return `<p style="color:#17181d;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:23px;margin:0 0 ${bottomMargin};">${inline}</p>`;
+    })
+    .join("");
+  return renderEmailHighlight(innerHtml);
+}
+
 /** Render the deliberately small Markdown subset exposed by the message editor. */
 export function renderCommunicationMarkdown(value: string): string {
   const lines = value.split("\n");
   const output: string[] = [];
   let inList = false;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    const listItem = trimmed.startsWith("- ") || trimmed.startsWith("* ");
-    if (listItem && !inList) {
-      output.push(
-        '<ul style="color:#30343b;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;margin:0 0 20px;padding-left:24px;">',
-      );
-      inList = true;
+  let inBlockquote = false;
+  const blockquoteLines: string[] = [];
+
+  const flushBlockquote = () => {
+    if (inBlockquote) {
+      output.push(renderBlockquote(blockquoteLines));
+      blockquoteLines.length = 0;
+      inBlockquote = false;
     }
-    if (!listItem && inList) {
+  };
+
+  const flushList = () => {
+    if (inList) {
       output.push("</ul>");
       inList = false;
     }
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const listItem = trimmed.startsWith("- ") || trimmed.startsWith("* ");
+    const blockquoteItem = trimmed.startsWith(">");
+
     if (listItem) {
+      flushBlockquote();
+      if (!inList) {
+        output.push(
+          '<ul style="color:#30343b;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:25px;margin:0 0 20px;padding-left:24px;">',
+        );
+        inList = true;
+      }
       output.push(`<li style="margin:0 0 8px;">${renderMarkdownInline(trimmed.slice(2))}</li>`);
-    } else {
-      output.push(renderMarkdownBlock(trimmed));
+      continue;
     }
+
+    flushList();
+
+    if (blockquoteItem) {
+      inBlockquote = true;
+      const content = trimmed.startsWith("> ") ? trimmed.slice(2) : trimmed.slice(1);
+      blockquoteLines.push(content);
+      continue;
+    }
+
+    flushBlockquote();
+    output.push(renderMarkdownBlock(trimmed));
   }
-  if (inList) output.push("</ul>");
+
+  flushList();
+  flushBlockquote();
   return output.join("");
 }
 
 export function renderCommunicationText(value: string): string {
-  const normalized = value.replace(/^#{1,3}\s+/gm, "").replace(/^\s*\*\s+/gm, "- ");
+  const normalized = value
+    .replace(/^#{1,3}\s+/gm, "")
+    .replace(/^\s*\*\s+/gm, "- ")
+    .replace(/^[ \t]*>[ \t]?/gm, "");
   let cursor = 0;
   let rendered = "";
   for (const protectedSpan of normalized.matchAll(/`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)/g)) {

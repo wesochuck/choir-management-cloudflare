@@ -310,11 +310,19 @@ describe("linked-Profile self-service RSVP", () => {
           .toArray()
           .at(0) ?? null,
     );
+    const rehearsalEvent = alpha.events[1];
+    expect(rehearsalEvent).toBeDefined();
+    const expectedShortDate = new Intl.DateTimeFormat("en-US", {
+      day: "numeric",
+      month: "short",
+      timeZone: "America/New_York",
+    }).format(new Date(rehearsalEvent?.startsAt ?? 0));
     expect(notice).toMatchObject({
       destination: ADMIN_EMAIL,
-      subject: "Organization Alpha Singer declined rehearsal: Alpha Rehearsal",
+      subject: `Organization Alpha Singer declined ${expectedShortDate} rehearsal: Alpha Rehearsal`,
     });
     expect(notice?.content).toContain("Travel conflict");
+    expect(notice?.content).not.toContain("## RSVP declined");
 
     const revisedNoteResponse = await exports.default.fetch(
       api("alpha.localhost", `/api/singer/events/${REHEARSAL_ID}/rsvp`, cookie, {
