@@ -92,28 +92,39 @@ export function useAttendanceQueries(enabled: boolean) {
 
 export function useAttendanceFiltering({
   filter,
+  includeDeclinedAbsences = false,
   query,
   rosterConfiguration,
   rows,
   savingIds,
 }: {
   readonly filter: AttendanceFilter;
+  readonly includeDeclinedAbsences?: boolean;
   readonly query: string;
   readonly rosterConfiguration?: OrganizationRosterConfiguration | null | undefined;
   readonly rows: readonly OrganizationAttendanceRow[];
   readonly savingIds: ReadonlySet<string>;
 }) {
+  const visibleRows = useMemo(
+    () =>
+      rows.filter(
+        (row) =>
+          row.rsvp === "Yes" ||
+          (includeDeclinedAbsences && row.rsvp === "No" && row.attendance === "Absent"),
+      ),
+    [includeDeclinedAbsences, rows],
+  );
   const counts = useMemo(() => {
     const expected = rows.filter((row) => row.rsvp === "Yes");
     return {
-      absent: expected.filter((row) => row.attendance === "Absent").length,
+      absent: visibleRows.filter((row) => row.attendance === "Absent").length,
       expected: expected.length,
       pending: expected.filter((row) => row.attendance === "Pending").length,
       present: expected.filter((row) => row.attendance === "Present").length,
       presentTotal: expected.filter((row) => row.attendance === "Present").length,
-      roster: expected.length,
+      roster: visibleRows.length,
     };
-  }, [rows]);
+  }, [rows, visibleRows]);
 
   const groupedRows = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -128,7 +139,13 @@ export function useAttendanceFiltering({
         row.displayName.toLocaleLowerCase().includes(normalizedQuery) ||
         row.voicePart.toLocaleLowerCase().includes(normalizedQuery);
       const isSearchResult = normalizedQuery.length > 0;
-      return matchesFilter && matchesQuery && (isSearchResult || row.rsvp === "Yes");
+      return (
+        matchesFilter &&
+        matchesQuery &&
+        (isSearchResult ||
+          row.rsvp === "Yes" ||
+          (includeDeclinedAbsences && row.rsvp === "No" && row.attendance === "Absent"))
+      );
     });
     return {
       notRsvped: groupRowsBySection(
@@ -140,7 +157,7 @@ export function useAttendanceFiltering({
         rosterConfiguration,
       ),
     };
-  }, [filter, query, rosterConfiguration, rows]);
+  }, [filter, includeDeclinedAbsences, query, rosterConfiguration, rows]);
 
   const markableRows = useMemo(
     () =>
@@ -156,9 +173,11 @@ export function useAttendanceFiltering({
 
 export function useAttendanceMutations({
   eventId,
+  includeDeclinedAbsences = false,
   rows,
 }: {
   readonly eventId: string;
+  readonly includeDeclinedAbsences?: boolean;
   readonly rows: readonly OrganizationAttendanceRow[];
 }) {
   const queryClient = useQueryClient();
@@ -311,7 +330,12 @@ export function useAttendanceMutations({
   function changeAttendance(profileId: string) {
     const row = rows.find((candidate) => candidate.profileId === profileId);
     if (!row || savingIds.has(profileId) || bulkBusy || rescueBusy) return;
-    const next = nextAttendance[row.attendance];
+    // A declined rehearsal's automatic absence would immediately replace Pending again.
+    // Offer the existing confirmed check-in flow directly instead.
+    const next =
+      includeDeclinedAbsences && row.rsvp === "No" && row.attendance === "Absent"
+        ? "Present"
+        : nextAttendance[row.attendance];
     if (next === "Present" && row.rsvp !== "Yes") {
       setRescueCandidate(row);
       return;

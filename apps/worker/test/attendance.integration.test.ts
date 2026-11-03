@@ -502,11 +502,141 @@ describe("Organization attendance", () => {
     expect(attendance.rows).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ profileId: inheritedYesProfile.id, rsvp: "Yes" }),
-        expect.objectContaining({ profileId: inheritedNoProfile.id, rsvp: "No" }),
+        expect.objectContaining({
+          profileId: inheritedNoProfile.id,
+          rsvp: "No",
+          attendance: "Pending",
+        }),
         expect.objectContaining({ profileId: directYesProfile.id, rsvp: "Yes" }),
         expect.objectContaining({ profileId: pendingProfile.id, rsvp: "Pending" }),
       ]),
     );
+  });
+
+  it("projects explicit rehearsal declines as absent, clears them on Yes, and preserves recorded attendance", async () => {
+    const cookie = await signIn();
+    const seeded = await runInDurableObject<
+      OrganizationStore,
+      {
+        profileId: string;
+        performanceId: string;
+        rehearsalId: string;
+        otherId: string;
+      }
+    >(stores.get(stores.idFromName("organization-alpha")), (_instance, state) => {
+      const profileId = crypto.randomUUID();
+      const performanceId = crypto.randomUUID();
+      const rehearsalId = crypto.randomUUID();
+      const otherId = crypto.randomUUID();
+      const at = new Date().toISOString();
+      const future = new Date(Date.now() + 86_400_000).toISOString();
+      state.storage.sql.exec(
+        "INSERT INTO profiles (id, display_name, voice_part, created_at, updated_at) VALUES (?, 'Declined Singer', 'A1', ?, ?)",
+        profileId,
+        at,
+        at,
+      );
+      for (const [id, type, parent] of [
+        [performanceId, "Performance", null],
+        [rehearsalId, "Rehearsal", performanceId],
+        [otherId, "Other", null],
+      ] as const) {
+        state.storage.sql.exec(
+          "INSERT INTO events (id, title, type, parent_performance_id, starts_at, created_at, updated_at) VALUES (?, 'Decline test', ?, ?, ?, ?, ?)",
+          id,
+          type,
+          parent,
+          future,
+          at,
+          at,
+        );
+        state.storage.sql.exec(
+          "INSERT INTO event_rosters (event_id, profile_id, rsvp, created_at, updated_at) VALUES (?, ?, 'No', ?, ?)",
+          id,
+          profileId,
+          at,
+          at,
+        );
+      }
+      return { profileId, performanceId, rehearsalId, otherId };
+    });
+    const readAttendance = async (eventId: string) =>
+      organizationAttendanceResponseSchema.parse(
+        await (
+          await exports.default.fetch(
+            api("alpha.localhost", `/api/organization/events/${eventId}/attendance`, cookie),
+          )
+        ).json(),
+      );
+    const setRsvp = async (eventId: string, rsvp: "Yes" | "No") => {
+      const response = await write(
+        "alpha.localhost",
+        `/api/organization/events/${eventId}/rsvp`,
+        cookie,
+        { profileId: seeded.profileId, rsvp, rsvpNote: rsvp === "No" ? "Conflict" : "" },
+        "PUT",
+      );
+      expect(response.status).toBe(200);
+    };
+    const readReport = async () =>
+      organizationAttendanceReportResponseSchema.parse(
+        await (
+          await exports.default.fetch(
+            api(
+              "alpha.localhost",
+              `/api/organization/events/${seeded.performanceId}/attendance-report`,
+              cookie,
+            ),
+          )
+        ).json(),
+      );
+    // Existing declines work immediately, including records created before this change.
+    expect((await readAttendance(seeded.rehearsalId)).rows[0]).toMatchObject({
+      rsvp: "No",
+      attendance: "Absent",
+    });
+    for (const eventId of [seeded.performanceId, seeded.otherId]) {
+      expect((await readAttendance(eventId)).rows[0]).toMatchObject({
+        rsvp: "No",
+        attendance: "Pending",
+      });
+    }
+    await setRsvp(seeded.performanceId, "Yes");
+    expect((await readReport()).rows[0]).toMatchObject({ absences: 1 });
+    await setRsvp(seeded.rehearsalId, "Yes");
+    expect((await readAttendance(seeded.rehearsalId)).rows[0]).toMatchObject({
+      rsvp: "Yes",
+      attendance: "Pending",
+    });
+    expect((await readReport()).rows[0]).toMatchObject({ absences: 0 });
+    await setRsvp(seeded.rehearsalId, "No");
+    expect((await readAttendance(seeded.rehearsalId)).rows[0]).toMatchObject({
+      rsvp: "No",
+      attendance: "Absent",
+    });
+    for (const attendance of ["Present", "Absent"] as const) {
+      await runInDurableObject<OrganizationStore, null>(
+        stores.get(stores.idFromName("organization-alpha")),
+        (_instance, state) => {
+          state.storage.sql.exec(
+            "UPDATE event_rosters SET attendance = ? WHERE event_id = ? AND profile_id = ?",
+            attendance,
+            seeded.rehearsalId,
+            seeded.profileId,
+          );
+          return null;
+        },
+      );
+      await setRsvp(seeded.rehearsalId, "Yes");
+      await setRsvp(seeded.rehearsalId, "No");
+      expect((await readAttendance(seeded.rehearsalId)).rows[0]).toMatchObject({
+        rsvp: "No",
+        attendance,
+      });
+      expect((await readReport()).rows[0]).toMatchObject({
+        absences: attendance === "Absent" ? 1 : 0,
+      });
+    }
   });
 
   it("aggregates attendance report server-side across linked rehearsals with tenant isolation and index use", async () => {

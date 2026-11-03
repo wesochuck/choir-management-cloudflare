@@ -171,6 +171,40 @@ describe("AttendanceManager section grouping and sorting UI", () => {
     expect(altosGroup).toHaveTextContent("A2 · Tap to check in");
   });
 
+  it("shows declined rehearsals in All and Absent without search and confirms their check-in", async () => {
+    const user = userEvent.setup();
+    const declined: OrganizationAttendanceRow = {
+      attendance: "Absent",
+      displayName: "Declined Singer",
+      profileId: "declined-singer",
+      rsvp: "No",
+      updatedAt: null,
+      voicePart: "A1",
+    };
+    vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue([...mockRows, declined]);
+    renderComponent();
+    await screen.findByText("Alice Walker");
+    await user.click(screen.getByRole("button", { name: "All 5" }));
+    expect(screen.getByText("Declined Singer")).toBeInTheDocument();
+    expect(screen.getByText("Declined")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Absent 1" }));
+    expect(screen.getByText("Declined Singer")).toBeInTheDocument();
+    expect(screen.queryByText("Alice Walker")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Declined Singer: Absent/ }));
+    expect(screen.getByRole("button", { name: "Mark present and RSVP" })).toBeInTheDocument();
+    expect(api.updateOrganizationEventAttendance).not.toHaveBeenCalled();
+    const checkedIn = { ...declined, attendance: "Present" as const, rsvp: "Yes" as const };
+    vi.mocked(api.updateOrganizationEventAttendance).mockResolvedValue([...mockRows, checkedIn]);
+    vi.mocked(api.listOrganizationEventAttendance).mockResolvedValue([...mockRows, checkedIn]);
+    await user.click(screen.getByRole("button", { name: "Mark present and RSVP" }));
+    await waitFor(() => {
+      expect(api.updateOrganizationEventAttendance).toHaveBeenCalledWith(mockEvent.id, [
+        { attendance: "Present", profileId: declined.profileId },
+      ]);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
   it("filters singers by search query across names and voice parts", async () => {
     const user = userEvent.setup();
     renderComponent();
@@ -769,6 +803,44 @@ describe("AttendanceManager section grouping and sorting UI", () => {
     });
   });
 });
+
+it.each([false, true])(
+  "includes declined absences only for rehearsals and excludes them from bulk check-in (rehearsal: %s)",
+  (includeDeclinedAbsences) => {
+    const expected = mockRows[0];
+    if (!expected) throw new Error("Missing attendance fixture");
+    const declined: OrganizationAttendanceRow = {
+      ...expected,
+      profileId: "declined",
+      attendance: "Absent",
+      rsvp: "No",
+    };
+    const pending: OrganizationAttendanceRow = {
+      ...expected,
+      profileId: "pending",
+      rsvp: "Pending",
+    };
+    const { result } = renderHook(() =>
+      useAttendanceFiltering({
+        filter: "All",
+        includeDeclinedAbsences,
+        query: "",
+        rows: [expected, declined, pending],
+        savingIds: new Set<string>(),
+      }),
+    );
+    expect(result.current.counts).toMatchObject({
+      expected: 1,
+      roster: includeDeclinedAbsences ? 2 : 1,
+      absent: includeDeclinedAbsences ? 1 : 0,
+      pending: 1,
+    });
+    expect(result.current.groupedRows.notRsvped.flatMap((group) => group.rows)).toEqual(
+      includeDeclinedAbsences ? [declined] : [],
+    );
+    expect(result.current.markableRows).toEqual([expected]);
+  },
+);
 
 it("failed save must preserve a newer server-refetched value", async () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

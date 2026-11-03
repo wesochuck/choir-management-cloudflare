@@ -48,7 +48,11 @@ export function listEventAttendanceFromStore(
            THEN parent.rsvp
            ELSE COALESCE(r.rsvp, 'Pending')
          END AS rsvp,
-         COALESCE(r.attendance, 'Pending') AS attendance,
+         CASE
+           WHEN e.type = 'Rehearsal' AND r.rsvp = 'No' AND r.attendance = 'Pending'
+           THEN 'Absent'
+           ELSE COALESCE(r.attendance, 'Pending')
+         END AS attendance,
          r.updated_at AS updatedAt,
          COALESCE(linked.missed, 0) AS missedRehearsals,
          COALESCE(linked.total, 0) AS totalRehearsals
@@ -124,7 +128,9 @@ export function readEventAttendanceReportFromStore(
          p.id AS profileId,
          p.display_name AS name,
          COALESCE(p.voice_part, '') AS voicePart,
-         CAST(COUNT(CASE WHEN r.attendance = 'Absent' THEN 1 END) AS INTEGER) AS absences,
+         CAST(COUNT(CASE WHEN r.attendance = 'Absent'
+           OR (r.attendance = 'Pending' AND r.rsvp = 'No')
+           THEN 1 END) AS INTEGER) AS absences,
          CAST(COUNT(CASE WHEN r.attendance = 'Present' THEN 1 END) AS INTEGER) AS present
        FROM (
          SELECT profile.id, profile.display_name, profile.voice_part

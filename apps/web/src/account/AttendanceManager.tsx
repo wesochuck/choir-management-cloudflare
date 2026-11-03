@@ -289,6 +289,8 @@ export function AttendanceManager({
 
   const { dataUpdatedAt, eventId, events, rosterConfiguration, rows, setSelectedEventId, venues } =
     useAttendanceQueries(enabled);
+  const includeDeclinedAbsences =
+    events.find((event) => event.id === eventId)?.type === "Rehearsal";
 
   const {
     bulkBusy,
@@ -308,7 +310,7 @@ export function AttendanceManager({
     undoEntries,
     undoError,
     undoLatest,
-  } = useAttendanceMutations({ eventId, rows });
+  } = useAttendanceMutations({ eventId, includeDeclinedAbsences, rows });
 
   const undoButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -338,6 +340,7 @@ export function AttendanceManager({
 
   const { counts, groupedRows, markableRows } = useAttendanceFiltering({
     filter,
+    includeDeclinedAbsences,
     query,
     rosterConfiguration,
     rows,
