@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { rosterInviteLinksResponseSchema } from "@choir/contracts";
 import type {
   AccountOrganization,
   OrganizationAuthStatusResponse,
@@ -192,6 +193,14 @@ export async function installInvitationMocks(
   const invitations = createMutableState<OrganizationInvitationSummary[]>([
     ...(options.invitations ?? [buildInvitationSummary({})]),
   ]);
+
+  await page.route("**/api/organization/roster-invite-links", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await fulfillJson(route, rosterInviteLinksResponseSchema.parse({ links: [], requestId }));
+  });
 
   await page.route("**/api/organization/invitations", async (route) => {
     if (route.request().method() === "GET") {
