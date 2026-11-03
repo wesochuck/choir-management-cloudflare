@@ -16,14 +16,11 @@ import {
 import { primaryRosterContactSql, rosterContactConflict, saveRosterContact } from "./rosterContact";
 
 import { privateFileIsReferenced } from "./files";
-import { deleteContactInStore } from "../contactStore/contacts";
-import { rosterContactDeletionBlocker } from "./rosterContactDeletion";
 
 import {
   profileIdSchema,
   profileCreateSchema,
   profileUpdateSchema,
-  profileDeleteSchema,
   profileImportSchema,
   memberProfileUpdateSchema,
   profilePhotoOperationSchema,
@@ -31,6 +28,25 @@ import {
   profileResult,
   organizationIdentity,
 } from "./storeShared";
+
+const PROFILE_SELECT_COLUMNS = `p.id, (SELECT c.email FROM contacts c WHERE c.id = ${primaryRosterContactSql}) AS email, display_name AS displayName, phone, voice_part AS voicePart,
+          global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
+          show_email_in_directory AS showEmailInDirectory,
+          show_phone_in_directory AS showPhoneInDirectory,
+          do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
+          receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
+          receive_admin_notifications AS receiveAdminNotifications,
+          receive_audition_notifications AS receiveAuditionNotifications,
+          receive_financial_alerts AS receiveFinancialAlerts,
+          receive_rehearsal_reminders AS receiveRehearsalReminders,
+          receive_performance_reminders AS receivePerformanceReminders,
+          receive_other_event_reminders AS receiveOtherEventReminders,
+          is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
+         last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason,
+         provider_email_suppressed AS providerEmailSuppressed,
+         status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
+         status_change_reason AS statusChangeReason, hidden,
+         created_at AS createdAt, updated_at AS updatedAt`;
 
 export function getProfileIdentity(
   storage: DurableObjectStorage,
@@ -67,24 +83,7 @@ export function listProfiles(
     .one().timezone;
   const profiles = storage.sql
     .exec<OrganizationProfileRow>(
-      `SELECT p.id, (SELECT c.email FROM contacts c WHERE c.id = ${primaryRosterContactSql}) AS email, display_name AS displayName, phone, voice_part AS voicePart,
-          global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
-          show_email_in_directory AS showEmailInDirectory,
-          show_phone_in_directory AS showPhoneInDirectory,
-          do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
-          receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
-          receive_admin_notifications AS receiveAdminNotifications,
-          receive_audition_notifications AS receiveAuditionNotifications,
-          receive_financial_alerts AS receiveFinancialAlerts,
-          receive_rehearsal_reminders AS receiveRehearsalReminders,
-          receive_performance_reminders AS receivePerformanceReminders,
-          receive_other_event_reminders AS receiveOtherEventReminders,
-          is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
-         last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason,
-         provider_email_suppressed AS providerEmailSuppressed,
-         status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
-         status_change_reason AS statusChangeReason, hidden,
-         created_at AS createdAt, updated_at AS updatedAt
+      `SELECT ${PROFILE_SELECT_COLUMNS}
        FROM profiles p ORDER BY display_name COLLATE NOCASE ASC, id ASC LIMIT 500`,
     )
     .toArray()
@@ -108,24 +107,7 @@ export function listProfiles(
 function readProfile(storage: DurableObjectStorage, profileId: string) {
   const row = storage.sql
     .exec<OrganizationProfileRow>(
-      `SELECT p.id, (SELECT c.email FROM contacts c WHERE c.id = ${primaryRosterContactSql}) AS email, display_name AS displayName, phone, voice_part AS voicePart,
-          global_status AS globalStatus, notes, show_in_directory AS showInDirectory,
-          show_email_in_directory AS showEmailInDirectory,
-          show_phone_in_directory AS showPhoneInDirectory,
-          do_not_email AS doNotEmail, receive_attendance_reports AS receiveAttendanceReports,
-          receive_rsvp_decline_notices AS receiveRsvpDeclineNotices,
-          receive_admin_notifications AS receiveAdminNotifications,
-          receive_audition_notifications AS receiveAuditionNotifications,
-          receive_financial_alerts AS receiveFinancialAlerts,
-          receive_rehearsal_reminders AS receiveRehearsalReminders,
-          receive_performance_reminders AS receivePerformanceReminders,
-          receive_other_event_reminders AS receiveOtherEventReminders,
-          is_section_leader AS isSectionLeader, photo_file_id AS photoFileId,
-         last_bounce_at AS lastBounceAt, bounce_reason AS bounceReason,
-         provider_email_suppressed AS providerEmailSuppressed,
-         status_is_manual AS statusIsManual, status_changed_at AS statusChangedAt,
-         status_change_reason AS statusChangeReason, hidden,
-         created_at AS createdAt, updated_at AS updatedAt
+      `SELECT ${PROFILE_SELECT_COLUMNS}
        FROM profiles p WHERE p.id = ? LIMIT 1`,
       profileId,
     )
@@ -248,6 +230,68 @@ function toSqlBit(value: boolean): number {
   return value ? 1 : 0;
 }
 
+function insertProfileRow(
+  storage: DurableObjectStorage,
+  context: {
+    readonly actorUserId: string;
+    readonly organizationId: string;
+    readonly requestId: string;
+  },
+  profile: OrganizationProfileRequest,
+  profileId: string,
+  canonicalVoicePart: string,
+  auditAction: "profile.created" | "profile.imported",
+  occurredAt: string,
+): void {
+  storage.sql.exec(
+    `INSERT INTO profiles
+      (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
+       do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
+       receive_admin_notifications, receive_audition_notifications, receive_financial_alerts, is_section_leader,
+       receive_rehearsal_reminders, receive_performance_reminders,
+       receive_other_event_reminders,
+       status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    profileId,
+    profile.displayName,
+    profile.phone,
+    canonicalVoicePart,
+    profile.globalStatus,
+    profile.notes,
+    profile.showInDirectory ? 1 : 0,
+    profile.doNotEmail ? 1 : 0,
+    profile.receiveAttendanceReports ? 1 : 0,
+    profile.receiveRsvpDeclineNotices ? 1 : 0,
+    profile.receiveAdminNotifications ? 1 : 0,
+    toSqlBit(profile.receiveAuditionNotifications ?? false),
+    profile.receiveFinancialAlerts ? 1 : 0,
+    profile.isSectionLeader ? 1 : 0,
+    toSqlBit(profile.receiveRehearsalReminders ?? true),
+    toSqlBit(profile.receivePerformanceReminders ?? true),
+    toSqlBit(profile.receiveOtherEventReminders ?? true),
+    profile.statusIsManual ? 1 : 0,
+    occurredAt,
+    "Initial status",
+    occurredAt,
+    occurredAt,
+    profile.hidden ? 1 : 0,
+  );
+  saveRosterContact(storage, { ...context, profileId }, profile);
+  storage.sql.exec(
+    `INSERT INTO audit_events
+      (id, actor_type, actor_id, action, target_type, target_id,
+       request_id, change_summary, occurred_at)
+     VALUES (?, 'organization_member', ?, ?, 'profile', ?, ?, ?, ?)`,
+    crypto.randomUUID(),
+    context.actorUserId,
+    auditAction,
+    profileId,
+    context.requestId,
+    JSON.stringify({ displayName: profile.displayName, globalStatus: profile.globalStatus }),
+    occurredAt,
+  );
+}
+
 export async function createProfile(
   storage: DurableObjectStorage,
   request: Request,
@@ -284,50 +328,13 @@ export async function createProfile(
   }
   const canonicalVoicePart = voicePartResolution.canonicalLabel;
   storage.transactionSync(() => {
-    storage.sql.exec(
-      `INSERT INTO profiles
-        (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
-         do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
-         receive_admin_notifications, receive_audition_notifications, receive_financial_alerts, is_section_leader,
-         receive_rehearsal_reminders, receive_performance_reminders,
-         receive_other_event_reminders,
-         status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    insertProfileRow(
+      storage,
+      parsed.data,
+      profile,
       parsed.data.profileId,
-      profile.displayName,
-      profile.phone,
       canonicalVoicePart,
-      profile.globalStatus,
-      profile.notes,
-      profile.showInDirectory ? 1 : 0,
-      profile.doNotEmail ? 1 : 0,
-      profile.receiveAttendanceReports ? 1 : 0,
-      profile.receiveRsvpDeclineNotices ? 1 : 0,
-      profile.receiveAdminNotifications ? 1 : 0,
-      toSqlBit(profile.receiveAuditionNotifications ?? false),
-      profile.receiveFinancialAlerts ? 1 : 0,
-      profile.isSectionLeader ? 1 : 0,
-      toSqlBit(profile.receiveRehearsalReminders ?? true),
-      toSqlBit(profile.receivePerformanceReminders ?? true),
-      toSqlBit(profile.receiveOtherEventReminders ?? true),
-      profile.statusIsManual ? 1 : 0,
-      occurredAt,
-      "Initial status",
-      occurredAt,
-      occurredAt,
-      profile.hidden ? 1 : 0,
-    );
-    saveRosterContact(storage, parsed.data, profile);
-    storage.sql.exec(
-      `INSERT INTO audit_events
-        (id, actor_type, actor_id, action, target_type, target_id,
-         request_id, change_summary, occurred_at)
-       VALUES (?, 'organization_member', ?, 'profile.created', 'profile', ?, ?, ?, ?)`,
-      crypto.randomUUID(),
-      parsed.data.actorUserId,
-      parsed.data.profileId,
-      parsed.data.requestId,
-      JSON.stringify({ displayName: profile.displayName, globalStatus: profile.globalStatus }),
+      "profile.created",
       occurredAt,
     );
   });
@@ -538,234 +545,6 @@ export async function updateProfile(
   return Response.json(readProfile(storage, parsed.data.profileId));
 }
 
-export async function deleteProfile(
-  storage: DurableObjectStorage,
-  request: Request,
-): Promise<Response> {
-  const parsed = profileDeleteSchema.safeParse(await request.json().catch(() => null));
-  if (!parsed.success) return Response.json({ code: "invalid_profile_delete" }, { status: 400 });
-  if (organizationIdentity(storage)?.organizationId !== parsed.data.organizationId) {
-    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
-  }
-  const occurredAt = new Date().toISOString();
-  let deleted: boolean;
-  try {
-    deleted = storage.transactionSync(() => {
-      const existing = storage.sql
-        .exec("SELECT id FROM profiles WHERE id = ? LIMIT 1", parsed.data.profileId)
-        .toArray();
-      if (existing.length === 0) return false;
-      const folderHistory = storage.sql
-        .exec<{ readonly count: number }>(
-          `SELECT COUNT(*) AS count FROM event_rosters
-           WHERE profile_id = ? AND (folder_number <> '' OR folder_returned = 1)`,
-          parsed.data.profileId,
-        )
-        .one().count;
-      const folderAuditHistory = storage.sql
-        .exec<{
-          readonly action: string;
-          readonly changeSummary: string;
-        }>(
-          `SELECT action, change_summary AS changeSummary FROM audit_events
-           WHERE target_type = 'event_roster'
-             AND target_id LIKE ?
-             AND action IN (
-               'event.folder_number.updated', 'event.folder_number.cleared',
-               'event.folder_return.marked_returned', 'event.folder_return.marked_outstanding'
-             )`,
-          `%:${parsed.data.profileId}`,
-        )
-        .toArray()
-        .some((audit) => {
-          if (audit.action.startsWith("event.folder_return.")) return true;
-          try {
-            const summary: unknown = JSON.parse(audit.changeSummary);
-            return (
-              typeof summary === "object" &&
-              summary !== null &&
-              (("hasFolderNumber" in summary && summary.hasFolderNumber === true) ||
-                ("previousHasFolderNumber" in summary && summary.previousHasFolderNumber === true))
-            );
-          } catch {
-            return false;
-          }
-        });
-      if (folderHistory > 0 || folderAuditHistory) {
-        throw new ProfileHistoryDeletionError(
-          "This profile can't be permanently deleted. It has music-folder history that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
-          "profile_folder_history_requires_inactive",
-        );
-      }
-      const eventRosterHistory = storage.sql
-        .exec<{ readonly count: number }>(
-          `SELECT (EXISTS (SELECT 1 FROM event_rosters WHERE profile_id = ?)
-             OR EXISTS (SELECT 1 FROM event_rsvp_history WHERE profile_id = ?)) AS count`,
-          parsed.data.profileId,
-          parsed.data.profileId,
-        )
-        .one().count;
-      if (eventRosterHistory > 0) {
-        throw new ProfileHistoryDeletionError(
-          "This profile can't be permanently deleted. It has attendance or RSVP history that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
-          "profile_event_history_requires_inactive",
-        );
-      }
-      const duesHistory = storage.sql
-        .exec<{ readonly count: number }>(
-          "SELECT COUNT(*) AS count FROM dues WHERE profile_id = ? LIMIT 1",
-          parsed.data.profileId,
-        )
-        .one().count;
-      if (duesHistory > 0) {
-        throw new ProfileHistoryDeletionError(
-          "This profile can't be permanently deleted. It has dues or payment records that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
-          "profile_dues_history_requires_inactive",
-        );
-      }
-      const pollHistory = storage.sql
-        .exec<{ readonly count: number }>(
-          "SELECT COUNT(*) AS count FROM poll_responses WHERE profile_id = ? LIMIT 1",
-          parsed.data.profileId,
-        )
-        .one().count;
-      if (pollHistory > 0) {
-        throw new ProfileHistoryDeletionError(
-          "This profile can't be permanently deleted. It has poll responses that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
-          "profile_poll_history_requires_inactive",
-        );
-      }
-      const reconciliationHistory = storage.sql
-        .exec<{ readonly count: number }>(
-          "SELECT COUNT(*) AS count FROM profile_reconciliations WHERE source_profile_id = ? OR target_profile_id = ? LIMIT 1",
-          parsed.data.profileId,
-          parsed.data.profileId,
-        )
-        .one().count;
-      if (reconciliationHistory > 0) {
-        throw new ProfileHistoryDeletionError(
-          "This profile can't be permanently deleted. It has merge history that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
-          "profile_reconciliation_history_requires_inactive",
-        );
-      }
-      const deliveryHistory = storage.sql
-        .exec<{ readonly count: number }>(
-          "SELECT COUNT(*) AS count FROM communication_deliveries WHERE profile_id = ? LIMIT 1",
-          parsed.data.profileId,
-        )
-        .one().count;
-      if (deliveryHistory > 0) {
-        throw new ProfileHistoryDeletionError(
-          "This profile can't be permanently deleted. It has message delivery history that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
-          "profile_communications_history_requires_inactive",
-        );
-      }
-      const suppressionHistory = storage.sql
-        .exec(
-          `SELECT 1 FROM communication_suppressions WHERE profile_id = ?
-         UNION ALL SELECT 1 FROM profiles WHERE id = ? AND
-           (do_not_email = 1 OR provider_email_suppressed = 1 OR
-            provider_email_suppressed_at <> '' OR provider_email_suppressed_reason <> '')
-         LIMIT 1`,
-          parsed.data.profileId,
-          parsed.data.profileId,
-        )
-        .toArray();
-      if (suppressionHistory.length > 0) {
-        throw new ProfileHistoryDeletionError(
-          "This profile can't be permanently deleted. It has communication suppression or unsubscribe records that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
-          "profile_suppression_history_requires_inactive",
-        );
-      }
-      const contactBlocker =
-        parsed.data.contacts === "delete_unused"
-          ? rosterContactDeletionBlocker(storage, parsed.data.profileId)
-          : null;
-      if (contactBlocker) {
-        throw new ProfileHistoryDeletionError(
-          `This profile can't be permanently deleted. ${contactBlocker} Choose Keep Contacts to delete only the roster profile, or Archive Profile to retain the profile and its history.`,
-          "profile_contact_history_requires_inactive",
-        );
-      }
-      const contacts = storage.sql
-        .exec<{ id: string }>("SELECT id FROM contacts WHERE profile_id = ?", parsed.data.profileId)
-        .toArray();
-      if (parsed.data.contacts === "delete_unused") {
-        for (const contact of contacts) {
-          deleteContactInStore(storage, { ...parsed.data, contactId: contact.id });
-        }
-      } else {
-        storage.sql.exec(
-          "UPDATE contacts SET profile_id = NULL, updated_at = ? WHERE profile_id = ?",
-          occurredAt,
-          parsed.data.profileId,
-        );
-        for (const contact of contacts) {
-          storage.sql.exec(
-            `INSERT INTO audit_events
-              (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
-             VALUES (?, 'organization_member', ?, 'contact.profile_unlinked', 'contact', ?, ?, ?, ?)`,
-            crypto.randomUUID(),
-            parsed.data.actorUserId,
-            contact.id,
-            parsed.data.requestId,
-            JSON.stringify({ profileId: parsed.data.profileId }),
-            occurredAt,
-          );
-        }
-      }
-      storage.sql.exec(
-        "DELETE FROM profile_status_history WHERE profile_id = ?",
-        parsed.data.profileId,
-      );
-      storage.sql.exec(
-        "DELETE FROM notification_receipts WHERE recipient_profile_id = ?",
-        parsed.data.profileId,
-      );
-      storage.sql.exec("DELETE FROM profiles WHERE id = ?", parsed.data.profileId);
-      storage.sql.exec(
-        `INSERT INTO audit_events
-          (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
-         VALUES (?, 'organization_member', ?, 'profile.deleted', 'profile', ?, ?, ?, ?)`,
-        crypto.randomUUID(),
-        parsed.data.actorUserId,
-        parsed.data.profileId,
-        parsed.data.requestId,
-        JSON.stringify({ contacts: parsed.data.contacts, contactCount: contacts.length }),
-        occurredAt,
-      );
-      return true;
-    });
-  } catch (error: unknown) {
-    if (error instanceof ProfileHistoryDeletionError) {
-      return Response.json(
-        {
-          code: error.code,
-          message: error.message,
-        },
-        { status: 409 },
-      );
-    }
-    throw error;
-  }
-  return deleted
-    ? Response.json({ deleted: true, profileId: parsed.data.profileId })
-    : Response.json({ code: "profile_not_found" }, { status: 404 });
-}
-
-class ProfileHistoryDeletionError extends Error {
-  readonly code: string;
-
-  constructor(
-    message = "This profile can't be permanently deleted. It has music-folder history that must be preserved. Archive Profile instead to remove it from the active roster while retaining its history. You can restore it later.",
-    code = "profile_folder_history_requires_inactive",
-  ) {
-    super(message);
-    this.name = "ProfileHistoryDeletionError";
-    this.code = code;
-  }
-}
-
 export async function updateMemberProfile(
   storage: DurableObjectStorage,
   request: Request,
@@ -910,50 +689,13 @@ function persistImportedProfile(
 ): void {
   const resolution = resolveConfiguredVoicePart(storage, profile.voicePart);
   const canonicalVoicePart = resolution.valid ? resolution.canonicalLabel : profile.voicePart;
-  storage.sql.exec(
-    `INSERT INTO profiles
-          (id, display_name, phone, voice_part, global_status, notes, show_in_directory,
-           do_not_email, receive_attendance_reports, receive_rsvp_decline_notices,
-           receive_admin_notifications, receive_audition_notifications, receive_financial_alerts, is_section_leader,
-           receive_rehearsal_reminders, receive_performance_reminders,
-           receive_other_event_reminders,
-           status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  insertProfileRow(
+    storage,
+    context,
+    profile,
     profileId,
-    profile.displayName,
-    profile.phone,
     canonicalVoicePart,
-    profile.globalStatus,
-    profile.notes,
-    profile.showInDirectory ? 1 : 0,
-    profile.doNotEmail ? 1 : 0,
-    profile.receiveAttendanceReports ? 1 : 0,
-    profile.receiveRsvpDeclineNotices ? 1 : 0,
-    profile.receiveAdminNotifications ? 1 : 0,
-    toSqlBit(profile.receiveAuditionNotifications ?? false),
-    profile.receiveFinancialAlerts ? 1 : 0,
-    profile.isSectionLeader ? 1 : 0,
-    toSqlBit(profile.receiveRehearsalReminders ?? true),
-    toSqlBit(profile.receivePerformanceReminders ?? true),
-    toSqlBit(profile.receiveOtherEventReminders ?? true),
-    profile.statusIsManual ? 1 : 0,
-    occurredAt,
-    "Initial status",
-    occurredAt,
-    occurredAt,
-    profile.hidden ? 1 : 0,
-  );
-  saveRosterContact(storage, { ...context, profileId }, profile);
-  storage.sql.exec(
-    `INSERT INTO audit_events
-          (id, actor_type, actor_id, action, target_type, target_id,
-           request_id, change_summary, occurred_at)
-         VALUES (?, 'organization_member', ?, 'profile.imported', 'profile', ?, ?, ?, ?)`,
-    crypto.randomUUID(),
-    context.actorUserId,
-    profileId,
-    context.requestId,
-    JSON.stringify({ displayName: profile.displayName, globalStatus: profile.globalStatus }),
+    "profile.imported",
     occurredAt,
   );
 }

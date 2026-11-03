@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
-import { computePrefixUpperBound } from "./scheduler";
+import { computePrefixUpperBound } from "./schedulerDueJobs";
 import { organizationSchemaMigrations } from "./schema/migrations";
 
 function seedDatabase(): DatabaseSync {

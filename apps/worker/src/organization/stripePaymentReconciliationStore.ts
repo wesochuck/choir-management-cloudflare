@@ -3,8 +3,7 @@ import type { PlatformStripeReconciliationCursor } from "@choir/contracts";
 import type { LocalPaymentCandidate } from "@choir/domain";
 import { linkPaidTicketPurchaseContact } from "./commerceContacts";
 
-const candidateQuery = `SELECT
-  pa.id AS paymentAttemptId,
+const CANDIDATE_SELECT_COLUMNS = `pa.id AS paymentAttemptId,
   pa.payment_type AS paymentType,
   pa.resource_id AS resourceId,
   pa.provider_payment_id AS providerPaymentId,
@@ -31,7 +30,10 @@ const candidateQuery = `SELECT
   pa.processor_fee_cents AS processorFeeCents,
   pa.processor_fee_reconciled_at AS processorFeeReconciledAt,
   pa.provider_balance_transaction_id AS providerBalanceTransactionId,
-  pa.created_at AS createdAt
+  pa.created_at AS createdAt`;
+
+const candidateQuery = `SELECT
+  ${CANDIDATE_SELECT_COLUMNS}
 FROM payment_attempts pa {{index-hint}}
 JOIN ticket_purchases p ON pa.payment_type IN ('ticket', 'bundle') AND pa.resource_id = p.id
 WHERE pa.payment_type IN ('ticket', 'bundle')
@@ -440,26 +442,7 @@ function reconciliationCandidateByIdentity(
   return storage.sql
     .exec<CandidateDbRow>(
       `SELECT
-        pa.id AS paymentAttemptId, pa.payment_type AS paymentType,
-        pa.resource_id AS resourceId, pa.provider_payment_id AS providerPaymentId,
-        pa.provider_session_id AS providerSessionId,
-        pa.checkout_request_id AS checkoutRequestId, pa.amount_cents AS amountCents,
-        p.checkout_request_id AS resourceCheckoutRequestId,
-        pa.status AS paymentAttemptStatus, p.status AS resourceStatus,
-        p.currency AS currency, pa.refund_requested_at AS refundRequestedAt,
-        COALESCE(pa.refunded_at, p.refunded_at) AS refundedAt,
-        p.amount_paid_cents AS resourceAmountCents,
-        p.provider_payment_id AS resourceProviderPaymentId,
-        p.expires_at AS expiresAt, p.event_id AS eventId, p.quantity AS quantity,
-        p.bundle_id AS bundleId, p.discount_code_id AS discountCodeId,
-        (SELECT dcr.status FROM discount_code_redemptions dcr
-         WHERE dcr.purchase_id = p.id LIMIT 1) AS discountRedemptionStatus,
-        (SELECT dcr.discount_code_id FROM discount_code_redemptions dcr
-         WHERE dcr.purchase_id = p.id LIMIT 1) AS redemptionDiscountCodeId,
-        pa.processor_fee_cents AS processorFeeCents,
-        pa.processor_fee_reconciled_at AS processorFeeReconciledAt,
-        pa.provider_balance_transaction_id AS providerBalanceTransactionId,
-        pa.created_at AS createdAt
+        ${CANDIDATE_SELECT_COLUMNS}
        FROM payment_attempts pa
        JOIN ticket_purchases p ON pa.resource_id = p.id
        WHERE pa.id = ? AND p.id = ?

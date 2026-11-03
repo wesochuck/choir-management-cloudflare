@@ -116,6 +116,7 @@ import {
 import { readOrganizationReconciliationReport } from "../reconciliationStore";
 import { searchOrganizationEntitiesFromStore } from "../searchStore";
 
+import { deleteProfile } from "./profileDeletion";
 import {
   getProfileIdentity,
   listProfiles,
@@ -124,7 +125,6 @@ import {
   createProfile,
   importProfiles,
   updateProfile,
-  deleteProfile,
   updateMemberProfile,
   manageProfilePhoto,
 } from "./profiles";

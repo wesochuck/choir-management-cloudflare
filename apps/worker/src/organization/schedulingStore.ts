@@ -536,3 +536,87 @@ export function prepareAttendanceReportJobFromStore(
   });
   return readAttendanceReportJobFromStore(storage, organizationId, jobId);
 }
+
+const eventReminderResultSchema = z.object({
+  attempt: z.number().int().min(1).max(10),
+  idempotencyKey: z.string().min(1).max(256),
+  jobId: z.uuid(),
+  organizationId: z.string().min(1).max(128),
+  status: z.enum(["failed", "sent", "terminal"]),
+});
+
+export function clearUnsuccessfulEventReminderMarkers(storage: DurableObjectStorage): void {
+  storage.sql.exec(
+    `UPDATE events
+     SET reminder_sent_at = NULL
+     WHERE reminder_sent_at IS NOT NULL
+       AND EXISTS (
+         SELECT 1
+         FROM scheduled_job_outbox o
+         LEFT JOIN job_ledger l ON l.job_id = o.job_id
+         WHERE o.kind = 'event_reminder'
+           AND o.idempotency_key =
+             'event-reminder:' ||
+             (SELECT organization_id FROM organization_metadata LIMIT 1) || ':' || events.id
+           AND COALESCE(l.status, '') != 'completed'
+       )`,
+  );
+}
+
+export function recordEventReminderResult(storage: DurableObjectStorage, input: unknown): Response {
+  const parsed = eventReminderResultSchema.safeParse(input);
+  if (!parsed.success) {
+    return Response.json({ code: "invalid_event_reminder_result" }, { status: 400 });
+  }
+  const identity = storage.sql
+    .exec<{ readonly organizationId: string }>(
+      "SELECT organization_id AS organizationId FROM organization_metadata LIMIT 1",
+    )
+    .toArray()
+    .at(0)?.organizationId;
+  if (identity !== parsed.data.organizationId) {
+    return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
+  }
+  const job = storage.sql
+    .exec<{ readonly idempotencyKey: string }>(
+      `SELECT idempotency_key AS idempotencyKey
+       FROM scheduled_job_outbox WHERE job_id = ? AND kind = 'event_reminder' LIMIT 1`,
+      parsed.data.jobId,
+    )
+    .toArray()
+    .at(0);
+  const prefix = `event-reminder:${parsed.data.organizationId}:`;
+  if (!job?.idempotencyKey.startsWith(prefix)) {
+    return Response.json({ code: "event_reminder_not_found" }, { status: 404 });
+  }
+  const eventId = job.idempotencyKey.slice(prefix.length).split(":retry:", 1)[0];
+  const event = storage.sql
+    .exec<{ readonly id: string }>("SELECT id FROM events WHERE id = ? LIMIT 1", eventId)
+    .toArray()
+    .at(0);
+  if (!event) return Response.json({ code: "event_reminder_not_found" }, { status: 404 });
+  const now = new Date().toISOString();
+  storage.transactionSync(() => {
+    storage.sql.exec(
+      "UPDATE events SET reminder_sent_at = ? WHERE id = ?",
+      parsed.data.status === "sent" ? now : null,
+      eventId,
+    );
+    if (parsed.data.status === "terminal") {
+      storage.sql.exec(
+        `INSERT INTO job_ledger
+          (idempotency_key, job_id, kind, status, attempt, claimed_at, failed_at)
+         VALUES (?, ?, 'event_reminder', 'failed', ?, ?, ?)
+         ON CONFLICT(idempotency_key) DO UPDATE SET
+           status = 'failed', attempt = MAX(job_ledger.attempt, excluded.attempt),
+           completed_at = NULL, failed_at = excluded.failed_at`,
+        parsed.data.idempotencyKey,
+        parsed.data.jobId,
+        parsed.data.attempt,
+        now,
+        now,
+      );
+    }
+  });
+  return Response.json({ recorded: true });
+}

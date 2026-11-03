@@ -1,17 +1,18 @@
 import { operationSchema } from "./communicationStore/contracts";
+import { deleteDraft, saveDraft } from "./communicationStore/drafts";
 import {
   cancelMessage,
-  deleteDraft,
-  deleteTemplate,
   recordDeliveryResults,
   retryMessage,
-  resetTemplateToSystemDefault,
-  saveDraft,
-  saveTemplate,
   sendMessage,
-  updateTemplate,
 } from "./communicationStore/messages";
 import { identityMatches } from "./communicationStore/shared";
+import {
+  deleteTemplate,
+  resetTemplateToSystemDefault,
+  saveTemplate,
+  updateTemplate,
+} from "./communicationStore/templates";
 
 export { resolveCommunicationAudienceFromStore } from "./communicationStore/audience";
 export {

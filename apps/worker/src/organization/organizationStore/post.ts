@@ -37,7 +37,7 @@ import { manageDonationsInStore } from "../donationStore";
 import { updateBrandingInStore } from "../brandingStore";
 import { manageSetupInStore } from "../setupStore";
 import { updatePaymentActivationInStore } from "../paymentSettingsStore";
-import { prepareAttendanceReportJobFromStore } from "../schedulingStore";
+import { prepareAttendanceReportJobFromStore, recordEventReminderResult } from "../schedulingStore";
 import { recordPaymentDisputeInStore } from "../paymentDisputeStore";
 import { expireStalePaymentsInStore } from "../paymentCleanupStore";
 import { checkPublicCheckoutRateLimit } from "../checkoutRateLimit";
@@ -193,6 +193,9 @@ export async function dispatchPostRequest(
     return parsed.success
       ? seedStagingStatusAutomationFixture(storage, parsed.data)
       : Response.json({ code: "invalid_status_automation_fixture" }, { status: 400 });
+  }
+  if (pathname === "/internal/scheduling/event-reminder-result") {
+    return recordEventReminderResult(storage, await request.json().catch(() => null));
   }
   if (pathname === "/internal/scheduling/attendance-report-prepare") {
     const body: unknown = await request.json().catch(() => null);
