@@ -1,4 +1,3 @@
-import { MUSIC_TRACK_IMPORT_MAX_BYTES } from "@choir/domain";
 import {
   musicTrackImportAttachRequestSchema,
   musicTrackImportCommitRequestSchema,
@@ -6,14 +5,15 @@ import {
   musicTrackImportMatchRequestSchema,
   musicTrackImportUpdateAssignmentsRequestSchema,
   type MusicTrackImportGroupSuggestion,
-  type MusicTrackImportSessionDetail,
-  type MusicTrackImportSessionSummary,
   type ProblemDetails,
 } from "@choir/contracts";
+import { rankCandidatePiecesForGroup } from "@choir/domain";
 import { readOrganizationRosterConfiguration } from "../calendar/organizationCalendar";
 import type { Hono } from "hono";
 import {
   CLEF_TRACK_MATCH_MODEL,
+  parseDomainGroups,
+  parseLibraryPieces,
   suggestClefTrackMatches,
   TrackMatchingError,
 } from "../music/clefTrackMatching";
@@ -24,86 +24,55 @@ import {
 } from "../organization/organizationMusic";
 import { organizationStoreStub } from "../organization/rpc/client";
 import {
-  MusicTrackImportStoreError,
-  type MusicTrackImportStoreErrorCode,
-  type SessionDetailView,
-  type SessionSummaryView,
-} from "../organization/music/trackImportStore";
-import {
   uploadMusicTrackImportFile,
   TrackImportUploadError,
 } from "../organization/music/trackImportUpload";
 import type { WorkerHonoEnvironment } from "./helpers";
 import { authorizeCalendarRoute } from "./helpers";
-
-function scoreCandidate(
-  candidate: (typeof musicTrackImportMatchRequestSchema)["_output"]["candidates"][number],
-  normalizedGroupTitle: string,
-  groupDuration: number | null | undefined,
-): number {
-  let score = 0;
-  const normalizedCandidateTitle = candidate.title.toLowerCase().trim();
-  if (normalizedGroupTitle && normalizedCandidateTitle === normalizedGroupTitle) {
-    score += 50;
-  } else if (
-    normalizedGroupTitle &&
-    (normalizedCandidateTitle.includes(normalizedGroupTitle) ||
-      normalizedGroupTitle.includes(normalizedCandidateTitle))
-  ) {
-    score += 30;
-  }
-
-  if (
-    typeof candidate.durationSeconds === "number" &&
-    typeof groupDuration === "number" &&
-    Math.abs(candidate.durationSeconds - groupDuration) <= 4
-  ) {
-    if (score > 0) score += 25;
-  }
-  return score;
-}
-
-function findBestCandidateForGroup(
-  group: (typeof musicTrackImportMatchRequestSchema)["_output"]["groups"][number],
-  candidates: (typeof musicTrackImportMatchRequestSchema)["_output"]["candidates"],
-): MusicTrackImportGroupSuggestion {
-  let bestCandidate: (typeof candidates)[number] | null = null;
-  let bestScore = 0;
-  const normalizedGroupTitle = (group.inferredTitle ?? "").toLowerCase().trim();
-
-  for (const candidate of candidates) {
-    const score = scoreCandidate(candidate, normalizedGroupTitle, group.durationSeconds);
-    if (score > bestScore) {
-      bestScore = score;
-      bestCandidate = candidate;
-    }
-  }
-
-  const confidence: "high" | "medium" | "low" | "none" =
-    bestScore >= 50 ? "high" : bestScore >= 25 ? "medium" : bestScore > 0 ? "low" : "none";
-
-  const rationale =
-    bestScore >= 50
-      ? "Exact or strong title match"
-      : bestScore >= 25
-        ? "Duration and title alignment"
-        : bestScore > 0
-          ? "Possible title match"
-          : "No matching piece found in library";
-
-  return {
-    confidence,
-    groupId: group.groupId,
-    rationale,
-    suggestedPieceId: bestCandidate ? bestCandidate.pieceId : null,
-  };
-}
+import {
+  importSessionProblem,
+  parseTrackImportUploadHeaders,
+  sha256Hex,
+  toSessionDetail,
+  toSessionSummary,
+  trackImportUploadHeaderProblem,
+} from "./helpers/musicTrackImport";
 
 function buildFallbackSuggestions(
   groups: (typeof musicTrackImportMatchRequestSchema)["_output"]["groups"],
   candidates: (typeof musicTrackImportMatchRequestSchema)["_output"]["candidates"],
 ): MusicTrackImportGroupSuggestion[] {
-  return groups.map((group) => findBestCandidateForGroup(group, candidates));
+  const domainGroups = parseDomainGroups(groups);
+  const libraryPieces = parseLibraryPieces(candidates);
+
+  return groups.map((group, index) => {
+    const domainGroup = domainGroups[index];
+    if (!domainGroup) {
+      return {
+        confidence: "none" as const,
+        groupId: group.groupId,
+        rationale: "No matching piece found in library",
+        suggestedPieceId: null,
+      };
+    }
+    const ranked = rankCandidatePiecesForGroup(domainGroup, libraryPieces);
+    const best = ranked.suggestedPiece ?? ranked.candidatePieces[0] ?? null;
+    return {
+      confidence: best ? best.confidence : ("none" as const),
+      groupId: group.groupId,
+      rationale:
+        best && best.evidence.length > 0
+          ? best.evidence.join(" · ")
+          : "No matching piece found in library",
+      suggestedPieceId: best ? best.piece.id : null,
+    };
+  });
+}
+
+function parseTrackImportUuid(value: string): string | null {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : null;
 }
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
@@ -450,61 +419,6 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
     }
   });
 
-  type TrackImportUploadHeaderError = "content_type" | "file_name" | "size" | "too_large";
-
-  type TrackImportUploadHeaders =
-    | { readonly error: TrackImportUploadHeaderError }
-    | {
-        readonly contentType: "audio/mpeg";
-        readonly fileName: string;
-        readonly sizeBytes: number;
-      };
-
-  function parseTrackImportUploadHeaders(
-    contentType: string | undefined,
-    contentLength: string | undefined,
-    fileNameHeader: string | null | undefined,
-  ): TrackImportUploadHeaders {
-    if ((contentType ?? "").split(";")[0]?.trim().toLowerCase() !== "audio/mpeg") {
-      return { error: "content_type" };
-    }
-    const declaredSize = Number(contentLength ?? "0");
-    if (!Number.isInteger(declaredSize) || declaredSize < 1) {
-      return { error: "size" };
-    }
-    if (declaredSize > MUSIC_TRACK_IMPORT_MAX_BYTES) {
-      return { error: "too_large" };
-    }
-    const fileName = decodeImportFileName(fileNameHeader);
-    if (!fileName) {
-      return { error: "file_name" };
-    }
-    return { contentType: "audio/mpeg", fileName, sizeBytes: declaredSize };
-  }
-
-  function trackImportUploadHeaderProblem(
-    error: TrackImportUploadHeaderError,
-    requestId: string,
-  ): { readonly problem: ProblemDetails; readonly status: 400 | 413 } {
-    if (error === "too_large") {
-      return {
-        problem: {
-          code: "file_too_large",
-          message: `Practice tracks are capped at ${String(MUSIC_TRACK_IMPORT_MAX_BYTES)} bytes.`,
-          requestId,
-        },
-        status: 413,
-      };
-    }
-    const message =
-      error === "content_type"
-        ? "Only MP3 uploads are accepted."
-        : error === "size"
-          ? "A valid content length is required."
-          : "A valid encoded file name is required.";
-    return { problem: { code: "validation_failed", message, requestId }, status: 400 };
-  }
-
   router.put(
     "/api/organization/music/track-import/sessions/:sessionId/files/:clientFileId",
     async (context) => {
@@ -759,246 +673,4 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       }
     },
   );
-}
-
-type TrackImportStoreErrorCode = MusicTrackImportStoreErrorCode;
-
-const TRACK_IMPORT_STORE_ERROR_CODES: readonly TrackImportStoreErrorCode[] = [
-  "validation_failed",
-  "organization_identity_conflict",
-  "forbidden",
-  "session_not_found",
-  "session_expired",
-  "session_closed",
-  "idempotency_conflict",
-  "stale_revision",
-  "upload_in_progress",
-  "slot_conflict",
-];
-
-function matchTrackImportStoreErrorCode(value: string): TrackImportStoreErrorCode | null {
-  return isTrackImportStoreErrorCode(value) ? value : null;
-}
-
-function isTrackImportStoreErrorCode(value: string): value is TrackImportStoreErrorCode {
-  return (TRACK_IMPORT_STORE_ERROR_CODES as readonly string[]).includes(value);
-}
-
-/**
- * Durable Object RPC does not preserve the store error prototype, so the
- * route-side mapping reads the typed error code instead of `instanceof`.
- * The store error always prefixes its message with `${code}: `, which lets
- * the boundary preserve the code without leaking storage details.
- */
-function trackImportStoreErrorCode(error: unknown): TrackImportStoreErrorCode | null {
-  if (error instanceof MusicTrackImportStoreError) return error.code;
-  if (typeof error === "object" && error !== null && "code" in error) {
-    const code: unknown = error.code;
-    if (typeof code === "string") {
-      const matched = matchTrackImportStoreErrorCode(code);
-      if (matched !== null) return matched;
-    }
-  }
-  if (error instanceof Error) {
-    const prefix = error.message.split(":", 1)[0]?.trim() ?? "";
-    const matched = matchTrackImportStoreErrorCode(prefix);
-    if (matched !== null) return matched;
-  }
-  return null;
-}
-
-function importSessionProblem(
-  error: unknown,
-  requestId: string,
-): {
-  readonly code: string;
-  readonly problem: ProblemDetails;
-  readonly status: 400 | 403 | 404 | 409 | 503;
-} {
-  const code = trackImportStoreErrorCode(error);
-  switch (code) {
-    case "validation_failed":
-      return {
-        code,
-        problem: {
-          code,
-          message: "The import session request was invalid.",
-          requestId,
-        },
-        status: 400,
-      };
-    case "session_not_found":
-      return {
-        code,
-        problem: { code, message: "The import session was not found.", requestId },
-        status: 404,
-      };
-    case "forbidden":
-      return {
-        code,
-        problem: {
-          code,
-          message: "Only the session owner may change this import.",
-          requestId,
-        },
-        status: 403,
-      };
-    case "idempotency_conflict":
-      return {
-        code,
-        problem: {
-          code,
-          message: "This import was already recorded with different content.",
-          requestId,
-        },
-        status: 409,
-      };
-    case "stale_revision":
-      return {
-        code,
-        problem: {
-          code,
-          message: "Assignments changed since this revision was reviewed. Refresh and retry.",
-          requestId,
-        },
-        status: 409,
-      };
-    case "upload_in_progress":
-      return {
-        code,
-        problem: {
-          code,
-          message: "An upload attempt is already in progress for this file.",
-          requestId,
-        },
-        status: 409,
-      };
-    case "slot_conflict":
-      return {
-        code,
-        problem: {
-          code,
-          message: "The destination slot is occupied by another track.",
-          requestId,
-        },
-        status: 409,
-      };
-    case "session_expired":
-      return {
-        code,
-        problem: {
-          code,
-          message: "The import session has expired. Start a new import.",
-          requestId,
-        },
-        status: 409,
-      };
-    case "session_closed":
-      return {
-        code,
-        problem: {
-          code,
-          message: "The import session is no longer active.",
-          requestId,
-        },
-        status: 409,
-      };
-    case "organization_identity_conflict":
-      return {
-        code,
-        problem: {
-          code,
-          message: "The import session belongs to a different Organization.",
-          requestId,
-        },
-        status: 409,
-      };
-    default:
-      return {
-        code: "service_unavailable",
-        problem: {
-          code: "service_unavailable",
-          message: "The practice track import is temporarily unavailable.",
-          requestId,
-        },
-        status: 503,
-      };
-  }
-}
-
-function parseTrackImportUuid(value: string): string | null {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
-    ? value
-    : null;
-}
-
-function decodeImportFileName(header: string | null | undefined): string | null {
-  if (!header) return null;
-  try {
-    const decoded = decodeURIComponent(header);
-    if (decoded.length === 0 || decoded.length > 500) return null;
-    return decoded;
-  } catch {
-    return null;
-  }
-}
-
-async function sha256Hex(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function toSessionSummary(summary: SessionSummaryView): MusicTrackImportSessionSummary {
-  return {
-    absoluteExpiresAt: summary.absoluteExpiresAt,
-    clientBatchKey: summary.clientBatchKey,
-    closedAt: summary.closedAt,
-    counts: { ...summary.counts },
-    expiresAt: summary.expiresAt,
-    lastFailureCode: summary.lastFailureCode,
-    manifestRevision: summary.manifestRevision,
-    sessionId: summary.sessionId,
-    state: summary.state,
-  };
-}
-
-function toSessionDetail(detail: SessionDetailView): MusicTrackImportSessionDetail {
-  return {
-    ...toSessionSummary(detail),
-    items: detail.items.map((item) => ({
-      attempts: item.attempts.map((attempt) => ({
-        attemptNumber: attempt.attemptNumber,
-        fileId: attempt.fileId,
-        leaseExpiresAt: attempt.leaseExpiresAt,
-        status: parseAttemptStatus(attempt.status),
-      })),
-      clientFileId: item.clientFileId,
-      contentType: item.contentType,
-      currentFileId: item.currentFileId,
-      durationSeconds: item.durationSeconds,
-      errorCode: item.errorCode,
-      fileName: item.fileName,
-      partKey: item.partKey,
-      pieceId: item.pieceId,
-      sha256Hex: item.sha256Hex,
-      sizeBytes: item.sizeBytes,
-      status: item.status,
-    })),
-  };
-}
-
-function parseAttemptStatus(
-  status: string,
-): MusicTrackImportSessionDetail["items"][number]["attempts"][number]["status"] {
-  switch (status) {
-    case "reserved":
-    case "uploading":
-    case "ready":
-    case "failed":
-    case "cleanup_pending":
-    case "reclaimed":
-      return status;
-    default:
-      throw new MusicTrackImportStoreError("validation_failed", "Unknown upload attempt status.");
-  }
 }

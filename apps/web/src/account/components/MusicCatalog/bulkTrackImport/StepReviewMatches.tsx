@@ -1,9 +1,6 @@
 import { TuttiSuggestions } from "./TuttiSuggestionActions";
 import type { useTuttiSuggestions } from "./useTuttiSuggestions";
-import { canSuggestTutti } from "./tuttiSuggestions";
 import { presentAiMatch } from "./aiMatchPresentation";
-import { rankCandidatePiecesForGroup, recalculateTrackImportGroup } from "@choir/domain";
-import { DataTable, type DataTableColumn } from "@choir/ui";
 import type {
   MusicTrackImportGroupRepairSuggestion,
   OrganizationMusicPiece,
@@ -15,7 +12,32 @@ import {
   type DestinationPieceOption,
   type DestinationPiecePickerHandle,
 } from "./DestinationPiecePicker";
-import { TrackFileAudioPlayer } from "./TrackFileAudioPlayer";
+import { BatchOverview } from "./ReviewBatchOverview";
+import { FilesSection } from "./ReviewFileRow";
+import {
+  buildDestinationOptions,
+  buildPartOptions,
+  buildQueueRows,
+  FILTERS,
+  filterReviewQueueRows,
+  getActiveFileStateMap,
+  getActiveGroup,
+  getActiveGroupState,
+  getAdjacentGroupId,
+  getGroupEvidence,
+  getGroupFileMap,
+  getNextUnresolvedGroup,
+  getOptionalGroupConflictAnalysis,
+  getSelectedPiece,
+  markReviewGroupAndAdvance,
+  selectNextGroup,
+  statusClass,
+  summarizeReviewGroups,
+  type ReviewFilter,
+  type ReviewQueueRow,
+  type ReviewState,
+  type ReviewView,
+} from "./reviewSelectors";
 import {
   areAllReviewGroupsResolved,
   getReviewGroupState,
@@ -24,327 +46,6 @@ import {
   type ReviewGroupStatus,
 } from "./reviewState";
 import type { GroupFileAssignment, GroupReviewItem } from "./types";
-
-type ReviewView = "guided" | "overview";
-type ReviewFilter = "all" | "to_review" | "conflicts" | "reviewed" | "skipped";
-
-interface ReviewQueueRow {
-  readonly group: GroupReviewItem;
-  readonly ordinal: number;
-  readonly state: ReturnType<typeof getReviewGroupState>;
-  readonly voicePartSortKey: string;
-}
-
-const FILTERS: readonly { readonly id: ReviewFilter; readonly label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "to_review", label: "To review" },
-  { id: "conflicts", label: "Conflicts" },
-  { id: "reviewed", label: "Reviewed" },
-  { id: "skipped", label: "Skipped" },
-];
-
-function statusClass(status: ReviewGroupStatus): string {
-  return `track-import-review-status track-import-review-status--${status}`;
-}
-
-function formatDuration(seconds: number | null): string {
-  if (typeof seconds !== "number" || seconds <= 0) return "Duration unavailable";
-  const mins = Math.floor(seconds / 60);
-  const remSecs = String(seconds % 60).padStart(2, "0");
-  return `${String(mins)}:${remSecs}`;
-}
-
-function voicePartLabel(
-  partKey: string | null,
-  roster: OrganizationRosterConfiguration | null,
-): string {
-  if (!partKey) return "Part needed";
-  if (partKey === "tutti") return "Tutti";
-  if (partKey === "accompaniment") return "Accompaniment";
-  return (
-    roster?.sections.find((section) => section.code === partKey)?.name ??
-    roster?.voiceParts.find((part) => part.label === partKey)?.fullName ??
-    partKey
-  );
-}
-
-function reviewFileLabel(
-  status: "needs_review" | "conflict" | "ready" | "excluded",
-  excluded: boolean,
-  duplicatePart: boolean,
-  occupied: boolean,
-  partKey: string | null,
-): string {
-  if (excluded) return "Excluded";
-  if (duplicatePart) return "Duplicate part conflict";
-  if (occupied) return "Occupied slot conflict";
-  if (status === "ready") return "Ready to upload";
-  return partKey ? "Needs review" : "Part needed";
-}
-
-function reviewFileBadgeStatus(
-  status: "needs_review" | "conflict" | "ready" | "excluded",
-): ReviewGroupStatus {
-  if (status === "conflict") return "conflict";
-  if (status === "ready") return "reviewed";
-  if (status === "excluded") return "skipped";
-  return "needs_review";
-}
-
-function TuttiFileHint({
-  file,
-  groupSkipped,
-  matching,
-  onPartChanged,
-  action = false,
-}: {
-  readonly action?: boolean;
-  readonly file: GroupFileAssignment;
-  readonly groupSkipped: boolean;
-  readonly matching: boolean;
-  readonly onPartChanged: (part: string) => void;
-}) {
-  if (groupSkipped || !canSuggestTutti(file)) return null;
-  if (!action)
-    return (
-      <p className="track-import-tutti-hint">
-        <strong>Tutti · suggested</strong> — No voice part found in the filename.
-      </p>
-    );
-  return (
-    <button
-      className="button button--secondary"
-      type="button"
-      disabled={matching}
-      aria-label={`Use Tutti for ${file.fileName}`}
-      onClick={(event) => {
-        onPartChanged("tutti");
-        event.currentTarget
-          .closest(".track-import-review-file__mapping")
-          ?.querySelector("select")
-          ?.focus();
-      }}
-    >
-      Use Tutti
-    </button>
-  );
-}
-
-function FilePartSuggestionPrompt({
-  disabled,
-  file,
-  onDismissPartSuggestion,
-  onPartChanged,
-  roster,
-}: {
-  readonly disabled: boolean;
-  readonly file: GroupFileAssignment;
-  readonly onDismissPartSuggestion: () => void;
-  readonly onPartChanged: (partKey: string | null) => void;
-  readonly roster: OrganizationRosterConfiguration | null;
-}) {
-  if (!file.suggestedPartKey || file.suggestedPartKey === file.partKey) return null;
-
-  return (
-    <div className="track-import-review-file__suggestion">
-      <p>
-        Suggested: <strong>{voicePartLabel(file.suggestedPartKey, roster)}</strong>
-        {typeof file.suggestedPartProbability === "number"
-          ? ` (${String(Math.round(file.suggestedPartProbability * 100))}% confidence)`
-          : ""}
-        {file.partSuggestionReason === "conflict" ? " · Resolves duplicate part" : ""}
-      </p>
-      <div className="track-import-actions__buttons">
-        <button
-          className="button button--secondary button--small"
-          disabled={disabled}
-          type="button"
-          onClick={() => {
-            onPartChanged(file.suggestedPartKey ?? null);
-          }}
-        >
-          Use suggestion
-        </button>
-        <button
-          className="button button--ghost button--small"
-          disabled={disabled}
-          type="button"
-          onClick={onDismissPartSuggestion}
-        >
-          Keep current
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function FileReviewRowActions({
-  canSplitGroup,
-  excluded,
-  file,
-  groupSkipped,
-  matching,
-  onExclusionChanged,
-  onPartChanged,
-  onSplitFile,
-}: {
-  readonly canSplitGroup: boolean;
-  readonly excluded: boolean;
-  readonly file: GroupFileAssignment;
-  readonly groupSkipped: boolean;
-  readonly matching: boolean;
-  readonly onExclusionChanged: (excluded: boolean) => void;
-  readonly onPartChanged: (partKey: string | null) => void;
-  readonly onSplitFile: () => void;
-}) {
-  return (
-    <div className="track-import-review-file__actions">
-      <TuttiFileHint
-        action
-        file={file}
-        groupSkipped={groupSkipped}
-        matching={matching}
-        onPartChanged={onPartChanged}
-      />
-      <button
-        aria-label={excluded ? `Restore ${file.fileName} for review` : `Skip ${file.fileName}`}
-        className="button button--ghost track-import-review-file__skip"
-        disabled={groupSkipped || matching}
-        type="button"
-        onClick={() => {
-          onExclusionChanged(!excluded);
-        }}
-      >
-        {excluded ? "Restore file" : "Skip this file"}
-      </button>
-      {!groupSkipped && canSplitGroup ? (
-        <button
-          className="button button--ghost"
-          disabled={matching}
-          type="button"
-          onClick={onSplitFile}
-        >
-          Match separately
-        </button>
-      ) : null}
-    </div>
-  );
-}
-
-function FileReviewRow({
-  duplicatePart,
-  excluded,
-  file,
-  canSplitGroup,
-  groupSkipped,
-  matching,
-  onDismissPartSuggestion,
-  onExclusionChanged,
-  onPartChanged,
-  onSplitFile,
-  partOptions,
-  piece,
-  reviewStatus,
-  roster,
-  selectRef,
-}: {
-  readonly duplicatePart: boolean;
-  readonly excluded: boolean;
-  readonly file: GroupFileAssignment;
-  readonly canSplitGroup: boolean;
-  readonly groupSkipped: boolean;
-  readonly matching: boolean;
-  readonly onDismissPartSuggestion: () => void;
-  readonly onExclusionChanged: (excluded: boolean) => void;
-  readonly onPartChanged: (partKey: string | null) => void;
-  readonly onSplitFile: () => void;
-  readonly partOptions: readonly { readonly key: string; readonly label: string }[];
-  readonly piece: OrganizationMusicPiece | undefined;
-  readonly reviewStatus: "needs_review" | "conflict" | "ready" | "excluded";
-  readonly roster: OrganizationRosterConfiguration | null;
-  readonly selectRef: (element: HTMLSelectElement | null) => void;
-}) {
-  const occupied = !excluded && Boolean(file.partKey && piece?.trackFileIds[file.partKey]);
-  const unavailablePart =
-    file.partKey !== null && !partOptions.some((option) => option.key === file.partKey);
-  const label = reviewFileLabel(reviewStatus, excluded, duplicatePart, occupied, file.partKey);
-  const badgeStatus = reviewFileBadgeStatus(reviewStatus);
-  const disabledActions = excluded || groupSkipped || matching;
-
-  return (
-    <article className={`track-import-review-file track-import-review-file--${reviewStatus}`}>
-      <div className="track-import-review-file__audio">
-        <div className="track-import-review-file__identity">
-          <strong title={file.fileName}>{file.fileName}</strong>
-          <span>{formatDuration(file.durationSeconds)}</span>
-          <span className={statusClass(badgeStatus)}>{label}</span>
-        </div>
-        <TrackFileAudioPlayer
-          durationSeconds={file.durationSeconds}
-          file={file.file}
-          fileName={file.fileName}
-        />
-      </div>
-      <div className="track-import-review-file__mapping">
-        <label>
-          <span className="track-import-review-file__part-label">
-            Section or voice part
-            {file.partProvenance === "ai" ? (
-              <span className="badge badge--accent track-import-ai-badge">AI suggested</span>
-            ) : null}
-          </span>
-          <select
-            aria-label={`Section or voice part for ${file.fileName}`}
-            disabled={disabledActions}
-            onChange={(event) => {
-              onPartChanged(event.target.value || null);
-            }}
-            ref={selectRef}
-            value={file.partKey ?? ""}
-          >
-            <option value="">Choose a section or voice part</option>
-            {unavailablePart ? (
-              <option disabled value={file.partKey}>
-                {voicePartLabel(file.partKey, roster)} (not configured)
-              </option>
-            ) : null}
-            {partOptions.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-                {file.partProvenance === "ai" && file.partKey === option.key
-                  ? " (AI suggested)"
-                  : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        <FilePartSuggestionPrompt
-          disabled={disabledActions}
-          file={file}
-          onDismissPartSuggestion={onDismissPartSuggestion}
-          onPartChanged={onPartChanged}
-          roster={roster}
-        />
-        <TuttiFileHint
-          file={file}
-          groupSkipped={groupSkipped}
-          matching={matching}
-          onPartChanged={onPartChanged}
-        />
-        <FileReviewRowActions
-          canSplitGroup={canSplitGroup}
-          excluded={excluded}
-          file={file}
-          groupSkipped={groupSkipped}
-          matching={matching}
-          onExclusionChanged={onExclusionChanged}
-          onPartChanged={onPartChanged}
-          onSplitFile={onSplitFile}
-        />
-      </div>
-    </article>
-  );
-}
 
 function ReviewSummary({
   blockingConflicts,
@@ -697,7 +398,7 @@ function ConflictSection({
   occupiedConflict,
   selectedPieceTitle,
 }: {
-  readonly conflicts: ReturnType<typeof getReviewGroupState>["files"];
+  readonly conflicts: ReviewState["files"];
   readonly duplicateConflict: boolean;
   readonly filesById: ReadonlyMap<string, GroupFileAssignment>;
   readonly groupId: string;
@@ -768,116 +469,6 @@ function ConflictSection({
   );
 }
 
-function FilesSection({
-  activeFileStates,
-  duplicatePartKeys,
-  group,
-  groupState,
-  matching,
-  onDismissPartSuggestion,
-  onFileExclusionChanged,
-  onPartChanged,
-  onSplitFile,
-  partOptions,
-  piece,
-  roster,
-  selectRefs,
-  setSelectedGroupId,
-}: {
-  readonly activeFileStates: ReadonlyMap<
-    string,
-    ReturnType<typeof getReviewGroupState>["files"][number]
-  >;
-  readonly duplicatePartKeys: ReadonlySet<string>;
-  readonly group: GroupReviewItem;
-  readonly groupState: ReturnType<typeof getReviewGroupState>;
-  readonly matching: boolean;
-  readonly onDismissPartSuggestion: (groupId: string, clientFileId: string) => void;
-  readonly onFileExclusionChanged: (
-    groupId: string,
-    clientFileId: string,
-    excluded: boolean,
-  ) => void;
-  readonly onPartChanged: (groupId: string, clientFileId: string, partKey: string | null) => void;
-  readonly onSplitFile: (clientFileId: string) => string | null;
-  readonly partOptions: readonly { readonly key: string; readonly label: string }[];
-  readonly piece: OrganizationMusicPiece | undefined;
-  readonly roster: OrganizationRosterConfiguration | null;
-  readonly selectRefs: RefObject<Map<string, HTMLSelectElement>>;
-  readonly setSelectedGroupId: (groupId: string) => void;
-}) {
-  return (
-    <section aria-label="Files in this song group" className="track-import-review-files">
-      <div className="track-import-review-files__heading">
-        <h3>Your recordings and voice parts</h3>
-        <span>
-          {String(groupState.uploadableFileCount)} ready · {String(groupState.excludedFileCount)}{" "}
-          excluded
-        </span>
-      </div>
-      {group.files.map((file) => {
-        const fileReview = activeFileStates.get(file.clientFileId);
-        return (
-          <FileReviewRow
-            duplicatePart={file.partKey !== null && duplicatePartKeys.has(file.partKey)}
-            excluded={group.groupSkipped === true || file.excluded === true}
-            file={file}
-            canSplitGroup={group.files.length > 1}
-            groupSkipped={group.groupSkipped === true}
-            matching={matching}
-            key={file.clientFileId}
-            onDismissPartSuggestion={() => {
-              onDismissPartSuggestion(group.groupId, file.clientFileId);
-            }}
-            onExclusionChanged={(excluded) => {
-              onFileExclusionChanged(group.groupId, file.clientFileId, excluded);
-            }}
-            onPartChanged={(partKey) => {
-              onPartChanged(group.groupId, file.clientFileId, partKey);
-            }}
-            onSplitFile={() => {
-              if (group.files.length < 2) return;
-              const newGroupId = onSplitFile(file.clientFileId);
-              if (newGroupId) setSelectedGroupId(newGroupId);
-            }}
-            partOptions={partOptions}
-            piece={piece}
-            reviewStatus={fileReview?.status ?? "needs_review"}
-            roster={roster}
-            selectRef={(element) => {
-              if (element) selectRefs.current.set(file.clientFileId, element);
-              else selectRefs.current.delete(file.clientFileId);
-            }}
-          />
-        );
-      })}
-    </section>
-  );
-}
-
-function BatchOverview({
-  columns,
-  rows,
-}: {
-  readonly columns: readonly DataTableColumn<ReviewQueueRow>[];
-  readonly rows: readonly ReviewQueueRow[];
-}) {
-  return (
-    <section aria-label="Batch overview" className="track-import-review-overview">
-      <h2>Every song group in this import</h2>
-      <p>
-        Review destinations, file counts, voice parts, and outstanding conflicts across the batch.
-      </p>
-      <DataTable
-        columns={columns}
-        emptyMessage="No song groups are available."
-        keySelector={(row) => row.group.groupId}
-        rows={rows}
-      />
-    </section>
-  );
-}
-
 function ReviewNotices({
   groups,
   matchError,
@@ -909,18 +500,24 @@ function ReviewNotices({
 }
 
 function ReviewModePanel({
-  columns,
   guidedContent,
+  onReviewGroup,
+  pieceMap,
+  roster,
   rows,
   view,
 }: {
-  readonly columns: readonly DataTableColumn<ReviewQueueRow>[];
   readonly guidedContent: ReactNode;
+  readonly onReviewGroup: (groupId: string) => void;
+  readonly pieceMap: ReadonlyMap<string, OrganizationMusicPiece>;
+  readonly roster: OrganizationRosterConfiguration | null;
   readonly rows: readonly ReviewQueueRow[];
   readonly view: ReviewView;
 }) {
   if (view === "guided") return guidedContent;
-  return <BatchOverview columns={columns} rows={rows} />;
+  return (
+    <BatchOverview onReviewGroup={onReviewGroup} pieceMap={pieceMap} roster={roster} rows={rows} />
+  );
 }
 
 function ReviewConflictPanel({
@@ -935,7 +532,7 @@ function ReviewConflictPanel({
   occupiedConflict,
   selectedPieceTitle,
 }: {
-  readonly conflicts: ReturnType<typeof getReviewGroupState>["files"];
+  readonly conflicts: ReviewState["files"];
   readonly duplicateConflict: boolean;
   readonly filesById: ReadonlyMap<string, GroupFileAssignment>;
   readonly groupId: string;
@@ -961,457 +558,6 @@ function ReviewConflictPanel({
       selectedPieceTitle={selectedPieceTitle}
     />
   );
-}
-
-function queueRowMatchesFilter(status: ReviewGroupStatus, filter: ReviewFilter): boolean {
-  switch (filter) {
-    case "all":
-      return true;
-    case "to_review":
-      return status === "needs_review";
-    case "conflicts":
-      return status === "conflict";
-    case "reviewed":
-      return status === "reviewed";
-    case "skipped":
-      return status === "skipped";
-  }
-}
-
-function queueRowMatchesSearch(
-  group: GroupReviewItem,
-  terms: readonly string[],
-  pieceMap: ReadonlyMap<string, OrganizationMusicPiece>,
-): boolean {
-  if (terms.length === 0) return true;
-  const piece = group.selectedPieceId ? pieceMap.get(group.selectedPieceId) : undefined;
-  const searchable = [
-    group.inferredTitle,
-    piece?.title ?? "",
-    piece?.composer ?? "",
-    piece?.arranger ?? "",
-    ...group.files.map((file) => file.fileName),
-  ]
-    .join(" ")
-    .toLowerCase();
-  return terms.every((term) => searchable.includes(term));
-}
-
-function filterReviewQueueRows(
-  rows: readonly ReviewQueueRow[],
-  filter: ReviewFilter,
-  search: string,
-  pieceMap: ReadonlyMap<string, OrganizationMusicPiece>,
-): readonly ReviewQueueRow[] {
-  const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  return rows.filter(
-    ({ group, state }) =>
-      queueRowMatchesFilter(state.groupStatus, filter) &&
-      queueRowMatchesSearch(group, terms, pieceMap),
-  );
-}
-
-type ReviewState = ReturnType<typeof getReviewGroupState>;
-
-function buildQueueRows(
-  groups: readonly GroupReviewItem[],
-  groupStates: ReadonlyMap<string, ReviewState>,
-  pieceMap: ReadonlyMap<string, OrganizationMusicPiece>,
-  validPartKeys: ReadonlySet<string>,
-  roster: OrganizationRosterConfiguration | null,
-): readonly ReviewQueueRow[] {
-  return groups.map((group, index) => ({
-    group,
-    ordinal: index + 1,
-    state: groupStates.get(group.groupId) ?? getReviewGroupState(group, pieceMap, validPartKeys),
-    voicePartSortKey: group.files.map((file) => voicePartLabel(file.partKey, roster)).join(", "),
-  }));
-}
-
-function summarizeReviewGroups(
-  groups: readonly GroupReviewItem[],
-  groupStates: ReadonlyMap<string, ReviewState>,
-) {
-  let totalFiles = 0;
-  let blockingConflicts = 0;
-  let reviewedGroups = 0;
-  let skippedGroups = 0;
-  let resolvedGroups = 0;
-  for (const group of groups) {
-    const state = groupStates.get(group.groupId);
-    totalFiles += group.files.length;
-    blockingConflicts += state?.blockingConflictCount ?? 0;
-    if (state?.groupStatus === "reviewed") reviewedGroups += 1;
-    if (state?.groupStatus === "skipped") skippedGroups += 1;
-    if (state?.groupStatus === "reviewed" || state?.groupStatus === "skipped") resolvedGroups += 1;
-  }
-  return { blockingConflicts, resolvedGroups, reviewedGroups, skippedGroups, totalFiles };
-}
-
-function buildDestinationOptions(
-  groups: readonly GroupReviewItem[],
-  selectedGroupId: string,
-  performancePieceIds: readonly string[],
-  pieces: readonly OrganizationMusicPiece[],
-): readonly DestinationPieceOption[] {
-  const active = groups.find((group) => group.groupId === selectedGroupId) ?? groups[0];
-  const candidateRank = new Map(
-    (active?.candidates ?? []).map((candidate, index) => [candidate.piece.id, index]),
-  );
-  const setListRank = new Map(performancePieceIds.map((pieceId, index) => [pieceId, index]));
-  return pieces
-    .map((piece) => ({
-      arranger: piece.arranger,
-      composer: piece.composer,
-      id: piece.id,
-      occupiedParts: Object.keys(piece.trackFileIds),
-      searchText: `${piece.title} ${piece.composer} ${piece.arranger}`.toLowerCase(),
-      title: piece.title,
-      trackCount: Object.keys(piece.trackFileIds).length,
-    }))
-    .sort((left, right) => {
-      const leftSetListRank = setListRank.get(left.id);
-      const rightSetListRank = setListRank.get(right.id);
-      if (leftSetListRank !== undefined && rightSetListRank !== undefined) {
-        return leftSetListRank - rightSetListRank;
-      }
-      if (leftSetListRank !== undefined) return -1;
-      if (rightSetListRank !== undefined) return 1;
-      const leftCandidateRank = candidateRank.get(left.id);
-      const rightCandidateRank = candidateRank.get(right.id);
-      if (leftCandidateRank !== undefined && rightCandidateRank !== undefined) {
-        return leftCandidateRank - rightCandidateRank;
-      }
-      if (leftCandidateRank !== undefined) return -1;
-      if (rightCandidateRank !== undefined) return 1;
-      return left.title.localeCompare(right.title);
-    });
-}
-
-function getNextUnresolvedGroup(
-  groups: readonly GroupReviewItem[],
-  activeGroup: GroupReviewItem | undefined,
-  groupStates: ReadonlyMap<string, ReviewState>,
-): GroupReviewItem | undefined {
-  if (!activeGroup) return undefined;
-  const currentIndex = groups.findIndex((group) => group.groupId === activeGroup.groupId);
-  for (let offset = 1; offset < groups.length; offset += 1) {
-    const candidate = groups[(currentIndex + offset + groups.length) % groups.length];
-    if (!candidate) continue;
-    const status = groupStates.get(candidate.groupId)?.groupStatus;
-    if (status !== "reviewed" && status !== "skipped") return candidate;
-  }
-  return undefined;
-}
-
-function getActiveGroup(
-  groups: readonly GroupReviewItem[],
-  selectedGroupId: string,
-): GroupReviewItem | undefined {
-  return groups.find((group) => group.groupId === selectedGroupId) ?? groups[0];
-}
-
-function getActiveGroupState(
-  group: GroupReviewItem | undefined,
-  groupStates: ReadonlyMap<string, ReviewState>,
-): ReviewState | undefined {
-  return group ? groupStates.get(group.groupId) : undefined;
-}
-
-function getSelectedPiece(
-  group: GroupReviewItem | undefined,
-  pieceMap: ReadonlyMap<string, OrganizationMusicPiece>,
-): OrganizationMusicPiece | undefined {
-  return group?.selectedPieceId ? pieceMap.get(group.selectedPieceId) : undefined;
-}
-
-function getActiveFileStateMap(state: ReviewState | undefined) {
-  return new Map((state?.files ?? []).map((file) => [file.clientFileId, file]));
-}
-
-function getGroupFileMap(group: GroupReviewItem | undefined) {
-  return new Map((group?.files ?? []).map((file) => [file.clientFileId, file]));
-}
-
-function getOptionalGroupConflictAnalysis(
-  group: GroupReviewItem | undefined,
-  state: ReviewState | undefined,
-) {
-  if (!group || !state) return undefined;
-  return getGroupConflictAnalysis(group, state);
-}
-
-function buildPartOptions(roster: OrganizationRosterConfiguration | null) {
-  const options: { key: string; label: string }[] = [{ key: "tutti", label: "Tutti" }];
-  const seen = new Set(["tutti", "accompaniment"]);
-  for (const section of roster?.sections ?? []) {
-    if (seen.has(section.code)) continue;
-    options.push({ key: section.code, label: `${section.name} (${section.code}) — section` });
-    seen.add(section.code);
-  }
-  for (const voicePart of roster?.voiceParts ?? []) {
-    if (seen.has(voicePart.label)) continue;
-    options.push({ key: voicePart.label, label: voicePart.fullName });
-    seen.add(voicePart.label);
-  }
-  options.push({ key: "accompaniment", label: "Accompaniment" });
-  return options;
-}
-
-function getAdjacentGroupId(
-  groups: readonly GroupReviewItem[],
-  activeGroup: GroupReviewItem | undefined,
-  direction: -1 | 1,
-): string {
-  if (!activeGroup) return "";
-  const currentIndex = groups.findIndex((group) => group.groupId === activeGroup.groupId);
-  const nextIndex = (currentIndex + direction + groups.length) % groups.length;
-  return groups[nextIndex]?.groupId ?? "";
-}
-
-function selectNextGroup(
-  group: GroupReviewItem | undefined,
-  setSelectedGroupId: (groupId: string) => void,
-): void {
-  if (group) setSelectedGroupId(group.groupId);
-}
-
-function markReviewGroupAndAdvance(
-  group: GroupReviewItem | undefined,
-  state: ReviewState | undefined,
-  onMarkGroupReviewed: (groupId: string) => void,
-  onAdvance: () => void,
-): void {
-  if (!group || !state?.isEligibleForReview) return;
-  onMarkGroupReviewed(group.groupId);
-  onAdvance();
-}
-
-function getGroupConflictAnalysis(group: GroupReviewItem, state: ReviewState) {
-  const filesById = new Map(group.files.map((file) => [file.clientFileId, file]));
-  const conflicts = state.files.filter((file) => file.status === "conflict");
-  const partCounts = new Map<string, number>();
-  for (const file of group.files) {
-    if (!file.excluded && file.partKey) {
-      partCounts.set(file.partKey, (partCounts.get(file.partKey) ?? 0) + 1);
-    }
-  }
-  const duplicatePartKeys = new Set<string>();
-  for (const conflict of conflicts) {
-    const file = filesById.get(conflict.clientFileId);
-    if (file?.partKey && (partCounts.get(file.partKey) ?? 0) > 1) {
-      duplicatePartKeys.add(file.partKey);
-    }
-  }
-  return {
-    conflicts,
-    duplicateConflict: conflicts.some((file) => file.conflictReason?.includes("Duplicate")),
-    duplicatePartKeys,
-    filesById,
-    occupiedConflict: conflicts.some((file) =>
-      file.conflictReason?.includes("already has a recording"),
-    ),
-  };
-}
-
-function getGroupEvidence(
-  group: GroupReviewItem | undefined,
-  pieces: readonly OrganizationMusicPiece[],
-  performancePieceIds: readonly string[],
-): readonly string[] {
-  if (!group?.selectedPieceId) return [];
-
-  // 1. Deterministic evidence for the selected piece
-  const currentGroup = recalculateTrackImportGroup({
-    ...group,
-    files: group.files
-      .filter((file) => !file.excluded)
-      .map((file) => ({
-        ...file,
-        metadata: file.metadata ?? null,
-        detectedPartKey: file.partKey,
-        detectedPartLabel: null,
-        inferredTitle: group.inferredTitle,
-        sequenceNumber: group.sequenceNumber,
-      })),
-  });
-  const candidate = rankCandidatePiecesForGroup(
-    currentGroup,
-    pieces.filter((piece) => piece.id === group.selectedPieceId),
-    performancePieceIds,
-  ).candidatePieces[0];
-  const evidenceList: string[] = candidate ? [...candidate.evidence] : [];
-
-  // 2. Separate AI estimate if AI suggestion matches the currently selected piece
-  const aiMatchesSelection =
-    group.aiSuggestion?.suggestedPieceId === group.selectedPieceId ||
-    group.aiSuggestion?.topCandidates?.some((c) => c.pieceId === group.selectedPieceId);
-
-  if (aiMatchesSelection && group.aiSuggestion) {
-    const top = group.aiSuggestion.topCandidates?.find((c) => c.pieceId === group.selectedPieceId);
-    if (top && typeof top.probability === "number") {
-      evidenceList.push(
-        `AI estimate (~${String(Math.round(top.probability * 100))}% model estimate; not calibrated accuracy)`,
-      );
-    } else if (group.aiSuggestion.rationale) {
-      evidenceList.push(group.aiSuggestion.rationale);
-    }
-  }
-
-  return evidenceList;
-}
-
-function OverviewSongCell({ row }: { readonly row: ReviewQueueRow }) {
-  const { group, ordinal } = row;
-  return (
-    <div className="track-import-overview-song">
-      <strong>{group.inferredTitle}</strong>
-      <span>
-        Song {String(ordinal)} · {String(group.files.length)}{" "}
-        {group.files.length === 1 ? "file" : "files"}
-      </span>
-      <small>{group.files.map((file) => file.fileName).join(" · ")}</small>
-    </div>
-  );
-}
-
-function OverviewDestinationCell({
-  piece,
-}: {
-  readonly piece: OrganizationMusicPiece | undefined;
-}) {
-  if (!piece) return <span>No destination selected</span>;
-  return (
-    <span>
-      {piece.title}
-      <small className="track-import-overview-subtext">
-        {[piece.composer, piece.arranger ? `arr. ${piece.arranger}` : ""]
-          .filter(Boolean)
-          .join(" · ")}
-      </small>
-    </span>
-  );
-}
-
-function OverviewVoicePartsCell({
-  group,
-  roster,
-}: {
-  readonly group: GroupReviewItem;
-  readonly roster: OrganizationRosterConfiguration | null;
-}) {
-  if (group.groupSkipped) return <span>Entire group skipped</span>;
-  return (
-    <span>
-      {group.files
-        .map((file) =>
-          file.excluded
-            ? `${voicePartLabel(file.partKey, roster)} (excluded)`
-            : voicePartLabel(file.partKey, roster),
-        )
-        .join(", ")}
-    </span>
-  );
-}
-
-function OverviewStatusCell({
-  hasDestination,
-  group,
-  state,
-}: {
-  readonly hasDestination: boolean;
-  readonly group: GroupReviewItem;
-  readonly state: ReviewState;
-}) {
-  return (
-    <span>
-      <span className={statusClass(state.groupStatus)}>
-        {getReviewStatusLabel(state, hasDestination)}
-      </span>
-      {state.blockingConflictCount > 0 ? (
-        <small className="track-import-overview-subtext">
-          {String(state.blockingConflictCount)} conflict
-          {state.blockingConflictCount === 1 ? "" : "s"}
-        </small>
-      ) : null}
-      {state.excludedFileCount > 0 && state.groupStatus !== "skipped" ? (
-        <small className="track-import-overview-subtext">
-          {String(state.excludedFileCount)} excluded file{state.excludedFileCount === 1 ? "" : "s"}
-        </small>
-      ) : null}
-      <span className="sr-only">{group.inferredTitle}</span>
-    </span>
-  );
-}
-
-function buildOverviewColumns(
-  pieceMap: ReadonlyMap<string, OrganizationMusicPiece>,
-  roster: OrganizationRosterConfiguration | null,
-  onReview: (groupId: string) => void,
-): readonly DataTableColumn<ReviewQueueRow>[] {
-  return [
-    {
-      header: "Song group",
-      id: "song",
-      mobileLabel: "Song group",
-      render: (row) => <OverviewSongCell row={row} />,
-      sortValue: ({ group }) => group.inferredTitle,
-    },
-    {
-      align: "center",
-      header: "Files",
-      id: "files",
-      mobileLabel: "Files",
-      render: ({ group }) => String(group.files.length),
-      sortValue: ({ group }) => group.files.length,
-    },
-    {
-      header: "Destination",
-      id: "destination",
-      mobileLabel: "Destination",
-      render: ({ group }) => (
-        <OverviewDestinationCell piece={pieceMap.get(group.selectedPieceId ?? "")} />
-      ),
-      sortValue: ({ group }) => pieceMap.get(group.selectedPieceId ?? "")?.title,
-    },
-    {
-      header: "Voice parts",
-      id: "parts",
-      mobileLabel: "Voice parts",
-      render: ({ group }) => <OverviewVoicePartsCell group={group} roster={roster} />,
-      sortValue: ({ voicePartSortKey }) => voicePartSortKey,
-    },
-    {
-      header: "Review status",
-      id: "status",
-      mobileLabel: "Review status",
-      render: ({ group, state }) => (
-        <OverviewStatusCell
-          group={group}
-          state={state}
-          hasDestination={pieceMap.has(group.selectedPieceId ?? "")}
-        />
-      ),
-      sortValue: ({ state }) =>
-        ({ conflict: 0, needs_review: 1, reviewed: 2, skipped: 3 })[state.groupStatus],
-    },
-    {
-      header: "Review",
-      id: "actions",
-      mobileLabel: "Review",
-      render: ({ group }) => (
-        <button
-          className="button button--secondary"
-          type="button"
-          onClick={() => {
-            onReview(group.groupId);
-          }}
-        >
-          Review
-        </button>
-      ),
-    },
-  ];
 }
 
 function ReviewFooter({
@@ -1442,7 +588,7 @@ function ReviewFooter({
   readonly onResolveCurrent: () => void;
   readonly canResolveCurrent: boolean;
   readonly activeGroup: GroupReviewItem;
-  readonly activeState: ReturnType<typeof getReviewGroupState>;
+  readonly activeState: ReviewState;
   readonly allResolved: boolean;
   readonly blockingConflicts: number;
   readonly groupCount: number;
@@ -1727,15 +873,6 @@ export function StepReviewMatches({
   );
   const activeEvidence = getGroupEvidence(activeGroup, pieces, performancePieceIds);
 
-  const overviewColumns = useMemo(
-    () =>
-      buildOverviewColumns(pieceMap, roster, (groupId) => {
-        setSelectedGroupId(groupId);
-        setView("guided");
-      }),
-    [pieceMap, roster],
-  );
-
   const nextUnresolvedGroup = getNextUnresolvedGroup(groups, activeGroup, groupStates);
   function selectNextUnresolved(): void {
     selectNextGroup(nextUnresolvedGroup, setSelectedGroupId);
@@ -1862,8 +999,13 @@ export function StepReviewMatches({
         proposals={pendingGroupRepairs}
       />
       <ReviewModePanel
-        columns={overviewColumns}
         guidedContent={guidedContent}
+        onReviewGroup={(groupId) => {
+          setSelectedGroupId(groupId);
+          setView("guided");
+        }}
+        pieceMap={pieceMap}
+        roster={roster}
         rows={queueRows}
         view={view}
       />

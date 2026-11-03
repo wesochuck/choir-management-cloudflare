@@ -1,23 +1,24 @@
 import { useTuttiSuggestions } from "./useTuttiSuggestions";
 import { Dialog } from "@choir/ui";
 import {
-  applyGroupRepairSuggestion,
   groupPracticeTrackFiles,
   parsePracticeTrackFilename,
-  rankCandidatePiecesForGroup,
-  recalculateTrackImportGroup,
   resolvePracticeTrackAssignments,
-  splitFileToNewTrackImportGroup,
   type TrackImportGroup,
 } from "@choir/domain";
-import type { FilePartSuggestion, MusicTrackImportGroupRepairSuggestion } from "@choir/contracts";
+import type { MusicTrackImportGroupRepairSuggestion } from "@choir/contracts";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-import { matchBulkPracticeTracks } from "../../../../api/music";
 import {
   discardMusicTrackImportSession,
   getMusicTrackImportSession,
 } from "../../../../api/musicTrackImport";
 import { extractAudioDuration } from "../../../audioDuration";
+import {
+  buildMatchRequestGroup,
+  buildReviewGroups,
+  runGroupRepairStep,
+  runPieceMatchingStep,
+} from "./aiMatching";
 import { StepConfirmUpload } from "./StepConfirmUpload";
 import { StepResults } from "./StepResults";
 import { StepReviewMatches } from "./StepReviewMatches";
@@ -37,56 +38,14 @@ import {
 } from "./reviewState";
 import type {
   BulkPracticeTrackImportDialogProps,
-  GroupFileAssignment,
   GroupReviewItem,
   InspectedTrackFile,
   TrackImportScope,
   TrackImportStep,
 } from "./types";
 import { useImportSession, type ImportRunResult } from "./useImportSession";
+import { useReviewGroupMutations } from "./useReviewGroupMutations";
 import { WizardStepper } from "./WizardStepper";
-
-function buildReviewGroups(
-  domainGroups: readonly TrackImportGroup[],
-  pieces: BulkPracticeTrackImportDialogProps["pieces"],
-  performancePieceIds: readonly string[],
-  fileLookup: ReadonlyMap<string, InspectedTrackFile>,
-): GroupReviewItem[] {
-  return domainGroups.map((group) => {
-    const match = rankCandidatePiecesForGroup(group, pieces, performancePieceIds);
-    const selectedPieceId = match.suggestedPiece?.piece.id ?? null;
-    const files: GroupFileAssignment[] = group.files.map((f) => {
-      const original = fileLookup.get(f.clientFileId);
-      return {
-        clientFileId: f.clientFileId,
-        detectedPartKey: f.detectedPartKey,
-        detectedPartLabel: f.detectedPartLabel,
-        durationSeconds: f.durationSeconds,
-        file: original?.file ?? new File([], f.fileName),
-        fileName: f.fileName,
-        inferredTitle:
-          f.inferredTitle.length > 0 ? f.inferredTitle : (original?.inferredTitle ?? f.fileName),
-        metadata: original?.metadata ?? null,
-        partKey: f.detectedPartKey,
-        partProvenance: f.detectedPartKey ? ("deterministic" as const) : undefined,
-        sequenceNumber: f.sequenceNumber ?? original?.sequenceNumber ?? null,
-      };
-    });
-
-    return {
-      averageDurationSeconds: group.averageDurationSeconds,
-      candidates: match.candidatePieces,
-      destinationProvenance: selectedPieceId ? ("deterministic" as const) : undefined,
-      destinationSelectionChanged: false,
-      evidence: match.suggestedPiece?.evidence ?? [],
-      ...resolvePracticeTrackAssignments(files, selectedPieceId),
-      groupId: group.groupId,
-      inferredTitle: group.inferredTitle,
-      selectedPieceId,
-      sequenceNumber: group.sequenceNumber,
-    };
-  });
-}
 
 function ResumeImportBanner({
   context,
@@ -161,193 +120,6 @@ function ResumeImportBanner({
       </div>
     </section>
   );
-}
-
-function extractId3MetadataFields(meta: GroupFileAssignment["metadata"]) {
-  if (!meta) return {};
-  return {
-    album: meta.album ?? undefined,
-    artist: meta.artist ?? undefined,
-    composer: meta.composer ?? undefined,
-    title: meta.title ?? undefined,
-    trackNumber: meta.trackNumber ?? undefined,
-  };
-}
-
-function buildFileMetadata(file: GroupFileAssignment) {
-  return {
-    ...extractId3MetadataFields(file.metadata),
-    clientFileId: file.clientFileId,
-    currentPartKey: file.partKey ?? undefined,
-    detectedPartKey: file.detectedPartKey ?? undefined,
-    detectedPartLabel: file.detectedPartLabel ?? undefined,
-    durationSeconds: file.durationSeconds,
-    excluded: file.excluded,
-    fileName: file.fileName,
-    inferredTitle: file.inferredTitle ?? undefined,
-    manualPart: file.partProvenance === "manual" || file.partSelectionChanged,
-    sequenceNumber: file.sequenceNumber ?? undefined,
-  };
-}
-
-function buildMatchRequestGroup(group: GroupReviewItem) {
-  return {
-    detectedParts: group.files.flatMap((file) => (file.partKey ? [file.partKey] : [])),
-    durationSeconds: group.averageDurationSeconds,
-    fileMetadata: group.files.map(buildFileMetadata),
-    fileNames: group.files.map((file) => file.fileName),
-    groupId: group.groupId,
-    inferredTitle: group.inferredTitle,
-    ...(group.sequenceNumber ? { sequenceNumber: group.sequenceNumber } : {}),
-  };
-}
-
-function extractFileSuggestionFields(
-  file: GroupFileAssignment,
-  partSuggestion: FilePartSuggestion | undefined,
-) {
-  return {
-    partAlternatives: partSuggestion?.alternatives ?? file.partAlternatives,
-    partSuggestionEvidence: partSuggestion?.evidence ?? file.partSuggestionEvidence,
-    partSuggestionReason: partSuggestion?.reason ?? file.partSuggestionReason,
-    suggestedPartKey: partSuggestion?.suggestedPartKey ?? file.suggestedPartKey,
-    suggestedPartProbability: partSuggestion?.probability ?? file.suggestedPartProbability,
-  };
-}
-
-function shouldAutoAssignPart(
-  file: GroupFileAssignment,
-  partSuggestion: FilePartSuggestion | undefined,
-  validPartKeys: ReadonlySet<string>,
-): boolean {
-  if (file.partKey !== null || !partSuggestion?.suggestedPartKey) return false;
-  return partSuggestion.probability >= 0.7 && validPartKeys.has(partSuggestion.suggestedPartKey);
-}
-
-function applyAiSuggestionToFile(
-  file: GroupFileAssignment,
-  partSuggestion: FilePartSuggestion | undefined,
-  validPartKeys: ReadonlySet<string>,
-): GroupFileAssignment {
-  const fields = extractFileSuggestionFields(file, partSuggestion);
-
-  if (file.partSelectionChanged || file.excluded) {
-    return { ...file, ...fields };
-  }
-
-  if (shouldAutoAssignPart(file, partSuggestion, validPartKeys)) {
-    return {
-      ...file,
-      ...fields,
-      partKey: partSuggestion?.suggestedPartKey ?? null,
-      partProvenance: "ai" as const,
-    };
-  }
-
-  return { ...file, ...fields };
-}
-
-function applyAiSuggestionToGroup(
-  group: GroupReviewItem,
-  suggestion: GroupReviewItem["aiSuggestion"],
-  allowedIds: ReadonlySet<string>,
-  validPartKeys: ReadonlySet<string>,
-): GroupReviewItem {
-  if (!suggestion) return group;
-
-  if (group.reviewedMappingKey || group.groupSkipped) {
-    return {
-      ...group,
-      aiSuggestion: suggestion,
-    };
-  }
-
-  const isManualDestination = group.destinationSelectionChanged === true;
-  let nextSelectedPieceId = group.selectedPieceId;
-  let nextDestinationProvenance = group.destinationProvenance;
-
-  if (!isManualDestination) {
-    if (suggestion.suggestedPieceId && allowedIds.has(suggestion.suggestedPieceId)) {
-      nextSelectedPieceId = suggestion.suggestedPieceId;
-      nextDestinationProvenance = "ai";
-    }
-  }
-
-  const partSuggestionsByFileId = new Map(
-    (suggestion.filePartSuggestions ?? []).map((s) => [s.clientFileId, s]),
-  );
-
-  const updatedFiles = group.files.map((file) =>
-    applyAiSuggestionToFile(file, partSuggestionsByFileId.get(file.clientFileId), validPartKeys),
-  );
-
-  const destinationChanged = nextSelectedPieceId !== group.selectedPieceId;
-  const partsChanged = updatedFiles.some((f, idx) => f.partKey !== group.files[idx]?.partKey);
-  const needsInvalidation = destinationChanged || partsChanged;
-
-  return {
-    ...group,
-    aiSuggestion: suggestion,
-    destinationProvenance: nextDestinationProvenance,
-    ...resolvePracticeTrackAssignments(updatedFiles, nextSelectedPieceId),
-    selectedPieceId: nextSelectedPieceId,
-    reviewedMappingKey: needsInvalidation ? null : group.reviewedMappingKey,
-  };
-}
-
-async function runGroupRepairStep(
-  baseRequest: Omit<Parameters<typeof matchBulkPracticeTracks>[0], "stage">,
-  signal: AbortSignal,
-  onSuggestions: (repairs: MusicTrackImportGroupRepairSuggestion[]) => void,
-) {
-  try {
-    const res = await matchBulkPracticeTracks({ ...baseRequest, stage: "group_repair" }, signal);
-    if ((res.groupRepairSuggestions?.length ?? 0) > 0) {
-      onSuggestions(res.groupRepairSuggestions ?? []);
-    }
-  } catch {
-    // Tolerated partial stage failure
-  }
-}
-
-async function runPieceMatchingStep(
-  baseRequest: Omit<Parameters<typeof matchBulkPracticeTracks>[0], "stage">,
-  signal: AbortSignal,
-  allowedIds: ReadonlySet<string>,
-  validPartKeys: ReadonlySet<string>,
-  setGroups: React.Dispatch<React.SetStateAction<readonly GroupReviewItem[]>>,
-  setMatchError: (error: string | null) => void,
-) {
-  try {
-    const pieceRes = await matchBulkPracticeTracks(
-      { ...baseRequest, stage: "piece_matching" },
-      signal,
-    );
-    if (pieceRes.suggestions.length > 0) {
-      const suggestions = new Map(pieceRes.suggestions.map((s) => [s.groupId, s]));
-      setGroups((current) =>
-        current.map((group) =>
-          applyAiSuggestionToGroup(
-            group,
-            suggestions.get(group.groupId),
-            allowedIds,
-            validPartKeys,
-          ),
-        ),
-      );
-    }
-    if (pieceRes.stageStatus === "partial") {
-      setMatchError(
-        "AI piece matching completed partially within the time limit. Some songs were not matched automatically.",
-      );
-    }
-  } catch (error: unknown) {
-    setMatchError(
-      error instanceof Error
-        ? error.message
-        : "AI piece matching failed. Continue with manual matching or try again.",
-    );
-  }
 }
 
 export function BulkPracticeTrackImportDialog({
@@ -471,6 +243,35 @@ export function BulkPracticeTrackImportDialog({
   const pieceLookup = useMemo(() => new Map(pieces.map((piece) => [piece.id, piece])), [pieces]);
   const validPartKeys = useMemo(() => getValidTrackPartKeys(roster), [roster]);
 
+  const {
+    handleAcceptGroupRepair,
+    handleAdvanceToReview,
+    handleDismissGroupRepair,
+    handleDismissPartSuggestion,
+    handleFileExclusionChanged,
+    handleGroupPieceChanged,
+    handleGroupSkipToggled,
+    handleMarkGroupReviewed,
+    handlePartChanged,
+    handleSplitFile,
+  } = useReviewGroupMutations({
+    domainGroups,
+    fileLookup,
+    files,
+    groups,
+    matchController,
+    performancePieceIds,
+    pieceLookup,
+    pieces,
+    setDomainGroups,
+    setGroups,
+    setMatchError,
+    setMatching,
+    setPendingGroupRepairs,
+    setStep,
+    validPartKeys,
+  });
+
   const handleAiMatch = async () => {
     if (matching) return;
     const scopedIds = new Set(performancePieceIds);
@@ -551,273 +352,6 @@ export function BulkPracticeTrackImportDialog({
       if (matchController.current === controller) setMatching(false);
     }
   };
-
-  const handleAcceptGroupRepair = useCallback(
-    (suggestion: MusicTrackImportGroupRepairSuggestion) => {
-      const currentDomainGroups = groups.map((g) =>
-        recalculateTrackImportGroup({
-          files: g.files.map((f) => {
-            const original = fileLookup.get(f.clientFileId);
-            return {
-              ...parsePracticeTrackFilename(
-                f.fileName,
-                [],
-                f.clientFileId,
-                f.durationSeconds,
-                original?.metadata ?? null,
-              ),
-              detectedPartKey: f.partKey,
-              inferredTitle: f.inferredTitle ?? f.fileName,
-              sequenceNumber: f.sequenceNumber ?? null,
-            };
-          }),
-          groupId: g.groupId,
-          inferredTitle: g.inferredTitle,
-          sequenceNumber: g.sequenceNumber,
-        }),
-      );
-
-      const updatedDomainGroups = applyGroupRepairSuggestion(currentDomainGroups, suggestion);
-      setDomainGroups(updatedDomainGroups);
-      const reviewItems = buildReviewGroups(
-        updatedDomainGroups,
-        pieces,
-        performancePieceIds,
-        fileLookup,
-      );
-      setGroups(reviewItems);
-
-      setPendingGroupRepairs((prev) =>
-        prev.filter((p) => {
-          if (p === suggestion) return false;
-          if (suggestion.kind === "merge_groups" && p.kind === "merge_groups") {
-            return !p.groupIds.some((id) => suggestion.groupIds.includes(id));
-          }
-          if (suggestion.kind === "split_group" && p.kind === "split_group") {
-            return p.sourceGroupId !== suggestion.sourceGroupId;
-          }
-          return true;
-        }),
-      );
-    },
-    [fileLookup, groups, performancePieceIds, pieces],
-  );
-
-  const handleDismissGroupRepair = useCallback(
-    (suggestion: MusicTrackImportGroupRepairSuggestion) => {
-      setPendingGroupRepairs((prev) => prev.filter((p) => p !== suggestion));
-    },
-    [],
-  );
-
-  const handleDismissPartSuggestion = useCallback((groupId: string, clientFileId: string) => {
-    setGroups((prev) =>
-      prev.map((g) => {
-        if (g.groupId !== groupId) return g;
-        return {
-          ...g,
-          files: g.files.map((f) =>
-            f.clientFileId === clientFileId
-              ? {
-                  ...f,
-                  partAlternatives: undefined,
-                  partSuggestionEvidence: undefined,
-                  partSuggestionReason: undefined,
-                  suggestedPartKey: undefined,
-                  suggestedPartProbability: undefined,
-                }
-              : f,
-          ),
-        };
-      }),
-    );
-  }, []);
-
-  const handleAdvanceToReview = useCallback(() => {
-    const rawDomainGroups = groupPracticeTrackFiles(files);
-    setDomainGroups(rawDomainGroups);
-    const reviewItems = buildReviewGroups(rawDomainGroups, pieces, performancePieceIds, fileLookup);
-    setGroups(reviewItems);
-    setMatchError(null);
-    setStep("review");
-  }, [fileLookup, files, performancePieceIds, pieces]);
-
-  const handleGroupPieceChanged = useCallback((groupId: string, pieceId: string | null) => {
-    setGroups((prev) =>
-      prev.map((g) => {
-        if (g.groupId !== groupId) return g;
-        if (g.selectedPieceId === pieceId)
-          return { ...g, destinationProvenance: "manual", destinationSelectionChanged: true };
-        return {
-          ...g,
-          destinationProvenance: "manual",
-          destinationSelectionChanged: true,
-          ...resolvePracticeTrackAssignments(g.files, pieceId),
-          selectedPieceId: pieceId,
-          reviewedMappingKey: null,
-        };
-      }),
-    );
-  }, []);
-
-  const handlePartChanged = useCallback(
-    (groupId: string, clientFileId: string, partKey: string | null) => {
-      setGroups((prev) =>
-        prev.map((group) => {
-          if (group.groupId !== groupId) return group;
-          const updatedFiles = group.files.map((file) =>
-            file.clientFileId === clientFileId
-              ? {
-                  ...file,
-                  excluded: false,
-                  partKey,
-                  tuttiAssignmentId: undefined,
-                  partProvenance: "manual" as const,
-                  partSelectionChanged: true,
-                }
-              : file,
-          );
-          return {
-            ...group,
-            ...resolvePracticeTrackAssignments(updatedFiles, group.selectedPieceId),
-            reviewedMappingKey: null,
-          };
-        }),
-      );
-    },
-    [],
-  );
-
-  const handleFileExclusionChanged = useCallback(
-    (groupId: string, clientFileId: string, excluded: boolean) => {
-      setGroups((prev) =>
-        prev.map((group) => {
-          if (group.groupId !== groupId) return group;
-          return {
-            ...group,
-            files: group.files.map((file) =>
-              file.clientFileId === clientFileId
-                ? { ...file, excluded, partSelectionChanged: true, tuttiAssignmentId: undefined }
-                : file,
-            ),
-            reviewedMappingKey: null,
-          };
-        }),
-      );
-    },
-    [],
-  );
-
-  const handleGroupSkipToggled = useCallback((groupId: string) => {
-    setGroups((prev) =>
-      prev.map((group) => {
-        if (group.groupId !== groupId) return group;
-        if (!group.groupSkipped && group.files.every((file) => file.excluded)) {
-          return {
-            ...group,
-            files: group.files.map((file) => ({
-              ...file,
-              excluded: false,
-              partSelectionChanged: true,
-            })),
-            reviewedMappingKey: null,
-          };
-        }
-        return {
-          ...group,
-          groupSkipped: group.groupSkipped !== true,
-          reviewedMappingKey: null,
-        };
-      }),
-    );
-  }, []);
-
-  const handleMarkGroupReviewed = useCallback(
-    (groupId: string) => {
-      setGroups((prev) =>
-        prev.map((group) => {
-          if (group.groupId !== groupId) return group;
-          const reviewState = getReviewGroupState(group, pieceLookup, validPartKeys);
-          if (!reviewState.isEligibleForReview) return group;
-          return { ...group, reviewedMappingKey: getReviewMappingKey(group) };
-        }),
-      );
-    },
-    [pieceLookup, validPartKeys],
-  );
-
-  const handleSplitFile = useCallback(
-    (clientFileId: string) => {
-      matchController.current?.abort();
-      setMatching(false);
-      const updatedDomainGroups = splitFileToNewTrackImportGroup(domainGroups, clientFileId);
-      if (updatedDomainGroups === domainGroups) return null;
-      const previousFileState = new Map(
-        groups.flatMap((group) =>
-          group.files.map((file) => [file.clientFileId, { file, group }] as const),
-        ),
-      );
-      const sourceGroup = previousFileState.get(clientFileId)?.group;
-      if (!sourceGroup) return null;
-      const previousGroupsById = new Map(groups.map((group) => [group.groupId, group]));
-      const updatedGroups = updatedDomainGroups.map((domainGroup) => {
-        const firstPrevious = domainGroup.files[0]
-          ? previousFileState.get(domainGroup.files[0].clientFileId)
-          : undefined;
-        const previousGroup = firstPrevious?.group ?? sourceGroup;
-        const exactPreviousGroup = previousGroupsById.get(domainGroup.groupId);
-        const nextFileIds = new Set(domainGroup.files.map((file) => file.clientFileId));
-        const matchesPreviousMembership =
-          exactPreviousGroup?.files.length === domainGroup.files.length &&
-          exactPreviousGroup.files.every((file) => nextFileIds.has(file.clientFileId));
-        if (exactPreviousGroup && matchesPreviousMembership) return exactPreviousGroup;
-
-        const match = rankCandidatePiecesForGroup(domainGroup, pieces, performancePieceIds);
-        const nextFiles: GroupFileAssignment[] = domainGroup.files.map((file) => {
-          const previous = previousFileState.get(file.clientFileId)?.file;
-          if (previous) return previous;
-          const original = fileLookup.get(file.clientFileId);
-          return {
-            clientFileId: file.clientFileId,
-            detectedPartKey: file.detectedPartKey,
-            detectedPartLabel: file.detectedPartLabel,
-            durationSeconds: file.durationSeconds,
-            file: original?.file ?? new File([], file.fileName),
-            fileName: file.fileName,
-            metadata: original?.metadata ?? null,
-            partKey: file.detectedPartKey,
-            partProvenance: file.detectedPartKey ? ("deterministic" as const) : undefined,
-          };
-        });
-        const resolved = resolvePracticeTrackAssignments(nextFiles, previousGroup.selectedPieceId);
-        return {
-          averageDurationSeconds: domainGroup.averageDurationSeconds,
-          candidates: match.candidatePieces,
-          evidence:
-            match.candidatePieces.find(
-              (candidate) => candidate.piece.id === previousGroup.selectedPieceId,
-            )?.evidence ?? [],
-          ...resolved,
-          groupId: domainGroup.groupId,
-          inferredTitle: domainGroup.inferredTitle,
-          selectedPieceId: previousGroup.selectedPieceId,
-          sequenceNumber: domainGroup.sequenceNumber,
-          destinationSelectionChanged: true,
-          destinationProvenance: "manual",
-          groupSkipped: previousGroup.groupSkipped,
-          reviewedMappingKey: null,
-        } satisfies GroupReviewItem;
-      });
-      setDomainGroups(updatedDomainGroups);
-      setGroups(updatedGroups);
-      return (
-        updatedGroups.find((group) =>
-          group.files.some((file) => file.clientFileId === clientFileId),
-        )?.groupId ?? null
-      );
-    },
-    [domainGroups, fileLookup, groups, performancePieceIds, pieces],
-  );
 
   const handleUploadComplete = useCallback((result: ImportRunResult, skippedCount: number) => {
     setSummary({
