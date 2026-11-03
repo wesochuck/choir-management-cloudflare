@@ -1,5 +1,6 @@
 import {
   donationCheckoutRequestSchema,
+  donationCheckoutResponseSchema,
   donationSettingsSchema,
   type ProblemDetails,
 } from "@choir/contracts";
@@ -79,11 +80,13 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         checkout.data.tributeNotifyEmail,
       ]);
       return context.json(
-        await createDonationCheckoutSession(
-          context.env,
-          resolved.value.organizationId,
-          new URL(context.req.url).origin,
-          checkout.data,
+        donationCheckoutResponseSchema.parse(
+          await createDonationCheckoutSession(
+            context.env,
+            resolved.value.organizationId,
+            new URL(context.req.url).origin,
+            checkout.data,
+          ),
         ),
         201,
       );
@@ -364,6 +367,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         amountCents: donation.amountCents,
         artworkFileId: donation.artworkFileId,
         artworkFileName: donation.artworkFileName,
+        publicationContext: donation.publicationContext,
         artworkInstructions: donation.artworkInstructions,
         artworkStatus: donation.artworkStatus,
         artworkUploadedAt: donation.artworkUploadedAt,
@@ -519,6 +523,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
           amountCents: updatedDonation.amountCents,
           artworkFileId: updatedDonation.artworkFileId,
           artworkFileName: uploaded.fileName,
+          publicationContext: updatedDonation.publicationContext,
           artworkInstructions: updatedDonation.artworkInstructions,
           artworkStatus: updatedDonation.artworkStatus,
           artworkUploadedAt: updatedDonation.artworkUploadedAt,

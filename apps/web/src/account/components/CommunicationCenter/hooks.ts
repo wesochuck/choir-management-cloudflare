@@ -297,7 +297,7 @@ export function useCommunicationCenterController({
           cursor: string | null;
           limit: number;
           origin?: "manual" | "automated";
-          status?: "draft" | "scheduled" | "queued" | "sent" | "failed";
+          status?: "draft" | "scheduled" | "queued" | "sent" | "failed" | "skipped";
         } = {
           cursor,
           limit: 50,

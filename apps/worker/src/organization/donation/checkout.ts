@@ -1,3 +1,9 @@
+import { cancelCheckoutReminderAfterPayment } from "../checkoutReminderStore";
+import {
+  currentDonationPublication,
+  captureDonationPublication,
+  recordPublicationArtwork,
+} from "../donationPublicationStore";
 import { transactionProcessingFeeCents } from "@choir/domain";
 import type { z } from "zod";
 
@@ -21,7 +27,6 @@ function resolveCheckoutArtwork(
   storage: DurableObjectStorage,
   includesProgramAd: boolean,
   artworkFileIdCandidate: string | null | undefined,
-  now: string,
 ): {
   artworkFileId: string | null;
   artworkStatus: "not_applicable" | "not_received" | "received";
@@ -34,14 +39,18 @@ function resolveCheckoutArtwork(
     return { artworkFileId: null, artworkStatus: "not_received", artworkUploadedAt: null };
   }
   const fileRow = storage.sql
-    .exec<{ readonly id: string }>(
-      "SELECT id FROM private_files WHERE id = ? LIMIT 1",
+    .exec<{ readonly id: string; readonly createdAt: string }>(
+      "SELECT id,created_at AS createdAt FROM private_files WHERE id = ? LIMIT 1",
       artworkFileIdCandidate,
     )
     .toArray()
     .at(0);
   if (fileRow) {
-    return { artworkFileId: fileRow.id, artworkStatus: "received", artworkUploadedAt: now };
+    return {
+      artworkFileId: fileRow.id,
+      artworkStatus: "received",
+      artworkUploadedAt: fileRow.createdAt,
+    };
   }
   return { artworkFileId: null, artworkStatus: "not_received", artworkUploadedAt: null };
 }
@@ -78,6 +87,14 @@ export function createDonationCheckout(
     : 0;
 
   const settings = storedDonationSettings(storage);
+  const publication = currentDonationPublication(storage);
+  if (
+    publication &&
+    (operation.checkout.publicationId !== publication.id ||
+      operation.checkout.publicationRevision !== publication.revision)
+  )
+    return Response.json({ code: "publication_changed" }, { status: 409 });
+
   const selectedLevel =
     operation.checkout.levelId && operation.checkout.levelId !== "custom"
       ? settings.levels.find((level) => level.id === operation.checkout.levelId)
@@ -101,7 +118,6 @@ export function createDonationCheckout(
     storage,
     includesProgramAd,
     operation.checkout.artworkFileId,
-    now,
   );
 
   const patronId = findOrCreatePatron(
@@ -123,10 +139,13 @@ export function createDonationCheckout(
         occurredAt: now,
         source: "donation",
       });
+  const publicationPaidAt = pending ? null : now;
+  const expiresAt = pending
+    ? new Date(new Date(now).getTime() + 30 * 60 * 1_000).toISOString()
+    : null;
+  const capturedPublicationId = publication?.id ?? null;
+  const submittedArtworkAt = artworkUploadedAt ?? now;
   storage.transactionSync(() => {
-    const expiresAt = pending
-      ? new Date(new Date(now).getTime() + 30 * 60 * 1_000).toISOString()
-      : null;
     storage.sql.exec(
       `INSERT INTO donations
         (id, checkout_request_id, status, amount_cents,
@@ -168,6 +187,13 @@ export function createDonationCheckout(
       artworkInstructions,
       artworkUploadedAt,
     );
+    captureDonationPublication(
+      storage,
+      operation.donationId,
+      capturedPublicationId,
+      publicationPaidAt,
+    );
+    recordPublicationArtwork(storage, operation.donationId, artworkFileId, submittedArtworkAt);
     storage.sql.exec(
       `INSERT INTO payment_attempts
         (id, payment_type, resource_id, checkout_request_id, provider_session_id,
@@ -242,6 +268,14 @@ export function createDonationCheckout(
       now,
     );
   });
+  if (!pending)
+    cancelCheckoutReminderAfterPayment(storage, {
+      organizationId: operation.organizationId,
+      kind: "donation",
+      email: operation.checkout.buyerEmail,
+      performanceIds: [],
+      paidAt: now,
+    });
   const created = donationById(storage, operation.donationId);
   return created
     ? Response.json(donationResult(created), { status: 201 })

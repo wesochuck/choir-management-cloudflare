@@ -1,3 +1,4 @@
+import { publicationContext, createPublicationContextReader } from "../donationPublicationStore";
 import { donationPaymentMethodSchema, donationTributeTypeSchema } from "@choir/contracts";
 import { z } from "zod";
 
@@ -40,13 +41,14 @@ function resolveArtworkStatus(row: DonationRow): "not_applicable" | "not_receive
   return row.artworkFileId ? "received" : "not_received";
 }
 
-export function donationResult(row: DonationRow) {
+export function donationResult(row: DonationRow, context = publicationContext(row)) {
   const tributeTypeParsed = donationTributeTypeSchema.safeParse(row.tributeType);
   const tributeType = tributeTypeParsed.success ? tributeTypeParsed.data : "none";
   const paymentMethodParsed = donationPaymentMethodSchema.safeParse(row.paymentMethod);
   const paymentMethod = paymentMethodParsed.success ? paymentMethodParsed.data : "stripe";
   const artworkStatus = resolveArtworkStatus(row);
   return {
+    ...publicationFields(row, context),
     amountCents: row.amountCents,
     anonymous: row.anonymous === 1,
     artworkFileId: row.artworkFileId ?? null,
@@ -132,12 +134,10 @@ export function listDonationsFromStore(
   if (identity(storage)?.organizationId !== organizationId) {
     return Response.json({ code: "organization_not_found" }, { status: 404 });
   }
-  return Response.json({
-    donations: storage.sql
-      .exec<DonationRow>(`${donationSelect} ORDER BY d.created_at DESC, d.id DESC LIMIT 500`)
-      .toArray()
-      .map(donationResult),
-  });
+  const rows = storage.sql
+    .exec<DonationRow>(`${donationSelect} ORDER BY d.created_at DESC, d.id DESC LIMIT 500`)
+    .toArray();
+  return Response.json({ donations: donationResults(rows) });
 }
 
 export function readDonationFromStore(
@@ -174,4 +174,19 @@ export function listPatronsFromStore(
       )
       .toArray(),
   });
+}
+
+function publicationFields(row: DonationRow, context: ReturnType<typeof publicationContext>) {
+  return {
+    publicationContext: context,
+    includedPublicationId: row.includedPublicationId ?? null,
+    includedPublicationName: row.includedPublicationName ?? null,
+    inclusionRevision: row.inclusionRevision ?? 0,
+    includedArtworkFileId: row.includedArtworkFileId ?? null,
+  };
+}
+
+export function donationResults(rows: readonly DonationRow[]) {
+  const read = createPublicationContextReader();
+  return rows.map((row) => donationResult(row, read(row)));
 }

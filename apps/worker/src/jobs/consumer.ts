@@ -1,3 +1,4 @@
+import { deliverCheckoutReminder } from "./deliveries/checkoutReminders";
 import { deliveryJobSchema, type DeliveryJob } from "./contracts";
 import {
   claimResponseSchema,
@@ -30,6 +31,10 @@ import { mutateOrganizationStore } from "../organization/rpc/repository";
 
 // eslint-disable-next-line complexity -- dispatches the bounded delivery-kind union without changing its routing semantics.
 async function dispatchDeliveryJob(env: JobConsumerEnv, job: DeliveryJob): Promise<void> {
+  if (job.kind === "checkout_reminder") {
+    await deliverCheckoutReminder(env, job);
+    return;
+  }
   if (job.kind === "communication_delivery") {
     await deliverCommunicationJob(env, job);
     return;

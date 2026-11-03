@@ -1,3 +1,8 @@
+import {
+  checkoutReminderTemplates,
+  checkoutReminderPlaceholderTags,
+  extractCommunicationPlaceholders,
+} from "@choir/domain";
 import type {
   communicationSendRequestSchema,
   CommunicationRecipientSubject,
@@ -623,6 +628,24 @@ export function updateTemplate(
   operation: z.infer<typeof updateTemplateOperationSchema>,
   now: string,
 ): Response {
+  const reminder = checkoutReminderTemplates.find(
+    (template) => template.id === operation.templateId,
+  );
+  if (reminder) {
+    const allowed = new Set(checkoutReminderPlaceholderTags(reminder.kind));
+    const tags = extractCommunicationPlaceholders(
+      `${operation.template.subject}\n${operation.template.contentMarkdown}`,
+    );
+    if (operation.template.channel !== "Email" || tags.some((tag) => !allowed.has(tag))) {
+      return Response.json(
+        {
+          code: "invalid_reminder_template",
+          message: "Use Email and the supported checkout reminder placeholders.",
+        },
+        { status: 400 },
+      );
+    }
+  }
   const found = storage.sql
     .exec<{ readonly [column: string]: SqlStorageValue; readonly id: string }>(
       "SELECT id FROM communication_templates WHERE id = ? LIMIT 1",

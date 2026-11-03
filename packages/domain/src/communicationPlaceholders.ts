@@ -2,7 +2,7 @@ export type CommunicationAudienceTarget = "Members" | "Contacts" | "Ticket Buyer
 export type CommunicationChannel = "Both" | "Email" | "SMS";
 
 export type CommunicationPlaceholderContext =
-  "standard" | "poll" | "ticket" | "bundle" | "attendance" | "audition";
+  "standard" | "poll" | "ticket" | "bundle" | "attendance" | "audition" | "checkout";
 
 export type CommunicationPlaceholderCategory =
   | "Recipient"
@@ -70,6 +70,16 @@ export interface CommunicationTemplateLike {
 const pollPlaceholderPattern = /\{\{POLL_LINK:[0-9a-f-]{36}\}\}/i;
 
 export const communicationPlaceholderDefinitions: readonly CommunicationPlaceholderDefinition[] = [
+  ...["checkoutSummary", "returnUrl", "donationAmount", "donationLevel"].map(
+    (key): CommunicationPlaceholderDefinition => ({
+      category: "Order",
+      contexts: ["checkout"],
+      channels: ["Email"],
+      description: "Available in incomplete checkout reminder templates.",
+      label: key,
+      tag: `{${key}}`,
+    }),
+  ),
   {
     category: "Recipient",
     contexts: ["standard", "poll", "ticket", "bundle", "attendance", "audition"],
@@ -336,6 +346,17 @@ export function determineCommunicationPlaceholderContext(
   text: string,
 ): CommunicationPlaceholderContext {
   const normalized = text.toLowerCase();
+  if (
+    containsAny(normalized, [
+      "incomplete ticket checkout reminder",
+      "incomplete donation checkout reminder",
+      "{checkoutsummary}",
+      "{returnurl}",
+      "{donationamount}",
+      "{donationlevel}",
+    ])
+  )
+    return "checkout";
 
   if (pollPlaceholderPattern.test(text) || normalized.includes("poll:")) return "poll";
   if (

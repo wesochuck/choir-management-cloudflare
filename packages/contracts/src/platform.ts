@@ -95,6 +95,7 @@ export const platformJobDeadLetterSummarySchema = z.object({
       "attendance_report",
       "audition_notification",
       "communication_delivery",
+      "checkout_reminder",
       "event_reminder",
       "rsvp_follow_up",
       "organization_export",

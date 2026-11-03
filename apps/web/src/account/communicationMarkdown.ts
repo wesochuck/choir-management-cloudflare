@@ -109,6 +109,10 @@ export function communicationPreviewValues(
 
   return {
     ...recipientNameValues,
+    "{checkoutSummary}": "2 tickets for Example Performance",
+    "{returnUrl}": "https://example.invalid/checkout/return",
+    "{donationAmount}": "$50.00",
+    "{donationLevel}": "Supporter",
     "{organizationName}": organizationName,
     "{organizationLogo}": organizationName,
     "{eventTitle}": eventTitle,

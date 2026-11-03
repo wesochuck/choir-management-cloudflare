@@ -1,3 +1,4 @@
+import { PublicationNotice } from "./PublicationNotice";
 import type { PublicSponsorDonationResponse } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
@@ -248,6 +249,7 @@ export function PublicSponsorArtworkView() {
         advertisement artwork for the concert program.
       </p>
 
+      <PublicationNotice context={sponsor.publicationContext} artwork />
       <SponsorDetailsCard isReceived={isReceived} sponsor={sponsor} />
 
       {sponsor.artworkInstructions ? (

@@ -1,3 +1,20 @@
+import { cancelCheckoutReminderAfterPayment } from "../checkoutReminderStore";
+function manualPublication(storage: DurableObjectStorage, id: string | null | undefined) {
+  const publication = currentDonationPublication(storage);
+  const publicationId = id === undefined ? (publication?.id ?? null) : id;
+  if (
+    publicationId &&
+    !storage.sql.exec("SELECT id FROM donation_publications WHERE id=?", publicationId).toArray()
+      .length
+  )
+    return Response.json({ code: "publication_not_found" }, { status: 404 });
+  return { id: publicationId };
+}
+import {
+  currentDonationPublication,
+  captureDonationPublication,
+  recordPublicationArtwork,
+} from "../donationPublicationStore";
 import type { z } from "zod";
 
 import { resolveOrCreateContactForCommerce } from "../commerceContacts";
@@ -10,7 +27,6 @@ function resolveManualArtwork(
   storage: DurableObjectStorage,
   includesProgramAd: boolean,
   artworkFileIdCandidate: string | null | undefined,
-  now: string,
 ): {
   artworkFileId: string | null;
   artworkStatus: "not_applicable" | "not_received" | "received";
@@ -23,14 +39,18 @@ function resolveManualArtwork(
     return { artworkFileId: null, artworkStatus: "not_received", artworkUploadedAt: null };
   }
   const fileRow = storage.sql
-    .exec<{ readonly id: string }>(
-      "SELECT id FROM private_files WHERE id = ? LIMIT 1",
+    .exec<{ readonly id: string; readonly createdAt: string }>(
+      "SELECT id,created_at AS createdAt FROM private_files WHERE id = ? LIMIT 1",
       artworkFileIdCandidate,
     )
     .toArray()
     .at(0);
   if (fileRow) {
-    return { artworkFileId: fileRow.id, artworkStatus: "received", artworkUploadedAt: now };
+    return {
+      artworkFileId: fileRow.id,
+      artworkStatus: "received",
+      artworkUploadedAt: fileRow.createdAt,
+    };
   }
   return { artworkFileId: null, artworkStatus: "not_received", artworkUploadedAt: null };
 }
@@ -57,6 +77,9 @@ export function createManualDonation(
   const buyerEmail = donation.buyerEmail.trim().toLowerCase();
 
   const settings = storedDonationSettings(storage);
+  const selection = manualPublication(storage, donation.publicationId);
+  if (selection instanceof Response) return selection;
+  const publicationId = selection.id;
   const selectedLevel =
     donation.levelId && donation.levelId !== "custom"
       ? settings.levels.find((level) => level.id === donation.levelId)
@@ -74,7 +97,6 @@ export function createManualDonation(
     storage,
     includesProgramAd,
     donation.artworkFileId,
-    now,
   );
 
   // Phase 8: manual donations are recorded paid, so they link a Contact up
@@ -135,6 +157,13 @@ export function createManualDonation(
       artworkInstructions,
       artworkUploadedAt,
     );
+    captureDonationPublication(storage, operation.donationId, publicationId, occurredAt);
+    recordPublicationArtwork(
+      storage,
+      operation.donationId,
+      artworkFileId,
+      artworkUploadedAt ?? now,
+    );
     storage.sql.exec(
       `INSERT INTO audit_events
         (id, actor_type, actor_id, action, target_type, target_id, request_id, change_summary, occurred_at)
@@ -150,6 +179,13 @@ export function createManualDonation(
       }),
       now,
     );
+  });
+  cancelCheckoutReminderAfterPayment(storage, {
+    organizationId: operation.organizationId,
+    kind: "donation",
+    email: donation.buyerEmail,
+    performanceIds: [],
+    paidAt: occurredAt,
   });
   const created = donationById(storage, operation.donationId);
   return created

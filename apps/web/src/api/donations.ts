@@ -1,3 +1,12 @@
+import { z } from "zod";
+import type {
+  donationPublicationMutationSchema,
+  donationInclusionMutationSchema,
+} from "@choir/contracts";
+import {
+  donationPublicationsResponseSchema,
+  donationPublicationReviewResponseSchema,
+} from "@choir/contracts";
 import {
   donationRecordSchema,
   donationRecordsResponseSchema,
@@ -105,4 +114,40 @@ export async function attachDonationArtwork(
     },
   );
   return result.donation;
+}
+
+export async function listDonationPublications(cursor?: string) {
+  return requestJson(
+    "/api/organization/donation-publications" +
+      (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
+    donationPublicationsResponseSchema,
+  );
+}
+export async function saveDonationPublication(
+  mutation: z.infer<typeof donationPublicationMutationSchema>,
+) {
+  return requestJson(
+    "/api/organization/donation-publications",
+    donationPublicationsResponseSchema,
+    { method: "PUT", body: JSON.stringify(mutation) },
+  );
+}
+export async function reviewDonationPublications(parameters: {
+  cursor?: string;
+  publicationId?: string;
+  filter?: string;
+}) {
+  return requestJson(
+    "/api/organization/donation-publication-review?" + new URLSearchParams(parameters).toString(),
+    donationPublicationReviewResponseSchema,
+  );
+}
+export async function setDonationInclusion(
+  mutation: z.infer<typeof donationInclusionMutationSchema>,
+) {
+  return requestJson(
+    "/api/organization/donation-publication-inclusion",
+    z.object({ success: z.boolean() }),
+    { method: "POST", body: JSON.stringify(mutation) },
+  );
 }

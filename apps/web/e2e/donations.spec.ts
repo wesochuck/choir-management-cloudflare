@@ -1,3 +1,4 @@
+import { donationPublicationMutationSchema } from "@choir/contracts";
 import { expect, test } from "@playwright/test";
 import { publicDonationProjection } from "./support/donationFixtures";
 import { mockHealth } from "./support/testWorld";
@@ -998,4 +999,100 @@ test.describe("public donation checkout", () => {
     const secondTop = mobileTops[1] ?? 0;
     expect(Math.abs(firstTop - secondTop)).toBeLessThanOrEqual(2);
   });
+});
+
+test("reviews late gifts for a later publication and configures the next publication", async ({
+  page,
+}) => {
+  let publicationState = {
+    id: "11111111-1111-4111-8111-111111111111",
+    name: "Holiday",
+    recognitionDate: null,
+    artworkDate: null,
+    timezone: "America/New_York",
+    revision: 1,
+  };
+  let resolved = false;
+  const saved: unknown[] = [];
+  await page.route("**/api/organization/donation-publications*", async (route) => {
+    if (route.request().method() === "PUT") {
+      const value: unknown = route.request().postDataJSON();
+      saved.push(value);
+      const parsed = donationPublicationMutationSchema.parse(value);
+      publicationState = {
+        ...publicationState,
+        id: parsed.id,
+        name: parsed.name,
+        revision: parsed.expectedRevision + 1,
+      };
+    }
+    await route.fulfill({
+      json: { publications: [publicationState], current: publicationState, nextCursor: null },
+    });
+  });
+  await page.route("**/api/organization/donation-publication-review*", (route) =>
+    route.fulfill({
+      json: {
+        donations: resolved
+          ? []
+          : [
+              {
+                ...listedDonations[0],
+                includedPublicationId: null,
+                inclusionRevision: 0,
+                publicationContext: {
+                  publication: publicationState,
+                  paidAt: "2024-01-02T12:00:00Z",
+                  recognitionStatus: "after_cutoff",
+                  artworkStatus: "pending",
+                },
+              },
+            ],
+        nextCursor: null,
+      },
+    }),
+  );
+  await page.route("**/api/organization/donation-publication-inclusion", async (route) => {
+    resolved = true;
+    await route.fulfill({ json: { success: true } });
+  });
+  await page.goto("/admin/donations");
+  const review = page.getByRole("region", { name: "Publication review", exact: true });
+  await expect(
+    review
+      .getByText("After name cutoff — review for inclusion", { exact: true })
+      .filter({ visible: true }),
+  ).toBeVisible();
+  await review
+    .getByRole("combobox", { name: "Include in publication" })
+    .selectOption(publicationState.id);
+  await review.getByRole("button", { name: "Mark included", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Record publication inclusion?" })
+    .getByRole("button", { name: "Mark included", exact: true })
+    .click();
+  await expect(review.getByText("No matching gifts on this page.")).toBeVisible();
+  await page.getByRole("tab", { name: "Page settings", exact: true }).click();
+  const settings = page.getByRole("region", { name: "Publication recognition settings" });
+  await expect(settings.getByRole("textbox", { name: "Publication name" })).toHaveValue("Holiday");
+  await settings.getByRole("button", { name: "Start next publication", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Start next publication?" })
+    .getByRole("button", { name: "Start next publication", exact: true })
+    .click();
+  await settings.getByRole("textbox", { name: "Publication name" }).fill("Spring");
+  await settings.getByRole("button", { name: "Save publication", exact: true }).click();
+  await expect
+    .poll(() => saved)
+    .toEqual([
+      expect.objectContaining({
+        name: "Spring",
+        recognitionDate: null,
+        artworkDate: null,
+        expectedRevision: 0,
+      }),
+    ]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
 });

@@ -122,6 +122,7 @@ function parseSearchStatus(rawStatus: string | null, tab: string | null): Messag
   if (rawStatus === "scheduled" || rawStatus === "upcoming") return "scheduled";
   if (rawStatus === "queued") return "queued";
   if (rawStatus === "sent") return "sent";
+  if (rawStatus === "skipped") return "skipped";
   if (rawStatus === "failed") return "failed";
   if (!rawStatus) {
     if (tab === "drafts") return "draft";
@@ -327,6 +328,8 @@ export function scheduledMessageKindLabel(kind: CommunicationScheduledMessage["k
       return "RSVP Follow-up";
     case "ticket_confirmation":
       return "Ticket Confirmation";
+    case "checkout_reminder":
+      return "Incomplete checkout reminder";
     case "ticket_reminder":
       return "Ticket Reminder";
     case "ticket_refund":
@@ -354,6 +357,8 @@ export function scheduledMessageActionLink(
     case "audition_reminder":
       return { href: "/admin/auditions", label: "View auditions" };
 
+    case "checkout_reminder":
+      return { href: "/admin/settings?tab=payments", label: "View reminder settings" };
     case "ticket_confirmation":
     case "ticket_reminder":
     case "ticket_refund":

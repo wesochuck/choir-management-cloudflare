@@ -1,3 +1,9 @@
+import {
+  scheduleCheckoutReminderJobs,
+  expireUncertainCheckoutReminderClaims,
+  invalidateCheckoutReminderGenerations,
+} from "./checkoutReminderDeliveryStore";
+import { cleanupCheckoutReminders } from "./checkoutReminderStore";
 import type { DeliveryJob } from "../jobs/contracts";
 import { recordDatabaseCost } from "../observability/databaseCost";
 import { areAuditionDatesPassed, POLL_ARCHIVE_DELAY_DAYS } from "@choir/domain";
@@ -859,9 +865,15 @@ async function scheduleNextAlarm(
     )
     .toArray()
     .at(0);
+  const nextReminder = storage.sql
+    .exec<{ dueAt: string }>(
+      "SELECT due_at AS dueAt FROM checkout_reminders WHERE state = 'scheduled' ORDER BY due_at,id LIMIT 1",
+    )
+    .toArray()[0];
   const nextDueAt = Math.min(
     new Date(scheduler.nextDueAt).getTime(),
     nextJob ? new Date(nextJob.dueAt).getTime() : Infinity,
+    nextReminder ? Date.parse(nextReminder.dueAt) : Infinity,
   );
   const scheduledTime = pendingBatchWasFull
     ? now.getTime() + 1_000
@@ -1298,12 +1310,16 @@ export async function runOrganizationAlarm(
   }
   scheduler = openEvaluation.scheduler;
 
+  const reminderBatchFull =
+    scheduler.circuitState === "closed"
+      ? processCheckoutReminderWork(storage, organizationId, now)
+      : false;
   triggerDueSchedulerTasks(storage, organizationId, scheduler, now, options.force === true);
 
   const pendingJobs = readPendingJobs(storage, now);
   if (pendingJobs.length === 0) {
     const status = settleQuietScheduler(storage, organizationId, scheduler, now);
-    await scheduleNextAlarm(storage, now, false);
+    await scheduleNextAlarm(storage, now, reminderBatchFull);
     return {
       circuitBreaker: status,
       enqueuedJobCount: 0,
@@ -1337,11 +1353,23 @@ export async function runOrganizationAlarm(
     now,
   );
   if (result.status.state === "closed") {
-    await scheduleNextAlarm(storage, now, result.isFullBatch);
+    await scheduleNextAlarm(storage, now, result.isFullBatch || reminderBatchFull);
   }
   return {
     circuitBreaker: result.status,
     enqueuedJobCount: pendingJobs.length,
     organizationId,
   };
+}
+
+function processCheckoutReminderWork(
+  storage: DurableObjectStorage,
+  organizationId: string,
+  now: Date,
+): boolean {
+  const invalidated = invalidateCheckoutReminderGenerations(storage, organizationId, now);
+  const scheduled = scheduleCheckoutReminderJobs(storage, organizationId, now);
+  const cleaned = cleanupCheckoutReminders(storage, now.toISOString());
+  const uncertain = expireUncertainCheckoutReminderClaims(storage, now);
+  return invalidated === 100 || scheduled === 100 || cleaned.hasMore || uncertain === 100;
 }

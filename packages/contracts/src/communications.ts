@@ -439,6 +439,8 @@ export const communicationDeliverySummarySchema = z.object({
 });
 
 export const communicationScheduledMessageSchema = z.object({
+  recipientEmail: z.email().optional(),
+  skipReason: z.string().max(500).nullable().optional(),
   eventId: z.uuid().nullable(),
   eventTitle: z.string().max(500),
   id: z.union([
@@ -460,11 +462,12 @@ export const communicationScheduledMessageSchema = z.object({
     "audition_reminder",
     "ticket_confirmation",
     "ticket_reminder",
+    "checkout_reminder",
     "ticket_refund",
   ]),
   recipientCount: z.number().int().nonnegative(),
   scheduledAt: z.iso.datetime(),
-  status: z.enum(["Failed", "Queued", "Scheduled", "Sent"]),
+  status: z.enum(["Failed", "Queued", "Scheduled", "Sent", "Skipped"]),
   subject: z.string().max(500),
 });
 
@@ -538,6 +541,7 @@ export const communicationHistoryItemSchema = z.discriminatedUnion("kind", [
 ]);
 
 export const communicationHistoryStatusFilterSchema = z.enum([
+  "skipped",
   "all",
   "draft",
   "scheduled",

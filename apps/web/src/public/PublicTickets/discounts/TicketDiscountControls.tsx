@@ -36,7 +36,7 @@ export function TicketDiscountControls({ state }: { readonly state: TicketDiscou
     );
   }
 
-  const showEntry = isExpanded || Boolean(state.quoteError);
+  const showEntry = isExpanded || Boolean(state.quoteError) || Boolean(state.codeInput);
 
   return (
     <div className="ticket-discount-controls">

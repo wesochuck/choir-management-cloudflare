@@ -25,18 +25,20 @@ export interface TicketDiscountState {
 }
 
 export function useTicketDiscountQuote({
+  initialCode = "",
   feeSettings,
   quantity,
   target,
   unitPriceCents,
 }: {
+  readonly initialCode?: string;
   readonly feeSettings: TransactionFeeSettings;
   readonly quantity: number;
   readonly target: TicketDiscountTarget;
   readonly unitPriceCents: number;
 }): TicketDiscountState {
   const [hasRedeemableCode, setHasRedeemableCode] = useState(false);
-  const [codeInput, setCodeInput] = useState("");
+  const [codeInput, setCodeInput] = useState(initialCode);
   const [appliedCode, setAppliedCode] = useState<string | null>(null);
   const [quote, setQuote] = useState<TicketCheckoutQuote | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
@@ -127,7 +129,7 @@ export function useTicketDiscountQuote({
     },
     codeInput,
     displayQuote: quote ?? localQuote,
-    hasRedeemableCode,
+    hasRedeemableCode: hasRedeemableCode || Boolean(initialCode),
     quoteBusy: Boolean(appliedCode && quote?.quantity !== quantity),
     quoteError,
     setCodeInput,

@@ -1,3 +1,4 @@
+import { currentDonationPublication } from "./donationPublicationStore";
 import type { DurableObjectStorage } from "@cloudflare/workers-types";
 import { donationSettingsSchema, type DonationSettings } from "@choir/contracts";
 
@@ -35,12 +36,13 @@ export function storedDonationSettings(storage: DurableObjectStorage): DonationS
       .at(0)?.settings;
     if (raw) {
       const parsed = donationSettingsSchema.safeParse(JSON.parse(raw));
-      if (parsed.success) return parsed.data;
+      if (parsed.success)
+        return { ...parsed.data, publication: currentDonationPublication(storage) };
     }
   } catch {
     // Keep existing Organizations usable if the setting predates this feature.
   }
-  return defaultDonationSettings;
+  return { ...defaultDonationSettings, publication: currentDonationPublication(storage) };
 }
 
 export function readDonationSettingsFromStore(

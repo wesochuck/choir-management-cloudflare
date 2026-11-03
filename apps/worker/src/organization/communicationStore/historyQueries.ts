@@ -64,7 +64,7 @@ function parseHistoryCursor(cursor: string | null): HistoryCursor | null {
   const id = parts[2];
   if (!sortTimestamp || !rankStr || !id) return null;
   const sourceRank = Number(rankStr);
-  if (!Number.isInteger(sourceRank) || sourceRank < 0 || sourceRank > 4) return null;
+  if (!Number.isInteger(sourceRank) || sourceRank < 0 || sourceRank > 5) return null;
   if (id.length > 128) return null;
   if (isNaN(Date.parse(sortTimestamp))) return null;
   return { id, sortTimestamp, sourceRank };
@@ -99,6 +99,7 @@ const STATUS_FILTER_MAP: Readonly<Record<string, string>> = {
   queued: "Queued",
   scheduled: "Scheduled",
   sent: "Sent",
+  skipped: "Skipped",
 };
 
 function buildHistoryWhere(
@@ -173,7 +174,9 @@ function mapHistoryRow(row: HistoryRow, timezone: string) {
       sortTimestamp,
     };
   }
+  const reminderDetails = reminderHistoryDetails(row);
   const scheduledMessage = communicationScheduledMessageSchema.parse({
+    ...reminderDetails,
     projected: row.id.startsWith("planned:"),
     timezone,
     eventId: row.eventId,
@@ -223,7 +226,17 @@ export function listCommunicationHistoryFromStore(
   bindings.unshift(JSON.stringify(projected), now.toISOString(), now.toISOString());
 
   const sql = `
-    WITH combined AS (
+    WITH reminder_history AS (
+      SELECT 'automated' AS kind,5 AS source_rank,r.id,r.due_at AS sort_timestamp,
+        CASE r.state WHEN 'sent' THEN 'Sent' WHEN 'skipped' THEN 'Skipped' WHEN 'failed' THEN 'Failed'
+          WHEN 'scheduled' THEN 'Scheduled' ELSE 'Queued' END AS status,
+        'Incomplete checkout reminder' AS subject,'Email' AS channel,
+        NULL AS createdAt,NULL AS updatedAt,NULL AS sentAt,NULL AS canceledAt,NULL AS reachJson,NULL AS audienceJson,
+        json_object('email',p.email,'skipReason',r.skip_reason) AS contentMarkdown,
+        NULL AS eventId,CASE r.kind WHEN 'ticket' THEN 'Ticket checkout' ELSE 'Donation checkout' END AS eventTitle,
+        'checkout_reminder' AS autoKind,1 AS recipientCount
+      FROM checkout_reminders r JOIN checkout_reminder_recipients p ON p.id = r.recipient_id
+    ), existing_history AS (
       SELECT 'automated' AS kind, 4 AS source_rank,
         json_extract(value, '$.id') AS id,
         json_extract(value, '$.scheduledAt') AS sort_timestamp,
@@ -373,6 +386,8 @@ export function listCommunicationHistoryFromStore(
       LEFT JOIN job_ledger l ON l.job_id = o.job_id
       JOIN events e ON (o.idempotency_key LIKE ('%:' || e.id) OR o.idempotency_key LIKE ('%:' || e.id || ':%'))
       WHERE o.kind IN ('event_reminder', 'rsvp_follow_up', 'attendance_report')
+    ), combined AS (
+      SELECT * FROM reminder_history UNION ALL SELECT * FROM existing_history
     )
     SELECT
       kind,
@@ -414,4 +429,17 @@ export function listCommunicationHistoryFromStore(
     items,
     nextCursor,
   });
+}
+
+function reminderHistoryDetails(row: HistoryRow) {
+  const reminderDetails =
+    row.autoKind === "checkout_reminder" && row.contentMarkdown
+      ? (JSON.parse(row.contentMarkdown) as unknown)
+      : null;
+  const details = reminderDetails && typeof reminderDetails === "object" ? reminderDetails : {};
+  const reminderEmail =
+    "email" in details && typeof details.email === "string" ? details.email : undefined;
+  const skipReason =
+    "skipReason" in details && typeof details.skipReason === "string" ? details.skipReason : null;
+  return reminderEmail ? { recipientEmail: reminderEmail, skipReason } : {};
 }

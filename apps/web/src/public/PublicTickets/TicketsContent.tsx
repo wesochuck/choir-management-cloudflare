@@ -1,3 +1,4 @@
+import type { CheckoutRecoveryChoices } from "@choir/contracts";
 import { publicPageHeading } from "../publicPageLabels";
 import { ticketSalesPath } from "@choir/domain";
 import type { PublishedOrganizationProjection, TransactionFeeSettings } from "@choir/contracts";
@@ -10,11 +11,13 @@ import { TicketReceipt } from "./receipt/TicketReceipt";
 import { money, publicDate, publicTime } from "./shared";
 
 export function TicketsContent({
+  recovery,
   feeSettings,
   pathname,
   projection,
   nowMs,
 }: {
+  readonly recovery?: CheckoutRecoveryChoices | undefined;
   readonly feeSettings: TransactionFeeSettings;
   readonly pathname: string;
   readonly projection: PublishedOrganizationProjection;
@@ -29,7 +32,12 @@ export function TicketsContent({
       (candidate) => candidate.id === bundleId || candidate.ticketSlug === bundleId,
     );
     return bundle && new Date(bundle.saleEndAt).getTime() > nowMs ? (
-      <TicketBundlePurchaseForm bundle={bundle} feeSettings={feeSettings} projection={projection} />
+      <TicketBundlePurchaseForm
+        recovery={recovery}
+        bundle={bundle}
+        feeSettings={feeSettings}
+        projection={projection}
+      />
     ) : (
       <p className="notice notice--error">This ticket bundle is no longer available.</p>
     );
@@ -41,6 +49,7 @@ export function TicketsContent({
     );
     return event?.isTicketingEnabled && new Date(event.startsAt).getTime() > nowMs ? (
       <TicketPurchaseForm
+        recovery={recovery}
         event={event}
         feeSettings={feeSettings}
         nowMs={nowMs}

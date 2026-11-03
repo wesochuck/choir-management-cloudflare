@@ -316,6 +316,11 @@ export async function createPublicTicketCheckout(
           stripeStatus.data.accountId,
           pendingPurchase.providerSessionId,
         );
+        await organizationStoreStub(env, organizationId).capturePaymentResourceReminder({
+          organizationId,
+          kind: "ticket",
+          resourceId: pendingPurchase.id,
+        });
         return {
           checkoutMode,
           purchase: publicTicketPurchaseSchema.parse(pendingPurchase),
@@ -396,6 +401,11 @@ export async function createPublicTicketCheckout(
         "Stripe checkout could not be attached.",
       );
     }
+    await organizationStoreStub(env, organizationId).capturePaymentResourceReminder({
+      organizationId,
+      kind: "ticket",
+      resourceId: pendingPurchase.id,
+    });
     const purchase = organizationTicketOrderSchema.parse(await attachedResponse.json());
     return {
       checkoutMode,

@@ -1,3 +1,4 @@
+import type { CheckoutRecoveryChoices } from "@choir/contracts";
 import type { PublishedOrganizationProjection } from "@choir/contracts";
 import { useEffect, useState } from "react";
 import {
@@ -73,9 +74,18 @@ function combineProjections(
   };
 }
 
-export function PublicTickets({ pathname }: { readonly pathname: string }) {
+export function PublicTickets({
+  pathname,
+  recovery,
+  embedded = false,
+}: {
+  readonly pathname: string;
+  readonly recovery?: CheckoutRecoveryChoices | undefined;
+  readonly embedded?: boolean;
+}) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
   const [nowMs] = useState(() => Date.now());
+  const recovering = recovery !== undefined;
   useEffect(() => {
     const controller = new AbortController();
     void Promise.all([
@@ -87,6 +97,8 @@ export function PublicTickets({ pathname }: { readonly pathname: string }) {
         .catch(() => null),
     ])
       .then(async ([published, commerce]) => {
+        if (recovering && !commerce)
+          throw new Error("Current ticket availability could not be loaded.");
         const projection = combineProjections(published, commerce);
         const feeSettings = await getPublicTransactionFeeSettings(controller.signal).catch(
           () => DEFAULT_TRANSACTION_FEE_SETTINGS,
@@ -99,7 +111,7 @@ export function PublicTickets({ pathname }: { readonly pathname: string }) {
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [recovering]);
 
   useEffect(() => {
     if (state.status !== "ready") return;
@@ -111,21 +123,23 @@ export function PublicTickets({ pathname }: { readonly pathname: string }) {
       document.title = previousTitle;
     };
   }, [state]);
+  const Container = embedded ? "section" : "main";
   if (state.status === "loading")
     return (
-      <main className="auth-layout">
+      <Container className="auth-layout">
         <p className="notice notice--info">Loading tickets…</p>
-      </main>
+      </Container>
     );
   if (state.status === "error")
     return (
-      <main className="auth-layout">
+      <Container className="auth-layout">
         <p className="notice notice--error">Tickets are unavailable.</p>
-      </main>
+      </Container>
     );
   const settings = state.projection.payload.settings;
   const content = (
     <TicketsContent
+      recovery={recovery}
       feeSettings={state.feeSettings}
       nowMs={nowMs}
       pathname={pathname}
@@ -133,6 +147,7 @@ export function PublicTickets({ pathname }: { readonly pathname: string }) {
     />
   );
 
+  if (embedded) return content;
   return settings.showBrandingHeaderFooter ? (
     <OrganizationLayout pathname={pathname} projection={state.projection}>
       {content}

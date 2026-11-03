@@ -23,7 +23,8 @@ export type CommunicationSection = "messages" | "templates" | "settings";
 
 export type MessageWorkspaceMode = "list" | "compose";
 
-export type MessageStatusFilter = "all" | "draft" | "scheduled" | "queued" | "sent" | "failed";
+export type MessageStatusFilter =
+  "all" | "draft" | "scheduled" | "queued" | "sent" | "failed" | "skipped";
 
 export type MessageOriginFilter = "all" | "manual" | "automated";
 
@@ -49,7 +50,7 @@ export type UnifiedCommunicationItem =
       readonly kind: "scheduled";
       readonly recipientCount: number | null;
       readonly scheduledMessage: CommunicationScheduledMessage;
-      readonly status: "Failed" | "Queued" | "Scheduled" | "Sent";
+      readonly status: "Failed" | "Queued" | "Scheduled" | "Sent" | "Skipped";
       readonly timestamp: string;
       readonly title: string;
     };

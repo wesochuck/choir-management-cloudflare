@@ -1,4 +1,9 @@
 import {
+  donationPublicationMutationSchema,
+  donationInclusionMutationSchema,
+} from "@choir/contracts";
+import { organizationStoreStub } from "../organization/rpc/client";
+import {
   donationAttachArtworkRequestSchema,
   donationThankYouUpdateRequestSchema,
   manualDonationCreateRequestSchema,
@@ -22,6 +27,107 @@ import type { WorkerHonoEnvironment } from "./helpers";
 import { authorizeCalendarRoute } from "./helpers";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
+  router.get("/api/organization/donation-publications", async (context) => {
+    const auth = await authorizeCalendarRoute(context, true);
+    if (!auth.ok)
+      return context.json({ ...auth, requestId: context.get("requestId") }, auth.status);
+    const cursor = z.uuid().optional().safeParse(context.req.query("cursor"));
+    if (!cursor.success)
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Invalid publication request.",
+          requestId: context.get("requestId"),
+        },
+        400,
+      );
+    return publicationResponse(
+      organizationStoreStub(context.env, auth.organizationId).listDonationPublications({
+        organizationId: auth.organizationId,
+        before: cursor.data,
+      }),
+      context.get("requestId"),
+    );
+  });
+  router.put("/api/organization/donation-publications", async (context) => {
+    const auth = await authorizeCalendarRoute(context, true);
+    if (!auth.ok)
+      return context.json({ ...auth, requestId: context.get("requestId") }, auth.status);
+    const parsed = donationPublicationMutationSchema.safeParse(
+      await context.req.json().catch(() => null),
+    );
+    if (!parsed.success)
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Invalid publication request.",
+          requestId: context.get("requestId"),
+        },
+        400,
+      );
+    return publicationResponse(
+      organizationStoreStub(context.env, auth.organizationId).saveDonationPublication({
+        organizationId: auth.organizationId,
+        actorUserId: auth.userId,
+        mutation: parsed.data,
+      }),
+      context.get("requestId"),
+    );
+  });
+  router.get("/api/organization/donation-publication-review", async (context) => {
+    const auth = await authorizeCalendarRoute(context, true);
+    if (!auth.ok)
+      return context.json({ ...auth, requestId: context.get("requestId") }, auth.status);
+    const parsed = z
+      .object({
+        cursor: z.uuid().optional(),
+        publicationId: z.uuid().optional(),
+        filter: z.enum(["all", "review", "late_gift", "late_artwork"]).optional(),
+      })
+      .safeParse(context.req.query());
+    if (!parsed.success)
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Invalid publication request.",
+          requestId: context.get("requestId"),
+        },
+        400,
+      );
+    return publicationResponse(
+      organizationStoreStub(context.env, auth.organizationId).reviewDonationPublications({
+        organizationId: auth.organizationId,
+        ...parsed.data,
+      }),
+      context.get("requestId"),
+    );
+  });
+  router.post("/api/organization/donation-publication-inclusion", async (context) => {
+    const auth = await authorizeCalendarRoute(context, true);
+    if (!auth.ok)
+      return context.json({ ...auth, requestId: context.get("requestId") }, auth.status);
+    const parsed = donationInclusionMutationSchema.safeParse(
+      await context.req.json().catch(() => null),
+    );
+    if (!parsed.success)
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Invalid publication request.",
+          requestId: context.get("requestId"),
+        },
+        400,
+      );
+    return publicationResponse(
+      organizationStoreStub(context.env, auth.organizationId).setDonationInclusion({
+        organizationId: auth.organizationId,
+        actorUserId: auth.userId,
+        mutation: parsed.data,
+      }),
+      context.get("requestId"),
+    );
+  });
+
   router.get("/api/organization/donations", async (context) => {
     const authorization = await authorizeCalendarRoute(context, true);
     if (!authorization.ok) {
@@ -271,4 +377,28 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       );
     }
   });
+}
+
+async function publicationResponse(pending: Promise<Response>, requestId: string) {
+  const response = await pending;
+  if (response.ok) return response;
+  const parsed = z.object({ code: z.string() }).safeParse(await response.json());
+  const code = parsed.success ? parsed.data.code : "publication_operation_failed";
+  const messages: Readonly<Record<string, string>> = {
+    publication_revision_conflict:
+      "Publication details changed. Refresh the saved publication before retrying; your draft has been kept.",
+    inclusion_revision_conflict:
+      "This inclusion decision changed. Refresh the review list before trying again.",
+    paid_donation_required: "Only paid donations can be marked as included in a publication.",
+    publication_not_found: "The selected publication could not be found.",
+    organization_not_found: "The Organization could not be found.",
+  };
+  return Response.json(
+    {
+      code,
+      message: messages[code] ?? "The publication operation could not be completed.",
+      requestId,
+    },
+    { status: response.status },
+  );
 }

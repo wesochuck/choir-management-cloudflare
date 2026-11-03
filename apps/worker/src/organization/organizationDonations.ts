@@ -203,6 +203,11 @@ export async function createDonationCheckoutSession(
           stripeStatus.data.accountId,
           pendingDonation.providerSessionId,
         );
+        await organizationStoreStub(env, organizationId).capturePaymentResourceReminder({
+          organizationId,
+          kind: "donation",
+          resourceId: pendingDonation.id,
+        });
         return {
           checkoutMode,
           donation: donationRecordSchema.parse(pendingDonation),
@@ -289,6 +294,11 @@ export async function createDonationCheckoutSession(
         "Stripe checkout could not be attached.",
       );
     }
+    await organizationStoreStub(env, organizationId).capturePaymentResourceReminder({
+      organizationId,
+      kind: "donation",
+      resourceId: pendingDonation.id,
+    });
     return {
       checkoutMode,
       donation: donationRecordSchema.parse(await attachedResponse.json()),

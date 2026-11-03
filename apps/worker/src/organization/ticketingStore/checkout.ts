@@ -1,3 +1,4 @@
+import { cancelCheckoutReminderAfterPayment } from "../checkoutReminderStore";
 import { ticketCheckoutQuoteSchema } from "@choir/contracts";
 import {
   isSupportedPaidCheckoutAmount,
@@ -560,6 +561,14 @@ export function createFakeCheckout(
     }
     throw error;
   }
+  if (!pending)
+    cancelCheckoutReminderAfterPayment(storage, {
+      organizationId: organization.organizationId,
+      kind: "ticket",
+      email: operation.checkout.buyerEmail,
+      performanceIds: resolution.events.map((event) => event.id),
+      paidAt: occurredAt,
+    });
   const created = purchaseByRequest(storage, operation.checkout.checkoutRequestId);
   return created
     ? Response.json(enrichPurchaseWithCurrentVenue(storage, purchaseResult(created)), {

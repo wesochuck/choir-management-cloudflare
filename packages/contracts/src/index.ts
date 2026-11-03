@@ -31,3 +31,4 @@ export * from "./publicDocuments";
 
 export * from "./publicWebsitePages";
 export * from "./notifications";
+export * from "./checkoutReminders";

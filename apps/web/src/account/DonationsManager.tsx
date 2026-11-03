@@ -1,10 +1,13 @@
+import { listDonationPublications } from "../api/donations";
+import { PublicationSettings } from "./components/DonationsManager/PublicationSettings";
+import { PublicationReview } from "./components/DonationsManager/PublicationReview";
 import type {
   DonationRecord,
   DonationSettings,
   ManualDonationCreateRequest,
 } from "@choir/contracts";
 import { Tabs, TabsContent, TabsList, TabsTrigger, useConfirmation } from "@choir/ui";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import {
@@ -99,6 +102,11 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
     settings,
   });
 
+  const publicationQuery = useQuery({
+    enabled: enabled && manualModalOpen,
+    queryKey: queryKeys.organization.donationPublications(),
+    queryFn: () => listDonationPublications(),
+  });
   const donorSuggestions = useDonorSuggestions(manualModalOpen, patrons);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -233,6 +241,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           id="donation-history-panel"
           value="history"
         >
+          <PublicationReview />
           <DonationHistoryTab
             busy={busy}
             donationState={donationState}
@@ -280,6 +289,7 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
           id="donation-page-settings-panel"
           value="pageSettings"
         >
+          <PublicationSettings />
           <DonationPageSettingsTab
             busy={busy}
             portalButtonText={portalButtonText}
@@ -323,6 +333,9 @@ export function DonationsManager({ enabled }: { readonly enabled: boolean }) {
         onSave={handleSaveManualDonation}
         open={manualModalOpen}
         suggestions={donorSuggestions}
+        timezone={timezone}
+        publications={publicationQuery.data?.publications ?? []}
+        currentPublicationId={publicationQuery.data?.current?.id}
       />
 
       {confirmationDialog}

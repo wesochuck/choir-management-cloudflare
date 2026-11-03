@@ -1,3 +1,4 @@
+import { cancelCheckoutReminderAfterPayment } from "../checkoutReminderStore";
 import type { z } from "zod";
 
 import type {
@@ -262,6 +263,24 @@ export function completeStripeTicketPurchase(
       );
     }
   });
+  if (shouldFulfill || row.status === "paid") {
+    const performanceIds = row.bundleId
+      ? storage.sql
+          .exec<{ eventId: string }>(
+            "SELECT event_id AS eventId FROM ticket_bundle_allocations WHERE purchase_id = ?",
+            row.id,
+          )
+          .toArray()
+          .map((allocation) => allocation.eventId)
+      : [row.eventId];
+    cancelCheckoutReminderAfterPayment(storage, {
+      organizationId: operation.organizationId,
+      kind: "ticket",
+      email: row.buyerEmail,
+      performanceIds,
+      paidAt: operation.paidAt ?? occurredAt,
+    });
+  }
   const updated = storage.sql
     .exec<TicketPurchaseRow>(`${purchaseSelect} WHERE id = ? LIMIT 1`, row.id)
     .toArray()

@@ -17,6 +17,10 @@ export const queryKeys = {
     }) => ["organization", "contacts", "list", filters] as const,
     directory: ["organization", "directory"] as const,
     donationSettings: ["organization", "donation-settings"] as const,
+    donationPublications: (cursor?: string) =>
+      ["organization", "donation-settings", "publications", cursor] as const,
+    donationPublicationReview: (publicationId: string, filter: string, cursor?: string) =>
+      ["organization", "donations", "publication-review", publicationId, filter, cursor] as const,
     donations: ["organization", "donations"] as const,
     events: ["organization", "events"] as const,
     modules: ["organization", "modules"] as const,

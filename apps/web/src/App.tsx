@@ -53,6 +53,12 @@ import { PublicPrivacyPolicyView } from "./public/PublicPrivacyPolicyView";
 import { PublicTermsView } from "./public/PublicTermsView";
 import { SetupView } from "./setup/SetupView";
 
+const PublicCheckoutReminderView = lazyWithRetry(() =>
+  import("./public/PublicCheckoutReminderView").then((m) => ({
+    default: m.PublicCheckoutReminderView,
+  })),
+);
+
 const PublicPlayerView = lazyWithRetry(() =>
   import("./public/PublicPlayerView").then((m) => ({ default: m.PublicPlayerView })),
 );
@@ -404,6 +410,8 @@ function isStandalonePublicRoute(pathname: string): boolean {
     pathname === "/rsvp" ||
     pathname === "/poll" ||
     pathname === "/unsubscribe" ||
+    pathname === "/checkout/return" ||
+    pathname === "/checkout/reminders/stop" ||
     pathname === "/player" ||
     pathname === "/forgot-password" ||
     pathname === "/reset-password" ||
@@ -419,6 +427,13 @@ function publicUtilityRoute(
 ) {
   const recovery = passwordRecoveryRoute(pathname, resetLocation);
   if (recovery) return recovery;
+  if (pathname === "/checkout/return" || pathname === "/checkout/reminders/stop") {
+    return (
+      <Suspense fallback={<p role="status">Loading checkout…</p>}>
+        <PublicCheckoutReminderView stop={pathname.endsWith("/stop")} />
+      </Suspense>
+    );
+  }
   if (pathname === "/unsubscribe") {
     return (
       <PublicUnsubscribeView token={new URLSearchParams(window.location.search).get("token")} />

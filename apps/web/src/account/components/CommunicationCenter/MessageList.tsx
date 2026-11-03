@@ -289,6 +289,7 @@ function MessageCard({
               </>
             ) : null}
             <QueuedByMetadata item={item} />
+            <CheckoutReminderMetadata item={item} />
             {item.kind === "scheduled" &&
             item.scheduledMessage.projected &&
             item.scheduledMessage.kind === "ticket_reminder" ? (
@@ -380,5 +381,18 @@ export function MessageList({
         />
       ))}
     </div>
+  );
+}
+
+function CheckoutReminderMetadata({ item }: { readonly item: UnifiedCommunicationItem }) {
+  return (
+    <>
+      {item.automated && item.scheduledMessage.recipientEmail ? (
+        <span>{item.scheduledMessage.recipientEmail}</span>
+      ) : null}
+      {item.automated && item.scheduledMessage.skipReason ? (
+        <span>{item.scheduledMessage.skipReason.replaceAll("_", " ")}</span>
+      ) : null}
+    </>
   );
 }

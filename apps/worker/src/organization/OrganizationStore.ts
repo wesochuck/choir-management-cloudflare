@@ -1,4 +1,23 @@
 import {
+  claimCheckoutReminder,
+  confirmCheckoutReminderSend,
+  checkoutReminderDestination,
+  recordCheckoutReminderResult,
+} from "./checkoutReminderDeliveryStore";
+import {
+  readCheckoutReminderSettings,
+  setCheckoutReminderSettings,
+  capturePaymentResourceReminder,
+  stopCheckoutReminders,
+  readCheckoutRecoveryChoices,
+} from "./checkoutReminderStore";
+import {
+  listDonationPublications,
+  saveDonationPublication,
+  setDonationInclusion,
+  reviewDonationPublications,
+} from "./donationPublicationStore";
+import {
   managePublicWebsiteOperationInStore,
   readPublicWebsiteSettingsFromStore,
   type publicWebsiteOperationSchema,
@@ -307,6 +326,53 @@ export class OrganizationStore extends DurableObject {
     readonly providerPaymentId: string;
   }) {
     return readPaymentFeeReconciliationStatus(this.ctx.storage, input);
+  }
+
+  checkoutReminderDestination(input: Parameters<typeof checkoutReminderDestination>[1]) {
+    return checkoutReminderDestination(this.ctx.storage, input);
+  }
+  confirmCheckoutReminderSend(input: Parameters<typeof confirmCheckoutReminderSend>[1]) {
+    return confirmCheckoutReminderSend(this.ctx.storage, input);
+  }
+  claimCheckoutReminder(input: Parameters<typeof claimCheckoutReminder>[1]) {
+    return claimCheckoutReminder(this.ctx.storage, input);
+  }
+  recordCheckoutReminderResult(input: Parameters<typeof recordCheckoutReminderResult>[1]) {
+    recordCheckoutReminderResult(this.ctx.storage, input);
+  }
+  readCheckoutReminderSettings(input: { organizationId: string }) {
+    return readCheckoutReminderSettings(this.ctx.storage, input.organizationId);
+  }
+  async setCheckoutReminderSettings(input: Parameters<typeof setCheckoutReminderSettings>[1]) {
+    const result = setCheckoutReminderSettings(this.ctx.storage, input);
+    await wakeOrganizationAlarm(this.ctx.storage);
+    return result;
+  }
+  async capturePaymentResourceReminder(
+    input: Parameters<typeof capturePaymentResourceReminder>[1],
+  ) {
+    const result = capturePaymentResourceReminder(this.ctx.storage, input);
+    if (result.captured) await wakeOrganizationAlarm(this.ctx.storage);
+    return result;
+  }
+  stopCheckoutReminders(input: Parameters<typeof stopCheckoutReminders>[1]) {
+    return stopCheckoutReminders(this.ctx.storage, input);
+  }
+  readCheckoutRecoveryChoices(input: Parameters<typeof readCheckoutRecoveryChoices>[1]) {
+    return readCheckoutRecoveryChoices(this.ctx.storage, input);
+  }
+
+  listDonationPublications(input: Parameters<typeof listDonationPublications>[1]) {
+    return listDonationPublications(this.ctx.storage, input);
+  }
+  saveDonationPublication(input: Parameters<typeof saveDonationPublication>[1]) {
+    return saveDonationPublication(this.ctx.storage, input);
+  }
+  setDonationInclusion(input: Parameters<typeof setDonationInclusion>[1]) {
+    return setDonationInclusion(this.ctx.storage, input);
+  }
+  reviewDonationPublications(input: Parameters<typeof reviewDonationPublications>[1]) {
+    return reviewDonationPublications(this.ctx.storage, input);
   }
 
   // Phase 2 marketing contacts: strongly typed Durable Object RPC methods.

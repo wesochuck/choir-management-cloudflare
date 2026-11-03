@@ -146,7 +146,10 @@ router.use("*", async (context, next) => {
   );
   setSecurityHeaders(
     context.res.headers,
-    responsePath === "/api/calendar/feed" || responsePath === "/api/public/unsubscribe"
+    responsePath === "/api/calendar/feed" ||
+      responsePath === "/api/public/unsubscribe" ||
+      responsePath.startsWith("/api/public/checkout-reminders/") ||
+      responsePath.startsWith("/checkout/")
       ? "no-referrer"
       : "strict-origin-when-cross-origin",
   );

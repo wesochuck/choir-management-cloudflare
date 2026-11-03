@@ -43,6 +43,7 @@ export const refundOperationSchema = organizationContextSchema.extend({
 });
 
 const stripeTicketOperationSchema = organizationContextSchema.extend({
+  paidAt: z.iso.datetime().optional(),
   checkoutRequestId: z.uuid().optional(),
   providerPaymentId: z.string().trim().max(256),
   providerSessionId: z.string().trim().min(1).max(256),

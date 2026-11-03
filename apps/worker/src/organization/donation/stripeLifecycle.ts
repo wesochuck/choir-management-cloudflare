@@ -1,3 +1,5 @@
+import { cancelCheckoutReminderAfterPayment } from "../checkoutReminderStore";
+import { publicationContext } from "../donationPublicationStore";
 import type { z } from "zod";
 
 import { insertPaymentNotificationRecord } from "../paymentNotificationStore";
@@ -49,6 +51,7 @@ export function insertDonationConfirmation(
       totalCharged: `$${((donation.amountCents + donation.feeCents) / 100).toFixed(2)}`,
     },
   );
+  const publicationSummary = donationPublicationSummary(storage, donation);
   const paymentSummary = message.hasCanonicalReceiptBody
     ? [
         "",
@@ -84,7 +87,7 @@ export function insertDonationConfirmation(
   const result = insertPaymentNotificationRecord(
     storage,
     {
-      contentMarkdown: message.contentMarkdown + paymentSummary + adSummary,
+      contentMarkdown: message.contentMarkdown + paymentSummary + adSummary + publicationSummary,
       dedupeKey,
       destination: donation.buyerEmail,
       paymentType: "donation",
@@ -209,6 +212,12 @@ export function completeStripeDonation(
     : row.contactId;
 
   storage.transactionSync(() => {
+    if (operation.paidAt)
+      storage.sql.exec(
+        "UPDATE donation_publication_facts SET paid_at=COALESCE(paid_at,?) WHERE donation_id=?",
+        operation.paidAt,
+        row.id,
+      );
     if (shouldFulfill) {
       storage.sql.exec(
         `UPDATE donations
@@ -253,6 +262,8 @@ export function completeStripeDonation(
       occurredAt,
     );
   });
+
+  cancelDonationReminder(storage, operation, row, occurredAt, shouldFulfill);
 
   if (!shouldFulfill && row.status === "paid") {
     const existingNotification = storage.sql
@@ -389,4 +400,68 @@ export function refundStripeDonation(
     );
   });
   return Response.json({ refunded });
+}
+
+function donationPublicationSummary(storage: DurableObjectStorage, donation: DonationRow) {
+  const publicationRow = donationById(storage, donation.id);
+  const context = publicationRow ? publicationContext(publicationRow) : null;
+  const publicationSummary = context
+    ? [
+        "",
+        "",
+        "**Publication recognition**",
+        "",
+        context.publication.name,
+        ...(context.publication.recognitionDate
+          ? [
+              "Name-recognition cutoff: " +
+                context.publication.recognitionDate +
+                " (" +
+                context.publication.timezone +
+                ").",
+            ]
+          : []),
+        ...(donation.anonymous === 1
+          ? ["Your name will remain private."]
+          : context.recognitionStatus === "after_cutoff"
+            ? [
+                "The name-recognition cutoff has passed. Inclusion in " +
+                  context.publication.name +
+                  " is no longer guaranteed.",
+              ]
+            : []),
+        ...(donation.includesProgramAd === 1 && context.publication.artworkDate
+          ? [
+              "Artwork deadline: " +
+                context.publication.artworkDate +
+                " (" +
+                context.publication.timezone +
+                ").",
+              "You can still submit artwork. Inclusion in " +
+                context.publication.name +
+                " is no longer guaranteed after this deadline.",
+            ]
+          : []),
+      ].join("\n")
+    : "";
+
+  return publicationSummary;
+}
+
+function cancelDonationReminder(
+  storage: DurableObjectStorage,
+  operation: z.infer<typeof stripeDonationCompletedOperationSchema>,
+  row: DonationRow,
+  occurredAt: string,
+  fulfilled: boolean,
+) {
+  if (fulfilled || row.status === "paid") {
+    cancelCheckoutReminderAfterPayment(storage, {
+      organizationId: operation.organizationId,
+      kind: "donation",
+      email: row.buyerEmail,
+      performanceIds: [],
+      paidAt: operation.paidAt ?? occurredAt,
+    });
+  }
 }

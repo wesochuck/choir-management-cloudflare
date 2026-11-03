@@ -56,6 +56,7 @@ export const stripeDonationOperationSchema = organizationContextSchema.extend({
 });
 export const stripeDonationCompletedOperationSchema = stripeDonationOperationSchema.extend({
   action: z.literal("stripe_donation_completed"),
+  paidAt: z.iso.datetime().optional(),
 });
 export const stripeDonationExpiredOperationSchema = stripeDonationOperationSchema.extend({
   action: z.literal("stripe_donation_expired"),
@@ -94,6 +95,14 @@ export interface IdentityRow {
 }
 
 export interface DonationRow {
+  readonly publicationJson?: string | null;
+  readonly publicationRevisionsJson?: string | null;
+  readonly publicationCapturedRevision?: number;
+  readonly publicationPaidAt?: string | null;
+  readonly includedPublicationId?: string | null;
+  readonly includedPublicationName?: string | null;
+  readonly inclusionRevision?: number;
+  readonly includedArtworkFileId?: string | null;
   readonly [column: string]: SqlStorageValue;
   readonly amountCents: number;
   readonly anonymous: number;
@@ -144,6 +153,14 @@ export interface PatronRow {
 }
 
 export const donationSelect = `SELECT d.id,
+  (SELECT json_object('id',p.id,'name',p.name,'recognitionDate',p.recognition_date,'artworkDate',p.artwork_date,'timezone',p.timezone,'revision',p.revision) FROM donation_publication_facts f JOIN donation_publications p ON p.id=f.publication_id WHERE f.donation_id=d.id) AS publicationJson,
+  (SELECT json_group_array(json_object('effectiveAt',r.effective_at,'recognitionDate',r.recognition_date,'artworkDate',r.artwork_date,'timezone',r.timezone)) FROM (SELECT r.* FROM donation_publication_revisions r WHERE r.publication_id=(SELECT f.publication_id FROM donation_publication_facts f WHERE f.donation_id=d.id) ORDER BY r.revision LIMIT 500) r) AS publicationRevisionsJson,
+  (SELECT paid_at FROM donation_publication_facts WHERE donation_id=d.id) AS publicationPaidAt,
+  (SELECT captured_revision FROM donation_publication_facts WHERE donation_id=d.id) AS publicationCapturedRevision,
+  (SELECT publication_id FROM donation_publication_inclusions WHERE donation_id=d.id) AS includedPublicationId,
+  (SELECT p.name FROM donation_publication_inclusions i JOIN donation_publications p ON p.id=i.publication_id WHERE i.donation_id=d.id) AS includedPublicationName,
+  (SELECT revision FROM donation_publication_inclusions WHERE donation_id=d.id) AS inclusionRevision,
+  (SELECT artwork_file_id FROM donation_publication_inclusions WHERE donation_id=d.id) AS includedArtworkFileId,
   CASE WHEN de.donation_id IS NOT NULL AND d.status = 'pending' THEN 'expired' ELSE d.status END AS status,
   de.expired_at AS expiredAt, d.amount_cents AS amountCents,
   d.fee_cents AS feeCents,

@@ -1,3 +1,4 @@
+import { checkoutReminderTemplates } from "@choir/domain";
 import { ticketMessageTemplates } from "../ticketMessageTemplates";
 import { paymentMessageTemplates } from "../paymentMessageTemplates";
 
@@ -193,6 +194,7 @@ const systemCommunicationTemplateDefaults: readonly SystemCommunicationTemplateD
   ...playerSystemCommunicationTemplates,
   ...auditionSystemCommunicationTemplates,
   ...paymentMessageTemplates,
+  ...checkoutReminderTemplates,
   ...ticketMessageTemplates,
 ];
 
@@ -314,4 +316,19 @@ export function refreshUnmodifiedBundleTicketCommunicationTemplates(sql: SqlStor
     previousBundleTicketConfirmationTemplate.subject,
     previousBundleTicketConfirmationTemplate.contentMarkdown,
   );
+}
+
+export function seedCheckoutReminderTemplates(sql: SqlStorage): void {
+  const now = new Date().toISOString();
+  for (const template of checkoutReminderTemplates) {
+    sql.exec(
+      `INSERT OR IGNORE INTO communication_templates(id,title,channel,subject,content_markdown,is_system,created_at,updated_at) VALUES(?,?,'Email',?,?,1,?,?)`,
+      template.id,
+      template.title,
+      template.subject,
+      template.contentMarkdown,
+      now,
+      now,
+    );
+  }
 }

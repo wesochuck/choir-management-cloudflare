@@ -1,3 +1,5 @@
+import { checkoutRecoveryFormDefaults, checkoutRecoveryTotalChanged } from "@choir/domain";
+import type { CheckoutRecoveryChoices } from "@choir/contracts";
 import { PublicCopy } from "../../PublicCopy";
 import { NumberInput } from "@choir/ui";
 import type { PublishedOrganizationProjection, TransactionFeeSettings } from "@choir/contracts";
@@ -16,21 +18,24 @@ import { TicketBundleSuggestions } from "./TicketBundleSuggestions";
 import { TicketCheckoutFooter } from "./TicketCheckoutFooter";
 
 export function TicketPurchaseForm({
+  recovery,
   event,
   feeSettings,
   nowMs,
   projection,
 }: {
+  readonly recovery?: CheckoutRecoveryChoices | undefined;
   readonly event: PublishedOrganizationProjection["payload"]["performances"][number];
   readonly feeSettings: TransactionFeeSettings;
   readonly nowMs: number;
   readonly projection: PublishedOrganizationProjection;
 }) {
+  const restored = checkoutRecoveryFormDefaults(recovery);
   const [buyerName, setBuyerName] = useState("");
-  const [buyerEmail, setBuyerEmail] = useState("");
+  const [buyerEmail, setBuyerEmail] = useState(restored.email);
   const [checkoutRequestId, setCheckoutRequestId] = useState(() => crypto.randomUUID());
-  const [confirmEmail, setConfirmEmail] = useState("");
-  const [quantity, setQuantity] = useState(1);
+  const [confirmEmail, setConfirmEmail] = useState(restored.email);
+  const [quantity, setQuantity] = useState(restored.quantity);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +47,7 @@ export function TicketPurchaseForm({
     timezone: projection.payload.timezone,
   });
   const discount = useTicketDiscountQuote({
+    initialCode: restored.discountCode,
     feeSettings,
     quantity,
     target: { eventId: event.id },
@@ -132,6 +138,12 @@ export function TicketPurchaseForm({
         eventId={event.id}
         nowMs={nowMs}
       />
+      {checkoutRecoveryTotalChanged(recovery, displayedQuote.totalCents) ? (
+        <p className="notice notice--info" role="status">
+          Your checkout total has changed. Review current prices, fees, and discounts below before
+          continuing.
+        </p>
+      ) : null}
       <form className="panel form-stack" onSubmit={(formEvent) => void submit(formEvent)}>
         {error ? (
           <p className="notice notice--error" id="single-ticket-order-error" role="alert">

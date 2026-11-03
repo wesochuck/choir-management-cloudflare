@@ -231,6 +231,30 @@ closed without payment; and `refunded` means a verified provider refund was appl
 return page is informational and never changes lifecycle state. _Avoid_: Client-confirmed payment,
 success URL
 
+## Donation Recognition Publication
+
+The named publication currently accepting donor recognition and program-ad submissions. An
+Organization configures one Donation Recognition Publication at a time, with overall recognition and
+artwork dates shared across donation levels. _Avoid_: Per-level publication
+
+## Publication Recognition Cutoff
+
+The overall date after which a donation's name recognition in a publication is no longer guaranteed.
+It is shared across donation levels and does not close donations. _Avoid_: Donation deadline,
+per-level cutoff
+
+## Publication Artwork Deadline
+
+The overall date after which submitted program-ad artwork is no longer guaranteed inclusion in a
+publication. Artwork remains acceptable after this date; receiving it does not promise placement.
+_Avoid_: Upload expiration, donation deadline
+
+## Publication Inclusion
+
+A staff-recorded decision that a donation was included in a named publication, which may differ from
+its original Donation Recognition Publication. It resolves outstanding review while preserving the
+original donation and deadline facts. _Avoid_: Donation reassignment, thank-you status
+
 ## Manual Donation
 
 A donation recorded directly by an Organization Administrator (for offline payment methods such as
@@ -716,6 +740,13 @@ clear visual separation on seating charts and grid layouts.
 A shelf at the bottom of the seating chart containing active singers who have not yet been assigned
 to a seat. It dynamically groups unassigned singers into columns/lanes matching the active formation
 (either Section Buckets or Parts), displaying only the categories that are present in the formation.
+
+## Incomplete Checkout Reminder
+
+An automatic email inviting someone to finish a ticket purchase or donation whose payment was not
+completed. A recipient's opt-out covers both ticket and donation checkout reminders from that
+Organization without changing receipts, confirmations, or newsletter preferences. _Avoid_: Payment
+overdue notice, donation receipt, Automated Reminder
 
 ## Automated Reminder
 

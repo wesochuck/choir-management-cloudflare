@@ -1,3 +1,4 @@
+import { recordPublicationArtwork } from "../donationPublicationStore";
 import { canSetDonationThankYouStatus } from "@choir/domain";
 import type { z } from "zod";
 
@@ -31,6 +32,7 @@ export function attachDonationArtwork(
   const previousFileId = donation.artworkFileId;
   const isReplacement = Boolean(previousFileId);
   storage.transactionSync(() => {
+    recordPublicationArtwork(storage, donation.id, fileRow.id, now);
     storage.sql.exec(
       "UPDATE donations SET artwork_file_id = ?, artwork_status = 'received', artwork_uploaded_at = ?, updated_at = ? WHERE id = ?",
       operation.fileId,

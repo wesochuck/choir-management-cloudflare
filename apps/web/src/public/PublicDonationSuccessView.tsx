@@ -1,3 +1,4 @@
+import { PublicationNotice } from "./PublicationNotice";
 import type { DonationRecord, PublicDonationReceiptResponse } from "@choir/contracts";
 import { useEffect, useState } from "react";
 
@@ -451,6 +452,11 @@ export function PublicDonationSuccessView() {
         thankYouMessage={thankYouMessage}
       />
 
+      <PublicationNotice
+        context={donation.publicationContext}
+        artwork={donation.includesProgramAd}
+        anonymous={donation.anonymous}
+      />
       <div className="public-donation-receipt__details-grid">
         <DonationSummary donation={donation} />
         <DonationDetails donation={donation} />

@@ -19,6 +19,7 @@ export const emailProviderStatusSchema = z.enum([
 export const emailProviderSourceKindSchema = z.enum([
   "communication_delivery",
   "compliance_reminder",
+  "checkout_reminder",
   "ticket_notification",
   "audition_notification",
   "payment_notification",

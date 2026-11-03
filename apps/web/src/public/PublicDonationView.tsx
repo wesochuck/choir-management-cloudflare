@@ -1,3 +1,6 @@
+import type { CheckoutRecoveryChoices } from "@choir/contracts";
+import { AuthApiError } from "../api/client";
+import { PublicationNotice } from "./PublicationNotice";
 import type {
   DonationSettings,
   DonationTributeInput,
@@ -51,15 +54,21 @@ const TRIBUTE_OPTIONS: readonly {
 ];
 
 // eslint-disable-next-line complexity -- PublicDonationView coordinates donation levels, custom amount, tribute options, fees, and checkout.
-export function PublicDonationView({ heading }: { readonly heading?: string | undefined }) {
+export function PublicDonationView({
+  heading,
+  recovery,
+}: {
+  readonly heading?: string | undefined;
+  readonly recovery?: CheckoutRecoveryChoices | undefined;
+}) {
   const [settings, setSettings] = useState<DonationSettings>(DEFAULT_SETTINGS);
   const [transactionFeeSettings, setTransactionFeeSettings] = useState<TransactionFeeSettings>(
     DEFAULT_TRANSACTION_FEE_SETTINGS,
   );
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [buyerName, setBuyerName] = useState("");
-  const [buyerEmail, setBuyerEmail] = useState("");
-  const [confirmEmail, setConfirmEmail] = useState("");
+  const [buyerEmail, setBuyerEmail] = useState(recovery?.email ?? "");
+  const [confirmEmail, setConfirmEmail] = useState(recovery?.email ?? "");
   const [selectedLevelId, setSelectedLevelId] = useState("level-1");
   const [amountCents, setAmountCents] = useState(DEFAULT_SETTINGS.levels[0]?.amountCents ?? 2_500);
   const [customAmount, setCustomAmount] = useState("");
@@ -92,6 +101,21 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
         const levels = [...loaded.levels].sort((a, b) => a.amountCents - b.amountCents);
         setSettings({ ...loaded, levels });
         setTransactionFeeSettings(feeSettings);
+        const restoredLevel = recovery?.levelId
+          ? levels.find((level) => level.id === recovery.levelId)
+          : null;
+        if (recovery) {
+          if (restoredLevel) {
+            setSelectedLevelId(restoredLevel.id);
+            setAmountCents(restoredLevel.amountCents);
+          } else {
+            setSelectedLevelId("custom");
+            setUseCustom(true);
+            setAmountCents(recovery.amountCents ?? 0);
+            setCustomAmount(((recovery.amountCents ?? 0) / 100).toFixed(2));
+          }
+          return;
+        }
         const first = levels[0];
         if (first) {
           setSelectedLevelId(first.id);
@@ -112,12 +136,20 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
     return () => {
       controller.abort();
     };
-  }, []);
+  }, [recovery]);
 
   const selectedLevel = !useCustom
     ? settings.levels.find((level) => level.id === selectedLevelId)
     : undefined;
   const isAdLevel = Boolean(selectedLevel?.includesProgramAd);
+  const recoveryChanged =
+    recovery &&
+    !settingsLoading &&
+    (recovery.levelId
+      ? !settings.levels.some(
+          (level) => level.id === recovery.levelId && level.amountCents === recovery.amountCents,
+        )
+      : false);
 
   function selectLevel(levelId: string, cents: number): void {
     setSelectedLevelId(levelId);
@@ -196,6 +228,7 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
     setError(null);
     try {
       const result = await checkoutPublicDonation({
+        ...checkoutPublication(settings),
         amountCents,
         anonymous,
         artworkFileId: isAdLevel ? (uploadedArtwork?.fileId ?? null) : null,
@@ -214,7 +247,8 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
       if (shouldStartNewDonationCheckoutAttempt(failure)) {
         setCheckoutRequestId(crypto.randomUUID());
       }
-      setError(failure instanceof Error ? failure.message : "The donation could not be completed.");
+      await refreshPublicationAfterError(failure, setSettings);
+      setError(donationFailureMessage(failure));
       setBusy(false);
     }
   }
@@ -223,10 +257,21 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
     <section className="public-section public-donation-section">
       <h1>{heading ?? settings.buttonText}</h1>
       <PublicCopy text={settings.description} />
+      <PublicationNotice
+        publication={settings.publication}
+        artwork={isAdLevel}
+        anonymous={anonymous}
+      />
       {settingsLoading ? <p className="notice notice--info">Loading donation options…</p> : null}
       {loadError ? (
         <p className="notice notice--error" role="alert">
           {loadError}
+        </p>
+      ) : null}
+      {recoveryChanged ? (
+        <p className="notice notice--info" role="status">
+          Donation options have changed since your earlier checkout. Review the current amount,
+          benefits, and publication terms before continuing.
         </p>
       ) : null}
       <form className="panel public-donation-form" onSubmit={(formEvent) => void submit(formEvent)}>
@@ -520,6 +565,11 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
           <aside aria-label="Donation summary" className="public-donation-summary">
             <div className="public-donation-summary-card">
               <h3>Donation summary</h3>
+              <PublicationNotice
+                publication={settings.publication}
+                artwork={isAdLevel}
+                anonymous={anonymous}
+              />
               <div className="public-donation-summary-rows">
                 <div className="public-donation-summary-row">
                   <span>Donation</span>
@@ -558,4 +608,25 @@ export function PublicDonationView({ heading }: { readonly heading?: string | un
       </form>
     </section>
   );
+}
+
+async function refreshPublicationAfterError(
+  failure: unknown,
+  update: (settings: DonationSettings) => void,
+) {
+  if (!(failure instanceof AuthApiError) || failure.code !== "publication_changed") return;
+  const updated = await getPublicDonationSettings().catch(() => null);
+  if (updated) update(updated);
+}
+function donationFailureMessage(failure: unknown) {
+  if (failure instanceof AuthApiError && failure.code === "publication_changed")
+    return "Publication details changed. Review the updated deadlines and complete your donation again.";
+  return failure instanceof Error ? failure.message : "The donation could not be completed.";
+}
+
+function checkoutPublication(settings: DonationSettings) {
+  return {
+    publicationId: settings.publication?.id ?? null,
+    publicationRevision: settings.publication?.revision ?? null,
+  };
 }

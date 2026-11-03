@@ -1,3 +1,4 @@
+import { registerRoutes as registerCheckoutReminderRoutes } from "../publicCheckoutReminders";
 import type { Hono } from "hono";
 import type { WorkerHonoEnvironment } from "../helpers";
 
@@ -15,6 +16,7 @@ import { registerRoutes as registerPublicDocumentsRoutes } from "../publicDocume
 
 export function registerPublicGroupRoutes(router: Hono<WorkerHonoEnvironment>): void {
   registerPublicCoreRoutes(router);
+  registerCheckoutReminderRoutes(router);
   registerPlatformHomeRoutes(router);
   // Local-only full-stack E2E seam. The module answers 404 unless
   // APP_ENV === "local", so staging and production are unaffected.

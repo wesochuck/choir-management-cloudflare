@@ -1,3 +1,4 @@
+import { seedCheckoutReminderTemplates } from "./templates";
 import { ensureTicketSlug } from "../ticketSlugs";
 import {
   calculateRsvpDeadline,
@@ -2435,6 +2436,46 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
         sql.exec("UPDATE organization_metadata SET audition_cutover_completed_at = ?", now);
       }
     },
+  },
+  {
+    version: 133,
+    statements: [
+      `CREATE TABLE donation_publications (id TEXT PRIMARY KEY, name TEXT NOT NULL, current INTEGER NOT NULL DEFAULT 0, timezone TEXT NOT NULL, revision INTEGER NOT NULL, recognition_date TEXT, artwork_date TEXT)`,
+      `CREATE UNIQUE INDEX donation_publication_current ON donation_publications(current) WHERE current = 1`,
+      `CREATE TABLE donation_publication_revisions (publication_id TEXT NOT NULL REFERENCES donation_publications(id), revision INTEGER NOT NULL, effective_at TEXT NOT NULL, recognition_date TEXT, artwork_date TEXT, timezone TEXT NOT NULL, PRIMARY KEY(publication_id, revision))`,
+      `CREATE TABLE donation_publication_facts (donation_id TEXT PRIMARY KEY REFERENCES donations(id), publication_id TEXT NOT NULL REFERENCES donation_publications(id), paid_at TEXT, captured_revision INTEGER NOT NULL)`,
+      `CREATE INDEX donation_publication_facts_publication ON donation_publication_facts(publication_id, donation_id)`,
+      `CREATE TABLE donation_artwork_submissions (donation_id TEXT NOT NULL REFERENCES donations(id), file_id TEXT NOT NULL, received_at TEXT NOT NULL, PRIMARY KEY(donation_id, file_id))`,
+      `CREATE TABLE donation_publication_inclusions (donation_id TEXT PRIMARY KEY REFERENCES donations(id), publication_id TEXT REFERENCES donation_publications(id), revision INTEGER NOT NULL, artwork_file_id TEXT, recorded_at TEXT NOT NULL, actor_id TEXT NOT NULL)`,
+    ],
+  },
+  {
+    version: 134,
+    apply: seedCheckoutReminderTemplates,
+    statements: [
+      `CREATE TABLE checkout_reminder_settings (id INTEGER PRIMARY KEY CHECK(id = 1), enabled INTEGER NOT NULL DEFAULT 1, enabled_since TEXT NOT NULL, generation INTEGER NOT NULL DEFAULT 0)`,
+      `INSERT INTO checkout_reminder_settings(id, enabled_since) VALUES(1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`,
+      `CREATE TABLE checkout_reminder_recipients (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, opted_out INTEGER NOT NULL DEFAULT 0, newest_attempt_id TEXT, newest_started_at TEXT, last_sent_at TEXT, claim_id TEXT)`,
+      `CREATE TABLE checkout_reminders (id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL UNIQUE, recipient_id TEXT NOT NULL REFERENCES checkout_reminder_recipients(id), kind TEXT NOT NULL CHECK(kind IN ('ticket','donation')), resource_id TEXT NOT NULL, choices_json TEXT NOT NULL, started_at TEXT NOT NULL, due_at TEXT NOT NULL, generation INTEGER NOT NULL, state TEXT NOT NULL DEFAULT 'scheduled', skip_reason TEXT, sent_at TEXT, terminal_at TEXT, cleanup_at TEXT, nonce TEXT NOT NULL, link_issued_at TEXT, link_expires_at TEXT, provider_message_id TEXT)`,
+      `CREATE INDEX checkout_reminder_due ON checkout_reminders(due_at,id) WHERE state = 'scheduled'`,
+      `CREATE INDEX checkout_reminder_cleanup ON checkout_reminders(cleanup_at,id) WHERE cleanup_at IS NOT NULL`,
+      `CREATE INDEX checkout_reminder_history ON checkout_reminders(started_at DESC,id DESC)`,
+      `CREATE INDEX checkout_reminder_recipient ON checkout_reminders(recipient_id,state)`,
+      `CREATE TABLE checkout_reminder_performances (reminder_id TEXT NOT NULL REFERENCES checkout_reminders(id) ON DELETE CASCADE, performance_id TEXT NOT NULL, PRIMARY KEY(reminder_id,performance_id))`,
+    ],
+  },
+  {
+    version: 135,
+    statements: [
+      `CREATE INDEX IF NOT EXISTS checkout_reminder_generation ON checkout_reminders(generation,id) WHERE state IN ('scheduled','queued')`,
+      `CREATE INDEX IF NOT EXISTS checkout_reminder_inflight ON checkout_reminders(link_issued_at,id) WHERE state = 'sending'`,
+    ],
+  },
+  {
+    version: 136,
+    statements: [
+      "ALTER TABLE checkout_reminder_recipients ADD COLUMN newest_attempt_order INTEGER NOT NULL DEFAULT 0",
+    ],
   },
 ] as const;
 

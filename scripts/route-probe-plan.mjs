@@ -10,11 +10,17 @@ import { discoverWorkerRoutes } from "./check-routes.mjs";
  * - skip-elevation: needs Platform Administrator elevation or interactive context
  */
 export const probePlan = new Map([
+  ["GET /api/organization/checkout-reminder-settings", { expected: 200, kind: "read-auth" }],
+  ["PUT /api/organization/checkout-reminder-settings", { expected: 400, kind: "validation" }],
+  ["GET /api/public/checkout-reminders/recovery", { expected: 404, kind: "fail-closed" }],
+  ["POST /api/public/checkout-reminders/stop", { expected: 404, kind: "fail-closed" }],
   // Authenticated reads (session cookie on the canonical Organization hosts)
   ["GET /api/setup/health", { expected: 200, kind: "read-auth" }],
   ["GET /api/organization/audition-settings", { expected: 200, kind: "read-auth" }],
   ["GET /api/organization/auditions", { expected: 200, kind: "read-auth" }],
   ["GET /api/organization/donations", { expected: 200, kind: "read-auth" }],
+  ["GET /api/organization/donation-publications", { expected: 200, kind: "read-auth" }],
+  ["GET /api/organization/donation-publication-review", { expected: 200, kind: "read-auth" }],
   ["GET /api/organization/dues", { expected: 200, kind: "read-auth" }],
   ["GET /api/organization/patrons", { expected: 200, kind: "read-auth" }],
   ["GET /api/organization/polls", { expected: 200, kind: "read-auth" }],
@@ -69,6 +75,8 @@ export const probePlan = new Map([
   ["POST /api/account/email-change/confirm", { expected: 400, kind: "validation" }],
   ["POST /api/organization/donations/manual", { expected: 400, kind: "validation" }],
   ["POST /api/organization/donations/thank-you", { expected: 400, kind: "validation" }],
+  ["PUT /api/organization/donation-publications", { expected: 400, kind: "validation" }],
+  ["POST /api/organization/donation-publication-inclusion", { expected: 400, kind: "validation" }],
   ["POST /api/organization/profile-reconciliations/preview", { expected: 400, kind: "validation" }],
   ["POST /api/organization/profile-reconciliations", { expected: 400, kind: "validation" }],
 

@@ -59,3 +59,23 @@ Ticket scan envelopes use `expiresAt: 0` for newly issued credentials. Only the 
 purpose ignores time expiry, including older signed ticket codes whose stored nonce still matches.
 Receipt reads reuse the existing credential without rotating it. Paid status, included-event checks,
 Organization binding, signature verification, and nonce matching remain required (ADR 0067).
+
+## Incomplete checkout recovery and reminder opt-out
+
+`checkout_recovery` is bound to the Organization, opaque reminder resource, persisted nonce, and
+bounded expiry. It exposes only email and allowed purchase choices; it grants no account, receipt,
+ticket, or payment authorization. Completion and supersession revoke access. Its seven-day lifetime
+is shortened by applicable ticket-sales closure. The holder must review current terms and explicitly
+start a fresh checkout; GET never creates a provider session or reserves inventory.
+
+`checkout_reminder_unsubscribe` is separately bound to the Organization and an opaque recipient
+subject, with a one-year bounded credential. An explicit idempotent POST stops both ticket and
+donation reminders for that email within the Organization, without changing campaign preferences or
+receipts. GET does not change a preference. The stored opt-out has no automatic expiry and survives
+reminder-history cleanup independently of token expiry.
+
+Both flows resolve the hostname before token verification, enforce purpose-separated signatures and
+size limits through the existing verifier, return private projections with no-store/no-referrer, and
+preserve usable tokens across reload and mobile restoration. Private URLs never appear in staff
+history or generic previews. A forwarded recovery link can reveal its prefilled email; email prefill
+is not proof of identity. Existing provider safety suppressions remain authoritative.

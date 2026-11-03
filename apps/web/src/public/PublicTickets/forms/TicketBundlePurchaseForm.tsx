@@ -1,3 +1,5 @@
+import { checkoutRecoveryFormDefaults, checkoutRecoveryTotalChanged } from "@choir/domain";
+import type { CheckoutRecoveryChoices } from "@choir/contracts";
 import { NumberInput } from "@choir/ui";
 import type { PublishedOrganizationProjection, TransactionFeeSettings } from "@choir/contracts";
 import { isSupportedPaidCheckoutAmount } from "@choir/domain";
@@ -14,23 +16,27 @@ import { money, publicDate, publicTime } from "../shared";
 import { TicketCheckoutFooter } from "./TicketCheckoutFooter";
 
 export function TicketBundlePurchaseForm({
+  recovery,
   bundle,
   feeSettings,
   projection,
 }: {
+  readonly recovery?: CheckoutRecoveryChoices | undefined;
   readonly bundle: PublishedOrganizationProjection["payload"]["ticketBundles"][number];
   readonly feeSettings: TransactionFeeSettings;
   readonly projection: PublishedOrganizationProjection;
 }) {
+  const restored = checkoutRecoveryFormDefaults(recovery);
   const [buyerName, setBuyerName] = useState("");
-  const [buyerEmail, setBuyerEmail] = useState("");
-  const [confirmEmail, setConfirmEmail] = useState("");
-  const [quantity, setQuantity] = useState(1);
+  const [buyerEmail, setBuyerEmail] = useState(restored.email);
+  const [confirmEmail, setConfirmEmail] = useState(restored.email);
+  const [quantity, setQuantity] = useState(restored.quantity);
   const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [checkoutRequestId, setCheckoutRequestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const discount = useTicketDiscountQuote({
+    initialCode: restored.discountCode,
     feeSettings,
     quantity,
     target: { bundleId: bundle.id },
@@ -134,6 +140,12 @@ export function TicketBundlePurchaseForm({
           );
         })}
       </ul>
+      {checkoutRecoveryTotalChanged(recovery, displayedQuote.totalCents) ? (
+        <p className="notice notice--info" role="status">
+          Your checkout total has changed. Review current prices, fees, and discounts below before
+          continuing.
+        </p>
+      ) : null}
       <form className="panel form-stack" onSubmit={(event) => void submit(event)}>
         {error ? (
           <p className="notice notice--error" id="multi-ticket-order-error" role="alert">

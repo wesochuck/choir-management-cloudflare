@@ -1,3 +1,5 @@
+import { isCheckoutReminderTemplate } from "@choir/domain";
+import { CheckoutReminderTemplatePreview } from "./CheckoutReminderTemplatePreview";
 import type { CommunicationChannel, CommunicationTemplate } from "@choir/contracts";
 import { Dialog, DialogClose, useConfirmation } from "@choir/ui";
 import { useCallback, useEffect, useState } from "react";
@@ -327,6 +329,13 @@ function EditTemplateDialogContent({
           value={editingContent}
         />
       </div>
+      {isCheckoutReminderTemplate(editingTemplate.id) ? (
+        <CheckoutReminderTemplatePreview
+          templateId={editingTemplate.id}
+          subject={editingSubject}
+          content={editingContent}
+        />
+      ) : null}
       <TemplatePlaceholderGuidance issues={editingTemplateIssues} />
       <SystemTemplateResetAction disabled={busy} onReset={onReset} template={editingTemplate} />
       <div className="dialog__actions">

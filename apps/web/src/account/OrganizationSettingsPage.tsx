@@ -1,3 +1,4 @@
+import { CheckoutReminderSettingsPanel } from "./CheckoutReminderSettingsPanel";
 import { useEffect, useState } from "react";
 
 import {
@@ -632,6 +633,7 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
       </TabsContent>
       <TabsContent className="settings-stack" value="payments">
         <OrganizationPaymentSettingsPanel />
+        <CheckoutReminderSettingsPanel />
         <TransactionFeeSettingsSection
           feeError={feeError}
           feeSuccess={feeSuccess}

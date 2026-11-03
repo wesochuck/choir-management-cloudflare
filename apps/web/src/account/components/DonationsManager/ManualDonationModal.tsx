@@ -1,3 +1,4 @@
+import type { DonationPublication } from "@choir/contracts";
 import {
   donationPaymentMethodSchema,
   donationTributeInputSchema,
@@ -9,6 +10,7 @@ import { filterDonorSuggestions, type DonorSuggestion } from "@choir/domain";
 import { Autocomplete, Dialog, DialogClose } from "@choir/ui";
 import { useMemo, useState, type SyntheticEvent } from "react";
 
+import { datePartInTimeZone, zonedLocalDateTimeToUtc } from "@choir/domain";
 import { money } from "./types";
 
 export function ManualDonationModal({
@@ -17,22 +19,27 @@ export function ManualDonationModal({
   onSave,
   open,
   suggestions,
+  timezone = "UTC",
+  publications = [],
+  currentPublicationId,
 }: {
+  readonly publications?: readonly DonationPublication[];
+  readonly currentPublicationId?: string | null | undefined;
+  readonly timezone?: string;
   readonly busy: boolean;
   readonly onClose: () => void;
   readonly onSave: (donation: ManualDonationCreateRequest) => Promise<void>;
   readonly open: boolean;
   readonly suggestions: readonly DonorSuggestion[];
 }) {
+  const [publicationId, setPublicationId] = useState("current");
   const [amount, setAmount] = useState("");
   const [donorName, setDonorName] = useState("");
   const [donorEmail, setDonorEmail] = useState("");
   const [paymentMethod, setPaymentMethod] =
     useState<Exclude<DonationPaymentMethod, "stripe">>("check");
   const [paymentReference, setPaymentReference] = useState("");
-  const [receivedDate, setReceivedDate] = useState(
-    () => new Date().toISOString().split("T")[0] ?? "",
-  );
+  const [receivedDate, setReceivedDate] = useState(() => datePartInTimeZone(new Date(), timezone));
   const [tributeType, setTributeType] = useState<DonationTributeInput>("none");
   const [tributeName, setTributeName] = useState("");
   const [tributeNotifyEmail, setTributeNotifyEmail] = useState("");
@@ -59,7 +66,7 @@ export function ManualDonationModal({
     setDonorEmail("");
     setPaymentMethod("check");
     setPaymentReference("");
-    setReceivedDate(new Date().toISOString().split("T")[0] ?? "");
+    setReceivedDate(datePartInTimeZone(new Date(), timezone));
     setTributeType("none");
     setTributeName("");
     setTributeNotifyEmail("");
@@ -82,6 +89,7 @@ export function ManualDonationModal({
     }
 
     const payload: ManualDonationCreateRequest = {
+      publicationId: publicationId === "current" ? currentPublicationId : publicationId || null,
       amountCents,
       anonymous,
       buyerEmail: donorEmail.trim(),
@@ -90,7 +98,7 @@ export function ManualDonationModal({
       paymentMethod,
       paymentReference: paymentReference.trim(),
       receivedAt: receivedDate
-        ? new Date(`${receivedDate}T12:00:00.000Z`).toISOString()
+        ? (zonedLocalDateTimeToUtc(`${receivedDate}T12:00`, timezone) ?? undefined)
         : undefined,
       thankYouSent,
       tributeName: tributeType !== "none" ? tributeName.trim() : "",
@@ -159,6 +167,23 @@ export function ManualDonationModal({
           </div>
         </div>
 
+        <label className="field">
+          Publication
+          <select
+            value={publicationId}
+            onChange={(e) => {
+              setPublicationId(e.target.value);
+            }}
+          >
+            <option value="current">Current publication</option>
+            <option value="">Unassigned</option>
+            {publications.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="field">
           <label htmlFor="manual-donation-donor-name">Donor name</label>
           <Autocomplete

@@ -1,3 +1,4 @@
+import { checkoutReminderSettingsMutationSchema } from "@choir/contracts";
 import {
   type OrganizationProviderStatusResponse,
   organizationPaymentSettingsResponseSchema,
@@ -38,6 +39,44 @@ import {
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 
 export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
+  router.get("/api/organization/checkout-reminder-settings", async (context) => {
+    const auth = await authorizeCalendarRoute(context, true);
+    if (!auth.ok)
+      return context.json({ ...auth, requestId: context.get("requestId") }, auth.status);
+    const settings = await organizationStoreStub(
+      context.env,
+      auth.organizationId,
+    ).readCheckoutReminderSettings({ organizationId: auth.organizationId });
+    return context.json({ ...settings, requestId: context.get("requestId") });
+  });
+  router.put("/api/organization/checkout-reminder-settings", async (context) => {
+    const auth = await authorizeCalendarRoute(context, true);
+    if (!auth.ok)
+      return context.json({ ...auth, requestId: context.get("requestId") }, auth.status);
+    const parsed = checkoutReminderSettingsMutationSchema.safeParse(
+      await context.req.json().catch(() => null),
+    );
+    if (!parsed.success)
+      return context.json(
+        {
+          code: "validation_failed",
+          message: "Choose whether to send checkout reminders.",
+          requestId: context.get("requestId"),
+        },
+        400,
+      );
+    const settings = await organizationStoreStub(
+      context.env,
+      auth.organizationId,
+    ).setCheckoutReminderSettings({
+      organizationId: auth.organizationId,
+      actorUserId: auth.userId,
+      requestId: context.get("requestId"),
+      enabled: parsed.data.enabled,
+    });
+    return context.json({ ...settings, requestId: context.get("requestId") });
+  });
+
   router.get("/api/organization/provider-status", async (context) => {
     const authorization = await authorizeCalendarRoute(context, true);
     if (!authorization.ok) {

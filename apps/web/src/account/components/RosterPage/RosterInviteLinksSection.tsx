@@ -178,7 +178,7 @@ export function RosterInviteLinksSection({ mfaBlocked }: { readonly mfaBlocked: 
         <div className="form-stack roster-invite-links">
           <form
             autoComplete="off"
-            className="form-stack"
+            className="form-stack roster-invite-links__form"
             noValidate
             onSubmit={(e) => {
               void handleCreate(e);
@@ -199,7 +199,7 @@ export function RosterInviteLinksSection({ mfaBlocked }: { readonly mfaBlocked: 
               />
             </div>
 
-            <div className="form-grid">
+            <div className="form-grid roster-invite-links__options">
               <div className="field">
                 <label htmlFor="invite-link-expiry">Expiration</label>
                 <select
@@ -240,7 +240,7 @@ export function RosterInviteLinksSection({ mfaBlocked }: { readonly mfaBlocked: 
 
             <div className="form-actions form-actions--end">
               <button
-                className="button button--primary"
+                className="button button--primary button--control-height"
                 disabled={isCreating || mfaBlocked}
                 type="submit"
               >

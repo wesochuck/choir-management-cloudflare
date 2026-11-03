@@ -87,6 +87,7 @@ async function reconcileCompletedPaymentFee(
     readonly providerPaymentId: string;
     readonly providerSessionId: string;
     readonly stripeEventId: string;
+    readonly paidAt?: string;
   },
   accountId: string,
 ): Promise<void> {
@@ -276,6 +277,7 @@ async function handleCompleted(
     readonly providerPaymentId: string;
     readonly providerSessionId: string;
     readonly stripeEventId: string;
+    readonly paidAt?: string;
   },
   accountId?: string,
 ): Promise<Response> {
@@ -327,6 +329,7 @@ async function handleExpired(
     readonly providerPaymentId: string;
     readonly providerSessionId: string;
     readonly stripeEventId: string;
+    readonly paidAt?: string;
   },
 ): Promise<Response> {
   const target = expiredTarget(paymentType);
@@ -361,6 +364,7 @@ async function handleDirectRefunded(
     readonly providerPaymentId: string;
     readonly providerSessionId: string;
     readonly stripeEventId: string;
+    readonly paidAt?: string;
   },
 ): Promise<Response> {
   const paths =
@@ -408,6 +412,7 @@ async function handleReconciledRefunded(
     readonly providerPaymentId: string;
     readonly providerSessionId: string;
     readonly stripeEventId: string;
+    readonly paidAt?: string;
   },
 ): Promise<Response> {
   const target = {
@@ -442,6 +447,7 @@ async function handleRefunded(
     readonly providerPaymentId: string;
     readonly providerSessionId: string;
     readonly stripeEventId: string;
+    readonly paidAt?: string;
   },
 ): Promise<Response> {
   if (paymentTarget(paymentType) !== null) {
@@ -556,6 +562,7 @@ interface PreparedWebhook {
     readonly providerPaymentId: string;
     readonly providerSessionId: string;
     readonly stripeEventId: string;
+    readonly paidAt?: string;
     readonly disputeReason?: string;
     readonly disputeAmountCents?: number;
   };
@@ -633,6 +640,9 @@ async function prepareWebhookContext(
       providerPaymentId,
       providerSessionId,
       stripeEventId: event.id,
+      ...(event.created !== undefined
+        ? { paidAt: new Date(event.created * 1000).toISOString() }
+        : {}),
       ...(event.type.startsWith("charge.dispute.") && disputeReason ? { disputeReason } : {}),
       ...(event.type.startsWith("charge.dispute.") && disputeAmountCents !== undefined
         ? { disputeAmountCents }

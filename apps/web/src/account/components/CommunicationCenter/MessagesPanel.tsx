@@ -35,6 +35,7 @@ const statusFilterOptions: readonly { readonly id: MessageStatusFilter; readonly
     { id: "queued", label: "Queued" },
     { id: "sent", label: "Sent" },
     { id: "failed", label: "Failed" },
+    { id: "skipped", label: "Skipped" },
   ];
 
 const originFilterOptions: readonly { readonly id: MessageOriginFilter; readonly label: string }[] =

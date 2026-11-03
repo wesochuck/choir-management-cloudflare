@@ -27,7 +27,39 @@ export const donationLevelSchema = z.object({
 const defaultDonationThankYouMessage =
   "Your support helps us continue our programs and share our music with the community.";
 
+export const donationPublicationSchema = z.object({
+  id: z.uuid(),
+  name: z.string().trim().min(1).max(120),
+  recognitionDate: z.iso.date().nullable(),
+  artworkDate: z.iso.date().nullable(),
+  timezone: z.string().min(1).max(100),
+  revision: z.number().int().positive(),
+});
+export const donationPublicationContextSchema = z.object({
+  publication: donationPublicationSchema,
+  recognitionStatus: z.enum(["unconfigured", "pending", "on_time", "after_cutoff"]),
+  artworkStatus: z.enum(["unconfigured", "pending", "on_time", "after_cutoff"]),
+  paidAt: z.iso.datetime().nullable(),
+});
+export const donationPublicationMutationSchema = z.object({
+  id: z.uuid(),
+  name: z.string().trim().min(1).max(120),
+  recognitionDate: z.iso.date().nullable(),
+  artworkDate: z.iso.date().nullable(),
+  expectedRevision: z.number().int().nonnegative(),
+  requestId: z.uuid(),
+});
+export const donationInclusionMutationSchema = z.object({
+  donationId: z.uuid(),
+  publicationId: z.uuid().nullable(),
+  expectedRevision: z.number().int().nonnegative(),
+  requestId: z.uuid(),
+});
+export type DonationPublication = z.infer<typeof donationPublicationSchema>;
+export type DonationPublicationContext = z.infer<typeof donationPublicationContextSchema>;
+
 export const donationSettingsSchema = z.object({
+  publication: donationPublicationSchema.nullable().optional(),
   buttonText: z.string().trim().min(1).max(200),
   description: z.string().trim().max(2_000),
   levels: z.array(donationLevelSchema).max(20),
@@ -96,6 +128,8 @@ export const donationCheckoutRequestSchema = z.object({
   artworkFileId: z.uuid().nullable().optional(),
   buyerEmail: z.email().max(320),
   buyerName: z.string().trim().min(1).max(200),
+  publicationRevision: z.number().int().positive().nullable().optional(),
+  publicationId: z.uuid().nullable().optional(),
   checkoutRequestId: z.uuid(),
   levelId: z.string().trim().min(1).max(100).nullable().optional(),
   marketingConsent: z.boolean().default(false),
@@ -107,6 +141,7 @@ export const donationCheckoutRequestSchema = z.object({
 });
 
 export const manualDonationCreateRequestSchema = z.object({
+  publicationId: z.uuid().nullable().optional(),
   amountCents: z.number().int().positive().max(10_000_000),
   anonymous: z.boolean().default(false),
   artworkFileId: z.uuid().nullable().optional(),
@@ -136,6 +171,11 @@ export const donationRefundRequestSchema = z.object({
 export const donationArtworkStatusSchema = z.enum(["not_applicable", "not_received", "received"]);
 
 export const donationRecordSchema = z.object({
+  includedPublicationId: z.uuid().nullable().optional(),
+  includedPublicationName: z.string().nullable().optional(),
+  inclusionRevision: z.number().int().nonnegative().optional(),
+  includedArtworkFileId: z.uuid().nullable().optional(),
+  publicationContext: donationPublicationContextSchema.nullable().optional(),
   amountCents: z.number().int().nonnegative(),
   anonymous: z.boolean(),
   artworkFileId: z.uuid().nullable().default(null),
@@ -179,7 +219,14 @@ export const donationRecordsResponseSchema = z.object({
   requestId: requestIdSchema,
 });
 
-export const publicDonationReceiptResponseSchema = donationRecordSchema.extend({
+// Publication review decisions are staff-only; signed donor links expose original expectations.
+const publicDonationRecordSchema = donationRecordSchema.omit({
+  includedPublicationId: true,
+  includedPublicationName: true,
+  inclusionRevision: true,
+  includedArtworkFileId: true,
+});
+export const publicDonationReceiptResponseSchema = publicDonationRecordSchema.extend({
   requestId: requestIdSchema,
   sponsorToken: z.string().nullable().default(null),
 });
@@ -197,6 +244,7 @@ export const publicSponsorArtworkUploadResponseSchema = z.object({
 });
 
 export const publicSponsorDonationResponseSchema = z.object({
+  publicationContext: donationPublicationContextSchema.nullable().optional(),
   amountCents: z.number().int().nonnegative(),
   artworkFileId: z.uuid().nullable(),
   artworkFileName: z.string().nullable(),
@@ -223,7 +271,7 @@ export const donationAttachArtworkRequestSchema = z.object({
 
 export const donationCheckoutResponseSchema = z.object({
   checkoutMode: z.enum(["fake", "stripe"]),
-  donation: donationRecordSchema,
+  donation: publicDonationRecordSchema,
   successToken: z.string().min(1).max(4096),
   url: z.url(),
 });
@@ -271,3 +319,13 @@ export type PublicSponsorArtworkUploadResponse = z.infer<
 export type PublicSponsorDonationResponse = z.infer<typeof publicSponsorDonationResponseSchema>;
 export type DonationSponsorLinkResponse = z.infer<typeof donationSponsorLinkResponseSchema>;
 export type DonationAttachArtworkRequest = z.infer<typeof donationAttachArtworkRequestSchema>;
+
+export const donationPublicationsResponseSchema = z.object({
+  publications: z.array(donationPublicationSchema).max(100),
+  nextCursor: z.uuid().nullable(),
+  current: donationPublicationSchema.nullable(),
+});
+export const donationPublicationReviewResponseSchema = z.object({
+  donations: z.array(donationRecordSchema).max(100),
+  nextCursor: z.uuid().nullable(),
+});

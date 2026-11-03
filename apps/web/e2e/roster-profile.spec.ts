@@ -442,7 +442,7 @@ test("keeps the roster profile dialog open when Messages is selected", async ({ 
 
 test("keeps roster invite fields and actions inside the section in both themes", async ({
   page,
-}) => {
+}, testInfo) => {
   const api = await installOrganizationApi(page, { role: "administrator", strict: true });
   await page.route("**/api/organization/members", async (route) => {
     await route.fulfill({ json: { memberships: [], truncated: false, requestId } });
@@ -470,9 +470,11 @@ test("keeps roster invite fields and actions inside the section in both themes",
     });
   });
   await page.goto("/admin/settings/invitations");
+  await expect(page.getByRole("button", { name: /Switch to (light|dark) theme/ })).toBeVisible();
   for (const theme of ["light", "dark"] as const) {
     const toggle = page.getByRole("button", { name: `Switch to ${theme} theme` });
     if (await toggle.isVisible()) await toggle.click();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
     const section = page.getByRole("group", { name: "Invite by link", exact: true });
     await section.getByLabel("Link label").focus();
     await expect(section.getByLabel("Link label")).toBeFocused();
@@ -500,6 +502,31 @@ test("keeps roster invite fields and actions inside the section in both themes",
     await expect(
       section.getByRole("button", { name: "Create invite link", exact: true }),
     ).toBeInViewport();
+    const controls = await Promise.all([
+      section.getByLabel("Link label").boundingBox(),
+      section.getByLabel("Expiration").boundingBox(),
+      section.getByLabel("Max uses (optional)").boundingBox(),
+      section.getByRole("button", { name: "Create invite link", exact: true }).boundingBox(),
+    ]);
+    const [label, expiry, maxUses, create] = controls;
+    if (!label || !expiry || !maxUses || !create) throw new Error("Missing invite form controls");
+    expect(Math.abs(expiry.y - maxUses.y)).toBeLessThanOrEqual(1);
+    for (const control of controls) {
+      if (!control) throw new Error("Missing invite form control");
+      expect(Math.abs(control.height - expiry.height)).toBeLessThanOrEqual(1);
+    }
+    const isInline = await section.evaluate(
+      (element) =>
+        getComputedStyle(element.querySelector(".roster-invite-links__options") ?? element)
+          .display === "contents",
+    );
+    if (isInline) {
+      expect(Math.abs(label.y - expiry.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(create.y - expiry.y)).toBeLessThanOrEqual(1);
+    } else {
+      expect(create.y - (expiry.y + expiry.height)).toBeLessThanOrEqual(16);
+    }
+    await section.screenshot({ path: testInfo.outputPath(`invite-links-${theme}.png`) });
   }
   api.assertNoUnexpectedRequests();
 });

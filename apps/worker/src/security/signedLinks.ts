@@ -8,6 +8,8 @@ const textEncoder = new TextEncoder();
 
 const signedLinkPurposeSchema = z.enum([
   "audition",
+  "checkout_recovery",
+  "checkout_reminder_unsubscribe",
   "calendar_feed",
   "donation_receipt",
   "donation_sponsor_artwork",

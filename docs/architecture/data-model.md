@@ -202,3 +202,26 @@ flags to an explicit roster Profile flag `receive_audition_notifications`. Unres
 destinations at cutover are preserved in `audition_migration_reviews` for administrator review.
 Organization metadata tracks `inbox_start_at` and `audition_cutover_completed_at` to prevent
 historical replay and ensure idempotent migration.
+
+## Incomplete checkout reminders
+
+Organization schema migrations 134–136 add `checkout_reminder_settings`,
+`checkout_reminder_recipients`, `checkout_reminders`, and `checkout_reminder_performances`. One
+Organization owns every row. Recipient state is keyed by normalized commerce email and stores the
+reminder-only opt-out, newest attempt/time/shared payment-creation order, last-send cooldown, and
+in-flight claim. Reminder records store only allowed recovery choices, lifecycle/safe skip reason,
+generation, nonce/expiry metadata, and provider result. Original payment records stay separate. No
+recovery state is stored in D1; migration 0025 only expands the existing provider-route attribution
+enum for the new email source kind.
+
+Selective indexes support due scheduled work, old-generation active candidates, abandoned sending
+claims, and terminal cleanup. Recipient and attempt uniqueness support point reads and stable
+idempotency; the performance join's primary key supports bounded candidate overlap checks. A history
+index supports time ordering. No recurring task scans historical payments to discover abandonment.
+
+The scheduler creates stable `checkout_reminder` jobs and owns bounded continuations and cleanup.
+Worker-side delivery performs control-plane/provider work and final eligibility checks through RPC.
+Uncertain outcomes never authorize a new send. Reminder history/recovery details are removed after
+90 days; minimal opt-out, newest-attempt, and cooldown state remains. See the
+[operations runbook](../runbooks/incomplete-checkout-reminders.md) for rollback and failure
+handling.
