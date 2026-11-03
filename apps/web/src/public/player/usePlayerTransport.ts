@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react";
 
+import type { OfflineAudioLease } from "../../offline/mediaStore";
 import { subscribeNetworkStatus } from "../../offline/network";
 import { updateMediaSessionPosition } from "./format";
 import type { PracticeTrackSource } from "./source";
@@ -53,9 +54,7 @@ export function usePlayerTransport({
   source,
   userOverrideTrackKey,
 }: {
-  readonly acquireOfflineUrl: (
-    fileId: string,
-  ) => Promise<{ readonly contentVersion: string | null; readonly url: string } | null>;
+  readonly acquireOfflineUrl: (fileId: string) => Promise<OfflineAudioLease | null>;
   readonly activeTrackKey: string;
   readonly details: PlayerDetails;
   readonly eventArtworkUrl: string | null;

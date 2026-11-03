@@ -1,9 +1,5 @@
 import type { OrganizationProfile } from "@choir/contracts";
-import {
-  getDirectoryListingReason,
-  isProfileDirectoryListed,
-  rosterCsvColumnOptions,
-} from "@choir/domain";
+import { getDirectoryListingReason, isProfileDirectoryListed } from "@choir/domain";
 import {
   DataTable,
   DropdownMenu,
@@ -19,7 +15,7 @@ import { parseRosterStatusFilter, statusLabel } from "./utils";
 import { ProfileEditorDialog } from "../ProfileEditor";
 import { ProfileAvatarButton } from "../ProfileAvatarButton";
 import { ProfilePhotoViewerDialog } from "../ProfilePhotoViewerDialog";
-import { CsvImportDialog } from "../../CsvImportDialog";
+import { RosterImportDialog } from "./RosterImportDialog";
 import { RosterAutomationSettings } from "../../RosterAutomationSettings";
 import { RosterConfiguration } from "../../RosterConfiguration";
 import { OrganizationMfaPrompt } from "../../OrganizationMfaPrompt";
@@ -52,18 +48,13 @@ export function RosterPageView({
     bulkUpdateProfiles,
     clearRosterFilters,
     closeDialog,
-    closeImportDialog,
     dialogOpen,
     editingId,
     editingProfileRecord,
     enabled,
     error,
     filteredProfiles,
-    handleRosterColumnMap,
-    handleRosterImportFile,
     importDialogOpen,
-    importFile,
-    importRoster,
     onPhotoPendingChange,
     onRegisterPhotoSave,
     openCreate,
@@ -81,12 +72,6 @@ export function RosterPageView({
     resetFeedback,
     resettingProfileId,
     roster,
-    rosterImportConfirmed,
-    rosterImportHeaders,
-    rosterImportInspecting,
-    rosterImportInspection,
-    rosterImportMappings,
-    rosterImportSamples,
     saveProfile,
     selectedProfileIds,
     selectedVoiceFilters,
@@ -103,7 +88,6 @@ export function RosterPageView({
     setProfileTab,
     setQuery,
     setRoster,
-    setRosterImportConfirmed,
     setShowHidden,
     setStatusFilter,
     setSuccess,
@@ -842,35 +826,7 @@ export function RosterPageView({
           sourceProfileId={editingId}
         />
       ) : null}
-      <CsvImportDialog
-        busy={busy || rosterImportInspecting}
-        columnMappings={rosterImportMappings.map((mapping) => ({
-          ...mapping,
-          header: rosterImportHeaders[mapping.sourceIndex] ?? "",
-          samples: rosterImportSamples.map((row) => row[mapping.sourceIndex] ?? ""),
-        }))}
-        columnWarnings={rosterImportInspection?.warnings ?? []}
-        confirmed={rosterImportConfirmed}
-        description="Upload a CSV to add profiles to this roster."
-        error={error}
-        file={importFile}
-        helpText="Profiles are created without login access. Contact emails and phone numbers are saved; no invitations are sent."
-        invalid={Boolean(rosterImportInspection?.fatalError)}
-        mappingOptions={rosterCsvColumnOptions.map((value) => ({
-          label: value === "Voice Part" ? partLabel : value,
-          required: value === "Name",
-          value,
-        }))}
-        onClose={closeImportDialog}
-        onConfirmationChange={setRosterImportConfirmed}
-        onFileChange={handleRosterImportFile}
-        onImport={() => {
-          void importRoster();
-        }}
-        onMapColumn={handleRosterColumnMap}
-        open={importDialogOpen}
-        title="Import roster"
-      />
+      <RosterImportDialog model={model} partLabel={partLabel} />
       <ProfilePhotoViewerDialog
         displayName={viewerPhoto?.displayName ?? ""}
         isOpen={viewerPhoto !== null}

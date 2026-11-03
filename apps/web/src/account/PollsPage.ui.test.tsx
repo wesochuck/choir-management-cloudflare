@@ -5,7 +5,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { archiveOrganizationPoll, listOrganizationPolls } from "../api";
-import { PollEditDialog, PollsPage } from "./PollsPage";
+import { PollEditDialog } from "./components/PollsPage/PollEditDialog";
+import { PollsPage } from "./PollsPage";
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal();
