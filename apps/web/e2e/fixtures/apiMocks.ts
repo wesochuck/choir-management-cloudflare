@@ -539,6 +539,34 @@ export async function installOrganizationApi(
     await fulfillJson(route, { requestId }, 404);
   });
 
+  // New finance reads remain inside the strict shared fixture boundary.
+  await page.route("**/api/organization/donation-publications**", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await fulfillJson(route, { publications: [], current: null, nextCursor: null });
+  });
+  await page.route("**/api/organization/donation-publication-review**", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await fulfillJson(route, { donations: [], nextCursor: null });
+  });
+  await page.route("**/api/organization/checkout-reminder-settings", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+    await fulfillJson(route, {
+      enabled: true,
+      enabledSince: new Date().toISOString(),
+      generation: 0,
+      requestId,
+    });
+  });
+
   // Donations collection for finance specs, e.g. `api.donations.set([buildDonation({...})])`.
   await page.route("**/api/organization/donation-settings", async (route) => {
     await fulfillJson(route, {
