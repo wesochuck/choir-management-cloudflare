@@ -761,7 +761,7 @@
     margin: 0;
   }
 
-  .organization-settings-panel .field-help {
+  .organization-settings-panel .field-help:not(.field-help--inline) {
     margin-top: var(--spacing-xs);
     margin-bottom: var(--spacing-3xs);
   }

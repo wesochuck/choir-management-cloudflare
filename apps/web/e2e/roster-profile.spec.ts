@@ -510,6 +510,15 @@ test("keeps roster invite fields and actions inside the section in both themes",
     ]);
     const [label, expiry, maxUses, create] = controls;
     if (!label || !expiry || !maxUses || !create) throw new Error("Missing invite form controls");
+    console.log(
+      `[${theme}] isInline:`,
+      await section.evaluate(
+        (el) =>
+          getComputedStyle(el.querySelector(".roster-invite-links__options") ?? el).display ===
+          "contents",
+      ),
+    );
+    console.log(`[${theme}] controls:`, { label, expiry, maxUses, create });
     expect(Math.abs(expiry.y - maxUses.y)).toBeLessThanOrEqual(1);
     for (const control of controls) {
       if (!control) throw new Error("Missing invite form control");

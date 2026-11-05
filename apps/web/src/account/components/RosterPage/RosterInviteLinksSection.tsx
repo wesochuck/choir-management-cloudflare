@@ -201,7 +201,9 @@ export function RosterInviteLinksSection({ mfaBlocked }: { readonly mfaBlocked: 
 
             <div className="form-grid roster-invite-links__options">
               <div className="field">
-                <label htmlFor="invite-link-expiry">Expiration</label>
+                <label className="field__label-row" htmlFor="invite-link-expiry">
+                  <span>Expiration</span>
+                </label>
                 <select
                   disabled={mfaBlocked}
                   id="invite-link-expiry"
