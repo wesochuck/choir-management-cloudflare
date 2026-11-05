@@ -5,6 +5,7 @@ import {
   createMessageBatch,
   createExecutionContext,
   getQueueResult,
+  runInDurableObject,
 } from "cloudflare:test";
 import { provisionOrganization, seedAuthUser, pastDateString, relativeDate } from "@choir/testkit";
 import { afterEach, beforeEach, expect, inject, it, vi } from "vitest";
@@ -300,4 +301,72 @@ it("processes compliance bounces through the global suppression ledger", async (
   );
   expect(send).toHaveBeenCalledTimes(3);
   expect(send.mock.lastCall?.[0].to).toBe("admin@example.test");
+});
+
+it("records compliance inbox notices for linked administrators and repeats per occurrence", async () => {
+  const stub = stores.getByName(organizationId);
+  const ownerProfileId = crypto.randomUUID();
+  await runInDurableObject(stub, (_instance, state) => {
+    state.storage.sql.exec(
+      `INSERT INTO profiles (id, display_name, phone, voice_part, global_status, notes, show_in_directory, do_not_email, receive_attendance_reports, receive_rsvp_decline_notices, receive_admin_notifications, receive_audition_notifications, receive_financial_alerts, is_section_leader, receive_rehearsal_reminders, receive_performance_reminders, receive_other_event_reminders, status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
+       VALUES (?, 'Owner User', '', 'Tenor', 'Active', '', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '2026-01-01T00:00:00Z', '', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 0)`,
+      ownerProfileId,
+    );
+  });
+  await database
+    .prepare("UPDATE member SET profileId = ? WHERE organizationId = ? AND userId = 'owner'")
+    .bind(ownerProfileId, organizationId)
+    .run();
+
+  const send = vi.fn<(message: EmailMessage | EmailMessageBuilder) => Promise<EmailSendResult>>(
+    () => Promise.resolve({ messageId: crypto.randomUUID() }),
+  );
+  const deliveryEnv: JobConsumerEnv = {
+    ...env,
+    EXTERNAL_EFFECTS_MODE: "sandbox",
+    PLATFORM_EMAIL_MODE: "sandbox",
+    PLATFORM_EMAIL_FROM: "notifications@example.test",
+    PLATFORM_EMAIL_ALLOWED_RECIPIENTS: "",
+    PLATFORM_EMAIL: { send },
+  };
+
+  const firstJob = job(dueDate);
+  await deliverComplianceReminderJob(deliveryEnv, firstJob);
+
+  // Notice should exist for linked owner, but not unlinked admin
+  await runInDurableObject(stub, (_instance, state) => {
+    const rows = state.storage.sql
+      .exec(
+        "SELECT id, kind, title, body FROM notification_receipts WHERE recipient_profile_id = ?",
+        ownerProfileId,
+      )
+      .toArray();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.kind).toBe("compliance");
+    expect(rows[0]?.title).toContain("Action required:");
+    expect(rows[0]?.body).toContain(`Due ${dueDate}`);
+  });
+
+  // Replaying the job for attempt 2 does not insert a duplicate notice
+  await deliverComplianceReminderJob(deliveryEnv, {
+    ...firstJob,
+    attempt: 2,
+    jobId: crypto.randomUUID(),
+  });
+  await runInDurableObject(stub, (_instance, state) => {
+    const rows = state.storage.sql
+      .exec("SELECT id FROM notification_receipts WHERE recipient_profile_id = ?", ownerProfileId)
+      .toArray();
+    expect(rows).toHaveLength(1);
+  });
+
+  // Next week's occurrence generates a new notice
+  const secondOccurrenceDate = relativeDate({ days: -23 }).toISOString().slice(0, 10);
+  await deliverComplianceReminderJob(deliveryEnv, job(secondOccurrenceDate));
+  await runInDurableObject(stub, (_instance, state) => {
+    const rows = state.storage.sql
+      .exec("SELECT id FROM notification_receipts WHERE recipient_profile_id = ?", ownerProfileId)
+      .toArray();
+    expect(rows).toHaveLength(2);
+  });
 });

@@ -5,6 +5,7 @@ import {
   communicationRecipientSubjectSchema,
   communicationSendRequestSchema,
   communicationTemplateRequestSchema,
+  notificationKindSchema,
 } from "@choir/contracts";
 import type { SqlStorageValue } from "@cloudflare/workers-types";
 import { z } from "zod";
@@ -60,7 +61,7 @@ export const unsubscribeContactOperationSchema = z.object({
 export const inboxNotificationSchema = z.object({
   body: z.string().max(1_000),
   destinationPath: z.string().max(500).nullable(),
-  kind: z.enum(["ticket_sale", "donation"]),
+  kind: notificationKindSchema,
   originalOccurredAt: z.iso.datetime(),
   sourceKey: z.string().min(1).max(256),
   title: z.string().min(1).max(200),

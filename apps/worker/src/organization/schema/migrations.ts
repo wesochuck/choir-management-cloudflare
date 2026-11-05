@@ -2477,6 +2477,45 @@ export const organizationSchemaMigrations: readonly OrganizationSchemaMigration[
       "ALTER TABLE checkout_reminder_recipients ADD COLUMN newest_attempt_order INTEGER NOT NULL DEFAULT 0",
     ],
   },
+  {
+    version: 137,
+    statements: [
+      "DROP INDEX IF EXISTS idx_notification_receipts_recipient_source",
+      "DROP INDEX IF EXISTS idx_notification_receipts_recipient_created",
+      "DROP INDEX IF EXISTS idx_notification_receipts_recipient_kind",
+      "DROP INDEX IF EXISTS idx_notification_receipts_recipient_unread",
+      "DROP INDEX IF EXISTS idx_notification_receipts_expires_at",
+      "ALTER TABLE notification_receipts RENAME TO notification_receipts_before_expansion",
+      `CREATE TABLE notification_receipts (
+        id TEXT PRIMARY KEY,
+        recipient_profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL CHECK (kind IN ('audition', 'ticket_sale', 'donation', 'rsvp_decline', 'compliance')),
+        source_key TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        destination_path TEXT,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        read_at TEXT
+      ) STRICT`,
+      `INSERT INTO notification_receipts
+        (id, recipient_profile_id, kind, source_key, title, body, destination_path, created_at, expires_at, read_at)
+       SELECT id, recipient_profile_id, kind, source_key, title, body, destination_path, created_at, expires_at, read_at
+       FROM notification_receipts_before_expansion`,
+      "DROP TABLE notification_receipts_before_expansion",
+      `CREATE UNIQUE INDEX idx_notification_receipts_recipient_source
+        ON notification_receipts(recipient_profile_id, source_key)`,
+      `CREATE INDEX idx_notification_receipts_recipient_created
+        ON notification_receipts(recipient_profile_id, created_at DESC, id DESC)`,
+      `CREATE INDEX idx_notification_receipts_recipient_kind
+        ON notification_receipts(recipient_profile_id, kind, created_at DESC, id DESC)`,
+      `CREATE INDEX idx_notification_receipts_recipient_unread
+        ON notification_receipts(recipient_profile_id, created_at DESC, id DESC)
+        WHERE read_at IS NULL`,
+      `CREATE INDEX idx_notification_receipts_expires_at
+        ON notification_receipts(expires_at)`,
+    ],
+  },
 ] as const;
 
 export const currentOrganizationSchemaVersion = organizationSchemaMigrations.at(-1)?.version ?? 0;

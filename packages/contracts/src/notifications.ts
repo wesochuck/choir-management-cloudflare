@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { requestIdSchema } from "./primitives";
 
-export const notificationKindSchema = z.enum(["audition", "ticket_sale", "donation"]);
+export const notificationKindSchema = z.enum([
+  "audition",
+  "ticket_sale",
+  "donation",
+  "rsvp_decline",
+  "compliance",
+]);
 export type NotificationKind = z.infer<typeof notificationKindSchema>;
 
 export const notificationFilterSchema = z.enum([
@@ -10,6 +16,8 @@ export const notificationFilterSchema = z.enum([
   "audition",
   "ticket_sale",
   "donation",
+  "rsvp_decline",
+  "compliance",
 ]);
 export type NotificationFilter = z.infer<typeof notificationFilterSchema>;
 

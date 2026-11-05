@@ -297,6 +297,20 @@ function AuthenticatedOrganizationShell({
             </button>
           </aside>
         ) : null}
+        {isOrganization &&
+        access.status === "ready" &&
+        (access.context.role === "owner" || access.context.role === "administrator") &&
+        !access.context.profileLinked ? (
+          <aside
+            aria-label="Unlinked administrator warning"
+            className="notice notice--warning"
+            role="alert"
+          >
+            <strong>Your administrator account does not have a linked Profile.</strong> You will not
+            receive administrative email alerts or notification inbox notices until your account is
+            linked. <a href="/admin/members">Go to Members to link your Profile</a>.
+          </aside>
+        ) : null}
         <div className="signed-in-body">
           <aside className="signed-in-sidebar" onClick={isCompact ? handleRailClick : undefined}>
             <div className="sidebar-header">

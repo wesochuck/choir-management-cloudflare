@@ -185,13 +185,14 @@ export async function createOrganizationProfile(
     readonly email?: string;
     readonly organizationId: string;
     readonly profile: OrganizationProfileRequest;
+    readonly profileId?: string;
     readonly requestId: string;
   },
 ): Promise<OrganizationProfile> {
   if (input.email) {
     await assertEmailProviderRecipientAvailable(env.CONTROL_DB, input.email);
   }
-  const profileId = crypto.randomUUID();
+  const profileId = input.profileId ?? crypto.randomUUID();
   const response = await invokeOrganizationRpc(
     organizationStub(env, input.organizationId),
     "https://organization.internal/internal/profiles",

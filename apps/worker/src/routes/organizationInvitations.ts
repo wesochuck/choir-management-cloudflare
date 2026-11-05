@@ -1,5 +1,6 @@
 import {
   organizationInvitationRequestSchema,
+  organizationProfileRequestSchema,
   type OrganizationInvitationActionResponse,
   type OrganizationInvitationDetails,
   type OrganizationInvitationsResponse,
@@ -15,6 +16,7 @@ import { validateStartupConfig } from "../env";
 import { authorizeOrganizationMember } from "../tenancy/authorizeOrganization";
 import { resolveOrganization } from "../tenancy/resolveOrganization";
 import { organizationStoreStub } from "../organization/rpc/client";
+import { createOrganizationProfile } from "../organization/profiles";
 import { linkOrganizationProfile } from "../tenancy/linkOrganizationProfile";
 
 import type { Hono } from "hono";
@@ -668,10 +670,10 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
       session.user.id,
     );
     const membership = await context.env.CONTROL_DB.prepare(
-      `SELECT id, profileId FROM member WHERE organizationId = ? AND userId = ? LIMIT 1`,
+      `SELECT id, profileId, role FROM member WHERE organizationId = ? AND userId = ? LIMIT 1`,
     )
       .bind(organizationId, session.user.id)
-      .first<{ id: string; profileId: string | null }>();
+      .first<{ id: string; profileId: string | null; role: string }>();
     if (membership?.profileId) {
       profileLinkStatus = "linked";
     } else if (profileMatch.status === "review_required") {
@@ -696,6 +698,40 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         } catch {
           profileLinkStatus = "pending";
         }
+      }
+    } else if (
+      profileMatch.status === "no_match" &&
+      membership &&
+      (membership.role === "admin" ||
+        membership.role === "owner" ||
+        invitation.role === "admin" ||
+        invitation.role === "owner")
+    ) {
+      try {
+        const createdProfile = await createOrganizationProfile(context.env, {
+          actorUserId: session.user.id,
+          email: invitation.email,
+          organizationId,
+          profile: organizationProfileRequestSchema.parse({
+            displayName: session.user.name || "Administrator",
+            receiveAdminNotifications: true,
+            receiveFinancialAlerts: true,
+            receiveRsvpDeclineNotices: true,
+          }),
+          requestId: context.get("requestId"),
+        });
+        const linked = await linkOrganizationProfile(context.env, {
+          actorUserId: session.user.id,
+          membershipId: membership.id,
+          organizationId,
+          profileId: createdProfile.id,
+          requestId: context.get("requestId"),
+          requireUnlinked: true,
+          source: "organization_invitation",
+        });
+        profileLinkStatus = linked.ok ? "linked" : "review_required";
+      } catch {
+        profileLinkStatus = "pending";
       }
     }
     const response: OrganizationInvitationActionResponse = {

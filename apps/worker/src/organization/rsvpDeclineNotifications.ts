@@ -6,6 +6,7 @@ import {
 } from "../calendar/organizationCalendar";
 import type { Env } from "../env";
 import { queueAutomatedOrganizationCommunication } from "./organizationCommunications";
+import type { InboxNotification } from "./communicationStore/contracts";
 import { listOrganizationProfiles } from "./profiles";
 
 const administratorMembershipRowSchema = z.object({
@@ -76,6 +77,24 @@ export function formatEventShortDate(value: string, timezone: string): string | 
     month: "short",
     timeZone: timezone,
   }).format(date);
+}
+
+export function buildRsvpDeclineInboxBody(input: {
+  readonly displayName: string;
+  readonly eventTitle: string;
+  readonly formattedDate: string;
+  readonly rsvpNote: string | null | undefined;
+  readonly voicePart: string | null | undefined;
+}): string {
+  const trimmedNote = input.rsvpNote?.trim() ? input.rsvpNote.trim().replace(/\s+/g, " ") : null;
+  const notePreview = trimmedNote
+    ? trimmedNote.length > 160
+      ? `${trimmedNote.slice(0, 157)}...`
+      : trimmedNote
+    : null;
+  const voicePart = input.voicePart ?? "Voice part not assigned";
+  const baseBody = `${input.displayName} (${voicePart}) declined ${input.eventTitle} on ${input.formattedDate}.`;
+  return notePreview ? `${baseBody} Note: "${notePreview}"` : baseBody;
 }
 
 function noteMarkdown(value: string): string {
@@ -175,6 +194,25 @@ export async function queueRsvpDeclineNotice(
     noteMarkdown(event.rsvpNote),
   ].join("\n");
 
+  const dedupeKey = `rsvp-decline:${input.organizationId}:${input.eventId}:${input.profileId}:${input.updatedAt}`;
+  const formattedDate = formatEventDate(event.startsAt, calendarSettings.timezone);
+  const body = buildRsvpDeclineInboxBody({
+    displayName: event.displayName,
+    eventTitle: event.title,
+    formattedDate,
+    rsvpNote: event.rsvpNote,
+    voicePart: declinedProfile.voicePart,
+  });
+
+  const inboxNotification: InboxNotification = {
+    body,
+    destinationPath: `/admin/rsvp?eventId=${encodeURIComponent(input.eventId)}`,
+    kind: "rsvp_decline",
+    originalOccurredAt: input.updatedAt,
+    sourceKey: dedupeKey,
+    title: subject,
+  };
+
   await queueAutomatedOrganizationCommunication(
     env,
     {
@@ -185,8 +223,9 @@ export async function queueRsvpDeclineNotice(
     },
     {
       contentMarkdown,
-      dedupeKey: `rsvp-decline:${input.organizationId}:${input.eventId}:${input.profileId}:${input.updatedAt}`,
+      dedupeKey,
       eventId: input.eventId,
+      inboxNotification,
       recipients,
       subject,
     },

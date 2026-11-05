@@ -97,6 +97,21 @@ export function insertNotificationReceipt(
   return true;
 }
 
+function applyFilterCondition(
+  filter: NotificationFilter,
+  conditions: string[],
+  bindings: unknown[],
+): void {
+  if (filter === "unread") {
+    conditions.push("read_at IS NULL");
+    return;
+  }
+  if (filter !== "all") {
+    conditions.push("kind = ?");
+    bindings.push(filter);
+  }
+}
+
 export function listNotificationReceipts(
   storage: NotificationInboxStorage,
   input: {
@@ -115,12 +130,7 @@ export function listNotificationReceipts(
   const conditions: string[] = ["recipient_profile_id = ?", "expires_at > ?"];
   const bindings: unknown[] = [input.profileId, nowIso];
 
-  if (filter === "unread") {
-    conditions.push("read_at IS NULL");
-  } else if (filter === "audition" || filter === "ticket_sale" || filter === "donation") {
-    conditions.push("kind = ?");
-    bindings.push(filter);
-  }
+  applyFilterCondition(filter, conditions, bindings);
 
   if (input.cursor) {
     const parsed = parseCursor(input.cursor);

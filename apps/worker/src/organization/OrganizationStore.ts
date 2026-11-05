@@ -115,8 +115,10 @@ import {
   completeComplianceTaskInStore,
   createComplianceTaskInStore,
   readNonprofitComplianceFromStore,
+  recordComplianceInboxNoticesInStore,
   restoreComplianceTaskInStore,
   setNonprofitEnabledInStore,
+  type RecordComplianceInboxNoticesInput,
   updateComplianceTaskInStore,
 } from "./complianceStore";
 import {
@@ -687,6 +689,10 @@ export class OrganizationStore extends DurableObject {
       input.completedDate ?? null,
       new Date(),
     );
+  }
+
+  recordComplianceInboxNotices(input: RecordComplianceInboxNoticesInput) {
+    return recordComplianceInboxNoticesInStore(this.ctx.storage, input);
   }
 
   processContactImportBatch(input: {

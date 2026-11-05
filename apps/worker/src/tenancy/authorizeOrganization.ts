@@ -6,6 +6,7 @@ interface BetterAuthMemberRow {
   readonly assertionExpiresAt: number | null;
   readonly mfaRequired: number;
   readonly organizationId: string;
+  readonly profileId: string | null;
   readonly role: string;
   readonly sessionAssuranceMethod: string | null;
   readonly userId: string;
@@ -15,6 +16,7 @@ export interface OrganizationAuthorizationContext {
   readonly active: boolean;
   readonly mfaRequired: boolean;
   readonly organizationId: string;
+  readonly profileLinked: boolean;
   readonly role: OrganizationRole;
   readonly userId: string;
 }
@@ -57,7 +59,7 @@ export async function authorizeOrganizationMember(
 
   const row = await database
     .prepare(
-      `SELECT m.organizationId, m.role, m.userId,
+      `SELECT m.organizationId, m.profileId, m.role, m.userId,
         o.mfa_required AS mfaRequired,
         oma.expires_at AS assertionExpiresAt,
         saa.method AS sessionAssuranceMethod
@@ -95,6 +97,7 @@ export async function authorizeOrganizationMember(
     active: true,
     mfaRequired,
     organizationId: row.organizationId,
+    profileLinked: Boolean(row.profileId),
     role,
     userId: row.userId,
   });

@@ -5,6 +5,7 @@ import type { Env } from "../env";
 
 interface MemberRow {
   readonly id: string;
+  readonly profileId: string | null;
   readonly role: "admin" | "member" | "owner";
   readonly userId: string;
 }
@@ -139,7 +140,7 @@ export async function updateOrganizationMemberRole(
   now = new Date(),
 ): Promise<DomainResult<UpdateOrganizationMemberRoleOutput>> {
   const target = await env.CONTROL_DB.prepare(
-    `SELECT id, userId, role FROM member
+    `SELECT id, profileId, userId, role FROM member
      WHERE id = ? AND organizationId = ?
      LIMIT 1`,
   )
@@ -183,8 +184,15 @@ export async function updateOrganizationMemberRole(
       membershipId: input.membershipId,
       organizationId: input.organizationId,
       previousRole: currentRole,
-      role: input.newRole,
+      role: currentRole,
     });
+  }
+
+  if (!target.profileId && (input.newRole === "administrator" || input.newRole === "owner")) {
+    return failure(
+      "profile_link_required",
+      "A linked Organization Profile is required to assign an Administrator or Owner role.",
+    );
   }
 
   const occurredAt = now.toISOString();

@@ -315,7 +315,7 @@ describe("linked-Profile self-service RSVP", () => {
     const expectedShortDate = new Intl.DateTimeFormat("en-US", {
       day: "numeric",
       month: "short",
-      timeZone: "America/New_York",
+      timeZone: "UTC",
     }).format(new Date(rehearsalEvent?.startsAt ?? 0));
     expect(notice).toMatchObject({
       destination: ADMIN_EMAIL,

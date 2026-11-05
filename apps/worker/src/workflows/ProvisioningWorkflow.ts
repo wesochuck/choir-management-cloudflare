@@ -1,7 +1,9 @@
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import { organizationProfileRequestSchema } from "@choir/contracts";
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { createOrganizationProfile } from "../organization/profiles";
 import { invokeOrganizationRpc, organizationStoreStub } from "../organization/rpc/client";
 import { currentOrganizationSchemaVersion } from "../organization/schema";
 import { reconcileCanonicalHostnameFirewall } from "../security/canonicalHostnameFirewall";
@@ -83,6 +85,66 @@ export class ProvisioningWorkflow extends WorkflowEntrypoint<Env, ProvisioningPa
         ).bind(crypto.randomUUID(), params.organizationId, params.actorUserId, activatedAt),
       ]);
       return { activated: true };
+    });
+
+    await step.do("provision owner profile", async () => {
+      const membership = await this.env.CONTROL_DB.prepare(
+        `SELECT id, profileId FROM member WHERE organizationId = ? AND userId = ? AND role = 'owner' LIMIT 1`,
+      )
+        .bind(params.organizationId, params.actorUserId)
+        .first<{ id: string; profileId: string | null }>();
+      if (!membership || membership.profileId) {
+        return { profileId: membership?.profileId ?? null };
+      }
+
+      const user = await this.env.CONTROL_DB.prepare(
+        `SELECT name, email FROM user WHERE id = ? LIMIT 1`,
+      )
+        .bind(params.actorUserId)
+        .first<{ name: string; email: string }>();
+      if (!user) {
+        throw new Error("Provisioning owner user record not found");
+      }
+
+      const digest = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(`provisioning:owner-profile:${params.requestId}`),
+      );
+      const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join(
+        "",
+      );
+      const deterministicProfileId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+
+      const checkResponse = await invokeOrganizationRpc(
+        organizationStoreStub(this.env, params.organizationId),
+        `https://organization.internal/internal/profiles/${encodeURIComponent(deterministicProfileId)}`,
+      );
+      if (!checkResponse.ok && checkResponse.status !== 404) {
+        throw new Error("Failed to verify existing owner profile during provisioning");
+      }
+      if (checkResponse.status === 404) {
+        await createOrganizationProfile(this.env, {
+          actorUserId: params.actorUserId,
+          email: user.email,
+          organizationId: params.organizationId,
+          profile: organizationProfileRequestSchema.parse({
+            displayName: user.name || "Choir Administrator",
+            receiveAdminNotifications: true,
+            receiveFinancialAlerts: true,
+            receiveRsvpDeclineNotices: true,
+          }),
+          profileId: deterministicProfileId,
+          requestId: params.requestId,
+        });
+      }
+
+      await this.env.CONTROL_DB.prepare(
+        `UPDATE member SET profileId = ? WHERE id = ? AND organizationId = ? AND profileId IS NULL`,
+      )
+        .bind(deterministicProfileId, membership.id, params.organizationId)
+        .run();
+
+      return { profileId: deterministicProfileId };
     });
 
     if (params.canonicalStatus === "active") {

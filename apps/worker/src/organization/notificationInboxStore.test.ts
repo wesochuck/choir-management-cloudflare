@@ -167,6 +167,44 @@ describe("notificationInboxStore", () => {
     });
     expect(auditionsOnly.notifications).toHaveLength(15);
     expect(auditionsOnly.notifications.every((n) => n.kind === "audition")).toBe(true);
+
+    // Verify rsvp_decline and compliance filtering
+    insertNotificationReceipt(adapter.storage, {
+      body: "Singer declined rehearsal",
+      destinationPath: "/admin/rsvp?eventId=event-1",
+      kind: "rsvp_decline",
+      now: "2026-08-01T00:00:00.000Z",
+      originalOccurredAt: "2026-07-31T12:00:00.000Z",
+      recipientProfileId: profile1,
+      sourceKey: "rsvp-decline:1",
+      title: "RSVP decline: Singer",
+    });
+    insertNotificationReceipt(adapter.storage, {
+      body: "Form 990 is due",
+      destinationPath: "/admin/settings?tab=compliance&task=task-1",
+      kind: "compliance",
+      now: "2026-08-01T00:00:00.000Z",
+      originalOccurredAt: "2026-07-31T12:00:00.000Z",
+      recipientProfileId: profile1,
+      sourceKey: "compliance:1",
+      title: "Compliance reminder",
+    });
+
+    const rsvpOnly = listNotificationReceipts(adapter.storage, {
+      filter: "rsvp_decline",
+      now: new Date("2026-08-01T00:00:00.000Z"),
+      profileId: profile1,
+    });
+    expect(rsvpOnly.notifications).toHaveLength(1);
+    expect(rsvpOnly.notifications[0]?.kind).toBe("rsvp_decline");
+
+    const complianceOnly = listNotificationReceipts(adapter.storage, {
+      filter: "compliance",
+      now: new Date("2026-08-01T00:00:00.000Z"),
+      profileId: profile1,
+    });
+    expect(complianceOnly.notifications).toHaveLength(1);
+    expect(complianceOnly.notifications[0]?.kind).toBe("compliance");
   });
 
   it("marks individual notices read and respects person isolation", () => {

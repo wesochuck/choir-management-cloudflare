@@ -7,6 +7,7 @@ describe("authorizeOrganization", () => {
     active: true,
     mfaRequired: false,
     organizationId: "organization-alpha",
+    profileLinked: true,
     role: "administrator",
     userId: "user-1",
   } as const;

@@ -101,25 +101,35 @@ async function resolveEligibleComplianceTask(
   };
 }
 
+interface AdministratorRecipientsResult {
+  readonly profileIds: readonly string[];
+  readonly recipients: Map<string, string>;
+}
+
 async function resolveAdministratorRecipients(
   env: JobConsumerEnv,
   organizationId: string,
-): Promise<Map<string, string>> {
+): Promise<AdministratorRecipientsResult> {
   if (!env.CONTROL_DB) {
     throw new Error("CONTROL_DB is required for nonprofit compliance notification delivery.");
   }
 
   const result = await env.CONTROL_DB.prepare(
-    `SELECT u.email AS email, u.name AS name
+    `SELECT u.email AS email, u.name AS name, m.profileId AS profileId
      FROM member m
      JOIN user u ON u.id = m.userId
      WHERE m.organizationId = ?
        AND m.role IN ('owner', 'admin')`,
   )
     .bind(organizationId)
-    .all<{ readonly email: string; readonly name: string | null }>();
+    .all<{
+      readonly email: string;
+      readonly name: string | null;
+      readonly profileId: string | null;
+    }>();
 
   const recipients = new Map<string, string>();
+  const profileIds = new Set<string>();
   for (const row of result.results) {
     if (typeof row.email === "string" && row.email.trim().length > 0) {
       const email = row.email.trim().toLowerCase();
@@ -129,8 +139,11 @@ async function resolveAdministratorRecipients(
         recipients.set(email, name);
       }
     }
+    if (typeof row.profileId === "string" && row.profileId.trim().length > 0) {
+      profileIds.add(row.profileId.trim());
+    }
   }
-  return recipients;
+  return { profileIds: [...profileIds], recipients };
 }
 
 function buildComplianceReminderMarkdown(
@@ -188,8 +201,8 @@ export async function deliverComplianceReminderJob(
     return;
   }
 
-  const recipients = await resolveAdministratorRecipients(env, job.organizationId);
-  if (recipients.size === 0) {
+  const adminRecipients = await resolveAdministratorRecipients(env, job.organizationId);
+  if (adminRecipients.recipients.size === 0) {
     console.warn(`No active owners or administrators found for organization ${job.organizationId}`);
     return;
   }
@@ -212,7 +225,28 @@ export async function deliverComplianceReminderJob(
   signInUrl.searchParams.set("returnTo", `${taskUrl.pathname}${taskUrl.search}`);
   const contentMarkdown = buildComplianceReminderMarkdown(organizationName, task, signInUrl.href);
 
-  for (const [email, name] of recipients.entries()) {
+  if (adminRecipients.profileIds.length > 0) {
+    const stub = organizationStoreStub(env, job.organizationId);
+    const responsibleDisplay = task.responsibleNeedsReassignment
+      ? "Needs reassignment"
+      : task.responsibleName && task.responsibleEmail
+        ? `${task.responsibleName} (${task.responsibleEmail})`
+        : "Unassigned";
+    const body = `Due ${task.nextDueDate}. Responsible: ${responsibleDisplay}.`;
+    const destinationPath = `/admin/settings?tab=compliance&task=${encodeURIComponent(task.id)}`;
+    await stub.recordComplianceInboxNotices({
+      body,
+      cycleDueDate: task.nextDueDate,
+      destinationPath,
+      idempotencyKey: job.idempotencyKey,
+      occurredAt: new Date().toISOString(),
+      profileIds: adminRecipients.profileIds,
+      taskId: task.id,
+      title: subject,
+    });
+  }
+
+  for (const [email, name] of adminRecipients.recipients.entries()) {
     // Provider routes identify one recipient in one occurrence, including across job retries.
     // Hash the tuple to keep the key bounded and avoid embedding recipient addresses in logs.
     const digest = await crypto.subtle.digest(

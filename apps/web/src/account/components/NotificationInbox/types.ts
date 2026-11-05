@@ -10,6 +10,12 @@ export function iconIdForKind(kind: OrganizationNotification["kind"]): Organizat
       return "ticketing";
     case "donation":
       return "donations";
+    case "rsvp_decline":
+      return "rsvp";
+    case "compliance":
+      return "settings";
+    default:
+      return "settings";
   }
 }
 

@@ -36,6 +36,10 @@ vi.mock("../auth/api", () => {
   };
 });
 
+vi.mock("../api/profiles", () => ({
+  createOrganizationProfile: vi.fn(),
+}));
+
 import {
   AuthApiError,
   getCurrentSession,
@@ -108,6 +112,7 @@ const OWNER_CONTEXT: OrganizationAuthStatusResponse = {
   mfaSatisfiedBy: null,
   mfaVerifiedUntil: null,
   organizationId: "org-1",
+  profileLinked: true,
   requestId: "req-1",
   role: "owner",
   twoFactorEnabled: true,
@@ -120,6 +125,7 @@ const ADMIN_CONTEXT: OrganizationAuthStatusResponse = {
   mfaSatisfiedBy: null,
   mfaVerifiedUntil: null,
   organizationId: "org-1",
+  profileLinked: true,
   requestId: "req-1",
   role: "administrator",
   twoFactorEnabled: true,
@@ -297,5 +303,62 @@ describe("OrganizationInvitations membership role management", () => {
     expect(inviteByLinkSection).toBeInTheDocument();
     expect(within(inviteByLinkSection).getByLabelText("Link label")).toBeInTheDocument();
     expect(screen.queryByRole("dialog", { name: "Roster invite links" })).not.toBeInTheDocument();
+  });
+
+  it("displays warning for unlinked administrators with Create and link action", async () => {
+    render(<OrganizationInvitations context={OWNER_CONTEXT} />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("group", { name: "Organization Memberships" })).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByRole("alert", { name: "Administrators without a linked Profile" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create and link Profile for Bob Admin" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows profile link required warning and disables save when promoting unlinked member to administrator", async () => {
+    const user = userEvent.setup();
+    const unlinkedMember: OrganizationMembershipSummary = {
+      email: "unlinked@example.com",
+      id: "mem-unlinked",
+      name: "Unlinked Singer",
+      profileId: null,
+      role: "member",
+      userId: "user-unlinked",
+    };
+    vi.mocked(listOrganizationMemberships).mockResolvedValue({
+      memberships: [unlinkedMember],
+      requestId: "req-1",
+      truncated: false,
+    });
+
+    render(<OrganizationInvitations context={OWNER_CONTEXT} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Change role for Unlinked Singer" }),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Change role for Unlinked Singer" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Change member role" });
+    expect(dialog).toBeInTheDocument();
+
+    const roleSelect = within(dialog).getByLabelText("Organization role");
+    await user.selectOptions(roleSelect, "administrator");
+
+    expect(
+      within(dialog).getByText(
+        /A linked Organization Profile is required to assign an Administrator or Owner role/,
+      ),
+    ).toBeInTheDocument();
+
+    const saveButton = within(dialog).getByRole("button", { name: "Save role" });
+    expect(saveButton).toBeDisabled();
   });
 });

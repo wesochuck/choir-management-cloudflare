@@ -576,4 +576,75 @@ describe("organization schema migrations", () => {
     expect(meta?.inbox_start_at).toBeTruthy();
     expect(meta?.audition_cutover_completed_at).toBeTruthy();
   });
+
+  it("applies migration 137 widening notification_receipts.kind with preserved data and indexes", () => {
+    const adapter = setupThrough(136);
+    const profileId = crypto.randomUUID();
+    adapter.storage.sql.exec(
+      `INSERT INTO profiles (id, display_name, phone, voice_part, global_status, notes, show_in_directory, do_not_email, receive_attendance_reports, receive_rsvp_decline_notices, receive_admin_notifications, receive_audition_notifications, receive_financial_alerts, is_section_leader, receive_rehearsal_reminders, receive_performance_reminders, receive_other_event_reminders, status_is_manual, status_changed_at, status_change_reason, created_at, updated_at, hidden)
+       VALUES (?, 'Test User', '', 'Tenor', 'Active', '', 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '2026-01-01T00:00:00Z', '', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z', 0)`,
+      profileId,
+    );
+    const existingReceiptId = crypto.randomUUID();
+    adapter.storage.sql.exec(
+      `INSERT INTO notification_receipts
+        (id, recipient_profile_id, kind, source_key, title, body, destination_path, created_at, expires_at, read_at)
+       VALUES (?, ?, 'donation', 'source-pre-137', 'Donation received', 'A gift was made', '/admin/donations', '2026-07-01T00:00:00Z', '2026-10-01T00:00:00Z', NULL)`,
+      existingReceiptId,
+      profileId,
+    );
+
+    applyVersion(adapter, 137);
+
+    // Preserved data
+    const existing = adapter.storage.sql
+      .exec<{ readonly id: string; readonly kind: string }>(
+        "SELECT id, kind FROM notification_receipts WHERE id = ?",
+        existingReceiptId,
+      )
+      .toArray()
+      .at(0);
+    expect(existing?.id).toBe(existingReceiptId);
+    expect(existing?.kind).toBe("donation");
+
+    // Can insert rsvp_decline and compliance
+    const rsvpId = crypto.randomUUID();
+    adapter.storage.sql.exec(
+      `INSERT INTO notification_receipts
+        (id, recipient_profile_id, kind, source_key, title, body, destination_path, created_at, expires_at, read_at)
+       VALUES (?, ?, 'rsvp_decline', 'rsvp:1', 'RSVP declined', 'Singer declined', '/admin/rsvp', '2026-07-01T00:00:00Z', '2026-10-01T00:00:00Z', NULL)`,
+      rsvpId,
+      profileId,
+    );
+    const complianceId = crypto.randomUUID();
+    adapter.storage.sql.exec(
+      `INSERT INTO notification_receipts
+        (id, recipient_profile_id, kind, source_key, title, body, destination_path, created_at, expires_at, read_at)
+       VALUES (?, ?, 'compliance', 'compliance:1', 'Compliance due', 'Filing due', '/admin/settings', '2026-07-01T00:00:00Z', '2026-10-01T00:00:00Z', NULL)`,
+      complianceId,
+      profileId,
+    );
+
+    // Disallowed kind fails check constraint
+    expect(() => {
+      adapter.storage.sql.exec(
+        `INSERT INTO notification_receipts
+          (id, recipient_profile_id, kind, source_key, title, body, destination_path, created_at, expires_at, read_at)
+         VALUES (?, ?, 'invalid_kind', 'invalid:1', 'Invalid', 'Invalid', NULL, '2026-07-01T00:00:00Z', '2026-10-01T00:00:00Z', NULL)`,
+        crypto.randomUUID(),
+        profileId,
+      );
+    }).toThrow();
+
+    // Unique index on recipient_profile_id, source_key is enforced
+    expect(() => {
+      adapter.storage.sql.exec(
+        `INSERT INTO notification_receipts
+          (id, recipient_profile_id, kind, source_key, title, body, destination_path, created_at, expires_at, read_at)
+         VALUES (?, ?, 'compliance', 'compliance:1', 'Duplicate', 'Duplicate', NULL, '2026-07-01T00:00:00Z', '2026-10-01T00:00:00Z', NULL)`,
+        crypto.randomUUID(),
+        profileId,
+      );
+    }).toThrow();
+  });
 });

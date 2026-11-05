@@ -153,6 +153,7 @@ export const organizationAuthStatusResponseSchema = z.preprocess(
     mfaSatisfiedBy: organizationMfaSatisfiedBySchema,
     mfaVerifiedUntil: z.iso.datetime().nullable(),
     organizationId: organizationIdSchema,
+    profileLinked: z.boolean().default(true),
     requestId: requestIdSchema,
     role: z.enum(["owner", "administrator", "member"]),
     twoFactorEnabled: z.boolean(),

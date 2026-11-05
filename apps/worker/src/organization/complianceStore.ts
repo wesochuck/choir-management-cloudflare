@@ -13,6 +13,7 @@ import {
   isValidDateOnlyString,
   nextDueDateFromCompletion,
 } from "@choir/domain";
+import { insertNotificationReceipt } from "./notificationInboxStore";
 
 export interface ComplianceStoreStorage {
   readonly sql: {
@@ -849,4 +850,58 @@ export function advanceComplianceReminder(
     occurredAt,
     taskId,
   );
+}
+
+export interface RecordComplianceInboxNoticesInput {
+  readonly body: string;
+  readonly cycleDueDate: string;
+  readonly destinationPath: string;
+  readonly idempotencyKey: string;
+  readonly occurredAt: string;
+  readonly profileIds: readonly string[];
+  readonly taskId: string;
+  readonly title: string;
+}
+
+export function recordComplianceInboxNoticesInStore(
+  storage: ComplianceStoreStorage,
+  input: RecordComplianceInboxNoticesInput,
+): { readonly recorded: number } {
+  const task = storage.sql
+    .exec<ComplianceTaskRow>(
+      "SELECT * FROM organization_compliance_tasks WHERE id = ? LIMIT 1",
+      input.taskId,
+    )
+    .toArray()
+    .at(0);
+  if (task?.applicable !== 1 || task.archived !== 0 || task.next_due_date !== input.cycleDueDate) {
+    return { recorded: 0 };
+  }
+  if (task.source !== "custom" && !readNonprofitEnabled(storage)) {
+    return { recorded: 0 };
+  }
+
+  let recorded = 0;
+  storage.transactionSync(() => {
+    for (const profileId of input.profileIds) {
+      const profileRow = storage.sql
+        .exec<{ readonly id: string }>("SELECT id FROM profiles WHERE id = ? LIMIT 1", profileId)
+        .toArray()
+        .at(0);
+      if (!profileRow) continue;
+
+      const inserted = insertNotificationReceipt(storage, {
+        body: input.body,
+        destinationPath: input.destinationPath,
+        kind: "compliance",
+        now: input.occurredAt,
+        originalOccurredAt: input.occurredAt,
+        recipientProfileId: profileId,
+        sourceKey: input.idempotencyKey,
+        title: input.title,
+      });
+      if (inserted) recorded += 1;
+    }
+  });
+  return { recorded };
 }

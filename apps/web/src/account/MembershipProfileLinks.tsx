@@ -1,9 +1,10 @@
-import type {
-  CurrentAuthSession,
-  OrganizationAuthStatusResponse,
-  OrganizationInvitationRole,
-  OrganizationMembershipSummary,
-  OrganizationProfile,
+import {
+  organizationProfileRequestSchema,
+  type CurrentAuthSession,
+  type OrganizationAuthStatusResponse,
+  type OrganizationInvitationRole,
+  type OrganizationMembershipSummary,
+  type OrganizationProfile,
 } from "@choir/contracts";
 import { allowedRoleOptionsForActor } from "@choir/domain";
 import { Dialog, DialogClose } from "@choir/ui";
@@ -17,6 +18,7 @@ import {
   listOrganizationProfiles,
   updateOrganizationMemberRole,
 } from "../auth/api";
+import { createOrganizationProfile } from "../api/profiles";
 import { ResolveDuplicateDialog } from "./ResolveDuplicateDialog";
 
 function roleLabel(role: OrganizationInvitationRole): string {
@@ -73,11 +75,21 @@ function ChangeRoleWarnings({
   isDemotingSelfFromOwner,
   isDemotingSelfToMember,
   isPromotingToOwner,
+  isUnlinkedAdminPromotion,
 }: {
   readonly isDemotingSelfFromOwner: boolean;
   readonly isDemotingSelfToMember: boolean;
   readonly isPromotingToOwner: boolean;
+  readonly isUnlinkedAdminPromotion: boolean;
 }) {
+  if (isUnlinkedAdminPromotion) {
+    return (
+      <p className="notice notice--warning" role="alert">
+        A linked Organization Profile is required to assign an Administrator or Owner role. Link a
+        Profile for this member before saving.
+      </p>
+    );
+  }
   if (isPromotingToOwner) {
     return (
       <p className="notice notice--info" role="status">
@@ -125,6 +137,8 @@ function ChangeMemberRoleDialog({
   const isDemotingSelfToMember =
     isSelf && membership.role !== "member" && selectedRole === "member";
   const isDangerAction = isDemotingSelfFromOwner || isDemotingSelfToMember;
+  const isUnlinkedAdminPromotion =
+    !membership.profileId && (selectedRole === "administrator" || selectedRole === "owner");
 
   function handleClose() {
     if (!busy) {
@@ -133,7 +147,7 @@ function ChangeMemberRoleDialog({
   }
 
   async function handleSave() {
-    if (!isDirty || busy) return;
+    if (!isDirty || busy || isUnlinkedAdminPromotion) return;
     setBusy(true);
     setError(null);
     try {
@@ -192,6 +206,7 @@ function ChangeMemberRoleDialog({
           isDemotingSelfFromOwner={isDemotingSelfFromOwner}
           isDemotingSelfToMember={isDemotingSelfToMember}
           isPromotingToOwner={isPromotingToOwner}
+          isUnlinkedAdminPromotion={isUnlinkedAdminPromotion}
         />
 
         <div className="dialog__actions">
@@ -207,7 +222,7 @@ function ChangeMemberRoleDialog({
           </DialogClose>
           <button
             className={`button ${isDangerAction ? "button--danger" : "button--primary"}`}
-            disabled={busy || !isDirty}
+            disabled={busy || !isDirty || isUnlinkedAdminPromotion}
             onClick={() => {
               void handleSave();
             }}
@@ -226,6 +241,7 @@ function MembershipProfileLinkList({
   busyMembershipId,
   currentUserEmail,
   currentUserId,
+  onCreateAndLink,
   onLink,
   onOpenResolveDuplicate,
   onOpenRoleChange,
@@ -237,6 +253,7 @@ function MembershipProfileLinkList({
   readonly busyMembershipId: string | null;
   readonly currentUserEmail?: string | undefined;
   readonly currentUserId?: string | undefined;
+  readonly onCreateAndLink?: (membership: OrganizationMembershipSummary) => void;
   readonly onLink: (membership: OrganizationMembershipSummary) => void;
   readonly onOpenResolveDuplicate?: (membership: OrganizationMembershipSummary) => void;
   readonly onOpenRoleChange: (membership: OrganizationMembershipSummary) => void;
@@ -247,6 +264,9 @@ function MembershipProfileLinkList({
   if (state.memberships.length === 0) {
     return <p className="empty-state">There are no Organization Memberships.</p>;
   }
+  const unlinkedAdmins = state.memberships.filter(
+    (m) => (m.role === "owner" || m.role === "administrator") && !m.profileId,
+  );
   const profileMembership = new Map(
     state.memberships.flatMap((membership) =>
       membership.profileId ? [[membership.profileId, membership.id] as const] : [],
@@ -254,6 +274,30 @@ function MembershipProfileLinkList({
   );
   return (
     <>
+      {unlinkedAdmins.length > 0 ? (
+        <aside
+          aria-label="Administrators without a linked Profile"
+          className="notice notice--warning"
+          role="alert"
+        >
+          <strong>Administrators without a linked Profile</strong>
+          <p>
+            The following administrators do not have a linked Organization Profile and cannot
+            receive administrative notifications or access personal notifications:
+          </p>
+          <ul>
+            {unlinkedAdmins.map((admin) => (
+              <li key={admin.id}>
+                {admin.name} ({admin.email}) — {roleLabel(admin.role)}
+              </li>
+            ))}
+          </ul>
+          <p>
+            Select an existing Profile below and choose Link Profile, or use Create and link to
+            create a roster Profile now.
+          </p>
+        </aside>
+      ) : null}
       <ul className="account-list organization-invitation-list">
         {state.memberships.map((membership) => {
           const isSelf = isSelfMembership(membership, currentUserId, currentUserEmail);
@@ -292,6 +336,21 @@ function MembershipProfileLinkList({
                     type="button"
                   >
                     Resolve duplicate
+                  </button>
+                ) : null}
+                {onCreateAndLink &&
+                !membership.profileId &&
+                (membership.role === "owner" || membership.role === "administrator") ? (
+                  <button
+                    aria-label={`Create and link Profile for ${membership.name}`}
+                    className="button button--secondary button--control-height"
+                    disabled={busyMembershipId !== null}
+                    onClick={() => {
+                      onCreateAndLink(membership);
+                    }}
+                    type="button"
+                  >
+                    {busyMembershipId === membership.id ? "Creating…" : "Create and link"}
                   </button>
                 ) : null}
                 <label className="field">
@@ -468,6 +527,36 @@ export function MembershipProfileLinks({
     }
   }
 
+  async function handleCreateAndLink(membership: OrganizationMembershipSummary) {
+    setBusyMembershipId(membership.id);
+    setMessage(null);
+    try {
+      const created = await createOrganizationProfile(
+        organizationProfileRequestSchema.parse({
+          displayName: membership.name || "Choir Administrator",
+          receiveAdminNotifications: true,
+          receiveFinancialAlerts: true,
+          receiveRsvpDeclineNotices: true,
+          showInDirectory: true,
+        }),
+        membership.email,
+      );
+      await linkOrganizationMembershipProfile(membership.id, created.id);
+      await reloadMembershipLinks();
+      setMessage(`Created and linked Profile for ${membership.email}.`);
+    } catch (error: unknown) {
+      setMessage(
+        error instanceof AuthApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : "The Profile could not be created and linked.",
+      );
+    } finally {
+      setBusyMembershipId(null);
+    }
+  }
+
   function handleRoleUpdated(updatedMembership: OrganizationMembershipSummary, wasSelf: boolean) {
     setState((current) =>
       current.status === "ready"
@@ -510,6 +599,9 @@ export function MembershipProfileLinks({
             busyMembershipId={busyMembershipId}
             currentUserEmail={currentUser?.user.email}
             currentUserId={currentUser?.user.id}
+            onCreateAndLink={(membership) => {
+              void handleCreateAndLink(membership);
+            }}
             onLink={(membership) => {
               void linkProfile(membership);
             }}

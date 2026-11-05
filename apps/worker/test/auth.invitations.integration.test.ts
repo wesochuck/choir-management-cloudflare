@@ -289,6 +289,76 @@ describe("Organization invitations", () => {
     ).resolves.toEqual({ profileId: profile.id });
   });
 
+  it("automatically creates and links a Profile when an administrator accepts an invitation without a matching roster contact", async () => {
+    await seedInvitedUser();
+    await seedInvitationOrganizations();
+    const inviterCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+    const newAdminEmail = "brand.new.admin@example.test";
+    const invitationResponse = await fetchWorker(
+      authRequest(
+        "/api/organization/invitations",
+        {
+          body: JSON.stringify({ email: newAdminEmail, role: "administrator" }),
+          headers: { cookie: inviterCookie },
+          method: "POST",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(invitationResponse.status).toBe(201);
+    const invitation = organizationInvitationResponseSchema.parse(await invitationResponse.json());
+    const invitedCookie = await signInEmail(newAdminEmail, ALPHA_AUTH_ORIGIN);
+
+    const acceptResponse = await fetchWorker(
+      authRequest(
+        `/api/organization/invitations/${encodeURIComponent(invitation.id)}/accept`,
+        { headers: { cookie: invitedCookie }, method: "POST" },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(acceptResponse.status).toBe(200);
+    expect(
+      organizationInvitationActionResponseSchema.parse(await acceptResponse.json()),
+    ).toMatchObject({
+      id: invitation.id,
+      profileLinkStatus: "linked",
+      status: "accepted",
+    });
+
+    const memberRow = await testEnv.CONTROL_DB.prepare(
+      `SELECT member.id, member.role, member.profileId, user.name
+       FROM member
+       JOIN user ON user.id = member.userId
+       WHERE member.organizationId = 'organization-alpha' AND user.email = ? LIMIT 1`,
+    )
+      .bind(newAdminEmail)
+      .first<{ id: string; role: string; profileId: string; name: string }>();
+
+    expect(memberRow).toBeDefined();
+    expect(memberRow?.role).toBe("admin");
+    expect(memberRow?.profileId).toBeTruthy();
+
+    await runInDurableObject<OrganizationStore, undefined>(
+      testEnv.ORGANIZATION_STORE.get(testEnv.ORGANIZATION_STORE.idFromName("organization-alpha")),
+      (_instance, state) => {
+        const rows = state.storage.sql
+          .exec(
+            `SELECT id, display_name AS displayName, receive_admin_notifications AS receiveAdminNotifications,
+                    receive_rsvp_decline_notices AS receiveRsvpDeclineNotices
+             FROM profiles WHERE id = ?`,
+            memberRow?.profileId,
+          )
+          .toArray();
+        expect(rows).toHaveLength(1);
+        expect(rows[0]).toMatchObject({
+          id: memberRow?.profileId,
+          receiveAdminNotifications: 1,
+          receiveRsvpDeclineNotices: 1,
+        });
+      },
+    );
+  });
+
   it("accepts an invitation without linking an archived Profile", async () => {
     await seedInvitedUser();
     await seedInvitationOrganizations();

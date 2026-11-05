@@ -169,6 +169,7 @@ export function registerRoutes(router: Hono<WorkerHonoEnvironment>): void {
         ? new Date(status.value.mfaVerifiedUntil).toISOString()
         : null,
       organizationId,
+      profileLinked: authorization.value.profileLinked,
       requestId: context.get("requestId"),
       role: authorization.value.role,
       twoFactorEnabled: status.value.twoFactorEnabled,

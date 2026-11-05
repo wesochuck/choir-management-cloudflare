@@ -1,5 +1,10 @@
 export type DomainErrorCode =
-  "conflict" | "forbidden" | "not_found" | "unauthorized" | "validation_failed";
+  | "conflict"
+  | "forbidden"
+  | "not_found"
+  | "profile_link_required"
+  | "unauthorized"
+  | "validation_failed";
 
 export { sortMusicMovements, expandMusicSelections } from "./musicMovementOrder";
 

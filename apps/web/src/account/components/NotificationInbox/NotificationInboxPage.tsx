@@ -11,6 +11,8 @@ const FILTER_TABS: readonly { readonly id: NotificationFilter; readonly label: s
   { id: "audition", label: "Auditions" },
   { id: "ticket_sale", label: "Ticket sales" },
   { id: "donation", label: "Donations" },
+  { id: "rsvp_decline", label: "RSVP declines" },
+  { id: "compliance", label: "Compliance" },
 ];
 
 export function NotificationInboxPage({
@@ -90,7 +92,8 @@ export function NotificationInboxPage({
         <div>
           <h1 className="page-header__title">Notifications</h1>
           <p className="page-header__description">
-            Personal alerts for audition inquiries, ticket sales, and donations.
+            Personal alerts for audition inquiries, ticket sales, donations, RSVP declines, and
+            compliance.
           </p>
         </div>
         {unreadCount > 0 ? (

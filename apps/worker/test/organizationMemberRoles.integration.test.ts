@@ -71,8 +71,8 @@ describe("PUT /api/organization/members/:membershipId/role", () => {
        VALUES ('user-target', 'Target User', 'target@example.test', 1, 0, 0)`,
     ).run();
     await testEnv.CONTROL_DB.prepare(
-      `INSERT INTO member (id, organizationId, userId, role, createdAt)
-       VALUES ('member-target', 'organization-alpha', 'user-target', 'member', 0)`,
+      `INSERT INTO member (id, organizationId, userId, role, profileId, createdAt)
+       VALUES ('member-target', 'organization-alpha', 'user-target', 'member', 'profile-target', 0)`,
     ).run();
 
     const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
@@ -167,8 +167,8 @@ describe("PUT /api/organization/members/:membershipId/role", () => {
        VALUES ('user-second-owner', 'Second Owner', 'second.owner@example.test', 1, 0, 0)`,
     ).run();
     await testEnv.CONTROL_DB.prepare(
-      `INSERT INTO member (id, organizationId, userId, role, createdAt)
-       VALUES ('member-second-owner', 'organization-alpha', 'user-second-owner', 'owner', 0)`,
+      `INSERT INTO member (id, organizationId, userId, role, profileId, createdAt)
+       VALUES ('member-second-owner', 'organization-alpha', 'user-second-owner', 'owner', 'profile-second-owner', 0)`,
     ).run();
 
     const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
@@ -336,5 +336,41 @@ describe("PUT /api/organization/members/:membershipId/role", () => {
       ),
     );
     expect(response.status).toBe(404);
+  });
+
+  it("rejects promoting an unlinked member to administrator with 409 profile_link_required", async () => {
+    await seedInvitedUser();
+    await seedOrganizations();
+
+    await testEnv.CONTROL_DB.prepare("UPDATE member SET role = 'owner' WHERE userId = ?")
+      .bind("user-invited-member")
+      .run();
+
+    await testEnv.CONTROL_DB.prepare(
+      `INSERT INTO user (id, name, email, emailVerified, createdAt, updatedAt)
+       VALUES ('user-unlinked', 'Unlinked User', 'unlinked@example.test', 1, 0, 0)`,
+    ).run();
+    await testEnv.CONTROL_DB.prepare(
+      `INSERT INTO member (id, organizationId, userId, role, profileId, createdAt)
+       VALUES ('member-unlinked', 'organization-alpha', 'user-unlinked', 'member', NULL, 0)`,
+    ).run();
+
+    const sessionCookie = await signInInvitedUser(ALPHA_AUTH_ORIGIN);
+
+    const response = await fetchWorker(
+      authRequest(
+        "/api/organization/members/member-unlinked/role",
+        {
+          body: JSON.stringify({ expectedRole: "member", role: "administrator" }),
+          headers: { cookie: sessionCookie },
+          method: "PUT",
+        },
+        ALPHA_AUTH_ORIGIN,
+      ),
+    );
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "profile_link_required",
+    });
   });
 });

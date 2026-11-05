@@ -208,6 +208,7 @@ export function buildAuthStatus(
     mfaSatisfiedBy,
     mfaVerifiedUntil,
     organizationId: organizationAlphaId,
+    profileLinked: overrides.profileLinked ?? true,
     requestId: "55555555-5555-4555-8555-555555555555",
     role: "administrator",
     twoFactorEnabled: false,
