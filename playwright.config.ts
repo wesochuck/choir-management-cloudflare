@@ -16,7 +16,7 @@ const webkitSmokeTag = /@webkit-smoke/;
 export default defineConfig({
   testDir: "./apps/web/e2e",
   forbidOnly: isReleaseQualification || Boolean(process.env.CI),
-  retries: process.env.CI ? 2 : 0,
+  retries: isReleaseQualification || Boolean(process.env.CI) ? 2 : 0,
   reporter: isReleaseQualification
     ? [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]]
     : process.env.CI

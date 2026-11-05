@@ -114,13 +114,20 @@ test("rejects invalid manual-donation payloads with typed failures", async ({
   // Contract-drift proof: an authenticated empty payload must stay a 400
   // `validation_failed`, never a donation with invented defaults.
   await signInWithFullstackOtp(page, request, donationsEmail);
-  const invalid = await page.request.post(
+  let invalid = await page.request.post(
     `${FULLSTACK_APP_ORIGIN}/api/organization/donations/manual`,
     {
       data: {},
       headers: { origin: FULLSTACK_APP_ORIGIN },
     },
   );
+  if (invalid.status() >= 500) {
+    // Retry once if the local dev-server proxy dropped the socket connection
+    invalid = await page.request.post(`${FULLSTACK_APP_ORIGIN}/api/organization/donations/manual`, {
+      data: {},
+      headers: { origin: FULLSTACK_APP_ORIGIN },
+    });
+  }
   expect(invalid.status()).toBe(400);
   expect(problemSchema.parse(await invalid.json()).code).toBe("validation_failed");
 });

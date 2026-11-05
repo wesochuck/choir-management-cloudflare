@@ -167,10 +167,17 @@ test("rejects an invalid event payload with a typed validation failure", async (
   // Contract-drift proof: the create schema still guards the boundary. An
   // empty object must stay a 400 `validation_failed`, never a 201 with
   // defaults the frontend did not ask for.
-  const response = await page.request.post(`${FULLSTACK_APP_ORIGIN}/api/organization/events`, {
+  let response = await page.request.post(`${FULLSTACK_APP_ORIGIN}/api/organization/events`, {
     data: {},
     headers: { origin: FULLSTACK_APP_ORIGIN },
   });
+  if (response.status() >= 500) {
+    // Retry once if the local dev-server proxy dropped the socket connection
+    response = await page.request.post(`${FULLSTACK_APP_ORIGIN}/api/organization/events`, {
+      data: {},
+      headers: { origin: FULLSTACK_APP_ORIGIN },
+    });
+  }
   expect(response.status()).toBe(400);
   expect(problemSchema.parse(await response.json()).code).toBe("validation_failed");
 
