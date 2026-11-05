@@ -5,6 +5,7 @@ import type {
   OrganizationAuditionSettings,
   OrganizationVenue,
 } from "@choir/contracts";
+import { formatTimezoneName } from "@choir/domain";
 import { Dialog } from "@choir/ui";
 import { AuthApiError, createOrganizationVenue } from "../../../../auth/api";
 import { usePersistedDraft } from "../../../../persistence";
@@ -102,7 +103,9 @@ export function SettingsForm({
     const startsAt = slotUtcValue(slotDate, slotStart, timezone);
     const endsAt = slotUtcValue(slotDate, slotEnd, timezone);
     if (!startsAt || !endsAt || startsAt >= endsAt) {
-      setSlotError(`Enter a valid start and end time in ${timezone}.`);
+      setSlotError(
+        `Enter a valid start and end time in ${formatTimezoneName(timezone, slotDate || undefined)}.`,
+      );
       return;
     }
     setDraft((current) => ({
@@ -132,7 +135,9 @@ export function SettingsForm({
       intervalMinutes < 5 ||
       intervalMinutes > 240
     ) {
-      setSlotError(`Enter a valid date, time range, and interval in ${timezone}.`);
+      setSlotError(
+        `Enter a valid date, time range, and interval in ${formatTimezoneName(timezone, slotDate || undefined)}.`,
+      );
       return;
     }
     const slots: { endsAt: string; id: string; startsAt: string }[] = [];

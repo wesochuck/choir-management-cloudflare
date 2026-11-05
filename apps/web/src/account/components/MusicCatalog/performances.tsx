@@ -7,7 +7,7 @@ import type {
   OrganizationRosterConfiguration,
   OrganizationVenue,
 } from "@choir/contracts";
-import { calculateRsvpDeadline, zonedLocalDateTimeToUtc } from "@choir/domain";
+import { calculateRsvpDeadline, formatTimezoneName, zonedLocalDateTimeToUtc } from "@choir/domain";
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { AuthApiError, createOrganizationEvent, updateOrganizationEvent } from "../../../auth/api";
 import { InlinePracticeTrackPlayer } from "../../InlinePracticeTrackPlayer";
@@ -205,7 +205,9 @@ export function MusicPiecePerformances({
       {showQuickAdd ? (
         <div className="music-piece-quick-performance">
           <h3>Quick add historic performance</h3>
-          <p className="field-help">Times are entered in {timezone}.</p>
+          <p className="field-help">
+            Times are entered in {formatTimezoneName(timezone, quickDate || undefined)}.
+          </p>
           <label className="field">
             Performance title
             <input

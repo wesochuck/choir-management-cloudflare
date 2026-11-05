@@ -1360,7 +1360,7 @@ test("shows upcoming automation previews in both themes without viewport overflo
     await handleRoute(route, []);
   });
   await page.goto("/admin/communications?status=scheduled");
-  await expect(page.getByText(/Scheduled for.*America\/New_York/)).toBeVisible();
+  await expect(page.getByText(/Scheduled for.*Eastern (Standard|Daylight) Time/)).toBeVisible();
   await expect(page.getByText(/Automation preview. Recipients/)).toBeVisible();
   await expect(page.getByRole("link", { name: "View event" })).toHaveAttribute(
     "href",

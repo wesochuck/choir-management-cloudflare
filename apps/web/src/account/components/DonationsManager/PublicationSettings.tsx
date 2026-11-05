@@ -1,4 +1,5 @@
 import type { DonationPublication } from "@choir/contracts";
+import { formatTimezoneName } from "@choir/domain";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useConfirmation } from "@choir/ui";
@@ -143,8 +144,14 @@ export function PublicationSettings() {
         </label>
         <p className="field-help">
           Dates remain open through 11:59 p.m. in{" "}
-          {query.data.current?.timezone ?? "the Organization timezone"}. Extending a date
-          reevaluates late flags. Moving it earlier preserves submissions that were already on time.
+          {query.data.current?.timezone
+            ? formatTimezoneName(
+                query.data.current.timezone,
+                draft.recognitionDate || draft.artworkDate,
+              )
+            : "the Organization timezone"}
+          . Extending a date reevaluates late flags. Moving it earlier preserves submissions that
+          were already on time.
         </p>
         {error ? (
           <p role="alert" className="notice notice--error">

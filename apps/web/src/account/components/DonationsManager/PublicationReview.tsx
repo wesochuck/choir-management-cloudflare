@@ -1,4 +1,5 @@
 import { donationStatusDisplay } from "./types";
+import { formatTimezoneName } from "@choir/domain";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { DataTable, useConfirmation, type DataTableColumn } from "@choir/ui";
@@ -101,7 +102,11 @@ export function PublicationReview() {
               {d.publicationContext.publication.artworkDate ? (
                 <span>Artwork deadline: {d.publicationContext.publication.artworkDate}. </span>
               ) : null}
-              {d.publicationContext.publication.timezone}
+              {formatTimezoneName(
+                d.publicationContext.publication.timezone,
+                d.publicationContext.publication.recognitionDate ??
+                  d.publicationContext.publication.artworkDate,
+              )}
             </div>
           ) : null}
         </div>

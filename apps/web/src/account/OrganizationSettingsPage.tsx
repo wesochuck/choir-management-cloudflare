@@ -21,7 +21,7 @@ import type {
   OrganizationPaymentSettingsResponse,
   TransactionFeeSettings,
 } from "@choir/contracts";
-import { transactionProcessingFeeCents } from "@choir/domain";
+import { formatTimezoneOption, transactionProcessingFeeCents } from "@choir/domain";
 import { Tabs, TabsContent, TabsList, TabsTrigger, useConfirmation } from "@choir/ui";
 import { useNavigationGuard, usePersistedDraft } from "../persistence";
 
@@ -688,11 +688,11 @@ export function OrganizationSettingsPage({ enabled }: { readonly enabled: boolea
                   value={timezone}
                 >
                   {!timeZoneOptions.includes(timezone) ? (
-                    <option value={timezone}>{timezone}</option>
+                    <option value={timezone}>{formatTimezoneOption(timezone)}</option>
                   ) : null}
                   {timeZoneOptions.map((zone) => (
                     <option key={zone} value={zone}>
-                      {zone}
+                      {formatTimezoneOption(zone)}
                     </option>
                   ))}
                 </select>

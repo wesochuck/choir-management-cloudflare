@@ -1,5 +1,9 @@
 import type { OrganizationEvent, OrganizationEventRequest } from "@choir/contracts";
-import { utcToZonedLocalDateTime, zonedLocalDateTimeToUtc } from "@choir/domain";
+import {
+  formatTimezoneName,
+  utcToZonedLocalDateTime,
+  zonedLocalDateTimeToUtc,
+} from "@choir/domain";
 import type { EventsState } from "./types";
 
 export const emptyEvent: OrganizationEventRequest = {
@@ -117,7 +121,7 @@ export function currencyCentsFromDraft(value: string): number {
 
 export function eventDialogDescription(state: EventsState): string {
   return state.status === "ready"
-    ? `Times are entered in ${state.timezone}.`
+    ? `Times are entered in ${formatTimezoneName(state.timezone)}.`
     : "Create or update an Organization event.";
 }
 

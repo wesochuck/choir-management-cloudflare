@@ -87,3 +87,87 @@ export function zonedLocalDateTimeToUtc(value: string, timezone: string): string
     ? result.toISOString()
     : null;
 }
+
+function parseDateStringInstant(date: string, timezone: string): Date | null {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const utcInstant = zonedLocalDateTimeToUtc(`${date}T12:00`, timezone);
+    return utcInstant ? new Date(utcInstant) : new Date(`${date}T12:00:00Z`);
+  }
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(date)) {
+    const normalized = date.length === 16 ? date : date.slice(0, 16);
+    const utcInstant = zonedLocalDateTimeToUtc(normalized, timezone);
+    return utcInstant ? new Date(utcInstant) : new Date(date);
+  }
+  const parsed = new Date(date);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function resolveTargetDate(
+  date: Date | string | number | null | undefined,
+  timezone: string,
+): Date | null {
+  if (date == null || date === "") return null;
+  if (typeof date === "string") return parseDateStringInstant(date, timezone);
+  const parsed = date instanceof Date ? date : new Date(date);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+function extractTimeZonePart(format: Intl.DateTimeFormat, date: Date): string | null {
+  try {
+    return format.formatToParts(date).find((part) => part.type === "timeZoneName")?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function formatGenericTimezoneName(timezone: string): string {
+  const now = new Date();
+  try {
+    const generic = extractTimeZonePart(
+      new Intl.DateTimeFormat("en-US", { timeZone: timezone, timeZoneName: "longGeneric" }),
+      now,
+    );
+    if (generic && !generic.startsWith("GMT")) return generic;
+  } catch {
+    // Fall through
+  }
+  try {
+    const seasonal = extractTimeZonePart(
+      new Intl.DateTimeFormat("en-US", { timeZone: timezone, timeZoneName: "long" }),
+      now,
+    );
+    if (seasonal) return seasonal;
+  } catch {
+    // Fall through
+  }
+  return timezone;
+}
+
+export function formatTimezoneName(timezone: string, date?: Date | string | number | null): string {
+  if (!isValidTimeZone(timezone)) return timezone;
+  if (timezone === "UTC") return "UTC";
+
+  const targetDate = resolveTargetDate(date, timezone);
+  if (targetDate) {
+    try {
+      const named = extractTimeZonePart(
+        new Intl.DateTimeFormat("en-US", { timeZone: timezone, timeZoneName: "long" }),
+        targetDate,
+      );
+      if (named) return named;
+    } catch {
+      // Fall through
+    }
+  }
+
+  return formatGenericTimezoneName(timezone);
+}
+
+export function formatTimezoneOption(timezone: string): string {
+  if (timezone === "UTC") return "UTC";
+  const name = formatTimezoneName(timezone);
+  if (name && name !== timezone) {
+    return `${timezone} (${name})`;
+  }
+  return timezone;
+}

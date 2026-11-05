@@ -1,4 +1,4 @@
-import { zonedLocalDateTimeToUtc } from "@choir/domain";
+import { formatTimezoneName, zonedLocalDateTimeToUtc } from "@choir/domain";
 
 export function dayOfPriceStartLabel(localStart: string, timezone: string): string | null {
   const localDate = localStart.slice(0, 10);
@@ -10,5 +10,6 @@ export function dayOfPriceStartLabel(localStart: string, timezone: string): stri
     timeStyle: "short",
     timeZone: timezone,
   }).format(new Date(midnight));
-  return `Advance pricing applies before ${formatted}; day-of pricing starts then (${timezone}). Ticket sales open as soon as this performance is published.`;
+  const tzLabel = formatTimezoneName(timezone, midnight);
+  return `Advance pricing applies before ${formatted}; day-of pricing starts then (${tzLabel}). Ticket sales open as soon as this performance is published.`;
 }

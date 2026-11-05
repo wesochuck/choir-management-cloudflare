@@ -37,6 +37,8 @@ export {
 
 export {
   datePartInTimeZone,
+  formatTimezoneName,
+  formatTimezoneOption,
   isValidTimeZone,
   utcToZonedLocalDateTime,
   zonedLocalDateTimeToUtc,

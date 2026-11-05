@@ -1,4 +1,5 @@
 import type { OrganizationEventRequest } from "@choir/contracts";
+import { formatTimezoneName } from "@choir/domain";
 import { DialogClose } from "@choir/ui";
 
 export function EventEditorHeader({
@@ -33,7 +34,9 @@ export function EventEditorHeader({
           </h2>
           <p className="event-editor-header__subtext">
             {eventStart ? eventStart.replace("T", " · ") : "No start time yet"}
-            {timezoneLabel ? ` · ${timezoneLabel}` : ""}
+            {timezoneLabel
+              ? ` · ${formatTimezoneName(timezoneLabel, eventStart || undefined)}`
+              : ""}
           </p>
         </div>
       </div>

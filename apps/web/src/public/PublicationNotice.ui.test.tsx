@@ -21,13 +21,42 @@ describe("publication notices", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2024-03-09T12:00:00Z"));
     render(<PublicationNotice publication={publication} artwork />);
-    expect(screen.getByText(/complete your donation by 2024-03-10/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /complete your donation by 2024-03-10 at 11:59 p\.m\. \(Eastern Daylight Time\)/,
+      ),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         /You can still submit artwork, but inclusion in Holiday is no longer guaranteed/,
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("displays Eastern Standard Time for deadlines in standard time", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2024-01-01T12:00:00Z"));
+    render(
+      <PublicationNotice
+        publication={{
+          ...publication,
+          recognitionDate: "2024-01-15",
+          artworkDate: "2024-01-20",
+        }}
+        artwork
+      />,
+    );
+    expect(
+      screen.getByText(
+        /complete your donation by 2024-01-15 at 11:59 p\.m\. \(Eastern Standard Time\)/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Submit program-ad artwork by 2024-01-20 at 11:59 p\.m\. \(Eastern Standard Time\)/,
+      ),
+    ).toBeInTheDocument();
   });
   it("does not expose the donor name for anonymous gifts", () => {
     render(<PublicationNotice publication={publication} anonymous />);

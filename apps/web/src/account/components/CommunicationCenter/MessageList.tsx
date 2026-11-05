@@ -1,4 +1,5 @@
 import type { CommunicationDeliverySummary, CommunicationMessage } from "@choir/contracts";
+import { formatTimezoneName } from "@choir/domain";
 import { CommunicationDeliveryDetails } from "./CommunicationDeliveryDetails";
 import type { MessageOriginFilter, MessageStatusFilter, UnifiedCommunicationItem } from "./types";
 import {
@@ -202,11 +203,12 @@ function MessageTimestamp({ item }: { readonly item: UnifiedCommunicationItem })
         timeZone: timezone,
       }).format(new Date(item.timestamp))
     : displayDate(item.timestamp);
+  const tzLabel = timezone ? formatTimezoneName(timezone, item.timestamp) : "";
   return (
     <span>
       {item.status === "Scheduled" ? "Scheduled for " : ""}
       {date}
-      {timezone ? ` (${timezone})` : ""}
+      {tzLabel ? ` (${tzLabel})` : ""}
     </span>
   );
 }

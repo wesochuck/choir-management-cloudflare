@@ -4,7 +4,11 @@ import type {
   OrganizationMusicPiece,
   OrganizationVenue,
 } from "@choir/contracts";
-import { selectDefaultPerformance, zonedLocalDateTimeToUtc } from "@choir/domain";
+import {
+  formatTimezoneName,
+  selectDefaultPerformance,
+  zonedLocalDateTimeToUtc,
+} from "@choir/domain";
 import { Dialog, DialogClose } from "@choir/ui";
 import { useMemo, useState } from "react";
 import { performanceDateLabel } from "./tableUtils";
@@ -202,7 +206,9 @@ export function AddToSetListDialog({
                     setNewDate(event.target.value);
                   }}
                 />
-                <span className="field-help">Time in {timezone}</span>
+                <span className="field-help">
+                  Time in {formatTimezoneName(timezone, newDate || undefined)}
+                </span>
               </label>
               <label className="field">
                 Venue *

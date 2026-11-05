@@ -377,7 +377,7 @@ it("labels upcoming ticket reminder previews with the Organization timezone and 
       ]}
     />,
   );
-  expect(screen.getByText(/Scheduled for.*America\/New_York/)).toBeVisible();
+  expect(screen.getByText(/Scheduled for.*Eastern (Standard|Daylight) Time/)).toBeVisible();
   expect(screen.getByText(/Automation preview. Recipients/)).toBeVisible();
   expect(screen.getByText("15 ticket purchases")).toBeVisible();
   expect(screen.getByText(/next 90 days/)).toBeVisible();

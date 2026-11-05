@@ -1,5 +1,6 @@
 import { UnusualTimeInput } from "../../../../shared/UnusualTimeInput";
 import type { OrganizationEventRequest, OrganizationVenue } from "@choir/contracts";
+import { formatTimezoneName } from "@choir/domain";
 import { TabsContent } from "@choir/ui";
 import type { Dispatch, SetStateAction } from "react";
 
@@ -172,6 +173,11 @@ function ScheduleTimingFields({
   );
 }
 
+function schedulePanelDescription(timezoneLabel: string | null, eventStart: string): string {
+  if (!timezoneLabel) return "Configure the event's timing and location.";
+  return `Configure the event's timing and location. Times use ${formatTimezoneName(timezoneLabel, eventStart)}.`;
+}
+
 export function ScheduleSection({
   busy,
   event,
@@ -233,8 +239,7 @@ export function ScheduleSection({
           </span>
         </div>
         <p className="event-editor-panel__description">
-          Configure the event&apos;s timing and location.
-          {timezoneLabel ? ` Times use ${timezoneLabel}.` : ""}
+          {schedulePanelDescription(timezoneLabel, eventStart)}
         </p>
       </div>
       <ScheduleTimingFields

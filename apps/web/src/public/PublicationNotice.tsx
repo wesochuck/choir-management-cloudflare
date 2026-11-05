@@ -1,5 +1,5 @@
 import type { DonationPublication, DonationPublicationContext } from "@choir/contracts";
-import { rsvpDeadlineFromDate } from "@choir/domain";
+import { formatTimezoneName, rsvpDeadlineFromDate } from "@choir/domain";
 import { useEffect, useState } from "react";
 
 function deadlinePassed(date: string | null, timezone: string, now: number) {
@@ -22,7 +22,9 @@ function recognitionCopy(
     : deadlinePassed(p.recognitionDate, p.timezone, now);
   if (late)
     return `The name-recognition cutoff has passed. Your donation is welcome, but inclusion of your name in ${p.name} is no longer guaranteed.`;
-  return `For name recognition, complete your donation by ${p.recognitionDate} at 11:59 p.m. (${p.timezone}).`;
+  const deadlineAt = rsvpDeadlineFromDate(p.recognitionDate, p.timezone)?.deadlineAt;
+  const tzName = formatTimezoneName(p.timezone, deadlineAt ?? p.recognitionDate);
+  return `For name recognition, complete your donation by ${p.recognitionDate} at 11:59 p.m. (${tzName}).`;
 }
 function artworkCopy(
   p: DonationPublication,
@@ -36,7 +38,9 @@ function artworkCopy(
     context?.artworkStatus === "after_cutoff" || deadlinePassed(p.artworkDate, p.timezone, now);
   if (late)
     return `The artwork deadline has passed. You can still submit artwork, but inclusion in ${p.name} is no longer guaranteed.`;
-  return `Submit program-ad artwork by ${p.artworkDate} at 11:59 p.m. (${p.timezone}).`;
+  const deadlineAt = rsvpDeadlineFromDate(p.artworkDate, p.timezone)?.deadlineAt;
+  const tzName = formatTimezoneName(p.timezone, deadlineAt ?? p.artworkDate);
+  return `Submit program-ad artwork by ${p.artworkDate} at 11:59 p.m. (${tzName}).`;
 }
 export function PublicationNotice({
   publication,

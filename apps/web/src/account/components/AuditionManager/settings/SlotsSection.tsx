@@ -1,5 +1,6 @@
 import { UnusualTimeInput } from "../../../../shared/UnusualTimeInput";
 import type { OrganizationAuditionSettings } from "@choir/contracts";
+import { formatTimezoneName } from "@choir/domain";
 import { dateInputStateValue, formatDate, timeInputStateValue } from "../utils";
 
 export function AuditionSlotsSection({
@@ -89,7 +90,8 @@ export function AuditionSlotsSection({
       </div>
       <p className="field-help">
         Use the clock controls to choose a time. New slot ranges start at 6:00 PM and end at 8:00 PM
-        in {timezone}; adjust them before generating or adding slots.
+        in {formatTimezoneName(timezone, slotDate || undefined)}; adjust them before generating or
+        adding slots.
       </p>
       {slotError ? (
         <p className="notice notice--error" role="alert">
