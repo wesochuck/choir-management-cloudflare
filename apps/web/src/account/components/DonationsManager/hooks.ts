@@ -209,9 +209,10 @@ export function useDonationLevels({
       includesProgramAd: levelIncludesProgramAd,
       label: levelLabel.trim(),
     };
-    const levels = editingLevelId
+    const nextLevels = editingLevelId
       ? settings.levels.map((candidate) => (candidate.id === editingLevelId ? level : candidate))
       : [...settings.levels, level];
+    const levels = [...nextLevels].sort((a, b) => a.amountCents - b.amountCents);
     setBusy(true);
     setMessage(null);
     try {

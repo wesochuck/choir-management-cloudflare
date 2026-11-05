@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { DonationLevel, DonationSettings } from "@choir/contracts";
 
 import { money, type DonationSettingsState } from "./types";
@@ -15,6 +16,11 @@ export function DonationLevelsTab({
   readonly newLevel: () => void;
   readonly settingsState: DonationSettingsState;
 }) {
+  const sortedLevels = useMemo(() => {
+    if (settingsState.status !== "ready") return [];
+    return [...settingsState.settings.levels].sort((a, b) => a.amountCents - b.amountCents);
+  }, [settingsState]);
+
   if (settingsState.status === "loading") return <p>Loading donation settings…</p>;
   if (settingsState.status === "error") {
     return <p className="notice notice--error">Donation settings could not be loaded.</p>;
@@ -28,7 +34,7 @@ export function DonationLevelsTab({
         </button>
       </div>
       <p>Suggested amounts and benefits appear on the public donation page.</p>
-      {settingsState.settings.levels.length === 0 ? (
+      {sortedLevels.length === 0 ? (
         <div className="empty-state">
           <p>No donor levels configured yet.</p>
           <button className="button button--primary" onClick={newLevel} type="button">
@@ -36,7 +42,7 @@ export function DonationLevelsTab({
           </button>
         </div>
       ) : null}
-      {settingsState.settings.levels.length > 0 ? (
+      {sortedLevels.length > 0 ? (
         <div className="table-scroll donation-level-table-scroll">
           <table className="data-table donation-level-table table--actions">
             <thead>
@@ -49,7 +55,7 @@ export function DonationLevelsTab({
               </tr>
             </thead>
             <tbody>
-              {settingsState.settings.levels.map((level) => (
+              {sortedLevels.map((level) => (
                 <tr key={level.id}>
                   <th scope="row">{level.label}</th>
                   <td>{money(level.amountCents)}</td>

@@ -37,7 +37,11 @@ export function storedDonationSettings(storage: DurableObjectStorage): DonationS
     if (raw) {
       const parsed = donationSettingsSchema.safeParse(JSON.parse(raw));
       if (parsed.success)
-        return { ...parsed.data, publication: currentDonationPublication(storage) };
+        return {
+          ...parsed.data,
+          levels: [...parsed.data.levels].sort((a, b) => a.amountCents - b.amountCents),
+          publication: currentDonationPublication(storage),
+        };
     }
   } catch {
     // Keep existing Organizations usable if the setting predates this feature.
@@ -77,10 +81,14 @@ export function updateDonationSettingsInStore(
     return Response.json({ code: "organization_identity_conflict" }, { status: 409 });
   }
   const now = new Date().toISOString();
+  const sortedSettings: DonationSettings = {
+    ...settings,
+    levels: [...settings.levels].sort((a, b) => a.amountCents - b.amountCents),
+  };
   storage.transactionSync(() => {
     storage.sql.exec(
       "UPDATE organization_metadata SET donation_settings_json = ?, updated_at = ?",
-      JSON.stringify(settings),
+      JSON.stringify(sortedSettings),
       now,
     );
     storage.sql.exec(
@@ -93,9 +101,9 @@ export function updateDonationSettingsInStore(
       actor.actorUserId,
       organizationId,
       actor.requestId,
-      JSON.stringify({ levelCount: settings.levels.length }),
+      JSON.stringify({ levelCount: sortedSettings.levels.length }),
       now,
     );
   });
-  return Response.json(settings);
+  return Response.json(sortedSettings);
 }

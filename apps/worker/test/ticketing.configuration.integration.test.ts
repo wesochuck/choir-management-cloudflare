@@ -38,6 +38,12 @@ describe("Organization ticketing configuration", () => {
           id: "community-friend",
           label: "Community friend",
         },
+        {
+          amountCents: 2_500,
+          benefit: "Supporter sticker",
+          id: "donor-friend",
+          label: "Donor friend",
+        },
       ],
     };
     const saved = donationSettingsResponseSchema.parse(
@@ -51,14 +57,18 @@ describe("Organization ticketing configuration", () => {
         )
       ).json(),
     );
-    expect(saved).toMatchObject(updated);
+    expect(saved.buttonText).toBe(updated.buttonText);
+    expect(saved.description).toBe(updated.description);
+    expect(saved.levels.map((level) => level.amountCents)).toEqual([2_500, 7_500]);
 
     const publicSettings = donationSettingsResponseSchema.parse(
       await (
         await exports.default.fetch(api("tickets.example.test", "/api/public/donation-settings"))
       ).json(),
     );
-    expect(publicSettings).toMatchObject(updated);
+    expect(publicSettings.buttonText).toBe(updated.buttonText);
+    expect(publicSettings.description).toBe(updated.description);
+    expect(publicSettings.levels.map((level) => level.amountCents)).toEqual([2_500, 7_500]);
   });
 
   it("persists transaction fees and serves them on the public Organization host", async () => {

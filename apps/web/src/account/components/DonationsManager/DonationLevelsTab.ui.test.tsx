@@ -116,4 +116,65 @@ describe("DonationLevelsTab and DonationLevelDialog", () => {
     fireEvent.change(instructionsTextarea, { target: { value: "Updated specs" } });
     expect(setLevelArtworkInstructions).toHaveBeenCalledWith("Updated specs");
   });
+
+  it("automatically sorts donor levels by amount from lowest to highest", () => {
+    const editLevel = vi.fn();
+    const deleteLevel = vi.fn();
+    const newLevel = vi.fn();
+
+    render(
+      <DonationLevelsTab
+        busy={false}
+        deleteLevel={deleteLevel}
+        editLevel={editLevel}
+        newLevel={newLevel}
+        settingsState={{
+          settings: {
+            buttonText: "Donate",
+            description: "Support our choir.",
+            levels: [
+              {
+                amountCents: 25000,
+                artworkInstructions: "",
+                benefit: "Invitation to VIP reception",
+                id: "lvl-benefactor",
+                includesProgramAd: false,
+                label: "Benefactor",
+              },
+              {
+                amountCents: 1,
+                artworkInstructions: "",
+                benefit: "No benefit specified",
+                id: "lvl-penny",
+                includesProgramAd: false,
+                label: "Penny Supporter",
+              },
+              {
+                amountCents: 5000,
+                artworkInstructions: "",
+                benefit: "Mention in program",
+                id: "lvl-supporter",
+                includesProgramAd: false,
+                label: "Supporter",
+              },
+              {
+                amountCents: 2500,
+                artworkInstructions: "",
+                benefit: "Mention in program",
+                id: "lvl-friend",
+                includesProgramAd: false,
+                label: "Friend",
+              },
+            ],
+            thankYouMessage: "Thank you!",
+          },
+          status: "ready",
+        }}
+      />,
+    );
+
+    const rows = screen.getAllByRole("row");
+    const levelHeaders = rows.slice(1).map((row) => row.querySelector("th")?.textContent);
+    expect(levelHeaders).toEqual(["Penny Supporter", "Friend", "Supporter", "Benefactor"]);
+  });
 });
